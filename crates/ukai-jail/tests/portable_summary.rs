@@ -234,6 +234,54 @@ impl Fixture {
         )
     }
 
+    /// A write-class result outside every known root: a digest, unnamed.
+    fn outside_write(&mut self) -> &mut Self {
+        self.audit(
+            "fs.create",
+            true,
+            json!({"path": {
+                "kind": "digest",
+                "digest": format!("sha256:{}", "e".repeat(64)),
+                "reason": "outside_known_roots",
+            }}),
+        )
+    }
+
+    /// A write below the agent's vendor state: a digest with its own reason,
+    /// which is not an unnamed workspace path (§4.2).
+    fn vendor_state_write(&mut self) -> &mut Self {
+        self.audit(
+            "fs.create",
+            true,
+            json!({"path": {
+                "kind": "digest",
+                "digest": format!("sha256:{}", "f".repeat(64)),
+                "reason": "vendor_state",
+            }}),
+        )
+    }
+
+    /// Claude Code's atomic write: a temporary file opened through
+    /// `/proc/self/fd/<N>/`, which the observer named by the kernel's own
+    /// resolution, then renamed to its final name through the same
+    /// descriptor, which stays relative to it.
+    fn descriptor_write(&mut self, temporary: &str) -> &mut Self {
+        self.audit(
+            "fs.create",
+            true,
+            json!({"path": Self::named(temporary), "path_dirfd": 14}),
+        );
+        if let Some(event) = self.events.last_mut() {
+            event["fields"]["path_basis"] = json!("descriptor_link");
+        }
+        let through = json!({"kind": "unavailable", "reason": "relative_to_dirfd"});
+        self.audit(
+            "fs.rename",
+            true,
+            json!({"path": through, "path2": through, "path_dirfd": 14, "path2_dirfd": 14}),
+        )
+    }
+
     /// A refused write outside every known root: a digest, never a name.
     fn refused_write(&mut self) -> &mut Self {
         self.audit(
@@ -464,6 +512,50 @@ fn k45_a_clean_settled_run() {
         ],
     );
     assert_eq!(summary.receipt_digest, Some(digest(&fixture.receipt)));
+}
+
+/// Claude Code (2.1.302, Bun) writes a workspace file as a temporary file
+/// opened through `/proc/self/fd/<N>/` and renamed through the same
+/// descriptor, and keeps its own state in vendor state. The open is named
+/// (the kernel's resolution), the rename stays unnamed, the vendor-state
+/// writes are not unnamed workspace paths, and a write outside every root
+/// still is.
+#[test]
+fn k45_writes_through_a_descriptor_and_into_vendor_state() {
+    let mut fixture = Fixture::agent();
+    fixture.lifecycle("prepared").at(2_000_000_000);
+    fixture.lifecycle("exec_confirmed");
+    fixture.exec();
+    for _ in 0..40 {
+        fixture.vendor_state_write();
+    }
+    fixture
+        .descriptor_write("greeting.txt.tmp.2.ab0417c1c039")
+        .outside_write();
+    for _ in 0..4 {
+        fixture.proxy(Some("api.example.test:443"), true, true, "relayed", &[]);
+    }
+    fixture.exit();
+    fixture.sync();
+    fixture.at(5_700_000_000);
+    let summary = fixture.summary();
+    assert_eq!(summary.journal, JournalState::Complete);
+    assert_lines(
+        &summary,
+        &[
+            "settled · exited 0 · 3.7s exec→settled · survivors: none (verified)",
+            "workspace: 1 path opened for writing · 2 results with unnamed paths",
+            "network: allowed api.example.test:443 (4)",
+            "evidence: 6/6 classes active, no gaps · reads and file contents are not observed",
+        ],
+    );
+    let workspace = facts(&summary, "workspace");
+    assert_eq!(workspace["opened_for_writing"], 1);
+    assert_eq!(workspace["unnamed"], 2);
+    assert_eq!(
+        workspace["paths"],
+        json!([{"kind": "workspace_relative", "value": "greeting.txt.tmp.2.ab0417c1c039"}])
+    );
 }
 
 #[test]
@@ -783,10 +875,10 @@ fn truth_of(events: &[Value]) -> Truth {
                     continue;
                 }
                 let paths = [&fields["path"], &fields["path2"]];
-                if paths
-                    .iter()
-                    .any(|path| matches!(path["kind"].as_str(), Some("unavailable" | "digest")))
-                {
+                if paths.iter().any(|path| {
+                    path["kind"] == "unavailable"
+                        || (path["kind"] == "digest" && path["reason"] != "vendor_state")
+                }) {
                     truth.unnamed += 1;
                 }
                 for path in paths {
@@ -898,7 +990,7 @@ fn k46_the_summary_never_claims_more_than_the_evidence() {
         run.lifecycle("exec_confirmed");
         run.credential_note("api", "loaded", true);
         for _ in 0..rng.below(40) {
-            match rng.below(13) {
+            match rng.below(16) {
                 0 => {
                     run.exec();
                 }
@@ -943,6 +1035,16 @@ fn k46_the_summary_never_claims_more_than_the_evidence() {
                 11 => {
                     let host = rng.pick(&hosts);
                     run.unconfirmed(host, &["api"]);
+                }
+                12 => {
+                    run.vendor_state_write();
+                }
+                13 => {
+                    run.outside_write();
+                }
+                14 => {
+                    let path = rng.pick(&paths);
+                    run.descriptor_write(path);
                 }
                 _ => {
                     run.proxy(
@@ -1926,6 +2028,12 @@ fn k52_an_independent_script_recomputes_the_numbers() {
         off.proxy(Some("api.example.test:443"), true, true, "relayed", &[]);
         off.sync();
         let off_journal = off.journal();
+        let mut through = every_class();
+        through.descriptor_write("greeting.txt.tmp.2.ab");
+        through.vendor_state_write().outside_write();
+        through.at(223_000_000_000);
+        through.sync();
+        let through_journal = through.journal();
         vec![
             ("clean", clean, clean_journal),
             ("unknown", unknown, unknown_journal),
@@ -1933,6 +2041,7 @@ fn k52_an_independent_script_recomputes_the_numbers() {
             ("disagreeing", disagreeing, disagreeing_journal),
             ("hostile", hostile, hostile_journal),
             ("observation off", off, off_journal),
+            ("through a descriptor", through, through_journal),
         ]
     };
     for (name, fixture, journal) in cases {

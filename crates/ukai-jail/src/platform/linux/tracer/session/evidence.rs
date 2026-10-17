@@ -79,6 +79,36 @@ pub(super) fn path_corroborated(
     }
 }
 
+/// Whether a successful open of `rest` through a descriptor whose own link
+/// reads `directory` is the file the kernel says it opened, `resolved` (the
+/// returned descriptor's link): both links name paths (absolute, neither
+/// annotated ` (deleted)`), and the directory's components followed by
+/// `rest`'s are exactly `resolved`'s.
+///
+/// This is what lets an open through a descriptor (a true `dirfd`, or the
+/// `/proc/self/fd/<N>/` spelling) be named by `resolved`, a kernel
+/// resolution (§11.3 `descriptor_link`), instead of staying
+/// `relative_to_dirfd`. The two links are read at the same exit stop, so
+/// the claim rests on two kernel facts that agree with the tracee's own
+/// name; the residual is [`path_corroborated`]'s, a sibling thread swapping
+/// both descriptors before the reads. A `..` in `rest`, a symlink below the
+/// directory, a directory or file removed since, or a link that is no path
+/// (a socket, a pipe) never names anything: the open then keeps its
+/// `relative_to_dirfd` claim.
+pub(super) fn descriptor_resolves(directory: &[u8], rest: &[u8], resolved: &[u8]) -> bool {
+    const DELETED: &[u8] = b" (deleted)";
+    if !directory.starts_with(b"/")
+        || !resolved.starts_with(b"/")
+        || directory.ends_with(DELETED)
+        || resolved.ends_with(DELETED)
+    {
+        return false;
+    }
+    components(directory)
+        .chain(components(rest))
+        .eq(components(resolved))
+}
+
 /// The command rules re-checked at the exec event, against what the kernel
 /// installed.
 ///
@@ -289,6 +319,54 @@ mod tests {
             false,
             None
         ));
+    }
+
+    /// An open through a descriptor is named by the returned descriptor's
+    /// link only when the directory descriptor's link joined with the name is
+    /// exactly that link.
+    #[test]
+    fn a_descriptor_resolves_only_to_exactly_its_directory_and_name() {
+        let ws = b"/home/ubuntu/ws";
+        assert!(descriptor_resolves(
+            ws,
+            b"greeting.txt.tmp.2.ab",
+            b"/home/ubuntu/ws/greeting.txt.tmp.2.ab"
+        ));
+        assert!(descriptor_resolves(
+            ws,
+            b"sub/./x",
+            b"/home/ubuntu/ws/sub/x"
+        ));
+        assert!(descriptor_resolves(b"/", b"x", b"/x"));
+        assert!(
+            !descriptor_resolves(ws, b"x", b"/home/ubuntu/other/x"),
+            "the directory moved or was swapped"
+        );
+        assert!(
+            !descriptor_resolves(ws, b"link/x", b"/elsewhere/x"),
+            "a symlink below the directory"
+        );
+        assert!(
+            !descriptor_resolves(ws, b"../x", b"/home/ubuntu/x"),
+            "a `..` is not resolved here"
+        );
+        assert!(!descriptor_resolves(ws, b"x", b"/home/ubuntu/ws/x/y"));
+        assert!(!descriptor_resolves(ws, b"x/y", b"/home/ubuntu/ws/x"));
+        assert!(
+            !descriptor_resolves(
+                b"/home/ubuntu/ws (deleted)",
+                b"x",
+                b"/home/ubuntu/ws (deleted)/x"
+            ),
+            "a removed directory names no path"
+        );
+        assert!(
+            !descriptor_resolves(ws, b"x", b"/home/ubuntu/ws/x (deleted)"),
+            "nor does a file unlinked since"
+        );
+        assert!(!descriptor_resolves(b"socket:[42]", b"x", b"/x"));
+        assert!(!descriptor_resolves(ws, b"x", b"pipe:[42]"));
+        assert!(!descriptor_resolves(b"relative", b"x", b"relative/x"));
     }
 
     #[test]

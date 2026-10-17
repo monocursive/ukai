@@ -250,7 +250,9 @@ through the profile.
   lock), which the audit records as digests outside the known roots. The
   summary is right by its rules and never overclaims. For this agent, though,
   it cannot show which workspace files changed: only `python3`'s
-  `__pycache__` writes in r03 were named.
+  `__pycache__` writes in r03 were named. (Follow-up, same day: Claude Code
+  writes through `/proc/self/fd/<N>/`; the cause and the change are in
+  [claude-code-workspace-line-2026-10-17.md](claude-code-workspace-line-2026-10-17.md).)
 - **The refused `mkdir ~/.local/state`** is harmless here but appears as
   `1 refused write` in every summary.
 - **The bundled profile's header comment** still says no Claude Code build

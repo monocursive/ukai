@@ -25,6 +25,8 @@ pub(crate) fn run(rep: &Reporter, mode: FsMode) -> Result<bool, Stop> {
             write,
             rdwr,
             mode,
+            dirfd,
+            proc_fd,
             expect,
         } => {
             let mode = parse_mode(&mode).map_err(Stop::Usage)?;
@@ -39,7 +41,15 @@ pub(crate) fn run(rep: &Reporter, mode: FsMode) -> Result<bool, Stop> {
                 create,
                 trunc,
             };
-            Ok(check(rep, open(&path, via, flags, mode), &expect))
+            if dirfd.is_some() && via != OpenVia::Openat {
+                return Err(Stop::Usage("--dirfd needs --via openat".to_string()));
+            }
+            let dir = open_dirfd(rep, dirfd_path(dirfd.as_deref())?)?;
+            let emitted = match (raw_fd(dir.as_ref()), proc_fd) {
+                (Some(fd), true) => open(&through_proc_fd(fd, &path), via, flags, mode, None),
+                (fd, _) => open(&path, via, flags, mode, fd),
+            };
+            Ok(check(rep, emitted, &expect))
         }
         FsMode::Mkdir {
             path,
@@ -66,9 +76,10 @@ pub(crate) fn run(rep: &Reporter, mode: FsMode) -> Result<bool, Stop> {
             noreplace,
             dirfd,
             dirfd2,
+            proc_fd,
             expect,
         } => {
-            if (dirfd.is_some() || dirfd2.is_some()) && via == RenameVia::Rename {
+            if (dirfd.is_some() || dirfd2.is_some()) && via == RenameVia::Rename && !proc_fd {
                 return Err(Stop::Usage(
                     "--dirfd and --dirfd2 need --via renameat or renameat2".to_string(),
                 ));
@@ -82,6 +93,14 @@ pub(crate) fn run(rep: &Reporter, mode: FsMode) -> Result<bool, Stop> {
             let dir = open_dirfd(rep, path)?;
             let dir2 = open_dirfd(rep, path2)?;
             let (fd, fd2) = (raw_fd(dir.as_ref()), raw_fd(dir2.as_ref()));
+            if let (true, Some(fd)) = (proc_fd, fd) {
+                let (from, to) = (through_proc_fd(fd, &from), through_proc_fd(fd, &to));
+                return Ok(check(
+                    rep,
+                    rename(&from, &to, via, noreplace, None, None),
+                    &expect,
+                ));
+            }
             Ok(check(
                 rep,
                 rename(&from, &to, via, noreplace, fd, fd2),
@@ -177,14 +196,32 @@ impl OpenFlags {
 }
 
 /// Open, and close the descriptor again. Most modes only want the result.
-fn open(path: &OsStr, via: OpenVia, flags: OpenFlags, mode: u32) -> Emitted {
-    let emitted = open_keep(path, via, flags, mode);
+fn open(path: &OsStr, via: OpenVia, flags: OpenFlags, mode: u32, dir: Option<c_int>) -> Emitted {
+    let emitted = open_at_keep(path, via, flags, mode, dir);
     close_fd(emitted.report.ret);
     emitted
 }
 
+/// `PATH` below descriptor `fd`, spelled through procfs.
+fn through_proc_fd(fd: c_int, path: &OsStr) -> std::ffi::OsString {
+    let mut spelled = format!("/proc/self/fd/{fd}/").into_bytes();
+    spelled.extend_from_slice(path.as_bytes());
+    std::os::unix::ffi::OsStringExt::from_vec(spelled)
+}
+
 /// Open and hand the descriptor back in `report.ret`. The caller closes it.
 pub(crate) fn open_keep(path: &OsStr, via: OpenVia, flags: OpenFlags, mode: u32) -> Emitted {
+    open_at_keep(path, via, flags, mode, None)
+}
+
+/// [`open_keep`], resolving `path` against `dir` for `--via openat`.
+fn open_at_keep(
+    path: &OsStr,
+    via: OpenVia,
+    flags: OpenFlags,
+    mode: u32,
+    dir: Option<c_int>,
+) -> Emitted {
     let name = match via {
         OpenVia::Openat => "openat",
         OpenVia::Open => "open",
@@ -213,12 +250,14 @@ pub(crate) fn open_keep(path: &OsStr, via: OpenVia, flags: OpenFlags, mode: u32)
     report.set("flags", flags);
     report.set("mode", format!("{mode:o}"));
     report.set("mechanism", raw::mechanism());
-    if via != OpenVia::Open && via != OpenVia::Creat {
-        report.set("dirfd", "AT_FDCWD");
-    }
+    let fd = match via {
+        OpenVia::Openat => dirfd_arg(&mut report, "dirfd", dir),
+        OpenVia::Openat2 => dirfd_arg(&mut report, "dirfd", None),
+        OpenVia::Open | OpenVia::Creat => libc::AT_FDCWD,
+    };
 
     let attempt = match via {
-        OpenVia::Openat => raw::openat(libc::AT_FDCWD, c.as_ptr(), flags, mode),
+        OpenVia::Openat => raw::openat(fd, c.as_ptr(), flags, mode),
         OpenVia::Open => raw::open(c.as_ptr(), flags, mode),
         OpenVia::Creat => raw::creat(c.as_ptr(), mode),
         OpenVia::Openat2 => raw::openat2(libc::AT_FDCWD, c.as_ptr(), flags, mode),
@@ -905,6 +944,7 @@ mod tests {
                 trunc: false,
             },
             0o600,
+            None,
         );
         assert!(e.unusable, "a refused path must satisfy nothing");
         assert_eq!(e.report.args.get("refused").unwrap(), "interior_nul");

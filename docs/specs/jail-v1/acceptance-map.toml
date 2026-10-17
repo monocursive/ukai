@@ -3696,7 +3696,7 @@ note = "No macOS native-lifetime test exists; the entitlement refusal is macos_r
 
 [[gate]]
 id = "K30"
-row = "Sixth audit F4: a successful open-class call whose `/proc/<tid>/fd/<ret>` link does not corroborate the snapshot (absolute: every component; relative, bare names included: the tail; `O_TMPFILE`: the directory) delivers its event with an incomplete path, counts `path_claims_unverified` in `lifetime.native.details` and records a bookkeeping `path_claim_unverified` gap that degrades no class and never stops a strict run; agreement records none of these."
+row = "Sixth audit F4: a successful open-class call whose `/proc/<tid>/fd/<ret>` link does not corroborate the snapshot (absolute: every component; relative, bare names included: the tail; `O_TMPFILE`: the directory) delivers its event with an incomplete path, counts `path_claims_unverified` in `lifetime.native.details` and records a bookkeeping `path_claim_unverified` gap that degrades no class and never stops a strict run; agreement records none of these A name through a descriptor (a true `dirfd`'s, or the same spelled `/proc/self/fd/<N>/<name>`, as Claude Code writes) is compared as that relative name, and a corroborated open is named by its returned descriptor's link (`path_basis: descriptor_link`) only when the directory descriptor's own link followed by the name is exactly it; otherwise it stays `relative_to_dirfd`."
 
 [[clause]]
 id = "K30.1"
@@ -3709,6 +3709,20 @@ tests = [
   "ukai-jail/src/lib.rs::platform::linux::observed::tests::a_path_claim_gap_degrades_nothing_and_accounts_for_no_loss",
 ]
 note = "The tracer's claim logic driven directly (the kernel's mismatch is manufactured); that the gap never stops a strict run is the observed half's degrades-nothing assertion, not a strict-run integration test."
+
+[[clause]]
+id = "K30.2"
+gate = "K30"
+clause = "A name through a descriptor (a true `dirfd`'s, or `/proc/self/fd/<N>/<name>`) is compared as that relative name; a corroborated open is named by its returned descriptor's link (`path_basis: descriptor_link`) only when the directory descriptor's own link (the group's table for `self`, the thread's for `thread-self` and a `dirfd`) followed by the name is exactly it, never for `O_TMPFILE`; otherwise, and for a rename through a descriptor, it stays `relative_to_dirfd` with that descriptor; a symlink below the directory is still downgraded"
+tag = "live-cli"
+tests = [
+  "ukai-jail/tests/j4_closed_set_linux.rs::j4_o06_a_name_through_a_descriptor_is_named_by_the_kernels_resolution",
+  "ukai-jail/src/lib.rs::platform::linux::tracer::session::exit::tests::an_open_through_a_descriptor_is_named_by_the_kernels_resolution",
+  "ukai-jail/src/lib.rs::platform::linux::tracer::session::evidence::tests::a_descriptor_resolves_only_to_exactly_its_directory_and_name",
+  "ukai-jail/src/lib.rs::platform::linux::tracer::tests::a_name_through_a_descriptor_is_recognized_in_both_spellings",
+  "ukai-jail/src/lib.rs::platform::linux::audit::tests::a_name_through_a_descriptor_is_classified_as_relative_to_it",
+]
+note = "Claude Code 2.1.302's writes, measured on the reference host on 2026-10-17 (docs/benchmarks/jail/claude-code-workspace-line-2026-10-17.md), reproduced with ukai-fixture's `--dirfd`/`--proc-fd` under `tool` and `agent`. A sibling thread swapping both descriptors between the kernel's resolution and the reads is the residual K30.1's corroboration already has."
 
 # ------------------------------------------------------------------ K31
 

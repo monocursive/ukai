@@ -15,7 +15,9 @@ use crate::observer::{ClassSummary, ClosedOperation, CoverageClass, CoverageSumm
 use crate::records::{CLOSED_SET_LINUX_V1, Completion, Event, EventOutcome, Gap, SourceStatus};
 use crate::trace::{Priority, SharedTrace};
 
-use super::tracer::{Args, ClosedOp, GapReason, OpSet, PathSnapshot, TracerSummary};
+use super::tracer::{
+    Args, ClosedOp, GapReason, OpSet, PathSnapshot, TracerSummary, through_descriptor,
+};
 use super::unixpeer::{ConnectFacts, Decision, Peer};
 
 /// The observer backend name recorded in the receipt.
@@ -102,6 +104,10 @@ pub struct AuditWriter {
     seq: u64,
     workspace: Vec<u8>,
     scratch_inside: Vec<u8>,
+    /// The vendor state's in-jail path, when the attempt staged one: its
+    /// paths are digests with their own reason, never named (§12: no trace
+    /// includes vendor state).
+    vendor_state: Option<Vec<u8>>,
     /// Named roots a path can be relative to, most specific first.
     roots: Vec<NamedRoot>,
     counts: BTreeMap<CoverageClass, u64>,
@@ -130,6 +136,7 @@ impl AuditWriter {
             seq: 0,
             workspace: workspace.to_vec(),
             scratch_inside: scratch_inside.to_vec(),
+            vendor_state: None,
             roots: Vec::new(),
             counts: BTreeMap::new(),
             degraded: BTreeSet::new(),
@@ -150,6 +157,12 @@ impl AuditWriter {
             .collect();
         roots.sort_by_key(|root| std::cmp::Reverse(root.bytes.len()));
         self.roots = roots;
+        self
+    }
+    /// The vendor state's in-jail path, when the attempt staged one.
+    #[must_use]
+    pub fn with_vendor_state(mut self, inside: Option<&[u8]>) -> Self {
+        self.vendor_state = inside.map(<[u8]>::to_vec);
         self
     }
     /// Learning is explicit because absolute read-path snapshots may disclose host paths.
@@ -406,18 +419,26 @@ impl AuditWriter {
         fields.insert("pid".to_owned(), Value::from(i64::from(pid)));
         insert_birth(&mut fields, pid_start_ticks);
         fields.insert("tid".to_owned(), Value::from(i64::from(tid)));
-        // §11.3: the snapshot is the argument as it was in the tracee's memory,
-        // never a kernel-resolved path.
+        // §11.3: the path is the argument as it was in the tracee's memory —
+        // except an open through a descriptor whose own link and the returned
+        // descriptor's agreed at the exit stop, which the tracer handed over
+        // as the kernel's resolution (`descriptor_link`).
+        let resolved = args.resolved.as_deref().map(snap_bytes);
         fields.insert(
             "path_basis".to_owned(),
-            Value::from("argument_snapshot".to_owned()),
+            Value::from(if resolved.is_some() {
+                "descriptor_link"
+            } else {
+                "argument_snapshot"
+            }),
         );
-        self.describe_path_in(
+        self.describe_path_as(
             &mut fields,
             "path",
             args.path.as_ref(),
             args.dirfd,
             args.cwd.as_deref(),
+            resolved.as_ref(),
         );
         if args.path2.is_some() {
             self.describe_path_in(
@@ -923,17 +944,43 @@ impl AuditWriter {
         dirfd: Option<i32>,
         cwd: Option<&[u8]>,
     ) {
+        self.describe_path_as(fields, key, snapshot, dirfd, cwd, None);
+    }
+
+    /// [`describe_path_in`], naming `resolved` — the kernel's resolution of a
+    /// descriptor the tracer corroborated — instead of classifying the
+    /// snapshot, when it is given. Completeness and the descriptor stay the
+    /// snapshot's.
+    fn describe_path_as(
+        &self,
+        fields: &mut Map<String, Value>,
+        key: &str,
+        snapshot: Option<&PathSnapshot>,
+        dirfd: Option<i32>,
+        cwd: Option<&[u8]>,
+        resolved: Option<&PathSnapshot>,
+    ) {
         // The nested {kind, value} shape is the documented contract
         // (examples/event-open.json): a consumer reads fields.path.kind and
         // gets the classification, not a flat key it has to know about.
         let complete = snapshot.is_some_and(|snap| snap.complete);
         fields.insert(format!("{key}_complete"), Value::from(complete));
-        if let Some(fd) = dirfd
-            && fd != libc::AT_FDCWD
-        {
+        // The descriptor the kernel resolved the name through: the one the
+        // `/proc/self/fd/<N>/` spelling names (the call's own `dirfd` is
+        // unused for an absolute path), or a true `dirfd`.
+        let descriptor = snapshot
+            .filter(|snap| snap.complete)
+            .and_then(|snap| through_descriptor(&snap.bytes, None))
+            .map(|route| route.fd)
+            .or(dirfd.filter(|fd| *fd != libc::AT_FDCWD));
+        if let Some(fd) = descriptor {
             fields.insert(format!("{key}_dirfd"), Value::from(i64::from(fd)));
         }
-        let path = match self.classify(snapshot, dirfd, cwd) {
+        let class = match resolved {
+            Some(resolved) => self.classify(Some(resolved), None, None),
+            None => self.classify(snapshot, dirfd, cwd),
+        };
+        let path = match class {
             PathClass::WorkspaceRelative(bytes) => serde_json::json!({
                 "kind": "workspace_relative",
                 "value": native_value(&bytes),
@@ -986,6 +1033,12 @@ impl AuditWriter {
                 "ambiguous_path_components",
             );
         }
+        if through_descriptor(bytes, None).is_some() {
+            // `/proc/self/fd/<N>/<name>` is resolved through descriptor N, as
+            // `*at(N, <name>)` is: the spelling names no directory of its own,
+            // so it is neither outside the known roots nor inside one.
+            return PathClass::Unavailable("relative_to_dirfd");
+        }
         if bytes[0] != b'/' {
             // A relative pathname the kernel resolves against the thread's own
             // cwd is resolved against that cwd, observed at the syscall stop.
@@ -1025,6 +1078,16 @@ impl AuditWriter {
         }
         if let Some(rest) = strip_root(bytes, &self.scratch_inside) {
             return PathClass::ScratchRelative(rest);
+        }
+        if self
+            .vendor_state
+            .as_deref()
+            .is_some_and(|root| strip_root(bytes, root).is_some())
+        {
+            // Below a root the jail made, so not an unnamed path the
+            // workspace line must count; still a digest, since no trace
+            // names vendor state.
+            return PathClass::Digest(crate::canonical::sha256_prefixed(bytes), "vendor_state");
         }
         for root in &self.roots {
             if let Some(rest) = strip_root(bytes, &root.bytes) {
@@ -2132,6 +2195,140 @@ mod tests {
         );
         assert_eq!(events[0]["fields"]["syscall"], "execveat");
         assert_eq!(events[0]["fields"]["path_dirfd"], 3);
+    }
+
+    /// `/proc/self/fd/<N>/<name>` (an agent runtime's atomic writes)
+    /// is resolved through descriptor N exactly as `openat(N, <name>)` is: it
+    /// is `relative_to_dirfd` with that descriptor, never a digest "outside
+    /// the known roots" (it can be inside the workspace), and an open the
+    /// tracer could name by the kernel's own resolution says so in
+    /// `path_basis`. Vendor state is a digest with its own reason.
+    #[test]
+    fn a_name_through_a_descriptor_is_classified_as_relative_to_it() {
+        let staged = writer().with_vendor_state(Some(b"/run/ukai/state"));
+        for path in [
+            "/proc/self/fd/14/greeting.txt",
+            "/proc/thread-self/fd/3/a/b",
+        ] {
+            assert_eq!(
+                staged.classify(Some(&snap(path)), Some(libc::AT_FDCWD), None),
+                PathClass::Unavailable("relative_to_dirfd"),
+                "{path}"
+            );
+        }
+        for (path, reason) in [
+            ("/proc/self/fd/14/../x", "ambiguous_path_components"),
+            ("/proc/self/fd/14", "outside_known_roots"),
+            ("/proc/1/fd/14/x", "outside_known_roots"),
+            ("/run/ukai/state/.agent.json", "vendor_state"),
+            ("/run/ukai/state", "vendor_state"),
+            ("/run/ukai/statex/y", "outside_known_roots"),
+            ("/run/ukai/proxy/proxy.sock", "outside_known_roots"),
+        ] {
+            match staged.classify(Some(&snap(path)), None, None) {
+                PathClass::Digest(digest, got) => {
+                    assert_eq!(digest, crate::canonical::sha256_prefixed(path.as_bytes()));
+                    assert_eq!(got, reason, "{path}");
+                }
+                other => panic!("{path}: expected a digest, got {other:?}"),
+            }
+        }
+        assert!(
+            matches!(
+                writer().classify(Some(&snap("/run/ukai/state/x")), None, None),
+                PathClass::Digest(_, "outside_known_roots")
+            ),
+            "no vendor state staged, no vendor-state root"
+        );
+
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let trace = crate::trace::shared(crate::trace::FileSink::new(file.reopen().unwrap()));
+        let mut writer = AuditWriter::new("att_test", Some(trace), b"/work/space", b"/tmp")
+            .with_vendor_state(Some(b"/run/ukai/state"));
+        let create = (libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL) as u64;
+        // The tracer named it: the kernel's resolution, by its basis.
+        writer.record_syscall(&call(
+            ClosedOp::Open,
+            "openat",
+            &Args {
+                path: Some(snap("/proc/self/fd/14/greeting.txt.tmp.2.ab")),
+                dirfd: Some(libc::AT_FDCWD),
+                resolved: Some(
+                    b"/work/space/greeting.txt.tmp.2.ab"
+                        .to_vec()
+                        .into_boxed_slice(),
+                ),
+                flags: Some(create),
+                ..Args::default()
+            },
+            15,
+        ));
+        // It could not: the descriptor alone.
+        writer.record_syscall(&call(
+            ClosedOp::Open,
+            "openat",
+            &Args {
+                path: Some(snap("/proc/self/fd/14/greeting.txt.tmp.2.cd")),
+                dirfd: Some(libc::AT_FDCWD),
+                flags: Some(create),
+                ..Args::default()
+            },
+            15,
+        ));
+        // A true dirfd, named the same way.
+        writer.record_syscall(&call(
+            ClosedOp::Open,
+            "openat",
+            &Args {
+                path: Some(snap("slug.py")),
+                dirfd: Some(9),
+                resolved: Some(b"/work/space/slug.py".to_vec().into_boxed_slice()),
+                flags: Some(create),
+                ..Args::default()
+            },
+            15,
+        ));
+        // The rename that publishes it: both sides through the descriptor.
+        writer.record_syscall(&call(
+            ClosedOp::Rename,
+            "rename",
+            &Args {
+                path: Some(snap("/proc/self/fd/14/greeting.txt.tmp.2.ab")),
+                path2: Some(snap("/proc/self/fd/14/greeting.txt")),
+                ..Args::default()
+            },
+            0,
+        ));
+        let events = trace_events(file.path());
+        let fields: Vec<&Value> = events.iter().map(|e| &e["fields"]).collect();
+        assert_eq!(fields[0]["path_basis"], "descriptor_link");
+        assert_eq!(
+            fields[0]["path"],
+            serde_json::json!({"kind": "workspace_relative", "value": "greeting.txt.tmp.2.ab"})
+        );
+        assert_eq!(fields[0]["path_dirfd"], 14);
+        assert_eq!(fields[0]["path_complete"], true);
+        assert_eq!(fields[1]["path_basis"], "argument_snapshot");
+        assert_eq!(
+            fields[1]["path"],
+            serde_json::json!({"kind": "unavailable", "reason": "relative_to_dirfd"})
+        );
+        assert_eq!(fields[1]["path_dirfd"], 14);
+        assert_eq!(fields[2]["path_basis"], "descriptor_link");
+        assert_eq!(
+            fields[2]["path"],
+            serde_json::json!({"kind": "workspace_relative", "value": "slug.py"})
+        );
+        assert_eq!(fields[2]["path_dirfd"], 9);
+        assert_eq!(fields[3]["path_basis"], "argument_snapshot");
+        for key in ["path", "path2"] {
+            assert_eq!(
+                fields[3][key],
+                serde_json::json!({"kind": "unavailable", "reason": "relative_to_dirfd"}),
+                "{key}"
+            );
+            assert_eq!(fields[3][format!("{key}_dirfd")], 14, "{key}");
+        }
     }
 
     #[test]

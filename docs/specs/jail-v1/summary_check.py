@@ -379,7 +379,8 @@ def workspace_line(receipt, frames, claims, state, size):
         if operation == "fs.write" and fields.get("action") not in ("opened_for_mutation", "truncated"):
             continue
         paths = [fields[key] for key in ("path", "path2") if isinstance(fields.get(key), dict)]
-        if any(path.get("kind") in ("unavailable", "digest") for path in paths):
+        if any(path.get("kind") == "unavailable"
+               or (path.get("kind") == "digest" and path.get("reason") != "vendor_state") for path in paths):
             unnamed += 1
         for path in paths:
             value = path.get("value")

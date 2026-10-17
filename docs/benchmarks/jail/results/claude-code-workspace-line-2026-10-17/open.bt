@@ -1,0 +1,7 @@
+tracepoint:syscalls:sys_enter_openat /(args->flags & 0100) && comm != "bpftrace"/ {
+  @fn[tid] = args->filename; @fl[tid] = args->flags; @dfd[tid] = args->dfd;
+}
+tracepoint:syscalls:sys_exit_openat /@fn[tid]/ {
+  printf("OPEN pid=%d tid=%d comm=%s dfd=%d flags=0%o ret=%d path=%s\n", pid, tid, comm, @dfd[tid], @fl[tid], args->ret, str(@fn[tid]));
+  delete(@fn[tid]); delete(@fl[tid]); delete(@dfd[tid]);
+}

@@ -171,6 +171,16 @@ pub enum FsMode {
         /// Creation mode, octal.
         #[arg(long, value_name = "OCTAL", default_value = "600")]
         mode: String,
+        /// Resolve PATH against a descriptor for DIR instead of `AT_FDCWD`
+        /// (`--via openat` only). The directory's read-only open is
+        /// reported as its own `openat` line.
+        #[arg(long, value_name = "DIR")]
+        dirfd: Option<OsString>,
+        /// With `--dirfd`: spell PATH through procfs instead,
+        /// `/proc/self/fd/<N>/PATH` with `AT_FDCWD`, the way a runtime
+        /// without `openat` (Bun) pins a directory it opened.
+        #[arg(long, requires = "dirfd")]
+        proc_fd: bool,
         #[arg(long, default_value = "ok")]
         expect: Expect,
     },
@@ -204,6 +214,10 @@ pub enum FsMode {
         /// Resolve TO against a descriptor for DIR (`renameat`/`renameat2`).
         #[arg(long, value_name = "DIR")]
         dirfd2: Option<OsString>,
+        /// With `--dirfd`: spell FROM and TO through procfs under that one
+        /// descriptor, `/proc/self/fd/<N>/…` with `AT_FDCWD` (any `--via`).
+        #[arg(long, requires = "dirfd", conflicts_with = "dirfd2")]
+        proc_fd: bool,
         #[arg(long, default_value = "ok")]
         expect: Expect,
     },
@@ -694,6 +708,52 @@ mod tests {
             Step::try_parse_from(["ukai-fixture", "mkdir", "/tmp/d", "--via", "mkdir"]).unwrap();
         match step.mode {
             Mode::Fs(FsMode::Mkdir { via, .. }) => assert_eq!(via, MkdirVia::Mkdir),
+            other => panic!("wrong mode: {other:?}"),
+        }
+    }
+
+    /// `--proc-fd` spells a name through the descriptor `--dirfd` opens, so
+    /// it needs one, and a rename spells both sides under that one.
+    #[test]
+    fn proc_fd_needs_a_dirfd_and_names_one_descriptor() {
+        assert!(Cli::try_parse_from(["ukai-fixture", "open", "x", "--proc-fd"]).is_err());
+        match parse(&["open", "x", "--dirfd", "/tmp", "--proc-fd", "--write"]).mode {
+            Mode::Fs(FsMode::Open { dirfd, proc_fd, .. }) => {
+                assert_eq!(dirfd.as_deref(), Some(std::ffi::OsStr::new("/tmp")));
+                assert!(proc_fd);
+            }
+            other => panic!("wrong mode: {other:?}"),
+        }
+        assert!(
+            Cli::try_parse_from([
+                "ukai-fixture",
+                "rename",
+                "a",
+                "b",
+                "--dirfd",
+                "/tmp",
+                "--dirfd2",
+                "/tmp",
+                "--proc-fd",
+            ])
+            .is_err()
+        );
+        match parse(&[
+            "rename",
+            "a",
+            "b",
+            "--via",
+            "rename",
+            "--dirfd",
+            "/tmp",
+            "--proc-fd",
+        ])
+        .mode
+        {
+            Mode::Fs(FsMode::Rename { via, proc_fd, .. }) => {
+                assert_eq!(via, RenameVia::Rename);
+                assert!(proc_fd);
+            }
             other => panic!("wrong mode: {other:?}"),
         }
     }

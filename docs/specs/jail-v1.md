@@ -2070,13 +2070,28 @@ is resolved against that directory as observed at the syscall stop
 tool writing inside the workspace — is named like its absolute spelling; the
 argument snapshot stays the raw bytes and the stability re-read compares
 those. True `dirfd` resolutions keep their distinct `relative_to_dirfd`
-reason. Emit a path relative to the workspace (`workspace_relative`), to the
-attempt's scratch root (`scratch_relative`), or to a named root
+reason, and so does the same resolution spelled through procfs,
+`/proc/self/fd/<N>/<name>` or `/proc/thread-self/fd/<N>/<name>` (the way a
+runtime without `openat`, Bun's for Claude Code, pins a directory), with
+`path_dirfd` naming descriptor N; it is never a digest "outside the known
+roots", since it can be inside one. Emit a path relative to the workspace
+(`workspace_relative`), to the attempt's scratch root (`scratch_relative`), or to a named root
 (`root_relative`: an operator grant by its in-jail spelling, or `system` for
 the read-only system roots such as `/usr` and `/etc`) only when its
 relationship to that root is established. Otherwise
-emit a digest or unavailable marker, with a reason. Record `path_basis` as
-`argument_snapshot` or a specifically proven kernel-resolved observation.
+emit a digest or unavailable marker, with a reason. A path below the
+attempt's vendor state (§12) is a digest with the reason `vendor_state`: its
+relationship to that root is established, and no trace names vendor state.
+Record `path_basis` as
+`argument_snapshot` or a specifically proven kernel-resolved observation. The
+one such observation is `descriptor_link`: a successful open through a
+descriptor (either spelling above, not `O_TMPFILE`) whose returned
+descriptor's `/proc/<tid>/fd/<ret>` link, read at the exit stop, is exactly
+the directory descriptor's own link (read at the same stop, from the table
+the spelling names) followed by the name. The event then names that link,
+the kernel's resolution of the file it opened, classified as above; anything
+less keeps `relative_to_dirfd`. Calls without a returned descriptor (rename,
+unlink, mkdir through a descriptor) are never named this way.
 The initial sensor does not claim an argument-memory snapshot is the exact
 path later consumed by the kernel under a concurrent mutation; the exit
 re-read of §11.4 turns any such mutation into an

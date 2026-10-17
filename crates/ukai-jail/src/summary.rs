@@ -298,13 +298,16 @@ struct FrameFields<'a> {
     path2: Option<FramePath<'a>>,
 }
 
-/// An event path (`$defs/path`): its kind, and its value when it is named.
+/// An event path (`$defs/path`): its kind, its value when it is named, and
+/// the reason a digest or an unavailable path gives.
 #[derive(Deserialize)]
 struct FramePath<'a> {
     #[serde(borrow)]
     kind: Str<'a>,
     #[serde(borrow, default)]
     value: Option<PathValue<'a>>,
+    #[serde(borrow, default)]
+    reason: Option<Str<'a>>,
 }
 
 /// A path's name (`$defs/native_string`): UTF-8 text, or the base64 of
@@ -369,9 +372,15 @@ impl FramePath<'_> {
     }
 
     /// Whether the event recorded no name for this path (§4.2's unnamed:
-    /// `unavailable`, or a `digest` outside every known root).
+    /// `unavailable`, or a `digest` other than vendor state's). A
+    /// `vendor_state` digest is below a root the jail made for the agent's
+    /// own state, which is no more a workspace path than a scratch one.
     fn unnamed(&self) -> bool {
-        matches!(&*self.kind, "unavailable" | "digest")
+        match &*self.kind {
+            "unavailable" => true,
+            "digest" => self.reason.as_deref() != Some("vendor_state"),
+            _ => false,
+        }
     }
 }
 

@@ -1,0 +1,2 @@
+summary_check: att_addce267-472e-41f4-85ab-9b7a0938d927: every line, fact and number recomputed (complete journal, 168 frames)
+summary_check rc=0

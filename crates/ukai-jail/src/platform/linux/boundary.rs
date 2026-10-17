@@ -674,7 +674,14 @@ pub(super) fn create(
         bwrap::SCRATCH_INSIDE_PATH.as_bytes(),
     )
     .with_learning(snapshot.observation.learning)
-    .with_roots(audit_named_roots(&planned.bplan));
+    .with_roots(audit_named_roots(&planned.bplan))
+    .with_vendor_state(
+        planned
+            .bplan
+            .vendor_state
+            .as_ref()
+            .map(|_| bwrap::VENDOR_STATE_INSIDE_PATH.as_bytes()),
+    );
     let inputs = DiscoveryInputs {
         bwrap_path,
         deadline,

@@ -1231,6 +1231,154 @@ fn j4_o06_foreign_dirfd() {
     );
 }
 
+/// Claude Code 2.1.302 (Bun) writes a workspace file as
+/// `openat(AT_FDCWD, "/proc/self/fd/<N>/<name>.tmp…", O_CREAT|O_EXCL…)` and
+/// `rename` through the same descriptor (measured on the reference host,
+/// 2026-10-17). §11.3: such a name is resolved through descriptor N, as
+/// `openat(N, name)` is. A successful open is named by the returned
+/// descriptor's own link when the directory descriptor's link joined with the
+/// name is exactly it (`path_basis: descriptor_link`), for both spellings;
+/// the rename stays `relative_to_dirfd`; a name the descriptor does not
+/// corroborate (a symlink below the directory) is still downgraded, and that
+/// is the run's only gap.
+#[test]
+fn j4_o06_a_name_through_a_descriptor_is_named_by_the_kernels_resolution() {
+    for profile in [ProfileName::Tool, ProfileName::Agent] {
+        if !common::profile_live(profile) {
+            return;
+        }
+        let c = case(profile, "strict");
+        std::fs::create_dir_all(c.workspace.join("sub")).unwrap();
+        std::os::unix::fs::symlink("sub", c.workspace.join("link")).unwrap();
+        let workspace = c.workspace.clone();
+        let ws = c.ws("");
+        let ws = ws.trim_end_matches('/');
+        let steps = serde_json::json!([
+            [
+                "open",
+                "g.tmp",
+                "--dirfd",
+                ws,
+                "--proc-fd",
+                "--write",
+                "--create"
+            ],
+            [
+                "rename",
+                "g.tmp",
+                "greeting.txt",
+                "--via",
+                "rename",
+                "--dirfd",
+                ws,
+                "--proc-fd"
+            ],
+            ["open", "slug.py", "--dirfd", ws, "--write", "--create"],
+            [
+                "open",
+                "link/x",
+                "--dirfd",
+                ws,
+                "--proc-fd",
+                "--write",
+                "--create"
+            ]
+        ]);
+        let run = c.script("through", &steps);
+        let receipt = common::settled(&run);
+        let context = format!("{profile:?}\n{}", dump(&run));
+        assert!(workspace.join("greeting.txt").is_file(), "{context}");
+        assert!(workspace.join("sub/x").is_file(), "{context}");
+        let lines = run.fixture_lines();
+        let descriptors: Vec<i64> = lines
+            .iter()
+            .filter(|l| l["args"]["purpose"] == "dirfd")
+            .map(|l| l["ret"].as_i64().expect("the directory opened"))
+            .collect();
+        assert_eq!(descriptors.len(), 4, "{context}");
+        let events = audit_results(&run);
+
+        let created = event_for(&events, "openat", 0);
+        assert_eq!(
+            created["fields"]["path"],
+            serde_json::json!({"kind": "workspace_relative", "value": "g.tmp"}),
+            "{context}"
+        );
+        assert_eq!(
+            created["fields"]["path_basis"], "descriptor_link",
+            "{context}"
+        );
+        assert_eq!(
+            created["fields"]["path_dirfd"].as_i64(),
+            Some(descriptors[0])
+        );
+        assert_eq!(created["fields"]["path_complete"], true);
+
+        let renamed = event_for(&events, "rename", 0);
+        for key in ["path", "path2"] {
+            assert_eq!(
+                renamed["fields"][key],
+                serde_json::json!({"kind": "unavailable", "reason": "relative_to_dirfd"}),
+                "{key}: {context}"
+            );
+            assert_eq!(
+                renamed["fields"][format!("{key}_dirfd")].as_i64(),
+                Some(descriptors[1]),
+                "{key}: {context}"
+            );
+        }
+        assert_eq!(renamed["fields"]["path_basis"], "argument_snapshot");
+
+        let true_dirfd = event_for(&events, "openat", 1);
+        assert_eq!(
+            true_dirfd["fields"]["path"],
+            serde_json::json!({"kind": "workspace_relative", "value": "slug.py"}),
+            "{context}"
+        );
+        assert_eq!(true_dirfd["fields"]["path_basis"], "descriptor_link");
+        assert_eq!(
+            true_dirfd["fields"]["path_dirfd"].as_i64(),
+            Some(descriptors[2])
+        );
+
+        let symlinked = event_for(&events, "openat", 2);
+        assert_eq!(
+            symlinked["fields"]["path"],
+            serde_json::json!({"kind": "unavailable", "reason": "path_truncated"}),
+            "{context}"
+        );
+        assert_eq!(symlinked["fields"]["path_complete"], false);
+        assert_eq!(symlinked["fields"]["path_basis"], "argument_snapshot");
+        // A bookkeeping gap of no class: in the observer's account, under no
+        // coverage class.
+        assert!(gap_reasons(&receipt).is_empty(), "{context}");
+        let observer_gaps: Vec<&str> = receipt["observer"]["gaps"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|gap| gap["reason"].as_str())
+            .collect();
+        assert_eq!(
+            observer_gaps,
+            ["path_claim_unverified"],
+            "only the symlinked name: {context}"
+        );
+        assert_eq!(
+            receipt["lifetime"]["native"]["details"]["path_claims_unverified"], 1,
+            "{context}"
+        );
+        // The directory descriptors are read-only opens, outside the set.
+        assert_eq!(
+            events
+                .iter()
+                .filter(|e| e["fields"]["syscall"] == "openat")
+                .count(),
+            3,
+            "{context}"
+        );
+    }
+}
+
 /// §11.3: "Two-path operations treat both paths independently." Each side
 /// is classified on its own evidence: one established, the other relative
 /// to a descriptor, in both orders; and a scratch path beside a workspace

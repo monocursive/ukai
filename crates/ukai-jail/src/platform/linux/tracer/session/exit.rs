@@ -4,11 +4,13 @@
 use libc::pid_t;
 
 use super::Session;
-use super::evidence::path_corroborated;
+use super::evidence::{descriptor_resolves, path_corroborated};
 use super::seams::path_has_marker;
 use super::tasks::{Call, Pending, TaskState};
 use crate::platform::linux::tracer::closed_set::{self, ClosedOp, FlagSource};
-use crate::platform::linux::tracer::{GapReason, OpSet, TracerEvent, sys};
+use crate::platform::linux::tracer::{
+    FdTable, GapReason, OpSet, TracerEvent, sys, through_descriptor,
+};
 
 impl Session {
     /// A `SIGTRAP | 0x80` stop: the syscall entry or exit of a call whose
@@ -300,34 +302,62 @@ impl Session {
     /// not have used. The call and its event are kept — no result is missing —
     /// so this never degrades a class or stops a strict run: failures of this
     /// check only weaken, never accuse.
+    ///
+    /// A name resolved through a descriptor — a true `dirfd`'s, or the same
+    /// spelled `/proc/self/fd/<N>/<rest>` — is compared as the relative name
+    /// it is. When it stands, the directory descriptor's own link is read at
+    /// the same stop, and if it joined with the name is exactly the returned
+    /// descriptor's link ([`descriptor_resolves`]), the event is named by that
+    /// kernel resolution (`args.resolved`, §11.3 `descriptor_link`) instead of
+    /// staying `relative_to_dirfd`. An `O_TMPFILE` descriptor names no file.
     fn corroborate_open_path(&mut self, tid: pid_t, pending: &mut Pending, rval: i64) {
-        if pending.entry.op == ClosedOp::Open
-            && rval >= 0
-            && let Some(snapshot) = pending.args.path.as_mut()
-            && snapshot.complete
-        {
-            let tmpfile = pending
-                .args
-                .flags
-                .is_some_and(|flags| flags & (libc::O_TMPFILE as u64) == libc::O_TMPFILE as u64);
-            let corroborated = self.procfs.fd_link(tid, rval).is_some_and(|resolved| {
-                // The kernel's ` (deleted)` annotation can also be a live
-                // file's literal name, so when the raw link carries it the
-                // descriptor's link count — read while the tracee is stopped —
-                // must agree the file is truly unlinked.
-                let nlink = if resolved.ends_with(b" (deleted)") {
-                    self.procfs.fd_nlink(tid, rval)
-                } else {
-                    None
-                };
-                path_corroborated(&snapshot.bytes, &resolved, tmpfile, nlink)
-            });
-            if !corroborated {
-                self.summary.path_claims_unverified += 1;
-                self.gap(GapReason::PathClaimUnverified, OpSet::EMPTY, Some(1));
+        if pending.entry.op != ClosedOp::Open || rval < 0 {
+            return;
+        }
+        let Some(snapshot) = pending.args.path.as_ref().filter(|path| path.complete) else {
+            return;
+        };
+        let tmpfile = pending
+            .args
+            .flags
+            .is_some_and(|flags| flags & (libc::O_TMPFILE as u64) == libc::O_TMPFILE as u64);
+        let route = through_descriptor(&snapshot.bytes, pending.args.dirfd);
+        let claim = route.map_or(snapshot.bytes.as_slice(), |route| route.rest);
+        let link = self.procfs.fd_link(tid, rval);
+        let corroborated = link.as_deref().is_some_and(|resolved| {
+            // The kernel's ` (deleted)` annotation can also be a live
+            // file's literal name, so when the raw link carries it the
+            // descriptor's link count — read while the tracee is stopped —
+            // must agree the file is truly unlinked.
+            let nlink = if resolved.ends_with(b" (deleted)") {
+                self.procfs.fd_nlink(tid, rval)
+            } else {
+                None
+            };
+            path_corroborated(claim, resolved, tmpfile, nlink)
+        });
+        if !corroborated {
+            self.summary.path_claims_unverified += 1;
+            self.gap(GapReason::PathClaimUnverified, OpSet::EMPTY, Some(1));
+            if let Some(snapshot) = pending.args.path.as_mut() {
                 snapshot.complete = false;
             }
+            return;
         }
+        let named = match (route, link) {
+            (Some(route), Some(resolved)) if !tmpfile => {
+                let holder = match route.table {
+                    FdTable::Process => self.tgid_of(tid),
+                    FdTable::Thread => tid,
+                };
+                self.procfs
+                    .fd_link(holder, i64::from(route.fd))
+                    .is_some_and(|directory| descriptor_resolves(&directory, route.rest, &resolved))
+                    .then(|| resolved.into_boxed_slice())
+            }
+            _ => None,
+        };
+        pending.args.resolved = named;
     }
 
     /// Whether the pointed arguments this event asserts still read at the
@@ -686,6 +716,174 @@ mod tests {
                 u64::from(!corroborated),
                 "{name}"
             );
+            assert_eq!(session.summary.loss.total(), 0, "{name}: never loss");
+        }
+    }
+
+    /// An open through a descriptor — an agent's
+    /// `/proc/self/fd/<N>/<name>` spelling, or a relative name under a true
+    /// `dirfd` — is corroborated as the relative name it is, and named by the
+    /// returned descriptor's link only when the directory descriptor's link
+    /// (the group's table for `self`, the thread's for `thread-self` and a
+    /// `dirfd`) joined with the name is exactly that link. Anything less keeps
+    /// the call unnamed; a disagreeing name is still downgraded.
+    #[test]
+    fn an_open_through_a_descriptor_is_named_by_the_kernels_resolution() {
+        const GROUP: pid_t = 4242;
+        let self_pid = std::process::id() as pid_t;
+        let write = (libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL) as u64;
+        let tmpfile = (libc::O_RDWR | libc::O_TMPFILE) as u64;
+        // (path, flags, dirfd, the returned descriptor's link, the group's and
+        // the thread's link for descriptor 14 (or the dirfd 9), corroborated,
+        // named)
+        type Case<'a> = (
+            &'a [u8],
+            u64,
+            Option<i32>,
+            &'a [u8],
+            &'a [u8],
+            &'a [u8],
+            bool,
+            bool,
+        );
+        let cases: [Case; 9] = [
+            (
+                b"/proc/self/fd/14/g.tmp\0",
+                write,
+                Some(libc::AT_FDCWD),
+                b"/w/g.tmp",
+                b"/w",
+                b"/x",
+                true,
+                true,
+            ),
+            (
+                b"/proc/thread-self/fd/14/g.tmp\0",
+                write,
+                None,
+                b"/w/g.tmp",
+                b"/x",
+                b"/w",
+                true,
+                true,
+            ),
+            (
+                b"/proc/thread-self/fd/14/g.tmp\0",
+                write,
+                None,
+                b"/w/g.tmp",
+                b"/w",
+                b"/x",
+                true,
+                false,
+            ),
+            (
+                b"sub/x\0",
+                write,
+                Some(9),
+                b"/w/sub/x",
+                b"/x",
+                b"/w",
+                true,
+                true,
+            ),
+            (
+                b"/proc/self/fd/14/g.tmp\0",
+                write,
+                None,
+                b"/w/g.tmp",
+                b"/elsewhere",
+                b"/w",
+                true,
+                false,
+            ),
+            (
+                b"/proc/self/fd/14/g.tmp\0",
+                write,
+                None,
+                b"/w/g.tmp",
+                b"/w (deleted)",
+                b"/w",
+                true,
+                false,
+            ),
+            (
+                b"/proc/self/fd/14/sub\0",
+                tmpfile,
+                None,
+                b"/w/sub/#77 (deleted)",
+                b"/w",
+                b"/w",
+                true,
+                false,
+            ),
+            (
+                b"/proc/self/fd/14/g.tmp\0",
+                write,
+                None,
+                b"/w/other",
+                b"/w",
+                b"/w",
+                false,
+                false,
+            ),
+            (
+                b"sub/x\0",
+                write,
+                Some(9),
+                b"/w/sub/y",
+                b"/w",
+                b"/w",
+                false,
+                false,
+            ),
+        ];
+        for (path, flags, dirfd, link, group, thread, corroborated, named) in cases {
+            let proc = FakeProc::default().task(self_pid, GROUP, 1000);
+            let descriptor = if dirfd == Some(9) { 9 } else { 14 };
+            proc.edit(|script| {
+                script.fds.insert((self_pid, 5), (link.to_vec(), None));
+                script
+                    .fds
+                    .insert((GROUP, descriptor), (group.to_vec(), None));
+                script
+                    .fds
+                    .insert((self_pid, descriptor), (thread.to_vec(), None));
+            });
+            let (mut session, rx) = traced(TracerConfig::default(), &proc);
+            let mut raw = [0u64; 6];
+            raw[1] = path.as_ptr() as u64;
+            raw[2] = flags;
+            let openat = closed_set::lookup(u64::from(crate::platform::linux::abi::nr(257, 56)))
+                .expect("openat");
+            let args = Args {
+                path: Some(snapshot(&path[..path.len() - 1])),
+                dirfd,
+                flags: Some(flags),
+                ..Args::default()
+            };
+            plant(&mut session, self_pid, Pending::new(openat, args, raw));
+            session.handle_exit(self_pid, 5);
+            let events = drained(&rx, &mut session);
+            let delivered = events
+                .iter()
+                .find_map(|event| match event {
+                    TracerEvent::Syscall { args, .. } => Some(args.clone()),
+                    _ => None,
+                })
+                .expect("the call is delivered either way");
+            let name = String::from_utf8_lossy(path);
+            assert_eq!(
+                delivered.path.as_ref().map(|path| path.complete),
+                Some(corroborated),
+                "{name}"
+            );
+            assert_eq!(
+                delivered.resolved.as_deref(),
+                named.then_some(link),
+                "{name} via {group:?} {thread:?}"
+            );
+            assert_eq!(gaps_of(&events).len(), usize::from(!corroborated), "{name}");
             assert_eq!(session.summary.loss.total(), 0, "{name}: never loss");
         }
     }

@@ -165,6 +165,7 @@ fn event_bytes(event: &TracerEvent) -> usize {
             args.path.as_ref().map_or(0, |p| p.bytes.capacity())
                 + args.path2.as_ref().map_or(0, |p| p.bytes.capacity())
                 + args.cwd.as_ref().map_or(0, |cwd| cwd.len())
+                + args.resolved.as_ref().map_or(0, |link| link.len())
                 + args.command.as_ref().map_or(0, |hit| {
                     size_of::<crate::commands::Hit>()
                         + hit.pattern.capacity()
@@ -295,6 +296,80 @@ pub struct PathSnapshot {
     pub complete: bool,
 }
 
+/// Whose descriptor table a pathname resolved through a descriptor names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FdTable {
+    /// `/proc/self/fd/<N>`: the calling thread group's, which the kernel
+    /// reads from the group leader.
+    Process,
+    /// A true `dirfd`, or `/proc/thread-self/fd/<N>`: the calling thread's.
+    Thread,
+}
+
+/// A complete pathname the kernel resolves through one of the caller's own
+/// descriptors (§11.3): the relative name below a true `dirfd`, or the same
+/// thing spelled through procfs, `/proc/self/fd/<N>/<rest>`, the way a
+/// runtime without `openat` (a JavaScript runtime's atomic writes) pins a
+/// directory it opened.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ThroughDescriptor<'a> {
+    pub table: FdTable,
+    pub fd: i32,
+    /// The name below the descriptor, relative and not empty.
+    pub rest: &'a [u8],
+}
+
+/// The descriptor a complete pathname argument is resolved through, if any:
+/// the procfs spelling (whatever `dirfd` says, since the path is absolute),
+/// or a relative name under a `dirfd` that is not `AT_FDCWD`.
+#[must_use]
+pub fn through_descriptor(path: &[u8], dirfd: Option<i32>) -> Option<ThroughDescriptor<'_>> {
+    if let Some(route) = proc_fd_spelling(path) {
+        return Some(route);
+    }
+    match dirfd {
+        Some(fd) if fd != libc::AT_FDCWD && path.first().is_some_and(|byte| *byte != b'/') => {
+            Some(ThroughDescriptor {
+                table: FdTable::Thread,
+                fd,
+                rest: path,
+            })
+        }
+        _ => None,
+    }
+}
+
+/// `/proc/self/fd/<N>/<rest>` or `/proc/thread-self/fd/<N>/<rest>`, with
+/// `<N>` spelled as the kernel's own `name_to_int` takes it (decimal digits,
+/// no leading zero) and a name below it. Any other spelling of procfs —
+/// another pid, `.` or `//` components — is not recognized and stays the
+/// absolute path it is.
+fn proc_fd_spelling(path: &[u8]) -> Option<ThroughDescriptor<'_>> {
+    let (table, tail) = if let Some(tail) = path.strip_prefix(b"/proc/self/fd/") {
+        (FdTable::Process, tail)
+    } else {
+        (
+            FdTable::Thread,
+            path.strip_prefix(b"/proc/thread-self/fd/")?,
+        )
+    };
+    let slash = tail.iter().position(|byte| *byte == b'/')?;
+    let (digits, rest) = (&tail[..slash], &tail[slash..]);
+    if digits.is_empty()
+        || (digits.len() > 1 && digits[0] == b'0')
+        || !digits.iter().all(u8::is_ascii_digit)
+    {
+        return None;
+    }
+    let fd = std::str::from_utf8(digits).ok()?.parse::<i32>().ok()?;
+    let start = rest.iter().position(|byte| *byte != b'/')?;
+    Some(ThroughDescriptor {
+        table,
+        fd,
+        rest: &rest[start..],
+    })
+}
+
 /// The socket address of a `connect`, as far as the closed set describes it.
 ///
 /// The address bytes are read only to decide whether the whole address of
@@ -327,6 +402,13 @@ pub struct Args {
     /// against this, and the exit-side stability check keeps comparing the
     /// raw bytes.
     pub cwd: Option<Box<[u8]>>,
+    /// For a successful open of a pathname resolved through a descriptor
+    /// ([`through_descriptor`]): the kernel's own resolution of the
+    /// descriptor the call returned, `/proc/<tid>/fd/<ret>`, read at the exit
+    /// stop and kept only when the directory descriptor's link joined with
+    /// the name below it is exactly that path (§11.3 `descriptor_link`).
+    /// Classification names this path; the snapshot stays the raw argument.
+    pub resolved: Option<Box<[u8]>>,
     /// The flags word, where the call has one. For `creat` it is the
     /// `O_CREAT|O_WRONLY|O_TRUNC` the syscall is defined as; for `openat2`
     /// it is `open_how.flags` and is `None` when that could not be decoded.
@@ -1322,6 +1404,88 @@ impl fmt::Debug for Tracer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The descriptor a pathname is resolved through: an agent's
+    /// `/proc/self/fd/<N>/<name>` writes (its runtime has no `openat`),
+    /// the thread's own table, and a relative name under a true `dirfd`.
+    #[test]
+    fn a_name_through_a_descriptor_is_recognized_in_both_spellings() {
+        let route = |path: &str, dirfd| {
+            through_descriptor(path.as_bytes(), dirfd).map(|route| {
+                (
+                    route.table,
+                    route.fd,
+                    String::from_utf8_lossy(route.rest).into_owned(),
+                )
+            })
+        };
+        let at = Some(libc::AT_FDCWD);
+        assert_eq!(
+            route("/proc/self/fd/14/greeting.txt.tmp.2.ab0417c1c039", at),
+            Some((
+                FdTable::Process,
+                14,
+                "greeting.txt.tmp.2.ab0417c1c039".into()
+            ))
+        );
+        assert_eq!(
+            route("/proc/thread-self/fd/0/a/b", None),
+            Some((FdTable::Thread, 0, "a/b".into()))
+        );
+        assert_eq!(
+            route("/proc/self/fd/7//x", Some(3)),
+            Some((FdTable::Process, 7, "x".into())),
+            "the absolute spelling wins over an unused dirfd"
+        );
+        assert_eq!(
+            route("slug.py", Some(9)),
+            Some((FdTable::Thread, 9, "slug.py".into()))
+        );
+        for (path, dirfd) in [
+            // No name below the descriptor: the descriptor's own file.
+            ("/proc/self/fd/14", at),
+            ("/proc/self/fd/14/", at),
+            ("/proc/self/fd/14///", at),
+            // Not the kernel's spelling of a descriptor number.
+            ("/proc/self/fd/014/x", at),
+            ("/proc/self/fd//x", at),
+            ("/proc/self/fd/+1/x", at),
+            ("/proc/self/fd/1a/x", at),
+            ("/proc/self/fd/99999999999/x", at),
+            // Another process's table, or not procfs's spelling at all.
+            ("/proc/1/fd/3/x", at),
+            ("/proc//self/fd/3/x", at),
+            ("/proc/self/fdinfo/3/x", at),
+            ("/dev/fd/3/x", at),
+            // Relative to the cwd, or absolute: no descriptor.
+            ("slug.py", at),
+            ("slug.py", None),
+            ("/work/space/slug.py", Some(9)),
+            ("", Some(9)),
+        ] {
+            assert_eq!(route(path, dirfd), None, "{path} {dirfd:?}");
+        }
+    }
+
+    #[test]
+    fn a_resolved_descriptor_link_is_charged_to_the_queue() {
+        let event = |resolved: Option<Box<[u8]>>| TracerEvent::Syscall {
+            pid: 1,
+            start_ticks: None,
+            tid: 1,
+            op: ClosedOp::Open,
+            syscall: "openat",
+            args: Args {
+                resolved,
+                ..Args::default()
+            },
+            ret: 3,
+        };
+        assert_eq!(
+            event_bytes(&event(Some(vec![b'/'; 700].into_boxed_slice()))),
+            event_bytes(&event(None)) + 700
+        );
+    }
 
     #[test]
     fn exec_queue_charge_includes_reserved_paths_candidates_and_boxed_rule() {

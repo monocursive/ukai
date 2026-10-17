@@ -1,0 +1,38 @@
+OPEN pid=740533 tid=740546 comm=Bun Pool 1 dfd=-100 flags=02100301 ret=9 path=/run/ukai/state/.claude.json.tmp.2.2bf42c1783c2
+OPEN pid=740533 tid=740546 comm=Bun Pool 1 dfd=-100 flags=02100101 ret=10 path=/run/ukai/state/backups/.claude.json.backup.1792258431083
+OPEN pid=740533 tid=740545 comm=Bun Pool 0 dfd=-100 flags=02100301 ret=9 path=/run/ukai/state/.claude.json.tmp.2.4109e86d81c7
+OPEN pid=740533 tid=740545 comm=Bun Pool 0 dfd=-100 flags=02100301 ret=9 path=/run/ukai/state/.claude.json.tmp.2.b54c3eecfb4d
+OPEN pid=740533 tid=740545 comm=Bun Pool 0 dfd=-100 flags=02100301 ret=9 path=/run/ukai/state/.claude.json.tmp.2.68286abee213
+OPEN pid=740533 tid=740546 comm=Bun Pool 1 dfd=-100 flags=02100301 ret=9 path=/run/ukai/state/.claude.json.tmp.2.40d856b2d9a6
+OPEN pid=740533 tid=740546 comm=Bun Pool 1 dfd=-100 flags=02100301 ret=9 path=/run/ukai/state/.claude.json.tmp.2.32b62f142172
+OPEN pid=740533 tid=740545 comm=Bun Pool 0 dfd=-100 flags=02100301 ret=9 path=/run/ukai/state/.claude.json.tmp.2.280dff933448
+OPEN pid=740533 tid=740546 comm=Bun Pool 1 dfd=-100 flags=02101101 ret=7 path=/run/ukai/state/remote-settings.json
+OPEN pid=740533 tid=740545 comm=Bun Pool 0 dfd=-100 flags=02505101 ret=7 path=/run/ukai/state/remote-settings.json.synced-at
+OPEN pid=740533 tid=740546 comm=Bun Pool 1 dfd=-100 flags=02100301 ret=7 path=/run/ukai/state/policy-limits.json.stamp.json.tmp.65cfafb6
+OPEN pid=740533 tid=740546 comm=Bun Pool 1 dfd=-100 flags=02100101 ret=7 path=/run/ukai/state/policy-limits.json
+OPEN pid=740533 tid=740546 comm=Bun Pool 1 dfd=-100 flags=02100301 ret=7 path=/run/ukai/state/policy-limits.json.stamp.json.tmp.bf02e896
+OPEN pid=740557 tid=740557 comm=2.1.302 dfd=-100 flags=0100 ret=13 path=/dev/null
+OPEN pid=740533 tid=740545 comm=Bun Pool 0 dfd=-100 flags=02100301 ret=9 path=/run/ukai/state/.claude.json.tmp.2.b3db8bc1d492
+OPEN pid=740533 tid=740560 comm=Bun Pool 3 dfd=-100 flags=02100301 ret=9 path=/run/ukai/state/sessions/2.2628e0298c599dcf9a4767d7276a0b2d78ac2fcf934c56c580013d12da130d85.key.tmp.c0ae3b06
+OPEN pid=740565 tid=740565 comm=2.1.302 dfd=-100 flags=0100 ret=15 path=/dev/null
+OPEN pid=740565 tid=740565 comm=2.1.302 dfd=-100 flags=0101 ret=12 path=/dev/null
+OPEN pid=740567 tid=740567 comm=2.1.302 dfd=-100 flags=0100 ret=22 path=/dev/null
+OPEN pid=740567 tid=740567 comm=2.1.302 dfd=-100 flags=0101 ret=18 path=/dev/null
+OPEN pid=740574 tid=740574 comm=2.1.302 dfd=-100 flags=0100 ret=25 path=/dev/null
+OPEN pid=740533 tid=740560 comm=Bun Pool 3 dfd=-100 flags=02100101 ret=11 path=/run/ukai/state/sessions/2.json
+OPEN pid=740533 tid=740547 comm=Bun Pool 2 dfd=-100 flags=02100101 ret=12 path=/run/ukai/state/sessions/2.json
+OPEN pid=740533 tid=740545 comm=Bun Pool 0 dfd=-100 flags=02100101 ret=12 path=/run/ukai/state/sessions/2.json
+OPEN pid=740533 tid=740545 comm=Bun Pool 0 dfd=-100 flags=02100301 ret=12 path=/run/ukai/state/.claude.json.tmp.2.5fc1b7ebe031
+OPEN pid=740533 tid=740547 comm=Bun Pool 2 dfd=-100 flags=02101301 ret=9 path=/tmp/claude-1000/fswatch-probe-s7tTyB/probe
+OPEN pid=740533 tid=740545 comm=Bun Pool 0 dfd=-100 flags=02102101 ret=15 path=/run/ukai/state/projects/-home-ubuntu-ccw-probe-ws/4384af64-8e9f-42a4-9a59-d01d8d252585.jsonl
+OPEN pid=740533 tid=740546 comm=Bun Pool 1 dfd=-100 flags=02102101 ret=15 path=/run/ukai/state/projects/-home-ubuntu-ccw-probe-ws/4384af64-8e9f-42a4-9a59-d01d8d252585.jsonl
+OPEN pid=740533 tid=740545 comm=Bun Pool 0 dfd=-100 flags=02500301 ret=15 path=/proc/self/fd/14/greeting.txt.tmp.2.ab0417c1c039
+OPEN pid=740533 tid=740545 comm=Bun Pool 0 dfd=-100 flags=02100301 ret=16 path=/run/ukai/state/.claude.json.tmp.2.e627cc646a62
+OPEN pid=740533 tid=740546 comm=Bun Pool 1 dfd=-100 flags=02102101 ret=15 path=/run/ukai/state/projects/-home-ubuntu-ccw-probe-ws/4384af64-8e9f-42a4-9a59-d01d8d252585.jsonl
+OPEN pid=740533 tid=740560 comm=Bun Pool 3 dfd=-100 flags=02102101 ret=15 path=/run/ukai/state/projects/-home-ubuntu-ccw-probe-ws/4384af64-8e9f-42a4-9a59-d01d8d252585.jsonl
+OPEN pid=740533 tid=740545 comm=Bun Pool 0 dfd=-100 flags=02102101 ret=14 path=/run/ukai/state/projects/-home-ubuntu-ccw-probe-ws/4384af64-8e9f-42a4-9a59-d01d8d252585.jsonl
+OPEN pid=740533 tid=740533 comm=2.1.302 dfd=-100 flags=02102301 ret=-17 path=/run/ukai/state/projects/-home-ubuntu-ccw-probe-ws/4384af64-8e9f-42a4-9a59-d01d8d252585.jsonl
+OPEN pid=740533 tid=740533 comm=2.1.302 dfd=-100 flags=02102101 ret=13 path=/run/ukai/state/projects/-home-ubuntu-ccw-probe-ws/4384af64-8e9f-42a4-9a59-d01d8d252585.jsonl
+OPEN pid=740533 tid=740533 comm=2.1.302 dfd=-100 flags=02102301 ret=-17 path=/run/ukai/state/projects/-home-ubuntu-ccw-probe-ws/4384af64-8e9f-42a4-9a59-d01d8d252585.jsonl
+OPEN pid=740533 tid=740533 comm=2.1.302 dfd=-100 flags=02102101 ret=13 path=/run/ukai/state/projects/-home-ubuntu-ccw-probe-ws/4384af64-8e9f-42a4-9a59-d01d8d252585.jsonl
+OPEN pid=740533 tid=740545 comm=Bun Pool 0 dfd=-100 flags=02100101 ret=13 path=/run/ukai/state/sessions/2.json
