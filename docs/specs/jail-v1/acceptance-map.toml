@@ -1747,6 +1747,19 @@ tests = [
 ]
 note = "The test asserts its own race-detection signal: with the fixture's flipper thread running for all 300 racing mkdirs, at least one argument_snapshot_unstable gap must be recorded, so the snapshot-only claim is exercised by a race that actually happened, not merely tolerated."
 
+[[clause]]
+id = "O06.6"
+gate = "O06"
+clause = "A symlink's target, the second path of a two-path call the kernel stores without resolving, is never a resolved path: relative or absolute it is the digest of its bytes (`symlink_target`), never joined to the working directory, classified against a root or read through a descriptor, and no working directory is read for it"
+tag = "live-cli"
+tests = [
+  "ukai-jail/tests/j4_closed_set_linux.rs::j4_o06_a_link_names_only_the_entry_it_creates",
+  "ukai-jail/tests/j4_closed_set_linux.rs::j4_o01_every_variant_is_one_event_per_result_tool",
+  "ukai-jail/tests/observer_regression_linux.rs::r25_symlink_reports_the_link_it_creates_as_its_primary_path",
+  "ukai-jail/src/lib.rs::platform::linux::audit::tests::a_symlink_target_is_a_digest_never_a_path",
+]
+note = "Until 2026-10-17 a relative target was joined to the caller's working directory (which it is not resolved against: a link's own directory is, when someone follows it) and an absolute one classified against the roots, so `ln -s README.md link` recorded the workspace path README.md and the end-of-run summary counted it as opened for writing (K46). The live test covers a relative and an absolute target under `tool`, and the O01 matrix both under every profile; a truncated, empty or procfs-spelled target is unit-level. Decision in docs/benchmarks/jail/summary-links-decision-2026-10-17.md."
+
 # ------------------------------------------------------------------ L01
 
 [[gate]]

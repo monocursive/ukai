@@ -277,7 +277,8 @@ descriptor `ret` with a `/dev/null` descriptor before the exit stop.
   the target string, which the call stores without touching, and a relative
   one is joined to the working directory, which is not what it resolves
   against (O01 pins that join). For `link`, `path` is the existing file. Both
-  overstate what the call did, and are K46 territory.
+  overstate what the call did, and are K46 territory. Done the same day:
+  [summary-links-decision-2026-10-17.md](summary-links-decision-2026-10-17.md).
 - **Name bookkeeping gaps in the evidence line.** Today a
   `path_claim_unverified` or `path_anchor_unverified` gap only removes
   `no gaps`. Naming it, with its count, would let a reader of the text line

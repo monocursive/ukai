@@ -219,7 +219,12 @@ profile and no credential (OpenCode Zen's free model `big-pickle`).
   `by: program_resolution`, replacing the old rows' `--ro ~/.opencode/bin`.
   There was one proxy result each to `opencode.ai`, `models.opencode.ai` and
   `registry.npmjs.org`, nothing denied, and the summaries reproduce from the
-  archive.
+  archive. (Correction, same day: both summaries' `1 path opened for writing`
+  is `testing`, the target of a symlink OpenCode created outside the
+  workspace, which the summary of that build counted. OpenCode wrote nothing
+  into the workspace; the line now reads `0 paths opened for writing · 155
+  results with unnamed paths`. See
+  [summary-links-decision-2026-10-17.md](summary-links-decision-2026-10-17.md).)
 - **The agent:** OpenCode printed
   `Error: OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.`
   and exited 1; no `greeting.txt`.

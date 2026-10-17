@@ -89,16 +89,21 @@ impl Session {
         // the thread's own cwd is resolved against that cwd at
         // classification; the snapshot itself stays the raw argument, so the
         // exit-side stability check compares what the tracee still holds.
-        args.cwd = self.observed_cwd(
-            tid,
-            (args.path.as_ref(), args.dirfd),
-            (args.path2.as_ref(), args.dirfd2),
-        );
+        // A symlink's target is stored, not resolved: neither the cwd nor a
+        // descriptor is read for it, so a sibling's `chdir` during the call
+        // is no unverified anchor of a name nothing resolved.
+        let target = entry.op == ClosedOp::Symlink;
+        let second = if target {
+            (None, None)
+        } else {
+            (args.path2.as_ref(), args.dirfd2)
+        };
+        args.cwd = self.observed_cwd(tid, (args.path.as_ref(), args.dirfd), second);
         // A name the kernel resolves through a directory descriptor is
         // resolved below that descriptor's own link, read here and again at
-        // the exit stop. A symlink's target is stored, not resolved.
+        // the exit stop.
         args.directory = self.directory_link(tid, args.path.as_ref(), args.dirfd);
-        if entry.op != ClosedOp::Symlink {
+        if !target {
             args.directory2 = self.directory_link(tid, args.path2.as_ref(), args.dirfd2);
         }
         if let Some((ptr, len)) = entry.sockaddr {

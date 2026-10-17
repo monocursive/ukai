@@ -278,7 +278,8 @@ fn path_keys(op: &str) -> (Option<&'static str>, Option<&'static str>) {
 
 /// What §11.3 lets an event say about a pathname the fixture passed with
 /// `AT_FDCWD`: relative to the workspace or scratch, using the real entry-time
-/// cwd for these fixtures' relative arguments; a digest elsewhere.
+/// cwd for these fixtures' relative arguments; a digest elsewhere. Not a
+/// symlink's target, which is no pathname ([`expected_arg`]).
 fn expected_path(arg: &str, roots: &Roots) -> Value {
     for (root, kind) in [
         (Some(roots.workspace.as_str()), "workspace_relative"),
@@ -309,8 +310,26 @@ struct Roots {
     scratch: Option<String>,
 }
 
+/// What §11.3 lets an event say about the fixture argument `arg` that `op`
+/// passed in `field`: a symlink's target (`path2`) is a string the call
+/// stores, resolved against nothing, so it is the digest of exactly its
+/// bytes whether it is relative or absolute, never a path. Every other
+/// argument is a path ([`expected_path`]).
+fn expected_arg(op: &str, field: &str, arg: &str, roots: &Roots) -> Value {
+    if field == "path2" && matches!(op, "symlink" | "symlinkat") {
+        return serde_json::json!({
+            "kind": "digest",
+            "digest": ukai_jail::canonical::sha256_prefixed(arg.as_bytes()),
+            "reason": "symlink_target",
+        });
+    }
+    expected_path(arg, roots)
+}
+
+/// `{"kind": "digest"}` alone stands for any digest; anything else is
+/// compared exactly.
 fn path_matches(event_path: &Value, expected: &Value) -> bool {
-    if expected["kind"] == "digest" {
+    if *expected == serde_json::json!({"kind": "digest"}) {
         return event_path["kind"] == "digest";
     }
     event_path == expected
@@ -366,7 +385,10 @@ fn matches(line: &Value, event: &Value, roots: &Roots) -> bool {
             let Some(arg) = line["args"][key].as_str() else {
                 return false;
             };
-            if !path_matches(&event["fields"][field], &expected_path(arg, roots)) {
+            if !path_matches(
+                &event["fields"][field],
+                &expected_arg(op, field, arg, roots),
+            ) {
                 return false;
             }
         }
@@ -494,7 +516,13 @@ fn o01_steps(c: &Case) -> Value {
             "linkat"
         ],
         ["symlink", "target", w("s-symlink"), "--via", "symlink"],
-        ["symlink", "target", w("s-symlinkat"), "--via", "symlinkat"],
+        [
+            "symlink",
+            w("target"),
+            w("s-symlinkat"),
+            "--via",
+            "symlinkat"
+        ],
         ["mknod", w("n-mknod"), "--via", "mknod"],
         ["mknod", w("n-mknodat"), "--via", "mknodat"],
         ["unlink", w("l-link.txt"), "--via", "unlink"],
@@ -1526,6 +1554,134 @@ fn j4_o06_two_paths_independent() {
         serde_json::json!({"kind": "scratch_relative", "value": "two-d"}),
         "{context}"
     );
+}
+
+/// A symlink's target is a string the call stores, resolved against
+/// nothing: relative or absolute, it is the digest of its bytes
+/// (`symlink_target`), never joined to the cwd, never a workspace path. A
+/// hard link names both its paths, and the end-of-run summary counts only
+/// the entry each call created: the links, never the file they point at or
+/// give a name to (jail-launch-and-summary §4.2, K46).
+#[test]
+fn j4_o06_a_link_names_only_the_entry_it_creates() {
+    if !common::profile_live(ProfileName::Tool) {
+        return;
+    }
+    let c = case(ProfileName::Tool, "strict");
+    std::fs::write(c.workspace.join("README.md"), b"r").unwrap();
+    let readme = c.ws("README.md");
+    let steps = serde_json::json!([
+        [
+            "symlink",
+            "README.md",
+            "l-rel",
+            "--via",
+            native_via("symlink")
+        ],
+        [
+            "symlink",
+            c.ws("README.md"),
+            c.ws("l-abs"),
+            "--via",
+            "symlinkat"
+        ],
+        [
+            "link",
+            c.ws("README.md"),
+            c.ws("hard"),
+            "--via",
+            native_via("link")
+        ]
+    ]);
+    let run = c.script("links", &steps);
+    let receipt = common::settled(&run);
+    let context = dump(&run);
+    let events = audit_results(&run);
+    let target = |bytes: &str| {
+        serde_json::json!({
+            "kind": "digest",
+            "digest": ukai_jail::canonical::sha256_prefixed(bytes.as_bytes()),
+            "reason": "symlink_target",
+        })
+    };
+    let relative = event_for(&events, native_via("symlink"), 0);
+    assert_eq!(
+        relative["fields"]["path"],
+        serde_json::json!({"kind": "workspace_relative", "value": "l-rel"}),
+        "the link is resolved against the cwd: {context}"
+    );
+    assert_eq!(
+        relative["fields"]["path2"],
+        target("README.md"),
+        "the target is not: {context}"
+    );
+    let absolute = event_for(
+        &events,
+        "symlinkat",
+        usize::from(native_via("symlink") == "symlinkat"),
+    );
+    assert_eq!(
+        absolute["fields"]["path"],
+        serde_json::json!({"kind": "workspace_relative", "value": "l-abs"}),
+        "{context}"
+    );
+    assert_eq!(
+        absolute["fields"]["path2"],
+        target(&readme),
+        "an absolute target is no workspace path either: {context}"
+    );
+    for event in [relative, absolute] {
+        assert_eq!(event["fields"]["path_basis"], "argument_snapshot");
+        assert!(
+            event["fields"].get("path2_dirfd").is_none(),
+            "{event}: {context}"
+        );
+    }
+    let hard = event_for(&events, native_via("link"), 0);
+    assert_eq!(
+        hard["fields"]["path"],
+        serde_json::json!({"kind": "workspace_relative", "value": "README.md"}),
+        "{context}"
+    );
+    assert_eq!(
+        hard["fields"]["path2"],
+        serde_json::json!({"kind": "workspace_relative", "value": "hard"}),
+        "{context}"
+    );
+    assert_eq!(
+        receipt["lifetime"]["native"]["details"]["path_anchors_unverified"], 0,
+        "{context}"
+    );
+
+    let last: Value =
+        serde_json::from_slice(run.final_receipt().expect("a final receipt")).unwrap();
+    let mut journal = Vec::new();
+    for event in run.trace_events() {
+        journal.extend(serde_json::to_vec(event).unwrap());
+        journal.push(b'\n');
+    }
+    let summary = ukai_jail::summary::summary(&last, ukai_jail::summary::Journal::Bytes(&journal));
+    let workspace = summary
+        .lines
+        .iter()
+        .find(|line| line.line == "workspace")
+        .expect("a workspace line");
+    assert_eq!(
+        workspace.facts["paths"],
+        serde_json::json!([
+            {"kind": "workspace_relative", "value": "hard"},
+            {"kind": "workspace_relative", "value": "l-abs"},
+            {"kind": "workspace_relative", "value": "l-rel"},
+        ]),
+        "README.md was given names, never opened for writing: {}\n{context}",
+        workspace.text
+    );
+    assert_eq!(
+        workspace.facts["opened_for_writing"], 3,
+        "{}",
+        workspace.text
+    );
+    assert_eq!(workspace.facts["unnamed"], 0, "{}", workspace.text);
 }
 
 /// A name that is not UTF-8 is carried as its bytes (the base64 form of the

@@ -122,7 +122,7 @@ TOP = {"attempt_id": str, "source": str, "source_seq": "u64", "operation": str, 
 FIELDS = {"kind": str, "transition": str, "phase": str, "receipt_digest": str, "action": str,
           "attempted_operation": str, "destination": str, "reason": str, "credential_id": str,
           "uses_recorded": bool, "credentials": "ids", "credentials_unconfirmed": "ids",
-          "path": "path", "path2": "path"}
+          "syscall": str, "path": "path", "path2": "path"}
 
 
 def typed(value, kind):
@@ -370,6 +370,33 @@ def status_line(receipt, frames, scanned):
     return " · ".join(parts), facts
 
 
+def written(operation, fields):
+    """The paths a successful write-class result wrote (§4.2): both sides of
+    a rename; of a directory-entry creation only the entry it created, by
+    fields.syscall (a hard link's new name, path2; a symlink's link, path:
+    its path2 is the target, which the call stores without touching); path
+    of every other result. None for a creation with a second path and a call
+    that is neither: which path is the new entry is not established. A slot
+    is None where the result recorded no such path."""
+    path, path2, syscall = fields.get("path"), fields.get("path2"), fields.get("syscall")
+    if operation == "fs.rename":
+        return [path, path2]
+    if operation == "fs.create" and syscall in ("link", "linkat"):
+        return [path2]
+    if operation == "fs.create" and syscall in ("symlink", "symlinkat"):
+        return [path]
+    if operation == "fs.create" and path2 is not None:
+        return None
+    return [path]
+
+
+def unnamed_path(path):
+    """No name for a written path: none recorded, unavailable, or a digest
+    whose reason does not place it outside the workspace."""
+    return (path is None or path.get("kind") == "unavailable"
+            or (path.get("kind") == "digest" and path.get("reason") not in NOT_WORKSPACE_DIGESTS))
+
+
 def workspace_line(receipt, frames, claims, state, size):
     opened, renamed, removed, named, unnamed, refused = set(), set(), set(), {}, 0, 0
     for frame in frames:
@@ -382,14 +409,12 @@ def workspace_line(receipt, frames, claims, state, size):
             continue
         if operation == "fs.write" and fields.get("action") not in ("opened_for_mutation", "truncated"):
             continue
-        paths = [fields[key] for key in ("path", "path2") if isinstance(fields.get(key), dict)]
-        if any(path.get("kind") == "unavailable"
-               or (path.get("kind") == "digest" and path.get("reason") not in NOT_WORKSPACE_DIGESTS)
-               for path in paths):
+        paths = written(operation, fields)
+        if paths is None or any(unnamed_path(path) for path in paths):
             unnamed += 1
-        for path in paths:
-            value = path.get("value")
-            if path.get("kind") != "workspace_relative" or value is None:
+        for path in paths or []:
+            value = path.get("value") if path is not None else None
+            if value is None or path.get("kind") != "workspace_relative":
                 continue
             key = ("t", value) if isinstance(value, str) else ("b", value["data"])
             named[key] = value if isinstance(value, str) else {"encoding": "base64", "data": value["data"]}

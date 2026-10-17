@@ -2087,10 +2087,15 @@ run. The procfs spelling is resolved this way only where `/proc` is the
 jail's own for the whole attempt, a contained profile whose baseline
 refuses every mount interface, `chroot`, `pivot_root`, `unshare`, `setns`
 and namespace clone (§9.2); under `none` it stays `relative_to_dirfd`. A
-symlink's target is stored by the call, not resolved, and is never read
-through a descriptor. So the common cases — a shell or tool writing inside
-the workspace, a runtime renaming its temporary file into place through a
-descriptor — are named like their absolute spellings; the argument snapshot
+symlink's target (`path2` of `symlink` and `symlinkat`) is a string the call
+stores, not a name it resolves: it is never joined to the working directory
+(which is not read for it), never read through a descriptor, and never
+classified against a root even when absolute, since whoever follows the
+link resolves it later against their own root and directory, outside the
+jail too. It is a digest of its bytes with the reason `symlink_target`, or
+unavailable as any incomplete or empty snapshot is. So the common cases — a
+shell or tool writing inside the workspace, a runtime renaming its temporary
+file into place through a descriptor — are named like their absolute spellings; the argument snapshot
 stays the raw bytes and the stability re-read compares those. A name through
 a descriptor carries `path_dirfd` naming descriptor N whether or not it was
 resolved, and is never a digest "outside the known roots", since it can be

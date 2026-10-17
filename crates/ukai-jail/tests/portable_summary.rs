@@ -311,6 +311,44 @@ impl Fixture {
         )
     }
 
+    /// Names the last frame's call `syscall`.
+    fn via(&mut self, syscall: &str) -> &mut Self {
+        if let Some(event) = self.events.last_mut() {
+            event["fields"]["syscall"] = json!(syscall);
+        }
+        self
+    }
+
+    /// `symlink(target, link)`: `path` is the link the call created, and
+    /// `path2` its target, a string the call stored without touching. The
+    /// observer digests the target (`symlink_target`), but a journal may
+    /// hold anything there (a build before that wrote a cwd-joined name):
+    /// whatever it holds, it is no written path.
+    fn symlink(&mut self, link: &str, target: Value, via: &str) -> &mut Self {
+        self.audit(
+            "fs.create",
+            true,
+            json!({"path": Self::named(link), "path2": target}),
+        )
+        .via(via)
+    }
+
+    /// `link(existing, name)`: `path` is an existing file given a new name,
+    /// `path2`, the one entry the call created.
+    fn hard_link(&mut self, existing: Value, name: Value, via: &str) -> &mut Self {
+        self.audit("fs.create", true, json!({"path": existing, "path2": name}))
+            .via(via)
+    }
+
+    /// A symlink's target as the observer records it.
+    fn target(target: &str) -> Value {
+        json!({
+            "kind": "digest",
+            "digest": ukai_jail::canonical::sha256_prefixed(target.as_bytes()),
+            "reason": "symlink_target",
+        })
+    }
+
     /// A refused write outside every known root: a digest, never a name.
     fn refused_write(&mut self) -> &mut Self {
         self.audit(
@@ -591,6 +629,87 @@ fn k45_writes_through_a_descriptor_and_into_vendor_state() {
             {"kind": "workspace_relative", "value": "greeting.txt"},
             {"kind": "workspace_relative", "value": "greeting.txt.tmp.2.ab0417c1c039"},
         ])
+    );
+}
+
+/// `ln -s README.md link` and `ln README.md hard` in the workspace: each
+/// call created one entry, and only that entry is opened for writing.
+/// README.md is a symlink's target (stored, never touched) and a hard
+/// link's existing file (given a name, not written), so it is not counted,
+/// whatever the journal says about it, a target a build before
+/// `symlink_target` named as a workspace path included. A creation with two
+/// paths and a call the summary does not know names neither path, and is
+/// one result it cannot name.
+#[test]
+fn k45_links_count_only_the_entry_they_create() {
+    let links = |more: &dyn Fn(&mut Fixture)| {
+        let mut fixture = Fixture::agent();
+        fixture.lifecycle("prepared").at(2_000_000_000);
+        fixture.lifecycle("exec_confirmed");
+        fixture.exec();
+        fixture
+            .symlink("link", Fixture::target("README.md"), "symlinkat")
+            .symlink("old-link", Fixture::named("README.md"), "symlink")
+            .hard_link(
+                Fixture::named("README.md"),
+                Fixture::named("hard"),
+                "linkat",
+            )
+            .hard_link(
+                json!({"kind": "unavailable", "reason": "relative_to_dirfd"}),
+                Fixture::named("hard2"),
+                "link",
+            );
+        more(&mut fixture);
+        fixture.exit();
+        fixture.sync();
+        fixture.at(5_700_000_000);
+        fixture.summary()
+    };
+    let summary = links(&|_| {});
+    assert_lines(
+        &summary,
+        &[
+            "settled · exited 0 · 3.7s exec→settled · survivors: none (verified)",
+            "workspace: 4 paths opened for writing",
+            "network: proxy, no connections",
+            "evidence: 6/6 classes active, no gaps · reads and file contents are not observed",
+        ],
+    );
+    let workspace = facts(&summary, "workspace");
+    assert_eq!(
+        workspace["paths"],
+        json!([
+            {"kind": "workspace_relative", "value": "hard"},
+            {"kind": "workspace_relative", "value": "hard2"},
+            {"kind": "workspace_relative", "value": "link"},
+            {"kind": "workspace_relative", "value": "old-link"},
+        ])
+    );
+    assert_eq!(workspace["unnamed"], 0);
+
+    // The new name unnamed or not recorded, or a call that does not say
+    // which path it made.
+    let summary = links(&|fixture| {
+        fixture
+            .hard_link(
+                Fixture::named("README.md"),
+                json!({"kind": "unavailable", "reason": "path_truncated"}),
+                "linkat",
+            )
+            .hard_link(Fixture::named("README.md"), Fixture::named("x"), "openat")
+            .hard_link(Fixture::named("README.md"), Value::Null, "link");
+    });
+    let workspace = facts(&summary, "workspace");
+    assert_eq!(workspace["opened_for_writing"], 4, "{:#?}", texts(&summary));
+    assert_eq!(workspace["unnamed"], 3, "{:#?}", texts(&summary));
+    assert!(
+        !workspace["paths"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|path| path["value"] == "README.md" || path["value"] == "x"),
+        "{workspace}"
     );
 }
 
@@ -910,9 +1029,25 @@ fn truth_of(events: &[Value]) -> Truth {
                 {
                     continue;
                 }
-                let paths = [&fields["path"], &fields["path2"]];
+                // What the result wrote: both sides of a rename; the one
+                // entry a link or a symlink created (a hard link's existing
+                // file is given a name, a symlink's target is stored); the
+                // path of anything else. A creation with two paths and
+                // another call says not which it made: it names nothing.
+                let (path, path2) = (&fields["path"], &fields["path2"]);
+                let paths = match (operation, fields["syscall"].as_str()) {
+                    ("fs.rename", _) => vec![path, path2],
+                    ("fs.create", Some("link" | "linkat")) => vec![path2],
+                    ("fs.create", Some("symlink" | "symlinkat")) => vec![path],
+                    ("fs.create", _) if !path2.is_null() => {
+                        truth.unnamed += 1;
+                        continue;
+                    }
+                    _ => vec![path],
+                };
                 if paths.iter().any(|path| {
-                    path["kind"] == "unavailable"
+                    path.is_null()
+                        || path["kind"] == "unavailable"
                         || (path["kind"] == "digest"
                             && path["reason"] != "vendor_state"
                             && path["reason"] != "standard_device")
@@ -1021,14 +1156,14 @@ fn k46_the_summary_never_claims_more_than_the_evidence() {
     // How often each bound was reached, so the property cannot pass on
     // cases that never claimed anything.
     let mut reached: BTreeMap<String, u64> = BTreeMap::new();
-    for case in 0..600 {
+    for case in 0..1000 {
         // 1. The run as it happened.
         let mut run = Fixture::agent();
         run.vault("api");
         run.lifecycle("exec_confirmed");
         run.credential_note("api", "loaded", true);
         for _ in 0..rng.below(40) {
-            match rng.below(17) {
+            match rng.below(18) {
                 0 => {
                     run.exec();
                 }
@@ -1089,6 +1224,40 @@ fn k46_the_summary_never_claims_more_than_the_evidence() {
                         run.standard_device_write();
                     } else {
                         run.descriptor_rename_unresolved();
+                    }
+                }
+                16 => {
+                    // A name that only ever is a target or a linked file:
+                    // never written, so never listed.
+                    let only = rng.pick(&["t-only", "dir/t-only"]);
+                    let name = rng.pick(&paths);
+                    match rng.below(3) {
+                        0 => {
+                            let target = if rng.chance(50) {
+                                Fixture::target(only)
+                            } else {
+                                Fixture::named(only)
+                            };
+                            let via = rng.pick(&["symlink", "symlinkat"]);
+                            run.symlink(name, target, via);
+                        }
+                        1 => {
+                            let existing = if rng.chance(70) {
+                                Fixture::named(only)
+                            } else {
+                                json!({"kind": "unavailable", "reason": "relative_to_dirfd"})
+                            };
+                            let new = if rng.chance(85) {
+                                Fixture::named(name)
+                            } else {
+                                json!({"kind": "unavailable", "reason": "path_truncated"})
+                            };
+                            let via = rng.pick(&["link", "linkat"]);
+                            run.hard_link(existing, new, via);
+                        }
+                        _ => {
+                            run.hard_link(Fixture::named(only), Fixture::named(only), "openat");
+                        }
                     }
                 }
                 _ => {
@@ -1232,6 +1401,18 @@ fn k46_the_summary_never_claims_more_than_the_evidence() {
             &workspace["refused"],
             truth.refused,
         );
+        // Every name listed is one a result wrote: never a symlink's
+        // target, a hard link's existing file, or either path of a creation
+        // that does not say which one it made.
+        for path in workspace["paths"].as_array().expect("a list") {
+            let key = path["value"].to_string();
+            assert!(
+                truth.opened.contains(&key)
+                    || truth.renamed.contains(&key)
+                    || truth.removed.contains(&key),
+                "{context}: {path} listed, never written"
+            );
+        }
         for (class, bound) in [
             ("fs.write", write_bound),
             ("fs.deny", &workspace["refused_bound"]),
@@ -2083,6 +2264,25 @@ fn k52_an_independent_script_recomputes_the_numbers() {
         through.at(223_000_000_000);
         through.sync();
         let through_journal = through.journal();
+        let mut links = every_class();
+        links
+            .symlink("link", Fixture::target("README.md"), "symlinkat")
+            .symlink("old-link", Fixture::named("README.md"), "symlink")
+            .hard_link(
+                Fixture::named("README.md"),
+                Fixture::named("hard"),
+                "linkat",
+            )
+            .hard_link(
+                Fixture::named("README.md"),
+                json!({"kind": "unavailable", "reason": "path_truncated"}),
+                "link",
+            )
+            .hard_link(Fixture::named("README.md"), Fixture::named("x"), "openat")
+            .hard_link(Fixture::named("README.md"), Value::Null, "link");
+        links.at(223_000_000_000);
+        links.sync();
+        let links_journal = links.journal();
         vec![
             ("clean", clean, clean_journal),
             ("unknown", unknown, unknown_journal),
@@ -2091,6 +2291,7 @@ fn k52_an_independent_script_recomputes_the_numbers() {
             ("hostile", hostile, hostile_journal),
             ("observation off", off, off_journal),
             ("through a descriptor", through, through_journal),
+            ("links", links, links_journal),
         ]
     };
     for (name, fixture, journal) in cases {

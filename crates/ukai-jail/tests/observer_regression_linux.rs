@@ -1194,7 +1194,7 @@ fn r24_a_queue_gap_names_what_it_lost_and_never_swallows_the_exit() {
 
 /// R25: `args.path` is the directory entry the call creates on every row,
 /// including `symlink`, whose target is an opaque string the kernel stores
-/// without resolving it.
+/// without resolving it, so the tracer reads no anchor for it.
 #[test]
 fn r25_symlink_reports_the_link_it_creates_as_its_primary_path() {
     let _serial = serial();
@@ -1229,6 +1229,12 @@ fn r25_symlink_reports_the_link_it_creates_as_its_primary_path() {
         args.dirfd2, None,
         "a stored string is resolved against nothing"
     );
+    assert_eq!(
+        args.cwd, None,
+        "nor against the working directory: with an absolute link, no name of \
+         the call is resolved there, so none is read"
+    );
+    assert_eq!(args.directory2, None);
 }
 
 /// R26: a tracee cannot decide how much loss the observer records. Five

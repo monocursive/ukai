@@ -293,6 +293,8 @@ struct FrameFields<'a> {
     #[serde(borrow)]
     credentials_unconfirmed: Option<Vec<Str<'a>>>,
     #[serde(borrow)]
+    syscall: Option<Str<'a>>,
+    #[serde(borrow)]
     path: Option<FramePath<'a>>,
     #[serde(borrow)]
     path2: Option<FramePath<'a>>,
@@ -452,6 +454,28 @@ impl Paths {
     }
 }
 
+/// The paths a successful write-class result wrote (§4.2): both sides of a
+/// rename; of a directory-entry creation, only the entry it created, by
+/// `fields.syscall`: a hard link's new name (`path2`: its `path` is an
+/// existing file given a name, not written) and a symlink's link (`path`:
+/// its `path2` is the target, a string the call stores without touching);
+/// and `path` of every other result. `None` for a creation with a second
+/// path and a call that is neither: which path is the new entry is not
+/// established. A slot is `None` where the result recorded no such path.
+fn written<'f, 'a>(
+    operation: &str,
+    fields: &'f FrameFields<'a>,
+) -> Option<Vec<Option<&'f FramePath<'a>>>> {
+    let (path, path2) = (fields.path.as_ref(), fields.path2.as_ref());
+    match (operation, fields.syscall.as_deref()) {
+        ("fs.rename", _) => Some(vec![path, path2]),
+        ("fs.create", Some("link" | "linkat")) => Some(vec![path2]),
+        ("fs.create", Some("symlink" | "symlinkat")) => Some(vec![path]),
+        ("fs.create", _) if path2.is_some() => None,
+        _ => Some(vec![path]),
+    }
+}
+
 /// The class a frame is counted under, as the producer counts it
 /// (`ClosedOperation::coverage_class`, and the proxy's own class): `None`
 /// for a frame no coverage count includes. `limits` hits are counted from
@@ -482,7 +506,7 @@ struct Scan {
     /// Distinct workspace paths opened for writing, renamed (either side)
     /// and removed.
     paths: Paths,
-    /// Successful write-class results with a path that has no name.
+    /// Successful write-class results with a written path that has no name.
     unnamed: u64,
     /// `fs.deny` results whose attempted operation is a file write.
     refused: u64,
@@ -635,8 +659,18 @@ impl Scan {
         {
             return;
         }
-        let paths: Vec<&FramePath> = fields.path.iter().chain(&fields.path2).collect();
-        if paths.iter().any(|path| path.unnamed()) {
+        let Some(written) = written(operation, fields) else {
+            // Which of the two paths is the new entry is not established, so
+            // neither is named, and the result is one the line cannot name.
+            self.unnamed += 1;
+            return;
+        };
+        // A path the result did not record is no more named than one it
+        // recorded without a name.
+        if written
+            .iter()
+            .any(|path| path.is_none_or(FramePath::unnamed))
+        {
             self.unnamed += 1;
         }
         let how = match operation {
@@ -644,7 +678,7 @@ impl Scan {
             "fs.unlink" => REMOVED,
             _ => OPENED,
         };
-        for path in paths {
+        for path in written.into_iter().flatten() {
             if let Some(name) = path.workspace() {
                 self.paths.mark(name, how);
             }

@@ -39,6 +39,38 @@ enum PathClass {
     Unavailable(&'static str),
 }
 
+impl PathClass {
+    /// The event's nested `{kind, value}` form (examples/event-open.json): a
+    /// consumer reads `fields.path.kind` and gets the classification, not a
+    /// flat key it has to know about.
+    fn into_json(self) -> Value {
+        match self {
+            PathClass::WorkspaceRelative(bytes) => serde_json::json!({
+                "kind": "workspace_relative",
+                "value": native_value(&bytes),
+            }),
+            PathClass::ScratchRelative(bytes) => serde_json::json!({
+                "kind": "scratch_relative",
+                "value": native_value(&bytes),
+            }),
+            PathClass::RootRelative { root, rest } => serde_json::json!({
+                "kind": "root_relative",
+                "root": root,
+                "value": native_value(&rest),
+            }),
+            PathClass::Digest(digest, reason) => serde_json::json!({
+                "kind": "digest",
+                "digest": digest,
+                "reason": reason,
+            }),
+            PathClass::Unavailable(reason) => serde_json::json!({
+                "kind": "unavailable",
+                "reason": reason,
+            }),
+        }
+    }
+}
+
 /// One named root a classified path can be relative to.
 struct NamedRoot {
     bytes: Vec<u8>,
@@ -439,13 +471,16 @@ impl AuditWriter {
         // descriptor's agreed at the exit stop, which the tracer handed over
         // as the kernel's resolution (`descriptor_link`), and a name through
         // a directory descriptor whose link read the same at both stops,
-        // named below that link (`directory_link`).
+        // named below that link (`directory_link`). A symlink's target is no
+        // path at all: the call stores it, resolved against nothing.
         let resolved = args.resolved.as_deref().map(snap_bytes);
         let below = self
             .below_directory(args.path.as_ref(), args.dirfd, args.directory.as_deref())
             .map(|path| snap_bytes(&path));
+        let target = op == ClosedOp::Symlink;
         let below2 = self
             .below_directory(args.path2.as_ref(), args.dirfd2, args.directory2.as_deref())
+            .filter(|_| !target)
             .map(|path| snap_bytes(&path));
         fields.insert(
             "path_basis".to_owned(),
@@ -469,7 +504,9 @@ impl AuditWriter {
         if let Some(device) = args.char_device {
             standard_device(&mut fields, "path", device);
         }
-        if args.path2.is_some() {
+        if let Some(snapshot) = args.path2.as_ref().filter(|_| target) {
+            describe_target(&mut fields, snapshot);
+        } else if args.path2.is_some() {
             self.describe_path_as(
                 &mut fields,
                 "path2",
@@ -980,9 +1017,6 @@ impl AuditWriter {
         cwd: Cwd<'_>,
         resolved: Option<&PathSnapshot>,
     ) {
-        // The nested {kind, value} shape is the documented contract
-        // (examples/event-open.json): a consumer reads fields.path.kind and
-        // gets the classification, not a flat key it has to know about.
         let complete = snapshot.is_some_and(|snap| snap.complete);
         fields.insert(format!("{key}_complete"), Value::from(complete));
         // The descriptor the kernel resolved the name through: the one the
@@ -1000,31 +1034,7 @@ impl AuditWriter {
             Some(resolved) => self.classify(Some(resolved), None, None),
             None => self.classify_at(snapshot, dirfd, cwd),
         };
-        let path = match class {
-            PathClass::WorkspaceRelative(bytes) => serde_json::json!({
-                "kind": "workspace_relative",
-                "value": native_value(&bytes),
-            }),
-            PathClass::ScratchRelative(bytes) => serde_json::json!({
-                "kind": "scratch_relative",
-                "value": native_value(&bytes),
-            }),
-            PathClass::RootRelative { root, rest } => serde_json::json!({
-                "kind": "root_relative",
-                "root": root,
-                "value": native_value(&rest),
-            }),
-            PathClass::Digest(digest, reason) => serde_json::json!({
-                "kind": "digest",
-                "digest": digest,
-                "reason": reason,
-            }),
-            PathClass::Unavailable(reason) => serde_json::json!({
-                "kind": "unavailable",
-                "reason": reason,
-            }),
-        };
-        fields.insert(key.to_owned(), path);
+        fields.insert(key.to_owned(), class.into_json());
     }
 
     /// The absolute path a name through a directory descriptor (§11.3
@@ -1231,6 +1241,30 @@ fn standard_device(fields: &mut Map<String, Value>, key: &str, device: (u32, u32
     {
         path["reason"] = Value::from("standard_device");
     }
+}
+
+/// §11.3: a symlink's target (`path2` of `symlink`/`symlinkat`) is a string
+/// the call stores without resolving it, against no directory. It is never
+/// named as a path: not joined to the working directory when relative, not
+/// classified against a root when absolute (whoever follows the link later
+/// resolves it against their own root and directory, outside the jail too),
+/// and never through a descriptor, so it carries no `path2_dirfd`. A
+/// complete target is a digest of its bytes with the reason
+/// `symlink_target`; an incomplete or empty one is unavailable, as any
+/// snapshot is.
+fn describe_target(fields: &mut Map<String, Value>, snapshot: &PathSnapshot) {
+    fields.insert("path2_complete".to_owned(), Value::from(snapshot.complete));
+    let class = if !snapshot.complete {
+        PathClass::Unavailable("path_truncated")
+    } else if snapshot.bytes.is_empty() {
+        PathClass::Unavailable("empty_path")
+    } else {
+        PathClass::Digest(
+            crate::canonical::sha256_prefixed(&snapshot.bytes),
+            "symlink_target",
+        )
+    };
+    fields.insert("path2".to_owned(), class.into_json());
 }
 
 /// The gap reason of a result a poisoned trace lock could not take.
@@ -2628,6 +2662,113 @@ mod tests {
         assert_eq!(
             fields[5]["path"],
             serde_json::json!({"kind": "unavailable", "reason": "relative_to_unresolved_cwd"})
+        );
+    }
+
+    /// §11.3: a symlink's target is stored by the call, resolved against
+    /// nothing, so it is never a path: a relative one is not joined to the
+    /// working directory, an absolute one into the workspace or scratch is
+    /// not classified against that root, one spelled through procfs names no
+    /// descriptor, and a directory link handed over for it names nothing. A
+    /// complete target is a digest of its bytes with the reason
+    /// `symlink_target`; an incomplete or empty one is unavailable. The link
+    /// the call creates is classified as any path, and a hard link's two
+    /// paths are both paths.
+    #[test]
+    fn a_symlink_target_is_a_digest_never_a_path() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let trace = crate::trace::shared(crate::trace::FileSink::new(file.reopen().unwrap()));
+        let mut writer = AuditWriter::new("att_test", Some(trace), b"/work/space", b"/tmp")
+            .with_proc_pinned(true);
+        let cwd = || Some(b"/work/space".to_vec().into_boxed_slice());
+        let targets = [
+            "README.md",
+            "/work/space/README.md",
+            "/tmp/x",
+            "/proc/self/fd/14/x",
+            "../../etc/passwd",
+        ];
+        for target in targets {
+            writer.record_syscall(&call(
+                ClosedOp::Symlink,
+                "symlinkat",
+                &Args {
+                    path: Some(snap("link")),
+                    dirfd: Some(libc::AT_FDCWD),
+                    path2: Some(snap(target)),
+                    cwd: cwd(),
+                    directory2: cwd(),
+                    ..Args::default()
+                },
+                0,
+            ));
+        }
+        let mut truncated = snap("README");
+        truncated.complete = false;
+        for target in [truncated, snap("")] {
+            writer.record_syscall(&call(
+                ClosedOp::Symlink,
+                "symlink",
+                &Args {
+                    path: Some(snap("/work/space/link")),
+                    path2: Some(target),
+                    ..Args::default()
+                },
+                0,
+            ));
+        }
+        writer.record_syscall(&call(
+            ClosedOp::Link,
+            "linkat",
+            &Args {
+                path: Some(snap("README.md")),
+                dirfd: Some(libc::AT_FDCWD),
+                path2: Some(snap("hard")),
+                dirfd2: Some(libc::AT_FDCWD),
+                cwd: cwd(),
+                ..Args::default()
+            },
+            0,
+        ));
+        let events = trace_events(file.path());
+        let fields: Vec<&Value> = events.iter().map(|e| &e["fields"]).collect();
+        for (index, target) in targets.iter().enumerate() {
+            let event = fields[index];
+            assert_eq!(
+                event["path"],
+                serde_json::json!({"kind": "workspace_relative", "value": "link"}),
+                "{target}: the link is resolved against the cwd"
+            );
+            assert_eq!(
+                event["path2"],
+                serde_json::json!({
+                    "kind": "digest",
+                    "digest": crate::canonical::sha256_prefixed(target.as_bytes()),
+                    "reason": "symlink_target",
+                }),
+                "{target}"
+            );
+            assert_eq!(event["path2_complete"], true, "{target}");
+            assert!(event.get("path2_dirfd").is_none(), "{target}: {event}");
+            assert_eq!(event["path_basis"], "argument_snapshot", "{target}");
+        }
+        let n = targets.len();
+        assert_eq!(
+            fields[n]["path2"],
+            serde_json::json!({"kind": "unavailable", "reason": "path_truncated"})
+        );
+        assert_eq!(fields[n]["path2_complete"], false);
+        assert_eq!(
+            fields[n + 1]["path2"],
+            serde_json::json!({"kind": "unavailable", "reason": "empty_path"})
+        );
+        assert_eq!(
+            fields[n + 2]["path"],
+            serde_json::json!({"kind": "workspace_relative", "value": "README.md"})
+        );
+        assert_eq!(
+            fields[n + 2]["path2"],
+            serde_json::json!({"kind": "workspace_relative", "value": "hard"})
         );
     }
 

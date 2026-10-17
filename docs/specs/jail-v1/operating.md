@@ -825,12 +825,16 @@ ukai-jail: receipt /home/u/.local/share/ukai/attempts/att_…/jail.json
 - **Workspace**: distinct workspace paths in successful `fs.create` and
   `fs.write` results ("opened for writing", which proves neither that bytes
   were written nor that a file was new), on either side of a rename, and
-  unlinked; results whose path has no name (a write below the agent's vendor
+  unlinked. A link counts only the entry it created: `ln -s README.md link`
+  opens `link`, never its target, which the call stores without touching
+  (the event records it as a `symlink_target` digest), and `ln README.md
+  hard` opens `hard`, never the existing file it gave a name to. Then the
+  results whose written path has no name (a write below the agent's vendor
   state is a digest with the reason `vendor_state`, and an open the kernel
   said reached `/dev/null` or another standard device one with the reason
   `standard_device`: neither is a workspace path or counted there, as a
-  scratch path is not); refused writes, which outside the known roots are
-  digests and so are counted, never named. A call spelled through a
+  scratch path is not), and refused writes, which outside the known roots
+  are digests and so are counted, never named. A call spelled through a
   directory descriptor (`openat(N, name)`, or `/proc/self/fd/N/name` as
   Claude Code writes and renames its files) is named: an open when the
   kernel's links for both descriptors agree with the name
