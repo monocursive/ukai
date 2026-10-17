@@ -2,9 +2,13 @@
 
 Status: design proposal, 2026-10-16; its decisions were settled by the
 operator the same day (§7). J13 (§4) and J12 (§3) are implemented; §8 lists
-where the J12 implementation departs from or adds to this text. No agent
-compatibility is claimed: the Claude Code A-row (§6.3) and the OpenCode
-rerun under the alias are separate, unrecorded steps. Where this proposal is
+where the J12 implementation departs from or adds to this text. The Claude
+Code A-row (§6.3) was recorded on 2026-10-17 for one combination only
+(Claude Code 2.1.302 from the native installer, headless with
+`--dangerously-skip-permissions`, at revision `56f9fb15`;
+[record](../benchmarks/jail/claude-code-compatibility-2026-10-17.md)). The
+OpenCode rerun under the alias did not pass, for a vendor reason, so OpenCode
+claims no alias row. Where this proposal is
 not implemented the [north star](../../north-star.md),
 [Jail v1](jail-v1.md) (revision 24) and [Jail v2](jail-v2.md) govern
 unchanged; where this proposal amends them, §5 says so row by row. The
@@ -704,6 +708,14 @@ Because the alias changes OpenCode's grant (derived instead of `--ro
 ~/.opencode/bin`) and its workspace default, the OpenCode A01 run is
 repeated under `ukai-jail opencode run "…"` before its existing row is
 extended to the alias.
+
+Both were run on 2026-10-17
+([record](../benchmarks/jail/claude-code-compatibility-2026-10-17.md)).
+Claude Code passed with `--dangerously-skip-permissions` added after the
+fixture. Without it, (1) as written left the file unwritten: Claude Code's
+default permission mode refused the write. (3) was not run, because no API
+key exists on the host. The OpenCode rerun (1.19.0) settled cleanly, but
+OpenCode Zen's free tier refused the request, with and without the jail.
 
 ## 7. Decisions (settled 2026-10-16)
 

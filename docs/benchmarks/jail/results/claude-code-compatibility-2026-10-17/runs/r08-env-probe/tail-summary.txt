@@ -1,0 +1,6 @@
+ukai-jail: settled · exited 0 · 3.6s exec→settled · survivors: none (verified)
+ukai-jail: workspace: 0 paths opened for writing · 85 results with unnamed paths · 1 refused write
+ukai-jail: network: allowed api.anthropic.com:443 (4)
+ukai-jail: credential claude-oauth: vault, never staged · used on 4 proxy results · 0 credential refusals
+ukai-jail: evidence: 6/6 classes active · reads and file contents are not observed
+ukai-jail: receipt /home/ubuntu/.local/share/ukai/attempts/att_cf174e17-c020-4426-a945-46f231d9f8ea/jail.json

@@ -1,0 +1,10 @@
+ukai-jail: opencode = /home/ubuntu/.opencode/bin/opencode (read-only: /home/ubuntu/.opencode/bin)
+[0m
+> build · big-pickle
+[0m
+[91m[1mError: [0mOpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.
+ukai-jail: settled · exited 1 · 4.6s exec→settled · survivors: none (verified)
+ukai-jail: workspace: 1 path opened for writing · 155 results with unnamed paths
+ukai-jail: network: allowed models.opencode.ai:443 (1), opencode.ai:443 (1), registry.npmjs.org:443 (1)
+ukai-jail: evidence: 6/6 classes active, no gaps · reads and file contents are not observed
+ukai-jail: receipt /home/ubuntu/.local/share/ukai/attempts/att_09b1a9eb-6a69-4103-aa1f-7622678d7954/jail.json

@@ -442,9 +442,12 @@ executable it resolved. Nothing from `~/.claude` is staged, so the run has
 none of your user settings, memory or MCP servers, keeps no session history
 across runs, and cannot push with git or update itself. `ukai-jail explain
 --launch claude --from-path` shows the program, its read-only directory and
-the policy before you run it. The `claude` profile is experimental: no
-Claude Code build has a recorded compatibility run yet, and only headless
-runs (`-p`) are the intended use.
+the policy before you run it. One combination of the `claude` profile has a
+recorded compatibility run: Claude Code 2.1.302 from the native installer,
+headless, with a setup token, on the Ubuntu 26.04 reference host. Every
+other combination is experimental. That run added Claude Code's own
+`--dangerously-skip-permissions`: with `-p` alone, Claude Code's default
+permission mode refuses the file writes it cannot ask you about.
 
 OpenCode has recorded live runs. The
 [compatibility table](https://github.com/monocursive/ukai/blob/dev/docs/specs/jail-v1/agent-compatibility.md)

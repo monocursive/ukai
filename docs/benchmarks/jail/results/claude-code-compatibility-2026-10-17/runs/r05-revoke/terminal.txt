@@ -1,0 +1,7 @@
+ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)
+[?25hukai-jail: settled · exited 1 · 2m38s exec→settled · survivors: none (verified)
+ukai-jail: workspace: 0 paths opened for writing · 90 results with unnamed paths · 1 refused write
+ukai-jail: network: allowed api.anthropic.com:443 (3) · denied api.anthropic.com:443 (10)
+ukai-jail: credential claude-oauth: vault, never staged · used on 3 proxy results · revoked · 10 credential refusals
+ukai-jail: evidence: 6/6 classes active, no gaps · reads and file contents are not observed
+ukai-jail: receipt /home/ubuntu/.local/share/ukai/attempts/att_70155c1f-975a-451f-be15-d8ce8d906b5c/jail.json

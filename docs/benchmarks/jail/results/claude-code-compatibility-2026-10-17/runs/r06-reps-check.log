@@ -1,0 +1,10 @@
+{"run": "r06-rep01", "pass": true, "failed": [], "elapsed_s": 3.935, "proxy": [["api.anthropic.com:443", "allow", "relayed", true, 4]], "fs_deny": 1}
+{"run": "r06-rep02", "pass": true, "failed": [], "elapsed_s": 3.482, "proxy": [["api.anthropic.com:443", "allow", "relayed", true, 4]], "fs_deny": 1}
+{"run": "r06-rep03", "pass": true, "failed": [], "elapsed_s": 3.929, "proxy": [["api.anthropic.com:443", "allow", "relayed", true, 4]], "fs_deny": 1}
+{"run": "r06-rep04", "pass": true, "failed": [], "elapsed_s": 3.631, "proxy": [["api.anthropic.com:443", "allow", "relayed", true, 4]], "fs_deny": 1}
+{"run": "r06-rep05", "pass": true, "failed": [], "elapsed_s": 4.041, "proxy": [["api.anthropic.com:443", "allow", "relayed", true, 4]], "fs_deny": 1}
+{"run": "r06-rep06", "pass": true, "failed": [], "elapsed_s": 3.589, "proxy": [["api.anthropic.com:443", "allow", "relayed", true, 4]], "fs_deny": 1}
+{"run": "r06-rep07", "pass": true, "failed": [], "elapsed_s": 3.728, "proxy": [["api.anthropic.com:443", "allow", "relayed", true, 4]], "fs_deny": 1}
+{"run": "r06-rep08", "pass": true, "failed": [], "elapsed_s": 3.747, "proxy": [["api.anthropic.com:443", "allow", "relayed", true, 4]], "fs_deny": 1}
+{"run": "r06-rep09", "pass": true, "failed": [], "elapsed_s": 3.829, "proxy": [["api.anthropic.com:443", "allow", "relayed", true, 4]], "fs_deny": 1}
+{"run": "r06-rep10", "pass": true, "failed": [], "elapsed_s": 49.3, "proxy": [["api.anthropic.com:443", "allow", "relayed", true, 4]], "fs_deny": 1}

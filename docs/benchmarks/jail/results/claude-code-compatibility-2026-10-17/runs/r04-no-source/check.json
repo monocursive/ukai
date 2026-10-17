@@ -1,0 +1,9 @@
+{
+ "run": "r04-no-source",
+ "exit": 125,
+ "elapsed_s": 0.035,
+ "timed_out": false,
+ "checks": {},
+ "facts": {},
+ "receipt": null
+}

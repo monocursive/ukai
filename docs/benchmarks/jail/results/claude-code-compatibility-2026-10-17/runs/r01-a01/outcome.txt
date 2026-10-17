@@ -1,0 +1,9 @@
+Workspace after r01, checked on the console at the time (before r02 ran in the
+same repository): /home/ubuntu/cc-arow-20261017/ws-a01 held only `.git`;
+`greeting.txt` did not exist. The first arow_check.py pass on r01 failed only
+`file:greeting.txt`. Claude Code's stdout (`stdout` in this directory) says
+the write was blocked because permission was not granted: `-p` without a
+permission mode or `--dangerously-skip-permissions` left Claude Code in its
+default mode, which denies a file write it cannot prompt for. check.json was
+regenerated afterwards without the file expectation, because r02 has since
+created the file in the same repository.

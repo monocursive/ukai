@@ -1,0 +1,30 @@
+{
+ "schema": "sampled-credential-exposure/1",
+ "period_ms": 100,
+ "protected_values": 1,
+ "snapshots": 32,
+ "readable_process_environments": 125,
+ "unreadable_process_environments": 62,
+ "files_checked": 1040,
+ "environments_by_name": {
+  "ukai-jail": [
+   32,
+   31
+  ],
+  "jail": [
+   0,
+   31
+  ],
+  "bwrap": [
+   62,
+   0
+  ],
+  "2.1.302": [
+   31,
+   0
+  ]
+ },
+ "hits": [],
+ "actual_values_retained": false,
+ "limit": "Periodic readable environment/argv and regular-file checks, not arbitrary process memory or exhaustive history."
+}

@@ -1,0 +1,42 @@
+platform linux x86_64 (Linux 7.0.0-31-generic)
+capability tree_termination available scope=tree reason=ok
+capability closed_set_observation available scope=tree reason=ok
+capability filesystem_containment available scope=tree reason=ok
+capability syscall_filter available scope=process reason=ok
+capability network_proxy available scope=tree reason=ok
+capability protected_coverage:existing_and_root available scope=tree reason=ok
+capability limit:wall available scope=tree reason=ok
+capability credential_staging available scope=tree reason=ok
+capability bwrap_present available scope=host reason=ok
+capability user_namespace available scope=host reason=ok
+capability pid_namespace available scope=host reason=ok
+capability network_namespace available scope=host reason=ok
+capability mount_readonly_bind available scope=host reason=ok
+capability seccomp_filter_load available scope=host reason=ok
+capability ptrace_seize_descendant available scope=host reason=ok
+capability observer_closed_set available scope=host reason=ok
+capability supervisor_scope available scope=host reason=entered
+capability cgroup_delegated_leaf available scope=host reason=ok
+capability cgroup_pids available scope=host reason=ok
+capability cgroup_memory available scope=host reason=ok
+capability cgroup_swap available scope=host reason=ok
+capability cgroup_cpu available scope=host reason=ok
+capability storage_ceiling available scope=host reason=ok
+capability apparmor_userns_restriction available scope=host reason=restriction_on
+capability nested_user_namespace unavailable scope=host reason=nested_sandbox_denied
+capability seccomp_user_notification available scope=host reason=ok
+capability unix_socket_diagnostics available scope=host reason=ok
+capability agent_proxy_bridge available scope=host reason=ok
+capability agent_unix_peer_mediation available scope=host reason=ok
+capability agent_inner_sandbox available scope=host reason=ok
+capability gpu_passthrough unavailable scope=host reason=no_nvidia_devices
+launch claude experimental reason=no_recorded_run
+credential anthropic mode=vault dest=.vault-anthropic unavailable reason=source_missing
+credential anthropic hint: put a Claude Console API key in it: `ukai-jail credential set anthropic`
+credential claude-oauth mode=vault dest=.vault-claude-oauth available reason=value_unread
+credentials one_of claude-oauth,anthropic: the first present is staged, the rest skipped
+launch claude interactive_sessions unrecorded (no recorded interactive run; headless runs such as `-p` are the claim)
+program claude = /home/ubuntu/.local/share/claude/versions/2.1.302 format=elf
+program argv /home/ubuntu/.local/share/claude/versions/2.1.302
+program read_only /home/ubuntu/.local/share/claude/versions by=program_resolution
+ready true

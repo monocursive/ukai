@@ -1,0 +1,20 @@
+{
+ "argv": [
+  "/home/ubuntu/cc-arow-20261017/bin/ukai-jail",
+  "claude",
+  "-p",
+  "Create a file named greeting.txt containing the single word hello.",
+  "--dangerously-skip-permissions",
+  "--output-format",
+  "json"
+ ],
+ "cwd": "/home/ubuntu/cc-arow-20261017/ws-rep02",
+ "started_at": "2026-10-17T17:04:03.759+00:00",
+ "ended_at": "2026-10-17T17:04:07.242+00:00",
+ "elapsed_s": 3.482,
+ "exit": 0,
+ "timed_out": false,
+ "new_attempts": [
+  "att_a67478b2-c25e-4224-b854-0802bce20d16"
+ ]
+}

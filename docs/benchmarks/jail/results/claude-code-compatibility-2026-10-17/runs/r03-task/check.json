@@ -1,0 +1,195 @@
+{
+ "run": "r03-task",
+ "exit": 0,
+ "elapsed_s": 6.942,
+ "timed_out": false,
+ "checks": {
+  "tail_summary_exit_0": true,
+  "tail_summary_equals_live": true,
+  "json_text_equals_live": true,
+  "independent_recompute": true,
+  "settled": true,
+  "exited_0": true,
+  "no_errors": true,
+  "six_classes_active_no_gaps": true,
+  "tree_empty": true,
+  "state_cleanup_complete": true,
+  "one_credential_never_staged": true,
+  "summary_shows_use_count": true,
+  "derived_install_root_only": true,
+  "no_unexpected_grant": true,
+  "credential_process_denied_absent": true,
+  "uses_match_summary": true,
+  "file:greeting.txt": true
+ },
+ "facts": {
+  "receipt_digest_in_summary": "sha256:b3b4acfd7553edd2e5cdda33f7efd9cd7b532156a613fea95fd7798ad246cd27",
+  "phase": "settled",
+  "outcome": {
+   "kind": "exited",
+   "code": 0,
+   "signal": null,
+   "cause": null,
+   "error": null
+  },
+  "errors": [],
+  "coverage": {
+   "exec": [
+    "active",
+    0,
+    49
+   ],
+   "fs.write": [
+    "active",
+    0,
+    178
+   ],
+   "fs.deny": [
+    "active",
+    0,
+    1
+   ],
+   "net": [
+    "active",
+    0,
+    19
+   ],
+   "limits": [
+    "active",
+    0,
+    0
+   ],
+   "proxy.net": [
+    "active",
+    0,
+    5
+   ]
+  },
+  "tree_empty": true,
+  "state_cleanup": "complete",
+  "credentials": [
+   {
+    "never_staged": true,
+    "id": "claude-oauth",
+    "mode": "vault",
+    "digest": null,
+    "digest_unavailable_reason": "never_staged"
+   }
+  ],
+  "grants": [
+   {
+    "kind": "allow_host",
+    "value": "api.anthropic.com:443",
+    "by": "operator"
+   },
+   {
+    "kind": "read_only",
+    "value": "/home/ubuntu/.local/share/claude/versions",
+    "by": "program_resolution"
+   }
+  ],
+  "child_protection": "enforced",
+  "observer_gaps": [
+   [
+    "path_claim_unverified",
+    [],
+    2
+   ]
+  ],
+  "summary_credential": [
+   {
+    "id": "claude-oauth",
+    "mode": "vault",
+    "never_staged": true,
+    "transitions": [
+     "loaded"
+    ],
+    "unconfirmed": 0,
+    "uses": 5,
+    "uses_bound": "exact"
+   }
+  ],
+  "proxy_results": [
+   [
+    "api.anthropic.com:443",
+    "allow",
+    "relayed",
+    true,
+    5
+   ]
+  ],
+  "results_carrying_credential": 5,
+  "credential_refusals": {},
+  "credential_notes": [
+   [
+    "claude-oauth",
+    "loaded"
+   ]
+  ],
+  "fs_deny": [
+   [
+    "fs.create",
+    "mkdir",
+    {
+     "digest": "sha256:4251803132e6da7a6b27ae0aa79e4cad8428504fe30cfa60bcbf4d76eaa5de00",
+     "kind": "digest",
+     "reason": "outside_known_roots"
+    }
+   ]
+  ],
+  "exec_paths": [
+   [
+    "{\"digest\": \"sha256:4e61fcfb7a4cf0ed4fd8164d8dbb528ea8b0c4fab61c323c1941a436f3886f91\", \"kind\": \"digest\", \"reason\": \"outside_known_roots\"}",
+    1
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"/home/ubuntu/.local/share/claude/versions\", \"value\": \"2.1.302\"}",
+    3
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"bash\"}",
+    3
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"bin/cat\"}",
+    4
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"bin/env\"}",
+    1
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"bin/git\"}",
+    9
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"bin/python3\"}",
+    1
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"bin/tail\"}",
+    1
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"bin/zsh\"}",
+    1
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"local/bin/zsh\"}",
+    1
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"zsh\"}",
+    1
+   ],
+   [
+    "{\"kind\": \"unavailable\", \"reason\": \"empty_path\"}",
+    1
+   ]
+  ],
+  "frames": 260,
+  "file:greeting.txt": "hello\n"
+ },
+ "attempt_id": "att_35e0f855-a128-4fb5-9a52-7672057fd34b",
+ "pass": true
+}

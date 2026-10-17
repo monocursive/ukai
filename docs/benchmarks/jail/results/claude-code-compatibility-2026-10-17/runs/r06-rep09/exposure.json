@@ -1,0 +1,12 @@
+{
+ "schema": "sampled-credential-exposure/1",
+ "period_ms": 100,
+ "protected_values": 1,
+ "snapshots": 34,
+ "readable_process_environments": 129,
+ "unreadable_process_environments": 66,
+ "files_checked": 1115,
+ "hits": [],
+ "actual_values_retained": false,
+ "limit": "Periodic readable environment/argv and regular-file checks, not arbitrary process memory or exhaustive history."
+}

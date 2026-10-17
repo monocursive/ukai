@@ -1,0 +1,3 @@
+I couldn't create `greeting.txt`. The write to `/home/ubuntu/cc-arow-20261017/ws-a01/greeting.txt` was blocked because permission wasn't granted, so no file exists yet.
+
+If you grant write permission, I'll retry. You can also create it yourself with `echo hello > greeting.txt`.

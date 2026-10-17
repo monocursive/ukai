@@ -1,0 +1,87 @@
+# Host and build facts, collected 2026-10-17T17:11:08Z on the reference host
+host: vps-450b3fe8 Linux 7.0.0-31-generic #31-Ubuntu SMP PREEMPT_DYNAMIC Sat Aug  1 04:26:38 UTC 2026 x86_64
+os: Ubuntu 26.04.1 LTS
+virt: kvm
+bwrap: bubblewrap 0.11.1
+kernel.apparmor_restrict_unprivileged_userns = 1  (stock 1)
+linger: Linger=yes
+account: uid=1000(ubuntu) gid=1000(ubuntu) groups=1000(ubuntu),109(docker)
+
+## ukai-jail
+source: git clone --depth 1 --branch dev https://github.com/monocursive/ukai.git, HEAD 56f9fb15197ffadf401b8f2bb70162adb938b88b
+checkout: sparse, every path except docs/benchmarks/ (not a build input; omitted for disk space); git status --porcelain: 0 lines
+sparse-checkout: /* !/docs/benchmarks/ 
+build: UKAI_BUILD_REVISION=$(git rev-parse HEAD) UKAI_BUILD_DIRTY=false cargo +1.98.1 build --locked --release -p ukai-jail (2m 02s, 0 warnings)
+binary sha256: 5115e497d92b3b8c55a00f4a46bc4b20627dd5cdf0e1b4552adfeb966bf54b09
+version --json:
+{
+  "build": {
+    "debug_assertions": false,
+    "dirty": false,
+    "inputs": "sha256:7b1a95a9b6a2acb7e81ddcdec49ef784220902f4c8392d3879aab2d5c6eadfe1",
+    "opt_level": "3",
+    "revision": "56f9fb15197ffadf401b8f2bb70162adb938b88b",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "target": "x86_64-unknown-linux-gnu"
+  },
+  "component": "ukai-jail",
+  "frozen": true,
+  "observation": {
+    "closed_set": "linux-closed-v1"
+  },
+  "platform": {
+    "arch": "x86_64",
+    "kernel": "Linux 7.0.0-31-generic",
+    "os": "linux"
+  },
+  "schemas": {
+    "control": "ukai.jail.control/1",
+    "doctor": "ukai.jail.doctor/1",
+    "event": "ukai.event/1",
+    "gate": "ukai.jail.gate/1",
+    "learned_policy": "ukai.jail.learned-policy/1",
+    "network": "ukai.jail.network/1",
+    "policy": "ukai.jail.policy/1",
+    "policy_file": "ukai.jail.policy-file/1",
+    "policy_snapshot": "ukai.jail.policy-snapshot/1",
+    "receipt": "ukai.jail.receipt/1",
+    "summary": "ukai.jail.summary/1"
+  },
+  "version": "0.1.0"
+}
+
+
+## Claude Code (native installer)
+installer: curl -fsSL -o install.sh https://claude.ai/install.sh; bash install.sh  (no target: it installed "latest")
+install.sh sha256: 3a68d3406cf674e17bed1733a4dcf37805e2e47d87417700007d7e1aa766a944
+installer rc-file changes: none (~/.bashrc and ~/.profile byte-identical before and after)
+PATH for every run: /home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+command -v claude: /home/ubuntu/.local/bin/claude
+type -a claude:
+  claude is /home/ubuntu/.local/bin/claude
+  claude is /usr/bin/claude
+  claude is /bin/claude
+~/.local/bin/claude -> /home/ubuntu/.local/share/claude/versions/2.1.302
+resolved executable: /home/ubuntu/.local/share/claude/versions/2.1.302
+claude --version: 2.1.302 (Claude Code)
+resolved executable sha256: 60d7eb7f12fbb28a52533fe8be5884097403562aa02dc73991a021c7067e29a5
+  -rwxr-xr-x ubuntu:ubuntu links=1 size=285793528 /home/ubuntu/.local/share/claude/versions/2.1.302
+  drwxrwxr-x ubuntu:ubuntu links=2 size=4096 /home/ubuntu/.local/share/claude/versions
+  drwxr-xr-x ubuntu:ubuntu links=2 size=4096 /home/ubuntu/.local/bin
+  ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.2.0, Build
+  PT_INTERP /lib64/ld-linux-x86-64.so.2; DT_NEEDED: [librt.so.1] [libc.so.6] [ld-linux-x86-64.so.2] [libpthread.so.0] [libdl.so.2] [libm.so.6] ; no DT_RPATH/DT_RUNPATH: 0
+npm install also present (not used): /usr/bin/claude -> ../lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe, 2.1.295 (Claude Code), sha256 4503bfe11a6c7fcc1e0b39b5e0d347c04248f750b03b0977b3ad6b531fe6f358
+
+## OpenCode
+PATH for the OpenCode runs: /home/ubuntu/.opencode/bin:/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+command -v opencode: /home/ubuntu/.opencode/bin/opencode
+opencode --version: 1.19.0
+sha256: 135ac3f86c43f2a22328a3554fec5f0bc57d71576077902661bc38dac34871fd
+  -rwxr-xr-x ubuntu:ubuntu links=1 size=185747584 /home/ubuntu/.opencode/bin/opencode
+  drwxrwxr-x ubuntu:ubuntu links=2 size=4096 /home/ubuntu/.opencode/bin
+binary mtime 2026-10-11 01:24:53 (already installed before this record; not reinstalled)
+
+## Credential source
+~/.config/ukai/credentials/claude-oauth: mode 600, 108 bytes, 1 link, mtime 2026-10-16 14:15:21.113637958 +0000 (unchanged by this record; its value was never printed)
+~/.config/ukai/credentials/anthropic: No such file or directory
+~/.config/ukai/launch/: No such file or directory (the bundled profiles applied unchanged)

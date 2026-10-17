@@ -1,0 +1,26 @@
+{
+ "argv": [
+  "/home/ubuntu/cc-arow-20261017/bin/ukai-jail",
+  "claude",
+  "-p",
+  "Write a detailed essay of about 3000 words on the history of lighthouses. Print the essay as your reply; do not create any files.",
+  "--dangerously-skip-permissions",
+  "--output-format",
+  "json"
+ ],
+ "cwd": "/home/ubuntu/cc-arow-20261017/ws-revoke",
+ "started_at": "2026-10-17T17:00:38.049+00:00",
+ "ended_at": "2026-10-17T17:03:16.384+00:00",
+ "elapsed_s": 158.334,
+ "exit": 1,
+ "timed_out": false,
+ "new_attempts": [
+  "att_70155c1f-975a-451f-be15-d8ce8d906b5c"
+ ],
+ "revocation": {
+  "file_deleted": true,
+  "deleted_at": "2026-10-17T17:00:53.224+00:00",
+  "deleted_after_start_s": 15.174,
+  "deleted_after_exec_confirmed_seen_s": 15.039
+ }
+}

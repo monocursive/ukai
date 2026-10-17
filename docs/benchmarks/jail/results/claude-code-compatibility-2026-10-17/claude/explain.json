@@ -1,0 +1,288 @@
+{
+  "capabilities": {
+    "measured": false,
+    "note": "explain resolves and renders policy; it probes nothing and executes nothing"
+  },
+  "component": "ukai-jail",
+  "platform": {
+    "arch": "x86_64",
+    "kernel": "Linux 7.0.0-31-generic",
+    "os": "linux"
+  },
+  "policy": {
+    "credential_sources": "omitted",
+    "digest": "sha256:01713ce5ddb1f91c9e1e24c56b562c5037c1bcf54ab057e84cdc370b5db690df",
+    "environment_values": "omitted",
+    "name": "agent",
+    "snapshot": {
+      "environment": {
+        "bindings": [
+          {
+            "name": "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"
+          },
+          {
+            "name": "CLAUDE_CONFIG_DIR"
+          },
+          {
+            "name": "DISABLE_AUTOUPDATER"
+          },
+          {
+            "name": "LANG"
+          },
+          {
+            "name": "PATH"
+          },
+          {
+            "name": "TMPDIR"
+          }
+        ],
+        "inherit_host": false
+      },
+      "filesystem": {
+        "deny_read": [],
+        "protected_coverage": "existing_and_root",
+        "protected_segments": [
+          ".git/config",
+          ".git/hooks"
+        ],
+        "read_only": [
+          {
+            "path": "/bin",
+            "root": "host"
+          },
+          {
+            "path": "/etc/group",
+            "root": "host"
+          },
+          {
+            "path": "/etc/hosts",
+            "root": "host"
+          },
+          {
+            "path": "/etc/localtime",
+            "root": "host"
+          },
+          {
+            "path": "/etc/passwd",
+            "root": "host"
+          },
+          {
+            "path": "/etc/resolv.conf",
+            "root": "host"
+          },
+          {
+            "path": "/etc/ssl",
+            "root": "host"
+          },
+          {
+            "path": "/home/ubuntu/.local/share/claude/versions",
+            "root": "host"
+          },
+          {
+            "path": "/lib",
+            "root": "host"
+          },
+          {
+            "path": "/lib64",
+            "root": "host"
+          },
+          {
+            "path": "/usr",
+            "root": "host"
+          }
+        ],
+        "read_write": [
+          {
+            "path": "",
+            "root": "scratch"
+          },
+          {
+            "path": "",
+            "root": "vendor_state"
+          },
+          {
+            "path": "",
+            "root": "workspace"
+          }
+        ]
+      },
+      "launch": {
+        "credentials": [
+          {
+            "dest": ".vault-claude-oauth",
+            "id": "claude-oauth",
+            "mode": "vault",
+            "vault": {
+              "allow_plaintext": false,
+              "binaries": [
+                "/home/ubuntu/.local/share/claude/versions/2.1.302"
+              ],
+              "env": "CLAUDE_CODE_OAUTH_TOKEN",
+              "header": {
+                "name": "authorization",
+                "prefix": "Bearer "
+              },
+              "hosts": [
+                "https://api.anthropic.com"
+              ]
+            }
+          }
+        ],
+        "home_is_state": false,
+        "state_subdirs": [],
+        "state_var": "CLAUDE_CONFIG_DIR"
+      },
+      "limits": {
+        "cpu": null,
+        "mem": null,
+        "pids": {
+          "required": false,
+          "value": "512"
+        },
+        "wall": {
+          "required": true,
+          "value": "7200000"
+        }
+      },
+      "network": {
+        "allow": [
+          "api.anthropic.com:443"
+        ],
+        "mode": "proxy",
+        "ruleset": "ukai.jail.network/1",
+        "tls_only": [
+          "api.anthropic.com:443"
+        ],
+        "translation_prefixes": []
+      },
+      "observation": {
+        "evidence": "strict",
+        "mode": "on"
+      },
+      "platform": "linux",
+      "profile": "agent",
+      "profile_version": 1,
+      "roots": {
+        "scratch": {
+          "kind": "managed"
+        },
+        "vendor_state": {
+          "kind": "managed"
+        },
+        "workspace": "/home/ubuntu/cc-arow-20261017/ws"
+      },
+      "schema": "ukai.jail.policy-snapshot/1"
+    }
+  },
+  "probed": false,
+  "program": {
+    "argv": [
+      "/home/ubuntu/.local/share/claude/versions/2.1.302"
+    ],
+    "format": "elf",
+    "interpreter": null,
+    "name": "claude",
+    "path": "/home/ubuntu/.local/share/claude/versions/2.1.302",
+    "roots": [
+      {
+        "by": "program_resolution",
+        "covered_by": null,
+        "denied_by": null,
+        "path": "/home/ubuntu/.local/share/claude/versions",
+        "status": "granted"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "detail": null,
+      "key": "profile",
+      "origin": "builtin-profile:agent"
+    },
+    {
+      "detail": null,
+      "key": "launch.network.allow",
+      "origin": "launch-profile:claude"
+    },
+    {
+      "detail": null,
+      "key": "filesystem.read_only",
+      "origin": "program-resolution"
+    },
+    {
+      "detail": "bundled",
+      "key": "launch.resolution",
+      "origin": "launch-profile:claude"
+    },
+    {
+      "detail": null,
+      "key": "environment.bindings.CLAUDE_CONFIG_DIR",
+      "origin": "launch-profile:claude"
+    },
+    {
+      "detail": null,
+      "key": "environment.bindings.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+      "origin": "launch-profile:claude"
+    },
+    {
+      "detail": null,
+      "key": "environment.bindings.DISABLE_AUTOUPDATER",
+      "origin": "launch-profile:claude"
+    },
+    {
+      "detail": "vault",
+      "key": "launch.credentials.claude-oauth",
+      "origin": "launch-profile:claude"
+    },
+    {
+      "detail": "claude",
+      "key": "launch",
+      "origin": "launch-profile:claude"
+    },
+    {
+      "detail": "skipped: `claude-oauth` comes first",
+      "key": "launch.credentials.anthropic",
+      "origin": "launch-profile:claude"
+    },
+    {
+      "detail": "claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (elf)",
+      "key": "program",
+      "origin": "program-resolution"
+    }
+  ],
+  "requirements": [
+    {
+      "measurement": "unmeasured",
+      "name": "tree_termination"
+    },
+    {
+      "measurement": "unmeasured",
+      "name": "closed_set_observation"
+    },
+    {
+      "measurement": "unmeasured",
+      "name": "filesystem_containment"
+    },
+    {
+      "measurement": "unmeasured",
+      "name": "syscall_filter"
+    },
+    {
+      "measurement": "unmeasured",
+      "name": "network_proxy"
+    },
+    {
+      "measurement": "unmeasured",
+      "name": "protected_coverage:existing_and_root"
+    },
+    {
+      "measurement": "unmeasured",
+      "name": "limit:wall"
+    },
+    {
+      "measurement": "unmeasured",
+      "name": "credential_staging"
+    }
+  ],
+  "version": "0.1.0"
+}

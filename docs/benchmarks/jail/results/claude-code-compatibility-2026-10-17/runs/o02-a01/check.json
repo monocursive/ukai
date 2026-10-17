@@ -1,0 +1,136 @@
+{
+ "run": "o02-a01",
+ "exit": 1,
+ "elapsed_s": 3.985,
+ "timed_out": false,
+ "checks": {
+  "tail_summary_exit_0": true,
+  "tail_summary_equals_live": true,
+  "json_text_equals_live": true,
+  "independent_recompute": true,
+  "settled": true,
+  "exited_0": false,
+  "no_errors": true,
+  "six_classes_active_no_gaps": true,
+  "tree_empty": true,
+  "state_cleanup_complete": true,
+  "no_credential": true,
+  "derived_install_root_only": true,
+  "no_unexpected_grant": true,
+  "credential_process_denied_absent": true,
+  "file:greeting.txt": false
+ },
+ "facts": {
+  "receipt_digest_in_summary": "sha256:6e2ec369ced47dce4ff5d66be6f3d1d58c157b27ed88e8a298727a833d98ddcc",
+  "phase": "settled",
+  "outcome": {
+   "kind": "exited",
+   "code": 1,
+   "signal": null,
+   "cause": null,
+   "error": null
+  },
+  "errors": [],
+  "coverage": {
+   "exec": [
+    "active",
+    0,
+    78
+   ],
+   "fs.write": [
+    "active",
+    0,
+    175
+   ],
+   "fs.deny": [
+    "active",
+    0,
+    0
+   ],
+   "net": [
+    "active",
+    0,
+    3
+   ],
+   "limits": [
+    "active",
+    0,
+    0
+   ],
+   "proxy.net": [
+    "active",
+    0,
+    3
+   ]
+  },
+  "tree_empty": true,
+  "state_cleanup": "complete",
+  "credentials": [],
+  "grants": [
+   {
+    "kind": "allow_host",
+    "value": "opencode.ai:443",
+    "by": "operator"
+   },
+   {
+    "kind": "allow_host",
+    "value": "models.opencode.ai:443",
+    "by": "operator"
+   },
+   {
+    "kind": "allow_host",
+    "value": "registry.npmjs.org:443",
+    "by": "operator"
+   },
+   {
+    "kind": "read_only",
+    "value": "/home/ubuntu/.opencode/bin",
+    "by": "program_resolution"
+   }
+  ],
+  "child_protection": "enforced",
+  "observer_gaps": [],
+  "summary_credential": [],
+  "proxy_results": [
+   [
+    "models.opencode.ai:443",
+    "allow",
+    "relayed",
+    true,
+    1
+   ],
+   [
+    "opencode.ai:443",
+    "allow",
+    "relayed",
+    true,
+    1
+   ],
+   [
+    "registry.npmjs.org:443",
+    "allow",
+    "relayed",
+    true,
+    1
+   ]
+  ],
+  "results_carrying_credential": 0,
+  "credential_refusals": {},
+  "credential_notes": [],
+  "fs_deny": [],
+  "exec_paths": [
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"bin/git\"}",
+    38
+   ],
+   [
+    "{\"kind\": \"unavailable\", \"reason\": \"empty_path\"}",
+    1
+   ]
+  ],
+  "frames": 265,
+  "file:greeting.txt": null
+ },
+ "attempt_id": "att_24b69e83-b9e3-4550-b552-5c2f12dcacc9",
+ "pass": false
+}

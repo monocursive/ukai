@@ -1,0 +1,289 @@
+{
+  "capabilities": {
+    "measured": false,
+    "note": "explain resolves and renders policy; it probes nothing and executes nothing"
+  },
+  "component": "ukai-jail",
+  "platform": {
+    "arch": "x86_64",
+    "kernel": "Linux 7.0.0-31-generic",
+    "os": "linux"
+  },
+  "policy": {
+    "credential_sources": "omitted",
+    "digest": "sha256:62c7012f5c96f50c99e2c71ffc43ec1b6470f87c4a04a6cba1feefa5fb560dd8",
+    "environment_values": "omitted",
+    "name": "agent",
+    "snapshot": {
+      "environment": {
+        "bindings": [
+          {
+            "name": "HOME"
+          },
+          {
+            "name": "LANG"
+          },
+          {
+            "name": "PATH"
+          },
+          {
+            "name": "TMPDIR"
+          },
+          {
+            "name": "XDG_CACHE_HOME"
+          },
+          {
+            "name": "XDG_CONFIG_HOME"
+          },
+          {
+            "name": "XDG_DATA_HOME"
+          },
+          {
+            "name": "XDG_STATE_HOME"
+          }
+        ],
+        "inherit_host": false
+      },
+      "filesystem": {
+        "deny_read": [],
+        "protected_coverage": "existing_and_root",
+        "protected_segments": [
+          ".git/config",
+          ".git/hooks"
+        ],
+        "read_only": [
+          {
+            "path": "/bin",
+            "root": "host"
+          },
+          {
+            "path": "/etc/group",
+            "root": "host"
+          },
+          {
+            "path": "/etc/hosts",
+            "root": "host"
+          },
+          {
+            "path": "/etc/localtime",
+            "root": "host"
+          },
+          {
+            "path": "/etc/passwd",
+            "root": "host"
+          },
+          {
+            "path": "/etc/resolv.conf",
+            "root": "host"
+          },
+          {
+            "path": "/etc/ssl",
+            "root": "host"
+          },
+          {
+            "path": "/home/ubuntu/.opencode/bin",
+            "root": "host"
+          },
+          {
+            "path": "/lib",
+            "root": "host"
+          },
+          {
+            "path": "/lib64",
+            "root": "host"
+          },
+          {
+            "path": "/usr",
+            "root": "host"
+          }
+        ],
+        "read_write": [
+          {
+            "path": "",
+            "root": "scratch"
+          },
+          {
+            "path": "",
+            "root": "vendor_state"
+          },
+          {
+            "path": "",
+            "root": "workspace"
+          }
+        ]
+      },
+      "launch": {
+        "credentials": [],
+        "home_is_state": true,
+        "state_subdirs": [
+          "cache/opencode",
+          "config/opencode",
+          "data/opencode",
+          "state/opencode"
+        ],
+        "state_var": null
+      },
+      "limits": {
+        "cpu": null,
+        "mem": null,
+        "pids": {
+          "required": false,
+          "value": "512"
+        },
+        "wall": {
+          "required": true,
+          "value": "7200000"
+        }
+      },
+      "network": {
+        "allow": [
+          "models.opencode.ai:443",
+          "opencode.ai:443",
+          "registry.npmjs.org:443"
+        ],
+        "mode": "proxy",
+        "ruleset": "ukai.jail.network/1",
+        "tls_only": [
+          "models.opencode.ai:443",
+          "opencode.ai:443",
+          "registry.npmjs.org:443"
+        ],
+        "translation_prefixes": []
+      },
+      "observation": {
+        "evidence": "strict",
+        "mode": "on"
+      },
+      "platform": "linux",
+      "profile": "agent",
+      "profile_version": 1,
+      "roots": {
+        "scratch": {
+          "kind": "managed"
+        },
+        "vendor_state": {
+          "kind": "managed"
+        },
+        "workspace": "/home/ubuntu/cc-arow-20261017/ws-oc01"
+      },
+      "schema": "ukai.jail.policy-snapshot/1"
+    }
+  },
+  "probed": false,
+  "program": {
+    "argv": [
+      "/home/ubuntu/.opencode/bin/opencode"
+    ],
+    "format": "elf",
+    "interpreter": null,
+    "name": "opencode",
+    "path": "/home/ubuntu/.opencode/bin/opencode",
+    "roots": [
+      {
+        "by": "program_resolution",
+        "covered_by": null,
+        "denied_by": null,
+        "path": "/home/ubuntu/.opencode/bin",
+        "status": "granted"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "detail": null,
+      "key": "profile",
+      "origin": "builtin-profile:agent"
+    },
+    {
+      "detail": null,
+      "key": "launch.network.allow",
+      "origin": "launch-profile:opencode"
+    },
+    {
+      "detail": null,
+      "key": "launch.network.allow",
+      "origin": "launch-profile:opencode"
+    },
+    {
+      "detail": null,
+      "key": "launch.network.allow",
+      "origin": "launch-profile:opencode"
+    },
+    {
+      "detail": null,
+      "key": "filesystem.read_only",
+      "origin": "program-resolution"
+    },
+    {
+      "detail": "bundled",
+      "key": "launch.resolution",
+      "origin": "launch-profile:opencode"
+    },
+    {
+      "detail": null,
+      "key": "environment.bindings.HOME",
+      "origin": "launch-profile:opencode"
+    },
+    {
+      "detail": null,
+      "key": "environment.bindings.XDG_CACHE_HOME",
+      "origin": "launch-profile:opencode"
+    },
+    {
+      "detail": null,
+      "key": "environment.bindings.XDG_CONFIG_HOME",
+      "origin": "launch-profile:opencode"
+    },
+    {
+      "detail": null,
+      "key": "environment.bindings.XDG_DATA_HOME",
+      "origin": "launch-profile:opencode"
+    },
+    {
+      "detail": null,
+      "key": "environment.bindings.XDG_STATE_HOME",
+      "origin": "launch-profile:opencode"
+    },
+    {
+      "detail": "opencode",
+      "key": "launch",
+      "origin": "launch-profile:opencode"
+    },
+    {
+      "detail": "opencode = /home/ubuntu/.opencode/bin/opencode (elf)",
+      "key": "program",
+      "origin": "program-resolution"
+    }
+  ],
+  "requirements": [
+    {
+      "measurement": "unmeasured",
+      "name": "tree_termination"
+    },
+    {
+      "measurement": "unmeasured",
+      "name": "closed_set_observation"
+    },
+    {
+      "measurement": "unmeasured",
+      "name": "filesystem_containment"
+    },
+    {
+      "measurement": "unmeasured",
+      "name": "syscall_filter"
+    },
+    {
+      "measurement": "unmeasured",
+      "name": "network_proxy"
+    },
+    {
+      "measurement": "unmeasured",
+      "name": "protected_coverage:existing_and_root"
+    },
+    {
+      "measurement": "unmeasured",
+      "name": "limit:wall"
+    }
+  ],
+  "version": "0.1.0"
+}

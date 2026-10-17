@@ -1,0 +1,91 @@
+{
+  "attempt_id": "att_09b1a9eb-6a69-4103-aa1f-7622678d7954",
+  "journal": "complete",
+  "lines": [
+    {
+      "facts": {
+        "attempt_wall_ms": null,
+        "cause": null,
+        "code": 1,
+        "errors": [],
+        "exec_to_settled_ms": 4647,
+        "integrity": "verified",
+        "outcome": "exited",
+        "phase": "settled",
+        "signal": null,
+        "survivors": "none_verified"
+      },
+      "line": "status",
+      "text": "settled · exited 1 · 4.6s exec→settled · survivors: none (verified)"
+    },
+    {
+      "facts": {
+        "bound": "exact",
+        "omitted": 0,
+        "opened_for_writing": 1,
+        "paths": [
+          {
+            "kind": "workspace_relative",
+            "value": "testing"
+          }
+        ],
+        "refused": 0,
+        "refused_bound": "exact",
+        "removed": 0,
+        "renamed": 0,
+        "unnamed": 155
+      },
+      "line": "workspace",
+      "text": "workspace: 1 path opened for writing · 155 results with unnamed paths"
+    },
+    {
+      "facts": {
+        "allowed": [
+          {
+            "connect_failed": 0,
+            "destination": "models.opencode.ai:443",
+            "results": 1
+          },
+          {
+            "connect_failed": 0,
+            "destination": "opencode.ai:443",
+            "results": 1
+          },
+          {
+            "connect_failed": 0,
+            "destination": "registry.npmjs.org:443",
+            "results": 1
+          }
+        ],
+        "bound": "exact",
+        "denied": [],
+        "mode": "proxy",
+        "omitted": 0,
+        "resolver_refused": null
+      },
+      "line": "network",
+      "text": "network: allowed models.opencode.ai:443 (1), opencode.ai:443 (1), registry.npmjs.org:443 (1)"
+    },
+    {
+      "facts": {
+        "attached": true,
+        "classes": {
+          "exec": "active",
+          "fs.deny": "active",
+          "fs.write": "active",
+          "limits": "active",
+          "net": "active",
+          "proxy.net": "active"
+        },
+        "disagree": [],
+        "evidence": "strict",
+        "gaps": [],
+        "observe": "on"
+      },
+      "line": "evidence",
+      "text": "evidence: 6/6 classes active, no gaps · reads and file contents are not observed"
+    }
+  ],
+  "receipt_digest": "sha256:cce5e488d1202603d8991aad3c1222aa9337c76bad8ec198c29776703473e46b",
+  "schema": "ukai.jail.summary/1"
+}

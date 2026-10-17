@@ -17,6 +17,8 @@ compatibility. The historical rows below retain their original scope.
 
 | Agent | Vendor version | Ukai revision | Platform | Backend | Jail mode | Credential | Result |
 |---|---|---|---|---|---|---|---|
+| Claude Code | 2.1.302, native installer (`~/.local/share/claude/versions/2.1.302`, ELF, `sha256:60d7eb7f…`) | clean `56f9fb15`; binary `sha256:5115e497…`, inputs `7b1a95a9b6a2…` | Reference VPS, Ubuntu 26.04.1, Linux 7.0.0-31, x86_64, stock (AppArmor userns restriction on) | bubblewrap 0.11.1, ptrace | `agent` through the alias with the bundled `claude` profile unchanged: `ukai-jail claude -p "…" --dangerously-skip-permissions --output-format json`, headless; observation on, strict evidence | `claude-oauth` (a `claude setup-token` value) through the vault, never staged | **Supported for exactly this combination** ([record](#claude-code-21302-agent-a-setup-token-through-the-vault-2026-10-17)): A01 fixture, a real small task, ten repetitions (10/10), the no-source refusal with both hints, and revocation mid-stream all passed; every summary reproduces from its receipt and journal; the token is in no record, workspace, output or sampled environment. Not covered: `-p` without a permission flag (Claude Code refused its own write), the API-key fallback (not run), interactive sessions, npm installs, other versions and hosts |
+| OpenCode | 1.19.0 | clean `56f9fb15` | Reference VPS, Ubuntu 26.04.1, Linux 7.0.0-31, x86_64, stock | bubblewrap 0.11.1, ptrace | `agent` through the alias, `ukai-jail opencode run "…"`, bundled profile; observation on, strict evidence | none (`opencode/big-pickle`) | **Not passed (vendor):** the jail settled cleanly twice (exit 1 is OpenCode's; six classes active, derived grant `~/.opencode/bin`), but OpenCode Zen's free tier refused the request, as it did without the jail for 1.19.0 and 1.19.3. The 1.18.32 rows are not extended to the alias ([record](../../benchmarks/jail/claude-code-compatibility-2026-10-17.md#opencode-under-the-alias)) |
 | OpenCode | 1.18.32 | clean `16ee37fe`; current Jail inputs `2989fb4983de…` | Fresh Ubuntu 26.04.1 VM, Linux 7.0.0-34, x86_64 QEMU TCG | bubblewrap + ptrace; bubblewrap version unrecorded | `agent`, observation on, strict evidence; separate `learn` run | none (`opencode/big-pickle`) | Signed installation, contained `true`, real glob/read/write workflow and verified settlement passed in 62.2 s. Learning proposed an evidence-supported exact-read subset with receipt-bound coverage. Single fixture only; reliability remains experimental ([October 10 record](../../benchmarks/jail/release-preview-2026-10-10.md)) |
 | OpenCode | 1.18.32 | clean `f933105e`; inputs `0abe3b09146a…`, unchanged at `d0bc346d` | Fresh Ubuntu 26.04 VM, x86_64 | bubblewrap 0.11.1, ptrace | `agent`, observation on, strict evidence | none (`opencode/big-pickle`) | Signed install, real glob/read/write workflow and clean settlement passed in 82.85 s; exact fixture scope only ([October 8 evidence](../../benchmarks/jail/validation-2026-10-08.md)) |
 | Gemini CLI | 0.63.0 (npm, `#!/usr/bin/env node` shim) | clean `38a51a43` | Reference VPS, Ubuntu 26.04.1, Linux 7.0.0-31, x86_64 | bubblewrap 0.11.1, ptrace | `agent`, observation on, strict evidence | none | Passed: the npm-shim entry exec'd and confirmed under strict evidence (`exec_observed`, coverage active, no gaps), printed its version and settled at exit 0 — the `#!`-shim shape the 2026-10-08 H2 fix opened. Version-flag scope only, no provider traffic; the first npm-shim row. Under plain `agent` the CLI's exit-time cleanup warns about `$HOME/.gemini`; the bundled `gemini` launch profile maps those directories (`home_is_state`) and remains experimental and unrecorded |
@@ -35,6 +37,52 @@ and the narrowing filter
 the frozen ones are in [milestone-1-freeze.toml](milestone-1-freeze.toml).
 They are kept as the history of what the first real runs required; the
 milestone's A01 record is the run below.
+
+## Claude Code 2.1.302, `agent`, a setup token through the vault (2026-10-17)
+
+Evidence: [record](../../benchmarks/jail/claude-code-compatibility-2026-10-17.md)
+and its [results directory](../../benchmarks/jail/results/claude-code-compatibility-2026-10-17/).
+This is the A-row of
+[jail-launch-and-summary.md §6.3](../jail-launch-and-summary.md#63-the-claude-code-compatibility-record-a-row).
+It marks one combination supported: Claude Code 2.1.302 from the native
+installer, headless, under the bundled `claude` profile, with a setup token
+through the vault, under `agent` on this platform, at this revision. `doctor`
+still reports the profile `experimental`; this record carries the claim.
+
+- **What ran.** On 2026-10-17 on the reference host (Ubuntu 26.04.1, kernel
+  7.0.0-31, x86_64, bubblewrap 0.11.1, stock: the AppArmor userns
+  restriction on), as `ubuntu` with lingering on. `ukai-jail` built from a
+  clean checkout of `56f9fb15197ffadf401b8f2bb70162adb938b88b` (`dirty:
+  false`, SHA-256 `5115e497d92b3b8c55a00f4a46bc4b20627dd5cdf0e1b4552adfeb966bf54b09`).
+  Claude Code 2.1.302 from the native installer, resolved on `PATH` to
+  `~/.local/share/claude/versions/2.1.302` (SHA-256 `60d7eb7f12fb…`) ahead
+  of an npm 2.1.295 at `/usr/bin/claude`. The bundled profile unchanged;
+  the subscription's setup token at `~/.config/ukai/credentials/claude-oauth`.
+- **Command.** `ukai-jail claude -p "Create a file named greeting.txt
+  containing the single word hello." --dangerously-skip-permissions
+  --output-format json` in a fresh git repository; the real task, in the
+  same repository, had Claude Code fix a failing unit test and run it.
+- **Result.** Both passed every §6.3 condition. The receipt is settled, exit
+  0, no error, all six classes active without gaps, `tree_empty` true and
+  cleanup complete. It lists only `claude-oauth`, `never_staged`. The
+  summary shows its use count (4 proxy results; 5 for the task). The only
+  grants are the derived `~/.local/share/claude/versions`
+  (`by: program_resolution`) and `api.anthropic.com:443`. The terminal
+  summary, `tail --summary` and `--json` agree and recompute from the
+  archived receipt and journal. Ten repetitions passed 10/10 (median 3.79 s).
+  With no source the run refused before exec, naming both hints. Deleting a
+  copy of the source mid-stream revoked it within 34–78 ms, interrupted the
+  stream (`end: credential_revoked`) and refused all ten retries. A
+  fixed-string search and the exposure sampler found the token nowhere.
+- **Limits of the claim.** With `-p` alone, Claude Code refused its own
+  file write in its default permission mode: the jail run was clean, the
+  task was not done. The API-key fallback was not run (no key on the host).
+  Interactive sessions, npm installs, other versions and hosts are
+  unrecorded. Each Claude Code run leaves one `fs.deny`, its `mkdir` of
+  `~/.local/state`. The summary's workspace line counts Claude Code's own
+  writes as unnamed results: their path claims could not be corroborated.
+- **OpenCode under the alias** (the rerun §6.3 asks for) did not pass: see
+  the table row and the record.
 
 ## OpenCode, current implementation (2026-09-28)
 

@@ -1,0 +1,16 @@
+ M slug.py
+?? __pycache__/
+diff --git a/slug.py b/slug.py
+index 6275d0e..186233a 100644
+--- a/slug.py
++++ b/slug.py
+@@ -3,5 +3,5 @@ import re
+ 
+ def slugify(title):
+     """Lower-case words of letters and digits, joined by single hyphens."""
+-    words = re.findall(r"[a-z0-9]+", title)
++    words = re.findall(r"[a-z0-9]+", title.lower())
+     return "-".join(words)
+OK
+1f6ed5d8e9cd65fcc07532ad827a64003eaf457c9e3a1f70ad1b029b57ed9c13  test_slug.py
+5a70ac88ca2a76196ddac3145236d2a4d4d324928f3d171b8c88c1009154150b  slug.py

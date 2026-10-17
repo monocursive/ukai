@@ -1,0 +1,1 @@
+ukai-jail: error credential_unavailable at resolving [configuration]: launch profile `claude` needs one of its credentials, and none is present: `claude-oauth` (run `claude setup-token` on this host, then `ukai-jail credential set claude-oauth`); `anthropic` (put a Claude Console API key in it: `ukai-jail credential set anthropic`) (key: launch.credentials_one_of)

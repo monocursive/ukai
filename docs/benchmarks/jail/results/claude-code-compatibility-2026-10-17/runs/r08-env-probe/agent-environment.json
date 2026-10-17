@@ -1,0 +1,31 @@
+{
+ "exit": 0,
+ "agent_environment": {
+  "comm": "2.1.302",
+  "names": [
+   "ALL_PROXY",
+   "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+   "CLAUDE_CODE_OAUTH_TOKEN",
+   "CLAUDE_CONFIG_DIR",
+   "DISABLE_AUTOUPDATER",
+   "HTTPS_PROXY",
+   "HTTP_PROXY",
+   "LANG",
+   "NODE_EXTRA_CA_CERTS",
+   "NO_PROXY",
+   "PATH",
+   "PWD",
+   "REQUESTS_CA_BUNDLE",
+   "SSL_CERT_FILE",
+   "TMPDIR",
+   "all_proxy",
+   "http_proxy",
+   "https_proxy",
+   "no_proxy"
+  ],
+  "vault_placeholders": {
+   "CLAUDE_CODE_OAUTH_TOKEN": "vault:att_cf174e17-c020-4426-a945-46f231d9f8ea:claude-oauth"
+  },
+  "protected_value_present": false
+ }
+}

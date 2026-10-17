@@ -1,0 +1,159 @@
+{
+ "run": "r07-sampler-probe",
+ "exit": 0,
+ "elapsed_s": 3.58,
+ "timed_out": false,
+ "checks": {
+  "tail_summary_exit_0": true,
+  "tail_summary_equals_live": true,
+  "json_text_equals_live": true,
+  "independent_recompute": true,
+  "settled": true,
+  "exited_0": true,
+  "no_errors": true,
+  "six_classes_active_no_gaps": true,
+  "tree_empty": true,
+  "state_cleanup_complete": true,
+  "one_credential_never_staged": true,
+  "summary_shows_use_count": true,
+  "derived_install_root_only": true,
+  "no_unexpected_grant": true,
+  "credential_process_denied_absent": true,
+  "uses_match_summary": true,
+  "file:greeting.txt": true
+ },
+ "facts": {
+  "receipt_digest_in_summary": "sha256:26d7d7574ea5d3ba9745f4a90a3d0b7f4aebbac2c6b7ff8e85e7f4ba0994b261",
+  "phase": "settled",
+  "outcome": {
+   "kind": "exited",
+   "code": 0,
+   "signal": null,
+   "cause": null,
+   "error": null
+  },
+  "errors": [],
+  "coverage": {
+   "exec": [
+    "active",
+    0,
+    22
+   ],
+   "fs.write": [
+    "active",
+    0,
+    126
+   ],
+   "fs.deny": [
+    "active",
+    0,
+    1
+   ],
+   "net": [
+    "active",
+    0,
+    8
+   ],
+   "limits": [
+    "active",
+    0,
+    0
+   ],
+   "proxy.net": [
+    "active",
+    0,
+    4
+   ]
+  },
+  "tree_empty": true,
+  "state_cleanup": "complete",
+  "credentials": [
+   {
+    "never_staged": true,
+    "id": "claude-oauth",
+    "mode": "vault",
+    "digest": null,
+    "digest_unavailable_reason": "never_staged"
+   }
+  ],
+  "grants": [
+   {
+    "kind": "allow_host",
+    "value": "api.anthropic.com:443",
+    "by": "operator"
+   },
+   {
+    "kind": "read_only",
+    "value": "/home/ubuntu/.local/share/claude/versions",
+    "by": "program_resolution"
+   }
+  ],
+  "child_protection": "enforced",
+  "observer_gaps": [
+   [
+    "path_claim_unverified",
+    [],
+    1
+   ]
+  ],
+  "summary_credential": [
+   {
+    "id": "claude-oauth",
+    "mode": "vault",
+    "never_staged": true,
+    "transitions": [
+     "loaded"
+    ],
+    "unconfirmed": 0,
+    "uses": 4,
+    "uses_bound": "exact"
+   }
+  ],
+  "proxy_results": [
+   [
+    "api.anthropic.com:443",
+    "allow",
+    "relayed",
+    true,
+    4
+   ]
+  ],
+  "results_carrying_credential": 4,
+  "credential_refusals": {},
+  "credential_notes": [
+   [
+    "claude-oauth",
+    "loaded"
+   ]
+  ],
+  "fs_deny": [
+   [
+    "fs.create",
+    "mkdir",
+    {
+     "digest": "sha256:4251803132e6da7a6b27ae0aa79e4cad8428504fe30cfa60bcbf4d76eaa5de00",
+     "kind": "digest",
+     "reason": "outside_known_roots"
+    }
+   ]
+  ],
+  "exec_paths": [
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"/home/ubuntu/.local/share/claude/versions\", \"value\": \"2.1.302\"}",
+    3
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"bin/git\"}",
+    7
+   ],
+   [
+    "{\"kind\": \"unavailable\", \"reason\": \"empty_path\"}",
+    1
+   ]
+  ],
+  "frames": 169,
+  "file:greeting.txt": "hello\n"
+ },
+ "attempt_id": "att_36855cd3-76eb-4638-b1f0-1184c2e1b5d0",
+ "pass": true
+}

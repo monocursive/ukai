@@ -1,0 +1,39 @@
+policy agent
+profile agent
+platform linux
+digest sha256:62c7012f5c96f50c99e2c71ffc43ec1b6470f87c4a04a6cba1feefa5fb560dd8
+observation mode=on evidence=strict
+network proxy
+read_write workspace:
+read_write scratch:
+read_write vendor_state:
+read_only host:/usr
+read_only host:/bin
+read_only host:/lib
+read_only host:/lib64
+read_only host:/etc/ssl
+read_only host:/etc/resolv.conf
+read_only host:/etc/passwd
+read_only host:/etc/group
+read_only host:/etc/hosts
+read_only host:/etc/localtime
+read_only host:/home/ubuntu/.opencode/bin
+protected_coverage existing_and_root
+limit wall=7200000 required=true
+limit pids=512 required=false
+launch state_var=none home_is_state=true
+launch state_subdir config/opencode
+launch state_subdir data/opencode
+launch state_subdir cache/opencode
+launch state_subdir state/opencode
+program opencode = /home/ubuntu/.opencode/bin/opencode format=elf
+program argv /home/ubuntu/.opencode/bin/opencode
+program read_only /home/ubuntu/.opencode/bin by=program_resolution
+requirement tree_termination unmeasured
+requirement closed_set_observation unmeasured
+requirement filesystem_containment unmeasured
+requirement syscall_filter unmeasured
+requirement network_proxy unmeasured
+requirement protected_coverage:existing_and_root unmeasured
+requirement limit:wall unmeasured
+capabilities unmeasured (explain does not probe)
