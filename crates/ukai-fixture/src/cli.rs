@@ -181,6 +181,10 @@ pub enum FsMode {
         /// without `openat` (Bun) pins a directory it opened.
         #[arg(long, requires = "dirfd")]
         proc_fd: bool,
+        /// With `--dirfd`: spell PATH `/dev/fd/<N>/PATH` with `AT_FDCWD`,
+        /// the same descriptor reached through the `/dev/fd` symlink.
+        #[arg(long, requires = "dirfd", conflicts_with = "proc_fd")]
+        dev_fd: bool,
         #[arg(long, default_value = "ok")]
         expect: Expect,
     },
@@ -310,6 +314,26 @@ pub enum FsMode {
         b: OsString,
         #[arg(value_name = "COUNT")]
         count: u32,
+    },
+    /// Call `mkdirat(N, "<PREFIX><i>")` COUNT times on one descriptor N
+    /// while a second thread keeps `dup2`-ing directories A and B onto it,
+    /// so the directory the kernel resolves each name through races the
+    /// descriptor's link a tracer reads. `--proc-fd` spells each name
+    /// `/proc/self/fd/N/<PREFIX><i>` against `AT_FDCWD` instead; `--cwd`
+    /// races the working directory (`fchdir` to A and B) under
+    /// `mkdirat(AT_FDCWD, "<PREFIX><i>")`. One `mkdirat` line per call;
+    /// which directory a name landed in is the kernel's answer, on disk
+    /// afterwards.
+    RaceDirfd {
+        a: OsString,
+        b: OsString,
+        prefix: String,
+        #[arg(value_name = "COUNT")]
+        count: u32,
+        #[arg(long, conflicts_with = "cwd")]
+        proc_fd: bool,
+        #[arg(long)]
+        cwd: bool,
     },
 }
 
@@ -754,6 +778,33 @@ mod tests {
                 assert_eq!(via, RenameVia::Rename);
                 assert!(proc_fd);
             }
+            other => panic!("wrong mode: {other:?}"),
+        }
+        assert!(Cli::try_parse_from(["ukai-fixture", "open", "x", "--dev-fd"]).is_err());
+        assert!(
+            Cli::try_parse_from([
+                "ukai-fixture",
+                "open",
+                "x",
+                "--dirfd",
+                "/tmp",
+                "--proc-fd",
+                "--dev-fd"
+            ])
+            .is_err(),
+            "one spelling"
+        );
+        match parse(&["open", "x", "--dirfd", "/tmp", "--dev-fd", "--write"]).mode {
+            Mode::Fs(FsMode::Open { dev_fd, .. }) => assert!(dev_fd),
+            other => panic!("wrong mode: {other:?}"),
+        }
+        match parse(&["race-dirfd", "/a", "/b", "m", "3", "--proc-fd"]).mode {
+            Mode::Fs(FsMode::RaceDirfd {
+                prefix,
+                count,
+                proc_fd,
+                ..
+            }) => assert_eq!((prefix.as_str(), count, proc_fd), ("m", 3, true)),
             other => panic!("wrong mode: {other:?}"),
         }
     }

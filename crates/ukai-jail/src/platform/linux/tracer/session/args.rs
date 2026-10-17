@@ -7,7 +7,9 @@ use super::Session;
 use super::seams::path_has_marker;
 use super::tasks::Pending;
 use crate::platform::linux::tracer::closed_set::{self, ClosedOp, Entry, FlagSource};
-use crate::platform::linux::tracer::{Args, PathSnapshot, SockaddrSnapshot, sys};
+use crate::platform::linux::tracer::{
+    Args, FdTable, PathSnapshot, SockaddrSnapshot, sys, through_descriptor,
+};
 
 impl Session {
     /// The flags word of a row, and whether flags the consumer needs for
@@ -87,7 +89,18 @@ impl Session {
         // the thread's own cwd is resolved against that cwd at
         // classification; the snapshot itself stays the raw argument, so the
         // exit-side stability check compares what the tracee still holds.
-        args.cwd = self.observed_cwd(tid, args.path.as_ref(), args.path2.as_ref());
+        args.cwd = self.observed_cwd(
+            tid,
+            (args.path.as_ref(), args.dirfd),
+            (args.path2.as_ref(), args.dirfd2),
+        );
+        // A name the kernel resolves through a directory descriptor is
+        // resolved below that descriptor's own link, read here and again at
+        // the exit stop. A symlink's target is stored, not resolved.
+        args.directory = self.directory_link(tid, args.path.as_ref(), args.dirfd);
+        if entry.op != ClosedOp::Symlink {
+            args.directory2 = self.directory_link(tid, args.path2.as_ref(), args.dirfd2);
+        }
         if let Some((ptr, len)) = entry.sockaddr {
             let (snapshot, unreadable) =
                 self.read_sockaddr(tid, raw[ptr as usize], raw[len as usize]);
@@ -105,24 +118,48 @@ impl Session {
     /// The stopped thread's working directory, read from `/proc/<tid>/cwd`,
     /// when one of the call's path arguments is a complete relative pathname
     /// the kernel resolves against it (§11.3). The true dirfd cases
-    /// resolve against their descriptor instead and read nothing.
+    /// resolve against their descriptor instead and read nothing here.
     fn observed_cwd(
         &self,
         tid: pid_t,
-        path: Option<&PathSnapshot>,
-        path2: Option<&PathSnapshot>,
+        path: (Option<&PathSnapshot>, Option<i32>),
+        path2: (Option<&PathSnapshot>, Option<i32>),
     ) -> Option<Box<[u8]>> {
-        let relative = |snapshot: Option<&PathSnapshot>| {
-            snapshot.is_some_and(|snapshot| {
-                snapshot.complete && snapshot.bytes.first().is_some_and(|byte| *byte != b'/')
-            })
+        let at_cwd = |(snapshot, dirfd): (Option<&PathSnapshot>, Option<i32>)| {
+            dirfd.is_none_or(|fd| fd == libc::AT_FDCWD)
+                && snapshot.is_some_and(|snapshot| {
+                    snapshot.complete && snapshot.bytes.first().is_some_and(|byte| *byte != b'/')
+                })
         };
-        if !relative(path) && !relative(path2) {
+        if !at_cwd(path) && !at_cwd(path2) {
             return None;
         }
         self.procfs
             .cwd(tid)
             .filter(|bytes| bytes.first() == Some(&b'/'))
+            .map(Vec::into_boxed_slice)
+    }
+
+    /// The raw link of the directory descriptor a complete pathname is
+    /// resolved through ([`through_descriptor`]), read from the table the
+    /// route names: the group's for `/proc/self/fd/<N>/`, the thread's for
+    /// `/proc/thread-self/fd/<N>/` and a true `dirfd` (§11.3
+    /// `directory_link`). The exit stop reads it again; classification
+    /// decides whether it names a directory at all.
+    pub(super) fn directory_link(
+        &self,
+        tid: pid_t,
+        snapshot: Option<&PathSnapshot>,
+        dirfd: Option<i32>,
+    ) -> Option<Box<[u8]>> {
+        let snapshot = snapshot.filter(|snapshot| snapshot.complete)?;
+        let route = through_descriptor(&snapshot.bytes, dirfd)?;
+        let holder = match route.table {
+            FdTable::Process => self.tgid_of(tid),
+            FdTable::Thread => tid,
+        };
+        self.procfs
+            .fd_link(holder, i64::from(route.fd))
             .map(Vec::into_boxed_slice)
     }
 

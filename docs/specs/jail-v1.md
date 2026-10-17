@@ -2064,17 +2064,37 @@ is stopped and recorded by the observer's.
 
 Relative pathname arguments are not blindly appended to a host cwd. Account
 for `dirfd`, cwd/root, namespaces and native path bytes. A complete relative
-pathname that the kernel resolves against the caller's own working directory
-is resolved against that directory as observed at the syscall stop
-(`/proc/<tid>/cwd` of the stopped thread), so the common case — a shell or
-tool writing inside the workspace — is named like its absolute spelling; the
-argument snapshot stays the raw bytes and the stability re-read compares
-those. True `dirfd` resolutions keep their distinct `relative_to_dirfd`
-reason, and so does the same resolution spelled through procfs,
+pathname is resolved against what the kernel resolves it against, read from
+`/proc` while the calling thread is stopped: the caller's own working
+directory (`/proc/<tid>/cwd`) for a name at `AT_FDCWD`, and for a name below
+a true `dirfd` — or the same resolution spelled through procfs,
 `/proc/self/fd/<N>/<name>` or `/proc/thread-self/fd/<N>/<name>` (the way a
-runtime without `openat`, Bun's for Claude Code, pins a directory), with
-`path_dirfd` naming descriptor N; it is never a digest "outside the known
-roots", since it can be inside one. Emit a path relative to the workspace
+runtime without `openat`, Bun's for Claude Code, pins a directory) — that
+descriptor's own link, `/proc/<tid>/fd/<N>` from the table the spelling
+names (the group's for `self`, the thread's for `thread-self` and a
+`dirfd`). Such an anchor is read at the entry stop and again at the exit
+stop, and a name is resolved against it only when both reads are
+byte-identical and name a directory path (absolute, not annotated
+` (deleted)`): the working directory and the descriptor table are shared
+with sibling threads, so one read cannot say which directory the kernel
+used. A disagreement — a sibling's `chdir` or `dup2`, another process
+renaming an ancestor, a descriptor closed in between — leaves the name
+unresolved (`relative_to_unresolved_cwd`, `relative_to_dirfd`) and is one
+bookkeeping `path_anchor_unverified` gap per call, counted in
+`lifetime.native.details.path_anchors_unverified`: the event is delivered
+with its weaker claim, so the gap names no class and never stops a strict
+run. The procfs spelling is resolved this way only where `/proc` is the
+jail's own for the whole attempt, a contained profile whose baseline
+refuses every mount interface, `chroot`, `pivot_root`, `unshare`, `setns`
+and namespace clone (§9.2); under `none` it stays `relative_to_dirfd`. A
+symlink's target is stored by the call, not resolved, and is never read
+through a descriptor. So the common cases — a shell or tool writing inside
+the workspace, a runtime renaming its temporary file into place through a
+descriptor — are named like their absolute spellings; the argument snapshot
+stays the raw bytes and the stability re-read compares those. A name through
+a descriptor carries `path_dirfd` naming descriptor N whether or not it was
+resolved, and is never a digest "outside the known roots", since it can be
+inside one. Emit a path relative to the workspace
 (`workspace_relative`), to the attempt's scratch root (`scratch_relative`), or to a named root
 (`root_relative`: an operator grant by its in-jail spelling, or `system` for
 the read-only system roots such as `/usr` and `/etc`) only when its
@@ -2082,20 +2102,40 @@ relationship to that root is established. Otherwise
 emit a digest or unavailable marker, with a reason. A path below the
 attempt's vendor state (§12) is a digest with the reason `vendor_state`: its
 relationship to that root is established, and no trace names vendor state.
-Record `path_basis` as
-`argument_snapshot` or a specifically proven kernel-resolved observation. The
-one such observation is `descriptor_link`: a successful open through a
-descriptor (either spelling above, not `O_TMPFILE`) whose returned
-descriptor's `/proc/<tid>/fd/<ret>` link, read at the exit stop, is exactly
-the directory descriptor's own link (read at the same stop, from the table
-the spelling names) followed by the name. The event then names that link,
-the kernel's resolution of the file it opened, classified as above; anything
-less keeps `relative_to_dirfd`. Calls without a returned descriptor (rename,
-unlink, mkdir through a descriptor) are never named this way.
-The initial sensor does not claim an argument-memory snapshot is the exact
-path later consumed by the kernel under a concurrent mutation; the exit
-re-read of §11.4 turns any such mutation into an
-`argument_snapshot_unstable` gap rather than a silently weakened claim.
+A successful open whose name the kernel corroborated (§11.4) and which is
+otherwise a digest "outside the known roots" is a digest with the reason
+`standard_device` when its returned descriptor is, by the device number read
+at the exit stop, one of the character devices a jail's `/dev` holds:
+`null` 1:3, `zero` 1:5, `full` 1:7, `random` 1:8, `urandom` 1:9 and `tty`
+5:0 (the number is read only for a name below `/dev/`). None of them stores
+what is written to it. The reason rests on the descriptor the kernel
+returned, never on the spelling, so `/dev/fd/<N>/<name>` (a symlink into the
+descriptor route, which the corroboration downgrades), `/dev/stdout`, a file
+below `/dev/shm`, an operator-granted device and every other device keep
+what they had.
+Record `path_basis` as `argument_snapshot` or a specifically proven
+kernel-resolved observation. There are two. `descriptor_link`: a successful
+open through a descriptor (either spelling above, not `O_TMPFILE`) whose
+returned descriptor's `/proc/<tid>/fd/<ret>` link, read at the exit stop, is
+exactly the directory descriptor's own link (read at the same stop, from the
+table the spelling names) followed by the name; the event then names that
+link, the kernel's resolution of the file it opened, classified as above.
+`directory_link`: any other call through a descriptor (a rename, unlink,
+mkdir, link or mknod, a truncate by such a name, a failed open), named below
+the directory descriptor's link agreed at both stops as above. A successful
+open is named only by its returned descriptor, never below the directory;
+anything less keeps `relative_to_dirfd`. `path_basis` is one field for both
+paths of a two-path call: it is `directory_link` when either path was named
+that way, and such a path carries its `path_dirfd` or `path2_dirfd`; the
+other path is classified on its own evidence. A name resolved against the
+working directory keeps `argument_snapshot`.
+The initial sensor does not claim an argument-memory snapshot, or the anchor
+a relative name was resolved against, is the exact path later consumed by
+the kernel under a concurrent mutation; the exit re-read of §11.4 turns any
+such mutation of the bytes into an `argument_snapshot_unstable` gap rather
+than a silently weakened claim, and one of the anchor into the
+`path_anchor_unverified` gap above. A sibling that moves either and moves it
+back between the two reads is the residual §11.4 names.
 
 Path snapshots and return codes are distinct evidence. A rename race does not
 change the observed return code, but prevents a stronger path assertion.
@@ -2228,7 +2268,15 @@ mknod, link, symlink, truncate, a failed exec, connect) have no such
 kernel record, so for them the exit re-read bounds the claim to "the
 argument memory was stable across the call", not "the kernel used this
 path". A race that rewrites one of those arguments for the kernel and
-restores it before the exit is inside that residual.
+restores it before the exit is inside that residual. The anchor a relative
+name of such a call is resolved against (§11.3: the working directory, a
+directory descriptor's link) is held to the same bar and has the same
+residual: its entry and exit reads must agree, so a move that lasts past the
+call is caught, and a sibling that moves it for the kernel and back before
+the exit read is not. A deliberate continuous race on the reference host left
+a name below the wrong directory on 7 to 25% of the calls it raced, and the
+two reads caught 19 to 51% as `path_anchor_unverified` gaps
+([measurement](../benchmarks/jail/claude-code-workspace-line-decisions-2026-10-17.md#the-residual-measured)).
 Register arguments need no re-read: the kernel consumes the saved registers
 this stop pair already saw. Security audit 2026-09-26, A1, closes the two
 residuals of that rule. First, an `openat2` whose flags live in memory can
@@ -3024,7 +3072,7 @@ its own processes. Never test against the operator's actual credentials.
 | O03 | Truncation, unmatched exit, map exhaustion and ring loss produce gaps, never fabricated results or zero counts. |
 | O04 | `write`, mmap and unrelated host processes do not emit closed-set events. |
 | O05 | Observation off emits no audit source and leaves audit net unsupported, even with active proxy.net; unavailable attachment refuses even in best-effort. Directory-operation losses degrade fs.write; denied connect counts only in fs.deny. |
-| O06 | Renamed cwd, dirfd, two-path calls, non-UTF-8 names and a racing pathname never produce a falsely resolved path. |
+| O06 | Renamed cwd, dirfd, two-path calls, non-UTF-8 names and a racing pathname never produce a falsely resolved path, except by a race that moves a name's bytes or anchor and restores it between the two stops (§11.4's residual). |
 | L01 | Wall expiry, INT/TERM/HUP, SIGTERM-ignoring descendant and fork storm end at verified tree death or explicit unknown. |
 | L02 | Kill every lifetime link (backend, watcher, supervisor): contained descendants die within a bound; an `agent` network helper's death fails closed as §10 specifies (the bridge's is recorded and the tree continues; the proxy's is `proxy.net` evidence loss); none preserves its specified unknown case. |
 | L03 | Missing required cgroup/controller refuses; missing preferred pids alone records absent and runs. Exercise cgroup available but pids controller absent, explicit same-value pids, and observe off. None without a usable cgroup refuses. |

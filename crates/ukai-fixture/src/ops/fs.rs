@@ -27,6 +27,7 @@ pub(crate) fn run(rep: &Reporter, mode: FsMode) -> Result<bool, Stop> {
             mode,
             dirfd,
             proc_fd,
+            dev_fd,
             expect,
         } => {
             let mode = parse_mode(&mode).map_err(Stop::Usage)?;
@@ -45,9 +46,10 @@ pub(crate) fn run(rep: &Reporter, mode: FsMode) -> Result<bool, Stop> {
                 return Err(Stop::Usage("--dirfd needs --via openat".to_string()));
             }
             let dir = open_dirfd(rep, dirfd_path(dirfd.as_deref())?)?;
-            let emitted = match (raw_fd(dir.as_ref()), proc_fd) {
-                (Some(fd), true) => open(&through_proc_fd(fd, &path), via, flags, mode, None),
-                (fd, _) => open(&path, via, flags, mode, fd),
+            let emitted = match (raw_fd(dir.as_ref()), proc_fd, dev_fd) {
+                (Some(fd), true, _) => open(&through_proc_fd(fd, &path), via, flags, mode, None),
+                (Some(fd), _, true) => open(&through_dev_fd(fd, &path), via, flags, mode, None),
+                (fd, _, _) => open(&path, via, flags, mode, fd),
             };
             Ok(check(rep, emitted, &expect))
         }
@@ -152,6 +154,21 @@ pub(crate) fn run(rep: &Reporter, mode: FsMode) -> Result<bool, Stop> {
         FsMode::WriteMmap { path } => Ok(write_mmap(rep, &path)),
         FsMode::Chdir { path } => Ok(chdir(rep, &path)),
         FsMode::RaceMkdir { a, b, count } => race_mkdir(rep, &a, &b, count),
+        FsMode::RaceDirfd {
+            a,
+            b,
+            prefix,
+            count,
+            proc_fd,
+            cwd,
+        } => {
+            let anchor = match (proc_fd, cwd) {
+                (_, true) => Anchor::Cwd,
+                (true, false) => Anchor::ProcFd,
+                (false, false) => Anchor::Dirfd,
+            };
+            race_dirfd(rep, (&a, &b), &prefix, count, anchor)
+        }
     }
 }
 
@@ -205,6 +222,13 @@ fn open(path: &OsStr, via: OpenVia, flags: OpenFlags, mode: u32, dir: Option<c_i
 /// `PATH` below descriptor `fd`, spelled through procfs.
 fn through_proc_fd(fd: c_int, path: &OsStr) -> std::ffi::OsString {
     let mut spelled = format!("/proc/self/fd/{fd}/").into_bytes();
+    spelled.extend_from_slice(path.as_bytes());
+    std::os::unix::ffi::OsStringExt::from_vec(spelled)
+}
+
+/// `PATH` below descriptor `fd`, spelled through the `/dev/fd` symlink.
+fn through_dev_fd(fd: c_int, path: &OsStr) -> std::ffi::OsString {
+    let mut spelled = format!("/dev/fd/{fd}/").into_bytes();
     spelled.extend_from_slice(path.as_bytes());
     std::os::unix::ffi::OsStringExt::from_vec(spelled)
 }
@@ -885,6 +909,121 @@ fn race_mkdir(rep: &Reporter, a: &OsStr, b: &OsStr, count: u32) -> Result<bool, 
     }
     stop.store(true, Ordering::Relaxed);
     let flips = flipper.join().unwrap_or(0);
+    let mut done = OpReport::new("race-done");
+    done.set("flips", flips);
+    done.result(0, None);
+    rep.emit(&done);
+    Ok(all)
+}
+
+/// What [`race_dirfd`] swaps under its calls.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Anchor {
+    /// Descriptor N, named as `mkdirat`'s `dirfd`.
+    Dirfd,
+    /// Descriptor N, spelled `/proc/self/fd/N/<name>` at `AT_FDCWD`.
+    ProcFd,
+    /// The working directory, under a relative name at `AT_FDCWD`.
+    Cwd,
+}
+
+/// `mkdirat` through one descriptor — or the working directory — whose
+/// directory a second thread keeps swapping.
+///
+/// A and B are opened as directories (each its own reported line, a
+/// read-only open outside the closed set), descriptor N starts as a copy of
+/// A, and the flipper `dup2`s B and A onto N in turn (or `fchdir`s to them,
+/// for the working directory) while this thread makes the calls. On Linux
+/// either replaces the anchor atomically, so it always names one of the two
+/// directories and the kernel resolves each name through whichever it is
+/// when the call looks it up.
+fn race_dirfd(
+    rep: &Reporter,
+    (a, b): (&OsStr, &OsStr),
+    prefix: &str,
+    count: u32,
+    anchor: Anchor,
+) -> Result<bool, Stop> {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let opened = |dir: &OsStr| -> Result<OwnedFd, Stop> {
+        open_dirfd(rep, dirfd_path(Some(dir))?)?
+            .ok_or_else(|| Stop::Failed("race-dirfd: no directory".to_string()))
+    };
+    let (dir_a, dir_b) = (opened(a)?, opened(b)?);
+    // SAFETY: `dir_a` is an open descriptor; the copy is owned below.
+    let n = unsafe { libc::fcntl(dir_a.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 64) };
+    if n < 0 {
+        return Err(Stop::Failed(format!(
+            "race-dirfd: no descriptor to race: {}",
+            std::io::Error::last_os_error()
+        )));
+    }
+    // SAFETY: `n` was just returned by `fcntl` and nothing else owns it.
+    let raced = unsafe { OwnedFd::from_raw_fd(n) };
+    // SAFETY: `dir_a` is an open directory descriptor.
+    if anchor == Anchor::Cwd && unsafe { libc::fchdir(dir_a.as_raw_fd()) } != 0 {
+        return Err(Stop::Failed(format!(
+            "race-dirfd: cannot start in A: {}",
+            std::io::Error::last_os_error()
+        )));
+    }
+    let stop = Arc::new(AtomicBool::new(false));
+    let flipper = {
+        let stop = Arc::clone(&stop);
+        let (fa, fb) = (dir_a.as_raw_fd(), dir_b.as_raw_fd());
+        std::thread::spawn(move || {
+            let mut flips = 0u64;
+            while !stop.load(Ordering::Relaxed) {
+                let from = if flips.is_multiple_of(2) { fb } else { fa };
+                if anchor == Anchor::Cwd {
+                    // SAFETY: `from` stays open until this thread is joined.
+                    unsafe { libc::fchdir(from) };
+                } else {
+                    // SAFETY: `from` and `n` stay open until this thread is
+                    // joined; `dup2` only replaces what `n` refers to.
+                    unsafe { libc::dup2(from, n) };
+                }
+                flips += 1;
+            }
+            flips
+        })
+    };
+    let mut all = true;
+    for index in 0..count {
+        let name = format!("{prefix}{index}");
+        let spelled = if anchor == Anchor::ProcFd {
+            format!("/proc/self/fd/{n}/{name}")
+        } else {
+            name.clone()
+        };
+        let Ok(c) = CString::new(spelled.clone()) else {
+            return Err(Stop::Usage(
+                "race-dirfd: a prefix cannot contain NUL".to_string(),
+            ));
+        };
+        let mut report = OpReport::new("mkdirat");
+        path_value(&mut report.args, "path", OsStr::new(&spelled));
+        let dirfd = if anchor == Anchor::Dirfd {
+            report.set("dirfd", n);
+            n
+        } else {
+            report.set("dirfd", "AT_FDCWD");
+            libc::AT_FDCWD
+        };
+        if anchor != Anchor::Cwd {
+            report.set("descriptor", n);
+        }
+        report.set("name", name);
+        report.set("racing", true);
+        report.set("mechanism", raw::mechanism());
+        let emitted = finish(report, raw::mkdirat(dirfd, c.as_ptr(), 0o700));
+        all &= !emitted.unusable;
+        rep.emit(&emitted.report);
+    }
+    stop.store(true, Ordering::Relaxed);
+    let flips = flipper.join().unwrap_or(0);
+    drop(raced);
     let mut done = OpReport::new("race-done");
     done.set("flips", flips);
     done.result(0, None);

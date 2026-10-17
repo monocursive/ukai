@@ -108,6 +108,12 @@ pub struct AuditWriter {
     /// paths are digests with their own reason, never named (§12: no trace
     /// includes vendor state).
     vendor_state: Option<Vec<u8>>,
+    /// `/proc` in the tracee's view is the procfs the jail mounted, for the
+    /// whole attempt: a contained baseline refuses every mount interface,
+    /// `chroot`, `pivot_root`, `unshare`, `setns` and namespace clone
+    /// (jail-v1 §9.2). Only then is `/proc/self/fd/<N>/<name>` known to reach
+    /// descriptor N for a call with no returned descriptor to show it.
+    proc_pinned: bool,
     /// Named roots a path can be relative to, most specific first.
     roots: Vec<NamedRoot>,
     counts: BTreeMap<CoverageClass, u64>,
@@ -137,6 +143,7 @@ impl AuditWriter {
             workspace: workspace.to_vec(),
             scratch_inside: scratch_inside.to_vec(),
             vendor_state: None,
+            proc_pinned: false,
             roots: Vec::new(),
             counts: BTreeMap::new(),
             degraded: BTreeSet::new(),
@@ -163,6 +170,14 @@ impl AuditWriter {
     #[must_use]
     pub fn with_vendor_state(mut self, inside: Option<&[u8]>) -> Self {
         self.vendor_state = inside.map(<[u8]>::to_vec);
+        self
+    }
+    /// Whether the tracee's `/proc` is the jail's own procfs for the whole
+    /// attempt ([`AuditWriter::proc_pinned`]'s condition): true only for a
+    /// boundary whose baseline refuses every way to change it.
+    #[must_use]
+    pub fn with_proc_pinned(mut self, pinned: bool) -> Self {
+        self.proc_pinned = pinned;
         self
     }
     /// Learning is explicit because absolute read-path snapshots may disclose host paths.
@@ -422,31 +437,46 @@ impl AuditWriter {
         // §11.3: the path is the argument as it was in the tracee's memory —
         // except an open through a descriptor whose own link and the returned
         // descriptor's agreed at the exit stop, which the tracer handed over
-        // as the kernel's resolution (`descriptor_link`).
+        // as the kernel's resolution (`descriptor_link`), and a name through
+        // a directory descriptor whose link read the same at both stops,
+        // named below that link (`directory_link`).
         let resolved = args.resolved.as_deref().map(snap_bytes);
+        let below = self
+            .below_directory(args.path.as_ref(), args.dirfd, args.directory.as_deref())
+            .map(|path| snap_bytes(&path));
+        let below2 = self
+            .below_directory(args.path2.as_ref(), args.dirfd2, args.directory2.as_deref())
+            .map(|path| snap_bytes(&path));
         fields.insert(
             "path_basis".to_owned(),
             Value::from(if resolved.is_some() {
                 "descriptor_link"
+            } else if below.is_some() || below2.is_some() {
+                "directory_link"
             } else {
                 "argument_snapshot"
             }),
         );
+        let cwd = Cwd::of(args.cwd.as_deref(), args.cwd_moved);
         self.describe_path_as(
             &mut fields,
             "path",
             args.path.as_ref(),
             args.dirfd,
-            args.cwd.as_deref(),
-            resolved.as_ref(),
+            cwd,
+            resolved.as_ref().or(below.as_ref()),
         );
+        if let Some(device) = args.char_device {
+            standard_device(&mut fields, "path", device);
+        }
         if args.path2.is_some() {
-            self.describe_path_in(
+            self.describe_path_as(
                 &mut fields,
                 "path2",
                 args.path2.as_ref(),
                 args.dirfd2,
-                args.cwd.as_deref(),
+                cwd,
+                below2.as_ref(),
             );
         }
         if denied {
@@ -778,14 +808,15 @@ impl AuditWriter {
     }
 
     /// Whether any recorded gap accounts for counted loss. Every gap does
-    /// except `path_claim_unverified`, which downgrades a delivered result and
-    /// feeds no loss counter, so it never stands in for the account of loss
-    /// whose own gaps were dropped.
+    /// except `path_claim_unverified` and `path_anchor_unverified`, which
+    /// weaken a delivered result's path and feed no loss counter, so they
+    /// never stand in for the account of loss whose own gaps were dropped.
     #[must_use]
     pub fn has_loss_gaps(&self) -> bool {
-        self.gaps
-            .iter()
-            .any(|gap| gap.reason != GapReason::PathClaimUnverified.as_str())
+        self.gaps.iter().any(|gap| {
+            gap.reason != GapReason::PathClaimUnverified.as_str()
+                && gap.reason != GapReason::PathAnchorUnverified.as_str()
+        })
     }
 
     /// The gaps recorded so far.
@@ -931,25 +962,14 @@ impl AuditWriter {
         snapshot: Option<&PathSnapshot>,
         dirfd: Option<i32>,
     ) {
-        self.describe_path_in(fields, key, snapshot, dirfd, None);
+        self.describe_path_as(fields, key, snapshot, dirfd, Cwd::of(None, false), None);
     }
 
     /// [`describe_path`] with the thread's observed working directory, which a
-    /// relative pathname is resolved against.
-    fn describe_path_in(
-        &self,
-        fields: &mut Map<String, Value>,
-        key: &str,
-        snapshot: Option<&PathSnapshot>,
-        dirfd: Option<i32>,
-        cwd: Option<&[u8]>,
-    ) {
-        self.describe_path_as(fields, key, snapshot, dirfd, cwd, None);
-    }
-
-    /// [`describe_path_in`], naming `resolved` — the kernel's resolution of a
-    /// descriptor the tracer corroborated — instead of classifying the
-    /// snapshot, when it is given. Completeness and the descriptor stay the
+    /// relative pathname is resolved against. When `resolved` is given — the
+    /// kernel's resolution of a descriptor the tracer corroborated, or the
+    /// name below a directory descriptor whose link it kept — it is named
+    /// instead of the snapshot; completeness and the descriptor stay the
     /// snapshot's.
     fn describe_path_as(
         &self,
@@ -957,7 +977,7 @@ impl AuditWriter {
         key: &str,
         snapshot: Option<&PathSnapshot>,
         dirfd: Option<i32>,
-        cwd: Option<&[u8]>,
+        cwd: Cwd<'_>,
         resolved: Option<&PathSnapshot>,
     ) {
         // The nested {kind, value} shape is the documented contract
@@ -978,7 +998,7 @@ impl AuditWriter {
         }
         let class = match resolved {
             Some(resolved) => self.classify(Some(resolved), None, None),
-            None => self.classify(snapshot, dirfd, cwd),
+            None => self.classify_at(snapshot, dirfd, cwd),
         };
         let path = match class {
             PathClass::WorkspaceRelative(bytes) => serde_json::json!({
@@ -1007,11 +1027,56 @@ impl AuditWriter {
         fields.insert(key.to_owned(), path);
     }
 
+    /// The absolute path a name through a directory descriptor (§11.3
+    /// `directory_link`) names: the descriptor's own link, which the tracer
+    /// kept only when it read the same at the entry and exit stops, followed
+    /// by the name. `None` when there is no such link, when it names no
+    /// directory path (not absolute, or removed: ` (deleted)`), when the
+    /// name is incomplete or ambiguous (`.`, `..`: a digest of the snapshot
+    /// is all it gets), and for the procfs spelling unless `/proc` is pinned.
+    fn below_directory(
+        &self,
+        snapshot: Option<&PathSnapshot>,
+        dirfd: Option<i32>,
+        directory: Option<&[u8]>,
+    ) -> Option<Vec<u8>> {
+        let directory = directory
+            .filter(|link| link.first() == Some(&b'/') && !link.ends_with(DELETED_MARK))?;
+        let bytes = snapshot.filter(|snap| snap.complete)?.bytes.as_slice();
+        if ambiguous(bytes) {
+            return None;
+        }
+        let route = through_descriptor(bytes, dirfd)?;
+        if bytes.first() == Some(&b'/') && !self.proc_pinned {
+            // `/proc/self/fd/<N>/` reaches descriptor N only through the
+            // tracee's own `/proc`, which a boundary that lets it mount or
+            // change its root does not pin.
+            return None;
+        }
+        let mut path = directory.to_vec();
+        if !path.ends_with(b"/") {
+            path.push(b'/');
+        }
+        path.extend_from_slice(route.rest);
+        Some(path)
+    }
+
     fn classify(
         &self,
         snapshot: Option<&PathSnapshot>,
         dirfd: Option<i32>,
         cwd: Option<&[u8]>,
+    ) -> PathClass {
+        self.classify_at(snapshot, dirfd, Cwd::of(cwd, false))
+    }
+
+    /// [`AuditWriter::classify`], with the working directory as the tracer
+    /// saw it at both stops.
+    fn classify_at(
+        &self,
+        snapshot: Option<&PathSnapshot>,
+        dirfd: Option<i32>,
+        cwd: Cwd<'_>,
     ) -> PathClass {
         let Some(snapshot) = snapshot else {
             return PathClass::Unavailable("argument_not_read");
@@ -1024,10 +1089,7 @@ impl AuditWriter {
         if bytes.is_empty() {
             return PathClass::Unavailable("empty_path");
         }
-        if bytes
-            .split(|b| *b == b'/')
-            .any(|part| part == b".." || part == b".")
-        {
+        if ambiguous(bytes) {
             return PathClass::Digest(
                 crate::canonical::sha256_prefixed(bytes),
                 "ambiguous_path_components",
@@ -1045,15 +1107,17 @@ impl AuditWriter {
             // Only the true dirfd cases (and a cwd that could not be read or
             // named) keep their distinct reasons.
             let at_cwd = dirfd.is_none_or(|fd| fd == libc::AT_FDCWD);
-            if at_cwd && cwd.is_some_and(|cwd| cwd.ends_with(DELETED_MARK)) {
+            if at_cwd && (cwd.moved || cwd.link.is_some_and(|cwd| cwd.ends_with(DELETED_MARK))) {
                 // The kernel names a removed directory by its old path plus
                 // this mark: no path names it now, and a directory whose own
-                // name ends that way cannot be told from one. Either way the
-                // joined path would be a claim about a name, not the cwd.
+                // name ends that way cannot be told from one. A cwd that read
+                // differently at the exit stop names two directories, either
+                // of which the kernel may have used. Either way the joined
+                // path would be a claim about a name, not the cwd.
                 return PathClass::Unavailable("relative_to_unresolved_cwd");
             }
             if at_cwd
-                && let Some(cwd) = cwd
+                && let Some(cwd) = cwd.link
                 && cwd.first() == Some(&b'/')
             {
                 let mut joined = cwd.to_vec();
@@ -1121,6 +1185,53 @@ enum Frame {
 /// What the kernel appends to `/proc/<tid>/cwd` when the directory was
 /// removed (`d_path`).
 const DELETED_MARK: &[u8] = b" (deleted)";
+
+/// The working directory a relative name is resolved against: the tracer's
+/// entry-stop read of `/proc/<tid>/cwd`, and whether the exit stop read it
+/// differently (§11.3).
+#[derive(Clone, Copy, Debug)]
+struct Cwd<'a> {
+    link: Option<&'a [u8]>,
+    moved: bool,
+}
+
+impl<'a> Cwd<'a> {
+    fn of(link: Option<&'a [u8]>, moved: bool) -> Cwd<'a> {
+        Cwd { link, moved }
+    }
+}
+
+/// Whether a raw pathname has a `.` or `..` component, which the observer
+/// never resolves: such a path is only ever a digest of its snapshot.
+fn ambiguous(bytes: &[u8]) -> bool {
+    bytes
+        .split(|b| *b == b'/')
+        .any(|part| part == b".." || part == b".")
+}
+
+/// The character devices a jail's `/dev` holds (bubblewrap's `--dev`), by
+/// device number: `null` 1:3, `zero` 1:5, `full` 1:7, `random` 1:8,
+/// `urandom` 1:9 and `tty` 5:0. None of them stores what is written to it.
+const STANDARD_DEVICES: [(u32, u32); 6] = [(1, 3), (1, 5), (1, 7), (1, 8), (1, 9), (5, 0)];
+
+/// §11.3 `standard_device`: a successful open whose path is a digest
+/// "outside the known roots", whose descriptor the kernel says is one of
+/// [`STANDARD_DEVICES`] (the tracer reads its device number only for a
+/// corroborated name below `/dev/`), is a digest with that reason instead:
+/// still never named, and no more a workspace path than vendor state. Any
+/// other device — a granted GPU, a block device — and any path the
+/// classifier named keep what they had.
+fn standard_device(fields: &mut Map<String, Value>, key: &str, device: (u32, u32)) {
+    if !STANDARD_DEVICES.contains(&device) {
+        return;
+    }
+    if let Some(path) = fields.get_mut(key)
+        && path["kind"] == "digest"
+        && path["reason"] == "outside_known_roots"
+    {
+        path["reason"] = Value::from("standard_device");
+    }
+}
 
 /// The gap reason of a result a poisoned trace lock could not take.
 const TRACE_WRITER_POISONED: &str = "trace_writer_poisoned";
@@ -2329,6 +2440,253 @@ mod tests {
             );
             assert_eq!(fields[3][format!("{key}_dirfd")], 14, "{key}");
         }
+    }
+
+    /// §11.3 `directory_link`: a name through a directory descriptor whose
+    /// link the tracer kept (read the same at both stops) is named below
+    /// that link and classified as any path, with that basis; the other path
+    /// of a two-path call is classified on its own. A removed or non-path
+    /// link, a `.`/`..` name, and the procfs spelling where `/proc` is not
+    /// pinned (`none`) keep `relative_to_dirfd`. A working directory that
+    /// moved between the stops resolves nothing.
+    #[test]
+    fn a_name_below_a_kept_directory_link_is_named_by_it() {
+        let pinned = writer()
+            .with_vendor_state(Some(b"/run/ukai/state"))
+            .with_proc_pinned(true);
+        fn dir(link: &str) -> Option<&[u8]> {
+            Some(link.as_bytes())
+        }
+        for (path, dirfd, link, want) in [
+            (
+                "/proc/self/fd/14/greeting.txt",
+                None,
+                "/work/space",
+                Some("greeting.txt"),
+            ),
+            (
+                "/proc/thread-self/fd/14/a/b",
+                None,
+                "/work/space/sub/",
+                Some("sub/a/b"),
+            ),
+            ("made", Some(9), "/work/space/sub", Some("sub/made")),
+            ("made", Some(9), "/work/space/gone (deleted)", None),
+            ("made", Some(9), "socket:[42]", None),
+            ("../made", Some(9), "/work/space/sub", None),
+            ("made", Some(libc::AT_FDCWD), "/work/space", None),
+            ("/work/space/abs", Some(9), "/elsewhere", None),
+        ] {
+            let named = pinned.below_directory(Some(&snap(path)), dirfd, dir(link));
+            let class = named.map(|named| pinned.classify(Some(&snap_bytes(&named)), None, None));
+            assert_eq!(
+                class,
+                want.map(|rest| PathClass::WorkspaceRelative(rest.as_bytes().to_vec())),
+                "{path} {dirfd:?} {link}"
+            );
+        }
+        assert_eq!(
+            pinned.below_directory(Some(&snap("made")), Some(9), dir("/")),
+            Some(b"/made".to_vec()),
+            "the root names its entries without a doubled slash"
+        );
+        let unpinned = writer();
+        assert_eq!(
+            unpinned.below_directory(Some(&snap("/proc/self/fd/14/x")), None, dir("/work/space")),
+            None,
+            "the procfs spelling needs the jail's own /proc"
+        );
+        assert_eq!(
+            unpinned.below_directory(Some(&snap("x")), Some(9), dir("/work/space")),
+            Some(b"/work/space/x".to_vec()),
+            "a true dirfd needs no procfs"
+        );
+        let mut incomplete = snap("x");
+        incomplete.complete = false;
+        assert_eq!(
+            pinned.below_directory(Some(&incomplete), Some(9), dir("/work/space")),
+            None
+        );
+
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let trace = crate::trace::shared(crate::trace::FileSink::new(file.reopen().unwrap()));
+        let mut writer = AuditWriter::new("att_test", Some(trace), b"/work/space", b"/tmp")
+            .with_vendor_state(Some(b"/run/ukai/state"))
+            .with_proc_pinned(true);
+        let link = |path: &str| Some(path.as_bytes().to_vec().into_boxed_slice());
+        // An agent runtime's rename that publishes its temporary file.
+        writer.record_syscall(&call(
+            ClosedOp::Rename,
+            "rename",
+            &Args {
+                path: Some(snap("/proc/self/fd/14/greeting.txt.tmp.2.ab")),
+                path2: Some(snap("/proc/self/fd/14/greeting.txt")),
+                directory: link("/work/space"),
+                directory2: link("/work/space"),
+                ..Args::default()
+            },
+            0,
+        ));
+        // One side through a descriptor into scratch, the other absolute.
+        writer.record_syscall(&call(
+            ClosedOp::Rename,
+            "renameat",
+            &Args {
+                path: Some(snap("/work/space/a")),
+                dirfd: Some(libc::AT_FDCWD),
+                path2: Some(snap("b")),
+                dirfd2: Some(7),
+                directory2: link("/tmp/sub"),
+                ..Args::default()
+            },
+            0,
+        ));
+        // Vendor state and outside every root, through a descriptor.
+        writer.record_syscall(&call(
+            ClosedOp::Unlink,
+            "unlinkat",
+            &Args {
+                path: Some(snap("x.json")),
+                dirfd: Some(5),
+                directory: link("/run/ukai/state"),
+                ..Args::default()
+            },
+            0,
+        ));
+        writer.record_syscall(&call(
+            ClosedOp::Mkdir,
+            "mkdirat",
+            &Args {
+                path: Some(snap("m")),
+                dirfd: Some(5),
+                directory: link("/elsewhere"),
+                ..Args::default()
+            },
+            0,
+        ));
+        // The tracer kept no link (it moved, or was never readable).
+        writer.record_syscall(&call(
+            ClosedOp::Mkdir,
+            "mkdirat",
+            &Args {
+                path: Some(snap("m")),
+                dirfd: Some(5),
+                ..Args::default()
+            },
+            0,
+        ));
+        // The working directory moved between the stops.
+        writer.record_syscall(&call(
+            ClosedOp::Mkdir,
+            "mkdirat",
+            &Args {
+                path: Some(snap("m")),
+                dirfd: Some(libc::AT_FDCWD),
+                cwd: link("/work/space"),
+                cwd_moved: true,
+                ..Args::default()
+            },
+            0,
+        ));
+        let events = trace_events(file.path());
+        let fields: Vec<&Value> = events.iter().map(|e| &e["fields"]).collect();
+        assert_eq!(fields[0]["path_basis"], "directory_link");
+        assert_eq!(
+            fields[0]["path"],
+            serde_json::json!({"kind": "workspace_relative", "value": "greeting.txt.tmp.2.ab"})
+        );
+        assert_eq!(
+            fields[0]["path2"],
+            serde_json::json!({"kind": "workspace_relative", "value": "greeting.txt"})
+        );
+        assert_eq!(fields[0]["path_dirfd"], 14);
+        assert_eq!(fields[0]["path2_dirfd"], 14);
+        assert_eq!(fields[1]["path_basis"], "directory_link");
+        assert_eq!(
+            fields[1]["path"],
+            serde_json::json!({"kind": "workspace_relative", "value": "a"})
+        );
+        assert!(fields[1].get("path_dirfd").is_none(), "{}", fields[1]);
+        assert_eq!(
+            fields[1]["path2"],
+            serde_json::json!({"kind": "scratch_relative", "value": "sub/b"})
+        );
+        assert_eq!(fields[1]["path2_dirfd"], 7);
+        assert_eq!(fields[2]["path"]["reason"], "vendor_state");
+        assert_eq!(
+            fields[2]["path"]["digest"],
+            crate::canonical::sha256_prefixed(b"/run/ukai/state/x.json")
+        );
+        assert_eq!(fields[3]["path"]["reason"], "outside_known_roots");
+        assert_eq!(fields[3]["path_basis"], "directory_link");
+        assert_eq!(fields[4]["path_basis"], "argument_snapshot");
+        assert_eq!(
+            fields[4]["path"],
+            serde_json::json!({"kind": "unavailable", "reason": "relative_to_dirfd"})
+        );
+        assert_eq!(fields[5]["path_basis"], "argument_snapshot");
+        assert_eq!(
+            fields[5]["path"],
+            serde_json::json!({"kind": "unavailable", "reason": "relative_to_unresolved_cwd"})
+        );
+    }
+
+    /// §11.3 `standard_device`: a successful open the tracer corroborated
+    /// whose descriptor is one of the standard character devices is a digest
+    /// with that reason, not "outside the known roots"; any other device, and
+    /// a path the classifier could name, keep what they had.
+    #[test]
+    fn a_standard_device_is_a_digest_with_its_own_reason() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let trace = crate::trace::shared(crate::trace::FileSink::new(file.reopen().unwrap()));
+        let mut writer = AuditWriter::new("att_test", Some(trace), b"/work/space", b"/tmp");
+        let write = libc::O_WRONLY as u64;
+        for (path, device) in [
+            ("/dev/null", Some((1, 3))),
+            ("/dev/tty", Some((5, 0))),
+            ("/dev/nvidia0", Some((195, 0))),
+            ("/dev/mem", Some((1, 1))),
+            ("/dev/shm/x", None),
+            ("/work/space/fifo", Some((1, 3))),
+        ] {
+            writer.record_syscall(&call(
+                ClosedOp::Open,
+                "openat",
+                &Args {
+                    path: Some(snap(path)),
+                    dirfd: Some(libc::AT_FDCWD),
+                    flags: Some(write),
+                    char_device: device,
+                    ..Args::default()
+                },
+                3,
+            ));
+        }
+        let events = trace_events(file.path());
+        let reasons: Vec<&Value> = events
+            .iter()
+            .map(|e| &e["fields"]["path"]["reason"])
+            .collect();
+        assert_eq!(
+            reasons,
+            [
+                &Value::from("standard_device"),
+                &Value::from("standard_device"),
+                &Value::from("outside_known_roots"),
+                &Value::from("outside_known_roots"),
+                &Value::from("outside_known_roots"),
+                &Value::Null,
+            ]
+        );
+        assert_eq!(
+            events[0]["fields"]["path"]["digest"],
+            crate::canonical::sha256_prefixed(b"/dev/null")
+        );
+        assert_eq!(events[0]["fields"]["path_basis"], "argument_snapshot");
+        assert_eq!(
+            events[5]["fields"]["path"],
+            serde_json::json!({"kind": "workspace_relative", "value": "fifo"})
+        );
     }
 
     #[test]

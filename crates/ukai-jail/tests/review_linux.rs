@@ -2636,8 +2636,9 @@ fn r6_a_denied_connect_counts_under_fs_deny_only() {
     assert_eq!(connects, 1, "a single connect produced {connects} results");
 }
 
-/// §11.3: a relative path resolved against a directory descriptor the sensor
-/// cannot resolve must be marked unavailable, never appended to a cwd.
+/// §11.3: a relative path resolved against a directory descriptor is named
+/// below that descriptor's own link, read at the entry and exit stops
+/// (`directory_link`), never appended to a cwd.
 #[test]
 fn r6_a_foreign_dirfd_is_not_resolved_against_a_cwd() {
     if !live() {
@@ -2710,18 +2711,25 @@ fn r6_a_foreign_dirfd_is_not_resolved_against_a_cwd() {
         mkdirs[0].pointer("/fields/path_dirfd").is_none(),
         "AT_FDCWD is not a descriptor"
     );
+    // §11.3 `directory_link`: below the descriptor's own link, read at
+    // both stops — `sub/made2`, where the cwd (the workspace) would say
+    // `made2`.
     assert_eq!(
         mkdirs[1].pointer("/fields/path"),
-        Some(&serde_json::json!({"kind": "unavailable", "reason": "relative_to_dirfd"})),
+        Some(&serde_json::json!({"kind": "workspace_relative", "value": "sub/made2"})),
         "{}",
         mkdirs[1]
+    );
+    assert_eq!(
+        mkdirs[1].pointer("/fields/path_basis"),
+        Some(&serde_json::json!("directory_link"))
     );
     assert_eq!(
         mkdirs[1]
             .pointer("/fields/path_dirfd")
             .and_then(Value::as_i64),
         Some(dirfd),
-        "the event names the descriptor, never the directory it resolved to"
+        "the event names the descriptor it resolved through"
     );
     // The read-only open of `sub` and the descriptor's own open are
     // outside the set: two results in all, both of them the mkdirs.

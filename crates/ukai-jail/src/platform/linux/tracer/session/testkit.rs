@@ -38,6 +38,9 @@ pub(super) struct Script {
     /// `/proc/<tid>/fd/<fd>` links, with the link count of the file
     /// each resolves to when the script gives one.
     pub(super) fds: HashMap<(pid_t, i64), (Vec<u8>, Option<u64>)>,
+    /// The character device each `/proc/<tid>/fd/<fd>` resolves to, by
+    /// (major, minor), when the script makes it one.
+    pub(super) devices: HashMap<(pid_t, i64), (u32, u32)>,
     /// How many times each kind of read was made.
     pub(super) reads: HashMap<&'static str, usize>,
 }
@@ -123,6 +126,9 @@ impl ProcView for FakeProc {
             .fds
             .get(&(tid, fd))
             .and_then(|(_, nlink)| *nlink)
+    }
+    fn fd_char_device(&self, tid: pid_t, fd: i64) -> Option<(u32, u32)> {
+        self.read("fd_char_device").devices.get(&(tid, fd)).copied()
     }
 }
 

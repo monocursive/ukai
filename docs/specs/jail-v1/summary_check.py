@@ -27,6 +27,10 @@ CLASSES = ["exec", "fs.write", "fs.deny", "net", "proxy.net", "limits"]
 AUDIT_CLASSES = ["exec", "fs.write", "fs.deny", "net"]
 STATUSES = ["supported", "active", "degraded", "unsupported"]
 WRITE_OPERATIONS = ("fs.create", "fs.write", "fs.rename", "fs.unlink")
+# Digest reasons that place a path outside the workspace on the jail's own
+# evidence (jail-v1 §11.3): the agent's vendor state, and a standard device
+# such as /dev/null. The workspace line does not count them as unnamed.
+NOT_WORKSPACE_DIGESTS = ("vendor_state", "standard_device")
 SCAN_CAP = 16 * 1024 * 1024
 RECEIPT_MAX = 4 * 1024 * 1024
 # jail-v1 §13.1: an event is at most 64 KiB; a longer line is no frame.
@@ -380,7 +384,8 @@ def workspace_line(receipt, frames, claims, state, size):
             continue
         paths = [fields[key] for key in ("path", "path2") if isinstance(fields.get(key), dict)]
         if any(path.get("kind") == "unavailable"
-               or (path.get("kind") == "digest" and path.get("reason") != "vendor_state") for path in paths):
+               or (path.get("kind") == "digest" and path.get("reason") not in NOT_WORKSPACE_DIGESTS)
+               for path in paths):
             unnamed += 1
         for path in paths:
             value = path.get("value")

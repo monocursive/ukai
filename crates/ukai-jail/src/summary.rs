@@ -372,13 +372,18 @@ impl FramePath<'_> {
     }
 
     /// Whether the event recorded no name for this path (§4.2's unnamed:
-    /// `unavailable`, or a `digest` other than vendor state's). A
-    /// `vendor_state` digest is below a root the jail made for the agent's
-    /// own state, which is no more a workspace path than a scratch one.
+    /// `unavailable`, or a `digest` other than vendor state's or a standard
+    /// device's). A `vendor_state` digest is below a root the jail made for
+    /// the agent's own state, and a `standard_device` one is a device the
+    /// kernel said the open reached (`/dev/null` and its kin): neither is any
+    /// more a workspace path than a scratch one.
     fn unnamed(&self) -> bool {
         match &*self.kind {
             "unavailable" => true,
-            "digest" => self.reason.as_deref() != Some("vendor_state"),
+            "digest" => !matches!(
+                self.reason.as_deref(),
+                Some("vendor_state" | "standard_device")
+            ),
             _ => false,
         }
     }

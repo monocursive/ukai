@@ -264,8 +264,8 @@ impl Fixture {
     /// Claude Code's atomic write: a temporary file opened through
     /// `/proc/self/fd/<N>/`, which the observer named by the kernel's own
     /// resolution, then renamed to its final name through the same
-    /// descriptor, which stays relative to it.
-    fn descriptor_write(&mut self, temporary: &str) -> &mut Self {
+    /// descriptor, named below the descriptor's link it read at both stops.
+    fn descriptor_write(&mut self, temporary: &str, name: &str) -> &mut Self {
         self.audit(
             "fs.create",
             true,
@@ -274,11 +274,40 @@ impl Fixture {
         if let Some(event) = self.events.last_mut() {
             event["fields"]["path_basis"] = json!("descriptor_link");
         }
+        self.audit(
+            "fs.rename",
+            true,
+            json!({"path": Self::named(temporary), "path2": Self::named(name),
+                   "path_dirfd": 14, "path2_dirfd": 14}),
+        );
+        if let Some(event) = self.events.last_mut() {
+            event["fields"]["path_basis"] = json!("directory_link");
+        }
+        self
+    }
+
+    /// The same rename when the descriptor moved between the two stops: it
+    /// stays relative to it, unnamed.
+    fn descriptor_rename_unresolved(&mut self) -> &mut Self {
         let through = json!({"kind": "unavailable", "reason": "relative_to_dirfd"});
         self.audit(
             "fs.rename",
             true,
             json!({"path": through, "path2": through, "path_dirfd": 14, "path2_dirfd": 14}),
+        )
+    }
+
+    /// An open for writing of `/dev/null`, which the kernel said is the null
+    /// device: a digest with its own reason, not an unnamed workspace path.
+    fn standard_device_write(&mut self) -> &mut Self {
+        self.audit(
+            "fs.create",
+            true,
+            json!({"path": {
+                "kind": "digest",
+                "digest": format!("sha256:{}", "c".repeat(64)),
+                "reason": "standard_device",
+            }}),
         )
     }
 
@@ -516,10 +545,10 @@ fn k45_a_clean_settled_run() {
 
 /// Claude Code (2.1.302, Bun) writes a workspace file as a temporary file
 /// opened through `/proc/self/fd/<N>/` and renamed through the same
-/// descriptor, and keeps its own state in vendor state. The open is named
-/// (the kernel's resolution), the rename stays unnamed, the vendor-state
-/// writes are not unnamed workspace paths, and a write outside every root
-/// still is.
+/// descriptor, keeps its own state in vendor state and opens `/dev/null`.
+/// The open is named (the kernel's resolution), so is the rename (below the
+/// descriptor's link), the vendor-state and `/dev/null` writes are not
+/// unnamed workspace paths, and a write outside every root still is.
 #[test]
 fn k45_writes_through_a_descriptor_and_into_vendor_state() {
     let mut fixture = Fixture::agent();
@@ -529,8 +558,11 @@ fn k45_writes_through_a_descriptor_and_into_vendor_state() {
     for _ in 0..40 {
         fixture.vendor_state_write();
     }
+    for _ in 0..13 {
+        fixture.standard_device_write();
+    }
     fixture
-        .descriptor_write("greeting.txt.tmp.2.ab0417c1c039")
+        .descriptor_write("greeting.txt.tmp.2.ab0417c1c039", "greeting.txt")
         .outside_write();
     for _ in 0..4 {
         fixture.proxy(Some("api.example.test:443"), true, true, "relayed", &[]);
@@ -544,17 +576,21 @@ fn k45_writes_through_a_descriptor_and_into_vendor_state() {
         &summary,
         &[
             "settled · exited 0 · 3.7s exec→settled · survivors: none (verified)",
-            "workspace: 1 path opened for writing · 2 results with unnamed paths",
+            "workspace: 1 path opened for writing, 2 in renames · 1 result with an unnamed path",
             "network: allowed api.example.test:443 (4)",
             "evidence: 6/6 classes active, no gaps · reads and file contents are not observed",
         ],
     );
     let workspace = facts(&summary, "workspace");
     assert_eq!(workspace["opened_for_writing"], 1);
-    assert_eq!(workspace["unnamed"], 2);
+    assert_eq!(workspace["renamed"], 2);
+    assert_eq!(workspace["unnamed"], 1);
     assert_eq!(
         workspace["paths"],
-        json!([{"kind": "workspace_relative", "value": "greeting.txt.tmp.2.ab0417c1c039"}])
+        json!([
+            {"kind": "workspace_relative", "value": "greeting.txt"},
+            {"kind": "workspace_relative", "value": "greeting.txt.tmp.2.ab0417c1c039"},
+        ])
     );
 }
 
@@ -877,7 +913,9 @@ fn truth_of(events: &[Value]) -> Truth {
                 let paths = [&fields["path"], &fields["path2"]];
                 if paths.iter().any(|path| {
                     path["kind"] == "unavailable"
-                        || (path["kind"] == "digest" && path["reason"] != "vendor_state")
+                        || (path["kind"] == "digest"
+                            && path["reason"] != "vendor_state"
+                            && path["reason"] != "standard_device")
                 }) {
                     truth.unnamed += 1;
                 }
@@ -990,7 +1028,7 @@ fn k46_the_summary_never_claims_more_than_the_evidence() {
         run.lifecycle("exec_confirmed");
         run.credential_note("api", "loaded", true);
         for _ in 0..rng.below(40) {
-            match rng.below(16) {
+            match rng.below(17) {
                 0 => {
                     run.exec();
                 }
@@ -1043,8 +1081,15 @@ fn k46_the_summary_never_claims_more_than_the_evidence() {
                     run.outside_write();
                 }
                 14 => {
-                    let path = rng.pick(&paths);
-                    run.descriptor_write(path);
+                    let (temporary, name) = (rng.pick(&paths), rng.pick(&paths));
+                    run.descriptor_write(temporary, name);
+                }
+                15 => {
+                    if rng.chance(50) {
+                        run.standard_device_write();
+                    } else {
+                        run.descriptor_rename_unresolved();
+                    }
                 }
                 _ => {
                     run.proxy(
@@ -2029,8 +2074,12 @@ fn k52_an_independent_script_recomputes_the_numbers() {
         off.sync();
         let off_journal = off.journal();
         let mut through = every_class();
-        through.descriptor_write("greeting.txt.tmp.2.ab");
-        through.vendor_state_write().outside_write();
+        through.descriptor_write("greeting.txt.tmp.2.ab", "greeting.txt");
+        through
+            .vendor_state_write()
+            .standard_device_write()
+            .descriptor_rename_unresolved()
+            .outside_write();
         through.at(223_000_000_000);
         through.sync();
         let through_journal = through.journal();

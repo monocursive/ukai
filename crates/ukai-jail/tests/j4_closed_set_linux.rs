@@ -1169,9 +1169,10 @@ fn j4_o06_renamed_cwd() {
 }
 
 /// A relative name resolved against a directory descriptor: the event
-/// records the descriptor and says the path is relative to it, never the
-/// workspace path the kernel actually resolved. An absolute name ignores the
-/// descriptor, and is reported as what it is.
+/// records the descriptor and names the path below that descriptor's own
+/// link, read at the entry and exit stops (§11.3 `directory_link`) — never
+/// against the cwd, which is the workspace here and would name `made`. An
+/// absolute name ignores the descriptor, and is reported as what it is.
 #[test]
 fn j4_o06_foreign_dirfd() {
     if !common::profile_live(ProfileName::Tool) {
@@ -1202,9 +1203,10 @@ fn j4_o06_foreign_dirfd() {
     let relative = event_for(&events, "mkdirat", 0);
     assert_eq!(
         relative["fields"]["path"],
-        serde_json::json!({"kind": "unavailable", "reason": "relative_to_dirfd"}),
+        serde_json::json!({"kind": "workspace_relative", "value": "sub/made"}),
         "{context}"
     );
+    assert_eq!(relative["fields"]["path_basis"], "directory_link");
     assert_eq!(
         relative["fields"]["path_dirfd"].as_i64(),
         Some(fd),
@@ -1218,10 +1220,12 @@ fn j4_o06_foreign_dirfd() {
         serde_json::json!({"kind": "workspace_relative", "value": "abs-made"}),
         "{context}"
     );
+    assert_eq!(absolute["fields"]["path_basis"], "argument_snapshot");
     for event in &events {
-        assert!(
-            !event["fields"].to_string().contains("sub/made"),
-            "the descriptor was resolved: {event}"
+        assert_ne!(
+            event["fields"]["path"],
+            serde_json::json!({"kind": "workspace_relative", "value": "made"}),
+            "resolved against the cwd: {event}"
         );
     }
     // The directory's own open is read-only: outside the set.
@@ -1238,9 +1242,13 @@ fn j4_o06_foreign_dirfd() {
 /// `openat(N, name)` is. A successful open is named by the returned
 /// descriptor's own link when the directory descriptor's link joined with the
 /// name is exactly it (`path_basis: descriptor_link`), for both spellings;
-/// the rename stays `relative_to_dirfd`; a name the descriptor does not
-/// corroborate (a symlink below the directory) is still downgraded, and that
-/// is the run's only gap.
+/// the rename is named below the descriptor's link read at both stops
+/// (`directory_link`); a name the descriptor does not corroborate (a symlink
+/// below the directory) is still downgraded, and that is the run's only gap.
+/// `/dev/null` opened for writing is a `standard_device` digest; the same
+/// descriptor spelled `/dev/fd/<N>/<name>` is not one (it reaches a
+/// workspace file through a symlink, so it is downgraded), and neither is a
+/// file below `/dev/shm`, whatever its open returned.
 #[test]
 fn j4_o06_a_name_through_a_descriptor_is_named_by_the_kernels_resolution() {
     for profile in [ProfileName::Tool, ProfileName::Agent] {
@@ -1282,6 +1290,24 @@ fn j4_o06_a_name_through_a_descriptor_is_named_by_the_kernels_resolution() {
                 "--proc-fd",
                 "--write",
                 "--create"
+            ],
+            ["open", "/dev/null", "--write"],
+            [
+                "open",
+                "devfd.txt",
+                "--dirfd",
+                ws,
+                "--dev-fd",
+                "--write",
+                "--create"
+            ],
+            [
+                "open",
+                "/dev/shm/ukai-shm-probe",
+                "--write",
+                "--create",
+                "--expect",
+                "any"
             ]
         ]);
         let run = c.script("through", &steps);
@@ -1295,7 +1321,7 @@ fn j4_o06_a_name_through_a_descriptor_is_named_by_the_kernels_resolution() {
             .filter(|l| l["args"]["purpose"] == "dirfd")
             .map(|l| l["ret"].as_i64().expect("the directory opened"))
             .collect();
-        assert_eq!(descriptors.len(), 4, "{context}");
+        assert_eq!(descriptors.len(), 5, "{context}");
         let events = audit_results(&run);
 
         let created = event_for(&events, "openat", 0);
@@ -1315,10 +1341,10 @@ fn j4_o06_a_name_through_a_descriptor_is_named_by_the_kernels_resolution() {
         assert_eq!(created["fields"]["path_complete"], true);
 
         let renamed = event_for(&events, "rename", 0);
-        for key in ["path", "path2"] {
+        for (key, name) in [("path", "g.tmp"), ("path2", "greeting.txt")] {
             assert_eq!(
                 renamed["fields"][key],
-                serde_json::json!({"kind": "unavailable", "reason": "relative_to_dirfd"}),
+                serde_json::json!({"kind": "workspace_relative", "value": name}),
                 "{key}: {context}"
             );
             assert_eq!(
@@ -1327,7 +1353,7 @@ fn j4_o06_a_name_through_a_descriptor_is_named_by_the_kernels_resolution() {
                 "{key}: {context}"
             );
         }
-        assert_eq!(renamed["fields"]["path_basis"], "argument_snapshot");
+        assert_eq!(renamed["fields"]["path_basis"], "directory_link");
 
         let true_dirfd = event_for(&events, "openat", 1);
         assert_eq!(
@@ -1349,10 +1375,34 @@ fn j4_o06_a_name_through_a_descriptor_is_named_by_the_kernels_resolution() {
         );
         assert_eq!(symlinked["fields"]["path_complete"], false);
         assert_eq!(symlinked["fields"]["path_basis"], "argument_snapshot");
+
+        let null = event_for(&events, "openat", 3);
+        assert_eq!(null["operation"], "fs.write", "{context}");
+        assert_eq!(null["fields"]["path"]["kind"], "digest", "{context}");
+        assert_eq!(
+            null["fields"]["path"]["reason"], "standard_device",
+            "{context}"
+        );
+        // `/dev/fd` is the jail's symlink to `/proc/self/fd`: the open lands
+        // in the workspace, which the snapshot does not name, so it is
+        // downgraded like any symlinked name.
+        assert!(workspace.join("devfd.txt").is_file(), "{context}");
+        let devfd = event_for(&events, "openat", 4);
+        assert_eq!(
+            devfd["fields"]["path"],
+            serde_json::json!({"kind": "unavailable", "reason": "path_truncated"}),
+            "{context}"
+        );
+        // Whatever `/dev/shm` allowed, a file there is no standard device.
+        let shm = event_for(&events, "openat", 5);
+        assert_ne!(
+            shm["fields"]["path"]["reason"], "standard_device",
+            "{context}"
+        );
         // A bookkeeping gap of no class: in the observer's account, under no
         // coverage class.
         assert!(gap_reasons(&receipt).is_empty(), "{context}");
-        let observer_gaps: Vec<&str> = receipt["observer"]["gaps"]
+        let observer_gaps: BTreeSet<&str> = receipt["observer"]["gaps"]
             .as_array()
             .into_iter()
             .flatten()
@@ -1360,11 +1410,15 @@ fn j4_o06_a_name_through_a_descriptor_is_named_by_the_kernels_resolution() {
             .collect();
         assert_eq!(
             observer_gaps,
-            ["path_claim_unverified"],
-            "only the symlinked name: {context}"
+            BTreeSet::from(["path_claim_unverified"]),
+            "only the symlinked names: {context}"
         );
         assert_eq!(
-            receipt["lifetime"]["native"]["details"]["path_claims_unverified"], 1,
+            receipt["lifetime"]["native"]["details"]["path_claims_unverified"], 2,
+            "the symlink below the directory, and /dev/fd: {context}"
+        );
+        assert_eq!(
+            receipt["lifetime"]["native"]["details"]["path_anchors_unverified"], 0,
             "{context}"
         );
         // The directory descriptors are read-only opens, outside the set.
@@ -1373,16 +1427,16 @@ fn j4_o06_a_name_through_a_descriptor_is_named_by_the_kernels_resolution() {
                 .iter()
                 .filter(|e| e["fields"]["syscall"] == "openat")
                 .count(),
-            3,
+            6,
             "{context}"
         );
     }
 }
 
 /// §11.3: "Two-path operations treat both paths independently." Each side
-/// is classified on its own evidence: one established, the other relative
-/// to a descriptor, in both orders; and a scratch path beside a workspace
-/// path.
+/// is classified on its own evidence: one by its absolute spelling, the
+/// other below its directory descriptor's link (`directory_link`), in both
+/// orders; and a scratch path beside a workspace path.
 #[test]
 fn j4_o06_two_paths_independent() {
     if !common::profile_live(ProfileName::Tool) {
@@ -1437,9 +1491,10 @@ fn j4_o06_two_paths_independent() {
     );
     assert_eq!(
         first["fields"]["path2"],
-        serde_json::json!({"kind": "unavailable", "reason": "relative_to_dirfd"}),
+        serde_json::json!({"kind": "workspace_relative", "value": "sub/two-b"}),
         "{context}"
     );
+    assert_eq!(first["fields"]["path_basis"], "directory_link");
     assert_eq!(
         first["fields"]["path2_dirfd"].as_i64(),
         renames[0]["args"]["dirfd2"].as_i64()
@@ -1448,7 +1503,7 @@ fn j4_o06_two_paths_independent() {
     let second = event_for(&events, "renameat2", 0);
     assert_eq!(
         second["fields"]["path"],
-        serde_json::json!({"kind": "unavailable", "reason": "relative_to_dirfd"}),
+        serde_json::json!({"kind": "workspace_relative", "value": "sub/two-b"}),
         "{context}"
     );
     assert_eq!(
@@ -1610,6 +1665,162 @@ fn j4_o06_racing_pathname_is_only_a_literal_snapshot() {
          all fs.write gaps: {:#?}",
         receipt["coverage"]["fs.write"]["gaps"]
     );
+}
+
+/// A directory descriptor another thread keeps swapping (`dup2` of two
+/// directories onto it) while `mkdirat` names a new entry through it, as a
+/// true `dirfd` and spelled `/proc/self/fd/<N>/<name>`, and the working
+/// directory swapped the same way (`fchdir`) under a relative name. §11.3:
+/// the anchor is read at the entry stop and again at the exit stop; a name
+/// is resolved against it only when both reads agree, and a disagreement
+/// leaves the call `relative_to_dirfd` (`relative_to_unresolved_cwd`) with
+/// one bookkeeping `path_anchor_unverified` gap, which degrades no class and
+/// never stops a strict run. Every call is one event, every name is one of
+/// the two directories (never a blend), and the race was caught. Each call
+/// creates its own name, so the disk says which directory the kernel used:
+/// a name the two reads agreed on but the kernel did not use is the stated
+/// residual (a swap and a swap back between the reads), counted and
+/// printed, not asserted away.
+#[test]
+fn j4_o06_a_descriptor_moved_between_the_stops_is_not_resolved() {
+    for profile in [ProfileName::Tool, ProfileName::Agent] {
+        if !common::profile_live(profile) {
+            return;
+        }
+        let c = case(profile, "strict");
+        const CALLS: usize = 200;
+        for dir in ["ra", "rb"] {
+            std::fs::create_dir_all(c.workspace.join(dir)).unwrap();
+        }
+        let steps = serde_json::json!([
+            ["race-dirfd", c.ws("ra"), c.ws("rb"), "t", CALLS.to_string()],
+            [
+                "race-dirfd",
+                c.ws("ra"),
+                c.ws("rb"),
+                "p",
+                CALLS.to_string(),
+                "--proc-fd"
+            ],
+            [
+                "race-dirfd",
+                c.ws("ra"),
+                c.ws("rb"),
+                "c",
+                CALLS.to_string(),
+                "--cwd"
+            ]
+        ]);
+        let workspace = c.workspace.clone();
+        let run = c.script("race-dirfd", &steps);
+        let receipt = common::settled(&run);
+        let context = format!("{profile:?}\n{}", dump(&run));
+        let lines: Vec<Value> = run
+            .fixture_lines()
+            .into_iter()
+            .filter(|l| l["op"] == "mkdirat" && l["args"]["racing"] == true)
+            .collect();
+        assert_eq!(lines.len(), 3 * CALLS, "{context}");
+        assert!(
+            lines.iter().all(|l| l["ret"] == 0),
+            "every name is new: {context}"
+        );
+        let events: Vec<&Value> = audit_results(&run)
+            .into_iter()
+            .filter(|e| e["fields"]["syscall"] == "mkdirat")
+            .collect();
+        assert_eq!(events.len(), 3 * CALLS, "no result is lost: {context}");
+        // Per anchor: named, named below the directory the kernel did not
+        // use, unresolved.
+        let mut tally: BTreeMap<&str, (u64, u64, u64)> = BTreeMap::new();
+        for (line, event) in lines.iter().zip(&events) {
+            let name = line["args"]["name"].as_str().unwrap();
+            let cwd = name.starts_with('c');
+            let anchor = match name.as_bytes()[0] {
+                b't' => "dirfd",
+                b'p' => "proc-fd",
+                _ => "cwd",
+            };
+            let entry = tally.entry(anchor).or_default();
+            let path = &event["fields"]["path"];
+            if cwd {
+                assert!(event["fields"].get("path_dirfd").is_none(), "{event}");
+            } else {
+                assert_eq!(
+                    event["fields"]["path_dirfd"], line["args"]["descriptor"],
+                    "{event}"
+                );
+            }
+            assert_eq!(event["fields"]["path_complete"], true, "{event}");
+            if path["kind"] == "unavailable" {
+                let reason = if cwd {
+                    "relative_to_unresolved_cwd"
+                } else {
+                    "relative_to_dirfd"
+                };
+                assert_eq!(path["reason"], reason, "{event}");
+                assert_eq!(event["fields"]["path_basis"], "argument_snapshot");
+                entry.2 += 1;
+                continue;
+            }
+            let value = path["value"].as_str().unwrap_or_default();
+            assert!(
+                path["kind"] == "workspace_relative"
+                    && (value == format!("ra/{name}") || value == format!("rb/{name}")),
+                "a name below neither directory: {event}"
+            );
+            assert_eq!(
+                event["fields"]["path_basis"],
+                if cwd {
+                    "argument_snapshot"
+                } else {
+                    "directory_link"
+                },
+                "{event}"
+            );
+            entry.0 += 1;
+            if !workspace.join(value).is_dir() {
+                entry.1 += 1;
+            }
+        }
+        let unresolved: u64 = tally.values().map(|(_, _, unresolved)| unresolved).sum();
+        // The race happened, for every anchor, and the two reads caught it.
+        for (anchor, (_, _, caught)) in &tally {
+            assert!(
+                *caught > 0,
+                "no moved {anchor} in {CALLS} racing calls: the race did not happen \
+                 and this test proves nothing\n{context}"
+            );
+        }
+        let details = &receipt["lifetime"]["native"]["details"];
+        assert_eq!(
+            details["path_anchors_unverified"].as_u64(),
+            Some(unresolved),
+            "one gap per unresolved call: {context}"
+        );
+        assert!(
+            receipt["observer"]["gaps"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .any(|gap| gap["reason"] == "path_anchor_unverified"),
+            "{context}"
+        );
+        assert_eq!(
+            receipt["coverage"]["fs.write"]["status"], "active",
+            "{context}"
+        );
+        assert!(
+            !gap_reasons(&receipt).contains(&"path_anchor_unverified".to_owned()),
+            "bookkeeping, under no class: {context}"
+        );
+        for (anchor, (named, wrong, caught)) in &tally {
+            eprintln!(
+                "{profile:?} racing {anchor}: {named} named ({wrong} below the directory the \
+                 kernel did not use), {caught} unresolved, of {CALLS}"
+            );
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

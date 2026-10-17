@@ -161,6 +161,7 @@ impl Session {
         if self.readonly_open_unverified(&pending) {
             return;
         }
+        self.verify_anchors(tid, &mut pending, rval);
         self.corroborate_open_path(tid, &mut pending, rval);
         self.summary.ops.bump(op);
         let tgid = self.tgid_of(tid);
@@ -286,6 +287,59 @@ impl Session {
         false
     }
 
+    /// Keep what a relative name was resolved against at the entry stop —
+    /// the working directory, a directory descriptor's link — only when it
+    /// reads the same at this exit stop (§11.3).
+    ///
+    /// The working directory and the descriptor table are shared with the
+    /// sibling threads, and the kernel resolves the name after the entry stop
+    /// resumes the call, so one read cannot say which directory it used: a
+    /// sibling's `chdir` or `dup2`, or another process renaming an ancestor,
+    /// can move it in between. Two reads that agree hold the anchor to the
+    /// bar the pathname bytes are held to by [`Session::arguments_stable`]: a
+    /// move that lasts past the call is caught, and only a sibling that moves
+    /// the anchor and back between the two reads is not — the residual §11.3
+    /// already states for the bytes. A disagreement (or an anchor that can no
+    /// longer be read) leaves the name unresolved, `relative_to_dirfd` or
+    /// `relative_to_unresolved_cwd`, and is counted and named by a bookkeeping
+    /// gap, so a race the reads caught is visible. The call and its event are
+    /// kept: a weaker claim, never a missing result.
+    ///
+    /// A successful open is named only by the descriptor it returned
+    /// ([`Session::corroborate_open_path`]), so its directory link is not
+    /// kept to name it by.
+    fn verify_anchors(&mut self, tid: pid_t, pending: &mut Pending, rval: i64) {
+        let args = &mut pending.args;
+        if pending.entry.op == ClosedOp::Open && rval >= 0 {
+            args.directory = None;
+            args.directory2 = None;
+        }
+        let mut moved = false;
+        if let Some(cwd) = args.cwd.as_deref()
+            && self.procfs.cwd(tid).as_deref() != Some(cwd)
+        {
+            args.cwd_moved = true;
+            moved = true;
+        }
+        for (directory, snapshot, dirfd) in [
+            (&mut args.directory, args.path.as_ref(), args.dirfd),
+            (&mut args.directory2, args.path2.as_ref(), args.dirfd2),
+        ] {
+            let Some(entry_link) = directory.as_deref() else {
+                continue;
+            };
+            let now = self.directory_link(tid, snapshot, dirfd);
+            if now.as_deref() != Some(entry_link) {
+                *directory = None;
+                moved = true;
+            }
+        }
+        if moved {
+            self.summary.path_anchors_unverified += 1;
+            self.gap(GapReason::PathAnchorUnverified, OpSet::EMPTY, Some(1));
+        }
+    }
+
     /// Weaken a successful open's pathname claim the kernel does not
     /// corroborate.
     ///
@@ -310,6 +364,11 @@ impl Session {
     /// descriptor's link ([`descriptor_resolves`]), the event is named by that
     /// kernel resolution (`args.resolved`, §11.3 `descriptor_link`) instead of
     /// staying `relative_to_dirfd`. An `O_TMPFILE` descriptor names no file.
+    ///
+    /// A corroborated absolute name below `/dev/` also has the returned
+    /// descriptor's device number read, when it is a character device
+    /// (`args.char_device`): the kernel's word on whether the file the open
+    /// reached is one of the standard devices (§11.3 `standard_device`).
     fn corroborate_open_path(&mut self, tid: pid_t, pending: &mut Pending, rval: i64) {
         if pending.entry.op != ClosedOp::Open || rval < 0 {
             return;
@@ -343,6 +402,9 @@ impl Session {
                 snapshot.complete = false;
             }
             return;
+        }
+        if route.is_none() && !tmpfile && claim.starts_with(b"/dev/") {
+            pending.args.char_device = self.procfs.fd_char_device(tid, rval);
         }
         let named = match (route, link) {
             (Some(route), Some(resolved)) if !tmpfile => {
@@ -457,6 +519,7 @@ mod tests {
     use super::super::restart::Site;
     use super::super::testkit::*;
     use super::*;
+    use crate::platform::linux::tracer::closed_set::Entry;
     use crate::platform::linux::tracer::{Args, TracerConfig};
 
     /// The exit re-read of pointed arguments. A snapshot that still reads at
@@ -885,6 +948,298 @@ mod tests {
             );
             assert_eq!(gaps_of(&events).len(), usize::from(!corroborated), "{name}");
             assert_eq!(session.summary.loss.total(), 0, "{name}: never loss");
+        }
+    }
+
+    /// What a relative name is resolved against — a directory descriptor's
+    /// link (`/proc/self/fd/<N>/`, `/proc/thread-self/fd/<N>/`, a true
+    /// `dirfd`) or the working directory — is read at the entry stop and kept
+    /// only when the exit stop reads it the same (§11.3 `directory_link`).
+    /// A move between the stops, or an anchor gone at the exit, leaves the
+    /// name unresolved with one bookkeeping gap per call; an anchor never
+    /// read claims nothing and costs none. A successful open keeps no
+    /// directory (it is named by its returned descriptor or not at all), a
+    /// failed one does, and a symlink's target is never read through one.
+    #[test]
+    fn a_relative_names_anchor_is_kept_only_when_both_stops_agree() {
+        const GROUP: pid_t = 4242;
+        const W: &[u8] = b"/w";
+        const SUB: &[u8] = b"/w/sub";
+        let self_pid = std::process::id() as pid_t;
+        let renameat = closed_set::lookup(u64::from(crate::platform::linux::abi::nr(264, 38)))
+            .expect("renameat");
+        let mkdirat = closed_set::lookup(u64::from(crate::platform::linux::abi::nr(258, 34)))
+            .expect("mkdirat");
+        let openat = closed_set::lookup(u64::from(crate::platform::linux::abi::nr(257, 56)))
+            .expect("openat");
+        let symlinkat = closed_set::lookup(u64::from(crate::platform::linux::abi::nr(266, 36)))
+            .expect("symlinkat");
+        let from = c"/proc/self/fd/14/g.tmp";
+        let to = c"/proc/self/fd/14/greeting.txt";
+        let made = c"made";
+        let thread = c"/proc/thread-self/fd/14/x";
+        let at = libc::AT_FDCWD as u64;
+        let write = (libc::O_WRONLY | libc::O_CREAT) as u64;
+        // (call, registers, the script at the entry stop, the edit before the
+        // exit stop, the return, the directory links kept, the cwd moved, gaps)
+        type Edit = fn(&mut Script);
+        type Case = (
+            &'static Entry,
+            [u64; 6],
+            Edit,
+            Edit,
+            i64,
+            [Option<&'static [u8]>; 2],
+            bool,
+            usize,
+        );
+        let group_w: Edit = |s| {
+            s.fds.insert((GROUP, 14), (b"/w".to_vec(), None));
+        };
+        let opened: Edit = |s| {
+            s.fds.insert((GROUP, 14), (b"/w".to_vec(), None));
+            s.fds.insert(
+                (std::process::id() as pid_t, 5),
+                (b"/w/g.tmp".to_vec(), None),
+            );
+        };
+        let group_x: Edit = |s| {
+            s.fds.insert((GROUP, 14), (b"/x".to_vec(), None));
+        };
+        let gone: Edit = |s| {
+            s.fds.clear();
+        };
+        let dirfd_sub: Edit = |s| {
+            s.fds
+                .insert((std::process::id() as pid_t, 9), (b"/w/sub".to_vec(), None));
+        };
+        let thread_w: Edit = |s| {
+            s.fds
+                .insert((std::process::id() as pid_t, 14), (b"/w".to_vec(), None));
+        };
+        let cwd_w: Edit = |s| {
+            s.cwd.insert(std::process::id() as pid_t, b"/w".to_vec());
+        };
+        let cwd_v: Edit = |s| {
+            s.cwd.insert(std::process::id() as pid_t, b"/v".to_vec());
+        };
+        let nothing: Edit = |_| {};
+        let rename = [at, from.as_ptr() as u64, at, to.as_ptr() as u64, 0, 0];
+        let mkdir_9 = [9, made.as_ptr() as u64, 0o755, 0, 0, 0];
+        let mkdir_cwd = [at, made.as_ptr() as u64, 0o755, 0, 0, 0];
+        let open_through = [at, from.as_ptr() as u64, write, 0, 0, 0];
+        let open_thread = [at, thread.as_ptr() as u64, write, 0, 0, 0];
+        let link_to = [to.as_ptr() as u64, at, made.as_ptr() as u64, 0, 0, 0];
+        let denied = -i64::from(libc::EACCES);
+        let cases: [Case; 11] = [
+            // An agent runtime's rename, both sides through the group's table.
+            (
+                renameat,
+                rename,
+                group_w,
+                nothing,
+                0,
+                [Some(W), Some(W)],
+                false,
+                0,
+            ),
+            // A sibling's `dup2` moved descriptor 14 while the call ran.
+            (
+                renameat,
+                rename,
+                group_w,
+                group_x,
+                0,
+                [None, None],
+                false,
+                1,
+            ),
+            // Closed by the exit stop.
+            (renameat, rename, group_w, gone, 0, [None, None], false, 1),
+            // Never readable: nothing claimed, nothing to verify.
+            (
+                renameat,
+                rename,
+                nothing,
+                group_w,
+                0,
+                [None, None],
+                false,
+                0,
+            ),
+            // A true `dirfd`, read from the thread's table.
+            (
+                mkdirat,
+                mkdir_9,
+                dirfd_sub,
+                nothing,
+                0,
+                [Some(SUB), None],
+                false,
+                0,
+            ),
+            (mkdirat, mkdir_9, dirfd_sub, gone, 0, [None, None], false, 1),
+            // The working directory, held to the same rule.
+            (
+                mkdirat,
+                mkdir_cwd,
+                cwd_w,
+                nothing,
+                0,
+                [None, None],
+                false,
+                0,
+            ),
+            (mkdirat, mkdir_cwd, cwd_w, cwd_v, 0, [None, None], true, 1),
+            // A successful open is named by its returned descriptor alone; a
+            // refused one keeps the directory it was resolved through.
+            (
+                openat,
+                open_through,
+                opened,
+                nothing,
+                5,
+                [None, None],
+                false,
+                0,
+            ),
+            (
+                openat,
+                open_thread,
+                thread_w,
+                nothing,
+                denied,
+                [Some(W), None],
+                false,
+                0,
+            ),
+            // A symlink's target is stored, not resolved through anything.
+            (
+                symlinkat,
+                link_to,
+                group_w,
+                nothing,
+                0,
+                [None, None],
+                false,
+                0,
+            ),
+        ];
+        for (index, (entry, raw, before, between, rval, kept, cwd_moved, gaps)) in
+            cases.into_iter().enumerate()
+        {
+            let proc = FakeProc::default().task(self_pid, GROUP, 1000);
+            proc.edit(before);
+            let (mut session, rx) = traced(TracerConfig::default(), &proc);
+            let pending = session.capture_paths(self_pid, entry, &raw);
+            proc.edit(between);
+            plant(&mut session, self_pid, pending);
+            session.handle_exit(self_pid, rval);
+            let events = drained(&rx, &mut session);
+            let delivered = events
+                .iter()
+                .find_map(|event| match event {
+                    TracerEvent::Syscall { args, .. } => Some(args.clone()),
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("case {index}: the call is delivered"));
+            assert_eq!(
+                [
+                    delivered.directory.as_deref(),
+                    delivered.directory2.as_deref()
+                ],
+                kept,
+                "case {index}"
+            );
+            assert_eq!(delivered.cwd_moved, cwd_moved, "case {index}");
+            assert_eq!(
+                gaps_of(&events),
+                vec![(GapReason::PathAnchorUnverified, OpSet::EMPTY, Some(1)); gaps],
+                "case {index}"
+            );
+            assert_eq!(
+                session.summary.path_anchors_unverified, gaps as u64,
+                "case {index}"
+            );
+            assert_eq!(session.summary.loss.total(), 0, "case {index}: never loss");
+        }
+    }
+
+    /// A corroborated open of a name below `/dev/` has its returned
+    /// descriptor's character device number read (§11.3 `standard_device`);
+    /// no other open pays for the read, and one the kernel did not
+    /// corroborate — `/dev/fd/<N>/<name>` reaching a workspace file through
+    /// its symlink — has no device and keeps its downgrade.
+    #[test]
+    fn a_device_number_is_read_only_for_a_corroborated_name_below_dev() {
+        let self_pid = std::process::id() as pid_t;
+        let write = libc::O_WRONLY as u64;
+        // (path, the returned descriptor's link, its device, the device read
+        // and kept, corroborated)
+        type Case<'a> = (
+            &'a [u8],
+            &'a [u8],
+            Option<(u32, u32)>,
+            Option<(u32, u32)>,
+            bool,
+        );
+        let cases: [Case; 5] = [
+            (
+                b"/dev/null\0",
+                b"/dev/null",
+                Some((1, 3)),
+                Some((1, 3)),
+                true,
+            ),
+            (b"/dev/tty\0", b"/dev/tty", Some((5, 0)), Some((5, 0)), true),
+            (b"/dev/shm/x\0", b"/dev/shm/x", None, None, true),
+            (b"/dev/fd/14/x\0", b"/w/x", None, None, false),
+            (b"/w/x\0", b"/w/x", Some((1, 3)), None, true),
+        ];
+        for (path, link, device, kept, corroborated) in cases {
+            let proc = FakeProc::default().task(self_pid, self_pid, 1000);
+            proc.edit(|script| {
+                script.fds.insert((self_pid, 5), (link.to_vec(), None));
+                if let Some(device) = device {
+                    script.devices.insert((self_pid, 5), device);
+                }
+            });
+            let (mut session, rx) = traced(TracerConfig::default(), &proc);
+            let mut raw = [0u64; 6];
+            raw[0] = libc::AT_FDCWD as u64;
+            raw[1] = path.as_ptr() as u64;
+            raw[2] = write;
+            let openat = closed_set::lookup(u64::from(crate::platform::linux::abi::nr(257, 56)))
+                .expect("openat");
+            let args = Args {
+                path: Some(snapshot(&path[..path.len() - 1])),
+                dirfd: Some(libc::AT_FDCWD),
+                flags: Some(write),
+                ..Args::default()
+            };
+            plant(&mut session, self_pid, Pending::new(openat, args, raw));
+            session.handle_exit(self_pid, 5);
+            let events = drained(&rx, &mut session);
+            let delivered = events
+                .iter()
+                .find_map(|event| match event {
+                    TracerEvent::Syscall { args, .. } => Some(args.clone()),
+                    _ => None,
+                })
+                .expect("the call is delivered");
+            let name = String::from_utf8_lossy(path);
+            assert_eq!(delivered.char_device, kept, "{name}");
+            assert_eq!(
+                delivered.path.as_ref().map(|path| path.complete),
+                Some(corroborated),
+                "{name}"
+            );
+            let below_dev = path.starts_with(b"/dev/") && corroborated;
+            assert_eq!(
+                proc.reads().get("fd_char_device").copied().unwrap_or(0),
+                usize::from(below_dev),
+                "{name}: the device is read only below /dev/"
+            );
         }
     }
 

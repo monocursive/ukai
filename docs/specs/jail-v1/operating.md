@@ -826,14 +826,19 @@ ukai-jail: receipt /home/u/.local/share/ukai/attempts/att_…/jail.json
   `fs.write` results ("opened for writing", which proves neither that bytes
   were written nor that a file was new), on either side of a rename, and
   unlinked; results whose path has no name (a write below the agent's vendor
-  state is a digest with the reason `vendor_state`, which is not a workspace
-  path and is not counted there, as a scratch path is not); refused writes,
-  which outside the known roots are digests and so are counted, never named.
-  An open spelled through a directory descriptor (`openat(N, name)`, or
-  `/proc/self/fd/N/name` as Claude Code writes its files) is named when the
+  state is a digest with the reason `vendor_state`, and an open the kernel
+  said reached `/dev/null` or another standard device one with the reason
+  `standard_device`: neither is a workspace path or counted there, as a
+  scratch path is not); refused writes, which outside the known roots are
+  digests and so are counted, never named. A call spelled through a
+  directory descriptor (`openat(N, name)`, or `/proc/self/fd/N/name` as
+  Claude Code writes and renames its files) is named: an open when the
   kernel's links for both descriptors agree with the name
-  (`path_basis: descriptor_link`); otherwise, like a rename or an unlink
-  through a descriptor, it is `relative_to_dirfd` and counted as unnamed.
+  (`path_basis: descriptor_link`), any other call below the directory's
+  link when that reads the same at the call's entry and exit
+  (`path_basis: directory_link`). One whose directory moved while it ran is
+  `relative_to_dirfd`, counted as unnamed, and its receipt has a
+  `path_anchor_unverified` gap and a `path_anchors_unverified` count.
 - **Network**: proxy results by destination and decision. The unit is a proxy
   result (a tunnel, or one request on the vault's TLS lane), not a request.
 - **Credentials**: for a vault credential, the proxy results whose upstream

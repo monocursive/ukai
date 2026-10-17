@@ -165,6 +165,8 @@ fn event_bytes(event: &TracerEvent) -> usize {
             args.path.as_ref().map_or(0, |p| p.bytes.capacity())
                 + args.path2.as_ref().map_or(0, |p| p.bytes.capacity())
                 + args.cwd.as_ref().map_or(0, |cwd| cwd.len())
+                + args.directory.as_ref().map_or(0, |link| link.len())
+                + args.directory2.as_ref().map_or(0, |link| link.len())
                 + args.resolved.as_ref().map_or(0, |link| link.len())
                 + args.command.as_ref().map_or(0, |hit| {
                     size_of::<crate::commands::Hit>()
@@ -397,11 +399,30 @@ pub struct Args {
     pub dirfd: Option<i32>,
     pub dirfd2: Option<i32>,
     /// The stopped thread's own working directory, read from
-    /// `/proc/<tid>/cwd` at the syscall stop (§11.3). The argument
+    /// `/proc/<tid>/cwd` at the entry stop (§11.3). The argument
     /// snapshot stays the raw bytes; classification resolves a relative path
     /// against this, and the exit-side stability check keeps comparing the
     /// raw bytes.
     pub cwd: Option<Box<[u8]>>,
+    /// The working directory read differently at the exit stop than `cwd`
+    /// at the entry stop, so no relative name of this call is resolved
+    /// against either (§11.3): the kernel may have used the other one.
+    pub cwd_moved: bool,
+    /// For a name resolved through a directory descriptor
+    /// ([`through_descriptor`]) by a call with no returned descriptor of its
+    /// own (anything but a successful open): that descriptor's own link,
+    /// `/proc/<tid>/fd/<N>` from the table the route names, read at the
+    /// entry stop and kept at the exit stop only when it reads the same
+    /// there (§11.3 `directory_link`). Classification names the name below
+    /// it; the snapshot stays the raw argument.
+    pub directory: Option<Box<[u8]>>,
+    /// [`Args::directory`] for `path2`. Never read for a symlink's target,
+    /// which the call stores without resolving.
+    pub directory2: Option<Box<[u8]>>,
+    /// For a successful open whose corroborated pathname is below `/dev/`:
+    /// the device number of the returned descriptor when it is a character
+    /// device, read at the exit stop (§11.3 `standard_device`).
+    pub char_device: Option<(u32, u32)>,
     /// For a successful open of a pathname resolved through a descriptor
     /// ([`through_descriptor`]): the kernel's own resolution of the
     /// descriptor the call returned, `/proc/<tid>/fd/<ret>`, read at the exit
@@ -586,11 +607,24 @@ pub enum GapReason {
     /// pending, or at the exit of a call the entry rewrite already skipped.
     /// After a failed kill the exec may have run.
     ExecDenialFailed,
+    /// A relative name's anchor — the working directory, or the directory
+    /// descriptor a name is resolved through — read differently at the exit
+    /// stop than at the entry stop, or could be read at only one of them. A
+    /// sibling thread (`chdir`, `dup2`) or another process (a rename of an
+    /// ancestor) moved it while the call ran, so the kernel may have used
+    /// either directory and the name is not resolved against one (§11.3).
+    /// As with [`GapReason::PathClaimUnverified`] no result is missing: the
+    /// call is counted and its event delivered with its weaker relative
+    /// claim, so the gap is bookkeeping (an empty operation set), never a
+    /// degraded class. It is the visible trace of a race that the two reads
+    /// caught; a sibling that swaps the anchor and back between them is the
+    /// residual the pathname bytes have too.
+    PathAnchorUnverified,
 }
 
 impl GapReason {
     /// Every reason, in declaration order: `reason as usize` is its index.
-    pub const ALL: [GapReason; 26] = [
+    pub const ALL: [GapReason; 27] = [
         GapReason::QueueFull,
         GapReason::MediationResponseUndelivered,
         GapReason::UnmatchedExit,
@@ -617,6 +651,7 @@ impl GapReason {
         GapReason::ExecImageMismatch,
         GapReason::PathClaimUnverified,
         GapReason::ExecDenialFailed,
+        GapReason::PathAnchorUnverified,
     ];
 
     #[must_use]
@@ -648,6 +683,7 @@ impl GapReason {
             GapReason::ExecImageMismatch => "exec_image_mismatch",
             GapReason::PathClaimUnverified => "path_claim_unverified",
             GapReason::ExecDenialFailed => "exec_denial_failed",
+            GapReason::PathAnchorUnverified => "path_anchor_unverified",
         }
     }
 
@@ -1035,6 +1071,13 @@ pub struct TracerSummary {
     /// not feed [`LossCounters::total`]; the receipt surfaces it in
     /// `lifetime.native.details`.
     pub path_claims_unverified: u64,
+    /// Calls whose relative name was not resolved because its anchor (the
+    /// working directory, or a directory descriptor) read differently at the
+    /// exit stop than at the entry stop: each kept its count and its event,
+    /// with the weaker relative claim, and a bookkeeping
+    /// `path_anchor_unverified` gap. Not loss, like `path_claims_unverified`;
+    /// the receipt surfaces it in `lifetime.native.details`.
+    pub path_anchors_unverified: u64,
     /// Tasks the kernel destroyed as part of another thread's `execve`,
     /// which it does not report. `tracees` equals `reaped_tasks` plus this.
     pub tasks_destroyed_by_exec: u64,
@@ -1469,22 +1512,33 @@ mod tests {
 
     #[test]
     fn a_resolved_descriptor_link_is_charged_to_the_queue() {
-        let event = |resolved: Option<Box<[u8]>>| TracerEvent::Syscall {
+        let event = |args: Args| TracerEvent::Syscall {
             pid: 1,
             start_ticks: None,
             tid: 1,
             op: ClosedOp::Open,
             syscall: "openat",
-            args: Args {
-                resolved,
-                ..Args::default()
-            },
+            args,
             ret: 3,
         };
-        assert_eq!(
-            event_bytes(&event(Some(vec![b'/'; 700].into_boxed_slice()))),
-            event_bytes(&event(None)) + 700
-        );
+        let link = || Some(vec![b'/'; 700].into_boxed_slice());
+        let bare = event_bytes(&event(Args::default()));
+        for args in [
+            Args {
+                resolved: link(),
+                ..Args::default()
+            },
+            Args {
+                directory: link(),
+                ..Args::default()
+            },
+            Args {
+                directory2: link(),
+                ..Args::default()
+            },
+        ] {
+            assert_eq!(event_bytes(&event(args)), bare + 700);
+        }
     }
 
     #[test]
@@ -1706,7 +1760,7 @@ mod tests {
         // whether it is the last one declared, and the last one declared
         // closes `ALL` — so with the order check above, `ALL` has them all.
         let last_declared = |reason: GapReason| match reason {
-            GapReason::ExecDenialFailed => true,
+            GapReason::PathAnchorUnverified => true,
             GapReason::QueueFull
             | GapReason::MediationResponseUndelivered
             | GapReason::UnmatchedExit
@@ -1731,7 +1785,8 @@ mod tests {
             | GapReason::ArgumentSnapshotUnstable
             | GapReason::MemoryFlagsUnverified
             | GapReason::ExecImageMismatch
-            | GapReason::PathClaimUnverified => false,
+            | GapReason::PathClaimUnverified
+            | GapReason::ExecDenialFailed => false,
         };
         assert!(last_declared(GapReason::ALL[GapReason::ALL.len() - 1]));
         let names: std::collections::BTreeSet<&str> =

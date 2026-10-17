@@ -1573,9 +1573,9 @@ mod tests {
         }
     }
 
-    /// A `path_claim_unverified` gap is bookkeeping for a delivered result: it
-    /// degrades nothing and never stands in for the account of counted loss
-    /// whose own gaps were dropped.
+    /// A `path_claim_unverified` or `path_anchor_unverified` gap is
+    /// bookkeeping for a delivered result: it degrades nothing and never
+    /// stands in for the account of counted loss whose own gaps were dropped.
     #[test]
     fn a_path_claim_gap_degrades_nothing_and_accounts_for_no_loss() {
         let images = images();
@@ -1585,14 +1585,16 @@ mod tests {
             pinned: None,
         };
         let mut audit = AuditWriter::new("att_x", None, b"/work", b"");
-        assert_eq!(
-            record(
-                &mut audit,
-                &target,
-                &gap(GapReason::PathClaimUnverified, OpSet::EMPTY)
-            ),
-            Fact::Nothing
-        );
+        for reason in [
+            GapReason::PathClaimUnverified,
+            GapReason::PathAnchorUnverified,
+        ] {
+            assert_eq!(
+                record(&mut audit, &target, &gap(reason, OpSet::EMPTY)),
+                Fact::Nothing,
+                "{reason:?}"
+            );
+        }
         assert!(audit.has_gaps() && !audit.has_loss_gaps());
         let summary = audit.summary(
             Some(&TracerSummary::default()),

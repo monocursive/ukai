@@ -1,0 +1,34 @@
+j4_o06_a_descriptor_moved_between_the_stops_is_not_resolved, reference host
+(Ubuntu 26.04.1, kernel 7.0.0-31, x86_64), 2026-10-17, release build of this
+commit's working tree, strict evidence, inside
+`systemd-run --user --scope -p Delegate=yes`, UKAI_CONFORMANCE=1.
+
+Each line: 200 `mkdirat` calls through one anchor while a second thread of the
+same process keeps swapping it between two workspace directories (`dup2` onto
+the descriptor, or `fchdir` for the working directory). Every call creates a
+new name, so the disk says which directory the kernel used. "named" = the
+event names the entry below one of the two directories; "below the directory
+the kernel did not use" = named, but the entry is in the other one (the swap
+and swap back between the two reads); "unresolved" = the two reads disagreed,
+the call is relative with one `path_anchor_unverified` gap.
+
+Tool racing cwd: 116 named (42 below the directory the kernel did not use), 84 unresolved, of 200
+Tool racing dirfd: 162 named (15 below the directory the kernel did not use), 38 unresolved, of 200
+Tool racing proc-fd: 110 named (37 below the directory the kernel did not use), 90 unresolved, of 200
+Agent racing cwd: 98 named (47 below the directory the kernel did not use), 102 unresolved, of 200
+Agent racing dirfd: 118 named (45 below the directory the kernel did not use), 82 unresolved, of 200
+Agent racing proc-fd: 105 named (49 below the directory the kernel did not use), 95 unresolved, of 200
+
+Two earlier runs of the same test without the cwd anchor (400 calls, dirfd
+and proc-fd together):
+
+Tool racing descriptor: 246 named (68 below the directory the kernel did not use), 154 unresolved, of 400
+Agent racing descriptor: 297 named (47 below the directory the kernel did not use), 103 unresolved, of 400
+Tool racing descriptor: 275 named (71 below the directory the kernel did not use), 125 unresolved, of 400
+Agent racing descriptor: 249 named (74 below the directory the kernel did not use), 151 unresolved, of 400
+
+For comparison, the pathname-bytes race in the same run
+(j4_o06_racing_pathname_is_only_a_literal_snapshot, tool, 300 `mkdir` calls on
+one buffer flipping between two names):
+
+racing snapshots: {"race-a": 93, "race-b": 68}, unstable gaps: 139, directories created: 2

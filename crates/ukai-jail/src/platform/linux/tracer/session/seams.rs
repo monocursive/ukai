@@ -39,6 +39,10 @@ pub(super) trait ProcView: Send {
     /// The link count of the file `/proc/<tid>/fd/<fd>` resolves to: 0 once the
     /// file is unlinked. `None` when it cannot be read.
     fn fd_nlink(&self, tid: pid_t, fd: i64) -> Option<u64>;
+    /// The device number (major, minor) of the file `/proc/<tid>/fd/<fd>`
+    /// resolves to, when that file is a character device. `None` for any
+    /// other file, and when it cannot be read.
+    fn fd_char_device(&self, tid: pid_t, fd: i64) -> Option<(u32, u32)>;
 }
 
 /// `/proc`, read now.
@@ -92,6 +96,14 @@ impl ProcView for LiveProc {
         std::fs::metadata(format!("/proc/{tid}/fd/{fd}"))
             .ok()
             .map(|meta| meta.nlink())
+    }
+
+    fn fd_char_device(&self, tid: pid_t, fd: i64) -> Option<(u32, u32)> {
+        use std::os::unix::fs::{FileTypeExt as _, MetadataExt as _};
+        std::fs::metadata(format!("/proc/{tid}/fd/{fd}"))
+            .ok()
+            .filter(|meta| meta.file_type().is_char_device())
+            .map(|meta| (libc::major(meta.rdev()), libc::minor(meta.rdev())))
     }
 }
 

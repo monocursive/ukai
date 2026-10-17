@@ -675,6 +675,9 @@ pub(super) fn create(
     )
     .with_learning(snapshot.observation.learning)
     .with_roots(audit_named_roots(&planned.bplan))
+    // The baseline this boundary installs refuses every way to change what
+    // `/proc` is for the tracee (jail-v1 §9.2), and bubblewrap mounted it.
+    .with_proc_pinned(true)
     .with_vendor_state(
         planned
             .bplan
@@ -3002,6 +3005,15 @@ impl Tree for Boundary {
             "path_claims_unverified".to_owned(),
             observer.map_or(Value::Null, |summary| {
                 Value::from(summary.path_claims_unverified)
+            }),
+        );
+        // Events whose relative name was left unresolved because the
+        // directory it is resolved against moved between the two stops: the
+        // visible trace of that race, counted the same way.
+        details.insert(
+            "path_anchors_unverified".to_owned(),
+            observer.map_or(Value::Null, |summary| {
+                Value::from(summary.path_anchors_unverified)
             }),
         );
         // Wrong-guess trace stops are counted in the receipt, so a child

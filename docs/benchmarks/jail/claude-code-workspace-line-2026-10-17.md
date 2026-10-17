@@ -106,6 +106,14 @@ tests cover it.
 
 ## What is still not named
 
+> **Update, same day:** both decisions below were taken in
+> [claude-code-workspace-line-decisions-2026-10-17.md](claude-code-workspace-line-decisions-2026-10-17.md).
+> The rename is now named below the descriptor's link when that reads the
+> same at both stops (`directory_link`), and the `/dev/null` opens are
+> `standard_device` digests. The A01 line is
+> `1 path opened for writing, 2 in renames · 1 refused write`. The text
+> below is the state at a5bb3e36b.
+
 Claude Code's rename of the temporary file to its final name has no returned
 descriptor, so it stays `relative_to_dirfd`. The line therefore counts the
 temporary file (`greeting.txt.tmp.<pid>.<hex>`, listed by name in

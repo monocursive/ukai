@@ -1695,7 +1695,7 @@ tests = [
 
 [[gate]]
 id = "O06"
-row = "Renamed cwd, dirfd, two-path calls, non-UTF-8 names and a racing pathname never produce a falsely resolved path."
+row = "Renamed cwd, dirfd, two-path calls, non-UTF-8 names and a racing pathname never produce a falsely resolved path, except by a race that moves a name's bytes or anchor and restores it between the two stops (§11.4's residual)."
 
 [[clause]]
 id = "O06.1"
@@ -1710,12 +1710,14 @@ note = "tool only"
 [[clause]]
 id = "O06.2"
 gate = "O06"
-clause = "A dirfd never resolves against the wrong directory"
+clause = "A dirfd resolves only below its own directory's link, read the same at the entry and exit stops, never against the cwd; one moved between the stops is not resolved"
 tag = "live-cli"
 tests = [
   "ukai-jail/tests/j4_closed_set_linux.rs::j4_o06_foreign_dirfd",
   "ukai-jail/tests/review_linux.rs::r6_a_foreign_dirfd_is_not_resolved_against_a_cwd",
+  "ukai-jail/tests/j4_closed_set_linux.rs::j4_o06_a_descriptor_moved_between_the_stops_is_not_resolved",
 ]
+note = "A swap and a swap back between the two reads is the residual the O06 row names; the race test counts the names it leaves (K30.3)."
 
 [[clause]]
 id = "O06.3"
@@ -3696,7 +3698,7 @@ note = "No macOS native-lifetime test exists; the entitlement refusal is macos_r
 
 [[gate]]
 id = "K30"
-row = "Sixth audit F4: a successful open-class call whose `/proc/<tid>/fd/<ret>` link does not corroborate the snapshot (absolute: every component; relative, bare names included: the tail; `O_TMPFILE`: the directory) delivers its event with an incomplete path, counts `path_claims_unverified` in `lifetime.native.details` and records a bookkeeping `path_claim_unverified` gap that degrades no class and never stops a strict run; agreement records none of these A name through a descriptor (a true `dirfd`'s, or the same spelled `/proc/self/fd/<N>/<name>`, as Claude Code writes) is compared as that relative name, and a corroborated open is named by its returned descriptor's link (`path_basis: descriptor_link`) only when the directory descriptor's own link followed by the name is exactly it; otherwise it stays `relative_to_dirfd`."
+row = "Sixth audit F4: a successful open-class call whose `/proc/<tid>/fd/<ret>` link does not corroborate the snapshot (absolute: every component; relative, bare names included: the tail; `O_TMPFILE`: the directory) delivers its event with an incomplete path, counts `path_claims_unverified` in `lifetime.native.details` and records a bookkeeping `path_claim_unverified` gap that degrades no class and never stops a strict run; agreement records none of these. A name through a descriptor (a true `dirfd`'s, or the same spelled `/proc/self/fd/<N>/<name>`, as Claude Code writes) is compared as that relative name, and a corroborated open is named by its returned descriptor's link (`path_basis: descriptor_link`) only when the directory descriptor's own link followed by the name is exactly it. Any other call through a descriptor is named below the directory descriptor's link (`path_basis: directory_link`), and a name at `AT_FDCWD` against the working directory, only when that anchor reads the same at the entry and exit stops; otherwise the name stays relative and the call records a bookkeeping `path_anchor_unverified` gap, counted in `path_anchors_unverified`, that likewise degrades no class. A corroborated open whose descriptor is one of the standard character devices (`/dev/null` and its kin, by device number) is a `standard_device` digest."
 
 [[clause]]
 id = "K30.1"
@@ -3713,7 +3715,7 @@ note = "The tracer's claim logic driven directly (the kernel's mismatch is manuf
 [[clause]]
 id = "K30.2"
 gate = "K30"
-clause = "A name through a descriptor (a true `dirfd`'s, or `/proc/self/fd/<N>/<name>`) is compared as that relative name; a corroborated open is named by its returned descriptor's link (`path_basis: descriptor_link`) only when the directory descriptor's own link (the group's table for `self`, the thread's for `thread-self` and a `dirfd`) followed by the name is exactly it, never for `O_TMPFILE`; otherwise, and for a rename through a descriptor, it stays `relative_to_dirfd` with that descriptor; a symlink below the directory is still downgraded"
+clause = "A name through a descriptor (a true `dirfd`'s, or `/proc/self/fd/<N>/<name>`) is compared as that relative name; a corroborated open is named by its returned descriptor's link (`path_basis: descriptor_link`) only when the directory descriptor's own link (the group's table for `self`, the thread's for `thread-self` and a `dirfd`) followed by the name is exactly it, never for `O_TMPFILE`, and never below the directory instead; otherwise it stays `relative_to_dirfd` with that descriptor; a symlink below the directory is still downgraded"
 tag = "live-cli"
 tests = [
   "ukai-jail/tests/j4_closed_set_linux.rs::j4_o06_a_name_through_a_descriptor_is_named_by_the_kernels_resolution",
@@ -3723,6 +3725,33 @@ tests = [
   "ukai-jail/src/lib.rs::platform::linux::audit::tests::a_name_through_a_descriptor_is_classified_as_relative_to_it",
 ]
 note = "Claude Code 2.1.302's writes, measured on the reference host on 2026-10-17 (docs/benchmarks/jail/claude-code-workspace-line-2026-10-17.md), reproduced with ukai-fixture's `--dirfd`/`--proc-fd` under `tool` and `agent`. A sibling thread swapping both descriptors between the kernel's resolution and the reads is the residual K30.1's corroboration already has."
+
+[[clause]]
+id = "K30.3"
+gate = "K30"
+clause = "Any other call through a descriptor (a rename, a mkdir, a failed open) is named below the directory descriptor's link (`path_basis: directory_link`) only when that link reads the same at the entry and exit stops, and a name at `AT_FDCWD` is resolved against the working directory under the same rule; a moved anchor, or one gone by the exit stop, leaves the name relative (`relative_to_dirfd`, `relative_to_unresolved_cwd`) and records one bookkeeping `path_anchor_unverified` gap per call, counted in `path_anchors_unverified`, that degrades no class and never stops a strict run; the procfs spelling is resolved so only where the jail's own `/proc` is pinned (a contained profile), and a symlink's target never is"
+tag = "live-cli"
+tests = [
+  "ukai-jail/tests/j4_closed_set_linux.rs::j4_o06_a_name_through_a_descriptor_is_named_by_the_kernels_resolution",
+  "ukai-jail/tests/j4_closed_set_linux.rs::j4_o06_a_descriptor_moved_between_the_stops_is_not_resolved",
+  "ukai-jail/src/lib.rs::platform::linux::tracer::session::exit::tests::a_relative_names_anchor_is_kept_only_when_both_stops_agree",
+  "ukai-jail/src/lib.rs::platform::linux::audit::tests::a_name_below_a_kept_directory_link_is_named_by_it",
+  "ukai-jail/src/lib.rs::platform::linux::observed::tests::a_path_claim_gap_degrades_nothing_and_accounts_for_no_loss",
+  "ukai-jail/src/lib.rs::platform::linux::tracer::tests::a_resolved_descriptor_link_is_charged_to_the_queue",
+]
+note = "Decision and race measurement in docs/benchmarks/jail/claude-code-workspace-line-decisions-2026-10-17.md. The live race test (`dup2` of two directories onto the descriptor, both spellings, under `tool` and `agent`) asserts that the race was caught, that every call is one event and every name is below one of the two directories, and counts the names a swap and a swap back between the two reads leaves, the residual jail-v1 §11.4 states for the pathname bytes. A moved working directory and the unpinned `/proc` of `none` are driven at the unit level, not live."
+
+[[clause]]
+id = "K30.4"
+gate = "K30"
+clause = "A successful open whose corroborated name below `/dev/` is otherwise a digest outside the known roots, and whose returned descriptor is by device number `null` 1:3, `zero` 1:5, `full` 1:7, `random` 1:8, `urandom` 1:9 or `tty` 5:0, is a digest with the reason `standard_device`; `/dev/fd/<N>/<name>` reaching a workspace file, a file below `/dev/shm`, any other device and any named path keep what they had"
+tag = "live-cli"
+tests = [
+  "ukai-jail/tests/j4_closed_set_linux.rs::j4_o06_a_name_through_a_descriptor_is_named_by_the_kernels_resolution",
+  "ukai-jail/src/lib.rs::platform::linux::tracer::session::exit::tests::a_device_number_is_read_only_for_a_corroborated_name_below_dev",
+  "ukai-jail/src/lib.rs::platform::linux::audit::tests::a_standard_device_is_a_digest_with_its_own_reason",
+]
+note = "The 13 `/dev/null` opens of the Claude Code A01 run (docs/benchmarks/jail/claude-code-workspace-line-2026-10-17.md). The live test runs under `tool` and `agent`; the other standard devices and an operator-granted device are unit-level."
 
 # ------------------------------------------------------------------ K31
 
