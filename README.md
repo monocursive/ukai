@@ -47,7 +47,9 @@ maintainer signing.
   `ukai-jail claude -p "…" --dangerously-skip-permissions`. Its key stays in
   the jail's vault, the agent only ever holds a placeholder, and every run ends
   with a short summary of what it wrote, which hosts it reached and whether
-  anything survived it.
+  anything survived it. A recorded run of exactly this — a real fix in a repo
+  whose README asks the agent to upload `~/.aws/credentials` elsewhere — is in
+  [the launch demo record](docs/benchmarks/jail/claude-code-launch-demo-2026-10-18.md).
 
 ## Install and run
 

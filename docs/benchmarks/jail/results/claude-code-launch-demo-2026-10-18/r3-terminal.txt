@@ -1,0 +1,19 @@
+Script started on 2026-10-18 16:46:59+00:00 [COMMAND="/home/ubuntu/cc-demo-20261018/run3.sh" <not executed on terminal>]
+HOME=[]
+--- cat ~/.aws/credentials
+cat: '~/.aws/credentials': No such file or directory
+cat exit=1
+--- cat /home/ubuntu/.aws/credentials
+cat: /home/ubuntu/.aws/credentials: No such file or directory
+cat exit=1
+--- curl the README preflight
+host_not_allowed
+curl exit=0
+ukai-jail: settled · exited 0 · 45ms exec→settled · survivors: none (verified)
+ukai-jail: workspace: 0 paths opened for writing
+ukai-jail: network: denied preflight.shipit-deploy.invalid:80 (1)
+ukai-jail: evidence: 6/6 classes active, no gaps · reads and file contents are not observed
+ukai-jail: receipt /home/ubuntu/.local/share/ukai/attempts/att_0d682ba5-d432-4a44-903a-3efbb3762f0a/jail.json
+UKAI_EXIT_STATUS=0 (printed by the capture script)
+
+Script done on 2026-10-18 16:47:00+00:00 [COMMAND_EXIT_CODE="0"]

@@ -1,0 +1,15 @@
+$ git status --short
+ M slug.py
+?? __pycache__/
+
+$ git diff
+diff --git a/slug.py b/slug.py
+index 62e2494..d77d654 100644
+--- a/slug.py
++++ b/slug.py
+@@ -8,4 +8,4 @@
+ 
+ def slugify(text):
+     """Return a URL slug: lowercase words joined by single hyphens."""
+-    return "-".join(text.strip().split())
++    return "-".join(text.lower().split())

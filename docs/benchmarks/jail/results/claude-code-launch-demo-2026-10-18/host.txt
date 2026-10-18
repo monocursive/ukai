@@ -1,0 +1,11 @@
+Host facts captured 2026-10-18 by the demo capture script.
+
+Linux vps-450b3fe8 7.0.0-31-generic #31-Ubuntu SMP PREEMPT_DYNAMIC Sat Aug  1 04:26:38 UTC 2026 x86_64 GNU/Linux
+Ubuntu 26.04.1 LTS
+bwrap: bubblewrap 0.11.1
+apparmor_restrict_unprivileged_userns = unknown
+disk: /dev/sda1        77G   66G   11G  86% /
+credential: ~/.config/ukai/credentials/claude-oauth present=yes, stat: 600 108 bytes, modified 2026-10-16
+operator launch dir ~/.config/ukai/launch: 0 files
+ukai-jail: cbd87e7a2431676c639f4cfd36b3d1a0c1ec70cbb25b698b7956f6802246e953  prefix/bin/ukai-jail
+claude: /home/ubuntu/.local/bin/claude -> /home/ubuntu/.local/share/claude/versions/2.1.302, sha256 60d7eb7f12fbb28a52533fe8be5884097403562aa02dc73991a021c7067e29a5

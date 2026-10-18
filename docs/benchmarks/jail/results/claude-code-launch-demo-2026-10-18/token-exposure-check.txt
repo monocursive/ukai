@@ -1,0 +1,9 @@
+Fixed-string search for the claude-oauth credential value, printing file names only.
+Command: grep -rlF -f ~/.config/ukai/credentials/claude-oauth <dirs>
+Searched: out/ ws/ and the three attempt directories
+
+NO MATCHES: the token value appears in none of the searched files.
+
+Fixed-string search for the fake AWS example key id (AKIAIOSFODNN7EXAMPLE):
+MATCHES:
+out/token-exposure-check.txt

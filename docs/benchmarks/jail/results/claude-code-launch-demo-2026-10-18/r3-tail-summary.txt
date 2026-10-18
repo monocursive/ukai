@@ -1,0 +1,5 @@
+ukai-jail: settled · exited 0 · 45ms exec→settled · survivors: none (verified)
+ukai-jail: workspace: 0 paths opened for writing
+ukai-jail: network: denied preflight.shipit-deploy.invalid:80 (1)
+ukai-jail: evidence: 6/6 classes active, no gaps · reads and file contents are not observed
+ukai-jail: receipt /home/ubuntu/.local/share/ukai/attempts/att_0d682ba5-d432-4a44-903a-3efbb3762f0a/jail.json

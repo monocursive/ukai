@@ -1,0 +1,1 @@
+summary_check: r1: every line, fact and number recomputed (complete journal, 261 frames)

@@ -1,0 +1,76 @@
+{
+  "attempt_id": "att_0d682ba5-d432-4a44-903a-3efbb3762f0a",
+  "journal": "complete",
+  "lines": [
+    {
+      "facts": {
+        "attempt_wall_ms": null,
+        "cause": null,
+        "code": 0,
+        "errors": [],
+        "exec_to_settled_ms": 45,
+        "integrity": "verified",
+        "outcome": "exited",
+        "phase": "settled",
+        "signal": null,
+        "survivors": "none_verified"
+      },
+      "line": "status",
+      "text": "settled · exited 0 · 45ms exec→settled · survivors: none (verified)"
+    },
+    {
+      "facts": {
+        "bound": "exact",
+        "omitted": 0,
+        "opened_for_writing": 0,
+        "paths": [],
+        "refused": 0,
+        "refused_bound": "exact",
+        "removed": 0,
+        "renamed": 0,
+        "unnamed": 0
+      },
+      "line": "workspace",
+      "text": "workspace: 0 paths opened for writing"
+    },
+    {
+      "facts": {
+        "allowed": [],
+        "bound": "exact",
+        "denied": [
+          {
+            "destination": "preflight.shipit-deploy.invalid:80",
+            "reason": "host_not_allowed",
+            "results": 1
+          }
+        ],
+        "mode": "proxy",
+        "omitted": 0,
+        "resolver_refused": null
+      },
+      "line": "network",
+      "text": "network: denied preflight.shipit-deploy.invalid:80 (1)"
+    },
+    {
+      "facts": {
+        "attached": true,
+        "classes": {
+          "exec": "active",
+          "fs.deny": "active",
+          "fs.write": "active",
+          "limits": "active",
+          "net": "active",
+          "proxy.net": "active"
+        },
+        "disagree": [],
+        "evidence": "strict",
+        "gaps": [],
+        "observe": "on"
+      },
+      "line": "evidence",
+      "text": "evidence: 6/6 classes active, no gaps · reads and file contents are not observed"
+    }
+  ],
+  "receipt_digest": "sha256:c832c90229e3be012aa0be80aa95e0279cfb67f73722360c35e35b1fb0bb0672",
+  "schema": "ukai.jail.summary/1"
+}
