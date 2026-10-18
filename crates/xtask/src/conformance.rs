@@ -104,7 +104,8 @@ pub fn rsh_string(target: &Target) -> String {
 /// What the remote suite needs from the tree, as git pathspecs: the
 /// workspace, the license the package test puts in every archive
 /// (`dist/package.py`), the specifications its tests read, and the benchmark
-/// scripts and fixtures the release tests run. Everything else (comparison
+/// scripts and fixtures the release tests run, and the three recorded
+/// attempts K47 replays (`portable_summary.rs`). Everything else (comparison
 /// corpora, retained results, the website, the fleet) stays local: the tree
 /// is copied on every run.
 pub const SOURCE_PATHSPECS: &[&str] = &[
@@ -117,6 +118,9 @@ pub const SOURCE_PATHSPECS: &[&str] = &[
     "docs/specs",
     ":(glob)docs/benchmarks/jail/*",
     "docs/benchmarks/jail/fixtures",
+    "docs/benchmarks/credentials/2026-10-13-next/validation/oauth-auto-ouro-01",
+    "docs/benchmarks/jail/results/release-preview-2026-10-10/public-install",
+    "docs/benchmarks/credentials/2026-10-13-next/validation/pi-clone3-pilot-fixed-02/31-vault-before",
 ];
 
 /// The index naming the retained release-preview evidence the release
