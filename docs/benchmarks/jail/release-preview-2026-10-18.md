@@ -90,3 +90,33 @@ eight public assets without authentication and verified their digests.
   show the `ukai-jail` commands. An `ouro-jail` from an earlier preview is left
   in place beside `ukai-jail`. The macOS VM preview keeps its `ouro-vm` command,
   and the website's home page says so to Mac visitors.
+
+## Website and public installation
+
+The website was deployed with `npm run deploy` (Cloudflare Pages project `ukai`)
+from the rollout commit. `https://ukai.sh/install.sh` and
+`https://ukai.sh/release.pub` were then fetched and are byte-identical to the
+repository's `install.sh` (default `0.1.0-rc.3`) and `release.pub`; the home
+page links the rc.3 release and shows Mac visitors the `ouro-vm` note.
+
+On both native hosts, a new empty `HOME` (under `env -i`) ran the public command
+exactly as published, then the guide's first command:
+
+```sh
+curl --proto '=https' --tlsv1.2 -fsSL https://ukai.sh/install.sh | bash
+export PATH="$HOME/.local/bin:$PATH"
+ukai-jail version --json
+ukai-jail doctor --profile tool --json
+```
+
+| | Reference VPS (x86_64) | Raspberry Pi (aarch64) |
+| --- | --- | --- |
+| Public install | `Installed release 0.1.0-rc.3`, exit 0 | same |
+| Build | `f95f2d396`, clean, inputs `sha256:32e294a3…` | same |
+| Binary SHA-256 | `cbd87e7a…`, as in the candidate tests | `ed82bd3a…`, as in the candidate tests |
+| `doctor --profile tool` | ready | ready |
+| First command | `hello from the jail`; settled, exit 0, survivors none (verified) | same |
+
+The temporary homes were removed. The Apple Silicon installer path was not
+exercised on a Mac for this release: its pinned VM preview is unchanged, and
+`test_bootstrap.py` covers its selection.
