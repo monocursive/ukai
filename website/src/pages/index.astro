@@ -67,6 +67,7 @@ const compatibility = `${releasedDocument('docs/specs/jail-v1/agent-compatibilit
 const benchmark = `${releasedDocument('docs/benchmarks/jail/followup-2026-09-29.md')}#k17-results`;
 const runRecord = `${repositoryUrl}/blob/dev/docs/benchmarks/jail/website-sample-run-2026-10-15.md`;
 const renamedPreview = jailCommand !== 'ukai-jail';
+const renamedVm = vmCommand !== 'ukai-vm';
 ---
 <Site title="Ukai — Sandbox for coding agents on Linux" description="Ukai sandboxes Claude Code, Codex, OpenCode and any CLI on Linux: limit files, network and runtime, and get a receipt of every run.">
   <section class="hero container" aria-labelledby="hero-heading">
@@ -183,6 +184,9 @@ const renamedPreview = jailCommand !== 'ukai-jail';
       </div>
       {renamedPreview && (
         <p class="preview-note">Ukai was called Ouroboros until October 2026. The current preview still installs the <code>{jailCommand}</code> and <code>{vmCommand}</code> commands; the next release installs <code>ukai-jail</code>.</p>
+      )}
+      {!renamedPreview && renamedVm && (
+        <p class="preview-note">Ukai was called Ouroboros until October 2026. On Apple Silicon the installer still installs the <code>{vmCommand}</code> VM preview, published before the rename.</p>
       )}
     </div>
   </section>

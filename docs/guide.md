@@ -21,13 +21,13 @@ Writing an integration? Start with [agents and scripts](#for-agents-and-scripts)
 The same installer detects your platform. The following commands are for Linux;
 Mac users should follow the [Mac quickstart](#macos-vm-preview).
 
-Ukai was called Ouroboros until 15 October 2026. The current previews were
-published under that name (`ouro-jail`, `ouro-vm`) and keep those command names.
-The installation examples below use the published commands. Later sections
-use the current `ukai-jail` source build; for the published Linux binary's
-complete guide, use the [release guide](https://github.com/monocursive/ukai/blob/ouro-jail-v0.1.0-rc.2/docs/guide.md).
+Ukai was called Ouroboros until 15 October 2026. Linux preview 0.1.0-rc.3 is
+the first release under the new name and installs `ukai-jail`, the same command
+the later sections use. The macOS VM preview was published before the rename
+and keeps its `ouro-vm` command. For the guide exactly as released, use the
+[release guide](https://github.com/monocursive/ukai/blob/ukai-jail-v0.1.0-rc.3/docs/guide.md).
 
-[Linux preview 0.1.0-rc.2](https://github.com/monocursive/ukai/releases/tag/ouro-jail-v0.1.0-rc.2)
+[Linux preview 0.1.0-rc.3](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.3)
 ships Linux x86_64 and ARM64 packages. Install your distribution's
 `bubblewrap` package first. The binaries require glibc 2.39 or
 newer; Alpine/musl and macOS execution are unavailable in this preview.
@@ -38,8 +38,8 @@ Rust compiler or sudo is needed.
 curl --proto '=https' --tlsv1.2 -fsSL \
   https://ukai.sh/install.sh | bash
 export PATH="$HOME/.local/bin:$PATH"
-ouro-jail version --json
-ouro-jail doctor --profile tool --json
+ukai-jail version --json
+ukai-jail doctor --profile tool --json
 ```
 
 The installer embeds this preview's SHA-256 hashes for both architectures. It
@@ -51,12 +51,16 @@ Repeat to upgrade after a new installer is published. Pass `--version` through
 an unpinned version refuses before any download.
 Downgrades require `--allow-downgrade`. Replacing a source-built `0.1.0` without
 a release record also needs this explicit flag to install an RC version.
+An `ouro-jail` installed from an earlier preview is not replaced: rc.3 installs
+`ukai-jail` beside it. Remove `~/.local/bin/ouro-jail` and its `.release` and
+`.LICENSES.txt` files when you no longer need them.
 
 The supported-host notes remain in the release: Ubuntu 26.04 is the x86_64
 reference host; stock Ubuntu 24 containment is refused. The tested Pi lacks
 memory cgroups and Landlock, so its default `build` profile remains unavailable.
 Run `doctor` before relying on a profile. Archived runtime releases are separate;
-use the linked preview release; future releases use `ukai-jail-v...` tags.
+Jail previews use `ukai-jail-v...` tags (those before the rename used
+`ouro-jail-v...`).
 The ledger and fleet are not included in these packages.
 
 ## macOS VM preview
@@ -174,14 +178,14 @@ for the packaged release.
 ## Verify a supplied package
 
 For offline installation, save the [Bash installer](https://ukai.sh/install.sh)
-and the archive for your architecture from the [release](https://github.com/monocursive/ukai/releases/tag/ouro-jail-v0.1.0-rc.2).
+and the archive for your architecture from the [release](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.3).
 The installer verifies its embedded SHA-256 pin even when the archive comes from
 a local directory. No checksum manifest or signature tool is needed:
 
 ```sh
 bash /path/to/install.sh --from-dir /path/to/artifacts
-ouro-jail version --json
-ouro-jail doctor --profile tool --json
+ukai-jail version --json
+ukai-jail doctor --profile tool --json
 ```
 
 Use `--bin-dir /absolute/path` for a different destination, or

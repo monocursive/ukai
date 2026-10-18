@@ -1,9 +1,9 @@
 {
   "repository": "monocursive/ukai",
   "jail": {
-    "version": "0.1.0-rc.2",
+    "version": "0.1.0-rc.3",
     "tag_prefix": "ukai-jail-v",
-    "published_tag": "ouro-jail-v0.1.0-rc.2",
+    "published_tag": "ukai-jail-v0.1.0-rc.3",
     "publication_scope": "linux-preview",
     "unsupported_clauses": ["K22.2", "K23.1", "K24.1", "K26.1", "K29.1"],
     "elf_machine_by_target": {

@@ -1,5 +1,13 @@
 # Publish a Ukai Jail developer preview
 
+[Linux preview 0.1.0-rc.3](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.3), the first
+release under the Ukai name, was published on 18 October 2026 from
+`f95f2d3963bc8829ab08f8b320d43abbb9f220f8`; its
+[publication record](benchmarks/jail/release-preview-2026-10-18.md) lists the
+exact-commit checks, the refreshed clean-VM evidence (now with a vaulted
+provider key, since OpenCode's free tier refuses its CLI) and the verified
+installations.
+
 [Linux preview 0.1.0-rc.2](https://github.com/monocursive/ukai/releases/tag/ouro-jail-v0.1.0-rc.2), published before
 the Ukai rename on 15 October 2026, was released on 14 October 2026 from
 `531d252a6c56e0403ae7b1937988f2037e294853`, following the procedure below; its
@@ -111,7 +119,7 @@ skipped reference host or an older passing run is insufficient.
 Set the reviewed coordinates and production key:
 
 ```sh
-release_version=0.1.0-rc.2
+release_version=0.1.0-rc.3
 release_revision=$(git rev-parse HEAD)
 release_public_key=$(sed -n '2p' crates/ukai-jail/dist/release.pub)
 release_private_key="$HOME/.config/ouroboros/release-keys/ouro-jail-2026-10-10.key"

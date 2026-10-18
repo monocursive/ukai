@@ -13,16 +13,17 @@ agent keeps its own models and workflow.
 [Website](https://ukai.sh/) · [User guide](docs/guide.md) ·
 [Roadmap](docs/roadmap.md) · [Operator reference](docs/specs/jail-v1/operating.md)
 
-Ukai was called Ouroboros until 15 October 2026. The previews below were
-published under that name, as `ouro-jail` and `ouro-vm`; the next release is
-the first under the new name.
+Ukai was called Ouroboros until 15 October 2026. Linux preview 0.1.0-rc.3 is
+the first release under the new name and installs `ukai-jail`. The earlier
+Linux previews and the macOS VM preview were published under the old name, as
+`ouro-jail` and `ouro-vm`.
 
-**Developer preview 0.1.0-rc.2.** [Signed Linux x86_64 and ARM64 packages](https://github.com/monocursive/ukai/releases/tag/ouro-jail-v0.1.0-rc.2)
+**Developer preview 0.1.0-rc.3.** [Signed Linux x86_64 and ARM64 packages](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.3)
 are available. The reference x86_64 conformance host and native Raspberry Pi
 checks are recorded; available profiles depend on the host's kernel capabilities.
 Native macOS `ukai-jail` builds provide inspection commands and refuse execution.
 See the [platform requirements](docs/specs/jail-v1.md#32-initial-support-matrix)
-and [Linux acceptance record](docs/benchmarks/jail/release-preview-2026-10-10.md).
+and the [rc.3 publication record](docs/benchmarks/jail/release-preview-2026-10-18.md).
 
 **macOS VM preview 0.1.0-preview.1.** [Signed and notarized Apple Silicon DMG](https://github.com/monocursive/ukai/releases/tag/ouro-vm-v0.1.0-preview.1)
 is available for macOS 27+. The published `ouro-vm` command runs offline Linux
@@ -42,12 +43,18 @@ maintainer signing.
   network access and with a deadline.
 - Build from read-only source with separate writable output and scratch paths,
   a memory limit, and no network access.
+- Run Claude Code in one word from inside a repository:
+  `ukai-jail claude -p "…" --dangerously-skip-permissions`. Its key stays in
+  the jail's vault, the agent only ever holds a placeholder, and every run ends
+  with a short summary of what it wrote, which hosts it reached and whether
+  anything survived it.
 
 ## Install and run
 
-The installer selects the published `ouro-jail` on Linux and `ouro-vm` on Apple
-Silicon. These signed previews retain their pre-rename commands and paths;
-the current source build uses `ukai-jail` and `ukai-vm`.
+The installer selects `ukai-jail` on Linux and the `ouro-vm` preview on Apple
+Silicon; the Mac preview keeps its pre-rename command until its next release.
+An `ouro-jail` installed from an earlier preview is left in place beside
+`ukai-jail`; remove it from `~/.local/bin` when you no longer need it.
 On Linux, install your distribution's `bubblewrap` package first.
 The binaries require glibc 2.39 or newer; no Rust compiler or sudo is needed
 for the installer. Host enforcement still requires a successful `doctor` report.
@@ -55,8 +62,8 @@ for the installer. Host enforcement still requires a successful `doctor` report.
 ```sh
 curl --proto '=https' --tlsv1.2 -fsSL https://ukai.sh/install.sh | bash
 export PATH="$HOME/.local/bin:$PATH"
-ouro-jail version --json
-ouro-jail doctor --profile tool --json
+ukai-jail version --json
+ukai-jail doctor --profile tool --json
 ```
 
 On macOS the command is `ouro-vm`: run `ouro-vm version` and `ouro-vm doctor`
@@ -64,8 +71,8 @@ after installing, then follow the [Mac example](docs/guide.md#macos-vm-preview).
 
 See the [guide](docs/guide.md#install-the-developer-preview) for supported hosts,
 upgrades and explicit downgrade handling. The remaining examples use the current
-Ukai source build; the published preview's [guide](https://github.com/monocursive/ukai/blob/ouro-jail-v0.1.0-rc.2/docs/guide.md)
-documents its original commands and schemas. To build from source:
+Ukai source build; the published preview's own [guide](https://github.com/monocursive/ukai/blob/ukai-jail-v0.1.0-rc.3/docs/guide.md)
+documents exactly what it ships. To build from source:
 
 Install Rust 1.98.1 and your distribution's bubblewrap package. Run as your
 normal user. The reference host uses Ubuntu 26.04.1 and bubblewrap 0.11.1.

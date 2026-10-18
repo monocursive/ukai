@@ -225,7 +225,9 @@ cp "$BOOTSTRAP_ARTIFACTS/${url##*/}" "$output"
         digest = hashlib.sha256(archive.read_bytes()).hexdigest()
         original = archive_pins((ROOT / 'install.sh').read_text())['0.1.0-rc.2', TARGETS[0]]
         self.installer.write_text((ROOT / 'install.sh').read_text().replace(original, digest))
-        for args in [(), ('--from-dir', str(self.artifacts))]:
+        # Named explicitly: the installer's default is the current Ukai release.
+        legacy = ('--version', '0.1.0-rc.2')
+        for args in [legacy, legacy + ('--from-dir', str(self.artifacts))]:
             result = self.run_installer(*args)
             self.assertEqual(result.returncode, 0, result.stderr.decode())
             self.assertEqual((self.prefix / 'ouro-jail').read_bytes(), binary.read_bytes())
@@ -233,7 +235,7 @@ cp "$BOOTSTRAP_ARTIFACTS/${url##*/}" "$output"
             self.assertFalse((self.prefix / 'ukai-jail').exists())
             self.assertIn(b'/ouro-jail doctor', result.stdout)
         archive.write_bytes(archive.read_bytes() + b'tampered')
-        self.assertNotEqual(self.run_installer().returncode, 0)
+        self.assertNotEqual(self.run_installer(*legacy).returncode, 0)
         self.assertEqual((self.prefix / 'ouro-jail').read_bytes(), binary.read_bytes())
 
     def test_pre_rename_mac_package_keeps_its_command_and_passes_the_prefix(self):
