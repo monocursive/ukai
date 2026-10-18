@@ -1,0 +1,4 @@
+I'll help you find task.txt, read it, and create greeting.txt with the same contents.
+Now let me read the contents of task.txt:
+Now I'll create greeting.txt with the exact same contents:
+Done! I've found task.txt at `/home/ubuntu/onboarding-project/task.txt`, read its contents ("hello"), and created greeting.txt with exactly the same contents.

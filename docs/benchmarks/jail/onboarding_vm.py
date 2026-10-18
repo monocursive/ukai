@@ -6,7 +6,11 @@ and an optimized GNU/Linux binary built from a clean revision. Distribution
 packages are provisioned before the user-workflow timer starts. The guest must
 have no Rust. A CPU emulator is suitable for compatibility/onboarding evidence,
 not jail performance benchmarks. Linux can use --accelerator kvm; macOS ARM uses
-the default tcg. No production key, release publication, or paid resource exists.
+the default tcg. No production key or release publication is used. Since
+OpenCode's free tier refuses its own CLI (2026-10-18), --credential-file may
+name one private Anthropic API key file: it is copied into the disposable guest
+only, vaulted there, and every recorded file is then searched for its bytes;
+a hit fails the run (file names only are reported, never the key).
 """
 import argparse
 import hashlib
@@ -36,6 +40,9 @@ def main():
     parser.add_argument('--cpus', type=int, default=2)
     parser.add_argument('--memory-mib', type=int, default=3072)
     parser.add_argument('--boot-timeout', type=int, default=900)
+    parser.add_argument('--credential-file', type=pathlib.Path,
+                        help='A private (mode 0600) Anthropic API key file, no trailing newline.')
+    parser.add_argument('--model', default='opencode/big-pickle')
     args = parser.parse_args()
     os.umask(0o077)
     out = args.out.resolve()
@@ -50,7 +57,11 @@ def main():
                 'host_policy_changes': [], 'host_uname': list(os.uname()),
                 'prerequisites': ['bubblewrap', 'minisign', 'curl', 'ca-certificates',
                                   'perl', 'git', 'python3', 'ripgrep'],
-                'private_key_persisted': False, 'production_signing': False}
+                'private_key_persisted': False, 'production_signing': False,
+                'agent_model': args.model,
+                'credential': None if args.credential_file is None else {
+                    'provider': 'anthropic', 'mode': 'vault',
+                    'copied_into': 'the disposable guest only'}}
     vm = None
     temporary = None
 
@@ -61,8 +72,33 @@ def main():
         return subprocess.run([str(part) for part in argv], check=True,
                               stdin=subprocess.DEVNULL, **kwargs)
 
+    def credential_bytes():
+        path = args.credential_file
+        info = path.lstat()
+        if not path.is_file() or path.is_symlink() or info.st_mode & 0o077:
+            raise RuntimeError('--credential-file must be a regular, private (0600) file.')
+        value = path.read_bytes()
+        if not 0 < len(value) <= 8192 or value.endswith(b'\n'):
+            raise RuntimeError('--credential-file must hold one key with no trailing newline.')
+        return value
+
+    def exposure_scan(value):
+        # Every recorded file, as bytes: the key must appear in none of them.
+        scanned, hits = 0, []
+        for path in sorted(out.rglob('*')):
+            if path.is_file() and not path.is_symlink():
+                scanned += 1
+                if value in path.read_bytes():
+                    hits.append(str(path.relative_to(out)))
+        metadata['credential_exposure'] = {'files_scanned': scanned, 'files_with_key': hits}
+        if hits:
+            metadata['status'] = 'blocked'
+            metadata['blocker'] = 'the provider key appears in recorded files: ' + ', '.join(hits)
+
     save()
     try:
+        if args.credential_file is not None:
+            credential_bytes()
         for tool in ['qemu-system-x86_64', 'qemu-img', 'ssh', 'scp', 'ssh-keygen', 'minisign']:
             if not shutil.which(tool):
                 raise RuntimeError(f'Missing VM prerequisite: {tool}; no container fallback is valid.')
@@ -162,12 +198,20 @@ def main():
         execute(['scp', '-r', '-P', str(port)] + options +
                 [artifacts, repo / 'crates/ukai-jail/dist/install.sh',
                  script_dir / 'onboarding_guest.py', 'ubuntu@127.0.0.1:'])
+        if args.credential_file is not None:
+            # Into the guest's home only, mode kept 0600; the guest stores it
+            # with `ukai-jail credential set` and deletes this copy.
+            execute(['scp', '-P', str(port)] + options +
+                    [args.credential_file, 'ubuntu@127.0.0.1:provider.key'])
         with (out / 'workflow.log').open('wb') as workflow:
             guest_args = ['python3', 'onboarding_guest.py', '--artifacts', 'artifacts',
                                   '--installer', 'install.sh', '--public-key', trusted_key,
                                   '--revision', args.revision, '--out', 'onboarding-results']
             if args.inputs is not None:
                 guest_args += ['--inputs', args.inputs]
+            guest_args += ['--model', args.model]
+            if args.credential_file is not None:
+                guest_args += ['--credential-file', 'provider.key']
             command = shlex.join(guest_args)
             attempt = subprocess.run(ssh + [command], stdin=subprocess.DEVNULL,
                      stdout=workflow, stderr=subprocess.STDOUT, timeout=1800)
@@ -193,6 +237,12 @@ def main():
         if temporary is not None:
             temporary.cleanup()
         metadata['vm_destroyed'] = True
+        if args.credential_file is not None:
+            try:
+                exposure_scan(credential_bytes())
+            except (OSError, RuntimeError) as error:
+                metadata['status'] = 'blocked'
+                metadata['blocker'] = f'the exposure scan could not run: {error}'
         save()
     print(json.dumps({key: metadata[key] for key in ['status', 'blocker'] if key in metadata}))
     return 0 if metadata['status'] == 'passed' else 1

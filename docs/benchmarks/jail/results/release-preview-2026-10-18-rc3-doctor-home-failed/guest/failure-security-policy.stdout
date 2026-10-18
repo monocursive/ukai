@@ -1,0 +1,358 @@
+1
+apparmor module is loaded.
+179 profiles are loaded.
+103 profiles are in enforce mode.
+   /usr/bin/man
+   /usr/lib/snapd/snap-confine
+   /usr/sbin/chronyd
+   :glycin:bwrap
+   :glycin:loaders
+   alsamixer
+   babeld
+   bfdd
+   bgpd
+   bwrap
+   dig
+   dnstracer
+   eigrpd
+   fabricd
+   fusermount3
+   gs
+   hostname
+   iotop-c
+   ipa_verify
+   irssi
+   isisd
+   john
+   ldpd
+   linux-boot-prober
+   locale
+   locale//compressor
+   lsb_release
+   lsblk
+   lsusb
+   man_filter
+   man_groff
+   mbsync
+   mosquitto
+   nc.openbsd
+   nhrpd
+   notify-send
+   nslookup
+   nvidia_modprobe
+   nvidia_modprobe//kmod
+   os-prober
+   ospf6d
+   ospfd
+   pathd
+   pbrd
+   pim6d
+   pimd
+   plasmashell
+   plasmashell//QtWebEngineProcess
+   proftpd
+   qpdf
+   ripd
+   ripngd
+   rsyslogd
+   sbuild
+   sbuild-abort
+   sbuild-adduser
+   sbuild-apt
+   sbuild-checkpackages
+   sbuild-clean
+   sbuild-createchroot
+   sbuild-destroychroot
+   sbuild-distupgrade
+   sbuild-hold
+   sbuild-shell
+   sbuild-unhold
+   sbuild-update
+   sbuild-upgrade
+   ssh-keyscan
+   staticd
+   systemd-detect-virt
+   tcpdump
+   tinyproxy
+   tnftp
+   tnftp//cmds
+   tnftp//dash
+   tnftp//dash//more
+   transmission-cli
+   transmission-daemon
+   transmission-gtk
+   transmission-qt
+   tshark
+   tshark//dumpcap
+   ubuntu_pro_apt_news
+   ubuntu_pro_esm_cache
+   ubuntu_pro_esm_cache//apt_methods
+   ubuntu_pro_esm_cache//apt_methods_gpgv
+   ubuntu_pro_esm_cache//cloud_id
+   ubuntu_pro_esm_cache//dpkg
+   ubuntu_pro_esm_cache//ps
+   ubuntu_pro_esm_cache//ubuntu_distro_info
+   ubuntu_pro_esm_cache_systemctl
+   ubuntu_pro_esm_cache_systemd_detect_virt
+   unix-chkpwd
+   unpriv_bwrap
+   unprivileged_userns
+   vrrpd
+   wg
+   wg-quick
+   wg-quick//ip
+   wg-quick//nft
+   wg-quick//sysctl
+   who
+   znc
+2 profiles are in complain mode.
+   Xorg
+   Xorg_wrap
+0 profiles are in prompt mode.
+0 profiles are in kill mode.
+74 profiles are in unconfined mode.
+   1password
+   Discord
+   MongoDB Compass
+   QtWebEngineProcess
+   balena-etcher
+   brave
+   buildah
+   cam
+   ch-checkns
+   ch-run
+   chrome
+   chromium
+   crun
+   devhelp
+   element-desktop
+   epiphany
+   evolution
+   firefox
+   flatpak
+   foliate
+   geary
+   github-desktop
+   goldendict
+   kchmviewer
+   keybase
+   lc-compliance
+   libcamerify
+   linux-sandbox
+   loupe
+   lxc-attach
+   lxc-create
+   lxc-destroy
+   lxc-execute
+   lxc-stop
+   lxc-unshare
+   lxc-usernsexec
+   mmdebstrap
+   msedge
+   notepadqq
+   obsidian
+   opam
+   opera
+   pageedit
+   podman
+   polypane
+   privacybrowser
+   qcam
+   qmapshack
+   qutebrowser
+   rootlesskit
+   rpm
+   rssguard
+   runc
+   scide
+   signal-desktop
+   slack
+   slirp4netns
+   steam
+   stress-ng
+   surfshark
+   systemd-coredump
+   thunderbird
+   trinity
+   tup
+   tuxedo-control-center
+   userbindmount
+   uwsgi-core
+   vdens
+   virtiofsd
+   vivaldi-bin
+   vpnns
+   vscode
+   wike
+   wpcom
+3 processes have profiles defined.
+3 processes are in enforce mode.
+   /usr/sbin/chronyd (1251) 
+   /usr/sbin/chronyd (1252) 
+   /usr/sbin/rsyslogd (1303) rsyslogd
+0 processes are in complain mode.
+0 processes are in prompt mode.
+0 processes are in kill mode.
+0 processes are unconfined but have a profile defined.
+0 processes are in mixed mode.
+1password
+Discord
+MongoDB_Compass
+QtWebEngineProcess
+Xorg
+abi
+abstractions
+alsamixer
+babeld
+balena-etcher
+bfdd
+bgpd
+brave
+buildah
+bwrap-userns-restrict
+cam
+ch-checkns
+ch-run
+chrome
+chromium
+code
+crun
+devhelp
+dig
+disable
+dnstracer
+eigrpd
+element-desktop
+epiphany
+evolution
+fabricd
+firefox
+flatpak
+foliate
+force-complain
+fusermount3
+geary
+github-desktop
+glycin.bwrap
+glycin.loaders
+goldendict
+gs
+hostname
+iotop-c
+ipa_verify
+irssi
+isisd
+john
+kchmviewer
+keybase
+lc-compliance
+ldpd
+libcamerify
+linux-boot-prober
+linux-sandbox
+local
+locale
+loupe
+lsb_release
+lsblk
+lsusb
+lxc-attach
+lxc-create
+lxc-destroy
+lxc-execute
+lxc-stop
+lxc-unshare
+lxc-usernsexec
+mbsync
+mmdebstrap
+mosquitto
+msedge
+nc.openbsd
+nhrpd
+notepadqq
+notify-send
+nslookup
+nvidia_modprobe
+obsidian
+opam
+opera
+os-prober
+ospf6d
+ospfd
+pageedit
+pathd
+pbrd
+pim6d
+pimd
+plasmashell
+podman
+polypane
+privacybrowser
+proftpd
+qcam
+qmapshack
+qpdf
+qutebrowser
+ripd
+ripngd
+rootlesskit
+rpm
+rssguard
+rsyslog.d
+runc
+sbuild
+sbuild-abort
+sbuild-adduser
+sbuild-apt
+sbuild-checkpackages
+sbuild-clean
+sbuild-createchroot
+sbuild-destroychroot
+sbuild-distupgrade
+sbuild-hold
+sbuild-shell
+sbuild-unhold
+sbuild-update
+sbuild-upgrade
+scide
+signal-desktop
+slack
+slirp4netns
+ssh-keyscan
+staticd
+steam
+stress-ng
+surfshark
+systemd-coredump
+systemd-detect-virt
+thunderbird
+tinyproxy
+tnftp
+transmission
+trinity
+tshark
+tunables
+tup
+tuxedo-control-center
+ubuntu_pro_apt_news
+ubuntu_pro_esm_cache
+unix-chkpwd
+unprivileged_userns
+userbindmount
+usr.bin.man
+usr.bin.tcpdump
+usr.lib.snapd.snap-confine.real
+usr.sbin.chronyd
+usr.sbin.rsyslogd
+uwsgi-core
+vdens
+virtiofsd
+vivaldi-bin
+vpnns
+vrrpd
+wg
+wg-quick
+who
+wike
+wpcom
+znc

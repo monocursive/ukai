@@ -1,0 +1,116 @@
+schema = "ukai.jail.learned-policy/1"
+warning = "Candidate grants from one untrusted run, not a statement of all program needs. Review every grant. Read paths are argument snapshots, not kernel-resolved identities."
+read_only = ["/etc/nsswitch.conf"]
+network_allow = []
+denied_writes = []
+unresolved_reads = [
+    "/$bunfs/locales/en_US.json",
+    "/$bunfs/npmrc",
+    "/$bunfs/root/src/index.js",
+    "/etc/gitattributes",
+    "/home/ubuntu/.opencode/etc/npmrc",
+    "/sys/devices/system/cpu/online",
+    "/sys/fs/cgroup//cpu.max",
+    "/sys/fs/cgroup//memory.high",
+    "/sys/fs/cgroup//memory.max",
+    "/sys/fs/cgroup/cpu.max",
+    "/sys/fs/cgroup/memory.high",
+    "/sys/fs/cgroup/memory.max",
+    "/sys/kernel/mm/transparent_hugepage/enabled",
+    "/usr/share/coreutils/locales/cat/en-US.ftl",
+    "/usr/share/git-core/templates/config",
+]
+execs = [
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"/home/ubuntu/.opencode/bin","value":"opencode"},"path_basis":"argument_snapshot","path_complete":true,"pid":3806,"pid_start_ticks":21122,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3821,"pid_start_ticks":22220,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3824,"pid_start_ticks":22229,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3827,"pid_start_ticks":22243,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3828,"pid_start_ticks":22256,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3829,"pid_start_ticks":22268,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3830,"pid_start_ticks":22864,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3831,"pid_start_ticks":22866,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3832,"pid_start_ticks":22888,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3833,"pid_start_ticks":22913,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3836,"pid_start_ticks":23661,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3839,"pid_start_ticks":23686,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3841,"pid_start_ticks":23696,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3842,"pid_start_ticks":23703,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3843,"pid_start_ticks":23709,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3844,"pid_start_ticks":23715,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3845,"pid_start_ticks":23722,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3846,"pid_start_ticks":23730,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3847,"pid_start_ticks":23743,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3848,"pid_start_ticks":23757,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3849,"pid_start_ticks":23785,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3850,"pid_start_ticks":23806,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3851,"pid_start_ticks":23808,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3852,"pid_start_ticks":23822,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3853,"pid_start_ticks":23833,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3854,"pid_start_ticks":23858,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3855,"pid_start_ticks":23872,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3856,"pid_start_ticks":23934,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3857,"pid_start_ticks":23947,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3858,"pid_start_ticks":23960,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3859,"pid_start_ticks":23974,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3860,"pid_start_ticks":23984,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3870,"pid_start_ticks":24086,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3871,"pid_start_ticks":24321,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3872,"pid_start_ticks":24329,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3875,"pid_start_ticks":24504,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3876,"pid_start_ticks":24514,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3877,"pid_start_ticks":24528,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/bash"},"path_basis":"argument_snapshot","path_complete":true,"pid":3881,"pid_start_ticks":24843,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/cat"},"path_basis":"argument_snapshot","path_complete":true,"pid":3882,"pid_start_ticks":24848,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/cp"},"path_basis":"argument_snapshot","path_complete":true,"pid":3881,"pid_start_ticks":24843,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3883,"pid_start_ticks":24890,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3884,"pid_start_ticks":24915,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3885,"pid_start_ticks":24916,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3886,"pid_start_ticks":24928,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3887,"pid_start_ticks":24941,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3888,"pid_start_ticks":24967,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3889,"pid_start_ticks":24973,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3890,"pid_start_ticks":24992,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3891,"pid_start_ticks":25021,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3892,"pid_start_ticks":25022,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3893,"pid_start_ticks":25028,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3894,"pid_start_ticks":25033,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3895,"pid_start_ticks":25072,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3896,"pid_start_ticks":25091,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3897,"pid_start_ticks":25093,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3898,"pid_start_ticks":25106,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3899,"pid_start_ticks":25128,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3901,"pid_start_ticks":25152,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3903,"pid_start_ticks":25167,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3904,"pid_start_ticks":25178,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3905,"pid_start_ticks":25273,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3906,"pid_start_ticks":25303,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3907,"pid_start_ticks":25304,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3908,"pid_start_ticks":25316,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3909,"pid_start_ticks":25337,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3910,"pid_start_ticks":25347,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3911,"pid_start_ticks":25348,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3912,"pid_start_ticks":25359,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3913,"pid_start_ticks":25388,"syscall":"execve"}',
+    '{"argv_digest":null,"argv_digest_reason":"descendant_argv_not_captured","path":{"kind":"root_relative","root":"system","value":"bin/git"},"path_basis":"argument_snapshot","path_complete":true,"pid":3914,"pid_start_ticks":25402,"syscall":"execve"}',
+]
+
+[provenance]
+attempt = "att_becb8e53-11ef-4bd1-baf5-092c9a4d097d"
+receipt_digest = "sha256:93e2775ebf174c19cc539109e20b10baeac2c9b2007c9ac362551a9c837221bb"
+revision = "d4988945e53322b0c0182aabf3efea502cf4512d"
+build_inputs = "sha256:32e294a36c9d1dffd23ed2e9afc3ec8a87148e2b8cda26538d22737feffbaf89"
+coverage_json = '{"exec":{"gaps":[],"observed_count":141,"sources":["audit"],"status":"active"},"fs.deny":{"gaps":[],"observed_count":0,"sources":["audit"],"status":"active"},"fs.write":{"gaps":[],"observed_count":248,"sources":["audit"],"status":"active"},"limits":{"gaps":[],"observed_count":0,"sources":["wrapper"],"status":"active"},"net":{"gaps":[],"observed_count":7,"sources":["audit"],"status":"active"},"proxy.net":{"gaps":[],"observed_count":5,"sources":["proxy"],"status":"active"}}'
+
+[provenance.event_counts]
+"fs.create" = 146
+"fs.rename" = 21
+"fs.unlink" = 12
+"fs.write" = 69
+"jail.receipt" = 4
+"net.connect" = 12
+note = 1614
+"proc.exec" = 71
+"proc.exit" = 70
+
+[provenance.evidence]
+"/etc/nsswitch.conf" = ["wrapper:1196"]

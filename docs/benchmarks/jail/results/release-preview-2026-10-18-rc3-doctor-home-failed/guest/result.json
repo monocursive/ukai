@@ -1,0 +1,339 @@
+{
+  "schema": "ouro.jail.onboarding/1",
+  "status": "blocked",
+  "expected_revision": "d4988945e53322b0c0182aabf3efea502cf4512d",
+  "rows": [
+    {
+      "name": "host",
+      "argv": [
+        "sh",
+        "-c",
+        "uname -a; cat /etc/os-release; systemd-detect-virt; id; getconf GNU_LIBC_VERSION; bwrap --version; minisign -v; cat /proc/sys/kernel/yama/ptrace_scope; cat /proc/sys/user/max_user_namespaces; cat /proc/sys/kernel/unprivileged_userns_clone; cat /proc/self/cgroup; cat /etc/machine-id; cat /proc/sys/kernel/random/boot_id"
+      ],
+      "seconds": 0.3251443830000085,
+      "exit": 0
+    },
+    {
+      "name": "virtualization",
+      "argv": [
+        "systemd-detect-virt"
+      ],
+      "seconds": 0.022442026999982545,
+      "exit": 0
+    },
+    {
+      "name": "install",
+      "argv": [
+        "sh",
+        "install.sh",
+        "--from-dir",
+        "artifacts",
+        "--public-key",
+        "RWThnVzHbMXXTlJ9hBI986J3n3+Ri4h2znsdM73aH1iiso0LsYLwAHUR",
+        "--yes"
+      ],
+      "seconds": 1.7184530210000162,
+      "exit": 0
+    },
+    {
+      "name": "version",
+      "argv": [
+        "/home/ubuntu/.local/bin/ukai-jail",
+        "version",
+        "--json"
+      ],
+      "seconds": 0.01742401999999288,
+      "exit": 0
+    },
+    {
+      "name": "git-init",
+      "argv": [
+        "git",
+        "init",
+        "-q",
+        "/home/ubuntu/onboarding-project"
+      ],
+      "seconds": 0.10354312199999072,
+      "exit": 0
+    },
+    {
+      "name": "true",
+      "argv": [
+        "/home/ubuntu/.local/bin/ukai-jail",
+        "run",
+        "--workspace",
+        "/home/ubuntu/onboarding-project",
+        "--",
+        "/usr/bin/true"
+      ],
+      "seconds": 0.4114104839999868,
+      "exit": 0
+    },
+    {
+      "name": "opencode-download",
+      "argv": [
+        "curl",
+        "--fail",
+        "--silent",
+        "--show-error",
+        "--location",
+        "--proto",
+        "=https",
+        "--proto-redir",
+        "=https",
+        "https://github.com/anomalyco/opencode/releases/download/v1.18.32/opencode-linux-x64-baseline.tar.gz",
+        "-o",
+        "/home/ubuntu/opencode.tar.gz"
+      ],
+      "seconds": 1.9610733080000102,
+      "exit": 0
+    },
+    {
+      "name": "opencode-version",
+      "argv": [
+        "/home/ubuntu/.opencode/bin/opencode",
+        "--version"
+      ],
+      "seconds": 6.232127333999983,
+      "exit": 0
+    },
+    {
+      "name": "ripgrep-version",
+      "argv": [
+        "rg",
+        "--version"
+      ],
+      "seconds": 0.06108807199998978,
+      "exit": 0
+    },
+    {
+      "name": "credential-set",
+      "argv": [
+        "/home/ubuntu/.local/bin/ukai-jail",
+        "credential",
+        "set",
+        "anthropic"
+      ],
+      "seconds": 0.13185515499998246,
+      "exit": 0
+    },
+    {
+      "name": "opencode",
+      "argv": [
+        "/home/ubuntu/.local/bin/ukai-jail",
+        "run",
+        "--launch",
+        "opencode-vault",
+        "--workspace",
+        "/home/ubuntu/onboarding-project",
+        "--ro",
+        "/home/ubuntu/.opencode/bin",
+        "--limit",
+        "wall=300s",
+        "--",
+        "/home/ubuntu/.opencode/bin/opencode",
+        "run",
+        "--model",
+        "anthropic/claude-sonnet-4-5",
+        "Use your glob tool to find task.txt, read it, then create greeting.txt with exactly the same contents. Do not use the network yourself."
+      ],
+      "seconds": 46.83390200400001,
+      "exit": 0
+    },
+    {
+      "name": "opencode-learn",
+      "argv": [
+        "/home/ubuntu/.local/bin/ukai-jail",
+        "learn",
+        "--launch",
+        "opencode-vault",
+        "--workspace",
+        "/home/ubuntu/onboarding-project",
+        "--ro",
+        "/home/ubuntu/.opencode/bin",
+        "--limit",
+        "wall=300s",
+        "--out",
+        "/home/ubuntu/onboarding-results/opencode-learned.toml",
+        "--",
+        "/home/ubuntu/.opencode/bin/opencode",
+        "run",
+        "--model",
+        "anthropic/claude-sonnet-4-5",
+        "Use the bash tool once to run exactly `cat /home/ubuntu/learning-needed.txt; cp task.txt learned-greeting.txt`. The cat is expected to fail; still run cp after it. Do not retry, change permissions, or use the network yourself. Reply done only after the command completed."
+      ],
+      "seconds": 44.35749337600001,
+      "exit": 0
+    },
+    {
+      "name": "doctor-codex",
+      "argv": [
+        "/home/ubuntu/.local/bin/ukai-jail",
+        "doctor",
+        "--launch",
+        "codex",
+        "--json"
+      ],
+      "seconds": 0.9801830430000109,
+      "exit": 0
+    },
+    {
+      "name": "doctor-claude",
+      "argv": [
+        "/home/ubuntu/.local/bin/ukai-jail",
+        "doctor",
+        "--launch",
+        "claude",
+        "--json"
+      ],
+      "seconds": 0.020234227999992527,
+      "exit": 2
+    },
+    {
+      "name": "failure-doctor",
+      "argv": [
+        "/home/ubuntu/.local/bin/ukai-jail",
+        "doctor",
+        "--launch",
+        "opencode",
+        "--json"
+      ],
+      "seconds": 1.0785871520000114,
+      "exit": 0
+    },
+    {
+      "name": "failure-bwrap",
+      "argv": [
+        "bwrap",
+        "--unshare-all",
+        "--ro-bind",
+        "/",
+        "/",
+        "--proc",
+        "/proc",
+        "--dev",
+        "/dev",
+        "/usr/bin/true"
+      ],
+      "seconds": 0.03517039600001226,
+      "exit": 0
+    },
+    {
+      "name": "failure-security-policy",
+      "argv": [
+        "sh",
+        "-c",
+        "cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns; sudo -n aa-status; ls /etc/apparmor.d | sort"
+      ],
+      "seconds": 0.2676100150000025,
+      "exit": 0
+    },
+    {
+      "name": "corrupt-archive",
+      "argv": [
+        "sh",
+        "install.sh",
+        "--from-dir",
+        "/home/ubuntu/corrupt-artifacts",
+        "--public-key",
+        "RWThnVzHbMXXTlJ9hBI986J3n3+Ri4h2znsdM73aH1iiso0LsYLwAHUR",
+        "--upgrade"
+      ],
+      "seconds": 0.325118663000012,
+      "exit": 1
+    },
+    {
+      "name": "corrupt-signature",
+      "argv": [
+        "sh",
+        "install.sh",
+        "--from-dir",
+        "/home/ubuntu/corrupt-artifacts",
+        "--public-key",
+        "RWThnVzHbMXXTlJ9hBI986J3n3+Ri4h2znsdM73aH1iiso0LsYLwAHUR",
+        "--upgrade"
+      ],
+      "seconds": 0.1072022079999897,
+      "exit": 1
+    },
+    {
+      "name": "upgrade",
+      "argv": [
+        "sh",
+        "install.sh",
+        "--from-dir",
+        "artifacts",
+        "--public-key",
+        "RWThnVzHbMXXTlJ9hBI986J3n3+Ri4h2znsdM73aH1iiso0LsYLwAHUR",
+        "--upgrade"
+      ],
+      "seconds": 1.742842636999967,
+      "exit": 0
+    }
+  ],
+  "expected_inputs": "sha256:32e294a36c9d1dffd23ed2e9afc3ec8a87148e2b8cda26538d22737feffbaf89",
+  "timer_scope": "signed install through first sandboxed OpenCode result; includes agent download, excludes VM/dependency bootstrap",
+  "publication": "deferred",
+  "signing_identity": "ephemeral test key",
+  "rust_before": {
+    "cargo": null,
+    "rustc": null,
+    "rustup": null
+  },
+  "build": {
+    "build": {
+      "debug_assertions": false,
+      "dirty": false,
+      "inputs": "sha256:32e294a36c9d1dffd23ed2e9afc3ec8a87148e2b8cda26538d22737feffbaf89",
+      "opt_level": "3",
+      "revision": "d4988945e53322b0c0182aabf3efea502cf4512d",
+      "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+      "target": "x86_64-unknown-linux-gnu"
+    },
+    "component": "ukai-jail",
+    "frozen": true,
+    "observation": {
+      "closed_set": "linux-closed-v1"
+    },
+    "platform": {
+      "arch": "x86_64",
+      "kernel": "Linux 7.0.0-34-generic",
+      "os": "linux"
+    },
+    "schemas": {
+      "control": "ukai.jail.control/1",
+      "doctor": "ukai.jail.doctor/1",
+      "event": "ukai.event/1",
+      "gate": "ukai.jail.gate/1",
+      "learned_policy": "ukai.jail.learned-policy/1",
+      "network": "ukai.jail.network/1",
+      "policy": "ukai.jail.policy/1",
+      "policy_file": "ukai.jail.policy-file/1",
+      "policy_snapshot": "ukai.jail.policy-snapshot/1",
+      "receipt": "ukai.jail.receipt/1",
+      "summary": "ukai.jail.summary/1"
+    },
+    "version": "0.1.0"
+  },
+  "binary_sha256": "40bfe5416daf918f87a8dc06f22959476fa6a2507d8b93364c8404df8d491491",
+  "agent_artifact": {
+    "url": "https://github.com/anomalyco/opencode/releases/download/v1.18.32/opencode-linux-x64-baseline.tar.gz",
+    "sha256": "763af386ef88a8cab18df00fcf055690e5a55e31a7088beabe02307142a6adce"
+  },
+  "vendor_version": "1.18.32",
+  "credential": {
+    "provider": "anthropic",
+    "mode": "vault",
+    "stored_with": "ukai-jail credential set",
+    "runner_copy_removed": true
+  },
+  "agent_launch": "opencode-vault",
+  "agent_model": "anthropic/claude-sonnet-4-5",
+  "workflow_seconds": 65.49066245899999,
+  "main_workflow": "passed",
+  "learning_workflow": "passed",
+  "learning_fixture": "/home/ubuntu/learning-needed.txt",
+  "learning_fixture_proposed": false,
+  "blocker": "doctor-claude refused with exit 2; see doctor-claude.stderr",
+  "distribution_checks": "passed"
+}

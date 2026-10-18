@@ -2,7 +2,11 @@
 """Run K27 inside a fresh VM; retain refusal evidence instead of claiming success.
 
 The VM runner provisions distribution prerequisites before this timed workflow.
-No operator source, credentials, Rust toolchain, or production signing key is used.
+No operator source, Rust toolchain, or production signing key is used. Since
+OpenCode's free tier refuses its own CLI (2026-10-18), the runner may copy one
+provider API key into this disposable guest: it is stored with `ukai-jail
+credential set`, the copy is deleted, and the agent reaches it only through
+the vault, as a placeholder (`--credential-file`).
 """
 import argparse
 import hashlib
@@ -24,6 +28,33 @@ PROFILES = ['codex', 'claude', 'opencode', 'cursor', 'aider', 'goose', 'gemini',
 AGENT_URL = ('https://github.com/anomalyco/opencode/releases/download/v1.18.32/'
              'opencode-linux-x64-baseline.tar.gz')
 AGENT_SHA256 = '763af386ef88a8cab18df00fcf055690e5a55e31a7088beabe02307142a6adce'
+# The operator profile a provider key runs under: the bundled `opencode`
+# profile's hosts plus the provider's, with the key vaulted for that provider
+# only. It lives in this guest's config directory and dies with the VM.
+VAULT_PROFILE = '''\
+# Written by onboarding_guest.py for one disposable VM (K11/K27 with a key).
+name = "opencode-vault"
+jail = "agent"
+home_is_state = true
+state_subdirs = ["config/opencode", "data/opencode", "cache/opencode", "state/opencode"]
+
+[environment]
+OPENCODE_DISABLE_AUTOUPDATE = "true"
+XDG_CONFIG_HOME = { state = "config" }
+XDG_DATA_HOME = { state = "data" }
+XDG_CACHE_HOME = { state = "cache" }
+XDG_STATE_HOME = { state = "state" }
+
+[credentials.anthropic]
+mode = "vault"
+source = "@config/credentials/anthropic"
+env = "ANTHROPIC_API_KEY"
+hosts = ["https://api.anthropic.com"]
+header = { name = "x-api-key" }
+
+[network]
+allow = ["api.anthropic.com", "opencode.ai", "models.opencode.ai", "registry.npmjs.org"]
+'''
 
 
 def verify_build(version, revision, inputs=None):
@@ -44,6 +75,9 @@ def main():
     parser.add_argument('--revision', required=True)
     parser.add_argument('--inputs', help='Expected Jail build-input SHA256, independently verified.')
     parser.add_argument('--out', type=pathlib.Path, required=True)
+    parser.add_argument('--credential-file', type=pathlib.Path,
+                        help='An Anthropic API key the runner copied in; deleted once stored.')
+    parser.add_argument('--model', default='opencode/big-pickle')
     args = parser.parse_args()
     os.umask(0o077)
     out = args.out.resolve()
@@ -65,10 +99,10 @@ def main():
     def save():
         (out / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
 
-    def run(name, argv, *, check=True, timeout=300):
+    def run(name, argv, *, check=True, timeout=300, cwd=None):
         started = time.monotonic()
         done = subprocess.run([str(a) for a in argv], env=env, stdin=subprocess.DEVNULL,
-                              capture_output=True, timeout=timeout)
+                              capture_output=True, timeout=timeout, cwd=cwd)
         (out / f'{name}.stdout').write_bytes(done.stdout)
         (out / f'{name}.stderr').write_bytes(done.stderr)
         result['rows'].append({'name': name, 'argv': [str(a) for a in argv],
@@ -200,15 +234,44 @@ def main():
         result['vendor_version'] = run('opencode-version', [agent, '--version']).stdout.decode().strip()
         assert result['vendor_version'] == '1.18.32'
         run('ripgrep-version', ['rg', '--version'])
+        launch = 'opencode'
+        if args.credential_file is not None:
+            # Store the provider key the way an operator does, then remove the
+            # copy the runner placed here: from now on only the jail's config
+            # directory holds it, and the agent sees a placeholder.
+            started = time.monotonic()
+            with args.credential_file.open('rb') as key:
+                stored = subprocess.run([str(binary), 'credential', 'set', 'anthropic'],
+                                        env=env, stdin=key, capture_output=True, timeout=60)
+            args.credential_file.unlink()
+            (out / 'credential-set.stdout').write_bytes(stored.stdout)
+            (out / 'credential-set.stderr').write_bytes(stored.stderr)
+            result['rows'].append({'name': 'credential-set',
+                                   'argv': [str(binary), 'credential', 'set', 'anthropic'],
+                                   'seconds': time.monotonic() - started,
+                                   'exit': stored.returncode})
+            save()
+            assert stored.returncode == 0, 'credential set refused; see credential-set.stderr'
+            launch_dir = home / 'ouro-config/launch'
+            launch_dir.mkdir(mode=0o700, exist_ok=True)
+            (launch_dir / 'opencode-vault.toml').write_text(VAULT_PROFILE)
+            launch = 'opencode-vault'
+            result['credential'] = {'provider': 'anthropic', 'mode': 'vault',
+                                    'stored_with': 'ukai-jail credential set',
+                                    'runner_copy_removed': not args.credential_file.exists()}
+        result['agent_launch'] = launch
+        result['agent_model'] = args.model
+        vaulted = [('anthropic', 'vault', True)] if args.credential_file is not None else []
         # Force the agent's file-search path as well as its write tool. Without
         # rg, OpenCode downloads it from GitHub, outside the starter allowlist.
         (workspace / 'task.txt').write_text('hello\n')
-        vendor('opencode', [binary, 'run', '--launch', 'opencode', '--workspace', workspace,
+        vendor('opencode', [binary, 'run', '--launch', launch, '--workspace', workspace,
                          '--ro', agent_dir, '--limit', 'wall=300s', '--', agent, 'run',
-                         '--model', 'opencode/big-pickle',
+                         '--model', args.model,
                          'Use your glob tool to find task.txt, read it, then create greeting.txt '
                          'with exactly the same contents. Do not use the network yourself.'], [workspace / 'greeting.txt'])
         data = receipt('opencode')
+        assert [(c['id'], c['mode'], c['never_staged']) for c in data['credentials']] == vaulted
         assert (workspace / 'greeting.txt').read_bytes() == b'hello\n'
         shutil.copyfile(workspace / 'greeting.txt', out / 'greeting.txt')
         assert all(row['status'] == 'active' and not row['gaps'] for row in data['coverage'].values())
@@ -229,14 +292,15 @@ def main():
             'external_directory': {str(home) + '/**': 'allow'},
         }}))
         proposal = out / 'opencode-learned.toml'
-        vendor('opencode-learn', [binary, 'learn', '--launch', 'opencode', '--workspace', workspace,
+        vendor('opencode-learn', [binary, 'learn', '--launch', launch, '--workspace', workspace,
                               '--ro', agent_dir, '--limit', 'wall=300s', '--out', proposal,
-                              '--', agent, 'run', '--model', 'opencode/big-pickle',
+                              '--', agent, 'run', '--model', args.model,
                               f'Use the bash tool once to run exactly `cat {needed}; '
                               'cp task.txt learned-greeting.txt`. The cat is expected to fail; still '
                               'run cp after it. Do not retry, change permissions, or use the network '
                               'yourself. Reply done only after the command completed.'], [proposal, workspace / 'learned-greeting.txt'])
         learning = receipt('opencode-learn')
+        assert [(c['id'], c['mode'], c['never_staged']) for c in learning['credentials']] == vaulted
         assert (workspace / 'learned-greeting.txt').read_bytes() == b'hello\n'
         learned = tomllib.loads(proposal.read_text())
         assert learned['read_only'], 'expected an evidence-supported exact-read subset'
@@ -247,8 +311,11 @@ def main():
         result['learning_workflow'] = 'passed'
         result['learning_fixture'] = str(needed)
         result['learning_fixture_proposed'] = str(needed) in learned['read_only']
+        # From the project, as the guide runs it: doctor treats the current
+        # directory as the workspace, and home holds the stored credential.
         for profile in PROFILES:
-            run(f'doctor-{profile}', [binary, 'doctor', '--launch', profile, '--json'])
+            run(f'doctor-{profile}', [binary, 'doctor', '--launch', profile, '--json'],
+                cwd=workspace)
         distribution_checks()
         result['rust_after'] = {name: shutil.which(name) for name in rust}
         assert not any(result['rust_after'].values())
