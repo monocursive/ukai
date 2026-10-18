@@ -1165,6 +1165,27 @@ the code is stricter than §3 the text above still describes the intent.
       refused with it (fail-closed), the reason naming the cause; that
       branch is not exercised on this host, where no exec can produce the
       size.
+    - **A process inside an exec is never read.** From the switch to its
+      new image until its new stack is laid out, a process in `execve`
+      reads as no environment at all while `/proc/PID/exe` already names
+      the new image, and the pin's checks cannot tell, since an exec keeps
+      the pid and the start time. The pin never meets one: the thread it
+      pins for is parked in its connect's notification, so that thread's
+      own exec is behind it, and another thread's exec ends it — the
+      notification withdrawn — before the switch, which the mediator
+      re-validates after the pin, dropping it. Measured on the reference
+      host on 2026-10-18 (`docs/benchmarks/jail/results/f8-exec-window-2026-10-18/`):
+      the first environment read after a spawned child's link changed was
+      empty in 3,868 of 4,000 spawns idle and 504 of 2,000 under load;
+      with one thread parked in a `connect` notification while another
+      exec'd with `LD_AUDIT`, 542,646 reads in the mediator's order (link,
+      environment, then re-validation) found the notification valid only
+      after reads of the old image, and each of the 857 that read anything
+      else was followed by a withdrawn notification. The pin's own unit
+      test met the window: its spawn helper waited for the link alone, and
+      the test failed in 92 and 86 of 300 runs idle and 26 of 300 under
+      load; it now waits for the environment the child was exec'd with (0
+      of 300 idle, 0 of 1,000 under load).
     Proved by: `from_path_linux.rs`
     `f8_a_reexec_of_the_pinned_program_from_inside_is_taken_from_its_environment`
     (live, under `agent`: the clean re-exec substituted; the `LD_PRELOAD`
@@ -1175,7 +1196,8 @@ the code is stricter than §3 the text above still describes the intent.
     the value, with a lone colon; an empty value, a bare name and the
     other loaders' variables clean; case and substring confusables clean),
     and, on Linux, a process exec'd with each name refused at the pin and
-    holding no budget, and a process with 768 KiB of clean padding pinned.
+    holding no budget, and a process with 768 KiB of clean padding pinned
+    and, with `LD_AUDIT` past the padding, refused.
     The live pipeline is proven with `LD_PRELOAD`; the other three names
     are proven at the pin. The `python3` re-exec and the preload library's
     request were also what proved the gap, before the check existed; the

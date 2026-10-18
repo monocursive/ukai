@@ -1,0 +1,96 @@
+F8 pin test flake: the exec window in /proc/PID/environ
+=======================================================
+
+Date: 2026-10-18. Reference host: Linux 7.0.0-31-generic, Ubuntu 26.04.1 LTS,
+KVM, 4 vCPU, glibc 2.43, gcc 15.2.0, rustc 1.98.1, yama ptrace_scope 1.
+Source: dev at 56f9fb151 (review F8), then this change.
+
+Test: vault::origin::linux_tests::a_process_execd_with_a_loader_environment_is_refused_at_the_pin
+Seen failing once on 2026-10-17 with the panic message `LD_AUDIT` (the name
+whose child the pin admitted) during a full `cargo test --release -p ukai-jail
+--lib` beside a `ukai-jail claude` run.
+
+Cause
+-----
+The test's helper (`Other::spawn_with`) spawned `sleep 60` with the loader name
+set and returned once `/proc/PID/exe` no longer named the test binary. The
+kernel publishes an exec in two steps: `/proc/PID/exe` names the new image as
+soon as the new memory is switched in (exec_mmap), but `/proc/PID/environ`
+reads 0 bytes until the ELF loader has laid out the new stack (the kernel's
+environ read returns nothing while the new mm's env_end is still 0). Rust's
+`Command::spawn` (glibc posix_spawn, a vfork) returns as the child releases
+the old memory — strace of the test shows
+`clone3({flags=CLONE_VM|CLONE_VFORK|CLONE_CLEAR_SIGHAND, ...}) = <pid>`
+resuming while the child's `execve("/usr/bin/sleep", ...)` is still
+unfinished — so the test's wait ended inside that window and the pin's environment
+read often saw an empty environment, which carries no loader name, and was
+admitted. The pin reported Ok and the assertion printed the name.
+
+The pin's production caller cannot meet the window (below), so the race is in
+the test only.
+
+Probe 1: execwin.c (the test's wait, then one environment read)
+---------------------------------------------------------------
+gcc -O2 -Wall -o execwin execwin.c
+
+idle:
+  ./execwin 2000
+  rounds=2000 gate_unreadable=0 first_empty=1929 first_missing=1929 ever_window=1929
+  ./execwin 2000
+  rounds=2000 gate_unreadable=0 first_empty=1939 first_missing=1939 ever_window=1939
+load (load.sh: 8 busy shells + 2 exec loops; runnable/total tasks before: 11/296):
+  ./load.sh ./execwin 2000
+  rounds=2000 gate_unreadable=0 first_empty=504 first_missing=504 ever_window=504
+
+Every miss was an empty read (first_missing == first_empty); the link wait
+never ended on an unreadable link (gate_unreadable=0), so the sibling note's
+hypothesis that the wait ended on an unreadable /proc/PID/exe is not what
+happened here.
+
+Probe 2: notifexec.c (the mediator's ordering across another thread's exec)
+---------------------------------------------------------------------------
+A target's thread is parked in a SECCOMP_RET_USER_NOTIF on connect() while
+its main thread execve()s `sleep` with LD_AUDIT. The supervisor reads
+/proc/TGID/exe, then /proc/TGID/environ, then SECCOMP_IOCTL_NOTIF_ID_VALID
+(the order of Process::capture and live.rs's re-validation after it), over
+and over. A violation is a valid notification after a read that was not
+entirely the old image (exe = this probe and environ carrying PROBE_OLD=1).
+
+gcc -O2 -Wall -pthread -o notifexec notifexec.c
+
+idle:
+  PROBE_OLD=1 ./notifexec 300
+  rounds=300 no_notification=0 reads=10188 violations=0 caught_new_image_then_invalid=4 empty_environ_reads=4937 new_image_reads=300
+load (runnable/total tasks before: 11/297):
+  ./load.sh env PROBE_OLD=1 ./notifexec 3000
+  rounds=2105 no_notification=895 reads=532458 violations=0 caught_new_image_then_invalid=853 empty_environ_reads=5524 new_image_reads=2474
+
+(no_notification: the exec came before the thread's connect, so nothing was
+parked; those rounds are skipped.) 542,646 reads, 0 violations; the 857
+reads that saw anything but the old image were each followed by a withdrawn
+notification. This is the kernel order the production pin relies on: exec's
+de_thread kills the parked thread, which withdraws its notification, before
+the new image is switched in.
+
+The test in a loop (run.sh)
+---------------------------
+Before the fix (the 56f9fb151 test binary):
+  idle, inline loop of 300:         92/300 failed (37 LD_LIBRARY_PATH, 29 LD_AUDIT, 24 GCONV_PATH, 2 LD_PRELOAD)
+  ./run.sh ./before-bin 300 ... load:  26/300 failed (12 LD_AUDIT, 8 LD_LIBRARY_PATH, 5 GCONV_PATH, 1 LD_PRELOAD)
+  ./run.sh ./before-bin 300 ... idle:  86/300 failed (30 LD_AUDIT, 29 GCONV_PATH, 26 LD_LIBRARY_PATH, 1 LD_PRELOAD)
+After the fix (final binary, origin.rs sha256 90b8e007bef02f824019b406631f0c296ffa1a11bce23d9a611da5ebca8b9cf0):
+  ./run.sh ./after-bin 300 ... idle:   0/300 failed (runnable/total tasks at mid-run: 1/277)
+  ./run.sh ./after-bin 1000 ... load:  0/1000 failed (runnable/total tasks at mid-run: 11/291)
+  a_process_with_a_large_clean_environment_is_pinned, 300 runs beside load.sh: 0/300 failed
+Full `cargo test --release -p ukai-jail --lib` beside load.sh: 2 runs via
+cargo and 10 more of the test binary, each 911 passed, 0 failed, 2 ignored.
+`cargo clippy --release -p ukai-jail --all-targets -- -D warnings`: clean.
+
+Mutation
+--------
+read_environ cut to its first 4 KiB (`if buffer.len() >= 4096 { break }`):
+before this change no test failed (the large-environment test only checked
+that a clean child is pinned, which an empty or cut read also gives); now
+a_process_with_a_large_clean_environment_is_pinned fails at the pin's
+refusal assertion (LD_AUDIT past 768 KiB of padding, found there by a plain
+read of /proc/PID/environ). Restored: passes.

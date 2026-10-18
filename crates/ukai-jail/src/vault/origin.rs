@@ -233,9 +233,18 @@ impl Process {
     /// its executable then need not come from the pinned file and the
     /// runtime roots. The environment of a process that has exited reads
     /// short or fails, which the check after it catches; one larger than
-    /// [`ENV_LIMIT`] is refused rather than searched short. An exec that
-    /// comes after a connect is the next connection's to answer for, which
-    /// the pin cannot see (§8 item 25's disclosure).
+    /// [`ENV_LIMIT`] is refused rather than searched short. A process still
+    /// inside an exec reads as no environment at all, from the switch to
+    /// its new image until its new stack is laid out, and the checks cannot
+    /// tell, since an exec keeps the pid and the start time. The mediator
+    /// never pins one: the thread it pins for is parked in its connect, so
+    /// that thread's own exec is behind it, and another thread's exec
+    /// withdraws the notification before the switch, which the mediator
+    /// re-validates after this returns, dropping the pin (measured on the
+    /// reference host, §8 item 25). A caller that pins a process it just
+    /// spawned must wait for its environment first. An exec that comes
+    /// after a connect is the next connection's to answer for, which the
+    /// pin cannot see (§8 item 25's disclosure).
     #[cfg(target_os = "linux")]
     fn capture(pid: i32, start: u64, reservation: Option<Reservation>) -> Result<Self, Reason> {
         use crate::platform::linux::identity::{pidfd_open, start_time_ticks};
@@ -1094,17 +1103,30 @@ mod linux_tests {
 
     /// A process that is not this one, killed when dropped. Its environment
     /// is the test's minus the names [`LOADER_ENV`] lists, the way the jail
-    /// itself builds a contained environment: the test process may carry
-    /// them (cargo sets some for its own test runs), a contained child does
-    /// not. `spawn` returns only once the child is past its exec: until
-    /// then `/proc/PID/exe` and `/proc/PID/environ` are the test's own, and
-    /// a pin that raced the exec would read them.
+    /// itself builds a contained environment (the test process may carry
+    /// them: cargo sets some for its own test runs, a contained child does
+    /// not), plus a mark of its own. `spawn` returns only once the child is
+    /// past its exec, which the kernel shows in two steps: `/proc/PID/exe`
+    /// names the new image from the moment its memory is switched in, and
+    /// `/proc/PID/environ` reads empty from then until the new stack is
+    /// laid out. Before the exec both are the test's own. A wait that ended
+    /// on the link let the pin read no environment and admit a loader name
+    /// (the F8 test failed 92 runs in 300 on the reference host, idle), so
+    /// the wait ends once the environment served is the one the child was
+    /// exec'd with — the only one that carries its mark — by which time
+    /// the link has changed too.
     struct Other(std::process::Child);
     impl Other {
         fn spawn() -> Self {
             Self::spawn_with(&[])
         }
         fn spawn_with(variables: &[(String, String)]) -> Self {
+            static SPAWNED: AtomicUsize = AtomicUsize::new(0);
+            let mark = format!(
+                "{}-{}",
+                std::process::id(),
+                SPAWNED.fetch_add(1, Ordering::SeqCst)
+            );
             let mut command = std::process::Command::new("sleep");
             command.arg("60");
             for name in LOADER_ENV {
@@ -1113,13 +1135,12 @@ mod linux_tests {
             for (name, value) in variables {
                 command.env(name, value);
             }
+            command.env("UKAI_TEST_CHILD", &mark);
             let child = Self(command.spawn().unwrap());
-            // The child is past its exec once its `/proc` link has left this
-            // test's own image — whatever the host's `sleep` is called.
-            let test = std::env::current_exe().unwrap();
+            let entry = format!("UKAI_TEST_CHILD={mark}").into_bytes();
             let deadline = Instant::now() + Duration::from_secs(5);
-            while std::fs::read_link(format!("/proc/{}/exe", child.pid()))
-                .is_ok_and(|exe| exe == test)
+            while !std::fs::read(format!("/proc/{}/environ", child.pid()))
+                .is_ok_and(|environ| environ.split(|&byte| byte == 0).any(|e| e == entry))
             {
                 assert!(Instant::now() < deadline, "the child never exec'd");
                 std::thread::sleep(Duration::from_millis(1));
@@ -1526,6 +1547,19 @@ mod linux_tests {
         let child = Other::spawn_with(&variables);
         let prepared = origins.prepare(child.pid(), child.start(), BRIDGE).unwrap();
         assert!(prepared.0.is_ok(), "the padded child was not pinned");
+        // A loader name past the padding (the child's environment is in
+        // name order) is found where it stands.
+        let mut variables = variables;
+        variables.push(("LD_AUDIT".to_owned(), "/workspace/evil.so".to_owned()));
+        let child = Other::spawn_with(&variables);
+        let environ = std::fs::read(format!("/proc/{}/environ", child.pid())).unwrap();
+        let at = environ.windows(9).position(|entry| entry == b"LD_AUDIT=");
+        assert!(at.is_some_and(|at| at > 8 * padding.len()), "{at:?}");
+        let prepared = origins.prepare(child.pid(), child.start(), BRIDGE).unwrap();
+        assert!(matches!(
+            prepared.0,
+            Err(Reason::CredentialProcessEnvDenied)
+        ));
     }
 
     #[test]
