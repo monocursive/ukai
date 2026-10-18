@@ -500,7 +500,11 @@ retains the previous transport limitations as historical evidence.
 
 ## Zero-config launch (`--from-path`)
 
-`ukai-jail claude -p "…"` from inside a git repository is the whole command.
+`ukai-jail claude -p "…" --dangerously-skip-permissions` from inside a git
+repository is the whole command. The last flag is Claude Code's own: under
+`-p` its default permission mode refuses the writes it cannot ask about, and
+the jail's grants bound the run whatever mode it runs in. A launch profile
+cannot add the flag, since profiles never rewrite the command.
 With `--from-path` (which the alias implies):
 
 - **The workspace** is the nearest git top level at or above the invocation

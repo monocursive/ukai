@@ -432,8 +432,16 @@ inside a repository:
 claude setup-token                       # browser flow; prints the token
 ukai-jail credential set claude-oauth    # paste it, then Enter and Ctrl-D
 
-ukai-jail claude -p "fix the failing test in parser.rs"
+ukai-jail claude -p "fix the failing test in parser.rs" --dangerously-skip-permissions
 ```
+
+The last flag is Claude Code's own. With `-p` alone, its default permission
+mode refuses the file writes and commands it cannot ask you about, so a
+headless run does nothing useful. Inside the jail, the jail is the boundary:
+whatever mode Claude Code runs in, it can write only the repository, reach
+only `api.anthropic.com`, and use the credential only through the vault.
+Outside the jail the same flag removes Claude Code's only check, so keep it to
+jailed runs.
 
 A Claude Console API key works instead: `ukai-jail credential set
 anthropic`. The agent only ever holds a placeholder; the jail puts the real
@@ -445,9 +453,8 @@ across runs, and cannot push with git or update itself. `ukai-jail explain
 the policy before you run it. One combination of the `claude` profile has a
 recorded compatibility run: Claude Code 2.1.302 from the native installer,
 headless, with a setup token, on the Ubuntu 26.04 reference host. Every
-other combination is experimental. That run added Claude Code's own
-`--dangerously-skip-permissions`: with `-p` alone, Claude Code's default
-permission mode refuses the file writes it cannot ask you about.
+other combination is experimental. That run used the command above, flag
+included.
 
 OpenCode has recorded live runs. The
 [compatibility table](https://github.com/monocursive/ukai/blob/dev/docs/specs/jail-v1/agent-compatibility.md)
