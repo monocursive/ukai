@@ -102,6 +102,18 @@
 #   rewrite now leaves a `$` inside a character class alone (the vault
 #   header-name pattern has one), found by the first validation case with a
 #   vault header.
+# - 2026-10-18 re-blessed jail-doctor.schema.json in place under
+#   ukai.jail.doctor/1. Rationale: additive field only. A doctor record may
+#   carry `workspace` (`status: "unusable"` and a `reason_code` of
+#   `filesystem_root`, `home_directory` or `home_ancestor`) when the plan
+#   is contained and its workspace is one every contained run refuses
+#   (jail-launch-and-summary.md §3.2 step 3). `doctor` reports such a
+#   workspace instead of refusing (§8 item 5) and leaves it out of its
+#   placement checks, so a credential stored under the home is no longer
+#   reported as lying inside a writable grant (the rc.3 clean-VM run,
+#   docs/benchmarks/jail/results/release-preview-2026-10-18-rc3-doctor-home-failed).
+#   The field is absent otherwise and does not change `ready`; every record
+#   valid before stays valid. No shared field changed meaning.
 schema = "ukai.jail.frozen-schemas/1"
 milestone = "milestone-1"
 
@@ -153,7 +165,7 @@ sha256 = "3258c99bd153e3b53697a4915fbed9f63414aa4aca172f4969931b46c5c025c7"
 file = "jail-doctor.schema.json"
 id = "urn:ukai:schema:jail-doctor:1"
 identifier = "ukai.jail.doctor/1"
-sha256 = "7a88618579fce5e5b9e54668ae59c7bd6922f1eb71f7a39abd90e3dedf65b09f"
+sha256 = "9d847566e8a5d7753a662eb99ac157ed92d508eb881ddc0694d46d58e88e9619"
 
 # the canonical bytes, the policy and argv digest preimages and the private policy.json envelope
 [[frozen_artifact]]

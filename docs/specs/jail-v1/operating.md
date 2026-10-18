@@ -122,7 +122,7 @@ ukai-jail run [--profile agent|tool|build|none|FILE] [--launch NAME [--from-path
 ukai-jail tail [--attempt ID] [--follow] [--json] [--since TIME]
 ukai-jail tail --summary [--attempt ID] [--json]
 ukai-jail explain [--profile …] [--launch NAME [--from-path]] [the run overrides] [--json]
-ukai-jail doctor [--profile NAME|FILE] [--launch NAME [--from-path]] [--json]
+ukai-jail doctor [--profile NAME|FILE] [--launch NAME [--from-path]] [--workspace PATH] [--json]
 ukai-jail credential set [--force] ID
 ukai-jail credential rm ID
 ukai-jail gc [--dry-run] [--json]
@@ -148,7 +148,9 @@ ukai-jail version [--json]
   your shell start-up files, SSH keys and agent credentials. Run from a
   project directory or pass `--workspace`; there is no flag to bypass it
   (`--profile none`, which grants no workspace, is unaffected). "Home" is both
-  `HOME` and the user database's entry for your uid.
+  `HOME` and the user database's entry for your uid. `explain` and `doctor`
+  without `--from-path` inspect such a plan instead of refusing it; `doctor`
+  says so (see [doctor](#doctor)).
 - **The child starts where you stood** when that is beneath the workspace
   (`roots.cwd` in the policy snapshot, so it is in the digest), and at the
   workspace root otherwise.
@@ -650,11 +652,27 @@ It is ready only if the selected profile's requirements are met; otherwise it
 exits 125, and each row says why with a reason code. It never edits host
 policy, installs anything, enables lingering or starts a lasting service.
 
+`doctor` checks the plan for the current directory, or for `--workspace`.
+When that workspace is `/`, your home directory or an ancestor of it, which
+no contained run grants, `doctor` does not refuse. It prints, for example:
+
+```text
+workspace unusable reason=home_directory: the current directory /home/u is your home directory, which is never a workspace (a contained run refuses it); run doctor from your project directory or pass --workspace PATH
+```
+
+It still checks everything else, with that workspace left out of the
+placement checks: a key `credential set` stored under your home is reported
+`available`, not as lying inside a writable grant. The line does not change
+`ready` or the exit status. A contained `run` from there still refuses.
+
 `doctor --json` is the host manifest, the versioned record `ukai.jail.doctor/1`
 ([schema](jail-doctor.schema.json), [example](examples/doctor-linux.json)):
 
 - `capabilities` and `requirements`: each probe's status, scope, mechanism and
   reason code, and `ready`;
+- `workspace`, only when the workspace is one no contained run grants:
+  `status` `unusable` and `reason_code` `filesystem_root`, `home_directory`
+  or `home_ancestor`;
 - `supervisor_scope`: what the scope step did;
 - `host`: kernel release and build, distribution, virtualization, CPUs, memory
   and swap, systemd version, the sysctls that restrict user namespaces, BPF,

@@ -1314,7 +1314,7 @@ sha256 = "3258c99bd153e3b53697a4915fbed9f63414aa4aca172f4969931b46c5c025c7"
 file = "jail-doctor.schema.json"
 id = "urn:ukai:schema:jail-doctor:1"
 identifier = "ukai.jail.doctor/1"
-sha256 = "7a88618579fce5e5b9e54668ae59c7bd6922f1eb71f7a39abd90e3dedf65b09f"
+sha256 = "9d847566e8a5d7753a662eb99ac157ed92d508eb881ddc0694d46d58e88e9619"
 [[frozen_schemas.entry]]
 file = "jail-summary.schema.json"
 id = "urn:ukai:schema:jail-summary:1"
@@ -1326,64 +1326,6 @@ id = "urn:ukai:schema:learned-policy:1"
 identifier = "ukai.jail.learned-policy/1"
 sha256 = "e9004dad9c5aeb9d6abfa088dbd092a5d112af64cff76c95f5d7a77da8dc45b7"
 
-# --- the tested run (cargo xtask freeze --doctor); everything above is the tree ---
-[tested]
-debug_assertions = false
-dirty = false
-inputs = "sha256:32e294a36c9d1dffd23ed2e9afc3ec8a87148e2b8cda26538d22737feffbaf89"
-opt_level = "3"
-platform_arch = "x86_64"
-platform_kernel = "Linux 7.0.0-31-generic"
-platform_os = "linux"
-ready = true
-revision = "57439ebdbb23e2514e036213d3f5896872e2f27c"
-rustc = "rustc 1.98.1 (48a229cea 2026-09-01)"
-target = "x86_64-unknown-linux-gnu"
-ukai_jail_sha256 = "20dbc815c78b97fd9eb6795f45ba29205a8d0b699e7590601d25014463e2b992"
-unknown = ["supervisor_scope.reason", "supervisor_scope.reason_code", "supervisor_scope.unit"]
-verification = ["inputs_match_tree", "revision_is_ancestor_of_head", "inputs_match_revision", "frozen_inputs_unchanged_since_revision"]
-
-[tested.backend]
-path = "/usr/bin/bwrap"
-sha256 = "523da3e7399044be5163aee6f57a77a6bef7454376e28f0a0627920bae1b76b6"
-version = "bubblewrap 0.11.1"
-
-[tested.host]
-apparmor_enabled = true
-cpus_online = 4
-distribution = "Ubuntu 26.04.1 LTS"
-kernel_release = "7.0.0-31-generic"
-kernel_version = "#31-Ubuntu SMP PREEMPT_DYNAMIC Sat Aug  1 04:26:38 UTC 2026"
-linger = true
-operator_identity = "unprivileged"
-privileged_groups = []
-systemd_version = "systemd 259 (259.5-0ubuntu3.4)"
-virtualization = "kvm"
-
-[tested.host.apparmor_userns_restriction]
-local_files = ["README"]
-profile_files = ["bwrap-userns-restrict", "glycin.bwrap", "lxc-usernsexec", "unprivileged_userns"]
-state = "on"
-unpackaged_files = []
-
-[tested.host.cgroup]
-controllers = ["cpu", "memory", "pids"]
-delegated_root = "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service"
-root_controllers = ["cpuset", "cpu", "io", "memory", "hugetlb", "pids", "rdma", "misc", "dmem"]
-subtree_control = ["cpu", "memory", "pids"]
-
-[tested.host.memory]
-mem_total_kib = 3905584
-swap_total_kib = 8388604
-
-[tested.host.sysctls]
-"kernel.apparmor_restrict_unprivileged_userns" = "1"
-"kernel.io_uring_disabled" = "0"
-"kernel.perf_event_paranoid" = "4"
-"kernel.unprivileged_bpf_disabled" = "2"
-"kernel.yama.ptrace_scope" = "1"
-"user.max_user_namespaces" = "11829"
-
-[tested.supervisor_scope]
-cgroup = "/user.slice/user-1001.slice/user@1001.service/app.slice/run-p1695875-i26865727.scope"
-state = "already_delegated"
+# No tested run is recorded: `cargo xtask freeze --doctor <run>/doctor.json`
+# records the milestone conformance run, and `cargo xtask freeze --check`
+# fails until it is.

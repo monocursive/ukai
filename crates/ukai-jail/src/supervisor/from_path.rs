@@ -4,8 +4,9 @@
 //!   nearest git top level, found by a no-follow walk; `git` itself is
 //!   never run (a repository's own configuration can make it execute
 //!   commands, `core.fsmonitor` for one, with the operator's authority).
-//! - [`refuse_home_workspace`]: on every contained run, a workspace that is
-//!   `/`, the operator's home or an ancestor of it refuses (§7, decision 2).
+//! - [`home_workspace`]: on every contained run, a workspace that is `/`,
+//!   the operator's home or an ancestor of it refuses (§7, decision 2);
+//!   `doctor` reports it instead (§8 item 5).
 //! - [`program_layer`] and [`check_program_placement`]: the read-only
 //!   install roots of the resolved program, as an operator layer before the
 //!   project file (which can still deny-read them), and the refusals of
@@ -190,23 +191,83 @@ pub(super) fn operator_homes(ctx: &Context) -> Vec<PathBuf> {
     homes
 }
 
+/// What a directory no contained run grants is: `/`, one of the
+/// operator's homes, or an ancestor of one.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum HomeKind {
+    /// `/`, by its name or another path.
+    FilesystemRoot,
+    /// The operator's home, by its name or another path.
+    Home,
+    /// A directory above the operator's home, other than `/`.
+    HomeAncestor,
+}
+
+impl HomeKind {
+    /// The reason code `doctor --json` records for a workspace of this
+    /// kind (`workspace.reason_code`).
+    #[must_use]
+    pub fn reason_code(self) -> &'static str {
+        match self {
+            HomeKind::FilesystemRoot => "filesystem_root",
+            HomeKind::Home => "home_directory",
+            HomeKind::HomeAncestor => "home_ancestor",
+        }
+    }
+}
+
+/// Why a directory may not be granted ([`home_or_above`]).
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct HomeOrAbove {
+    /// What the directory is.
+    pub kind: HomeKind,
+    /// The home it is or lies above; `None` for `/` by its name.
+    pub home: Option<PathBuf>,
+    /// Whether it was matched by identity, through another path (review
+    /// F4).
+    pub by_another_path: bool,
+    /// The refusals' wording: "the operator's home /home/u", "an ancestor
+    /// of the operator's home /home/u", ...
+    what: String,
+}
+
+impl std::fmt::Display for HomeOrAbove {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.what)
+    }
+}
+
 /// Why `path` (canonical) may not be granted: it is `/`, a home, or an
 /// ancestor of one. `None` when it is none of those.
-pub(super) fn home_or_above(path: &Path, homes: &[PathBuf]) -> Option<String> {
+pub(super) fn home_or_above(path: &Path, homes: &[PathBuf]) -> Option<HomeOrAbove> {
     if path == Path::new("/") {
-        return Some("the filesystem root".to_owned());
+        return Some(HomeOrAbove {
+            kind: HomeKind::FilesystemRoot,
+            home: None,
+            by_another_path: false,
+            what: "the filesystem root".to_owned(),
+        });
     }
     let by_name = homes.iter().find_map(|home| {
-        if home == path {
-            Some(format!("the operator's home {}", home.display()))
+        let (kind, what) = if home == path {
+            (
+                HomeKind::Home,
+                format!("the operator's home {}", home.display()),
+            )
         } else if home.starts_with(path) {
-            Some(format!(
-                "an ancestor of the operator's home {}",
-                home.display()
-            ))
+            (
+                HomeKind::HomeAncestor,
+                format!("an ancestor of the operator's home {}", home.display()),
+            )
         } else {
-            None
-        }
+            return None;
+        };
+        Some(HomeOrAbove {
+            kind,
+            home: Some(home.clone()),
+            by_another_path: false,
+            what,
+        })
     });
     by_name.or_else(|| home_or_above_by_identity(path, homes))
 }
@@ -214,7 +275,7 @@ pub(super) fn home_or_above(path: &Path, homes: &[PathBuf]) -> Option<String> {
 /// Review F4: [`home_or_above`] by `(dev, ino)`, so a bind mount or another
 /// spelling of the home, of `/` or of a directory above the home is the
 /// directory it is.
-fn home_or_above_by_identity(path: &Path, homes: &[PathBuf]) -> Option<String> {
+fn home_or_above_by_identity(path: &Path, homes: &[PathBuf]) -> Option<HomeOrAbove> {
     use std::os::unix::fs::MetadataExt as _;
     let identity = |path: &Path| std::fs::metadata(path).ok().map(|m| (m.dev(), m.ino()));
     let target = identity(path)?;
@@ -222,14 +283,30 @@ fn home_or_above_by_identity(path: &Path, homes: &[PathBuf]) -> Option<String> {
         let mut ancestor = Some(home.as_path());
         while let Some(directory) = ancestor {
             if identity(directory) == Some(target) {
-                return Some(if directory == home.as_path() {
-                    format!("the operator's home {}, by another path", home.display())
-                } else {
-                    format!(
-                        "{} (an ancestor of the operator's home {}), by another path",
-                        directory.display(),
-                        home.display()
+                let (kind, what) = if directory == home.as_path() {
+                    (
+                        HomeKind::Home,
+                        format!("the operator's home {}, by another path", home.display()),
                     )
+                } else {
+                    (
+                        if directory == Path::new("/") {
+                            HomeKind::FilesystemRoot
+                        } else {
+                            HomeKind::HomeAncestor
+                        },
+                        format!(
+                            "{} (an ancestor of the operator's home {}), by another path",
+                            directory.display(),
+                            home.display()
+                        ),
+                    )
+                };
+                return Some(HomeOrAbove {
+                    kind,
+                    home: Some(home.clone()),
+                    by_another_path: true,
+                    what,
                 });
             }
             ancestor = directory.parent();
@@ -238,26 +315,93 @@ fn home_or_above_by_identity(path: &Path, homes: &[PathBuf]) -> Option<String> {
     None
 }
 
-/// §3.2 step 3: on every contained run, a workspace that is `/`, the
-/// operator's home or an ancestor of it refuses, however it was chosen.
-/// There is no flag to bypass it; `--profile none` grants no workspace.
-///
-/// # Errors
-/// [`ErrorCode::PolicyWidening`] at `--workspace`.
-pub(super) fn refuse_home_workspace(ctx: &Context, workspace: &Path) -> Result<(), JailError> {
-    let workspace = canonical_existing_prefix(workspace);
-    match home_or_above(&workspace, &operator_homes(ctx)) {
-        Some(what) => Err(widening(
+/// A workspace that is `/`, the operator's home or an ancestor of it
+/// (§3.2 step 3): every contained run refuses it ([`Self::refusal`]), and
+/// `doctor` without `--from-path` reports it instead (§8 item 5).
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct HomeWorkspace {
+    /// The workspace, canonical.
+    pub path: PathBuf,
+    /// What it is.
+    pub why: HomeOrAbove,
+    /// Whether `--workspace` named it; otherwise it is the invocation
+    /// directory.
+    pub explicit: bool,
+}
+
+impl HomeWorkspace {
+    /// §3.2 step 3: a contained run never grants it, however it was
+    /// chosen. There is no flag to bypass it; `--profile none` grants no
+    /// workspace.
+    pub(super) fn refusal(&self) -> JailError {
+        widening(
             "--workspace",
             format!(
-                "the workspace {} is {what}; a contained run never grants it (its shell \
+                "the workspace {} is {}; a contained run never grants it (its shell \
                  start-up files, SSH keys and agent credentials). Run from a project \
                  directory or pass --workspace PATH",
-                workspace.display()
+                self.path.display(),
+                self.why
             ),
-        )),
-        None => Ok(()),
+        )
     }
+
+    /// `doctor`'s line for it (§8 item 5), in the operator's terms, with
+    /// its paths escaped (audit M1). With `--launch`, `--from-path` from
+    /// inside a repository is one more way to name a workspace.
+    #[must_use]
+    pub fn doctor_line(&self, launch: bool) -> String {
+        let shown = |path: &Path| crate::records::escape_control(&path.to_string_lossy());
+        let of_home = self
+            .why
+            .home
+            .as_deref()
+            .map(|home| format!(" {}", shown(home)))
+            .unwrap_or_default();
+        let mut what = match self.why.kind {
+            HomeKind::FilesystemRoot => "the filesystem root".to_owned(),
+            HomeKind::Home if self.why.home.as_deref() == Some(self.path.as_path()) => {
+                "your home directory".to_owned()
+            }
+            HomeKind::Home => format!("your home directory{of_home}"),
+            HomeKind::HomeAncestor => format!("an ancestor of your home directory{of_home}"),
+        };
+        if self.why.by_another_path {
+            what.push_str(", by another path");
+        }
+        let subject = if self.explicit {
+            "the workspace"
+        } else {
+            "the current directory"
+        };
+        let remedy = if launch {
+            "run doctor from your project directory, pass --workspace PATH, or pass \
+             --from-path from inside a repository"
+        } else {
+            "run doctor from your project directory or pass --workspace PATH"
+        };
+        format!(
+            "workspace unusable reason={}: {subject} {} is {what}, which is never a workspace \
+             (a contained run refuses it); {remedy}",
+            self.why.kind.reason_code(),
+            shown(&self.path)
+        )
+    }
+}
+
+/// The workspace a contained run refuses, when `workspace` is one; `explicit`
+/// when `--workspace` named it.
+pub(super) fn home_workspace(
+    ctx: &Context,
+    workspace: &Path,
+    explicit: bool,
+) -> Option<HomeWorkspace> {
+    let path = canonical_existing_prefix(workspace);
+    home_or_above(&path, &operator_homes(ctx)).map(|why| HomeWorkspace {
+        path,
+        why,
+        explicit,
+    })
 }
 
 /// §3.2 step 4: the child's working directory, relative to the workspace:
@@ -463,10 +607,11 @@ pub(super) fn check_program_placement(
             ),
         )
     };
-    let writable: Vec<PathBuf> = child_writable_roots(placement.resolved, placement.workspace)
-        .iter()
-        .map(|root| canonical_existing_prefix(root))
-        .collect();
+    let writable: Vec<PathBuf> =
+        child_writable_roots(placement.resolved, Some(placement.workspace))
+            .iter()
+            .map(|root| canonical_existing_prefix(root))
+            .collect();
     let guarded: Vec<(PathBuf, &str)> = [
         (placement.config_dir, "the config directory"),
         (placement.data_dir, "the data directory"),
@@ -848,9 +993,11 @@ mod tests {
         std::os::unix::fs::symlink(root.join("home"), root.join("alias-of-parent")).unwrap();
         let homes = [home.clone()];
         let why = home_or_above(&root.join("alias-of-home"), &homes).expect("the home");
-        assert!(why.contains("by another path"), "{why}");
+        assert!(why.to_string().contains("by another path"), "{why}");
+        assert_eq!((why.kind, why.by_another_path), (HomeKind::Home, true));
         let why = home_or_above(&root.join("alias-of-parent"), &homes).expect("an ancestor");
-        assert!(why.contains("ancestor"), "{why}");
+        assert!(why.to_string().contains("ancestor"), "{why}");
+        assert_eq!(why.kind, HomeKind::HomeAncestor);
         assert!(home_or_above(&home.join("repo"), &homes).is_none());
         assert!(home_or_above(&root.join("alias-of-home/repo"), &homes).is_none());
     }
@@ -872,11 +1019,102 @@ mod tests {
     #[test]
     fn home_or_above_names_root_home_and_ancestors_only() {
         let homes = [PathBuf::from("/home/u")];
-        assert!(home_or_above(Path::new("/"), &homes).is_some());
-        assert!(home_or_above(Path::new("/home"), &homes).is_some());
-        assert!(home_or_above(Path::new("/home/u"), &homes).is_some());
+        let kind = |path: &str| home_or_above(Path::new(path), &homes).map(|why| why.kind);
+        assert_eq!(kind("/"), Some(HomeKind::FilesystemRoot));
+        assert_eq!(kind("/home"), Some(HomeKind::HomeAncestor));
+        assert_eq!(kind("/home/u"), Some(HomeKind::Home));
         assert!(home_or_above(Path::new("/home/u/repo"), &homes).is_none());
         assert!(home_or_above(Path::new("/home/uu"), &homes).is_none());
         assert!(home_or_above(Path::new("/srv"), &homes).is_none());
+    }
+
+    fn home_workspace_at(path: &str, explicit: bool) -> HomeWorkspace {
+        let homes = [PathBuf::from("/home/u")];
+        HomeWorkspace {
+            path: PathBuf::from(path),
+            why: home_or_above(Path::new(path), &homes).expect("refused"),
+            explicit,
+        }
+    }
+
+    /// The run refusal keeps its words now that `doctor` reports the same
+    /// workspace (§8 item 5): code, key and message.
+    #[test]
+    fn the_run_refusal_of_a_home_workspace_is_unchanged() {
+        let error = home_workspace_at("/home/u", false).refusal();
+        assert_eq!(error.code, ErrorCode::PolicyWidening);
+        assert_eq!(error.key_path.as_deref(), Some("--workspace"));
+        assert_eq!(
+            error.message,
+            "the workspace /home/u is the operator's home /home/u; a contained run never \
+             grants it (its shell start-up files, SSH keys and agent credentials). Run from \
+             a project directory or pass --workspace PATH"
+        );
+        assert!(
+            home_workspace_at("/", true)
+                .refusal()
+                .message
+                .starts_with("the workspace / is the filesystem root; ")
+        );
+        assert!(
+            home_workspace_at("/home", true)
+                .refusal()
+                .message
+                .starts_with("the workspace /home is an ancestor of the operator's home /home/u; ")
+        );
+    }
+
+    /// `doctor`'s line names the workspace as what it is, says where it
+    /// came from, and offers `--from-path` only with `--launch`.
+    #[test]
+    fn the_doctor_line_says_why_the_workspace_is_never_one() {
+        assert_eq!(
+            home_workspace_at("/home/u", false).doctor_line(true),
+            "workspace unusable reason=home_directory: the current directory /home/u is your \
+             home directory, which is never a workspace (a contained run refuses it); run \
+             doctor from your project directory, pass --workspace PATH, or pass --from-path \
+             from inside a repository"
+        );
+        assert_eq!(
+            home_workspace_at("/home/u", false).doctor_line(false),
+            "workspace unusable reason=home_directory: the current directory /home/u is your \
+             home directory, which is never a workspace (a contained run refuses it); run \
+             doctor from your project directory or pass --workspace PATH"
+        );
+        assert_eq!(
+            home_workspace_at("/", true).doctor_line(false),
+            "workspace unusable reason=filesystem_root: the workspace / is the filesystem \
+             root, which is never a workspace (a contained run refuses it); run doctor from \
+             your project directory or pass --workspace PATH"
+        );
+        assert!(
+            home_workspace_at("/home", false)
+                .doctor_line(false)
+                .starts_with(
+                    "workspace unusable reason=home_ancestor: the current directory /home is \
+                     an ancestor of your home directory /home/u, which is never a workspace"
+                )
+        );
+        // Another path to the home names the home it reaches.
+        let mut alias = home_workspace_at("/home/u", true);
+        alias.path = PathBuf::from("/mnt/alias");
+        alias.why.by_another_path = true;
+        assert!(
+            alias.doctor_line(false).starts_with(
+                "workspace unusable reason=home_directory: the workspace /mnt/alias is your \
+                 home directory /home/u, by another path, which is never a workspace"
+            ),
+            "{}",
+            alias.doctor_line(false)
+        );
+        // Audit M1: a path is escaped, never printed raw.
+        let mut hostile = home_workspace_at("/home/u", false);
+        hostile.path = PathBuf::from("/home/\u{1b}]52;c;x\u{7}u");
+        let line = hostile.doctor_line(false);
+        assert!(
+            !line.contains('\u{1b}') && !line.contains('\u{7}'),
+            "{line}"
+        );
+        assert!(line.contains("/home/<U+001B>]52;c;x<U+0007>u"), "{line}");
     }
 }

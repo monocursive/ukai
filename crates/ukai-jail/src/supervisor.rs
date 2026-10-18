@@ -151,6 +151,12 @@ pub struct DoctorReport {
     // `doctor --launch` (§14.1)
     /// The launch profile's own readiness, when `--launch` was given.
     pub launch: Option<LaunchReadiness>,
+    /// The workspace, when a contained run would refuse it: `/`, the
+    /// operator's home or an ancestor of it (jail-launch-and-summary.md
+    /// §3.2 step 3). `doctor` reports it and checks the rest of the plan
+    /// without it; it does not change `ready`, which is the host's and the
+    /// launch profile's (§8 item 5).
+    pub workspace: Option<from_path::HomeWorkspace>,
 }
 
 // `doctor --launch` (§14.1)
@@ -219,6 +225,11 @@ pub struct Plan {
     /// replaces `PROGRAM`, its install roots are bound by the handles held
     /// here, and it is rechecked before release.
     pub program: Option<crate::program::Program>,
+    /// The workspace a contained run would refuse (`/`, the operator's home
+    /// or an ancestor of it), which `doctor` reports instead of refusing
+    /// (jail-launch-and-summary.md §8 item 5). Only `doctor` resolves a plan
+    /// that carries one; its placement checks leave that workspace out.
+    pub home_workspace: Option<from_path::HomeWorkspace>,
 }
 
 impl Plan {
@@ -269,6 +280,10 @@ struct Purpose<'a> {
     /// `credentials_one_of` picks the credential to stage (`run`, `learn`,
     /// `explain`); `doctor` inspects every declared one instead.
     select_credentials: bool,
+    /// `doctor`: a workspace the home refusal would refuse is reported in
+    /// the plan instead, and left out of the placement checks, so a file
+    /// beneath the home is not blamed on a workspace no run grants.
+    report_home_workspace: bool,
     /// `PROGRAM`, which `@program` binds to without `--from-path`.
     argv0: Option<&'a [u8]>,
 }
@@ -279,11 +294,13 @@ impl Purpose<'_> {
         learning: false,
         executing: false,
         select_credentials: true,
+        report_home_workspace: false,
         argv0: None,
     };
     /// `doctor`.
     const DOCTOR: Purpose<'static> = Purpose {
         select_credentials: false,
+        report_home_workspace: true,
         ..Purpose::INSPECT
     };
 }
@@ -303,6 +320,7 @@ pub fn resolve_learning_plan(ctx: &Context, args: &PolicyArgs) -> Result<Plan, J
             learning: true,
             executing: true,
             select_credentials: true,
+            report_home_workspace: false,
             argv0: None,
         },
     )
@@ -357,10 +375,20 @@ fn resolve(ctx: &Context, args: &PolicyArgs, purpose: Purpose<'_>) -> Result<Pla
         check_launch_base(args, &operator_jail, profile, launch)?;
     }
     // J12 §3.2 step 3 (decision 2): on every contained run, and wherever
-    // `--from-path` discovered the workspace.
-    if profile.is_contained() && (purpose.executing || from_path) {
-        from_path::refuse_home_workspace(ctx, &workspace)?;
-    }
+    // `--from-path` discovered the workspace. `explain` and `doctor` inspect
+    // a plan and do not refuse it (§8 item 5); `doctor` reports it.
+    let home_workspace = profile
+        .is_contained()
+        .then(|| from_path::home_workspace(ctx, &workspace, args.selection.workspace.is_some()))
+        .flatten();
+    let home_workspace = match home_workspace {
+        Some(home) if purpose.executing || from_path => return Err(home.refusal()),
+        Some(home) if purpose.report_home_workspace => Some(home),
+        _ => None,
+    };
+    // The workspace the placement checks hold files outside of: none for
+    // one `doctor` reports, which no run grants.
+    let placement_workspace = home_workspace.is_none().then_some(workspace.as_path());
     // J12 §3.3: the program, found on the supervisor's own `PATH` (read
     // here and never handed to the child) and pinned.
     let program = match (&launch, from_path) {
@@ -462,7 +490,7 @@ fn resolve(ctx: &Context, args: &PolicyArgs, purpose: Purpose<'_>) -> Result<Pla
         ));
     }
     if let Some(launch) = &launch {
-        check_launch_placement(&resolved, &workspace, launch)?;
+        check_launch_placement(&resolved, placement_workspace, launch)?;
     }
     if let Some(program) = &program {
         from_path::check_program_placement(
@@ -485,6 +513,7 @@ fn resolve(ctx: &Context, args: &PolicyArgs, purpose: Purpose<'_>) -> Result<Pla
         data_dir,
         quiet: operator_jail.summary == Some(false),
         program,
+        home_workspace,
     };
     check_record_bounds(ctx, &plan)?;
     Ok(plan)
@@ -1161,14 +1190,16 @@ fn enable_learning(resolved: &mut Resolved, profile: ProfileName) -> Result<(), 
 /// north star §4.5 refuses one inside the workspace; the same rule holds for
 /// every credential source, by identity: the child must not be able to
 /// change what it is given. A source that cannot be walked now is left to
-/// staging and doctor, which report it by reason.
+/// staging and doctor, which report it by reason. `workspace` is `None` for
+/// a workspace `doctor` reports as one no run grants
+/// ([`Plan::home_workspace`]).
 ///
 /// # Errors
 /// [`ErrorCode::InvalidConfig`] for a launch profile or a credential source
 /// inside a grant the child can write.
 fn check_launch_placement(
     resolved: &Resolved,
-    workspace: &Path,
+    workspace: Option<&Path>,
     launch: &launch_profile::LaunchProfile,
 ) -> Result<(), JailError> {
     launch_profile::check_outside_writable(launch, &child_writable_roots(resolved, workspace))?;
@@ -1192,7 +1223,9 @@ fn check_launch_placement(
 /// Every root the child can write under the resolved policy: the workspace,
 /// an explicit scratch and every writable grant. A launch profile, a
 /// credential source and an executable may lie beneath none of them.
-fn child_writable_roots(resolved: &Resolved, workspace: &Path) -> Vec<PathBuf> {
+/// Without `workspace` (one `doctor` reports as never granted), the
+/// workspace and the grants beneath it are left out.
+fn child_writable_roots(resolved: &Resolved, workspace: Option<&Path>) -> Vec<PathBuf> {
     let snapshot = &resolved.snapshot;
     let scratch = match &snapshot.roots.scratch {
         ScratchRoot::Host { path } => {
@@ -1200,13 +1233,13 @@ fn child_writable_roots(resolved: &Resolved, workspace: &Path) -> Vec<PathBuf> {
         }
         ScratchRoot::Managed => None,
     };
-    let mut roots = vec![workspace.to_path_buf()];
+    let mut roots: Vec<PathBuf> = workspace.map(Path::to_path_buf).into_iter().collect();
     roots.extend(scratch.clone());
     for reference in &snapshot.filesystem.read_write {
         let suffix = std::ffi::OsStr::from_bytes(reference.path.as_bytes());
         let base = match reference.root {
             crate::policy::RootToken::Host => Some(PathBuf::from("/")),
-            crate::policy::RootToken::Workspace => Some(workspace.to_path_buf()),
+            crate::policy::RootToken::Workspace => workspace.map(Path::to_path_buf),
             crate::policy::RootToken::Scratch => scratch.clone(),
             crate::policy::RootToken::VendorState => None,
         };
@@ -1513,7 +1546,14 @@ pub fn doctor(ctx: &Context, args: &DoctorArgs) -> Result<DoctorReport, JailErro
     // Only `--launch` has credential sources to place.
     let launch = match &args.selection.launch {
         Some(name) => {
-            let forbidden = forbidden_identities(&plan.resolved, &plan.workspace)?;
+            // A workspace no run grants is reported, not blamed for the
+            // files beneath it (§8 item 5).
+            let forbidden = forbidden_identities(
+                &plan.resolved,
+                plan.home_workspace
+                    .is_none()
+                    .then_some(plan.workspace.as_path()),
+            )?;
             let profile = read_launch_profile(
                 ctx,
                 &args.policy(),
@@ -1592,6 +1632,7 @@ pub fn doctor(ctx: &Context, args: &DoctorArgs) -> Result<DoctorReport, JailErro
         platform: platform_record(ctx),
         ready,
         launch,
+        workspace: plan.home_workspace,
     })
 }
 
@@ -1719,6 +1760,7 @@ fn run_inner(ctx: &Context, args: &RunArgs, learning: bool) -> Result<RunReport,
             learning,
             executing: true,
             select_credentials: true,
+            report_home_workspace: false,
             argv0: if args.policy.selection.from_path {
                 None
             } else {
@@ -2106,7 +2148,7 @@ impl ChildRoots {
         };
         ChildRoots {
             visible: canonical(child_visible_roots(plan)),
-            writable: canonical(child_writable_roots(&plan.resolved, &plan.workspace)),
+            writable: canonical(child_writable_roots(&plan.resolved, Some(&plan.workspace))),
         }
     }
 }
@@ -2851,7 +2893,7 @@ fn prepare_launch(
     let vendor = state::create_vendor_state(attempt_dir)?;
     // §12 and the §8.2 preparation budget: staging runs in a worker bounded
     // by what is left of it, and no source may lie in a child-writable grant.
-    let mut forbidden = forbidden_identities(&plan.resolved, &plan.workspace)?;
+    let mut forbidden = forbidden_identities(&plan.resolved, Some(&plan.workspace))?;
     if launch
         .credentials
         .iter()
@@ -2990,10 +3032,11 @@ fn private_provenance(
 /// The `(dev, ino)` of every child-writable grant a credential source may not
 /// lie in: the workspace, an explicit scratch and every writable host grant.
 /// These are trusted operator roots, resolved as such; one that does not
-/// exist cannot contain a source.
+/// exist cannot contain a source. Without `workspace`, as
+/// [`child_writable_roots`].
 fn forbidden_identities(
     resolved: &Resolved,
-    workspace: &Path,
+    workspace: Option<&Path>,
 ) -> Result<Vec<(u64, u64)>, JailError> {
     state::mount_alias::forbidden_identities(&child_writable_roots(resolved, workspace)).map_err(
         |error| {
@@ -5831,6 +5874,7 @@ mod tests {
             data_dir: PathBuf::from("/data"),
             quiet: false,
             program: None,
+            home_workspace: None,
         });
         assert_eq!(applied.network.mode, "host");
         assert!(applied.filesystem.is_none());
@@ -5852,6 +5896,7 @@ mod tests {
             data_dir: root.path().join("data"),
             quiet: false,
             program: None,
+            home_workspace: None,
         };
         // A workspace that covers the launch directory refuses, naming the
         // config directory the launch directory hangs off.
@@ -5883,6 +5928,7 @@ mod tests {
             data_dir: root.path().join("data"),
             quiet: false,
             program: None,
+            home_workspace: None,
         };
         // A workspace that covers the config directory refuses.
         let check = |plan: Plan| check_config_isolation(&plan, &ChildRoots::of(&plan));
@@ -5994,6 +6040,7 @@ mod tests {
             data_dir: data,
             quiet: false,
             program: None,
+            home_workspace: None,
         };
         (root, attempt_dir, plan)
     }

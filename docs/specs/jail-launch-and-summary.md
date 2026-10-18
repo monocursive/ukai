@@ -798,7 +798,17 @@ the code is stricter than §3 the text above still describes the intent.
    `learn` under `agent`, `tool` and `build`, and on any verb with
    `--from-path`. `explain` and `doctor` without `--from-path` inspect a plan
    and do not refuse it, so `ukai-jail doctor` still works from a home
-   directory.
+   directory. Since 2026-10-18 `doctor` also says so: for a contained plan it
+   prints `workspace unusable reason=CODE` with the reason in plain words
+   (`doctor --json`: `workspace`, with `reason_code` `filesystem_root`,
+   `home_directory` or `home_ancestor`), and it leaves that workspace out of
+   its placement checks. It does not change `ready`, which stays the host's
+   and the launch profile's: the post-install `doctor` from a home directory
+   is still ready. Before, the placement checks counted the home as a
+   writable grant, so after `credential set` the key stored in the default
+   config directory was reported as lying inside one (`invalid_config`, the
+   rc.3 clean-VM run). `explain` still applies those checks to such a
+   workspace.
 6. **`roots.cwd` applies to every run**, not only `--from-path` (§3.2 step
    4): the child starts in the invocation directory whenever it lies
    strictly beneath the workspace. The field is omitted from the canonical

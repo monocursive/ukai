@@ -536,6 +536,14 @@ might ever need. Nothing is adopted automatically.
 Explicit resource limits need host support. For native `ukai-jail` on macOS, refusal is the current
 expected behavior. Changing to `none` would remove containment.
 
+**`doctor` prints `workspace unusable`.** `doctor` checks the plan for the
+directory you ran it from. Your home directory, `/` and the directories
+above your home are never a workspace, so a contained `run` from there
+refuses. Run `doctor` from your project directory, or pass `--workspace PATH`
+(with `--launch`, `--from-path` from inside the repository also works). The
+line doesn't change `ready`: the rest of the report, stored credentials
+included, is checked as it would be from a project.
+
 **The command cannot find a file, executable, or library.** Check `explain`
 and the receipt. The program, its interpreter, and its dependencies must be
 visible. Add the specific read-only path the task needs, then try again.
@@ -577,9 +585,11 @@ Roadmap entries describe future work, not commands available in the CLI.
 Use this sequence when integrating the jail:
 
 1. Read `ukai-jail version --json` to identify the build and its schemas.
-2. Run `doctor --profile NAME --json` or `doctor --launch NAME --json` and
-   inspect the result. `doctor` does not accept run overrides such as
-   `--workspace` or `--limit`; `run` checks the final requested policy.
+2. Run `doctor --profile NAME --json` or `doctor --launch NAME --json` from
+   the workspace, or pass it with `--workspace`, and inspect the result.
+   `doctor` does not accept run overrides such as `--limit`; `run` checks the
+   final requested policy. A `workspace` field means no contained run will
+   use that workspace.
 3. Use `explain --json` with the same policy flags you will pass to `run`.
    Keep the requested access within the user's authorized task.
 4. Run the command with an explicit `--receipt PATH`. Use a unique path
