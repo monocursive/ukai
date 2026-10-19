@@ -176,6 +176,7 @@ pub(super) fn stopped(session: &Session) -> Handles {
         shutdown_ns: Arc::default(),
         tid: Arc::default(),
         handed: Arc::clone(&session.handed),
+        group_stop: Arc::default(),
     }
 }
 

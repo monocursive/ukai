@@ -34,7 +34,7 @@
     "lines": {
       "type": "array",
       "minItems": 4,
-      "maxItems": 7,
+      "maxItems": 8,
       "items": {
         "$ref": "#/$defs/line"
       },
@@ -94,6 +94,20 @@
           },
           "maxContains": 1,
           "minContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "line": {
+                "const": "state"
+              }
+            },
+            "required": [
+              "line"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 0
         },
         {
           "contains": {
@@ -231,6 +245,7 @@
             "workspace",
             "network",
             "credentials",
+            "state",
             "evidence",
             "limits",
             "cleanup"
@@ -1302,6 +1317,34 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "terminal_restored": {
+                    "type": "object",
+                    "properties": {
+                      "foreground": {
+                        "type": "boolean"
+                      },
+                      "termios": {
+                        "type": "boolean"
+                      },
+                      "input_flushed": {
+                        "type": "boolean"
+                      },
+                      "reset_written": {
+                        "type": "boolean"
+                      },
+                      "after_tree_death": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "foreground",
+                      "termios",
+                      "input_flushed",
+                      "reset_written",
+                      "after_tree_death"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -1309,6 +1352,37 @@
                   "child_protection"
                 ],
                 "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "$comment": "J14 (jail-interactive-sessions.md §4.7): the state line's facts are the receipt's vendor_state values.",
+          "if": {
+            "properties": {
+              "line": {
+                "const": "state"
+              }
+            },
+            "required": [
+              "line"
+            ]
+          },
+          "then": {
+            "properties": {
+              "facts": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "persistent",
+                      "attempt_fallback"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
               }
             }
           }

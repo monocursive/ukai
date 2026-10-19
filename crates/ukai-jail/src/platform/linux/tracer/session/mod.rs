@@ -109,6 +109,10 @@ pub(super) struct Handles {
     pub tid: Arc<AtomicI32>,
     /// Bytes handed to the channel and not yet taken by the consumer.
     pub handed: Arc<AtomicUsize>,
+    /// J14 §3.4: the launcher's group-stops, counted in the high bits, with
+    /// the stopping signal in the low eight while it is group-stopped (0
+    /// once it is continued).
+    pub group_stop: Arc<AtomicU64>,
 }
 
 pub(super) fn run(
@@ -148,6 +152,7 @@ pub(super) fn run(
         start_ticks,
     });
     session.register(launcher);
+    session.group_stop = Some((launcher, Arc::clone(&handles.group_stop)));
     session.owed = Owed::toward(crate::sys::own_pid(), launcher, &*session.procfs);
     session.beside = session
         .procfs
@@ -274,6 +279,9 @@ struct Session {
     /// other child that is not a tracee came after — an orphan a subreaper
     /// supervisor adopted from the traced tree — and is owed.
     beside: Vec<(pid_t, u64)>,
+    /// J14 §3.4: the launcher (the target once it execs) and where its
+    /// group-stops are reported, for terminal mode's stop relay.
+    group_stop: Option<(pid_t, Arc<AtomicU64>)>,
 }
 
 impl Session {
@@ -316,6 +324,7 @@ impl Session {
             // built without it owes every child.
             owed: Owed::Every,
             beside: Vec::new(),
+            group_stop: None,
         }
     }
 
@@ -441,16 +450,32 @@ impl Session {
             // emitted here.
             sys::PTRACE_EVENT_EXIT | sys::PTRACE_EVENT_VFORK_DONE => {}
             sys::PTRACE_EVENT_STOP => {
-                // Two different stops share this event. `PTRACE_GETSIGINFO`
-                // is the documented way to tell them apart: it fails with
-                // EINVAL only for a group-stop.
-                if sys::is_group_stop(pid) {
+                // Two different stops share this event; the stop signal
+                // tells them apart.
+                if sys::is_group_stop(signal) {
+                    // J14 §3.4: the target's own group-stop is what terminal
+                    // mode relays to the operator's shell.
+                    if let Some((launcher, stopped)) = &self.group_stop
+                        && *launcher == pid
+                    {
+                        let count = (stopped.load(Ordering::Acquire) >> 8) + 1;
+                        let signal = u64::try_from(signal).unwrap_or(0) & 0xff;
+                        stopped.store(count << 8 | signal, Ordering::Release);
+                    }
                     // Leave it stopped, as whoever sent the signal intended,
                     // and stay its tracer.
                     if let Err(err) = sys::listen(pid) {
                         self.restart_failed(pid, &err);
                     }
                     return;
+                }
+                // The end of a listened group-stop (a `SIGCONT`) arrives as
+                // this other stop.
+                if let Some((launcher, stopped)) = &self.group_stop
+                    && *launcher == pid
+                {
+                    let count = stopped.load(Ordering::Acquire) >> 8;
+                    stopped.store(count << 8, Ordering::Release);
                 }
                 // The initial stop of a newly attached child, or a
                 // PTRACE_INTERRUPT. Nothing to deliver.
@@ -683,6 +708,60 @@ mod tests {
             "{events:?}"
         );
         assert_eq!(gaps_of(&events), vec![]);
+    }
+
+    /// J14 §3.4: a `SIGSTOP` sent to a seized tracee leaves it stopped, as
+    /// the sender intended, and its group-stop is counted with its signal; a
+    /// `SIGCONT` ends it. The kernel reports a seized tracee's group-stop
+    /// with the stopping signal and the end of a listened one with `SIGTRAP`,
+    /// and `PTRACE_GETSIGINFO` succeeds for both, so only the signal can
+    /// tell them apart.
+    #[test]
+    fn j14_a_stopped_tracee_stays_stopped_until_continued() {
+        let dir = tempfile::tempdir().unwrap();
+        let (_, c) = target_path(dir.path());
+        let Some(child) = Mkdirer::start(&c) else {
+            return;
+        };
+        let (mut session, _rx) = new_session(TracerConfig::default(), LiveProc, 1024);
+        let stopped = Arc::new(AtomicU64::new(0));
+        session.group_stop = Some((child.pid, Arc::clone(&stopped)));
+        let state = || {
+            let raw = std::fs::read_to_string(format!("/proc/{}/stat", child.pid)).unwrap();
+            raw[raw.rfind(')').unwrap() + 2..].chars().next().unwrap()
+        };
+        // SAFETY: a signal to this test's own child.
+        assert_eq!(unsafe { libc::kill(child.pid, libc::SIGSTOP) }, 0);
+        // The signal-delivery stop, then the group-stop it causes.
+        let delivery = child.wait();
+        assert!(
+            libc::WIFSTOPPED(delivery)
+                && libc::WSTOPSIG(delivery) == libc::SIGSTOP
+                && delivery >> 16 == 0,
+            "the delivery stop: {delivery:#x}"
+        );
+        session.handle(child.pid, delivery);
+        let group = child.wait();
+        assert_eq!(group >> 16, sys::PTRACE_EVENT_STOP, "{group:#x}");
+        assert_eq!(libc::WSTOPSIG(group), libc::SIGSTOP, "{group:#x}");
+        session.handle(child.pid, group);
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        assert_eq!(state(), 't', "still stopped, listened");
+        assert_eq!(
+            stopped.load(Ordering::Acquire),
+            1 << 8 | u64::try_from(libc::SIGSTOP).unwrap()
+        );
+        // SAFETY: as above.
+        assert_eq!(unsafe { libc::kill(child.pid, libc::SIGCONT) }, 0);
+        for _ in 0..2 {
+            let status = child.wait();
+            session.handle(child.pid, status);
+        }
+        assert_eq!(stopped.load(Ordering::Acquire), 1 << 8, "continued");
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        assert_ne!(state(), 't', "running again");
+        child.kill();
+        child.reap_into(&mut session);
     }
 
     /// The first window: the tracee is killed after the tracer has taken its

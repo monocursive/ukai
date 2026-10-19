@@ -165,6 +165,7 @@ impl PreparedExecution for Prepared {
             limits: Vec::new(),
             environment_names: Vec::new(),
             removed_environment_names: Vec::new(),
+            terminal: None,
         })
     }
     fn release(

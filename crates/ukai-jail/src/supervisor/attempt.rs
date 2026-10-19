@@ -15,7 +15,7 @@
 
 use std::collections::VecDeque;
 use std::sync::Arc;
-use std::time::{Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use super::{
     Budget, Context, ControlSink, GATE_WAIT, InFlight, Journal, Plan, RELEASE_STDOUT_AFTER_PREPARE,
@@ -77,6 +77,16 @@ pub(super) struct Attempt<'a> {
     /// The worker every durable write runs on (§13.3); it holds the lease.
     persister: state::Persister,
     signals: Option<signals::SignalPipe>,
+    /// J14 §3.3: the attached terminal, from before release to settlement.
+    terminal: Option<crate::terminal::Session>,
+    /// J14 §3.3: the command's own process group, once the run started.
+    command_group: Option<libc::pid_t>,
+    /// J14 §4.6: the persistent vendor state this attempt holds, until its
+    /// release.
+    persistent: Option<Box<crate::persistent::Held>>,
+    /// J14 §4.5: the vault credentials this attempt loaded, whose values
+    /// the release searches the persistent state for.
+    secrets: Vec<Arc<crate::vault::Secret>>,
 }
 
 /// What [`Attempt::prepare`] made: the boundary with the target blocked, and
@@ -84,6 +94,14 @@ pub(super) struct Attempt<'a> {
 struct Prepared {
     execution: Box<dyn PreparedExecution>,
     proxy: Option<ProxyDirHandoff>,
+}
+
+/// J14: the state line a launch's preparation leaves for the pre-exec lines.
+pub(super) enum StateLine {
+    /// The persistent state was acquired (§4.7).
+    Held(String),
+    /// It was busy: throwaway state (§4.6), printed even under `--quiet`.
+    Fallback(String),
 }
 
 /// What the supervision loop carries from release to settlement.
@@ -187,6 +205,10 @@ impl<'a> Attempt<'a> {
             _forwarding: forwarding,
             persister,
             signals,
+            terminal: None,
+            command_group: None,
+            persistent: None,
+            secrets: Vec::new(),
         })
     }
 
@@ -196,6 +218,30 @@ impl<'a> Attempt<'a> {
     /// a receipt (I01), through [`Attempt::refuse`] before the target runs
     /// and through [`Attempt::settle`] after.
     pub(super) fn run(mut self, request: PlanRequest, argv: Vec<Vec<u8>>) -> RunReport {
+        // J14 §3.3 step 1: the supervisor's group and the terminal's
+        // `termios` are recorded before anything can change them; every
+        // exit from here restores them (§3.6).
+        if self.plan.terminal.attached() {
+            match crate::terminal::Session::prepare() {
+                Ok(session) => {
+                    self.terminal = Some(session);
+                    crate::terminal::set_attached(true);
+                    let _ = crate::terminal::install_continue_counter();
+                }
+                Err(error) => {
+                    let error = JailError::new(
+                        ErrorCode::InvalidFd,
+                        ErrorStage::Preparing,
+                        Remediation::Configuration,
+                        format!(
+                            "stdin stopped being a terminal before the attempt was prepared \
+                             ({error}); run again, or pass --terminal detach"
+                        ),
+                    );
+                    return self.refuse(&error);
+                }
+            }
+        }
         let prepared = match self.prepare(request, argv) {
             Ok(prepared) => prepared,
             Err(error) => return self.refuse(&error),
@@ -256,12 +302,18 @@ impl<'a> Attempt<'a> {
         // §8.1 step 2 and §12: register vendor state before creating it,
         // then stage credentials into it, before any boundary.
         self.checkpoint(ErrorStage::Preparing)?;
-        let launch = prepare_launch(
+        let prepared = prepare_launch(
             &self.attempt_dir,
+            &self.attempt_id,
             &self.plan,
             &mut self.record,
             self.budget.deadline,
         )?;
+        self.persistent = prepared.persistent;
+        self.secrets = prepared.secrets;
+        let launch = prepared.handoff;
+        // J14 §3.7, §4.6, §4.7: the pre-exec lines, only on a terminal.
+        self.pre_exec_lines(&argv, prepared.state_line);
         // §10: the proxy directory is registered before it is created,
         // outside every shared root, for a proxy-mode profile only.
         let proxy = prepare_proxy_dir(&self.attempt_dir, &self.plan)?;
@@ -337,6 +389,9 @@ impl<'a> Attempt<'a> {
         if let Some(applied) = prepared.execution.applied() {
             self.record.applied = applied;
         }
+        // J14 §3.7: the platform reports what it applied; the terminal is
+        // the supervisor's own record.
+        self.record.applied.terminal = self.applied_terminal();
         // The test seams in force are recorded in every receipt that has
         // native details (a receipt before any boundary has none; jail state
         // records them from the claim on).
@@ -470,13 +525,26 @@ impl<'a> Attempt<'a> {
         record.errors.push(error.to_object());
         record.exec_observed = false;
         self.journal.lifecycle("refused");
-        // §12 vendor state on a pre-exec refusal
-        refuse_vendor_state(
-            &self.attempt_dir,
-            &mut self.record,
-            self.args,
-            &mut self.journal,
-        );
+        // J14 §3.6: the terminal is restored whatever the refusal.
+        let tree_dead =
+            cleanup::wait_reason(Phase::Refused, TreeEnd::of(&self.record.lifetime)).is_none();
+        self.restore_terminal(tree_dead);
+        // §12 vendor state on a pre-exec refusal; J14 §4.6: persistent state
+        // is released instead, or retained while a tree may use it.
+        if self.persistent.is_some() {
+            let mut ignored = None;
+            self.release_persistent(Phase::Refused, &mut ignored);
+            if let Some(error) = ignored {
+                self.record.errors.push(error.to_object());
+            }
+        } else {
+            refuse_vendor_state(
+                &self.attempt_dir,
+                &mut self.record,
+                self.args,
+                &mut self.journal,
+            );
+        }
         // The proxy stopped with the boundary's teardown.
         let _ = remove_proxy_directory(&self.attempt_dir, &mut self.record);
         let receipt = self.persist_terminal(state::Site::RefusedReceipt, Phase::Refused);
@@ -595,6 +663,9 @@ impl<'a> Attempt<'a> {
 
     /// What every loop iteration checks before it waits again.
     fn between_waits(&mut self, running: &mut dyn RunningExecution, run: &mut Supervision) {
+        if self.terminal.is_some() && self.command_group.is_none() {
+            self.command_group = running.target_group();
+        }
         // Whatever the control reader has room for now.
         if let Some(control) = self.control.as_mut() {
             control.poll();
@@ -622,6 +693,38 @@ impl<'a> Attempt<'a> {
             .is_some_and(signals::SignalPipe::triggered)
         {
             stop(running, &mut self.record, StopReason::OperatorSignal);
+        }
+        // J14 §3.4: a hangup of the attached terminal is a stop request, and
+        // a stop of the command is relayed to the shell.
+        if let Some(session) = self.terminal.as_mut()
+            && !session.hangup_seen
+            && session.hung_up()
+        {
+            session.hangup_seen = true;
+            stop(running, &mut self.record, StopReason::OperatorSignal);
+        }
+        if self.terminal.is_some()
+            && let Some(signal) = running.target_stop()
+        {
+            self.relay_stop(running, run, signal);
+        }
+        // A job the shell continued in the background (`bg`) and later
+        // brought to the foreground (`fg`) is continued again: the
+        // supervisor's group then holds the terminal, which goes back to the
+        // command's group, as after a relayed stop.
+        if let Some(session) = self.terminal.as_mut() {
+            let continues = crate::terminal::continued();
+            if continues != session.continues_seen {
+                session.continues_seen = continues;
+                if session.in_foreground()
+                    && let Some(group) = running.target_group()
+                {
+                    // The shell may have changed the settings while it held
+                    // the terminal: these are the ones to restore now.
+                    let _ = session.save();
+                    let _ = session.give_foreground(group);
+                }
+            }
         }
         // A detected integrity loss reaches the receipt now, not only at the
         // end.
@@ -914,6 +1017,9 @@ impl<'a> Attempt<'a> {
         let prepared_integrity = self.record.lifetime.integrity.clone();
         record_tree(&mut self.record, &tree);
         let settled = tree.tree_empty == Some(true) && tree.integrity == Integrity::Verified;
+        // J14 §3.6: after verified tree death and before the summary; when
+        // tree death is unproved, still, and the receipt says so.
+        self.restore_terminal(settled);
         // §13.2: "If tree death itself is unknown, retain the last nonsettled
         // phase and update its outcome/coverage/error as unknown." `enforced`
         // is the phase after a confirmed target exec (§8.1).
@@ -1076,6 +1182,10 @@ impl<'a> Attempt<'a> {
     /// receipt is persisted as `pending` first, then cleaned, then the result
     /// recorded.
     fn clean_up(&mut self, settled: bool, phase: Phase, outcome_error: &mut Option<JailError>) {
+        if self.persistent.is_some() {
+            self.release_persistent(phase, outcome_error);
+            return;
+        }
         if !matches!(state::vendor_registration(&self.attempt_dir), Ok(Some(_))) {
             if settled {
                 match remove_managed_scratch(
@@ -1181,6 +1291,288 @@ impl<'a> Attempt<'a> {
     }
 
     // -----------------------------------------------------------------------
+    // J14: the terminal and persistent state
+    // -----------------------------------------------------------------------
+
+    /// `applied.terminal` as it stands (§3.7): present only when attached.
+    fn applied_terminal(&self) -> Option<crate::records::AppliedTerminal> {
+        let session = self.terminal.as_ref()?;
+        Some(crate::records::AppliedTerminal {
+            device: "pty".to_owned(),
+            session: "caller".to_owned(),
+            process_group: "own".to_owned(),
+            stops: session.stops,
+            restored: session.restored,
+        })
+    }
+
+    /// The pre-exec lines (§3.7, §4.6, §4.7), on stderr and only when it is
+    /// a terminal (X05). The terminal line prints even under `--quiet`
+    /// (decision 2: every attached run says where `^C` and `^Z` go), as
+    /// does a fallback's state line (§4.6); the state line of a held state
+    /// follows `--quiet`, as the J12 program line does.
+    fn pre_exec_lines(&self, argv: &[Vec<u8>], state_line: Option<StateLine>) {
+        if !super::stderr_is_a_terminal() {
+            return;
+        }
+        let quiet = self.args.quiet || self.plan.quiet;
+        match &self.plan.terminal {
+            crate::terminal::Decision::Attached { device } => {
+                let name = argv
+                    .first()
+                    .map_or_else(String::new, |argv0| crate::terminal::program_name(argv0));
+                crate::diag!(
+                    "ukai-jail: {}",
+                    crate::terminal::attached_line(
+                        device,
+                        self.plan
+                            .resolved
+                            .ceilings
+                            .wall
+                            .as_ref()
+                            .map(|wall| wall.requested.as_str()),
+                        &name,
+                        std::process::id(),
+                    )
+                );
+            }
+            crate::terminal::Decision::Detached(Some(reason)) => {
+                crate::diag!("ukai-jail: {}", crate::terminal::detached_line(*reason));
+            }
+            crate::terminal::Decision::Detached(None) => {}
+        }
+        match state_line {
+            Some(StateLine::Held(line)) if !quiet => crate::diag!("ukai-jail: {line}"),
+            Some(StateLine::Fallback(line)) => crate::diag!("ukai-jail: {line}"),
+            _ => {}
+        }
+    }
+
+    /// §3.6: the four restore steps, once, recorded in the receipt and,
+    /// when one failed, on stderr with its errno. `after_tree_death` is
+    /// false when they run without verified tree death.
+    fn restore_terminal(&mut self, after_tree_death: bool) {
+        let Some(session) = self.terminal.as_mut() else {
+            return;
+        };
+        if session.restored.is_some() {
+            return;
+        }
+        // The supervisor's lines stay bounded until it exits: a terminal
+        // whose output could not be resumed must not hold the summary.
+        let (_, failures) = session.settle(after_tree_death, self.command_group);
+        if !failures.is_empty() {
+            let steps: Vec<String> = failures
+                .iter()
+                .map(|failure| format!("{}: {}", failure.step, failure.errno))
+                .collect();
+            crate::diag!(
+                "ukai-jail: terminal not restored ({}): run reset",
+                steps.join(", ")
+            );
+        }
+        self.record.applied.terminal = self.applied_terminal();
+    }
+
+    /// §3.4: the command's group stopped. The supervisor waits for the
+    /// persistence step in flight, takes the terminal back with the saved
+    /// `termios`, and stops its own group with the same signal, so the
+    /// shell sees its job stopped. Continued by the shell (`fg` or `bg`),
+    /// it saves `termios` again, gives the terminal back to the command's
+    /// group if its own group holds it (`fg`), and continues the command.
+    fn relay_stop(
+        &mut self,
+        running: &mut dyn RunningExecution,
+        run: &mut Supervision,
+        signal: i32,
+    ) {
+        // Quiesce: no persistence step is left in flight while stopped.
+        if let Some(error) = settle_in_flight(
+            &mut run.in_flight,
+            true,
+            self.control.as_mut(),
+            &mut self.journal,
+        ) {
+            persistence_failed(running, &mut self.record, &mut run.outcome_error, error);
+        }
+        self.journal.lifecycle("terminal_stopped");
+        let Some(session) = self.terminal.as_mut() else {
+            return;
+        };
+        // The terminal is taken back, with the settings saved, only when no
+        // job outside the jail holds it: after `bg` the shell does, and a
+        // command stopped in the background must not take it from the shell
+        // (review F6).
+        if !session.held_outside(running.target_group()) {
+            let _ = session.take_foreground();
+            let _ = session.restore_termios();
+        }
+        // A stop signal this process ignores (an inherited disposition) would
+        // not stop it: SIGSTOP then stands in.
+        let signal = if super::signals_inherited_ignored(signal) {
+            libc::SIGSTOP
+        } else {
+            signal
+        };
+        // A group no job-control shell watches (orphaned: the jail leads its
+        // own session, as under `script` or `ssh host ukai-jail …`) has
+        // nobody to continue it. The kernel discards a job-control stop sent
+        // to it, but never a `SIGSTOP`, which the command can raise on
+        // itself (review F5): such a group does not stop at all, and the
+        // command is continued at once, as a shell without job control would
+        // leave it.
+        if !crate::terminal::group_orphaned() {
+            let before = crate::terminal::continued();
+            let started = Instant::now();
+            // SAFETY: kill(0, …) signals this process's own group; it takes
+            // scalars only.
+            unsafe {
+                libc::kill(0, signal);
+            }
+            // The group stop takes effect at once; the shell's SIGCONT ends
+            // it. A stop the kernel discarded all the same shows as no
+            // continue within half a second: the command is then continued.
+            while crate::terminal::continued() == before
+                && started.elapsed() < Duration::from_millis(500)
+            {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+        session.continues_seen = crate::terminal::continued();
+        // After `fg` the supervisor's group holds the terminal again: its
+        // settings now are the ones to restore later, and the command gets
+        // it back. After `bg` the shell keeps both.
+        if session.in_foreground()
+            && let Some(group) = running.target_group()
+        {
+            let _ = session.save();
+            let _ = session.give_foreground(group);
+        }
+        session.stops += 1;
+        running.continue_target();
+        self.journal.lifecycle("terminal_continued");
+        self.record.applied.terminal = self.applied_terminal();
+    }
+
+    /// §4.6 release, or retention while a tree may still use the state:
+    /// the receipt is first persisted `pending`, then the discard list, the
+    /// digest and the scan, the generation and `released = true` are made
+    /// durable and the lease dropped, then the receipt says `released`.
+    fn release_persistent(&mut self, phase: Phase, outcome_error: &mut Option<JailError>) {
+        let Some(held) = self.persistent.take() else {
+            return;
+        };
+        let wait = cleanup::wait_reason(phase, TreeEnd::of(&self.record.lifetime));
+        if let Some(reason) = wait {
+            // `holder.released` stays false; the lease ends with this
+            // process, and the next attempt takes the `unreleased` fallback
+            // until `gc` finishes the release.
+            drop(held);
+            if let Some(error) = retain_vendor_state(&self.attempt_dir, &mut self.record, reason) {
+                persistence_failed_after(
+                    &mut self.record,
+                    outcome_error,
+                    error.in_stage(ErrorStage::Reconciling),
+                );
+            }
+            return;
+        }
+        self.record.state_cleanup = StateCleanup::Pending;
+        self.record.cleanup_error = None;
+        if let Err(error) = self.persist(state::Site::PendingReceipt, phase) {
+            self.record.cleanup_error = Some("state_write_failed".to_owned());
+            persistence_failed_after(
+                &mut self.record,
+                outcome_error,
+                error.in_stage(ErrorStage::Reconciling),
+            );
+            return;
+        }
+        let mut every_value = true;
+        let mut values: Vec<zeroize::Zeroizing<Vec<u8>>> = Vec::new();
+        for secret in &self.secrets {
+            let (loaded, complete) = secret.loaded_values();
+            every_value &= complete;
+            values.extend(loaded);
+        }
+        let searched: Vec<&[u8]> = values.iter().map(|value| value.as_slice()).collect();
+        let discard_list = self
+            .plan
+            .resolved
+            .snapshot
+            .launch
+            .as_ref()
+            .and_then(|launch| launch.state_discard.clone())
+            .unwrap_or_default();
+        let released = crate::persistent::release(
+            *held,
+            self.attempt_id.as_str(),
+            &discard_list,
+            &searched,
+            crate::persistent::Releaser::Supervisor { every_value },
+        );
+        drop(values);
+        match released {
+            Ok(released) => {
+                if let Some(crate::records::VendorStateRecord::Persistent {
+                    generation_end,
+                    discarded,
+                    secret_scan,
+                    ..
+                }) = self.record.vendor_state.as_mut()
+                {
+                    *generation_end = Some(released.generation);
+                    *discarded = released.discarded;
+                    *secret_scan = Some(released.secret_scan.to_owned());
+                }
+                if released.secret_scan == "found" {
+                    let error = JailError::new(
+                        ErrorCode::CredentialPersisted,
+                        ErrorStage::Reconciling,
+                        Remediation::InspectState,
+                        "a vault credential's value was found in the persistent state at its \
+                         release; the state is quarantined: inspect it with `ukai-jail state \
+                         show`, revoke the credential, then `ukai-jail state rm`"
+                            .to_owned(),
+                    );
+                    self.record.errors.push(error.to_object());
+                    outcome_error.get_or_insert(error);
+                }
+                let scratch =
+                    remove_managed_scratch(&self.attempt_dir, &self.plan, cleanup::Limits::DEFAULT);
+                let (status, reason) = match scratch {
+                    Ok(_) => (StateCleanup::Released, None),
+                    Err(reason) => (StateCleanup::Pending, Some(reason)),
+                };
+                self.record.state_cleanup = status;
+                self.record.cleanup_error.clone_from(&reason);
+                if let Err(error) =
+                    state::record_cleanup(&self.attempt_dir, status, reason.as_deref())
+                {
+                    persistence_failed_after(
+                        &mut self.record,
+                        outcome_error,
+                        error.in_stage(ErrorStage::Settled),
+                    );
+                }
+            }
+            Err(reason) => {
+                self.record.state_cleanup = StateCleanup::Pending;
+                self.record.cleanup_error = Some(reason.clone());
+                if let Err(error) =
+                    state::record_cleanup(&self.attempt_dir, StateCleanup::Pending, Some(&reason))
+                {
+                    persistence_failed_after(
+                        &mut self.record,
+                        outcome_error,
+                        error.in_stage(ErrorStage::Settled),
+                    );
+                }
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // Receipts
     // -----------------------------------------------------------------------
 
@@ -1282,6 +1674,7 @@ pub(super) fn first_record(
         outcome: Outcome::pending(),
         state_cleanup: cleanup::not_needed(),
         cleanup_error: None,
+        vendor_state: None,
         created_at: now,
         updated_at: now,
         errors: Vec::new(),

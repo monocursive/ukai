@@ -162,6 +162,10 @@ pub(super) struct RunState {
     evidence_reported: bool,
     /// Boot-clock time of the last counter sample.
     sampled_at_ns: u64,
+    /// J14 §3.4: the last group-stop of the target the supervisor was told
+    /// of: the tracer's count with observation on, or `Some(0)` while a
+    /// stop read from `/proc` is being relayed.
+    stop_reported: Option<u64>,
 }
 
 impl RunState {
@@ -191,6 +195,7 @@ impl RunState {
             finished: false,
             evidence_reported: false,
             sampled_at_ns: 0,
+            stop_reported: None,
         }
     }
 
@@ -697,6 +702,69 @@ impl<T: Tree> RunningExecution for Run<T> {
         self.tree.settle(&mut self.state, deadline, natural)
     }
 
+    // J14 §3.4: terminal mode's stop relay. With observation on, the
+    // tracer reports the target's group-stops (it leaves them stopped with
+    // `PTRACE_LISTEN`); with it off, `/proc/<pid>/stat` shows `T` for a
+    // stopped target of the same birth, and the stopping signal is not
+    // known: `SIGTSTP` stands for it.
+    fn target_stop(&mut self) -> Option<i32> {
+        if self.tree.snapshot().terminal.is_none() || self.state.target_exit_seen {
+            return None;
+        }
+        if let Some(tracer) = self.state.tracer.as_ref() {
+            let (count, signal) = tracer.group_stop()?;
+            if self.state.stop_reported == Some(count) {
+                return None;
+            }
+            self.state.stop_reported = Some(count);
+            return Some(signal);
+        }
+        if self.state.tracer_attached {
+            return None;
+        }
+        let launcher = &self.state.launcher;
+        let stopped = std::fs::read_to_string(format!("/proc/{}/stat", launcher.pid))
+            .ok()
+            .is_some_and(|raw| {
+                super::identity::parse_start_time_ticks(&raw).ok()
+                    == Some(launcher.start_time_ticks)
+                    && super::identity::parse_state(&raw).ok() == Some('T')
+            });
+        if !stopped {
+            self.state.stop_reported = None;
+            return None;
+        }
+        if self.state.stop_reported.is_some() {
+            return None;
+        }
+        self.state.stop_reported = Some(0);
+        Some(libc::SIGTSTP)
+    }
+
+    fn target_group(&self) -> Option<i32> {
+        self.tree
+            .snapshot()
+            .terminal
+            .map(|_| self.state.launcher.pid)
+    }
+
+    fn continue_target(&mut self) {
+        if self.tree.snapshot().terminal.is_none() {
+            return;
+        }
+        // The launcher made its own pid its group's id (`setpgid(0, 0)`),
+        // and the target kept it across exec.
+        // SAFETY: kill takes scalars; a negative pid names a process group.
+        unsafe {
+            libc::kill(-self.state.launcher.pid, libc::SIGCONT);
+        }
+        // A `/proc` stop is a new one once the target was continued; the
+        // tracer counts its own.
+        if !self.state.tracer_attached {
+            self.state.stop_reported = None;
+        }
+    }
+
     fn observer_summary(&mut self) -> Option<CoverageSummary> {
         // `wait_tree` already stopped the observer inside its budget; this
         // only covers a caller that skipped it.
@@ -955,6 +1023,7 @@ mod tests {
                 limits: Vec::new(),
                 environment_names: Vec::new(),
                 removed_environment_names: Vec::new(),
+                terminal: None,
             },
         })
     }

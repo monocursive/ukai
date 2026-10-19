@@ -165,6 +165,13 @@ struct LaunchFile {
     home_is_state: bool,
     #[serde(default)]
     state_subdirs: Vec<String>,
+    // J14 (jail-interactive-sessions.md §4)
+    /// `attempt` (the default) or `persistent`.
+    #[serde(default)]
+    state: Option<String>,
+    /// Relative paths removed from persistent vendor state at release.
+    #[serde(default)]
+    state_discard: Vec<String>,
     #[serde(default)]
     environment: BTreeMap<String, EnvEntry>,
     #[serde(default)]
@@ -297,6 +304,12 @@ pub struct LaunchProfile {
     pub home_is_state: bool,
     /// Relative directories created under vendor state.
     pub state_subdirs: Vec<NativeString>,
+    /// J14: whether vendor state is the attempt's own or kept per launch
+    /// profile and workspace (jail-interactive-sessions.md §4).
+    pub state: StateKind,
+    /// J14: relative paths removed from persistent vendor state at release,
+    /// never followed and never read.
+    pub state_discard: Vec<NativeString>,
     /// Explicit environment bindings, sorted by name.
     pub environment: Vec<EnvBinding>,
     /// Credential declarations, sorted by id, sources absolute.
@@ -312,6 +325,38 @@ pub struct LaunchProfile {
     /// J12: each credential's `hint`, by id: operator-facing text, never
     /// policy, so it is not in the snapshot.
     pub hints: BTreeMap<String, String>,
+}
+
+/// J14: where a launch profile's vendor state lives
+/// (jail-interactive-sessions.md §4).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum StateKind {
+    /// Created empty under the attempt directory and removed at settlement.
+    #[default]
+    Attempt,
+    /// Kept per launch profile and workspace, released at settlement.
+    Persistent,
+}
+
+impl StateKind {
+    /// The grammar's spelling.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            StateKind::Attempt => "attempt",
+            StateKind::Persistent => "persistent",
+        }
+    }
+
+    /// Parses the grammar's spelling.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<StateKind> {
+        match text {
+            "attempt" => Some(StateKind::Attempt),
+            "persistent" => Some(StateKind::Persistent),
+            _ => None,
+        }
+    }
 }
 
 /// J12: `program_root` when a launch profile does not say: the executable's
@@ -331,7 +376,8 @@ impl LaunchProfile {
     /// launch profile requires it").
     #[must_use]
     pub fn needs_vendor_state(&self) -> bool {
-        self.state_var.is_some()
+        self.state == StateKind::Persistent
+            || self.state_var.is_some()
             || self.home_is_state
             || !self.state_subdirs.is_empty()
             || !self.credentials.is_empty()
@@ -521,11 +567,24 @@ pub fn parse_with(
         None => None,
     };
     let subdirs = state_subdirs(&file.state_subdirs)?;
+    let state = match file.state.as_deref() {
+        None => StateKind::Attempt,
+        Some(text) => StateKind::parse(text).ok_or_else(|| {
+            invalid(
+                "launch.state",
+                format!("`{text}` is not `attempt` or `persistent`"),
+            )
+        })?,
+    };
+    let state_discard = state_discard(&file.state_discard)?;
     let environment = environment(&file.environment, state_var.as_deref())?;
     let base_dir = source
         .directory()
         .map(|directory| directory.as_os_str().as_bytes().to_vec());
     let credentials = credentials(&file, &subdirs, base_dir.as_deref(), home, config_dir)?;
+    if state == StateKind::Persistent {
+        check_persistent_credentials(&credentials)?;
+    }
     check_vault_env_names(
         &credentials,
         &environment,
@@ -544,6 +603,8 @@ pub fn parse_with(
         state_var,
         home_is_state: file.home_is_state,
         state_subdirs: subdirs.into_iter().map(|subdir| subdir.text).collect(),
+        state,
+        state_discard,
         environment,
         credentials,
         network_allow: file
@@ -795,6 +856,49 @@ fn state_subdirs(subdirs: &[String]) -> Result<Vec<StateSubdir>, JailError> {
         });
     }
     Ok(out)
+}
+
+/// J14: `state_discard`, validated like `state_subdirs`: relative, `.`/`..`
+/// free, no duplicates.
+fn state_discard(entries: &[String]) -> Result<Vec<NativeString>, JailError> {
+    let mut seen: Vec<Vec<Vec<u8>>> = Vec::new();
+    let mut out = Vec::new();
+    for entry in entries {
+        let components = relative_components(entry, "launch.state_discard", false)?;
+        if seen.contains(&components) {
+            return Err(invalid(
+                "launch.state_discard",
+                format!("`{entry}` is listed twice"),
+            ));
+        }
+        seen.push(components);
+        out.push(NativeString::Text(entry.clone()));
+    }
+    Ok(out)
+}
+
+/// J14 §4.5: persistent vendor state takes only `vault` credentials. A
+/// `copy_rw` source is written into the state, where it would outlive the
+/// attempt, and with `bind_ro` the agent reads the real value, so any copy
+/// it makes is inherited by the next attempts.
+///
+/// # Errors
+/// [`ErrorCode::InvalidConfig`] at the first credential that is not `vault`.
+pub fn check_persistent_credentials(credentials: &[CredentialDecl]) -> Result<(), JailError> {
+    if let Some(credential) = credentials
+        .iter()
+        .find(|credential| credential.mode != CredentialMode::Vault)
+    {
+        return Err(invalid(
+            format!("launch.credentials.{}.mode", credential.id),
+            format!(
+                "persistent state takes only `vault` credentials; `{}` is `{}`, whose value                  the agent could copy into state that later attempts inherit",
+                credential.id,
+                credential.mode.as_str()
+            ),
+        ));
+    }
+    Ok(())
 }
 
 /// `environment`: literal values, or paths under vendor state.
@@ -1315,6 +1419,12 @@ pub fn apply(mut resolved: Resolved, launch: &LaunchProfile) -> Result<Resolved,
             Some(credential.mode.as_str().to_owned()),
         ));
     }
+    if launch.state == StateKind::Persistent {
+        why.push(entry(
+            "launch.state".to_owned(),
+            Some(StateKind::Persistent.as_str().to_owned()),
+        ));
+    }
     why.push(entry("launch".to_owned(), Some(launch.name.clone())));
     resolved.amend(why, |snapshot| {
         let mut names: BTreeSet<String> = snapshot
@@ -1336,8 +1446,15 @@ pub fn apply(mut resolved: Resolved, launch: &LaunchProfile) -> Result<Resolved,
             .environment
             .bindings
             .sort_by(|left, right| left.name.cmp(&right.name));
+        let persistent = launch.state == StateKind::Persistent;
         if launch.needs_vendor_state() {
-            snapshot.roots.vendor_state = Some(VendorStateRoot::Managed);
+            snapshot.roots.vendor_state = Some(if persistent {
+                VendorStateRoot::Persistent {
+                    profile: launch.name.clone(),
+                }
+            } else {
+                VendorStateRoot::Managed
+            });
             if !snapshot.filesystem.read_write.contains(&vendor_root) {
                 snapshot.filesystem.read_write.push(vendor_root);
             }
@@ -1347,6 +1464,9 @@ pub fn apply(mut resolved: Resolved, launch: &LaunchProfile) -> Result<Resolved,
             home_is_state: launch.home_is_state,
             state_subdirs: launch.state_subdirs.clone(),
             credentials,
+            // J14: only with persistent state, so an attempt-private run
+            // keeps rc.3's snapshot bytes.
+            state_discard: persistent.then(|| launch.state_discard.clone()),
         });
         Ok(())
     })?;

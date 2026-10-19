@@ -3,14 +3,17 @@
 Status: design proposal, 2026-10-18. The operator settled its eight
 decisions on 2026-10-19 (§7): seven as recommended, and one, concurrent
 use of a persistent state, changed from the draft. The body follows every
-choice. Nothing here is implemented or scheduled. This is the milestone that
+choice. Implemented on 2026-10-19 (§3, §4, the §5 rows, tests K55–K75 of
+§6.1–§6.2); §8 lists where the implementation departs from or adds to this
+text. The interactive Claude Code record (§6.3) is not made, so interactive
+`ukai-jail claude` is still unsupported. This is the milestone that
 [jail-launch-and-summary.md](jail-launch-and-summary.md) §7, decision 7,
 names after J12 and J13 and outlines in its §3.8. It was written against
 `dev` at `b693b1573`, two documentation commits after the
-`ukai-jail-v0.1.0-rc.3` tag (`f95f2d396`). Until it is implemented, the
-[north star](../../north-star.md), [Jail v1](jail-v1.md) (revision 25),
-[Jail v2](jail-v2.md) and the launch proposal govern unchanged. Where this
-proposal amends them, §5 says so row by row. The milestone name J14 and
+`ukai-jail-v0.1.0-rc.3` tag (`f95f2d396`). Where this proposal amends the
+[north star](../../north-star.md), [Jail v1](jail-v1.md) (revision 26 applies
+it), [Jail v2](jail-v2.md) and the launch proposal, §5 says so row by row,
+and the amended documents now say it themselves. The milestone name J14 and
 the row numbers K55–K75 are provisional and follow the launch proposal's
 sequence.
 
@@ -971,3 +974,124 @@ or schedules nothing.
 8. **The execution wall in terminal mode.** An initial 8 h for attached
    runs, shown in the pre-exec line and recorded in the receipt as any wall
    is. Detached runs keep the `agent` profile's 2 h (§3.7, §5, K64).
+
+## 8. J14 as implemented: departures and additions
+
+Recorded with the implementation (2026-10-19), each with its reason. Where
+the code is stricter than the text above, the text still describes the
+intent.
+
+1. **The tracer resumed every group-stop (fixed).** Before J14 the
+   observer told a group-stop from the other `PTRACE_EVENT_STOP` by
+   `PTRACE_GETSIGINFO` failing with `EINVAL`. That holds only for a tracee
+   attached without `PTRACE_SEIZE`; for a seized one, as every tracee here
+   is, the kernel records siginfo for a group-stop too (`do_jobctl_trap`),
+   so the call succeeded and the tracee was resumed. With observation on, a
+   `SIGSTOP` or `^Z` sent to the target never took effect, J14 or not. The
+   stop signal tells the two apart instead (the stopping signal for a
+   group-stop, `SIGTRAP` otherwise); K59 found it, and a tracer unit test
+   with a live tracee pins it (`j14_a_stopped_tracee_stays_stopped_until_continued`).
+2. **No self-stop without a job-control shell** (§3.4 is silent). When the
+   supervisor's process group is orphaned, as when the jail leads its own
+   session under `script` or `ssh host ukai-jail …`, nothing could continue
+   it: the kernel discards a relayed `SIGTSTP`, `SIGTTIN` or `SIGTTOU`, but
+   never a `SIGSTOP`, which the command can raise on itself (review F5). The
+   supervisor checks first (its nearest ancestor outside its group must be
+   in its session, so a wrapper such as `sh -c` in the job's group still
+   relays) and, when orphaned, does not stop: it continues the command at
+   once, as a shell without job control would leave it running. A stop that
+   the kernel discards all the same is undone when no `SIGCONT` arrives
+   within 500 ms. operating.md names it.
+3. **A stop signal the supervisor inherited as ignored is relayed as
+   `SIGSTOP`**, since an ignored `SIGTSTP` would not stop it (§3.4 step 3
+   says "the signal that stopped the target").
+4. **No clock is restarted at a continue** (§3.4 step 4). The quiesce step
+   settles any persistence step in flight before the self-stop, so no
+   no-progress clock spans a stop; the wall is `CLOCK_BOOTTIME` and is acted
+   on at the continue, as K59 checks.
+5. **`fg` after `bg` is handled on its own `SIGCONT`.** The supervisor
+   counts the `SIGCONT`s it receives; any later one that finds its group in
+   the foreground saves the settings again and gives the foreground back to
+   the command's group, so a job continued in the background and later
+   brought forward gets the terminal (§3.4 step 4 describes only the
+   continue that ends the relayed stop).
+6. **The terminal is never taken from another job** (review F6; §3.4 step
+   3 and §3.6 step 1 say "take the foreground"). When the foreground belongs
+   to a group whose leader runs in the supervisor's own PID namespace and is
+   neither the supervisor's group nor the command's (the shell after `bg`,
+   or another of its jobs), the relay neither takes the terminal nor
+   restores the settings before stopping, and the settlement skips its first
+   three steps and records them `false`, with the cleanup line naming
+   `another job holds the terminal`. Taking it would leave the shell reading
+   a terminal it no longer holds. At a continue the settings are saved again
+   only when the supervisor's group holds the terminal.
+7. **Quarantine is checked before an unreleased holder** (§4.6 step 3 lists
+   the unreleased case first). A state that is both, which `gc` leaves when
+   it finds lost integrity, refuses `state_quarantined` instead of falling
+   back, so the operator learns of the credential first.
+8. **The secret scan shares the digest's bounds, and says when it did not
+   run.** Past 256 MiB or 65,536 entries the scan records `not_scanned` as
+   well as the digest `state_too_large`. An agent can therefore grow its
+   state past the bound to avoid the scan; operating.md names it, the
+   summary's `state` line then ends `· NOT searched for vault values`
+   (review F1; §4.7 lists no such form), and the scan stays a candidate for
+   that reason as well as for the encoded copies of §4.5. A file or
+   directory of the operator's own that its owner cannot read is given its
+   owner's read (and search) bits back before the pass, without following a
+   link, so mode 000 hides nothing (review F1, proved by the reviewer). A
+   supervisor whose secret saw more than 16 distinct values (a refreshing
+   credential) remembers the 16 most recent and records `not_scanned`
+   (review F13). K73 measured the scan's cost: no measurable addition to the
+   digest's own read (record below).
+9. **Two terminal states beyond `termios` are restored, and the writes are
+   bounded** (review F2). The filter allows `TCXONC` and `TIOCEXCL`. Output
+   suspended with `TCOOFF` (which `^Q` cannot undo and which blocks every
+   later write) and exclusive mode (which makes later opens of `/dev/tty`
+   fail) would outlive the attempt, so the `termios` step also resumes
+   output (`TCOON`) and clears exclusive mode (`TIOCNXCL`), each attempted
+   whatever the others did, and both are done even when another job holds
+   the terminal (item 6); the receipt's five fields are unchanged. The
+   reset write, and every supervisor line written to a terminal while one is
+   attached (the summary included), waits at most a second for the terminal
+   to take it, so a command that suspends output cannot hold the supervisor
+   (and with it the wall and the release).
+10. **A lease taken for an instant is waited for** (review F14). `state
+    list`, `state show` and `doctor` take the lease for an instant to tell
+    whether it is held; acquisition retries a taken lease for 250 ms before
+    taking the fallback. A lease that is a symlink refuses
+    `unsafe_state_path`, as a level does.
+11. **Test seams.** `UKAI_JAIL_TEST_TERMINAL_MAJOR` stands in for the
+   device major (a console, a serial line) in the mode decision,
+   `UKAI_JAIL_TEST_TERMINAL_FAIL` forces one settlement step to fail, and
+   `UKAI_JAIL_TEST_STATE_BOUNDS` shrinks the manifest bounds. Each is
+   recorded in jail state and in the receipt like every
+   `UKAI_JAIL_TEST_*`. K61's unproved tree death needs no seam: the test
+   holds a member of the execution leaf at its exit stop, as X07.2's test
+   does.
+12. **The DSR sentinel is not implemented.** Decision 4 keeps it a
+   candidate until measured on the terminals of §6.3, which is not run.
+13. **K73 and K74 are measured**
+    ([record](../benchmarks/jail/j14-state-cost-2026-10-19.md)). At either
+    bound a pass costs about 0.7 s on the reference host, far inside the
+    preparation budget, so the incremental manifest is not needed. On ext4,
+    a workspace removed and made again at once got its old inode number back
+    and the check did not see it: the named limit of §4.3 is real.
+14. **K66's handle bind and swap refusal** rely on the existing
+    vendor-state handle path: `vendor/` is opened by the anchored walk and
+    handed to the platform as a descriptor, which the mount plan checks
+    against the identity registered with it and binds with bubblewrap's
+    `--bind-fd`, as attempt vendor state always was. A path swapped
+    after the walk therefore redirects nothing. The live rows check the
+    result (privacy between workspaces, `EXDEV` both ways) rather than
+    racing a swap.
+15. **Not done here.** The interactive Claude Code record (§6.3) is a
+    separate step after merge; until it passes, interactive `ukai-jail
+    claude` stays unsupported and `doctor` keeps saying so.
+16. **Covered by reading only.** Three host-side refusals need a mount or a
+    second user, which the suite cannot make on the stock reference host: a
+    state level or `vendor/` that is a mount point, `vendor/` owned by
+    another user, and the walk's refusal to cross a device or mount. The
+    lease's `O_NOFOLLOW` is checked only together with its own `stat` check,
+    which refuses a symlink first. Every other refusal and filter entry
+    J14 added was mutated and its test seen to fail
+    (`j14-adversarial-review.md` in the session notes, and the fixes above).

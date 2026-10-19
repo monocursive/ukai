@@ -74,6 +74,7 @@ fn launch_of(credentials: Vec<CredentialDecl>) -> LaunchSnapshot {
         home_is_state: false,
         state_subdirs: vec![text("sessions")],
         credentials,
+        state_discard: None,
     }
 }
 
@@ -1187,6 +1188,7 @@ fn m1_inner_bind_ro_digest_on_a_read_only_bind_of_a_writable_filesystem() {
             dest: text("cfg.toml"),
             mode: CredentialMode::BindRo,
         }],
+        state_discard: None,
     };
     let staged = credentials::stage(&launch, vendor.as_fd(), &[])
         .unwrap_or_else(|refusal| panic!("staging refused: {:?}", refusal.error));
@@ -1249,6 +1251,7 @@ fn foreign_inner_owner_and_mount_checks() {
                 dest: text("c"),
                 mode: CredentialMode::CopyRw,
             }],
+            state_discard: None,
         };
         ukai_jail::credentials::inspect(&launch, &[])[0].reason_code
     };

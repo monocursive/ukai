@@ -117,14 +117,18 @@ ukai-jail run [--profile agent|tool|build|none|FILE] [--launch NAME [--from-path
   [--workspace PATH] [--scratch PATH] [--rw PATH]... [--ro PATH]...
   [--deny-read PATH]... [--allow-host HOST[:PORT]]... [--limit KEY=VALUE]...
   [--observe on|off] [--evidence strict|best-effort]
+  [--state attempt|persistent] [--terminal auto|detach]
   [--receipt PATH] [--trace-fd N] [--control-fd N] [--gate-fd N]
   [--attempt-id ID] [--label-only] [--quiet] [-- PROGRAM [ARG]...]
 ukai-jail tail [--attempt ID] [--follow] [--json] [--since TIME]
 ukai-jail tail --summary [--attempt ID] [--json]
-ukai-jail explain [--profile …] [--launch NAME [--from-path]] [the run overrides] [--json]
+ukai-jail explain [--profile …] [--launch NAME [--from-path]] [the run overrides] [--terminal auto|detach] [--json]
 ukai-jail doctor [--profile NAME|FILE] [--launch NAME [--from-path]] [--workspace PATH] [--json]
 ukai-jail credential set [--force] ID
 ukai-jail credential rm ID
+ukai-jail state list [--json]
+ukai-jail state show NAME [--workspace PATH]
+ukai-jail state rm NAME [--workspace PATH]
 ukai-jail gc [--dry-run] [--json]
 ukai-jail version [--json]
 ```
@@ -133,7 +137,7 @@ ukai-jail version [--json]
   --from-path -- ARG...`: the same policy and argv digests. Every word after
   `NAME` is the agent's, so an agent flag is never taken for a jail flag; use
   the long form to add jail options. Built-in verbs (`run`, `tail`, `learn`,
-  `explain`, `doctor`, `gc`, `version`, `help`, `credential`) win, so a launch
+  `explain`, `doctor`, `gc`, `version`, `help`, `credential`, `state`) win, so a launch
   profile named like one is reachable only through `run --launch`, and
   `doctor --launch` says so. A word that is neither exits 2 naming both
   readings (`no verb or launch profile `claud``).
@@ -170,6 +174,12 @@ ukai-jail version [--json]
   summary](#the-end-of-run-summary)); `--quiet`, or `summary = false` under
   `[jail]` in `config.toml`, prints neither, and errors still print. With
   stderr a pipe or a file, `run` adds no byte to it.
+- **`run --terminal auto|detach`** and **`run --state attempt|persistent`**:
+  see [Interactive sessions](#interactive-sessions-terminal-mode-and-persistent-state).
+  `explain` takes `--terminal` too and shows the mode `run` would get.
+- **`state list|show|rm`** manage the persistent agent state kept per launch
+  profile and workspace; see
+  [Interactive sessions](#interactive-sessions-terminal-mode-and-persistent-state).
 - **`run --label-only`** resolves and probes, prints the proposed label and
   one `capability …` line per requirement, and executes nothing. It refuses
   `--gate-fd` and `--attempt-id` (exit 2).
@@ -228,7 +238,11 @@ The codes: `invalid_config`, `policy_widening`, `unsafe_state_path`,
 `observer_unavailable`, `nesting_failed`, `credential_unavailable`,
 `invalid_fd`, `gate_invalid`, `gate_closed`, `prepare_timeout`,
 `attempt_exists`, `exec_failed`, `exec_interpreter_missing`, `evidence_lost`,
-`exec_unconfirmed`, `tree_unknown`, `state_write_failed`, `stdio_failed` and `internal_error`.
+`exec_unconfirmed`, `tree_unknown`, `state_write_failed`, `stdio_failed`,
+`state_busy`, `state_quarantined`, `state_workspace_changed`,
+`credential_persisted` and `internal_error`. The four `state…`/`credential…`
+codes belong to persistent agent state ([Interactive
+sessions](#interactive-sessions-terminal-mode-and-persistent-state)).
 Two need explaining:
 
 - **`exec_interpreter_missing`**: the program exists but its `#!` interpreter
@@ -254,7 +268,7 @@ discarded as a successful delivery.
 |---|---|---|---|---|
 | `tool` | workspace and scratch writable, system roots read-only, existing `.git` and `.ukai` segments beneath writable roots protected (`existing_and_root`) | none | wall 30m (required), pids 256 (preferred) | only for explicit pids, mem or cpu |
 | `build` | the workspace's declared inputs read-only, scratch writable | none | wall 1h, pids 512 (preferred), an explicit `mem` is required | yes, for the memory ceiling |
-| `agent` | workspace, scratch and vendor state writable, system roots read-only | only through an outside HTTP proxy, allowed hosts from the launch profile and `--allow-host` | wall 2h, pids 512 (preferred) | only for explicit pids, mem or cpu |
+| `agent` | workspace, scratch and vendor state writable, system roots read-only | only through an outside HTTP proxy, allowed hosts from the launch profile and `--allow-host` | wall 2h (8h when the terminal is attached), pids 512 (preferred) | only for explicit pids, mem or cpu |
 | `none` | the host's view, unchanged | the host's | wall 2h | always (observation on or off) |
 
 Every contained profile runs in one bubblewrap layer with its own user, mount,
@@ -345,10 +359,12 @@ staged into the attempt's private vendor state, which the child sees at
 - The receipt lists each staged input as its id, mode and a content digest
   (or, for a `bind_ro` source whose content cannot be pinned, why not); never
   its path or bytes.
-- Vendor state is removed after the tree is verified dead (`state_cleanup`
-  becomes `complete`); an interrupted cleanup stays `pending` and `gc`
-  resumes it. Removal unlinks files; it does not erase disk blocks or copies
-  made elsewhere.
+- Attempt-private vendor state (`state = "attempt"`, the default) is removed
+  after the tree is verified dead (`state_cleanup` becomes `complete`); an
+  interrupted cleanup stays `pending` and `gc` resumes it. Removal unlinks
+  files; it does not erase disk blocks or copies made elsewhere. Persistent
+  state (`state = "persistent"`) is released instead and kept (`released`):
+  see [Interactive sessions](#interactive-sessions-terminal-mode-and-persistent-state).
 
 `vault` keeps a raw HTTP credential in supervisor memory instead of copying
 it into vendor state. Its source must satisfy the same private-file rules,
@@ -641,6 +657,126 @@ from the command line. `credential rm ID` removes the file; a run holding it
 loses it within the vault's 100 ms poll. Exit 0 when done, 1 when refused, 2
 for a malformed id.
 
+## Interactive sessions: terminal mode and persistent state
+
+`ukai-jail claude`, with no `-p`, runs Claude Code's interactive interface
+(J14, [the proposal](../jail-interactive-sessions.md)): prompts answered at
+the keyboard, resizes, `^C`, `^Z` and `fg`, and settings and session history
+that survive from one run to the next in the same repository. No interactive
+Claude Code run is recorded in [agent compatibility](agent-compatibility.md)
+yet; `doctor` keeps reporting the profile `experimental`.
+
+```text
+ukai-jail claude
+ukai-jail: claude = /home/u/.local/share/claude/versions/2.1.302 (read-only: /home/u/.local/share/claude/versions)
+ukai-jail: terminal: attached (/dev/pts/3) · wall 8h · ^C and ^Z go to claude, not the jail; to end the attempt, exit claude or run `kill -INT 41234`
+ukai-jail: state: claude, this workspace, generation 4 (from att_…)
+…
+ukai-jail: state: kept, generation 5 · started from what att_… released, unchanged
+```
+
+### Terminal mode
+
+A contained `run` (the alias included) **attaches the terminal** when standard
+input is your session's controlling terminal, a pseudo-terminal (a virtual
+console or a serial line never attaches), and the jail is the foreground job.
+The command then runs in your session, in a process group of its own that the
+launcher makes the terminal's foreground group: `/dev/tty` opens, resizes
+reach it, and `^C`, `^\` and `^Z` go to the command, never to the jail.
+
+- **Ending the attempt**: exit the agent, close the terminal, or `kill -INT`
+  the supervisor's pid, which the pre-exec line prints. `^C` no longer ends
+  the attempt from the terminal: the agent decides what it does.
+- **`^Z`** stops the command; the supervisor takes the terminal back with the
+  terminal settings it saved, then stops itself with the same signal, so your
+  shell shows the job stopped. `fg` gives the terminal back to the command
+  and continues it; `bg` continues it without the terminal, which stays your
+  shell's: a command that stops in the background does not take it back.
+  When nothing above the jail does job control (it leads its own session, as
+  under `script` or `ssh host ukai-jail …`), the supervisor does not stop
+  and continues the command at once. The receipt
+  counts the stops (`applied.terminal.stops`) and the journal has
+  `terminal_stopped` and `terminal_continued` notes.
+- **At the end**, after the tree is verified dead, the supervisor takes the
+  foreground back, restores the terminal settings it saved (resuming output
+  the agent suspended and clearing exclusive mode with them), discards
+  pending input (keys typed while the agent was ending are lost) and writes
+  an attribute reset and the show-pointer sequence before the summary,
+  waiting at most a second for the terminal to take them. Each step is
+  recorded in `applied.terminal.restored`; a failed step is said on stderr
+  and on the summary's cleanup line (`terminal not restored (termios): run
+  reset`) and does not change the exit code. A job that ended in the
+  background leaves the terminal to your shell: the first three steps are
+  then not taken, and the line says `another job holds the terminal`.
+- **Detached** is today's behaviour, in a new session: `--terminal detach`,
+  `[jail] terminal = "detach"` in `config.toml` (not a project setting),
+  `--gate-fd`, `learn` and `none` are always detached. When stderr is a
+  terminal and stdin is not the controlling pseudo-terminal or the jail runs
+  in the background, a line says why, for example `terminal: detached (not
+  the foreground job)`.
+- **The policy**: an attached run's snapshot has `terminal: "attached"`, so
+  its digest says so, and its default wall is 8h (any `--limit wall` or
+  configured wall still wins). A detached snapshot is byte for byte what it
+  was before J14. `explain` shows the mode and why.
+- **The filter** answers `TIOCSTI`, `TIOCLINUX` and `TIOCSETD` with `EPERM` in
+  every contained profile, attached or not. `doctor` says whether the kernel
+  itself still allows `TIOCSTI` (`legacy_tiocsti`).
+
+A `-p` run started from an interactive shell is attached too, so its `^C`
+goes to the agent; a script that needs the old behaviour passes `--terminal
+detach`.
+
+### Persistent agent state
+
+A launch profile with `state = "persistent"` (the bundled `claude` profile
+has it) keeps its vendor state (`CLAUDE_CONFIG_DIR` for `claude`) per launch
+profile and workspace, under `<data>/state/<launch>/<key>/vendor/`, instead of
+an empty directory removed at the end of every run. Settings, onboarding and
+session history persist, so `--resume` works. Nothing is copied from
+`~/.claude`: the state starts empty.
+
+- **One workspace, one state.** A repository's state is never seen by an
+  attempt in another (a worktree is another workspace).
+- **One attempt at a time.** A second attempt on a held state runs with
+  throwaway state and says so before exec, naming the holder
+  (`state: claude for this workspace is held by att_… · this session uses
+  throwaway state and will not be kept`); its receipt has `vendor_state`
+  `attempt_fallback` and its summary `state: NOT kept`. With stderr not a
+  terminal, where that line could not be seen, it refuses `state_busy`
+  instead. A state whose holder died before releasing it takes the same
+  fallback (`… was not released by att_… (run ukai-jail gc)`).
+- **Credentials never persist.** Persistent state takes only `vault`
+  credentials (`copy_rw` and `bind_ro` refuse at load). The profile's
+  `state_discard` list (`[".credentials.json"]` for `claude`) is removed at
+  every release, never followed and never read. The release also searches
+  every file of the state for the vault values this attempt loaded; a hit
+  quarantines the state (`credential_persisted`, exit 1), and the next
+  attempt refuses `state_quarantined` until you inspect it (`state show`
+  names the files), revoke the credential and `state rm` it.
+- **What the receipt says**: `vendor_state` gives the state id, the
+  generation it started from and the one its release recorded, the attempt
+  it inherited from, whether the state was unchanged since that release
+  (`matches_release`), how many discard entries were removed and the scan's
+  result; never a path, a file name or a digest. `state_cleanup` is
+  `released`. The summary prints a `state` line (`kept, generation 5 ·
+  started from what att_… released, unchanged`, `CHANGED outside the jail
+  since att_… released it`, `release pending: run ukai-jail gc`).
+- **The workspace check**: a state remembers its workspace's device and
+  inode; a repository deleted and cloned again at the same path refuses
+  `state_workspace_changed` until you `state rm` the old state.
+- **`--state attempt`** runs one attempt with throwaway state, exactly as
+  before J14; `--state persistent` makes a profile's state persistent.
+  `--gate-fd` refuses persistent state.
+
+`ukai-jail state list [--json]` lists every state (launch name, workspace,
+id, generation, size, last attempt, quarantine, whether an attempt holds it).
+`state show NAME [--workspace PATH]` prints one state's metadata and its
+generation log; `state rm NAME [--workspace PATH]` removes it (refused while
+an attempt holds it), through an anchored walk that removes links as links.
+Without `--workspace`, both take the repository you stand in, as `ukai-jail
+NAME` does. `gc` never removes a state; it finishes a release a dead
+supervisor could not (see [gc](#gc)).
+
 ## doctor
 
 `doctor` runs short probes (5 seconds each, with owned temporary resources):
@@ -688,13 +824,27 @@ placement checks: a key `credential set` stored under your home is reported
 An unreadable fact is null. `doctor` killed with SIGKILL leaves its probes'
 directories in the system temporary directory; remove them by hand.
 
+The text form also says whether a `run` from here would attach the terminal
+and why not (`terminal attached (/dev/pts/3)` or `terminal detached (not the
+foreground job)`), which barrier stops `TIOCSTI` (`legacy_tiocsti=0`: the
+kernel as well as the filter; `=1`: the filter alone), and, for a launch
+profile with persistent state, that state for this workspace (`state
+persistent: present, generation 4, not held`, `NOT released`, `QUARANTINED`
+or `none yet`). These lines are text only: `ukai.jail.doctor/1` is
+unchanged.
+
 ## gc
 
 `gc` walks only the registered state root, `<data>/attempts/`. For an attempt
 whose supervisor is established dead (another boot, or its recorded process
 identity gone), it may kill a positively identified orphan execution leaf in
 the same boot, verify it empty and remove it, remove managed scratch and a
-crash's temporary files, and finish a pending vendor-state cleanup. It
+crash's temporary files, and finish a pending vendor-state cleanup. For an
+attempt that held persistent state and died before releasing it, gc finishes
+the release under the same permission rule (the discard list, the digest, a
+new generation and `released`), with the secret scan recorded `not_scanned`
+(only the dead supervisor held the vault values); lost integrity leaves the
+state held and quarantines it. gc never removes a persistent state. It
 retains, and reports with a reason, anything live, unidentifiable, foreign,
 from another boot, with lost integrity, or with records that disagree. It
 never signals a process by a stale PID and never searches `/tmp`, your home or
@@ -709,7 +859,8 @@ receipt's note, or would pass its 64 MiB cap is left as it was.
 `action`, `reason`, `owner`, `execution_boundary`, `scratch`, `proxy_dir`,
 temporary files, the records gc wrote and what the journal got (`journal`:
 `appended (wrapper source_seq <n>)`, `would_append`, `absent`, `unchanged:
-<why>` or `failed: <why>`), plus its per-invocation budget.
+<why>` or `failed: <why>`), what became of persistent state it released
+(`persistent_state`), plus its per-invocation budget.
 `gc` exits 0 after a completed scan (skips included) and 1 when a cleanup
 failed or stays pending, or state could not be read.
 
@@ -825,7 +976,7 @@ and exit 1.
 
 ## The end-of-run summary
 
-A terminal run ends with at most eight lines, computed from the final
+A terminal run ends with at most nine lines, computed from the final
 `jail.json` and the attempt's `trace.ndjson` alone, by the same function as
 `tail --summary`:
 
@@ -877,8 +1028,15 @@ ukai-jail: receipt /home/u/.local/share/ukai/attempts/att_…/jail.json
   sent and then ended for one (a revocation in flight) is a use. A staged
   (`copy_rw`, `bind_ro`) credential is readable by the agent and has no use
   to count.
+- **State**, for persistent agent state: kept (and from which release,
+  changed outside the jail or not, and `NOT searched for vault values` when
+  the release could not search all of it), a release pending, quarantined,
+  or `NOT kept` for an attempt that ran with throwaway state because the
+  state was held (see [Interactive
+  sessions](#interactive-sessions-terminal-mode-and-persistent-state)).
 - **Evidence**, then **limits** that were hit or not applied, and pending
-  vendor-state cleanup or an uncontained (`none`) run, when there are any.
+  vendor-state cleanup, a terminal restore step that failed, or an
+  uncontained (`none`) run, when there are any.
 
 A number is printed only where the evidence supports it. It is exact only
 for an `active` class whose complete journal (its last line the note of this
@@ -984,6 +1142,33 @@ with its evidence.
   external `SIGKILL` of the command.
 - **Credentials**: a `bind_ro` digest is recorded only on an immutable
   filesystem; `copy_rw` never writes refreshed tokens back.
+- **Terminal mode** (J14). The jail does not filter what the agent writes to
+  your terminal: escape sequences can write your clipboard (OSC 52), hide a
+  link's target (OSC 8), or imitate the jail's own lines before the summary,
+  and a terminal emulator's own bugs are reachable; a reply your terminal
+  sends after the input flush lands in your shell. A descendant that moved
+  itself to another process group is not stopped by `^Z`: while the
+  supervisor is stopped, its observed calls and connections wait, and no
+  deadline is acted on until `fg` or `bg`. A stop of a group the agent gave
+  the terminal to (an editor it runs in its own group) is not relayed. If the
+  supervisor itself is killed, nothing is restored; your shell takes the
+  terminal back when the job ends. A virtual console or a serial line always
+  runs detached.
+- **Persistent state** (J14). The workspace check compares a device and
+  inode, which ext4 can reuse at once after a delete and a re-create
+  (measured on the reference host:
+  [K74](../../benchmarks/jail/j14-state-cost-2026-10-19.md)). The
+  secret scan is a fixed-string search: an encoded, compressed or split copy
+  of a credential is not found, and a state past 256 MiB or 65,536 entries,
+  which the agent can grow it to, is not searched (the scan then says
+  `not_scanned` and the summary's state line `NOT searched for vault
+  values`). A file the agent made unreadable is made readable to you again
+  and searched. The state starts empty; there is no seeding from
+  `~/.claude`.
+- **Job control without a shell** (J14). When nothing above the jail does
+  job control (it leads its own session, as under `script` or `ssh host
+  ukai-jail …`), `^Z` cannot stop the job: the supervisor continues the
+  agent at once.
 - **Test seams.** Every `UKAI_JAIL_TEST_*` variable is a test-only knob that
   the release binary honours and records in jail state and in every receipt
   with native details. Do not set them in production; a receipt that names

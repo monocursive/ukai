@@ -1025,6 +1025,18 @@ fn spawn_launcher_with(
     target: &[&OsStr],
     env: &[(&str, &str)],
 ) -> Launcher {
+    spawn_launcher_full(narrow, pins, target, env, false)
+}
+
+/// [`spawn_launcher_with`], optionally in terminal mode (`--foreground`),
+/// with standard input `/dev/null`.
+fn spawn_launcher_full(
+    narrow: bool,
+    pins: &[ExecPin],
+    target: &[&OsStr],
+    env: &[(&str, &str)],
+    foreground: bool,
+) -> Launcher {
     let (release_r, release_w) = exec::pipe().unwrap();
     let (error_r, error_w) = exec::pipe().unwrap();
     let mut fds = FdMap::new();
@@ -1045,11 +1057,15 @@ fn spawn_launcher_with(
             nofile_soft: None,
             pins: pins.to_vec(),
             argv: target.iter().map(|part| part.to_os_string()).collect(),
+            foreground,
         }
         .to_argv(),
     );
     command.envs(env.iter().copied());
-    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     fds.apply(&mut command);
     let child = command.spawn().unwrap();
     drop(fds);
@@ -1086,6 +1102,33 @@ fn the_launcher_execs_the_target_only_after_the_release_byte() {
     );
     assert_eq!(captured.code(), Some(0));
     assert_eq!(fs::read_to_string(&marker).unwrap().trim(), "ran");
+}
+
+/// J14 §3.3 step 3 (review F12): in terminal mode the launcher makes its
+/// own group the terminal's foreground group before exec. When that fails
+/// (here standard input is not a terminal at all) it reports an exec
+/// failure carrying the terminal detail and executes nothing.
+#[test]
+fn a_launcher_that_cannot_take_the_terminal_executes_nothing() {
+    let dir = temp_dir("foreground");
+    let marker = dir.path().join("marker");
+    let script = format!("echo ran > {}", marker.display());
+    let mut launcher = spawn_launcher_full(
+        false,
+        &[],
+        &[OsStr::new("/bin/sh"), OsStr::new("-c"), OsStr::new(&script)],
+        &[],
+        true,
+    );
+    launcher.release();
+    let error = launcher.error_bytes();
+    let captured = launcher.finish();
+    let failure =
+        launch::decode_exec_failure(&error).unwrap_or_else(|| panic!("no exec failure: {error:?}"));
+    assert!(failure.terminal, "{failure:?}");
+    assert_eq!(failure.errno, libc::ENOTTY, "{failure:?}");
+    assert_eq!(captured.code(), Some(launch::EXIT_EXEC_FAILED));
+    assert!(!marker.exists(), "the target ran without the terminal");
 }
 
 #[test]
@@ -1683,6 +1726,7 @@ fn run_tool_profile(long_options: bool, narrow: bool) -> ToolRun {
             nofile_soft: None,
             pins: Vec::new(),
             argv: target,
+            foreground: false,
         }
         .command_line(OsStr::new(bwrap::JAIL_INSIDE_PATH)),
     );

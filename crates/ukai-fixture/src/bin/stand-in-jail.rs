@@ -114,6 +114,7 @@ fn attempt(cli: &Cli) -> AttemptRecord {
             limits: Vec::new(),
             environment_names: Vec::new(),
             removed_environment_names: Vec::new(),
+            terminal: None,
         },
         observer: ObserverRecord {
             backend: None,
@@ -136,6 +137,7 @@ fn attempt(cli: &Cli) -> AttemptRecord {
         updated_at: now,
         errors: Vec::new(),
         credentials: Vec::new(),
+        vendor_state: None,
     }
 }
 

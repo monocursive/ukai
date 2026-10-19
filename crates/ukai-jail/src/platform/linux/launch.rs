@@ -11,7 +11,9 @@
 //! 1. under `agent`, installs the connect mediation and starts the bridge;
 //! 2. installs the narrowing filter, when observation is on;
 //! 3. blocks reading one byte from the release pipe;
-//! 4. gives the target the signal state and descriptor limit the operator
+//! 4. in terminal mode (J14), puts itself in a process group of its own and
+//!    makes it the terminal's foreground group with `SIGTTOU` blocked; then
+//!    gives the target the signal state and descriptor limit the operator
 //!    started the run with, and closes what the supervisor took;
 //! 5. checks every program `--from-path` pinned against what resolution
 //!    recorded ([`pin_matches`]), then `execve`s the target, searching
@@ -63,6 +65,8 @@ pub(crate) mod flag {
     pub const NOFILE_SOFT: &str = "--nofile-soft";
     /// `--pin INDEX,fd|path,DEV,INO,SIZE,MTIME,MTIME_NSEC,CTIME,CTIME_NSEC,NLINK,MODE`.
     pub const PIN: &str = "--pin";
+    /// `--foreground`: J14 terminal mode.
+    pub const FOREGROUND: &str = "--foreground";
     /// The separator before the target's argv.
     pub const SEPARATOR: &str = "--";
 }
@@ -135,6 +139,10 @@ pub struct LaunchArgs {
     /// filter, so the open is not the target's), and executed with
     /// `execveat` through that descriptor.
     pub pins: Vec<crate::platform::ExecPin>,
+    /// J14 §3.3 step 3: after the release, take a process group of its
+    /// own and make it the terminal's foreground group (standard input),
+    /// with `SIGTTOU` blocked, before the mask the target gets is set.
+    pub foreground: bool,
     /// The target's argv; element 0 is also the program to execute.
     pub argv: Vec<OsString>,
 }
@@ -176,6 +184,9 @@ impl LaunchArgs {
         }
         for pin in &self.pins {
             out.extend([OsString::from(flag::PIN), pin_value(pin).into()]);
+        }
+        if self.foreground {
+            out.push(OsString::from(flag::FOREGROUND));
         }
         out.push(OsString::from(flag::SEPARATOR));
         out.extend(self.argv.iter().cloned());
@@ -244,7 +255,7 @@ impl std::error::Error for LaunchUsage {}
 /// Parse `--release-fd N --error-fd M [--narrow] [--read-open-fast-path]
 /// [--trace-data-fd T] [--mediate L,S] [--bridge R] [--sigmask HEX]
 /// [--nofile-soft N] [--pin PIN]... -- PROGRAM ARG...`, options in any order;
-/// [`LaunchArgs::to_argv`] writes them in this one.
+/// [--foreground] [`LaunchArgs::to_argv`] writes them in this one.
 ///
 /// # Errors
 ///
@@ -260,6 +271,7 @@ pub fn parse(args: &[OsString]) -> Result<LaunchArgs, LaunchUsage> {
     let mut sigmask: Option<u64> = None;
     let mut nofile_soft: Option<u64> = None;
     let mut pins: Vec<crate::platform::ExecPin> = Vec::new();
+    let mut foreground = false;
     let mut index = 0usize;
     let mut argv: Option<Vec<OsString>> = None;
 
@@ -336,6 +348,10 @@ pub fn parse(args: &[OsString]) -> Result<LaunchArgs, LaunchUsage> {
                 pins.push(parse_pin(raw)?);
                 index += 2;
             }
+            flag::FOREGROUND => {
+                foreground = true;
+                index += 1;
+            }
             _ => return Err(LaunchUsage::UnknownOption(name)),
         }
     }
@@ -367,6 +383,7 @@ pub fn parse(args: &[OsString]) -> Result<LaunchArgs, LaunchUsage> {
         sigmask,
         nofile_soft,
         pins,
+        foreground,
         argv,
     })
 }
@@ -717,6 +734,39 @@ pub fn launch_main(args: &[OsString]) -> ! {
     // SAFETY: closing a descriptor this process owns; the target must not see
     // the release pipe.
     unsafe { libc::close(parsed.release_fd) };
+    // J14 §3.3 step 3: in terminal mode the command's process group is its
+    // own, and the terminal's foreground group, so terminal signals, resizes
+    // and job control reach it and nothing outside the PID namespace shares
+    // its group. `tcsetpgrp` from a background group would raise `SIGTTOU`,
+    // which is blocked here; the mask the target gets is set just below. A
+    // failure is reported as the exec's, and nothing is executed.
+    if parsed.foreground {
+        // SAFETY: setpgid, sigprocmask, getpgrp and tcsetpgrp take scalars
+        // or plain stack data; all are async-signal-safe.
+        unsafe {
+            if libc::setpgid(0, 0) != 0 {
+                report_exec_failure_and_exit(
+                    parsed.error_fd,
+                    errno(),
+                    DETAIL_TERMINAL,
+                    EXIT_EXEC_FAILED,
+                );
+            }
+            let mut set: libc::sigset_t = std::mem::zeroed();
+            libc::sigemptyset(&raw mut set);
+            libc::sigaddset(&raw mut set, libc::SIGTTOU);
+            if libc::sigprocmask(libc::SIG_BLOCK, &raw const set, std::ptr::null_mut()) != 0
+                || libc::tcsetpgrp(0, libc::getpgrp()) != 0
+            {
+                report_exec_failure_and_exit(
+                    parsed.error_fd,
+                    errno(),
+                    DETAIL_TERMINAL,
+                    EXIT_EXEC_FAILED,
+                );
+            }
+        }
+    }
     // Undo what the jail itself changed in the signal state
     // the target inherits. The Rust runtime set SIGPIPE to ignored in this
     // process (and a raw execve keeps an ignored disposition), and
@@ -887,6 +937,9 @@ pub const DETAIL_INTERPRETER_MISSING: u32 = 1;
 /// program that is not the object resolution recorded when it was checked
 /// after the release. Nothing was executed.
 pub const DETAIL_PROGRAM_CHANGED: u32 = 2;
+/// J14: the launcher's detail code for a terminal it could not take
+/// (`setpgid` or `tcsetpgrp` failed, with that errno). Nothing was executed.
+pub const DETAIL_TERMINAL: u32 = 3;
 
 /// Whether `path` names an existing object. Async-signal-safe: one
 /// `faccessat` on a string built before the fork-free no-allocation point.
@@ -907,6 +960,8 @@ pub struct ExecFailure {
     /// Review F5: `errno` is `ESTALE` because a pinned program changed, and
     /// the launcher refused to execute it.
     pub program_changed: bool,
+    /// J14: the terminal could not be taken; nothing was executed.
+    pub terminal: bool,
 }
 
 impl ExecFailure {
@@ -922,6 +977,9 @@ impl ExecFailure {
     pub fn detail(&self) -> Option<crate::platform::ExecFailureDetail> {
         if self.program_changed {
             return Some(crate::platform::ExecFailureDetail::ProgramChanged);
+        }
+        if self.terminal {
+            return Some(crate::platform::ExecFailureDetail::TerminalUnavailable);
         }
         self.interpreter_missing
             .then_some(crate::platform::ExecFailureDetail::InterpreterMissing)
@@ -945,6 +1003,7 @@ pub fn decode_exec_failure(bytes: &[u8]) -> Option<ExecFailure> {
         program_changed: errno == libc::ESTALE
             && bytes.len() == 8
             && detail == Some(DETAIL_PROGRAM_CHANGED),
+        terminal: bytes.len() == 8 && detail == Some(DETAIL_TERMINAL),
     })
 }
 
@@ -975,11 +1034,29 @@ fn report_exec_failure_and_exit(fd: RawFd, errno: i32, detail: u32, code: i32) -
 }
 
 // The signal mask the jail hands the target
-/// The calling thread's blocked signals as a bitmask (bit `n - 1` for signal
-/// `n`, `1..=64`). The supervisor calls it on its main thread, which never
-/// changes its mask, so it is the mask the supervisor inherited.
+/// J14 §3.3 step 4: the mask the supervisor inherited, captured once at its
+/// start, before any thread blocks anything (terminal mode blocks `SIGTTOU`
+/// around its own terminal calls).
+static INHERITED_MASK: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
+
+/// Captures the calling thread's mask as the one the supervisor inherited;
+/// the first call wins.
+pub fn capture_inherited_mask() {
+    let _ = INHERITED_MASK.set(current_mask());
+}
+
+/// The signal mask the jail hands the target: the one captured at the
+/// supervisor's start ([`capture_inherited_mask`]), or the calling thread's
+/// current one where nothing captured it.
 #[must_use]
 pub fn blocked_mask() -> u64 {
+    INHERITED_MASK.get().copied().unwrap_or_else(current_mask)
+}
+
+/// The calling thread's blocked signals as a bitmask (bit `n - 1` for signal
+/// `n`, `1..=64`).
+#[must_use]
+pub fn current_mask() -> u64 {
     // SAFETY: `set` is plain stack data that pthread_sigmask fills; a null
     // new-mask pointer only reads the current one.
     unsafe {
@@ -1288,6 +1365,7 @@ mod tests {
             nofile_soft: None,
             pins: Vec::new(),
             argv: osv(&["/bin/sh", "-c", "echo --narrow"]),
+            foreground: false,
         };
         let full = LaunchArgs {
             narrow: true,
@@ -1351,6 +1429,7 @@ mod tests {
             nofile_soft: None,
             pins: vec![pin(0, true), pin(1, false)],
             argv: osv(&["/opt/rt/node", "/opt/agent/bin/agent", "-p"]),
+            foreground: false,
         };
         let written = args.to_argv();
         assert!(
@@ -1385,6 +1464,7 @@ mod tests {
                     nofile_soft: None,
                     pins: pins.to_vec(),
                     argv: osv(argv),
+                    foreground: false,
                 }
                 .to_argv(),
             )

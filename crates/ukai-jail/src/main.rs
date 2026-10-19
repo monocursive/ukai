@@ -10,8 +10,8 @@ use std::process::ExitCode;
 use clap::Parser as _;
 use ukai_jail::capability::Capability;
 use ukai_jail::cli::{
-    Cli, Command, CredentialCommand, DoctorArgs, ExplainArgs, GcArgs, RunArgs, TailArgs,
-    VersionArgs,
+    Cli, Command, CredentialCommand, DoctorArgs, ExplainArgs, GcArgs, RunArgs, StateCommand,
+    TailArgs, VersionArgs,
 };
 use ukai_jail::config;
 use ukai_jail::observer::CoverageSummary;
@@ -75,6 +75,7 @@ fn main() -> ExitCode {
         },
         Command::Tail(args) => tail(&context, &args),
         Command::Credential(command) => credential(&context, &command),
+        Command::State(command) => state(&context, &command),
     }
 }
 
@@ -165,6 +166,231 @@ fn credential(context: &Context, command: &CredentialCommand) -> ExitCode {
             ExitCode::from(1)
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// state (J14, jail-interactive-sessions.md §4.9)
+// ---------------------------------------------------------------------------
+
+/// `ukai-jail state list|show|rm`: 0 when done, 1 when refused or absent.
+/// File names below a state are printed only by `show`, on this host.
+fn state(context: &Context, command: &StateCommand) -> ExitCode {
+    use ukai_jail::persistent;
+    let data_dir = match ukai_jail::state::data_dir(&context.env_settings, context.home.as_deref())
+    {
+        Ok(dir) => dir,
+        Err(error) => return fail(&error),
+    };
+    match command {
+        StateCommand::List(args) => match persistent::list(&data_dir) {
+            Ok(listed) => {
+                if args.json {
+                    print_json(&serde_json::Value::Array(
+                        listed.iter().map(state_json).collect(),
+                    ));
+                } else {
+                    for state in &listed {
+                        println!("{}", state_line(state));
+                    }
+                }
+                ExitCode::SUCCESS
+            }
+            Err(error) => fail(&error),
+        },
+        StateCommand::Show(args) | StateCommand::Rm(args) => {
+            if !ukai_jail::launch_profile::valid_name(&args.name) {
+                ukai_jail::diag!(
+                    "ukai-jail: state: `{}` is not a launch profile name",
+                    records::escape_control(&args.name)
+                );
+                return ExitCode::from(2);
+            }
+            let workspace = match supervisor::state_workspace(context, args.workspace.as_deref()) {
+                Ok(workspace) => workspace,
+                Err(error) => return fail(&error),
+            };
+            let shown = records::escape_control(&workspace.to_string_lossy());
+            if let StateCommand::Rm(_) = command {
+                return match persistent::remove(&data_dir, &args.name, &workspace) {
+                    Ok(persistent::Removed::Removed { path }) => {
+                        ukai_jail::diag!(
+                            "ukai-jail: removed the persistent state of `{}` for {shown} ({})",
+                            args.name,
+                            records::escape_control(&path.to_string_lossy())
+                        );
+                        ExitCode::SUCCESS
+                    }
+                    Ok(persistent::Removed::Leased) => {
+                        ukai_jail::diag!(
+                            "ukai-jail: state: an attempt holds the persistent state of `{}` \
+                             for {shown}; nothing was removed",
+                            args.name
+                        );
+                        ExitCode::from(1)
+                    }
+                    Ok(persistent::Removed::Absent) => {
+                        ukai_jail::diag!(
+                            "ukai-jail: state: no persistent state of `{}` for {shown}",
+                            args.name
+                        );
+                        ExitCode::from(1)
+                    }
+                    Err(error) => fail(&error),
+                };
+            }
+            match persistent::show(&data_dir, &args.name, &workspace) {
+                Ok(Some(state)) => {
+                    print!("{}", state_show_text(&state));
+                    ExitCode::SUCCESS
+                }
+                Ok(None) => {
+                    ukai_jail::diag!(
+                        "ukai-jail: state: no persistent state of `{}` for {shown}",
+                        args.name
+                    );
+                    ExitCode::from(1)
+                }
+                Err(error) => fail(&error),
+            }
+        }
+    }
+}
+
+/// One `state list` line.
+fn state_line(state: &ukai_jail::persistent::Listed) -> String {
+    let mut parts = vec![records::escape_control(&state.launch)];
+    match &state.record {
+        Ok(record) => {
+            parts.push(records::escape_control(&record.workspace.to_display()));
+            parts.push(record.state_id.clone());
+            parts.push(format!("generation {}", record.generation));
+            parts.push(state.size.map_or_else(
+                || "size unavailable".to_owned(),
+                |bytes| format!("{bytes} bytes"),
+            ));
+            if let Some(last) = &record.last_release {
+                parts.push(format!("last {}", last.attempt));
+            }
+            if record.quarantine.is_some() {
+                parts.push("QUARANTINED".to_owned());
+            }
+        }
+        Err(why) => parts.push(format!(
+            "key {} unreadable: {}",
+            state.key,
+            records::escape_control(why)
+        )),
+    }
+    if state.leased {
+        parts.push("held now".to_owned());
+    }
+    parts.join("  ")
+}
+
+/// One state as `state list --json` prints it: no file name below it.
+fn state_json(state: &ukai_jail::persistent::Listed) -> serde_json::Value {
+    let record = state.record.as_ref().ok();
+    serde_json::json!({
+        "launch": state.launch,
+        "key": state.key,
+        "workspace": record.map(|record| record.workspace.to_display()),
+        "state_id": record.map(|record| record.state_id.clone()),
+        "generation": record.map(|record| record.generation),
+        "size": state.size,
+        "last_attempt": record
+            .and_then(|record| record.last_release.as_ref())
+            .map(|last| last.attempt.clone()),
+        "quarantined": record.map(|record| record.quarantine.is_some()),
+        "held": state.leased,
+        "error": state.record.as_ref().err(),
+    })
+}
+
+/// `state show`: the metadata and the generation log; a quarantine's file
+/// names, which only this host's operator sees.
+fn state_show_text(state: &ukai_jail::persistent::Listed) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    let _ = writeln!(out, "launch {}", records::escape_control(&state.launch));
+    let _ = writeln!(out, "key {}", state.key);
+    let record = match &state.record {
+        Ok(record) => record,
+        Err(why) => {
+            let _ = writeln!(out, "record unreadable: {}", records::escape_control(why));
+            return out;
+        }
+    };
+    let _ = writeln!(
+        out,
+        "workspace {}",
+        records::escape_control(&record.workspace.to_display())
+    );
+    let _ = writeln!(out, "state {}", record.state_id);
+    let _ = writeln!(out, "created {}", record.created_at);
+    let _ = writeln!(out, "generation {}", record.generation);
+    let _ = writeln!(
+        out,
+        "size {}",
+        state.size.map_or_else(
+            || "unavailable (past the bound or unreadable)".to_owned(),
+            |bytes| format!("{bytes} bytes")
+        )
+    );
+    let _ = writeln!(out, "held now {}", if state.leased { "yes" } else { "no" });
+    if let Some(holder) = &record.holder {
+        let _ = writeln!(
+            out,
+            "holder {} {}",
+            holder.attempt,
+            if holder.released {
+                "released"
+            } else {
+                "NOT released (run ukai-jail gc)"
+            }
+        );
+    }
+    if let Some(last) = &record.last_release {
+        let _ = writeln!(
+            out,
+            "last release {} at {} digest {}",
+            last.attempt,
+            last.at,
+            last.digest
+                .clone()
+                .or_else(|| last.digest_unavailable.clone())
+                .unwrap_or_else(|| "none".to_owned())
+        );
+    }
+    if let Some(quarantine) = &record.quarantine {
+        let _ = writeln!(
+            out,
+            "QUARANTINED {} at the release of {} ({})",
+            quarantine.reason, quarantine.attempt, quarantine.at
+        );
+        for file in &quarantine.files {
+            let _ = writeln!(
+                out,
+                "quarantine file {}",
+                records::escape_control(&file.to_display())
+            );
+        }
+    }
+    for generation in &record.log {
+        let _ = writeln!(
+            out,
+            "generation {} {} by {} at {} discarded {} scan {} matches_release {}",
+            generation.generation,
+            generation.attempt,
+            generation.by,
+            generation.at,
+            generation.discarded,
+            generation.secret_scan,
+            generation
+                .matches_release
+                .map_or("unknown", |matches| if matches { "true" } else { "false" })
+        );
+    }
+    out
 }
 
 /// Terminal echo turned off on stdin for as long as this lives (a pasted
@@ -524,7 +750,40 @@ fn explain_json(report: &ExplainReport) -> Result<serde_json::Value, JailError> 
         // J12 §3.3 step 6: the resolved program, the argv prefix the
         // operator's arguments follow and every derived root.
         "program": report.program.as_ref().map(|(program, roots)| program_json(program, roots)),
+        // J14 §3.7: the terminal mode `run` would get here, and why.
+        "terminal": terminal_json(&report.terminal),
     }))
+}
+
+/// J14: a terminal decision as `explain --json` prints it.
+fn terminal_json(decision: &ukai_jail::terminal::Decision) -> serde_json::Value {
+    match decision {
+        ukai_jail::terminal::Decision::Attached { device } => serde_json::json!({
+            "mode": "attached",
+            "device": device,
+            "reason": null,
+        }),
+        ukai_jail::terminal::Decision::Detached(reason) => serde_json::json!({
+            "mode": "detached",
+            "device": null,
+            "reason": reason.map(ukai_jail::terminal::Detached::as_str),
+        }),
+    }
+}
+
+/// J14: a terminal decision as `explain` and `doctor` print it.
+fn terminal_text(decision: &ukai_jail::terminal::Decision) -> String {
+    match decision {
+        ukai_jail::terminal::Decision::Attached { device } => format!(
+            "terminal attached ({}): ^C and ^Z go to the command, not the jail; end the attempt \
+             through the command or with kill -INT on the supervisor",
+            records::escape_control(device)
+        ),
+        ukai_jail::terminal::Decision::Detached(Some(reason)) => {
+            format!("terminal detached ({})", reason.as_str())
+        }
+        ukai_jail::terminal::Decision::Detached(None) => "terminal detached".to_owned(),
+    }
 }
 
 /// J12: the resolved program as `explain --json` and the doctor text show
@@ -653,6 +912,8 @@ fn explain_text(report: &ExplainReport) -> String {
         }
     );
     let _ = writeln!(out, "network {}", snapshot.network.mode.as_str());
+    // J14 §3.7: the terminal mode and the condition that decided it.
+    let _ = writeln!(out, "{}", terminal_text(&report.terminal));
     for reference in &snapshot.filesystem.read_write {
         let _ = writeln!(
             out,
@@ -716,6 +977,17 @@ fn explain_text(report: &ExplainReport) -> String {
                 credential.mode.as_str(),
                 records::escape_control(&credential.dest.to_display())
             );
+        }
+        // J14 §4: persistent state and what its release discards.
+        if let Some(discard) = &launch.state_discard {
+            let _ = writeln!(out, "launch state=persistent");
+            for entry in discard {
+                let _ = writeln!(
+                    out,
+                    "launch state_discard {}",
+                    records::escape_control(&entry.to_display())
+                );
+            }
         }
     }
     // J12: `roots.cwd`, when the child does not start at the workspace root
@@ -971,8 +1243,69 @@ fn doctor_text(report: &DoctorReport) -> String {
     if let Some(home) = &report.workspace {
         let _ = writeln!(out, "{}", home.doctor_line(report.launch.is_some()));
     }
+    // J14 §5: whether a run here attaches its terminal, which barrier stops
+    // TIOCSTI, and the launch profile's persistent state (text only; the
+    // doctor record is unchanged). A platform that executes nothing has no
+    // terminal mode to report.
+    if report.platform.os == records::Os::Linux {
+        let _ = writeln!(out, "{}", terminal_text(&report.terminal));
+        match report.legacy_tiocsti.as_deref() {
+            Some("0") => {
+                let _ = writeln!(
+                    out,
+                    "terminal legacy_tiocsti=0: the kernel refuses TIOCSTI as well as the filter"
+                );
+            }
+            Some("1") => {
+                let _ = writeln!(
+                    out,
+                    "terminal legacy_tiocsti=1: the filter's EPERM is the only barrier to TIOCSTI"
+                );
+            }
+            _ => {
+                let _ = writeln!(out, "terminal legacy_tiocsti unmeasured");
+            }
+        }
+    }
+    if let Some(state) = &report.persistent_state {
+        let _ = writeln!(out, "{}", doctor_state_line(state.as_ref()));
+    }
     let _ = writeln!(out, "ready {}", report.ready);
     out
+}
+
+/// J14: the launch profile's persistent state for this workspace, as
+/// `doctor` reports it: present, generation, held, quarantined.
+fn doctor_state_line(state: Option<&ukai_jail::persistent::Listed>) -> String {
+    let Some(state) = state else {
+        return "state persistent: none yet for this workspace".to_owned();
+    };
+    match &state.record {
+        Ok(record) => format!(
+            "state persistent: present, generation {}, {}{}{}",
+            record.generation,
+            if state.leased { "held now" } else { "not held" },
+            if record
+                .holder
+                .as_ref()
+                .is_some_and(|holder| !holder.released)
+                && !state.leased
+            {
+                ", NOT released (run ukai-jail gc)"
+            } else {
+                ""
+            },
+            if record.quarantine.is_some() {
+                ", QUARANTINED (ukai-jail state show)"
+            } else {
+                ""
+            }
+        ),
+        Err(why) => format!(
+            "state persistent: present, record unreadable: {}",
+            records::escape_control(why)
+        ),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1073,6 +1406,15 @@ fn gc_text(report: &ukai_jail::gc::Report) -> String {
                 records::escape_control(journal)
             );
         }
+        // J14 §4.9: what became of the persistent state the attempt held
+        if let Some(persistent) = &entry.persistent_state {
+            let _ = writeln!(
+                out,
+                "{} persistent_state {}",
+                attempt_id,
+                records::escape_control(persistent)
+            );
+        }
     }
     let _ = writeln!(out, "scanned {}", report.entries.len());
     // S7, S9
@@ -1115,6 +1457,8 @@ fn gc_json(report: &ukai_jail::gc::Report) -> serde_json::Value {
                 "temp_files": entry.temp_files,
                 // jail-v1 §13.3: the receipt note gc appended, or why not
                 "journal": entry.journal,
+                // J14 §4.9: what became of the persistent state it held
+                "persistent_state": entry.persistent_state,
             }))
             .collect::<Vec<_>>(),
         // S7 and S9
@@ -1425,6 +1769,7 @@ mod tests {
             platform: m1_platform(),
             program: None,
             nested_in: None,
+            terminal: ukai_jail::terminal::Decision::Detached(None),
         }
     }
 
@@ -1433,6 +1778,117 @@ mod tests {
             os: records::Os::Macos,
             arch: std::env::consts::ARCH.to_owned(),
             kernel: "test".to_owned(),
+        }
+    }
+
+    /// J14 §3.7: `explain` and `doctor` show the terminal decision with the
+    /// condition that decided it; a device name is escaped like every other
+    /// host-chosen string in text, and kept as it is in JSON.
+    #[test]
+    fn the_terminal_decision_is_shown_with_its_reason() {
+        use ukai_jail::terminal::{Decision, Detached};
+        let attached = Decision::Attached {
+            device: "/dev/pts/\u{1b}3".to_owned(),
+        };
+        let text = terminal_text(&attached);
+        assert!(
+            text.starts_with(
+                "terminal attached (/dev/pts/<U+001B>3): ^C and ^Z go to the command, not the jail"
+            ),
+            "{text}"
+        );
+        assert_eq!(
+            terminal_json(&attached),
+            serde_json::json!({"mode": "attached", "device": "/dev/pts/\u{1b}3", "reason": null})
+        );
+        for reason in [
+            Detached::NotATerminal,
+            Detached::NotControlling,
+            Detached::Background,
+            Detached::NotPty,
+        ] {
+            let decision = Decision::Detached(Some(reason));
+            assert_eq!(
+                terminal_text(&decision),
+                format!("terminal detached ({})", reason.as_str())
+            );
+            assert_eq!(
+                terminal_json(&decision),
+                serde_json::json!({"mode": "detached", "device": null, "reason": reason.as_str()})
+            );
+        }
+        assert_eq!(
+            terminal_text(&Decision::Detached(None)),
+            "terminal detached"
+        );
+        assert_eq!(
+            terminal_json(&Decision::Detached(None))["reason"],
+            serde_json::Value::Null
+        );
+    }
+
+    /// J14 §5: `doctor` reports the launch profile's state for this
+    /// workspace: none yet, or present with its generation, whether it is
+    /// held now, an unreleased holder and a quarantine.
+    #[test]
+    fn doctor_says_what_the_persistent_state_is() {
+        use ukai_jail::persistent::{Holder, Identity, Listed, Quarantine, Record};
+        assert_eq!(
+            doctor_state_line(None),
+            "state persistent: none yet for this workspace"
+        );
+        let record = |released: bool, quarantined: bool| Record {
+            schema: "ukai.jail.persistent-state/1".to_owned(),
+            state_id: "st_x".to_owned(),
+            launch: "keeper".to_owned(),
+            workspace: records::NativeString::from_bytes(b"/w".to_vec()).unwrap(),
+            workspace_identity: Identity((1, 2)),
+            created_at: "2026-10-19T00:00:00Z".to_owned(),
+            generation: 4,
+            last_release: None,
+            holder: Some(Holder {
+                attempt: "att_x".to_owned(),
+                released,
+            }),
+            quarantine: quarantined.then(|| Quarantine {
+                reason: "credential_persisted".to_owned(),
+                attempt: "att_x".to_owned(),
+                at: "2026-10-19T00:00:00Z".to_owned(),
+                files: Vec::new(),
+            }),
+            log: Vec::new(),
+        };
+        let listed = |record: Result<Record, String>, leased: bool| Listed {
+            launch: "keeper".to_owned(),
+            key: "k".to_owned(),
+            record,
+            size: Some(0),
+            leased,
+        };
+        for (state, line) in [
+            (
+                listed(Ok(record(true, false)), false),
+                "state persistent: present, generation 4, not held",
+            ),
+            (
+                listed(Ok(record(false, false)), true),
+                "state persistent: present, generation 4, held now",
+            ),
+            (
+                listed(Ok(record(false, false)), false),
+                "state persistent: present, generation 4, not held, NOT released (run ukai-jail gc)",
+            ),
+            (
+                listed(Ok(record(true, true)), false),
+                "state persistent: present, generation 4, not held, QUARANTINED (ukai-jail state \
+                 show)",
+            ),
+            (
+                listed(Err("bad\u{1b}".to_owned()), false),
+                "state persistent: present, record unreadable: bad<U+001B>",
+            ),
+        ] {
+            assert_eq!(doctor_state_line(Some(&state)), line);
         }
     }
 
@@ -1467,6 +1923,7 @@ mod tests {
             platform: m1_platform(),
             program: None,
             nested_in: None,
+            terminal: ukai_jail::terminal::Decision::Detached(None),
         });
         assert!(text.contains("read_only host:sec<U+202E>ret"), "{text}");
         assert!(!text.contains('\u{202e}'), "{text}");
@@ -1477,6 +1934,7 @@ mod tests {
             platform: m1_platform(),
             program: None,
             nested_in: None,
+            terminal: ukai_jail::terminal::Decision::Detached(None),
         });
         assert!(clean.starts_with("policy tool\nprofile tool\n"), "{clean}");
         assert!(
@@ -1508,6 +1966,7 @@ mod tests {
             platform: m1_platform(),
             program: None,
             nested_in: None,
+            terminal: ukai_jail::terminal::Decision::Detached(None),
         });
         let limits: Vec<&str> = text
             .lines()

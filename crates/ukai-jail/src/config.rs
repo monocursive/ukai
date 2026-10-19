@@ -225,6 +225,9 @@ pub struct JailSection {
     /// `jail.summary`: `false` turns the end-of-run summary off by default
     /// (J13). Presentation only, never a policy input; `config.toml` only.
     pub summary: Option<bool>,
+    /// `jail.terminal`: `"detach"` keeps every run detached (J14,
+    /// jail-interactive-sessions.md §3.2 condition 2); `config.toml` only.
+    pub terminal: Option<crate::terminal::Choice>,
 }
 
 /// `[jail_host.network]`: host configuration, forbidden in project files.
@@ -311,7 +314,7 @@ struct ForbiddenKey {
 /// project file can only narrow: `profile` and `extends` would choose the
 /// base authority, which §6.3 refuses as widening, and command rules are
 /// the operator's.
-const FORBIDDEN_KEYS: [ForbiddenKey; 5] = [
+const FORBIDDEN_KEYS: [ForbiddenKey; 6] = [
     ForbiddenKey {
         table: JailTable::OperatorConfig,
         key: "extends",
@@ -348,6 +351,13 @@ const FORBIDDEN_KEYS: [ForbiddenKey; 5] = [
         present: |jail| jail.summary.is_some(),
         code: ErrorCode::InvalidConfig,
         message: "`summary` is an operator preference for config.toml, not a project setting",
+    },
+    ForbiddenKey {
+        table: JailTable::ProjectFile,
+        key: "terminal",
+        present: |jail| jail.terminal.is_some(),
+        code: ErrorCode::InvalidConfig,
+        message: "`terminal` is an operator preference for config.toml, not a project setting",
     },
 ];
 
@@ -832,6 +842,12 @@ mod tests {
                 "jail.summary",
                 ErrorCode::InvalidConfig,
             ),
+            // J14: whether a terminal attaches is the operator's choice.
+            (
+                "[jail]\nterminal = \"detach\"\n",
+                "jail.terminal",
+                ErrorCode::InvalidConfig,
+            ),
         ] {
             let error = parse_project_config(text).expect_err(key);
             assert_eq!((error.code, error.key_path.as_deref()), (code, Some(key)));
@@ -849,6 +865,15 @@ mod tests {
             .expect("config.toml may turn the end-of-run summary off");
         assert_eq!(config.jail.and_then(|jail| jail.summary), Some(false));
         let error = parse_operator_config("[jail]\nsummary = \"no\"\n").expect_err("a bool");
+        assert_eq!(error.code, ErrorCode::InvalidConfig);
+        let config = parse_operator_config("[jail]\nterminal = \"detach\"\n")
+            .expect("config.toml may keep runs detached");
+        assert_eq!(
+            config.jail.and_then(|jail| jail.terminal),
+            Some(crate::terminal::Choice::Detach)
+        );
+        let error =
+            parse_operator_config("[jail]\nterminal = \"always\"\n").expect_err("auto or detach");
         assert_eq!(error.code, ErrorCode::InvalidConfig);
     }
 

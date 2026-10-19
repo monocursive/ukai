@@ -322,7 +322,7 @@ grants, recorded in the receipt.
 | Network | proxy only; hosts from the launch profile plus `--allow-host` | none | none | the host network |
 | Limits (initial) | `wall=2h`, preferred `pids=512`; `mem` and `cpu` optional | `wall=30m`, preferred `pids=256` | `wall=1h`, preferred `pids=512`, `mem` required | `wall=2h`; a cgroup the supervisor can kill; no default `pids` or `mem` ceiling; explicit limits remain unprotected |
 | Environment | allow-list: `PATH`, `HOME` (set to `<vendor-state>` when a launch profile says so), `LANG`, `TERM`, `TZ`, proxy variables, and the launch profile's variables | `PATH`, `LANG`, `TERM`, `TZ` | same as `tool` | inherited, except names that point at the data directory, the ledger socket, or a token; the receipt says `inherited` and lists the removed names, not the values |
-| Process | `--new-session`, `--die-with-parent`, own pid, net, ipc, and uts namespaces | same | same | new session, no namespaces; supervisor-owned cgroup (§4.9) |
+| Process | `--new-session` (in terminal mode, the caller's session and the command's own process group instead: jail-interactive-sessions.md §3), `--die-with-parent`, own pid, net, ipc, and uts namespaces | same | same | new session, no namespaces; supervisor-owned cgroup (§4.9) |
 
 The workspace is the directory the operator passed. The jail bind-mounts it. A
 git worktree, a hardlinked object, or an alternate is not a boundary: a write can
@@ -336,7 +336,10 @@ Applied for every profile other than `none`.
 
 - bubblewrap with `--unshare-user --unshare-pid --unshare-net --unshare-ipc --unshare-uts`,
   `--die-with-parent`, `--new-session`, `--ro-bind` for read-only roots, `--bind`
-  for writable ones, `--tmpfs` over denied subtrees inside otherwise-visible
+  for writable ones (terminal mode omits `--new-session` and the launcher
+  gives the command its own process group, made the terminal's foreground
+  group: [jail-interactive-sessions.md](docs/specs/jail-interactive-sessions.md)
+  §3.3), `--tmpfs` over denied subtrees inside otherwise-visible
   parents, `--dev /dev`, `--proc /proc`. Nothing else from the host is visible.
 - Read visibility and write permission are separate lists. A path may be visible
   and read-only, writable, or absent. Roots, symlinks, and protected literals are

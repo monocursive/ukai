@@ -128,11 +128,20 @@ struct Pending {
 }
 struct State {
     value: Zeroizing<Vec<u8>>,
+    /// J14 §4.5: every distinct value loaded during the attempt (at most
+    /// [`SEEN_MAX`]), so the release's scan searches for each.
+    seen: Vec<Zeroizing<Vec<u8>>>,
+    /// Whether a distinct value was loaded past [`SEEN_MAX`] and so is not
+    /// in `seen` (review F13).
+    seen_overflow: bool,
     generation: u64,
     denied: bool,
     epoch: Option<crate::state::anchored::Stat>,
     pending: Option<Pending>,
 }
+/// The most distinct values one secret remembers for the scan.
+const SEEN_MAX: usize = 16;
+
 pub(super) struct Runtime {
     source: Option<SourceLocation>,
     refresh: Option<RefreshPolicy>,
@@ -147,11 +156,18 @@ pub(super) struct Runtime {
 }
 impl Runtime {
     pub(super) fn static_value(value: Zeroizing<Vec<u8>>) -> Self {
+        let seen = if value.is_empty() {
+            Vec::new()
+        } else {
+            vec![value.clone()]
+        };
         Self {
             source: None,
             refresh: None,
             state: Mutex::new(State {
                 value,
+                seen,
+                seen_overflow: false,
                 generation: 1,
                 denied: false,
                 epoch: None,
@@ -225,6 +241,14 @@ impl Runtime {
         }
         reason
     }
+    /// Every distinct value loaded so far (J14 §4.5), and whether that is
+    /// all of them: past [`SEEN_MAX`] distinct values the oldest are
+    /// forgotten, and a scan with what is left cannot claim it is clean.
+    pub(super) fn loaded_values(&self) -> (Vec<Zeroizing<Vec<u8>>>, bool) {
+        let state = lock(&self.state);
+        (state.seen.clone(), !state.seen_overflow)
+    }
+
     pub(super) fn current(&self) -> Result<(Zeroizing<Vec<u8>>, u64), Reason> {
         let Some((path, forbidden)) = &self.source else {
             let state = lock(&self.state);
@@ -289,6 +313,19 @@ impl Runtime {
                 return Err(self.failed("audit_unavailable", Reason::CredentialUnavailable));
             }
             state.generation = next;
+            if !value.is_empty()
+                && !state
+                    .seen
+                    .iter()
+                    .any(|seen| seen.as_slice() == value.as_slice())
+            {
+                // The most recent values are the likeliest to be found.
+                if state.seen.len() == SEEN_MAX {
+                    state.seen.remove(0);
+                    state.seen_overflow = true;
+                }
+                state.seen.push(value.clone());
+            }
             state.value = value;
             state.denied = false;
         }
@@ -924,6 +961,35 @@ mod tests {
         assert!(runtime.current().is_err());
         fs::remove_file(std::ffi::OsStr::from_bytes(&path)).unwrap();
         assert!(runtime.current().is_err());
+    }
+    /// J14 §4.5, review F13: every distinct value loaded is remembered for
+    /// the release's scan; past [`SEEN_MAX`] the oldest is forgotten and the
+    /// set says it is no longer complete, so the scan cannot claim `clean`.
+    #[test]
+    fn loaded_values_are_remembered_and_an_overflow_is_said() {
+        let (_dir, path) = file(b"value-0");
+        let runtime = Runtime::source(path.clone(), vec![], None).unwrap();
+        *lock(&runtime.audit) = Some(("api".into(), Arc::new(|_, _, _| true)));
+        runtime.current().unwrap();
+        let (values, complete) = runtime.loaded_values();
+        assert_eq!(values.len(), 1);
+        assert!(complete);
+        for n in 1..=SEEN_MAX {
+            fs::write(
+                std::ffi::OsStr::from_bytes(&path),
+                format!("value-{n}").as_bytes(),
+            )
+            .unwrap();
+            runtime.current().unwrap();
+        }
+        let (values, complete) = runtime.loaded_values();
+        assert_eq!(values.len(), SEEN_MAX);
+        assert!(!complete, "value-0 was forgotten");
+        assert!(values.iter().all(|value| value.as_slice() != b"value-0"));
+        assert_eq!(
+            values.last().map(|value| value.to_vec()),
+            Some(format!("value-{SEEN_MAX}").into_bytes())
+        );
     }
     /// Staging's refusal names why the source was refused, where the
     /// read says, rather than one catch-all.

@@ -50,6 +50,9 @@ pub enum Command {
     /// Store or remove a credential source under the config directory.
     #[command(subcommand)]
     Credential(CredentialCommand),
+    /// List, show or remove persistent agent state.
+    #[command(subcommand)]
+    State(StateCommand),
 }
 
 /// The verbs `ukai-jail NAME` never takes as a launch name (J12,
@@ -65,7 +68,40 @@ pub const VERBS: &[&str] = &[
     "version",
     "help",
     "credential",
+    "state",
 ];
+
+/// `ukai-jail state` (J14, jail-interactive-sessions.md §4.9): the
+/// persistent vendor state kept per launch profile and workspace.
+#[derive(Debug, Subcommand)]
+pub enum StateCommand {
+    /// List every persistent state: launch name, workspace, generation.
+    List(StateListArgs),
+    /// Show one state's metadata and generation log.
+    Show(StateNameArgs),
+    /// Remove one state; refused while an attempt holds it.
+    Rm(StateNameArgs),
+}
+
+/// `ukai-jail state list`.
+#[derive(Debug, Args)]
+pub struct StateListArgs {
+    /// Print JSON on stdout instead of text.
+    #[arg(long)]
+    pub json: bool,
+}
+
+/// `ukai-jail state show NAME` and `state rm NAME`.
+#[derive(Debug, Args)]
+pub struct StateNameArgs {
+    /// The launch profile name.
+    #[arg(value_name = "NAME")]
+    pub name: String,
+    /// The workspace; defaults to the repository top level of the invocation
+    /// directory, as `ukai-jail NAME` resolves it.
+    #[arg(long, value_name = "PATH")]
+    pub workspace: Option<PathBuf>,
+}
 
 /// `ukai-jail credential` (J12, §3.5): operator verbs that write the files a
 /// launch profile's `@config/credentials/ID` sources name.
@@ -146,6 +182,27 @@ pub struct PolicyArgs {
     /// Evidence mode; the default is `strict`.
     #[arg(long, value_name = "strict|best-effort", value_enum)]
     pub evidence: Option<Evidence>,
+    /// Where the launch profile's agent state lives: `attempt` (created
+    /// empty, removed at the end) or `persistent` (kept per launch profile
+    /// and workspace); the default is the launch profile's.
+    #[arg(long, value_name = "attempt|persistent", value_enum)]
+    pub state: Option<StateChoice>,
+}
+
+/// `--state`, spelled as a launch profile spells it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum StateChoice {
+    Attempt,
+    Persistent,
+}
+
+impl From<StateChoice> for crate::launch_profile::StateKind {
+    fn from(choice: StateChoice) -> Self {
+        match choice {
+            StateChoice::Attempt => crate::launch_profile::StateKind::Attempt,
+            StateChoice::Persistent => crate::launch_profile::StateKind::Persistent,
+        }
+    }
 }
 
 /// `--observe`, spelled as the policy spells observation modes.
@@ -219,6 +276,11 @@ pub struct RunArgs {
     /// still print.
     #[arg(long)]
     pub quiet: bool,
+    /// `auto` attaches the operator's terminal when stdin is the controlling
+    /// pseudo-terminal and the jail is the foreground job; `detach` never
+    /// does. The default is `auto`, or `[jail] terminal` in config.toml.
+    #[arg(long, value_name = "auto|detach", value_enum)]
+    pub terminal: Option<crate::terminal::Choice>,
     /// PROGRAM and its arguments, after `--`; with --from-path, the
     /// arguments the resolved program gets.
     #[arg(
@@ -260,6 +322,9 @@ pub struct ExplainArgs {
     /// Policy selection and overrides.
     #[command(flatten)]
     pub policy: PolicyArgs,
+    /// The terminal choice `run` would be given.
+    #[arg(long, value_name = "auto|detach", value_enum)]
+    pub terminal: Option<crate::terminal::Choice>,
     /// Print JSON on stdout instead of text.
     #[arg(long)]
     pub json: bool,

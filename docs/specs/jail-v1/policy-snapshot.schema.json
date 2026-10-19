@@ -116,6 +116,24 @@
               "additionalProperties": false
             },
             {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "persistent"
+                },
+                "profile": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+                }
+              },
+              "required": [
+                "kind",
+                "profile"
+              ],
+              "additionalProperties": false,
+              "description": "J14 (jail-interactive-sessions.md \u00a74.3): kept per launch profile and workspace, outside every attempt."
+            },
+            {
               "type": "null"
             }
           ]
@@ -871,6 +889,34 @@
                 ],
                 "additionalProperties": false
               }
+            },
+            "state_discard": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "encoding": {
+                        "const": "base64"
+                      },
+                      "data": {
+                        "type": "string",
+                        "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+                      }
+                    },
+                    "required": [
+                      "encoding",
+                      "data"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "description": "J14 \u00a74.5: relative paths removed from persistent vendor state at release; present only when the state is persistent."
             }
           },
           "required": [
@@ -908,6 +954,10 @@
         "forbid"
       ],
       "additionalProperties": false
+    },
+    "terminal": {
+      "const": "attached",
+      "description": "J14 (jail-interactive-sessions.md \u00a73.7): present only when the operator's terminal is attached; omitted when detached, so a detached snapshot keeps its digest."
     }
   },
   "required": [
@@ -926,5 +976,60 @@
   "additionalProperties": false,
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:ukai:schema:jail-policy-snapshot:1",
-  "title": "Canonical jail policy snapshot v1"
+  "title": "Canonical jail policy snapshot v1",
+  "allOf": [
+    {
+      "$comment": "J14 \u00a74.7: launch.state_discard is present exactly when the vendor state is persistent.",
+      "if": {
+        "properties": {
+          "roots": {
+            "properties": {
+              "vendor_state": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "persistent"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
+            },
+            "required": [
+              "vendor_state"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "launch": {
+            "type": "object",
+            "required": [
+              "state_discard"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "launch": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "not": {
+                  "required": [
+                    "state_discard"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

@@ -1248,6 +1248,8 @@ pub struct Tracer {
     shutdown_ns: Arc<AtomicU64>,
     /// The tracer thread's task id, so its `waitpid` can be interrupted.
     tid: Arc<AtomicI32>,
+    /// J14 §3.4: the launcher's group-stops (see [`Tracer::group_stop`]).
+    group_stop: Arc<AtomicU64>,
 }
 
 impl Tracer {
@@ -1287,11 +1289,13 @@ impl Tracer {
             u64::try_from(Tracer::DEFAULT_SHUTDOWN.as_nanos()).unwrap_or(u64::MAX),
         ));
         let tid = Arc::new(AtomicI32::new(0));
+        let group_stop = Arc::new(AtomicU64::new(0));
         let thread = session::Handles {
             stop: Arc::clone(&stop),
             shutdown_ns: Arc::clone(&shutdown_ns),
             tid: Arc::clone(&tid),
             handed: Arc::clone(&handed),
+            group_stop: Arc::clone(&group_stop),
         };
         let handle = std::thread::Builder::new()
             .name("ukai-jail-tracer".to_string())
@@ -1307,6 +1311,7 @@ impl Tracer {
                 stop,
                 shutdown_ns,
                 tid,
+                group_stop,
             }),
             Ok(Err(err)) => {
                 let _ = handle.join();
@@ -1325,6 +1330,16 @@ impl Tracer {
     #[must_use]
     pub fn launcher(&self) -> pid_t {
         self.launcher
+    }
+
+    /// J14 §3.4: while the launcher (the target) is group-stopped, which
+    /// stop it is (they are counted from 1) and the signal that stopped
+    /// it; `None` when it is not group-stopped.
+    #[must_use]
+    pub fn group_stop(&self) -> Option<(u64, i32)> {
+        let value = self.group_stop.load(Ordering::Acquire);
+        let signal = i32::try_from(value & 0xff).unwrap_or(0);
+        (signal != 0).then_some((value >> 8, signal))
     }
 
     /// The event stream. Read it until [`TracerEvent::Finished`]; events

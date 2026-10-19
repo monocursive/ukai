@@ -152,6 +152,11 @@ pub struct JailState {
     /// Why a vendor-state registration was withdrawn.
     #[serde(default, skip_serializing_if = "Field::is_absent")]
     pub vendor_state_withdrawn: Field<String>,
+    /// J14: the persistent vendor state this attempt registered before it
+    /// recorded itself as the state's holder (jail-interactive-sessions.md
+    /// §4.3).
+    #[serde(default, skip_serializing_if = "Field::is_absent")]
+    pub persistent_state: Field<PersistentStateEntry>,
     /// Vendor-state cleanup progress.
     #[serde(default, skip_serializing_if = "Field::is_absent")]
     pub state_cleanup: Field<StateCleanup>,
@@ -271,6 +276,24 @@ pub struct VendorStateEntry {
     /// The private provenance of the credentials staged into it.
     #[serde(default, skip_serializing_if = "Field::is_absent")]
     pub credentials: Field<Vec<CredentialEntry>>,
+    /// Keys this build does not know.
+    #[serde(flatten)]
+    pub rest: Map<String, Value>,
+}
+
+/// J14: a persistent vendor state registered by the attempt.
+#[derive(Clone, PartialEq, Debug, Default, Serialize, Deserialize)]
+pub struct PersistentStateEntry {
+    /// Always `persistent`.
+    pub kind: String,
+    /// `st_<uuid>`.
+    pub state_id: String,
+    /// The state's key.
+    pub key: String,
+    /// The launch profile name.
+    pub launch: String,
+    /// When it was registered.
+    pub registered_at: String,
     /// Keys this build does not know.
     #[serde(flatten)]
     pub rest: Map<String, Value>,

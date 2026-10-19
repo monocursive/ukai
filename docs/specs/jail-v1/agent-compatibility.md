@@ -81,6 +81,12 @@ still reports the profile `experimental`; this record carries the claim.
   unrecorded. Each Claude Code run leaves one `fs.deny`, its `mkdir` of
   `~/.local/state`. The summary's workspace line counts Claude Code's own
   writes as unnamed results: their path claims could not be corroborated.
+- **Since J14** ([jail-interactive-sessions.md](../jail-interactive-sessions.md)),
+  the bundled profile keeps Claude Code's state per workspace, so the same
+  command now records `state_cleanup` `released` where this run recorded
+  `complete`, and started from a terminal it runs attached. Neither is
+  recorded here; the interactive row that §6.3 of that proposal describes
+  is a separate record, not made yet.
 - **OpenCode under the alias** (the rerun §6.3 asks for) did not pass: see
   the table row and the record.
 

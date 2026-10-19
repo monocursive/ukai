@@ -66,8 +66,9 @@ pub(crate) use record::{
 #[cfg(target_os = "linux")]
 pub(crate) use registration::register_execution_leaf;
 pub(crate) use registration::{
-    PrivateCredential, VENDOR_STATE_NAME, create_vendor_state, record_cleanup, record_cleanup_at,
-    record_staged_credentials, vendor_registration,
+    PersistentRegistration, PrivateCredential, VENDOR_STATE_NAME, create_vendor_state,
+    persistent_registration, record_cleanup, record_cleanup_at, record_staged_credentials,
+    register_persistent_state, vendor_registration,
 };
 pub(crate) use registration::{Registration, create_registered_dir};
 pub(crate) use safety::{

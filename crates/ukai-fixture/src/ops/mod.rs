@@ -22,6 +22,7 @@ pub(crate) mod fs;
 mod introspect;
 pub(crate) mod process;
 mod script;
+mod tty;
 
 pub use introspect::open_fd_numbers;
 
@@ -189,6 +190,7 @@ fn run_mode(session: &Session<'_>, rep: &Reporter, mode: Mode) -> Result<bool, S
         ),
         Mode::Process(mode) => process::run(session, rep, mode),
         Mode::Introspect(mode) => Ok(introspect::run(rep, mode)),
+        Mode::Tty(mode) => tty::run(rep, mode),
         Mode::Script { file } => script::run(session, &file),
         Mode::Perf(mode) => crate::perf::run(rep, mode),
     }

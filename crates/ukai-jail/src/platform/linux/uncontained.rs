@@ -468,6 +468,8 @@ fn spawn_launcher(
                 nofile_soft: exec::operator_nofile_soft(),
                 // Review F5: checked immediately before the exec.
                 pins: pins.to_vec(),
+                // J14 §1: `none` never attaches a terminal.
+                foreground: false,
                 argv: argv.to_vec(),
             }
             .to_argv(),
@@ -837,6 +839,7 @@ impl Uncontained {
             limits,
             environment_names,
             removed_environment_names: removed,
+            terminal: None,
         })
     }
 
@@ -1692,6 +1695,7 @@ mod tests {
                 limits: Vec::new(),
                 environment_names: Vec::new(),
                 removed_environment_names: Vec::new(),
+                terminal: None,
             },
         });
         state.error.eof = true;

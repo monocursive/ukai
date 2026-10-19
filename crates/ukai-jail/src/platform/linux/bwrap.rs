@@ -850,6 +850,10 @@ pub struct BwrapPlan {
     /// The table preparation gave descriptors to ([`Self::set_mount_descriptors`]);
     /// rendering refuses if the plan's table has changed since.
     prepared: Option<Vec<MountRow>>,
+    /// `--new-session`, as every plan has but one in terminal mode (J14
+    /// §3.3), where the command runs in the caller's session in a process
+    /// group of its own.
+    pub(crate) new_session: bool,
 }
 
 /// One read-only credential view.
@@ -972,8 +976,10 @@ pub struct Rendered {
     pub args_payload: Option<Vec<u8>>,
 }
 
-/// The namespace and lifetime options every contained plan starts with.
-const NAMESPACE_OPTIONS: [&str; 9] = [
+/// The namespace and lifetime options every contained plan starts with;
+/// [`NEW_SESSION`] follows `--die-with-parent` unless the plan is in
+/// terminal mode.
+const NAMESPACE_OPTIONS: [&str; 8] = [
     "--unshare-user",
     "--unshare-pid",
     "--unshare-net",
@@ -984,9 +990,11 @@ const NAMESPACE_OPTIONS: [&str; 9] = [
     // which names the operator's session.
     "--unshare-cgroup",
     "--die-with-parent",
-    "--new-session",
     "--clearenv",
 ];
+
+/// `--new-session` (jail-v1 §8.3), omitted only in terminal mode (J14 §3.3).
+const NEW_SESSION: &str = "--new-session";
 
 impl BwrapPlan {
     /// A `tool` plan with this host's runtime roots and `/etc` grants filled
@@ -1037,6 +1045,7 @@ impl BwrapPlan {
             proxy_dir: None,
             resolv_source: None,
             prepared: None,
+            new_session: true,
         }
     }
 
@@ -1337,7 +1346,13 @@ impl BwrapPlan {
     /// carrying NUL, or a long list with no `--args` descriptor.
     pub fn render(&self) -> Result<Rendered, PlanError> {
         self.validate()?;
-        let mut options: Vec<OsString> = NAMESPACE_OPTIONS.iter().map(OsString::from).collect();
+        let mut options: Vec<OsString> = Vec::with_capacity(NAMESPACE_OPTIONS.len() + 1);
+        for option in NAMESPACE_OPTIONS {
+            options.push(OsString::from(option));
+            if option == "--die-with-parent" && self.new_session {
+                options.push(OsString::from(NEW_SESSION));
+            }
+        }
         for (key, value) in &self.env {
             options.extend(["--setenv".into(), key.clone(), value.clone()]);
         }
@@ -1679,6 +1694,7 @@ mod tests {
             nofile_soft: None,
             pins: Vec::new(),
             argv: vec![OsString::from("/bin/true")],
+            foreground: false,
         }
         .command_line(OsStr::new(JAIL_INSIDE_PATH));
         plan

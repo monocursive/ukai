@@ -150,11 +150,35 @@ pub enum ScratchRoot {
 }
 
 /// The vendor-state root, present only when a launch profile requires it.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum VendorStateRoot {
     /// Managed beneath the attempt directory.
     Managed,
+    /// J14: kept per launch profile and workspace, outside every attempt
+    /// (jail-interactive-sessions.md §4.3).
+    Persistent {
+        /// The launch profile's name, the first part of the state's key.
+        profile: String,
+    },
+}
+
+impl VendorStateRoot {
+    /// Whether this root is kept beyond the attempt.
+    #[must_use]
+    pub fn is_persistent(&self) -> bool {
+        matches!(self, VendorStateRoot::Persistent { .. })
+    }
+}
+
+/// J14: the top-level `terminal` of the snapshot, present only when the
+/// operator's terminal is attached (jail-interactive-sessions.md §3.7).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TerminalMode {
+    /// The command runs in the caller's session, in its own process group,
+    /// made the terminal's foreground group.
+    Attached,
 }
 
 /// `roots` field group.
@@ -469,6 +493,11 @@ pub struct LaunchSnapshot {
     pub state_subdirs: Vec<NativeString>,
     /// Declared credentials.
     pub credentials: Vec<CredentialDecl>,
+    /// J14: relative paths removed from persistent vendor state at release.
+    /// Present only when the state is persistent, so an attempt-private run
+    /// keeps rc.3's snapshot bytes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state_discard: Option<Vec<NativeString>>,
 }
 
 /// The canonical resolved policy snapshot (`ukai.jail.policy-snapshot/1`).
@@ -503,6 +532,10 @@ pub struct PolicySnapshot {
     pub environment: EnvironmentSnapshot,
     /// Launch declarations, or null.
     pub launch: Option<LaunchSnapshot>,
+    /// J14: `attached` when the operator's terminal is attached; omitted
+    /// when detached, so every detached snapshot keeps its digest.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub terminal: Option<TerminalMode>,
 }
 
 impl PolicySnapshot {
@@ -552,6 +585,18 @@ impl PolicySnapshot {
             Absent::UnderNull,
             Order::Set,
         )?;
+        // J14: only with persistent state, so absent otherwise.
+        if value
+            .pointer("/launch/state_discard")
+            .is_some_and(serde_json::Value::is_array)
+        {
+            sort_at(
+                &mut value,
+                &["launch", "state_discard"],
+                Absent::UnderNull,
+                Order::Set,
+            )?;
+        }
         if let Some(credentials) = value
             .pointer_mut("/launch/credentials")
             .and_then(serde_json::Value::as_array_mut)
@@ -1975,7 +2020,7 @@ fn build_snapshot(
         roots: Roots {
             workspace,
             scratch,
-            vendor_state: inputs.vendor_state,
+            vendor_state: inputs.vendor_state.clone(),
             cwd: root_cwd(),
         },
         filesystem: FilesystemSnapshot {
@@ -2019,6 +2064,7 @@ fn build_snapshot(
             bindings,
         },
         launch: None,
+        terminal: None,
     })
 }
 

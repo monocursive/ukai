@@ -67,6 +67,8 @@ clone3                 435    ENOSYS  (argument struct not inspectable)
 clone                  56     EPERM when args[0] & 0x00800000 != 0 (CLONE_UNTRACED)
 clone                  56     EPERM when args[0] & 0x7e020080 != 0
 ioctl                  16     EPERM when args[1] == 0x5412 (TIOCSTI)
+ioctl                  16     EPERM when args[1] == 0x541c (TIOCLINUX)
+ioctl                  16     EPERM when args[1] == 0x5423 (TIOCSETD)
 prctl(PR_SET_NO_NEW_PRIVS)     ALLOW   (unprivileged inner sandbox)
 seccomp                        ALLOW   (unprivileged inner sandbox)
 landlock_create_ruleset        ALLOW   (unprivileged inner sandbox)
@@ -78,8 +80,8 @@ socket, socketpair     41,53  ALLOW when args[0] in {1 (AF_UNIX, restricted by t
 
 everything else        ALLOW
 
-instructions: 88
-digest: sha256:b8d55644080a5d26e141108d05f07eac3f8bf44e6843a41df9ceacb7f74957aa
+instructions: 90
+digest: sha256:b3d63f2f1e51fc22efaa2a869330ace61282eefdfe1b5de2c9ee2f8c8030b2f0
 
 mediation filter (installed by the launcher with its own listener)
 connect                42     USER_NOTIF

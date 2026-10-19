@@ -136,6 +136,8 @@ pub struct ExplainReport {
     /// J12 review F7: the repository a discovered workspace is nested in,
     /// whose `ukai.toml` does not apply.
     pub nested_in: Option<PathBuf>,
+    /// J14: the terminal mode `run` would get here, and why.
+    pub terminal: crate::terminal::Decision,
 }
 
 /// What `doctor` measured.
@@ -157,6 +159,16 @@ pub struct DoctorReport {
     /// without it; it does not change `ready`, which is the host's and the
     /// launch profile's (§8 item 5).
     pub workspace: Option<from_path::HomeWorkspace>,
+    /// J14 §5: whether a `run` here would attach the terminal, and why not
+    /// (text only).
+    pub terminal: crate::terminal::Decision,
+    /// J14 §3.5 row 1: the host's `dev.tty.legacy_tiocsti`, when it can be
+    /// read (text only).
+    pub legacy_tiocsti: Option<String>,
+    /// J14 §5: the launch profile's persistent state for this workspace,
+    /// when it is persistent (text only): `None` inside when none exists
+    /// yet.
+    pub persistent_state: Option<Option<crate::persistent::Listed>>,
 }
 
 // `doctor --launch` (§14.1)
@@ -230,6 +242,12 @@ pub struct Plan {
     /// (jail-launch-and-summary.md §8 item 5). Only `doctor` resolves a plan
     /// that carries one; its placement checks leave that workspace out.
     pub home_workspace: Option<from_path::HomeWorkspace>,
+    /// J14: whether the operator's terminal attaches, and why not
+    /// (jail-interactive-sessions.md §3.2). Its `attached` form is also the
+    /// snapshot's `terminal`.
+    pub terminal: crate::terminal::Decision,
+    /// J14: what a `run` here without `--terminal` would get, for `doctor`.
+    pub run_terminal: crate::terminal::Decision,
 }
 
 impl Plan {
@@ -286,6 +304,12 @@ struct Purpose<'a> {
     report_home_workspace: bool,
     /// `PROGRAM`, which `@program` binds to without `--from-path`.
     argv0: Option<&'a [u8]>,
+    /// J14 §3.2 conditions 1 and 2 as far as the caller knows them: `None`
+    /// never attaches (`doctor`, `learn`), `Some(choice)` is `run`'s (or
+    /// what `explain` shows for it) after `--terminal` and `--gate-fd`.
+    terminal: Option<crate::terminal::Choice>,
+    /// `--gate-fd` is given: persistent state refuses (§4, §1).
+    gate: bool,
 }
 
 impl Purpose<'_> {
@@ -296,6 +320,8 @@ impl Purpose<'_> {
         select_credentials: true,
         report_home_workspace: false,
         argv0: None,
+        terminal: None,
+        gate: false,
     };
     /// `doctor`.
     const DOCTOR: Purpose<'static> = Purpose {
@@ -322,6 +348,8 @@ pub fn resolve_learning_plan(ctx: &Context, args: &PolicyArgs) -> Result<Plan, J
             select_credentials: true,
             report_home_workspace: false,
             argv0: None,
+            terminal: None,
+            gate: false,
         },
     )
 }
@@ -420,11 +448,32 @@ fn resolve(ctx: &Context, args: &PolicyArgs, purpose: Purpose<'_>) -> Result<Pla
     let scratch = scratch_root(ctx, args)?;
     let translation_prefixes = translation_prefixes(operator.jail_host)?;
     let platform_os = ctx.platform.identity().os;
+    // J14 §3.2: conditions 1 and 2 (`run`, a contained profile, neither
+    // `--gate-fd`, `--terminal detach` nor `[jail] terminal = "detach"`),
+    // then 3 to 5 read from standard input. An attached run gets its own
+    // default wall (§7, decision 8), which any operator layer still sets.
+    let run_terminal = crate::terminal::decide(
+        operator_jail.terminal != Some(crate::terminal::Choice::Detach) && profile.is_contained(),
+        &crate::terminal::Facts::measure(),
+    );
+    let terminal = if purpose.terminal == Some(crate::terminal::Choice::Auto) {
+        run_terminal.clone()
+    } else {
+        crate::terminal::Decision::Detached(None)
+    };
+    let mut baseline = profiles::baseline(profile, platform_os, ctx.env_lookup.as_ref());
+    if terminal.attached() {
+        baseline.limits.wall = Some(policy::Ceiling {
+            value: crate::terminal::ATTACHED_WALL_MS,
+            requested: crate::terminal::ATTACHED_WALL.to_owned(),
+            required: true,
+        });
+    }
     let inputs = ResolveInputs {
         platform: platform_os,
         base_profile: profile,
         policy_name: base.policy_name,
-        baseline: profiles::baseline(profile, platform_os, ctx.env_lookup.as_ref()),
+        baseline,
         workspace: os_bytes(&workspace),
         scratch,
         vendor_state: None,
@@ -446,6 +495,26 @@ fn resolve(ctx: &Context, args: &PolicyArgs, purpose: Purpose<'_>) -> Result<Pla
             skipped = from_path::select_credentials(launch)?;
         }
         from_path::bind_program_token(launch, program.as_ref(), purpose.argv0, purpose.executing)?;
+    }
+    // J14 §4: `--state` overrides the launch profile's state; persistent
+    // state takes only vault credentials and no managed gate.
+    if let Some(choice) = args.state {
+        let Some(launch) = launch.as_mut() else {
+            return Err(usage("--state", "--state needs --launch NAME"));
+        };
+        launch.state = choice.into();
+    }
+    if let Some(launch) = &launch
+        && launch.state == launch_profile::StateKind::Persistent
+    {
+        launch_profile::check_persistent_credentials(&launch.credentials)?;
+        if purpose.gate {
+            return Err(usage(
+                "--gate-fd",
+                "--gate-fd refuses persistent state: a managed owner plans from its own \
+                 inputs; pass --state attempt",
+            ));
+        }
     }
     // The launch environment, vendor state and `launch` field group, then
     // the digest and requirements over the result.
@@ -481,6 +550,34 @@ fn resolve(ctx: &Context, args: &PolicyArgs, purpose: Purpose<'_>) -> Result<Pla
     if purpose.learning {
         enable_learning(&mut resolved, profile)?;
     }
+    // J14 §3.7: an attached terminal enters the snapshot, so the digest
+    // names it; a detached run's snapshot is unchanged.
+    if let crate::terminal::Decision::Attached { device } = &terminal {
+        let mut why = vec![policy::ProvenanceEntry {
+            origin: "terminal".to_owned(),
+            key: "terminal".to_owned(),
+            detail: Some(device.clone()),
+        }];
+        if resolved
+            .ceilings
+            .wall
+            .as_ref()
+            .is_some_and(|wall| wall.requested == crate::terminal::ATTACHED_WALL)
+        {
+            why.push(policy::ProvenanceEntry {
+                origin: "terminal".to_owned(),
+                key: "limits.wall".to_owned(),
+                detail: Some(format!(
+                    "{}: the attached-run default",
+                    crate::terminal::ATTACHED_WALL
+                )),
+            });
+        }
+        resolved.amend(why, |snapshot| {
+            snapshot.terminal = Some(policy::TerminalMode::Attached);
+            Ok(())
+        })?;
+    }
     // §6.4: `build` requires an explicit memory ceiling; the baseline leaves it
     // absent so that this refuses rather than inventing one.
     if profile == ProfileName::Build && resolved.snapshot.limits.mem.is_none() {
@@ -514,6 +611,8 @@ fn resolve(ctx: &Context, args: &PolicyArgs, purpose: Purpose<'_>) -> Result<Pla
         quiet: operator_jail.summary == Some(false),
         program,
         home_workspace,
+        terminal,
+        run_terminal,
     };
     check_record_bounds(ctx, &plan)?;
     Ok(plan)
@@ -1509,7 +1608,16 @@ fn discovered(selection: &crate::cli::Selection) -> bool {
 /// # Errors
 /// Returns the resolution errors of [`resolve_plan`].
 pub fn explain(ctx: &Context, args: &ExplainArgs) -> Result<ExplainReport, JailError> {
-    let plan = resolve_plan(ctx, &args.policy)?;
+    // J14 §3.7: `explain` shows the terminal mode `run` would get here.
+    let plan = resolve(
+        ctx,
+        &args.policy,
+        Purpose {
+            terminal: Some(args.terminal.unwrap_or_default()),
+            ..Purpose::INSPECT
+        },
+    )?;
+    let terminal = plan.terminal.clone();
     let nested_in = discovered(&args.policy.selection)
         .then(|| from_path::outer_repository(&plan.workspace))
         .flatten();
@@ -1522,6 +1630,7 @@ pub fn explain(ctx: &Context, args: &ExplainArgs) -> Result<ExplainReport, JailE
         platform: platform_record(ctx),
         program,
         nested_in,
+        terminal,
     })
 }
 
@@ -1626,6 +1735,14 @@ pub fn doctor(ctx: &Context, args: &DoctorArgs) -> Result<DoctorReport, JailErro
                         .filter(listed)
                         .any(|check| check.available))
         });
+    let persistent_state = match plan.resolved.snapshot.roots.vendor_state.as_ref() {
+        Some(policy::VendorStateRoot::Persistent { profile }) => Some(
+            crate::persistent::show(&plan.data_dir, profile, &plan.workspace)
+                .ok()
+                .flatten(),
+        ),
+        _ => None,
+    };
     Ok(DoctorReport {
         requirements: plan.resolved.requirements,
         capabilities,
@@ -1633,7 +1750,44 @@ pub fn doctor(ctx: &Context, args: &DoctorArgs) -> Result<DoctorReport, JailErro
         ready,
         launch,
         workspace: plan.home_workspace,
+        terminal: plan.run_terminal,
+        legacy_tiocsti: legacy_tiocsti(),
+        persistent_state,
     })
+}
+
+/// J14 §4.9: the workspace `state show` and `state rm` name: `--workspace`,
+/// canonical, or the repository top level of the invocation directory, as
+/// `ukai-jail NAME` resolves it.
+///
+/// # Errors
+/// [`ErrorCode::InvalidConfig`] at `--workspace` for a path that is not a
+/// directory, or outside a repository without one.
+pub fn state_workspace(ctx: &Context, explicit: Option<&Path>) -> Result<PathBuf, JailError> {
+    let workspace = match explicit {
+        Some(path) => canonical_root(&ctx.cwd, Some(path), "--workspace")?,
+        None => from_path::discover_workspace(&ctx.cwd)?,
+    };
+    if !workspace.is_dir() {
+        return Err(usage(
+            "--workspace",
+            format!("{} is not a directory", workspace.display()),
+        ));
+    }
+    Ok(workspace)
+}
+
+/// J14 §3.5 row 1: `dev.tty.legacy_tiocsti`, which says whether the kernel
+/// itself still lets `TIOCSTI` inject into a controlling terminal. Only
+/// Linux has it.
+fn legacy_tiocsti() -> Option<String> {
+    if !cfg!(target_os = "linux") {
+        return None;
+    }
+    std::fs::read_to_string("/proc/sys/dev/tty/legacy_tiocsti")
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| matches!(value.as_str(), "0" | "1"))
 }
 
 fn plan_request(plan: &Plan) -> PlanRequest {
@@ -1741,6 +1895,9 @@ fn run_inner(ctx: &Context, args: &RunArgs, learning: bool) -> Result<RunReport,
     // §13.1: pin the shared monotonic base before anything writes a trace
     // event, so wrapper, audit and gap intervals all count from here.
     crate::platform::mark_supervisor_start();
+    // J14 §3.3 step 4: the mask the target gets is the one inherited, read
+    // before any thread blocks anything.
+    crate::platform::capture_inherited_mask();
     let supplied_attempt_id = check_run_usage(args)?;
     // §8.3, H9: the handlers go on before anything exists, so INT/TERM/HUP
     // during resolution, preparation or the 60-second gate wait is a refusal,
@@ -1766,6 +1923,14 @@ fn run_inner(ctx: &Context, args: &RunArgs, learning: bool) -> Result<RunReport,
             } else {
                 operator_argv.first().map(Vec::as_slice)
             },
+            // J14 §3.2 condition 2: `--gate-fd` always runs detached, as
+            // does `learn` (§1).
+            terminal: if args.gate_fd.is_some() || learning {
+                None
+            } else {
+                Some(args.terminal.unwrap_or_default())
+            },
+            gate: args.gate_fd.is_some(),
         },
     )?;
     let request = plan_request(&plan);
@@ -2848,6 +3013,7 @@ fn pending_applied(plan: &Plan) -> Applied {
         limits: Vec::new(),
         environment_names: Vec::new(),
         removed_environment_names: Vec::new(),
+        terminal: None,
     }
 }
 
@@ -2859,14 +3025,31 @@ fn pending_applied(plan: &Plan) -> Applied {
 /// `record.credentials` carries every successfully staged input, including
 /// those staged before a refusal (§12). From the moment vendor state is
 /// registered, the receipt's cleanup status is `pending`.
+/// What [`prepare_launch`] made: the platform's hand-off, the persistent
+/// state the attempt holds, the vault credentials its release scans for,
+/// and the state's pre-exec line.
+struct LaunchPrepared {
+    handoff: Option<crate::credentials::LaunchHandoff>,
+    persistent: Option<Box<crate::persistent::Held>>,
+    secrets: Vec<Arc<crate::vault::Secret>>,
+    state_line: Option<attempt::StateLine>,
+}
+
 fn prepare_launch(
     attempt_dir: &AttemptDir,
+    attempt_id: &AttemptId,
     plan: &Plan,
     record: &mut AttemptRecord,
     deadline: ContinuousDeadline,
-) -> Result<Option<crate::credentials::LaunchHandoff>, JailError> {
+) -> Result<LaunchPrepared, JailError> {
     let snapshot = &plan.resolved.snapshot;
-    if snapshot.roots.vendor_state.is_none() {
+    let mut prepared = LaunchPrepared {
+        handoff: None,
+        persistent: None,
+        secrets: Vec::new(),
+        state_line: None,
+    };
+    let Some(root) = snapshot.roots.vendor_state.as_ref() else {
         if snapshot
             .launch
             .as_ref()
@@ -2879,8 +3062,8 @@ fn prepare_launch(
                 "the snapshot declares credentials but no vendor state to stage them in".to_owned(),
             ));
         }
-        return Ok(None);
-    }
+        return Ok(prepared);
+    };
     let Some(launch) = snapshot.launch.as_ref() else {
         return Err(JailError::new(
             ErrorCode::InternalError,
@@ -2889,8 +3072,41 @@ fn prepare_launch(
             "the snapshot has managed vendor state but no launch field group".to_owned(),
         ));
     };
-    record.state_cleanup = StateCleanup::Pending;
-    let vendor = state::create_vendor_state(attempt_dir)?;
+    // J14 §4.6: persistent state is acquired here, under the preparation
+    // budget, before anything binds it; a busy one becomes throwaway
+    // attempt-private state, or `state_busy` when that cannot be shown.
+    let vendor = match root {
+        policy::VendorStateRoot::Managed => {
+            record.state_cleanup = StateCleanup::Pending;
+            state::create_vendor_state(attempt_dir)?
+        }
+        policy::VendorStateRoot::Persistent { profile } => {
+            match acquire_persistent(attempt_dir, attempt_id, plan, profile, record)? {
+                Acquired::Held(held, line) => {
+                    let vendor = held.vendor.try_clone_fd().map_err(|error| {
+                        JailError::new(
+                            ErrorCode::StateWriteFailed,
+                            ErrorStage::Preparing,
+                            Remediation::InspectState,
+                            format!("the persistent state could not be handed on: {error}"),
+                        )
+                    })?;
+                    prepared.persistent = Some(held);
+                    prepared.state_line = Some(attempt::StateLine::Held(line));
+                    crate::state::anchored::Dir::from_owned(vendor)
+                }
+                Acquired::Fallback(line) => {
+                    prepared.state_line = Some(attempt::StateLine::Fallback(line));
+                    record.state_cleanup = StateCleanup::Pending;
+                    state::create_vendor_state(attempt_dir)?
+                }
+            }
+        }
+    };
+    let vendor_path = prepared.persistent.as_ref().map_or_else(
+        || attempt_dir.vendor_state_path(),
+        |held| held.vendor_path(),
+    );
     // §12 and the §8.2 preparation budget: staging runs in a worker bounded
     // by what is left of it, and no source may lie in a child-writable grant.
     let mut forbidden = forbidden_identities(&plan.resolved, Some(&plan.workspace))?;
@@ -2931,20 +3147,139 @@ fn prepare_launch(
     if let Some(program) = &plan.program {
         check_program_binding(program, &staged)?;
     }
-    crate::credentials::LaunchHandoff::new(
-        attempt_dir.vendor_state_path(),
-        vendor.into_fd(),
-        &mut staged,
-    )
-    .map(Some)
-    .map_err(|error| {
-        JailError::new(
-            ErrorCode::StateWriteFailed,
-            ErrorStage::Preparing,
-            Remediation::InspectState,
-            format!("vendor state could not be handed to the platform: {error}"),
-        )
-    })
+    prepared.secrets = staged
+        .iter()
+        .filter_map(|credential| credential.vault.clone())
+        .collect();
+    prepared.handoff = Some(
+        crate::credentials::LaunchHandoff::new(vendor_path, vendor.into_fd(), &mut staged)
+            .map_err(|error| {
+                JailError::new(
+                    ErrorCode::StateWriteFailed,
+                    ErrorStage::Preparing,
+                    Remediation::InspectState,
+                    format!("vendor state could not be handed to the platform: {error}"),
+                )
+            })?,
+    );
+    Ok(prepared)
+}
+
+/// What [`acquire_persistent`] made of the persistent state.
+enum Acquired {
+    /// Held, recorded in jail state and in the record; with its line.
+    Held(Box<crate::persistent::Held>, String),
+    /// Busy, and the fallback can be shown: its line.
+    Fallback(String),
+}
+
+/// J14 §4.6: acquires the persistent state for `launch` and this workspace,
+/// registers it in jail state, then records this attempt as its holder;
+/// or, when it is busy, records the fallback in the receipt and returns its
+/// line, or refuses `state_busy` when stderr is not a terminal (an unseen
+/// fallback would be the silent one decision 6 rules out).
+fn acquire_persistent(
+    attempt_dir: &AttemptDir,
+    attempt_id: &AttemptId,
+    plan: &Plan,
+    launch: &str,
+    record: &mut AttemptRecord,
+) -> Result<Acquired, JailError> {
+    let acquisition = crate::persistent::acquire(&crate::persistent::Request {
+        data_dir: &plan.data_dir,
+        launch,
+        workspace: &plan.workspace,
+        attempt: attempt_id.as_str(),
+    })?;
+    match acquisition {
+        crate::persistent::Acquisition::Held(mut held) => {
+            state::register_persistent_state(
+                attempt_dir,
+                &held.start.state_id,
+                &held.levels.key,
+                launch,
+            )?;
+            record.state_cleanup = StateCleanup::Pending;
+            let start = held.start.clone();
+            record.vendor_state = Some(crate::records::VendorStateRecord::Persistent {
+                state_id: start.state_id.clone(),
+                generation_start: start.generation,
+                generation_end: None,
+                inherited_from: start.inherited_from.clone(),
+                matches_release: start.matches_release,
+                matches_release_reason: start.matches_release_reason.map(str::to_owned),
+                discarded: 0,
+                secret_scan: None,
+            });
+            crate::persistent::hold(&mut held, attempt_id.as_str())?;
+            Ok(Acquired::Held(held, persistent_line(launch, &start)))
+        }
+        crate::persistent::Acquisition::Fallback(fallback) => {
+            let holder = fallback
+                .held_by
+                .clone()
+                .unwrap_or_else(|| "another attempt".to_owned());
+            if !stderr_is_a_terminal() {
+                return Err(JailError::new(
+                    ErrorCode::StateBusy,
+                    ErrorStage::Preparing,
+                    Remediation::Retry,
+                    match fallback.reason {
+                        crate::persistent::FallbackReason::Held => format!(
+                            "the persistent state of `{launch}` for this workspace is held by \
+                             {holder}; with stderr not a terminal a throwaway fallback could \
+                             not be shown, so nothing ran"
+                        ),
+                        crate::persistent::FallbackReason::Unreleased => format!(
+                            "the persistent state of `{launch}` for this workspace was not \
+                             released by {holder} (run ukai-jail gc); with stderr not a \
+                             terminal a throwaway fallback could not be shown, so nothing ran"
+                        ),
+                    },
+                ));
+            }
+            record.vendor_state = Some(crate::records::VendorStateRecord::AttemptFallback {
+                state_id: fallback.state_id.clone(),
+                reason: fallback.reason.as_str().to_owned(),
+                held_by: fallback.held_by.clone(),
+            });
+            Ok(Acquired::Fallback(fallback_line(launch, &fallback)))
+        }
+    }
+}
+
+/// The pre-exec state line of a held state (§4.7).
+fn persistent_line(launch: &str, start: &crate::persistent::Start) -> String {
+    let mut line = match &start.inherited_from {
+        None if start.generation == 0 => format!("state: {launch}, new for this workspace"),
+        inherited => format!(
+            "state: {launch}, this workspace, generation {} (from {})",
+            start.generation,
+            inherited.as_deref().unwrap_or("an unrecorded attempt")
+        ),
+    };
+    if start.matches_release == Some(false) {
+        line.push_str(&format!(
+            " · changed outside the jail since {} released it",
+            start.inherited_from.as_deref().unwrap_or("its last holder")
+        ));
+    }
+    line
+}
+
+/// The pre-exec line of a fallback (§4.6).
+fn fallback_line(launch: &str, fallback: &crate::persistent::Fallback) -> String {
+    let holder = fallback.held_by.as_deref().unwrap_or("another attempt");
+    match fallback.reason {
+        crate::persistent::FallbackReason::Held => format!(
+            "state: {launch} for this workspace is held by {holder} · this session uses \
+             throwaway state and will not be kept"
+        ),
+        crate::persistent::FallbackReason::Unreleased => format!(
+            "state: {launch} for this workspace was not released by {holder} (run ukai-jail \
+             gc) · this session uses throwaway state and will not be kept"
+        ),
+    }
 }
 
 /// J12: every staged vault credential bound to the resolved program's path
@@ -4843,6 +5178,7 @@ mod tests {
                 limits: Vec::new(),
                 environment_names: Vec::new(),
                 removed_environment_names: Vec::new(),
+                terminal: None,
             },
             observer: crate::observer::CoverageSummary::unobserved().to_observer_record(),
             coverage,
@@ -4855,6 +5191,7 @@ mod tests {
             updated_at: now,
             errors: Vec::new(),
             credentials: Vec::new(),
+            vendor_state: None,
         }
     }
 
@@ -5875,6 +6212,8 @@ mod tests {
             quiet: false,
             program: None,
             home_workspace: None,
+            run_terminal: crate::terminal::Decision::Detached(None),
+            terminal: crate::terminal::Decision::Detached(None),
         });
         assert_eq!(applied.network.mode, "host");
         assert!(applied.filesystem.is_none());
@@ -5897,6 +6236,8 @@ mod tests {
             quiet: false,
             program: None,
             home_workspace: None,
+            run_terminal: crate::terminal::Decision::Detached(None),
+            terminal: crate::terminal::Decision::Detached(None),
         };
         // A workspace that covers the launch directory refuses, naming the
         // config directory the launch directory hangs off.
@@ -5929,6 +6270,8 @@ mod tests {
             quiet: false,
             program: None,
             home_workspace: None,
+            run_terminal: crate::terminal::Decision::Detached(None),
+            terminal: crate::terminal::Decision::Detached(None),
         };
         // A workspace that covers the config directory refuses.
         let check = |plan: Plan| check_config_isolation(&plan, &ChildRoots::of(&plan));
@@ -6041,6 +6384,8 @@ mod tests {
             quiet: false,
             program: None,
             home_workspace: None,
+            run_terminal: crate::terminal::Decision::Detached(None),
+            terminal: crate::terminal::Decision::Detached(None),
         };
         (root, attempt_dir, plan)
     }
@@ -6207,6 +6552,7 @@ mod tests {
                     mode: CredentialMode::BindRo,
                 })
                 .collect(),
+            state_discard: None,
         };
         plan.resolved.snapshot.launch = Some(launch(RECEIPT_LIST_MAX + 1));
         refused(&plan, "1025 credentials");

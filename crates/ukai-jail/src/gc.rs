@@ -162,6 +162,9 @@ pub struct Entry {
     /// <why>` ([`cleanup::JournalNote`]); `None` when no receipt was
     /// replaced.
     pub journal: Option<String>,
+    /// J14 §4.9: what this pass did with the persistent vendor state the
+    /// attempt held, when it touched it.
+    pub persistent_state: Option<String>,
 }
 
 #[cfg(test)]

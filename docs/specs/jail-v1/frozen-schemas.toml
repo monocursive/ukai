@@ -114,6 +114,24 @@
 #   docs/benchmarks/jail/results/release-preview-2026-10-18-rc3-doctor-home-failed).
 #   The field is absent otherwise and does not change `ready`; every record
 #   valid before stays valid. No shared field changed meaning.
+# - 2026-10-19 (J14, jail-interactive-sessions.md §3.7, §4.7 and §5)
+#   re-blessed jail-receipt.schema.json, policy-snapshot.schema.json and
+#   jail-summary.schema.json in place under their existing identifiers
+#   (ukai.jail.receipt/1, ukai.jail.policy-snapshot/1, ukai.jail.summary/1).
+#   Rationale: additive only. A receipt's `state_cleanup` may be `released`
+#   (persistent vendor state released and kept by design), and a receipt
+#   may carry `vendor_state` (`persistent`: state id, generations, the
+#   attempt inherited from, the comparison with the last release, discards
+#   and the secret scan; or `attempt_fallback`: the state id, `held` or
+#   `unreleased`, and the holder) and `applied.terminal` (an attached
+#   terminal: device, session, process group, relayed stops and the
+#   settlement restore). A snapshot may carry `terminal: "attached"`,
+#   `roots.vendor_state` of kind `persistent` with its launch profile, and
+#   `launch.state_discard`, each omitted otherwise, so every detached and
+#   attempt-private snapshot keeps its bytes and digest. The summary gains
+#   an optional `state` line (facts: the receipt's `vendor_state`) and the
+#   `cleanup` line's facts may carry the terminal restore. No shared field
+#   changed meaning.
 schema = "ukai.jail.frozen-schemas/1"
 milestone = "milestone-1"
 
@@ -136,14 +154,14 @@ sha256 = "fa0ef7a7304567e7d91feb13492035cdedc8448f4d225e42e983d13dc71ab57e"
 file = "jail-receipt.schema.json"
 id = "urn:ukai:schema:jail-receipt:1"
 identifier = "ukai.jail.receipt/1"
-sha256 = "ef6cd3c895ee771a926232e826a13db2fd8a54d70b8bf794cbd30f7ff8f7bc17"
+sha256 = "1fbd4740606015013a5aeac3dd335343cd5fd48b0c81b25ca9375653fdbb6dfb"
 
 # §6.3, canonicalization.md: the canonical policy snapshot
 [[frozen]]
 file = "policy-snapshot.schema.json"
 id = "urn:ukai:schema:jail-policy-snapshot:1"
 identifier = "ukai.jail.policy-snapshot/1"
-sha256 = "e209112cc93d21953b52fdf778d75adbf7d9af80d64e38263260736a9d6942b6"
+sha256 = "8bd95dcc5c2a4a5b8f408287114e083fa611e9c30959ac629c474d76dd25fce0"
 
 # §8.2: the managed gate release frame
 [[frozen]]
@@ -298,7 +316,7 @@ sha256 = "1c93bdf014b5508d5abf0b2c17b31ea863e8de87d0af18416194dc93206cbd33"
 file = "jail-summary.schema.json"
 id = "urn:ukai:schema:jail-summary:1"
 identifier = "ukai.jail.summary/1"
-sha256 = "41b14011aede95632b970727182e411001693d49a8d2639d86beaf7cbceaac71"
+sha256 = "28a720e137dd954730fdbee26875aefee5f55feeb721bab9a11df1ccb2474503"
 
 [[frozen]]
 file = "learned-policy.schema.json"
