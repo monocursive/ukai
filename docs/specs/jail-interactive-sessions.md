@@ -1,16 +1,18 @@
 # Jail proposal: interactive agent sessions (J14)
 
-Status: design proposal, 2026-10-18. Nothing here is implemented, and
-nothing here is decided until the operator settles the questions in §7.
-This is the milestone that
+Status: design proposal, 2026-10-18. The operator settled its eight
+decisions on 2026-10-19 (§7): seven as recommended, and one, concurrent
+use of a persistent state, changed from the draft. The body follows every
+choice. Nothing here is implemented or scheduled. This is the milestone that
 [jail-launch-and-summary.md](jail-launch-and-summary.md) §7, decision 7,
 names after J12 and J13 and outlines in its §3.8. It was written against
 `dev` at `b693b1573`, two documentation commits after the
 `ukai-jail-v0.1.0-rc.3` tag (`f95f2d396`). Until it is implemented, the
 [north star](../../north-star.md), [Jail v1](jail-v1.md) (revision 25),
 [Jail v2](jail-v2.md) and the launch proposal govern unchanged. Where this
-proposal amends them, §5 says so row by row. The milestone name J14 and the row numbers K55–K75
-are provisional and follow the launch proposal's sequence.
+proposal amends them, §5 says so row by row. The milestone name J14 and
+the row numbers K55–K75 are provisional and follow the launch proposal's
+sequence.
 
 Each claim says where it comes from:
 
@@ -40,7 +42,8 @@ Claude Code's first launch. After this proposal it would look like this
 ```text
 ukai-jail claude
 ukai-jail: claude = /home/u/.local/share/claude/versions/2.1.302 (read-only: /home/u/.local/share/claude/versions)
-ukai-jail: terminal: attached (/dev/pts/3) · state: claude, this workspace, generation 4 (from att_…)
+ukai-jail: terminal: attached (/dev/pts/3) · wall 8h · ^C and ^Z go to claude, not the jail; to end the attempt, exit claude or run `kill -INT 41234`
+ukai-jail: state: claude, this workspace, generation 4 (from att_…)
 …Claude Code's interactive interface: prompts answered at the keyboard, resizes, ^C, ^Z and fg…
 ukai-jail: settled · exited 0 · 47m12s exec→settled · survivors: none (verified)
 ukai-jail: workspace: 6 paths opened for writing, 2 in renames
@@ -396,11 +399,21 @@ the foreground back when its job ends. That is a named limit.
   `"attached"`. It is omitted when detached, so every detached snapshot and
   policy digest is unchanged. `explain` shows it with the condition that
   decided it.
-- **Pre-exec line**, when stderr is a terminal: `terminal: attached
-  (/dev/pts/N) · wall 8h`, or `terminal: detached (reason)` when conditions
-  3–5 fail. The wall is shown because attached runs get their own default
-  (§7, decision 8). With persistent state the same line continues with the
-  state part §4.7 specifies.
+- **Pre-exec line**, when stderr is a terminal. An attached run prints:
+
+  ```text
+  ukai-jail: terminal: attached (/dev/pts/N) · wall 8h · ^C and ^Z go to NAME, not the jail; to end the attempt, exit NAME or run `kill -INT PID`
+  ```
+
+  `NAME` is the final component of the target's argv 0 (escaped like every
+  child-chosen string), and `PID` is the supervisor's process id. Decision 2
+  requires the `^C` and `^Z` part on every attached run, because attaching
+  changes what `^C` does for every terminal-started run (§3.8). The wall is
+  shown because attached runs get their own default (decision 8). A
+  detached run prints `terminal: detached (reason)` only when condition 3,
+  4 or 5 fails. With stderr not a terminal, nothing is added (X05), so
+  `explain` and the guide carry the same text. With persistent state, the
+  state line of §4.7 follows on a line of its own.
 - **Receipt:** a new optional `applied.terminal`, present when attached:
   `{device: "pty", session: "caller", process_group: "own", stops: N,
   restored: null | {foreground, termios, input_flushed, reset_written,
@@ -420,7 +433,8 @@ the foreground back when its job ends. That is a named limit.
 - Restore and flush at settlement, which lose type-ahead.
 - `^C` and `^\` no longer stop the attempt from the terminal. The operator
   stops it through the agent, by closing the terminal, or with
-  `kill -INT <supervisor>`. `doctor` and the guide say so.
+  `kill -INT <supervisor>`. The pre-exec line (§3.7), `doctor` and the
+  guide say so.
 - A `-p` run started from an interactive shell becomes attached too
   (condition 3 holds), so its `^C` now goes to the agent. Scripts that need
   today's behaviour pass `--terminal detach`.
@@ -518,8 +532,9 @@ path** (the workspace §3.2 of the launch proposal resolves).
   with `EXDEV` (by reading of `link(2)`), so neither side can alias a file
   of the other.
 - **From other attempts.** Only attempts whose launch profile and workspace
-  give this key bind it. The lease admits one attempt at a time (§7,
-  decision 6). A different workspace's attempt never sees it.
+  give this key bind it. The lease admits one attempt at a time. A second
+  attempt while it is held gets throwaway state instead and says so (§4.6;
+  §7, decision 6). A different workspace's attempt never sees it.
 - **Between attempts.** Nothing contained runs. The operator's own processes
   (same uid) can change it. The next acquisition detects that and records
   it (§4.6).
@@ -576,17 +591,47 @@ path** (the workspace §3.2 of the launch proposal resolves).
 before the bind:
 
 1. Derive the key and open or create the levels.
-2. Take the lease without blocking. If it is held, refuse `state_busy`,
-   naming the holding attempt.
+2. Take the lease without blocking. If another attempt holds it, take the
+   **fallback** below, with the reason `held`, naming the holder that
+   `state.json` records. That record can lag the lease by an instant, so
+   when it does not name a live attempt the line says "another attempt".
 3. Read `state.json`. If `holder.released` is false, the last holder died
-   before releasing, so refuse `state_busy`, naming it and `ukai-jail gc`.
-   If the state is quarantined, refuse `state_quarantined`.
+   before releasing, and its tree may still be writing, so take the
+   fallback with the reason `unreleased`, naming that attempt and
+   `ukai-jail gc`. If the state is quarantined, refuse `state_quarantined`.
+   The operator must act on a credential found in it, so that case has no
+   fallback.
 4. Run the workspace check (§4.3).
 5. Recompute the private digest and compare it with the last release's:
    `matches_release` is `true` or `false`, or `null` with a reason when there
    was no release (a new state) or the walk passed its bound.
 6. Record `holder = {this attempt, released: false}`. Only now is the state
    bound.
+
+**The fallback** (§7, decision 6) gives the attempt attempt-private vendor
+state exactly as today: created empty under the attempt directory, bound at
+the same `/run/ukai/state`, and removed at settlement (`state_cleanup`
+`pending` → `complete`). It never reads, copies or binds the persistent
+state, so the holder's state and its generation chain are untouched. The
+attempt drops anything it took from the persistent state before going on
+(the lease, if step 3 found it unreleased). The policy snapshot still says
+`persistent`, because it was written before acquisition (jail-v1 §8.1,
+step 1); the receipt records what was applied instead (§4.7). This only
+narrows what the agent sees.
+
+The fallback must be visible. It is taken only when stderr is a terminal,
+where a pre-exec line, printed even under `--quiet`, says it before exec:
+
+```text
+ukai-jail: state: claude for this workspace is held by att_… · this session uses throwaway state and will not be kept
+ukai-jail: state: claude for this workspace was not released by att_… (run ukai-jail gc) · this session uses throwaway state and will not be kept
+```
+
+With stderr not a terminal, nothing could say so before the agent starts.
+The attempt refuses `state_busy` instead, naming the holder and the reason,
+because a fallback nobody sees is the silent fallback decision 6 rules out.
+The receipt and the summary's `state` line (§4.7) record every fallback
+taken.
 
 The private digest is SHA-256 over a canonical manifest: sorted entries of
 relative path bytes, type, mode bits, size, the SHA-256 of a regular file's
@@ -609,18 +654,22 @@ applies to it.
 
 The state directory itself is never removed by the supervisor. If the tree
 is unproved or integrity is lost, the state is retained with
-`holder.released` false, exactly as vendor state is retained today, and
-nothing can acquire it until `gc` finishes the release (§4.9).
+`holder.released` false, exactly as vendor state is retained today. Nothing
+can acquire it until `gc` finishes the release (§4.9); until then, attempts
+take the fallback with the reason `unreleased`.
 
 ### 4.7 What the receipt says about state that outlives the attempt
 
 - **`state_cleanup`** gains the value `released`: "persistent state was
   released: discards applied, digest and generation recorded, lease
-  dropped; kept by design". A receipt with persistent state is never
-  `complete`. It is `pending` from acquisition until the release is
-  durable, and `not_needed` keeps its meaning. A settled receipt can stay
-  `pending`, as today, for the same reasons.
-- **A new optional `vendor_state`**, present only for persistent state:
+  dropped; kept by design". A receipt whose `vendor_state.kind` is
+  `persistent` is never `complete`. It is `pending` from acquisition until
+  the release is durable, and `not_needed` keeps its meaning. A settled
+  receipt can stay `pending`, as today, for the same reasons. A fallback
+  attempt's state is attempt-private, so its cleanup is today's `pending`
+  → `complete`.
+- **A new optional `vendor_state`**, present whenever the snapshot asked
+  for persistent state. For a persistent attempt:
 
   ```json
   "vendor_state": {
@@ -645,6 +694,21 @@ nothing can acquire it until `gc` finishes the release (§4.9).
   - `secret_scan` is `clean`, `found`, `not_scanned` or `null` before
     release.
 
+  For a fallback attempt (§4.6), which used throwaway state because the
+  persistent state was busy:
+
+  ```json
+  "vendor_state": {
+    "kind": "attempt_fallback",
+    "state_id": "st_…",
+    "reason": "held",
+    "held_by": "att_…"
+  }
+  ```
+
+  `reason` is `held` or `unreleased`. `held_by` is the attempt named in the
+  pre-exec line, or `null` for "another attempt".
+
   No path, file name, size or content digest appears. The private digest
   stays in `state.json`, where only the operator can compare it, so a
   shared receipt is no oracle for guessing the state's content (the
@@ -663,11 +727,22 @@ nothing can acquire it until `gc` finishes the release (§4.9).
   rc.3's snapshot bytes. Persistence changes the policy digest: the agent
   sees data that other attempts wrote.
 - **The pre-exec line**, when stderr is a terminal, names the state before
-  exec: `state: NAME, this workspace, generation N (from att_…)`, or
-  `state: NAME, new for this workspace`. When the acquisition found the
-  state changed since its last release, it adds `· changed outside the jail
-  since att_… released it`. In terminal mode this continues the
-  `terminal:` line (§3.7); otherwise it is a line of its own.
+  exec on a line of its own: `state: NAME, this workspace, generation N
+  (from att_…)`, or `state: NAME, new for this workspace`. When the
+  acquisition found the state changed since its last release, it adds
+  `· changed outside the jail since att_… released it`. A fallback prints
+  the lines of §4.6 instead.
+- **The summary's `state` line** (the launch proposal's §4.2 table gains
+  it; facts are the `vendor_state` values):
+  - `state: kept, generation 5 · started from what att_… released, unchanged`
+  - `state: kept, generation 1 · new for this workspace`
+  - `state: kept, generation 6 · CHANGED outside the jail since att_… released it`
+  - `state: release pending: run ukai-jail gc`
+  - `state: quarantined: a vault credential's value was found in it`
+  - `state: NOT kept · this session used throwaway state because att_… held claude for this workspace`
+
+  The last form ends `because att_… had not released it (run ukai-jail
+  gc)` for the `unreleased` reason.
 
 ### 4.8 Settings: never `~/.claude` wholesale
 
@@ -713,7 +788,7 @@ values meant for the host.
 | Where | Today | Change | Kind |
 |---|---|---|---|
 | North star §4.3, "bubblewrap with … `--die-with-parent`, `--new-session` …", applied for every profile other than `none` | Always `--new-session` | Amended like jail-v1 §8.3 below: terminal mode omits `--new-session` and gives the command its own process group. | Contract change |
-| jail-v1 §6.4, initial error codes | `invalid_config` … `internal_error` | Adds `state_busy`, `state_quarantined`, `state_workspace_changed` and `credential_persisted`. The receipt schema's `code` is a free string, so the schema itself does not change for them. | Error codes |
+| jail-v1 §6.4, initial error codes | `invalid_config` … `internal_error` | Adds `state_busy` (only when a fallback could not be shown, stderr not a terminal, §4.6), `state_quarantined`, `state_workspace_changed` and `credential_persisted`. The receipt schema's `code` is a free string, so the schema itself does not change for them. | Error codes |
 | jail-v1 §7, attempt layout | `vendor-state/` "only when a launch profile requires it" | Adds `<data>/state/<launch>/<key>/` outside every attempt, registered by the attempt that holds it (§4.3). | State layout |
 | jail-v1 §8.1, steps 2 and 9 | Register vendor resources; after settlement "clean managed vendor state" | Step 2 also acquires persistent state (§4.6). Step 9 releases it instead of removing it. | Lifecycle |
 | jail-v1 §8.3, "The command runs in a new session; INT/TERM/HUP received by the supervisor request termination." | Always a new session | "…in a new session, except in terminal mode (§3.2), where it runs in the caller's session in its own process group, made the terminal's foreground group by the launcher. Terminal-generated signals then reach only that group. INT/TERM/HUP received by the supervisor, and a hangup of its terminal, request termination." | Contract change (§7, decision 7 of the launch proposal asked for it) |
@@ -724,9 +799,9 @@ values meant for the host.
 | jail-v1 §12, grammar | `state_var`, `home_is_state`, `state_subdirs` | Adds `state = "attempt" \| "persistent"` (default `attempt`) and `state_discard`. `persistent` refuses `copy_rw` and `bind_ro` credentials. | Launch-profile grammar |
 | jail-v1 §12, initial profile table, `claude` row | `CLAUDE_CONFIG_DIR` to vendor state | The bundled `claude.toml` gains `state = "persistent"` and `state_discard = [".credentials.json"]` (§7, decision 7). | Profile data |
 | jail-v1 §13.2, field groups | Cleanup: `not_needed`/`pending`/`complete` | Cleanup adds `released`. New groups: optional `vendor_state` (§4.7) and optional `applied.terminal` (§3.7). | Receipt |
-| [jail-receipt.schema.json](jail-v1/jail-receipt.schema.json) | `ukai.jail.receipt/1` | Re-blessed in place: one enum value and two optional objects. All additive. The precedents are the J12 `by` value and the `resolver_refused` field in [frozen-schemas.toml](jail-v1/frozen-schemas.toml). Fixtures for attached, persistent-new, inherited, changed-outside, pending and quarantined. | Schema |
+| [jail-receipt.schema.json](jail-v1/jail-receipt.schema.json) | `ukai.jail.receipt/1` | Re-blessed in place: one enum value and two optional objects (`vendor_state` with its `persistent` and `attempt_fallback` forms). All additive. The precedents are the J12 `by` value and the `resolver_refused` field in [frozen-schemas.toml](jail-v1/frozen-schemas.toml). Fixtures for attached, persistent-new, inherited, changed-outside, pending, quarantined, and a fallback for each reason. | Schema |
 | [policy-snapshot.schema.json](jail-v1/policy-snapshot.schema.json) | `ukai.jail.policy-snapshot/1` | Re-blessed in place: optional `terminal`, `roots.vendor_state` kind `persistent` with `profile`, and `launch.state_discard`, present only with persistent state. Omitted values keep today's canonical bytes. | Schema |
-| [jail-summary.schema.json](jail-v1/jail-summary.schema.json) | `ukai.jail.summary/1`, lines `status`…`cleanup` | Re-blessed in place: a `state` line (facts: the `vendor_state` object's values). The `cleanup` line also carries a failed terminal restore. | Schema |
+| [jail-summary.schema.json](jail-v1/jail-summary.schema.json) | `ukai.jail.summary/1`, lines `status`…`cleanup` | Re-blessed in place: a `state` line (facts: the `vendor_state` object's values), including the `NOT kept` form of a fallback (§4.7). The `cleanup` line also carries a failed terminal restore. | Schema |
 | [jail-event.schema.json](jail-v1/jail-event.schema.json) | — | Unchanged. The new lifecycle transitions are safe names the schema already admits. | None |
 | Launch proposal §4.1, "At most eight lines" | 8 | 9: the `state` line, printed whenever state is persistent. K48 changes with it. | Presentation |
 | Launch proposal §3.6 table and §3.7 | "Vendor state… empty at start, deleted at settlement"; "no `--resume`" | Superseded by this proposal once implemented; the launch proposal gets a pointer. | Docs |
@@ -755,7 +830,7 @@ also runs detached, where it must show today's behaviour.
 | K61 | Settlement restore: a fixture that leaves raw mode and echo off, gives the foreground to another of its groups, leaves elicited replies in the input queue and sets `SGR 8` (conceal). After settlement: `termios` equals the saved copy, the foreground is the jail's group, the input queue is empty, the summary bytes follow the reset, and `restored` reports all five fields true. The same after a wall expiry, after an external `SIGKILL` of the target, and with a step forced to fail (recorded false, exit code unchanged). With tree death made unprovable by a test seam, the steps still run and `after_tree_death` is false. |
 | K62 | Injection regression: an in-jail fixture tries every vector of §3.5 rows 1–7 and 9. After the jail exits, the harness's session leader reads none of the fixture's bytes from the terminal. |
 | K63 | X05 in terminal mode: the target's bytes reach the pty unchanged and in order. The pre-exec line, the reset sequences and the summary appear only before exec and after tree death. |
-| K64 | Disclosure: `explain` text and JSON, the pre-exec line (with the wall an attached run gets), the snapshot and the receipt show attached and detached as §3.7 says. An attached run's receipt records the attached-run wall default, and a detached one keeps 2 h. The re-blessed schemas validate every new fixture. |
+| K64 | Disclosure: `explain` text and JSON, the pre-exec line (with the wall an attached run gets, the `^C`/`^Z` sentence naming the target and the supervisor's pid, and an escaped target name), the snapshot and the receipt show attached and detached as §3.7 says. `kill -INT` on the printed pid ends the attempt at verified tree death. An attached run's receipt records the attached-run wall default, and a detached one keeps 2 h. The re-blessed schemas validate every new fixture. |
 
 ### 6.2 State rows
 
@@ -763,12 +838,12 @@ also runs detached, where it must show today's behaviour.
 |---|---|
 | K65 | Grammar: `state`, `state_discard` and their validation. `persistent` with a `copy_rw` or `bind_ro` credential refuses at load. `--gate-fd` with persistent state refuses. `--state attempt` restores today's behaviour exactly: `launch.state_discard` is omitted, so the snapshot equals rc.3's for the same inputs. |
 | K66 | Layout and protection: modes and owners, anchored creation, the handle bind, and a swap between check and bind refusing. Another workspace's attempt cannot see the state. A hard link between workspace and state fails. Symlinks, FIFOs and sockets the agent leaves are never followed or opened by any host-side walk, and `state rm` removes them as links. |
-| K67 | Lease: a second concurrent attempt on the same key refuses `state_busy` naming the holder (decision 6). A supervisor killed mid-run leaves `holder.released` false, and the next attempt refuses until `gc` releases. The lease descriptor never reaches the child (X06 enumeration). |
+| K67 | Lease and fallback (decision 6). A second concurrent attempt on the same key, with stderr a terminal, gets empty attempt-private state at `/run/ukai/state`. It prints the `held` pre-exec line naming the holder before exec, also under `--quiet`. Its receipt has `vendor_state` `attempt_fallback`/`held` with `held_by` and `state_cleanup` `complete`, and its summary prints `NOT kept`. The holder's state, its generation and its private digest are unchanged by it. The same with stderr not a terminal refuses `state_busy` before exec, naming the holder. A supervisor killed mid-run leaves `holder.released` false: the next attempt takes the `unreleased` fallback naming it and `ukai-jail gc`, and after `gc` releases, the next one acquires. A quarantined state still refuses. The lease descriptor never reaches the child (X06 enumeration). |
 | K68 | Release: discards applied without following links, the generation incremented, the log appended, the receipt `released` and `vendor_state` filled. The directory is still present. L05: an unproved tree retains the state unreleased. |
 | K69 | Chain: N+1's `inherited_from` is N and `matches_release` is true when nothing touched the state. An operator edit between them makes it false, and the summary says `changed outside the jail since att_… released it`. A new state reports `null` with `new_state`. No receipt carries a content digest or any name below the state (a search over the receipts of every K69 run). |
 | K70 | Secret scan (candidate): a test origin that reflects the substituted header into a response the fixture writes into state. Release quarantines, the receipt has `credential_persisted` and `secret_scan: found`, the next acquisition refuses `state_quarantined`, and the value is found nowhere in receipts, journal or stderr. |
 | K71 | `gc`: never removes a state. It finishes a pending release under the jail-v1 §14.2 permission rules, appends the receipt note, and changes nothing in a dry run. `state list/show/rm` behave as §4.9 says, and `rm` refuses while leased. |
-| K72 | Summary: golden fixtures for the `state` line (new, inherited unchanged, changed outside, pending, quarantined, digest unavailable) and for a failed terminal restore on the cleanup line. K52 still holds: `tail --summary` equals the live lines, and `summary_check.py` is extended. |
+| K72 | Summary: golden fixtures for the `state` line (new, inherited unchanged, changed outside, pending, quarantined, digest unavailable, `NOT kept` for each fallback reason) and for a failed terminal restore on the cleanup line. K52 still holds: `tail --summary` equals the live lines, and `summary_check.py` is extended. |
 | K73 | Cost on the reference host: acquisition and release for states of 1 MiB, 64 MiB and 256 MiB, and at the entry bound; the scan's added time; the result against the 30-second preparation budget. Past the bound, the digest is unavailable and nothing claims a match. |
 | K74 | The workspace check: a workspace removed and re-created at the same path with a different inode refuses `state_workspace_changed`. The same-inode case is recorded as the named limit, not as a pass. |
 | K75 | I02: no agent name in the new code. `.credentials.json` occurs only in profile data, docs and fixtures. |
@@ -805,11 +880,17 @@ A separate row from the 2026-10-17 headless one. It makes interactive
      row's task and evidence conditions, with `state_cleanup` `released` in
      place of its `complete`.
   7. Ten repetitions of (2), each failure kept.
+  8. While a session in A is open, a second `ukai-jail claude` in A from
+     another terminal. It starts with throwaway state and says so before
+     exec. After it ends, nothing of its session is listed by `--resume`,
+     and the first session's generation chain continues unchanged.
 - **Pass conditions.**
   - Every receipt is settled with six classes active without gaps,
     `tree_empty` true, `credentials` listing one id with `never_staged`,
     and `state_cleanup` `released`, with generations chaining from run to
-    run and `matches_release` true.
+    run and `matches_release` true. The exception is run (8)'s second
+    session: `vendor_state` `attempt_fallback`, `state_cleanup` `complete`,
+    and its summary `NOT kept`.
   - Every run exits 0 except run (4)'s hangup, whose outcome is whatever
     the agent does on `SIGHUP` (recorded, exited or signaled) or the
     supervisor's stop, and it must still settle with verified tree death.
@@ -838,49 +919,55 @@ A separate row from the 2026-10-17 headless one. It makes interactive
   versions, other terminal emulators beyond the one the harness emulates,
   and OpenCode. Each needs its own row.
 
-## 7. Decisions for the operator
+## 7. Decisions (settled 2026-10-19)
 
-Each has a recommendation. The body above follows the recommendation, and
-changes with the decision.
+The operator settled the eight questions the draft left open. Seven follow
+the draft's recommendation. One, decision 6, is the operator's change from
+the draft. The body above follows every choice. Settling them implements
+or schedules nothing.
 
-1. **Process groups.** Recommended: the command gets its own process
-   group, made foreground by the launcher, and the supervisor relays stops
-   as `sudo` does (§3.3, §3.4). The alternatives are (a) a shared group
+1. **Process groups.** The command runs in its own process group, which the
+   launcher makes the terminal's foreground group. The supervisor relays
+   stops as `sudo` does (§3.3, §3.4). Not chosen: (a) a shared group
    repaired with Landlock's signal scope, which needs kernel 6.12 or later
-   and makes `^C` and `^Z` reach the supervisor, and (b) a pty relay, the
-   strongest isolation, but the jail becomes a terminal relay and X05
-   equality ends.
-2. **When terminal mode applies.** Recommended: automatically, on every
-   contained `run` that meets §3.2's conditions, with `--terminal detach`
-   and `[jail] terminal = "detach"` to keep today's behaviour. The
-   alternative is an opt-in flag, which would leave `ukai-jail claude`
-   broken interactively unless the operator knows the flag. Automatic mode
-   changes what `^C` does for every terminal-started run (§3.8), which is a
-   contract change of the kind jail-v2's no-legacy rule allows.
-3. **Filter additions.** Recommended: deny `TIOCLINUX` and `TIOCSETD` in
-   every contained baseline, attached or not. That is one table per
-   baseline, but new digests and a new freeze. The alternative is to deny
-   them only when attached, which means two variants of every table.
-4. **Terminal restore at settlement.** Recommended: take back the
-   foreground, restore `termios`, flush input, and reset attributes and the
-   cursor, accepting that type-ahead is lost (§3.6). The DSR-sentinel drain
-   stays a candidate until measured.
-5. **State granularity.** Recommended: per launch profile and workspace
-   (§4.2). The alternative, per launch profile, gets onboarding once per
-   host but opens a channel between workspaces.
-6. **Concurrent attempts on one state.** Recommended: refuse the second
-   with `state_busy`, naming the holder. The alternatives are to fall back
-   silently to attempt-private state (refused here: it would hide that the
-   session is not persisted), to fall back with a visible pre-exec line, or
-   to share the directory (Claude Code locks its own files, but the receipt
-   chain would no longer say which attempt wrote what).
-7. **The bundled `claude` profile.** Recommended: `state = "persistent"`
-   with `state_discard = [".credentials.json"]`, and the secret scan as a
-   candidate that K73 must clear. The alternative is persistence as an
-   operator opt-in, which keeps every run a first launch for the default
-   user.
-8. **The execution wall in terminal mode.** The `agent` default is 2 h
-   (operating.md, Profiles), and an interactive session is often longer.
-   Recommended: an initial 8 h for attached runs, shown in the pre-exec
-   line and recorded in the receipt as any wall is. The alternative is to
-   keep 2 h and document `--limit wall=…`, which the alias cannot pass.
+   and lets `^C` and `^Z` reach the supervisor; (b) a pty relay, the
+   strongest isolation, but the jail would become a terminal relay and
+   X05's equality would end.
+2. **When terminal mode applies.** Automatically, on every contained `run`
+   that meets §3.2's conditions. `--terminal detach` and
+   `[jail] terminal = "detach"` keep today's behaviour. This changes what
+   `^C` does for every terminal-started run (§3.8), a contract change of
+   the kind jail-v2's no-legacy rule allows. So every attached run's
+   pre-exec line states where `^C` and `^Z` go and how to end the attempt
+   (§3.7).
+3. **Filter additions.** `TIOCLINUX` and `TIOCSETD` are denied in every
+   contained baseline, attached or not: one table per baseline, with new
+   digests and a new freeze (§3.5, §5).
+4. **Terminal restore at settlement.** Take back the foreground, restore
+   `termios`, flush input, and reset attributes and the cursor, accepting
+   that type-ahead is lost (§3.6). The DSR-sentinel drain stays a
+   candidate until measured.
+5. **State granularity.** One state per launch profile and workspace
+   (§4.2). Per launch profile alone was not chosen: it would open a channel
+   between workspaces.
+6. **Concurrent attempts on one state. The operator changed this from the
+   draft**, which recommended refusing the second attempt with
+   `state_busy`. Instead, an attempt that finds the persistent state held
+   is not refused. It falls back to attempt-private, throwaway state, and
+   says so before exec in a pre-exec line that names the attempt holding
+   the state and says this session will not be kept. The receipt records
+   that the state was private because the persistent state was busy
+   (`vendor_state` `attempt_fallback`), and the summary's `state` line says
+   `NOT kept` (§4.6, §4.7, K67). A silent fallback stays refused. Two
+   consequences of that rule are this document's reading. When stderr is
+   not a terminal, so the fallback cannot be shown, the attempt still
+   refuses with `state_busy`. A state its last holder never released (a
+   crashed supervisor) counts as held and takes the same fallback, naming
+   `ukai-jail gc`; a quarantined state still refuses. Sharing the directory
+   between attempts was not chosen.
+7. **The bundled `claude` profile.** `state = "persistent"` with
+   `state_discard = [".credentials.json"]`. The secret scan stays a
+   candidate that K73 must clear (§4.5).
+8. **The execution wall in terminal mode.** An initial 8 h for attached
+   runs, shown in the pre-exec line and recorded in the receipt as any wall
+   is. Detached runs keep the `agent` profile's 2 h (§3.7, §5, K64).
