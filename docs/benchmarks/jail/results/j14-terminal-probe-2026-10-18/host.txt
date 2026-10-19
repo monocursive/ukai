@@ -1,0 +1,13 @@
+2026-10-18T19:57:11Z
+Linux 7.0.0-31-generic #31-Ubuntu SMP PREEMPT_DYNAMIC Sat Aug  1 04:26:38 UTC 2026 x86_64
+PRETTY_NAME="Ubuntu 26.04.1 LTS"
+dev.tty.legacy_tiocsti = 0
+dev.tty.ldisc_autoload = 0
+kernel.apparmor_restrict_unprivileged_userns = 1
+CONFIG_VT=y
+# CONFIG_LEGACY_TIOCSTI is not set
+CONFIG_SECURITY_LANDLOCK=y
+CONFIG_LSM="landlock,lockdown,yama,integrity,apparmor"
+bubblewrap 0.11.1
+Python 3.14.4
+landlock_create_ruleset(VERSION) = 8

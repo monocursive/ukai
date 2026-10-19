@@ -1,0 +1,127 @@
+{
+  "attempt_id": "att_01e92cd2-e93f-4048-873f-89524fb5fb10",
+  "journal": "complete",
+  "lines": [
+    {
+      "facts": {
+        "attempt_wall_ms": null,
+        "cause": null,
+        "code": 0,
+        "errors": [],
+        "exec_to_settled_ms": 18791,
+        "integrity": "verified",
+        "outcome": "exited",
+        "phase": "settled",
+        "signal": null,
+        "survivors": "none_verified"
+      },
+      "line": "status",
+      "text": "settled · exited 0 · 18.7s exec→settled · survivors: none (verified)"
+    },
+    {
+      "facts": {
+        "bound": "exact",
+        "omitted": 0,
+        "opened_for_writing": 4,
+        "paths": [
+          {
+            "kind": "workspace_relative",
+            "value": "__pycache__"
+          },
+          {
+            "kind": "workspace_relative",
+            "value": "__pycache__/slug.cpython-314.pyc"
+          },
+          {
+            "kind": "workspace_relative",
+            "value": "__pycache__/slug.cpython-314.pyc.132220543450416"
+          },
+          {
+            "kind": "workspace_relative",
+            "value": "__pycache__/test_slug.cpython-314.pyc"
+          },
+          {
+            "kind": "workspace_relative",
+            "value": "__pycache__/test_slug.cpython-314.pyc.132220543449648"
+          },
+          {
+            "kind": "workspace_relative",
+            "value": "slug.py"
+          },
+          {
+            "kind": "workspace_relative",
+            "value": "slug.py.tmp.2.16c482771fd6"
+          }
+        ],
+        "refused": 1,
+        "refused_bound": "exact",
+        "removed": 0,
+        "renamed": 6,
+        "unnamed": 0
+      },
+      "line": "workspace",
+      "text": "workspace: 4 paths opened for writing, 6 in renames · 1 refused write"
+    },
+    {
+      "facts": {
+        "allowed": [
+          {
+            "connect_failed": 0,
+            "destination": "api.anthropic.com:443",
+            "results": 7
+          }
+        ],
+        "bound": "exact",
+        "denied": [],
+        "mode": "proxy",
+        "omitted": 0,
+        "resolver_refused": null
+      },
+      "line": "network",
+      "text": "network: allowed api.anthropic.com:443 (7)"
+    },
+    {
+      "facts": {
+        "credentials": [
+          {
+            "id": "claude-oauth",
+            "mode": "vault",
+            "never_staged": true,
+            "transitions": [
+              "loaded"
+            ],
+            "unconfirmed": 0,
+            "uses": 7,
+            "uses_bound": "exact"
+          }
+        ],
+        "omitted": 0,
+        "refusals": 0,
+        "refusals_bound": "exact"
+      },
+      "line": "credentials",
+      "text": "credential claude-oauth: vault, never staged · used on 7 proxy results · 0 credential refusals"
+    },
+    {
+      "facts": {
+        "attached": true,
+        "classes": {
+          "exec": "active",
+          "fs.deny": "active",
+          "fs.write": "active",
+          "limits": "active",
+          "net": "active",
+          "proxy.net": "active"
+        },
+        "disagree": [],
+        "evidence": "strict",
+        "gaps": [],
+        "observe": "on"
+      },
+      "line": "evidence",
+      "text": "evidence: 6/6 classes active, no gaps · reads and file contents are not observed"
+    }
+  ],
+  "receipt_digest": "sha256:f1ec75a889f0d035e09ee19aeba7a71bddffb80a5b3c8e2da4c0d7e65c79d66d",
+  "schema": "ukai.jail.summary/1"
+}

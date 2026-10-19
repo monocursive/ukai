@@ -1088,6 +1088,26 @@ fn the_doctor_schema_rejects_what_it_must() {
         ("macOS with a backend record", &macos, |r| {
             r["binaries"]["bwrap"] = serde_json::Value::Null;
         }),
+        ("a workspace said to be usable", &linux, |r| {
+            r["workspace"] =
+                serde_json::json!({"status": "usable", "reason_code": "home_directory"});
+        }),
+        ("a workspace with an unknown reason", &linux, |r| {
+            r["workspace"] = serde_json::json!({"status": "unusable", "reason_code": "home"});
+        }),
+        ("a workspace without a reason", &linux, |r| {
+            r["workspace"] = serde_json::json!({"status": "unusable"});
+        }),
+        ("a workspace carrying its path", &linux, |r| {
+            r["workspace"] = serde_json::json!({
+                "status": "unusable",
+                "reason_code": "home_directory",
+                "path": "/home/u",
+            });
+        }),
+        ("a null workspace", &linux, |r| {
+            r["workspace"] = serde_json::Value::Null;
+        }),
     ];
     for (label, base, change) in cases {
         let mut record = (*base).clone();
@@ -1096,5 +1116,22 @@ fn the_doctor_schema_rejects_what_it_must() {
             !schema_errors(&record).is_empty(),
             "the schema accepts {label}"
         );
+    }
+}
+
+/// jail-launch-and-summary.md §8 item 5: a doctor record may report a
+/// workspace no contained run grants, on either platform, by each reason.
+#[test]
+fn the_doctor_schema_admits_each_unusable_workspace() {
+    for (name, example) in examples() {
+        for reason in ["filesystem_root", "home_directory", "home_ancestor"] {
+            let mut record = example.clone();
+            record["workspace"] = serde_json::json!({"status": "unusable", "reason_code": reason});
+            assert_eq!(
+                schema_errors(&record),
+                Vec::<String>::new(),
+                "{name}: {reason}"
+            );
+        }
     }
 }

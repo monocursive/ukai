@@ -1,0 +1,9 @@
+# grep -rlF -f <token source> <paths>: file names only; no output = no file contains the value
+/home/ubuntu/cc-plain-demo-20261019/runs: exit 1
+/home/ubuntu/cc-plain-demo-20261019/evidence: exit 1
+/home/ubuntu/cc-plain-demo-20261019/slug: exit 1
+/home/ubuntu/cc-plain-demo-20261019/fixture: exit 1
+/home/ubuntu/cc-plain-demo-20261019/data: exit 1
+/home/ubuntu/cc-plain-demo-20261019/bin: exit 1
+/home/ubuntu/cc-plain-demo-20261019/config (includes the stored copy, expected to match): exit 0
+/home/ubuntu/cc-plain-demo-20261019/config/credentials/claude-oauth

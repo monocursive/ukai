@@ -805,6 +805,19 @@ fn doctor_json(report: &DoctorReport) -> serde_json::Value {
                 .collect::<Vec<_>>(),
         })),
     });
+    // jail-launch-and-summary.md §8 item 5: a workspace no contained run
+    // grants is reported, by reason code, not refused.
+    if let Some(home) = &report.workspace
+        && let Some(object) = value.as_object_mut()
+    {
+        object.insert(
+            "workspace".to_owned(),
+            serde_json::json!({
+                "status": "unusable",
+                "reason_code": home.why.kind.reason_code(),
+            }),
+        );
+    }
     // J4 autoscope: what the supervisor scope step did for this `doctor`
     // (the `supervisor_scope` capability row carries its state too).
     #[cfg(target_os = "linux")]
@@ -952,6 +965,11 @@ fn doctor_text(report: &DoctorReport) -> String {
                 records::escape_control(&outer.to_string_lossy())
             );
         }
+    }
+    // jail-launch-and-summary.md §8 item 5: reported, not refused; it does
+    // not change `ready`.
+    if let Some(home) = &report.workspace {
+        let _ = writeln!(out, "{}", home.doctor_line(report.launch.is_some()));
     }
     let _ = writeln!(out, "ready {}", report.ready);
     out

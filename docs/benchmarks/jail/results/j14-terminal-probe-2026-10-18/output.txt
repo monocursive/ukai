@@ -1,0 +1,53 @@
+fb6451611431b9e2ff1bed0dc52170aadb7948e6cc880a7be5615c5d813c293b  inner.py
+38eae7042f580519809229052030c87bb2dcdcd53090acdd78b540c5263bad86  outer.sh
+outer: tty /dev/pts/0, sid 2088878, pgrp 2088878
+=== new-session / plain
+mode: plain
+isatty0: True
+apparmor label: ok bwrap//&unpriv_bwrap (enforce)
+ttyname0: ok /dev/console
+tty rdev: ok (136, 0)
+getsid: ok 1
+getpgrp: ok 1
+tcgetpgrp: ENOTTY
+open /dev/tty: ENXIO
+TIOCSTI: EIO
+TIOCLINUX: ENOTTY
+SIGWINCH received: False; size now 40x123
+kill(0, SIGURG): ok
+bwrap exit 0
+=== attached / plain
+mode: plain
+isatty0: True
+apparmor label: ok bwrap//&unpriv_bwrap (enforce)
+ttyname0: ok /dev/console
+tty rdev: ok (136, 0)
+getsid: ok 0
+getpgrp: ok 0
+tcgetpgrp: ok 0
+open /dev/tty: ok
+TIOCSTI: EIO
+TIOCLINUX: ENOTTY
+SIGWINCH received: True; size now 40x123
+kill(0, SIGURG): ok
+outer: SIGURG reached the shell outside the namespace
+bwrap exit 0
+=== attached / ownpgrp
+mode: ownpgrp
+isatty0: True
+apparmor label: ok bwrap//&unpriv_bwrap (enforce)
+ttyname0: ok /dev/console
+tty rdev: ok (136, 0)
+getsid: ok 0
+getpgrp: ok 0
+tcgetpgrp: ok 0
+open /dev/tty: ok
+TIOCSTI: EIO
+TIOCLINUX: ENOTTY
+setpgid(0,0): ok
+tcsetpgrp(own): ok
+tcgetpgrp after: ok 2
+stty: Input/output error
+SIGWINCH received: True; size now 40x123
+kill(0, SIGURG): ok
+bwrap exit 0

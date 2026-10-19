@@ -617,6 +617,182 @@ fn k34_home_its_ancestors_and_root_refuse_on_every_contained_run() {
     );
 }
 
+/// The rc.3 clean-VM finding
+/// (`release-preview-2026-10-18-rc3-doctor-home-failed`): with the config
+/// directory in its default place under the home, `credential set` then
+/// `doctor --launch` from the home refused, saying the stored key lies
+/// inside a grant the child can write. The home is never a workspace, so
+/// `doctor` now says that (jail-launch-and-summary.md §8 item 5), reports
+/// the key available, and is as ready as it is from a project; `run` from
+/// the home still refuses before anything runs.
+#[test]
+fn k34_doctor_from_the_home_names_the_workspace_not_the_credential() {
+    let fixture = Fixture::new();
+    // The default layout: only HOME is set, so the config and data
+    // directories are the ones beneath it.
+    let binary = |cwd: &Path, argv: &[&str], stdin: &[u8]| -> Output {
+        use std::io::Write as _;
+        let mut child = Command::new(env!("CARGO_BIN_EXE_ukai-jail"))
+            .env_clear()
+            .env("PATH", "/usr/local/bin:/usr/bin:/bin")
+            .env("HOME", &fixture.home)
+            .current_dir(cwd)
+            .args(argv)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("the binary runs");
+        child.stdin.take().unwrap().write_all(stdin).unwrap();
+        child.wait_with_output().unwrap()
+    };
+    let set = binary(
+        &fixture.home,
+        &["credential", "set", "anthropic"],
+        b"sk-ant-api03-fixture\n",
+    );
+    assert_eq!(set.status.code(), Some(0), "{}", text(&set.stderr));
+    assert!(
+        fixture
+            .home
+            .join(".config/ukai/credentials/anthropic")
+            .is_file()
+    );
+
+    let doctor = binary(&fixture.home, &["doctor", "--launch", "claude"], b"");
+    let (stdout, stderr) = (text(&doctor.stdout), text(&doctor.stderr));
+    assert!(!stderr.contains("lies inside a grant"), "{stderr}");
+    let expected = format!(
+        "workspace unusable reason=home_directory: the current directory {} is your home \
+         directory, which is never a workspace (a contained run refuses it); run doctor from \
+         your project directory, pass --workspace PATH, or pass --from-path from inside a \
+         repository",
+        fixture.home.display()
+    );
+    assert!(
+        stdout.lines().any(|line| line == expected),
+        "{stdout}\n{stderr}"
+    );
+    assert!(
+        stdout
+            .lines()
+            .any(|line| line.starts_with("credential anthropic ") && line.contains(" available ")),
+        "{stdout}"
+    );
+
+    let json = |cwd: &Path| {
+        let output = binary(cwd, &["doctor", "--launch", "claude", "--json"], b"");
+        let value: serde_json::Value = serde_json::from_slice(&output.stdout)
+            .unwrap_or_else(|error| panic!("{error}: {}", text(&output.stderr)));
+        let errors: Vec<String> = common::validators()["jail-doctor"]
+            .iter_errors(&value)
+            .map(|error| format!("{error} at {}", error.instance_path()))
+            .collect();
+        assert_eq!(errors, Vec::<String>::new(), "{value:#}");
+        (output.status.code(), value)
+    };
+    let (home_code, at_home) = json(&fixture.home);
+    assert_eq!(
+        at_home["workspace"],
+        serde_json::json!({"status": "unusable", "reason_code": "home_directory"})
+    );
+    let anthropic = at_home["launch"]["credentials"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|check| check["id"] == "anthropic")
+        .expect("the claude profile declares `anthropic`");
+    assert_eq!(anthropic["status"], "available", "{at_home:#}");
+    // From a project beneath the same home: no finding, and the same
+    // readiness and exit status (the workspace never changes `ready`).
+    let (repo_code, in_repo) = json(&fixture.repo);
+    assert!(in_repo.get("workspace").is_none(), "{in_repo:#}");
+    assert_eq!(at_home["ready"], in_repo["ready"]);
+    assert_eq!(home_code, repo_code);
+    assert_eq!(doctor.status.code(), home_code);
+
+    // `run` from the home still refuses at the workspace, not at the key.
+    let run = binary(
+        &fixture.home,
+        &["run", "--launch", "claude", "--", "/bin/true"],
+        b"",
+    );
+    let stderr = text(&run.stderr);
+    assert_eq!(run.status.code(), Some(125), "{stderr}");
+    assert!(
+        stderr.contains("policy_widening") && stderr.contains("(key: --workspace)"),
+        "{stderr}"
+    );
+    assert!(!stderr.contains("lies inside a grant"), "{stderr}");
+}
+
+/// §8 item 5, every way in: `doctor` reports a workspace a contained run
+/// refuses (the home from the invocation directory; the home, an ancestor
+/// and `/` from `--workspace`) by kind and by where it came from, never
+/// refuses it, checks the launch credentials as they would be from a
+/// project, and keeps `ready`; `none` has no workspace to report.
+#[test]
+fn k34_doctor_reports_a_home_workspace_and_checks_the_rest() {
+    use ukai_jail::supervisor::from_path::HomeKind;
+    let fixture = Fixture::new();
+    // The default layout: the config directory under the home.
+    let config = fixture.home.join(".config/ukai");
+    mkdir(&config.join("launch"), 0o700);
+    write(
+        &config.join("launch/agent.toml"),
+        AGENT_PROFILE.as_bytes(),
+        0o600,
+    );
+    mkdir(&config.join("credentials"), 0o700);
+    write(&config.join("credentials/first"), b"token-value", 0o600);
+    let doctor = |cwd: &Path, args: &[&str]| {
+        let mut ctx = fixture.context(Box::new(platform()), cwd);
+        ctx.env_settings.config_dir = Some(config.clone());
+        let mut argv = vec!["ukai-jail", "doctor"];
+        argv.extend(args);
+        let cli::Command::Doctor(doctor) = Cli::try_parse_from(argv).unwrap().command else {
+            unreachable!()
+        };
+        supervisor::doctor(&ctx, &doctor)
+            .unwrap_or_else(|error| panic!("doctor {args:?} from {}: {error}", cwd.display()))
+    };
+    let in_repo = doctor(&fixture.repo, &["--launch", "agent"]);
+    assert!(in_repo.workspace.is_none());
+    let home = fixture.home.to_str().unwrap();
+    let root = fixture.root.to_str().unwrap();
+    for (cwd, workspace, kind, explicit) in [
+        (&fixture.home, None, HomeKind::Home, false),
+        (&fixture.repo, Some(home), HomeKind::Home, true),
+        (&fixture.repo, Some(root), HomeKind::HomeAncestor, true),
+        (&fixture.repo, Some("/"), HomeKind::FilesystemRoot, true),
+    ] {
+        let mut args = vec!["--launch", "agent"];
+        args.extend(workspace.iter().flat_map(|path| ["--workspace", path]));
+        let report = doctor(cwd, &args);
+        let found = report
+            .workspace
+            .as_ref()
+            .unwrap_or_else(|| panic!("{args:?}: no workspace finding"));
+        assert_eq!(
+            (found.why.kind, found.explicit),
+            (kind, explicit),
+            "{args:?}"
+        );
+        assert_eq!(report.ready, in_repo.ready, "{args:?}");
+        let first = report
+            .launch
+            .as_ref()
+            .unwrap()
+            .credentials
+            .iter()
+            .find(|check| check.id == "first")
+            .unwrap();
+        assert!(first.available, "{args:?}: {}", first.reason_code);
+    }
+    let none = doctor(&fixture.home, &["--profile", "none"]);
+    assert!(none.workspace.is_none());
+}
+
 // ---------------------------------------------------------------------------
 // K35: where the child starts
 // ---------------------------------------------------------------------------

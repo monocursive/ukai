@@ -69,6 +69,27 @@
         }
       ]
     },
+    "workspace": {
+      "description": "Present only when the plan is contained and its workspace is one every contained run refuses (jail-launch-and-summary.md §3.2 step 3): `/`, the operator's home or an ancestor of it. `doctor` reports it instead of refusing, leaves it out of its placement checks, and does not let it change `ready` (§8 item 5). Absent otherwise.",
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "unusable"
+        },
+        "reason_code": {
+          "enum": [
+            "filesystem_root",
+            "home_directory",
+            "home_ancestor"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "reason_code"
+      ],
+      "additionalProperties": false
+    },
     "supervisor_scope": {
       "$ref": "#/$defs/supervisor_scope"
     },
