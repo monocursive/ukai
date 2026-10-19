@@ -3296,6 +3296,13 @@ state_discard = [".login.json", "drop-me"]
                 "credential_persisted",
                 "{locked}"
             );
+            // The release gave the owner read and search back, not write:
+            // write goes back too, so the fixture's directory can go.
+            std::fs::set_permissions(
+                key.join("vendor/projects/x"),
+                std::fs::Permissions::from_mode(0o700),
+            )
+            .unwrap();
         }
     }
 
