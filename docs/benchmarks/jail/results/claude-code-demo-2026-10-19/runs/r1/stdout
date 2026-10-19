@@ -1,0 +1,1 @@
+I fixed the failing test, `test_numbers`. `slugify` in `slug.py` used the regex `[a-z]+`, which dropped digits, so "Top 10 Tips" came out as `top-tips`. I changed it to `[a-z0-9]+`. I didn't run the suite before the change, so I didn't see the original failure. I spotted the cause from the code and the test. All 3 tests pass now under `python3 -m unittest`.

@@ -6,7 +6,9 @@ records the original offline execution and VM cleanup limitation. The later
 custodian fix and installable candidate. The [public release record](macos-vm-publication-2026-10-11.md)
 adds website delivery, public installation and a verified quickstart. The
 [15 October website sample run](website-sample-run-2026-10-15.md) records the
-run and receipt shown on the home page. These records do not change the
+run and receipt shown on the home page, and the
+[19 October Claude Code demo](claude-code-demo-2026-10-19.md) the
+`ukai-jail claude` run shown below it. These records do not change the
 historical native Jail evidence or Linux release scope.
 
 This is an uncommitted implementation against `dev` at

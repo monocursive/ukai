@@ -1,0 +1,2 @@
+# grep -rlF -f <token source> . over the 32 files staged for the commit (all but SHA256SUMS and this file); file names only
+exit 1 (1 = no file matches)

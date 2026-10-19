@@ -1,0 +1,14 @@
+ M slug.py
+?? __pycache__/
+
+diff --git a/slug.py b/slug.py
+index 2e37d0a..16c947f 100644
+--- a/slug.py
++++ b/slug.py
+@@ -3,5 +3,5 @@ import re
+ 
+ def slugify(title):
+     """Lowercase the words of a title and join them with hyphens."""
+-    words = re.findall(r"[a-z]+", title.lower())
++    words = re.findall(r"[a-z0-9]+", title.lower())
+     return "-".join(words)

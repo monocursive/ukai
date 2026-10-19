@@ -1,0 +1,35 @@
+# host facts, collected 2026-10-19 after run r1
+2026-10-19T07:14:51Z
+PRETTY_NAME="Ubuntu 26.04.1 LTS"
+Linux 7.0.0-31-generic x86_64
+kvm
+ubuntu
+kernel.apparmor_restrict_unprivileged_userns = 1
+bubblewrap 0.11.1
+Python 3.14.4
+git version 2.53.0
+
+# installer (https://ukai.sh/install.sh, fetched to install.sh, then run with --bin-dir)
+0e1dd4fea62bd26c8d5f1703c0d1597f9ea86e1a95ac79464de32c810a647bea  install.sh
+0.1.0-rc.3
+
+# jail
+cbd87e7a2431676c639f4cfd36b3d1a0c1ec70cbb25b698b7956f6802246e953  bin/ukai-jail
+0.1.0-rc.3
+cbd87e7a2431676c639f4cfd36b3d1a0c1ec70cbb25b698b7956f6802246e953
+ukai-jail 0.1.0
+build revision f95f2d3963bc8829ab08f8b320d43abbb9f220f8 dirty false
+build inputs sha256:32e294a36c9d1dffd23ed2e9afc3ec8a87148e2b8cda26538d22737feffbaf89
+
+# Claude Code (native installer)
+/home/ubuntu/.local/bin/claude -> /home/ubuntu/.local/share/claude/versions/2.1.302
+60d7eb7f12fbb28a52533fe8be5884097403562aa02dc73991a021c7067e29a5  /home/ubuntu/.local/share/claude/versions/2.1.302
+2.1.302 (Claude Code)
+
+# isolated directories (UKAI_CONFIG_DIR, UKAI_DATA_DIR) and the stored credential (value never printed)
+drwx------ ubuntu /home/ubuntu/cc-plain-demo-20261019/config
+drwx------ ubuntu /home/ubuntu/cc-plain-demo-20261019/data
+-rw------- ubuntu /home/ubuntu/cc-plain-demo-20261019/config/credentials/claude-oauth
+108 bytes, 1 link(s)
+credentials
+att_01e92cd2-e93f-4048-873f-89524fb5fb10

@@ -66,6 +66,26 @@ const receipt = `{
 const compatibility = `${releasedDocument('docs/specs/jail-v1/agent-compatibility.md')}`;
 const benchmark = `${releasedDocument('docs/benchmarks/jail/followup-2026-09-29.md')}#k17-results`;
 const runRecord = `${repositoryUrl}/blob/dev/docs/benchmarks/jail/website-sample-run-2026-10-15.md`;
+// A real `ukai-jail claude` run on the same host, 19 October 2026, recorded in
+// docs/benchmarks/jail/claude-code-demo-2026-10-19.md: the pre-exec line, Claude
+// Code's whole answer (stdout) and the six lines `ukai-jail tail --summary`
+// prints, each verbatim, in the order they were produced.
+const claudeRun = `$ ukai-jail claude -p "fix the failing test" --dangerously-skip-permissions
+ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)
+I fixed the failing test, \`test_numbers\`. \`slugify\` in \`slug.py\` used the regex \`[a-z]+\`, which dropped digits, so "Top 10 Tips" came out as \`top-tips\`. I changed it to \`[a-z0-9]+\`. I didn't run the suite before the change, so I didn't see the original failure. I spotted the cause from the code and the test. All 3 tests pass now under \`python3 -m unittest\`.
+ukai-jail: settled · exited 0 · 18.7s exec→settled · survivors: none (verified)
+ukai-jail: workspace: 4 paths opened for writing, 6 in renames · 1 refused write
+ukai-jail: network: allowed api.anthropic.com:443 (7)
+ukai-jail: credential claude-oauth: vault, never staged · used on 7 proxy results · 0 credential refusals
+ukai-jail: evidence: 6/6 classes active, no gaps · reads and file contents are not observed
+ukai-jail: receipt /home/ubuntu/cc-plain-demo-20261019/data/attempts/att_01e92cd2-e93f-4048-873f-89524fb5fb10/jail.json`;
+const claudeLines = [
+  { field: 'survivors', text: 'Every process of the run was verified gone before the receipt was written.' },
+  { field: 'workspace', text: 'In the repository it wrote slug.py and Python’s __pycache__. The refused write was Claude Code’s mkdir of ~/.local/state: your home directory is not mounted.' },
+  { field: 'network', text: 'Seven connections, all to api.anthropic.com, the one host the claude profile allows. No other host was asked for.' },
+  { field: 'credential', text: 'Your token stayed in Ukai’s vault. The proxy added it to those seven requests; it was never placed inside the sandbox.' },
+];
+const claudeRecord = `${repositoryUrl}/blob/dev/docs/benchmarks/jail/claude-code-demo-2026-10-19.md`;
 const renamedPreview = jailCommand !== 'ukai-jail';
 const renamedVm = vmCommand !== 'ukai-vm';
 ---
@@ -134,12 +154,39 @@ const renamedVm = vmCommand !== 'ukai-vm';
     </div>
   </section>
 
+  <section class="run-section container" id="claude" aria-labelledby="claude-heading">
+    <div class="section-intro">
+      <p class="eyebrow">Claude Code</p>
+      <h2 id="claude-heading">One word to launch. A summary when it ends.</h2>
+      <p><code>ukai-jail claude</code> runs Claude Code in the git repository you are in, with your token kept in Ukai’s vault. We gave it a small repository with one failing test. This is the whole run.</p>
+    </div>
+    <div class="receipt-grid">
+      <div class="terminal">
+        <div class="terminal-heading"><p class="eyebrow" id="claude-terminal-heading">Terminal</p></div>
+        <pre tabindex="0" aria-labelledby="claude-terminal-heading"><code>{claudeRun}</code></pre>
+      </div>
+      <div class="questions">
+        <p class="questions-heading">What the summary says.</p>
+        {claudeLines.map((item) => (
+          <article class="question">
+            <h3><code>{item.field}</code></h3>
+            <p>{item.text}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+    <div class="run-record">
+      <p class="install-note">Claude Code 2.1.302 and ukai-jail 0.1.0-rc.3 on our Linux reference host, 19 October 2026. Nothing is trimmed. Claude Code’s answer is its stdout and the <code>ukai-jail:</code> lines are stderr, shown in the order they were printed; <code>ukai-jail tail --summary</code> prints the same summary from the saved receipt and journal. The record has the repository, the receipt, the journal and a check that the token appears in none of them.</p>
+      <ActionLink href={claudeRecord}>Full record of this run</ActionLink>
+    </div>
+  </section>
+
   <section class="boundary-section" id="agents" aria-labelledby="agents-heading">
     <div class="container agents-grid">
       <div class="section-intro">
         <p class="eyebrow">Works with</p>
         <h2 id="agents-heading">The agent you already use.</h2>
-        <p>Launch profiles for 14 agents, including Claude Code, Codex, OpenCode and Gemini CLI, plus any command-line tool. All profiles are experimental; OpenCode has recorded live runs.</p>
+        <p>Launch profiles for 14 agents, including Claude Code, Codex, OpenCode and Gemini CLI, plus any command-line tool. All profiles are experimental; Claude Code and OpenCode have recorded live runs.</p>
         <ActionLink href={compatibility}>Compatibility records</ActionLink>
       </div>
       <div class="reasons">

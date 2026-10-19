@@ -1,0 +1,18 @@
+{
+ "argv": [
+  "ukai-jail",
+  "claude",
+  "-p",
+  "fix the failing test",
+  "--dangerously-skip-permissions"
+ ],
+ "cwd": "/home/ubuntu/cc-plain-demo-20261019/slug",
+ "started_at": "2026-10-19T07:12:53.343+00:00",
+ "ended_at": "2026-10-19T07:13:12.260+00:00",
+ "elapsed_s": 18.917,
+ "exit": 0,
+ "timed_out": false,
+ "new_attempts": [
+  "att_01e92cd2-e93f-4048-873f-89524fb5fb10"
+ ]
+}

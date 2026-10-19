@@ -1,0 +1,19 @@
+.F.
+======================================================================
+FAIL: test_numbers (test_slug.SlugifyTest.test_numbers)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/ubuntu/cc-plain-demo-20261019/slug/test_slug.py", line 14, in test_numbers
+    self.assertEqual(slugify("Top 10 Tips"), "top-10-tips")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'top-tips' != 'top-10-tips'
+- top-tips
++ top-10-tips
+?    +++
+
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+FAILED (failures=1)
+exit 1
