@@ -1,0 +1,634 @@
+# Self-test of the GitHub Action in action/ (docs/specs/jail-ci-action.md
+# §6.1, rows K76-K85), run in place with `uses: ./action` on both GitHub-hosted
+# Ubuntu 24.04 images. It uses no secret: the credential is a fixture value
+# derived from the run id, masked before use. What a hosted job cannot do for
+# real (a root step, a pull_request_target event, a self-hosted runner, a
+# sysctl reading 0, a fork's pull request) runs the action's scripts directly
+# with that environment, or against stand-ins, and is marked simulated in the
+# per-row list the `rows` job writes to its summary. The release-tag check
+# (K86) comes with the release procedure.
+name: action-selftest
+on:
+  push:
+    paths:
+      - action/**
+      - install.sh
+      - .github/workflows/action-selftest.yml
+      - .github/action-tests/**
+  pull_request:
+    paths:
+      - action/**
+      - install.sh
+      - .github/workflows/action-selftest.yml
+      - .github/action-tests/**
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: action-selftest-${{ github.ref }}
+  cancel-in-progress: true
+defaults:
+  run:
+    shell: bash
+env:
+  T: .github/action-tests
+jobs:
+  lint:
+    # Static checks and the scripts against stand-ins: simulated rows.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SELFTEST_JOB: lint
+      SELFTEST_IMAGE: static
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+      - name: shellcheck
+        run: |
+          command -v shellcheck > /dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck; }
+          shellcheck -x -s bash action/scripts/*.sh "$T"/sim.sh
+      - name: Static checks (pins, the profile text, no expression in a run, the default version)
+        run: uv run "$T/check_action.py"
+      - name: The scripts against stand-ins
+        run: python3 -m unittest discover -s "$T" -p test_action_scripts.py -v
+      - name: Record the simulated rows
+        run: |
+          r() { python3 -I "$T/selftest.py" row "$1" "$2" pass "${3:-}" "${4:-simulated}"; }
+          r K76 "check.sh refuses a root step (EUID 0) before creating anything" "stub id"
+          r K76 "check.sh refuses pull_request_target and a non-Linux runner before creating anything"
+          r K77 "a tarball whose digest differs refuses before sudo, apt or a build"
+          r K77 "no profile is loaded when the sysctl reads 0 or is absent"
+          r K78 "the value is masked first and goes to credential set on stdin only" "stub ukai-jail"
+          r K78 "ukai-jail runs without the variables a credentials line names"
+          r K78 "an empty variable fails naming its line; a line break is refused unprinted"
+          r K78 "exposure check positive control: a value in the journal fails, uploads nothing, names the file"
+          r K81 "fail-on unsettled, survivors and gaps each fail a step that exited 0" "fixture summaries"
+          r K81 "the step fails with ukai-jail's own status (3, 125)"
+          r K82 "same-repository PR: POST when no comment holds the marker, PATCH the bot's own" "stub gh"
+          r K82 "nothing on a fork's PR, a push or without the flag"
+          r K85 "inputs are refused before any evaluation (credentials, launch, artifact-name)"
+          r K85 "args become argv elements, run one element, workflow commands off around the agent"
+          r K85 "no run: in action.yml holds an expression" "" static
+          r K77 "action/ukai-jail-action-bwrap is the text of §3.3, the digest is §3.3's" "" static
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: rows-lint
+          path: ${{ runner.temp }}/selftest/rows.jsonl
+
+  contained:
+    # Both modes for real: profile mode under `agent` with the K80 probe and
+    # K85's script text, launch mode with the bundled `claude` profile and a
+    # fake `claude` (a copy of bash) with K85's argv, then the alias.
+    name: contained (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      SELFTEST_JOB: contained
+      SELFTEST_IMAGE: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Record the image and the sysctl before any action (K84, K77)
+        run: python3 -I "$T/selftest.py" begin
+      - name: Fixtures
+        id: hostile
+        run: |
+          token=$(python3 -I "$T/selftest.py" token "$SELFTEST_JOB-$SELFTEST_IMAGE")
+          echo "::add-mask::$token"
+          echo "UKAI_SELFTEST_TOKEN=$token" >> "$GITHUB_ENV"
+          # The fake `claude`: a copy of bash, an ELF the bundled profile's
+          # `binaries = ["@program"]` binding accepts.
+          mkdir -p "$HOME/ukai-selftest/fake-agent"
+          install -m 0755 /usr/bin/bash "$HOME/ukai-selftest/fake-agent/claude"
+          echo "$HOME/ukai-selftest/fake-agent" >> "$GITHUB_PATH"
+          git init -q "$HOME/ukai-selftest/launch"
+          echo "LAUNCH_WS=$HOME/ukai-selftest/launch" >> "$GITHUB_ENV"
+          mkdir -p .ukai-selftest
+          python3 -I -c '
+          import json, os
+          t, h = os.environ["RUNNER_TEMP"], os.environ["HOME"]
+          json.dump({"runner_temp": t, "file_commands": t + "/_runner_file_commands",
+                     "github_env": os.environ["GITHUB_ENV"], "github_step_summary": os.environ["GITHUB_STEP_SUMMARY"],
+                     "ukai_root": t + "/ukai", "home_ssh": h + "/.ssh", "home_local": h + "/.local",
+                     "actions_dir": h + "/work/_actions", "fake_agent": h + "/ukai-selftest/fake-agent"},
+                    open(".ukai-selftest/paths.json", "w"))'
+          python3 -I "$T/hostile.py" --markers "$HOME" --expected "$RUNNER_TEMP/selftest"
+      - name: Sample ukai-jail's environment in the background (K78)
+        run: |
+          nohup python3 -I "$T/env_watch.py" --exe "$RUNNER_TEMP/ukai/bin/ukai-jail" --name UKAI_SELFTEST_TOKEN \
+            --out "$RUNNER_TEMP/selftest/env-watch.json" --stop "$RUNNER_TEMP/selftest/env-watch.stop" \
+            > /dev/null 2>&1 &
+
+      - name: Profile mode, agent, with the K80 probe
+        id: profile
+        uses: ./action
+        with:
+          profile: agent
+          run: ${{ steps.hostile.outputs.run }}
+          allow-hosts: api.github.com
+          limits: wall=180s
+          credentials: selftest=UKAI_SELFTEST_TOKEN
+          fail-on: unsettled,survivors,gaps
+          pr-comment: true
+          artifact-name: selftest-profile-${{ matrix.os }}
+      - if: always() && steps.profile.outputs.attempt-id != ''
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: selftest-profile-${{ matrix.os }}
+          path: ${{ runner.temp }}/selftest/art-profile
+      - name: Check the profile-mode run (K77, K79, K80, K81, K83, K85)
+        if: always() && steps.profile.outcome != 'skipped'
+        env:
+          OUTCOME: ${{ steps.profile.outcome }}
+          EXIT_CODE: ${{ steps.profile.outputs.exit-code }}
+          ATTEMPT_ID: ${{ steps.profile.outputs.attempt-id }}
+          SETTLED: ${{ steps.profile.outputs.settled }}
+          SUMMARY_JSON: ${{ steps.profile.outputs.summary-json }}
+          RECEIPT: ${{ steps.profile.outputs.receipt }}
+          ART: ${{ runner.temp }}/selftest/art-profile
+        run: python3 -I "$T/selftest.py" verify-profile
+
+      - name: Launch mode, claude, with a fixture credential
+        id: launch
+        if: always()
+        uses: ./action
+        with:
+          launch: claude
+          workspace: ${{ env.LAUNCH_WS }}
+          args: ${{ steps.hostile.outputs.args }}
+          credentials: anthropic=UKAI_SELFTEST_TOKEN
+          artifact-name: selftest-launch-${{ matrix.os }}
+      - name: Stop sampling
+        if: always()
+        run: |
+          touch "$RUNNER_TEMP/selftest/env-watch.stop"
+          for _ in $(seq 50); do [ -f "$RUNNER_TEMP/selftest/env-watch.json" ] && break; sleep 0.2; done
+      - if: always() && steps.launch.outputs.attempt-id != ''
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: selftest-launch-${{ matrix.os }}
+          path: ${{ runner.temp }}/selftest/art-launch
+      - name: Check the launch-mode run and the sampled environment (K78, K79, K81, K85)
+        if: always() && steps.launch.outcome != 'skipped'
+        env:
+          OUTCOME: ${{ steps.launch.outcome }}
+          EXIT_CODE: ${{ steps.launch.outputs.exit-code }}
+          SETTLED: ${{ steps.launch.outputs.settled }}
+          ART: ${{ runner.temp }}/selftest/art-launch
+        run: |
+          python3 -I "$T/selftest.py" verify-launch
+          python3 -I "$T/selftest.py" verify-watch
+      - name: The same arguments through `ukai-jail claude` (K83)
+        if: always() && steps.launch.outputs.attempt-id != ''
+        env:
+          ART: ${{ runner.temp }}/selftest/art-launch
+        run: |
+          export UKAI_CONFIG_DIR=$RUNNER_TEMP/ukai/config UKAI_DATA_DIR=$RUNNER_TEMP/ukai/data
+          jail=$RUNNER_TEMP/ukai/bin/ukai-jail
+          cd "$LAUNCH_WS"
+          printf '%s' "$UKAI_SELFTEST_TOKEN" | "$jail" credential set --force anthropic
+          mapfile -d '' -t args < <(python3 -I -c '
+          import json, sys
+          sys.stdout.write("".join(a + "\0" for a in json.load(open(sys.argv[1]))))' "$RUNNER_TEMP/selftest/expected-args.json")
+          status=0
+          "$jail" claude "${args[@]}" < /dev/null || status=$?
+          "$jail" credential rm anthropic
+          echo "ukai-jail claude exited $status"
+          python3 -I "$T/selftest.py" verify-alias
+      - name: The pull-request comment on this event (K82)
+        if: always() && steps.profile.outcome != 'skipped'
+        env:
+          OUTCOME: ${{ steps.profile.outcome }}
+          GH_TOKEN: ${{ github.token }}
+          PROFILE_ARTIFACT: selftest-profile-${{ matrix.os }}
+          LAUNCH_ARTIFACT: selftest-launch-${{ matrix.os }}
+        run: python3 -I "$T/selftest.py" verify-comment
+      - name: No input was evaluated outside the jail (K85); the sysctl is unchanged (K77)
+        if: always()
+        run: |
+          python3 -I "$T/selftest.py" markers
+          python3 -I "$T/selftest.py" end
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: rows-contained-${{ matrix.os }}
+          path: ${{ runner.temp }}/selftest/rows.jsonl
+
+  exit-status:
+    # K81 for real: a failing command, a refusal before exec, and fail-on.
+    name: exit-status (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      SELFTEST_JOB: exit-status
+      SELFTEST_IMAGE: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - run: |
+          python3 -I "$T/selftest.py" begin
+          git init -q "$HOME/ukai-selftest/exit"
+          echo "EXIT_WS=$HOME/ukai-selftest/exit" >> "$GITHUB_ENV"
+      - name: A command that exits 3
+        id: fail
+        continue-on-error: true
+        uses: ./action
+        with:
+          profile: tool
+          workspace: ${{ env.EXIT_WS }}
+          run: |
+            echo "exiting 3"
+            exit 3
+          artifact-name: exit-fail-${{ matrix.os }}
+      - name: A refusal before exec (a storage ceiling this runner cannot enforce)
+        id: refused
+        continue-on-error: true
+        uses: ./action
+        with:
+          profile: tool
+          workspace: ${{ env.EXIT_WS }}
+          run: 'true'
+          limits: storage=1GiB
+          fail-on: unsettled
+          artifact-name: exit-refused-${{ matrix.os }}
+      - name: fail-on gaps under tool, whose proxy.net class is never active
+        id: gaps
+        continue-on-error: true
+        uses: ./action
+        with:
+          profile: tool
+          workspace: ${{ env.EXIT_WS }}
+          run: 'true'
+          fail-on: gaps
+          artifact-name: exit-gaps-${{ matrix.os }}
+      - if: always()
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          pattern: exit-*-${{ matrix.os }}
+          path: ${{ runner.temp }}/selftest/art
+      - name: Check (K81)
+        if: always()
+        env:
+          FAIL_OUTCOME: ${{ steps.fail.outcome }}
+          FAIL_EXIT_CODE: ${{ steps.fail.outputs.exit-code }}
+          FAIL_SETTLED: ${{ steps.fail.outputs.settled }}
+          FAIL_ART: ${{ runner.temp }}/selftest/art/exit-fail-${{ matrix.os }}
+          REFUSED_OUTCOME: ${{ steps.refused.outcome }}
+          REFUSED_EXIT_CODE: ${{ steps.refused.outputs.exit-code }}
+          REFUSED_SETTLED: ${{ steps.refused.outputs.settled }}
+          REFUSED_ART: ${{ runner.temp }}/selftest/art/exit-refused-${{ matrix.os }}
+          GAPS_OUTCOME: ${{ steps.gaps.outcome }}
+          GAPS_EXIT_CODE: ${{ steps.gaps.outputs.exit-code }}
+          GAPS_SETTLED: ${{ steps.gaps.outputs.settled }}
+          GAPS_ART: ${{ runner.temp }}/selftest/art/exit-gaps-${{ matrix.os }}
+        run: |
+          python3 -I "$T/selftest.py" verify-exit
+          python3 -I "$T/selftest.py" end
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: rows-exit-status-${{ matrix.os }}
+          path: ${{ runner.temp }}/selftest/rows.jsonl
+
+  refusals:
+    # K76: every refusal before any host change; K77: a tampered tarball;
+    # K85: hostile inputs on the check path. This job's checkout keeps its
+    # token in .git/config on purpose (the extraheader refusal).
+    name: refusals (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      SELFTEST_JOB: refusals
+      SELFTEST_IMAGE: ${{ matrix.os }}
+      UKAI_ACTION_VERSION: 0.1.0-rc.4
+      UKAI_ACTION_ARTIFACT_NAME: sim
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: true
+      - name: Record the image and the host before any action
+        run: |
+          python3 -I "$T/selftest.py" begin
+          git init -q "$HOME/ukai-selftest/plain"
+          echo "PLAIN_WS=$HOME/ukai-selftest/plain" >> "$GITHUB_ENV"
+          host_state() {
+            printf 'bwrap %s\n' "$(ls -l /usr/local/bin/bwrap 2>&1 | cut -c1-40)"
+            printf 'profile %s\n' "$(sudo grep -c ukai-jail-action-bwrap /sys/kernel/security/apparmor/profiles)"
+            printf 'meson %s\n' "$(dpkg-query -W -f '${Status}' meson 2>&1)"
+            printf 'sysctl %s\n' "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns)"
+            printf 'credentials %s\n' "$(ls "$RUNNER_TEMP/ukai/config/credentials" 2>&1 | wc -l)"
+          }
+          declare -f host_state > "$RUNNER_TEMP/host_state.sh"
+          host_state | tee "$RUNNER_TEMP/host-before.txt"
+      - name: Simulated a self-hosted runner without bubblewrap; pull_request_target; a root step
+        run: |
+          r() { python3 -I "$T/selftest.py" row K76 "$1" "$2" "$3" simulated; }
+          out=$(RUNNER_ENVIRONMENT=self-hosted UKAI_ACTION_PROFILE=tool UKAI_ACTION_RUN=true \
+            UKAI_ACTION_WORKSPACE="$PLAIN_WS" bash "$T/sim.sh" check setup credentials doctor 2>&1)
+          printf '%s\n' "$out" | sed 's/::/: :/g'   # the scripts' own annotations, shown inert
+          if [[ "$out" == *"sim: stopped at doctor"* && "$out" == *"self-hosted runner, and the action changes nothing there"* ]] &&
+             grep -q "host setup: none" "$(ls -d "$RUNNER_TEMP"/ukai/report.* | tail -1)/setup.txt"; then
+            r "self-hosted shape without a ready doctor: no host setup, refused with doctor's reasons" pass ""
+          else r "self-hosted shape without a ready doctor: no host setup, refused with doctor's reasons" fail ""; fi
+          out=$(GITHUB_EVENT_NAME=pull_request_target UKAI_ACTION_PROFILE=tool UKAI_ACTION_RUN=true \
+            UKAI_ACTION_WORKSPACE="$PLAIN_WS" bash "$T/sim.sh" check 2>&1)
+          printf '%s\n' "$out" | sed 's/::/: :/g'   # the scripts' own annotations, shown inert
+          if [[ "$out" == *"sim: stopped at check"* && "$out" == *"pull_request_target event is refused"* ]]; then
+            r "pull_request_target refused by the check" pass ""; else r "pull_request_target refused by the check" fail ""; fi
+          scratch=$(mktemp -d)
+          out=$(sudo env "PATH=$PATH" "RUNNER_TEMP=$scratch" RUNNER_OS=Linux "RUNNER_ARCH=$RUNNER_ARCH" \
+            UKAI_ACTION_VERSION=0.1.0-rc.4 UKAI_ACTION_ARTIFACT_NAME=sim UKAI_ACTION_PROFILE=tool \
+            UKAI_ACTION_RUN=true "UKAI_ACTION_WORKSPACE=$PLAIN_WS" bash "$T/sim.sh" check 2>&1)
+          printf '%s\n' "$out" | sed 's/::/: :/g'   # the scripts' own annotations, shown inert
+          if [[ "$out" == *"sim: stopped at check"* && "$out" == *"runs as root (EUID 0)"* ]] && [ -z "$(ls -A "$scratch")" ]; then
+            r "a root step refused by the check (run through sudo), nothing created" pass ""
+          else r "a root step refused by the check (run through sudo), nothing created" fail ""; fi
+      - name: The checkout's persisted token in the workspace
+        id: token
+        continue-on-error: true
+        uses: ./action
+        with:
+          profile: tool
+          run: 'true'
+      - name: Hostile credentials line
+        id: hostile-credentials
+        continue-on-error: true
+        uses: ./action
+        with:
+          profile: tool
+          run: 'true'
+          workspace: ${{ env.PLAIN_WS }}
+          credentials: 'x=A[$(touch /home/runner/ukai-k85-credentials)]'
+      - name: Hostile launch name
+        id: hostile-launch
+        continue-on-error: true
+        uses: ./action
+        with:
+          launch: 'claude;touch /home/runner/ukai-k85-launch'
+          workspace: ${{ env.PLAIN_WS }}
+      - name: Hostile workspace
+        id: hostile-workspace
+        continue-on-error: true
+        uses: ./action
+        with:
+          profile: tool
+          run: 'true'
+          workspace: '$(touch /home/runner/ukai-k85-workspace)'
+      - name: Plant a tarball whose digest differs (K77)
+        run: |
+          mkdir -p "$RUNNER_TEMP/ukai/src"
+          head -c 4096 /dev/urandom > "$RUNNER_TEMP/ukai/src/bubblewrap-0.11.1.tar.xz"
+      - name: Setup with the planted tarball
+        id: tamper
+        continue-on-error: true
+        uses: ./action
+        with:
+          profile: tool
+          run: 'true'
+          workspace: ${{ env.PLAIN_WS }}
+          artifact-name: refusals-tamper-${{ matrix.os }}
+      - name: Check the refusals made no host change (K76, K77, K85)
+        if: always()
+        env:
+          OUTCOMES: ${{ steps.token.outcome }} ${{ steps.hostile-credentials.outcome }} ${{ steps.hostile-launch.outcome }} ${{ steps.hostile-workspace.outcome }}
+          TAMPER: ${{ steps.tamper.outcome }}
+        run: |
+          r() { python3 -I "$T/selftest.py" row "$1" "$2" "$3" "${4:-}"; }
+          source "$RUNNER_TEMP/host_state.sh"
+          host_state | tee "$RUNNER_TEMP/host-after.txt"
+          reports=$(ls -d "$RUNNER_TEMP"/ukai/report.* 2>/dev/null | wc -l)
+          [ "$OUTCOMES" = "failure failure failure failure" ] && ok=pass || ok=fail
+          r K76 "the checkout's token, and hostile credentials, launch and workspace inputs: each step refused" "$ok" "$OUTCOMES"
+          tamper_dir=$(grep -l "REFUSED (pinned" "$RUNNER_TEMP"/ukai/report.*/setup.txt 2>/dev/null | head -1)
+          [ "$TAMPER" = failure ] && [ -n "$tamper_dir" ] && [ ! -e "$RUNNER_TEMP/ukai/src/bubblewrap-0.11.1" ] && ok=pass || ok=fail
+          r K77 "a tarball whose digest differs refuses before building; setup.txt says so" "$ok" "$TAMPER"
+          cmp "$RUNNER_TEMP/host-before.txt" "$RUNNER_TEMP/host-after.txt" && ok=pass || ok=fail
+          r K76 "no refusal changed the host: no bwrap, no profile, no apt build dependencies, no credential, the sysctl as it was" "$ok" "$(tr '\n' ';' < "$RUNNER_TEMP/host-after.txt")"
+          # the self-hosted simulation and the tamper run are the only reports
+          [ "$reports" -eq 2 ] && ok=pass || ok=fail
+          r K76 "the refused checks created nothing in \$RUNNER_TEMP/ukai" "$ok" "$reports report directories (self-hosted simulation and tamper)"
+          rm -f "$RUNNER_TEMP/ukai/src/bubblewrap-0.11.1.tar.xz"
+      - name: allow-checkout-token runs and the summary names the token (K76)
+        id: allowed
+        uses: ./action
+        with:
+          profile: tool
+          run: 'true'
+          allow-checkout-token: true
+          artifact-name: refusals-allowed-${{ matrix.os }}
+      - name: Hostile version
+        id: hostile-version
+        continue-on-error: true
+        uses: ./action
+        with:
+          profile: tool
+          run: 'true'
+          workspace: ${{ env.PLAIN_WS }}
+          version: '$(touch /home/runner/ukai-k85-version)'
+      - name: Hostile allow-hosts and limits
+        id: hostile-hosts
+        continue-on-error: true
+        uses: ./action
+        with:
+          profile: tool
+          run: 'true'
+          workspace: ${{ env.PLAIN_WS }}
+          allow-hosts: '$(touch /home/runner/ukai-k85-hosts) `touch /home/runner/ukai-k85-hosts-bt`'
+          limits: 'wall=$(touch /home/runner/ukai-k85-limits)'
+          artifact-name: refusals-hosts-${{ matrix.os }}
+      - name: Check, and the self-hosted shape once doctor is ready (simulated)
+        if: always()
+        env:
+          ALLOWED: ${{ steps.allowed.outcome }}
+          LATER: ${{ steps.hostile-version.outcome }} ${{ steps.hostile-hosts.outcome }}
+          HOSTS_EXIT: ${{ steps.hostile-hosts.outputs.exit-code }}
+        run: |
+          r() { python3 -I "$T/selftest.py" row "$1" "$2" "$3" "${4:-}" "${5:-real}"; }
+          summary=$(grep -l "readable inside the workspace (allow-checkout-token: true)" "$RUNNER_TEMP"/ukai/report.*/summary.md | head -1)
+          [ "$ALLOWED" = success ] && [ -n "$summary" ] && grep -q "checkout token PRESENT and allowed" "$(dirname "$summary")/setup.txt" && ok=pass || ok=fail
+          r K76 "allow-checkout-token: true runs, and the summary and setup.txt name the token" "$ok" "$ALLOWED"
+          [ "$LATER" = "failure failure" ] && ok=pass || ok=fail
+          r K85 "hostile version, allow-hosts and limits fail the step as invalid values" "$ok" "$LATER, ukai-jail exit ${HOSTS_EXIT:-none}"
+          out=$(RUNNER_ENVIRONMENT=self-hosted UKAI_ACTION_PROFILE=tool UKAI_ACTION_RUN=true \
+            UKAI_ACTION_WORKSPACE="$PLAIN_WS" bash "$T/sim.sh" check setup credentials doctor 2>&1)
+          printf '%s\n' "$out" | sed 's/::/: :/g'   # the scripts' own annotations, shown inert
+          [[ "$out" == *"sim: completed"* ]] && ok=pass || ok=fail
+          r K76 "self-hosted shape with doctor ready (after the hosted setup): no host setup, proceeds" "$ok" "" simulated
+          python3 -I "$T/selftest.py" markers
+          python3 -I "$T/selftest.py" end
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: rows-refusals-${{ matrix.os }}
+          path: ${{ runner.temp }}/selftest/rows.jsonl
+
+  old-image:
+    # K76 for real: ubuntu-22.04 (glibc 2.35) is refused before any change.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      SELFTEST_JOB: old-image
+      SELFTEST_IMAGE: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - run: python3 -I "$T/selftest.py" begin
+      - id: refused
+        continue-on-error: true
+        uses: ./action
+        with:
+          profile: tool
+          run: 'true'
+      - if: always()
+        env:
+          OUTCOME: ${{ steps.refused.outcome }}
+        run: |
+          [ "$OUTCOME" = failure ] && [ ! -e /usr/local/bin/bwrap ] && [ ! -e "$RUNNER_TEMP/ukai" ] &&
+            ! sudo grep -q ukai-jail-action-bwrap /sys/kernel/security/apparmor/profiles && ok=pass || ok=fail
+          python3 -I "$T/selftest.py" row K76 "ubuntu-22.04 refused by the check, nothing created or changed" "$ok" "$OUTCOME"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: rows-old-image
+          path: ${{ runner.temp }}/selftest/rows.jsonl
+
+  latest:
+    # K84: what ubuntu-latest resolves to today, recorded, not assumed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SELFTEST_JOB: latest
+      SELFTEST_IMAGE: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - run: python3 -I "$T/selftest.py" begin
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: rows-latest
+          path: ${{ runner.temp }}/selftest/rows.jsonl
+
+  exposure:
+    # K78's positive control for real: the agent writes the stored value into
+    # the journal (as a file name and an argument); the step must fail and
+    # upload nothing.
+    name: exposure (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    env:
+      SELFTEST_JOB: exposure
+      SELFTEST_IMAGE: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - run: |
+          python3 -I "$T/selftest.py" begin
+          token=$(python3 -I "$T/selftest.py" token "$SELFTEST_JOB-$SELFTEST_IMAGE")
+          echo "::add-mask::$token"
+          echo "UKAI_SELFTEST_TOKEN=$token" >> "$GITHUB_ENV"
+          git init -q "$HOME/ukai-selftest/leak"
+          printf '%s' "$token" > "$HOME/ukai-selftest/leak/leak-source"
+          echo "LEAK_WS=$HOME/ukai-selftest/leak" >> "$GITHUB_ENV"
+      - id: control
+        continue-on-error: true
+        uses: ./action
+        with:
+          profile: tool
+          workspace: ${{ env.LEAK_WS }}
+          run: |
+            touch "$(cat leak-source).txt"
+            /bin/true "$(cat leak-source)"
+          credentials: canary=UKAI_SELFTEST_TOKEN
+          artifact-name: exposure-control-${{ matrix.os }}
+      - if: always()
+        env:
+          OUTCOME: ${{ steps.control.outcome }}
+          ARTIFACT_NAME: exposure-control-${{ matrix.os }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ARTIFACTS=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" \
+            --jq '[.artifacts[].name]' | python3 -I -c 'import json,sys; print(json.dumps(sum((json.loads(l) for l in sys.stdin), [])))')
+          export ARTIFACTS
+          python3 -I "$T/selftest.py" verify-exposure
+          python3 -I "$T/selftest.py" end
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: rows-exposure-${{ matrix.os }}
+          path: ${{ runner.temp }}/selftest/rows.jsonl
+
+  rows:
+    # The per-row list, and K78 over every job's log as GitHub stores it.
+    needs: [lint, contained, exit-status, refusals, old-image, latest, exposure]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          pattern: rows-*
+          path: ${{ runner.temp }}/rows
+      - name: Fetch every finished job's log
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/logs"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs" \
+            --jq '.jobs[] | select(.status == "completed") | "\(.id)\t\(.name)"' |
+          while IFS=$'\t' read -r id name; do
+            file=$(printf '%s' "$name" | tr -c 'A-Za-z0-9._-' '_')
+            for attempt in 1 2 3 4 5; do
+              gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$id/logs" > "$RUNNER_TEMP/logs/$file.log" 2>/dev/null && break
+              sleep 5
+            done
+            echo "$name: $(wc -c < "$RUNNER_TEMP/logs/$file.log") bytes"
+          done
+      - name: Rows K76-K85
+        env:
+          ROWS_DIR: ${{ runner.temp }}/rows
+          LOGS_DIR: ${{ runner.temp }}/logs
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 -I "$T/selftest.py" rows
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: selftest-rows
+          path: ${{ runner.temp }}/rows/rows.md

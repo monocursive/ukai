@@ -1,0 +1,202 @@
+# The action's compatibility record (A-row) of docs/specs/jail-ci-action.md
+# §6.2: Claude Code from its native installer under `launch: claude` on both
+# GitHub-hosted Ubuntu 24.04 images, with the bundled profile's `anthropic`
+# credential, a Console API key held as the secret ANTHROPIC_API_KEY of the
+# environment `ukai-arow` (§9 decision 5: the operator approves every job that
+# reads it; deployments from dev only). Each image runs the A01 fixture task
+# and one real small task (the failing slug test), then checks the 2026-10-17
+# headless row's pass conditions, the job summary and the exposure of the key.
+# The `logs` job searches every job log and artifact of the run for the key;
+# it reads the secret too, so it waits for a second approval. Run by hand.
+name: action-arow
+on:
+  workflow_dispatch:
+    inputs:
+      claude-version:
+        description: Claude Code version for its native installer (2.1.302 is the recorded one)
+        required: true
+        default: 2.1.302
+permissions:
+  contents: read
+concurrency:
+  group: action-arow
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
+env:
+  T: .github/action-tests
+jobs:
+  arow:
+    name: arow (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    environment: ukai-arow
+    timeout-minutes: 60
+    env:
+      SELFTEST_JOB: arow
+      SELFTEST_IMAGE: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Record the image
+        run: python3 -I "$T/selftest.py" begin
+      - name: Install Claude Code with its native installer (no key in this step)
+        env:
+          CLAUDE_VERSION: ${{ inputs.claude-version }}
+        run: |
+          curl --proto '=https' --tlsv1.2 -fsSL https://claude.ai/install.sh -o "$RUNNER_TEMP/claude-install.sh"
+          bash "$RUNNER_TEMP/claude-install.sh" "$CLAUDE_VERSION"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          program=$(readlink -f "$HOME/.local/bin/claude")
+          {
+            echo "installer sha256:$(sha256sum "$RUNNER_TEMP/claude-install.sh" | cut -d' ' -f1)"
+            echo "claude $("$HOME/.local/bin/claude" --version) at $program sha256:$(sha256sum "$program" | cut -d' ' -f1)"
+          } | tee "$RUNNER_TEMP/claude.txt"
+          python3 -I "$T/selftest.py" row A-row "Claude Code installed" recorded "$(tr '\n' ' ' < "$RUNNER_TEMP/claude.txt")"
+      - name: Fixture repositories
+        run: |
+          git init -q "$HOME/arow/a01"
+          git init -q "$HOME/arow/task"
+          cp "$T/arow/slug.py" "$T/arow/test_slug.py" "$HOME/arow/task/"
+          git -C "$HOME/arow/task" add slug.py test_slug.py
+          git -C "$HOME/arow/task" -c user.name=ukai-arow -c user.email=arow@invalid commit -q -m fixture
+          echo "TEST_SHA256=$(sha256sum "$HOME/arow/task/test_slug.py" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          echo "A01_WS=$HOME/arow/a01" >> "$GITHUB_ENV"
+          echo "TASK_WS=$HOME/arow/task" >> "$GITHUB_ENV"
+
+      - name: A01, the fixture task
+        id: a01
+        uses: ./action
+        with:
+          launch: claude
+          workspace: ${{ env.A01_WS }}
+          args: |
+            -p
+            Create a file named greeting.txt containing the single word hello.
+            --dangerously-skip-permissions
+            --output-format
+            json
+          limits: wall=15m
+          credentials: anthropic=ANTHROPIC_API_KEY
+          artifact-name: arow-a01-${{ matrix.os }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - if: always() && steps.a01.outputs.attempt-id != ''
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: arow-a01-${{ matrix.os }}
+          path: ${{ runner.temp }}/selftest/art-a01
+      - name: Check A01
+        if: always() && steps.a01.outcome != 'skipped'
+        env:
+          OUTCOME: ${{ steps.a01.outcome }}
+          EXIT_CODE: ${{ steps.a01.outputs.exit-code }}
+          SETTLED: ${{ steps.a01.outputs.settled }}
+          ART: ${{ runner.temp }}/selftest/art-a01
+          WS: ${{ env.A01_WS }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python3 -I "$T/selftest.py" verify-arow a01
+
+      - name: A real small task, the failing slug test
+        id: task
+        if: always()
+        uses: ./action
+        with:
+          launch: claude
+          workspace: ${{ env.TASK_WS }}
+          args: |
+            -p
+            The tests in test_slug.py fail. Fix the bug in slug.py so that python3 -m unittest passes, without changing test_slug.py, and run the tests to confirm.
+            --dangerously-skip-permissions
+            --output-format
+            json
+          limits: wall=15m
+          credentials: anthropic=ANTHROPIC_API_KEY
+          artifact-name: arow-task-${{ matrix.os }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - if: always() && steps.task.outputs.attempt-id != ''
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          name: arow-task-${{ matrix.os }}
+          path: ${{ runner.temp }}/selftest/art-task
+      - name: Check the task run
+        if: always() && steps.task.outcome != 'skipped'
+        env:
+          OUTCOME: ${{ steps.task.outcome }}
+          EXIT_CODE: ${{ steps.task.outputs.exit-code }}
+          SETTLED: ${{ steps.task.outputs.settled }}
+          ART: ${{ runner.temp }}/selftest/art-task
+          WS: ${{ env.TASK_WS }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python3 -I "$T/selftest.py" verify-arow task
+      # What the agent wrote is untrusted (§4.1): its tests run in the jail too.
+      - name: The task's tests, run inside the jail
+        id: tests
+        if: always() && steps.task.outcome != 'skipped'
+        uses: ./action
+        with:
+          profile: tool
+          workspace: ${{ env.TASK_WS }}
+          run: python3 -m unittest -v
+          artifact-name: arow-tests-${{ matrix.os }}
+      - name: Check the task's outcome
+        if: always() && steps.tests.outcome != 'skipped'
+        env:
+          OUTCOME: ${{ steps.tests.outcome }}
+          EXIT_CODE: ${{ steps.tests.outputs.exit-code }}
+          WS: ${{ env.TASK_WS }}
+        run: |
+          python3 -I "$T/selftest.py" verify-arow-task
+          python3 -I "$T/selftest.py" end
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: rows-arow-${{ matrix.os }}
+          path: ${{ runner.temp }}/selftest/rows.jsonl
+
+  logs:
+    # K78 over the job logs as GitHub stores them and over every artifact.
+    needs: arow
+    if: always()
+    runs-on: ubuntu-24.04
+    environment: ukai-arow
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          path: ${{ runner.temp }}/artifacts
+      - name: Fetch the arow jobs' logs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/logs"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs" \
+            --jq '.jobs[] | select(.status == "completed") | "\(.id)\t\(.name)"' |
+          while IFS=$'\t' read -r id name; do
+            file=$(printf '%s' "$name" | tr -c 'A-Za-z0-9._-' '_')
+            for attempt in 1 2 3 4 5; do
+              gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$id/logs" > "$RUNNER_TEMP/logs/$file.log" 2>/dev/null && break
+              sleep 5
+            done
+            echo "$name: $(wc -c < "$RUNNER_TEMP/logs/$file.log") bytes"
+          done
+      - name: The record
+        env:
+          ROWS_DIR: ${{ runner.temp }}/artifacts
+          ARTIFACTS_DIR: ${{ runner.temp }}/artifacts
+          LOGS_DIR: ${{ runner.temp }}/logs
+          NEEDS: ${{ toJSON(needs) }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python3 -I "$T/selftest.py" arow-report
