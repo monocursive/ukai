@@ -1,0 +1,40 @@
+policy agent
+profile agent
+platform linux
+digest sha256:f330ba6aff19c306cf8a23480a591e7f83d35385fbb349d25d3b1cb753f8d2d5
+observation mode=on evidence=strict
+network proxy
+terminal detached (stdin is not a terminal)
+read_write workspace:
+read_write scratch:
+read_write vendor_state:
+read_only host:/usr
+read_only host:/bin
+read_only host:/lib
+read_only host:/lib64
+read_only host:/etc/ssl
+read_only host:/etc/resolv.conf
+read_only host:/etc/passwd
+read_only host:/etc/group
+read_only host:/etc/hosts
+read_only host:/etc/localtime
+read_only host:/home/ubuntu/.local/share/claude/versions
+protected_coverage existing_and_root
+limit wall=7200000 required=true
+limit pids=512 required=false
+launch state_var=CLAUDE_CONFIG_DIR home_is_state=false
+launch credential claude-oauth mode=vault dest=.vault-claude-oauth source=omitted
+launch state=persistent
+launch state_discard .credentials.json
+program claude = /home/ubuntu/.local/share/claude/versions/2.1.302 format=elf
+program argv /home/ubuntu/.local/share/claude/versions/2.1.302
+program read_only /home/ubuntu/.local/share/claude/versions by=program_resolution
+requirement tree_termination unmeasured
+requirement closed_set_observation unmeasured
+requirement filesystem_containment unmeasured
+requirement syscall_filter unmeasured
+requirement network_proxy unmeasured
+requirement protected_coverage:existing_and_root unmeasured
+requirement limit:wall unmeasured
+requirement credential_staging unmeasured
+capabilities unmeasured (explain does not probe)

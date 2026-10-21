@@ -1,0 +1,7 @@
+ukai-jail: settled · exited 0 · 17.9s exec→settled · survivors: none (verified)
+ukai-jail: workspace: 0 paths opened for writing · 2 refused writes
+ukai-jail: network: allowed api.anthropic.com:443 (7), platform.claude.com:443 (1) · denied downloads.claude.ai:443 (1), github.com:443 (1)
+ukai-jail: credential claude-oauth: vault, never staged · used on 6 proxy results · 0 credential refusals
+ukai-jail: state: NOT kept · this session used throwaway state because att_d542b326-3f3b-49a5-a6d9-8074a3d3e525 held the persistent state for this workspace
+ukai-jail: evidence: 6/6 classes active, no gaps · reads and file contents are not observed
+ukai-jail: receipt /home/ubuntu/arow-int-final2/data/attempts/att_7e77e7d8-a718-41d2-8069-f6506724cf0b/jail.json

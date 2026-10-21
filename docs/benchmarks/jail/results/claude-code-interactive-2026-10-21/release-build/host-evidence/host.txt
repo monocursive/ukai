@@ -1,0 +1,50 @@
+date_utc: 2026-10-21T10:31:13Z
+uname: Linux 7.0.0-31-generic #31-Ubuntu SMP PREEMPT_DYNAMIC Sat Aug  1 04:26:38 UTC 2026 x86_64 GNU/Linux
+os: Ubuntu 26.04.1 LTS
+apparmor_restrict_unprivileged_userns: 1
+bwrap: bubblewrap 0.11.1
+jail_sha256: 40621f6df47571c501ddf3558407b3e144905c826f001c6a1900d2bcd9756928
+jail_source: /home/ubuntu/rc4-build/ukai-jail
+jail_source_sha256: 40621f6df47571c501ddf3558407b3e144905c826f001c6a1900d2bcd9756928
+claude_link: /home/ubuntu/.local/share/claude/versions/2.1.302
+claude_resolved: /home/ubuntu/.local/share/claude/versions/2.1.302
+claude_sha256: 60d7eb7f12fbb28a52533fe8be5884097403562aa02dc73991a021c7067e29a5
+claude_version: 2.1.302 (Claude Code)
+credential_source: 600 108 bytes, 1 link(s), mtime 2026-10-16 14:15:21.113637958 +0000
+vaulted_copy: 600 108 bytes
+jail_version:
+{
+  "build": {
+    "debug_assertions": false,
+    "dirty": false,
+    "inputs": "sha256:893f85686e76cffeeb87f57c33ba27fe16685524d73676ec7b72c937e7c20d03",
+    "opt_level": "3",
+    "revision": "cccf5db30196a9f0a1de5570a7af3f99e252e3ea",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "target": "x86_64-unknown-linux-gnu"
+  },
+  "component": "ukai-jail",
+  "frozen": true,
+  "observation": {
+    "closed_set": "linux-closed-v1"
+  },
+  "platform": {
+    "arch": "x86_64",
+    "kernel": "Linux 7.0.0-31-generic",
+    "os": "linux"
+  },
+  "schemas": {
+    "control": "ukai.jail.control/1",
+    "doctor": "ukai.jail.doctor/1",
+    "event": "ukai.event/1",
+    "gate": "ukai.jail.gate/1",
+    "learned_policy": "ukai.jail.learned-policy/1",
+    "network": "ukai.jail.network/1",
+    "policy": "ukai.jail.policy/1",
+    "policy_file": "ukai.jail.policy-file/1",
+    "policy_snapshot": "ukai.jail.policy-snapshot/1",
+    "receipt": "ukai.jail.receipt/1",
+    "summary": "ukai.jail.summary/1"
+  },
+  "version": "0.1.0"
+}

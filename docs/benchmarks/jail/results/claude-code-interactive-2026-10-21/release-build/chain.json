@@ -1,0 +1,12 @@
+{
+ "A": {
+  "attempt": "att_82f66008-6af1-4f7d-8b53-7ecda2a786b4",
+  "generation": 29,
+  "run": "r08-concurrent/t3-resume-after"
+ },
+ "B": {
+  "attempt": "att_f276c62e-0674-446d-9460-e965058e74ec",
+  "generation": 1,
+  "run": "r03-workspace-b/B"
+ }
+}

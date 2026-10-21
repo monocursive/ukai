@@ -1,0 +1,11 @@
+{
+ "paths": [
+  "/home/ubuntu/arow-int-final2/runs/confirm-20261021/r08-concurrent/t3-resume-after",
+  "/home/ubuntu/arow-int-final2/data/attempts/att_82f66008-6af1-4f7d-8b53-7ecda2a786b4",
+  "/home/ubuntu/arow-int-final2/ws-A",
+  "/home/ubuntu/arow-int-final2/data/state/claude/2dd0901cacf87a54f50dd052cd50c0aa"
+ ],
+ "exit": 1,
+ "hits": [],
+ "stderr": ""
+}

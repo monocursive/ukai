@@ -1,0 +1,129 @@
+{
+ "run": "r04-signals-hangup",
+ "spec": "6.3 (4)",
+ "started_utc": "2026-10-21T10:39:44Z",
+ "steps": [
+  {
+   "t": "12:40:11",
+   "what": "hangup"
+  }
+ ],
+ "attempts": [
+  {
+   "attempt": "att_c990ee5c-02be-4ed2-87a5-09b9a622ab1e",
+   "pass": true,
+   "failed": [],
+   "outcome": "signaled",
+   "code": null,
+   "state_cleanup": "released",
+   "generation": [
+    23,
+    24
+   ],
+   "proxy": [
+    [
+     "api.anthropic.com:443",
+     "allow",
+     "relayed",
+     true,
+     "client_error",
+     1
+    ],
+    [
+     "api.anthropic.com:443",
+     "allow",
+     "relayed",
+     true,
+     "upstream_closed",
+     3
+    ]
+   ],
+   "label": "A",
+   "pre_exec": [
+    "ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)",
+    "ukai-jail: terminal: attached (/dev/pts/0) \u00b7 wall 8h \u00b7 ^C and ^Z go to claude, not the jail; to end the attempt, exit claude or run `kill -INT 3391452`",
+    "ukai-jail: state: claude, this workspace, generation 23 (from att_8d126a4e-169e-4d13-b2de-7481c2afc735)"
+   ],
+   "pre_exec_as_required": true
+  }
+ ],
+ "observations": {
+  "onboarding_seen": [],
+  "generating": "generating",
+  "resize": {
+   "rule_before": 120,
+   "rule_after": 100,
+   "still_generating": true
+  },
+  "ctrl_c": {
+   "generating_before": "generating",
+   "after": "idle",
+   "shell_marker_seen": false,
+   "interrupted_text": true
+  },
+  "editor": {
+   "shown": true,
+   "editor": [
+    [
+     "3391626",
+     "3391478",
+     "3391478",
+     "3391478",
+     "S+",
+     "nano"
+    ]
+   ],
+   "agent": [
+    [
+     "3391478",
+     "3391476",
+     "3391478",
+     "3391478",
+     "Sl+",
+     "2.1.302"
+    ]
+   ],
+   "editor_in_agent_group": true,
+   "terminal_group_is_agent_group": true
+  },
+  "editor_returned": {
+   "label": "idle",
+   "draft_back_in_input": true,
+   "nano_gone": true
+  },
+  "reset_written_at_stop": true,
+  "ctrl_z": {
+   "stopped_line": true,
+   "list_continued_rc": 148,
+   "claude_message": true,
+   "k62_at_stop": {
+    "pending": 0,
+    "bytes": "",
+    "window_s": 1.0,
+    "probe_s": 1.001
+   }
+  },
+  "phase_while_stopped": "enforced",
+  "journal_terminal_stopped_while_stopped": "1",
+  "fg": {
+   "label": "idle",
+   "redrawn": true,
+   "rule_width": 100
+  },
+  "settled_after_hangup_s": 0.4,
+  "rx_after_fg": "programlooklikelastMarchwhenitworked?Howcan\n  \u23bf \u00a0Interrupted \u00b7 What should Claude do instead?\nCtrl+Y to paste deleted text\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\u276f\u00a0 \n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\u23f5\u23f5 auto mode on (shift+tab to cycle)Connection to 37.59.114.70 closed.\n"
+ },
+ "shells": {
+  "t1": {
+   "TTY": "/dev/pts/0",
+   "SIZE": "40 120",
+   "TERM": "xterm-256color",
+   "LANG": "C.UTF-8",
+   "TZ": "unset",
+   "COLORTERM": "unset",
+   "SHELLOPTS": "himBHs",
+   "PWD": "/home/ubuntu/arow-int-final2/ws-A"
+  }
+ },
+ "ended_utc": "2026-10-21T10:40:12Z"
+}

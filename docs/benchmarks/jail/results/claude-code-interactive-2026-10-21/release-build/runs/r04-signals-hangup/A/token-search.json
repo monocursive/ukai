@@ -1,0 +1,11 @@
+{
+ "paths": [
+  "/home/ubuntu/arow-int-final2/runs/confirm-20261021/r04-signals-hangup/A",
+  "/home/ubuntu/arow-int-final2/data/attempts/att_c990ee5c-02be-4ed2-87a5-09b9a622ab1e",
+  "/home/ubuntu/arow-int-final2/ws-A",
+  "/home/ubuntu/arow-int-final2/data/state/claude/2dd0901cacf87a54f50dd052cd50c0aa"
+ ],
+ "exit": 1,
+ "hits": [],
+ "stderr": ""
+}

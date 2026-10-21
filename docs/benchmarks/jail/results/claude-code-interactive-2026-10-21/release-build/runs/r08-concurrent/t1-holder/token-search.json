@@ -1,0 +1,11 @@
+{
+ "paths": [
+  "/home/ubuntu/arow-int-final2/runs/confirm-20261021/r08-concurrent/t1-holder",
+  "/home/ubuntu/arow-int-final2/data/attempts/att_d542b326-3f3b-49a5-a6d9-8074a3d3e525",
+  "/home/ubuntu/arow-int-final2/ws-A",
+  "/home/ubuntu/arow-int-final2/data/state/claude/2dd0901cacf87a54f50dd052cd50c0aa"
+ ],
+ "exit": 1,
+ "hits": [],
+ "stderr": ""
+}

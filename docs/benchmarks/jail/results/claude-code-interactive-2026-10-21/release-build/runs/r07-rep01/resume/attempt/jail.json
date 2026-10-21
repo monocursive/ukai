@@ -1,0 +1,477 @@
+{
+  "schema": "ukai.jail.receipt/1",
+  "attempt_id": "att_97b6491a-6ed9-4e4a-bd47-f23f23ef829e",
+  "revision": 4,
+  "phase": "settled",
+  "platform": {
+    "os": "linux",
+    "arch": "x86_64",
+    "kernel": "Linux 7.0.0-31-generic"
+  },
+  "jail": {
+    "component": "ukai-jail",
+    "version": "0.1.0",
+    "backend": "bubblewrap",
+    "backend_version": "bubblewrap 0.11.1"
+  },
+  "policy": {
+    "name": "agent",
+    "digest": "sha256:88cf24d87fecfb3ec71cb9f3c804829c58ae7a7696598576c23521a824371a8a",
+    "observe": "on",
+    "evidence": "strict",
+    "requirements": [
+      "tree_termination",
+      "closed_set_observation",
+      "filesystem_containment",
+      "syscall_filter",
+      "network_proxy",
+      "protected_coverage:existing_and_root",
+      "limit:wall",
+      "credential_staging"
+    ],
+    "grants": [
+      {
+        "kind": "allow_host",
+        "value": "api.anthropic.com:443",
+        "by": "operator"
+      },
+      {
+        "kind": "allow_host",
+        "value": "platform.claude.com:443",
+        "by": "operator"
+      },
+      {
+        "kind": "read_only",
+        "value": "/home/ubuntu/.local/share/claude/versions",
+        "by": "program_resolution"
+      }
+    ]
+  },
+  "containment": "enforced",
+  "child_protection": "enforced",
+  "exec_observed": true,
+  "argv_digest": "sha256:981931ddbaea6287262dd9d0e4e6c200115102a289e5cdd81000e0e7b232ed07",
+  "applied": {
+    "filesystem": {
+      "mechanism": "bubblewrap-binds",
+      "protected_coverage": "existing_and_root",
+      "mounts": [
+        {
+          "path": "/",
+          "mode": "ro"
+        },
+        {
+          "path": "/usr",
+          "mode": "ro"
+        },
+        {
+          "path": "/etc/ssl",
+          "mode": "ro"
+        },
+        {
+          "path": "/etc/resolv.conf",
+          "mode": "ro"
+        },
+        {
+          "path": "/etc/passwd",
+          "mode": "ro"
+        },
+        {
+          "path": "/etc/group",
+          "mode": "ro"
+        },
+        {
+          "path": "/etc/hosts",
+          "mode": "ro"
+        },
+        {
+          "path": "/etc/localtime",
+          "mode": "ro"
+        },
+        {
+          "path": "/etc/ld.so.cache",
+          "mode": "ro"
+        },
+        {
+          "path": "/proc",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev/null",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev/zero",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev/full",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev/random",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev/urandom",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev/tty",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev/pts",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev/console",
+          "mode": "rw"
+        },
+        {
+          "path": "/tmp",
+          "mode": "rw"
+        },
+        {
+          "path": "/home/ubuntu/arow-int-final2/ws-A",
+          "mode": "rw"
+        },
+        {
+          "path": "/run/ukai/vault-ca.pem",
+          "mode": "ro"
+        },
+        {
+          "path": "/home/ubuntu/.local/share/claude/versions",
+          "mode": "ro"
+        },
+        {
+          "path": "/home/ubuntu/arow-int-final2/ws-A/.git/config",
+          "mode": "ro"
+        },
+        {
+          "path": "/home/ubuntu/arow-int-final2/ws-A/.git/hooks",
+          "mode": "ro"
+        },
+        {
+          "path": "/run/ukai/state",
+          "mode": "rw"
+        },
+        {
+          "path": "/run/ukai/proxy",
+          "mode": "ro"
+        },
+        {
+          "path": "/run/ukai/jail",
+          "mode": "ro"
+        }
+      ]
+    },
+    "network": {
+      "mode": "proxy",
+      "mechanism": "network-namespace+outside-http-proxy+loopback-bridge+unix-peer-mediation",
+      "allowed_hosts": [
+        "api.anthropic.com:443",
+        "platform.claude.com:443"
+      ],
+      "tls_only": [
+        "api.anthropic.com:443",
+        "platform.claude.com:443"
+      ]
+    },
+    "syscalls": {
+      "mechanism": "seccomp-bpf+seccomp-user-notification",
+      "digest": "sha256:1b9c0b4766233d0d7898c98f30260b4a5d6e6c0f124930a9daa4c7fa743eb50e"
+    },
+    "limits": [
+      {
+        "key": "wall",
+        "requested": "28800000",
+        "required": true,
+        "applied": true,
+        "mechanism": "boottime-deadline",
+        "scope": "tree",
+        "hit": false
+      },
+      {
+        "key": "pids",
+        "requested": "512",
+        "required": false,
+        "applied": true,
+        "mechanism": "pids.max",
+        "scope": "tree",
+        "hit": false
+      }
+    ],
+    "environment_names": [
+      "ALL_PROXY",
+      "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+      "CLAUDE_CODE_OAUTH_TOKEN",
+      "CLAUDE_CONFIG_DIR",
+      "DISABLE_AUTOUPDATER",
+      "HTTPS_PROXY",
+      "HTTP_PROXY",
+      "LANG",
+      "NODE_EXTRA_CA_CERTS",
+      "NO_PROXY",
+      "PATH",
+      "PWD",
+      "REQUESTS_CA_BUNDLE",
+      "SSL_CERT_FILE",
+      "TERM",
+      "TMPDIR",
+      "all_proxy",
+      "http_proxy",
+      "https_proxy",
+      "no_proxy"
+    ],
+    "removed_environment_names": [],
+    "terminal": {
+      "device": "pty",
+      "session": "caller",
+      "process_group": "own",
+      "stops": 0,
+      "restored": {
+        "foreground": true,
+        "termios": true,
+        "input_flushed": true,
+        "reset_written": true,
+        "after_tree_death": true
+      }
+    }
+  },
+  "observer": {
+    "backend": "ptrace",
+    "set": "linux-closed-v1",
+    "attached": true,
+    "sources": {
+      "wrapper": "active",
+      "audit": "active",
+      "proxy": "active"
+    },
+    "gaps": []
+  },
+  "coverage": {
+    "exec": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 60,
+      "gaps": []
+    },
+    "fs.write": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 107,
+      "gaps": []
+    },
+    "fs.deny": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 2,
+      "gaps": []
+    },
+    "net": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 9,
+      "gaps": []
+    },
+    "limits": {
+      "status": "active",
+      "sources": [
+        "wrapper"
+      ],
+      "observed_count": 0,
+      "gaps": []
+    },
+    "proxy.net": {
+      "status": "active",
+      "sources": [
+        "proxy"
+      ],
+      "observed_count": 3,
+      "gaps": []
+    }
+  },
+  "process": {
+    "pid": 3378686,
+    "identity": {
+      "kind": "linux_boot_start",
+      "value": {
+        "boot_id": "47a3956e-f44b-4139-a8fc-45418c38243f",
+        "pid": 3378686,
+        "start_time_ticks": 253085164
+      }
+    }
+  },
+  "lifetime": {
+    "boundary": "pid_namespace",
+    "native": {
+      "os": "linux",
+      "details": {
+        "agent": {
+          "allowed_setup_operations": [
+            "prctl(PR_SET_NO_NEW_PRIVS)",
+            "seccomp",
+            "landlock_create_ruleset",
+            "landlock_add_rule",
+            "landlock_restrict_self"
+          ],
+          "baseline_filter_digest": "sha256:1b9c0b4766233d0d7898c98f30260b4a5d6e6c0f124930a9daa4c7fa743eb50e",
+          "filter_variant": "unprivileged_inner",
+          "first_flight_bytes_max": 8192,
+          "first_flight_timeout_ms": 5000,
+          "mediation_filter_digest": "sha256:28c98e72b91a22c212d5dfdddfcc1f1ca153c5a8e89c15833c26724b263ebeff",
+          "mediation_record_queue": 4096,
+          "nested_user_namespace": "unavailable",
+          "nested_user_namespace_evidence": "a nested bubblewrap exited Some(1): bwrap: No permissions to create a new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.; bare unshare(CLONE_NEWUSER) inside: ok",
+          "origin_verification": "http_host_and_mitm_http_host",
+          "proxy_socket": "/run/ukai/proxy/proxy.sock",
+          "socks5_listen": "127.0.0.1:3129",
+          "tls_application_authority_verified": true,
+          "udp_egress": false,
+          "unix_peer_mediation": "seccomp_user_notification",
+          "vault_authority": {
+            "lease_poll_ms": 100,
+            "path_binding": "exact_or_unescaped_segment_prefix",
+            "path_bound_credentials": 0,
+            "peer_authority": "mediator_connect_for_pinned_sealed_bridge",
+            "process_binding": "kernel_connection_initiator_executable",
+            "process_bound_credentials": 1,
+            "refresh": "bounded_oauth2_persist_before_publish_no_uncertain_retry",
+            "refresh_credentials": 0,
+            "source_lifecycle": "private_nofollow_live_file",
+            "tls_websocket": "verified_rfc6455_upgrade"
+          }
+        },
+        "backend_exec_by": "descriptor",
+        "bootstrap_spawn": {
+          "mechanism": "clone3_into_cgroup"
+        },
+        "bwrap_pid": 3378682,
+        "cgroup_namespace": 4026532542,
+        "command_rules": {
+          "deny": 0,
+          "forbid": 0
+        },
+        "credential_injection": "mitm_ca",
+        "execution_cgroup": {
+          "charged_helpers": [
+            {
+              "pid": 3378682,
+              "role": "bubblewrap"
+            },
+            {
+              "pid": 3378685,
+              "role": "namespace_init"
+            },
+            {
+              "pid": 3378688,
+              "role": "bridge"
+            }
+          ],
+          "device": 29,
+          "inode": 18009577,
+          "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/ukai-att_97b6491a-6ed9-4e4a-bd47-f23f23ef829e.leaf",
+          "scope": "target_descendants_and_listed_helpers"
+        },
+        "filtered_readonly_opens": 0,
+        "helpers": [
+          {
+            "charged_to_attempt": true,
+            "kind": "bridge",
+            "listen": "127.0.0.1:3128",
+            "mediated_connects": 3,
+            "pid": 3378688,
+            "rejected_at_capacity": 0,
+            "seccomp_filters": 2
+          }
+        ],
+        "launcher_pid": 3378686,
+        "mnt_namespace": 4026532469,
+        "namespace_init_pid": 3378685,
+        "narrowing_filter_digest": "sha256:757f0b370264a99ee411f18be75e1c69b28366d75515ccbc94e3b086042d7181",
+        "narrowing_filter_digest_installed": "sha256:78fba9209900c2db2ebc221533078dee7fa7f4e0328ee633815f2c91a67d4508",
+        "net_namespace": 4026532543,
+        "observer_plan": {
+          "backend": "ptrace",
+          "event_bytes_max": 65536,
+          "in_flight_max": 16384,
+          "kernel_ring_bytes": null,
+          "path_snapshot_max": 4096,
+          "queue_bytes_max": 4194304,
+          "queue_events_max": 16384,
+          "queue_lifecycle_reserve_bytes": 65536,
+          "queue_result_bytes_max": 4128768,
+          "test_seams": {}
+        },
+        "path_anchors_unverified": 0,
+        "path_claims_unverified": 0,
+        "pid_namespace": 4026532541,
+        "readonly_open_fast_path": true,
+        "requested_by_other_filters": 0,
+        "resolv_sanitization": "nameservers_only",
+        "seccomp_filters": {
+          "expected": 3,
+          "observed": 3
+        },
+        "supervisor_scope": {
+          "cgroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/ukai-jail-3378661-77522a506e92493d.scope",
+          "reason": null,
+          "reason_code": null,
+          "state": "entered",
+          "unit": "ukai-jail-3378661-77522a506e92493d.scope"
+        },
+        "user_namespace": 4026532370,
+        "watcher_pid": 3378683
+      }
+    },
+    "tree_empty": true,
+    "verified_at": "2026-10-21T10:32:39Z",
+    "verification_scope": "attempt_tree",
+    "integrity": "verified"
+  },
+  "outcome": {
+    "kind": "exited",
+    "code": 0,
+    "signal": null,
+    "cause": null,
+    "error": null
+  },
+  "state_cleanup": "released",
+  "cleanup_error": null,
+  "vendor_state": {
+    "kind": "persistent",
+    "state_id": "st_6622586f-00e8-412f-b524-8100f4562e78",
+    "generation_start": 3,
+    "generation_end": 4,
+    "inherited_from": "att_2387ab78-dfa4-4257-a412-c576c90ede88",
+    "matches_release": true,
+    "matches_release_reason": null,
+    "discarded": 0,
+    "secret_scan": "clean"
+  },
+  "created_at": "2026-10-21T10:32:29Z",
+  "updated_at": "2026-10-21T10:32:39Z",
+  "errors": [],
+  "credentials": [
+    {
+      "never_staged": true,
+      "id": "claude-oauth",
+      "mode": "vault",
+      "digest": null,
+      "digest_unavailable_reason": "never_staged"
+    }
+  ]
+}

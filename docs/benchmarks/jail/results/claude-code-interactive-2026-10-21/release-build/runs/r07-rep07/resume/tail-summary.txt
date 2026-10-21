@@ -1,0 +1,7 @@
+ukai-jail: settled · exited 0 · 9.2s exec→settled · survivors: none (verified)
+ukai-jail: workspace: 0 paths opened for writing · 2 refused writes
+ukai-jail: network: allowed api.anthropic.com:443 (3)
+ukai-jail: credential claude-oauth: vault, never staged · used on 3 proxy results · 0 credential refusals
+ukai-jail: state: kept, generation 16 · started from what att_b07d5aac-173f-4669-9591-98022fdcb2b1 released, unchanged
+ukai-jail: evidence: 6/6 classes active, no gaps · reads and file contents are not observed
+ukai-jail: receipt /home/ubuntu/arow-int-final2/data/attempts/att_dd3c23ed-090c-4f1e-9b58-67c2d15a61fc/jail.json

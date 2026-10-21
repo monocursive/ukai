@@ -17,6 +17,8 @@ Nothing else is claimed: no other terminal emulator, no other version, no npm in
 
 All 31 attempts passed every pass condition of §6.3. The hangup of run (4) is an exception: a hung-up terminal cannot be restored. Its receipt says so (`restored` false for the four restore steps, `after_tree_death` true), and §6.3's condition was amended the same day to expect it.
 
+The same day, the whole driver ran again on the release build, `cccf5db30`, and passed identically (see [Confirmation on the release build](#confirmation-on-the-release-build)). This record is the full evidence; that pass is its confirmation.
+
 ## Where and what
 
 From [host.txt](results/claude-code-interactive-2026-10-21/host-evidence/host.txt) and the build files beside it:
@@ -191,6 +193,65 @@ Also observed:
 7. **The binary was built by the operator, not by the record's own command.** Its build facts are copied unchanged.
 8. **`TZ`.** §6.3 lists it among the contained environment; the host shell had none, so there was nothing to forward.
 
+## Confirmation on the release build
+
+After this record, `dev` took two TLS advisory fixes (`rustls-webpki` 0.103.16 and `webpki-roots` 1.0.10, `e598d06f7`) and a CI-only change (`cccf5db30`). No file under `crates/ukai-jail/` changed, but the build inputs did. The driver therefore ran again end to end on the release build, with nothing else changed:
+
+- **When.** 2026-10-21, 10:31–10:42 UTC, on the reference host, with nothing else running on it.
+- **Binary.** The operator's clean build of `cccf5db30196a9f0a1de5570a7af3f99e252e3ea` (`dirty: false`, Rust 1.98.1, `--locked --release`), left at `~/rc4-build` and copied unchanged:
+  - inputs `sha256:893f85686e76cffeeb87f57c33ba27fe16685524d73676ec7b72c937e7c20d03`;
+  - binary `sha256:40621f6df47571c501ddf3558407b3e144905c826f001c6a1900d2bcd9756928`.
+
+  Both are in [build-version.json](results/claude-code-interactive-2026-10-21/release-build/host-evidence/build-version.json) and [build-ukai-jail.sha256](results/claude-code-interactive-2026-10-21/release-build/host-evidence/build-ukai-jail.sha256).
+- **Unchanged.**
+  - Claude Code 2.1.302 native (`sha256:60d7eb7f…`);
+  - the bundled profile;
+  - two fresh repositories, starting from an empty state;
+  - ten repetitions of run (2);
+  - the harness, byte for byte: [harness.sha256](results/claude-code-interactive-2026-10-21/release-build/harness.sha256) equals this record's, and `summary_check.py` is the same file at both revisions;
+  - a fresh private directory on the host, removed afterwards.
+
+| Run | §6.3 | Attempts | Result on `cccf5db30` |
+| --- | --- | --- | --- |
+| [r01](results/claude-code-interactive-2026-10-21/release-build/runs/r01-first-launch/) | (1) | 1 | **Passed.** Onboarding was theme, security notes and trust, with no login. Manual mode, the permission prompt answered at the keyboard, `greeting.txt` is `hello`. Generation 1, `new_state` |
+| [r02](results/claude-code-interactive-2026-10-21/release-build/runs/r02-resume-continue/) | (2) | 2 | **Passed.** `--resume` and `--continue` continued run (1)'s session; no onboarding |
+| [r07](results/claude-code-interactive-2026-10-21/release-build/runs/) | (7) | 20 | **20/20 passed.** Generations 3–23 |
+| [r03](results/claude-code-interactive-2026-10-21/release-build/runs/r03-workspace-b/) | (3) | 1 | **Passed.** "No conversations found" in B |
+| [r04](results/claude-code-interactive-2026-10-21/release-build/runs/r04-signals-hangup/) | (4) | 1 | **Passed, with the hangup exception.** Resize 120 to 100 columns while generating; `^C` interrupted the turn. nano opened in Claude Code's group and returned. `^Z` relay with the reset, then `fg`. The hangup ended `signaled 9 (operator_signal)`, settled 0.4 s later with tree death verified; `restored` false for four steps, `after_tree_death` true. Generation 24 |
+| [r05](results/claude-code-interactive-2026-10-21/release-build/runs/r05-login/) | (5) | 1 | **Passed.** The same two messages ("Invalid code…", "Request failed with status code 400"). One `platform.claude.com:443` result, with no credential. No `.credentials.json`; `discarded: 0` |
+| [r06](results/claude-code-interactive-2026-10-21/release-build/runs/r06-headless/) | (6) | 2 | **Passed, both.** Attached restored all five steps; detached has no `applied.terminal`. `hello` both times, `is_error: false` |
+| [r08](results/claude-code-interactive-2026-10-21/release-build/runs/r08-concurrent/) | (8) | 3 | **Passed.** The fallback said so before exec, was `attempt_fallback`/`complete` and `NOT kept`, and is listed nowhere. The holder's chain went on (28, 29) with `matches_release: true` |
+
+Across all 31 attempts:
+
+- every receipt is settled with six classes active and no gaps, `tree_empty` and one credential `never_staged`;
+- every persistent attempt is `released`, chained, with clean scans;
+- 0 bytes were pending in every K62 probe;
+- the live summary equals `tail --summary` in all 30 attempts that ended with a shell;
+- `summary_check.py` recomputed all 31 on the host;
+- every pre-exec line matched exactly, naming `claude`.
+
+The token search after the runs ([k70-sweep.txt](results/claude-code-interactive-2026-10-21/release-build/k70-sweep.txt)):
+
+- the runs (510 files), attempts (217), state (35), host evidence (7) and both workspaces: every search exit 1;
+- the positive control found only the vaulted copy;
+- the compact evidence below: searched again on the host before it was copied, 248 files, exit 1.
+
+**Difference from the first pass: none in any check.** The outcomes, network lines, workspace lines, use counts, refused writes, generations, restore records, K62 results and pre-exec lines are identical attempt for attempt. Only the vendor's free choices differ:
+
+- the title Claude Code generated for run (4)'s session ("Version control systems history" instead of "History of version control systems");
+- the session ids;
+- the durations (`exec→settled` 3.5–34.0 s; run (7) median 9.7 s);
+- the state's size, by at most 1 KB per generation.
+
+[release-build/](results/claude-code-interactive-2026-10-21/release-build/) keeps the compact evidence, with its own `SHA256SUMS`:
+
+- per attempt: `check.json`, the receipt, the summary the terminal showed (`live-summary.txt`), `tail --summary`, the pre-exec lines and `summary_check.py`'s output, and the token search;
+- per run: `run.json`;
+- at the top: the report, the host and build evidence, and `package_confirm.py`, which selected these files.
+
+The transcripts, raw streams, journals, policy snapshots and state listings were searched on the host as above and left out.
+
 ## Before this record: the pilot
 
 A pilot of every run on the same day, with a development build of `dev` `b760fc95e`, found two things that changed `79200cfda` before this record:
@@ -234,4 +295,4 @@ The Raspberry Pi, npm installs, other Claude Code versions, other terminal emula
   - `state list`, `state show` and the state's file listing;
   - the token search.
 
-The raw byte streams were searched on the host and left out; the transcripts hold the same bytes. `SHA256SUMS` covers every file. To recompute a summary, unpack the journal next to the receipt and policy, then run `python3 docs/specs/jail-v1/summary_check.py <dir> <dir>/../tail-summary.json`.
+The raw byte streams were searched on the host and left out; the transcripts hold the same bytes. `SHA256SUMS` covers every file of this first pass. `release-build/` holds the confirmation on `cccf5db30`, with its own `SHA256SUMS`. To recompute a summary, unpack the journal next to the receipt and policy, then run `python3 docs/specs/jail-v1/summary_check.py <dir> <dir>/../tail-summary.json`.

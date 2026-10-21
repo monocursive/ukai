@@ -950,6 +950,9 @@ A separate row from the 2026-10-17 headless one. It makes interactive
   there: run (5) as amended by §8 item 30, run (1)'s switch to manual
   permission mode, and runs (3) and (8) reaching the picker without
   cancelling it, since cancelling the picker of `claude --resume` exits 1.
+  The same day the whole run was repeated on the release build
+  `cccf5db30` (binary `40621f6d…`) and passed with no difference in any
+  check.
 
 ## 7. Decisions (settled 2026-10-19)
 

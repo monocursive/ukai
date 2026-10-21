@@ -1,0 +1,3 @@
+ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)
+ukai-jail: terminal: attached (/dev/pts/0) · wall 8h · ^C and ^Z go to claude, not the jail; to end the attempt, exit claude or run `kill -INT 3378057`
+ukai-jail: state: claude, this workspace, generation 2 (from att_64ff087a-d8c1-4b28-9b6a-73ef9e4f0505)

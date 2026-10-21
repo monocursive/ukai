@@ -1,0 +1,3 @@
+ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)
+ukai-jail: terminal: detached (stdin is not a terminal)
+ukai-jail: state: claude, this workspace, generation 26 (from att_b1c12d4d-9318-4f18-95e3-24f311b2b726)

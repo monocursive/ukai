@@ -1,0 +1,15 @@
+{
+ "first_launch_as_written": {
+  "onboarding": [
+   "theme",
+   "security",
+   "trust"
+  ],
+  "end": "idle",
+  "rc": 0,
+  "session_id": "1ab5af88-6f09-4f59-a688-d58636cea886"
+ },
+ "r01_session": "1ab5af88-6f09-4f59-a688-d58636cea886",
+ "r01_title": "Greeting.txt file creation",
+ "r08_fallback_session": "5ea3db4c-e4e0-4395-9099-6d023615ac4a"
+}

@@ -1,0 +1,11 @@
+{
+ "paths": [
+  "/home/ubuntu/arow-int-final2/runs/confirm-20261021/r06-headless/detached",
+  "/home/ubuntu/arow-int-final2/data/attempts/att_4197d7d5-af52-4fe7-ae41-eda2bf13c190",
+  "/home/ubuntu/arow-int-final2/ws-A",
+  "/home/ubuntu/arow-int-final2/data/state/claude/2dd0901cacf87a54f50dd052cd50c0aa"
+ ],
+ "exit": 1,
+ "hits": [],
+ "stderr": ""
+}

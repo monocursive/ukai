@@ -1,0 +1,116 @@
+{
+ "run": "r05-login",
+ "spec": "6.3 (5)",
+ "started_utc": "2026-10-21T10:40:16Z",
+ "steps": [],
+ "attempts": [
+  {
+   "attempt": "att_09268bd1-20b2-40ec-9c3e-54d470b678b2",
+   "pass": true,
+   "failed": [],
+   "outcome": "exited",
+   "code": 0,
+   "state_cleanup": "released",
+   "generation": [
+    24,
+    25
+   ],
+   "proxy": [
+    [
+     "api.anthropic.com:443",
+     "allow",
+     "relayed",
+     true,
+     "upstream_closed",
+     2
+    ],
+    [
+     "platform.claude.com:443",
+     "allow",
+     "relayed",
+     true,
+     "upstream_closed",
+     1
+    ]
+   ],
+   "live_equals_tail": true,
+   "label": "A",
+   "pre_exec": [
+    "ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)",
+    "ukai-jail: terminal: attached (/dev/pts/0) \u00b7 wall 8h \u00b7 ^C and ^Z go to claude, not the jail; to end the attempt, exit claude or run `kill -INT 3392288`",
+    "ukai-jail: state: claude, this workspace, generation 24 (from att_c990ee5c-02be-4ed2-87a5-09b9a622ab1e)"
+   ],
+   "pre_exec_as_required": true,
+   "k62_pending": 0,
+   "shell_rc": 0
+  }
+ ],
+ "observations": {
+  "onboarding_seen": [],
+  "login_method_screen": "login_method",
+  "login_warning": "Warning: CLAUDE_CODE_OAUTH_TOKEN is set in your environment. This session will switch to your new credentials after logging in, but if that variable is set in your shell profile or a Claude Code settings file, new `claude` sessions will keep using the old token until you remove it there.",
+  "code_prompt": "login_code",
+  "login_result_plain": [
+   "Login",
+   "OAuth error: Invalid code. Please make sure the full code was copied",
+   "Press Enter to retry.",
+   "Esc to cancel"
+  ],
+  "url_state_found": true,
+  "login_result_with_state": [
+   "Login",
+   "OAuth error: Request failed with status code 400",
+   "Press Enter to retry.",
+   "Esc to cancel"
+  ],
+  "after_login": "idle",
+  "results": {
+   "k62": {
+    "pending": 0,
+    "bytes": "",
+    "window_s": 1.0,
+    "probe_s": 1.0
+   },
+   "rc": 0,
+   "session_id": "084a0bde-2b05-4f19-9080-dccd78d204c7",
+   "pre_exec": [
+    "ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)",
+    "ukai-jail: terminal: attached (/dev/pts/0) \u00b7 wall 8h \u00b7 ^C and ^Z go to claude, not the jail; to end the attempt, exit claude or run `kill -INT 3392288`",
+    "ukai-jail: state: claude, this workspace, generation 24 (from att_c990ee5c-02be-4ed2-87a5-09b9a622ab1e)"
+   ],
+   "live_summary": [
+    "ukai-jail: settled \u00b7 exited 0 \u00b7 18.5s exec\u2192settled \u00b7 survivors: none (verified)",
+    "ukai-jail: workspace: 0 paths opened for writing \u00b7 2 refused writes",
+    "ukai-jail: network: allowed api.anthropic.com:443 (2), platform.claude.com:443 (1)",
+    "ukai-jail: credential claude-oauth: vault, never staged \u00b7 used on 2 proxy results \u00b7 0 credential refusals",
+    "ukai-jail: state: kept, generation 25 \u00b7 started from what att_c990ee5c-02be-4ed2-87a5-09b9a622ab1e released, unchanged",
+    "ukai-jail: evidence: 6/6 classes active, no gaps \u00b7 reads and file contents are not observed",
+    "ukai-jail: receipt /home/ubuntu/arow-int-final2/data/attempts/att_09268bd1-20b2-40ec-9c3e-54d470b678b2/jail.json"
+   ]
+  },
+  "platform_claude_com_results": [
+   [
+    "platform.claude.com:443",
+    "allow",
+    "relayed",
+    true,
+    "upstream_closed",
+    1
+   ]
+  ],
+  "discarded": 0
+ },
+ "shells": {
+  "t1": {
+   "TTY": "/dev/pts/0",
+   "SIZE": "40 120",
+   "TERM": "xterm-256color",
+   "LANG": "C.UTF-8",
+   "TZ": "unset",
+   "COLORTERM": "unset",
+   "SHELLOPTS": "himBHs",
+   "PWD": "/home/ubuntu/arow-int-final2/ws-A"
+  }
+ },
+ "ended_utc": "2026-10-21T10:40:40Z"
+}
