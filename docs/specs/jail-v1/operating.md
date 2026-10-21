@@ -718,8 +718,11 @@ reach it, and `^C`, `^\` and `^Z` go to the command, never to the jail.
   and on the summary's cleanup line (`terminal not restored (termios): run
   reset`) and does not change the exit code. A job that ended in the
   background leaves the terminal to your shell, or to whatever job your
-  shell gave it to: the first three steps are then not taken, and the line
-  says `another job holds the terminal`. From then until it exits the jail
+  shell gave it to: the first three steps are then not taken. The jail's
+  own line on stderr says `another job holds the terminal`; the summary's
+  cleanup line, which the receipt's booleans alone decide, still reads
+  `terminal not restored (foreground, termios, input): run reset`, and
+  `reset` is then unnecessary. From then until it exits the jail
   ignores `^\` and `^Z`. A run refused before the agent started leaves the
   terminal alone, type-ahead included.
 - **Detached** is today's behaviour, in a new session: `--terminal detach`,

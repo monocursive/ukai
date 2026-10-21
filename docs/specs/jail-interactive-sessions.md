@@ -1053,8 +1053,13 @@ intent.
    neither the supervisor's group nor the command's (the shell after `bg`,
    or another of its jobs), the relay neither takes the terminal nor
    restores the settings before stopping, and the settlement skips its first
-   three steps and records them `false`, with the cleanup line naming
-   `another job holds the terminal`. Taking it would leave the shell reading
+   three steps and records them `false`; the supervisor's stderr line at
+   settlement names `another job holds the terminal`, while the summary's
+   cleanup line, recomputed from the receipt's booleans alone, reads
+   `terminal not restored (foreground, termios, input): run reset` (corrected
+   2026-10-21: this item first said the cleanup line names the other job;
+   the receipt carries no reason a step was skipped). Taking it would leave
+   the shell reading
    a terminal it no longer holds. At a continue the settings are saved again
    only when the supervisor's group holds the terminal.
 7. **Quarantine is checked before an unreleased holder** (§4.6 step 3 lists
