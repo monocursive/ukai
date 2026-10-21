@@ -13,17 +13,19 @@ agent keeps its own models and workflow.
 [Website](https://ukai.sh/) · [User guide](docs/guide.md) ·
 [Roadmap](docs/roadmap.md) · [Operator reference](docs/specs/jail-v1/operating.md)
 
-Ukai was called Ouroboros until 15 October 2026. Linux preview 0.1.0-rc.3 is
-the first release under the new name and installs `ukai-jail`. The earlier
-Linux previews and the macOS VM preview were published under the old name, as
-`ouro-jail` and `ouro-vm`.
+Ukai was called Ouroboros until 15 October 2026. Linux previews from
+0.1.0-rc.3 on are released under the new name and install `ukai-jail`. The
+earlier Linux previews and the macOS VM preview were published under the old
+name, as `ouro-jail` and `ouro-vm`.
 
-**Developer preview 0.1.0-rc.3.** [Signed Linux x86_64 and ARM64 packages](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.3)
+**Developer preview 0.1.0-rc.4.** [Signed Linux x86_64 and ARM64 packages](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.4)
 are available. The reference x86_64 conformance host and native Raspberry Pi
 checks are recorded; available profiles depend on the host's kernel capabilities.
 Native macOS `ukai-jail` builds provide inspection commands and refuse execution.
 See the [platform requirements](docs/specs/jail-v1.md#32-initial-support-matrix)
-and the [rc.3 publication record](docs/benchmarks/jail/release-preview-2026-10-18.md).
+and the [rc.4 publication record](docs/benchmarks/jail/release-preview-2026-10-21.md).
+rc.4 adds interactive sessions: an attached terminal, and agent state kept per
+repository.
 
 **macOS VM preview 0.1.0-preview.1.** [Signed and notarized Apple Silicon DMG](https://github.com/monocursive/ukai/releases/tag/ouro-vm-v0.1.0-preview.1)
 is available for macOS 27+. The published `ouro-vm` command runs offline Linux
@@ -50,6 +52,12 @@ maintainer signing.
   anything survived it. A recorded run of exactly this — a real fix in a repo
   whose README asks the agent to upload `~/.aws/credentials` elsewhere — is in
   [the launch demo record](docs/benchmarks/jail/claude-code-launch-demo-2026-10-18.md).
+- Run Claude Code's interactive interface the same way: `ukai-jail claude`.
+  `^C` and `^Z` go to Claude Code, and its settings and session history
+  (`--resume`) are kept per repository, outside `~/.claude`. One combination
+  is recorded: Claude Code 2.1.302 from the native installer, with a setup
+  token, on the reference host
+  ([interactive record](docs/benchmarks/jail/claude-code-interactive-2026-10-21.md)).
 
 ## Install and run
 
@@ -73,7 +81,7 @@ after installing, then follow the [Mac example](docs/guide.md#macos-vm-preview).
 
 See the [guide](docs/guide.md#install-the-developer-preview) for supported hosts,
 upgrades and explicit downgrade handling. The remaining examples use the current
-Ukai source build; the published preview's own [guide](https://github.com/monocursive/ukai/blob/ukai-jail-v0.1.0-rc.3/docs/guide.md)
+Ukai source build; the published preview's own [guide](https://github.com/monocursive/ukai/blob/ukai-jail-v0.1.0-rc.4/docs/guide.md)
 documents exactly what it ships. To build from source:
 
 Install Rust 1.98.1 and your distribution's bubblewrap package. Run as your

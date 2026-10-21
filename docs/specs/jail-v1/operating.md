@@ -665,9 +665,11 @@ for a malformed id.
 `ukai-jail claude`, with no `-p`, runs Claude Code's interactive interface
 (J14, [the proposal](../jail-interactive-sessions.md)): prompts answered at
 the keyboard, resizes, `^C`, `^Z` and `fg`, and settings and session history
-that survive from one run to the next in the same repository. No interactive
-Claude Code run is recorded in [agent compatibility](agent-compatibility.md)
-yet; `doctor` keeps reporting the profile `experimental`.
+that survive from one run to the next in the same repository. One
+interactive Claude Code combination is recorded in
+[agent compatibility](agent-compatibility.md) (Claude Code 2.1.302, native,
+with a setup token, on the reference host); `doctor` keeps reporting the
+profile `experimental`, since the records, not the binary, make the claim.
 
 ```text
 ukai-jail claude

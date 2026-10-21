@@ -21,13 +21,14 @@ Writing an integration? Start with [agents and scripts](#for-agents-and-scripts)
 The same installer detects your platform. The following commands are for Linux;
 Mac users should follow the [Mac quickstart](#macos-vm-preview).
 
-Ukai was called Ouroboros until 15 October 2026. Linux preview 0.1.0-rc.3 is
-the first release under the new name and installs `ukai-jail`, the same command
-the later sections use. The macOS VM preview was published before the rename
-and keeps its `ouro-vm` command. For the guide exactly as released, use the
-[release guide](https://github.com/monocursive/ukai/blob/ukai-jail-v0.1.0-rc.3/docs/guide.md).
+Ukai was called Ouroboros until 15 October 2026. Linux previews from
+0.1.0-rc.3 on are released under the new name and install `ukai-jail`, the
+same command the later sections use. The macOS VM preview was published before
+the rename and keeps its `ouro-vm` command. For the guide exactly as released,
+use the
+[release guide](https://github.com/monocursive/ukai/blob/ukai-jail-v0.1.0-rc.4/docs/guide.md).
 
-[Linux preview 0.1.0-rc.3](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.3)
+[Linux preview 0.1.0-rc.4](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.4)
 ships Linux x86_64 and ARM64 packages. Install your distribution's
 `bubblewrap` package first. The binaries require glibc 2.39 or
 newer; Alpine/musl and macOS execution are unavailable in this preview.
@@ -51,8 +52,8 @@ Repeat to upgrade after a new installer is published. Pass `--version` through
 an unpinned version refuses before any download.
 Downgrades require `--allow-downgrade`. Replacing a source-built `0.1.0` without
 a release record also needs this explicit flag to install an RC version.
-An `ouro-jail` installed from an earlier preview is not replaced: rc.3 installs
-`ukai-jail` beside it. Remove `~/.local/bin/ouro-jail` and its `.release` and
+An `ouro-jail` installed from an earlier preview is not replaced: rc.3 and
+later install `ukai-jail` beside it. Remove `~/.local/bin/ouro-jail` and its `.release` and
 `.LICENSES.txt` files when you no longer need them.
 
 The supported-host notes remain in the release: Ubuntu 26.04 is the x86_64
@@ -178,7 +179,7 @@ for the packaged release.
 ## Verify a supplied package
 
 For offline installation, save the [Bash installer](https://ukai.sh/install.sh)
-and the archive for your architecture from the [release](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.3).
+and the archive for your architecture from the [release](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.4).
 The installer verifies its embedded SHA-256 pin even when the archive comes from
 a local directory. No checksum manifest or signature tool is needed:
 
@@ -476,8 +477,13 @@ any job. To end the attempt from outside, run the `kill -INT` the line
 prints. The session's history is there next time in the same repository
 (`--resume`), and a second session opened in that repository while the first
 is still running starts with throwaway state, and says so. `ukai-jail state
-list` shows what is kept, and `ukai-jail state rm claude` forgets it. No
-interactive compatibility run is recorded yet, so this mode is experimental.
+list` shows what is kept, and `ukai-jail state rm claude` forgets it. One
+interactive combination has a recorded compatibility run: Claude Code 2.1.302
+from the native installer, with a setup token, on the Ubuntu 26.04 reference
+host, with 0.1.0-rc.4
+([record](https://github.com/monocursive/ukai/blob/dev/docs/benchmarks/jail/claude-code-interactive-2026-10-21.md)).
+Every other combination is experimental, and `doctor` keeps reporting every
+launch profile `experimental`: the records, not the binary, make the claim.
 
 OpenCode has recorded live runs. The
 [compatibility table](https://github.com/monocursive/ukai/blob/dev/docs/specs/jail-v1/agent-compatibility.md)
