@@ -49,7 +49,7 @@ set_output() { printf '%s=%s\n' "$1" "$2" >> "${GITHUB_OUTPUT:?}"; }
 # The report directory check.sh created for this invocation.
 report_dir() {
     local dir=${UKAI_ACTION_DIR:-}
-    [ -n "$dir" ] && [ -d "$dir" ] || fail "internal: the report directory is missing"
+    if [ -z "$dir" ] || [ ! -d "$dir" ]; then fail "internal: the report directory is missing"; fi
     printf '%s' "$dir"
 }
 
