@@ -2140,6 +2140,77 @@ fn k62_a_relayed_stop_leaves_the_shell_nothing_to_read() {
     }
 }
 
+/// Review finding 4 (K58): a stop the supervisor asked for is never relayed.
+/// A command whose `SIGTERM` handler stops it, asked to end by `kill -INT`
+/// on the supervisor, is killed within the grace and the tree budget, and
+/// the supervisor never stops. Observation on and off.
+#[test]
+fn k58_a_command_that_stops_when_asked_to_end_is_ended_not_relayed() {
+    if !common::live() {
+        return;
+    }
+    let script = "trap 'kill -STOP $$' TERM; echo ready; while :; do sleep 0.1; done";
+    for observe in ["on", "off"] {
+        let options = Options {
+            jail: [
+                "run",
+                "--profile",
+                "tool",
+                "--observe",
+                observe,
+                "--",
+                "/bin/sh",
+                "-c",
+                script,
+            ]
+            .iter()
+            .map(OsString::from)
+            .collect(),
+            ..Options::default()
+        };
+        let mut session = Session::start(options);
+        assert!(session.terminal.wait_for("ready", common::SETTLE_BOUND));
+        assert!(
+            common::within(common::SETTLE_BOUND, || session
+                .transitions()
+                .iter()
+                .any(|transition| transition == "exec_confirmed")),
+            "{observe}: {}",
+            session.diagnose()
+        );
+        let asked = Instant::now();
+        // SAFETY: SIGINT to the supervisor this session started.
+        unsafe { libc::kill(session.job, libc::SIGINT) };
+        let event = session.status_event(SESSION);
+        assert_eq!(
+            event["event"],
+            "exited",
+            "{observe}: {event}\n{}",
+            session.diagnose()
+        );
+        // The grace (2 s) and the tree budget (5 s), with room.
+        assert!(
+            asked.elapsed() < Duration::from_secs(10),
+            "{observe}: {:?}",
+            asked.elapsed()
+        );
+        let receipt = session.receipt();
+        assert_settled(&receipt);
+        assert_eq!(
+            receipt["outcome"]["cause"], "operator_signal",
+            "{observe}: {receipt:#}"
+        );
+        assert!(
+            !session
+                .transitions()
+                .iter()
+                .any(|transition| transition == "terminal_stopped"),
+            "{observe}: {:?}",
+            session.transitions()
+        );
+    }
+}
+
 // Helpers shared with the review's own probes.
 #[allow(dead_code)]
 fn workspace_of(session: &Session) -> &Path {

@@ -698,7 +698,9 @@ reach it, and `^C`, `^\` and `^Z` go to the command, never to the jail.
   under `script` or `ssh host ukai-jail …`), the supervisor does not stop
   and continues the command at once. A job you stop and continue in the
   background before the agent started is refused (exit 125) rather than take
-  the terminal from your shell; run it in the foreground. The receipt
+  the terminal from your shell; run it in the foreground. A stop of the
+  agent after the jail asked it to end (`kill -INT`, the wall) is not
+  relayed: the agent is killed. The receipt
   counts the stops (`applied.terminal.stops`) and the journal has
   `terminal_stopped` and `terminal_continued` notes.
 - **At the end**, after the tree is verified dead, the supervisor takes the

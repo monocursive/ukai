@@ -1148,3 +1148,12 @@ live or unit test that failed before its fix and passes after it):
     holds the terminal, the relay now also runs §3.6 steps 3 and 4 before
     the supervisor stops; keys typed before the `^Z` that the command did
     not read are lost, as at settlement.
+20. **A stop the supervisor asked for is never relayed (review finding
+    4).** Once the supervisor asked the tree to stop (an operator signal,
+    the wall, a hangup, an evidence loss), a stop of the target (its
+    `SIGTERM` handler stopping it, say) was relayed: the supervisor stopped
+    with it and its grace was never acted on until someone continued the
+    job. Now such a stop is answered by the forced stop at once, since a
+    stopped target cannot end within its grace either. The tracer also
+    forgets a group-stop when the target dies, so a stop followed by a kill
+    within one supervision step is not relayed after the target's death.

@@ -497,6 +497,43 @@ impl<T: Tree> Run<T> {
         }
     }
 
+    /// A group-stop of the target not reported yet, with its signal (J14
+    /// §3.4): the tracer's, or `SIGTSTP` for a `T` in `/proc` with
+    /// observation off.
+    fn new_target_stop(&mut self) -> Option<i32> {
+        if self.tree.snapshot().terminal.is_none() || self.state.target_exit_seen {
+            return None;
+        }
+        if let Some(tracer) = self.state.tracer.as_ref() {
+            let (count, signal) = tracer.group_stop()?;
+            if self.state.stop_reported == Some(count) {
+                return None;
+            }
+            self.state.stop_reported = Some(count);
+            return Some(signal);
+        }
+        if self.state.tracer_attached {
+            return None;
+        }
+        let launcher = &self.state.launcher;
+        let stopped = std::fs::read_to_string(format!("/proc/{}/stat", launcher.pid))
+            .ok()
+            .is_some_and(|raw| {
+                super::identity::parse_start_time_ticks(&raw).ok()
+                    == Some(launcher.start_time_ticks)
+                    && super::identity::parse_state(&raw).ok() == Some('T')
+            });
+        if !stopped {
+            self.state.stop_reported = None;
+            return None;
+        }
+        if self.state.stop_reported.is_some() {
+            return None;
+        }
+        self.state.stop_reported = Some(0);
+        Some(libc::SIGTSTP)
+    }
+
     /// The outcome once no more facts can arrive.
     fn terminal_event(&mut self) -> Option<RunEvent> {
         if let Some(event) = self.state.observed_outcome() {
@@ -707,38 +744,19 @@ impl<T: Tree> RunningExecution for Run<T> {
     // `PTRACE_LISTEN`); with it off, `/proc/<pid>/stat` shows `T` for a
     // stopped target of the same birth, and the stopping signal is not
     // known: `SIGTSTP` stands for it.
+    //
+    // J14 review finding 4: once the supervisor asked the tree to stop, a
+    // stop of the target is never relayed. The relay would stop the
+    // supervisor with it, and nothing would act on the grace until someone
+    // continued the job. A stopped target cannot end within its grace
+    // either, so it is killed at once.
     fn target_stop(&mut self) -> Option<i32> {
-        if self.tree.snapshot().terminal.is_none() || self.state.target_exit_seen {
+        let signal = self.new_target_stop()?;
+        if self.state.stop_requested_at.is_some() {
+            self.tree.hard_kill(&mut self.state);
             return None;
         }
-        if let Some(tracer) = self.state.tracer.as_ref() {
-            let (count, signal) = tracer.group_stop()?;
-            if self.state.stop_reported == Some(count) {
-                return None;
-            }
-            self.state.stop_reported = Some(count);
-            return Some(signal);
-        }
-        if self.state.tracer_attached {
-            return None;
-        }
-        let launcher = &self.state.launcher;
-        let stopped = std::fs::read_to_string(format!("/proc/{}/stat", launcher.pid))
-            .ok()
-            .is_some_and(|raw| {
-                super::identity::parse_start_time_ticks(&raw).ok()
-                    == Some(launcher.start_time_ticks)
-                    && super::identity::parse_state(&raw).ok() == Some('T')
-            });
-        if !stopped {
-            self.state.stop_reported = None;
-            return None;
-        }
-        if self.state.stop_reported.is_some() {
-            return None;
-        }
-        self.state.stop_reported = Some(0);
-        Some(libc::SIGTSTP)
+        Some(signal)
     }
 
     fn target_group(&self) -> Option<i32> {
