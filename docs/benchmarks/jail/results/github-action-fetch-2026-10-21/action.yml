@@ -1,0 +1,8 @@
+# SPIKE (2026-10-21): the smallest composite action, to time the fetch.
+name: ukai-fetch-spike
+description: Prints one line; only its download time is measured.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: echo "action fetched"

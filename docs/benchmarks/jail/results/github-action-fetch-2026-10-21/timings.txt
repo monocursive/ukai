@@ -1,0 +1,25 @@
+# run 39659918505 (2026-10-21), 'Set up job' duration from the jobs API and the action directory's size (du -sh)
+full (ubuntu-24.04, 1)	success	63 s
+full (ubuntu-24.04, 2)	success	69 s
+full (ubuntu-24.04, 3)	success	56 s
+full (ubuntu-24.04-arm, 1)	success	61 s
+full (ubuntu-24.04-arm, 2)	success	63 s
+full (ubuntu-24.04-arm, 3)	success	63 s
+slim (ubuntu-24.04, 1)	success	1 s
+slim (ubuntu-24.04, 2)	success	0 s
+slim (ubuntu-24.04, 3)	success	0 s
+slim (ubuntu-24.04-arm, 1)	success	0 s
+slim (ubuntu-24.04-arm, 2)	success	0 s
+slim (ubuntu-24.04-arm, 3)	success	0 s
+full (ubuntu-24.04, 1)	action directory 1.9G
+full (ubuntu-24.04, 2)	action directory 1.9G
+full (ubuntu-24.04, 3)	action directory 1.9G
+full (ubuntu-24.04-arm, 1)	action directory 1.9G
+full (ubuntu-24.04-arm, 2)	action directory 1.9G
+full (ubuntu-24.04-arm, 3)	action directory 1.9G
+slim (ubuntu-24.04, 1)	action directory 24K
+slim (ubuntu-24.04, 2)	action directory 24K
+slim (ubuntu-24.04, 3)	action directory 24K
+slim (ubuntu-24.04-arm, 1)	action directory 24K
+slim (ubuntu-24.04-arm, 2)	action directory 24K
+slim (ubuntu-24.04-arm, 3)	action directory 24K

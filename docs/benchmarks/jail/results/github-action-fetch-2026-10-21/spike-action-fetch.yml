@@ -1,0 +1,32 @@
+# SPIKE (2026-10-21), not for dev: how long does GitHub take to fetch an
+# action that lives in this repository (the whole tree at the ref) against
+# the same action on a slim orphan ref? `uses:` takes no expressions, so each
+# ref has its own job; the fetch happens in "Set up job", whose duration the
+# jobs API reports.
+name: spike-action-fetch
+on:
+  push:
+    branches: [spike/action-fetch-full]
+permissions:
+  contents: read
+jobs:
+  full:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        rep: [1, 2, 3]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: monocursive/ukai/action@spike/action-fetch-full
+      - run: du -sh "$RUNNER_WORKSPACE/../_actions/monocursive/ukai" 2>/dev/null || du -sh /home/runner/work/_actions/monocursive/ukai
+  slim:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        rep: [1, 2, 3]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: monocursive/ukai/action@spike/action-fetch-slim
+      - run: du -sh "$RUNNER_WORKSPACE/../_actions/monocursive/ukai" 2>/dev/null || du -sh /home/runner/work/_actions/monocursive/ukai

@@ -1,7 +1,9 @@
 # Jail proposal: receipts in CI, a GitHub Action (J15)
 
-Status: design proposal, 2026-10-21. The operator settled its four
-decisions the same day (§9), all as recommended. Nothing is implemented. It
+Status: design proposal, 2026-10-21. The operator settled its five
+decisions the same day (§9): four as recommended, and for the fifth chose a
+Console API key over the recommended dedicated setup token, with the
+recommended approval gate. Nothing is implemented. It
 was written against `dev` at `fbd86aa73`, after Ukai Jail 0.1.0-rc.4
 (`ukai-jail-v0.1.0-rc.4`, `eb9b67b18`). It follows the
 [GitHub-hosted runner spike](../benchmarks/jail/github-runners-2026-10-21.md),
@@ -355,8 +357,11 @@ both.
 
 One real agent run on GitHub-hosted runners makes the action supported for
 that combination: Claude Code from the native installer, `launch: claude`,
-the A01 fixture task and one real small task, with a credential from a
-repository secret (which one is the operator's choice, §8), on both images.
+the A01 fixture task and one real small task, on both images, with the
+bundled profile's `anthropic` credential (a Console API key, sent as
+`x-api-key`) from the approval-gated environment secret of decision 5. It is
+also the first recorded run of that credential path, which the 2026-10-17
+headless row left unrun.
 Pass conditions as for the 2026-10-17 headless row (settled, six classes
 active, tree empty, one credential never staged), plus K78's exposure check
 over the job logs as GitHub stores them and over the artifact, and the
@@ -367,26 +372,34 @@ summary posted to the job page.
 - Setup: 22 to 31 seconds per job on the spike's images, including the
   bubblewrap build (measured).
 - **The action's download (measured, a consequence of decision 3).** A job
-  that uses `monocursive/ukai/action@<tag>` makes GitHub fetch the whole
-  repository at that tag. A `git archive` of the rc.4 tree is 253 MB
-  compressed, mostly `docs/benchmarks` (1.7 GB uncompressed), so each job
-  downloads roughly that before the action starts (by reading GitHub's
-  action download, which fetches the repository archive; the download time
-  itself is unmeasured). §8 keeps the alternatives open.
+  that uses `monocursive/ukai/action@<ref>` makes GitHub fetch the whole
+  repository at that ref before any step runs. Run
+  [39659918505](https://github.com/monocursive/ukai/actions/runs/39659918505)
+  timed it, three jobs per image and ref
+  ([timings](../benchmarks/jail/results/github-action-fetch-2026-10-21/timings.txt)):
+  the same one-step action on a ref holding this repository's full tree
+  (`dev` at `fbd86aa73` plus the action) put **1.9 GB** on each runner and
+  its "Set up job" took **56 to 69 s**; on an orphan ref holding only
+  `action/action.yml` it was **24 KB** and **0 to 1 s**, on both images. A
+  `git archive` of the rc.4 tree is 253 MB compressed, mostly
+  `docs/benchmarks`. §8 item 1 proposes the slim ref.
 - The run itself costs what the jail costs on any host (K17's records); the
   runner's two or four CPUs are the only difference.
 
 ## 8. Open questions
 
-1. **The download size.** Keep decision 3 and accept the archive; or keep
-   the action in this repository but tag a slim ref (an orphan branch
-   holding only `action/` and the installer, tagged alongside each jail
-   tag); or move it to a separate repository, which a Marketplace listing
-   requires anyway. A first measurement of the fetch time on a hosted
-   runner would settle how much it matters.
-2. **The A-row's credential.** A Claude Code setup token or an API key
-   stored as a repository secret of this repository (or of a fixture
-   repository), and who may run the workflow that reads it.
+1. **The download size (measured, §7: about a minute and 1.9 GB per job).**
+   Recommended: keep the action in this repository and versioned with the
+   jail, but release it on a slim ref. An orphan branch `action` holds only
+   `action/` and a copy of the root installer; each jail release
+   `ukai-jail-vX` gets a tag `ukai-jail-action-vX` on that branch, whose
+   installer pins release X (a tag name of its own, because the jail tags
+   name full-tree commits), and workflows write `uses:
+   monocursive/ukai/action@ukai-jail-action-vX`. The release procedure
+   gains the copy and the tag. A separate repository stays the route to a
+   Marketplace listing. This amends decision 3's mechanism, so it waits for
+   the operator.
+2. *(Settled 2026-10-21, decision 5.)*
 3. **Caching the bubblewrap build** with `actions/cache`, keyed by the
    tarball digest and the image version.
 4. **`ubuntu-latest` drift.** A later image with bubblewrap 0.10.0 or newer,
@@ -411,3 +424,9 @@ The operator settled all four as recommended:
 4. **Version 1's scope.** Launch profiles and profile-mode scripts, the job
    summary and the artifact; the pull-request comment is opt-in; forks get
    no secrets; `pull_request_target` is refused.
+5. **The A-row's credential** (§6.2, settled the same day). An Anthropic
+   Console API key, stored by the operator as the secret `ANTHROPIC_API_KEY`
+   of a GitHub Environment `ukai-arow` in this repository, with the operator
+   as required reviewer and deployments limited to `dev`: every job that
+   reads it waits for the operator's approval. The A-row workflow is run by
+   hand (`workflow_dispatch`) from `dev`.
