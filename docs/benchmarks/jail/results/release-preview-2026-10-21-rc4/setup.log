@@ -1,10 +1,10 @@
 Creating hybrid image...
 
-Formatting '/var/folders/lx/bqwnzxj968s7839wdjlld36h0000gn/T/ouro-k27-vm-qetmz8c_/guest.qcow2', fmt=qcow2 size=12884901888 backing_file=/private/tmp/claude-501/-Users-monocursive-code-ouroboros/bc78ee20-daa3-4cfd-9f32-d82b5d06aaef/scratchpad/vm-image/ubuntu26.img backing_fmt=qcow2 cluster_size=65536 lazy_refcounts=off refcount_bits=16
-The secret key was saved as /var/folders/lx/bqwnzxj968s7839wdjlld36h0000gn/T/ouro-k27-vm-qetmz8c_/test-signing.key - Keep it secret!
-The public key was saved as /var/folders/lx/bqwnzxj968s7839wdjlld36h0000gn/T/ouro-k27-vm-qetmz8c_/test-signing.pub - That one can be public.
+Formatting '/var/folders/lx/bqwnzxj968s7839wdjlld36h0000gn/T/ouro-k27-vm-v8tcr58u/guest.qcow2', fmt=qcow2 size=12884901888 backing_file=/private/tmp/claude-501/-Users-monocursive-code-ouroboros/bc78ee20-daa3-4cfd-9f32-d82b5d06aaef/scratchpad/vm-image/ubuntu26.img backing_fmt=qcow2 cluster_size=65536 lazy_refcounts=off refcount_bits=16
+The secret key was saved as /var/folders/lx/bqwnzxj968s7839wdjlld36h0000gn/T/ouro-k27-vm-v8tcr58u/test-signing.key - Keep it secret!
+The public key was saved as /var/folders/lx/bqwnzxj968s7839wdjlld36h0000gn/T/ouro-k27-vm-v8tcr58u/test-signing.pub - That one can be public.
 
 Files signed using this key pair can be verified with the following command:
 
-minisign -Vm <file> -P RWTTGsNiFyJ4PRTlfQbOaHC3gJuUgk1HNpYihtCSfz8yNdsGF4MeCgD4
+minisign -Vm <file> -P RWT+ljUF4GhSn66I9hPVhMd1F+nTBEpWk4tlEJO4nvwZj7P17jZ9LLJ8
 

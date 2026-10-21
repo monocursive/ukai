@@ -1,6 +1,6 @@
 {
   "schema": "ukai.jail.receipt/1",
-  "attempt_id": "att_e4acfcf5-e4d4-4129-b6d2-ce87e597a9a9",
+  "attempt_id": "att_ecd99d5b-4451-4c82-8e0a-538112b299c8",
   "revision": 3,
   "phase": "settled",
   "platform": {
@@ -237,13 +237,13 @@
     }
   },
   "process": {
-    "pid": 11540,
+    "pid": 9887,
     "identity": {
       "kind": "linux_boot_start",
       "value": {
-        "boot_id": "c44e65d2-b878-4692-ba6f-7ab5ef896a6b",
-        "pid": 11540,
-        "start_time_ticks": 49692
+        "boot_id": "b2ec962b-1971-4db0-975c-4bf528005170",
+        "pid": 9887,
+        "start_time_ticks": 21226
       }
     }
   },
@@ -257,8 +257,8 @@
           "clone3_errno": null,
           "mechanism": "command"
         },
-        "bwrap_pid": 11537,
-        "cgroup_namespace": 4026532223,
+        "bwrap_pid": 9884,
+        "cgroup_namespace": 4026532222,
         "command_rules": {
           "deny": 0,
           "forbid": 0
@@ -267,12 +267,12 @@
           "unavailable": "supervisor is outside the delegated subtree; launch it in a delegated user scope"
         },
         "filtered_readonly_opens": 0,
-        "launcher_pid": 11540,
-        "mnt_namespace": 4026532219,
-        "namespace_init_pid": 11539,
+        "launcher_pid": 9887,
+        "mnt_namespace": 4026532218,
+        "namespace_init_pid": 9886,
         "narrowing_filter_digest": "sha256:757f0b370264a99ee411f18be75e1c69b28366d75515ccbc94e3b086042d7181",
-        "narrowing_filter_digest_installed": "sha256:21a23f471c950f99f327b326a72fc5f2d507700b07195306317d2072cdc9a1f3",
-        "net_namespace": 4026532224,
+        "narrowing_filter_digest_installed": "sha256:1b1a4499cd553ddc4363348095156e528dfdce6853eab612bebbd2690406653c",
+        "net_namespace": 4026532223,
         "observer_plan": {
           "backend": "ptrace",
           "event_bytes_max": 65536,
@@ -287,7 +287,7 @@
         },
         "path_anchors_unverified": 0,
         "path_claims_unverified": 0,
-        "pid_namespace": 4026532222,
+        "pid_namespace": 4026532221,
         "readonly_open_fast_path": true,
         "requested_by_other_filters": 0,
         "resolv_sanitization": "nameservers_only",
@@ -296,18 +296,18 @@
           "observed": 2
         },
         "supervisor_scope": {
-          "cgroup": "/user.slice/user-1000.slice/session-77.scope",
+          "cgroup": "/user.slice/user-1000.slice/session-49.scope",
           "reason": "lingering is off for this user, so the user manager stops when the last session ends and would take a moved supervisor with it; the supervisor stays in its session (`loginctl enable-linger` lets it enter a delegated scope)",
           "reason_code": "no_linger",
           "state": "unavailable",
           "unit": null
         },
         "user_namespace": 4026532334,
-        "watcher_pid": 11538
+        "watcher_pid": 9885
       }
     },
     "tree_empty": true,
-    "verified_at": "2026-10-21T09:56:53Z",
+    "verified_at": "2026-10-21T10:34:27Z",
     "verification_scope": "attempt_tree",
     "integrity": "verified"
   },
@@ -320,8 +320,8 @@
   },
   "state_cleanup": "complete",
   "cleanup_error": null,
-  "created_at": "2026-10-21T09:56:52Z",
-  "updated_at": "2026-10-21T09:56:53Z",
+  "created_at": "2026-10-21T10:34:27Z",
+  "updated_at": "2026-10-21T10:34:27Z",
   "errors": [],
   "credentials": []
 }

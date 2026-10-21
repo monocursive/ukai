@@ -1,6 +1,6 @@
 {
   "schema": "ukai.jail.receipt/1",
-  "attempt_id": "att_3aea6207-0809-45d1-9e67-d7bf968b9a7e",
+  "attempt_id": "att_bbc10b62-efe6-4b99-b16d-a0c515add413",
   "revision": 4,
   "phase": "settled",
   "platform": {
@@ -254,8 +254,8 @@
       {
         "classes": [],
         "source": "audit",
-        "start_ns": "649932629",
-        "end_ns": "100385685739",
+        "start_ns": "449444055",
+        "end_ns": "49273898418",
         "reason": "path_claim_unverified",
         "lost_count": 186
       }
@@ -275,7 +275,7 @@
       "sources": [
         "audit"
       ],
-      "observed_count": 247,
+      "observed_count": 265,
       "gaps": []
     },
     "fs.deny": {
@@ -291,7 +291,7 @@
       "sources": [
         "audit"
       ],
-      "observed_count": 7,
+      "observed_count": 8,
       "gaps": []
     },
     "limits": {
@@ -307,18 +307,18 @@
       "sources": [
         "proxy"
       ],
-      "observed_count": 5,
+      "observed_count": 6,
       "gaps": []
     }
   },
   "process": {
-    "pid": 11756,
+    "pid": 10097,
     "identity": {
       "kind": "linux_boot_start",
       "value": {
-        "boot_id": "c44e65d2-b878-4692-ba6f-7ab5ef896a6b",
-        "pid": 11756,
-        "start_time_ticks": 65521
+        "boot_id": "b2ec962b-1971-4db0-975c-4bf528005170",
+        "pid": 10097,
+        "start_time_ticks": 27801
       }
     }
   },
@@ -367,8 +367,8 @@
           "clone3_errno": null,
           "mechanism": "command"
         },
-        "bwrap_pid": 11752,
-        "cgroup_namespace": 4026532224,
+        "bwrap_pid": 10093,
+        "cgroup_namespace": 4026532226,
         "command_rules": {
           "deny": 0,
           "forbid": 0
@@ -383,18 +383,18 @@
             "charged_to_attempt": true,
             "kind": "bridge",
             "listen": "127.0.0.1:3128",
-            "mediated_connects": 5,
-            "pid": 11758,
+            "mediated_connects": 6,
+            "pid": 10099,
             "rejected_at_capacity": 0,
             "seccomp_filters": 2
           }
         ],
-        "launcher_pid": 11756,
-        "mnt_namespace": 4026532219,
-        "namespace_init_pid": 11755,
+        "launcher_pid": 10097,
+        "mnt_namespace": 4026532222,
+        "namespace_init_pid": 10096,
         "narrowing_filter_digest": "sha256:757f0b370264a99ee411f18be75e1c69b28366d75515ccbc94e3b086042d7181",
-        "narrowing_filter_digest_installed": "sha256:ae01637d1e2b53f0eceab6965a0a96f0999b63b0f763db087ef3eab2050ff8b5",
-        "net_namespace": 4026532225,
+        "narrowing_filter_digest_installed": "sha256:00c7acb24baad9a894b29eff8a0bae37adad93ca22da7c0e6d64a3d350b7c531",
+        "net_namespace": 4026532227,
         "observer_plan": {
           "backend": "ptrace",
           "event_bytes_max": 65536,
@@ -409,7 +409,7 @@
         },
         "path_anchors_unverified": 0,
         "path_claims_unverified": 186,
-        "pid_namespace": 4026532223,
+        "pid_namespace": 4026532225,
         "readonly_open_fast_path": false,
         "requested_by_other_filters": 0,
         "resolv_sanitization": "nameservers_only",
@@ -418,18 +418,18 @@
           "observed": 3
         },
         "supervisor_scope": {
-          "cgroup": "/user.slice/user-1000.slice/session-77.scope",
+          "cgroup": "/user.slice/user-1000.slice/session-49.scope",
           "reason": "lingering is off for this user, so the user manager stops when the last session ends and would take a moved supervisor with it; the supervisor stays in its session (`loginctl enable-linger` lets it enter a delegated scope)",
           "reason_code": "no_linger",
           "state": "unavailable",
           "unit": null
         },
-        "user_namespace": 4026532335,
-        "watcher_pid": 11753
+        "user_namespace": 4026532338,
+        "watcher_pid": 10094
       }
     },
     "tree_empty": true,
-    "verified_at": "2026-10-21T10:01:12Z",
+    "verified_at": "2026-10-21T10:36:22Z",
     "verification_scope": "attempt_tree",
     "integrity": "verified"
   },
@@ -442,8 +442,8 @@
   },
   "state_cleanup": "complete",
   "cleanup_error": null,
-  "created_at": "2026-10-21T09:59:31Z",
-  "updated_at": "2026-10-21T10:01:12Z",
+  "created_at": "2026-10-21T10:35:32Z",
+  "updated_at": "2026-10-21T10:36:22Z",
   "errors": [],
   "credentials": [
     {

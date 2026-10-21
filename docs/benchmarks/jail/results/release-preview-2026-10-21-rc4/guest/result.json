@@ -1,7 +1,7 @@
 {
   "schema": "ouro.jail.onboarding/1",
   "status": "passed",
-  "expected_revision": "79200cfda548c2f6f0125b4355881f63910b284b",
+  "expected_revision": "cccf5db30196a9f0a1de5570a7af3f99e252e3ea",
   "rows": [
     {
       "name": "host",
@@ -10,7 +10,7 @@
         "-c",
         "uname -a; cat /etc/os-release; systemd-detect-virt; id; getconf GNU_LIBC_VERSION; bwrap --version; minisign -v; cat /proc/sys/kernel/yama/ptrace_scope; cat /proc/sys/user/max_user_namespaces; cat /proc/sys/kernel/unprivileged_userns_clone; cat /proc/self/cgroup; cat /etc/machine-id; cat /proc/sys/kernel/random/boot_id"
       ],
-      "seconds": 0.897657584000001,
+      "seconds": 0.3252260399999898,
       "exit": 0
     },
     {
@@ -18,7 +18,7 @@
       "argv": [
         "systemd-detect-virt"
       ],
-      "seconds": 0.10339737599997534,
+      "seconds": 0.022126003000010996,
       "exit": 0
     },
     {
@@ -29,10 +29,10 @@
         "--from-dir",
         "artifacts",
         "--public-key",
-        "RWTTGsNiFyJ4PRTlfQbOaHC3gJuUgk1HNpYihtCSfz8yNdsGF4MeCgD4",
+        "RWT+ljUF4GhSn66I9hPVhMd1F+nTBEpWk4tlEJO4nvwZj7P17jZ9LLJ8",
         "--yes"
       ],
-      "seconds": 3.191766746999974,
+      "seconds": 1.632318199999986,
       "exit": 0
     },
     {
@@ -42,7 +42,7 @@
         "version",
         "--json"
       ],
-      "seconds": 0.04038575600003469,
+      "seconds": 0.019535001999997803,
       "exit": 0
     },
     {
@@ -53,7 +53,7 @@
         "-q",
         "/home/ubuntu/onboarding-project"
       ],
-      "seconds": 0.09931940100000247,
+      "seconds": 0.03851600499999108,
       "exit": 0
     },
     {
@@ -66,7 +66,7 @@
         "--",
         "/usr/bin/true"
       ],
-      "seconds": 0.8557666629999972,
+      "seconds": 0.4006030490000114,
       "exit": 0
     },
     {
@@ -85,7 +85,7 @@
         "-o",
         "/home/ubuntu/opencode.tar.gz"
       ],
-      "seconds": 5.8081199790000255,
+      "seconds": 2.2422892730000115,
       "exit": 0
     },
     {
@@ -94,7 +94,7 @@
         "/home/ubuntu/.opencode/bin/opencode",
         "--version"
       ],
-      "seconds": 17.255416335000064,
+      "seconds": 6.343133771999987,
       "exit": 0
     },
     {
@@ -103,7 +103,7 @@
         "rg",
         "--version"
       ],
-      "seconds": 0.11896801700004289,
+      "seconds": 0.05881300800001554,
       "exit": 0
     },
     {
@@ -114,7 +114,7 @@
         "set",
         "anthropic"
       ],
-      "seconds": 0.09662920100004158,
+      "seconds": 0.21739302700001417,
       "exit": 0
     },
     {
@@ -137,7 +137,7 @@
         "anthropic/claude-sonnet-4-5",
         "Use your glob tool to find task.txt, read it, then create greeting.txt with exactly the same contents. Do not use the network yourself."
       ],
-      "seconds": 117.87888773899999,
+      "seconds": 48.19259487100001,
       "exit": 0
     },
     {
@@ -162,7 +162,7 @@
         "anthropic/claude-sonnet-4-5",
         "Use the bash tool once to run exactly `cat /home/ubuntu/learning-needed.txt; cp task.txt learned-greeting.txt`. The cat is expected to fail; still run cp after it. Do not retry, change permissions, or use the network yourself. Reply done only after the command completed."
       ],
-      "seconds": 101.63722203299994,
+      "seconds": 49.83325266600002,
       "exit": 0
     },
     {
@@ -174,7 +174,7 @@
         "codex",
         "--json"
       ],
-      "seconds": 2.8496783660000347,
+      "seconds": 1.1333366300000307,
       "exit": 0
     },
     {
@@ -186,7 +186,7 @@
         "claude",
         "--json"
       ],
-      "seconds": 2.6401454130000275,
+      "seconds": 0.9593542270000057,
       "exit": 0
     },
     {
@@ -198,7 +198,7 @@
         "opencode",
         "--json"
       ],
-      "seconds": 2.305785488000083,
+      "seconds": 0.9781822719999695,
       "exit": 0
     },
     {
@@ -210,7 +210,7 @@
         "cursor",
         "--json"
       ],
-      "seconds": 2.23855650400003,
+      "seconds": 0.9274591540000188,
       "exit": 0
     },
     {
@@ -222,7 +222,7 @@
         "aider",
         "--json"
       ],
-      "seconds": 2.399325468000029,
+      "seconds": 0.9285491549999847,
       "exit": 0
     },
     {
@@ -234,7 +234,7 @@
         "goose",
         "--json"
       ],
-      "seconds": 3.2002472860000353,
+      "seconds": 0.9278251540000042,
       "exit": 0
     },
     {
@@ -246,7 +246,7 @@
         "gemini",
         "--json"
       ],
-      "seconds": 2.185107513000048,
+      "seconds": 0.9603862289999938,
       "exit": 0
     },
     {
@@ -258,7 +258,7 @@
         "amp",
         "--json"
       ],
-      "seconds": 2.731545393999909,
+      "seconds": 0.9902562989999524,
       "exit": 0
     },
     {
@@ -270,7 +270,7 @@
         "cline",
         "--json"
       ],
-      "seconds": 2.8330553690000215,
+      "seconds": 1.0769564979999586,
       "exit": 0
     },
     {
@@ -282,7 +282,7 @@
         "copilot",
         "--json"
       ],
-      "seconds": 1.9407145679999758,
+      "seconds": 1.0455974289999972,
       "exit": 0
     },
     {
@@ -294,7 +294,7 @@
         "kilo",
         "--json"
       ],
-      "seconds": 2.537355434999995,
+      "seconds": 0.9513112080000496,
       "exit": 0
     },
     {
@@ -306,7 +306,7 @@
         "auggie",
         "--json"
       ],
-      "seconds": 2.0072055550000414,
+      "seconds": 1.0342723999999635,
       "exit": 0
     },
     {
@@ -318,7 +318,7 @@
         "droid",
         "--json"
       ],
-      "seconds": 2.8147623730000078,
+      "seconds": 0.9787702730000092,
       "exit": 0
     },
     {
@@ -330,7 +330,7 @@
         "pi",
         "--json"
       ],
-      "seconds": 2.26358349599991,
+      "seconds": 0.9707342540000354,
       "exit": 0
     },
     {
@@ -341,10 +341,10 @@
         "--from-dir",
         "/home/ubuntu/corrupt-artifacts",
         "--public-key",
-        "RWTTGsNiFyJ4PRTlfQbOaHC3gJuUgk1HNpYihtCSfz8yNdsGF4MeCgD4",
+        "RWT+ljUF4GhSn66I9hPVhMd1F+nTBEpWk4tlEJO4nvwZj7P17jZ9LLJ8",
         "--upgrade"
       ],
-      "seconds": 0.6141948639999555,
+      "seconds": 0.35424182200000587,
       "exit": 1
     },
     {
@@ -355,10 +355,10 @@
         "--from-dir",
         "/home/ubuntu/corrupt-artifacts",
         "--public-key",
-        "RWTTGsNiFyJ4PRTlfQbOaHC3gJuUgk1HNpYihtCSfz8yNdsGF4MeCgD4",
+        "RWT+ljUF4GhSn66I9hPVhMd1F+nTBEpWk4tlEJO4nvwZj7P17jZ9LLJ8",
         "--upgrade"
       ],
-      "seconds": 0.18242795800006206,
+      "seconds": 0.11534726799999362,
       "exit": 1
     },
     {
@@ -369,14 +369,14 @@
         "--from-dir",
         "artifacts",
         "--public-key",
-        "RWTTGsNiFyJ4PRTlfQbOaHC3gJuUgk1HNpYihtCSfz8yNdsGF4MeCgD4",
+        "RWT+ljUF4GhSn66I9hPVhMd1F+nTBEpWk4tlEJO4nvwZj7P17jZ9LLJ8",
         "--upgrade"
       ],
-      "seconds": 2.686700400999939,
+      "seconds": 2.112915902999987,
       "exit": 0
     }
   ],
-  "expected_inputs": "sha256:95dac7f9fd0bcde675007dc9e38c6f15c5c1856632c5884a0c4972e4fc3af4ca",
+  "expected_inputs": "sha256:893f85686e76cffeeb87f57c33ba27fe16685524d73676ec7b72c937e7c20d03",
   "timer_scope": "signed install through first sandboxed OpenCode result; includes agent download, excludes VM/dependency bootstrap",
   "publication": "deferred",
   "signing_identity": "ephemeral test key",
@@ -389,9 +389,9 @@
     "build": {
       "debug_assertions": false,
       "dirty": false,
-      "inputs": "sha256:95dac7f9fd0bcde675007dc9e38c6f15c5c1856632c5884a0c4972e4fc3af4ca",
+      "inputs": "sha256:893f85686e76cffeeb87f57c33ba27fe16685524d73676ec7b72c937e7c20d03",
       "opt_level": "3",
-      "revision": "79200cfda548c2f6f0125b4355881f63910b284b",
+      "revision": "cccf5db30196a9f0a1de5570a7af3f99e252e3ea",
       "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
       "target": "x86_64-unknown-linux-gnu"
     },
@@ -420,7 +420,7 @@
     },
     "version": "0.1.0"
   },
-  "binary_sha256": "9ba9da31df1ce378fe824c2f4dd471a3e09cc35533fccc2a5ac4152ae133778b",
+  "binary_sha256": "40621f6df47571c501ddf3558407b3e144905c826f001c6a1900d2bcd9756928",
   "agent_artifact": {
     "url": "https://github.com/anomalyco/opencode/releases/download/v1.18.32/opencode-linux-x64-baseline.tar.gz",
     "sha256": "763af386ef88a8cab18df00fcf055690e5a55e31a7088beabe02307142a6adce"
@@ -434,7 +434,7 @@
   },
   "agent_launch": "opencode-vault",
   "agent_model": "anthropic/claude-sonnet-4-5",
-  "workflow_seconds": 161.903007757,
+  "workflow_seconds": 67.43950321700001,
   "main_workflow": "passed",
   "learning_workflow": "passed",
   "learning_fixture": "/home/ubuntu/learning-needed.txt",

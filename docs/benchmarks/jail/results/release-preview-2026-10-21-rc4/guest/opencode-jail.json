@@ -1,6 +1,6 @@
 {
   "schema": "ukai.jail.receipt/1",
-  "attempt_id": "att_c4ae6453-a730-4045-8b27-7cec8482536b",
+  "attempt_id": "att_ed2f1bfa-891a-42af-94b4-86e36e5152e2",
   "revision": 4,
   "phase": "settled",
   "platform": {
@@ -258,7 +258,7 @@
       "sources": [
         "audit"
       ],
-      "observed_count": 210,
+      "observed_count": 192,
       "gaps": []
     },
     "fs.write": {
@@ -266,7 +266,7 @@
       "sources": [
         "audit"
       ],
-      "observed_count": 334,
+      "observed_count": 390,
       "gaps": []
     },
     "fs.deny": {
@@ -282,7 +282,7 @@
       "sources": [
         "audit"
       ],
-      "observed_count": 7,
+      "observed_count": 15,
       "gaps": []
     },
     "limits": {
@@ -298,18 +298,18 @@
       "sources": [
         "proxy"
       ],
-      "observed_count": 7,
+      "observed_count": 15,
       "gaps": []
     }
   },
   "process": {
-    "pid": 11580,
+    "pid": 9926,
     "identity": {
       "kind": "linux_boot_start",
       "value": {
-        "boot_id": "c44e65d2-b878-4692-ba6f-7ab5ef896a6b",
-        "pid": 11580,
-        "start_time_ticks": 53798
+        "boot_id": "b2ec962b-1971-4db0-975c-4bf528005170",
+        "pid": 9926,
+        "start_time_ticks": 23005
       }
     }
   },
@@ -358,7 +358,7 @@
           "clone3_errno": null,
           "mechanism": "command"
         },
-        "bwrap_pid": 11576,
+        "bwrap_pid": 9922,
         "cgroup_namespace": 4026532224,
         "command_rules": {
           "deny": 0,
@@ -374,17 +374,17 @@
             "charged_to_attempt": true,
             "kind": "bridge",
             "listen": "127.0.0.1:3128",
-            "mediated_connects": 7,
-            "pid": 11582,
+            "mediated_connects": 15,
+            "pid": 9928,
             "rejected_at_capacity": 0,
             "seccomp_filters": 2
           }
         ],
-        "launcher_pid": 11580,
+        "launcher_pid": 9926,
         "mnt_namespace": 4026532220,
-        "namespace_init_pid": 11579,
+        "namespace_init_pid": 9925,
         "narrowing_filter_digest": "sha256:757f0b370264a99ee411f18be75e1c69b28366d75515ccbc94e3b086042d7181",
-        "narrowing_filter_digest_installed": "sha256:e3ba9707e3031c08a417e7cc0c5762c8d73efe71ba99d91eb669dcee99ee1724",
+        "narrowing_filter_digest_installed": "sha256:788882f3471f1917386b8bdb48c4df5e0bfa50928b5bd5c1a16ce71c73dd62d8",
         "net_namespace": 4026532225,
         "observer_plan": {
           "backend": "ptrace",
@@ -409,18 +409,18 @@
           "observed": 3
         },
         "supervisor_scope": {
-          "cgroup": "/user.slice/user-1000.slice/session-77.scope",
+          "cgroup": "/user.slice/user-1000.slice/session-49.scope",
           "reason": "lingering is off for this user, so the user manager stops when the last session ends and would take a moved supervisor with it; the supervisor stays in its session (`loginctl enable-linger` lets it enter a delegated scope)",
           "reason_code": "no_linger",
           "state": "unavailable",
           "unit": null
         },
         "user_namespace": 4026532336,
-        "watcher_pid": 11577
+        "watcher_pid": 9923
       }
     },
     "tree_empty": true,
-    "verified_at": "2026-10-21T09:59:31Z",
+    "verified_at": "2026-10-21T10:35:32Z",
     "verification_scope": "attempt_tree",
     "integrity": "verified"
   },
@@ -433,8 +433,8 @@
   },
   "state_cleanup": "complete",
   "cleanup_error": null,
-  "created_at": "2026-10-21T09:57:33Z",
-  "updated_at": "2026-10-21T09:59:31Z",
+  "created_at": "2026-10-21T10:34:44Z",
+  "updated_at": "2026-10-21T10:35:32Z",
   "errors": [],
   "credentials": [
     {

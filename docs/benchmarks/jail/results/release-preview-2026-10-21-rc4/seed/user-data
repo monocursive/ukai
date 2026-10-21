@@ -5,7 +5,7 @@ users:
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     ssh_authorized_keys:
-      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAnvejp8iYcJqLwqMHKMVro8CRjjstpRHmWK1XvFmGTQ monocursive@monocursives-macbook-pro.home
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOhoAOaMRLIGZ18Qi7iZrw3Q5heiU13xFM25ZD7lzq7u monocursive@monocursives-macbook-pro.home
 ssh_pwauth: false
 package_update: true
 packages: [bubblewrap, minisign, curl, ca-certificates, perl, git, python3, ripgrep]

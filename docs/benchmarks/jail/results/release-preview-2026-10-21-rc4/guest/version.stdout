@@ -2,9 +2,9 @@
   "build": {
     "debug_assertions": false,
     "dirty": false,
-    "inputs": "sha256:95dac7f9fd0bcde675007dc9e38c6f15c5c1856632c5884a0c4972e4fc3af4ca",
+    "inputs": "sha256:893f85686e76cffeeb87f57c33ba27fe16685524d73676ec7b72c937e7c20d03",
     "opt_level": "3",
-    "revision": "79200cfda548c2f6f0125b4355881f63910b284b",
+    "revision": "cccf5db30196a9f0a1de5570a7af3f99e252e3ea",
     "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
     "target": "x86_64-unknown-linux-gnu"
   },
