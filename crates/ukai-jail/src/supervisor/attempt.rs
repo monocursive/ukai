@@ -18,15 +18,15 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
 use super::{
-    Budget, Context, ControlSink, GATE_WAIT, InFlight, Journal, Plan, RELEASE_STDOUT_AFTER_PREPARE,
-    RunReport, TREE_BUDGET, Unpersisted, apply_boundary, await_release, check_applied_bounds,
-    claim_attempt, degrade_trace_coverage, finish_control, first_unsatisfied, interrupted,
-    merge_wall_limit, not_held, open_control, open_trace, pending_applied, persist_terminal,
-    persistence_failed, persistence_failed_after, platform_record, prepare_launch,
-    prepare_proxy_dir, record_teardown, record_tree, refuse_vendor_state,
-    register_boundary_in_state, release_own_stdout, remove_managed_scratch, remove_proxy_directory,
-    retain_vendor_state, send_control, settle_in_flight, settlement_loss, signals, stop,
-    storage_loss_error, stream_classes, submit_receipt, unrecorded, wall_deadline,
+    Budget, Context, ControlSink, GATE_WAIT, InFlight, Journal, LaunchPrepared, Plan,
+    RELEASE_STDOUT_AFTER_PREPARE, RunReport, TREE_BUDGET, Unpersisted, apply_boundary,
+    await_release, check_applied_bounds, claim_attempt, degrade_trace_coverage, finish_control,
+    first_unsatisfied, interrupted, merge_wall_limit, not_held, open_control, open_trace,
+    pending_applied, persist_terminal, persistence_failed, persistence_failed_after,
+    platform_record, prepare_launch, prepare_proxy_dir, record_teardown, record_tree,
+    refuse_vendor_state, register_boundary_in_state, release_own_stdout, remove_managed_scratch,
+    remove_proxy_directory, retain_vendor_state, send_control, settle_in_flight, settlement_loss,
+    signals, stop, storage_loss_error, stream_classes, submit_receipt, unrecorded, wall_deadline,
     write_policy_file,
 };
 use crate::cleanup;
@@ -302,15 +302,20 @@ impl<'a> Attempt<'a> {
         // §8.1 step 2 and §12: register vendor state before creating it,
         // then stage credentials into it, before any boundary.
         self.checkpoint(ErrorStage::Preparing)?;
-        let prepared = prepare_launch(
+        let mut prepared = LaunchPrepared::default();
+        let result = prepare_launch(
             &self.attempt_dir,
             &self.attempt_id,
             &self.plan,
             &mut self.record,
             self.budget.deadline,
-        )?;
-        self.persistent = prepared.persistent;
-        self.secrets = prepared.secrets;
+            &mut prepared,
+        );
+        // J14 §4.6: whatever failed after the acquisition, `refuse` releases
+        // the state this attempt holds, searching for the values it loaded.
+        self.persistent = prepared.persistent.take();
+        self.secrets = std::mem::take(&mut prepared.secrets);
+        result?;
         let launch = prepared.handoff;
         // J14 §3.7, §4.6, §4.7: the pre-exec lines, only on a terminal.
         self.pre_exec_lines(&argv, prepared.state_line);

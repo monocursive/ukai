@@ -3168,6 +3168,72 @@ state_discard = [".login.json", "drop-me"]
         assert_eq!(refused.exit_code, 125);
     }
 
+    /// K68: a refusal after the acquisition (here the staging's, a vault
+    /// source that is not private) releases the state like any other end:
+    /// the receipt says `released` with the generation, the holder is
+    /// released durably, `gc` has nothing to finish and the next attempt
+    /// inherits it. Before the fix the lease was dropped with the holder
+    /// still recorded and a `complete` receipt no remedy could act on.
+    #[test]
+    fn k68_a_refusal_after_the_acquisition_releases_the_state() {
+        let fixture = Fixture::new();
+        let source = fixture.credential("token", b"vault-value-0123456789abcdef");
+        std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o644)).unwrap();
+        keeper(
+            &fixture,
+            &format!(
+                "\n[credentials.token]\nsource = \"{}\"\nmode = \"vault\"\n\
+                 hosts = [\"https://api.example.test\"]\n\n[network]\nallow = [\"api.example.test\"]\n",
+                source.display()
+            ),
+        );
+        let refused = run_keeper(&fixture, Sim::default(), &[]);
+        let error = refused.error.as_ref().expect("a staging refusal");
+        assert_eq!(error.code, ErrorCode::CredentialUnavailable, "{error:?}");
+        assert_eq!(refused.exit_code, 125);
+        let receipt = receipt_json(&refused);
+        assert_schema("jail-receipt", &receipt);
+        assert_eq!(receipt["state_cleanup"], "released", "{receipt:#}");
+        assert_eq!(vendor_state(&receipt)["kind"], "persistent");
+        assert_eq!(vendor_state(&receipt)["generation_end"], 1);
+        let refused_id = receipt["attempt_id"].as_str().unwrap().to_owned();
+        let key = key_dir(&fixture, &fixture.workspace);
+        assert_eq!(
+            record(&key)["holder"],
+            serde_json::json!({"attempt": refused_id, "released": true})
+        );
+        assert_eq!(record(&key)["generation"], 1);
+        let summary = ukai_jail::summary::summarize_attempt(&attempt_dir(&refused)).unwrap();
+        assert!(
+            summary.lines.iter().all(|line| !line.text.contains("gc")),
+            "{:?}",
+            summary.lines
+        );
+        let report = fixture.gc(false).unwrap();
+        assert!(
+            report
+                .entries
+                .iter()
+                .all(|entry| entry.attempt_id != refused_id || entry.action != "released"),
+            "{:?}",
+            report.entries
+        );
+
+        // The source made private, the next attempt acquires and inherits.
+        std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o600)).unwrap();
+        let next = run_keeper(&fixture, Sim::default(), &[]);
+        assert!(next.error.is_none(), "{:?}", next.error);
+        let receipt = receipt_json(&next);
+        assert_schema("jail-receipt", &receipt);
+        assert_eq!(receipt["state_cleanup"], "released", "{receipt:#}");
+        assert_eq!(
+            vendor_state(&receipt)["inherited_from"],
+            refused_id.as_str()
+        );
+        assert_eq!(vendor_state(&receipt)["matches_release"], true);
+        assert_eq!(vendor_state(&receipt)["generation_end"], 2);
+    }
+
     /// K70 (candidate): a vault credential's value found in the state at
     /// release quarantines it: `credential_persisted`, `secret_scan: found`,
     /// the summary says so, the next acquisition refuses, and the value is

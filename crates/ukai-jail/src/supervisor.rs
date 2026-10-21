@@ -3019,15 +3019,10 @@ fn pending_applied(plan: &Plan) -> Applied {
 
 // Vendor state and credential staging (§7, §8.1, §12)
 
-/// Registers and creates vendor state, stages credentials into it, records
-/// their private provenance and returns the hand-off for the platform.
-///
-/// `record.credentials` carries every successfully staged input, including
-/// those staged before a refusal (§12). From the moment vendor state is
-/// registered, the receipt's cleanup status is `pending`.
 /// What [`prepare_launch`] made: the platform's hand-off, the persistent
 /// state the attempt holds, the vault credentials its release scans for,
 /// and the state's pre-exec line.
+#[derive(Default)]
 struct LaunchPrepared {
     handoff: Option<crate::credentials::LaunchHandoff>,
     persistent: Option<Box<crate::persistent::Held>>,
@@ -3035,20 +3030,27 @@ struct LaunchPrepared {
     state_line: Option<attempt::StateLine>,
 }
 
+/// Registers and creates vendor state, stages credentials into it, records
+/// their private provenance and fills `prepared`, the hand-off for the
+/// platform included.
+///
+/// `record.credentials` carries every successfully staged input, including
+/// those staged before a refusal (§12). From the moment vendor state is
+/// registered, the receipt's cleanup status is `pending`. `prepared` is the
+/// caller's so that a refusal keeps what was already made: from the moment
+/// persistent state is acquired it is in `prepared.persistent`, and the
+/// vault values from the moment they are staged in `prepared.secrets`, so
+/// the refusal releases that state (J14 §4.6) instead of dropping its lease
+/// with the holder still recorded.
 fn prepare_launch(
     attempt_dir: &AttemptDir,
     attempt_id: &AttemptId,
     plan: &Plan,
     record: &mut AttemptRecord,
     deadline: ContinuousDeadline,
-) -> Result<LaunchPrepared, JailError> {
+    prepared: &mut LaunchPrepared,
+) -> Result<(), JailError> {
     let snapshot = &plan.resolved.snapshot;
-    let mut prepared = LaunchPrepared {
-        handoff: None,
-        persistent: None,
-        secrets: Vec::new(),
-        state_line: None,
-    };
     let Some(root) = snapshot.roots.vendor_state.as_ref() else {
         if snapshot
             .launch
@@ -3062,7 +3064,7 @@ fn prepare_launch(
                 "the snapshot declares credentials but no vendor state to stage them in".to_owned(),
             ));
         }
-        return Ok(prepared);
+        return Ok(());
     };
     let Some(launch) = snapshot.launch.as_ref() else {
         return Err(JailError::new(
@@ -3083,6 +3085,9 @@ fn prepare_launch(
         policy::VendorStateRoot::Persistent { profile } => {
             match acquire_persistent(attempt_dir, attempt_id, plan, profile, record)? {
                 Acquired::Held(held, line) => {
+                    // Held from here on: every later refusal releases it.
+                    let held = prepared.persistent.insert(held);
+                    crate::persistent::hold(held, attempt_id.as_str())?;
                     let vendor = held.vendor.try_clone_fd().map_err(|error| {
                         JailError::new(
                             ErrorCode::StateWriteFailed,
@@ -3091,7 +3096,6 @@ fn prepare_launch(
                             format!("the persistent state could not be handed on: {error}"),
                         )
                     })?;
-                    prepared.persistent = Some(held);
                     prepared.state_line = Some(attempt::StateLine::Held(line));
                     crate::state::anchored::Dir::from_owned(vendor)
                 }
@@ -3140,6 +3144,10 @@ fn prepare_launch(
                 return Err(refusal.error);
             }
         };
+    prepared.secrets = staged
+        .iter()
+        .filter_map(|credential| credential.vault.clone())
+        .collect();
     record.credentials = receipt_credentials(&staged);
     state::record_staged_credentials(attempt_dir, &private_provenance(&staged))?;
     // J12 §3.3 step 7: a credential bound to `@program` pinned the file the
@@ -3147,10 +3155,6 @@ fn prepare_launch(
     if let Some(program) = &plan.program {
         check_program_binding(program, &staged)?;
     }
-    prepared.secrets = staged
-        .iter()
-        .filter_map(|credential| credential.vault.clone())
-        .collect();
     prepared.handoff = Some(
         crate::credentials::LaunchHandoff::new(vendor_path, vendor.into_fd(), &mut staged)
             .map_err(|error| {
@@ -3162,19 +3166,21 @@ fn prepare_launch(
                 )
             })?,
     );
-    Ok(prepared)
+    Ok(())
 }
 
 /// What [`acquire_persistent`] made of the persistent state.
 enum Acquired {
-    /// Held, recorded in jail state and in the record; with its line.
+    /// Leased, registered in jail state and in the record, with its line;
+    /// [`crate::persistent::hold`] then records the attempt as its holder.
     Held(Box<crate::persistent::Held>, String),
     /// Busy, and the fallback can be shown: its line.
     Fallback(String),
 }
 
 /// J14 §4.6: acquires the persistent state for `launch` and this workspace,
-/// registers it in jail state, then records this attempt as its holder;
+/// registers it in jail state and in the record (the caller then records
+/// this attempt as its holder, once the attempt owns the lease);
 /// or, when it is busy, records the fallback in the receipt and returns its
 /// line, or refuses `state_busy` when stderr is not a terminal (an unseen
 /// fallback would be the silent one decision 6 rules out).
@@ -3192,7 +3198,7 @@ fn acquire_persistent(
         attempt: attempt_id.as_str(),
     })?;
     match acquisition {
-        crate::persistent::Acquisition::Held(mut held) => {
+        crate::persistent::Acquisition::Held(held) => {
             state::register_persistent_state(
                 attempt_dir,
                 &held.start.state_id,
@@ -3211,7 +3217,6 @@ fn acquire_persistent(
                 discarded: 0,
                 secret_scan: None,
             });
-            crate::persistent::hold(&mut held, attempt_id.as_str())?;
             Ok(Acquired::Held(held, persistent_line(launch, &start)))
         }
         crate::persistent::Acquisition::Fallback(fallback) => {
