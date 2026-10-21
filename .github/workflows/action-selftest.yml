@@ -211,7 +211,7 @@ jobs:
           "$jail" claude "${args[@]}" < /dev/null || status=$?
           "$jail" credential rm anthropic
           echo "ukai-jail claude exited $status"
-          python3 -I "$T/selftest.py" verify-alias
+          python3 -I "$GITHUB_WORKSPACE/$T/selftest.py" verify-alias
       - name: The pull-request comment on this event (K82)
         if: always() && steps.profile.outcome != 'skipped'
         env:
