@@ -45,7 +45,8 @@ jobs:
     if: vars.UKAI_CI_HOST != '' || vars.OURO_CI_HOST != ''
     runs-on: ubuntu-24.04
     # A wedged SSH session must fail the job, not hold the serialized lane.
-    timeout-minutes: 45
+    # The driver's own bounds (a 30-minute build, a 35-minute suite) fit inside.
+    timeout-minutes: 75
     env:
       CI_HOST: ${{ vars.UKAI_CI_HOST || vars.OURO_CI_HOST }}
       CI_USER: ${{ vars.UKAI_CI_USER || vars.OURO_CI_USER }}

@@ -857,15 +857,18 @@ pub struct Patience {
     pub failed_checks: u32,
 }
 
-/// The release build: about a minute on the reference host from scratch.
+/// The release build, binaries and test targets: 18 m 51 s on the reference
+/// host from scratch on 2026-10-19 (4 m 22 s of binaries, 14 m 29 s of test
+/// targets), past 20 minutes once J14's tests landed (2026-10-21).
 pub const BUILD_PATIENCE: Patience = Patience {
     interval: std::time::Duration::from_secs(15),
-    limit: std::time::Duration::from_secs(20 * 60),
+    limit: std::time::Duration::from_secs(30 * 60),
     failed_checks: 12,
 };
 
-/// The suite: about fifteen minutes on the reference host. The limit leaves
-/// room inside the workflow's 45-minute job budget for everything else.
+/// The suite: about fifteen minutes on the reference host. With the build's
+/// limit it leaves room inside the workflow's 75-minute job budget for
+/// everything else.
 pub const SUITE_PATIENCE: Patience = Patience {
     interval: std::time::Duration::from_secs(20),
     limit: std::time::Duration::from_secs(35 * 60),
@@ -3053,13 +3056,13 @@ smoke doctor 0
     fn a_lost_build_fails_the_run_and_stops_there() {
         let mut o = a_clean_run();
         remote(&mut o).build = Some(Err(
-            "did not finish within 20 minutes and was stopped".into()
+            "did not finish within 30 minutes and was stopped".into()
         ));
         remote(&mut o).tested = None;
         let d = verdict(&o);
         assert_eq!(
             d.failures,
-            vec!["the remote release build did not finish within 20 minutes and was stopped"]
+            vec!["the remote release build did not finish within 30 minutes and was stopped"]
         );
         assert!(d.keep_remote);
     }
