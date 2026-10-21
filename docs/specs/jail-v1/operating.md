@@ -806,6 +806,63 @@ repository deleted or moved since, so its state can still be shown and
 removed. `gc` never removes a state; it finishes a release a dead supervisor
 could not, and a `state rm` that stopped (see [gc](#gc)).
 
+## CI: GitHub Actions
+
+The action in [`action/`](../../../action/README.md)
+([J15](../jail-ci-action.md)) is a separate component that installs and runs
+`ukai-jail` in a GitHub Actions job. Nothing of it is a jail build input,
+and `ukai-jail` itself still configures no host ([Install](#install)). Its
+releases are commits on the orphan branch `action`, tagged
+`ukai-jail-action-vX`, each holding only `action/` and the root installer of
+`ukai-jail-vX` ([RELEASING](../../RELEASING.md)); none is tagged yet.
+
+- **Runners.** `RUNNER_OS` Linux, `RUNNER_ARCH` X64 or ARM64, not root,
+  Ubuntu 24.04 or later with glibc 2.39 or later, not a
+  `pull_request_target` event, and a workspace that is a git work tree
+  whose `git config --get-regexp '^http\..*\.extraheader$'` finds nothing
+  (the checkout's persisted token) unless `allow-checkout-token: true`.
+  Anything else is refused before any change and any credential.
+- **Setup, GitHub-hosted runners only** (`RUNNER_ENVIRONMENT=github-hosted`).
+  `ukai-jail` from the installer at the action's own ref into
+  `$RUNNER_TEMP/ukai/bin`, with `UKAI_CONFIG_DIR` and `UKAI_DATA_DIR` under
+  `$RUNNER_TEMP/ukai` (0700). When the first `bwrap` on `PATH` is missing or
+  older than 0.10.0: bubblewrap 0.11.1 from its release tarball, refused
+  unless its SHA-256 is `c1b7455a1283b129…`, built and installed as
+  `/usr/local/bin/bwrap` with `sudo`. When
+  `kernel.apparmor_restrict_unprivileged_userns` reads `1` and that binary
+  is the one in use: the profile `ukai-jail-action-bwrap`
+  (`/usr/local/bin/bwrap flags=(unconfined) { userns, }`) loaded with
+  `sudo apparmor_parser -r`. The sysctl is read before setup and at the end,
+  never written. On any other runner nothing but the installation into
+  `$RUNNER_TEMP` happens, and `doctor` must already be ready.
+- **Credentials and doctor.** Each `ID=ENVVAR` value is masked, written to
+  `credential set --force ID` on stdin, and its variable removed from the
+  environment of every `ukai-jail` the action runs. Then
+  `doctor --profile P` or `doctor --launch NAME --from-path` (credentials
+  first, since a launch profile without its credential is not ready) must
+  report `ready`.
+- **The run.** `run --launch NAME --from-path --workspace W
+  [--allow-host=H]... [--limit=K=V]... -- ARG...` or `run --profile P
+  --workspace W ... -- /bin/bash -e -c "$RUN"`, from the workspace, stdin
+  `/dev/null` (detached: the `agent` wall is 2 h). Workflow commands are
+  turned off (`::stop-commands::`) while the command's output streams.
+- **The report.** `tail --summary` (text and `--json`) for the attempt into
+  the job summary, followed by the host-setup line; the artifact holds the
+  attempt's `jail.json`, `policy.json` and `trace.ndjson`, the summary JSON,
+  the doctor JSON and `setup.txt`, nothing from the config directory. Every
+  file of it, the job summary and the comment are searched for each stored
+  credential's value before anything is uploaded or posted; a hit uploads
+  nothing and names the file. Then the optional pull-request comment, and
+  the credential files are removed.
+- **Exit status.** `ukai-jail`'s own (the command's, or 125 for a refusal
+  before exec); with `fail-on`, also `unsettled` (phase not `settled`),
+  `survivors` (not `none_verified`) and `gaps` (a class not `active`, or a
+  gap; under `tool` and `build`, `proxy.net` is never active).
+
+The self-test (`.github/workflows/action-selftest.yml`, rows K76–K85) runs
+it in place on both hosted 24.04 images; its compatibility record with a
+real agent (§6.2) is `.github/workflows/action-arow.yml`, run by hand.
+
 ## doctor
 
 `doctor` runs short probes (5 seconds each, with owned temporary resources):

@@ -239,6 +239,42 @@ Then update the README, guide and website with the real release link, trusted
 archive hashes and host requirements. GitHub's [release procedure](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)
 documents draft and prerelease behavior.
 
+## Release the GitHub Action
+
+The action's source is [`action/`](../action/README.md) on `dev`
+([jail-ci-action.md](specs/jail-ci-action.md) §9 decision 3). Users fetch it
+from a slim ref, never from a full-tree tag (§7: about a minute and 1.9 GB
+per job from the full tree, under a second from a slim ref). When the root
+installer is rolled out for a new release, the same rollout commit sets
+`version`'s default in `action/action.yml` to that release (the self-test's
+static check compares them). After the release is published and the root
+installer rolled out, add one commit holding only `action/` and that
+`install.sh`, taken from the rollout commit, to the orphan branch `action`,
+tag it, and push both:
+
+```sh
+rollout=$(git rev-parse <the rollout commit>)
+export GIT_INDEX_FILE=$(mktemp -u)
+git read-tree --empty
+git read-tree --prefix=action/ "$rollout:action"
+git ls-tree "$rollout" install.sh | git update-index --index-info
+tree=$(git write-tree)
+unset GIT_INDEX_FILE
+parent=$(git rev-parse -q --verify origin/action || true)   # none before the first
+commit=$(git commit-tree "$tree" ${parent:+-p "$parent"} \
+  -m "Ukai Jail action for ukai-jail-v$release_version (rollout $rollout)")
+git tag -a "ukai-jail-action-v$release_version" "$commit" \
+  -m "Ukai Jail action for ukai-jail-v$release_version: action/ and install.sh of rollout $rollout"
+git push origin "$commit:refs/heads/action" "ukai-jail-action-v$release_version"
+```
+
+The branch is never merged anywhere and holds nothing else. Then run the
+action self-test against that tag (row K86: the tag installs exactly release
+X, its commit holds only `action/` and an `install.sh` equal to the root
+installer of the rollout byte for byte, and its "Set up job" fetch stays
+slim). The tag-mode self-test is added with the first action release; until
+then `.github/workflows/action-selftest.yml` tests `action/` in place.
+
 ## Local checks
 
 ```sh

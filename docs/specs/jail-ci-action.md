@@ -4,8 +4,10 @@ Status: design proposal, 2026-10-21. The operator settled its five
 decisions the same day (§9): four as recommended, and for the fifth chose a
 Console API key over the recommended dedicated setup token, with the
 recommended approval gate. Decision 3 was then amended after a measurement
-(§7): the action is released on a slim orphan ref. Nothing is
-implemented. It was written against `dev` at `fbd86aa73`, after Ukai Jail
+(§7): the action is released on a slim orphan ref. Version 1 is implemented
+in `action/` with its self-test (§10 lists where it departs from this text);
+no release of it is tagged and its A-row (§6.2) is not recorded. It was
+written against `dev` at `fbd86aa73`, after Ukai Jail
 0.1.0-rc.4
 (`ukai-jail-v0.1.0-rc.4`, `eb9b67b18`). It follows the
 [GitHub-hosted runner spike](../benchmarks/jail/github-runners-2026-10-21.md),
@@ -435,3 +437,81 @@ The operator settled all four as recommended:
    as required reviewer and deployments limited to `dev`: every job that
    reads it waits for the operator's approval. The A-row workflow is run by
    hand (`workflow_dispatch`) from `dev`.
+
+## 10. As implemented (2026-10-21)
+
+Version 1 is `action/` with `.github/workflows/action-selftest.yml` (rows
+K76–K85, run in place) and `.github/workflows/action-arow.yml` (§6.2, not
+yet run). It departs from the text above as follows; none widens what the
+jail grants.
+
+1. **Credentials before doctor.** §3.3 lists doctor (item 4) before the
+   credentials (item 5), but `doctor --launch` counts a launch profile with
+   no stored credential as not ready (`credentials_one_of`, J12), so the
+   credentials are stored first. The runner check still precedes both.
+2. **The installer runs on a self-hosted runner too.** §3.2 says such a
+   runner gets no setup; `doctor` needs the binary, so `ukai-jail` is
+   installed into `$RUNNER_TEMP/ukai/bin` there as well. Nothing else is: no
+   bubblewrap, no apt package, no profile.
+3. **The tarball first.** The bubblewrap tarball is verified against its
+   digest before the apt build dependencies are installed (§3.3 lists apt
+   first), so a mismatch changes nothing on the host. A tarball already at
+   `$RUNNER_TEMP/ukai/src/bubblewrap-0.11.1.tar.xz` is verified the same way
+   instead of downloaded; the self-test plants a tampered one there (K77),
+   and it is where a cache (§8 item 3) would put one.
+4. **The profile names one binary, so it is loaded only for it.** With the
+   sysctl at 1, the profile is loaded only when the bubblewrap in use is
+   `/usr/local/bin/bwrap`; if a later image puts bubblewrap 0.10.0 or newer
+   first on `PATH`, nothing is built or loaded and `setup.txt` says why
+   (§8 item 4).
+5. **Every value is masked.** The action cannot tell a secret from any other
+   value, so each one is registered with `::add-mask::`, after a check that
+   it is 1 to 8192 printable ASCII bytes: a value with a line break is
+   refused unprinted, since a mask covers one line. `ENVVAR` must be a
+   variable name, checked before it is read, and not `UKAI_*`, `PATH` or
+   `HOME`, which ukai-jail needs. `credential set --force` replaces a value a
+   previous use of the action in the same job left.
+6. **Workflow commands are off while the command's output streams**
+   (`::stop-commands::` with a random token): otherwise the agent could set
+   the step's outputs or masks by printing workflow commands. §4 did not
+   name this route.
+7. **Inputs.** `allow-checkout-token` (§3.2 item 5) is an input though §3.1's
+   table omits it. `args` is one argument per line, a blank line an empty
+   argument; `allow-hosts`, `limits`, `credentials` and `fail-on` also split
+   on spaces (and commas for `fail-on`). `launch` must be a plain name and
+   `profile` one of `tool`, `build` and `agent` (a policy file is not
+   accepted); `artifact-name` must avoid the characters artifacts refuse.
+   The default `version` is a literal in `action.yml`, 0.1.0-rc.4 today; the
+   self-test's static check keeps it equal to the root installer's default,
+   and the RELEASING step sets both in the rollout commit.
+8. **`gaps` is literal.** Under `tool` and `build`, which have no proxy, the
+   `proxy.net` class is `unsupported`, so `fail-on: gaps` fails every such
+   run; the README says to use it with `agent` and launch profiles.
+9. **The report.** The artifact's link is added to the job summary by a
+   step after the upload, since its URL exists only then. When the setup or
+   `doctor` failed and nothing ran, the artifact still holds `setup.txt` and
+   `doctor.json`. On an exposure hit the job summary gets only the failure
+   and the file names, the artifact's copies are deleted, and the `receipt`
+   and `summary-json` outputs are not set.
+10. **The comment** is found by a marker naming the workflow, the job and
+    `artifact-name`, and only a comment by `github-actions[bot]` is updated.
+11. **The self-test** runs on pull requests and pushes that touch `action/`,
+    `install.sh`, its workflow or `.github/action-tests/`, and by hand; the
+    release-tag run (K86) comes with the release procedure. What a hosted
+    job cannot produce for real is simulated and marked so in its per-row
+    list: a root step (the check script run through `sudo`),
+    `pull_request_target` and a self-hosted runner (the scripts run with
+    that environment), a reading of 0, an unsettled receipt with survivors,
+    and a fork's pull request (the scripts against stand-ins). K82's
+    posting and updating run for real only on a same-repository pull
+    request. K78's check of ukai-jail's own environment is sampled: the
+    supervisor turns non-dumpable before release, after which its
+    environment cannot be read.
+12. **Finding: large workspaces.** The jail's protected-path scan refuses a
+    workspace past 100,000 directory entries (jail-v1 §9.1). This
+    repository's own full checkout is past it: with it as the workspace,
+    `run` refused with `missing_capability` ("protected scan reached its
+    100000-entry limit") on both images (self-test run 39674814847). The
+    self-test's jobs that run in the checkout use a sparse checkout, and the
+    README tells users to do the same; §1's "the workspace" default is only
+    usable below that size.

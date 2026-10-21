@@ -600,6 +600,72 @@ variables. A refused run whose error messages alone would not fit still
 writes its receipt: messages are cut and say so, and every error is printed
 whole on stderr.
 
+## CI: GitHub Actions
+
+A GitHub Action runs an agent or a script inside the jail on a
+GitHub-hosted runner and leaves the run's summary on the job page and its
+receipt as an artifact. Its source is
+[`action/`](https://github.com/monocursive/ukai/tree/dev/action) in this
+repository; it is not released yet. Each jail release from the next one on
+gets a tag `ukai-jail-action-vX` on a small `action` branch, and you
+reference it as `monocursive/ukai/action@<commit>` with the tag in a
+comment. It runs on `ubuntu-24.04` and `ubuntu-24.04-arm`; `ubuntu-22.04`
+is too old (glibc 2.35).
+
+Two modes. A launch profile with the agent's arguments, one per line:
+
+```yaml
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: curl -fsSL https://claude.ai/install.sh | bash
+      - uses: monocursive/ukai/action@<commit>   # ukai-jail-action-vX
+        with:
+          launch: claude
+          args: |
+            -p
+            fix the failing test in parser.rs
+            --dangerously-skip-permissions
+          credentials: anthropic=ANTHROPIC_API_KEY
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+or a script under an execution profile: `profile: agent` (or `tool`,
+`build`) with `run: |` and the script, and `allow-hosts:` for the hosts it
+needs. `args` lines are passed as arguments, never through a shell; `run` is
+one script for `bash -e -c`.
+
+- **Credentials.** `credentials: ID=ENVVAR` stores the variable's value in
+  the jail's vault, as `ukai-jail credential set ID` does; the agent gets a
+  placeholder. The value is masked in the log, kept out of the environment
+  the jail runs in, and removed at the end of the step. Before anything is
+  uploaded, every artifact file and the summary are searched for it; a hit
+  fails the step and uploads nothing.
+- **The checkout's token.** `actions/checkout` keeps the job's token in
+  `.git/config` unless `persist-credentials: false` is set. The workspace is
+  the agent's, so the action refuses it.
+- **Forks.** A pull request from a fork gets no secrets, so a run that needs
+  one fails and says so. `pull_request_target` is refused. The summary
+  comment (`pr-comment: true`, with `pull-requests: write`) is posted only
+  on pull requests from the same repository.
+- **The host-setup line.** Hosted 24.04 runners ship a bubblewrap that is
+  too old and restrict user namespaces, so on those runners only the action
+  builds bubblewrap 0.11.1 from its checksummed release and loads one
+  AppArmor profile that lets that one binary create user namespaces. The
+  restriction stays on for everything else and the setting is never
+  changed. The last line of the job summary says exactly what was done, and
+  `setup.txt` in the artifact has the details. On a self-hosted runner the
+  action changes nothing and runs only if `ukai-jail doctor` is ready.
+- **Afterwards.** What the agent wrote to the workspace is still there for
+  later steps: treat it as untrusted, and run its tests in the jail too.
+
+The step fails with the jail's exit status, and, with `fail-on`, when the
+run did not settle, processes could not be verified gone, or evidence has
+gaps. No agent has a compatibility record on GitHub-hosted runners yet; the
+[action's README](https://github.com/monocursive/ukai/blob/dev/action/README.md)
+lists every input.
+
 ## For agents and scripts
 
 The website provides `/guide.md` and `/roadmap.md` from these exact source
