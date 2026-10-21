@@ -454,6 +454,7 @@ mod d4 {
                 limits: Vec::new(),
                 environment_names: Vec::new(),
                 removed_environment_names: Vec::new(),
+                terminal: None,
             },
             observer: CoverageSummary::unobserved().to_observer_record(),
             coverage: CoverageSummary::unobserved().to_coverage(),
@@ -466,6 +467,7 @@ mod d4 {
             updated_at: SystemTime::UNIX_EPOCH,
             errors: Vec::new(),
             credentials: Vec::new(),
+            vendor_state: None,
         }
     }
 

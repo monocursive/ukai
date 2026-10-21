@@ -211,6 +211,18 @@ pub const AF_NETLINK: u32 = 16;
 pub const NETLINK_SOCK_DIAG: u32 = 4;
 /// `TIOCSTI`, compared against argument 1 of `ioctl`.
 pub const TIOCSTI: u32 = 0x5412;
+/// J14 §3.5 row 2: `TIOCLINUX`, the virtual-console subcommands (paste of a
+/// selection, blanking, scrolling).
+pub const TIOCLINUX: u32 = 0x541c;
+/// J14 §3.5 row 4: `TIOCSETD`, which changes a terminal's line discipline.
+pub const TIOCSETD: u32 = 0x5423;
+/// The terminal requests every contained baseline answers with `EPERM`, in
+/// the order the filter compares them.
+pub const TERMINAL_DENIED: [(&str, u32); 3] = [
+    ("TIOCSTI", TIOCSTI),
+    ("TIOCLINUX", TIOCLINUX),
+    ("TIOCSETD", TIOCSETD),
+];
 
 /// Namespace bits in `clone`'s flags, checked as a mask against argument 0.
 pub const CLONE_NS_MASK: u32 = CLONE_NEWTIME
@@ -440,11 +452,14 @@ fn build(shape: &Shape) -> Result<Program, BpfError> {
         asm.ja(L_DENY_FAMILY);
     }
 
-    // ioctl: deny terminal injection.
-    asm.label(L_IOCTL)
-        .ld_w_abs(sd_arg_low(1))
-        .jeq(TIOCSTI, Some(L_DENY_EPERM), None)
-        .ja(L_ALLOW);
+    // ioctl: deny terminal injection (TIOCSTI), the console subcommands
+    // (TIOCLINUX) and line-discipline changes (TIOCSETD). The kernel's `cmd`
+    // is an `unsigned int`, so the low word is the whole request.
+    asm.label(L_IOCTL).ld_w_abs(sd_arg_low(1));
+    for (_, request) in TERMINAL_DENIED {
+        asm.jeq(request, Some(L_DENY_EPERM), None);
+    }
+    asm.ja(L_ALLOW);
 
     if !shape.mediated {
         // seccomp: deny a notification listener. `flags` is an `unsigned
@@ -718,11 +733,7 @@ fn render_table(shape: &Shape) -> String {
                 "{name:<22} {nr:<6} EPERM when args[0] == {AF_UNIX} (AF_UNIX); ALLOW when args[0] in {{{AF_INET} (AF_INET), {AF_INET6} (AF_INET6)}}; else EAFNOSUPPORT"
             );
         }
-        let _ = writeln!(
-            out,
-            "{:<22} {:<6} EPERM when args[1] == 0x{TIOCSTI:04x} (TIOCSTI)",
-            "ioctl", NR_IOCTL
-        );
+        render_ioctl_rules(&mut out);
         let _ = writeln!(
             out,
             "{:<22} {:<6} EPERM when args[1] & 0x{SECCOMP_FILTER_FLAG_NEW_LISTENER:08x} (SECCOMP_FILTER_FLAG_NEW_LISTENER)",
@@ -750,11 +761,7 @@ fn render_table(shape: &Shape) -> String {
 /// the plain one's AF_UNIX, netlink and listener rules.
 fn render_mediated_rules(out: &mut String) {
     use std::fmt::Write as _;
-    let _ = writeln!(
-        out,
-        "{:<22} {:<6} EPERM when args[1] == 0x{TIOCSTI:04x} (TIOCSTI)",
-        "ioctl", NR_IOCTL
-    );
+    render_ioctl_rules(out);
     for name in UNPRIVILEGED_SETUP {
         let _ = writeln!(out, "{name:<30} ALLOW   (unprivileged inner sandbox)");
     }
@@ -774,6 +781,18 @@ fn render_mediated_rules(out: &mut String) {
         "{:<22} {:<6} EAFNOSUPPORT for every other family",
         "", ""
     );
+}
+
+/// The terminal requests every contained baseline denies (J14 §3.5).
+fn render_ioctl_rules(out: &mut String) {
+    use std::fmt::Write as _;
+    for (name, request) in TERMINAL_DENIED {
+        let _ = writeln!(
+            out,
+            "{:<22} {:<6} EPERM when args[1] == 0x{request:04x} ({name})",
+            "ioctl", NR_IOCTL
+        );
+    }
 }
 
 /// The mediation filter's own rules and digest, after the baseline's.
@@ -1319,6 +1338,48 @@ mod tests {
         }
     }
 
+    /// J14 §3.5, K60: every contained baseline, storage variants included,
+    /// answers the three terminal requests with EPERM, whatever the high
+    /// word of the request, and lets the requests a terminal interface
+    /// needs reach the kernel.
+    #[test]
+    fn every_contained_baseline_denies_the_terminal_requests() {
+        let programs = [
+            ("tool", tool_baseline().unwrap()),
+            ("tool storage", tool_baseline_with_storage(true).unwrap()),
+            (
+                "agent",
+                agent_baseline(AgentVariant::UnprivilegedInner).unwrap(),
+            ),
+            (
+                "agent namespace",
+                agent_baseline(AgentVariant::NamespaceInner).unwrap(),
+            ),
+            (
+                "agent storage",
+                agent_baseline_with_storage(AgentVariant::UnprivilegedInner, true).unwrap(),
+            ),
+        ];
+        for (name, program) in &programs {
+            for (request_name, request) in TERMINAL_DENIED {
+                assert_eq!(
+                    run(program, NATIVE, NR_IOCTL, [0, request]),
+                    EPERM,
+                    "{name}: {request_name}"
+                );
+            }
+            for request in [
+                0x5401, 0x5402, 0x5404, 0x5413, 0x5414, 0x5410, 0x540f, 0x540e,
+            ] {
+                assert_eq!(
+                    run(program, NATIVE, NR_IOCTL, [0, request]),
+                    SECCOMP_RET_ALLOW,
+                    "{name}: {request:#x}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn the_unprivileged_agent_baseline_is_tool_without_the_af_unix_rule() {
         let agent = agent_baseline(AgentVariant::UnprivilegedInner).unwrap();
@@ -1335,7 +1396,19 @@ mod tests {
             run(&agent, NATIVE, NR_CLONE, [0x0001_0f00, 0]),
             SECCOMP_RET_ALLOW
         );
-        assert_eq!(run(&agent, NATIVE, NR_IOCTL, [0, TIOCSTI]), EPERM);
+        for (name, request) in TERMINAL_DENIED {
+            assert_eq!(run(&agent, NATIVE, NR_IOCTL, [0, request]), EPERM, "{name}");
+            assert_eq!(run(&tool, NATIVE, NR_IOCTL, [0, request]), EPERM, "{name}");
+        }
+        // J14: the requests a terminal interface needs still reach the
+        // kernel (TCGETS, TCSETS, TIOCGWINSZ, TIOCSPGRP, TIOCGPGRP).
+        for request in [0x5401, 0x5402, 0x5413, 0x5410, 0x540f] {
+            assert_eq!(
+                run(&agent, NATIVE, NR_IOCTL, [0, request]),
+                SECCOMP_RET_ALLOW,
+                "{request:#x}"
+            );
+        }
         assert_eq!(run(&tool, NATIVE, NR_SOCKET, [AF_UNIX, SOCK_STREAM]), EPERM);
         assert_eq!(
             run(&agent, NATIVE, NR_SOCKET, [AF_UNIX, SOCK_STREAM]),

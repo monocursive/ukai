@@ -442,6 +442,18 @@ fn launch_profile_sections(w: &mut String, root: &Path) -> Result<(), String> {
             &format!("{file}: state_subdirs"),
         )?;
         let _ = writeln!(w, "state_subdirs = {}", quote_list(&subdirs));
+        // J14: whether the profile's vendor state outlives the attempt, and
+        // what its release removes.
+        let state = profile
+            .get("state")
+            .and_then(toml::Value::as_str)
+            .unwrap_or("attempt");
+        let _ = writeln!(w, "state = {}", quote(state));
+        let discard = strings(
+            profile.get("state_discard"),
+            &format!("{file}: state_discard"),
+        )?;
+        let _ = writeln!(w, "state_discard = {}", quote_list(&discard));
         let allow = strings(
             profile
                 .get("network")

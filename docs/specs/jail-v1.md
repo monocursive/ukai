@@ -1,7 +1,16 @@
 # Jail v1: first implementation specification
 
-Status: implementation specification, revision 25, 2026-10-16. No implementation
-or backend conformance is claimed by this document. Revision 25 keeps a
+Status: implementation specification, revision 26, 2026-10-19. No implementation
+or backend conformance is claimed by this document. Revision 26 applies J14,
+interactive agent sessions ([jail-interactive-sessions.md](jail-interactive-sessions.md),
+§5 row by row): terminal mode runs an attached command in the caller's
+session in its own process group, made the terminal's foreground group, with
+stops relayed and the terminal restored at settlement (§§8.3, 9.2); every
+contained baseline also denies `TIOCLINUX` and `TIOCSETD` (§9.2); a launch
+profile may keep persistent vendor state per launch profile and workspace,
+acquired before exec and released, never removed, after settlement (§§7,
+8.1, 12); four error codes (§6.4); and the receipt's `released` cleanup
+value, `vendor_state` and `applied.terminal` (§13.2). Revision 25 keeps a
 complete local trace complete when `gc` replaces a receipt: `gc` appends the
 new receipt's note, numbered after the trace's last frame and carrying its
 clock reading, and leaves any other trace as it is (§§13.1, 13.3, 14.2).
@@ -1120,7 +1129,11 @@ Initial codes include `invalid_config`, `policy_widening`,
 `credential_unavailable`, `invalid_fd`, `gate_invalid`, `gate_closed`,
 `prepare_timeout`, `attempt_exists`, `exec_failed`,
 `exec_interpreter_missing` (§13.2), `evidence_lost`, `exec_unconfirmed`,
-`tree_unknown`, `state_write_failed`, `stdio_failed`, and `internal_error` (a defect of the
+`tree_unknown`, `state_write_failed`, `stdio_failed`, `state_busy` (a
+persistent state another attempt holds, when stderr is not a terminal and
+the throwaway fallback could not be shown; J14 §4.6), `state_quarantined`,
+`state_workspace_changed`, `credential_persisted` (J14 §4.5), and
+`internal_error` (a defect of the
 implementation, reported rather than papered over). An error's stage is one of
 the §8.1 states. Do not include raw credentials, raw argv or environment
 values in an error.
@@ -1147,6 +1160,11 @@ Local attempts are not deduplicated operator requests.
   vendor-state/         only when a launch profile requires it
   scratch/              default child-writable scratch, not the state parent
 ```
+
+A launch profile with `state = "persistent"` (§12) keeps its vendor state
+outside every attempt, in `<data>/state/<launch>/<key>/` (`state.json`, a
+`lease` and `vendor/`), one per launch profile and workspace, registered in
+`jail-state.json` by the attempt that holds it (J14 §4.3).
 
 The supervisor holds `jail.lock` through settlement/cleanup, and while any of
 its persistence steps may still be in flight: after a stalled step it never
@@ -1245,6 +1263,8 @@ Preparation steps, in order:
    waits for receipts still being persisted.
 9. Verify tree death, drain observations through the final boundary, persist
    settled receipt, then clean managed vendor state and update cleanup status.
+   Persistent vendor state (§12) is acquired in step 2 with the other vendor
+   resources and released here instead of removed (J14 §4.6).
 
 A crash after target exec but before the enforced receipt can leave only a
 prepared receipt. That is incomplete evidence, not proof the target never ran.
@@ -1322,9 +1342,17 @@ process and namespace init hold the stdout and stderr they hand the target
 until the jail exits, so the caller's end-of-file on either comes then. A
 stdio consumer must not treat end-of-file as the only sign that a run ended
 (§9.3). No PTY or interactive job-control
-emulation is provided. The command runs in a new session; INT/TERM/HUP received
-by the supervisor request termination. Existing terminal fds are explicit I/O
-authority; the backend must prevent TIOCSTI-style terminal injection.
+emulation is provided: terminal mode attaches the operator's terminal and
+emulates nothing, and its stop relay is job-control propagation, not
+emulation (J14 §3.4). The command runs in a new session, except in terminal
+mode (J14 §3.2), where it runs in the caller's session in its own process
+group, made the terminal's foreground group by the launcher. Terminal-generated
+signals then reach only that group. INT/TERM/HUP received by the supervisor,
+and a hangup of its terminal, request termination. Existing terminal fds are
+explicit I/O authority; the backend must prevent TIOCSTI-style terminal
+injection: `TIOCSTI`, `TIOCLINUX` and `TIOCSETD` are filtered, only a
+pseudo-terminal is attached, and the terminal is restored at settlement
+(J14 §§3.5, 3.6).
 
 Reject directory stdio descriptors for contained runs, and reject
 regular-file stdio that resolves into protected supervisor state, which is
@@ -1492,14 +1520,17 @@ the persistent writable roots (workspace and operator grants).
 ### 9.2 Syscall and namespace plan
 
 Use the selected unprivileged bubblewrap integration with user, mount, PID,
-network, IPC and UTS namespaces, a new session and a tested parent-death chain.
+network, IPC and UTS namespaces, a new session (except in terminal mode,
+§8.3) and a tested parent-death chain.
 Install the contained target's filter only after trusted outer setup. The
 filter is versioned, architecture-aware and recorded by digest. Set
 `no_new_privs` and drop host capabilities before any user instruction executes.
 
 Common baseline denies host tracing/inspection (`ptrace`, `process_vm_*`,
 `bpf`, `perf_event_open`), kernel replacement/module interfaces, keyring grants
-listed by the north star, and terminal injection. The global clock-adjustment
+listed by the north star, and terminal injection: the `ioctl` rule denies
+`TIOCSTI`, `TIOCLINUX` and `TIOCSETD` with EPERM in every contained baseline,
+attached or not (J14 §3.5). The global clock-adjustment
 family — `adjtimex`, `clock_settime`, `clock_adjtime` — is denied with EPERM
 rather than left to the absent `CAP_SYS_TIME`, which is unreachability, not
 a refusal (security audit 2026-09-27, B8, the S10 drift class; reading any
@@ -2407,7 +2438,8 @@ examples below do not establish managed readiness. The owner rejects a launch
 profile that needs broader authority than its effective company policy.
 
 Initial declarative fields are `name`, `jail`, `state_var`, `home_is_state`,
-`state_subdirs`, `environment`, `credentials.<id>.source`, `dest`, `mode`,
+`state_subdirs`, `state` (`"attempt"`, the default, or `"persistent"`),
+`state_discard`, `environment`, `credentials.<id>.source`, `dest`, `mode`,
 `credentials.<id>.hosts`, `credentials.<id>.allow_plaintext`,
 `credentials.<id>.header` and `network.allow`. A `vault`-mode credential's
 `header` declares where its placeholder may appear: `header =
@@ -2427,11 +2459,17 @@ empty paths, absolute paths, `.`/`..` components, duplicates and conflicts with
 credential files or bind targets. Nested paths create intermediate directories
 mode 0700 through anchored no-follow handles before credentials are staged.
 They grant no host directory. A pre-existing symlink or special node refuses.
+`state = "persistent"` keeps the vendor state across attempts in the same
+workspace (J14 §4); it refuses `copy_rw` and `bind_ro` credentials, which
+would persist, and `state_discard` lists relative paths under vendor state
+removed, as links when they are links, at every release. `state_discard`
+is valid only with persistent state. `run --state attempt` restores
+attempt-private state for one run.
 
 | Initial profile | Managed state mapping | Declared input intent |
 |---|---|---|
 | `codex` | `CODEX_HOME`, optionally HOME, to vendor state | Node-local auth as `copy_rw`; config as `bind_ro` |
-| `claude` | `CLAUDE_CONFIG_DIR` to vendor state | Node-local file credentials and settings; no Keychain extraction |
+| `claude` | `CLAUDE_CONFIG_DIR` to vendor state, persistent per workspace with `.credentials.json` discarded at release (J14 §7, decision 7) | Node-local file credentials and settings; no Keychain extraction |
 | `opencode` | XDG config/data subdirectories beneath vendor state | Explicit node-local credential file and config inputs |
 
 Use the north star's initial source paths as experimental profile data. Record
@@ -2473,13 +2511,15 @@ TZ, TMPDIR, HOME), the proxy variables in any case, `LD_*`/`DYLD_*`, or the C
 library's loader and runtime controls (for example `GLIBC_TUNABLES`,
 `GCONV_PATH`, `MALLOC_*`), because they reach the trusted launcher first.
 
-On pre-exec refusal or verified tree death, remove vendor state using anchored
+On pre-exec refusal or verified tree death, remove attempt vendor state, and
+release persistent state (J14 §4.6), which is never removed by the supervisor
+or `gc`. Remove attempt vendor state using anchored
 directory traversal that does not follow symlinks or cross mount boundaries.
 Delete a child-created link itself; never its external target. Unmount any
 readonly credential views first. Keep `state_cleanup=pending` until deletion
 and the relevant directory sync complete, then atomically record `complete`.
-If no vendor state was created, use `not_needed`. Attempts with unproved live
-trees retain state. Cleanup failure does not rewrite a known child exit.
+If no vendor state was created, use `not_needed`; a persistent state's release
+records `released`. Attempts with unproved live trees retain state. Cleanup failure does not rewrite a known child exit.
 
 The required `credentials` receipt array reports each successfully staged input
 as `{id, mode, digest, digest_unavailable_reason}`; it is empty when none were
@@ -2659,7 +2699,7 @@ pre-exec receipt case without labelling failed preparation as enforcement.
 | Lifetime | Boundary kind, native details, verification scope/integrity, `tree_empty` true/false/null and verification time |
 | Credentials | Staged logical ids, modes, digest or unavailable reason; no source paths or values |
 | Outcome | Pending/refused/exited/signaled/exec_error/unknown; code/signal/cause/error separately |
-| Cleanup | Vendor state not_needed/pending/complete plus safe failure reason |
+| Cleanup | Vendor state not_needed/pending/complete/released plus safe failure reason; optional `vendor_state` (persistent or `attempt_fallback`, J14 §4.7) and optional `applied.terminal` (J14 §3.7) |
 
 The receipt's `containment` is `pending` before the final policy is established,
 `enforced` for an applied contained profile, or `none`. `child_protection` is

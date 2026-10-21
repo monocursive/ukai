@@ -327,6 +327,8 @@ pub(crate) fn plan_for(
 ) -> Result<BwrapPlan, JailError> {
     let mut bplan = BwrapPlan::tool(paths.workspace, paths.scratch, paths.jail_exe);
     bplan.bounded_storage = super::storage::requested(&snapshot.limits);
+    // J14 §3.3: terminal mode runs the command in the caller's session.
+    bplan.new_session = snapshot.terminal.is_none();
     let names_workspace = |references: &[PathRef]| {
         references.iter().any(|reference| {
             host_path_of(reference, paths.workspace, paths.scratch)
@@ -1932,6 +1934,7 @@ mod tests {
             } else {
                 Vec::new()
             },
+            state_discard: None,
         });
         snapshot
     }

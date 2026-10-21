@@ -363,6 +363,19 @@ pub enum ErrorCode {
     StateWriteFailed,
     /// A supervisor-owned stdio relay failed after launch.
     StdioFailed,
+    // J14 (jail-interactive-sessions.md §4)
+    /// Another attempt holds the persistent vendor state, and the throwaway
+    /// fallback could not be shown before exec (stderr is not a terminal).
+    StateBusy,
+    /// The persistent vendor state was quarantined: a vault credential's
+    /// value was found in it at an earlier release.
+    StateQuarantined,
+    /// The workspace root is not the directory the persistent vendor state
+    /// was created for (another `(dev, ino)` at the same path).
+    StateWorkspaceChanged,
+    /// The release of persistent vendor state found a vault credential's
+    /// value in it and quarantined it.
+    CredentialPersisted,
     /// A defect in this implementation, reported rather than papered over.
     InternalError,
 }
@@ -396,6 +409,10 @@ impl ErrorCode {
             ErrorCode::TreeUnknown => "tree_unknown",
             ErrorCode::StateWriteFailed => "state_write_failed",
             ErrorCode::StdioFailed => "stdio_failed",
+            ErrorCode::StateBusy => "state_busy",
+            ErrorCode::StateQuarantined => "state_quarantined",
+            ErrorCode::StateWorkspaceChanged => "state_workspace_changed",
+            ErrorCode::CredentialPersisted => "credential_persisted",
             ErrorCode::InternalError => "internal_error",
         }
     }
@@ -814,8 +831,14 @@ pub fn exit_code_for(code: ErrorCode) -> i32 {
         | ErrorCode::AttemptExists
         | ErrorCode::ExecFailed
         // J5-B1: X04
-        | ErrorCode::ExecInterpreterMissing => 125,
+        | ErrorCode::ExecInterpreterMissing
+        // J14: refusals before exec
+        | ErrorCode::StateBusy
+        | ErrorCode::StateQuarantined
+        | ErrorCode::StateWorkspaceChanged => 125,
         ErrorCode::CommandForbidden
+        // J14: found at a release, after the target ran
+        | ErrorCode::CredentialPersisted
         | ErrorCode::EvidenceLost
         | ErrorCode::TreeUnknown
         // J5-B1: §6.4
@@ -1051,6 +1074,44 @@ pub struct Applied {
     pub environment_names: Vec<String>,
     /// Environment names removed from an inherited environment.
     pub removed_environment_names: Vec<String>,
+    /// J14: the operator's terminal, present only when it was attached
+    /// (jail-interactive-sessions.md §3.7).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terminal: Option<AppliedTerminal>,
+}
+
+/// J14: the terminal an attached run gave its command
+/// (jail-interactive-sessions.md §3.7).
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AppliedTerminal {
+    /// Always `pty`: only a pseudo-terminal slave attaches.
+    pub device: String,
+    /// Always `caller`: the command runs in the operator's session.
+    pub session: String,
+    /// Always `own`: the command's process group is its own.
+    pub process_group: String,
+    /// How many stops of the command the supervisor relayed.
+    pub stops: u64,
+    /// What the settlement restore did; null until the supervisor's end.
+    pub restored: Option<TerminalRestored>,
+}
+
+/// J14: the steps of the settlement restore (§3.6), each true when it
+/// succeeded.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TerminalRestored {
+    /// The supervisor's group took the foreground back.
+    pub foreground: bool,
+    /// The saved `termios` was put back.
+    pub termios: bool,
+    /// Pending input was discarded.
+    pub input_flushed: bool,
+    /// The attribute reset and the show-pointer sequence reached stderr.
+    pub reset_written: bool,
+    /// The steps ran after verified tree death.
+    pub after_tree_death: bool,
 }
 
 /// Per-source health (§11.4).
@@ -1330,6 +1391,50 @@ pub enum StateCleanup {
     Pending,
     /// Deletion and the directory sync completed.
     Complete,
+    /// J14: persistent vendor state was released: discards applied, digest
+    /// and generation recorded, lease dropped; kept by design.
+    Released,
+}
+
+/// J14: what an attempt's persistent vendor state was
+/// (jail-interactive-sessions.md §4.7). Present whenever the snapshot asked
+/// for persistent state. Carries no path, name, size or content digest.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum VendorStateRecord {
+    /// The attempt held the persistent state.
+    Persistent {
+        /// `st_<uuid>`.
+        state_id: String,
+        /// The generation the attempt started from.
+        generation_start: u64,
+        /// The generation its release recorded; null until release.
+        generation_end: Option<u64>,
+        /// The attempt whose release produced the starting state; null for
+        /// a new state.
+        inherited_from: Option<String>,
+        /// Whether the state was unchanged since that release; null with a
+        /// reason when no comparison is claimed.
+        matches_release: Option<bool>,
+        /// `new_state`, `state_too_large` or `unreadable` when
+        /// `matches_release` is null.
+        matches_release_reason: Option<String>,
+        /// Discard-list entries removed at release.
+        discarded: u64,
+        /// `clean`, `found` or `not_scanned`; null before release.
+        secret_scan: Option<String>,
+    },
+    /// The persistent state was busy, so the attempt used throwaway state.
+    AttemptFallback {
+        /// The persistent state's id; null when its record could not be
+        /// read (the holder was still creating it).
+        state_id: Option<String>,
+        /// `held` or `unreleased`.
+        reason: String,
+        /// The attempt named in the pre-exec line, or null for "another
+        /// attempt".
+        held_by: Option<String>,
+    },
 }
 
 /// A staged credential's provenance (§12).
@@ -1391,6 +1496,9 @@ pub struct Receipt {
     pub state_cleanup: StateCleanup,
     /// A safe cleanup failure reason, or null.
     pub cleanup_error: Option<String>,
+    /// J14: the persistent vendor state the snapshot asked for.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vendor_state: Option<VendorStateRecord>,
     /// Creation time, RFC 3339 UTC.
     pub created_at: String,
     /// Last update time, RFC 3339 UTC.
@@ -1440,6 +1548,8 @@ pub struct AttemptRecord {
     pub state_cleanup: StateCleanup,
     /// A safe cleanup failure reason, or null.
     pub cleanup_error: Option<String>,
+    /// J14: the persistent vendor state the snapshot asked for.
+    pub vendor_state: Option<VendorStateRecord>,
     /// Creation time.
     pub created_at: SystemTime,
     /// Last update time.
@@ -1484,6 +1594,7 @@ impl AttemptRecord {
             outcome: self.outcome.clone(),
             state_cleanup: self.state_cleanup,
             cleanup_error: self.cleanup_error.clone(),
+            vendor_state: self.vendor_state.clone(),
             created_at: rfc3339_utc(self.created_at),
             updated_at: rfc3339_utc(self.updated_at),
             errors: self.errors.clone(),
@@ -2255,6 +2366,10 @@ mod tests {
             C::TreeUnknown,
             C::StateWriteFailed,
             C::StdioFailed,
+            C::StateBusy,
+            C::StateQuarantined,
+            C::StateWorkspaceChanged,
+            C::CredentialPersisted,
             C::InternalError,
         ];
         for code in codes {
@@ -2283,6 +2398,10 @@ mod tests {
                 | C::TreeUnknown
                 | C::StateWriteFailed
                 | C::StdioFailed
+                | C::StateBusy
+                | C::StateQuarantined
+                | C::StateWorkspaceChanged
+                | C::CredentialPersisted
                 | C::InternalError => {}
             }
             assert_eq!(serde_json::to_value(code).unwrap(), code.as_str());

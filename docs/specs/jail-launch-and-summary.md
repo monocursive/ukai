@@ -419,6 +419,11 @@ settings, memory, skills or MCP servers from `~/.claude`; no `--resume`
 across runs (history lives in vendor state, removed at settlement); no git
 push or SSH; no self-update; no network beyond the allowlist.
 
+J14 supersedes this table's vendor-state cell and the `--resume` sentence
+once implemented: the bundled `claude` profile keeps its state per
+workspace, released rather than deleted at settlement
+([jail-interactive-sessions.md](jail-interactive-sessions.md) §4).
+
 ### 3.7 Interactive sessions: why the first claim is headless
 
 jail-v1 §8.3 runs the command in a new session and provides no PTY or
@@ -436,7 +441,10 @@ unmeasured.
 So J12's support claim is `ukai-jail claude -p …` and its equivalents
 (§7, decision 7). The alias still starts an interactive session when asked;
 `doctor --launch` says that mode is unrecorded, and nothing claims it works
-until J14 (§3.8) records it.
+until J14 (§3.8) records it. J14's terminal mode
+([jail-interactive-sessions.md](jail-interactive-sessions.md) §3) supersedes
+the first paragraph once implemented; the interactive compatibility row is
+still separate.
 
 ### 3.8 Next milestone: J14, interactive sessions (outline)
 
@@ -478,7 +486,9 @@ designed in this document and gets its own proposal before any code.
   print); `summary = false` under `[jail]` in `config.toml` makes that the
   default.
   `--label-only` never prints it. The exit code never depends on it.
-- At most eight lines; at most five hosts per list, then `+N more`. Every
+- At most nine lines (eight before J14 added the `state` line,
+  [jail-interactive-sessions.md](jail-interactive-sessions.md) §4.7); at
+  most five hosts per list, then `+N more`. Every
   child-chosen string (paths, hosts) goes through the existing control-byte
   escaping (audit 2026-10-08 M1).
 - **A pure function of evidence.** `summary(receipt, journal) -> Summary`
@@ -654,7 +664,7 @@ in `frozen-schemas.toml` ship with it):
 | K45 | Golden fixtures (receipt plus journal → exact lines): clean settled, observation off, degraded with gaps, refused before exec, unsettled with `tree_unknown`, `none`, `--trace-fd` (no journal), incomplete journal, best-effort after a loss, Claude Code's writes (an open named through a descriptor, its rename named below the descriptor, vendor-state and `/dev/null` writes that are not unnamed), and links (a symlink's link, never its target; a hard link's new name, never the existing file). |
 | K46 | Never overclaims (property test over generated journals): no printed count exceeds the evidence; no listed path is one no result wrote (a symlink's target, a hard link's existing file); every count from a degraded class or incomplete journal carries `at least`; an unsupported class prints `not observed`, never a number; no read count is ever printed. |
 | K47 | Per-class event totals equal `/coverage/<class>/observed_count` on complete journals; a seeded disagreement prints the disagreement and no number. |
-| K48 | Control bytes and escape sequences in child-chosen paths and hosts are escaped; lists truncate with `+N more`; never more than eight lines. |
+| K48 | Control bytes and escape sequences in child-chosen paths and hosts are escaped; lists truncate with `+N more`; never more than eight lines (nine since J14's `state` line). |
 | K49 | X05 with the summary built in: stderr not a terminal, bytes identical to direct execution; under a pseudo-terminal harness, the summary follows the child's last byte. |
 | K50 | `--quiet` and `jail.summary = false` suppress summary and receipt line, errors still print, and the exit code is unchanged in every K45 case. |
 | K51 | Cost on the reference host: an A01-sized journal within the 50 ms budget; a journal past the scan cap prints the receipt-only lines and says so. |

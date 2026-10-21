@@ -263,6 +263,78 @@ pub fn register_execution_leaf(
     })
 }
 
+/// J14: what jail state records about the persistent vendor state an
+/// attempt registered.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct PersistentRegistration {
+    /// `st_<uuid>`.
+    pub state_id: String,
+    /// The state's key.
+    pub key: String,
+    /// The launch profile name.
+    pub launch: String,
+    /// Release progress as last recorded (`pending` or `released`).
+    pub state_cleanup: StateCleanup,
+    /// The safe reason recorded with `pending`.
+    pub reason: Option<String>,
+}
+
+/// J14 §4.3: registers persistent vendor state in jail state before the
+/// attempt records itself as the state's holder, so `gc` knows which
+/// attempt last held which state. The cleanup is `pending` from here until
+/// the release is durable.
+///
+/// # Errors
+/// [`ErrorCode::StateWriteFailed`] when the state write fails.
+pub fn register_persistent_state(
+    attempt_dir: &AttemptDir,
+    state_id: &str,
+    key: &str,
+    launch: &str,
+) -> Result<(), JailError> {
+    update_attempt_state(Site::LaunchState, attempt_dir, |state| {
+        state.persistent_state = Field::Set(super::record::PersistentStateEntry {
+            kind: "persistent".to_owned(),
+            state_id: state_id.to_owned(),
+            key: key.to_owned(),
+            launch: launch.to_owned(),
+            registered_at: crate::records::rfc3339_utc(SystemTime::now()),
+            rest: serde_json::Map::new(),
+        });
+        state.state_cleanup = Field::Set(StateCleanup::Pending);
+        state.cleanup_reason = Field::Null;
+    })
+}
+
+/// J14: the persistent vendor state jail state registers, or `None`.
+///
+/// # Errors
+/// [`ErrorCode::StateWriteFailed`] when jail state cannot be read, or names
+/// persistent state with a cleanup status it cannot parse.
+pub fn persistent_registration(
+    attempt_dir: &AttemptDir,
+) -> Result<Option<PersistentRegistration>, JailError> {
+    let state = read_attempt_state(attempt_dir)?;
+    let Some(entry) = state.persistent_state.get() else {
+        return Ok(None);
+    };
+    let state_cleanup = match state.state_cleanup.get() {
+        Some(status @ (StateCleanup::Pending | StateCleanup::Released)) => *status,
+        other => {
+            return Err(state_parse_failed(format!(
+                "persistent state is registered with cleanup status {other:?}"
+            )));
+        }
+    };
+    Ok(Some(PersistentRegistration {
+        state_id: entry.state_id.clone(),
+        key: entry.key.clone(),
+        launch: entry.launch.clone(),
+        state_cleanup,
+        reason: state.cleanup_reason.get().cloned(),
+    }))
+}
+
 /// Records cleanup progress in jail state, atomically and durably.
 ///
 /// # Errors

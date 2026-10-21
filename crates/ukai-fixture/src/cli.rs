@@ -143,6 +143,8 @@ pub enum Mode {
     Process(ProcessMode),
     #[command(flatten)]
     Introspect(IntrospectMode),
+    #[command(flatten)]
+    Tty(TtyMode),
     /// Run a JSON array of argv arrays in this one process.
     Script { file: OsString },
     #[command(flatten)]
@@ -601,6 +603,98 @@ pub enum IntrospectMode {
     /// (field 22 of `/proc/self/stat`, clock ticks since boot) and the
     /// `NSpid` line of `/proc/self/status` (Linux).
     Identity,
+}
+
+/// Which descriptor a terminal ioctl is made on.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+pub enum TtyTarget {
+    /// Standard input: the attached terminal, when there is one.
+    Stdin,
+    /// `/dev/null`: a device no terminal request applies to, so an answer
+    /// is the filter's.
+    Devnull,
+    /// `/dev/tty`: the controlling terminal, opened again.
+    Devtty,
+}
+
+/// The terminal modes (J14, jail-interactive-sessions.md §6.1): probes that
+/// run inside the jail on an attached terminal, and the job-control shell
+/// and pipeline member that drive and watch one from outside.
+#[derive(Subcommand, Debug)]
+pub enum TtyMode {
+    /// Report what standard input is: `/dev/tty`, the window size, the
+    /// process and foreground groups, the session, `SigBlk`. With
+    /// `--wait-winch MS`, a `tty-ready` line, then whether a `SIGWINCH`
+    /// arrived within MS and the new size.
+    TtyProbe {
+        #[arg(long, value_name = "MS")]
+        wait_winch_ms: Option<u64>,
+        /// Before waiting, turn canonical mode and echo off (signals stay
+        /// on), as an interface reading keys one at a time does.
+        #[arg(long)]
+        cbreak: bool,
+    },
+    /// One ioctl (`tiocsti`, `tioclinux`, `tiocsetd`, `tcgets`,
+    /// `tiocgwinsz`, `tiocgpgrp`, `kdgkbmode`, `kdskbmode`, `kdskbent`) on
+    /// a descriptor, with a harmless argument.
+    TtyIoctl {
+        request: String,
+        #[arg(long, value_enum, default_value_t = TtyTarget::Stdin)]
+        on: TtyTarget,
+    },
+    /// Try every signal route out of this process group: `kill(0)`,
+    /// `kill(-pgid)` for each visible group, `kill(-1)`, then `setpgid` and
+    /// `tcsetpgrp` toward each (SIGNAL ignored here first).
+    TtyKillProbe {
+        #[arg(long, default_value = "TERM")]
+        signal: String,
+    },
+    /// The injection vectors against the terminal (TIOCSTI, TIOCLINUX,
+    /// TIOCSETD, console keyboard ioctls, raw mode and echo off, the
+    /// foreground given to another group, conceal and a status query never
+    /// read), then hold MS milliseconds.
+    TtyMess {
+        #[arg(long, value_name = "MS", default_value_t = 200)]
+        hold_ms: u64,
+    },
+    /// A descendant in a group of its own makes a traced call every 20 ms
+    /// for MS and logs each completion time to DIR/stray.log, while this
+    /// process sleeps as long.
+    TtyStray { dir: OsString, ms: u64 },
+    /// A pipeline member: read stdin to its end catching every catchable
+    /// signal, then write the signals it got to LOG.
+    TrapAll {
+        #[arg(long, value_name = "LOG")]
+        log: OsString,
+    },
+    /// A job-control shell that runs ARGV as its foreground job on the
+    /// terminal it leads, reporting job changes on STATUS_FD and taking
+    /// `fg`, `bg`, `drain` and `quit` on CONTROL_FD.
+    JobShell {
+        #[arg(long, value_name = "FD")]
+        control_fd: i32,
+        #[arg(long, value_name = "FD")]
+        status_fd: i32,
+        /// A second job member, `ARGV | trap-all --log LOG`.
+        #[arg(long, value_name = "LOG")]
+        member: Option<OsString>,
+        /// Run the job in the background: never give it the terminal.
+        #[arg(long)]
+        background: bool,
+        /// The job's standard input is PATH, opened read-write without
+        /// becoming a controlling terminal, instead of the shell's.
+        #[arg(long, value_name = "PATH")]
+        stdin_path: Option<OsString>,
+        /// Signal numbers the job starts with blocked.
+        #[arg(long, value_name = "SIGNAL")]
+        block: Vec<i32>,
+        /// Give the job descriptor 3 as the read end of a pipe whose write
+        /// end is closed (a `--gate-fd 3` that reaches its end at once).
+        #[arg(long)]
+        gate_pipe: bool,
+        #[arg(last = true, required = true, num_args = 1.., value_name = "ARGV")]
+        argv: Vec<OsString>,
+    },
 }
 
 /// The performance workloads and launcher (jail-v1 §5).

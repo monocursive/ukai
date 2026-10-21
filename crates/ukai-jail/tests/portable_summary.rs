@@ -1737,7 +1737,7 @@ fn k48_child_chosen_strings_are_escaped() {
 }
 
 #[test]
-fn k48_lists_truncate_and_the_terminal_form_has_at_most_eight_lines() {
+fn k48_lists_truncate_and_the_terminal_form_has_at_most_nine_lines() {
     let mut fixture = every_class();
     for index in 0..7 {
         fixture.proxy(
@@ -1774,6 +1774,13 @@ fn k48_lists_truncate_and_the_terminal_form_has_at_most_eight_lines() {
     ]);
     fixture.receipt["state_cleanup"] = json!("pending");
     fixture.receipt["child_protection"] = json!("unprotected");
+    // J14 (jail-interactive-sessions.md §5): the `state` line makes nine.
+    fixture.receipt["vendor_state"] = json!({
+        "kind": "attempt_fallback",
+        "state_id": "st_00000000-0000-4000-8000-000000000009",
+        "reason": "held",
+        "held_by": "att_00000000-0000-4000-8000-000000000008",
+    });
     fixture.sync();
     fixture.at(223_000_000_000);
     let summary = fixture.summary();
@@ -1791,7 +1798,18 @@ fn k48_lists_truncate_and_the_terminal_form_has_at_most_eight_lines() {
     assert!(credentials.contains("+2 more"), "{credentials}");
     assert_lines(
         &Summary {
-            lines: summary.lines[5..].to_vec(),
+            lines: summary.lines[4..5].to_vec(),
+            ..summary.clone()
+        },
+        &[
+            "state: NOT kept · this session used throwaway state because \
+             att_00000000-0000-4000-8000-000000000008 held the persistent state for this \
+             workspace",
+        ],
+    );
+    assert_lines(
+        &Summary {
+            lines: summary.lines[6..].to_vec(),
             ..summary.clone()
         },
         &[
@@ -3500,5 +3518,200 @@ fn f2_a_failed_append_is_cut_back_to_the_journals_previous_end() {
             .any(|text| text.contains("journal ends on another receipt's note")),
         "{:?}",
         texts(&after)
+    );
+}
+
+// ===========================================================================
+// K72 (J14, jail-interactive-sessions.md §4.7, §3.6): the `state` line and a
+// failed terminal restore on the `cleanup` line
+// ===========================================================================
+
+const PRIOR: &str = "att_00000000-0000-4000-8000-0000000000aa";
+const STATE: &str = "st_00000000-0000-4000-8000-0000000000bb";
+
+fn persistent_state(
+    generation_end: Option<u64>,
+    matches: Option<bool>,
+    reason: Option<&str>,
+    scan: Option<&str>,
+) -> Value {
+    json!({
+        "kind": "persistent",
+        "state_id": STATE,
+        "generation_start": 4,
+        "generation_end": generation_end,
+        "inherited_from": if reason == Some("new_state") { Value::Null } else { json!(PRIOR) },
+        "matches_release": matches,
+        "matches_release_reason": reason,
+        "discarded": u64::from(generation_end.is_some()),
+        "secret_scan": scan,
+    })
+}
+
+#[test]
+fn k72_the_state_line_says_what_became_of_persistent_state() {
+    let cases: [(Value, &str, &str); 9] = [
+        (
+            persistent_state(Some(5), None, Some("new_state"), Some("clean")),
+            "released",
+            "state: kept, generation 5 · new for this workspace",
+        ),
+        (
+            persistent_state(Some(5), Some(true), None, Some("clean")),
+            "released",
+            "state: kept, generation 5 · started from what att_00000000-0000-4000-8000-0000000000aa \
+             released, unchanged",
+        ),
+        (
+            persistent_state(Some(5), Some(false), None, Some("clean")),
+            "released",
+            "state: kept, generation 5 · CHANGED outside the jail since \
+             att_00000000-0000-4000-8000-0000000000aa released it",
+        ),
+        (
+            persistent_state(Some(5), None, Some("state_too_large"), Some("not_scanned")),
+            "released",
+            "state: kept, generation 5 · started from what att_00000000-0000-4000-8000-0000000000aa \
+             released; too large to tell whether it changed · NOT searched for vault values",
+        ),
+        // Review F1: a release that could not search what it kept says so,
+        // whatever else the line says.
+        (
+            persistent_state(Some(5), Some(true), None, Some("not_scanned")),
+            "released",
+            "state: kept, generation 5 · started from what att_00000000-0000-4000-8000-0000000000aa \
+             released, unchanged · NOT searched for vault values",
+        ),
+        (
+            persistent_state(None, Some(true), None, None),
+            "pending",
+            "state: release pending: run ukai-jail gc",
+        ),
+        (
+            persistent_state(Some(5), Some(true), None, Some("found")),
+            "released",
+            "state: quarantined: a vault credential's value was found in it",
+        ),
+        (
+            json!({"kind": "attempt_fallback", "state_id": STATE, "reason": "held", "held_by": PRIOR}),
+            "complete",
+            "state: NOT kept · this session used throwaway state because \
+             att_00000000-0000-4000-8000-0000000000aa held the persistent state for this workspace",
+        ),
+        (
+            json!({"kind": "attempt_fallback", "state_id": Value::Null, "reason": "unreleased",
+                   "held_by": Value::Null}),
+            "complete",
+            "state: NOT kept · this session used throwaway state because another attempt had not \
+             released the persistent state for this workspace (run ukai-jail gc)",
+        ),
+    ];
+    for (vendor_state, cleanup, expected) in cases {
+        let mut fixture = every_class();
+        fixture.receipt["vendor_state"] = vendor_state.clone();
+        fixture.receipt["state_cleanup"] = json!(cleanup);
+        fixture.sync();
+        let errors: Vec<String> = common::validators()["jail-receipt"]
+            .iter_errors(&fixture.receipt)
+            .map(|error| format!("{error} at {}", error.instance_path()))
+            .collect();
+        assert!(errors.is_empty(), "{expected}: {errors:#?}");
+        let summary = fixture.summary();
+        let line = summary
+            .lines
+            .iter()
+            .find(|line| line.line == "state")
+            .unwrap_or_else(|| panic!("no state line for {expected}"));
+        assert_eq!(line.text, expected);
+        assert_eq!(
+            line.facts, vendor_state,
+            "the facts are the receipt's values"
+        );
+        // The line comes after the credentials and before the evidence.
+        let names: Vec<&str> = summary.lines.iter().map(|line| line.line).collect();
+        let at = names.iter().position(|name| *name == "state").unwrap();
+        assert_eq!(names[at + 1], "evidence", "{names:?}");
+        // A persistent state's pending release is the state line's, not the
+        // cleanup line's.
+        let cleanup_line = summary.lines.iter().find(|line| line.line == "cleanup");
+        if vendor_state["kind"] == "persistent" {
+            assert!(cleanup_line.is_none(), "{cleanup_line:?}");
+        }
+        let json = summary.to_json();
+        let errors: Vec<String> = common::validators()["jail-summary"]
+            .iter_errors(&json)
+            .map(|error| format!("{error} at {}", error.instance_path()))
+            .collect();
+        assert!(errors.is_empty(), "{expected}: {errors:#?}");
+        // K52: summary_check.py recomputes every line from the files.
+        let bin = Bin::new();
+        let attempt = bin.record(&fixture, Some(&fixture.journal()));
+        recompute(&attempt, &json);
+    }
+}
+
+#[test]
+fn k72_a_failed_terminal_restore_is_on_the_cleanup_line() {
+    let mut fixture = every_class();
+    fixture.receipt["applied"]["terminal"] = json!({
+        "device": "pty", "session": "caller", "process_group": "own", "stops": 2,
+        "restored": {"foreground": true, "termios": false, "input_flushed": false,
+                     "reset_written": false, "after_tree_death": true},
+    });
+    fixture.sync();
+    let summary = fixture.summary();
+    let line = summary
+        .lines
+        .iter()
+        .find(|line| line.line == "cleanup")
+        .expect("a cleanup line");
+    assert_eq!(
+        line.text,
+        "terminal not restored (termios, input): run reset"
+    );
+    assert_eq!(
+        line.facts["terminal_restored"],
+        fixture.receipt["applied"]["terminal"]["restored"]
+    );
+    let json = summary.to_json();
+    assert!(
+        common::validators()["jail-summary"]
+            .iter_errors(&json)
+            .next()
+            .is_none()
+    );
+    let bin = Bin::new();
+    let attempt = bin.record(&fixture, Some(&fixture.journal()));
+    recompute(&attempt, &json);
+    // The foreground alone (review F11): another job held the terminal.
+    fixture.receipt["applied"]["terminal"]["restored"] = json!({
+        "foreground": false, "termios": true, "input_flushed": true,
+        "reset_written": true, "after_tree_death": true,
+    });
+    fixture.sync();
+    let summary = fixture.summary();
+    assert_eq!(
+        summary
+            .lines
+            .iter()
+            .find(|line| line.line == "cleanup")
+            .expect("a cleanup line")
+            .text,
+        "terminal not restored (foreground): run reset"
+    );
+    let attempt = bin.record(&fixture, Some(&fixture.journal()));
+    recompute(&attempt, &summary.to_json());
+    // Every step true: no cleanup line for the terminal.
+    fixture.receipt["applied"]["terminal"]["restored"] = json!({
+        "foreground": true, "termios": true, "input_flushed": true,
+        "reset_written": true, "after_tree_death": true,
+    });
+    fixture.sync();
+    assert!(
+        !fixture
+            .summary()
+            .lines
+            .iter()
+            .any(|line| line.text.contains("terminal not restored"))
     );
 }

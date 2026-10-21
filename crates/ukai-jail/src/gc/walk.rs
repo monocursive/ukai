@@ -65,6 +65,9 @@ enum Action {
     WouldRemoveScratch,
     WouldRemoveVendorState,
     WouldCompleteCleanup,
+    // J14 §4.9
+    ReleasedPersistentState,
+    WouldReleasePersistentState,
 }
 
 impl Action {
@@ -84,6 +87,8 @@ impl Action {
             Action::WouldRemoveScratch => "would_remove_scratch",
             Action::WouldRemoveVendorState => "would_remove_vendor_state",
             Action::WouldCompleteCleanup => "would_complete_cleanup",
+            Action::ReleasedPersistentState => "released_persistent_state",
+            Action::WouldReleasePersistentState => "would_release_persistent_state",
         }
     }
 }
@@ -869,7 +874,8 @@ fn proxy_then_resume(
         outcome,
         Ok(cleanup::Resume::NothingPending
             | cleanup::Resume::Completed { .. }
-            | cleanup::Resume::ReceiptCompleted(_))
+            | cleanup::Resume::ReceiptCompleted(_)
+            | cleanup::Resume::PersistentReleased { .. })
     );
     // jail-v1 §13.3: what a replacement of the receipt did, or would do, to
     // the attempt's local journal. A journal gc could not read or append to
@@ -883,7 +889,14 @@ fn proxy_then_resume(
             journal: Some(journal),
         }
         | cleanup::Resume::ReceiptCompleted(journal)
-        | cleanup::Resume::WouldCompleteReceipt(journal),
+        | cleanup::Resume::WouldCompleteReceipt(journal)
+        | cleanup::Resume::PersistentReleased {
+            journal: Some(journal),
+            ..
+        }
+        | cleanup::Resume::WouldReleasePersistent {
+            journal: Some(journal),
+        },
     ) = &outcome
     {
         if let cleanup::JournalNote::Failed(reason) = journal {
@@ -934,6 +947,33 @@ fn proxy_then_resume(
              pending cleanup would be recorded complete"
                 .to_owned(),
         ),
+        // J14 §4.9: gc never removes persistent state; it finishes a
+        // release the dead supervisor could not.
+        Ok(cleanup::Resume::PersistentReleased {
+            receipt_updated,
+            detail,
+            ..
+        }) => {
+            entry.persistent_state = Some(detail);
+            (
+                Action::ReleasedPersistentState,
+                if receipt_updated {
+                    "the pending release of the persistent state completed and the receipt \
+                     records it; the state is kept"
+                } else {
+                    "the pending release of the persistent state completed; jail state and \
+                     this report record it; the state is kept"
+                }
+                .to_owned(),
+            )
+        }
+        Ok(cleanup::Resume::WouldReleasePersistent { .. }) => {
+            entry.persistent_state = Some("would_release".to_owned());
+            (
+                Action::WouldReleasePersistentState,
+                "the records permit the pending release of the persistent state".to_owned(),
+            )
+        }
         Ok(cleanup::Resume::Retained(reason)) => (
             Action::Retained,
             format!("vendor-state cleanup is not permitted: {reason}"),

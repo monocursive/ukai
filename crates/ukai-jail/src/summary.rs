@@ -46,8 +46,9 @@ pub const JSON_LIST: usize = 64;
 /// Every terminal line starts with this, as the receipt line does.
 pub const PREFIX: &str = "ukai-jail: ";
 
-/// The most lines the terminal form prints, the receipt line included (§4.1).
-pub const MAX_TERMINAL_LINES: usize = 8;
+/// The most lines the terminal form prints, the receipt line included (§4.1;
+/// 9 since J14's `state` line, jail-interactive-sessions.md §5).
+pub const MAX_TERMINAL_LINES: usize = 9;
 
 /// The six coverage classes, in the receipt's order (jail-v1 §11.4).
 const CLASSES: [&str; 6] = ["exec", "fs.write", "fs.deny", "net", "proxy.net", "limits"];
@@ -120,7 +121,7 @@ impl JournalState {
 /// behind the text.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Line {
-    /// `status`, `workspace`, `network`, `credentials`, `evidence`,
+    /// `status`, `workspace`, `network`, `credentials`, `state`, `evidence`,
     /// `limits` or `cleanup`.
     pub line: &'static str,
     /// The terminal text, every evidence string in it escaped.
@@ -924,6 +925,7 @@ pub fn summary(receipt: &Value, journal: Journal<'_>) -> Summary {
     };
     let mut lines = vec![view.status(), view.workspace(), view.network()];
     lines.extend(view.credentials());
+    lines.extend(view.state());
     lines.push(view.evidence());
     lines.extend(view.limits());
     lines.extend(view.cleanup());
@@ -1770,25 +1772,134 @@ impl View<'_> {
         })
     }
 
+    // -- persistent vendor state (J14) ---------------------------------------
+
+    /// J14 §4.7: what became of the persistent vendor state the snapshot
+    /// asked for; the facts are the receipt's `vendor_state` values.
+    fn state(&self) -> Option<Line> {
+        let state = self.receipt.pointer("/vendor_state")?;
+        let cleanup = self.text("/state_cleanup");
+        let field = |name: &str| state.get(name).and_then(Value::as_str).map(shown);
+        let text = match state.get("kind").and_then(Value::as_str) {
+            Some("attempt_fallback") => {
+                let holder = field("held_by").unwrap_or_else(|| "another attempt".to_owned());
+                if state.get("reason").and_then(Value::as_str) == Some("unreleased") {
+                    format!(
+                        "state: NOT kept · this session used throwaway state because {holder} \
+                         had not released the persistent state for this workspace (run ukai-jail \
+                         gc)"
+                    )
+                } else {
+                    format!(
+                        "state: NOT kept · this session used throwaway state because {holder} \
+                         held the persistent state for this workspace"
+                    )
+                }
+            }
+            Some("persistent") => {
+                let generation = state.get("generation_end").and_then(Value::as_u64);
+                let from =
+                    field("inherited_from").unwrap_or_else(|| "an earlier attempt".to_owned());
+                if state.get("secret_scan").and_then(Value::as_str) == Some("found") {
+                    "state: quarantined: a vault credential's value was found in it".to_owned()
+                } else if cleanup != Some("released") || generation.is_none() {
+                    "state: release pending: run ukai-jail gc".to_owned()
+                } else {
+                    let generation = generation.unwrap_or(0);
+                    let kept = match (
+                        state.get("matches_release").and_then(Value::as_bool),
+                        state.get("matches_release_reason").and_then(Value::as_str),
+                    ) {
+                        (Some(true), _) => format!(
+                            "state: kept, generation {generation} · started from what {from} \
+                             released, unchanged"
+                        ),
+                        (Some(false), _) => format!(
+                            "state: kept, generation {generation} · CHANGED outside the jail \
+                             since {from} released it"
+                        ),
+                        (None, Some("new_state")) => {
+                            format!("state: kept, generation {generation} · new for this workspace")
+                        }
+                        (None, Some("state_too_large")) => format!(
+                            "state: kept, generation {generation} · started from what {from} \
+                             released; too large to tell whether it changed"
+                        ),
+                        (None, _) => format!(
+                            "state: kept, generation {generation} · started from what {from} \
+                             released; whether it changed is unknown (unreadable)"
+                        ),
+                    };
+                    // §4.5: what is kept was not searched whole for the
+                    // vault values (past the bound, or unreadable).
+                    if state.get("secret_scan").and_then(Value::as_str) == Some("not_scanned") {
+                        kept + " · NOT searched for vault values"
+                    } else {
+                        kept
+                    }
+                }
+            }
+            _ => return None,
+        };
+        Some(Line {
+            line: "state",
+            text,
+            facts: state.clone(),
+        })
+    }
+
     // -- cleanup and protection ---------------------------------------------
 
     fn cleanup(&self) -> Option<Line> {
         let cleanup = self.text("/state_cleanup");
         let protection = self.text("/child_protection");
-        let mut parts = Vec::new();
-        if cleanup == Some("pending") {
-            parts.push("vendor state cleanup pending: run ukai-jail gc");
+        let persistent = self
+            .receipt
+            .pointer("/vendor_state/kind")
+            .and_then(Value::as_str)
+            == Some("persistent");
+        let restored = self.receipt.pointer("/applied/terminal/restored");
+        let mut parts: Vec<String> = Vec::new();
+        // A persistent state's pending release is the `state` line's.
+        if cleanup == Some("pending") && !persistent {
+            parts.push("vendor state cleanup pending: run ukai-jail gc".to_owned());
+        }
+        // J14 §3.6: a restore step that failed is said here; the escape
+        // sequences are cosmetic and only written to a terminal.
+        let failed: Vec<&str> = [
+            ("foreground", "foreground"),
+            ("termios", "termios"),
+            ("input_flushed", "input"),
+        ]
+        .into_iter()
+        .filter(|(field, _)| {
+            restored
+                .and_then(|restored| restored.get(*field))
+                .and_then(Value::as_bool)
+                == Some(false)
+        })
+        .map(|(_, name)| name)
+        .collect();
+        if !failed.is_empty() {
+            parts.push(format!(
+                "terminal not restored ({}): run reset",
+                failed.join(", ")
+            ));
         }
         if protection == Some("unprotected") {
-            parts.push("uncontained (none): nothing above was enforced");
+            parts.push("uncontained (none): nothing above was enforced".to_owned());
         }
         if parts.is_empty() {
             return None;
         }
+        let mut facts = json!({"state_cleanup": cleanup, "child_protection": protection});
+        if let Some(restored) = restored.filter(|restored| !restored.is_null()) {
+            facts["terminal_restored"] = restored.clone();
+        }
         Some(Line {
             line: "cleanup",
             text: parts.join(" · "),
-            facts: json!({"state_cleanup": cleanup, "child_protection": protection}),
+            facts,
         })
     }
 }

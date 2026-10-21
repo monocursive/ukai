@@ -426,6 +426,69 @@
             "type": "string"
           },
           "maxItems": 1024
+        },
+        "terminal": {
+          "description": "J14 (jail-interactive-sessions.md \u00a73.7): the operator's terminal, present only when it was attached. restored is null until the supervisor's end; after_tree_death is false when the restore ran without verified tree death.",
+          "type": "object",
+          "properties": {
+            "device": {
+              "const": "pty"
+            },
+            "session": {
+              "const": "caller"
+            },
+            "process_group": {
+              "const": "own"
+            },
+            "stops": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "restored": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "foreground": {
+                      "type": "boolean"
+                    },
+                    "termios": {
+                      "type": "boolean"
+                    },
+                    "input_flushed": {
+                      "type": "boolean"
+                    },
+                    "reset_written": {
+                      "type": "boolean"
+                    },
+                    "after_tree_death": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "foreground",
+                    "termios",
+                    "input_flushed",
+                    "reset_written",
+                    "after_tree_death"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "required": [
+            "device",
+            "session",
+            "process_group",
+            "stops",
+            "restored"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -1089,8 +1152,10 @@
       "enum": [
         "not_needed",
         "pending",
-        "complete"
-      ]
+        "complete",
+        "released"
+      ],
+      "description": "Vendor-state cleanup. J14 (jail-interactive-sessions.md \u00a74.7) adds released: persistent state was released (discards applied, digest and generation recorded, lease dropped) and is kept by design."
     },
     "cleanup_error": {
       "anyOf": [
@@ -1198,6 +1263,9 @@
         ]
       },
       "maxItems": 1024
+    },
+    "vendor_state": {
+      "$ref": "#/$defs/vendor_state"
     }
   },
   "required": [
@@ -1667,7 +1735,10 @@
           },
           "state_cleanup": {
             "not": {
-              "const": "complete"
+              "enum": [
+                "complete",
+                "released"
+              ]
             }
           }
         }
@@ -2335,6 +2406,153 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "state_cleanup": {
+            "const": "released"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "phase": {
+            "enum": [
+              "refused",
+              "settled"
+            ]
+          },
+          "vendor_state": {
+            "properties": {
+              "kind": {
+                "const": "persistent"
+              }
+            }
+          }
+        },
+        "anyOf": [
+          {
+            "properties": {
+              "lifetime": {
+                "properties": {
+                  "tree_empty": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "phase": {
+                "const": "refused"
+              },
+              "lifetime": {
+                "properties": {
+                  "boundary": {
+                    "const": "pending"
+                  }
+                }
+              },
+              "process": {
+                "type": "null"
+              }
+            }
+          }
+        ],
+        "required": [
+          "vendor_state"
+        ]
+      }
+    },
+    {
+      "$comment": "J14 \u00a74.7: a receipt whose vendor_state.kind is persistent is never complete; an attempt_fallback's state is attempt-private, so it is never released.",
+      "if": {
+        "properties": {
+          "vendor_state": {
+            "properties": {
+              "kind": {
+                "const": "persistent"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "required": [
+          "vendor_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "state_cleanup": {
+            "enum": [
+              "pending",
+              "released"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "vendor_state": {
+            "properties": {
+              "kind": {
+                "const": "attempt_fallback"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "required": [
+          "vendor_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "state_cleanup": {
+            "not": {
+              "const": "released"
+            }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "J14 \u00a74.7: generation_end is recorded only by a release, which the receipt then says.",
+      "if": {
+        "properties": {
+          "vendor_state": {
+            "properties": {
+              "generation_end": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "generation_end"
+            ]
+          }
+        },
+        "required": [
+          "vendor_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "state_cleanup": {
+            "enum": [
+              "released",
+              "pending"
+            ]
+          }
+        }
+      }
     }
   ],
   "$defs": {
@@ -2670,6 +2888,200 @@
         }
       ],
       "$comment": "canonicalization.md \"Native strings\": the UTF-8 form or canonical base64 of bytes that are not UTF-8; no native value contains NUL (the base64 form is checked by the semantic rule native_string)."
+    },
+    "vendor_state": {
+      "description": "J14 (jail-interactive-sessions.md \u00a74.7): the persistent vendor state the snapshot asked for. No path, file name, size or content digest.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "persistent"
+            },
+            "state_id": {
+              "type": "string",
+              "pattern": "^st_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "generation_start": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "generation_end": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "inherited_from": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^att_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "matches_release": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "matches_release_reason": {
+              "enum": [
+                "new_state",
+                "state_too_large",
+                "unreadable",
+                null
+              ]
+            },
+            "discarded": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "secret_scan": {
+              "enum": [
+                "clean",
+                "found",
+                "not_scanned",
+                null
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "state_id",
+            "generation_start",
+            "generation_end",
+            "inherited_from",
+            "matches_release",
+            "matches_release_reason",
+            "discarded",
+            "secret_scan"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "matches_release": {
+                    "type": "null"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "matches_release_reason": {
+                    "type": "string"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "matches_release_reason": {
+                    "type": "null"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "matches_release_reason": {
+                    "const": "new_state"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "inherited_from": {
+                    "type": "null"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "generation_end": {
+                    "type": "null"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "secret_scan": {
+                    "type": "null"
+                  },
+                  "discarded": {
+                    "const": 0
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "secret_scan": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "attempt_fallback"
+            },
+            "state_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^st_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reason": {
+              "enum": [
+                "held",
+                "unreleased"
+              ]
+            },
+            "held_by": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^att_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "state_id",
+            "reason",
+            "held_by"
+          ],
+          "additionalProperties": false
+        }
+      ]
     }
   }
 }

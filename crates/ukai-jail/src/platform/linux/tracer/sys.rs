@@ -194,29 +194,21 @@ pub fn listen(pid: pid_t) -> io::Result<()> {
     .map(|_| ())
 }
 
-/// Whether a stopped tracee is in a group-stop.
+/// Whether a `PTRACE_EVENT_STOP` with stop signal `signal` is a group-stop.
 ///
-/// `PTRACE_GETSIGINFO` is the documented way to tell the two kinds of
-/// `PTRACE_EVENT_STOP` apart: it fails with `EINVAL` for a group-stop and
-/// succeeds for the stop a `PTRACE_INTERRUPT` or a fresh attach produced.
-/// Getting this wrong means either resuming a process the user stopped or
-/// leaving a fresh tracee in `PTRACE_LISTEN` forever.
-pub fn is_group_stop(pid: pid_t) -> bool {
-    // `siginfo_t` is larger than anything the kernel writes here; a local of
-    // the right type is the safe way to give the kernel its buffer.
-    // SAFETY: `siginfo_t` is integers and a union of integers and pointers,
-    // for which all-zero is a valid value; nothing reads it, the kernel only
-    // writes it.
-    let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
-    match ptrace_raw(
-        PTRACE_GETSIGINFO,
-        pid,
-        std::ptr::null_mut(),
-        (&raw mut info).cast::<c_void>(),
-    ) {
-        Ok(_) => false,
-        Err(err) => err.raw_os_error() == Some(libc::EINVAL),
-    }
+/// For a tracee attached with `PTRACE_SEIZE` the kernel reports a group-stop
+/// with the stopping signal and every other `PTRACE_EVENT_STOP` (the stop a
+/// `PTRACE_INTERRUPT` or a fresh attach produced, and the end of a listened
+/// group-stop) with `SIGTRAP` (`do_jobctl_trap`). `PTRACE_GETSIGINFO` cannot
+/// tell them apart here: it fails with `EINVAL` for a group-stop only when the
+/// tracee was not seized, and every tracee of this observer is. Getting this
+/// wrong means either resuming a process the user stopped or leaving a fresh
+/// tracee in `PTRACE_LISTEN` forever.
+pub fn is_group_stop(signal: c_int) -> bool {
+    matches!(
+        signal,
+        libc::SIGSTOP | libc::SIGTSTP | libc::SIGTTIN | libc::SIGTTOU
+    )
 }
 
 /// Send `signal` to one task of this process.

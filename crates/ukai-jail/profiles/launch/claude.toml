@@ -31,9 +31,19 @@
 # placeholder, a headless (`-p`) run contacts only api.anthropic.com with
 # CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1, and no HOME is needed.
 
+# J14 (docs/specs/jail-interactive-sessions.md §4, decision 7): Claude Code's
+# state (settings, onboarding, session history for `--resume`) is kept per
+# launch profile and workspace under the data directory, never in
+# `~/.claude`, and released at the end of every run. A `/login` made inside a
+# session writes `.credentials.json`, which every release removes unread; the
+# vault value is searched for in what is kept, and a state holding it is
+# quarantined. `--state attempt` keeps a run's state throwaway.
+
 name = "claude"
 jail = "agent"
 state_var = "CLAUDE_CONFIG_DIR"
+state = "persistent"
+state_discard = [".credentials.json"]
 credentials_one_of = ["claude-oauth", "anthropic"]
 
 [environment]

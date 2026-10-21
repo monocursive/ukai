@@ -96,6 +96,7 @@ fn settled_receipt(summary: &CoverageSummary) -> serde_json::Value {
             }],
             environment_names: vec!["PATH".to_owned()],
             removed_environment_names: Vec::new(),
+            terminal: None,
         },
         observer: summary.to_observer_record(),
         coverage: summary.to_coverage(),
@@ -130,6 +131,7 @@ fn settled_receipt(summary: &CoverageSummary) -> serde_json::Value {
         updated_at: at,
         errors: vec![lost.to_object()],
         credentials: Vec::new(),
+        vendor_state: None,
     };
     serde_json::to_value(record.receipt(Phase::Settled)).expect("a receipt serializes")
 }

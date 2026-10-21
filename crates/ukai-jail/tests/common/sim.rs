@@ -138,6 +138,7 @@ pub fn contained_applied(network: &str) -> Applied {
         limits: Vec::new(),
         environment_names: Vec::new(),
         removed_environment_names: Vec::new(),
+        terminal: None,
     }
 }
 

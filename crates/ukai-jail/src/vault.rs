@@ -214,6 +214,12 @@ impl Secret {
             .unwrap_or_else(|| env_name(&self.id))
     }
 
+    /// J14 §4.5: every value this secret loaded during the attempt, for the
+    /// release's secret scan of persistent state. Never printed.
+    pub(crate) fn loaded_values(&self) -> (Vec<Zeroizing<Vec<u8>>>, bool) {
+        self.runtime.loaded_values()
+    }
+
     /// The `(dev, ino)` of every executable this secret is bound to, as
     /// pinned when it was staged.
     pub(crate) fn executable_identities(&self) -> Vec<(u64, u64)> {

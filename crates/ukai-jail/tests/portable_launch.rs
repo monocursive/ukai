@@ -396,6 +396,7 @@ impl PreparedExecution for SimPrepared {
             limits: Vec::new(),
             environment_names: Vec::new(),
             removed_environment_names: Vec::new(),
+            terminal: None,
         })
     }
     fn release(
@@ -1723,6 +1724,7 @@ fn stage_one_source(fixture: &Fixture, source: &Path) -> Result<(), (JailError, 
             dest: ukai_jail::records::NativeString::Text("only".into()),
             mode: ukai_jail::policy::CredentialMode::CopyRw,
         }],
+        state_discard: None,
     };
     ukai_jail::credentials::stage(&launch, vendor.as_fd(), &[])
         .map(|_| ())
@@ -2339,6 +2341,7 @@ fn rm16_the_copy_budget_is_cumulative_across_credentials() {
         home_is_state: false,
         state_subdirs: Vec::new(),
         credentials: vec![decl("one"), decl("two")],
+        state_discard: None,
     };
     let vendor_path = fixture.root.join("vendor");
     private_dir(&vendor_path);
@@ -2556,8 +2559,1262 @@ fn stage_one_source_with(
             dest: ukai_jail::records::NativeString::Text("only".into()),
             mode: ukai_jail::policy::CredentialMode::CopyRw,
         }],
+        state_discard: None,
     };
     ukai_jail::credentials::stage(&launch, vendor.as_fd(), forbidden)
         .map(|_| ())
         .map_err(|refusal| (refusal.error, refusal.staged.len()))
+}
+
+// ===========================================================================
+// J14: persistent vendor state (docs/specs/jail-interactive-sessions.md §4,
+// rows K65 to K71, K74 and K75), through the real supervisor over the
+// simulated platform: acquisition, the hand-off, release and `gc` run
+// against the real filesystem.
+// ===========================================================================
+
+mod persistent {
+    use super::*;
+    use ukai_jail::persistent::{
+        self as state, Acquisition, FallbackReason, GcRelease, Releaser, Request,
+    };
+
+    /// A persistent `agent` profile `keeper` whose release discards a file
+    /// and a directory.
+    pub(super) fn keeper(fixture: &Fixture, extra: &str) {
+        fixture.launch(
+            "keeper",
+            &format!(
+                r#"
+name = "keeper"
+jail = "agent"
+state_var = "KEEPER_HOME"
+state = "persistent"
+state_discard = [".login.json", "drop-me"]
+{extra}
+"#
+            ),
+        );
+    }
+
+    pub(super) fn run_keeper(fixture: &Fixture, sim: Sim, extra: &[&str]) -> supervisor::RunReport {
+        let mut flags = vec!["--launch", "keeper"];
+        flags.extend_from_slice(extra);
+        fixture.run(sim, &flags)
+    }
+
+    /// The state's key directory for `keeper` in the fixture's workspace.
+    pub(super) fn key_dir(fixture: &Fixture, workspace: &Path) -> PathBuf {
+        state::key_path(
+            &fixture.data,
+            "keeper",
+            &state::key("keeper", workspace.as_os_str().as_bytes()),
+        )
+    }
+
+    pub(super) fn record(key_dir: &Path) -> serde_json::Value {
+        serde_json::from_slice(&std::fs::read(key_dir.join("state.json")).unwrap()).unwrap()
+    }
+
+    /// The child writes a kept file, the two discard-list entries, a
+    /// symlink out of the state, a FIFO and a socket.
+    pub(super) fn child_writes(content: &'static str, outside: PathBuf) -> Activity {
+        Arc::new(move |vendor: &Path| {
+            std::fs::write(vendor.join("kept.txt"), content).unwrap();
+            std::fs::write(vendor.join(".login.json"), b"a login made inside").unwrap();
+            std::fs::create_dir_all(vendor.join("drop-me/deep")).unwrap();
+            std::fs::write(vendor.join("drop-me/deep/x"), b"x").unwrap();
+            let _ = std::fs::remove_file(vendor.join("link"));
+            std::os::unix::fs::symlink(outside.join("precious"), vendor.join("link")).unwrap();
+            let fifo = vendor.join("fifo");
+            if !fifo.exists() {
+                let path = std::ffi::CString::new(fifo.as_os_str().as_bytes()).unwrap();
+                // SAFETY: mkfifo of a NUL-terminated path the test owns.
+                assert_eq!(unsafe { libc::mkfifo(path.as_ptr(), 0o600) }, 0);
+            }
+            if !vendor.join("sock").exists() {
+                socket_node(&vendor.join("sock"));
+            }
+        })
+    }
+
+    fn vendor_state(receipt: &serde_json::Value) -> serde_json::Value {
+        receipt["vendor_state"].clone()
+    }
+
+    /// K65: the grammar of `state` and `state_discard`.
+    #[test]
+    fn k65_the_state_keys_parse_and_refuse() {
+        let parse = |extra: &str| {
+            launch_profile::parse(
+                &format!("name = \"demo\"\njail = \"agent\"\nstate_var = \"X_HOME\"\n{extra}"),
+                "demo",
+                launch_profile::LaunchSource::Bundled,
+                None,
+            )
+        };
+        let profile = parse("state = \"persistent\"\nstate_discard = [\".a.json\", \"b/c\"]\n")
+            .expect("a persistent profile");
+        assert_eq!(profile.state, launch_profile::StateKind::Persistent);
+        assert_eq!(profile.state_discard.len(), 2);
+        let default = parse("").expect("the default");
+        assert_eq!(default.state, launch_profile::StateKind::Attempt);
+        for (extra, key) in [
+            ("state = \"shared\"\n", "launch.state"),
+            (
+                "state = \"persistent\"\nstate_discard = [\"../up\"]\n",
+                "launch.state_discard",
+            ),
+            (
+                "state = \"persistent\"\nstate_discard = [\"/abs\"]\n",
+                "launch.state_discard",
+            ),
+            (
+                "state = \"persistent\"\nstate_discard = [\"a\", \"a\"]\n",
+                "launch.state_discard",
+            ),
+            (
+                "state = \"persistent\"\nstate_discard = [\"a//b\"]\n",
+                "launch.state_discard",
+            ),
+        ] {
+            let error = parse(extra).expect_err(extra);
+            assert_eq!(error.code, ErrorCode::InvalidConfig, "{extra}");
+            assert_eq!(error.key_path.as_deref(), Some(key), "{extra}: {error:?}");
+        }
+        // §4.5: only vault credentials may reach persistent state.
+        for mode in ["copy_rw", "bind_ro"] {
+            let error = parse(&format!(
+                "state = \"persistent\"\n[credentials.tok]\nsource = \"/etc/hostname\"\n\
+                 dest = \"tok\"\nmode = \"{mode}\"\n"
+            ))
+            .expect_err(mode);
+            assert_eq!(error.code, ErrorCode::InvalidConfig, "{mode}");
+            assert_eq!(
+                error.key_path.as_deref(),
+                Some("launch.credentials.tok.mode"),
+                "{mode}: {error:?}"
+            );
+        }
+    }
+
+    /// K65: `--state` overrides the profile; `--state attempt` gives the
+    /// snapshot a profile without the keys has (rc.3's bytes); persistent
+    /// state refuses copied credentials and the managed gate.
+    #[test]
+    fn k65_state_attempt_restores_the_attempt_private_snapshot() {
+        let fixture = Fixture::new();
+        keeper(&fixture, "");
+        fixture.launch(
+            "plain",
+            "\nname = \"plain\"\njail = \"agent\"\nstate_var = \"KEEPER_HOME\"\n",
+        );
+        let args = |name: &str, state: Option<cli::StateChoice>| PolicyArgs {
+            state,
+            ..launch_args(name, &fixture.workspace)
+        };
+        let persistent = fixture.plan(args("keeper", None)).unwrap();
+        let snapshot = persistent.resolved.snapshot.to_canonical_value().unwrap();
+        assert_eq!(
+            snapshot["roots"]["vendor_state"],
+            serde_json::json!({"kind": "persistent", "profile": "keeper"})
+        );
+        assert_eq!(
+            snapshot["launch"]["state_discard"],
+            serde_json::json!([".login.json", "drop-me"])
+        );
+        assert_schema("policy-snapshot", &snapshot);
+        let attempt = fixture
+            .plan(args("keeper", Some(cli::StateChoice::Attempt)))
+            .unwrap();
+        let plain = fixture.plan(args("plain", None)).unwrap();
+        let attempt_bytes = attempt.resolved.snapshot.canonical_bytes().unwrap();
+        let plain_bytes = plain.resolved.snapshot.canonical_bytes().unwrap();
+        // The launch name is in neither: one profile with the keys and
+        // `--state attempt` is byte for byte one without them.
+        assert_eq!(
+            String::from_utf8_lossy(&attempt_bytes),
+            String::from_utf8_lossy(&plain_bytes).replace("\"plain\"", "\"keeper\"")
+        );
+        assert!(!String::from_utf8_lossy(&attempt_bytes).contains("state_discard"));
+        assert!(!String::from_utf8_lossy(&attempt_bytes).contains("persistent"));
+        // `--state persistent` on the plain profile.
+        let forced = fixture
+            .plan(args("plain", Some(cli::StateChoice::Persistent)))
+            .unwrap();
+        assert!(
+            forced
+                .resolved
+                .snapshot
+                .roots
+                .vendor_state
+                .as_ref()
+                .is_some_and(ukai_jail::policy::VendorStateRoot::is_persistent)
+        );
+        // Without a launch profile.
+        let error = refused(
+            fixture.plan(PolicyArgs {
+                state: Some(cli::StateChoice::Persistent),
+                ..PolicyArgs::default()
+            }),
+            "--state without --launch",
+        );
+        assert_eq!(error.key_path.as_deref(), Some("--state"));
+        // A copied credential and persistent state.
+        let source = fixture.credential("tok", b"value");
+        fixture.launch(
+            "copier",
+            &format!(
+                "\nname = \"copier\"\njail = \"agent\"\n[credentials.tok]\nsource = \"{}\"\n\
+                 dest = \"tok\"\nmode = \"copy_rw\"\n",
+                source.display()
+            ),
+        );
+        let error = refused(
+            fixture.plan(args("copier", Some(cli::StateChoice::Persistent))),
+            "persistent copy_rw",
+        );
+        assert_eq!(error.code, ErrorCode::InvalidConfig);
+        // The managed gate refuses persistent state before any claim.
+        let report = fixture.run(Sim::default(), &["--launch", "keeper", "--gate-fd", "0"]);
+        let error = report.error.expect("a refusal");
+        assert_eq!(error.code, ErrorCode::InvalidConfig, "{error:?}");
+        assert_eq!(error.key_path.as_deref(), Some("--gate-fd"));
+        assert!(report.receipt_path.is_none(), "nothing was claimed");
+    }
+
+    /// K66, K68, K69: the layout, the release (discards without following
+    /// a link, a new generation, the log) and the chain from attempt to
+    /// attempt; a state another workspace's attempt never sees; no receipt
+    /// carries a name below the state or a digest of it.
+    #[test]
+    fn k66_k68_k69_a_persistent_state_is_released_kept_and_chained() {
+        let fixture = Fixture::new();
+        keeper(&fixture, "");
+        let sim = Sim {
+            activity: Some(child_writes("first", fixture.outside.clone())),
+            ..Sim::default()
+        };
+        let first = run_keeper(&fixture, sim.clone(), &[]);
+        assert_eq!(first.exit_code, 0, "{:?}", first.error);
+        let receipt = receipt_json(&first);
+        assert_schema("jail-receipt", &receipt);
+        assert_eq!(receipt["state_cleanup"], "released", "{receipt:#}");
+        let id = receipt["attempt_id"].as_str().unwrap().to_owned();
+        let vs = vendor_state(&receipt);
+        assert_eq!(vs["kind"], "persistent");
+        assert_eq!(vs["generation_start"], 0);
+        assert_eq!(vs["generation_end"], 1);
+        assert_eq!(vs["inherited_from"], serde_json::Value::Null);
+        assert_eq!(vs["matches_release"], serde_json::Value::Null);
+        assert_eq!(vs["matches_release_reason"], "new_state");
+        assert_eq!(vs["discarded"], 2);
+        assert_eq!(vs["secret_scan"], "clean");
+        // The layout: private levels; the platform was handed vendor/.
+        let key = key_dir(&fixture, &fixture.workspace);
+        for (path, mode) in [
+            (fixture.data.join("state"), 0o700),
+            (fixture.data.join("state/keeper"), 0o700),
+            (key.clone(), 0o700),
+            (key.join("vendor"), 0o700),
+            (key.join("state.json"), 0o600),
+            (key.join("lease"), 0o600),
+        ] {
+            let metadata = std::fs::symlink_metadata(&path).unwrap();
+            assert_eq!(metadata.mode() & 0o777, mode, "{}", path.display());
+        }
+        assert_eq!(
+            sim.seen.lock().unwrap().vendor_path.as_deref(),
+            Some(key.join("vendor").as_path())
+        );
+        // The release: discards gone, the link removed as nothing (it is
+        // kept) and never followed, the FIFO and socket recorded unopened.
+        assert!(key.join("vendor/kept.txt").is_file());
+        assert!(!key.join("vendor/.login.json").exists());
+        assert!(!key.join("vendor/drop-me").exists());
+        assert!(
+            std::fs::symlink_metadata(key.join("vendor/link"))
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        assert_outside_untouched(&fixture);
+        let first_record = record(&key);
+        assert_eq!(first_record["generation"], 1);
+        assert_eq!(
+            first_record["holder"],
+            serde_json::json!({"attempt": id, "released": true})
+        );
+        assert_eq!(first_record["log"].as_array().unwrap().len(), 1);
+        assert!(
+            first_record["last_release"]["digest"]
+                .as_str()
+                .unwrap()
+                .starts_with("sha256:")
+        );
+        let state_id = first_record["state_id"].as_str().unwrap().to_owned();
+        assert_eq!(vs["state_id"], state_id.as_str());
+        let jail = jail_state(&first);
+        assert_eq!(jail["persistent_state"]["state_id"], state_id.as_str());
+        assert_eq!(jail["state_cleanup"], "released");
+
+        // N+1: inherited, unchanged.
+        let second = run_keeper(&fixture, Sim::default(), &[]);
+        let receipt = receipt_json(&second);
+        assert_schema("jail-receipt", &receipt);
+        let vs = vendor_state(&receipt);
+        assert_eq!(vs["generation_start"], 1);
+        assert_eq!(vs["generation_end"], 2);
+        assert_eq!(vs["inherited_from"], id.as_str());
+        assert_eq!(vs["matches_release"], true);
+        assert_eq!(vs["matches_release_reason"], serde_json::Value::Null);
+        let second_id = receipt["attempt_id"].as_str().unwrap().to_owned();
+
+        // An operator edit between two attempts.
+        std::fs::write(key.join("vendor/kept.txt"), b"edited outside").unwrap();
+        let third = run_keeper(&fixture, Sim::default(), &[]);
+        let receipt = receipt_json(&third);
+        let vs = vendor_state(&receipt);
+        assert_eq!(vs["inherited_from"], second_id.as_str());
+        assert_eq!(vs["matches_release"], false);
+        let summary = ukai_jail::summary::summarize_attempt(&attempt_dir(&third)).unwrap();
+        let state_line = summary
+            .lines
+            .iter()
+            .find(|line| line.line == "state")
+            .expect("a state line");
+        assert_eq!(
+            state_line.text,
+            format!(
+                "state: kept, generation 3 · CHANGED outside the jail since {second_id} released it"
+            )
+        );
+
+        // Another workspace: another state, which never saw this one.
+        let other = fixture.root.join("other-workspace");
+        private_dir(&other);
+        let mut argv = vec![
+            "ukai-jail".to_owned(),
+            "run".to_owned(),
+            "--workspace".to_owned(),
+        ];
+        argv.push(other.display().to_string());
+        argv.extend(["--launch", "keeper", "--", "simulated-target"].map(str::to_owned));
+        let cli::Command::Run(args) = cli::Cli::parse_from(argv).command else {
+            unreachable!()
+        };
+        let seen = Sim::default();
+        let ctx = fixture.context(Box::new(seen.clone()), Some(fixture.root.join("home")));
+        let elsewhere = supervisor::run(&ctx, &args);
+        let receipt = receipt_json(&elsewhere);
+        assert_eq!(
+            vendor_state(&receipt)["matches_release_reason"],
+            "new_state"
+        );
+        let other_key = key_dir(&fixture, &other.canonicalize().unwrap());
+        assert_ne!(other_key, key);
+        assert!(!other_key.join("vendor/kept.txt").exists());
+
+        // No receipt names anything below the state or carries its digest.
+        let digest = record(&key)["last_release"]["digest"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        for report in [&first, &second, &third, &elsewhere] {
+            let text = std::fs::read_to_string(attempt_dir(report).join("jail.json")).unwrap();
+            for secret in ["kept.txt", ".login.json", "drop-me", digest.as_str()] {
+                assert!(!text.contains(secret), "a receipt carries {secret}");
+            }
+        }
+    }
+
+    /// K68 (L05): a tree whose death is unproved retains the state
+    /// unreleased; the next attempt takes the `unreleased` fallback (or,
+    /// with stderr not a terminal, refuses `state_busy`); `gc` finishes the
+    /// release under the permission rule, never removes the state, and a dry
+    /// run changes nothing; the next attempt acquires it.
+    #[test]
+    fn k68_k71_an_unproved_tree_retains_the_state_and_gc_finishes_its_release() {
+        let fixture = Fixture::new();
+        keeper(&fixture, "");
+        let unproved = run_keeper(
+            &fixture,
+            Sim {
+                tree: TreeEnd::Unknown,
+                activity: Some(child_writes("kept", fixture.outside.clone())),
+                ..Sim::default()
+            },
+            &[],
+        );
+        let receipt = receipt_json(&unproved);
+        assert_schema("jail-receipt", &receipt);
+        assert_eq!(receipt["state_cleanup"], "pending", "{receipt:#}");
+        assert_eq!(
+            vendor_state(&receipt)["generation_end"],
+            serde_json::Value::Null
+        );
+        let unproved_id = receipt["attempt_id"].as_str().unwrap().to_owned();
+        let key = key_dir(&fixture, &fixture.workspace);
+        assert_eq!(
+            record(&key)["holder"],
+            serde_json::json!({"attempt": unproved_id, "released": false})
+        );
+
+        // The next attempt finds it unreleased.
+        let next = run_keeper(&fixture, Sim::default(), &[]);
+        // SAFETY: isatty takes a descriptor number.
+        let terminal = unsafe { libc::isatty(2) } == 1;
+        if terminal {
+            let receipt = receipt_json(&next);
+            assert_schema("jail-receipt", &receipt);
+            assert_eq!(
+                vendor_state(&receipt),
+                serde_json::json!({
+                    "kind": "attempt_fallback",
+                    "state_id": record(&key)["state_id"],
+                    "reason": "unreleased",
+                    "held_by": unproved_id,
+                })
+            );
+            assert_eq!(receipt["state_cleanup"], "complete");
+        } else {
+            let error = next.error.expect("a refusal");
+            assert_eq!(error.code, ErrorCode::StateBusy, "{error:?}");
+            assert!(error.message.contains(&unproved_id), "{}", error.message);
+            assert!(error.message.contains("ukai-jail gc"), "{}", error.message);
+            assert_eq!(next.exit_code, 125);
+        }
+        // Still held, unreleased, unchanged by that attempt.
+        assert_eq!(record(&key)["generation"], 0);
+
+        // While the receipt says the tree is unproved, gc retains it.
+        let report = fixture.gc(false).unwrap();
+        let entry = report
+            .entries
+            .iter()
+            .find(|entry| entry.attempt_id == unproved_id)
+            .unwrap();
+        assert_eq!(entry.action, "retained", "{entry:?}");
+        assert!(entry.reason.contains("tree_unverified"), "{entry:?}");
+        assert_eq!(record(&key)["holder"]["released"], false);
+
+        // Proved dead, the way a dead supervisor's later verification
+        // would (its receipt settled), a dry run changes nothing.
+        let path = attempt_dir(&unproved).join("jail.json");
+        let mut settled = common::read_receipt(&path);
+        settled["phase"] = "settled".into();
+        settled["lifetime"]["tree_empty"] = true.into();
+        settled["lifetime"]["integrity"] = "verified".into();
+        settled["lifetime"]["verified_at"] = settled["updated_at"].clone();
+        settled["outcome"]["kind"] = "exited".into();
+        settled["outcome"]["code"] = 0.into();
+        settled["errors"] = serde_json::json!([]);
+        std::fs::write(&path, serde_json::to_vec_pretty(&settled).unwrap()).unwrap();
+        let before = std::fs::read(key.join("state.json")).unwrap();
+        let report = fixture.gc(true).unwrap();
+        let entry = report
+            .entries
+            .iter()
+            .find(|entry| entry.attempt_id == unproved_id)
+            .unwrap();
+        assert_eq!(entry.action, "would_release_persistent_state", "{entry:?}");
+        assert_eq!(std::fs::read(key.join("state.json")).unwrap(), before);
+        let report = fixture.gc(false).unwrap();
+        let entry = report
+            .entries
+            .iter()
+            .find(|entry| entry.attempt_id == unproved_id)
+            .unwrap();
+        assert_eq!(entry.action, "released_persistent_state", "{entry:?}");
+        assert!(
+            entry
+                .persistent_state
+                .as_deref()
+                .is_some_and(|detail| detail.contains("scan not_scanned")),
+            "{entry:?}"
+        );
+        let gc_receipt = common::read_receipt(&path);
+        assert_schema("jail-receipt", &gc_receipt);
+        assert_eq!(gc_receipt["state_cleanup"], "released");
+        assert_eq!(vendor_state(&gc_receipt)["generation_end"], 1);
+        assert_eq!(vendor_state(&gc_receipt)["secret_scan"], "not_scanned");
+        assert_eq!(record(&key)["holder"]["released"], true);
+        assert_eq!(record(&key)["log"][0]["by"], "gc");
+        // gc never removes the state, and a second pass has nothing to do.
+        assert!(key.join("vendor/kept.txt").is_file());
+        assert!(
+            !key.join("vendor/.login.json").exists(),
+            "gc applied the discard list"
+        );
+        let again = fixture.gc(false).unwrap();
+        let entry = again
+            .entries
+            .iter()
+            .find(|entry| entry.attempt_id == unproved_id)
+            .unwrap();
+        assert_ne!(entry.action, "released_persistent_state", "{entry:?}");
+
+        // The next attempt acquires it.
+        let acquired = run_keeper(&fixture, Sim::default(), &[]);
+        let receipt = receipt_json(&acquired);
+        assert_eq!(vendor_state(&receipt)["kind"], "persistent", "{receipt:#}");
+        assert_eq!(vendor_state(&receipt)["generation_start"], 1);
+        assert_eq!(
+            vendor_state(&receipt)["inherited_from"],
+            unproved_id.as_str()
+        );
+    }
+
+    /// K67: a state another attempt holds gives this one throwaway state
+    /// (stderr a terminal) or refuses `state_busy`; the holder's state,
+    /// generation and digest are unchanged; a quarantined state refuses.
+    #[test]
+    fn k67_a_held_state_is_never_shared() {
+        let fixture = Fixture::new();
+        keeper(&fixture, "");
+        let first = run_keeper(&fixture, Sim::default(), &[]);
+        assert_eq!(first.exit_code, 0);
+        let key = key_dir(&fixture, &fixture.workspace);
+        // A live holder: a claimed attempt whose lease is held, recorded
+        // as the state's holder, and the state's lease held.
+        let holder = ukai_jail::state::AttemptId::generate();
+        let holder_dir = fixture.data.join("attempts").join(holder.as_str());
+        private_dir(&holder_dir);
+        fixture_file(&holder_dir.join("jail.lock"), b"");
+        let holder_lease = ukai_jail::state::Lease::acquire(&holder_dir.join("jail.lock"))
+            .unwrap()
+            .unwrap();
+        let mut held = record(&key);
+        held["holder"] = serde_json::json!({"attempt": holder.as_str(), "released": false});
+        std::fs::write(
+            key.join("state.json"),
+            serde_json::to_vec_pretty(&held).unwrap(),
+        )
+        .unwrap();
+        let before = std::fs::read(key.join("state.json")).unwrap();
+        let levels = state::open_levels(
+            &fixture.data,
+            "keeper",
+            key.file_name().unwrap().to_str().unwrap(),
+            false,
+        )
+        .unwrap()
+        .unwrap();
+        let lease = state::take_lease(&levels.key_dir, &levels.path)
+            .unwrap()
+            .unwrap();
+        let sim = Sim {
+            activity: Some(child_writes("throwaway", fixture.outside.clone())),
+            ..Sim::default()
+        };
+        let second = run_keeper(&fixture, sim.clone(), &[]);
+        // SAFETY: isatty takes a descriptor number.
+        if unsafe { libc::isatty(2) } == 1 {
+            let receipt = receipt_json(&second);
+            assert_schema("jail-receipt", &receipt);
+            assert_eq!(
+                vendor_state(&receipt),
+                serde_json::json!({
+                    "kind": "attempt_fallback",
+                    "state_id": held["state_id"],
+                    "reason": "held",
+                    "held_by": holder.as_str(),
+                })
+            );
+            assert_eq!(receipt["state_cleanup"], "complete");
+            // Throwaway state, at the attempt's own vendor-state.
+            let vendor = sim.seen.lock().unwrap().vendor_path.clone().unwrap();
+            assert_eq!(vendor, attempt_dir(&second).join("vendor-state"));
+            assert!(!vendor.exists(), "throwaway state was removed");
+            let summary = ukai_jail::summary::summarize_attempt(&attempt_dir(&second)).unwrap();
+            let line = summary
+                .lines
+                .iter()
+                .find(|line| line.line == "state")
+                .unwrap();
+            assert!(line.text.starts_with("state: NOT kept"), "{}", line.text);
+        } else {
+            let error = second.error.clone().expect("state_busy");
+            assert_eq!(error.code, ErrorCode::StateBusy, "{error:?}");
+            assert!(error.message.contains(holder.as_str()), "{}", error.message);
+            assert_eq!(second.exit_code, 125);
+        }
+        assert_eq!(
+            std::fs::read(key.join("state.json")).unwrap(),
+            before,
+            "the holder's state changed"
+        );
+        assert!(
+            !key.join("vendor/kept.txt").exists()
+                || std::fs::read(key.join("vendor/kept.txt")).unwrap() != b"throwaway"
+        );
+        drop(lease);
+        drop(holder_lease);
+
+        // Released by its holder: acquired again. Then quarantined: refused.
+        held["holder"]["released"] = true.into();
+        held["quarantine"] = serde_json::json!({
+            "reason": "credential_persisted", "attempt": holder.as_str(),
+            "at": "2026-10-19T00:00:00Z", "files": ["x"],
+        });
+        std::fs::write(
+            key.join("state.json"),
+            serde_json::to_vec_pretty(&held).unwrap(),
+        )
+        .unwrap();
+        let refused = run_keeper(&fixture, Sim::default(), &[]);
+        let error = refused.error.expect("state_quarantined");
+        assert_eq!(error.code, ErrorCode::StateQuarantined, "{error:?}");
+        assert_eq!(refused.exit_code, 125);
+    }
+
+    /// K70 (candidate): a vault credential's value found in the state at
+    /// release quarantines it: `credential_persisted`, `secret_scan: found`,
+    /// the summary says so, the next acquisition refuses, and the value is
+    /// in no receipt, journal or state record.
+    #[test]
+    fn k70_a_vault_value_in_the_state_quarantines_it() {
+        let fixture = Fixture::new();
+        let value = "vault-value-0123456789abcdef";
+        let source = fixture.credential("token", value.as_bytes());
+        keeper(
+            &fixture,
+            &format!(
+                "\n[credentials.token]\nsource = \"{}\"\nmode = \"vault\"\n\
+                 hosts = [\"https://api.example.test\"]\n\n[network]\nallow = [\"api.example.test\"]\n",
+                source.display()
+            ),
+        );
+        let reflected: Activity = Arc::new(move |vendor: &Path| {
+            std::fs::create_dir_all(vendor.join("projects/x")).unwrap();
+            std::fs::write(
+                vendor.join("projects/x/session.jsonl"),
+                format!("{{\"echo\":\"Bearer {value}\"}}\n"),
+            )
+            .unwrap();
+        });
+        let report = run_keeper(
+            &fixture,
+            Sim {
+                activity: Some(reflected),
+                ..Sim::default()
+            },
+            &[],
+        );
+        assert_eq!(report.exit_code, 1, "{:?}", report.error);
+        let receipt = receipt_json(&report);
+        assert_schema("jail-receipt", &receipt);
+        assert_eq!(vendor_state(&receipt)["secret_scan"], "found");
+        assert!(
+            receipt["errors"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|error| error["code"] == "credential_persisted"),
+            "{receipt:#}"
+        );
+        let summary = ukai_jail::summary::summarize_attempt(&attempt_dir(&report)).unwrap();
+        let line = summary
+            .lines
+            .iter()
+            .find(|line| line.line == "state")
+            .unwrap();
+        assert_eq!(
+            line.text,
+            "state: quarantined: a vault credential's value was found in it"
+        );
+        let key = key_dir(&fixture, &fixture.workspace);
+        let quarantine = &record(&key)["quarantine"];
+        assert_eq!(quarantine["reason"], "credential_persisted");
+        assert_eq!(
+            quarantine["files"],
+            serde_json::json!(["projects/x/session.jsonl"])
+        );
+        for file in [
+            "jail.json",
+            "trace.ndjson",
+            "jail-state.json",
+            "policy.json",
+        ] {
+            let path = attempt_dir(&report).join(file);
+            if let Ok(text) = std::fs::read_to_string(&path) {
+                assert!(!text.contains(value), "{file} carries the value");
+            }
+        }
+        assert!(
+            !std::fs::read_to_string(key.join("state.json"))
+                .unwrap()
+                .contains(value)
+        );
+        let next = run_keeper(&fixture, Sim::default(), &[]);
+        assert_eq!(
+            next.error.expect("refused").code,
+            ErrorCode::StateQuarantined
+        );
+    }
+
+    /// K70, review F1: an agent cannot keep a vault value out of the scan by
+    /// making the file holding it, or the directory above it, unreadable to
+    /// its owner: the release regains the owner's read (and search) bits on
+    /// the operator's own entries, finds the value and quarantines the state.
+    #[test]
+    fn k70_an_unreadable_copy_is_still_found() {
+        for locked in ["file", "directory"] {
+            let fixture = Fixture::new();
+            let value = "vault-value-unreadable-0123456789";
+            let source = fixture.credential("token", value.as_bytes());
+            keeper(
+                &fixture,
+                &format!(
+                    "\n[credentials.token]\nsource = \"{}\"\nmode = \"vault\"\n\
+                     hosts = [\"https://api.example.test\"]\n\n[network]\nallow = [\"api.example.test\"]\n",
+                    source.display()
+                ),
+            );
+            let hidden: Activity = Arc::new(move |vendor: &Path| {
+                let dir = vendor.join("projects/x");
+                std::fs::create_dir_all(&dir).unwrap();
+                let file = dir.join("session.jsonl");
+                std::fs::write(&file, format!("{{\"echo\":\"Bearer {value}\"}}\n")).unwrap();
+                let target = if locked == "file" { file } else { dir };
+                std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o000)).unwrap();
+            });
+            let report = run_keeper(
+                &fixture,
+                Sim {
+                    activity: Some(hidden),
+                    ..Sim::default()
+                },
+                &[],
+            );
+            assert_eq!(report.exit_code, 1, "{locked}: {:?}", report.error);
+            let receipt = receipt_json(&report);
+            assert_eq!(vendor_state(&receipt)["secret_scan"], "found", "{locked}");
+            let key = key_dir(&fixture, &fixture.workspace);
+            assert_eq!(
+                record(&key)["quarantine"]["reason"],
+                "credential_persisted",
+                "{locked}"
+            );
+            // The release gave the owner read and search back, not write:
+            // write goes back too, so the fixture's directory can go.
+            std::fs::set_permissions(
+                key.join("vendor/projects/x"),
+                std::fs::Permissions::from_mode(0o700),
+            )
+            .unwrap();
+        }
+    }
+
+    /// K74: a workspace removed and made again at the same path with
+    /// another inode refuses `state_workspace_changed`; the same-inode case
+    /// is a named limit, recorded and not claimed.
+    #[test]
+    fn k74_a_workspace_made_again_refuses_unless_its_inode_was_reused() {
+        let fixture = Fixture::new();
+        keeper(&fixture, "");
+        assert_eq!(run_keeper(&fixture, Sim::default(), &[]).exit_code, 0);
+        // Another inode for certain: made while the old one still exists.
+        let replacement = fixture.root.join("replacement");
+        private_dir(&replacement);
+        std::fs::remove_dir_all(&fixture.workspace).unwrap();
+        std::fs::rename(&replacement, &fixture.workspace).unwrap();
+        let report = run_keeper(&fixture, Sim::default(), &[]);
+        let error = report.error.expect("refused");
+        assert_eq!(error.code, ErrorCode::StateWorkspaceChanged, "{error:?}");
+        assert!(
+            error.message.contains("ukai-jail state rm"),
+            "{}",
+            error.message
+        );
+        // The same path made again at once: the inode may be reused.
+        let removed = std::fs::metadata(&fixture.workspace).unwrap().ino();
+        std::fs::remove_dir(&fixture.workspace).unwrap();
+        private_dir(&fixture.workspace);
+        let reused = std::fs::metadata(&fixture.workspace).unwrap().ino() == removed;
+        println!("k74: the inode of a workspace made again was reused: {reused} (a named limit)");
+    }
+
+    /// K66 (§4.3 "Owner"): an existing level of the layout that is wider
+    /// than 0700, a symlink, or not a directory refuses `unsafe_state_path`
+    /// before anything is read or bound; `vendor/` may only be a directory
+    /// (its mode is the agent's to change, and is reset).
+    #[test]
+    fn k66_a_level_that_is_not_private_refuses() {
+        let acquire = |fixture: &Fixture| {
+            let workspace = fixture.workspace.canonicalize().unwrap();
+            state::acquire(&Request {
+                data_dir: &fixture.data,
+                launch: "keeper",
+                workspace: &workspace,
+                attempt: ukai_jail::state::AttemptId::generate().as_str(),
+            })
+        };
+        let levels = |fixture: &Fixture| {
+            let key = key_dir(fixture, &fixture.workspace.canonicalize().unwrap());
+            vec![
+                fixture.data.join("state"),
+                fixture.data.join("state/keeper"),
+                key.clone(),
+                key.join("vendor"),
+            ]
+        };
+        for (index, kind) in [
+            (0, "wide"),
+            (1, "wide"),
+            (2, "wide"),
+            (0, "link"),
+            (1, "link"),
+            (2, "link"),
+            (3, "link"),
+            (0, "file"),
+            (1, "file"),
+            (2, "file"),
+            (3, "file"),
+        ] {
+            let fixture = Fixture::new();
+            // The layout exists, as after a first run.
+            drop(acquire(&fixture).unwrap());
+            let level = levels(&fixture)[index].clone();
+            match kind {
+                "wide" => std::fs::set_permissions(&level, std::fs::Permissions::from_mode(0o755))
+                    .unwrap(),
+                "link" => {
+                    let real = level.with_extension("real");
+                    std::fs::rename(&level, &real).unwrap();
+                    std::os::unix::fs::symlink(&real, &level).unwrap();
+                }
+                _ => {
+                    std::fs::remove_dir_all(&level).unwrap();
+                    std::fs::write(&level, b"").unwrap();
+                    std::fs::set_permissions(&level, std::fs::Permissions::from_mode(0o600))
+                        .unwrap();
+                }
+            }
+            let error = match acquire(&fixture) {
+                Err(error) => error,
+                Ok(_) => panic!("{kind} level {} was accepted", level.display()),
+            };
+            assert_eq!(
+                error.code,
+                ErrorCode::UnsafeStatePath,
+                "{kind} {}: {error:?}",
+                level.display()
+            );
+        }
+    }
+
+    /// K66 (§4.3, review F4): the lease and the record are private regular
+    /// files; one that is wider than 0600 or a symlink refuses
+    /// `unsafe_state_path`.
+    #[test]
+    fn k66_a_lease_or_record_that_is_not_private_refuses() {
+        let workspace = |fixture: &Fixture| fixture.workspace.canonicalize().unwrap();
+        let acquire = |fixture: &Fixture| {
+            state::acquire(&Request {
+                data_dir: &fixture.data,
+                launch: "keeper",
+                workspace: &workspace(fixture),
+                attempt: ukai_jail::state::AttemptId::generate().as_str(),
+            })
+        };
+        for (file, kind) in [
+            ("lease", "wide"),
+            ("lease", "link"),
+            ("state.json", "wide"),
+            ("state.json", "link"),
+        ] {
+            let fixture = Fixture::new();
+            let Acquisition::Held(mut held) = acquire(&fixture).unwrap() else {
+                panic!("a fresh state is held");
+            };
+            // A record exists once the state was held and released.
+            let attempt = ukai_jail::state::AttemptId::generate();
+            state::hold(&mut held, attempt.as_str()).unwrap();
+            state::release(
+                *held,
+                attempt.as_str(),
+                &[],
+                &[],
+                Releaser::Supervisor { every_value: true },
+            )
+            .unwrap();
+            let path = key_dir(&fixture, &workspace(&fixture)).join(file);
+            if kind == "wide" {
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+            } else {
+                let real = path.with_extension("real");
+                std::fs::rename(&path, &real).unwrap();
+                std::os::unix::fs::symlink(&real, &path).unwrap();
+            }
+            let error = match acquire(&fixture) {
+                Err(error) => error,
+                Ok(_) => panic!("{kind} {file} was accepted"),
+            };
+            assert_eq!(
+                error.code,
+                ErrorCode::UnsafeStatePath,
+                "{kind} {file}: {error:?}"
+            );
+        }
+    }
+
+    /// K67 (review F14): a lease taken for an instant, as `state list`,
+    /// `state show` and `doctor` take it, does not send an acquisition to
+    /// the throwaway fallback; one still taken past the patience does.
+    #[test]
+    fn k67_an_instant_on_the_lease_is_not_a_holder() {
+        let fixture = Fixture::new();
+        let workspace = fixture.workspace.canonicalize().unwrap();
+        let key = state::key("keeper", workspace.as_os_str().as_bytes());
+        let acquire = || {
+            state::acquire(&Request {
+                data_dir: &fixture.data,
+                launch: "keeper",
+                workspace: &workspace,
+                attempt: ukai_jail::state::AttemptId::generate().as_str(),
+            })
+            .unwrap()
+        };
+        drop(acquire());
+        let levels = state::open_levels(&fixture.data, "keeper", &key, false)
+            .unwrap()
+            .unwrap();
+        let brief = state::take_lease(&levels.key_dir, &levels.path)
+            .unwrap()
+            .unwrap();
+        let releaser = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            drop(brief);
+        });
+        assert!(
+            matches!(acquire(), Acquisition::Held(_)),
+            "an instant is not a holder"
+        );
+        releaser.join().unwrap();
+        let long = state::take_lease(&levels.key_dir, &levels.path)
+            .unwrap()
+            .unwrap();
+        assert!(matches!(acquire(), Acquisition::Fallback(_)));
+        drop(long);
+    }
+
+    /// K68, K71 (§4.6, §4.9, review F8): a release, by the supervisor or by
+    /// `gc`, acts only for the attempt the record names as an unreleased
+    /// holder; `gc` over an attempt whose integrity was lost quarantines the
+    /// state instead of releasing it, and the next acquisition refuses.
+    #[test]
+    fn k68_k71_only_the_recorded_holder_is_released() {
+        let fixture = Fixture::new();
+        let workspace = fixture.workspace.canonicalize().unwrap();
+        let key = state::key("keeper", workspace.as_os_str().as_bytes());
+        let acquire = || match state::acquire(&Request {
+            data_dir: &fixture.data,
+            launch: "keeper",
+            workspace: &workspace,
+            attempt: ukai_jail::state::AttemptId::generate().as_str(),
+        })
+        .unwrap()
+        {
+            Acquisition::Held(held) => held,
+            Acquisition::Fallback(_) => panic!("the state is free"),
+        };
+        let holder = ukai_jail::state::AttemptId::generate();
+        let other = ukai_jail::state::AttemptId::generate();
+        let mut held = acquire();
+        state::hold(&mut held, holder.as_str()).unwrap();
+        // The supervisor's release names another attempt: refused, nothing
+        // written.
+        assert_eq!(
+            state::release(
+                *held,
+                other.as_str(),
+                &[],
+                &[],
+                Releaser::Supervisor { every_value: true }
+            )
+            .err(),
+            Some("state_not_held_by_this_attempt".to_owned())
+        );
+        let unchanged = record(&key_dir(&fixture, &workspace));
+        assert_eq!(unchanged["generation"], 0, "{unchanged:#}");
+        assert_eq!(unchanged["holder"]["attempt"], holder.as_str());
+        assert_eq!(unchanged["holder"]["released"], false);
+        // gc for another attempt: not this state's holder.
+        assert!(matches!(
+            state::gc_release(
+                &fixture.data,
+                "keeper",
+                &key,
+                other.as_str(),
+                &[],
+                false,
+                false
+            ),
+            Ok(GcRelease::NotHeld)
+        ));
+        assert_eq!(record(&key_dir(&fixture, &workspace))["generation"], 0);
+        // gc for the holder releases it, unscanned.
+        assert!(matches!(
+            state::gc_release(
+                &fixture.data,
+                "keeper",
+                &key,
+                holder.as_str(),
+                &[],
+                false,
+                false
+            ),
+            Ok(GcRelease::Released(_))
+        ));
+        let released = record(&key_dir(&fixture, &workspace));
+        assert_eq!(released["generation"], 1, "{released:#}");
+        assert_eq!(released["holder"]["released"], true);
+
+        // A supervisor that forgot one of the values it loaded cannot call
+        // its scan clean (review F13).
+        let forgetful = ukai_jail::state::AttemptId::generate();
+        let mut held = acquire();
+        state::hold(&mut held, forgetful.as_str()).unwrap();
+        let released = state::release(
+            *held,
+            forgetful.as_str(),
+            &[],
+            &[b"a-value".as_slice()],
+            Releaser::Supervisor { every_value: false },
+        )
+        .unwrap();
+        assert_eq!(released.secret_scan, "not_scanned");
+
+        // Lost integrity: quarantined, never released.
+        let lost = ukai_jail::state::AttemptId::generate();
+        let mut held = acquire();
+        state::hold(&mut held, lost.as_str()).unwrap();
+        drop(held);
+        assert!(matches!(
+            state::gc_release(
+                &fixture.data,
+                "keeper",
+                &key,
+                lost.as_str(),
+                &[],
+                false,
+                true
+            ),
+            Ok(GcRelease::Quarantined)
+        ));
+        let quarantined = record(&key_dir(&fixture, &workspace));
+        assert_eq!(quarantined["quarantine"]["reason"], "integrity_lost");
+        assert_eq!(quarantined["generation"], 2, "{quarantined:#}");
+        let refused = state::acquire(&Request {
+            data_dir: &fixture.data,
+            launch: "keeper",
+            workspace: &workspace,
+            attempt: ukai_jail::state::AttemptId::generate().as_str(),
+        });
+        assert_eq!(
+            refused.err().map(|error| error.code),
+            Some(ErrorCode::StateQuarantined)
+        );
+    }
+
+    /// K66: host-side walks never follow a link nor open a FIFO, socket or
+    /// device; `discard` removes a link as a link; the manifest's bounds
+    /// make the digest unavailable instead of claiming a match.
+    #[test]
+    fn k66_k73_host_walks_never_follow_and_their_bounds_claim_nothing() {
+        let fixture = Fixture::new();
+        let workspace = fixture.workspace.canonicalize().unwrap();
+        let attempt = ukai_jail::state::AttemptId::generate();
+        let Acquisition::Held(mut held) = state::acquire(&Request {
+            data_dir: &fixture.data,
+            launch: "keeper",
+            workspace: &workspace,
+            attempt: attempt.as_str(),
+        })
+        .unwrap() else {
+            panic!("a fresh state is held");
+        };
+        state::hold(&mut held, attempt.as_str()).unwrap();
+        let vendor = held.vendor_path();
+        // A discard entry that is a symlink to an outside file, one whose
+        // parent is a symlink to an outside directory, a FIFO, a socket.
+        std::os::unix::fs::symlink(fixture.outside.join("precious"), vendor.join(".login.json"))
+            .unwrap();
+        std::os::unix::fs::symlink(&fixture.outside, vendor.join("drop-me")).unwrap();
+        let fifo = std::ffi::CString::new(vendor.join("fifo").as_os_str().as_bytes()).unwrap();
+        // SAFETY: mkfifo of a NUL-terminated path the test owns.
+        assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
+        socket_node(&vendor.join("sock"));
+        let released = state::release(
+            *held,
+            attempt.as_str(),
+            &[
+                ukai_jail::records::NativeString::Text(".login.json".into()),
+                ukai_jail::records::NativeString::Text("drop-me/precious".into()),
+            ],
+            &[],
+            Releaser::Supervisor { every_value: true },
+        )
+        .unwrap();
+        assert_eq!(released.discarded, 1, "only the link itself is removed");
+        assert!(!vendor.join(".login.json").exists());
+        assert_outside_untouched(&fixture);
+        assert!(
+            std::fs::symlink_metadata(vendor.join("drop-me"))
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+
+        // The bounds: past them, no digest and no claim of a match.
+        // SAFETY: a test seam read by this process only.
+        unsafe { std::env::set_var(state::SEAM_BOUNDS, "2,1048576") };
+        let second = ukai_jail::state::AttemptId::generate();
+        let Acquisition::Held(held) = state::acquire(&Request {
+            data_dir: &fixture.data,
+            launch: "keeper",
+            workspace: &workspace,
+            attempt: second.as_str(),
+        })
+        .unwrap() else {
+            panic!("released, so held");
+        };
+        // SAFETY: as above.
+        unsafe { std::env::remove_var(state::SEAM_BOUNDS) };
+        assert_eq!(held.start.matches_release, None);
+        assert_eq!(held.start.matches_release_reason, Some("state_too_large"));
+        drop(held);
+
+        // `state rm` removes links as links.
+        let removed = state::remove(&fixture.data, "keeper", &workspace).unwrap();
+        assert!(
+            matches!(removed, state::Removed::Removed { .. }),
+            "{removed:?}"
+        );
+        assert_outside_untouched(&fixture);
+        assert!(!vendor.exists());
+        let _ = FallbackReason::Held;
+    }
+
+    /// K73 (§4.4, review F7): the walk's depth and byte bounds. A tree
+    /// deeper than the depth bound, or more content than the byte bound, has
+    /// no digest, and the search does not claim to have covered it; within
+    /// both, it has a digest and covers every file.
+    #[test]
+    fn k73_the_walk_bounds_its_depth_and_its_bytes() {
+        let root = common::private_tempdir();
+        let vendor = root.path().join("vendor");
+        let mut deep = vendor.clone();
+        for _ in 0..=state::DEPTH_MAX {
+            deep.push("d");
+        }
+        std::fs::create_dir_all(&deep).unwrap();
+        let open = || ukai_jail::state::anchored::Dir::open_trusted(&vendor).unwrap();
+        let pass = state::manifest(&open(), &[b"needle"]);
+        assert_eq!(pass.digest, Err(state::Unavailable::TooLarge));
+        assert!(!pass.searched_all);
+        std::fs::remove_dir_all(vendor.join("d")).unwrap();
+
+        for name in ["a", "b", "c"] {
+            std::fs::write(vendor.join(name), vec![b'x'; 1000]).unwrap();
+        }
+        // SAFETY: a test seam read by this process only.
+        unsafe { std::env::set_var(state::SEAM_BOUNDS, "65536,2048") };
+        let past = state::manifest(&open(), &[b"needle"]);
+        // SAFETY: as above.
+        unsafe { std::env::set_var(state::SEAM_BOUNDS, "65536,4096") };
+        let within = state::manifest(&open(), &[b"needle"]);
+        // SAFETY: as above.
+        unsafe { std::env::remove_var(state::SEAM_BOUNDS) };
+        assert_eq!(past.digest, Err(state::Unavailable::TooLarge));
+        assert!(!past.searched_all);
+        assert!(within.digest.is_ok(), "{within:?}");
+        assert!(within.searched_all);
+        assert_eq!(within.bytes, 3000);
+    }
+
+    /// K71: `state list`, `state show` and `state rm` through the binary;
+    /// `rm` refuses while an attempt holds the lease.
+    #[test]
+    fn k71_the_state_verbs_list_show_and_remove() {
+        let fixture = inspection_fixture();
+        keeper(&fixture, "");
+        assert_eq!(run_keeper(&fixture, Sim::default(), &[]).exit_code, 0);
+        let workspace = fixture.workspace.display().to_string();
+        let listed = jail_binary(&fixture, &["state", "list", "--json"]);
+        assert!(listed.status.success(), "{listed:?}");
+        let value: serde_json::Value = serde_json::from_slice(&listed.stdout).unwrap();
+        assert_eq!(value.as_array().unwrap().len(), 1, "{value:#}");
+        assert_eq!(value[0]["launch"], "keeper");
+        assert_eq!(value[0]["generation"], 1);
+        assert_eq!(value[0]["held"], false);
+        let shown = jail_binary(
+            &fixture,
+            &["state", "show", "keeper", "--workspace", &workspace],
+        );
+        assert!(shown.status.success(), "{shown:?}");
+        let text = String::from_utf8_lossy(&shown.stdout);
+        assert!(text.contains("generation 1"), "{text}");
+        assert!(text.contains("by supervisor"), "{text}");
+        let key = key_dir(&fixture, &fixture.workspace.canonicalize().unwrap());
+        let levels = state::open_levels(
+            &fixture.data,
+            "keeper",
+            key.file_name().unwrap().to_str().unwrap(),
+            false,
+        )
+        .unwrap()
+        .unwrap();
+        let lease = state::take_lease(&levels.key_dir, &levels.path)
+            .unwrap()
+            .unwrap();
+        let refused = jail_binary(
+            &fixture,
+            &["state", "rm", "keeper", "--workspace", &workspace],
+        );
+        assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+        assert!(key.exists());
+        drop(lease);
+        let removed = jail_binary(
+            &fixture,
+            &["state", "rm", "keeper", "--workspace", &workspace],
+        );
+        assert!(removed.status.success(), "{removed:?}");
+        assert!(!key.exists());
+        let absent = jail_binary(
+            &fixture,
+            &["state", "show", "keeper", "--workspace", &workspace],
+        );
+        assert_eq!(absent.status.code(), Some(1));
+    }
+
+    /// K75: the vendor file a profile discards is named only in data.
+    #[test]
+    fn k75_no_vendor_file_name_in_the_execution_core() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        for krate in ["ukai-jail/src", "ukai-records/src", "ukai-ledger/src"] {
+            let mut stack = vec![root.join(krate)];
+            while let Some(dir) = stack.pop() {
+                for entry in std::fs::read_dir(&dir).unwrap() {
+                    let path = entry.unwrap().path();
+                    if path.is_dir() {
+                        stack.push(path);
+                    } else if let Ok(text) = std::fs::read_to_string(&path) {
+                        assert!(
+                            !text.contains(".credentials.json"),
+                            "{} names a vendor file",
+                            path.display()
+                        );
+                    }
+                }
+            }
+        }
+        let bundled = std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("profiles/launch/claude.toml"),
+        )
+        .unwrap();
+        assert!(bundled.contains("state = \"persistent\""));
+        assert!(bundled.contains("state_discard = [\".credentials.json\"]"));
+    }
 }

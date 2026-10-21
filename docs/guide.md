@@ -451,14 +451,32 @@ A Claude Console API key works instead: `ukai-jail credential set
 anthropic`. The agent only ever holds a placeholder; the jail puts the real
 value in its requests to `api.anthropic.com`, and only for the `claude`
 executable it resolved. Nothing from `~/.claude` is staged, so the run has
-none of your user settings, memory or MCP servers, keeps no session history
-across runs, and cannot push with git or update itself. `ukai-jail explain
+none of your user settings, memory or MCP servers, and cannot push with git
+or update itself. What Claude Code writes in its own configuration directory
+(settings, session history) is kept per repository from one run to the next;
+the credential file it might write is discarded every time. `ukai-jail explain
 --launch claude --from-path` shows the program, its read-only directory and
 the policy before you run it. One combination of the `claude` profile has a
 recorded compatibility run: Claude Code 2.1.302 from the native installer,
 headless, with a setup token, on the Ubuntu 26.04 reference host. Every
 other combination is experimental. That run used the command above, flag
 included.
+
+Without `-p`, the same command opens Claude Code's interactive interface in
+your terminal:
+
+```sh
+ukai-jail claude
+```
+
+Before Claude Code starts, the jail says the terminal is attached and where
+`^C` and `^Z` go: to Claude Code, not the jail. `^Z` and `fg` work as with
+any job. To end the attempt from outside, run the `kill -INT` the line
+prints. The session's history is there next time in the same repository
+(`--resume`), and a second session opened in that repository while the first
+is still running starts with throwaway state, and says so. `ukai-jail state
+list` shows what is kept, and `ukai-jail state rm claude` forgets it. No
+interactive compatibility run is recorded yet, so this mode is experimental.
 
 OpenCode has recorded live runs. The
 [compatibility table](https://github.com/monocursive/ukai/blob/dev/docs/specs/jail-v1/agent-compatibility.md)

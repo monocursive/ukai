@@ -1443,6 +1443,7 @@ mod tests {
                     mode,
                 })
                 .collect(),
+            state_discard: None,
         };
         for check in inspect(&launch, &[]) {
             assert_eq!(
@@ -1588,6 +1589,7 @@ mod tests {
                 .iter()
                 .map(|(declaration, _)| declaration.clone())
                 .collect(),
+            state_discard: None,
         };
         let checks = inspect(&launch, &[]);
         assert_eq!(checks.len(), cases.len());
@@ -1629,6 +1631,7 @@ mod tests {
                 dest: NativeString::Text("a".to_owned()),
                 mode: CredentialMode::CopyRw,
             }],
+            state_discard: None,
         };
         let reported = Mutex::new(0usize);
         let refused = stage_reporting(
@@ -1673,6 +1676,7 @@ mod tests {
                     }
                 })
                 .collect(),
+            state_discard: None,
         }
     }
 
@@ -1879,6 +1883,7 @@ mod tests {
                     mode: CredentialMode::CopyRw,
                 })
                 .collect(),
+            state_discard: None,
         };
         let staged = stage_within(
             &launch,

@@ -423,6 +423,9 @@ pub enum ExecFailureDetail {
     /// object resolution recorded when the launcher checked it, after the
     /// release and immediately before the exec. The launcher did not exec.
     ProgramChanged,
+    /// J14: the launcher could not give the target a process group of its
+    /// own as the terminal's foreground group; nothing was executed.
+    TerminalUnavailable,
 }
 
 impl ExecFailureDetail {
@@ -436,6 +439,7 @@ impl ExecFailureDetail {
             // The recheck before release refuses the same change the same
             // way (§8 item 8).
             ExecFailureDetail::ProgramChanged => crate::records::ErrorCode::PolicyWidening,
+            ExecFailureDetail::TerminalUnavailable => crate::records::ErrorCode::ExecFailed,
         }
     }
 
@@ -449,6 +453,10 @@ impl ExecFailureDetail {
             ExecFailureDetail::ProgramChanged => {
                 "the program --from-path pinned changed between the recheck before release and \
                  its exec (identity mismatch); nothing was run"
+            }
+            ExecFailureDetail::TerminalUnavailable => {
+                "the terminal could not be given to the command's own process group; nothing \
+                 was run (pass --terminal detach to run without it)"
             }
         }
     }
@@ -626,6 +634,30 @@ pub trait RunningExecution {
 
     /// Drains the observer and returns its summary, when one ran.
     fn observer_summary(&mut self) -> Option<crate::observer::CoverageSummary>;
+
+    // J14 terminal mode (jail-interactive-sessions.md §3.4)
+    /// The signal that stopped the target's process group, reported once per
+    /// stop, or `None`. Only an attached run asks.
+    fn target_stop(&mut self) -> Option<i32> {
+        None
+    }
+
+    /// The target's process group, as this process numbers it: the group the
+    /// launcher made, which the supervisor gives the terminal to.
+    fn target_group(&self) -> Option<i32> {
+        None
+    }
+
+    /// Continues the target's process group after a relayed stop.
+    fn continue_target(&mut self) {}
+}
+
+/// J14 §3.3 step 4: captures the signal mask this process inherited, once,
+/// before any thread changes its own: the mask the target is given. Only
+/// Linux runs a target.
+pub fn capture_inherited_mask() {
+    #[cfg(target_os = "linux")]
+    linux::launch::capture_inherited_mask();
 }
 
 /// The kernel release string, or a stated unknown.

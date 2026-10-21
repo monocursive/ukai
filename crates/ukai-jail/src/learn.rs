@@ -292,6 +292,8 @@ pub fn run(ctx: &Context, mut args: LearnArgs) -> Result<i32, String> {
         attempt_id: None,
         label_only: false,
         quiet: true,
+        // J14 §1: `learn` stays detached.
+        terminal: Some(crate::terminal::Choice::Detach),
     };
     let report = supervisor::run_learning(ctx, &run);
     let receipt_path = report

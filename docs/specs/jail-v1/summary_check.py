@@ -679,13 +679,67 @@ def limits_line(receipt):
     return "limits: " + " · ".join(parts), {"hit": listed(hit), "not_applied": listed(not_applied)}
 
 
+def state_line(receipt):
+    """J14 (jail-interactive-sessions.md §4.7): the persistent vendor state;
+    the facts are the receipt's `vendor_state` values."""
+    state = pointer(receipt, "vendor_state")
+    if not isinstance(state, dict):
+        return None
+    cleanup = string(receipt, "state_cleanup")
+    field = lambda name: esc(state[name]) if isinstance(state.get(name), str) else None
+    kind = state.get("kind")
+    if kind == "attempt_fallback":
+        holder = field("held_by") or "another attempt"
+        if state.get("reason") == "unreleased":
+            text = (f"state: NOT kept · this session used throwaway state because {holder} had not "
+                    "released the persistent state for this workspace (run ukai-jail gc)")
+        else:
+            text = (f"state: NOT kept · this session used throwaway state because {holder} held the "
+                    "persistent state for this workspace")
+    elif kind == "persistent":
+        generation = state.get("generation_end")
+        source = field("inherited_from") or "an earlier attempt"
+        matches, reason = state.get("matches_release"), state.get("matches_release_reason")
+        if state.get("secret_scan") == "found":
+            text = "state: quarantined: a vault credential's value was found in it"
+        elif cleanup != "released" or not isinstance(generation, int):
+            text = "state: release pending: run ukai-jail gc"
+        elif matches is True:
+            text = f"state: kept, generation {generation} · started from what {source} released, unchanged"
+        elif matches is False:
+            text = f"state: kept, generation {generation} · CHANGED outside the jail since {source} released it"
+        elif reason == "new_state":
+            text = f"state: kept, generation {generation} · new for this workspace"
+        elif reason == "state_too_large":
+            text = (f"state: kept, generation {generation} · started from what {source} released; "
+                    "too large to tell whether it changed")
+        else:
+            text = (f"state: kept, generation {generation} · started from what {source} released; "
+                    "whether it changed is unknown (unreadable)")
+        if text.startswith("state: kept") and state.get("secret_scan") == "not_scanned":
+            text += " · NOT searched for vault values"
+    else:
+        return None
+    return text, state
+
+
 def cleanup_line(receipt):
     cleanup, protection = string(receipt, "state_cleanup"), string(receipt, "child_protection")
-    parts = (["vendor state cleanup pending: run ukai-jail gc"] if cleanup == "pending" else []) + \
+    persistent = pointer(receipt, "vendor_state", "kind") == "persistent"
+    restored = pointer(receipt, "applied", "terminal", "restored")
+    failed = [name for field, name in (("foreground", "foreground"), ("termios", "termios"),
+                                       ("input_flushed", "input"))
+              if isinstance(restored, dict) and restored.get(field) is False]
+    parts = (["vendor state cleanup pending: run ukai-jail gc"]
+             if cleanup == "pending" and not persistent else []) + \
+        ([f"terminal not restored ({', '.join(failed)}): run reset"] if failed else []) + \
         (["uncontained (none): nothing above was enforced"] if protection == "unprotected" else [])
     if not parts:
         return None
-    return " · ".join(parts), {"state_cleanup": cleanup, "child_protection": protection}
+    facts = {"state_cleanup": cleanup, "child_protection": protection}
+    if isinstance(restored, dict):
+        facts["terminal_restored"] = restored
+    return " · ".join(parts), facts
 
 
 def main():
@@ -718,6 +772,7 @@ def main():
              ("workspace", workspace_line(receipt, frames, claims, state, size)),
              ("network", network_line(receipt, frames, claims, state, size)),
              ("credentials", credentials_line(receipt, frames, claims, state, size)),
+             ("state", state_line(receipt)),
              ("evidence", evidence_line(receipt, claims, state, size, another)),
              ("limits", limits_line(receipt)),
              ("cleanup", cleanup_line(receipt))]

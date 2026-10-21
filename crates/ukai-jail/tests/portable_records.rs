@@ -874,6 +874,7 @@ fn base_record(containment: Containment, os: Os) -> AttemptRecord {
             limits: Vec::new(),
             environment_names: Vec::new(),
             removed_environment_names: Vec::new(),
+            terminal: None,
         },
         observer: CoverageSummary::unobserved().to_observer_record(),
         coverage: CoverageSummary::unobserved().to_coverage(),
@@ -886,6 +887,7 @@ fn base_record(containment: Containment, os: Os) -> AttemptRecord {
         updated_at: created,
         errors: Vec::new(),
         credentials: Vec::new(),
+        vendor_state: None,
     }
 }
 
@@ -933,6 +935,7 @@ fn contained_application() -> Applied {
         }],
         environment_names: vec!["PATH".to_owned()],
         removed_environment_names: Vec::new(),
+        terminal: None,
     }
 }
 

@@ -22,13 +22,31 @@
 /// written after the escaped text, so the line stays one line.
 pub fn diagnostic(args: std::fmt::Arguments<'_>) {
     use std::io::Write as _;
-    let mut stderr = std::io::stderr().lock();
-    let _ = write!(
-        stderr,
-        "{}",
-        crate::records::escape_control(&args.to_string())
-    );
-    let _ = stderr.write_all(b"\n");
+    let line = crate::records::escape_control(&args.to_string());
+    let write = || {
+        let mut stderr = std::io::stderr().lock();
+        let _ = stderr.write_all(line.as_bytes());
+        let _ = stderr.write_all(b"\n");
+    };
+    // J14: while an attached command may hold the terminal's foreground, a
+    // write from this background process must not be stopped by `TOSTOP`,
+    // nor wait without bound on a terminal whose output the command
+    // suspended (`TCOOFF`): a line that cannot be written within the bound
+    // is dropped rather than holding the supervisor (review F2).
+    if crate::terminal::attached() {
+        // SAFETY: isatty takes a descriptor number.
+        if unsafe { libc::isatty(2) } == 1 {
+            let mut bytes = line.into_bytes();
+            bytes.push(b'\n');
+            crate::terminal::with_sigttou_blocked(|| {
+                let _ = crate::terminal::write_bounded(2, &bytes, crate::terminal::RESET_BOUND);
+            });
+        } else {
+            crate::terminal::with_sigttou_blocked(write);
+        }
+    } else {
+        write();
+    }
 }
 
 /// [`diagnostic`] with `format!` syntax: a non-panicking `eprintln!`.
@@ -55,6 +73,7 @@ pub mod learn;
 pub mod lifecycle;
 pub mod network;
 pub mod observer;
+pub mod persistent;
 pub mod platform;
 pub mod policy;
 pub mod profiles;
@@ -66,5 +85,6 @@ pub mod summary;
 pub mod supervisor;
 pub(crate) mod sync;
 pub(crate) mod sys;
+pub mod terminal;
 pub mod trace;
 pub(crate) mod vault;

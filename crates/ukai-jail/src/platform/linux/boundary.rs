@@ -1234,6 +1234,8 @@ fn set_launcher(
         nofile_soft: launcher.nofile_soft,
         // Review F5: checked immediately before the exec.
         pins: plan.exec_pins.clone(),
+        // J14 §3.3: terminal mode's own process group, made foreground.
+        foreground: snapshot.terminal.is_some(),
         argv: plan
             .argv
             .iter()
@@ -2346,6 +2348,8 @@ fn read_applied(
         limits,
         environment_names,
         removed_environment_names: Vec::new(),
+        // The supervisor records the terminal itself (J14 §3.7).
+        terminal: None,
     })
 }
 

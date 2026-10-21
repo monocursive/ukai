@@ -645,6 +645,23 @@ pub enum Resume {
     ReceiptCompleted(JournalNote),
     /// A dry run of [`Resume::ReceiptCompleted`].
     WouldCompleteReceipt(JournalNote),
+    /// J14 §4.9: this pass finished a pending release of persistent vendor
+    /// state (or found nothing of this attempt's left in it) and recorded
+    /// `released`: in jail state, and in the receipt when the receipt
+    /// itself permits it.
+    PersistentReleased {
+        /// Whether the receipt was replaced with `state_cleanup = released`.
+        receipt_updated: bool,
+        /// What the receipt's journal got, when it was replaced.
+        journal: Option<JournalNote>,
+        /// What happened to the state, for the report's `persistent_state`.
+        detail: String,
+    },
+    /// A dry run: the pending release would run.
+    WouldReleasePersistent {
+        /// What the receipt's journal would get.
+        journal: Option<JournalNote>,
+    },
 }
 
 /// Largest receipt (or `policy.json`) this tool reads back: whoever reads
@@ -851,6 +868,9 @@ fn resume_within(
     gc_verified_leaf: bool,
     visited: &mut usize,
 ) -> Result<Resume, JailError> {
+    if let Some(registration) = state::persistent_registration(attempt_dir)? {
+        return resume_persistent(attempt_dir, &registration, dry_run, gc_verified_leaf);
+    }
     let Some(registration) = state::vendor_registration(attempt_dir)? else {
         return complete_receipt_without_vendor_state(attempt_dir, dry_run);
     };
@@ -950,6 +970,185 @@ fn resume_within(
     })
 }
 
+/// J14 §4.9: `gc` finishing the pending release of the persistent vendor
+/// state an attempt registered, under the permission rule of a pending
+/// vendor-state removal ([`permitted`]): the discard list (from
+/// `policy.json`), the digest, the generation and `released = true`, with
+/// the scan `not_scanned` (only the dead supervisor held the vault values).
+/// Lost integrity leaves the state held and quarantines it. gc never
+/// removes the state itself.
+fn resume_persistent(
+    attempt_dir: &AttemptDir,
+    registration: &state::PersistentRegistration,
+    dry_run: bool,
+    gc_verified_leaf: bool,
+) -> Result<Resume, JailError> {
+    let read = read_receipt(attempt_dir)?;
+    let (mut receipt, replaced) = match read {
+        Some((receipt, replaced)) => (Some(receipt), Some(replaced)),
+        None => (None, None),
+    };
+    let receipt_records = receipt
+        .as_ref()
+        .is_some_and(|receipt| permitted_by(receipt).is_ok());
+    if registration.state_cleanup == StateCleanup::Released
+        && receipt.as_ref().is_none_or(|receipt| {
+            !receipt_records || receipt.state_cleanup == StateCleanup::Released
+        })
+    {
+        return Ok(Resume::NothingPending);
+    }
+    let integrity_lost = match permitted(receipt.as_ref(), gc_verified_leaf) {
+        Ok(()) => false,
+        Err(REASON_INTEGRITY_LOST) => true,
+        Err(reason) => return Ok(Resume::Retained(reason.to_owned())),
+    };
+    let journal_check = |receipt: &Option<Receipt>| {
+        receipt
+            .as_ref()
+            .zip(replaced.as_ref())
+            .filter(|(receipt, _)| {
+                receipt_records && receipt.state_cleanup != StateCleanup::Released
+            })
+            .map(|(receipt, replaced)| receipt_note::check(attempt_dir, receipt, replaced))
+    };
+    if dry_run {
+        if integrity_lost {
+            return Ok(Resume::Retained(REASON_INTEGRITY_LOST.to_owned()));
+        }
+        return Ok(Resume::WouldReleasePersistent {
+            journal: journal_check(&receipt),
+        });
+    }
+    let Some(data_dir) = attempt_dir.root().parent().and_then(Path::parent) else {
+        return Ok(Resume::Retained("data_directory_unknown".to_owned()));
+    };
+    let attempt = attempt_dir
+        .root()
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let discard = match state_discard(attempt_dir) {
+        Ok(discard) => discard,
+        Err(reason) => {
+            state::record_cleanup_at(
+                state::Site::GcResume,
+                attempt_dir,
+                StateCleanup::Pending,
+                Some(&reason),
+            )?;
+            return Ok(Resume::StillPending(reason));
+        }
+    };
+    let outcome = crate::persistent::gc_release(
+        data_dir,
+        &registration.launch,
+        &registration.key,
+        &attempt,
+        &discard,
+        false,
+        integrity_lost,
+    );
+    let (released, detail) = match outcome {
+        Ok(crate::persistent::GcRelease::Released(released)) => {
+            let detail = format!(
+                "released: generation {}, {} discarded, scan {}",
+                released.generation, released.discarded, released.secret_scan
+            );
+            (Some(released), detail)
+        }
+        Ok(crate::persistent::GcRelease::NotHeld) => (
+            None,
+            "nothing of this attempt is left in it: its record names another holder or a \
+             release"
+                .to_owned(),
+        ),
+        Ok(crate::persistent::GcRelease::LeaseHeld) => {
+            return Ok(Resume::Retained("state_lease_held".to_owned()));
+        }
+        Ok(crate::persistent::GcRelease::Quarantined) => {
+            state::record_cleanup_at(
+                state::Site::GcResume,
+                attempt_dir,
+                StateCleanup::Pending,
+                Some(REASON_INTEGRITY_LOST),
+            )?;
+            return Ok(Resume::Retained(format!(
+                "{REASON_INTEGRITY_LOST}: the persistent state is held and quarantined"
+            )));
+        }
+        Ok(crate::persistent::GcRelease::WouldRelease) => {
+            return Ok(Resume::WouldReleasePersistent {
+                journal: journal_check(&receipt),
+            });
+        }
+        Err(reason) => {
+            state::record_cleanup_at(
+                state::Site::GcResume,
+                attempt_dir,
+                StateCleanup::Pending,
+                Some(&reason),
+            )?;
+            return Ok(Resume::StillPending(reason));
+        }
+    };
+    let mut journal = None;
+    if let Some((receipt, replaced)) = receipt
+        .as_mut()
+        .zip(replaced.as_ref())
+        .filter(|_| receipt_records)
+        && receipt.state_cleanup != StateCleanup::Released
+    {
+        if let (
+            Some(released),
+            Some(crate::records::VendorStateRecord::Persistent {
+                generation_end,
+                discarded,
+                secret_scan,
+                ..
+            }),
+        ) = (released.as_ref(), receipt.vendor_state.as_mut())
+        {
+            *generation_end = Some(released.generation);
+            *discarded = released.discarded;
+            *secret_scan = Some(released.secret_scan.to_owned());
+        }
+        journal = Some(finish_receipt(
+            attempt_dir,
+            receipt,
+            replaced,
+            StateCleanup::Released,
+        )?);
+    }
+    state::record_cleanup_at(
+        state::Site::GcResume,
+        attempt_dir,
+        StateCleanup::Released,
+        None,
+    )?;
+    Ok(Resume::PersistentReleased {
+        receipt_updated: receipt_records,
+        journal,
+        detail,
+    })
+}
+
+/// The discard list `policy.json` records for persistent state.
+fn state_discard(attempt_dir: &AttemptDir) -> Result<Vec<crate::records::NativeString>, String> {
+    let bytes = match state::read_capped(&attempt_dir.policy_path(), RECEIPT_MAX) {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return Ok(Vec::new()),
+        Err(error) => return Err(format!("policy.json cannot be read: {error}")),
+    };
+    let policy: serde_json::Value = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("policy.json is not JSON: {error}"))?;
+    match policy.pointer("/snapshot/launch/state_discard") {
+        None | Some(serde_json::Value::Null) => Ok(Vec::new()),
+        Some(list) => serde_json::from_value(list.clone())
+            .map_err(|error| format!("policy.json state_discard: {error}")),
+    }
+}
+
 /// The resumption of an attempt that registered no vendor state: the only
 /// cleanup its receipt can record pending is its managed scratch, which
 /// `gc` removes before it resumes anything (its scratch step). Once none is
@@ -998,7 +1197,18 @@ pub(crate) fn complete_receipt(
     receipt: &mut Receipt,
     replaced: &Replaced,
 ) -> Result<JournalNote, JailError> {
-    receipt.state_cleanup = StateCleanup::Complete;
+    finish_receipt(attempt_dir, receipt, replaced, StateCleanup::Complete)
+}
+
+/// [`complete_receipt`] with the status to record: `complete`, or J14's
+/// `released` for persistent state.
+fn finish_receipt(
+    attempt_dir: &AttemptDir,
+    receipt: &mut Receipt,
+    replaced: &Replaced,
+    status: StateCleanup,
+) -> Result<JournalNote, JailError> {
+    receipt.state_cleanup = status;
     receipt.cleanup_error = None;
     receipt.revision += 1;
     receipt.updated_at = crate::records::rfc3339_utc(std::time::SystemTime::now());
@@ -1636,6 +1846,7 @@ mod tests {
                 limits: Vec::new(),
                 environment_names: Vec::new(),
                 removed_environment_names: Vec::new(),
+                terminal: None,
             },
             observer: CoverageSummary::unobserved().to_observer_record(),
             coverage: CoverageSummary::unobserved().to_coverage(),
@@ -1651,6 +1862,7 @@ mod tests {
             updated_at: std::time::SystemTime::UNIX_EPOCH,
             errors: Vec::new(),
             credentials: Vec::new(),
+            vendor_state: None,
         }
         .receipt(Phase::Enforced)
     }
