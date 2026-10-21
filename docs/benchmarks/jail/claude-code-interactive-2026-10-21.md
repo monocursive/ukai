@@ -215,7 +215,7 @@ After this record, `dev` took two TLS advisory fixes (`rustls-webpki` 0.103.16 a
 | --- | --- | --- | --- |
 | [r01](results/claude-code-interactive-2026-10-21/release-build/runs/r01-first-launch/) | (1) | 1 | **Passed.** Onboarding was theme, security notes and trust, with no login. Manual mode, the permission prompt answered at the keyboard, `greeting.txt` is `hello`. Generation 1, `new_state` |
 | [r02](results/claude-code-interactive-2026-10-21/release-build/runs/r02-resume-continue/) | (2) | 2 | **Passed.** `--resume` and `--continue` continued run (1)'s session; no onboarding |
-| [r07](results/claude-code-interactive-2026-10-21/release-build/runs/) | (7) | 20 | **20/20 passed.** Generations 3–23 |
+| [r07](results/claude-code-interactive-2026-10-21/release-build/runs/) | (7) | 20 | **20/20 passed.** Generations 4–23 |
 | [r03](results/claude-code-interactive-2026-10-21/release-build/runs/r03-workspace-b/) | (3) | 1 | **Passed.** "No conversations found" in B |
 | [r04](results/claude-code-interactive-2026-10-21/release-build/runs/r04-signals-hangup/) | (4) | 1 | **Passed, with the hangup exception.** Resize 120 to 100 columns while generating; `^C` interrupted the turn. nano opened in Claude Code's group and returned. `^Z` relay with the reset, then `fg`. The hangup ended `signaled 9 (operator_signal)`, settled 0.4 s later with tree death verified; `restored` false for four steps, `after_tree_death` true. Generation 24 |
 | [r05](results/claude-code-interactive-2026-10-21/release-build/runs/r05-login/) | (5) | 1 | **Passed.** The same two messages ("Invalid code…", "Request failed with status code 400"). One `platform.claude.com:443` result, with no credential. No `.credentials.json`; `discarded: 0` |
