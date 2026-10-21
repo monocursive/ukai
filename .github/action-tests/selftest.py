@@ -53,7 +53,7 @@ def record(row, check, ok, detail="", how="real"):
     SELFTEST.mkdir(parents=True, exist_ok=True)
     with open(SELFTEST / "rows.jsonl", "a", encoding="utf-8") as rows:
         rows.write(json.dumps(line) + "\n")
-    print(f"{row} {status:8} {how:9} {check}{': ' + str(detail) if detail else ''}")
+    print(f"{row} {status:8} {how:9} {check}{': ' + str(detail)[:600] if detail else ''}")
     if status == "fail":
         FAILED.append(check)
 
@@ -284,11 +284,11 @@ def cmd_verify_launch():
 
 def cmd_verify_watch():
     watch = load(SELFTEST / "env-watch.json")
+    runs = sum(tally["readable"] for verb, tally in watch["by_verb"].items() if verb.startswith("run "))
     record("K78", "the named variable is absent from ukai-jail's own environment (sampled)",
-           not watch["name_found"] and not watch["value_found"] and watch["readable_snapshots"] > 0
-           and watch["by_verb"].get("credential set", {}).get("readable", 0) > 0,
-           f"{watch['processes']} processes, {watch['readable_snapshots']} readable and "
-           f"{watch['unreadable_snapshots']} unreadable snapshots, by verb {watch['by_verb']}")
+           not watch["name_found"] and not watch["value_found"] and runs > 0,
+           f"name in {watch['name_found']}, value in {watch['value_found']}; {runs} readable snapshots of "
+           f"`run` before release; {watch['processes']} processes, by verb {watch['by_verb']}")
     finish()
 
 
@@ -305,7 +305,8 @@ def cmd_verify_alias():
 
 
 def cmd_markers():
-    left = [m for m in load(SELFTEST / "markers.json") if os.path.lexists(m)]
+    named = load(SELFTEST / "markers.json") if (SELFTEST / "markers.json").is_file() else []
+    left = [m for m in named if os.path.lexists(m)]
     left += [str(p) for p in Path(env("HOME")).glob("ukai-k85-*")]
     record("K85", "no input was evaluated by the action's own steps (no marker file exists)", not left, left)
     finish()

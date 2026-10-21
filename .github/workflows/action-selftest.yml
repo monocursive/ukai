@@ -99,6 +99,12 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           persist-credentials: false
+          # The jail refuses a workspace past 100,000 entries (jail-v1 §9.1),
+          # which this repository's full checkout is: this job's runs use it.
+          sparse-checkout: |
+            action
+            .github
+            docs/specs/jail-v1
       - name: Record the image and the sysctl before any action (K84, K77)
         run: python3 -I "$T/selftest.py" begin
       - name: Fixtures
@@ -327,6 +333,12 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           persist-credentials: true
+          # The jail refuses a workspace past 100,000 entries (jail-v1 §9.1),
+          # which this repository's full checkout is: this job's runs use it.
+          sparse-checkout: |
+            action
+            .github
+            docs/specs/jail-v1
       - name: Record the image and the host before any action
         run: |
           python3 -I "$T/selftest.py" begin
@@ -443,6 +455,7 @@ jobs:
           artifact-name: refusals-allowed-${{ matrix.os }}
       - name: Hostile version
         id: hostile-version
+        if: always()
         continue-on-error: true
         uses: ./action
         with:
@@ -452,6 +465,7 @@ jobs:
           version: '$(touch /home/runner/ukai-k85-version)'
       - name: Hostile allow-hosts and limits
         id: hostile-hosts
+        if: always()
         continue-on-error: true
         uses: ./action
         with:
