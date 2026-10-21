@@ -749,11 +749,12 @@ session history persist, so `--resume` works. Nothing is copied from
   credentials (`copy_rw` and `bind_ro` refuse at load). The profile's
   `state_discard` list (`[".credentials.json"]` for `claude`) is removed at
   every release, never followed and never read. The release also searches
-  every file of the state for the vault values this attempt loaded; a hit
-  quarantines the state (`credential_persisted`, exit 1), and the next
-  attempt refuses `state_quarantined` until you inspect it (`state show`
-  names up to 64 of the files and counts the rest), revoke the credential
-  and `state rm` it.
+  every file of the state, and every name and link target in it, for the
+  vault values this attempt loaded; a hit quarantines the state
+  (`credential_persisted`, exit 1), and the next attempt refuses
+  `state_quarantined` until you inspect it (`state show` names up to 64 of
+  the files, a value in a name shown as `[vault value]`, and counts the
+  rest), revoke the credential and `state rm` it.
 - **What the receipt says**: `vendor_state` gives the state id, the
   generation it started from and the one its release recorded, the attempt
   it inherited from, whether the state was unchanged since that release

@@ -1147,3 +1147,19 @@ intent.
     shows and removes the state of a moved workspace and of one whose
     parent is gone too; before, both refused `invalid_config` (`not a
     directory`, `No such file or directory`).
+20. **The scan also searches names and link targets, and keeps a hit found
+    before a bound** (review, 2026-10-21; §4.5 searches "every regular
+    file"). A value an agent put in a file or directory name, in a path
+    across a `/`, or in a symlink's target was not found, although the
+    digest pass reads them all. The release now also searches each entry's
+    path below `vendor/` (where the value first appears in it) and each
+    symlink's target. A file whose reading passed the byte bound or failed
+    lost a hit already found in it, so the release recorded `not_scanned`
+    and quarantined nothing. What was read is now searched before the bound
+    is checked, and a hit found stays a hit. A hit is recorded with every
+    value in its path replaced by `[vault value]`, so `state.json` and
+    `state show` never print the value. K70 finds a value in the first
+    bytes of a file past the byte bound, in a path split across a directory
+    and its file, and in a link target, and a run whose agent names a file
+    after the value quarantines the state with that name recorded redacted;
+    before, none of them was found.

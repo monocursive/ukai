@@ -4187,6 +4187,89 @@ state_discard = [".login.json", "drop-me"]
         assert!(!nested_key.exists());
     }
 
+    /// K70 (review: scan gaps): a value found before a file passed the byte
+    /// bound is still a hit, and a value in an entry's name, in its path
+    /// across a directory, or in a symlink's target is found too, though the
+    /// pass reads nothing behind the link.
+    #[test]
+    fn k70_the_scan_finds_a_value_wherever_the_pass_read_it() {
+        let root = common::private_tempdir();
+        let vendor = root.path().join("vendor");
+        std::fs::create_dir(&vendor).unwrap();
+        let open = || ukai_jail::state::anchored::Dir::open_trusted(&vendor).unwrap();
+        let value: &[u8] = b"needle/0123456789";
+        let mut big = b"Bearer needle/0123456789 ".to_vec();
+        big.resize(8192, b'x');
+        std::fs::write(vendor.join("big"), &big).unwrap();
+        // SAFETY: a test seam read by this process only.
+        unsafe { std::env::set_var(state::SEAM_BOUNDS, "65536,4096") };
+        let past = state::manifest(&open(), &[value]);
+        // SAFETY: as above.
+        unsafe { std::env::remove_var(state::SEAM_BOUNDS) };
+        assert_eq!(past.digest, Err(state::Unavailable::TooLarge));
+        assert_eq!(past.hits, [b"big".to_vec()], "a hit found is a hit");
+        std::fs::remove_file(vendor.join("big")).unwrap();
+
+        std::fs::create_dir(vendor.join("needle")).unwrap();
+        std::fs::write(vendor.join("needle/0123456789.json"), b"{}").unwrap();
+        std::os::unix::fs::symlink("/elsewhere/needle/0123456789", vendor.join("link")).unwrap();
+        let pass = state::manifest(&open(), &[value]);
+        assert!(pass.digest.is_ok(), "{pass:?}");
+        let mut hits = pass.hits.clone();
+        hits.sort();
+        assert_eq!(
+            hits,
+            [b"[vault value].json".to_vec(), b"link".to_vec()],
+            "{:?}",
+            pass.hits
+                .iter()
+                .map(|hit| String::from_utf8_lossy(hit).into_owned())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    /// K70, the same through a run: an entry named after the value
+    /// quarantines the state, and neither the record nor `state show`
+    /// carries the value: the name is recorded with it replaced.
+    #[test]
+    fn k70_a_value_in_a_file_name_quarantines_without_recording_it() {
+        let fixture = Fixture::new();
+        let value = "vault-value-named-0123456789abcdef";
+        let source = fixture.credential("token", value.as_bytes());
+        keeper(
+            &fixture,
+            &format!(
+                "\n[credentials.token]\nsource = \"{}\"\nmode = \"vault\"\n\
+                 hosts = [\"https://api.example.test\"]\n\n[network]\nallow = [\"api.example.test\"]\n",
+                source.display()
+            ),
+        );
+        let named: Activity = Arc::new(move |vendor: &Path| {
+            std::fs::write(vendor.join(format!("cache-{value}")), b"{}").unwrap();
+        });
+        let report = run_keeper(
+            &fixture,
+            Sim {
+                activity: Some(named),
+                ..Sim::default()
+            },
+            &[],
+        );
+        assert_eq!(report.exit_code, 1, "{:?}", report.error);
+        let receipt = receipt_json(&report);
+        assert_eq!(vendor_state(&receipt)["secret_scan"], "found");
+        let key = key_dir(&fixture, &fixture.workspace);
+        assert_eq!(
+            record(&key)["quarantine"]["files"],
+            serde_json::json!(["cache-[vault value]"])
+        );
+        assert!(
+            !std::fs::read_to_string(key.join("state.json"))
+                .unwrap()
+                .contains(value)
+        );
+    }
+
     /// K75: the vendor file a profile discards is named only in data.
     #[test]
     fn k75_no_vendor_file_name_in_the_execution_core() {

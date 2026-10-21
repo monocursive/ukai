@@ -743,11 +743,7 @@ impl<'a> Search<'a> {
             .unwrap_or(0);
         let mut window = std::mem::take(&mut self.tail);
         window.extend_from_slice(chunk);
-        if self
-            .values
-            .iter()
-            .any(|value| !value.is_empty() && contains(&window, value))
-        {
+        if holds(self.values, &window) {
             self.found = true;
             return;
         }
@@ -761,6 +757,35 @@ fn contains(haystack: &[u8], needle: &[u8]) -> bool {
         && haystack
             .windows(needle.len())
             .any(|window| window == needle)
+}
+
+/// Whether `bytes` hold one of `values`.
+fn holds(values: &[&[u8]], bytes: &[u8]) -> bool {
+    values
+        .iter()
+        .any(|value| !value.is_empty() && contains(bytes, value))
+}
+
+/// What a hit is recorded as: its path with every searched value in it
+/// replaced, so that naming the file (in `state.json`, by `state show`)
+/// never prints the value.
+pub const REDACTED: &[u8] = b"[vault value]";
+
+fn redact(values: &[&[u8]], path: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(path.len());
+    let mut rest = path;
+    'scan: while !rest.is_empty() {
+        for value in values.iter().filter(|value| !value.is_empty()) {
+            if rest.starts_with(value) {
+                out.extend_from_slice(REDACTED);
+                rest = &rest[value.len()..];
+                continue 'scan;
+            }
+        }
+        out.push(rest[0]);
+        rest = &rest[1..];
+    }
+    out
 }
 
 struct Pass<'a> {
@@ -778,10 +803,13 @@ struct Pass<'a> {
 
 /// One manifest pass over `vendor` (§4.6): sorted entries of relative path
 /// bytes, type, permission bits, size, a regular file's content SHA-256 and
-/// a symlink's target bytes, digested with SHA-256. Every regular file is
-/// also searched for each of `values` (§4.5). Bounded by [`bounds`]: past
-/// them, or when an entry cannot be read, there is no digest, and the
-/// search did not cover every file.
+/// a symlink's target bytes, digested with SHA-256. Everything the pass
+/// reads is also searched for each of `values` (§4.5): every regular file's
+/// content, every symlink's target, and every entry's path below `vendor`
+/// (a value split across a `/` included); a hit is recorded as its path
+/// with the values in it [`REDACTED`]. Bounded by [`bounds`]: past them, or
+/// when an entry cannot be read, there is no digest, and the search did not
+/// cover every file, though what it found is still a hit.
 #[must_use]
 pub fn manifest(vendor: &Dir, values: &[&[u8]]) -> Manifest {
     let (entries_max, bytes_max) = bounds();
@@ -881,6 +909,9 @@ fn walk(pass: &mut Pass<'_>, dir: &Dir, prefix: &[u8], depth: usize) {
             continue;
         };
         let stat = readable(dir, &entry, stat);
+        // The entry's name (with its path, so a value split across a `/` is
+        // found), only where the value first appears in the path.
+        let mut found = holds(pass.values, &relative) && !holds(pass.values, prefix);
         let mut line = relative.clone();
         line.push(0);
         line.push(kind_code(stat.kind));
@@ -893,25 +924,33 @@ fn walk(pass: &mut Pass<'_>, dir: &Dir, prefix: &[u8], depth: usize) {
                 pass.unavailable.get_or_insert(Unavailable::Unreadable);
                 pass.searched_all = false;
             }
-            Kind::Regular => match read_regular(pass, dir, &entry, &stat) {
-                Ok((sha, found)) => {
-                    line.extend_from_slice(sha.as_bytes());
-                    if found {
-                        pass.hits.push(relative.clone());
+            Kind::Regular => {
+                // A value read before the file passed a bound, or before a
+                // read failed, is a hit all the same.
+                let (sha, in_content) = read_regular(pass, dir, &entry, &stat);
+                found |= in_content;
+                match sha {
+                    Ok(sha) => line.extend_from_slice(sha.as_bytes()),
+                    Err(reason) => {
+                        pass.unavailable.get_or_insert(reason);
+                        pass.searched_all = false;
                     }
                 }
-                Err(reason) => {
-                    pass.unavailable.get_or_insert(reason);
+            }
+            Kind::Symlink => match read_link(dir, &entry) {
+                Ok(target) => {
+                    found |= holds(pass.values, &target);
+                    line.extend_from_slice(&target);
+                }
+                Err(_) => {
+                    pass.unavailable.get_or_insert(Unavailable::Unreadable);
                     pass.searched_all = false;
                 }
             },
-            Kind::Symlink => match read_link(dir, &entry) {
-                Ok(target) => line.extend_from_slice(&target),
-                Err(_) => {
-                    pass.unavailable.get_or_insert(Unavailable::Unreadable);
-                }
-            },
             Kind::Directory => {
+                if found {
+                    pass.hits.push(redact(pass.values, &relative));
+                }
                 pass.lines.push(line);
                 match dir.open_dir_at(&entry, Some(&stat)) {
                     Ok(child) => walk(pass, &child, &relative, depth + 1),
@@ -928,6 +967,9 @@ fn walk(pass: &mut Pass<'_>, dir: &Dir, prefix: &[u8], depth: usize) {
             // FIFOs, sockets and devices (an overlayfs whiteout is a 0:0
             // character device anyone may create): recorded, never opened.
             _ => {}
+        }
+        if found {
+            pass.hits.push(redact(pass.values, &relative));
         }
         pass.lines.push(line);
         if pass.unavailable == Some(Unavailable::TooLarge) {
@@ -962,35 +1004,36 @@ fn readable(dir: &Dir, entry: &Name, stat: Stat) -> Stat {
 }
 
 /// Reads one regular file through a no-follow, non-blocking descriptor
-/// checked against `stat`: its content SHA-256, and whether it holds one of
-/// the searched values.
+/// checked against `stat`: its content SHA-256 (or why there is none), and
+/// whether what was read of it holds one of the searched values.
 fn read_regular(
     pass: &mut Pass<'_>,
     dir: &Dir,
     entry: &Name,
     stat: &Stat,
-) -> Result<(String, bool), Unavailable> {
-    let mut file = dir
-        .open_read_at(entry, Some(stat))
-        .map_err(|_| Unavailable::Unreadable)?;
+) -> (Result<String, Unavailable>, bool) {
+    let Ok(mut file) = dir.open_read_at(entry, Some(stat)) else {
+        return (Err(Unavailable::Unreadable), false);
+    };
     let mut hash = Sha256::new();
     let mut search = Search::new(pass.values);
     let mut buffer = vec![0u8; 64 * 1024];
     loop {
-        let n = file
-            .read(&mut buffer)
-            .map_err(|_| Unavailable::Unreadable)?;
+        let Ok(n) = file.read(&mut buffer) else {
+            return (Err(Unavailable::Unreadable), search.found);
+        };
         if n == 0 {
             break;
         }
+        // Searched before the bound is checked: the bytes are read already.
+        search.feed(&buffer[..n]);
         pass.bytes += n as u64;
         if pass.bytes > pass.bytes_max {
-            return Err(Unavailable::TooLarge);
+            return (Err(Unavailable::TooLarge), search.found);
         }
         hash.update(&buffer[..n]);
-        search.feed(&buffer[..n]);
     }
-    Ok((format!("{:x}", hash.finalize()), search.found))
+    (Ok(format!("{:x}", hash.finalize())), search.found)
 }
 
 /// The target bytes of a symlink entry, never followed.
