@@ -29,6 +29,7 @@
 //!
 //! Nothing here names an agent (I02): the launch profile's name is data.
 
+use std::ffi::OsStr;
 use std::io::{Read as _, Write as _};
 use std::os::fd::{AsFd as _, AsRawFd as _};
 use std::os::unix::ffi::OsStrExt as _;
@@ -516,21 +517,87 @@ pub fn take_lease(key_dir: &Dir, path: &Path) -> Result<Option<Lease>, JailError
 /// taken after this long is held.
 pub const LEASE_PATIENCE: std::time::Duration = std::time::Duration::from_millis(250);
 
-/// [`take_lease`], retried every 10 ms for [`LEASE_PATIENCE`].
-///
-/// # Errors
-/// As [`take_lease`].
-pub fn take_lease_patiently(key_dir: &Dir, path: &Path) -> Result<Option<Lease>, JailError> {
-    let started = std::time::Instant::now();
-    loop {
-        if let Some(lease) = take_lease(key_dir, path)? {
-            return Ok(Some(lease));
-        }
-        if started.elapsed() >= LEASE_PATIENCE {
-            return Ok(None);
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
+/// The prefix of the name `state rm` gives a key directory before removing
+/// it: a key is hex digits, so a tombstone is never one.
+pub const TOMBSTONE_PREFIX: &str = ".removing-";
+
+/// Whether `entry` is a tombstone: `.removing-<key>-<32 hex digits>`.
+#[must_use]
+pub fn is_tombstone(entry: &[u8]) -> bool {
+    let hex = |part: &[u8]| part.len() == 32 && part.iter().all(u8::is_ascii_hexdigit);
+    entry
+        .strip_prefix(TOMBSTONE_PREFIX.as_bytes())
+        .filter(|rest| rest.len() == 65 && rest[32] == b'-')
+        .is_some_and(|rest| hex(&rest[..32]) && hex(&rest[33..]))
+}
+
+/// Whether `levels.key_dir` is still the directory at `<launch>/<key>`.
+/// `state rm` renames a state away from its path, under its lease, before
+/// removing it, so a lease taken in a directory that is no longer there
+/// holds nothing (review: `state rm` was not atomic).
+fn linked(levels: &Levels) -> Result<bool, JailError> {
+    let held = levels
+        .key_dir
+        .stat()
+        .map_err(|error| write_failed(&levels.path, &error))?;
+    match levels.launch_dir.stat_at(&name(&levels.key)) {
+        Ok(now) => Ok(now.identity() == held.identity()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(write_failed(&levels.path, &error)),
     }
+}
+
+/// What [`lease_linked`] found.
+enum Leasing {
+    /// No state has that key (without `create`).
+    Absent,
+    /// The lease, taken in the directory linked at the key.
+    Taken(Levels, Lease),
+    /// Another process holds it.
+    Busy(Levels),
+}
+
+/// How often [`lease_linked`] starts again on a directory renamed away under
+/// it before it gives up.
+const RELINK_TRIES: usize = 8;
+
+/// Opens the levels (creating them with `create`) and takes the lease,
+/// retried every 10 ms for `patience`, in the key directory that is linked
+/// at `<launch>/<key>` once the lease is taken. A directory `state rm` renamed
+/// away meanwhile is left, and the levels are opened again: a new state's,
+/// with `create`.
+fn lease_linked(
+    data_dir: &Path,
+    launch: &str,
+    key: &str,
+    create: bool,
+    patience: std::time::Duration,
+) -> Result<Leasing, JailError> {
+    for _ in 0..RELINK_TRIES {
+        let Some(levels) = open_levels(data_dir, launch, key, create)? else {
+            return Ok(Leasing::Absent);
+        };
+        let started = std::time::Instant::now();
+        while linked(&levels)? {
+            match take_lease(&levels.key_dir, &levels.path) {
+                Ok(Some(lease)) if linked(&levels)? => return Ok(Leasing::Taken(levels, lease)),
+                Ok(Some(_)) => break,
+                Ok(None) if started.elapsed() >= patience => return Ok(Leasing::Busy(levels)),
+                Ok(None) => std::thread::sleep(std::time::Duration::from_millis(10)),
+                Err(error) if linked(&levels)? => return Err(error),
+                Err(_) => break,
+            }
+        }
+    }
+    Err(JailError::new(
+        ErrorCode::StateWriteFailed,
+        ErrorStage::Preparing,
+        Remediation::InspectState,
+        format!(
+            "{}: the state was removed under this lease {RELINK_TRIES} times in a row",
+            key_path(data_dir, launch, key).display()
+        ),
+    ))
 }
 
 /// Opens `vendor/` below a key directory, creating it when absent, and puts
@@ -1146,24 +1213,32 @@ pub fn attempt_live(data_dir: &Path, attempt: &str) -> bool {
 pub fn acquire(request: &Request<'_>) -> Result<Acquisition, JailError> {
     let workspace_bytes = request.workspace.as_os_str().as_bytes();
     let key = key(request.launch, workspace_bytes);
-    let levels = open_levels(request.data_dir, request.launch, &key, true)?
-        .ok_or_else(|| unsafe_state(request.data_dir, "the state levels could not be made"))?;
     // Step 2: the lease, without blocking for long.
-    let Some(lease) = take_lease_patiently(&levels.key_dir, &levels.path)? else {
-        // The record can lag the lease by an instant: it names the holder
-        // only when that attempt is alive.
-        let record = read_record(&levels.key_dir, &levels.path).ok().flatten();
-        let held_by = record
-            .as_ref()
-            .and_then(|record| record.holder.as_ref())
-            .map(|holder| holder.attempt.clone())
-            .filter(|attempt| attempt_live(request.data_dir, attempt));
-        return Ok(Acquisition::Fallback(Fallback {
-            state_id: record.map(|record| record.state_id),
-            reason: FallbackReason::Held,
-            held_by,
-        }));
-    };
+    let (levels, lease) =
+        match lease_linked(request.data_dir, request.launch, &key, true, LEASE_PATIENCE)? {
+            Leasing::Taken(levels, lease) => (levels, lease),
+            Leasing::Absent => {
+                return Err(unsafe_state(
+                    request.data_dir,
+                    "the state levels could not be made",
+                ));
+            }
+            Leasing::Busy(levels) => {
+                // The record can lag the lease by an instant: it names the
+                // holder only when that attempt is alive.
+                let record = read_record(&levels.key_dir, &levels.path).ok().flatten();
+                let held_by = record
+                    .as_ref()
+                    .and_then(|record| record.holder.as_ref())
+                    .map(|holder| holder.attempt.clone())
+                    .filter(|attempt| attempt_live(request.data_dir, attempt));
+                return Ok(Acquisition::Fallback(Fallback {
+                    state_id: record.map(|record| record.state_id),
+                    reason: FallbackReason::Held,
+                    held_by,
+                }));
+            }
+        };
     // Step 3: the record.
     let workspace_identity = std::fs::metadata(request.workspace)
         .map(|metadata| {
@@ -1174,6 +1249,25 @@ pub fn acquire(request: &Request<'_>) -> Result<Acquisition, JailError> {
     let record = match read_record(&levels.key_dir, &levels.path)? {
         Some(record) => record,
         None => {
+            // The record is written before `vendor/` is first made, so a
+            // `vendor/` without one was left by something else (a removal
+            // an earlier build interrupted, a hand): whose content it is
+            // cannot be told, and it is never adopted as a new state.
+            match levels.key_dir.stat_at(&name(VENDOR_NAME)) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(write_failed(&levels.path, &error)),
+                Ok(_) => {
+                    return Err(unsafe_state(
+                        &levels.path,
+                        format!(
+                            "has `vendor/` but no state.json, so who wrote what it holds \
+                             cannot be told; remove it with `ukai-jail state rm {} --workspace {}`",
+                            request.launch,
+                            request.workspace.display()
+                        ),
+                    ));
+                }
+            }
             let record = Record::new(request.launch, request.workspace, workspace_identity)?;
             write_record(&levels.key_dir, &levels.path, &record)?;
             record
@@ -1443,16 +1537,17 @@ pub fn gc_release(
     dry_run: bool,
     integrity_lost: bool,
 ) -> Result<GcRelease, String> {
-    let Some(levels) = open_levels(data_dir, launch, key, false).map_err(|error| error.message)?
-    else {
-        return Ok(GcRelease::NotHeld);
-    };
     let holds = |levels: &Levels| -> Result<Option<Record>, String> {
         Ok(read_record(&levels.key_dir, &levels.path)
             .map_err(|error| error.message)?
             .filter(|record| record.held_unreleased_by(attempt)))
     };
     if dry_run {
+        let Some(levels) =
+            open_levels(data_dir, launch, key, false).map_err(|error| error.message)?
+        else {
+            return Ok(GcRelease::NotHeld);
+        };
         return Ok(match holds(&levels)? {
             Some(_) => GcRelease::WouldRelease,
             None => GcRelease::NotHeld,
@@ -1464,14 +1559,20 @@ pub fn gc_release(
     // lease may be one another `gc` has released since, and writing it back
     // would undo that release and every one after it (review: two `gc`
     // runs).
-    let Some(lease) = take_lease(&levels.key_dir, &levels.path).map_err(|error| error.message)?
-    else {
-        // Read without the lease only to say whether anything is left.
-        return Ok(match holds(&levels)? {
-            Some(_) => GcRelease::LeaseHeld,
-            None => GcRelease::NotHeld,
-        });
-    };
+    let (levels, lease) =
+        match lease_linked(data_dir, launch, key, false, std::time::Duration::ZERO)
+            .map_err(|error| error.message)?
+        {
+            Leasing::Taken(levels, lease) => (levels, lease),
+            // Read without the lease only to say whether anything is left.
+            Leasing::Busy(levels) => {
+                return Ok(match holds(&levels)? {
+                    Some(_) => GcRelease::LeaseHeld,
+                    None => GcRelease::NotHeld,
+                });
+            }
+            Leasing::Absent => return Ok(GcRelease::NotHeld),
+        };
     let Some(mut record) = holds(&levels)? else {
         return Ok(GcRelease::NotHeld);
     };
@@ -1521,6 +1622,9 @@ pub struct Listed {
     pub size: Option<u64>,
     /// Whether an attempt holds the lease now.
     pub leased: bool,
+    /// A `state rm` of this key that stopped: its tombstone, which no
+    /// acquisition takes and `gc` finishes (`record` says so).
+    pub removing: bool,
 }
 
 /// Every state below `<data>/state`, bounded like a manifest pass.
@@ -1557,6 +1661,21 @@ pub fn list(data_dir: &Path) -> Result<Vec<Listed>, JailError> {
             let Ok(key_text) = std::str::from_utf8(key.as_bytes()) else {
                 continue;
             };
+            if is_tombstone(key.as_bytes()) {
+                out.push(Listed {
+                    launch: launch_text.to_owned(),
+                    key: key_text[TOMBSTONE_PREFIX.len()..][..32].to_owned(),
+                    record: Err(format!(
+                        "a `state rm` stopped; what is left is at {} and `ukai-jail gc` \
+                         finishes it",
+                        launch_path.join(key_text).display()
+                    )),
+                    size: None,
+                    leased: false,
+                    removing: true,
+                });
+                continue;
+            }
             let key_path = launch_path.join(key_text);
             let Ok(Some(key_dir)) = level(&launch_dir, &key_path, key_text, false) else {
                 continue;
@@ -1609,6 +1728,7 @@ fn describe(levels: &Levels, launch: &str) -> Listed {
         record,
         size,
         leased,
+        removing: false,
     }
 }
 
@@ -1635,29 +1755,42 @@ pub enum Removed {
     },
 }
 
-/// `state rm`: refused while leased, then an anchored, no-follow removal
-/// of the key directory (symlinks, FIFOs and sockets removed as entries).
+/// `state rm`: refused while leased; then, under the lease, the key
+/// directory is renamed to a tombstone (`.removing-<key>-<random>`) and the
+/// launch directory synced, so nothing finds a partly removed state at its
+/// path, and the tombstone is removed by an anchored, no-follow walk
+/// (symlinks, FIFOs and sockets removed as entries). A removal that stops
+/// leaves the tombstone, which `state list` reports and `gc` finishes
+/// (review: `state rm` was not atomic).
 ///
 /// # Errors
 /// As [`open_levels`], and the safe reason the removal stopped.
 pub fn remove(data_dir: &Path, launch: &str, workspace: &Path) -> Result<Removed, JailError> {
     let key = key(launch, workspace.as_os_str().as_bytes());
-    let Some(levels) = open_levels(data_dir, launch, &key, false)? else {
-        return Ok(Removed::Absent);
-    };
-    let Some(lease) = take_lease(&levels.key_dir, &levels.path)? else {
-        return Ok(Removed::Leased);
-    };
-    let stat = levels
+    let (levels, lease) =
+        match lease_linked(data_dir, launch, &key, false, std::time::Duration::ZERO)? {
+            Leasing::Absent => return Ok(Removed::Absent),
+            Leasing::Busy(_) => return Ok(Removed::Leased),
+            Leasing::Taken(levels, lease) => (levels, lease),
+        };
+    let identity = levels
+        .key_dir
+        .stat()
+        .map_err(|error| write_failed(&levels.path, &error))?
+        .identity();
+    let tombstone = name(&format!(
+        "{TOMBSTONE_PREFIX}{key}-{}",
+        uuid::Uuid::new_v4().simple()
+    ));
+    let tombstone_path = levels
+        .path
+        .with_file_name(OsStr::from_bytes(tombstone.as_bytes()));
+    levels
         .launch_dir
-        .stat_at(&name(&key))
+        .rename_at(&name(&key), &levels.launch_dir, &tombstone)
+        .and_then(|()| levels.launch_dir.sync())
         .map_err(|error| write_failed(&levels.path, &error))?;
-    let removal = crate::cleanup::remove_tree_at(
-        &levels.launch_dir,
-        &name(&key),
-        Some(stat.identity()),
-        crate::cleanup::Limits::DEFAULT,
-    );
+    let removal = finish_removal(&levels.launch_dir, &tombstone, Some(identity), usize::MAX);
     drop(lease);
     if !removal.complete {
         return Err(JailError::new(
@@ -1665,14 +1798,121 @@ pub fn remove(data_dir: &Path, launch: &str, workspace: &Path) -> Result<Removed
             ErrorStage::Reconciling,
             Remediation::InspectState,
             format!(
-                "{}: the removal stopped: {}",
+                "{}: the removal stopped: {}; what is left is at {}, which no attempt \
+                 acquires, and `ukai-jail gc` finishes it",
                 levels.path.display(),
-                removal.reason.unwrap_or_else(|| "unknown".to_owned())
+                removal.reason.unwrap_or_else(|| "unknown".to_owned()),
+                tombstone_path.display()
             ),
         ));
     }
-    let _ = levels.launch_dir.sync();
     Ok(Removed::Removed { path: levels.path })
+}
+
+/// Removes the tombstone `entry` below a launch directory, within `budget`
+/// entries (and [`crate::cleanup::Limits::DEFAULT`]'s), and syncs the
+/// launch directory once it is gone.
+fn finish_removal(
+    launch_dir: &Dir,
+    entry: &Name,
+    expected: Option<(u64, u64)>,
+    budget: usize,
+) -> crate::cleanup::Removal {
+    let mut limits = crate::cleanup::Limits::DEFAULT;
+    limits.max_entries = limits.max_entries.min(budget);
+    let removal = crate::cleanup::remove_tree_at(launch_dir, entry, expected, limits);
+    if removal.complete {
+        let _ = launch_dir.sync();
+    }
+    removal
+}
+
+/// What `gc` did with one tombstone a stopped `state rm` left.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct FinishedRemoval {
+    /// `<launch>/<tombstone>`.
+    pub name: String,
+    /// `removed`, `would_remove` or `pending: <reason>`.
+    pub outcome: String,
+    /// Entries the removal charged against `gc`'s bound.
+    pub charged: usize,
+}
+
+/// `gc`: finishes every `state rm` that stopped, within `budget` entries.
+/// A tombstone is no state: `rm` took it from its path under its lease, so
+/// finishing it removes nothing an attempt could acquire (§4.9: `gc` never
+/// removes a state on its own). With `dry_run`, it only says what it would
+/// do.
+///
+/// # Errors
+/// The state root fails its checks or cannot be listed.
+pub fn finish_removals(
+    data_dir: &Path,
+    dry_run: bool,
+    budget: usize,
+) -> Result<Vec<FinishedRemoval>, JailError> {
+    let data = Dir::open_trusted(data_dir).map_err(|error| write_failed(data_dir, &error))?;
+    let root_path = data_dir.join(STATE_DIR_NAME);
+    let Some(root) = level(&data, &root_path, STATE_DIR_NAME, false)? else {
+        return Ok(Vec::new());
+    };
+    let mut out = Vec::new();
+    let mut room = budget;
+    let launches = root
+        .names(MANIFEST_ENTRIES_MAX)
+        .map_err(|error| write_failed(&root_path, &error))?;
+    for launch in launches.names {
+        let Ok(launch_text) = std::str::from_utf8(launch.as_bytes()) else {
+            continue;
+        };
+        let launch_path = root_path.join(launch_text);
+        let Ok(Some(launch_dir)) = level(&root, &launch_path, launch_text, false) else {
+            continue;
+        };
+        let Ok(entries) = launch_dir.names(MANIFEST_ENTRIES_MAX) else {
+            continue;
+        };
+        let mut tombstones: Vec<Name> = entries
+            .names
+            .into_iter()
+            .filter(|entry| is_tombstone(entry.as_bytes()))
+            .collect();
+        tombstones.sort_by(|left, right| left.as_bytes().cmp(right.as_bytes()));
+        for tombstone in tombstones {
+            let shown = format!(
+                "{launch_text}/{}",
+                String::from_utf8_lossy(tombstone.as_bytes())
+            );
+            if dry_run {
+                out.push(FinishedRemoval {
+                    name: shown,
+                    outcome: "would_remove".to_owned(),
+                    charged: 0,
+                });
+                continue;
+            }
+            let removal = finish_removal(&launch_dir, &tombstone, None, room);
+            let charged = if removal.complete {
+                removal.visited.min(room)
+            } else {
+                room
+            };
+            room -= charged;
+            out.push(FinishedRemoval {
+                name: shown,
+                outcome: if removal.complete {
+                    "removed".to_owned()
+                } else {
+                    format!(
+                        "pending: {}",
+                        removal.reason.unwrap_or_else(|| "unknown".to_owned())
+                    )
+                },
+                charged,
+            });
+        }
+    }
+    Ok(out)
 }
 
 #[cfg(test)]

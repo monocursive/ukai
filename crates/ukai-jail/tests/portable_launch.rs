@@ -3855,6 +3855,236 @@ state_discard = [".login.json", "drop-me"]
         assert_eq!(absent.status.code(), Some(1));
     }
 
+    /// The state of `keeper` for `workspace`, acquired by a new attempt,
+    /// given a `settings.json` and `files` empty files in `vendor/`, and
+    /// released: its `vendor/` path.
+    fn released_state(fixture: &Fixture, workspace: &Path, files: usize) -> PathBuf {
+        let attempt = ukai_jail::state::AttemptId::generate();
+        let Acquisition::Held(mut held) = state::acquire(&Request {
+            data_dir: &fixture.data,
+            launch: "keeper",
+            workspace,
+            attempt: attempt.as_str(),
+        })
+        .unwrap() else {
+            panic!("the state is free");
+        };
+        state::hold(&mut held, attempt.as_str()).unwrap();
+        let vendor = held.vendor_path();
+        std::fs::write(vendor.join("settings.json"), b"{\"hooks\":\"kept\"}").unwrap();
+        for index in 0..files {
+            let dir = vendor.join(format!("d{}", index / 1000));
+            if index % 1000 == 0 {
+                std::fs::create_dir(&dir).unwrap();
+            }
+            std::fs::File::create(dir.join(index.to_string())).unwrap();
+        }
+        state::release(
+            *held,
+            attempt.as_str(),
+            &[],
+            &[],
+            Releaser::Supervisor { every_value: true },
+        )
+        .unwrap();
+        vendor
+    }
+
+    fn try_acquire(
+        fixture: &Fixture,
+        workspace: &Path,
+    ) -> Result<Acquisition, ukai_jail::records::JailError> {
+        state::acquire(&Request {
+            data_dir: &fixture.data,
+            launch: "keeper",
+            workspace,
+            attempt: ukai_jail::state::AttemptId::generate().as_str(),
+        })
+    }
+
+    /// The entries of `<data>/state/keeper/` whose names are not a key.
+    fn tombstones(fixture: &Fixture) -> Vec<String> {
+        std::fs::read_dir(fixture.data.join("state/keeper"))
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with('.'))
+            .collect()
+    }
+
+    /// K71 (review: `state rm` was not atomic): an acquisition racing
+    /// `state rm` never holds the directory being removed. What it holds is
+    /// still the state at its path once the removal is done, with its
+    /// record, and the removal completes.
+    #[test]
+    fn k71_an_acquisition_racing_state_rm_never_holds_what_it_removes() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let fixture = Fixture::new();
+        let workspace = fixture.workspace.canonicalize().unwrap();
+        released_state(&fixture, &workspace, 30_000);
+        let key = key_dir(&fixture, &workspace);
+        let removing = AtomicBool::new(true);
+        let (removed, held) = std::thread::scope(|scope| {
+            let remover = scope.spawn(|| {
+                let removed = state::remove(&fixture.data, "keeper", &workspace);
+                removing.store(false, Ordering::SeqCst);
+                removed
+            });
+            // The removal takes the lease first; an acquisition holding it
+            // would only make `rm` refuse.
+            std::thread::sleep(Duration::from_millis(50));
+            let mut held = Vec::new();
+            while removing.load(Ordering::SeqCst) {
+                match try_acquire(&fixture, &workspace) {
+                    Ok(Acquisition::Held(state)) => held.push((
+                        state.levels.key_dir.stat().unwrap().identity(),
+                        state.start.matches_release_reason,
+                    )),
+                    Ok(Acquisition::Fallback(_)) => {}
+                    Err(error) => held.push(((0, 0), Some(error.code.as_str()))),
+                }
+            }
+            (remover.join().unwrap(), held)
+        });
+        assert!(
+            matches!(removed, Ok(state::Removed::Removed { .. })),
+            "{removed:?}"
+        );
+        println!(
+            "k71: {} acquisitions held a state while `state rm` ran",
+            held.len()
+        );
+        let now = std::fs::metadata(&key)
+            .ok()
+            .map(|meta| (meta.dev(), meta.ino()));
+        for (identity, reason) in &held {
+            assert_eq!(
+                now,
+                Some(*identity),
+                "an acquisition during the removal held a directory the removal took \
+                 ({reason:?}; {} acquisitions held)",
+                held.len()
+            );
+            assert!(key.join("state.json").exists());
+        }
+        assert_eq!(tombstones(&fixture), Vec::<String>::new());
+    }
+
+    /// K66 (review: a key directory without its record was adopted as a new
+    /// state): a state whose `state.json` and lease are gone but whose
+    /// `vendor/` is not, as an interrupted removal of an earlier build or a
+    /// hand left it, refuses `unsafe_state_path` naming `state rm`; it never
+    /// passes for a new state with the old content visible. `state rm` clears
+    /// it.
+    #[test]
+    fn k66_a_vendor_without_its_record_is_never_a_new_state() {
+        let fixture = Fixture::new();
+        let workspace = fixture.workspace.canonicalize().unwrap();
+        let vendor = released_state(&fixture, &workspace, 0);
+        let key = key_dir(&fixture, &workspace);
+        std::fs::remove_file(key.join("state.json")).unwrap();
+        std::fs::remove_file(key.join("lease")).unwrap();
+        let error = match try_acquire(&fixture, &workspace) {
+            Err(error) => error,
+            Ok(Acquisition::Held(held)) => panic!(
+                "adopted as {:?}, generation {}",
+                held.start.matches_release_reason, held.start.generation
+            ),
+            Ok(Acquisition::Fallback(fallback)) => panic!("{fallback:?}"),
+        };
+        assert_eq!(error.code, ErrorCode::UnsafeStatePath, "{error:?}");
+        assert!(
+            error
+                .message
+                .contains("ukai-jail state rm keeper --workspace"),
+            "{}",
+            error.message
+        );
+        assert!(vendor.join("settings.json").exists(), "nothing was removed");
+        assert!(matches!(
+            state::remove(&fixture.data, "keeper", &workspace).unwrap(),
+            state::Removed::Removed { .. }
+        ));
+        let Ok(Acquisition::Held(held)) = try_acquire(&fixture, &workspace) else {
+            panic!("a new state");
+        };
+        assert_eq!(held.start.matches_release_reason, Some("new_state"));
+        assert!(!held.vendor_path().join("settings.json").exists());
+    }
+
+    /// K71 (review: an interrupted `state rm` left a partial state at its
+    /// path, which the next run reported as new): `rm` renames the state
+    /// away from its path before removing it, so a removal that stops leaves
+    /// a tombstone no acquisition adopts. `state list` reports it, a `gc`
+    /// dry run leaves it, and `gc` finishes it.
+    #[test]
+    fn k71_an_interrupted_state_rm_leaves_a_tombstone_gc_finishes() {
+        let fixture = inspection_fixture();
+        keeper(&fixture, "");
+        let workspace = fixture.workspace.canonicalize().unwrap();
+        let vendor = released_state(&fixture, &workspace, 0);
+        let undo = obstruct_first_pass(&vendor);
+        let key = key_dir(&fixture, &workspace);
+        let stopped = state::remove(&fixture.data, "keeper", &workspace);
+        let error = stopped.expect_err("the removal stops");
+        assert!(error.message.contains("ukai-jail gc"), "{}", error.message);
+        assert!(!key.exists(), "the state left its path before its removal");
+        assert_eq!(tombstones(&fixture).len(), 1);
+        let Ok(Acquisition::Held(held)) = try_acquire(&fixture, &workspace) else {
+            panic!("a new state");
+        };
+        assert_eq!(held.start.matches_release_reason, Some("new_state"));
+        assert!(!held.vendor_path().join("settings.json").exists());
+        drop(held);
+        let listed = jail_binary(&fixture, &["state", "list", "--json"]);
+        assert!(listed.status.success(), "{listed:?}");
+        let value: serde_json::Value = serde_json::from_slice(&listed.stdout).unwrap();
+        let removing: Vec<&serde_json::Value> = value
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|state| state["removing"] == true)
+            .collect();
+        assert_eq!(removing.len(), 1, "{value:#}");
+        assert_eq!(removing[0]["launch"], "keeper");
+        let text = jail_binary(&fixture, &["state", "list"]);
+        let text = String::from_utf8_lossy(&text.stdout);
+        assert!(text.contains("run ukai-jail gc"), "{text}");
+        // The obstruction moved with the tombstone.
+        drop(undo);
+        if cfg!(target_os = "macos") {
+            let pinned = fixture
+                .data
+                .join("state/keeper")
+                .join(&tombstones(&fixture)[0])
+                .join("vendor/pinned");
+            assert!(
+                std::process::Command::new("chflags")
+                    .arg("nouchg")
+                    .arg(&pinned)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        }
+        let dry = fixture.gc(true).unwrap();
+        assert_eq!(tombstones(&fixture).len(), 1, "a dry run removes nothing");
+        assert!(
+            dry.state_removals
+                .iter()
+                .any(|line| line.ends_with("would_remove")),
+            "{:?}",
+            dry.state_removals
+        );
+        for _ in 0..3 {
+            let _ = fixture.gc(false).unwrap();
+            if tombstones(&fixture).is_empty() {
+                break;
+            }
+        }
+        assert_eq!(tombstones(&fixture), Vec::<String>::new());
+        assert!(key.join("state.json").exists(), "the new state is kept");
+    }
+
     /// K75: the vendor file a profile discards is named only in data.
     #[test]
     fn k75_no_vendor_file_name_in_the_execution_core() {

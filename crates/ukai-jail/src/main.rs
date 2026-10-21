@@ -259,6 +259,13 @@ fn state(context: &Context, command: &StateCommand) -> ExitCode {
 /// One `state list` line.
 fn state_line(state: &ukai_jail::persistent::Listed) -> String {
     let mut parts = vec![records::escape_control(&state.launch)];
+    if state.removing {
+        parts.push(format!(
+            "key {} removal stopped: run ukai-jail gc to finish it",
+            state.key
+        ));
+        return parts.join("  ");
+    }
     match &state.record {
         Ok(record) => {
             parts.push(records::escape_control(&record.workspace.to_display()));
@@ -302,6 +309,7 @@ fn state_json(state: &ukai_jail::persistent::Listed) -> serde_json::Value {
             .map(|last| last.attempt.clone()),
         "quarantined": record.map(|record| record.quarantine.is_some()),
         "held": state.leased,
+        "removing": state.removing,
         "error": state.record.as_ref().err(),
     })
 }
@@ -1416,6 +1424,10 @@ fn gc_text(report: &ukai_jail::gc::Report) -> String {
             );
         }
     }
+    // J14 §4.9: a `state rm` that stopped, finished
+    for removal in &report.state_removals {
+        let _ = writeln!(out, "state_removal {}", records::escape_control(removal));
+    }
     let _ = writeln!(out, "scanned {}", report.entries.len());
     // S7, S9
     let _ = writeln!(
@@ -1469,6 +1481,8 @@ fn gc_json(report: &ukai_jail::gc::Report) -> serde_json::Value {
             "listing_complete": report.budget.listing_complete,
         },
         "test_seams": report.test_seams,
+        // J14 §4.9: a `state rm` that stopped, finished
+        "state_removals": report.state_removals,
     })
 }
 
@@ -1703,6 +1717,7 @@ mod tests {
                 listing_complete: true,
             },
             test_seams: std::collections::BTreeMap::new(),
+            state_removals: Vec::new(),
         }
     }
 
@@ -1864,6 +1879,7 @@ mod tests {
             record,
             size: Some(0),
             leased,
+            removing: false,
         };
         for (state, line) in [
             (

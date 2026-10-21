@@ -773,9 +773,15 @@ id, generation, size, last attempt, quarantine, whether an attempt holds it).
 `state show NAME [--workspace PATH]` prints one state's metadata and its
 generation log; `state rm NAME [--workspace PATH]` removes it (refused while
 an attempt holds it), through an anchored walk that removes links as links.
-Without `--workspace`, both take the repository you stand in, as `ukai-jail
-NAME` does. `gc` never removes a state; it finishes a release a dead
-supervisor could not (see [gc](#gc)).
+`rm` first renames the state away from its path, so an attempt started
+meanwhile gets a new state; if the removal stops, `state list` shows what is
+left (`removal stopped: run ukai-jail gc`) and `gc` finishes it. A state
+directory whose `state.json` is gone but whose `vendor/` is not (left by an
+earlier build's `rm` that stopped, or by hand) refuses `unsafe_state_path`
+until you `state rm` it. Without `--workspace`, both take the repository you
+stand in, as `ukai-jail NAME` does. `gc` never removes a state; it finishes
+a release a dead supervisor could not, and a `state rm` that stopped (see
+[gc](#gc)).
 
 ## doctor
 
@@ -844,7 +850,9 @@ attempt that held persistent state and died before releasing it, gc finishes
 the release under the same permission rule (the discard list, the digest, a
 new generation and `released`), with the secret scan recorded `not_scanned`
 (only the dead supervisor held the vault values); lost integrity leaves the
-state held and quarantines it. gc never removes a persistent state. It
+state held and quarantines it. gc never removes a persistent state; what a
+`state rm` that stopped left is no longer one, and gc finishes removing it
+(`state_removal`). It
 retains, and reports with a reason, anything live, unidentifiable, foreign,
 from another boot, with lost integrity, or with records that disagree. It
 never signals a process by a stale PID and never searches `/tmp`, your home or
@@ -860,7 +868,8 @@ receipt's note, or would pass its 64 MiB cap is left as it was.
 temporary files, the records gc wrote and what the journal got (`journal`:
 `appended (wrapper source_seq <n>)`, `would_append`, `absent`, `unchanged:
 <why>` or `failed: <why>`), what became of persistent state it released
-(`persistent_state`), plus its per-invocation budget.
+(`persistent_state`), the `state rm` removals it finished
+(`state_removals`), plus its per-invocation budget.
 `gc` exits 0 after a completed scan (skips included) and 1 when a cleanup
 failed or stays pending, or state could not be read.
 

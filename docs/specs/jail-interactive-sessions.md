@@ -781,7 +781,7 @@ values meant for the host.
   - `state show NAME [--workspace PATH]`: metadata and the generation log;
     names files only on the operator's host.
   - `state rm NAME [--workspace PATH]`: refuses while leased; anchored,
-    no-follow removal.
+    no-follow removal (of a tombstone, §8 item 17).
 
   `state` joins the built-in verbs that are never launch names (launch
   proposal §3.1).
@@ -1095,3 +1095,29 @@ intent.
     which refuses a symlink first. Every other refusal and filter entry
     J14 added was mutated and its test seen to fail
     (`j14-adversarial-review.md` in the session notes, and the fixes above).
+17. **`state rm` renames the state away before removing it, and `gc`
+    finishes what a stopped one left** (review, 2026-10-21; §4.9 says only
+    "anchored, no-follow removal" and that `gc` never deletes persistent
+    state). The walk unlinked `lease` and `state.json` in directory order,
+    often before `vendor/`. An acquisition racing it took a fresh lease in
+    the directory being removed and called it a new state, which the
+    removal then deleted under it. A removal that stopped (its entry bound,
+    an interruption) left `vendor/` without its record, which the next run
+    adopted as new, with the old files visible and any quarantine lost. Now,
+    under the lease, `rm` renames the key directory to
+    `.removing-<key>-<random>`, a name no key can have, syncs the launch
+    directory, and only then removes that tombstone. An acquisition, a `gc`
+    release and `rm` itself let go of a lease taken in a directory no longer
+    linked at its key and start again, so an acquisition after the rename
+    makes a new state. A tombstone a stopped removal left is no state: `state
+    list` reports it (`removal stopped: run ukai-jail gc`, `"removing":
+    true`), and `gc` removes it within its entry bound and reports
+    `state_removal` (`would_remove` in a dry run). A key directory with
+    `vendor/` and no `state.json`, which an older build's stopped `rm` or a
+    hand leaves, refuses `unsafe_state_path` naming `state rm`, which
+    removes it. K71 races `rm` of a 30,000-entry state against an
+    acquisition loop: on the portable suite, thousands of acquisitions hold
+    a state during each removal, every one the new state, and `rm`
+    completes; before the change an acquisition held the directory being
+    removed, or `rm` stopped on `Directory not empty`. K71 also stops a
+    removal and has `gc` finish it, and K66 checks the record-less `vendor/`.

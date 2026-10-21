@@ -156,6 +156,7 @@ pub fn gc_with(
             listing_complete: true,
         },
         test_seams: BTreeMap::new(),
+        state_removals: Vec::new(),
     };
     let data_dir = state::data_dir(&ctx.env_settings, ctx.home.as_deref())?;
     // §14.2 enumerates "the registered state root". A root that fails the
@@ -176,19 +177,21 @@ pub fn gc_with(
     let attempts = data_dir.join("attempts");
     // The same check one level down: a symlinked or foreign `attempts/` is
     // not the registered state root's, and is never followed.
-    match std::fs::symlink_metadata(&attempts) {
-        Ok(_) => state::check_state_dir(&attempts)?,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(report),
+    let listing = match std::fs::symlink_metadata(&attempts) {
+        Ok(_) => {
+            state::check_state_dir(&attempts)?;
+            Some(std::fs::read_dir(&attempts).map_err(|error| state_access(&attempts, error))?)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => return Err(state_access(&attempts, error)),
-    }
-    let listing = std::fs::read_dir(&attempts).map_err(|error| state_access(&attempts, error))?;
+    };
     let mut meter = Meter {
         max: options.max_entries,
         charged: 0,
     };
     // S7: the listing counts against the bound, and stops at it.
     let mut names: Vec<OsString> = Vec::new();
-    for entry in listing {
+    for entry in listing.into_iter().flatten() {
         if meter.remaining() == 0 {
             report.budget.listing_complete = false;
             break;
@@ -216,6 +219,20 @@ pub fn gc_with(
             "attempts/ (the per-invocation bound of {} entries ended the listing; run gc again)",
             options.max_entries
         ));
+    }
+    // J14 §4.9 (review: `state rm` was not atomic): a `state rm` that
+    // stopped left a tombstone, no longer a state; finishing it is the
+    // operator's own removal.
+    for removal in crate::persistent::finish_removals(&data_dir, args.dry_run, meter.remaining())? {
+        meter.charge(removal.charged);
+        if removal.outcome.starts_with("pending") {
+            report
+                .incomplete
+                .push(format!("state/{} ({})", removal.name, removal.outcome));
+        }
+        report
+            .state_removals
+            .push(format!("{} {}", removal.name, removal.outcome));
     }
     report.incomplete.sort();
     report.budget.charged = meter.charged;

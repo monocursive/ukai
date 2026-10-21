@@ -114,6 +114,9 @@ pub struct Report {
     pub budget: Budget,
     /// The `UKAI_JAIL_TEST_*` seams set for this invocation, by name (S9).
     pub test_seams: BTreeMap<String, String>,
+    /// J14 §4.9: each tombstone a stopped `state rm` left, as `<launch>/<name>
+    /// <outcome>` (`removed`, `would_remove` or `pending: <why>`).
+    pub state_removals: Vec<String>,
 }
 
 /// The per-invocation entry bound (S7).
