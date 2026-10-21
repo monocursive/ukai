@@ -255,6 +255,8 @@ struct Session {
     /// The foreground group the job left on the terminal at its last stop
     /// or its end, as the shell found it before taking the terminal back.
     left_foreground: Option<i64>,
+    /// The terminal's local flags then.
+    left_lflag: Option<u64>,
     /// The shell's own process group.
     started_shell: libc::pid_t,
 }
@@ -392,6 +394,7 @@ impl Session {
             pending: Vec::new(),
             job: 0,
             left_foreground: None,
+            left_lflag: None,
             started_shell: 0,
         };
         let started = session.status_event(SESSION);
@@ -466,6 +469,7 @@ impl Session {
             self.terminal.text()
         );
         self.left_foreground = event["foreground"].as_i64();
+        self.left_lflag = event["lflag"].as_u64();
         (event["code"].as_i64(), event["signal"].as_i64())
     }
 
@@ -2209,6 +2213,54 @@ fn k58_a_command_that_stops_when_asked_to_end_is_ended_not_relayed() {
             session.transitions()
         );
     }
+}
+
+/// Review finding 5 (K59): a foreground job of the shell's whose group
+/// leader is gone (`cat small | less` once `cat` exited) is still another
+/// job's: a jail that ends in the background takes neither the terminal nor
+/// its settings from it.
+#[test]
+fn k59_a_pipeline_whose_leader_is_gone_keeps_the_terminal() {
+    if !common::live() {
+        return;
+    }
+    let mut session = Session::start(Options::run("tool", &[], &["sleep", "3000"]));
+    assert!(
+        session
+            .terminal
+            .wait_for("\"op\":\"sleep\"", common::SETTLE_BOUND)
+    );
+    session.terminal.type_bytes(b"\x1a");
+    session.stop_event();
+    session.send("bg");
+    session.send("pipeline");
+    let pipeline = session.status_event(common::STEP_BOUND);
+    assert_eq!(pipeline["event"], "pipeline", "{pipeline}");
+    let group = pipeline["pgrp"].as_i64().unwrap();
+    assert!(group > 0, "{pipeline}");
+    session.send("wait");
+    assert_eq!(session.wait_exit().0, Some(0), "{}", session.diagnose());
+    assert_eq!(
+        session.left_foreground,
+        Some(group),
+        "the jail took the pipeline's terminal: {}",
+        session.diagnose()
+    );
+    let cooked = u64::from(libc::ICANON | libc::ECHO);
+    assert_eq!(
+        session.left_lflag.unwrap() & cooked,
+        0,
+        "the jail restored its settings over the pipeline's"
+    );
+    let receipt = session.receipt();
+    assert_settled(&receipt);
+    assert_eq!(
+        restored(&receipt),
+        serde_json::json!({"foreground": false, "termios": false, "input_flushed": false,
+                           "reset_written": true, "after_tree_death": true}),
+        "{receipt:#}"
+    );
+    session.quit();
 }
 
 // Helpers shared with the review's own probes.

@@ -408,18 +408,26 @@ impl Session {
     /// the jail's namespace. The terminal is then not the jail's to take
     /// back (review F6): taking it would leave the shell reading a terminal
     /// it no longer holds.
+    ///
+    /// Review finding 5: a group whose leader is gone (`cat small | less`
+    /// once `cat` exited and was reaped) is judged by a member's namespace,
+    /// and one whose namespace cannot be read (another user's process) is
+    /// not the jail's: since the terminal filter, no group of the jail but
+    /// the command's can hold the terminal. Only a group with no process
+    /// left is taken.
     #[must_use]
     pub fn held_outside(&self, command: Option<libc::pid_t>) -> bool {
         let group = self.foreground_group();
         if group <= 0 || group == self.group || Some(group) == command {
             return false;
         }
-        match (
-            std::fs::read_link(format!("/proc/{group}/ns/pid")),
-            std::fs::read_link("/proc/self/ns/pid"),
-        ) {
-            (Ok(theirs), Ok(ours)) => theirs == ours,
-            _ => false,
+        let Ok(ours) = std::fs::read_link("/proc/self/ns/pid") else {
+            return true;
+        };
+        match group_namespace(group) {
+            GroupNamespace::Of(theirs) => theirs == ours,
+            GroupNamespace::Empty => false,
+            GroupNamespace::Unknown => true,
         }
     }
 
@@ -607,6 +615,56 @@ impl Session {
     }
 }
 
+/// The PID namespace of a process group's members, as [`group_namespace`]
+/// finds it.
+enum GroupNamespace {
+    /// The leader's, or the first member's that could be read.
+    Of(std::path::PathBuf),
+    /// No process is left in the group.
+    Empty,
+    /// The group has members, and none of their namespaces can be read.
+    Unknown,
+}
+
+/// The namespace of `group`'s leader, or, when the leader is gone or cannot
+/// be read, of a member found in `/proc` (review finding 5).
+fn group_namespace(group: libc::pid_t) -> GroupNamespace {
+    if let Ok(theirs) = std::fs::read_link(format!("/proc/{group}/ns/pid")) {
+        return GroupNamespace::Of(theirs);
+    }
+    // SAFETY: signal 0 to a process group only checks that it has members.
+    if unsafe { libc::kill(-group, 0) } != 0
+        && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
+    {
+        return GroupNamespace::Empty;
+    }
+    let Ok(entries) = std::fs::read_dir("/proc") else {
+        return GroupNamespace::Unknown;
+    };
+    let mut member = false;
+    for entry in entries.flatten() {
+        let Some(pid) = entry
+            .file_name()
+            .to_str()
+            .and_then(|name| name.parse::<libc::pid_t>().ok())
+        else {
+            continue;
+        };
+        if stat_field(pid, 2) != Some(group) {
+            continue;
+        }
+        member = true;
+        if let Ok(theirs) = std::fs::read_link(format!("/proc/{pid}/ns/pid")) {
+            return GroupNamespace::Of(theirs);
+        }
+    }
+    if member {
+        GroupNamespace::Unknown
+    } else {
+        GroupNamespace::Empty
+    }
+}
+
 /// Writes all of `bytes` to `fd`, waiting at most `bound` in all for the
 /// terminal to take them (`poll` for `POLLOUT` before each write), so a
 /// terminal whose output the command suspended cannot block the supervisor
@@ -742,12 +800,17 @@ pub fn group_orphaned() -> bool {
     true
 }
 
-/// A process's parent, from `/proc/<pid>/stat` (the field after the
-/// state, past the command name's closing parenthesis).
+/// A process's parent, from `/proc/<pid>/stat`.
 fn parent_of(pid: libc::pid_t) -> Option<libc::pid_t> {
+    stat_field(pid, 1)
+}
+
+/// The `index`th field of `/proc/<pid>/stat` after the command name's
+/// closing parenthesis: 0 is the state, 1 the parent, 2 the process group.
+fn stat_field(pid: libc::pid_t, index: usize) -> Option<libc::pid_t> {
     let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     let rest = &stat[stat.rfind(')')? + 1..];
-    rest.split_ascii_whitespace().nth(1)?.parse().ok()
+    rest.split_ascii_whitespace().nth(index)?.parse().ok()
 }
 
 /// How many `SIGCONT`s this process received.

@@ -1157,3 +1157,10 @@ live or unit test that failed before its fix and passes after it):
     stopped target cannot end within its grace either. The tracer also
     forgets a group-stop when the target dies, so a stop followed by a kill
     within one supervision step is not relayed after the target's death.
+21. **A foreground group whose leader is gone is still another job's
+    (review finding 5; amends item 6).** Item 6 read the leader's PID
+    namespace: a pipeline whose first command exited and was reaped (`cat
+    small | less`) has no leader, and was taken as the jail's. The group is
+    now judged by a member found in `/proc`; a group with members none of
+    whose namespaces can be read (another user's processes) counts as
+    another job's, and only a group with no process left is taken.

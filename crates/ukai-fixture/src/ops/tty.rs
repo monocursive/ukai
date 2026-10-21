@@ -666,7 +666,9 @@ fn read_command(fd: c_int) -> Option<String> {
 /// change of the job (`stopped` with its signal, `exited` with its status)
 /// after taking the terminal back, as an interactive shell does. Commands
 /// on CONTROL_FD, one per line: `fg`, `bg`, `drain` (read and report what is
-/// left on the terminal), `quit` (report the signals this shell got, exit).
+/// left on the terminal), `pipeline` (a foreground pipeline of the shell's
+/// own whose leader is gone, see [`pipeline`]), `quit` (report the signals
+/// this shell got, exit).
 /// Runs outside the jail; ignores the terminal stop signals and `SIGINT` and
 /// `SIGQUIT` as an interactive shell does, and counts every other signal.
 /// How [`job_shell`] starts its job.
@@ -839,6 +841,8 @@ fn job_shell(
     // A job continued in the background (`bg`) is not waited for until `fg`
     // brings it back, so the next command is read while it runs.
     let mut waiting = true;
+    // The process group of the `pipeline` command's member, if one runs.
+    let mut piped: libc::pid_t = 0;
     loop {
         if !exited && waiting {
             let mut status: c_int = 0;
@@ -973,7 +977,19 @@ fn job_shell(
                     }),
                 );
             }
+            "pipeline" => {
+                let (group, member) = pipeline();
+                piped = group;
+                status_line(
+                    status_fd,
+                    &json!({"event": "pipeline", "pgrp": group, "member": member}),
+                );
+            }
             "quit" => {
+                if piped > 0 {
+                    // SAFETY: SIGKILL to the group this shell made.
+                    unsafe { libc::kill(-piped, libc::SIGKILL) };
+                }
                 status_line(status_fd, &json!({"event": "quit", "signals": trapped()}));
                 break;
             }
@@ -981,4 +997,54 @@ fn job_shell(
         }
     }
     Ok(true)
+}
+
+/// J14 review finding 5: a foreground pipeline of the shell's own, as `cat
+/// small | less` is: its first member, the group's leader, exits at once and
+/// is reaped, so `/proc/<pgid>` names nothing; the second stays in the group
+/// for at most a minute, holding the terminal in non-canonical mode without
+/// echo, as a pager does, and reads nothing. Returns the group and the
+/// member.
+fn pipeline() -> (libc::pid_t, libc::pid_t) {
+    let mut gate = [-1 as c_int; 2];
+    // SAFETY: pipe fills the two-element array.
+    if unsafe { libc::pipe(gate.as_mut_ptr()) } != 0 {
+        return (0, 0);
+    }
+    // SAFETY: fork; each child calls only async-signal-safe functions.
+    unsafe {
+        let leader = libc::fork();
+        if leader == 0 {
+            libc::setpgid(0, 0);
+            libc::close(gate[1]);
+            let mut byte = 0u8;
+            // Holds until the shell closes the gate: the member must join
+            // the group while its leader lives.
+            libc::read(gate[0], (&raw mut byte).cast(), 1);
+            libc::_exit(0);
+        }
+        libc::setpgid(leader, leader);
+        let member = libc::fork();
+        if member == 0 {
+            libc::setpgid(0, leader);
+            libc::close(gate[0]);
+            libc::close(gate[1]);
+            for _ in 0..600 {
+                libc::usleep(100_000);
+            }
+            libc::_exit(0);
+        }
+        libc::setpgid(member, leader);
+        libc::tcsetpgrp(0, leader);
+        let mut t: libc::termios = std::mem::zeroed();
+        if libc::tcgetattr(0, &raw mut t) == 0 {
+            t.c_lflag &= !(libc::ICANON | libc::ECHO);
+            libc::tcsetattr(0, libc::TCSANOW, &raw const t);
+        }
+        libc::close(gate[0]);
+        libc::close(gate[1]);
+        let mut status: c_int = 0;
+        libc::waitpid(leader, &raw mut status, 0);
+        (leader, member)
+    }
 }

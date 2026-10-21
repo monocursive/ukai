@@ -687,7 +687,7 @@ pub enum TtyMode {
     },
     /// A job-control shell that runs ARGV as its foreground job on the
     /// terminal it leads, reporting job changes on STATUS_FD and taking
-    /// `fg`, `bg`, `drain` and `quit` on CONTROL_FD.
+    /// `fg`, `bg`, `drain`, `pipeline` and `quit` on CONTROL_FD.
     JobShell {
         #[arg(long, value_name = "FD")]
         control_fd: i32,

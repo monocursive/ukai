@@ -712,8 +712,9 @@ reach it, and `^C`, `^\` and `^Z` go to the command, never to the jail.
   recorded in `applied.terminal.restored`; a failed step is said on stderr
   and on the summary's cleanup line (`terminal not restored (termios): run
   reset`) and does not change the exit code. A job that ended in the
-  background leaves the terminal to your shell: the first three steps are
-  then not taken, and the line says `another job holds the terminal`.
+  background leaves the terminal to your shell, or to whatever job your
+  shell gave it to: the first three steps are then not taken, and the line
+  says `another job holds the terminal`.
 - **Detached** is today's behaviour, in a new session: `--terminal detach`,
   `[jail] terminal = "detach"` in `config.toml` (not a project setting),
   `--gate-fd`, `learn` and `none` are always detached. When stderr is a
