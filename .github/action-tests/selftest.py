@@ -144,6 +144,16 @@ def cmd_end():
     finish()
 
 
+def cmd_status():
+    """Fail when any check this job recorded on this image failed (for steps
+    that record several checks with `set +e`)."""
+    rows = SELFTEST / "rows.jsonl"
+    lines = [json.loads(line) for line in rows.read_text().splitlines()] if rows.is_file() else []
+    failed = [line["check"] for line in lines if line["status"] == "fail"]
+    if failed:
+        sys.exit(f"selftest: failed so far: {'; '.join(failed)}")
+
+
 def cmd_row(row, check, status, detail="", how="real"):
     record(row, check, {"pass": True, "fail": False, "recorded": None}[status], detail, how)
     finish()
@@ -177,7 +187,7 @@ def check_artifact(row_prefix, art, token, heading):
 
 
 def cmd_verify_profile():
-    token = env("UKAI_SELFTEST_TOKEN")
+    token = env("SELFTEST_TOKEN")
     art = Path(env("ART"))
     record("K81", "profile mode: a passing command succeeds with exit-code 0 and settled true",
            env("OUTCOME") == "success" and env("EXIT_CODE") == "0" and env("SETTLED") == "true",
@@ -213,7 +223,7 @@ def cmd_verify_profile():
     leaked = [n for n in inside["env_names"] if n.startswith(("GITHUB_", "ACTIONS_", "RUNNER_"))]
     record("K80", "inside: no GITHUB_*, ACTIONS_* or RUNNER_* variable", not leaked, leaked)
     record("K80", "inside: no credential variable, and the value nowhere in what the probe saw",
-           "UKAI_SELFTEST_TOKEN" not in inside["env_names"]
+           "SELFTEST_TOKEN" not in inside["env_names"]
            and token not in (workspace / ".ukai-selftest/inside.json").read_text())
     present = {k: v["path"] for k, v in inside["paths"].items() if v["exists"]}
     record("K80", "inside: $RUNNER_TEMP, the file-command files and the action's directories are absent",
@@ -251,7 +261,7 @@ def cmd_verify_profile():
 
 
 def cmd_verify_launch():
-    token = env("UKAI_SELFTEST_TOKEN")
+    token = env("SELFTEST_TOKEN")
     workspace = Path(env("LAUNCH_WS"))
     record("K81", "launch mode: a passing command succeeds with exit-code 0 and settled true",
            env("OUTCOME") == "success" and env("EXIT_CODE") == "0" and env("SETTLED") == "true",
@@ -264,7 +274,7 @@ def cmd_verify_launch():
     environment = (workspace / "env.txt").read_text()
     names = [line.split("=", 1)[0] for line in environment.splitlines() if "=" in line]
     record("K78", "launch: the agent holds a placeholder, not the value, and not the variable",
-           "ANTHROPIC_API_KEY" in names and "UKAI_SELFTEST_TOKEN" not in names and token not in environment)
+           "ANTHROPIC_API_KEY" in names and "SELFTEST_TOKEN" not in names and token not in environment)
     credentials = receipt.get("credentials", [])
     record("K78", "launch: the receipt lists the credential as vault, never staged",
            [(c.get("id"), c.get("mode"), c.get("never_staged")) for c in credentials] == [("anthropic", "vault", True)],
@@ -364,7 +374,7 @@ def cmd_verify_exposure():
             path = candidate
     summaries = [p.read_text(errors="replace") for p in (RUNNER_TEMP / "_runner_file_commands").glob("step_summary_*")]
     page = next((s for s in summaries if "exposure check FAILED" in s), "")
-    token = env("UKAI_SELFTEST_TOKEN")
+    token = env("SELFTEST_TOKEN")
     record("K78", "positive control: a run whose journal holds the value fails the step",
            env("OUTCOME") == "failure", env("OUTCOME"))
     record("K78", "positive control: the report names the files, never the value, and removes its copies",
@@ -521,7 +531,7 @@ def cmd_arow_report():
         sys.exit("selftest: the A-row did not pass")
 
 
-COMMANDS = {"token": cmd_token, "verify-arow": cmd_verify_arow, "verify-arow-task": cmd_verify_arow_task,
+COMMANDS = {"status": cmd_status, "token": cmd_token, "verify-arow": cmd_verify_arow, "verify-arow-task": cmd_verify_arow_task,
             "arow-report": cmd_arow_report, "begin": cmd_begin, "end": cmd_end, "row": cmd_row,
             "verify-comment": cmd_verify_comment,
             "verify-profile": cmd_verify_profile, "verify-launch": cmd_verify_launch,

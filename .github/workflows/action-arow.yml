@@ -187,7 +187,9 @@ jobs:
           while IFS=$'\t' read -r id name; do
             file=$(printf '%s' "$name" | tr -c 'A-Za-z0-9._-' '_')
             for attempt in 1 2 3 4 5; do
-              gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$id/logs" > "$RUNNER_TEMP/logs/$file.log" 2>/dev/null && break
+              # curl, not gh api: gh refuses a body holding terminal escapes
+              curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" \
+                "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/jobs/$id/logs" -o "$RUNNER_TEMP/logs/$file.log" && break
               sleep 5
             done
             echo "$name: $(wc -c < "$RUNNER_TEMP/logs/$file.log") bytes"

@@ -106,7 +106,7 @@ jobs:
         run: |
           token=$(python3 -I "$T/selftest.py" token "$SELFTEST_JOB-$SELFTEST_IMAGE")
           echo "::add-mask::$token"
-          echo "UKAI_SELFTEST_TOKEN=$token" >> "$GITHUB_ENV"
+          echo "SELFTEST_TOKEN=$token" >> "$GITHUB_ENV"
           # The fake `claude`: a copy of bash, an ELF the bundled profile's
           # `binaries = ["@program"]` binding accepts.
           mkdir -p "$HOME/ukai-selftest/fake-agent"
@@ -126,7 +126,7 @@ jobs:
           python3 -I "$T/hostile.py" --markers "$HOME" --expected "$RUNNER_TEMP/selftest"
       - name: Sample ukai-jail's environment in the background (K78)
         run: |
-          nohup python3 -I "$T/env_watch.py" --exe "$RUNNER_TEMP/ukai/bin/ukai-jail" --name UKAI_SELFTEST_TOKEN \
+          nohup python3 -I "$T/env_watch.py" --exe "$RUNNER_TEMP/ukai/bin/ukai-jail" --name SELFTEST_TOKEN \
             --out "$RUNNER_TEMP/selftest/env-watch.json" --stop "$RUNNER_TEMP/selftest/env-watch.stop" \
             > /dev/null 2>&1 &
 
@@ -138,7 +138,7 @@ jobs:
           run: ${{ steps.hostile.outputs.run }}
           allow-hosts: api.github.com
           limits: wall=180s
-          credentials: selftest=UKAI_SELFTEST_TOKEN
+          credentials: selftest=SELFTEST_TOKEN
           fail-on: unsettled,survivors,gaps
           pr-comment: true
           artifact-name: selftest-profile-${{ matrix.os }}
@@ -167,7 +167,7 @@ jobs:
           launch: claude
           workspace: ${{ env.LAUNCH_WS }}
           args: ${{ steps.hostile.outputs.args }}
-          credentials: anthropic=UKAI_SELFTEST_TOKEN
+          credentials: anthropic=SELFTEST_TOKEN
           artifact-name: selftest-launch-${{ matrix.os }}
       - name: Stop sampling
         if: always()
@@ -197,7 +197,7 @@ jobs:
           export UKAI_CONFIG_DIR=$RUNNER_TEMP/ukai/config UKAI_DATA_DIR=$RUNNER_TEMP/ukai/data
           jail=$RUNNER_TEMP/ukai/bin/ukai-jail
           cd "$LAUNCH_WS"
-          printf '%s' "$UKAI_SELFTEST_TOKEN" | "$jail" credential set --force anthropic
+          printf '%s' "$SELFTEST_TOKEN" | "$jail" credential set --force anthropic
           mapfile -d '' -t args < <(python3 -I -c '
           import json, sys
           sys.stdout.write("".join(a + "\0" for a in json.load(open(sys.argv[1]))))' "$RUNNER_TEMP/selftest/expected-args.json")
@@ -343,6 +343,7 @@ jobs:
           host_state | tee "$RUNNER_TEMP/host-before.txt"
       - name: Simulated a self-hosted runner without bubblewrap; pull_request_target; a root step
         run: |
+          set +e   # the scripts are expected to refuse; each verdict is recorded
           r() { python3 -I "$T/selftest.py" row K76 "$1" "$2" "$3" simulated; }
           out=$(RUNNER_ENVIRONMENT=self-hosted UKAI_ACTION_PROFILE=tool UKAI_ACTION_RUN=true \
             UKAI_ACTION_WORKSPACE="$PLAIN_WS" bash "$T/sim.sh" check setup credentials doctor 2>&1)
@@ -364,6 +365,7 @@ jobs:
           if [[ "$out" == *"sim: stopped at check"* && "$out" == *"runs as root (EUID 0)"* ]] && [ -z "$(ls -A "$scratch")" ]; then
             r "a root step refused by the check (run through sudo), nothing created" pass ""
           else r "a root step refused by the check (run through sudo), nothing created" fail ""; fi
+          python3 -I "$T/selftest.py" status
       - name: The checkout's persisted token in the workspace
         id: token
         continue-on-error: true
@@ -414,6 +416,7 @@ jobs:
           OUTCOMES: ${{ steps.token.outcome }} ${{ steps.hostile-credentials.outcome }} ${{ steps.hostile-launch.outcome }} ${{ steps.hostile-workspace.outcome }}
           TAMPER: ${{ steps.tamper.outcome }}
         run: |
+          set +e
           r() { python3 -I "$T/selftest.py" row "$1" "$2" "$3" "${4:-}"; }
           source "$RUNNER_TEMP/host_state.sh"
           host_state | tee "$RUNNER_TEMP/host-after.txt"
@@ -429,6 +432,7 @@ jobs:
           [ "$reports" -eq 2 ] && ok=pass || ok=fail
           r K76 "the refused checks created nothing in \$RUNNER_TEMP/ukai" "$ok" "$reports report directories (self-hosted simulation and tamper)"
           rm -f "$RUNNER_TEMP/ukai/src/bubblewrap-0.11.1.tar.xz"
+          python3 -I "$T/selftest.py" status
       - name: allow-checkout-token runs and the summary names the token (K76)
         id: allowed
         uses: ./action
@@ -464,6 +468,7 @@ jobs:
           LATER: ${{ steps.hostile-version.outcome }} ${{ steps.hostile-hosts.outcome }}
           HOSTS_EXIT: ${{ steps.hostile-hosts.outputs.exit-code }}
         run: |
+          set +e
           r() { python3 -I "$T/selftest.py" row "$1" "$2" "$3" "${4:-}" "${5:-real}"; }
           summary=$(grep -l "readable inside the workspace (allow-checkout-token: true)" "$RUNNER_TEMP"/ukai/report.*/summary.md | head -1)
           [ "$ALLOWED" = success ] && [ -n "$summary" ] && grep -q "checkout token PRESENT and allowed" "$(dirname "$summary")/setup.txt" && ok=pass || ok=fail
@@ -477,6 +482,7 @@ jobs:
           r K76 "self-hosted shape with doctor ready (after the hosted setup): no host setup, proceeds" "$ok" "" simulated
           python3 -I "$T/selftest.py" markers
           python3 -I "$T/selftest.py" end
+          python3 -I "$T/selftest.py" status
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
@@ -557,7 +563,7 @@ jobs:
           python3 -I "$T/selftest.py" begin
           token=$(python3 -I "$T/selftest.py" token "$SELFTEST_JOB-$SELFTEST_IMAGE")
           echo "::add-mask::$token"
-          echo "UKAI_SELFTEST_TOKEN=$token" >> "$GITHUB_ENV"
+          echo "SELFTEST_TOKEN=$token" >> "$GITHUB_ENV"
           git init -q "$HOME/ukai-selftest/leak"
           printf '%s' "$token" > "$HOME/ukai-selftest/leak/leak-source"
           echo "LEAK_WS=$HOME/ukai-selftest/leak" >> "$GITHUB_ENV"
@@ -570,7 +576,7 @@ jobs:
           run: |
             touch "$(cat leak-source).txt"
             /bin/true "$(cat leak-source)"
-          credentials: canary=UKAI_SELFTEST_TOKEN
+          credentials: canary=SELFTEST_TOKEN
           artifact-name: exposure-control-${{ matrix.os }}
       - if: always()
         env:
@@ -616,7 +622,9 @@ jobs:
           while IFS=$'\t' read -r id name; do
             file=$(printf '%s' "$name" | tr -c 'A-Za-z0-9._-' '_')
             for attempt in 1 2 3 4 5; do
-              gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$id/logs" > "$RUNNER_TEMP/logs/$file.log" 2>/dev/null && break
+              # curl, not gh api: gh refuses a body holding terminal escapes
+              curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" \
+                "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/jobs/$id/logs" -o "$RUNNER_TEMP/logs/$file.log" && break
               sleep 5
             done
             echo "$name: $(wc -c < "$RUNNER_TEMP/logs/$file.log") bytes"
