@@ -672,6 +672,13 @@ pub enum TtyMode {
         #[arg(long, value_name = "MS", default_value_t = 4000)]
         ms: u64,
     },
+    /// J14 review finding 3: raw mode, then conceal (`SGR 8`) and a
+    /// cursor-position query whose reply is never read, then, after
+    /// WAIT_MS, a stop of this process (`SIGSTOP`); continued, it exits.
+    TtyQueryStop {
+        #[arg(long, value_name = "MS", default_value_t = 500)]
+        wait_ms: u64,
+    },
     /// A pipeline member: read stdin to its end catching every catchable
     /// signal, then write the signals it got to LOG.
     TrapAll {

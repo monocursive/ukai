@@ -29,6 +29,7 @@ pub(crate) fn run(rep: &Reporter, mode: TtyMode) -> Result<bool, Stop> {
         TtyMode::TtyMess { hold_ms } => Ok(mess(rep, hold_ms)),
         TtyMode::TtyStray { dir, ms } => stray(rep, &dir, ms),
         TtyMode::TtySteal { stop_after_ms, ms } => Ok(steal(rep, stop_after_ms, ms)),
+        TtyMode::TtyQueryStop { wait_ms } => Ok(query_stop(rep, wait_ms)),
         TtyMode::TrapAll { log } => trap_all(&log),
         TtyMode::JobShell {
             control_fd,
@@ -548,6 +549,27 @@ fn steal(rep: &Reporter, stop_after_ms: u64, ms: u64) -> bool {
         serde_json::from_slice::<Value>(&line).unwrap_or(Value::Null),
     );
     rep.emit(&done);
+    true
+}
+
+/// J14 review finding 3: leaves the terminal raw, concealed (`SGR 8`) and
+/// with the reply to a cursor-position query in its input queue, then stops
+/// itself after WAIT_MS, so the supervisor relays the stop with all three in
+/// place. Continued, it reports and exits.
+fn query_stop(rep: &Reporter, wait_ms: u64) -> bool {
+    // SAFETY: `t` is plain stack data tcgetattr fills and tcsetattr reads.
+    unsafe {
+        let mut t: libc::termios = std::mem::zeroed();
+        if libc::tcgetattr(0, &raw mut t) == 0 {
+            libc::cfmakeraw(&raw mut t);
+            libc::tcsetattr(0, libc::TCSANOW, &raw const t);
+        }
+    }
+    write_all(1, b"\x1b[8m\x1b[6n");
+    std::thread::sleep(std::time::Duration::from_millis(wait_ms));
+    // SAFETY: SIGSTOP to this process itself.
+    unsafe { libc::kill(libc::getpid(), libc::SIGSTOP) };
+    rep.emit(&OpReport::new("tty-query-stop"));
     true
 }
 

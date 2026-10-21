@@ -688,10 +688,12 @@ reach it, and `^C`, `^\` and `^Z` go to the command, never to the jail.
   the supervisor's pid, which the pre-exec line prints. `^C` no longer ends
   the attempt from the terminal: the agent decides what it does.
 - **`^Z`** stops the command; the supervisor takes the terminal back with the
-  terminal settings it saved, then stops itself with the same signal, so your
-  shell shows the job stopped. `fg` gives the terminal back to the command
-  and continues it; `bg` continues it without the terminal, which stays your
-  shell's: a command that stops in the background does not take it back.
+  terminal settings it saved, discards input the agent did not read (keys
+  typed before the `^Z` included) and writes the attribute reset, then stops
+  itself with the same signal, so your shell shows the job stopped. `fg`
+  gives the terminal back to the command and continues it; `bg` continues it
+  without the terminal, which stays your shell's: a command that stops in the
+  background does not take it back.
   When nothing above the jail does job control (it leads its own session, as
   under `script` or `ssh host ukai-jail …`), the supervisor does not stop
   and continues the command at once. A job you stop and continue in the

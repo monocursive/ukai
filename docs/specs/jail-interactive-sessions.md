@@ -1141,3 +1141,10 @@ live or unit test that failed before its fix and passes after it):
     snapshot says attached and its boundary has no new session. The window
     between that check and the launcher's call stays: a `^Z` and a `bg`
     typed inside it are not caught.
+19. **A relayed stop discards pending input and resets attributes (review
+    finding 3; §3.4 step 3 restores `termios` only).** A reply the command
+    asked for and did not read reached the shell as typed input, and an
+    attribute it left (concealed text) hid the prompt. When no other job
+    holds the terminal, the relay now also runs §3.6 steps 3 and 4 before
+    the supervisor stops; keys typed before the `^Z` that the command did
+    not read are lost, as at settlement.

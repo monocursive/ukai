@@ -2090,6 +2090,56 @@ fn k59_a_job_sent_to_the_background_before_its_release_is_refused() {
     );
 }
 
+/// Review finding 3 (K62): a relayed stop hands the shell a terminal as
+/// clean as the settlement does: the reply to a status query the command
+/// never read is discarded, and the attribute it left (concealed text) is
+/// reset before the supervisor stops. Observation on and off.
+#[test]
+fn k62_a_relayed_stop_leaves_the_shell_nothing_to_read() {
+    if !common::live() {
+        return;
+    }
+    for observe in ["on", "off"] {
+        let mut session = Session::start(Options::run(
+            "tool",
+            &["--observe", observe],
+            &["tty-query-stop"],
+        ));
+        session
+            .terminal
+            .answer_queries
+            .store(true, Ordering::SeqCst);
+        session.stop_event();
+        let drained = session.drain();
+        assert_eq!(
+            drained["bytes"],
+            serde_json::json!([]),
+            "{observe}: the shell read the command's reply: {drained}"
+        );
+        let bytes = session.terminal.bytes();
+        let conceal = bytes
+            .windows(4)
+            .position(|window| window == b"\x1b[8m")
+            .unwrap_or_else(|| panic!("{observe}: no conceal:\n{}", session.terminal.text()));
+        let reset = b"\x1b[0m\x1b[?25h";
+        assert!(
+            bytes[conceal..]
+                .windows(reset.len())
+                .any(|window| window == reset),
+            "{observe}: no reset after the conceal:\n{}",
+            session.terminal.text()
+        );
+        session.send("fg");
+        assert_eq!(
+            session.wait_exit().0,
+            Some(0),
+            "{observe}: {}",
+            session.diagnose()
+        );
+        assert_settled(&session.receipt());
+    }
+}
+
 // Helpers shared with the review's own probes.
 #[allow(dead_code)]
 fn workspace_of(session: &Session) -> &Path {

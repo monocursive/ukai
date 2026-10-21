@@ -1433,6 +1433,12 @@ impl<'a> Attempt<'a> {
         if !session.held_outside(running.target_group()) {
             let _ = session.take_foreground();
             let _ = session.restore_termios();
+            // J14 review finding 3: the shell gets the terminal as clean as
+            // the settlement leaves it. A reply the command asked for and
+            // did not read would be the shell's input, and an attribute it
+            // left (concealed text) would hide the prompt.
+            let _ = session.flush_input();
+            let _ = session.write_reset();
         }
         // A stop signal this process ignores (an inherited disposition) would
         // not stop it: SIGSTOP then stands in.
