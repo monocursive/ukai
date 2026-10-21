@@ -2695,6 +2695,7 @@ state_discard = [".login.json", "drop-me"]
                 Some("launch.credentials.tok.mode"),
                 "{mode}: {error:?}"
             );
+            assert!(!error.message.contains("  "), "{}", error.message);
         }
     }
 
@@ -4268,6 +4269,100 @@ state_discard = [".login.json", "drop-me"]
                 .unwrap()
                 .contains(value)
         );
+    }
+
+    /// Review (records): `doctor` says why the state for this workspace is
+    /// unusable where `run` would refuse, never "none yet"; `state list`
+    /// says when it could not tell whether the lease is held.
+    #[test]
+    fn doctor_and_state_list_say_what_they_could_not_read() {
+        let fixture = inspection_fixture();
+        keeper(&fixture, "");
+        assert_eq!(run_keeper(&fixture, Sim::default(), &[]).exit_code, 0);
+        let key = key_dir(&fixture, &fixture.workspace.canonicalize().unwrap());
+        let lease = key.join("lease");
+        std::fs::rename(&lease, key.join("lease.real")).unwrap();
+        std::os::unix::fs::symlink(key.join("lease.real"), &lease).unwrap();
+        let listed = jail_binary(&fixture, &["state", "list", "--json"]);
+        let value: serde_json::Value = serde_json::from_slice(&listed.stdout).unwrap();
+        assert_eq!(value[0]["held"], serde_json::Value::Null, "{value:#}");
+        assert!(
+            value[0]["lease_error"]
+                .as_str()
+                .is_some_and(|why| why.contains("symbolic link")),
+            "{value:#}"
+        );
+        std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let doctor = jail_binary(&fixture, &["doctor", "--launch", "keeper"]);
+        let stdout = String::from_utf8_lossy(&doctor.stdout);
+        let line = stdout
+            .lines()
+            .find(|line| line.starts_with("state persistent"))
+            .unwrap_or_else(|| panic!("{doctor:?}"));
+        assert!(
+            line.starts_with("state persistent: unusable (unsafe_state_path"),
+            "{line}"
+        );
+        std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+
+    /// K67 (review: records): a lease held while the record still names an
+    /// attempt that already released the state (the next holder has not
+    /// written itself yet) falls back naming "another attempt", never the
+    /// released one, even while that one's supervisor is still alive.
+    #[test]
+    fn k67_a_held_fallback_never_names_an_attempt_that_released() {
+        let fixture = Fixture::new();
+        let workspace = fixture.workspace.canonicalize().unwrap();
+        let settling = ukai_jail::state::AttemptId::generate();
+        let Acquisition::Held(mut held) = state::acquire(&Request {
+            data_dir: &fixture.data,
+            launch: "keeper",
+            workspace: &workspace,
+            attempt: settling.as_str(),
+        })
+        .unwrap() else {
+            panic!("the state is free");
+        };
+        state::hold(&mut held, settling.as_str()).unwrap();
+        state::release(
+            *held,
+            settling.as_str(),
+            &[],
+            &[],
+            Releaser::Supervisor { every_value: true },
+        )
+        .unwrap();
+        // Its supervisor is still settling: its jail.lock is held.
+        private_dir(&fixture.data.join("attempts"));
+        let attempt_root = fixture.data.join("attempts").join(settling.as_str());
+        private_dir(&attempt_root);
+        let lock = std::fs::File::create(attempt_root.join("jail.lock")).unwrap();
+        std::fs::set_permissions(
+            attempt_root.join("jail.lock"),
+            std::fs::Permissions::from_mode(0o600),
+        )
+        .unwrap();
+        let fd = std::os::fd::AsRawFd::as_raw_fd(&lock);
+        // SAFETY: flock of a descriptor this test owns.
+        let locked = unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) };
+        assert_eq!(locked, 0);
+        assert!(state::attempt_live(&fixture.data, settling.as_str()));
+        // The next holder took the lease and has not recorded itself yet.
+        let key = state::key("keeper", workspace.as_os_str().as_bytes());
+        let levels = state::open_levels(&fixture.data, "keeper", &key, false)
+            .unwrap()
+            .unwrap();
+        let next = state::take_lease(&levels.key_dir, &levels.path)
+            .unwrap()
+            .unwrap();
+        let Ok(Acquisition::Fallback(fallback)) = try_acquire(&fixture, &workspace) else {
+            panic!("the lease is held");
+        };
+        assert_eq!(fallback.reason, FallbackReason::Held);
+        assert_eq!(fallback.held_by, None, "{fallback:?}");
+        drop(next);
+        drop(lock);
     }
 
     /// K75: the vendor file a profile discards is named only in data.

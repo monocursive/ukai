@@ -1398,7 +1398,10 @@ pub enum StateCleanup {
 
 /// J14: what an attempt's persistent vendor state was
 /// (jail-interactive-sessions.md §4.7). Present whenever the snapshot asked
-/// for persistent state. Carries no path, name, size or content digest.
+/// for persistent state and acquisition reached a decision (held, or a
+/// fallback); a refusal at acquisition (`state_busy`, `state_quarantined`,
+/// `state_workspace_changed`, `unsafe_state_path`) writes none. Carries no
+/// path, name, size or content digest.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum VendorStateRecord {

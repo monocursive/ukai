@@ -672,7 +672,10 @@ take the fallback with the reason `unreleased`.
   attempt's state is attempt-private, so its cleanup is today's `pending`
   → `complete`.
 - **A new optional `vendor_state`**, present whenever the snapshot asked
-  for persistent state. For a persistent attempt:
+  for persistent state and acquisition reached a decision (held, or a
+  fallback). A refusal at acquisition (`state_busy`, `state_quarantined`,
+  `state_workspace_changed`, `unsafe_state_path`) writes none. For a
+  persistent attempt:
 
   ```json
   "vendor_state": {
@@ -1163,3 +1166,21 @@ intent.
     and its file, and in a link target, and a run whose agent names a file
     after the value quarantines the state with that name recorded redacted;
     before, none of them was found.
+21. **`doctor` and `state list` say what they could not read** (review,
+    2026-10-21; §5's `doctor` row lists present, generation, held and
+    quarantined). `doctor` reported a state it could not open (a level that
+    is not private, a symlink) as `none yet for this workspace`, while
+    `run` refused `unsafe_state_path`. It now prints `state persistent:
+    unusable (<code>): <why>`, the refusal a run would meet. A lease that
+    could not be probed read as "not held"; `doctor`, `state list` (`lease
+    unreadable: <why>`, JSON `"held": null` with `lease_error`) and `state
+    show` (`held now unknown`) now say so. A `held` fallback no longer names
+    an attempt whose record says it released the state, even while that
+    attempt's supervisor is still settling: the next holder took the lease
+    and has not recorded itself yet, so the line says "another attempt"
+    (§4.6 step 2 names "the holder"). The persistent-credential refusal at
+    load lost a run of spaces from its message. Tests: a portable run of
+    `doctor` and `state list` over a key directory made 0755 and a lease
+    made a symlink (before: `none yet`, `"held": false`), K67's fallback
+    over a released holder whose `jail.lock` is held (before: named it),
+    and K65's message (before: 18 spaces).

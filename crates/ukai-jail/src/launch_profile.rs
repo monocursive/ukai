@@ -892,7 +892,8 @@ pub fn check_persistent_credentials(credentials: &[CredentialDecl]) -> Result<()
         return Err(invalid(
             format!("launch.credentials.{}.mode", credential.id),
             format!(
-                "persistent state takes only `vault` credentials; `{}` is `{}`, whose value                  the agent could copy into state that later attempts inherit",
+                "persistent state takes only `vault` credentials; `{}` is `{}`, whose value \
+                 the agent could copy into state that later attempts inherit",
                 credential.id,
                 credential.mode.as_str()
             ),

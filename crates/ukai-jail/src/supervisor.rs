@@ -167,8 +167,8 @@ pub struct DoctorReport {
     pub legacy_tiocsti: Option<String>,
     /// J14 §5: the launch profile's persistent state for this workspace,
     /// when it is persistent (text only): `None` inside when none exists
-    /// yet.
-    pub persistent_state: Option<Option<crate::persistent::Listed>>,
+    /// yet, the refusal a `run` would meet when it cannot be read.
+    pub persistent_state: Option<Result<Option<crate::persistent::Listed>, JailError>>,
 }
 
 // `doctor --launch` (§14.1)
@@ -1736,11 +1736,11 @@ pub fn doctor(ctx: &Context, args: &DoctorArgs) -> Result<DoctorReport, JailErro
                         .any(|check| check.available))
         });
     let persistent_state = match plan.resolved.snapshot.roots.vendor_state.as_ref() {
-        Some(policy::VendorStateRoot::Persistent { profile }) => Some(
-            crate::persistent::show(&plan.data_dir, profile, &plan.workspace)
-                .ok()
-                .flatten(),
-        ),
+        Some(policy::VendorStateRoot::Persistent { profile }) => Some(crate::persistent::show(
+            &plan.data_dir,
+            profile,
+            &plan.workspace,
+        )),
         _ => None,
     };
     Ok(DoctorReport {

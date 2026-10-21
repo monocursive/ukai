@@ -288,8 +288,13 @@ fn state_line(state: &ukai_jail::persistent::Listed) -> String {
             records::escape_control(why)
         )),
     }
-    if state.leased {
-        parts.push("held now".to_owned());
+    match &state.leased {
+        Ok(true) => parts.push("held now".to_owned()),
+        Ok(false) => {}
+        Err(why) => parts.push(format!(
+            "lease unreadable: {}",
+            records::escape_control(why)
+        )),
     }
     parts.join("  ")
 }
@@ -308,7 +313,8 @@ fn state_json(state: &ukai_jail::persistent::Listed) -> serde_json::Value {
             .and_then(|record| record.last_release.as_ref())
             .map(|last| last.attempt.clone()),
         "quarantined": record.map(|record| record.quarantine.is_some()),
-        "held": state.leased,
+        "held": state.leased.as_ref().ok(),
+        "lease_error": state.leased.as_ref().err(),
         "removing": state.removing,
         "error": state.record.as_ref().err(),
     })
@@ -344,7 +350,10 @@ fn state_show_text(state: &ukai_jail::persistent::Listed) -> String {
             |bytes| format!("{bytes} bytes")
         )
     );
-    let _ = writeln!(out, "held now {}", if state.leased { "yes" } else { "no" });
+    let _ = match &state.leased {
+        Ok(held) => writeln!(out, "held now {}", if *held { "yes" } else { "no" }),
+        Err(why) => writeln!(out, "held now unknown: {}", records::escape_control(why)),
+    };
     if let Some(holder) = &record.holder {
         let _ = writeln!(
             out,
@@ -1283,28 +1292,45 @@ fn doctor_text(report: &DoctorReport) -> String {
         }
     }
     if let Some(state) = &report.persistent_state {
-        let _ = writeln!(out, "{}", doctor_state_line(state.as_ref()));
+        let _ = writeln!(
+            out,
+            "{}",
+            doctor_state_line(state.as_ref().map(Option::as_ref))
+        );
     }
     let _ = writeln!(out, "ready {}", report.ready);
     out
 }
 
 /// J14: the launch profile's persistent state for this workspace, as
-/// `doctor` reports it: present, generation, held, quarantined.
-fn doctor_state_line(state: Option<&ukai_jail::persistent::Listed>) -> String {
-    let Some(state) = state else {
-        return "state persistent: none yet for this workspace".to_owned();
+/// `doctor` reports it: present, generation, held, quarantined; or why it
+/// is unusable, which a `run` would refuse with.
+fn doctor_state_line(state: Result<Option<&ukai_jail::persistent::Listed>, &JailError>) -> String {
+    let state = match state {
+        Ok(Some(state)) => state,
+        Ok(None) => return "state persistent: none yet for this workspace".to_owned(),
+        Err(error) => {
+            return format!(
+                "state persistent: unusable ({}): {}",
+                error.code.as_str(),
+                records::escape_control(&error.message)
+            );
+        }
     };
     match &state.record {
         Ok(record) => format!(
             "state persistent: present, generation {}, {}{}{}",
             record.generation,
-            if state.leased { "held now" } else { "not held" },
+            match &state.leased {
+                Ok(true) => "held now".to_owned(),
+                Ok(false) => "not held".to_owned(),
+                Err(why) => format!("lease unreadable: {}", records::escape_control(why)),
+            },
             if record
                 .holder
                 .as_ref()
                 .is_some_and(|holder| !holder.released)
-                && !state.leased
+                && state.leased == Ok(false)
             {
                 ", NOT released (run ukai-jail gc)"
             } else {
@@ -1856,8 +1882,19 @@ mod tests {
     fn doctor_says_what_the_persistent_state_is() {
         use ukai_jail::persistent::{Holder, Identity, Listed, Quarantine, Record};
         assert_eq!(
-            doctor_state_line(None),
+            doctor_state_line(Ok(None)),
             "state persistent: none yet for this workspace"
+        );
+        let unsafe_path = JailError::new(
+            records::ErrorCode::UnsafeStatePath,
+            records::ErrorStage::Preparing,
+            records::Remediation::HostSetup,
+            "/d/state/keeper/k: is a symbolic link\u{1b}",
+        );
+        assert_eq!(
+            doctor_state_line(Err(&unsafe_path)),
+            "state persistent: unusable (unsafe_state_path): /d/state/keeper/k: is a symbolic \
+             link<U+001B>"
         );
         let record = |released: bool, quarantined: bool| Record {
             schema: "ukai.jail.persistent-state/1".to_owned(),
@@ -1881,7 +1918,7 @@ mod tests {
             }),
             log: Vec::new(),
         };
-        let listed = |record: Result<Record, String>, leased: bool| Listed {
+        let listed = |record: Result<Record, String>, leased: Result<bool, String>| Listed {
             launch: "keeper".to_owned(),
             key: "k".to_owned(),
             record,
@@ -1891,28 +1928,32 @@ mod tests {
         };
         for (state, line) in [
             (
-                listed(Ok(record(true, false)), false),
+                listed(Ok(record(true, false)), Ok(false)),
                 "state persistent: present, generation 4, not held",
             ),
             (
-                listed(Ok(record(false, false)), true),
+                listed(Ok(record(false, false)), Ok(true)),
                 "state persistent: present, generation 4, held now",
             ),
             (
-                listed(Ok(record(false, false)), false),
+                listed(Ok(record(false, false)), Ok(false)),
                 "state persistent: present, generation 4, not held, NOT released (run ukai-jail gc)",
             ),
             (
-                listed(Ok(record(true, true)), false),
+                listed(Ok(record(true, true)), Ok(false)),
                 "state persistent: present, generation 4, not held, QUARANTINED (ukai-jail state \
                  show)",
             ),
             (
-                listed(Err("bad\u{1b}".to_owned()), false),
+                listed(Ok(record(false, false)), Err("lease\u{1b}".to_owned())),
+                "state persistent: present, generation 4, lease unreadable: lease<U+001B>",
+            ),
+            (
+                listed(Err("bad\u{1b}".to_owned()), Ok(false)),
                 "state persistent: present, record unreadable: bad<U+001B>",
             ),
         ] {
-            assert_eq!(doctor_state_line(Some(&state)), line);
+            assert_eq!(doctor_state_line(Ok(Some(&state))), line);
         }
     }
 

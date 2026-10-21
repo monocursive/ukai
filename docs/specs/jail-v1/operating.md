@@ -839,8 +839,9 @@ and why not (`terminal attached (/dev/pts/3)` or `terminal detached (not the
 foreground job)`), which barrier stops `TIOCSTI` (`legacy_tiocsti=0`: the
 kernel as well as the filter; `=1`: the filter alone), and, for a launch
 profile with persistent state, that state for this workspace (`state
-persistent: present, generation 4, not held`, `NOT released`, `QUARANTINED`
-or `none yet`). These lines are text only: `ukai.jail.doctor/1` is
+persistent: present, generation 4, not held`, `NOT released`, `QUARANTINED`,
+`none yet`, or `unusable (unsafe_state_path): …` with the reason a `run`
+would refuse). These lines are text only: `ukai.jail.doctor/1` is
 unchanged.
 
 ## gc

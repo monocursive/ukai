@@ -1287,11 +1287,13 @@ pub fn acquire(request: &Request<'_>) -> Result<Acquisition, JailError> {
             }
             Leasing::Busy(levels) => {
                 // The record can lag the lease by an instant: it names the
-                // holder only when that attempt is alive.
+                // holder only when that attempt has not released the state
+                // (its supervisor may still be settling) and is alive.
                 let record = read_record(&levels.key_dir, &levels.path).ok().flatten();
                 let held_by = record
                     .as_ref()
                     .and_then(|record| record.holder.as_ref())
+                    .filter(|holder| !holder.released)
                     .map(|holder| holder.attempt.clone())
                     .filter(|attempt| attempt_live(request.data_dir, attempt));
                 return Ok(Acquisition::Fallback(Fallback {
@@ -1692,8 +1694,9 @@ pub struct Listed {
     /// Bytes of regular files below `vendor/`, when the bounded walk could
     /// count them.
     pub size: Option<u64>,
-    /// Whether an attempt holds the lease now.
-    pub leased: bool,
+    /// Whether an attempt holds the lease now, or why that could not be
+    /// told.
+    pub leased: Result<bool, String>,
     /// A `state rm` of this key that stopped: its tombstone, which no
     /// acquisition takes and `gc` finishes (`record` says so).
     pub removing: bool,
@@ -1743,7 +1746,7 @@ pub fn list(data_dir: &Path) -> Result<Vec<Listed>, JailError> {
                         launch_path.join(key_text).display()
                     )),
                     size: None,
-                    leased: false,
+                    leased: Ok(false),
                     removing: true,
                 });
                 continue;
@@ -1789,10 +1792,10 @@ fn describe(levels: &Levels, launch: &str) -> Listed {
     let leased = match take_lease(&levels.key_dir, &levels.path) {
         Ok(Some(lease)) => {
             drop(lease);
-            false
+            Ok(false)
         }
-        Ok(None) => true,
-        Err(_) => false,
+        Ok(None) => Ok(true),
+        Err(error) => Err(error.message),
     };
     Listed {
         launch: launch.to_owned(),
