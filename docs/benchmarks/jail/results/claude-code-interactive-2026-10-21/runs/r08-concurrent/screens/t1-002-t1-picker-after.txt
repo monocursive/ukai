@@ -1,0 +1,40 @@
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Resume session
+  ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+  │ ⌕ Search…                                                                                                        │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+    ws-A
+
+  ❯ a899f90f
+    7 seconds ago · master · 2.1KB
+
+    /login
+    1 minute ago · master · 3KB
+
+    History of version control systems
+    1 minute ago · master · 38KB
+
+    Greeting.txt file creation
+    2 minutes ago · master · 382.4KB
+
+    Ctrl+A to show all projects · Ctrl+B to only show current branch · Space to preview · Ctrl+R to rename · Type to
+    search · Esc to cancel
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

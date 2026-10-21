@@ -1,0 +1,30 @@
+[
+  {
+    "error": null,
+    "generation": 24,
+    "held": false,
+    "key": "24c59188b58457efe65be99e5c2bcf16",
+    "last_attempt": "att_8858be4c-36d7-4e71-a587-09e49bf4f517",
+    "launch": "claude",
+    "lease_error": null,
+    "quarantined": false,
+    "removing": false,
+    "size": 474469,
+    "state_id": "st_d305d6fb-1129-4863-8018-9575b2f83a25",
+    "workspace": "/home/ubuntu/arow-int-final/ws-A"
+  },
+  {
+    "error": null,
+    "generation": 1,
+    "held": false,
+    "key": "28c460f82826d93c44e25f2939a40f04",
+    "last_attempt": "att_f634b976-e2a3-4b6f-9179-42e1d77fbc82",
+    "launch": "claude",
+    "lease_error": null,
+    "quarantined": false,
+    "removing": false,
+    "size": 8677,
+    "state_id": "st_4ae7e3f9-e3d2-45ed-8f9f-4aa140407724",
+    "workspace": "/home/ubuntu/arow-int-final/ws-B"
+  }
+]

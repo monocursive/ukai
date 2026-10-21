@@ -1,0 +1,40 @@
+[arow ws-A]$ rm -f greeting.txt; true | ukai-jail claude -p 'Create a file named greeting.txt containing the single word
+ hello.' --dangerously-skip-permissions --output-format json; rc=$?; python3 -I $H/k62.py; echo "ARROW-DONE rc=$rc"
+ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versi
+ons)
+ukai-jail: terminal: detached (stdin is not a terminal)
+ukai-jail: state: claude, this workspace, generation 26 (from att_fabcad39-4307-4286-9562-c81a38806761)
+{"duration_api_ms":5287,"stop_reason":"end_turn","session_id":"d567f2f4-2ab3-4693-a99a-a6b5ad0d6094","total_cost_usd":0.
+0046971,"usage":{"input_tokens":4,"cache_creation_input_tokens":0,"cache_read_input_tokens":31891,"output_tokens":150,"o
+utput_tokens_details":{"thinking_tokens":0},"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_
+tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0},"inference_geo":"global"
+,"iterations":[],"speed":"standard","fallback_credit":null},"modelUsage":{"claude-sonnet-5-5":{"inputTokens":4,"outputTo
+kens":150,"cacheReadInputTokens":31891,"cacheCreationInputTokens":0,"webSearchRequests":0,"costUSD":0.0046971,"contextWi
+ndow":1000000,"maxOutputTokens":128000,"thinkingTokens":0,"canonicalModel":"claude-sonnet-5-5","provider":"firstParty","
+costBasis":"list"}},"permission_denials":[],"terminal_reason":"completed","fast_mode_state":"off","fast_mode_disabled_re
+ason":"sdk_opt_in_required","subagent_stats":{"spawned":0,"requested":{"background":0,"foreground":0,"unset":0},"started
+_in_background":0,"max_depth":0,"spawned_by_subagents":0,"completed":0,"failed":0,"killed":{"parent":0,"user":0,"system"
+:0},"refused":{"depth_limit":0,"concurrency_limit":0,"budget":0},"by_type":{}},"safety_stops":0,"is_error":false,"num_tu
+rns":2,"subtype":"success","api_error_status":null,"result":"I created `greeting.txt` in `/home/ubuntu/arow-int-final/ws
+-A`. It contains the single word `hello` followed by a newline.","ttft_ms":1780,"type":"result","duration_ms":5457,"uuid
+":"ce73813c-d373-4f0d-993d-89800406d600","ttft_stream_ms":976,"time_to_request_ms":120,"first_content_frame_ms":976,"que
+ued_turn_count":0,"result_index":0}
+ukai-jail: settled · exited 0 · 6.0s exec→settled · survivors: none (verified)
+ukai-jail: workspace: 1 path opened for writing, 2 in renames · 1 refused write
+ukai-jail: network: allowed api.anthropic.com:443 (4)
+ukai-jail: credential claude-oauth: vault, never staged · used on 4 proxy results · 0 credential refusals
+ukai-jail: state: kept, generation 27 · started from what att_fabcad39-4307-4286-9562-c81a38806761 released, unchanged
+ukai-jail: evidence: 6/6 classes active, no gaps · reads and file contents are not observed
+ukai-jail: receipt /home/ubuntu/arow-int-final/data/attempts/att_cc6ff456-39d1-4984-a39f-cfd0f3e65961/jail.json
+K62-RESULT {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}
+ARROW-DONE rc=0
+[arow ws-A]$ exit
+logout
+Connection to 37.59.114.70 closed.
+
+
+
+
+
+
+

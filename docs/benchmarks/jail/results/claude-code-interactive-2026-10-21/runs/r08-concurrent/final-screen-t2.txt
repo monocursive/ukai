@@ -1,0 +1,40 @@
+ukai-jail: state: claude for this workspace is held by att_5c54adf5-c077-41b9-8bbe-f302786f229a · this session uses thro
+waway state and will not be kept
+
+Resume this session with:
+claude --resume 7757fe2b-5ac4-4e2e-9ea3-383f02d421f0
+ukai-jail: settled · exited 0 · 13.0s exec→settled · survivors: none (verified)
+ukai-jail: workspace: 0 paths opened for writing · 2 refused writes
+ukai-jail: network: allowed api.anthropic.com:443 (7), platform.claude.com:443 (1) · denied downloads.claude.ai:443 (1),
+ github.com:443 (1)
+ukai-jail: credential claude-oauth: vault, never staged · used on 6 proxy results · 0 credential refusals
+ukai-jail: state: NOT kept · this session used throwaway state because att_5c54adf5-c077-41b9-8bbe-f302786f229a held the
+ persistent state for this workspace
+ukai-jail: evidence: 6/6 classes active, no gaps · reads and file contents are not observed
+ukai-jail: receipt /home/ubuntu/arow-int-final/data/attempts/att_44fae362-3537-4572-9c58-e58867dabf5b/jail.json
+K62-RESULT {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}
+ARROW-DONE rc=0
+[arow ws-A]$ exit
+logout
+Connection to 37.59.114.70 closed.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

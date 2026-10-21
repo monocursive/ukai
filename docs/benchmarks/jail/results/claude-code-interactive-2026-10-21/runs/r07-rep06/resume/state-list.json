@@ -1,0 +1,16 @@
+[
+  {
+    "error": null,
+    "generation": 14,
+    "held": false,
+    "key": "24c59188b58457efe65be99e5c2bcf16",
+    "last_attempt": "att_01e893b9-8a4a-4e1b-8951-b2089eff14dc",
+    "launch": "claude",
+    "lease_error": null,
+    "quarantined": false,
+    "removing": false,
+    "size": 313336,
+    "state_id": "st_d305d6fb-1129-4863-8018-9575b2f83a25",
+    "workspace": "/home/ubuntu/arow-int-final/ws-A"
+  }
+]

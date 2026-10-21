@@ -1,0 +1,40 @@
+[arow ws-A]$ ukai-jail claude; rc=$?; python3 -I $H/k62.py; echo "ARROW-DONE rc=$rc"
+ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versi
+ons)
+ukai-jail: terminal: attached (/dev/pts/0) · wall 8h · ^C and ^Z go to claude, not the jail; to end the attempt, exit cl
+aude or run `kill -INT 3354322`
+ukai-jail: state: claude, this workspace, generation 24 (from att_8858be4c-36d7-4e71-a587-09e49bf4f517)
+
+Resume this session with:
+claude --resume 55479104-7bfa-4afb-9969-4b6a7c4b39c6
+ukai-jail: settled · exited 0 · 18.4s exec→settled · survivors: none (verified)
+ukai-jail: workspace: 0 paths opened for writing · 2 refused writes
+ukai-jail: network: allowed api.anthropic.com:443 (2), platform.claude.com:443 (1)
+ukai-jail: credential claude-oauth: vault, never staged · used on 2 proxy results · 0 credential refusals
+ukai-jail: state: kept, generation 25 · started from what att_8858be4c-36d7-4e71-a587-09e49bf4f517 released, unchanged
+ukai-jail: evidence: 6/6 classes active, no gaps · reads and file contents are not observed
+ukai-jail: receipt /home/ubuntu/arow-int-final/data/attempts/att_20b1f9cf-4abe-4935-ae94-0a8afbc63530/jail.json
+K62-RESULT {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}
+ARROW-DONE rc=0
+[arow ws-A]$ exit
+logout
+Connection to 37.59.114.70 closed.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

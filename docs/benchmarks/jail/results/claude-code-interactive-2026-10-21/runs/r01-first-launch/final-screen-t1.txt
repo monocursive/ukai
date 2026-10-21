@@ -1,0 +1,40 @@
+aude or run `kill -INT 3338975`
+ukai-jail: state: claude, new for this workspace
+
+Resume this session with:
+claude --resume 391a2c6b-aad5-4508-a37e-3c1f2f884179
+ukai-jail: settled · exited 0 · 17.2s exec→settled · survivors: none (verified)
+ukai-jail: workspace: 1 path opened for writing, 2 in renames · 2 refused writes
+ukai-jail: network: allowed api.anthropic.com:443 (8), platform.claude.com:443 (1) · denied downloads.claude.ai:443 (1),
+ github.com:443 (1)
+ukai-jail: credential claude-oauth: vault, never staged · used on 7 proxy results · 0 credential refusals
+ukai-jail: state: kept, generation 1 · new for this workspace
+ukai-jail: evidence: 6/6 classes active, no gaps · reads and file contents are not observed
+ukai-jail: receipt /home/ubuntu/arow-int-final/data/attempts/att_1ffda359-f695-41ed-b88e-61c2cd8ee0a3/jail.json
+K62-RESULT {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}
+ARROW-DONE rc=0
+[arow ws-A]$ exit
+logout
+Connection to 37.59.114.70 closed.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,32 @@
+  GNU nano 8.7.1  /tmp/claude-1000/claude-prompt-1de272e2-65c7-41ba-aa57-140baae2194c.md
+draft for the editor
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                          [ Read 1 line ]
+^G Help       ^O Write Out  ^F Where Is   ^K Cut        ^T Execute    ^C Location   M-U Undo
+^X Exit       ^R Read File  ^\ Replace    ^U Paste      ^J Justify    ^/ Go To Line M-E Redo

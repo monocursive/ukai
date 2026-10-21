@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.302
+▝▜██████▀  Sonnet 5.5 · Claude API
+ ▝▝   ▝▝   ~/arow-int-final/ws-A
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ ◐ medium · /effort ▔
+   Login
+
+   Warning: CLAUDE_CODE_OAUTH_TOKEN is set in your environment. This session will switch to your new credentials
+   after logging in, but if that variable is set in your shell profile or a Claude Code settings file, new `claude`
+   sessions will keep using the old token until you remove it there.
+
+   Select login method:
+
+   ❯ 1. Claude account with subscription · Pro, Max, Team, or Enterprise
+     2. Anthropic Console account · API usage billing
+     3. 3rd-party platform · Amazon Bedrock, Microsoft Foundry, Google Vertex AI
+
+   Esc to cancel

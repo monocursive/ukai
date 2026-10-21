@@ -1,0 +1,32 @@
+● A History of Version Control Systems: From SCCS to Git
+
+  The Problem Before Version Control
+
+  In the earliest days of computing, source code lived on punched cards, paper tape, and magnetic
+  reels. "Versioning" meant physically labeled decks and carefully maintained filing cabinets. As
+  programs grew and teams expanded, the informal habits that replaced this (copying files to
+  foo.c.old, foo.c.bak2, foo_final_REALLY.c) could not keep pace. Programmers needed answers to
+  basic questions: who changed this line, when, why, and how do we get back to the version that
+  worked last Tuesday? Version control systems (VCS) grew out of the need to answer those questions
+  mechanically.
+
+  The First Generation: File-Based, Locking Systems
+
+  SCCS (1972)
+
+  The Source Code Control System was written by Marc Rochkind at Bell Labs in 1972, initially in
+  SNOBOL4 for IBM System/370 and later rewritten in C for Unix. SCCS introduced ideas that persist
+  today. It stored a file's entire history in a single "history file" (the s. file) using an
+  interleaved-deltas format, in which every revision's lines were woven into one body with markers
+  indicating which versions contained them. Retrieving any version cost roughly the same as any
+  other, which was a notable design property.
+
+  SCCS was strictly per-file. There was no concept of a project-wide revision. It also relied on
+  locking: a developer "checked out" a file for editing, and nobody else could edit it until it was
+  checked back in
+  ⎿  Interrupted · What should Claude do instead?
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+❯
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle)

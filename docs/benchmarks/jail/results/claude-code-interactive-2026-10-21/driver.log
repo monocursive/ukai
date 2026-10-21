@@ -1,0 +1,262 @@
+11:50:33 == r01
+11:50:38   r01-first-launch: attempt = "att_1ffda359-f695-41ed-b88e-61c2cd8ee0a3"
+11:50:45   r01-first-launch: onboarding_seen = ["theme", "security", "trust"]
+11:50:45   r01-first-launch: onboarding_end = "idle"
+11:50:45   r01-first-launch: login_prompt_appeared = false
+11:50:45   r01-first-launch: initial_mode = "\u23f5\u23f5 auto mode on (shift+tab to cycle) \u00b7 \u2190 for agents"
+11:50:45   r01-first-launch: mode_after_switch = "\u23f8 manual mode on \u00b7 ? for shortcuts \u00b7 \u2190 for agents"
+11:50:55   r01-first-launch: turn = ["generating", "permission", "idle"]
+11:50:55   r01-first-launch: permission_prompt_answered = true
+11:50:57   r01-first-launch: results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:51:01   r01-first-launch/A: pass=True failed=[] gen=[0, 1] exited/0
+11:51:01 == r02
+11:51:08   r02-resume-continue: resume:onboarding_seen = []
+11:51:08   r02-resume-continue: resume:first_screen = "picker"
+11:51:08   r02-resume-continue: resume:picker_entries = [["Greeting.txt file creation", "14 seconds ago \u00b7 master \u00b7 147.7KB", true]]
+11:51:08   r02-resume-continue: resume:r01_listed = true
+11:51:09   r02-resume-continue: resume:history_shows_run1_prompt = true
+11:51:15   r02-resume-continue: resume:turn = ["generating", "idle"]
+11:51:15   r02-resume-continue: resume:answer_mentions_greeting = true
+11:51:17   r02-resume-continue: resume:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:51:17   r02-resume-continue: resume:same_session_as_r01 = true
+11:51:21   r02-resume-continue/resume: pass=True failed=[] gen=[1, 2] exited/0
+11:51:28   r02-resume-continue: continue:onboarding_seen = []
+11:51:28   r02-resume-continue: continue:history_shows_previous_question = true
+11:51:34   r02-resume-continue: continue:turn = ["generating", "idle"]
+11:51:34   r02-resume-continue: continue:answer_mentions_file_question = true
+11:51:36   r02-resume-continue: continue:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:51:36   r02-resume-continue: continue:same_session_as_r01 = true
+11:51:41   r02-resume-continue/continue: pass=True failed=[] gen=[2, 3] exited/0
+11:51:41 == r07
+11:51:49   r07-rep01: resume:onboarding_seen = []
+11:51:49   r07-rep01: resume:first_screen = "picker"
+11:51:49   r07-rep01: resume:picker_entries = [["Greeting.txt file creation", "14 seconds ago \u00b7 master \u00b7 165.2KB", true]]
+11:51:49   r07-rep01: resume:r01_listed = true
+11:51:50   r07-rep01: resume:history_shows_run1_prompt = true
+11:51:56   r07-rep01: resume:turn = ["generating", "idle"]
+11:51:56   r07-rep01: resume:answer_mentions_greeting = true
+11:51:58   r07-rep01: resume:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:51:58   r07-rep01: resume:same_session_as_r01 = true
+11:52:02   r07-rep01/resume: pass=True failed=[] gen=[3, 4] exited/0
+11:52:09   r07-rep01: continue:onboarding_seen = []
+11:52:09   r07-rep01: continue:history_shows_previous_question = true
+11:52:15   r07-rep01: continue:turn = ["generating", "idle"]
+11:52:15   r07-rep01: continue:answer_mentions_file_question = true
+11:52:17   r07-rep01: continue:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:52:17   r07-rep01: continue:same_session_as_r01 = true
+11:52:21   r07-rep01/continue: pass=True failed=[] gen=[4, 5] exited/0
+11:52:28   r07-rep02: resume:onboarding_seen = []
+11:52:28   r07-rep02: resume:first_screen = "picker"
+11:52:28   r07-rep02: resume:picker_entries = [["Greeting.txt file creation", "13 seconds ago \u00b7 master \u00b7 183.5KB", true]]
+11:52:28   r07-rep02: resume:r01_listed = true
+11:52:29   r07-rep02: resume:history_shows_run1_prompt = true
+11:52:35   r07-rep02: resume:turn = ["generating", "idle"]
+11:52:35   r07-rep02: resume:answer_mentions_greeting = true
+11:52:37   r07-rep02: resume:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:52:37   r07-rep02: resume:same_session_as_r01 = true
+11:52:41   r07-rep02/resume: pass=True failed=[] gen=[5, 6] exited/0
+11:52:48   r07-rep02: continue:onboarding_seen = []
+11:52:48   r07-rep02: continue:history_shows_previous_question = true
+11:52:54   r07-rep02: continue:turn = ["generating", "idle"]
+11:52:54   r07-rep02: continue:answer_mentions_file_question = true
+11:52:56   r07-rep02: continue:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:52:56   r07-rep02: continue:same_session_as_r01 = true
+11:53:01   r07-rep02/continue: pass=True failed=[] gen=[6, 7] exited/0
+11:53:08   r07-rep03: resume:onboarding_seen = []
+11:53:08   r07-rep03: resume:first_screen = "picker"
+11:53:08   r07-rep03: resume:picker_entries = [["Greeting.txt file creation", "14 seconds ago \u00b7 master \u00b7 202.4KB", true]]
+11:53:08   r07-rep03: resume:r01_listed = true
+11:53:09   r07-rep03: resume:history_shows_run1_prompt = false
+11:53:17   r07-rep03: resume:turn = ["generating", "idle"]
+11:53:17   r07-rep03: resume:answer_mentions_greeting = true
+11:53:19   r07-rep03: resume:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:53:19   r07-rep03: resume:same_session_as_r01 = true
+11:53:23   r07-rep03/resume: pass=True failed=[] gen=[7, 8] exited/0
+11:53:30   r07-rep03: continue:onboarding_seen = []
+11:53:30   r07-rep03: continue:history_shows_previous_question = true
+11:53:37   r07-rep03: continue:turn = ["generating", "idle"]
+11:53:37   r07-rep03: continue:answer_mentions_file_question = true
+11:53:39   r07-rep03: continue:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.0}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claude/
+11:53:39   r07-rep03: continue:same_session_as_r01 = true
+11:53:44   r07-rep03/continue: pass=True failed=[] gen=[8, 9] exited/0
+11:53:51   r07-rep04: resume:onboarding_seen = []
+11:53:51   r07-rep04: resume:first_screen = "picker"
+11:53:51   r07-rep04: resume:picker_entries = [["Greeting.txt file creation", "14 seconds ago \u00b7 master \u00b7 222.2KB", true]]
+11:53:51   r07-rep04: resume:r01_listed = true
+11:53:52   r07-rep04: resume:history_shows_run1_prompt = false
+11:53:58   r07-rep04: resume:turn = ["generating", "idle"]
+11:53:58   r07-rep04: resume:answer_mentions_greeting = true
+11:54:00   r07-rep04: resume:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:54:00   r07-rep04: resume:same_session_as_r01 = true
+11:54:05   r07-rep04/resume: pass=True failed=[] gen=[9, 10] exited/0
+11:54:13   r07-rep04: continue:onboarding_seen = []
+11:54:13   r07-rep04: continue:history_shows_previous_question = true
+11:54:20   r07-rep04: continue:turn = ["generating", "idle"]
+11:54:20   r07-rep04: continue:answer_mentions_file_question = true
+11:54:22   r07-rep04: continue:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:54:22   r07-rep04: continue:same_session_as_r01 = true
+11:54:27   r07-rep04/continue: pass=True failed=[] gen=[10, 11] exited/0
+11:54:33   r07-rep05: resume:onboarding_seen = []
+11:54:33   r07-rep05: resume:first_screen = "picker"
+11:54:34   r07-rep05: resume:picker_entries = [["Greeting.txt file creation", "13 seconds ago \u00b7 master \u00b7 242.6KB", true]]
+11:54:34   r07-rep05: resume:r01_listed = true
+11:54:35   r07-rep05: resume:history_shows_run1_prompt = false
+11:54:41   r07-rep05: resume:turn = ["generating", "idle"]
+11:54:41   r07-rep05: resume:answer_mentions_greeting = true
+11:54:43   r07-rep05: resume:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:54:43   r07-rep05: resume:same_session_as_r01 = true
+11:54:47   r07-rep05/resume: pass=True failed=[] gen=[11, 12] exited/0
+11:54:54   r07-rep05: continue:onboarding_seen = []
+11:54:54   r07-rep05: continue:history_shows_previous_question = true
+11:54:59   r07-rep05: continue:turn = ["generating", "idle"]
+11:54:59   r07-rep05: continue:answer_mentions_file_question = true
+11:55:01   r07-rep05: continue:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:55:01   r07-rep05: continue:same_session_as_r01 = true
+11:55:06   r07-rep05/continue: pass=True failed=[] gen=[12, 13] exited/0
+11:55:14   r07-rep06: resume:onboarding_seen = []
+11:55:14   r07-rep06: resume:first_screen = "picker"
+11:55:14   r07-rep06: resume:picker_entries = [["Greeting.txt file creation", "14 seconds ago \u00b7 master \u00b7 264KB", true]]
+11:55:14   r07-rep06: resume:r01_listed = true
+11:55:15   r07-rep06: resume:history_shows_run1_prompt = false
+11:55:21   r07-rep06: resume:turn = ["generating", "idle"]
+11:55:21   r07-rep06: resume:answer_mentions_greeting = true
+11:55:23   r07-rep06: resume:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:55:23   r07-rep06: resume:same_session_as_r01 = true
+11:55:27   r07-rep06/resume: pass=True failed=[] gen=[13, 14] exited/0
+11:55:34   r07-rep06: continue:onboarding_seen = []
+11:55:34   r07-rep06: continue:history_shows_previous_question = true
+11:55:42   r07-rep06: continue:turn = ["generating", "idle"]
+11:55:42   r07-rep06: continue:answer_mentions_file_question = true
+11:55:44   r07-rep06: continue:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.002}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:55:44   r07-rep06: continue:same_session_as_r01 = true
+11:55:49   r07-rep06/continue: pass=True failed=[] gen=[14, 15] exited/0
+11:55:56   r07-rep07: resume:onboarding_seen = []
+11:55:56   r07-rep07: resume:first_screen = "picker"
+11:55:56   r07-rep07: resume:picker_entries = [["Greeting.txt file creation", "14 seconds ago \u00b7 master \u00b7 285.9KB", true]]
+11:55:56   r07-rep07: resume:r01_listed = true
+11:55:57   r07-rep07: resume:history_shows_run1_prompt = false
+11:56:03   r07-rep07: resume:turn = ["generating", "idle"]
+11:56:03   r07-rep07: resume:answer_mentions_greeting = true
+11:56:05   r07-rep07: resume:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.0}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claude/
+11:56:05   r07-rep07: resume:same_session_as_r01 = true
+11:56:10   r07-rep07/resume: pass=True failed=[] gen=[15, 16] exited/0
+11:56:19   r07-rep07: continue:onboarding_seen = []
+11:56:19   r07-rep07: continue:history_shows_previous_question = true
+11:56:25   r07-rep07: continue:turn = ["generating", "idle"]
+11:56:25   r07-rep07: continue:answer_mentions_file_question = true
+11:56:27   r07-rep07: continue:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:56:27   r07-rep07: continue:same_session_as_r01 = true
+11:56:31   r07-rep07/continue: pass=True failed=[] gen=[16, 17] exited/0
+11:56:38   r07-rep08: resume:onboarding_seen = []
+11:56:38   r07-rep08: resume:first_screen = "picker"
+11:56:38   r07-rep08: resume:picker_entries = [["Greeting.txt file creation", "14 seconds ago \u00b7 master \u00b7 309KB", true]]
+11:56:38   r07-rep08: resume:r01_listed = true
+11:56:40   r07-rep08: resume:history_shows_run1_prompt = false
+11:56:46   r07-rep08: resume:turn = ["generating", "idle"]
+11:56:46   r07-rep08: resume:answer_mentions_greeting = true
+11:56:48   r07-rep08: resume:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:56:48   r07-rep08: resume:same_session_as_r01 = true
+11:56:52   r07-rep08/resume: pass=True failed=[] gen=[17, 18] exited/0
+11:56:59   r07-rep08: continue:onboarding_seen = []
+11:56:59   r07-rep08: continue:history_shows_previous_question = true
+11:57:05   r07-rep08: continue:turn = ["generating", "idle"]
+11:57:05   r07-rep08: continue:answer_mentions_file_question = true
+11:57:07   r07-rep08: continue:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:57:07   r07-rep08: continue:same_session_as_r01 = true
+11:57:12   r07-rep08/continue: pass=True failed=[] gen=[18, 19] exited/0
+11:57:18   r07-rep09: resume:onboarding_seen = []
+11:57:18   r07-rep09: resume:first_screen = "picker"
+11:57:18   r07-rep09: resume:picker_entries = [["Greeting.txt file creation", "14 seconds ago \u00b7 master \u00b7 332.8KB", true]]
+11:57:18   r07-rep09: resume:r01_listed = true
+11:57:19   r07-rep09: resume:history_shows_run1_prompt = false
+11:57:25   r07-rep09: resume:turn = ["generating", "idle"]
+11:57:25   r07-rep09: resume:answer_mentions_greeting = true
+11:57:27   r07-rep09: resume:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:57:27   r07-rep09: resume:same_session_as_r01 = true
+11:57:31   r07-rep09/resume: pass=True failed=[] gen=[19, 20] exited/0
+11:57:38   r07-rep09: continue:onboarding_seen = []
+11:57:38   r07-rep09: continue:history_shows_previous_question = true
+11:57:45   r07-rep09: continue:turn = ["generating", "idle"]
+11:57:45   r07-rep09: continue:answer_mentions_file_question = true
+11:57:46   r07-rep09: continue:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:57:46   r07-rep09: continue:same_session_as_r01 = true
+11:57:51   r07-rep09/continue: pass=True failed=[] gen=[20, 21] exited/0
+11:57:58   r07-rep10: resume:onboarding_seen = []
+11:57:58   r07-rep10: resume:first_screen = "picker"
+11:57:58   r07-rep10: resume:picker_entries = [["Greeting.txt file creation", "14 seconds ago \u00b7 master \u00b7 357KB", true]]
+11:57:58   r07-rep10: resume:r01_listed = true
+11:57:59   r07-rep10: resume:history_shows_run1_prompt = false
+11:58:07   r07-rep10: resume:turn = ["generating", "idle"]
+11:58:07   r07-rep10: resume:answer_mentions_greeting = true
+11:58:09   r07-rep10: resume:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:58:09   r07-rep10: resume:same_session_as_r01 = true
+11:58:13   r07-rep10/resume: pass=True failed=[] gen=[21, 22] exited/0
+11:58:21   r07-rep10: continue:onboarding_seen = []
+11:58:21   r07-rep10: continue:history_shows_previous_question = true
+11:58:27   r07-rep10: continue:turn = ["generating", "idle"]
+11:58:27   r07-rep10: continue:answer_mentions_file_question = true
+11:58:28   r07-rep10: continue:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:58:28   r07-rep10: continue:same_session_as_r01 = true
+11:58:33   r07-rep10/continue: pass=True failed=[] gen=[22, 23] exited/0
+11:58:33 == r03
+11:58:46   r03-workspace-b: onboarding_seen = ["theme", "security", "trust"]
+11:58:47   r03-workspace-b: picker_text = ["ws-B", "No conversations found in this project.", "Ctrl+A to show all projects", "Ctrl+A to show all projects \u00b7 Ctrl+B to only show current branch \u00b7 Type to search \u00b7 Esc to cancel"]
+11:58:47   r03-workspace-b: picker_entries = []
+11:58:49   r03-workspace-b: picker_all_projects_entries = []
+11:58:49   r03-workspace-b: no_conversations_shown = true
+11:58:49   r03-workspace-b: r01_title_absent = true
+11:58:50   r03-workspace-b: after_picker = "idle"
+11:58:52   r03-workspace-b: results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "2b955a5b-7c5c-49c8-b973-729240cc0c47", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:58:56   r03-workspace-b/B: pass=True failed=[] gen=[0, 1] exited/0
+11:58:56 == r04
+11:59:03   r04-signals-hangup: onboarding_seen = []
+11:59:06   r04-signals-hangup: generating = "generating"
+11:59:12   r04-signals-hangup: resize = {"rule_before": 120, "rule_after": 100, "still_generating": true}
+11:59:14   r04-signals-hangup: ctrl_c = {"generating_before": "generating", "after": "idle", "shell_marker_seen": false, "interrupted_text": true}
+11:59:17   r04-signals-hangup: editor = {"shown": true, "editor": [["3353654", "3353516", "3353516", "3353516", "S+", "nano"]], "agent": [["3353516", "3353515", "3353516", "3353516", "Sl+", "2.1.302"]], "editor_in_agent_group": true, "termi
+11:59:18   r04-signals-hangup: editor_returned = {"label": "idle", "draft_back_in_input": true, "nano_gone": true}
+11:59:19   r04-signals-hangup: reset_written_at_stop = true
+11:59:19   r04-signals-hangup: ctrl_z = {"stopped_line": true, "list_continued_rc": 148, "claude_message": true, "k62_at_stop": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}}
+11:59:20   r04-signals-hangup: phase_while_stopped = "enforced"
+11:59:20   r04-signals-hangup: journal_terminal_stopped_while_stopped = "1"
+11:59:22   r04-signals-hangup: fg = {"label": "idle", "redrawn": true, "rule_width": 100}
+11:59:22   r04-signals-hangup: settled_after_hangup_s = 0.4
+11:59:22   r04-signals-hangup: rx_after_fg = "bodyelsecouldeditituntilitwas\ncheckedbackin\n  \u23bf \u00a0Interrupted \u00b7 What should Claude do instead?\nCtrl+Y to paste deleted text\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2
+11:59:26   r04-signals-hangup/A: pass=True failed=[] gen=[23, 24] signaled/None
+11:59:26 == r05
+11:59:33   r05-login: onboarding_seen = []
+11:59:35   r05-login: login_method_screen = "login_method"
+11:59:35   r05-login: login_warning = "Warning: CLAUDE_CODE_OAUTH_TOKEN is set in your environment. This session will switch to your new credentials after logging in, but if that variable is set in your shell profile or a Claude Code sett
+11:59:36   r05-login: code_prompt = "login_code"
+11:59:40   r05-login: login_result_plain = ["Login", "OAuth error: Invalid code. Please make sure the full code was copied", "Press Enter to retry.", "Esc to cancel"]
+11:59:42   r05-login: url_state_found = true
+11:59:48   r05-login: login_result_with_state = ["Login", "OAuth error: Request failed with status code 400", "Press Enter to retry.", "Esc to cancel"]
+11:59:49   r05-login: after_login = "idle"
+11:59:51   r05-login: results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "55479104-7bfa-4afb-9969-4b6a7c4b39c6", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+11:59:55   r05-login/A: pass=True failed=[] gen=[24, 25] exited/0
+11:59:55   r05-login: platform_claude_com_results = [["platform.claude.com:443", "allow", "relayed", true, "upstream_closed", 1]]
+11:59:55   r05-login: discarded = 0
+11:59:55 == r06
+12:00:07   r06-headless: attached:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": null, "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /ho
+12:00:11   r06-headless/attached: pass=True failed=[] gen=[25, 26] exited/0
+12:00:25   r06-headless: detached:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": null, "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /ho
+12:00:30   r06-headless/detached: pass=True failed=[] gen=[26, 27] exited/0
+12:00:30 == r08
+12:00:36   r08-concurrent: t1:onboarding_seen = []
+12:00:36   r08-concurrent: t1:attempt = "att_5c54adf5-c077-41b9-8bbe-f302786f229a"
+12:00:42   r08-concurrent: t2:attempt = "att_44fae362-3537-4572-9c58-e58867dabf5b"
+12:00:45   r08-concurrent: t2:pre_exec = ["ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)", "ukai-jail: terminal: attached (/dev/pts/1) \u00b7 wall 8h \u00b7 ^C an
+12:00:45   r08-concurrent: t2:fallback_line_names_holder = true
+12:00:49   r08-concurrent: t2:onboarding_seen = ["theme", "security", "trust"]
+12:00:54   r08-concurrent: t2:turn = ["generating", "idle"]
+12:00:56   r08-concurrent: t2:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "7757fe2b-5ac4-4e2e-9ea3-383f02d421f0", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+12:01:00   r08-concurrent/t2-fallback: pass=True failed=[] gen=[None, None] exited/0
+12:01:02   r08-concurrent: t1:picker_in_session = [["/login", "1 minute ago \u00b7 master \u00b7 3KB", true], ["History of version control systems", "1 minute ago \u00b7 master \u00b7 38KB", false], ["Greeting.txt file creation", "2 minutes ago \u00b
+12:01:05   r08-concurrent: t1:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "a899f90f-d1e5-47de-b2d1-b4753baa4654", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+12:01:09   r08-concurrent/t1-holder: pass=True failed=[] gen=[27, 28] exited/0
+12:01:12   r08-concurrent: t3:picker_entries = [["a899f90f", "7 seconds ago \u00b7 master \u00b7 2.1KB", true], ["/login", "1 minute ago \u00b7 master \u00b7 3KB", false], ["History of version control systems", "1 minute ago \u00b7 master \u00b7 3
+12:01:14   r08-concurrent: t3:resumed = "idle"
+12:01:16   r08-concurrent: t3:results = {"k62": {"pending": 0, "bytes": "", "window_s": 1.0, "probe_s": 1.001}, "rc": 0, "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179", "pre_exec": ["ukai-jail: claude = /home/ubuntu/.local/share/claud
+12:01:21   r08-concurrent/t3-resume-after: pass=True failed=[] gen=[28, 29] exited/0
+12:01:21   r08-concurrent: fallback_session_absent_from_state = true
+12:01:21 done

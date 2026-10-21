@@ -36,6 +36,9 @@ recorded in the
 ukai-jail claude -p "…" --dangerously-skip-permissions
 ```
 
+(Since 2026-10-21 the interactive form below is recorded too, for exactly
+the combination its [record](../benchmarks/jail/claude-code-interactive-2026-10-21.md) names; §6.3, §8 item 15.)
+
 The form most developers use, `ukai-jail claude` with no `-p`, starts but
 nothing claims it works. The agent gets no resize events, `/dev/tty` fails,
 `^C` ends the attempt rather than the agent's current turn, and every run is
@@ -909,7 +912,12 @@ A separate row from the 2026-10-17 headless one. It makes interactive
     the agent does on `SIGHUP` (recorded, exited or signaled) or the
     supervisor's stop, and it must still settle with verified tree death.
   - Every attached run has `applied.terminal.restored` with all five fields
-    true. Run (6)'s detached half has no `applied.terminal`.
+    true. Run (6)'s detached half has no `applied.terminal`. Amended
+    2026-10-21 by the [record](../benchmarks/jail/claude-code-interactive-2026-10-21.md): run (4)'s hangup is the exception. A
+    hung-up pseudo-terminal cannot be restored, so its receipt has
+    `restored` with `foreground`, `termios`, `input_flushed` and
+    `reset_written` false and `after_tree_death` true, and the summary's
+    cleanup line says the terminal was not restored.
   - The token's value is absent from receipts, journals, workspaces, the
     harness transcript and the state (the K70 search).
   - After each attached run, the harness's shell reads none of the
@@ -919,7 +927,10 @@ A separate row from the 2026-10-17 headless one. It makes interactive
     login prompt appears;
   - which hosts an interactive first launch contacts;
   - whether `home_is_state` is needed;
-  - the files Claude Code writes in its state, by `state show`;
+  - the files Claude Code writes in its state, by `state show` (amended
+    2026-10-21: `state show` prints the metadata and the generation log and
+    names no file, so the record lists the state's `vendor/` directory on
+    the operator's host);
   - whether it uses the alternate screen;
   - whether it stops on `^Z` or handles it, and whether it ever gives the
     terminal to another process group (an external editor), which §3.4
@@ -932,6 +943,13 @@ A separate row from the 2026-10-17 headless one. It makes interactive
   and rows 1–2 of §3.5 assume nothing about it), npm installs, other
   versions, other terminal emulators beyond the one the harness emulates,
   and OpenCode. Each needs its own row.
+- **Recorded** 2026-10-21: [claude-code-interactive-2026-10-21.md](../benchmarks/jail/claude-code-interactive-2026-10-21.md).
+  At revision `79200cfda`, with Claude Code 2.1.302 native and the bundled
+  profile, all 31 attempts of runs (1)–(8) passed every condition above,
+  the hangup as amended. Its other departures from this text are listed
+  there: run (5) as amended by §8 item 30, run (1)'s switch to manual
+  permission mode, and runs (3) and (8) reaching the picker without
+  cancelling it, since cancelling the picker of `claude --resume` exits 1.
 
 ## 7. Decisions (settled 2026-10-19)
 
@@ -1095,9 +1113,15 @@ intent.
     after the walk therefore redirects nothing. The live rows check the
     result (privacy between workspaces, `EXDEV` both ways) rather than
     racing a swap.
-15. **Not done here.** The interactive Claude Code record (§6.3) is a
-    separate step after merge; until it passes, interactive `ukai-jail
-    claude` stays unsupported and `doctor` keeps saying so.
+15. **Not done here; recorded after it.** The interactive Claude Code record
+    (§6.3) was a separate step after merge. It is
+    [claude-code-interactive-2026-10-21.md](../benchmarks/jail/claude-code-interactive-2026-10-21.md) (2026-10-21, revision
+    `79200cfda`, Claude Code 2.1.302 native). Every condition held, run (4)'s
+    hangup as amended in §6.3, so interactive `ukai-jail claude` is
+    supported for exactly that combination
+    ([agent-compatibility.md](jail-v1/agent-compatibility.md)). `doctor` in
+    that build still says `interactive_sessions unrecorded`: a record does
+    not change the binary, and the claim lives in the record.
 16. **Covered by reading only.** Three host-side refusals need a mount or a
     second user, which the suite cannot make on the stock reference host: a
     state level or `vendor/` that is a mount point, `vendor/` owned by

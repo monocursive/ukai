@@ -1,0 +1,3 @@
+#!/bin/sh
+# Run a command on the reference host (key-based, batch mode).
+exec ssh -i "$HOME/.ssh/ouroboros_vps" -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 ubuntu@37.59.114.70 "$@"

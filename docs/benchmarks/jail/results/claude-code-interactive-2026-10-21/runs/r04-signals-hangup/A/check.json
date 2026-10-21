@@ -1,0 +1,338 @@
+{
+ "attempt_id": "att_8858be4c-36d7-4e71-a587-09e49bf4f517",
+ "checks": {
+  "tail_summary_exit_0": true,
+  "json_text_equals_tail": true,
+  "independent_recompute": true,
+  "settled": true,
+  "six_classes_active_no_gaps": true,
+  "tree_empty": true,
+  "one_credential_never_staged": true,
+  "derived_install_root_only": true,
+  "no_unexpected_grant": true,
+  "state_cleanup_released": true,
+  "vendor_state_persistent": true,
+  "secret_scan_clean": true,
+  "generation_end_is_start_plus_1": true,
+  "matches_release_true": true,
+  "chains_generation": true,
+  "chains_attempt": true,
+  "tree_death_verified": true,
+  "terminal_hangup_exception": true,
+  "policy_terminal_attached": true,
+  "credential_process_denied_absent": true,
+  "summary_uses_match_journal": true,
+  "token_absent": true
+ },
+ "facts": {
+  "state_list_entry": {
+   "error": null,
+   "generation": 24,
+   "held": false,
+   "key": "24c59188b58457efe65be99e5c2bcf16",
+   "last_attempt": "att_8858be4c-36d7-4e71-a587-09e49bf4f517",
+   "launch": "claude",
+   "lease_error": null,
+   "quarantined": false,
+   "removing": false,
+   "size": 474469,
+   "state_id": "st_d305d6fb-1129-4863-8018-9575b2f83a25",
+   "workspace": "/home/ubuntu/arow-int-final/ws-A"
+  },
+  "state_files": 18,
+  "state_bytes": 474469,
+  "state_top_level": [
+   ".claude.json",
+   "backups",
+   "file-history",
+   "history.jsonl",
+   "plugins",
+   "policy-limits.json",
+   "policy-limits.json.signature.json",
+   "policy-limits.json.stamp.json",
+   "projects",
+   "remote-settings.json",
+   "remote-settings.json.synced-at",
+   "sessions",
+   "settings.json"
+  ],
+  "phase": "settled",
+  "outcome": {
+   "kind": "signaled",
+   "code": null,
+   "signal": 9,
+   "cause": "operator_signal",
+   "error": null
+  },
+  "errors": [],
+  "coverage": {
+   "exec": [
+    "active",
+    0,
+    62
+   ],
+   "fs.write": [
+    "active",
+    0,
+    98
+   ],
+   "fs.deny": [
+    "active",
+    0,
+    2
+   ],
+   "net": [
+    "active",
+    0,
+    12
+   ],
+   "limits": [
+    "active",
+    0,
+    0
+   ],
+   "proxy.net": [
+    "active",
+    0,
+    4
+   ]
+  },
+  "observer_gaps": [],
+  "tree_empty": true,
+  "state_cleanup": "released",
+  "vendor_state": {
+   "kind": "persistent",
+   "state_id": "st_d305d6fb-1129-4863-8018-9575b2f83a25",
+   "generation_start": 23,
+   "generation_end": 24,
+   "inherited_from": "att_5f11e473-3a43-4e2b-9d25-a7ae4eb5d770",
+   "matches_release": true,
+   "matches_release_reason": null,
+   "discarded": 0,
+   "secret_scan": "clean"
+  },
+  "credentials": [
+   {
+    "never_staged": true,
+    "id": "claude-oauth",
+    "mode": "vault",
+    "digest": null,
+    "digest_unavailable_reason": "never_staged"
+   }
+  ],
+  "grants": [
+   {
+    "kind": "allow_host",
+    "value": "api.anthropic.com:443",
+    "by": "operator"
+   },
+   {
+    "kind": "allow_host",
+    "value": "platform.claude.com:443",
+    "by": "operator"
+   },
+   {
+    "kind": "read_only",
+    "value": "/home/ubuntu/.local/share/claude/versions",
+    "by": "program_resolution"
+   }
+  ],
+  "terminal": {
+   "device": "pty",
+   "session": "caller",
+   "process_group": "own",
+   "stops": 1,
+   "restored": {
+    "foreground": false,
+    "termios": false,
+    "input_flushed": false,
+    "reset_written": false,
+    "after_tree_death": true
+   }
+  },
+  "policy_terminal": "attached",
+  "policy_vendor_state": {
+   "kind": "persistent",
+   "profile": "claude"
+  },
+  "environment_names": [
+   "ALL_PROXY",
+   "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+   "CLAUDE_CODE_OAUTH_TOKEN",
+   "CLAUDE_CONFIG_DIR",
+   "DISABLE_AUTOUPDATER",
+   "HTTPS_PROXY",
+   "HTTP_PROXY",
+   "LANG",
+   "NODE_EXTRA_CA_CERTS",
+   "NO_PROXY",
+   "PATH",
+   "PWD",
+   "REQUESTS_CA_BUNDLE",
+   "SSL_CERT_FILE",
+   "TERM",
+   "TMPDIR",
+   "all_proxy",
+   "http_proxy",
+   "https_proxy",
+   "no_proxy"
+  ],
+  "requested": null,
+  "exit_condition": "any (recorded)",
+  "other_grants": [
+   {
+    "kind": "allow_host",
+    "value": "api.anthropic.com:443",
+    "by": "operator"
+   },
+   {
+    "kind": "allow_host",
+    "value": "platform.claude.com:443",
+    "by": "operator"
+   }
+  ],
+  "lifetime_integrity": "verified",
+  "restored_after_hangup": {
+   "foreground": false,
+   "termios": false,
+   "input_flushed": false,
+   "reset_written": false,
+   "after_tree_death": true
+  },
+  "proxy_results": [
+   [
+    "api.anthropic.com:443",
+    "allow",
+    "relayed",
+    true,
+    "client_error",
+    1
+   ],
+   [
+    "api.anthropic.com:443",
+    "allow",
+    "relayed",
+    true,
+    "upstream_closed",
+    3
+   ]
+  ],
+  "results_carrying_credential": 4,
+  "credential_refusals": {},
+  "lifecycle_notes": [
+   [
+    0.083,
+    "credential",
+    "loaded",
+    null
+   ],
+   [
+    0.107,
+    "lifecycle",
+    "prepared",
+    null
+   ],
+   [
+    0.111,
+    "lifecycle",
+    "exec_confirmed",
+    null
+   ],
+   [
+    17.081,
+    "lifecycle",
+    "terminal_stopped",
+    null
+   ],
+   [
+    19.206,
+    "lifecycle",
+    "terminal_continued",
+    null
+   ]
+  ],
+  "terminal_notes": {
+   "terminal_stopped": 1,
+   "terminal_continued": 1
+  },
+  "fs_deny": [
+   [
+    "fs.create",
+    "mkdir",
+    {
+     "digest": "sha256:4251803132e6da7a6b27ae0aa79e4cad8428504fe30cfa60bcbf4d76eaa5de00",
+     "kind": "digest",
+     "reason": "outside_known_roots"
+    }
+   ],
+   [
+    "fs.create",
+    "mkdir",
+    {
+     "digest": "sha256:f85580ab64b0062da4a2a23eee39d476d3af5551f41b81efc67e081b1c841f4b",
+     "kind": "digest",
+     "reason": "outside_known_roots"
+    }
+   ]
+  ],
+  "exec_count": 32,
+  "exec_paths": [
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"/home/ubuntu/.local/share/claude/versions\", \"value\": \"2.1.302\"}",
+    3
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"bin/dpkg\"}",
+    1
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"bin/dpkg-query\"}",
+    1
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"bin/git\"}",
+    20
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"bin/grep\"}",
+    2
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"bin/nano\"}",
+    1
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"bin/ps\"}",
+    1
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"local/bin/dpkg-query\"}",
+    1
+   ],
+   [
+    "{\"kind\": \"root_relative\", \"root\": \"system\", \"value\": \"sh\"}",
+    1
+   ],
+   [
+    "{\"kind\": \"unavailable\", \"reason\": \"empty_path\"}",
+    1
+   ]
+  ],
+  "frames": 187,
+  "summary_credential": [
+   {
+    "id": "claude-oauth",
+    "mode": "vault",
+    "never_staged": true,
+    "transitions": [
+     "loaded"
+    ],
+    "unconfirmed": 0,
+    "uses": 4,
+    "uses_bound": "exact"
+   }
+  ],
+  "token_search_exit": 1
+ },
+ "pass": true
+}

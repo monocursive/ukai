@@ -1,0 +1,163 @@
+{
+ "run": "r06-headless",
+ "spec": "6.3 (6)",
+ "started_utc": "2026-10-21T09:59:55Z",
+ "steps": [],
+ "attempts": [
+  {
+   "attempt": "att_fabcad39-4307-4286-9562-c81a38806761",
+   "pass": true,
+   "failed": [],
+   "outcome": "exited",
+   "code": 0,
+   "state_cleanup": "released",
+   "generation": [
+    25,
+    26
+   ],
+   "proxy": [
+    [
+     "api.anthropic.com:443",
+     "allow",
+     "relayed",
+     true,
+     "upstream_closed",
+     4
+    ]
+   ],
+   "live_equals_tail": true,
+   "label": "attached",
+   "pre_exec": [
+    "ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)",
+    "ukai-jail: terminal: attached (/dev/pts/0) \u00b7 wall 8h \u00b7 ^C and ^Z go to claude, not the jail; to end the attempt, exit claude or run `kill -INT 3354936`",
+    "ukai-jail: state: claude, this workspace, generation 25 (from att_20b1f9cf-4abe-4935-ae94-0a8afbc63530)"
+   ],
+   "pre_exec_as_required": true,
+   "k62_pending": 0,
+   "shell_rc": 0
+  },
+  {
+   "attempt": "att_cc6ff456-39d1-4984-a39f-cfd0f3e65961",
+   "pass": true,
+   "failed": [],
+   "outcome": "exited",
+   "code": 0,
+   "state_cleanup": "released",
+   "generation": [
+    26,
+    27
+   ],
+   "proxy": [
+    [
+     "api.anthropic.com:443",
+     "allow",
+     "relayed",
+     true,
+     "upstream_closed",
+     4
+    ]
+   ],
+   "live_equals_tail": true,
+   "label": "detached",
+   "pre_exec": [
+    "ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)",
+    "ukai-jail: terminal: detached (stdin is not a terminal)",
+    "ukai-jail: state: claude, this workspace, generation 26 (from att_fabcad39-4307-4286-9562-c81a38806761)"
+   ],
+   "pre_exec_as_required": true,
+   "k62_pending": 0,
+   "shell_rc": 0
+  }
+ ],
+ "observations": {
+  "attached:results": {
+   "k62": {
+    "pending": 0,
+    "bytes": "",
+    "window_s": 1.0,
+    "probe_s": 1.001
+   },
+   "rc": 0,
+   "session_id": null,
+   "pre_exec": [
+    "ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)",
+    "ukai-jail: terminal: attached (/dev/pts/0) \u00b7 wall 8h \u00b7 ^C and ^Z go to claude, not the jail; to end the attempt, exit claude or run `kill -INT 3354936`",
+    "ukai-jail: state: claude, this workspace, generation 25 (from att_20b1f9cf-4abe-4935-ae94-0a8afbc63530)"
+   ],
+   "live_summary": [
+    "ukai-jail: settled \u00b7 exited 0 \u00b7 4.2s exec\u2192settled \u00b7 survivors: none (verified)",
+    "ukai-jail: workspace: 1 path opened for writing, 2 in renames \u00b7 1 refused write",
+    "ukai-jail: network: allowed api.anthropic.com:443 (4)",
+    "ukai-jail: credential claude-oauth: vault, never staged \u00b7 used on 4 proxy results \u00b7 0 credential refusals",
+    "ukai-jail: state: kept, generation 26 \u00b7 started from what att_20b1f9cf-4abe-4935-ae94-0a8afbc63530 released, unchanged",
+    "ukai-jail: evidence: 6/6 classes active, no gaps \u00b7 reads and file contents are not observed",
+    "ukai-jail: receipt /home/ubuntu/arow-int-final/data/attempts/att_fabcad39-4307-4286-9562-c81a38806761/jail.json"
+   ],
+   "claude_result": {
+    "type": "result",
+    "subtype": "success",
+    "is_error": false,
+    "num_turns": 2,
+    "result": "I created `greeting.txt` in `/home/ubuntu/arow-int-final/ws-A`. It contains the word `hello` followed by a newline.",
+    "session_id": "d7cec212-9f74-4e02-beb5-8fa391d13550",
+    "permission_denials": []
+   }
+  },
+  "detached:results": {
+   "k62": {
+    "pending": 0,
+    "bytes": "",
+    "window_s": 1.0,
+    "probe_s": 1.001
+   },
+   "rc": 0,
+   "session_id": null,
+   "pre_exec": [
+    "ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)",
+    "ukai-jail: terminal: detached (stdin is not a terminal)",
+    "ukai-jail: state: claude, this workspace, generation 26 (from att_fabcad39-4307-4286-9562-c81a38806761)"
+   ],
+   "live_summary": [
+    "ukai-jail: settled \u00b7 exited 0 \u00b7 6.0s exec\u2192settled \u00b7 survivors: none (verified)",
+    "ukai-jail: workspace: 1 path opened for writing, 2 in renames \u00b7 1 refused write",
+    "ukai-jail: network: allowed api.anthropic.com:443 (4)",
+    "ukai-jail: credential claude-oauth: vault, never staged \u00b7 used on 4 proxy results \u00b7 0 credential refusals",
+    "ukai-jail: state: kept, generation 27 \u00b7 started from what att_fabcad39-4307-4286-9562-c81a38806761 released, unchanged",
+    "ukai-jail: evidence: 6/6 classes active, no gaps \u00b7 reads and file contents are not observed",
+    "ukai-jail: receipt /home/ubuntu/arow-int-final/data/attempts/att_cc6ff456-39d1-4984-a39f-cfd0f3e65961/jail.json"
+   ],
+   "claude_result": {
+    "type": "result",
+    "subtype": "success",
+    "is_error": false,
+    "num_turns": 2,
+    "result": "I created `greeting.txt` in `/home/ubuntu/arow-int-final/ws-A`. It contains the single word `hello` followed by a newline.",
+    "session_id": "d567f2f4-2ab3-4693-a99a-a6b5ad0d6094",
+    "permission_denials": []
+   }
+  }
+ },
+ "shells": {
+  "t-attached": {
+   "TTY": "/dev/pts/0",
+   "SIZE": "40 120",
+   "TERM": "xterm-256color",
+   "LANG": "C.UTF-8",
+   "TZ": "unset",
+   "COLORTERM": "unset",
+   "SHELLOPTS": "himBHs",
+   "PWD": "/home/ubuntu/arow-int-final/ws-A"
+  },
+  "t-detached": {
+   "TTY": "/dev/pts/0",
+   "SIZE": "40 120",
+   "TERM": "xterm-256color",
+   "LANG": "C.UTF-8",
+   "TZ": "unset",
+   "COLORTERM": "unset",
+   "SHELLOPTS": "himBHs",
+   "PWD": "/home/ubuntu/arow-int-final/ws-A"
+  }
+ },
+ "ended_utc": "2026-10-21T10:00:30Z"
+}

@@ -1,0 +1,40 @@
+ukai-jail: state: claude for this workspace is held by att_5c54adf5-c077-41b9-8bbe-f302786f229a · this session uses thro
+waway state and will not be kept
+Welcome to Claude Code v2.1.302
+..........................................................
+
+     *                                       █████▓▓░
+                                 *         ███▓░     ░░
+            ░░░░░░                        ███▓░
+    ░░░   ░░░░░░░░░░                      ███▓░
+   ░░░░░░░░░░░░░░░░░░░    *                ██▓░░      ▓
+                                             ░▓▓███▓▓░
+ *                                 ░░░░
+                                 ░░░░░░░░
+                               ░░░░░░░░░░░░░░░░
+       █████████                                        *
+      ██▄█████▄██                        *
+       █████████      *
+.......█ █   █ █..........................................
+
+ Security notes:
+
+ 1. Claude can make mistakes.
+    You're responsible for Claude's actions and should always
+    review them, especially when running code.
+
+ 2. Due to prompt injection risks, only use it with code you trust
+    Learn more: https://code.claude.com/docs/en/security
+
+ Press Enter to continue…
+
+
+
+
+
+
+
+
+
+
+

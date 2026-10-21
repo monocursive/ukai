@@ -17,6 +17,7 @@ compatibility. The historical rows below retain their original scope.
 
 | Agent | Vendor version | Ukai revision | Platform | Backend | Jail mode | Credential | Result |
 |---|---|---|---|---|---|---|---|
+| Claude Code | 2.1.302, native installer (`~/.local/share/claude/versions/2.1.302`, ELF, `sha256:60d7eb7f…`) | clean `79200cfda`; binary `sha256:9ba9da31…`, inputs `95dac7f9fd0b…` | Reference VPS, Ubuntu 26.04.1, Linux 7.0.0-31, x86_64, stock (AppArmor userns restriction on) | bubblewrap 0.11.1, ptrace | `agent` through the alias with the bundled `claude` profile unchanged (persistent state; `platform.claude.com` allowed since jail-interactive-sessions.md §8 item 30): interactive `ukai-jail claude` attached to a pseudo-terminal reached over SSH and driven by a scripted harness, plus `ukai-jail claude -p "…" --dangerously-skip-permissions` from that shell, attached and with stdin a pipe; observation on, strict evidence | `claude-oauth` (a `claude setup-token` value) through the vault, never staged | **Supported for exactly this combination** ([record](#claude-code-21302-interactive-agent-a-setup-token-through-the-vault-2026-10-21)): all eight runs of [§6.3](../jail-interactive-sessions.md#63-the-interactive-claude-code-compatibility-record-a-row), 31 attempts, passed every condition: first launch with onboarding and Claude Code's own permission prompt at the keyboard, `--resume` and `--continue` (and ten repetitions, 20/20), workspace privacy, resize, `^C`, `^Z`/`fg`, hangup, `/login` with fake codes, headless attached and detached, and the throwaway fallback beside a held state; one generation chain of 29 releases; every summary reproduces; the token is in no record, workspace, state or transcript. The hangup leaves the terminal unrestored (`restored` false but for `after_tree_death`), the exception §6.3 names. Not covered: other terminal emulators, other versions, npm installs, other hosts, the API key, a real `/login` |
 | Claude Code | 2.1.302, native installer (`~/.local/share/claude/versions/2.1.302`, ELF, `sha256:60d7eb7f…`) | clean `56f9fb15`; binary `sha256:5115e497…`, inputs `7b1a95a9b6a2…` | Reference VPS, Ubuntu 26.04.1, Linux 7.0.0-31, x86_64, stock (AppArmor userns restriction on) | bubblewrap 0.11.1, ptrace | `agent` through the alias with the bundled `claude` profile unchanged: `ukai-jail claude -p "…" --dangerously-skip-permissions --output-format json`, headless; observation on, strict evidence | `claude-oauth` (a `claude setup-token` value) through the vault, never staged | **Supported for exactly this combination** ([record](#claude-code-21302-agent-a-setup-token-through-the-vault-2026-10-17)): A01 fixture, a real small task, ten repetitions (10/10), the no-source refusal with both hints, and revocation mid-stream all passed; every summary reproduces from its receipt and journal; the token is in no record, workspace, output or sampled environment. Not covered: `-p` without a permission flag (Claude Code refused its own write), the API-key fallback (not run), interactive sessions, npm installs, other versions and hosts |
 | OpenCode | 1.19.0 | clean `56f9fb15` | Reference VPS, Ubuntu 26.04.1, Linux 7.0.0-31, x86_64, stock | bubblewrap 0.11.1, ptrace | `agent` through the alias, `ukai-jail opencode run "…"`, bundled profile; observation on, strict evidence | none (`opencode/big-pickle`) | **Not passed (vendor):** the jail settled cleanly twice (exit 1 is OpenCode's; six classes active, derived grant `~/.opencode/bin`), but OpenCode Zen's free tier refused the request, as it did without the jail for 1.19.0 and 1.19.3. The 1.18.32 rows are not extended to the alias ([record](../../benchmarks/jail/claude-code-compatibility-2026-10-17.md#opencode-under-the-alias)) |
 | OpenCode | 1.18.32 | clean `16ee37fe`; current Jail inputs `2989fb4983de…` | Fresh Ubuntu 26.04.1 VM, Linux 7.0.0-34, x86_64 QEMU TCG | bubblewrap + ptrace; bubblewrap version unrecorded | `agent`, observation on, strict evidence; separate `learn` run | none (`opencode/big-pickle`) | Signed installation, contained `true`, real glob/read/write workflow and verified settlement passed in 62.2 s. Learning proposed an evidence-supported exact-read subset with receipt-bound coverage. Single fixture only; reliability remains experimental ([October 10 record](../../benchmarks/jail/release-preview-2026-10-10.md)) |
@@ -37,6 +38,55 @@ and the narrowing filter
 the frozen ones are in [milestone-1-freeze.toml](milestone-1-freeze.toml).
 They are kept as the history of what the first real runs required; the
 milestone's A01 record is the run below.
+
+## Claude Code 2.1.302, interactive, `agent`, a setup token through the vault (2026-10-21)
+
+Evidence: [record](../../benchmarks/jail/claude-code-interactive-2026-10-21.md)
+and its [results directory](../../benchmarks/jail/results/claude-code-interactive-2026-10-21/).
+This is the A-row of
+[jail-interactive-sessions.md §6.3](../jail-interactive-sessions.md#63-the-interactive-claude-code-compatibility-record-a-row).
+It marks one combination supported: Claude Code 2.1.302 from the native
+installer, run as interactive `ukai-jail claude` (and as `-p` from an
+interactive shell), under the bundled `claude` profile with its persistent
+state, with a setup token through the vault, under `agent` on this platform,
+at this revision, in the terminal the record's harness emulates. `doctor`
+still reports the profile `experimental` and `interactive_sessions
+unrecorded`; this record carries the claim.
+
+- **What ran.** On 2026-10-21 on the reference host (Ubuntu 26.04.1, kernel
+  7.0.0-31, x86_64, bubblewrap 0.11.1, stock). `ukai-jail` from the
+  operator's clean build of `79200cfda548c2f6f0125b4355881f63910b284b`
+  (`dirty: false`, SHA-256
+  `9ba9da31df1ce378fe824c2f4dd471a3e09cc35533fccc2a5ac4152ae133778b`).
+  Claude Code 2.1.302 from the native installer (SHA-256 `60d7eb7f12fb…`).
+  The bundled profile unchanged, which allows `api.anthropic.com` and,
+  since §8 item 30, `platform.claude.com`. Two fresh git repositories. A
+  scripted harness drove a pseudo-terminal (120x40, `xterm-256color`,
+  rendered by pyte) over SSH into a login shell with job control, recorded
+  both directions, and typed each launch with a probe of the terminal's
+  pending input (K62) right after it.
+- **Result.** All 31 attempts passed every §6.3 condition. Each receipt
+  is settled with six classes active and no gaps, `tree_empty`, one
+  credential `never_staged`. Each persistent attempt is `state_cleanup`
+  `released` in one chain (A: generations 1 to 29, `matches_release` true
+  after the first, every scan clean). The fallback is `attempt_fallback`,
+  `complete`, `NOT kept`. Every attached run but the hangup restored all
+  five terminal steps, the detached `-p` had no `applied.terminal`, K62
+  found 0 pending bytes every time, and every summary reproduces from its
+  receipt and journal. Onboarding asked for no login (the token is
+  honoured). Claude Code handles `^Z` itself and the relay works. Its
+  external editor stays in its process group. Its first launch contacts
+  `api.anthropic.com` and `platform.claude.com` (and is refused
+  `downloads.claude.ai` and `github.com`, harmlessly).
+- **Limits of the claim.** The run (4) hangup cannot restore a terminal
+  that is gone: `restored` is false for its four steps with
+  `after_tree_death` true, which §6.3 names as the exception. `state show`
+  names no file, so the state's files were listed from `vendor/` directly.
+  K62 was barely stressed: Claude Code queries its terminal only at
+  startup. A real `/login`, other terminal emulators, a dropped network
+  connection, long sessions, other versions, npm installs and other hosts
+  are unrecorded. 2.1.302 starts in "auto mode": its own permission prompt
+  needs a switch to manual mode.
 
 ## Claude Code 2.1.302, `agent`, a setup token through the vault (2026-10-17)
 
@@ -86,7 +136,8 @@ still reports the profile `experimental`; this record carries the claim.
   command now records `state_cleanup` `released` where this run recorded
   `complete`, and started from a terminal it runs attached. Neither is
   recorded here; the interactive row that §6.3 of that proposal describes
-  is a separate record, not made yet.
+  is [its own record](#claude-code-21302-interactive-agent-a-setup-token-through-the-vault-2026-10-21)
+  (2026-10-21), whose run (6) repeats this command attached and detached.
 - **OpenCode under the alias** (the rerun §6.3 asks for) did not pass: see
   the table row and the record.
 

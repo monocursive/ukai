@@ -1,0 +1,138 @@
+{
+  "attempt_id": "att_1ffda359-f695-41ed-b88e-61c2cd8ee0a3",
+  "journal": "complete",
+  "lines": [
+    {
+      "facts": {
+        "attempt_wall_ms": null,
+        "cause": null,
+        "code": 0,
+        "errors": [],
+        "exec_to_settled_ms": 17279,
+        "integrity": "verified",
+        "outcome": "exited",
+        "phase": "settled",
+        "signal": null,
+        "survivors": "none_verified"
+      },
+      "line": "status",
+      "text": "settled · exited 0 · 17.2s exec→settled · survivors: none (verified)"
+    },
+    {
+      "facts": {
+        "bound": "exact",
+        "omitted": 0,
+        "opened_for_writing": 1,
+        "paths": [
+          {
+            "kind": "workspace_relative",
+            "value": "greeting.txt"
+          },
+          {
+            "kind": "workspace_relative",
+            "value": "greeting.txt.tmp.2.79cfbf8cbed6"
+          }
+        ],
+        "refused": 2,
+        "refused_bound": "exact",
+        "removed": 0,
+        "renamed": 2,
+        "unnamed": 0
+      },
+      "line": "workspace",
+      "text": "workspace: 1 path opened for writing, 2 in renames · 2 refused writes"
+    },
+    {
+      "facts": {
+        "allowed": [
+          {
+            "connect_failed": 0,
+            "destination": "api.anthropic.com:443",
+            "results": 8
+          },
+          {
+            "connect_failed": 0,
+            "destination": "platform.claude.com:443",
+            "results": 1
+          }
+        ],
+        "bound": "exact",
+        "denied": [
+          {
+            "destination": "downloads.claude.ai:443",
+            "reason": "host_not_allowed",
+            "results": 1
+          },
+          {
+            "destination": "github.com:443",
+            "reason": "host_not_allowed",
+            "results": 1
+          }
+        ],
+        "mode": "proxy",
+        "omitted": 0,
+        "resolver_refused": null
+      },
+      "line": "network",
+      "text": "network: allowed api.anthropic.com:443 (8), platform.claude.com:443 (1) · denied downloads.claude.ai:443 (1), github.com:443 (1)"
+    },
+    {
+      "facts": {
+        "credentials": [
+          {
+            "id": "claude-oauth",
+            "mode": "vault",
+            "never_staged": true,
+            "transitions": [
+              "loaded"
+            ],
+            "unconfirmed": 0,
+            "uses": 7,
+            "uses_bound": "exact"
+          }
+        ],
+        "omitted": 0,
+        "refusals": 0,
+        "refusals_bound": "exact"
+      },
+      "line": "credentials",
+      "text": "credential claude-oauth: vault, never staged · used on 7 proxy results · 0 credential refusals"
+    },
+    {
+      "facts": {
+        "discarded": 0,
+        "generation_end": 1,
+        "generation_start": 0,
+        "inherited_from": null,
+        "kind": "persistent",
+        "matches_release": null,
+        "matches_release_reason": "new_state",
+        "secret_scan": "clean",
+        "state_id": "st_d305d6fb-1129-4863-8018-9575b2f83a25"
+      },
+      "line": "state",
+      "text": "state: kept, generation 1 · new for this workspace"
+    },
+    {
+      "facts": {
+        "attached": true,
+        "classes": {
+          "exec": "active",
+          "fs.deny": "active",
+          "fs.write": "active",
+          "limits": "active",
+          "net": "active",
+          "proxy.net": "active"
+        },
+        "disagree": [],
+        "evidence": "strict",
+        "gaps": [],
+        "observe": "on"
+      },
+      "line": "evidence",
+      "text": "evidence: 6/6 classes active, no gaps · reads and file contents are not observed"
+    }
+  ],
+  "receipt_digest": "sha256:c3558a3fa79a65f7a4b970f572513459b4f968a8983f6866a4cf8eaf7691504d",
+  "schema": "ukai.jail.summary/1"
+}

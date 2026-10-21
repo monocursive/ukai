@@ -1,0 +1,118 @@
+{
+  "attempt_id": "att_20b1f9cf-4abe-4935-ae94-0a8afbc63530",
+  "journal": "complete",
+  "lines": [
+    {
+      "facts": {
+        "attempt_wall_ms": null,
+        "cause": null,
+        "code": 0,
+        "errors": [],
+        "exec_to_settled_ms": 18478,
+        "integrity": "verified",
+        "outcome": "exited",
+        "phase": "settled",
+        "signal": null,
+        "survivors": "none_verified"
+      },
+      "line": "status",
+      "text": "settled · exited 0 · 18.4s exec→settled · survivors: none (verified)"
+    },
+    {
+      "facts": {
+        "bound": "exact",
+        "omitted": 0,
+        "opened_for_writing": 0,
+        "paths": [],
+        "refused": 2,
+        "refused_bound": "exact",
+        "removed": 0,
+        "renamed": 0,
+        "unnamed": 0
+      },
+      "line": "workspace",
+      "text": "workspace: 0 paths opened for writing · 2 refused writes"
+    },
+    {
+      "facts": {
+        "allowed": [
+          {
+            "connect_failed": 0,
+            "destination": "api.anthropic.com:443",
+            "results": 2
+          },
+          {
+            "connect_failed": 0,
+            "destination": "platform.claude.com:443",
+            "results": 1
+          }
+        ],
+        "bound": "exact",
+        "denied": [],
+        "mode": "proxy",
+        "omitted": 0,
+        "resolver_refused": null
+      },
+      "line": "network",
+      "text": "network: allowed api.anthropic.com:443 (2), platform.claude.com:443 (1)"
+    },
+    {
+      "facts": {
+        "credentials": [
+          {
+            "id": "claude-oauth",
+            "mode": "vault",
+            "never_staged": true,
+            "transitions": [
+              "loaded"
+            ],
+            "unconfirmed": 0,
+            "uses": 2,
+            "uses_bound": "exact"
+          }
+        ],
+        "omitted": 0,
+        "refusals": 0,
+        "refusals_bound": "exact"
+      },
+      "line": "credentials",
+      "text": "credential claude-oauth: vault, never staged · used on 2 proxy results · 0 credential refusals"
+    },
+    {
+      "facts": {
+        "discarded": 0,
+        "generation_end": 25,
+        "generation_start": 24,
+        "inherited_from": "att_8858be4c-36d7-4e71-a587-09e49bf4f517",
+        "kind": "persistent",
+        "matches_release": true,
+        "matches_release_reason": null,
+        "secret_scan": "clean",
+        "state_id": "st_d305d6fb-1129-4863-8018-9575b2f83a25"
+      },
+      "line": "state",
+      "text": "state: kept, generation 25 · started from what att_8858be4c-36d7-4e71-a587-09e49bf4f517 released, unchanged"
+    },
+    {
+      "facts": {
+        "attached": true,
+        "classes": {
+          "exec": "active",
+          "fs.deny": "active",
+          "fs.write": "active",
+          "limits": "active",
+          "net": "active",
+          "proxy.net": "active"
+        },
+        "disagree": [],
+        "evidence": "strict",
+        "gaps": [],
+        "observe": "on"
+      },
+      "line": "evidence",
+      "text": "evidence: 6/6 classes active, no gaps · reads and file contents are not observed"
+    }
+  ],
+  "receipt_digest": "sha256:d6451affd98f9fc6691f43da9a84390181714ab47cb0b0b00b505b9084082dbc",
+  "schema": "ukai.jail.summary/1"
+}

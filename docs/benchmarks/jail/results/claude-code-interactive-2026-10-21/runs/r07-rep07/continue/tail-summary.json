@@ -1,0 +1,113 @@
+{
+  "attempt_id": "att_cae21bec-3568-4e78-8dc9-0fb8ec03e641",
+  "journal": "complete",
+  "lines": [
+    {
+      "facts": {
+        "attempt_wall_ms": null,
+        "cause": null,
+        "code": 0,
+        "errors": [],
+        "exec_to_settled_ms": 8360,
+        "integrity": "verified",
+        "outcome": "exited",
+        "phase": "settled",
+        "signal": null,
+        "survivors": "none_verified"
+      },
+      "line": "status",
+      "text": "settled · exited 0 · 8.3s exec→settled · survivors: none (verified)"
+    },
+    {
+      "facts": {
+        "bound": "exact",
+        "omitted": 0,
+        "opened_for_writing": 0,
+        "paths": [],
+        "refused": 2,
+        "refused_bound": "exact",
+        "removed": 0,
+        "renamed": 0,
+        "unnamed": 0
+      },
+      "line": "workspace",
+      "text": "workspace: 0 paths opened for writing · 2 refused writes"
+    },
+    {
+      "facts": {
+        "allowed": [
+          {
+            "connect_failed": 0,
+            "destination": "api.anthropic.com:443",
+            "results": 3
+          }
+        ],
+        "bound": "exact",
+        "denied": [],
+        "mode": "proxy",
+        "omitted": 0,
+        "resolver_refused": null
+      },
+      "line": "network",
+      "text": "network: allowed api.anthropic.com:443 (3)"
+    },
+    {
+      "facts": {
+        "credentials": [
+          {
+            "id": "claude-oauth",
+            "mode": "vault",
+            "never_staged": true,
+            "transitions": [
+              "loaded"
+            ],
+            "unconfirmed": 0,
+            "uses": 3,
+            "uses_bound": "exact"
+          }
+        ],
+        "omitted": 0,
+        "refusals": 0,
+        "refusals_bound": "exact"
+      },
+      "line": "credentials",
+      "text": "credential claude-oauth: vault, never staged · used on 3 proxy results · 0 credential refusals"
+    },
+    {
+      "facts": {
+        "discarded": 0,
+        "generation_end": 17,
+        "generation_start": 16,
+        "inherited_from": "att_d8a41bac-2ca0-4d6c-ab88-cd4484ea0d6a",
+        "kind": "persistent",
+        "matches_release": true,
+        "matches_release_reason": null,
+        "secret_scan": "clean",
+        "state_id": "st_d305d6fb-1129-4863-8018-9575b2f83a25"
+      },
+      "line": "state",
+      "text": "state: kept, generation 17 · started from what att_d8a41bac-2ca0-4d6c-ab88-cd4484ea0d6a released, unchanged"
+    },
+    {
+      "facts": {
+        "attached": true,
+        "classes": {
+          "exec": "active",
+          "fs.deny": "active",
+          "fs.write": "active",
+          "limits": "active",
+          "net": "active",
+          "proxy.net": "active"
+        },
+        "disagree": [],
+        "evidence": "strict",
+        "gaps": [],
+        "observe": "on"
+      },
+      "line": "evidence",
+      "text": "evidence: 6/6 classes active, no gaps · reads and file contents are not observed"
+    }
+  ],
+  "receipt_digest": "sha256:c2588d77057d707930c2d69e5101dcab87bc5bc94c0b24f9497ed834c1b46839",
+  "schema": "ukai.jail.summary/1"
+}

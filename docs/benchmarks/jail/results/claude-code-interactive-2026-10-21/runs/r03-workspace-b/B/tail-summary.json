@@ -1,0 +1,129 @@
+{
+  "attempt_id": "att_f634b976-e2a3-4b6f-9179-42e1d77fbc82",
+  "journal": "complete",
+  "lines": [
+    {
+      "facts": {
+        "attempt_wall_ms": null,
+        "cause": null,
+        "code": 0,
+        "errors": [],
+        "exec_to_settled_ms": 11523,
+        "integrity": "verified",
+        "outcome": "exited",
+        "phase": "settled",
+        "signal": null,
+        "survivors": "none_verified"
+      },
+      "line": "status",
+      "text": "settled · exited 0 · 11.5s exec→settled · survivors: none (verified)"
+    },
+    {
+      "facts": {
+        "bound": "exact",
+        "omitted": 0,
+        "opened_for_writing": 0,
+        "paths": [],
+        "refused": 2,
+        "refused_bound": "exact",
+        "removed": 0,
+        "renamed": 0,
+        "unnamed": 0
+      },
+      "line": "workspace",
+      "text": "workspace: 0 paths opened for writing · 2 refused writes"
+    },
+    {
+      "facts": {
+        "allowed": [
+          {
+            "connect_failed": 0,
+            "destination": "api.anthropic.com:443",
+            "results": 5
+          },
+          {
+            "connect_failed": 0,
+            "destination": "platform.claude.com:443",
+            "results": 1
+          }
+        ],
+        "bound": "exact",
+        "denied": [
+          {
+            "destination": "downloads.claude.ai:443",
+            "reason": "host_not_allowed",
+            "results": 1
+          },
+          {
+            "destination": "github.com:443",
+            "reason": "host_not_allowed",
+            "results": 1
+          }
+        ],
+        "mode": "proxy",
+        "omitted": 0,
+        "resolver_refused": null
+      },
+      "line": "network",
+      "text": "network: allowed api.anthropic.com:443 (5), platform.claude.com:443 (1) · denied downloads.claude.ai:443 (1), github.com:443 (1)"
+    },
+    {
+      "facts": {
+        "credentials": [
+          {
+            "id": "claude-oauth",
+            "mode": "vault",
+            "never_staged": true,
+            "transitions": [
+              "loaded"
+            ],
+            "unconfirmed": 0,
+            "uses": 4,
+            "uses_bound": "exact"
+          }
+        ],
+        "omitted": 0,
+        "refusals": 0,
+        "refusals_bound": "exact"
+      },
+      "line": "credentials",
+      "text": "credential claude-oauth: vault, never staged · used on 4 proxy results · 0 credential refusals"
+    },
+    {
+      "facts": {
+        "discarded": 0,
+        "generation_end": 1,
+        "generation_start": 0,
+        "inherited_from": null,
+        "kind": "persistent",
+        "matches_release": null,
+        "matches_release_reason": "new_state",
+        "secret_scan": "clean",
+        "state_id": "st_4ae7e3f9-e3d2-45ed-8f9f-4aa140407724"
+      },
+      "line": "state",
+      "text": "state: kept, generation 1 · new for this workspace"
+    },
+    {
+      "facts": {
+        "attached": true,
+        "classes": {
+          "exec": "active",
+          "fs.deny": "active",
+          "fs.write": "active",
+          "limits": "active",
+          "net": "active",
+          "proxy.net": "active"
+        },
+        "disagree": [],
+        "evidence": "strict",
+        "gaps": [],
+        "observe": "on"
+      },
+      "line": "evidence",
+      "text": "evidence: 6/6 classes active, no gaps · reads and file contents are not observed"
+    }
+  ],
+  "receipt_digest": "sha256:c6dda44191894ecfbb03df6d7e25298b4ae22380be0cec896a8a796f4364f92c",
+  "schema": "ukai.jail.summary/1"
+}

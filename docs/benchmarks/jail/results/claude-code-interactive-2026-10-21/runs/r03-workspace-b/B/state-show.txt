@@ -1,0 +1,11 @@
+launch claude
+key 28c460f82826d93c44e25f2939a40f04
+workspace /home/ubuntu/arow-int-final/ws-B
+state st_4ae7e3f9-e3d2-45ed-8f9f-4aa140407724
+created 2026-10-21T09:58:39Z
+generation 1
+size 8677 bytes
+held now no
+holder att_f634b976-e2a3-4b6f-9179-42e1d77fbc82 released
+last release att_f634b976-e2a3-4b6f-9179-42e1d77fbc82 at 2026-10-21T09:58:51Z digest sha256:3e3562917992499645400c006cb231e8551fa1d8e565b54898910c8f3d80845f
+generation 1 att_f634b976-e2a3-4b6f-9179-42e1d77fbc82 by supervisor at 2026-10-21T09:58:51Z discarded 0 scan clean matches_release unknown

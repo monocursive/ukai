@@ -8,7 +8,10 @@ adds website delivery, public installation and a verified quickstart. The
 [15 October website sample run](website-sample-run-2026-10-15.md) records the
 run and receipt shown on the home page, and the
 [19 October Claude Code demo](claude-code-demo-2026-10-19.md) the
-`ukai-jail claude` run shown below it. These records do not change the
+`ukai-jail claude` run shown below it, and the
+[21 October interactive Claude Code record](claude-code-interactive-2026-10-21.md)
+the A-row that makes interactive `ukai-jail claude` supported for one
+build. These records do not change the
 historical native Jail evidence or Linux release scope.
 
 This is an uncommitted implementation against `dev` at

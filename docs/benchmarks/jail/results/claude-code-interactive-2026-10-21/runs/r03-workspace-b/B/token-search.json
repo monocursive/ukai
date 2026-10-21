@@ -1,0 +1,11 @@
+{
+ "paths": [
+  "/home/ubuntu/arow-int-final/runs/final-20261021/r03-workspace-b/B",
+  "/home/ubuntu/arow-int-final/data/attempts/att_f634b976-e2a3-4b6f-9179-42e1d77fbc82",
+  "/home/ubuntu/arow-int-final/ws-B",
+  "/home/ubuntu/arow-int-final/data/state/claude/28c460f82826d93c44e25f2939a40f04"
+ ],
+ "exit": 1,
+ "hits": [],
+ "stderr": ""
+}

@@ -1,0 +1,2 @@
+claude  /home/ubuntu/arow-int-final/ws-A  st_d305d6fb-1129-4863-8018-9575b2f83a25  generation 27  748074 bytes  last att_cc6ff456-39d1-4984-a39f-cfd0f3e65961  held now
+claude  /home/ubuntu/arow-int-final/ws-B  st_4ae7e3f9-e3d2-45ed-8f9f-4aa140407724  generation 1  8677 bytes  last att_f634b976-e2a3-4b6f-9179-42e1d77fbc82

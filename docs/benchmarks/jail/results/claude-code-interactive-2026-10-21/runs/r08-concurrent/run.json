@@ -1,0 +1,284 @@
+{
+ "run": "r08-concurrent",
+ "spec": "6.3 (8)",
+ "started_utc": "2026-10-21T10:00:30Z",
+ "steps": [],
+ "attempts": [
+  {
+   "attempt": "att_44fae362-3537-4572-9c58-e58867dabf5b",
+   "pass": true,
+   "failed": [],
+   "outcome": "exited",
+   "code": 0,
+   "state_cleanup": "complete",
+   "generation": [
+    null,
+    null
+   ],
+   "proxy": [
+    [
+     "api.anthropic.com:443",
+     "allow",
+     "relayed",
+     true,
+     "upstream_closed",
+     7
+    ],
+    [
+     "downloads.claude.ai:443",
+     "deny",
+     "host_not_allowed",
+     false,
+     null,
+     1
+    ],
+    [
+     "github.com:443",
+     "deny",
+     "host_not_allowed",
+     false,
+     null,
+     1
+    ],
+    [
+     "platform.claude.com:443",
+     "allow",
+     "relayed",
+     true,
+     "upstream_closed",
+     1
+    ]
+   ],
+   "live_equals_tail": true,
+   "label": "t2-fallback",
+   "pre_exec": [
+    "ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)",
+    "ukai-jail: terminal: attached (/dev/pts/1) \u00b7 wall 8h \u00b7 ^C and ^Z go to claude, not the jail; to end the attempt, exit claude or run `kill -INT 3356430`",
+    "ukai-jail: state: claude for this workspace is held by att_5c54adf5-c077-41b9-8bbe-f302786f229a \u00b7 this session uses throwaway state and will not be kept"
+   ],
+   "pre_exec_as_required": true,
+   "k62_pending": 0,
+   "shell_rc": 0
+  },
+  {
+   "attempt": "att_5c54adf5-c077-41b9-8bbe-f302786f229a",
+   "pass": true,
+   "failed": [],
+   "outcome": "exited",
+   "code": 0,
+   "state_cleanup": "released",
+   "generation": [
+    27,
+    28
+   ],
+   "proxy": [
+    [
+     "api.anthropic.com:443",
+     "allow",
+     "relayed",
+     true,
+     "upstream_closed",
+     2
+    ]
+   ],
+   "live_equals_tail": true,
+   "label": "t1-holder",
+   "pre_exec": [
+    "ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)",
+    "ukai-jail: terminal: attached (/dev/pts/0) \u00b7 wall 8h \u00b7 ^C and ^Z go to claude, not the jail; to end the attempt, exit claude or run `kill -INT 3356139`",
+    "ukai-jail: state: claude, this workspace, generation 27 (from att_cc6ff456-39d1-4984-a39f-cfd0f3e65961)"
+   ],
+   "pre_exec_as_required": true,
+   "k62_pending": 0,
+   "shell_rc": 0
+  },
+  {
+   "attempt": "att_81668731-1150-48a3-a7f6-8634af801c5e",
+   "pass": true,
+   "failed": [],
+   "outcome": "exited",
+   "code": 0,
+   "state_cleanup": "released",
+   "generation": [
+    28,
+    29
+   ],
+   "proxy": [
+    [
+     "api.anthropic.com:443",
+     "allow",
+     "relayed",
+     true,
+     "upstream_closed",
+     2
+    ]
+   ],
+   "live_equals_tail": true,
+   "label": "t3-resume-after",
+   "pre_exec": [
+    "ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)",
+    "ukai-jail: terminal: attached (/dev/pts/0) \u00b7 wall 8h \u00b7 ^C and ^Z go to claude, not the jail; to end the attempt, exit claude or run `kill -INT 3357250`",
+    "ukai-jail: state: claude, this workspace, generation 28 (from att_5c54adf5-c077-41b9-8bbe-f302786f229a)"
+   ],
+   "pre_exec_as_required": true,
+   "k62_pending": 0,
+   "shell_rc": 0
+  }
+ ],
+ "observations": {
+  "t1:onboarding_seen": [],
+  "t1:attempt": "att_5c54adf5-c077-41b9-8bbe-f302786f229a",
+  "t2:attempt": "att_44fae362-3537-4572-9c58-e58867dabf5b",
+  "t2:pre_exec": [
+   "ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)",
+   "ukai-jail: terminal: attached (/dev/pts/1) \u00b7 wall 8h \u00b7 ^C and ^Z go to claude, not the jail; to end the attempt, exit claude or run `kill -INT 3356430`",
+   "ukai-jail: state: claude for this workspace is held by att_5c54adf5-c077-41b9-8bbe-f302786f229a \u00b7 this session uses throwaway state and will not be kept"
+  ],
+  "t2:fallback_line_names_holder": true,
+  "t2:onboarding_seen": [
+   "theme",
+   "security",
+   "trust"
+  ],
+  "t2:turn": [
+   "generating",
+   "idle"
+  ],
+  "t2:results": {
+   "k62": {
+    "pending": 0,
+    "bytes": "",
+    "window_s": 1.0,
+    "probe_s": 1.001
+   },
+   "rc": 0,
+   "session_id": "7757fe2b-5ac4-4e2e-9ea3-383f02d421f0",
+   "pre_exec": [
+    "ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)",
+    "ukai-jail: terminal: attached (/dev/pts/1) \u00b7 wall 8h \u00b7 ^C and ^Z go to claude, not the jail; to end the attempt, exit claude or run `kill -INT 3356430`",
+    "ukai-jail: state: claude for this workspace is held by att_5c54adf5-c077-41b9-8bbe-f302786f229a \u00b7 this session uses throwaway state and will not be kept"
+   ],
+   "live_summary": [
+    "ukai-jail: settled \u00b7 exited 0 \u00b7 13.0s exec\u2192settled \u00b7 survivors: none (verified)",
+    "ukai-jail: workspace: 0 paths opened for writing \u00b7 2 refused writes",
+    "ukai-jail: network: allowed api.anthropic.com:443 (7), platform.claude.com:443 (1) \u00b7 denied downloads.claude.ai:443 (1), github.com:443 (1)",
+    "ukai-jail: credential claude-oauth: vault, never staged \u00b7 used on 6 proxy results \u00b7 0 credential refusals",
+    "ukai-jail: state: NOT kept \u00b7 this session used throwaway state because att_5c54adf5-c077-41b9-8bbe-f302786f229a held the persistent state for this workspace",
+    "ukai-jail: evidence: 6/6 classes active, no gaps \u00b7 reads and file contents are not observed",
+    "ukai-jail: receipt /home/ubuntu/arow-int-final/data/attempts/att_44fae362-3537-4572-9c58-e58867dabf5b/jail.json"
+   ]
+  },
+  "t1:picker_in_session": [
+   [
+    "/login",
+    "1 minute ago \u00b7 master \u00b7 3KB",
+    true
+   ],
+   [
+    "History of version control systems",
+    "1 minute ago \u00b7 master \u00b7 38KB",
+    false
+   ],
+   [
+    "Greeting.txt file creation",
+    "2 minutes ago \u00b7 master \u00b7 382.4KB",
+    false
+   ]
+  ],
+  "t1:results": {
+   "k62": {
+    "pending": 0,
+    "bytes": "",
+    "window_s": 1.0,
+    "probe_s": 1.001
+   },
+   "rc": 0,
+   "session_id": "a899f90f-d1e5-47de-b2d1-b4753baa4654",
+   "pre_exec": [
+    "ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)",
+    "ukai-jail: terminal: attached (/dev/pts/0) \u00b7 wall 8h \u00b7 ^C and ^Z go to claude, not the jail; to end the attempt, exit claude or run `kill -INT 3356139`",
+    "ukai-jail: state: claude, this workspace, generation 27 (from att_cc6ff456-39d1-4984-a39f-cfd0f3e65961)"
+   ],
+   "live_summary": [
+    "ukai-jail: settled \u00b7 exited 0 \u00b7 29.2s exec\u2192settled \u00b7 survivors: none (verified)",
+    "ukai-jail: workspace: 0 paths opened for writing \u00b7 2 refused writes",
+    "ukai-jail: network: allowed api.anthropic.com:443 (2)",
+    "ukai-jail: credential claude-oauth: vault, never staged \u00b7 used on 2 proxy results \u00b7 0 credential refusals",
+    "ukai-jail: state: kept, generation 28 \u00b7 started from what att_cc6ff456-39d1-4984-a39f-cfd0f3e65961 released, unchanged",
+    "ukai-jail: evidence: 6/6 classes active, no gaps \u00b7 reads and file contents are not observed",
+    "ukai-jail: receipt /home/ubuntu/arow-int-final/data/attempts/att_5c54adf5-c077-41b9-8bbe-f302786f229a/jail.json"
+   ]
+  },
+  "t3:picker_entries": [
+   [
+    "a899f90f",
+    "7 seconds ago \u00b7 master \u00b7 2.1KB",
+    true
+   ],
+   [
+    "/login",
+    "1 minute ago \u00b7 master \u00b7 3KB",
+    false
+   ],
+   [
+    "History of version control systems",
+    "1 minute ago \u00b7 master \u00b7 38KB",
+    false
+   ],
+   [
+    "Greeting.txt file creation",
+    "2 minutes ago \u00b7 master \u00b7 382.4KB",
+    false
+   ]
+  ],
+  "t3:resumed": "idle",
+  "t3:results": {
+   "k62": {
+    "pending": 0,
+    "bytes": "",
+    "window_s": 1.0,
+    "probe_s": 1.001
+   },
+   "rc": 0,
+   "session_id": "391a2c6b-aad5-4508-a37e-3c1f2f884179",
+   "pre_exec": [
+    "ukai-jail: claude = /home/ubuntu/.local/share/claude/versions/2.1.302 (read-only: /home/ubuntu/.local/share/claude/versions)",
+    "ukai-jail: terminal: attached (/dev/pts/0) \u00b7 wall 8h \u00b7 ^C and ^Z go to claude, not the jail; to end the attempt, exit claude or run `kill -INT 3357250`",
+    "ukai-jail: state: claude, this workspace, generation 28 (from att_5c54adf5-c077-41b9-8bbe-f302786f229a)"
+   ],
+   "live_summary": [
+    "ukai-jail: settled \u00b7 exited 0 \u00b7 4.0s exec\u2192settled \u00b7 survivors: none (verified)",
+    "ukai-jail: workspace: 0 paths opened for writing \u00b7 2 refused writes",
+    "ukai-jail: network: allowed api.anthropic.com:443 (2)",
+    "ukai-jail: credential claude-oauth: vault, never staged \u00b7 used on 2 proxy results \u00b7 0 credential refusals",
+    "ukai-jail: state: kept, generation 29 \u00b7 started from what att_5c54adf5-c077-41b9-8bbe-f302786f229a released, unchanged",
+    "ukai-jail: evidence: 6/6 classes active, no gaps \u00b7 reads and file contents are not observed",
+    "ukai-jail: receipt /home/ubuntu/arow-int-final/data/attempts/att_81668731-1150-48a3-a7f6-8634af801c5e/jail.json"
+   ]
+  },
+  "fallback_session_absent_from_state": true
+ },
+ "shells": {
+  "t1": {
+   "TTY": "/dev/pts/0",
+   "SIZE": "40 120",
+   "TERM": "xterm-256color",
+   "LANG": "C.UTF-8",
+   "TZ": "unset",
+   "COLORTERM": "unset",
+   "SHELLOPTS": "himBHs",
+   "PWD": "/home/ubuntu/arow-int-final/ws-A"
+  },
+  "t2": {
+   "TTY": "/dev/pts/1",
+   "SIZE": "40 120",
+   "TERM": "xterm-256color",
+   "LANG": "C.UTF-8",
+   "TZ": "unset",
+   "COLORTERM": "unset",
+   "SHELLOPTS": "himBHs",
+   "PWD": "/home/ubuntu/arow-int-final/ws-A"
+  }
+ },
+ "ended_utc": "2026-10-21T10:01:16Z"
+}
