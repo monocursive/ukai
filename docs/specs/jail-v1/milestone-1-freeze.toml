@@ -13,7 +13,7 @@ rust_version = "1.98.1"
 
 # Cargo.lock, byte for byte
 [cargo_lock]
-sha256 = "499b92a8135f80e5e7153dd0eb57d139b469e0291a7c41b173d63c09edbbb533"
+sha256 = "b8fb65505e5287e8df3691e3a09dc63b928c1f78cc999b60e840abb160c62235"
 packages = 194
 
 # The seccomp programs' digests, from docs/specs/jail-v1/evidence/seccomp-table-*.txt
