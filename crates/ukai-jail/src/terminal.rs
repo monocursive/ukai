@@ -149,8 +149,8 @@ impl Facts {
                 libc::tcgetpgrp(fd),
             )
         };
-        let controlling = terminal_session >= 0 && terminal_session == session;
-        let foreground = foreground_group >= 0 && foreground_group == group;
+        let (controlling, foreground) =
+            session_facts(session, terminal_session, group, foreground_group);
         let major = match seam_major.map(str::parse::<u32>) {
             Some(Ok(major)) => Some(major),
             _ => device_major(fd),
@@ -163,6 +163,26 @@ impl Facts {
             name: terminal_name(fd),
         }
     }
+}
+
+/// Conditions 3 and 4 of §3.2 from the ids `getsid(0)`, `tcgetsid(0)`,
+/// `getpgrp()` and `tcgetpgrp(0)` returned: `(controlling, foreground)`.
+///
+/// Review finding 6: every id must name something. In a PID namespace that
+/// cannot name the session's leader or the job's group (`unshare -pf
+/// ukai-jail …` from an interactive shell), each of these calls answers 0,
+/// so equal ids would attach even a background job, and a supervisor whose
+/// own group is 0 could never tell whose the terminal is. Such a run stays
+/// detached: stdin is not a controlling terminal it can name.
+fn session_facts(
+    session: libc::pid_t,
+    terminal_session: libc::pid_t,
+    group: libc::pid_t,
+    foreground_group: libc::pid_t,
+) -> (bool, bool) {
+    let controlling = session > 0 && terminal_session == session && group > 0;
+    let foreground = controlling && foreground_group == group;
+    (controlling, foreground)
 }
 
 /// The device major of a character device on `fd`.
@@ -885,6 +905,42 @@ mod tests {
         assert_eq!(program_name(b"/usr/local/bin/assistant"), "assistant");
         assert_eq!(program_name(b"assistant"), "assistant");
         assert_eq!(program_name(b"/opt/x/"), "x");
+    }
+
+    /// Review finding 6: ids a PID namespace cannot name (0) never attach,
+    /// whatever they equal; ids that name the session and the group decide as
+    /// before; an error (-1) never attaches.
+    #[test]
+    fn ids_this_namespace_cannot_name_never_attach() {
+        // (session, terminal session, group, foreground group)
+        for (ids, expected) in [
+            ((0, 0, 0, 0), (false, false)),
+            ((0, 0, 41, 41), (false, false)),
+            ((40, 40, 0, 0), (false, false)),
+            ((40, 40, 41, 41), (true, true)),
+            ((40, 40, 41, 0), (true, false)),
+            ((40, 40, 41, 42), (true, false)),
+            ((40, 39, 41, 41), (false, false)),
+            ((40, -1, 41, 41), (false, false)),
+            ((-1, -1, 41, 41), (false, false)),
+            ((40, 40, 41, -1), (true, false)),
+        ] {
+            assert_eq!(
+                session_facts(ids.0, ids.1, ids.2, ids.3),
+                expected,
+                "{ids:?}"
+            );
+        }
+        let mut measured = facts(136);
+        (measured.controlling, measured.foreground) = session_facts(0, 0, 0, 0);
+        assert_eq!(
+            decide(true, &measured),
+            if cfg!(target_os = "linux") {
+                Decision::Detached(Some(Detached::NotControlling))
+            } else {
+                Decision::Detached(None)
+            }
+        );
     }
 
     #[test]

@@ -1164,3 +1164,11 @@ live or unit test that failed before its fix and passes after it):
     now judged by a member found in `/proc`; a group with members none of
     whose namespaces can be read (another user's processes) counts as
     another job's, and only a group with no process left is taken.
+22. **Ids a PID namespace cannot name never attach (review finding 6; §3.2
+    conditions 3 and 4).** In a namespace that cannot name the session's
+    leader or the job's group (`unshare -pf ukai-jail …` from an interactive
+    shell) `getsid`, `tcgetsid`, `getpgrp` and `tcgetpgrp` all answer 0, so
+    the equalities held even for a background job, and a supervisor whose
+    own group reads 0 always seemed to hold the terminal. Every id must now
+    be positive; otherwise the run is detached as `stdin is not this
+    session's controlling terminal`. Unit-tested over raw values only.
