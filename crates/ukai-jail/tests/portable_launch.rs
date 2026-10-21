@@ -3280,6 +3280,13 @@ state_discard = [".login.json", "drop-me"]
                 .any(|error| error["code"] == "credential_persisted"),
             "{receipt:#}"
         );
+        // The remedy names the verbs as the operator types them.
+        let message = &report.error.as_ref().unwrap().message;
+        let rm = format!(
+            "`ukai-jail state rm keeper --workspace {}`",
+            fixture.workspace.display()
+        );
+        assert!(message.contains(&rm), "{message}");
         let summary = ukai_jail::summary::summarize_attempt(&attempt_dir(&report)).unwrap();
         let line = summary
             .lines

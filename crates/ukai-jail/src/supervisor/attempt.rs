@@ -1575,14 +1575,31 @@ impl<'a> Attempt<'a> {
                     *secret_scan = Some(released.secret_scan.to_owned());
                 }
                 if released.secret_scan == "found" {
+                    // The verbs as the operator types them, as the
+                    // `state_quarantined` refusal names them.
+                    let launch = match self.plan.resolved.snapshot.roots.vendor_state.as_ref() {
+                        Some(crate::policy::VendorStateRoot::Persistent { profile }) => {
+                            profile.as_str()
+                        }
+                        _ => "NAME",
+                    };
+                    let verb = |verb: &str| {
+                        format!(
+                            "`ukai-jail state {verb} {launch} --workspace {}`",
+                            self.plan.workspace.display()
+                        )
+                    };
                     let error = JailError::new(
                         ErrorCode::CredentialPersisted,
                         ErrorStage::Reconciling,
                         Remediation::InspectState,
-                        "a vault credential's value was found in the persistent state at its \
-                         release; the state is quarantined: inspect it with `ukai-jail state \
-                         show`, revoke the credential, then `ukai-jail state rm`"
-                            .to_owned(),
+                        format!(
+                            "a vault credential's value was found in the persistent state at \
+                             its release; the state is quarantined: inspect it with {}, revoke \
+                             the credential, then remove it with {}",
+                            verb("show"),
+                            verb("rm")
+                        ),
                     );
                     self.record.errors.push(error.to_object());
                     outcome_error.get_or_insert(error);
