@@ -3,8 +3,10 @@
 Status: design proposal, 2026-10-21. The operator settled its five
 decisions the same day (§9): four as recommended, and for the fifth chose a
 Console API key over the recommended dedicated setup token, with the
-recommended approval gate. Nothing is implemented. It
-was written against `dev` at `fbd86aa73`, after Ukai Jail 0.1.0-rc.4
+recommended approval gate. Decision 3 was then amended after a measurement
+(§7): the action is released on a slim orphan ref. Nothing is
+implemented. It was written against `dev` at `fbd86aa73`, after Ukai Jail
+0.1.0-rc.4
 (`ukai-jail-v0.1.0-rc.4`, `eb9b67b18`). It follows the
 [GitHub-hosted runner spike](../benchmarks/jail/github-runners-2026-10-21.md),
 which is its evidence base, and the adoption ranking that put a CI receipt
@@ -36,7 +38,7 @@ steps:
   - uses: actions/checkout@<sha>
     with:
       persist-credentials: false
-  - uses: monocursive/ukai/action@ukai-jail-v0.1.0-rc.5
+  - uses: monocursive/ukai/action@ukai-jail-action-v0.1.0-rc.5
     with:
       launch: claude
       args: |
@@ -61,9 +63,10 @@ host setup (this runner only): bubblewrap 0.11.1 built from its release tarball 
 
 In scope:
 
-- A composite action at `action/` in this repository (`action/action.yml`,
-  its scripts and `action/README.md`), referenced as
-  `monocursive/ukai/action@<jail tag>`.
+- A composite action whose source is `action/` on `dev` (`action/action.yml`,
+  its scripts and `action/README.md`), released on the slim orphan branch
+  `action` and referenced as `monocursive/ukai/action@ukai-jail-action-vX`
+  (decision 3 as amended, §9).
 - GitHub-hosted `ubuntu-24.04` and `ubuntu-24.04-arm` runners, and any later
   GitHub-hosted Ubuntu image the runner check (§3.2) accepts.
 - Two modes: a launch profile with its arguments (`launch:` + `args:`), and
@@ -147,7 +150,8 @@ reasons and the guide's host notes.
 ### 3.3 Setup on a GitHub-hosted runner
 
 1. **ukai-jail.** Run the installer from the action's own ref
-   (`$GITHUB_ACTION_PATH/../install.sh`, the root installer of that tag)
+   (`$GITHUB_ACTION_PATH/../install.sh`: the release commit on the `action`
+   branch carries a byte-for-byte copy of the root installer of `ukai-jail-vX`)
    with `--version` and `--bin-dir $RUNNER_TEMP/ukai/bin`. Config and data
    go to `$RUNNER_TEMP/ukai/config` and `$RUNNER_TEMP/ukai/data`
    (`UKAI_CONFIG_DIR`, `UKAI_DATA_DIR`), mode 0700.
@@ -327,11 +331,12 @@ both.
 
 | Where | Change | Kind |
 | --- | --- | --- |
-| `action/` | New: `action.yml`, the setup, run and report scripts, the AppArmor profile file, `README.md`. Not a jail build input. | New component |
+| `action/` on `dev` | New: `action.yml`, the setup, run and report scripts, the AppArmor profile file, `README.md`. Not a jail build input. Tested in place (`uses: ./action`). | New component |
+| The orphan branch `action` | New: one commit per jail release holding only `action/` and the root `install.sh` of that release, tagged `ukai-jail-action-vX`. Never merged anywhere; nothing else lives there. | Release artifact |
 | [jail-v1](jail-v1.md) §3, "no host configuration" | Clarified: holds for `ukai-jail`; the action is a separate component that, on a GitHub-hosted runner only, makes §3.3's two disclosed changes, and on any other host makes none. | Clarification |
 | [operating.md](jail-v1/operating.md), [guide](../guide.md) | A "CI: GitHub Actions" section: the two modes, credentials, the checkout token, forks, what the summary's host-setup line means. | Guide |
 | [agent-compatibility.md](jail-v1/agent-compatibility.md) | A GitHub-hosted runner row, after §6.2's record. | Support record |
-| [RELEASING.md](../RELEASING.md) | The action is released with the jail's tag; a release also runs the action self-test (K86) at the tag. | Procedure |
+| [RELEASING.md](../RELEASING.md) | After a jail release is published and the root installer rolled out: copy `action/` and that `install.sh` from the rollout commit to a new commit on the `action` branch, tag it `ukai-jail-action-vX` (annotated, naming the jail tag and the rollout commit), push both, and run the action self-test (K86) against that tag. | Procedure |
 | `.github/workflows/` | An action self-test workflow on both 24.04 images, for changes to `action/` and the installer and at release tags. | CI |
 | The receipt, summary and schemas | None. The action reads `tail --summary` and the receipt as they are. | None |
 
@@ -351,7 +356,7 @@ both.
 | K83 | Both modes: launch mode's argv equals `ukai-jail NAME ARG...`'s (identical policy and argv digests, K33's method); profile mode runs `run` under the named profile. |
 | K84 | Both images: every row above passes on `ubuntu-24.04` and `ubuntu-24.04-arm`; the image versions are recorded; `ubuntu-latest`'s resolution at test time is recorded, not assumed. |
 | K85 | Injection: inputs holding `$(…)`, backticks, quotes, `;`, newlines and `${{ }}` text reach the jailed program as literal argv or script text and are never evaluated by the action's own steps. |
-| K86 | Self-test at a release tag: the action referenced at the tag installs exactly that release (version, revision and inputs match the tag's `release.json`). |
+| K86 | Self-test at a release tag: `uses: monocursive/ukai/action@ukai-jail-action-vX` installs exactly release X (version, revision and inputs match `ukai-jail-vX`'s `release.json`); the tagged commit holds only `action/` and `install.sh`, and its `install.sh` equals the root installer of X's rollout byte for byte; its "Set up job" fetch stays slim (recorded, as in §7). |
 
 ### 6.2 The compatibility record (A-row)
 
@@ -382,23 +387,15 @@ summary posted to the job page.
   its "Set up job" took **56 to 69 s**; on an orphan ref holding only
   `action/action.yml` it was **24 KB** and **0 to 1 s**, on both images. A
   `git archive` of the rc.4 tree is 253 MB compressed, mostly
-  `docs/benchmarks`. §8 item 1 proposes the slim ref.
+  `docs/benchmarks`. Decision 3 was amended for it (§9): the action is
+  released on a slim ref.
 - The run itself costs what the jail costs on any host (K17's records); the
   runner's two or four CPUs are the only difference.
 
 ## 8. Open questions
 
-1. **The download size (measured, §7: about a minute and 1.9 GB per job).**
-   Recommended: keep the action in this repository and versioned with the
-   jail, but release it on a slim ref. An orphan branch `action` holds only
-   `action/` and a copy of the root installer; each jail release
-   `ukai-jail-vX` gets a tag `ukai-jail-action-vX` on that branch, whose
-   installer pins release X (a tag name of its own, because the jail tags
-   name full-tree commits), and workflows write `uses:
-   monocursive/ukai/action@ukai-jail-action-vX`. The release procedure
-   gains the copy and the tag. A separate repository stays the route to a
-   Marketplace listing. This amends decision 3's mechanism, so it waits for
-   the operator.
+1. *(Settled 2026-10-21: decision 3 amended, §9.)* A separate repository
+   remains the route to a Marketplace listing, if one is wanted.
 2. *(Settled 2026-10-21, decision 5.)*
 3. **Caching the bubblewrap build** with `actions/cache`, keyed by the
    tarball digest and the image version.
@@ -418,9 +415,17 @@ The operator settled all four as recommended:
    nothing.
 2. **bubblewrap.** Built on every run from the pinned 0.11.1 release tarball,
    verified by SHA-256. No prebuilt bubblewrap is distributed.
-3. **Where it lives.** `action/` in this repository, versioned with the
-   jail's tags, so `uses: monocursive/ukai/action@ukai-jail-vX` installs
-   release X (§7 records the download this implies; §8 item 1).
+3. **Where it lives** (amended the same day). In this repository and
+   versioned with the jail, released on a slim ref: its source is `action/`
+   on `dev`; each jail release `ukai-jail-vX` adds one commit holding only
+   `action/` and that release's root installer to the orphan branch
+   `action`, tagged `ukai-jail-action-vX`, so `uses:
+   monocursive/ukai/action@ukai-jail-action-vX` installs release X. The
+   tag name is its own because the jail tags name full-tree commits. As
+   first decided, the action was referenced at the jail tag itself; the
+   operator amended that after §7's measurement (about a minute and 1.9 GB
+   of fetch per job from the full tree, under a second and 24 KB from a
+   slim ref).
 4. **Version 1's scope.** Launch profiles and profile-mode scripts, the job
    summary and the artifact; the pull-request comment is opt-in; forks get
    no secrets; `pull_request_target` is refused.
