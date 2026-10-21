@@ -1,0 +1,169 @@
+# Ukai Jail for GitHub Actions (docs/specs/jail-ci-action.md, J15): run a
+# coding agent or a script contained, keep its credential in the vault, and
+# leave the run's receipt on the job page. Every input reaches the scripts
+# as an environment variable; no `run:` below holds an expression.
+name: Ukai Jail
+description: Run a coding agent or a script inside ukai-jail on a GitHub-hosted Ubuntu 24.04 runner and keep its receipt.
+inputs:
+  launch:
+    description: A launch profile name, as `ukai-jail NAME` takes it (for example `claude`). Exclusive with `profile`.
+    required: false
+    default: ''
+  args:
+    description: Launch mode only. The program's arguments, one per line, passed as argv elements with no shell.
+    required: false
+    default: ''
+  profile:
+    description: An execution profile, `tool`, `build` or `agent`. Exclusive with `launch`; `none` is refused.
+    required: false
+    default: ''
+  run:
+    description: Profile mode only. A script, run inside the jail as one argv element of `/bin/bash -e -c`.
+    required: false
+    default: ''
+  allow-hosts:
+    description: Hosts to allow (`--allow-host`), one per line or space-separated.
+    required: false
+    default: ''
+  limits:
+    description: '`KEY=VALUE` limits (`--limit`), one per line or space-separated. Default: the profile''s.'
+    required: false
+    default: ''
+  credentials:
+    description: '`ID=ENVVAR` lines: store the value of `$ENVVAR` as the vault credential `ID`. Set ENVVAR in this step''s `env:` from a secret.'
+    required: false
+    default: ''
+  workspace:
+    description: The workspace, a git work tree. Default `$GITHUB_WORKSPACE`; a relative path is taken from there.
+    required: false
+    default: ''
+  version:
+    description: The ukai-jail release to install; the installer beside this action must pin it.
+    required: false
+    default: 0.1.0-rc.4
+  fail-on:
+    description: 'Besides the command''s own failure, what fails the step: any of `unsettled`, `survivors`, `gaps`.'
+    required: false
+    default: unsettled,survivors
+  pr-comment:
+    description: 'Post or update one comment with the summary on a same-repository pull request (needs `pull-requests: write`).'
+    required: false
+    default: 'false'
+  artifact-name:
+    description: The artifact's name; it must be unique in the workflow run (set it per job in a matrix).
+    required: false
+    default: ukai-jail-receipt
+  allow-checkout-token:
+    description: Run although the workspace's git config holds the checkout's persisted token, which the agent can then read. The summary says so.
+    required: false
+    default: 'false'
+outputs:
+  exit-code:
+    description: What ukai-jail exited with (the command's status, or 125 for a refusal before exec).
+    value: ${{ steps.run.outputs.exit-code }}
+  attempt-id:
+    description: The attempt's id, when one was recorded.
+    value: ${{ steps.report.outputs.attempt-id }}
+  settled:
+    description: '`true` when the receipt''s phase is settled, else `false`.'
+    value: ${{ steps.report.outputs.settled }}
+  summary-json:
+    description: The path of `ukai-jail tail --summary --json`'s output.
+    value: ${{ steps.report.outputs.summary-json }}
+  receipt:
+    description: The path of the copied `jail.json`.
+    value: ${{ steps.report.outputs.receipt }}
+runs:
+  using: composite
+  steps:
+    - id: check
+      shell: bash
+      env:
+        UKAI_ACTION_LAUNCH: ${{ inputs.launch }}
+        UKAI_ACTION_ARGS: ${{ inputs.args }}
+        UKAI_ACTION_PROFILE: ${{ inputs.profile }}
+        UKAI_ACTION_RUN: ${{ inputs.run }}
+        UKAI_ACTION_ALLOW_HOSTS: ${{ inputs.allow-hosts }}
+        UKAI_ACTION_LIMITS: ${{ inputs.limits }}
+        UKAI_ACTION_CREDENTIALS: ${{ inputs.credentials }}
+        UKAI_ACTION_WORKSPACE: ${{ inputs.workspace }}
+        UKAI_ACTION_VERSION: ${{ inputs.version }}
+        UKAI_ACTION_FAIL_ON: ${{ inputs.fail-on }}
+        UKAI_ACTION_PR_COMMENT: ${{ inputs.pr-comment }}
+        UKAI_ACTION_ARTIFACT_NAME: ${{ inputs.artifact-name }}
+        UKAI_ACTION_ALLOW_CHECKOUT_TOKEN: ${{ inputs.allow-checkout-token }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/check.sh"
+    - id: setup
+      shell: bash
+      env:
+        UKAI_ACTION_DIR: ${{ steps.check.outputs.dir }}
+        UKAI_ACTION_VERSION: ${{ inputs.version }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/setup.sh"
+    - id: credentials
+      shell: bash
+      env:
+        UKAI_ACTION_DIR: ${{ steps.check.outputs.dir }}
+        UKAI_ACTION_CREDENTIALS: ${{ inputs.credentials }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/credentials.sh"
+    - id: doctor
+      shell: bash
+      env:
+        UKAI_ACTION_DIR: ${{ steps.check.outputs.dir }}
+        UKAI_ACTION_LAUNCH: ${{ inputs.launch }}
+        UKAI_ACTION_PROFILE: ${{ inputs.profile }}
+        UKAI_ACTION_CREDENTIALS: ${{ inputs.credentials }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/doctor.sh"
+    - id: run
+      shell: bash
+      env:
+        UKAI_ACTION_DIR: ${{ steps.check.outputs.dir }}
+        UKAI_ACTION_LAUNCH: ${{ inputs.launch }}
+        UKAI_ACTION_ARGS: ${{ inputs.args }}
+        UKAI_ACTION_PROFILE: ${{ inputs.profile }}
+        UKAI_ACTION_RUN: ${{ inputs.run }}
+        UKAI_ACTION_ALLOW_HOSTS: ${{ inputs.allow-hosts }}
+        UKAI_ACTION_LIMITS: ${{ inputs.limits }}
+        UKAI_ACTION_CREDENTIALS: ${{ inputs.credentials }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/run.sh"
+    - id: report
+      if: always() && steps.check.outcome == 'success'
+      shell: bash
+      env:
+        UKAI_ACTION_DIR: ${{ steps.check.outputs.dir }}
+        UKAI_ACTION_LAUNCH: ${{ inputs.launch }}
+        UKAI_ACTION_PROFILE: ${{ inputs.profile }}
+        UKAI_ACTION_CREDENTIALS: ${{ inputs.credentials }}
+        UKAI_ACTION_PR_COMMENT: ${{ inputs.pr-comment }}
+        UKAI_ACTION_ARTIFACT_NAME: ${{ inputs.artifact-name }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/report.sh"
+    - id: upload
+      if: always() && steps.report.outputs.upload == 'true'
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.report.outputs.artifact-dir }}
+        if-no-files-found: error
+    - id: post
+      if: always() && steps.report.outputs.upload == 'true'
+      shell: bash
+      env:
+        UKAI_ACTION_DIR: ${{ steps.check.outputs.dir }}
+        UKAI_ACTION_PR_COMMENT: ${{ inputs.pr-comment }}
+        UKAI_ACTION_ARTIFACT_NAME: ${{ inputs.artifact-name }}
+        UKAI_ACTION_ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        GH_TOKEN: ${{ github.token }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/post.sh"
+    - id: cleanup
+      if: always() && steps.check.outcome == 'success'
+      shell: bash
+      env:
+        UKAI_ACTION_DIR: ${{ steps.check.outputs.dir }}
+        UKAI_ACTION_CREDENTIALS: ${{ inputs.credentials }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/cleanup.sh"
+    - id: verdict
+      if: always() && steps.run.outcome == 'success'
+      shell: bash
+      env:
+        UKAI_ACTION_DIR: ${{ steps.check.outputs.dir }}
+        UKAI_ACTION_FAIL_ON: ${{ inputs.fail-on }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/verdict.sh"
