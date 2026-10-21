@@ -419,9 +419,9 @@ settings, memory, skills or MCP servers from `~/.claude`; no `--resume`
 across runs (history lives in vendor state, removed at settlement); no git
 push or SSH; no self-update; no network beyond the allowlist.
 
-J14 supersedes this table's vendor-state cell and the `--resume` sentence
-once implemented: the bundled `claude` profile keeps its state per
-workspace, released rather than deleted at settlement
+J14, implemented since 2026-10-19, supersedes this table's vendor-state
+cell and the `--resume` sentence: the bundled `claude` profile keeps its
+state per workspace, released rather than deleted at settlement
 ([jail-interactive-sessions.md](jail-interactive-sessions.md) §4).
 
 ### 3.7 Interactive sessions: why the first claim is headless
@@ -442,9 +442,9 @@ So J12's support claim is `ukai-jail claude -p …` and its equivalents
 (§7, decision 7). The alias still starts an interactive session when asked;
 `doctor --launch` says that mode is unrecorded, and nothing claims it works
 until J14 (§3.8) records it. J14's terminal mode
-([jail-interactive-sessions.md](jail-interactive-sessions.md) §3) supersedes
-the first paragraph once implemented; the interactive compatibility row is
-still separate.
+([jail-interactive-sessions.md](jail-interactive-sessions.md) §3), implemented
+since 2026-10-19, supersedes the first paragraph; the interactive
+compatibility row is still separate.
 
 ### 3.8 Next milestone: J14, interactive sessions (outline)
 

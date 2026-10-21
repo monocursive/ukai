@@ -2463,7 +2463,8 @@ They grant no host directory. A pre-existing symlink or special node refuses.
 workspace (J14 §4); it refuses `copy_rw` and `bind_ro` credentials, which
 would persist, and `state_discard` lists relative paths under vendor state
 removed, as links when they are links, at every release. `state_discard`
-is valid only with persistent state. `run --state attempt` restores
+has effect only with persistent state (with `state = "attempt"` it parses and
+is ignored, so `--state attempt` can override a persistent profile). `run --state attempt` restores
 attempt-private state for one run.
 
 | Initial profile | Managed state mapping | Declared input intent |
