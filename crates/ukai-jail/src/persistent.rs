@@ -58,6 +58,11 @@ pub const KEY_DOMAIN: &[u8] = b"ukai.jail.state/1\0";
 pub const RECORD_MAX: u64 = 256 * 1024;
 /// The generations `state.json` keeps in its log.
 pub const LOG_MAX: usize = 64;
+/// The files a quarantine names; the rest are counted, so the record stays
+/// within [`RECORD_MAX`] however many files held a value.
+pub const QUARANTINE_FILES_MAX: usize = 64;
+/// The bytes of file names a quarantine keeps, under the same rule.
+pub const QUARANTINE_NAME_BYTES_MAX: usize = 16 * 1024;
 /// Initial bound of one manifest pass on content read (§4.6).
 pub const MANIFEST_BYTES_MAX: u64 = 256 * 1024 * 1024;
 /// Initial bound of one manifest pass on entries (§4.6).
@@ -187,8 +192,13 @@ pub struct Quarantine {
     /// RFC 3339 UTC.
     pub at: String,
     /// The files that held a value, relative to `vendor/`, for `state show`
-    /// on the operator's host; never in a receipt.
+    /// on the operator's host; never in a receipt. At most
+    /// [`QUARANTINE_FILES_MAX`] names and [`QUARANTINE_NAME_BYTES_MAX`]
+    /// bytes of them.
     pub files: Vec<NativeString>,
+    /// The files that held a value beyond those named.
+    #[serde(default)]
+    pub files_omitted: u64,
 }
 
 /// One generation in the log.
@@ -1482,15 +1492,24 @@ fn release_levels(
         record.log.drain(..excess);
     }
     if !pass.hits.is_empty() {
+        // Bounded, so that many hits with long names cannot make the record
+        // one the next acquisition refuses to read (review: the quarantine
+        // then read as `unsafe_state_path`).
+        let mut files = Vec::new();
+        let mut name_bytes = 0;
+        for path in &pass.hits {
+            name_bytes += path.len();
+            if files.len() == QUARANTINE_FILES_MAX || name_bytes > QUARANTINE_NAME_BYTES_MAX {
+                break;
+            }
+            files.extend(NativeString::from_bytes(path.clone()).ok());
+        }
         record.quarantine = Some(Quarantine {
             reason: "credential_persisted".to_owned(),
             attempt: attempt.to_owned(),
             at,
-            files: pass
-                .hits
-                .iter()
-                .filter_map(|path| NativeString::from_bytes(path.clone()).ok())
-                .collect(),
+            files_omitted: u64::try_from(pass.hits.len() - files.len()).unwrap_or(u64::MAX),
+            files,
         });
     }
     record.holder = Some(Holder {
@@ -1582,6 +1601,7 @@ pub fn gc_release(
             attempt: attempt.to_owned(),
             at: now(),
             files: Vec::new(),
+            files_omitted: 0,
         });
         write_record(&levels.key_dir, &levels.path, &record).map_err(|error| error.message)?;
         drop(lease);

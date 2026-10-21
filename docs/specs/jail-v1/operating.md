@@ -752,7 +752,8 @@ session history persist, so `--resume` works. Nothing is copied from
   every file of the state for the vault values this attempt loaded; a hit
   quarantines the state (`credential_persisted`, exit 1), and the next
   attempt refuses `state_quarantined` until you inspect it (`state show`
-  names the files), revoke the credential and `state rm` it.
+  names up to 64 of the files and counts the rest), revoke the credential
+  and `state rm` it.
 - **What the receipt says**: `vendor_state` gives the state id, the
   generation it started from and the one its release recorded, the attempt
   it inherited from, whether the state was unchanged since that release

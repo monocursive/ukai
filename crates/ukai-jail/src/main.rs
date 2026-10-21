@@ -382,6 +382,13 @@ fn state_show_text(state: &ukai_jail::persistent::Listed) -> String {
                 records::escape_control(&file.to_display())
             );
         }
+        if quarantine.files_omitted > 0 {
+            let _ = writeln!(
+                out,
+                "quarantine files not named {}",
+                quarantine.files_omitted
+            );
+        }
     }
     for generation in &record.log {
         let _ = writeln!(
@@ -1870,6 +1877,7 @@ mod tests {
                 attempt: "att_x".to_owned(),
                 at: "2026-10-19T00:00:00Z".to_owned(),
                 files: Vec::new(),
+                files_omitted: 0,
             }),
             log: Vec::new(),
         };

@@ -4085,6 +4085,59 @@ state_discard = [".login.json", "drop-me"]
         assert!(key.join("state.json").exists(), "the new state is kept");
     }
 
+    /// K70 (review: quarantine files were unbounded): a quarantine names at
+    /// most a bounded number of files and counts the rest, so a release that
+    /// found the value in many files with long names still leaves a record
+    /// the next acquisition reads, and it refuses `state_quarantined`, not
+    /// `unsafe_state_path`.
+    #[test]
+    fn k70_a_quarantine_of_many_files_stays_readable() {
+        let fixture = Fixture::new();
+        let value = "vault-value-many-0123456789abcdef";
+        let source = fixture.credential("token", value.as_bytes());
+        keeper(
+            &fixture,
+            &format!(
+                "\n[credentials.token]\nsource = \"{}\"\nmode = \"vault\"\n\
+                 hosts = [\"https://api.example.test\"]\n\n[network]\nallow = [\"api.example.test\"]\n",
+                source.display()
+            ),
+        );
+        let copies: Activity = Arc::new(move |vendor: &Path| {
+            let padding = "x".repeat(220);
+            for index in 0..1500 {
+                std::fs::write(
+                    vendor.join(format!("f{index:05}-{padding}")),
+                    format!("Bearer {value}"),
+                )
+                .unwrap();
+            }
+        });
+        let report = run_keeper(
+            &fixture,
+            Sim {
+                activity: Some(copies),
+                ..Sim::default()
+            },
+            &[],
+        );
+        assert_eq!(report.exit_code, 1, "{:?}", report.error);
+        let next = run_keeper(&fixture, Sim::default(), &[]);
+        let error = next.error.expect("refused");
+        assert_eq!(error.code, ErrorCode::StateQuarantined, "{error:?}");
+        let workspace = fixture.workspace.canonicalize().unwrap();
+        let shown = state::show(&fixture.data, "keeper", &workspace)
+            .unwrap()
+            .unwrap();
+        let record = shown.record.expect("the record reads");
+        let quarantine = record.quarantine.expect("quarantined");
+        assert_eq!(
+            quarantine.files.len() + usize::try_from(quarantine.files_omitted).unwrap(),
+            1500
+        );
+        assert!(quarantine.files.len() <= state::QUARANTINE_FILES_MAX);
+    }
+
     /// K75: the vendor file a profile discards is named only in data.
     #[test]
     fn k75_no_vendor_file_name_in_the_execution_core() {

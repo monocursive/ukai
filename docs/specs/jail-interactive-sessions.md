@@ -1121,3 +1121,13 @@ intent.
     completes; before the change an acquisition held the directory being
     removed, or `rm` stopped on `Directory not empty`. K71 also stops a
     removal and has `gc` finish it, and K66 checks the record-less `vendor/`.
+18. **A quarantine names at most 64 files** (review, 2026-10-21; §4.5 says
+    only that `state show` names the file). The list was unbounded, while
+    `state.json` is read only up to 256 KiB. A release that found the value
+    in many files with long names therefore wrote a record the next
+    acquisition refused as `unsafe_state_path` instead of
+    `state_quarantined`, and `state show` could not show the quarantine. The
+    record now names at most 64 files and 16 KiB of names and counts the
+    rest (`files_omitted`; `state show` prints `quarantine files not named
+    N`). K70 quarantines 1,500 files with 227-byte names: before, the next
+    run refused `unsafe_state_path`; now it refuses `state_quarantined`.
