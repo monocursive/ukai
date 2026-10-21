@@ -14,12 +14,13 @@
 //! [`Attempt::settle`].
 
 use std::collections::VecDeque;
+use std::os::fd::OwnedFd;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
 use super::{
-    Budget, Context, ControlSink, GATE_WAIT, InFlight, Journal, LaunchPrepared, Plan,
-    RELEASE_STDOUT_AFTER_PREPARE, RunReport, TREE_BUDGET, Unpersisted, apply_boundary,
+    Budget, Context, ControlSink, GATE_WAIT, InFlight, Journal, LaunchPrepared, OperatorChannels,
+    Plan, RELEASE_STDOUT_AFTER_PREPARE, RunReport, TREE_BUDGET, Unpersisted, apply_boundary,
     await_release, check_applied_bounds, claim_attempt, degrade_trace_coverage, finish_control,
     first_unsatisfied, interrupted, merge_wall_limit, not_held, open_control, open_trace,
     pending_applied, persist_terminal, persistence_failed, persistence_failed_after,
@@ -68,6 +69,9 @@ pub(super) struct Attempt<'a> {
     record: AttemptRecord,
     journal: Journal,
     control: Option<ControlSink>,
+    /// The operator's gate, owned since the process started (§6.1) until
+    /// the release wait consumes it.
+    gate: Option<OwnedFd>,
     /// Every `UKAI_JAIL_TEST_*` variable in force, read once at the claim
     /// and recorded in jail state and in every receipt with native details.
     test_seams: Option<serde_json::Value>,
@@ -144,6 +148,7 @@ impl<'a> Attempt<'a> {
     /// Whatever stops the claim. Nothing is claimed then, or, when only the
     /// directory sync after the claim's link failed, a claim stands that has
     /// no receipt; either way there is no claimed attempt to refuse.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn claim(
         ctx: &'a Context,
         args: &'a RunArgs,
@@ -151,6 +156,7 @@ impl<'a> Attempt<'a> {
         attempt_id: AttemptId,
         budget: Budget,
         signals: Option<signals::SignalPipe>,
+        channels: OperatorChannels,
         argv_digest: Option<String>,
     ) -> Result<Self, JailError> {
         let attempt_dir = AttemptDir::new(&plan.data_dir, &attempt_id);
@@ -184,8 +190,8 @@ impl<'a> Attempt<'a> {
         // the attempt's records under a rename that may still land.
         persister.hold_lease(lease);
         let forwarding = state::install(persister.forwarding());
-        let control = open_control(args)?;
-        let trace = open_trace(ctx, args, &attempt_dir)?;
+        let control = open_control(channels.control)?;
+        let trace = open_trace(ctx, channels.trace, &attempt_dir)?;
         // A loss note names the classes this attempt covers.
         if let Ok(mut writer) = trace.lock() {
             writer.set_stream_classes(&stream_classes(&plan));
@@ -205,6 +211,7 @@ impl<'a> Attempt<'a> {
             record,
             journal,
             control,
+            gate: channels.gate,
             test_seams,
             _forwarding: forwarding,
             persister,
@@ -444,14 +451,14 @@ impl<'a> Attempt<'a> {
     /// The gate's refusal, or a `none` run's markers that cannot be armed.
     fn gate(&mut self) -> Result<(), JailError> {
         self.budget.check(ErrorStage::Prepared)?;
-        match self.args.gate_fd {
+        match self.gate.take() {
             None => interrupted(self.signals.as_ref(), ErrorStage::Prepared)?,
-            Some(fd) => {
+            Some(gate) => {
                 let expectation = GateExpectation {
                     attempt_id: self.attempt_id.as_str().to_owned(),
                     policy_digest: self.plan.resolved.digest.clone(),
                 };
-                await_release(fd, &expectation, GATE_WAIT, self.signals.as_ref())?;
+                await_release(gate, &expectation, GATE_WAIT, self.signals.as_ref())?;
             }
         }
         // §9.3 / X06: before the untrusted target execs, the supervisor makes

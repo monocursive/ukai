@@ -20,7 +20,7 @@
 
 use std::ffi::OsString;
 use std::io::Write as _;
-use std::os::fd::{AsFd as _, BorrowedFd, FromRawFd as _, RawFd};
+use std::os::fd::{AsFd as _, AsRawFd as _, BorrowedFd, FromRawFd as _, OwnedFd, RawFd};
 use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::path::{Path, PathBuf};
@@ -1906,19 +1906,36 @@ fn first_unsatisfied(
 /// refusal before the claim (usage, resolution, the state root, the output
 /// channels) has no attempt to write one for. The return value carries the
 /// exit status; the caller prints diagnostics.
+///
+/// It takes the channel descriptors itself, so a caller that supplies any
+/// must not have opened anything it keeps since it received them; one that
+/// has takes them first and calls [`run_with_channels`].
 #[must_use]
 pub fn run(ctx: &Context, args: &RunArgs) -> RunReport {
-    run_with(ctx, args, false)
+    run_with(ctx, args, OperatorChannels::take(args), false)
+}
+
+/// [`run`] over the channel descriptors [`OperatorChannels::take`] took from
+/// the same `args` before the caller opened anything of its own: the binary,
+/// whose context opens files.
+#[must_use]
+pub fn run_with_channels(ctx: &Context, args: &RunArgs, channels: OperatorChannels) -> RunReport {
+    run_with(ctx, args, channels, false)
 }
 
 /// [`run`] under [`resolve_learning_plan`]'s policy, for `learn`.
 #[must_use]
 pub fn run_learning(ctx: &Context, args: &RunArgs) -> RunReport {
-    run_with(ctx, args, true)
+    run_with(ctx, args, OperatorChannels::take(args), true)
 }
 
-fn run_with(ctx: &Context, args: &RunArgs, learning: bool) -> RunReport {
-    match run_inner(ctx, args, learning) {
+fn run_with(
+    ctx: &Context,
+    args: &RunArgs,
+    channels: OperatorChannels,
+    learning: bool,
+) -> RunReport {
+    match run_inner(ctx, args, channels, learning) {
         Ok(report) => report,
         // Every error of `run_inner` comes before the claim; after it, the
         // attempt builds its own report. So a persistence failure here (the
@@ -1931,7 +1948,12 @@ fn run_with(ctx: &Context, args: &RunArgs, learning: bool) -> RunReport {
     }
 }
 
-fn run_inner(ctx: &Context, args: &RunArgs, learning: bool) -> Result<RunReport, JailError> {
+fn run_inner(
+    ctx: &Context,
+    args: &RunArgs,
+    channels: OperatorChannels,
+    learning: bool,
+) -> Result<RunReport, JailError> {
     // §13.1: pin the shared monotonic base before anything writes a trace
     // event, so wrapper, audit and gap intervals all count from here.
     crate::platform::mark_supervisor_start();
@@ -1987,7 +2009,7 @@ fn run_inner(ctx: &Context, args: &RunArgs, learning: bool) -> Result<RunReport,
     };
     let argv_digest = (!argv.is_empty()).then(|| crate::canonical::argv_digest(&argv));
 
-    validate_channels(args)?;
+    validate_channels(args, &channels)?;
     check_isolation(args, &plan)?;
 
     if args.label_only {
@@ -2009,7 +2031,16 @@ fn run_inner(ctx: &Context, args: &RunArgs, learning: bool) -> Result<RunReport,
     // Step 1: allocate and lock private state before anything else exists.
     let attempt_id = supplied_attempt_id.unwrap_or_else(AttemptId::generate);
     let quiet = plan.quiet;
-    let attempt = Attempt::claim(ctx, args, plan, attempt_id, budget, signals, argv_digest)?;
+    let attempt = Attempt::claim(
+        ctx,
+        args,
+        plan,
+        attempt_id,
+        budget,
+        signals,
+        channels,
+        argv_digest,
+    )?;
     // From the claim on, every exit writes a receipt (I01): `run` returns a
     // report, never an error.
     let mut report = attempt.run(request, argv);
@@ -4400,27 +4431,78 @@ fn write_policy_file(attempt_dir: &AttemptDir, plan: &Plan) -> Result<(), JailEr
 // Channels
 // ---------------------------------------------------------------------------
 
-/// Validates every supplied fd before preparation (§6.1).
-fn validate_channels(args: &RunArgs) -> Result<(), JailError> {
-    let supplied: Vec<(&str, RawFd)> = [
-        ("--trace-fd", args.trace_fd),
-        ("--control-fd", args.control_fd),
-        ("--gate-fd", args.gate_fd),
+/// The operator's channel descriptors (§6.1), owned from before this process
+/// opens anything of its own.
+///
+/// A number the operator closed is the next one this process's own `open`
+/// gets: on Linux, building the context pins `bwrap` with an `O_PATH` handle
+/// that takes descriptor 3, and the signal self-pipe takes the next two. The
+/// channels used to be checked by number after both, so `--gate-fd 3 3<&-`
+/// found the pin open for reading, the gate wait wrapped it and polled it (a
+/// refusal on `POLLNVAL`), and descriptor 3 then had two owners that each
+/// closed it: an abort after the refused receipt in a debug build, a
+/// foreign descriptor closed in a release one. So each supplied number is
+/// examined, and an open one owned, as the process starts; the checks judge
+/// what was found then, and nothing later wraps a number it does not own.
+#[derive(Debug, Default)]
+pub struct OperatorChannels {
+    trace: Option<OwnedFd>,
+    control: Option<OwnedFd>,
+    gate: Option<OwnedFd>,
+}
+
+impl OperatorChannels {
+    /// Takes ownership of every supplied channel descriptor that is open.
+    ///
+    /// A number at stdio, a closed one and a repeat of an earlier channel's
+    /// are left alone, for [`validate_channels`] to refuse.
+    #[must_use]
+    pub fn take(args: &RunArgs) -> OperatorChannels {
+        let mut taken: Vec<RawFd> = Vec::new();
+        let mut own = |fd: Option<RawFd>| {
+            let fd = fd.filter(|fd| *fd > 2 && !taken.contains(fd) && fd_access(*fd).is_some())?;
+            taken.push(fd);
+            // SAFETY: §6.1 hands each channel over exclusively for the
+            // invocation, and the caller takes the channels before it opens
+            // anything it keeps (the binary first of all, an in-process
+            // caller by `run`'s contract), so an open number here is the
+            // operator's descriptor and has no other owner. A number two
+            // channels name is taken once.
+            Some(unsafe { OwnedFd::from_raw_fd(fd) })
+        };
+        OperatorChannels {
+            trace: own(args.trace_fd),
+            control: own(args.control_fd),
+            gate: own(args.gate_fd),
+        }
+    }
+}
+
+/// Validates every supplied fd before preparation (§6.1), as the process
+/// received it: a channel is open only when [`OperatorChannels::take`] found
+/// it open, whatever its number names now.
+fn validate_channels(args: &RunArgs, channels: &OperatorChannels) -> Result<(), JailError> {
+    let supplied: Vec<(&str, RawFd, Option<&OwnedFd>)> = [
+        ("--trace-fd", args.trace_fd, channels.trace.as_ref()),
+        ("--control-fd", args.control_fd, channels.control.as_ref()),
+        ("--gate-fd", args.gate_fd, channels.gate.as_ref()),
     ]
     .into_iter()
-    .filter_map(|(name, fd)| fd.map(|fd| (name, fd)))
+    .filter_map(|(name, fd, owned)| fd.map(|fd| (name, fd, owned)))
     .collect();
-    for (index, (name, fd)) in supplied.iter().enumerate() {
+    for (index, (name, fd, owned)) in supplied.iter().enumerate() {
         if *fd <= 2 {
             return Err(invalid_fd(name, "must be distinct from stdio"));
         }
-        if supplied[..index].iter().any(|(_, other)| other == fd) {
+        if supplied[..index].iter().any(|(_, other, _)| other == fd) {
             return Err(invalid_fd(
                 name,
                 "is the same descriptor as another channel",
             ));
         }
-        let access = fd_access(*fd).ok_or_else(|| invalid_fd(name, "is not open"))?;
+        let access = owned
+            .and_then(|owned| fd_access(owned.as_raw_fd()))
+            .ok_or_else(|| invalid_fd(name, "is not open"))?;
         let wants_write = *name != "--gate-fd";
         let ok = if wants_write {
             access == libc::O_WRONLY || access == libc::O_RDWR
@@ -4590,14 +4672,13 @@ impl ControlSink {
     }
 }
 
-fn open_control(args: &RunArgs) -> Result<Option<ControlSink>, JailError> {
-    let Some(fd) = args.control_fd else {
+fn open_control(fd: Option<OwnedFd>) -> Result<Option<ControlSink>, JailError> {
+    let Some(fd) = fd else {
         return Ok(None);
     };
-    // SAFETY: §6.1 requires the operator to hand this descriptor over
-    // exclusively for the invocation, and `validate_channels` has established
-    // that it is open for writing and distinct from every other channel.
-    let file = unsafe { std::fs::File::from_raw_fd(fd) };
+    // `validate_channels` has established that it is open for writing and
+    // distinct from every other channel.
+    let file = std::fs::File::from(fd);
     crate::trace::set_nonblocking(file.as_fd())?;
     Ok(Some(ControlSink {
         file,
@@ -4611,16 +4692,13 @@ fn open_control(args: &RunArgs) -> Result<Option<ControlSink>, JailError> {
 
 fn open_trace(
     ctx: &Context,
-    args: &RunArgs,
+    fd: Option<OwnedFd>,
     attempt_dir: &AttemptDir,
 ) -> Result<SharedTrace, JailError> {
-    if let Some(fd) = args.trace_fd {
+    if let Some(fd) = fd {
         // J5-C, wave 3: the write-size test seam (S9), recorded like every
         // `UKAI_JAIL_TEST_*` variable.
         let seam = std::env::var(trace::TRACE_FD_WRITE_SEAM).ok();
-        // SAFETY: as for the control descriptor: exclusively owned for this
-        // invocation and already validated as open for writing.
-        let fd = unsafe { std::os::fd::OwnedFd::from_raw_fd(fd) };
         let sink = FdSink::for_attempt(fd, seam.as_deref())?;
         return Ok(trace::shared(sink));
     }
@@ -4696,6 +4774,10 @@ fn send_control(control: Option<&mut ControlSink>, kind: ControlKind, receipt: &
 
 /// Waits for the owner's single release frame (§8.2).
 ///
+/// `gate` is the descriptor [`OperatorChannels::take`] took, which
+/// `validate_channels` found open for reading and distinct from every other
+/// channel.
+///
 /// `poll` on the gate descriptor and the signal self-pipe, with the remaining
 /// budget as the timeout. Three defects are gone with the thread that used to
 /// do this:
@@ -4715,15 +4797,12 @@ fn send_control(control: Option<&mut ControlSink>, kind: ControlKind, receipt: &
 /// [`ErrorCode::PrepareTimeout`], or [`ErrorCode::ExecFailed`]'s sibling for a
 /// stop requested by a signal.
 pub fn await_release(
-    fd: RawFd,
+    gate: OwnedFd,
     expected: &GateExpectation,
     budget: Duration,
     signals: Option<&signals::SignalPipe>,
 ) -> Result<(), JailError> {
-    // SAFETY: §6.1 requires exclusive ownership of the gate descriptor for this
-    // invocation, and `validate_channels` established that it is open for
-    // reading and distinct from every other channel.
-    let mut file = unsafe { std::fs::File::from_raw_fd(fd) };
+    let mut file = std::fs::File::from(gate);
     let deadline = ContinuousDeadline::after(budget);
     // One byte past the maximum, so an oversized frame is detected rather than
     // silently truncated into something that parses.

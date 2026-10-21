@@ -7,7 +7,7 @@
 //! rule refused, or use an input that becomes accepted without it.
 
 use std::io::Write as _;
-use std::os::fd::{AsRawFd as _, IntoRawFd as _};
+use std::os::fd::AsRawFd as _;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::Duration;
@@ -69,7 +69,7 @@ fn through_production_gate(payload: &[u8]) -> Result<(), ukai_jail::records::Jai
         stdin.write_all(payload).expect("the payload fits the pipe");
     }
     let stdout = child.stdout.take().expect("stdout");
-    let fd = stdout.into_raw_fd();
+    let fd = std::os::fd::OwnedFd::from(stdout);
     let result =
         ukai_jail::supervisor::await_release(fd, &expectation(), Duration::from_secs(10), None);
     let _ = child.wait();

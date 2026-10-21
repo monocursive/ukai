@@ -227,7 +227,7 @@ fn x02_a_gate_that_never_delivers_times_out_rather_than_waiting_forever() {
         .read(true)
         .open(&fifo)
         .expect("the fifo opens for reading");
-    let fd = std::os::fd::IntoRawFd::into_raw_fd(reader);
+    let fd = std::os::fd::OwnedFd::from(reader);
 
     let started = Instant::now();
     let error =

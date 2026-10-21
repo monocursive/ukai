@@ -44,6 +44,13 @@ fn main() -> ExitCode {
         }
         None => Cli::parse(),
     };
+    // jail-v1 §6.1: the channel descriptors are taken before this process
+    // opens anything it keeps (the context pins `bwrap`), so a number the
+    // operator closed is still closed when the channels are checked.
+    let channels = match &cli.command {
+        Command::Run(args) => supervisor::OperatorChannels::take(args),
+        _ => supervisor::OperatorChannels::default(),
+    };
     // J4 autoscope: jail-v1 §9.3 — `run` and `doctor` enter a delegated user
     // scope themselves when started outside one, first, before any thread or
     // other resource exists, so an attempt gets its execution leaf. The step
@@ -65,7 +72,7 @@ fn main() -> ExitCode {
         Command::Explain(args) => explain(&context, &args),
         Command::Doctor(args) => doctor(&context, &args),
         Command::Gc(args) => gc(&context, &args),
-        Command::Run(args) => run(&context, &args),
+        Command::Run(args) => run(&context, &args, channels),
         Command::Learn(args) => match ukai_jail::learn::run(&context, *args) {
             Ok(code) => exit(code),
             Err(e) => {
@@ -1523,10 +1530,10 @@ fn gc_json(report: &ukai_jail::gc::Report) -> serde_json::Value {
 // run
 // ---------------------------------------------------------------------------
 
-fn run(context: &Context, args: &RunArgs) -> ExitCode {
+fn run(context: &Context, args: &RunArgs, channels: supervisor::OperatorChannels) -> ExitCode {
     // J5-B1: X05.3 — this binary's stdout is the target's (§8.3).
     supervisor::release_stdout_after_prepare();
-    let report = supervisor::run(context, args);
+    let report = supervisor::run_with_channels(context, args, channels);
     // §6.1: `--label-only` prints the proposed execution label and describes
     // each capability; it executes nothing and copies no credential.
     if let Some(label) = &report.label {

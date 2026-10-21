@@ -65,6 +65,26 @@ impl Harness {
         }
         command.output().expect("the binary runs")
     }
+
+    /// [`Harness::run`] with descriptors 3 to 6 closed by a shell, as `3<&-`
+    /// closes one: the numbers the jail's own first files take.
+    fn run_with_closed_fds(&self, arguments: &[&str]) -> Output {
+        clear_group_and_other_write(&self.config);
+        Command::new("/bin/sh")
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin")
+            .env("HOME", self.temp.path())
+            .env("UKAI_DATA_DIR", &self.data)
+            .env("UKAI_CONFIG_DIR", &self.config)
+            .current_dir(&self.work)
+            .arg("-c")
+            .arg("exec 3<&- 4<&- 5<&- 6<&-; exec \"$@\"")
+            .arg("sh")
+            .arg(env!("CARGO_BIN_EXE_ukai-jail"))
+            .args(arguments)
+            .output()
+            .expect("the shell wrapper runs")
+    }
 }
 
 /// Takes the group and other write bits off everything the test wrote under
@@ -679,6 +699,40 @@ fn an_invalid_channel_descriptor_refuses_before_preparation() {
     assert!(
         !harness.data.join("attempts").exists(),
         "fd validation happens before any attempt state exists"
+    );
+}
+
+/// rc.4's open item, `--gate-fd 3 3<&-`: a number the caller closed is the
+/// next one the jail's own `open` gets (on Linux the context pins `bwrap` at
+/// 3, and the signal self-pipe takes the next two). Checked by number after
+/// those opens, a closed gate looked open, the gate wait wrapped the `bwrap`
+/// pin, and its second close aborted the supervisor after a refused receipt
+/// (exit 134). Every closed channel at those numbers refuses as closed,
+/// before any attempt exists.
+#[test]
+fn a_channel_the_caller_closed_refuses_before_preparation() {
+    let harness = Harness::new();
+    for flag in ["--gate-fd", "--control-fd", "--trace-fd"] {
+        for fd in 3..=6 {
+            let number = fd.to_string();
+            let output =
+                harness.run_with_closed_fds(&["run", flag, &number, "--", "/usr/bin/true"]);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert_eq!(
+                output.status.code(),
+                Some(125),
+                "{flag} {fd} closed must refuse: {stderr}"
+            );
+            let closed = format!("invalid_fd at preparing [configuration]: {flag} is not open (");
+            assert!(
+                stderr.contains(&closed),
+                "{flag} {fd} is refused as closed, not as whatever took its number: {stderr}"
+            );
+        }
+    }
+    assert!(
+        !harness.data.join("attempts").exists(),
+        "a closed channel refuses before any attempt state exists"
     );
 }
 

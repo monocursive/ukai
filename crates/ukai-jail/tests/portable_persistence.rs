@@ -786,9 +786,9 @@ impl Fixture {
             Control::FullReadAfter(delay) => Some(delay),
             Control::FullNeverRead => None,
         };
-        // The reader stops at EOF, or once the run has returned and the pipe
-        // is empty: a run that refused before it adopted the descriptor never
-        // closes it, and everything the run will ever write is in the pipe by
+        // The reader stops at EOF (the run owns the descriptor from its start
+        // and closes it as it returns), or once the run has returned and the
+        // pipe is empty: everything the run will ever write is in the pipe by
         // the time it returns (its final drain is inside the run).
         // A reader that never reads is still there: the pipe stays full and
         // open (backpressure), rather than closed (a broken pipe).

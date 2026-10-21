@@ -2029,8 +2029,8 @@ fn h2_a_preexisting_vendor_state_in_a_managed_attempt_root_refuses_and_survives(
             std::fs::write(planted.join("precious"), b"not this attempt's").unwrap();
         }
         let (read, write) = std::io::pipe().unwrap();
-        let read: std::os::fd::OwnedFd = read.into();
-        let gate = std::os::fd::AsRawFd::as_raw_fd(&read).to_string();
+        // The supervisor owns the gate descriptor from here (§6.1) and closes it.
+        let gate = std::os::fd::IntoRawFd::into_raw_fd(read).to_string();
         let report = fixture.run(
             Sim::default(),
             &[
