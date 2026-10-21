@@ -1998,6 +1998,98 @@ fn k57_no_jailed_group_takes_the_terminal_after_a_relayed_stop() {
     }
 }
 
+/// Review finding 2 (K59): a job stopped during its preparation and continued
+/// in the background (`^Z`, `bg`) is refused before its release, so the
+/// launcher's `tcsetpgrp` never takes the terminal from the shell. The swap
+/// seam of a `--from-path` run holds the supervisor at its last check.
+#[test]
+fn k59_a_job_sent_to_the_background_before_its_release_is_refused() {
+    if !common::live() {
+        return;
+    }
+    let root = common::private_tempdir();
+    for (name, mode) in [
+        ("data", 0o700),
+        ("config", 0o700),
+        ("config/launch", 0o700),
+        ("work", 0o755),
+        ("tools", 0o755),
+        ("tools/bin", 0o755),
+        ("seam", 0o700),
+    ] {
+        let path = root.path().join(name);
+        std::fs::create_dir(&path).unwrap();
+        std::fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(mode))
+            .unwrap();
+    }
+    // An ELF program found on PATH: a copy of the host's shell.
+    let program = root.path().join("tools/bin/bgjob");
+    std::fs::copy(Path::new("/bin/sh").canonicalize().unwrap(), &program).unwrap();
+    std::fs::set_permissions(
+        &program,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .unwrap();
+    let profile = root.path().join("config/launch/bgjob.toml");
+    std::fs::write(&profile, "name = \"bgjob\"\njail = \"tool\"\n").unwrap();
+    std::fs::set_permissions(
+        &profile,
+        std::os::unix::fs::PermissionsExt::from_mode(0o600),
+    )
+    .unwrap();
+    let seam = root.path().join("seam");
+    let mut path = root.path().join("tools/bin").into_os_string();
+    path.push(":/usr/bin:/bin");
+    let options = Options {
+        jail: [
+            "run",
+            "--launch",
+            "bgjob",
+            "--from-path",
+            "--",
+            "-c",
+            "sleep 1",
+        ]
+        .iter()
+        .map(OsString::from)
+        .collect(),
+        ..Options::default()
+    }
+    .env("PATH", path)
+    .env(ukai_jail::program::SWAP_SEAM, seam.clone().into_os_string());
+    let mut session = Session::start_in(root, options);
+    let shell = session.started_shell;
+    common::eventually(
+        "the supervisor at its last check before release",
+        common::SETTLE_BOUND,
+        || seam.join("rechecked").exists(),
+    );
+    session.terminal.type_bytes(b"\x1a");
+    session.stop_event();
+    session.send("bg");
+    std::fs::write(seam.join("go"), b"").unwrap();
+    session.send("wait");
+    let (code, _) = session.wait_exit();
+    assert_eq!(
+        session.left_foreground,
+        Some(i64::from(shell)),
+        "the job took the shell's terminal: {}",
+        session.diagnose()
+    );
+    assert_eq!(code, Some(125), "{}", session.diagnose());
+    let receipt = session.receipt();
+    assert_eq!(receipt["phase"], "refused", "{receipt:#}");
+    assert_eq!(
+        receipt["outcome"]["error"]["code"], "invalid_fd",
+        "{receipt:#}"
+    );
+    assert!(
+        session.terminal.text().contains("run it in the foreground"),
+        "{}",
+        session.terminal.text()
+    );
+}
+
 // Helpers shared with the review's own probes.
 #[allow(dead_code)]
 fn workspace_of(session: &Session) -> &Path {

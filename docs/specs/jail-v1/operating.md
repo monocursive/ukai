@@ -694,7 +694,9 @@ reach it, and `^C`, `^\` and `^Z` go to the command, never to the jail.
   shell's: a command that stops in the background does not take it back.
   When nothing above the jail does job control (it leads its own session, as
   under `script` or `ssh host ukai-jail …`), the supervisor does not stop
-  and continues the command at once. The receipt
+  and continues the command at once. A job you stop and continue in the
+  background before the agent started is refused (exit 125) rather than take
+  the terminal from your shell; run it in the foreground. The receipt
   counts the stops (`applied.terminal.stops`) and the journal has
   `terminal_stopped` and `terminal_continued` notes.
 - **At the end**, after the tree is verified dead, the supervisor takes the
@@ -1160,7 +1162,9 @@ with its evidence.
   (`TIOCSPGRP` answers `EPERM`), on your terminal or on a pseudo-terminal
   the agent opens itself: an interactive shell or an editor it starts in a
   group of its own runs without the terminal's foreground (a shell says it
-  has no job control). Detached runs are not affected.
+  has no job control). Detached runs are not affected. A job stopped and
+  continued in the background in the instant between the jail's last check
+  and the agent's start is not caught.
 - **Persistent state** (J14). The workspace check compares a device and
   inode, which ext4 can reuse at once after a delete and a re-create
   (measured on the reference host:

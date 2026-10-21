@@ -490,6 +490,28 @@ impl<'a> Attempt<'a> {
             // launcher's own check is proved through the CLI.
             crate::program::swap_rendezvous();
         }
+        // J14 review finding 2: the mode was decided while resolving. A job
+        // stopped and continued in the background since then (`^Z`, `bg`
+        // while it prepared) would have the launcher's `tcsetpgrp` take the
+        // terminal from the shell at its prompt, so it is refused here, the
+        // last check before the release byte. Waiting for `fg` instead would
+        // run the preparation budget down while the job sits stopped, and the
+        // run cannot turn detached: its snapshot says attached and its
+        // boundary has no new session.
+        if let Some(session) = self.terminal.as_ref()
+            && !session.in_foreground()
+        {
+            return Err(JailError::new(
+                ErrorCode::InvalidFd,
+                ErrorStage::Prepared,
+                Remediation::Configuration,
+                "the jail is no longer the terminal's foreground job (it was sent to the \
+                 background, or the terminal went away, before its command started), and \
+                 starting the command would take the terminal from the shell; nothing was run: \
+                 run it in the foreground, or pass --terminal detach"
+                    .to_owned(),
+            ));
+        }
         Ok(())
     }
 
