@@ -4086,6 +4086,28 @@ state_discard = [".login.json", "drop-me"]
         assert!(key.join("state.json").exists(), "the new state is kept");
     }
 
+    /// K71: `gc` reports a state root it cannot read, among what stayed
+    /// incomplete, and still reports and reconciles the attempts.
+    #[test]
+    fn k71_gc_reports_a_state_root_it_cannot_read() {
+        let fixture = Fixture::new();
+        keeper(&fixture, "");
+        assert_eq!(run_keeper(&fixture, Sim::default(), &[]).exit_code, 0);
+        let root = fixture.data.join("state");
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let report = fixture.gc(false).expect("gc reports");
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(report.entries.len(), 1, "{report:?}");
+        assert!(
+            report
+                .incomplete
+                .iter()
+                .any(|line| line.starts_with("state/ (")),
+            "{:?}",
+            report.incomplete
+        );
+    }
+
     /// K70 (review: quarantine files were unbounded): a quarantine names at
     /// most a bounded number of files and counts the rest, so a release that
     /// found the value in many files with long names still leaves a record

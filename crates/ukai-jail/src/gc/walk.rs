@@ -222,8 +222,16 @@ pub fn gc_with(
     }
     // J14 §4.9 (review: `state rm` was not atomic): a `state rm` that
     // stopped left a tombstone, no longer a state; finishing it is the
-    // operator's own removal.
-    for removal in crate::persistent::finish_removals(&data_dir, args.dry_run, meter.remaining())? {
+    // operator's own removal. A state root that fails its checks is
+    // reported, not a reason to withhold the report of the attempts.
+    let removals = crate::persistent::finish_removals(&data_dir, args.dry_run, meter.remaining())
+        .unwrap_or_else(|error| {
+            report
+                .incomplete
+                .push(format!("state/ ({})", error.message));
+            Vec::new()
+        });
+    for removal in removals {
         meter.charge(removal.charged);
         if removal.outcome.starts_with("pending") {
             report

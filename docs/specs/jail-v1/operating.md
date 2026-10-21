@@ -783,9 +783,8 @@ earlier build's `rm` that stopped, or by hand) refuses `unsafe_state_path`
 until you `state rm` it. Without `--workspace`, both take the repository you
 stand in, as `ukai-jail NAME` does. An absolute `--workspace` may name a
 repository deleted or moved since, so its state can still be shown and
-removed. `gc` never removes a state; it finishes
-a release a dead supervisor could not, and a `state rm` that stopped (see
-[gc](#gc)).
+removed. `gc` never removes a state; it finishes a release a dead supervisor
+could not, and a `state rm` that stopped (see [gc](#gc)).
 
 ## doctor
 
@@ -846,11 +845,12 @@ unchanged.
 
 ## gc
 
-`gc` walks only the registered state root, `<data>/attempts/`. For an attempt
-whose supervisor is established dead (another boot, or its recorded process
-identity gone), it may kill a positively identified orphan execution leaf in
-the same boot, verify it empty and remove it, remove managed scratch and a
-crash's temporary files, and finish a pending vendor-state cleanup. For an
+`gc` walks only the registered state root, `<data>/attempts/`, and, below
+`<data>/state/`, only the leftovers of a `state rm` that stopped. For an
+attempt whose supervisor is established dead (another boot, or its recorded
+process identity gone), it may kill a positively identified orphan execution
+leaf in the same boot, verify it empty and remove it, remove managed scratch
+and a crash's temporary files, and finish a pending vendor-state cleanup. For an
 attempt that held persistent state and died before releasing it, gc finishes
 the release under the same permission rule (the discard list, the digest, a
 new generation and `released`), with the secret scan recorded `not_scanned`

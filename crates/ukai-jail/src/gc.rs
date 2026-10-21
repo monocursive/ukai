@@ -4,14 +4,17 @@
 //! C03: "GC skips live/foreign/unidentified resources; boot/PID/cgroup reuse
 //! does not target an unrelated process." The module is three parts:
 //!
-//! - [`gc_with`] walks `<data>/attempts` (and nothing else) under one entry
-//!   bound per invocation (S7), identifies each attempt root without following
-//!   a link out of it, takes the lease only of a claimed root, reads jail state
-//!   and the last receipt, asks [`decide`] what may be done, does it through
-//!   the [`Host`], records it in jail state (S6), removes the temporary files
-//!   a crash left when the owner is dead, then runs the J3 resumption of the
-//!   proxy directory and vendor state within what is left of the bound, which
-//!   gc's own verification of the registered leaf also permits (J4 wave 2).
+//! - [`gc_with`] walks `<data>/attempts` under one entry bound per invocation
+//!   (S7), identifies each attempt root without following a link out of it,
+//!   takes the lease only of a claimed root, reads jail state and the last
+//!   receipt, asks [`decide`] what may be done, does it through the [`Host`],
+//!   records it in jail state (S6), removes the temporary files a crash left
+//!   when the owner is dead, then runs the J3 resumption of the proxy
+//!   directory and vendor state within what is left of the bound, which gc's
+//!   own verification of the registered leaf also permits (J4 wave 2).
+//!   Last, within what is still left, it finishes the tombstones a stopped
+//!   `state rm` left below `<data>/state/<launch>/` (J14), and nothing else
+//!   there.
 //! - [`decide`] is pure: [`Facts`] in, the next probe or a [`Decision`] out.
 //!   Every "may gc touch this" rule lives there and is tested without a host.
 //! - [`Host`] is the only place the host is asked or changed: the recorded
