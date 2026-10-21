@@ -443,7 +443,8 @@ The last flag is Claude Code's own. With `-p` alone, its default permission
 mode refuses the file writes and commands it cannot ask you about, so a
 headless run does nothing useful. Inside the jail, the jail is the boundary:
 whatever mode Claude Code runs in, it can write only the repository, reach
-only `api.anthropic.com`, and use the credential only through the vault.
+only `api.anthropic.com` and `platform.claude.com` (which an interactive
+first launch checks), and use the credential only through the vault.
 Outside the jail the same flag removes Claude Code's only check, so keep it to
 jailed runs.
 

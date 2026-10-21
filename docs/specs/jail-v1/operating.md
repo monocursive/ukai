@@ -435,6 +435,9 @@ The bundled `claude` profile uses all of them: a `claude setup-token` value
 Claude Code 2.1.295) first, then a Console API key (`anthropic`,
 `ANTHROPIC_API_KEY`, `x-api-key`), both bound to the resolved `claude` and
 only for `https://api.anthropic.com`. It stages nothing from `~/.claude`.
+Its network allowlist is `api.anthropic.com` and `platform.claude.com`, which
+an interactive first launch checks during onboarding; no credential is
+substituted for the second (jail-interactive-sessions.md §8 item 30).
 
 HTTPS vaulting installs a public per-attempt CA through conventional trust
 variables, verifies the upstream certificate and hostname before substitution,

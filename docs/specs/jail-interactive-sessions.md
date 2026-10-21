@@ -570,11 +570,12 @@ path** (the workspace §3.2 of the launch proposal resolves).
    data: relative paths, validated like `state_subdirs`. Each one is removed
    at release with the cleanup walker, never followed, and its contents are
    never read. For `claude` this covers a `/login` made inside a session.
-   Such a login should fail anyway, because the profile does not allow
-   `platform.claude.com`, which the vendor documents for the token exchange.
-   That is inferred, not run: the A-row recorded only that headless runs
-   never contacted it, and §6.3 run 5 tests it. The receipt counts the
-   entries removed and names none.
+   The draft expected such a login to fail, because the profile did not
+   allow `platform.claude.com`, which the vendor documents for the token
+   exchange. Since §8 item 30 the profile allows it (an interactive first
+   launch needs it), so a login can reach the token endpoint; the discard
+   is what keeps its file from outliving the attempt. The receipt counts
+   the entries removed and names none.
 3. **A candidate secret scan.** The release pass that computes the private
    digest also searches every regular file for the value of each vault
    credential this attempt loaded, which the supervisor holds in memory.
@@ -885,7 +886,9 @@ A separate row from the 2026-10-17 headless one. It makes interactive
      continues), `^Z` then `fg` (the interface comes back), and a hangup
      (the attempt ends settled).
   5. `/login` inside a session: it fails visibly (`platform.claude.com`
-     denied), and no `.credentials.json` remains after release.
+     denied), and no `.credentials.json` remains after release. Since §8
+     item 30 the host is allowed: the run records what a fake code gets
+     instead, and that no `.credentials.json` remains.
   6. A headless `-p` run started from the interactive shell, now attached,
      and the same run with stdin a pipe, detached. Both pass the 2026-10-17
      row's task and evidence conditions, with `state_cleanup` `released` in
@@ -1281,3 +1284,22 @@ live or unit test that failed before its fix and passes after it):
     a launch profile (`ukai-jail claude …`, `run --launch NAME`) now names
     the profile, escaped like the rest of the line; any other run keeps
     argv 0's final component. K64 checks both.
+
+Added by the operator's decision of 2026-10-21:
+
+30. **The bundled `claude` profile allows `platform.claude.com`** (§4.5,
+    §6.3 run 5, decision 7's profile). The §6.3 pilot on the reference host
+    (Claude Code 2.1.302, 2026-10-21) found that an interactive first launch
+    checks `api.anthropic.com/api/hello` and
+    `platform.claude.com/v1/oauth/hello` during onboarding and exits 1 when
+    either is unreachable: with the host denied, every first launch in a
+    workspace, every launch after `state rm` and every throwaway fallback
+    (decision 6) ended at that check. Later launches contact only
+    `api.anthropic.com`, and headless runs never contacted it. The operator
+    chose to allow the host over requiring `run --launch claude --from-path
+    --allow-host platform.claude.com` for those launches. The cost: a
+    `/login` inside a session can reach the token endpoint. No vault
+    credential is substituted for that host, and `state_discard` removes
+    `.credentials.json` unread at every release, so a login made there does
+    not outlive the attempt; while the session lasts, Claude Code holds
+    whatever that login obtained.

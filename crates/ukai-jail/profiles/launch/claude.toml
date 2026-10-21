@@ -1,6 +1,7 @@
 # EXPERIMENTAL launch profile for Claude Code (jail-v1 §12, north star §4.5,
-# jail-launch-and-summary.md §3.5). No Claude Code build has a recorded
-# compatibility run yet (jail-v1 agent-compatibility.md).
+# jail-launch-and-summary.md §3.5). The Claude Code builds and modes with a
+# recorded compatibility run are listed in jail-v1 agent-compatibility.md;
+# this file claims none.
 #
 # Embedded starter data, selected by `ukai-jail claude …` or `--launch
 # claude`. An operator file at `<config-dir>/launch/claude.toml` (mode 0600)
@@ -38,6 +39,15 @@
 # session writes `.credentials.json`, which every release removes unread; the
 # vault value is searched for in what is kept, and a state holding it is
 # quarantined. `--state attempt` keeps a run's state throwaway.
+#
+# `platform.claude.com` (jail-interactive-sessions.md §8): an interactive
+# first launch (Claude Code 2.1.302, a new state: a first run in a
+# workspace, after `state rm`, or a throwaway fallback) checks it during
+# onboarding and exits when it is unreachable, measured on the reference
+# host on 2026-10-21. It is also the vendor's OAuth token endpoint, so a
+# `/login` inside a session can reach it; no credential is substituted
+# there, and whatever the login writes to `.credentials.json` is discarded
+# unread at release.
 
 name = "claude"
 jail = "agent"
@@ -70,4 +80,4 @@ binaries = ["@program"]
 hint = "put a Claude Console API key in it: `ukai-jail credential set anthropic`"
 
 [network]
-allow = ["api.anthropic.com"]
+allow = ["api.anthropic.com", "platform.claude.com"]
