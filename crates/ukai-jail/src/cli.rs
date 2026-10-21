@@ -98,7 +98,8 @@ pub struct StateNameArgs {
     #[arg(value_name = "NAME")]
     pub name: String,
     /// The workspace; defaults to the repository top level of the invocation
-    /// directory, as `ukai-jail NAME` resolves it.
+    /// directory, as `ukai-jail NAME` resolves it. An absolute path may name
+    /// a workspace that no longer exists.
     #[arg(long, value_name = "PATH")]
     pub workspace: Option<PathBuf>,
 }

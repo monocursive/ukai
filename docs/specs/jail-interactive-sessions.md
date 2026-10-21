@@ -783,6 +783,9 @@ values meant for the host.
   - `state rm NAME [--workspace PATH]`: refuses while leased; anchored,
     no-follow removal (of a tombstone, §8 item 17).
 
+  For both, an absolute `--workspace` may name a workspace that no longer
+  exists (§8 item 19).
+
   `state` joins the built-in verbs that are never launch names (launch
   proposal §3.1).
 
@@ -1131,3 +1134,16 @@ intent.
     rest (`files_omitted`; `state show` prints `quarantine files not named
     N`). K70 quarantines 1,500 files with 227-byte names: before, the next
     run refused `unsafe_state_path`; now it refuses `state_quarantined`.
+19. **The state verbs take a workspace that is gone** (review, 2026-10-21;
+    §4.9 is silent). `state show` and `state rm` required `--workspace` to
+    be an existing directory. A quarantined state, or one the workspace
+    check refused, whose repository was later deleted or moved could
+    therefore not be shown or removed with the verbs the refusals name. An
+    absolute `--workspace` that does not exist is now taken: its longest
+    existing ancestor is canonicalized and the missing components appended
+    (a `..` among them refuses), and the key is derived from that path as
+    before. A relative path must still exist. The `state_quarantined`
+    refusal names both verbs with the launch name and the workspace. K71
+    shows and removes the state of a moved workspace and of one whose
+    parent is gone too; before, both refused `invalid_config` (`not a
+    directory`, `No such file or directory`).

@@ -780,7 +780,9 @@ left (`removal stopped: run ukai-jail gc`) and `gc` finishes it. A state
 directory whose `state.json` is gone but whose `vendor/` is not (left by an
 earlier build's `rm` that stopped, or by hand) refuses `unsafe_state_path`
 until you `state rm` it. Without `--workspace`, both take the repository you
-stand in, as `ukai-jail NAME` does. `gc` never removes a state; it finishes
+stand in, as `ukai-jail NAME` does. An absolute `--workspace` may name a
+repository deleted or moved since, so its state can still be shown and
+removed. `gc` never removes a state; it finishes
 a release a dead supervisor could not, and a `state rm` that stopped (see
 [gc](#gc)).
 

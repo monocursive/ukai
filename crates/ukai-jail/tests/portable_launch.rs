@@ -4138,6 +4138,55 @@ state_discard = [".login.json", "drop-me"]
         assert!(quarantine.files.len() <= state::QUARANTINE_FILES_MAX);
     }
 
+    /// K71 (review: the state verbs needed the workspace to exist): `state
+    /// show` and `state rm` take the absolute path of a workspace that was
+    /// deleted or moved, so the state a quarantine or the workspace check
+    /// names can still be shown and removed.
+    #[test]
+    fn k71_the_state_verbs_take_a_workspace_that_is_gone() {
+        let fixture = inspection_fixture();
+        keeper(&fixture, "");
+        assert_eq!(run_keeper(&fixture, Sim::default(), &[]).exit_code, 0);
+        let workspace = fixture.workspace.canonicalize().unwrap();
+        let key = key_dir(&fixture, &workspace);
+        std::fs::rename(&fixture.workspace, fixture.root.join("moved")).unwrap();
+        private_dir(&fixture.root.join("cwd"));
+        let gone = workspace.display().to_string();
+        let run = |args: &[&str]| {
+            std::process::Command::new(env!("CARGO_BIN_EXE_ukai-jail"))
+                .args(args)
+                .current_dir(fixture.root.join("cwd"))
+                .env("UKAI_CONFIG_DIR", &fixture.config)
+                .env("UKAI_DATA_DIR", &fixture.data)
+                .env("HOME", fixture.root.join("home"))
+                .output()
+                .unwrap()
+        };
+        let shown = run(&["state", "show", "keeper", "--workspace", &gone]);
+        assert!(shown.status.success(), "{shown:?}");
+        assert!(
+            String::from_utf8_lossy(&shown.stdout).contains("generation 1"),
+            "{shown:?}"
+        );
+        // A relative path that does not exist is still refused.
+        let relative = run(&["state", "show", "keeper", "--workspace", "gone/below"]);
+        assert_eq!(relative.status.code(), Some(2), "{relative:?}");
+        let removed = run(&["state", "rm", "keeper", "--workspace", &gone]);
+        assert!(removed.status.success(), "{removed:?}");
+        assert!(!key.exists());
+        // A workspace whose parent is gone too.
+        let nested = fixture.root.join("nest/repo");
+        private_dir(&nested);
+        drop(try_acquire(&fixture, &nested).unwrap());
+        let nested_key = key_dir(&fixture, &nested);
+        assert!(nested_key.exists());
+        std::fs::remove_dir_all(fixture.root.join("nest")).unwrap();
+        let nested = nested.display().to_string();
+        let removed = run(&["state", "rm", "keeper", "--workspace", &nested]);
+        assert!(removed.status.success(), "{removed:?}");
+        assert!(!nested_key.exists());
+    }
+
     /// K75: the vendor file a profile discards is named only in data.
     #[test]
     fn k75_no_vendor_file_name_in_the_execution_core() {

@@ -1758,13 +1758,21 @@ pub fn doctor(ctx: &Context, args: &DoctorArgs) -> Result<DoctorReport, JailErro
 
 /// J14 §4.9: the workspace `state show` and `state rm` name: `--workspace`,
 /// canonical, or the repository top level of the invocation directory, as
-/// `ukai-jail NAME` resolves it.
+/// `ukai-jail NAME` resolves it. An absolute `--workspace` that no longer
+/// exists is taken too ([`gone_workspace`]).
 ///
 /// # Errors
 /// [`ErrorCode::InvalidConfig`] at `--workspace` for a path that is not a
 /// directory, or outside a repository without one.
 pub fn state_workspace(ctx: &Context, explicit: Option<&Path>) -> Result<PathBuf, JailError> {
     let workspace = match explicit {
+        Some(path)
+            if path.is_absolute()
+                && std::fs::symlink_metadata(path)
+                    .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound) =>
+        {
+            return gone_workspace(path);
+        }
         Some(path) => canonical_root(&ctx.cwd, Some(path), "--workspace")?,
         None => from_path::discover_workspace(&ctx.cwd)?,
     };
@@ -1775,6 +1783,38 @@ pub fn state_workspace(ctx: &Context, explicit: Option<&Path>) -> Result<PathBuf
         ));
     }
     Ok(workspace)
+}
+
+/// A workspace deleted or moved since its state was made still names that
+/// state: the key is derived from the path's bytes, and the record names the
+/// workspace it was made for. So the state verbs take an absolute path that
+/// no longer exists (review: a quarantined state whose repository was
+/// deleted could not be removed with the verb its refusal names). Its
+/// longest existing ancestor is canonicalized, as the workspace was, and the
+/// missing components are appended; a `..` among them cannot be resolved
+/// and refuses.
+fn gone_workspace(path: &Path) -> Result<PathBuf, JailError> {
+    let refused = |why: String| usage("--workspace", format!("{}: {why}", path.display()));
+    let mut missing = Vec::new();
+    let mut ancestor = path;
+    loop {
+        match std::fs::canonicalize(ancestor) {
+            Ok(resolved) => {
+                return Ok(missing
+                    .iter()
+                    .rev()
+                    .fold(resolved, |resolved, name| resolved.join(name)));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                let (Some(parent), Some(name)) = (ancestor.parent(), ancestor.file_name()) else {
+                    return Err(refused(error.to_string()));
+                };
+                missing.push(name);
+                ancestor = parent;
+            }
+            Err(error) => return Err(refused(error.to_string())),
+        }
+    }
 }
 
 /// J14 §3.5 row 1: `dev.tty.legacy_tiocsti`, which says whether the kernel

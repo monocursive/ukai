@@ -1184,17 +1184,26 @@ pub struct Request<'a> {
     pub attempt: &'a str,
 }
 
-fn quarantined(levels: &Levels, quarantine: &Quarantine) -> JailError {
+fn quarantined(levels: &Levels, quarantine: &Quarantine, request: &Request<'_>) -> JailError {
+    let verb = |verb: &str| {
+        format!(
+            "`ukai-jail state {verb} {} --workspace {}`",
+            request.launch,
+            request.workspace.display()
+        )
+    };
     JailError::new(
         ErrorCode::StateQuarantined,
         ErrorStage::Preparing,
         Remediation::InspectState,
         format!(
             "the persistent state for this launch profile and workspace is quarantined ({} at \
-             the release of {}); inspect it with `ukai-jail state show`, act on the credential, \
-             then remove it with `ukai-jail state rm` ({})",
+             the release of {}); inspect it with {}, act on the credential, then remove it \
+             with {} ({})",
             quarantine.reason,
             quarantine.attempt,
+            verb("show"),
+            verb("rm"),
             levels.path.display()
         ),
     )
@@ -1291,7 +1300,7 @@ pub fn acquire(request: &Request<'_>) -> Result<Acquisition, JailError> {
     }
     // A quarantine is the operator's to act on: no fallback.
     if let Some(quarantine) = &record.quarantine {
-        return Err(quarantined(&levels, quarantine));
+        return Err(quarantined(&levels, quarantine, request));
     }
     if let Some(holder) = record.holder.as_ref().filter(|holder| !holder.released) {
         // Its tree may still be writing; `gc` finishes the release.
