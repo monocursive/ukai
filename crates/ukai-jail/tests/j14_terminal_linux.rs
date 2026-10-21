@@ -88,6 +88,9 @@ struct Options {
     program: Option<PathBuf>,
     /// `config.toml` contents.
     config: Option<String>,
+    /// Keys typed before the shell starts, left in the terminal's input
+    /// queue for the shell.
+    typed_ahead: Option<Vec<u8>>,
 }
 
 impl Options {
@@ -281,6 +284,9 @@ impl Session {
 
     fn start_in(root: tempfile::TempDir, options: Options) -> Session {
         let (master, slave) = openpty();
+        if let Some(keys) = &options.typed_ahead {
+            write_master(&master, keys);
+        }
         let (control_r, control_w) = pipe();
         let (status_r, status_w) = pipe();
         let work = root.path().join("work");
@@ -2261,6 +2267,77 @@ fn k59_a_pipeline_whose_leader_is_gone_keeps_the_terminal() {
         "{receipt:#}"
     );
     session.quit();
+}
+
+/// Review finding 7 (K58): once the settlement took the terminal back, the
+/// supervisor's group is the foreground until it exits; `^\` and `^Z` typed
+/// then neither kill nor stop it in the middle of its release and receipt.
+/// The command ignores both, so the keys reach only the jail.
+#[test]
+fn k58_keys_typed_while_the_jail_settles_neither_kill_nor_stop_it() {
+    if !common::live() {
+        return;
+    }
+    let options = Options {
+        jail: [
+            "run",
+            "--profile",
+            "tool",
+            "--",
+            "/bin/sh",
+            "-c",
+            "trap '' QUIT TSTP; echo ready; sleep 1",
+        ]
+        .iter()
+        .map(OsString::from)
+        .collect(),
+        ..Options::default()
+    };
+    let mut session = Session::start(options);
+    assert!(session.terminal.wait_for("ready", common::SETTLE_BOUND));
+    let master = session.terminal.master().try_clone().unwrap();
+    let typing = Arc::new(AtomicBool::new(true));
+    let typist = {
+        let typing = Arc::clone(&typing);
+        std::thread::spawn(move || {
+            while typing.load(Ordering::SeqCst) {
+                write_master(&master, b"\x1c\x1a");
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        })
+    };
+    let event = session.status_event(SESSION);
+    typing.store(false, Ordering::SeqCst);
+    typist.join().unwrap();
+    assert_eq!(event["event"], "exited", "{event}\n{}", session.diagnose());
+    assert_eq!(event["code"], 0, "{event}\n{}", session.diagnose());
+    let receipt = session.receipt();
+    assert_settled(&receipt);
+    all_restored(&receipt);
+}
+
+/// Review finding 7 (K61): a refusal before any boundary exists applied
+/// nothing to the terminal: the receipt has no `applied.terminal`, and the
+/// keys the operator typed ahead are still there for the shell.
+#[test]
+fn k61_a_refusal_before_the_boundary_leaves_the_terminal_alone() {
+    if !common::live() {
+        return;
+    }
+    let mut options =
+        Options::run("tool", &[], &["exit", "0"]).env("UKAI_JAIL_TEST_ARCH", "riscv64");
+    options.typed_ahead = Some(b"typed ahead\n".to_vec());
+    let mut session = Session::start(options);
+    assert_eq!(session.wait_exit().0, Some(125), "{}", session.diagnose());
+    let receipt = session.receipt();
+    assert_eq!(receipt["phase"], "refused", "{receipt:#}");
+    assert!(receipt["applied"].get("terminal").is_none(), "{receipt:#}");
+    let drained = session.drain();
+    assert_eq!(
+        drained["bytes"],
+        Value::from(b"typed ahead\n".to_vec()),
+        "the operator's type-ahead was discarded: {drained}"
+    );
 }
 
 // Helpers shared with the review's own probes.

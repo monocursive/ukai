@@ -1172,3 +1172,15 @@ live or unit test that failed before its fix and passes after it):
     own group reads 0 always seemed to hold the terminal. Every id must now
     be positive; otherwise the run is detached as `stdin is not this
     session's controlling terminal`. Unit-tested over raw values only.
+23. **The settlement holds the terminal without dying of it; a refusal
+    before release touches nothing (review finding 7; §3.6, §3.7).** From
+    the settlement's take on, the supervisor's group is the terminal's
+    foreground until it exits, so a `^\` or a `^Z` killed or stopped it
+    between the restore and its receipt and release (an unsettled receipt,
+    a state left unreleased or leased). It now ignores `SIGQUIT` and
+    `SIGTSTP` from that point on. And a refusal before the launcher was
+    released, when nothing in the jail could have held or changed the
+    terminal, no longer runs the restore: the operator's type-ahead is
+    kept, a refusal before any boundary records no `applied.terminal`, and
+    one after the boundary keeps the registered record with `restored`
+    null.

@@ -833,6 +833,19 @@ fn stat_field(pid: libc::pid_t, index: usize) -> Option<libc::pid_t> {
     rest.split_ascii_whitespace().nth(index)?.parse().ok()
 }
 
+/// J14 review finding 7: ignores `SIGQUIT` and `SIGTSTP` in this process,
+/// for its settlement: the terminal's foreground is then its own group, so
+/// `^\` and `^Z` reach it, and neither may end or stop it before its
+/// receipt and its release. No child is started after this.
+pub fn ignore_job_control_keys() {
+    for signal in [libc::SIGQUIT, libc::SIGTSTP] {
+        // SAFETY: SIG_IGN for a signal this process may ignore; no handler.
+        unsafe {
+            libc::signal(signal, libc::SIG_IGN);
+        }
+    }
+}
+
 /// How many `SIGCONT`s this process received.
 #[must_use]
 pub fn continued() -> u64 {

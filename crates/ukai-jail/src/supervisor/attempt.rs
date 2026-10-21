@@ -81,6 +81,10 @@ pub(super) struct Attempt<'a> {
     terminal: Option<crate::terminal::Session>,
     /// J14 §3.3: the command's own process group, once the run started.
     command_group: Option<libc::pid_t>,
+    /// The release byte was sent for: from then on the launcher may have
+    /// taken the terminal, and only then is anything to restore (J14 review
+    /// finding 7).
+    released: bool,
     /// J14 §4.6: the persistent vendor state this attempt holds, until its
     /// release.
     persistent: Option<Box<crate::persistent::Held>>,
@@ -207,6 +211,7 @@ impl<'a> Attempt<'a> {
             signals,
             terminal: None,
             command_group: None,
+            released: false,
             persistent: None,
             secrets: Vec::new(),
         })
@@ -523,6 +528,7 @@ impl<'a> Attempt<'a> {
     /// receipt carries the verified tree and vendor state can be removed
     /// rather than retained.
     fn release(&mut self, prepared: Prepared) -> Result<Box<dyn RunningExecution>, JailError> {
+        self.released = true;
         prepared.execution.release().map_err(|failure| {
             let ReleaseFailure { error, teardown } = *failure;
             if let Some(teardown) = teardown {
@@ -1378,13 +1384,22 @@ impl<'a> Attempt<'a> {
     /// §3.6: the four restore steps, once, recorded in the receipt and,
     /// when one failed, on stderr with its errno. `after_tree_death` is
     /// false when they run without verified tree death.
+    ///
+    /// J14 review finding 7: only once the launcher was released. Before,
+    /// nothing in the jail could hold or change the terminal: a refusal then
+    /// keeps the operator's type-ahead and records what the boundary
+    /// registered, if anything, with nothing restored. From the take on, the
+    /// supervisor's group is the terminal's foreground until this process
+    /// exits, so it ignores `^\` and `^Z`, which would otherwise kill or
+    /// stop it in the middle of its release and its receipt.
     fn restore_terminal(&mut self, after_tree_death: bool) {
         let Some(session) = self.terminal.as_mut() else {
             return;
         };
-        if session.restored.is_some() {
+        if session.restored.is_some() || !self.released {
             return;
         }
+        crate::terminal::ignore_job_control_keys();
         // The supervisor's lines stay bounded until it exits: a terminal
         // whose output could not be resumed must not hold the summary.
         let (_, failures) = session.settle(after_tree_death, self.command_group);
