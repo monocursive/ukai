@@ -635,8 +635,8 @@ pub enum TtyMode {
         cbreak: bool,
     },
     /// One ioctl (`tiocsti`, `tioclinux`, `tiocsetd`, `tcgets`,
-    /// `tiocgwinsz`, `tiocgpgrp`, `kdgkbmode`, `kdskbmode`, `kdskbent`) on
-    /// a descriptor, with a harmless argument.
+    /// `tiocgwinsz`, `tiocgpgrp`, `tiocspgrp`, `kdgkbmode`, `kdskbmode`,
+    /// `kdskbent`) on a descriptor, with a harmless argument.
     TtyIoctl {
         request: String,
         #[arg(long, value_enum, default_value_t = TtyTarget::Stdin)]
@@ -661,6 +661,17 @@ pub enum TtyMode {
     /// for MS and logs each completion time to DIR/stray.log, while this
     /// process sleeps as long.
     TtyStray { dir: OsString, ms: u64 },
+    /// J14 review finding 1: a helper in a group of its own, with `SIGTTOU`
+    /// and `SIGTTIN` ignored, tries for MS to take the terminal whenever a
+    /// group this namespace cannot name holds it, and reads what it can
+    /// once it holds it; this process stops itself (`SIGSTOP`) after
+    /// STOP_AFTER_MS, and once continued reports what the helper did.
+    TtySteal {
+        #[arg(long, value_name = "MS", default_value_t = 300)]
+        stop_after_ms: u64,
+        #[arg(long, value_name = "MS", default_value_t = 4000)]
+        ms: u64,
+    },
     /// A pipeline member: read stdin to its end catching every catchable
     /// signal, then write the signals it got to LOG.
     TrapAll {

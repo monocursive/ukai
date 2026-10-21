@@ -25,6 +25,7 @@ agent = "sha256:1b9c0b4766233d0d7898c98f30260b4a5d6e6c0f124930a9daa4c7fa743eb50e
 agent_storage = "sha256:b3d63f2f1e51fc22efaa2a869330ace61282eefdfe1b5de2c9ee2f8c8030b2f0"
 agent_namespace = "sha256:ae3882e4a67faed2a386047525343c5a370a971589f33ce56b1b733c89866979"
 agent_mediation = "sha256:28c98e72b91a22c212d5dfdddfcc1f1ca153c5a8e89c15833c26724b263ebeff"
+terminal = "sha256:2d578889a98756efdaec2e1c7db6d802e3c2c65eb87a637f03092c31675a4406"
 
 # The evidence tables themselves, byte for byte
 [filters.table_sha256]
@@ -33,6 +34,7 @@ agent_mediation = "sha256:28c98e72b91a22c212d5dfdddfcc1f1ca153c5a8e89c15833c2672
 "seccomp-table-agent-x86_64.txt" = "92c425fedb0a93092f899ed79a72a8f078146add313c1d3fe6ddef036416d344"
 "seccomp-table-agent-storage-x86_64.txt" = "f8bc6d2336a5655114f63f57812dff04202a460c329f1516d05e38fcfa8a59bd"
 "seccomp-table-agent-namespace-x86_64.txt" = "f0cd4ecfde76f94879f39b3c828555a4b2c13552681dd4c0ee8603e9fca4dc93"
+"seccomp-table-terminal-x86_64.txt" = "69842abfc3367c2b6e12bee5abbc8830a0b92d285bf64e70827ed025bc8fd143"
 
 # The observer's closed set, from docs/specs/jail-v1/evidence/closed-set-x86_64.txt
 [closed_set]
@@ -49,6 +51,7 @@ agent = "sha256:cc46d9a2a2971889fc33e71d2911ff22b8231e63461008594a7f501092db0041
 agent_storage = "sha256:ead20b2bc17b7d05a99cead8ab3b91d14336d4960ab997ff4a69c283664bcd61"
 agent_namespace = "sha256:188d7c6432da7bd6c859258cfc78f7f89d788255cb9fe3657fb20ecc54e82c5a"
 agent_mediation = "sha256:33063c21492671bcf0a73a39a2a51af680cb9482443fb5ab8be82ba019aa4136"
+terminal = "sha256:c1e8fd0bc0a799dd74faf969b20817d721cad2cda5812f275c3d50eb30835859"
 
 # The evidence tables themselves, byte for byte
 [aarch64_filters.table_sha256]
@@ -57,6 +60,7 @@ agent_mediation = "sha256:33063c21492671bcf0a73a39a2a51af680cb9482443fb5ab8be82b
 "seccomp-table-agent-aarch64.txt" = "f0430940f410f30d438f078aab65f73051e87129da1e56eebbaedd714945f5cb"
 "seccomp-table-agent-storage-aarch64.txt" = "b527703206b59b639bce371f2d8df1942d2df5933d11d71e2a5d63f5729f7141"
 "seccomp-table-agent-namespace-aarch64.txt" = "56bcb3e4a329bb3b3cb638a06e12b552d6bd3879aed1704354ea24cd3f45e839"
+"seccomp-table-terminal-aarch64.txt" = "8b44ee5b9d525403cf1fa4d6ee63886d4c66324da1b8ec0177ef6a679f57b8d9"
 
 # The observer's closed set, from docs/specs/jail-v1/evidence/closed-set-aarch64.txt
 [aarch64_closed_set]

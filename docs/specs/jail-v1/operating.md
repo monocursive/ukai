@@ -720,7 +720,10 @@ reach it, and `^C`, `^\` and `^Z` go to the command, never to the jail.
   was before J14. `explain` shows the mode and why.
 - **The filter** answers `TIOCSTI`, `TIOCLINUX` and `TIOCSETD` with `EPERM` in
   every contained profile, attached or not. `doctor` says whether the kernel
-  itself still allows `TIOCSTI` (`legacy_tiocsti`).
+  itself still allows `TIOCSTI` (`legacy_tiocsti`). Attached, the launcher
+  adds one rule once it gave the agent's group the terminal: `TIOCSPGRP`
+  (`tcsetpgrp`) answers `EPERM`, so nothing in the jail can give the
+  terminal to another process group or take it from your shell.
 
 A `-p` run started from an interactive shell is attached too, so its `^C`
 goes to the agent; a script that needs the old behaviour passes `--terminal
@@ -1149,11 +1152,15 @@ with its evidence.
   sends after the input flush lands in your shell. A descendant that moved
   itself to another process group is not stopped by `^Z`: while the
   supervisor is stopped, its observed calls and connections wait, and no
-  deadline is acted on until `fg` or `bg`. A stop of a group the agent gave
-  the terminal to (an editor it runs in its own group) is not relayed. If the
-  supervisor itself is killed, nothing is restored; your shell takes the
-  terminal back when the job ends. A virtual console or a serial line always
-  runs detached.
+  deadline is acted on until `fg` or `bg`. If the supervisor itself is
+  killed, nothing is restored; your shell takes the terminal back when the
+  job ends. A virtual console or a serial line always runs detached.
+- **No job control inside the jail** (J14, terminal mode). Nothing the agent
+  runs can make another process group the terminal's foreground
+  (`TIOCSPGRP` answers `EPERM`), on your terminal or on a pseudo-terminal
+  the agent opens itself: an interactive shell or an editor it starts in a
+  group of its own runs without the terminal's foreground (a shell says it
+  has no job control). Detached runs are not affected.
 - **Persistent state** (J14). The workspace check compares a device and
   inode, which ext4 can reuse at once after a delete and a re-create
   (measured on the reference host:

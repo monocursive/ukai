@@ -28,6 +28,7 @@ pub(crate) fn run(rep: &Reporter, mode: TtyMode) -> Result<bool, Stop> {
         TtyMode::TtyKillProbe { signal } => Ok(kill_probe(rep, &signal)),
         TtyMode::TtyMess { hold_ms } => Ok(mess(rep, hold_ms)),
         TtyMode::TtyStray { dir, ms } => stray(rep, &dir, ms),
+        TtyMode::TtySteal { stop_after_ms, ms } => Ok(steal(rep, stop_after_ms, ms)),
         TtyMode::TrapAll { log } => trap_all(&log),
         TtyMode::JobShell {
             control_fd,
@@ -187,6 +188,7 @@ fn request_number(name: &str) -> Option<u64> {
         "tcgets" => 0x5401,
         "tiocgwinsz" => 0x5413,
         "tiocgpgrp" => 0x540f,
+        "tiocspgrp" => 0x5410,
         "kdgkbmode" => 0x4b44,
         "kdskbmode" => 0x4b45,
         "kdskbent" => 0x4b47,
@@ -196,7 +198,8 @@ fn request_number(name: &str) -> Option<u64> {
 
 /// One ioctl on standard input, `/dev/null` or `/dev/tty`, with a harmless
 /// argument: the byte `x` for `TIOCSTI`, a read-only subcommand (12) for
-/// `TIOCLINUX`, `N_TTY` for `TIOCSETD`, a buffer for the getters.
+/// `TIOCLINUX`, `N_TTY` for `TIOCSETD`, group 0 (which names no group) for
+/// `TIOCSPGRP`, a buffer for the getters.
 fn tty_ioctl(rep: &Reporter, request: &str, on: TtyTarget) -> bool {
     let mut r = OpReport::new("tty-ioctl");
     r.set("request", request);
@@ -362,7 +365,8 @@ fn mess(rep: &Reporter, hold_ms: u64) -> bool {
     // Row 9: conceal, hide the pointer, and a status query whose reply is
     // never read. Written raw: the mode is raw now.
     write_all(1, b"\x1b[8m\x1b[?25l\x1b[6n");
-    // Row 6: the foreground to another group of this command's own.
+    // Row 6: the foreground to another group of this command's own, which
+    // the terminal filter refuses (J14 review finding 1).
     // SAFETY: fork; the child only calls async-signal-safe functions.
     let child = unsafe { libc::fork() };
     if child == 0 {
@@ -437,6 +441,114 @@ fn stray(rep: &Reporter, dir: &std::ffi::OsStr, ms: u64) -> Result<bool, Stop> {
     rep.emit(&r);
     std::thread::sleep(std::time::Duration::from_millis(ms));
     Ok(true)
+}
+
+/// J14 review finding 1: a helper in a process group of its own, with
+/// `SIGTTOU` and `SIGTTIN` ignored, polls the terminal every 5 ms for MS:
+/// whenever its foreground group is one this PID namespace cannot name
+/// (`tcgetpgrp` answers 0: the supervisor's, or the operator's shell's), it
+/// gives the terminal to its own group (`tcsetpgrp`) and, holding it, reads
+/// what is typed. This process stops itself after STOP_AFTER_MS, which the
+/// supervisor relays to the shell; continued, it waits for the helper and
+/// reports its attempts, the errno of the first, whether one succeeded and
+/// what it read. Nothing is written to the terminal while stopped: the
+/// helper reports through a pipe.
+fn steal(rep: &Reporter, stop_after_ms: u64, ms: u64) -> bool {
+    let mut fds = [-1 as c_int; 2];
+    // SAFETY: pipe fills the two-element array.
+    if unsafe { libc::pipe(fds.as_mut_ptr()) } != 0 {
+        return false;
+    }
+    // SAFETY: fork; the child runs ordinary code in a fresh single-threaded
+    // process (the fixture has no other thread here).
+    let child = unsafe { libc::fork() };
+    if child < 0 {
+        return false;
+    }
+    if child == 0 {
+        // SAFETY: setpgid, signal and close take scalars.
+        unsafe {
+            libc::close(fds[0]);
+            libc::setpgid(0, 0);
+            libc::signal(libc::SIGTTOU, libc::SIG_IGN);
+            libc::signal(libc::SIGTTIN, libc::SIG_IGN);
+        }
+        let (mut attempts, mut first_errno, mut took) = (0u64, Value::Null, false);
+        let mut read = Vec::new();
+        let start = std::time::Instant::now();
+        while start.elapsed() < std::time::Duration::from_millis(ms) {
+            // SAFETY: tcgetpgrp, getpgrp and tcsetpgrp take scalars.
+            unsafe {
+                if libc::tcgetpgrp(0) == 0 {
+                    attempts += 1;
+                    let ret = libc::tcsetpgrp(0, libc::getpgrp());
+                    if attempts == 1 {
+                        first_errno = errno_value(ret);
+                    }
+                    took |= ret == 0;
+                }
+            }
+            // SAFETY: tcgetpgrp and getpgrp take scalars.
+            if unsafe { libc::tcgetpgrp(0) == libc::getpgrp() } {
+                let mut pollfd = libc::pollfd {
+                    fd: 0,
+                    events: libc::POLLIN,
+                    revents: 0,
+                };
+                let mut buffer = [0u8; 256];
+                // SAFETY: one live pollfd; a read into a live buffer.
+                unsafe {
+                    if libc::poll(&raw mut pollfd, 1, 5) > 0 {
+                        let n = libc::read(0, buffer.as_mut_ptr().cast(), buffer.len());
+                        if n > 0 {
+                            read.extend_from_slice(&buffer[..n as usize]);
+                        }
+                    }
+                }
+            } else {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        }
+        let line = json!({
+            "attempts": attempts,
+            "first_errno": first_errno,
+            "took": took,
+            "read": String::from_utf8_lossy(&read),
+        })
+        .to_string();
+        write_all(fds[1], line.as_bytes());
+        // SAFETY: _exit takes a scalar and never returns.
+        unsafe { libc::_exit(0) };
+    }
+    // SAFETY: closing this process's copy of the write end.
+    unsafe { libc::close(fds[1]) };
+    let mut r = OpReport::new("tty-steal");
+    r.set("helper", child);
+    rep.emit(&r);
+    std::thread::sleep(std::time::Duration::from_millis(stop_after_ms));
+    // SAFETY: SIGSTOP to this process itself.
+    unsafe { libc::kill(libc::getpid(), libc::SIGSTOP) };
+    let mut line = Vec::new();
+    let mut buffer = [0u8; 1024];
+    loop {
+        // SAFETY: a read into a live buffer from the pipe's read end.
+        let n = unsafe { libc::read(fds[0], buffer.as_mut_ptr().cast(), buffer.len()) };
+        if n > 0 {
+            line.extend_from_slice(&buffer[..n as usize]);
+        } else if n == 0 || raw_errno() != libc::EINTR {
+            break;
+        }
+    }
+    let mut status: c_int = 0;
+    // SAFETY: waitpid writes the status it is given.
+    unsafe { libc::waitpid(child, &raw mut status, 0) };
+    let mut done = OpReport::new("tty-steal-result");
+    done.set(
+        "helper",
+        serde_json::from_slice::<Value>(&line).unwrap_or(Value::Null),
+    );
+    rep.emit(&done);
+    true
 }
 
 static TRAPPED: [std::sync::atomic::AtomicU32; 65] =
@@ -731,6 +843,9 @@ fn job_shell(
             // SAFETY: as above.
             unsafe { libc::tcsetpgrp(0, own) };
             if libc::WIFSTOPPED(status) {
+                // A stopped job is waited for again once `fg` continues it,
+                // so commands such as `drain` are read meanwhile.
+                waiting = false;
                 status_line(
                     status_fd,
                     &json!({"event": "stopped", "signal": libc::WSTOPSIG(status),

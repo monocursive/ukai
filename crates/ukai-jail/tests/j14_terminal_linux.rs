@@ -417,8 +417,8 @@ impl Session {
             let left = deadline.saturating_duration_since(Instant::now());
             assert!(
                 !left.is_zero(),
-                "no status from the shell; the terminal shows:\n{}",
-                self.terminal.text()
+                "no status from the shell: {}",
+                self.diagnose()
             );
             let mut pollfd = libc::pollfd {
                 fd: self.status.as_raw_fd(),
@@ -1411,6 +1411,9 @@ fn k60_the_terminal_requests_are_denied_in_every_contained_baseline() {
         vec!["tty-ioctl", "tiocsti", "--on", "devnull"],
         vec!["tty-ioctl", "tioclinux", "--on", "devnull"],
         vec!["tty-ioctl", "tiocsetd", "--on", "devnull"],
+        // Review finding 1: the terminal filter, attached runs only.
+        vec!["tty-ioctl", "tiocspgrp", "--on", "stdin"],
+        vec!["tty-ioctl", "tiocspgrp", "--on", "devnull"],
         vec!["tty-ioctl", "tcgets", "--on", "stdin"],
         vec!["tty-ioctl", "tiocgwinsz", "--on", "stdin"],
         vec!["tty-ioctl", "tiocgpgrp", "--on", "stdin"],
@@ -1451,7 +1454,7 @@ fn k60_the_terminal_requests_are_denied_in_every_contained_baseline() {
         for report in &reports {
             let request = report["args"]["request"].as_str().unwrap();
             let on = report["args"]["on"].as_str().unwrap();
-            let denied = matches!(request, "tiocsti" | "tioclinux" | "tiocsetd");
+            let denied = matches!(request, "tiocsti" | "tioclinux" | "tiocsetd" | "tiocspgrp");
             if denied {
                 assert_eq!(report["errno"], "EPERM", "{leg}: {report}");
             } else {
@@ -1537,8 +1540,11 @@ fn k61_k62_settlement_restores_the_terminal_and_nothing_reaches_the_shell() {
         if leg == "wall" {
             assert_eq!(receipt["outcome"]["cause"], "wall_expiry", "{receipt:#}");
         }
-        // K62: every vector the filter answers was refused.
-        for op in ["tiocsti", "tioclinux", "tiocsetd"] {
+        // K62: every vector the filter answers was refused, the foreground
+        // given to another group of the command's included (review
+        // finding 1: the terminal filter).
+        assert_eq!(session.reports("tcsetpgrp").len(), 1, "{leg}");
+        for op in ["tiocsti", "tioclinux", "tiocsetd", "tcsetpgrp"] {
             for report in session.reports(op) {
                 assert_eq!(report["errno"], "EPERM", "{leg}: {report}");
             }
@@ -1926,6 +1932,70 @@ fn k64_explain_the_pre_exec_line_the_receipt_and_the_wall_say_what_attached() {
     ));
     session.wait_exit();
     assert_eq!(wall(&session.receipt()), Some(Value::from("7200000")));
+}
+
+// ===========================================================================
+// The review of 2026-10-21: findings 1 to 7
+// ===========================================================================
+
+/// Review finding 1 (K57): a helper of the command's, in a group of its own
+/// and with `SIGTTOU` ignored, tries to take the terminal from the moment
+/// the command's stop is relayed: the terminal filter answers every
+/// `tcsetpgrp` with `EPERM`, the shell keeps the terminal and reads what is
+/// typed at it. Observation on and off.
+#[test]
+fn k57_no_jailed_group_takes_the_terminal_after_a_relayed_stop() {
+    if !common::live() {
+        return;
+    }
+    for observe in ["on", "off"] {
+        let mut session = Session::start(Options::run(
+            "tool",
+            &["--observe", observe],
+            &["tty-steal"],
+        ));
+        let shell = session.started_shell;
+        assert!(
+            session
+                .terminal
+                .wait_for("\"op\":\"tty-steal\"", common::SETTLE_BOUND),
+            "{observe}:\n{}",
+            session.terminal.text()
+        );
+        session.stop_event();
+        // The helper had its chances; then the operator types at the shell.
+        std::thread::sleep(Duration::from_millis(300));
+        session.terminal.type_bytes(b"echo secret\n");
+        std::thread::sleep(Duration::from_millis(300));
+        let drained = session.drain();
+        assert_eq!(
+            drained["foreground"],
+            shell,
+            "{observe}: the terminal was taken from the shell: {drained}\n{}",
+            session.diagnose()
+        );
+        assert_eq!(
+            drained["bytes"],
+            Value::from(b"echo secret\n".to_vec()),
+            "{observe}: the shell did not get what was typed: {drained}"
+        );
+        session.send("fg");
+        assert_eq!(
+            session.wait_exit().0,
+            Some(0),
+            "{observe}: {}",
+            session.diagnose()
+        );
+        let helper = session.report("tty-steal-result")["args"]["helper"].clone();
+        assert!(
+            helper["attempts"].as_u64().is_some_and(|tries| tries > 0),
+            "{observe}: the helper never tried: {helper}"
+        );
+        assert_eq!(helper["first_errno"], "EPERM", "{observe}: {helper}");
+        assert_eq!(helper["took"], false, "{observe}: {helper}");
+        assert_eq!(helper["read"], "", "{observe}: {helper}");
+        assert_settled(&session.receipt());
+    }
 }
 
 // Helpers shared with the review's own probes.

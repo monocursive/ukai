@@ -355,11 +355,11 @@ the common case, since §8.3 passes terminals through untouched. Rows marked
 | 3 | **Console keyboard and font ioctls** (`KDSKBENT`, `KDSKBSENT`, `KDSETKEYCODE`, `KDSKBMODE`, `PIO_FONT`…): remapped keys or function-key strings outlive the attempt, because keymaps are shared by all consoles | Refused without the console as controlling terminal or `CAP_SYS_TTY_CONFIG` (by reading `vt_ioctl`). | Reachable if a console were attached. | Never attach a console (§3.2). Cost: an operator at the Linux text console gets detached mode, or runs inside tmux or screen, which provide a pty. | By reading. |
 | 4 | **`TIOCSETD`**: changes the terminal's line discipline, which breaks the operator's terminal after the attempt. Rarely used disciplines have historically been a route to kernel bugs. | Reachable on an inherited terminal descriptor; no controlling terminal needed (by reading). With `ldisc_autoload = 0` (measured on the VPS), only disciplines already loaded. | Same. | Deny `TIOCSETD` in every baseline. Cost: tables and digests. Nothing known breaks. | By reading. |
 | 5 | **`termios` and window size** (`TCSETS*`, raw mode, echo off, `TIOCSWINSZ`) | Reachable on the descriptor. A killed agent leaves raw mode. | Same. Every terminal interface needs it. | Not filtered. Restore at settlement and on every relayed stop (§3.6). Cost: a deliberate `stty` change made from another terminal during the run is undone. | Inferred; K61 measures. |
-| 6 | **Foreground process group** (`TIOCSPGRP`) | Refused without the controlling terminal. | The agent can give the terminal to another of its own groups, but cannot name the shell's group across the PID namespace (§3.3). | Take the foreground back at settlement and at a relayed stop. Cost: none. | By reading; inside view measured. |
+| 6 | **Foreground process group** (`TIOCSPGRP`) | Refused without the controlling terminal. | The agent can give the terminal to another of its own groups, but cannot name the shell's group across the PID namespace (§3.3). **As implemented** (§8 item 17): refused (`EPERM`) by a filter the launcher stacks after its own `tcsetpgrp`, so no group of the jail but the command's ever holds the terminal. | Take the foreground back at settlement and at a relayed stop. Cost: none; with §8 item 17, no job control inside the jail. | By reading; inside view measured; the filter measured (K60, K61). |
 | 7 | **Signals to the job** (`kill(0, …)`) | Stay inside (new session). | With a shared group: reach processes outside the namespace that share the group. Measured for the probe's shell, which shared it. In a real job that group holds the supervisor, bubblewrap's outer process and any pipeline member (`ukai-jail … \| tee`) (inferred). | Own process group (§3.3). Cost: the stop relay (§3.4). | Measured with plain bubblewrap (§3.1). The job's members are inferred. |
 | 8 | **`/dev/tty`** | `ENXIO` (measured). | Opens: a second handle to the same terminal, not a new device (measured). Inside, `ttyname(0)` reads `/dev/console`, where bubblewrap's `--dev` binds a terminal (measured). Which descriptor's terminal bubblewrap binds there is by reading (standard output's, it appears); the probe had one pty on all three. | Allowed. This is part of what the mode is for. | Measured, except that one detail. |
 | 9 | **Escape sequences written to the terminal**. Replies the terminal sends back to queries (cursor reports, `DECRQSS`, window-title reports where a terminal still allows them, colour and clipboard queries) land in the input queue, which the shell reads after the agent ends. OSC 52 writes the operator's clipboard. OSC 8 hyperlinks can hide their target. Cursor movement and attributes can hide or imitate the jail's own lines. | **Identical**: the agent writes the terminal directly today. | Identical: terminal mode adds nothing to what can be written. | No filtering: the jail does not parse output, and a partial filter would be a promise it cannot keep. After verified tree death the supervisor flushes the input queue (`TCIFLUSH`), discarding replies the agent asked for and did not read, and writes an attribute reset (`SGR 0`) and cursor-visible before the summary. Still open: clipboard writes, hyperlinks, a reply arriving after the flush (network latency; **candidate**: a status-report sentinel read before the flush, measured on the terminals of §6.3), lines forged before the summary, and the terminal emulator's own bugs. Cost: keys the operator typed while the agent was ending are discarded, and two short sequences go to stderr, only when stderr is a terminal. | By reading of terminal behaviour; not measured. Varies by terminal. |
-| 10 | **Reading the operator's input after `^Z`** | Possible (§3.1, by reading). | A stopped group cannot read, and a background reader gets `SIGTTIN` (by reading). | Fixed by the mode itself. | By reading. |
+| 10 | **Reading the operator's input after `^Z`** | Possible (§3.1, by reading). | A stopped group cannot read, and a background reader gets `SIGTTIN` (by reading). **But** a member of the operator's session that blocks or ignores `SIGTTOU` may give the terminal to any group of that session it can name: a helper in a group of its own, which `^Z` does not stop, can take the terminal from the shell after the relayed stop or a `bg` and read what is typed there (review finding 1; reproduced on the reference host). | Not fixed by the mode itself, as this row first claimed. The terminal filter (§8 item 17) answers `TIOCSPGRP` with `EPERM` for everything the launcher executes, after its own call. Cost: no job control inside the jail. | Kernel order by reading; the scenario and the fix measured (`k57_no_jailed_group_takes_the_terminal_after_a_relayed_stop`, observation on and off). |
 
 What stays refused, whatever the agent does:
 
@@ -367,6 +367,7 @@ What stays refused, whatever the agent does:
   controlling terminal;
 - terminal mode under `none`, under `--gate-fd`, or for a background job;
 - `TIOCSTI`, `TIOCLINUX` and `TIOCSETD`;
+- in terminal mode, `TIOCSPGRP` after the launcher's own call (§8 item 17);
 - any signal from the command's group to a process outside the PID
   namespace;
 - access to the operator's terminal after a settled attempt: settlement
@@ -1095,3 +1096,35 @@ intent.
     which refuses a symlink first. Every other refusal and filter entry
     J14 added was mutated and its test seen to fail
     (`j14-adversarial-review.md` in the session notes, and the fixes above).
+
+Added after the review of 2026-10-21 (seven terminal findings, each with a
+live or unit test that failed before its fix and passes after it):
+
+17. **Nothing in the jail gives the terminal's foreground away (review
+    finding 1; §3.5 rows 6 and 10).** In terminal mode every jailed process
+    is in the operator's session with the terminal as its controlling
+    terminal, and the kernel lets a background member that blocks or
+    ignores `SIGTTOU` give the foreground to any group of that session it
+    can name (by reading of `tiocspgrp`). A helper in a group of its own,
+    which `^Z` does not stop, could take the terminal from the shell right
+    after a relayed stop, or after `bg`, and read what the operator typed
+    at the prompt: row 10's "fixed by the mode itself" was false. The
+    launcher now stacks one more filter, built before its no-allocation
+    section and installed right after its own `tcsetpgrp`, in terminal mode
+    only: `ioctl` with `TIOCSPGRP` (low word, as the baselines compare)
+    answers `EPERM` for the command and every descendant. It cannot join
+    the baselines, which are in force before that call; detached, the
+    command has no controlling terminal and the kernel refuses the request.
+    It is pinned like the baselines: `seccomp-table-terminal-x86_64.txt` and
+    `-aarch64.txt` (the latter written by the bless test in a native arm64
+    Linux container, which rewrote the five existing aarch64 tables and the
+    closed set byte for byte), its digest in the freeze (`terminal`), checked
+    by `portable_freeze.rs`, and unit tests run the program. A failed
+    install refuses the exec. The cost is that there is no job control
+    inside the jail in terminal mode, on any terminal, a pseudo-terminal the
+    agent opens itself included: an interactive shell there runs without
+    it. §3.4's undetected stop of a group the command gave the terminal to
+    no longer arises. K60 adds `TIOCSPGRP` on the terminal and on
+    `/dev/null`, K61's fixture now records `EPERM` for its foreground
+    change, and `k57_no_jailed_group_takes_the_terminal_after_a_relayed_stop`
+    runs the review's scenario (observation on and off).
