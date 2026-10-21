@@ -409,8 +409,9 @@ the foreground back when its job ends. That is a named limit.
   ukai-jail: terminal: attached (/dev/pts/N) · wall 8h · ^C and ^Z go to NAME, not the jail; to end the attempt, exit NAME or run `kill -INT PID`
   ```
 
-  `NAME` is the final component of the target's argv 0 (escaped like every
-  child-chosen string), and `PID` is the supervisor's process id. Decision 2
+  `NAME` is the launch profile's name when the run comes from one (§8 item
+  24), otherwise the final component of the target's argv 0 (escaped like
+  every child-chosen string), and `PID` is the supervisor's process id. Decision 2
   requires the `^C` and `^Z` part on every attached run, because attaching
   changes what `^C` does for every terminal-started run (§3.8). The wall is
   shown because attached runs get their own default (decision 8). A
@@ -1184,3 +1185,10 @@ live or unit test that failed before its fix and passes after it):
     kept, a refusal before any boundary records no `applied.terminal`, and
     one after the boundary keeps the registered record with `restored`
     null.
+24. **The pre-exec line names the launch profile (found by the interactive
+    Claude Code pilot; §3.7).** Claude Code's native install runs a
+    version-named binary (`~/.local/share/claude/versions/2.1.302`), so the
+    attached line read `^C and ^Z go to 2.1.302 … exit 2.1.302`. A run from
+    a launch profile (`ukai-jail claude …`, `run --launch NAME`) now names
+    the profile, escaped like the rest of the line; any other run keeps
+    argv 0's final component. K64 checks both.

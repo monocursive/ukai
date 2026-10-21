@@ -1351,9 +1351,10 @@ impl<'a> Attempt<'a> {
         let quiet = self.args.quiet || self.plan.quiet;
         match &self.plan.terminal {
             crate::terminal::Decision::Attached { device } => {
-                let name = argv
-                    .first()
-                    .map_or_else(String::new, |argv0| crate::terminal::program_name(argv0));
+                let name = crate::terminal::target_name(
+                    self.args.policy.selection.launch.as_deref(),
+                    argv.first().map(Vec::as_slice),
+                );
                 crate::diag!(
                     "ukai-jail: {}",
                     crate::terminal::attached_line(

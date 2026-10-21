@@ -1934,6 +1934,66 @@ fn k64_explain_the_pre_exec_line_the_receipt_and_the_wall_say_what_attached() {
     };
     assert_eq!(wall(&receipt), Some(Value::from("28800000")), "{receipt:#}");
 
+    // A run from a launch profile is named by the profile, not by the
+    // version-named binary it runs (Claude Code's native install runs
+    // `…/versions/2.1.302`).
+    let root = common::private_tempdir();
+    for (name, mode) in [
+        ("data", 0o700),
+        ("config", 0o700),
+        ("config/launch", 0o700),
+        ("work", 0o755),
+    ] {
+        let path = root.path().join(name);
+        std::fs::create_dir(&path).unwrap();
+        std::fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(mode))
+            .unwrap();
+    }
+    let versioned = root.path().join("work/2.1.302");
+    std::fs::copy(harness::fixture_path(), &versioned).unwrap();
+    let profile = root.path().join("config/launch/versioned.toml");
+    std::fs::write(&profile, "name = \"versioned\"\njail = \"tool\"\n").unwrap();
+    std::fs::set_permissions(
+        &profile,
+        std::os::unix::fs::PermissionsExt::from_mode(0o600),
+    )
+    .unwrap();
+    let options = Options {
+        jail: vec![
+            "run".into(),
+            "--launch".into(),
+            "versioned".into(),
+            "--".into(),
+            versioned.into_os_string(),
+            "sleep".into(),
+            "30000".into(),
+        ],
+        ..Options::default()
+    };
+    let mut session = Session::start_in(root, options);
+    assert!(
+        session
+            .terminal
+            .wait_for("\"op\":\"sleep\"", common::SETTLE_BOUND),
+        "{}",
+        session.terminal.text()
+    );
+    let text = session.terminal.text();
+    let line = text
+        .lines()
+        .find(|line| line.starts_with("ukai-jail: terminal: attached"))
+        .unwrap_or_else(|| panic!("no attached line:\n{text}"));
+    assert!(
+        line.contains("^C and ^Z go to versioned, not the jail")
+            && line.contains("exit versioned or run"),
+        "{line}"
+    );
+    assert!(!line.contains("2.1.302"), "{line}");
+    // SAFETY: SIGINT to the supervisor this session started.
+    unsafe { libc::kill(session.job, libc::SIGINT) };
+    session.wait_exit();
+    assert_settled(&session.receipt());
+
     // A detached `agent` run keeps the profile's 2 h.
     let mut session = Session::start(Options::run(
         "agent",

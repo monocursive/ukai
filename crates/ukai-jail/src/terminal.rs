@@ -255,9 +255,8 @@ pub fn decide(applies: bool, facts: &Facts) -> Decision {
 }
 
 /// The attached pre-exec line (§3.7), without the `ukai-jail: ` prefix.
-/// `name` is the final component of the target's argv 0 and `wall` the
-/// applied wall's spelling; the caller escapes the line like every
-/// diagnostic.
+/// `name` is what [`target_name`] calls the target and `wall` the applied
+/// wall's spelling; the caller escapes the line like every diagnostic.
 #[must_use]
 pub fn attached_line(device: &str, wall: Option<&str>, name: &str, supervisor: u32) -> String {
     let wall = wall.map_or_else(|| "no wall".to_owned(), |wall| format!("wall {wall}"));
@@ -271,6 +270,20 @@ pub fn attached_line(device: &str, wall: Option<&str>, name: &str, supervisor: u
 #[must_use]
 pub fn detached_line(reason: Detached) -> String {
     format!("terminal: detached ({})", reason.as_str())
+}
+
+/// What the attached pre-exec line calls the target: the launch profile's
+/// name when the run comes from one (`ukai-jail NAME`, `run --launch
+/// NAME`), since an installed agent can be a version-named binary (a native
+/// install that runs `…/versions/2.1.302`); otherwise the final component
+/// of argv 0.
+#[must_use]
+pub fn target_name(launch: Option<&str>, argv0: Option<&[u8]>) -> String {
+    match (launch, argv0) {
+        (Some(launch), _) => launch.to_owned(),
+        (None, Some(argv0)) => program_name(argv0),
+        (None, None) => String::new(),
+    }
 }
 
 /// The final component of argv 0, for the pre-exec line.
@@ -918,6 +931,20 @@ mod tests {
         assert_eq!(program_name(b"/usr/local/bin/assistant"), "assistant");
         assert_eq!(program_name(b"assistant"), "assistant");
         assert_eq!(program_name(b"/opt/x/"), "x");
+        // A run from a launch profile is named by the profile, not by a
+        // version-named binary.
+        assert_eq!(
+            target_name(
+                Some("assistant"),
+                Some(b"/home/u/.local/share/assistant/versions/2.1.302")
+            ),
+            "assistant"
+        );
+        assert_eq!(
+            target_name(None, Some(b"/usr/local/bin/assistant")),
+            "assistant"
+        );
+        assert_eq!(target_name(None, None), "");
     }
 
     /// Review finding 6: ids a PID namespace cannot name (0) never attach,
