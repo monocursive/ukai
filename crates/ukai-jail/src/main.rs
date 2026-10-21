@@ -1715,6 +1715,7 @@ fn internal_subcommand() -> Option<ExitCode> {
                 Some("agent-namespace") => {
                     seccomp::agent_baseline_table(seccomp::AgentVariant::NamespaceInner)
                 }
+                Some("terminal") => seccomp::terminal_filter_table(),
                 Some(_) => return Some(ExitCode::from(2)),
             };
             print!("{table}");

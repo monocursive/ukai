@@ -223,6 +223,9 @@ pub const TERMINAL_DENIED: [(&str, u32); 3] = [
     ("TIOCLINUX", TIOCLINUX),
     ("TIOCSETD", TIOCSETD),
 ];
+/// J14 review finding 1: `TIOCSPGRP`, which gives a terminal's foreground to
+/// a process group; [`terminal_filter`] denies it.
+pub const TIOCSPGRP: u32 = 0x5410;
 
 /// Namespace bits in `clone`'s flags, checked as a mask against argument 0.
 pub const CLONE_NS_MASK: u32 = CLONE_NEWTIME
@@ -642,6 +645,81 @@ pub fn mediation_filter() -> Result<Program, BpfError> {
     asm.label(DENY).ret(ret_errno(LINUX_EPERM));
     asm.label(DENY_FAMILY).ret(ret_errno(LINUX_EAFNOSUPPORT));
     asm.assemble()
+}
+
+/// The terminal filter (J14 review finding 1): `ioctl` with `TIOCSPGRP`
+/// answers `EPERM`. In terminal mode every jailed process is in the
+/// operator's session with the terminal as its controlling terminal, and the
+/// kernel lets a background member that blocks or ignores `SIGTTOU` give the
+/// foreground to any group of that session it can name: after a relayed stop
+/// or a `bg`, a helper in a group of its own could take the terminal from the
+/// operator's shell and read what is typed there. The trusted launcher
+/// installs this filter, stacked on the baseline, right after its own
+/// `tcsetpgrp` and only in terminal mode; it cannot join the baseline, which
+/// is already in force when the launcher makes that call. Detached, the
+/// command has no controlling terminal and the kernel refuses the request.
+///
+/// # Errors
+///
+/// [`BpfError`] only if the assembler rejects the program, which a test
+/// asserts it does not.
+pub fn terminal_filter() -> Result<Program, BpfError> {
+    const ALLOW: &str = "allow";
+    const DENY: &str = "deny";
+    const IOCTL: &str = "ioctl_arg";
+    let mut asm = Asm::new();
+    asm.ld_w_abs(SD_ARCH).jeq(AUDIT_ARCH, None, Some(DENY));
+    asm.ld_w_abs(SD_NR)
+        .jset(X32_SYSCALL_BIT, Some(DENY), None)
+        .jeq(NR_IOCTL, Some(IOCTL), None)
+        .ja(ALLOW);
+    // The kernel's `cmd` is an `unsigned int`: the low word is the request.
+    asm.label(IOCTL)
+        .ld_w_abs(sd_arg_low(1))
+        .jeq(TIOCSPGRP, Some(DENY), None)
+        .ja(ALLOW);
+    asm.label(ALLOW).ret(SECCOMP_RET_ALLOW);
+    asm.label(DENY).ret(ret_errno(LINUX_EPERM));
+    asm.assemble()
+}
+
+/// The terminal filter's evidence table: its rules, digest and disassembly.
+#[must_use]
+pub fn terminal_filter_table() -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    let _ = writeln!(out, "ukai-jail terminal-mode seccomp filter ({TABLE_ARCH})");
+    let _ = writeln!(
+        out,
+        "jail-interactive-sessions.md §8; installed by the launcher in terminal mode only, \
+         stacked on the contained baseline, after its own tcsetpgrp\n"
+    );
+    out.push_str("precondition              action\n");
+    let _ = writeln!(
+        out,
+        "arch != AUDIT_ARCH_{}  EPERM   (0x{AUDIT_ARCH:08x} required)",
+        TABLE_ARCH.to_uppercase()
+    );
+    let _ = writeln!(
+        out,
+        "nr & 0x{X32_SYSCALL_BIT:08x}           EPERM   (x32 ABI)"
+    );
+    out.push_str("\nsyscall                nr     action\n");
+    let _ = writeln!(
+        out,
+        "{:<22} {:<6} EPERM when args[1] == 0x{TIOCSPGRP:04x} (TIOCSPGRP)",
+        "ioctl", NR_IOCTL
+    );
+    out.push_str("\neverything else        ALLOW\n");
+    if let Ok(prog) = terminal_filter() {
+        let _ = writeln!(out, "\ninstructions: {}", prog.len());
+        let _ = writeln!(out, "digest: {}", prog.digest());
+        out.push_str("\ndisassembly\n");
+        for line in prog.disassemble() {
+            let _ = writeln!(out, "{line}");
+        }
+    }
+    out
 }
 
 /// The `agent` baseline's table, read from the same [`Shape`] as the filter,
@@ -1237,6 +1315,65 @@ mod tests {
             agent_storage_baseline_table(),
         )
         .unwrap();
+        std::fs::write(
+            format!("{base}seccomp-table-terminal-{TABLE_ARCH}.txt"),
+            terminal_filter_table(),
+        )
+        .unwrap();
+    }
+
+    /// J14 review finding 1: the terminal filter is pinned like the
+    /// baselines, and its table's digest is the program's.
+    #[test]
+    fn the_terminal_filter_is_byte_for_byte_the_checked_in_one() {
+        let checked_in = std::fs::read_to_string(format!(
+            "{}/../../docs/specs/jail-v1/evidence/seccomp-table-terminal-{TABLE_ARCH}.txt",
+            env!("CARGO_MANIFEST_DIR"),
+        ))
+        .unwrap();
+        let table = terminal_filter_table();
+        assert_eq!(table, checked_in);
+        assert!(table.contains(&terminal_filter().unwrap().digest()));
+    }
+
+    /// J14 review finding 1: the terminal filter answers `TIOCSPGRP` with
+    /// `EPERM` whatever the request's high word, and nothing else: every
+    /// other ioctl, and every other call, is left to the baseline.
+    #[test]
+    fn the_terminal_filter_denies_only_giving_the_foreground_away() {
+        let program = terminal_filter().unwrap();
+        assert_eq!(run(&program, NATIVE, NR_IOCTL, [0, TIOCSPGRP]), EPERM);
+        assert_eq!(
+            run(&program, NATIVE, NR_IOCTL, [7, TIOCSPGRP]),
+            EPERM,
+            "any descriptor"
+        );
+        for request in [
+            0x5401, 0x5402, 0x5404, 0x5413, 0x5414, 0x540f, 0x540e, 0x5429, 0x540b,
+        ] {
+            assert_eq!(
+                run(&program, NATIVE, NR_IOCTL, [0, request]),
+                SECCOMP_RET_ALLOW,
+                "{request:#x}"
+            );
+        }
+        for nr in [NR_SOCKET, NR_CLONE, NR_SECCOMP, 0, 1, 59] {
+            assert_eq!(
+                run(&program, NATIVE, nr, [0, TIOCSPGRP]),
+                SECCOMP_RET_ALLOW,
+                "nr {nr}"
+            );
+        }
+        for arch in FOREIGN {
+            assert_eq!(run(&program, arch, NR_IOCTL, [0, 0x5401]), EPERM);
+        }
+        assert_eq!(run(&program, NATIVE, X32_SYSCALL_BIT | 16, [0, 0]), EPERM);
+        // The baselines themselves still let it through: the launcher's own
+        // `tcsetpgrp` comes before this filter.
+        assert_eq!(
+            run(&tool_baseline().unwrap(), NATIVE, NR_IOCTL, [0, TIOCSPGRP]),
+            SECCOMP_RET_ALLOW
+        );
     }
 
     /// The storage-ceiling variants are pinned like the base tables: the

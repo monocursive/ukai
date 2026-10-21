@@ -149,8 +149,8 @@ impl Facts {
                 libc::tcgetpgrp(fd),
             )
         };
-        let controlling = terminal_session >= 0 && terminal_session == session;
-        let foreground = foreground_group >= 0 && foreground_group == group;
+        let (controlling, foreground) =
+            session_facts(session, terminal_session, group, foreground_group);
         let major = match seam_major.map(str::parse::<u32>) {
             Some(Ok(major)) => Some(major),
             _ => device_major(fd),
@@ -163,6 +163,26 @@ impl Facts {
             name: terminal_name(fd),
         }
     }
+}
+
+/// Conditions 3 and 4 of §3.2 from the ids `getsid(0)`, `tcgetsid(0)`,
+/// `getpgrp()` and `tcgetpgrp(0)` returned: `(controlling, foreground)`.
+///
+/// Review finding 6: every id must name something. In a PID namespace that
+/// cannot name the session's leader or the job's group (`unshare -pf
+/// ukai-jail …` from an interactive shell), each of these calls answers 0,
+/// so equal ids would attach even a background job, and a supervisor whose
+/// own group is 0 could never tell whose the terminal is. Such a run stays
+/// detached: stdin is not a controlling terminal it can name.
+fn session_facts(
+    session: libc::pid_t,
+    terminal_session: libc::pid_t,
+    group: libc::pid_t,
+    foreground_group: libc::pid_t,
+) -> (bool, bool) {
+    let controlling = session > 0 && terminal_session == session && group > 0;
+    let foreground = controlling && foreground_group == group;
+    (controlling, foreground)
 }
 
 /// The device major of a character device on `fd`.
@@ -235,9 +255,8 @@ pub fn decide(applies: bool, facts: &Facts) -> Decision {
 }
 
 /// The attached pre-exec line (§3.7), without the `ukai-jail: ` prefix.
-/// `name` is the final component of the target's argv 0 and `wall` the
-/// applied wall's spelling; the caller escapes the line like every
-/// diagnostic.
+/// `name` is what [`target_name`] calls the target and `wall` the applied
+/// wall's spelling; the caller escapes the line like every diagnostic.
 #[must_use]
 pub fn attached_line(device: &str, wall: Option<&str>, name: &str, supervisor: u32) -> String {
     let wall = wall.map_or_else(|| "no wall".to_owned(), |wall| format!("wall {wall}"));
@@ -251,6 +270,20 @@ pub fn attached_line(device: &str, wall: Option<&str>, name: &str, supervisor: u
 #[must_use]
 pub fn detached_line(reason: Detached) -> String {
     format!("terminal: detached ({})", reason.as_str())
+}
+
+/// What the attached pre-exec line calls the target: the launch profile's
+/// name when the run comes from one (`ukai-jail NAME`, `run --launch
+/// NAME`), since an installed agent can be a version-named binary (a native
+/// install that runs `…/versions/2.1.302`); otherwise the final component
+/// of argv 0.
+#[must_use]
+pub fn target_name(launch: Option<&str>, argv0: Option<&[u8]>) -> String {
+    match (launch, argv0) {
+        (Some(launch), _) => launch.to_owned(),
+        (None, Some(argv0)) => program_name(argv0),
+        (None, None) => String::new(),
+    }
 }
 
 /// The final component of argv 0, for the pre-exec line.
@@ -408,18 +441,26 @@ impl Session {
     /// the jail's namespace. The terminal is then not the jail's to take
     /// back (review F6): taking it would leave the shell reading a terminal
     /// it no longer holds.
+    ///
+    /// Review finding 5: a group whose leader is gone (`cat small | less`
+    /// once `cat` exited and was reaped) is judged by a member's namespace,
+    /// and one whose namespace cannot be read (another user's process) is
+    /// not the jail's: since the terminal filter, no group of the jail but
+    /// the command's can hold the terminal. Only a group with no process
+    /// left is taken.
     #[must_use]
     pub fn held_outside(&self, command: Option<libc::pid_t>) -> bool {
         let group = self.foreground_group();
         if group <= 0 || group == self.group || Some(group) == command {
             return false;
         }
-        match (
-            std::fs::read_link(format!("/proc/{group}/ns/pid")),
-            std::fs::read_link("/proc/self/ns/pid"),
-        ) {
-            (Ok(theirs), Ok(ours)) => theirs == ours,
-            _ => false,
+        let Ok(ours) = std::fs::read_link("/proc/self/ns/pid") else {
+            return true;
+        };
+        match group_namespace(group) {
+            GroupNamespace::Of(theirs) => theirs == ours,
+            GroupNamespace::Empty => false,
+            GroupNamespace::Unknown => true,
         }
     }
 
@@ -607,6 +648,56 @@ impl Session {
     }
 }
 
+/// The PID namespace of a process group's members, as [`group_namespace`]
+/// finds it.
+enum GroupNamespace {
+    /// The leader's, or the first member's that could be read.
+    Of(std::path::PathBuf),
+    /// No process is left in the group.
+    Empty,
+    /// The group has members, and none of their namespaces can be read.
+    Unknown,
+}
+
+/// The namespace of `group`'s leader, or, when the leader is gone or cannot
+/// be read, of a member found in `/proc` (review finding 5).
+fn group_namespace(group: libc::pid_t) -> GroupNamespace {
+    if let Ok(theirs) = std::fs::read_link(format!("/proc/{group}/ns/pid")) {
+        return GroupNamespace::Of(theirs);
+    }
+    // SAFETY: signal 0 to a process group only checks that it has members.
+    if unsafe { libc::kill(-group, 0) } != 0
+        && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
+    {
+        return GroupNamespace::Empty;
+    }
+    let Ok(entries) = std::fs::read_dir("/proc") else {
+        return GroupNamespace::Unknown;
+    };
+    let mut member = false;
+    for entry in entries.flatten() {
+        let Some(pid) = entry
+            .file_name()
+            .to_str()
+            .and_then(|name| name.parse::<libc::pid_t>().ok())
+        else {
+            continue;
+        };
+        if stat_field(pid, 2) != Some(group) {
+            continue;
+        }
+        member = true;
+        if let Ok(theirs) = std::fs::read_link(format!("/proc/{pid}/ns/pid")) {
+            return GroupNamespace::Of(theirs);
+        }
+    }
+    if member {
+        GroupNamespace::Unknown
+    } else {
+        GroupNamespace::Empty
+    }
+}
+
 /// Writes all of `bytes` to `fd`, waiting at most `bound` in all for the
 /// terminal to take them (`poll` for `POLLOUT` before each write), so a
 /// terminal whose output the command suspended cannot block the supervisor
@@ -742,12 +833,30 @@ pub fn group_orphaned() -> bool {
     true
 }
 
-/// A process's parent, from `/proc/<pid>/stat` (the field after the
-/// state, past the command name's closing parenthesis).
+/// A process's parent, from `/proc/<pid>/stat`.
 fn parent_of(pid: libc::pid_t) -> Option<libc::pid_t> {
+    stat_field(pid, 1)
+}
+
+/// The `index`th field of `/proc/<pid>/stat` after the command name's
+/// closing parenthesis: 0 is the state, 1 the parent, 2 the process group.
+fn stat_field(pid: libc::pid_t, index: usize) -> Option<libc::pid_t> {
     let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     let rest = &stat[stat.rfind(')')? + 1..];
-    rest.split_ascii_whitespace().nth(1)?.parse().ok()
+    rest.split_ascii_whitespace().nth(index)?.parse().ok()
+}
+
+/// J14 review finding 7: ignores `SIGQUIT` and `SIGTSTP` in this process,
+/// for its settlement: the terminal's foreground is then its own group, so
+/// `^\` and `^Z` reach it, and neither may end or stop it before its
+/// receipt and its release. No child is started after this.
+pub fn ignore_job_control_keys() {
+    for signal in [libc::SIGQUIT, libc::SIGTSTP] {
+        // SAFETY: SIG_IGN for a signal this process may ignore; no handler.
+        unsafe {
+            libc::signal(signal, libc::SIG_IGN);
+        }
+    }
 }
 
 /// How many `SIGCONT`s this process received.
@@ -822,6 +931,56 @@ mod tests {
         assert_eq!(program_name(b"/usr/local/bin/assistant"), "assistant");
         assert_eq!(program_name(b"assistant"), "assistant");
         assert_eq!(program_name(b"/opt/x/"), "x");
+        // A run from a launch profile is named by the profile, not by a
+        // version-named binary.
+        assert_eq!(
+            target_name(
+                Some("assistant"),
+                Some(b"/home/u/.local/share/assistant/versions/2.1.302")
+            ),
+            "assistant"
+        );
+        assert_eq!(
+            target_name(None, Some(b"/usr/local/bin/assistant")),
+            "assistant"
+        );
+        assert_eq!(target_name(None, None), "");
+    }
+
+    /// Review finding 6: ids a PID namespace cannot name (0) never attach,
+    /// whatever they equal; ids that name the session and the group decide as
+    /// before; an error (-1) never attaches.
+    #[test]
+    fn ids_this_namespace_cannot_name_never_attach() {
+        // (session, terminal session, group, foreground group)
+        for (ids, expected) in [
+            ((0, 0, 0, 0), (false, false)),
+            ((0, 0, 41, 41), (false, false)),
+            ((40, 40, 0, 0), (false, false)),
+            ((40, 40, 41, 41), (true, true)),
+            ((40, 40, 41, 0), (true, false)),
+            ((40, 40, 41, 42), (true, false)),
+            ((40, 39, 41, 41), (false, false)),
+            ((40, -1, 41, 41), (false, false)),
+            ((-1, -1, 41, 41), (false, false)),
+            ((40, 40, 41, -1), (true, false)),
+        ] {
+            assert_eq!(
+                session_facts(ids.0, ids.1, ids.2, ids.3),
+                expected,
+                "{ids:?}"
+            );
+        }
+        let mut measured = facts(136);
+        (measured.controlling, measured.foreground) = session_facts(0, 0, 0, 0);
+        assert_eq!(
+            decide(true, &measured),
+            if cfg!(target_os = "linux") {
+                Decision::Detached(Some(Detached::NotControlling))
+            } else {
+                Decision::Detached(None)
+            }
+        );
     }
 
     #[test]

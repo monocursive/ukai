@@ -1,0 +1,27 @@
+ukai-jail terminal-mode seccomp filter (aarch64)
+jail-interactive-sessions.md §8; installed by the launcher in terminal mode only, stacked on the contained baseline, after its own tcsetpgrp
+
+precondition              action
+arch != AUDIT_ARCH_AARCH64  EPERM   (0xc00000b7 required)
+nr & 0x40000000           EPERM   (x32 ABI)
+
+syscall                nr     action
+ioctl                  29     EPERM when args[1] == 0x5410 (TIOCSPGRP)
+
+everything else        ALLOW
+
+instructions: 11
+digest: sha256:c1e8fd0bc0a799dd74faf969b20817d721cad2cda5812f275c3d50eb30835859
+
+disassembly
+0000 ld    [4]
+0001 jeq   #0xc00000b7  jt 2 jf 10
+0002 ld    [0]
+0003 jset  #0x40000000  jt 10 jf 4
+0004 jeq   #0x0000001d  jt 6 jf 5
+0005 ja    9
+0006 ld    [24]
+0007 jeq   #0x00005410  jt 10 jf 8
+0008 ja    9
+0009 ret   #0x7fff0000
+0010 ret   #0x00050001

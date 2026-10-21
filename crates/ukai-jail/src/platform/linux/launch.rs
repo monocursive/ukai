@@ -12,9 +12,11 @@
 //! 2. installs the narrowing filter, when observation is on;
 //! 3. blocks reading one byte from the release pipe;
 //! 4. in terminal mode (J14), puts itself in a process group of its own and
-//!    makes it the terminal's foreground group with `SIGTTOU` blocked; then
-//!    gives the target the signal state and descriptor limit the operator
-//!    started the run with, and closes what the supervisor took;
+//!    makes it the terminal's foreground group with `SIGTTOU` blocked, then
+//!    installs the terminal filter, so nothing it executes gives the
+//!    foreground to another group; then gives the target the signal state
+//!    and descriptor limit the operator started the run with, and closes
+//!    what the supervisor took;
 //! 5. checks every program `--from-path` pinned against what resolution
 //!    recorded ([`pin_matches`]), then `execve`s the target, searching
 //!    `PATH` itself ([`exec_candidates`]), or, for a pinned ELF program,
@@ -550,6 +552,7 @@ fn fd_value(raw: Option<&OsString>, option: &'static str) -> Result<RawFd, Launc
 /// Everything that allocates happens before the filter is installed. After
 /// that point the only calls are `read`, `close`, `sigaction` and
 /// `sigprocmask` (with `sigemptyset` and `sigaddset` on stack data),
+/// `setpgid`, `getpgrp`, `tcsetpgrp` and `seccomp` in terminal mode,
 /// `getrlimit` and `setrlimit`, `fstat` and `fstatat`, `execve` or
 /// `execveat`, `faccessat`, `write` and `_exit`.
 pub fn launch_main(args: &[OsString]) -> ! {
@@ -667,6 +670,17 @@ pub fn launch_main(args: &[OsString]) -> ! {
             if fd < 0 { Err(errno()) } else { Ok(fd) }
         });
 
+    // J14 review finding 1: the terminal filter is built while allocating is
+    // still allowed, and installed after the launcher's own `tcsetpgrp`.
+    let terminal_filter = if parsed.foreground {
+        match super::seccomp::terminal_filter() {
+            Ok(program) => Some(program),
+            Err(_) => report_and_exit(parsed.error_fd, libc::EINVAL, EXIT_INTERNAL),
+        }
+    } else {
+        None
+    };
+
     if parsed.narrow {
         // The observer's own filter, so the numbers the launcher narrows to
         // and the numbers the tracer expects to be stopped on are one table.
@@ -765,6 +779,22 @@ pub fn launch_main(args: &[OsString]) -> ! {
                     EXIT_EXEC_FAILED,
                 );
             }
+        }
+        // J14 review finding 1: that was the last foreground change anything
+        // in the jail makes. From here on `TIOCSPGRP` answers `EPERM` for the
+        // command and every descendant, so none of them can give the terminal
+        // to a group of its own, or take it from the operator's shell after
+        // a relayed stop or a `bg`. bubblewrap set `no_new_privs` before the
+        // baseline; the install does not allocate.
+        if let Some(program) = &terminal_filter
+            && let Err(error) = super::seccomp::install(program)
+        {
+            report_exec_failure_and_exit(
+                parsed.error_fd,
+                error.raw_os_error().unwrap_or(libc::EINVAL),
+                DETAIL_TERMINAL,
+                EXIT_EXEC_FAILED,
+            );
         }
     }
     // Undo what the jail itself changed in the signal state

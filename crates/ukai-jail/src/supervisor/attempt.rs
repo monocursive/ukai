@@ -81,6 +81,10 @@ pub(super) struct Attempt<'a> {
     terminal: Option<crate::terminal::Session>,
     /// J14 §3.3: the command's own process group, once the run started.
     command_group: Option<libc::pid_t>,
+    /// The release byte was sent for: from then on the launcher may have
+    /// taken the terminal, and only then is anything to restore (J14 review
+    /// finding 7).
+    released: bool,
     /// J14 §4.6: the persistent vendor state this attempt holds, until its
     /// release.
     persistent: Option<Box<crate::persistent::Held>>,
@@ -207,6 +211,7 @@ impl<'a> Attempt<'a> {
             signals,
             terminal: None,
             command_group: None,
+            released: false,
             persistent: None,
             secrets: Vec::new(),
         })
@@ -490,6 +495,28 @@ impl<'a> Attempt<'a> {
             // launcher's own check is proved through the CLI.
             crate::program::swap_rendezvous();
         }
+        // J14 review finding 2: the mode was decided while resolving. A job
+        // stopped and continued in the background since then (`^Z`, `bg`
+        // while it prepared) would have the launcher's `tcsetpgrp` take the
+        // terminal from the shell at its prompt, so it is refused here, the
+        // last check before the release byte. Waiting for `fg` instead would
+        // run the preparation budget down while the job sits stopped, and the
+        // run cannot turn detached: its snapshot says attached and its
+        // boundary has no new session.
+        if let Some(session) = self.terminal.as_ref()
+            && !session.in_foreground()
+        {
+            return Err(JailError::new(
+                ErrorCode::InvalidFd,
+                ErrorStage::Prepared,
+                Remediation::Configuration,
+                "the jail is no longer the terminal's foreground job (it was sent to the \
+                 background, or the terminal went away, before its command started), and \
+                 starting the command would take the terminal from the shell; nothing was run: \
+                 run it in the foreground, or pass --terminal detach"
+                    .to_owned(),
+            ));
+        }
         Ok(())
     }
 
@@ -501,6 +528,7 @@ impl<'a> Attempt<'a> {
     /// receipt carries the verified tree and vendor state can be removed
     /// rather than retained.
     fn release(&mut self, prepared: Prepared) -> Result<Box<dyn RunningExecution>, JailError> {
+        self.released = true;
         prepared.execution.release().map_err(|failure| {
             let ReleaseFailure { error, teardown } = *failure;
             if let Some(teardown) = teardown {
@@ -1323,9 +1351,10 @@ impl<'a> Attempt<'a> {
         let quiet = self.args.quiet || self.plan.quiet;
         match &self.plan.terminal {
             crate::terminal::Decision::Attached { device } => {
-                let name = argv
-                    .first()
-                    .map_or_else(String::new, |argv0| crate::terminal::program_name(argv0));
+                let name = crate::terminal::target_name(
+                    self.args.policy.selection.launch.as_deref(),
+                    argv.first().map(Vec::as_slice),
+                );
                 crate::diag!(
                     "ukai-jail: {}",
                     crate::terminal::attached_line(
@@ -1356,13 +1385,22 @@ impl<'a> Attempt<'a> {
     /// §3.6: the four restore steps, once, recorded in the receipt and,
     /// when one failed, on stderr with its errno. `after_tree_death` is
     /// false when they run without verified tree death.
+    ///
+    /// J14 review finding 7: only once the launcher was released. Before,
+    /// nothing in the jail could hold or change the terminal: a refusal then
+    /// keeps the operator's type-ahead and records what the boundary
+    /// registered, if anything, with nothing restored. From the take on, the
+    /// supervisor's group is the terminal's foreground until this process
+    /// exits, so it ignores `^\` and `^Z`, which would otherwise kill or
+    /// stop it in the middle of its release and its receipt.
     fn restore_terminal(&mut self, after_tree_death: bool) {
         let Some(session) = self.terminal.as_mut() else {
             return;
         };
-        if session.restored.is_some() {
+        if session.restored.is_some() || !self.released {
             return;
         }
+        crate::terminal::ignore_job_control_keys();
         // The supervisor's lines stay bounded until it exits: a terminal
         // whose output could not be resumed must not hold the summary.
         let (_, failures) = session.settle(after_tree_death, self.command_group);
@@ -1411,6 +1449,12 @@ impl<'a> Attempt<'a> {
         if !session.held_outside(running.target_group()) {
             let _ = session.take_foreground();
             let _ = session.restore_termios();
+            // J14 review finding 3: the shell gets the terminal as clean as
+            // the settlement leaves it. A reply the command asked for and
+            // did not read would be the shell's input, and an attribute it
+            // left (concealed text) would hide the prompt.
+            let _ = session.flush_input();
+            let _ = session.write_reset();
         }
         // A stop signal this process ignores (an inherited disposition) would
         // not stop it: SIGSTOP then stands in.

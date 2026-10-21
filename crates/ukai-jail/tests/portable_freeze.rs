@@ -205,6 +205,19 @@ fn the_filter_digests_are_the_frozen_ones() {
         mediation,
         "the mediation filter the launcher installs: {REGENERATE}"
     );
+    // J14 review finding 1: the filter the launcher stacks in terminal mode.
+    let terminal = evidence(&format!("seccomp-table-terminal-{arch}.txt"));
+    let frozen_terminal = frozen_str(&freeze, &[filters, "terminal"]);
+    assert_eq!(
+        table_digests(&terminal).first().map(String::as_str),
+        Some(frozen_terminal),
+        "the terminal filter's evidence table: {REGENERATE}"
+    );
+    assert_eq!(
+        seccomp::terminal_filter().expect("builds").digest(),
+        frozen_terminal,
+        "the terminal filter as this build makes it: {REGENERATE}"
+    );
     for (name, text) in [
         (format!("seccomp-table-tool-{arch}.txt"), &tool),
         (format!("seccomp-table-agent-{arch}.txt"), &agent),
@@ -212,6 +225,7 @@ fn the_filter_digests_are_the_frozen_ones() {
             format!("seccomp-table-agent-namespace-{arch}.txt"),
             &namespace,
         ),
+        (format!("seccomp-table-terminal-{arch}.txt"), &terminal),
     ] {
         assert_eq!(
             sha256_hex(text.as_bytes()),

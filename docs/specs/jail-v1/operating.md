@@ -688,13 +688,19 @@ reach it, and `^C`, `^\` and `^Z` go to the command, never to the jail.
   the supervisor's pid, which the pre-exec line prints. `^C` no longer ends
   the attempt from the terminal: the agent decides what it does.
 - **`^Z`** stops the command; the supervisor takes the terminal back with the
-  terminal settings it saved, then stops itself with the same signal, so your
-  shell shows the job stopped. `fg` gives the terminal back to the command
-  and continues it; `bg` continues it without the terminal, which stays your
-  shell's: a command that stops in the background does not take it back.
+  terminal settings it saved, discards input the agent did not read (keys
+  typed before the `^Z` included) and writes the attribute reset, then stops
+  itself with the same signal, so your shell shows the job stopped. `fg`
+  gives the terminal back to the command and continues it; `bg` continues it
+  without the terminal, which stays your shell's: a command that stops in the
+  background does not take it back.
   When nothing above the jail does job control (it leads its own session, as
   under `script` or `ssh host ukai-jail …`), the supervisor does not stop
-  and continues the command at once. The receipt
+  and continues the command at once. A job you stop and continue in the
+  background before the agent started is refused (exit 125) rather than take
+  the terminal from your shell; run it in the foreground. A stop of the
+  agent after the jail asked it to end (`kill -INT`, the wall) is not
+  relayed: the agent is killed. The receipt
   counts the stops (`applied.terminal.stops`) and the journal has
   `terminal_stopped` and `terminal_continued` notes.
 - **At the end**, after the tree is verified dead, the supervisor takes the
@@ -706,8 +712,11 @@ reach it, and `^C`, `^\` and `^Z` go to the command, never to the jail.
   recorded in `applied.terminal.restored`; a failed step is said on stderr
   and on the summary's cleanup line (`terminal not restored (termios): run
   reset`) and does not change the exit code. A job that ended in the
-  background leaves the terminal to your shell: the first three steps are
-  then not taken, and the line says `another job holds the terminal`.
+  background leaves the terminal to your shell, or to whatever job your
+  shell gave it to: the first three steps are then not taken, and the line
+  says `another job holds the terminal`. From then until it exits the jail
+  ignores `^\` and `^Z`. A run refused before the agent started leaves the
+  terminal alone, type-ahead included.
 - **Detached** is today's behaviour, in a new session: `--terminal detach`,
   `[jail] terminal = "detach"` in `config.toml` (not a project setting),
   `--gate-fd`, `learn` and `none` are always detached. When stderr is a
@@ -720,7 +729,10 @@ reach it, and `^C`, `^\` and `^Z` go to the command, never to the jail.
   was before J14. `explain` shows the mode and why.
 - **The filter** answers `TIOCSTI`, `TIOCLINUX` and `TIOCSETD` with `EPERM` in
   every contained profile, attached or not. `doctor` says whether the kernel
-  itself still allows `TIOCSTI` (`legacy_tiocsti`).
+  itself still allows `TIOCSTI` (`legacy_tiocsti`). Attached, the launcher
+  adds one rule once it gave the agent's group the terminal: `TIOCSPGRP`
+  (`tcsetpgrp`) answers `EPERM`, so nothing in the jail can give the
+  terminal to another process group or take it from your shell.
 
 A `-p` run started from an interactive shell is attached too, so its `^C`
 goes to the agent; a script that needs the old behaviour passes `--terminal
@@ -1163,11 +1175,17 @@ with its evidence.
   sends after the input flush lands in your shell. A descendant that moved
   itself to another process group is not stopped by `^Z`: while the
   supervisor is stopped, its observed calls and connections wait, and no
-  deadline is acted on until `fg` or `bg`. A stop of a group the agent gave
-  the terminal to (an editor it runs in its own group) is not relayed. If the
-  supervisor itself is killed, nothing is restored; your shell takes the
-  terminal back when the job ends. A virtual console or a serial line always
-  runs detached.
+  deadline is acted on until `fg` or `bg`. If the supervisor itself is
+  killed, nothing is restored; your shell takes the terminal back when the
+  job ends. A virtual console or a serial line always runs detached.
+- **No job control inside the jail** (J14, terminal mode). Nothing the agent
+  runs can make another process group the terminal's foreground
+  (`TIOCSPGRP` answers `EPERM`), on your terminal or on a pseudo-terminal
+  the agent opens itself: an interactive shell or an editor it starts in a
+  group of its own runs without the terminal's foreground (a shell says it
+  has no job control). Detached runs are not affected. A job stopped and
+  continued in the background in the instant between the jail's last check
+  and the agent's start is not caught.
 - **Persistent state** (J14). The workspace check compares a device and
   inode, which ext4 can reuse at once after a delete and a re-create
   (measured on the reference host:

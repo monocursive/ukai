@@ -64,8 +64,9 @@ const FROZEN_PATHSPECS: [&str; 6] = [
 /// Each table ends every program's listing with a `digest: sha256:...`
 /// line; the agent tables list the agent baseline first and the mediation
 /// filter second. The storage tables are the baselines a storage or inode
-/// ceiling installs, with the hard-link denials.
-const FILTER_TABLES: [(&str, &str, usize); 6] = [
+/// ceiling installs, with the hard-link denials. The terminal filter is the
+/// one the launcher stacks on every contained baseline in terminal mode.
+const FILTER_TABLES: [(&str, &str, usize); 7] = [
     ("tool", "seccomp-table-tool-x86_64.txt", 0),
     ("tool_storage", "seccomp-table-tool-storage-x86_64.txt", 0),
     ("agent", "seccomp-table-agent-x86_64.txt", 0),
@@ -76,6 +77,7 @@ const FILTER_TABLES: [(&str, &str, usize); 6] = [
         0,
     ),
     ("agent_mediation", "seccomp-table-agent-x86_64.txt", 1),
+    ("terminal", "seccomp-table-terminal-x86_64.txt", 0),
 ];
 const CLOSED_SET_TABLE: &str = "closed-set-x86_64.txt";
 const EVIDENCE: &str = "docs/specs/jail-v1/evidence";

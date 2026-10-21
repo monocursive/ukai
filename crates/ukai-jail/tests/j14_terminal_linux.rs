@@ -88,6 +88,9 @@ struct Options {
     program: Option<PathBuf>,
     /// `config.toml` contents.
     config: Option<String>,
+    /// Keys typed before the shell starts, left in the terminal's input
+    /// queue for the shell.
+    typed_ahead: Option<Vec<u8>>,
 }
 
 impl Options {
@@ -255,6 +258,8 @@ struct Session {
     /// The foreground group the job left on the terminal at its last stop
     /// or its end, as the shell found it before taking the terminal back.
     left_foreground: Option<i64>,
+    /// The terminal's local flags then.
+    left_lflag: Option<u64>,
     /// The shell's own process group.
     started_shell: libc::pid_t,
 }
@@ -279,6 +284,9 @@ impl Session {
 
     fn start_in(root: tempfile::TempDir, options: Options) -> Session {
         let (master, slave) = openpty();
+        if let Some(keys) = &options.typed_ahead {
+            write_master(&master, keys);
+        }
         let (control_r, control_w) = pipe();
         let (status_r, status_w) = pipe();
         let work = root.path().join("work");
@@ -392,6 +400,7 @@ impl Session {
             pending: Vec::new(),
             job: 0,
             left_foreground: None,
+            left_lflag: None,
             started_shell: 0,
         };
         let started = session.status_event(SESSION);
@@ -417,8 +426,8 @@ impl Session {
             let left = deadline.saturating_duration_since(Instant::now());
             assert!(
                 !left.is_zero(),
-                "no status from the shell; the terminal shows:\n{}",
-                self.terminal.text()
+                "no status from the shell: {}",
+                self.diagnose()
             );
             let mut pollfd = libc::pollfd {
                 fd: self.status.as_raw_fd(),
@@ -466,6 +475,7 @@ impl Session {
             self.terminal.text()
         );
         self.left_foreground = event["foreground"].as_i64();
+        self.left_lflag = event["lflag"].as_u64();
         (event["code"].as_i64(), event["signal"].as_i64())
     }
 
@@ -1411,6 +1421,9 @@ fn k60_the_terminal_requests_are_denied_in_every_contained_baseline() {
         vec!["tty-ioctl", "tiocsti", "--on", "devnull"],
         vec!["tty-ioctl", "tioclinux", "--on", "devnull"],
         vec!["tty-ioctl", "tiocsetd", "--on", "devnull"],
+        // Review finding 1: the terminal filter, attached runs only.
+        vec!["tty-ioctl", "tiocspgrp", "--on", "stdin"],
+        vec!["tty-ioctl", "tiocspgrp", "--on", "devnull"],
         vec!["tty-ioctl", "tcgets", "--on", "stdin"],
         vec!["tty-ioctl", "tiocgwinsz", "--on", "stdin"],
         vec!["tty-ioctl", "tiocgpgrp", "--on", "stdin"],
@@ -1451,7 +1464,7 @@ fn k60_the_terminal_requests_are_denied_in_every_contained_baseline() {
         for report in &reports {
             let request = report["args"]["request"].as_str().unwrap();
             let on = report["args"]["on"].as_str().unwrap();
-            let denied = matches!(request, "tiocsti" | "tioclinux" | "tiocsetd");
+            let denied = matches!(request, "tiocsti" | "tioclinux" | "tiocsetd" | "tiocspgrp");
             if denied {
                 assert_eq!(report["errno"], "EPERM", "{leg}: {report}");
             } else {
@@ -1537,8 +1550,11 @@ fn k61_k62_settlement_restores_the_terminal_and_nothing_reaches_the_shell() {
         if leg == "wall" {
             assert_eq!(receipt["outcome"]["cause"], "wall_expiry", "{receipt:#}");
         }
-        // K62: every vector the filter answers was refused.
-        for op in ["tiocsti", "tioclinux", "tiocsetd"] {
+        // K62: every vector the filter answers was refused, the foreground
+        // given to another group of the command's included (review
+        // finding 1: the terminal filter).
+        assert_eq!(session.reports("tcsetpgrp").len(), 1, "{leg}");
+        for op in ["tiocsti", "tioclinux", "tiocsetd", "tcsetpgrp"] {
             for report in session.reports(op) {
                 assert_eq!(report["errno"], "EPERM", "{leg}: {report}");
             }
@@ -1918,6 +1934,66 @@ fn k64_explain_the_pre_exec_line_the_receipt_and_the_wall_say_what_attached() {
     };
     assert_eq!(wall(&receipt), Some(Value::from("28800000")), "{receipt:#}");
 
+    // A run from a launch profile is named by the profile, not by the
+    // version-named binary it runs (Claude Code's native install runs
+    // `…/versions/2.1.302`).
+    let root = common::private_tempdir();
+    for (name, mode) in [
+        ("data", 0o700),
+        ("config", 0o700),
+        ("config/launch", 0o700),
+        ("work", 0o755),
+    ] {
+        let path = root.path().join(name);
+        std::fs::create_dir(&path).unwrap();
+        std::fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(mode))
+            .unwrap();
+    }
+    let versioned = root.path().join("work/2.1.302");
+    std::fs::copy(harness::fixture_path(), &versioned).unwrap();
+    let profile = root.path().join("config/launch/versioned.toml");
+    std::fs::write(&profile, "name = \"versioned\"\njail = \"tool\"\n").unwrap();
+    std::fs::set_permissions(
+        &profile,
+        std::os::unix::fs::PermissionsExt::from_mode(0o600),
+    )
+    .unwrap();
+    let options = Options {
+        jail: vec![
+            "run".into(),
+            "--launch".into(),
+            "versioned".into(),
+            "--".into(),
+            versioned.into_os_string(),
+            "sleep".into(),
+            "30000".into(),
+        ],
+        ..Options::default()
+    };
+    let mut session = Session::start_in(root, options);
+    assert!(
+        session
+            .terminal
+            .wait_for("\"op\":\"sleep\"", common::SETTLE_BOUND),
+        "{}",
+        session.terminal.text()
+    );
+    let text = session.terminal.text();
+    let line = text
+        .lines()
+        .find(|line| line.starts_with("ukai-jail: terminal: attached"))
+        .unwrap_or_else(|| panic!("no attached line:\n{text}"));
+    assert!(
+        line.contains("^C and ^Z go to versioned, not the jail")
+            && line.contains("exit versioned or run"),
+        "{line}"
+    );
+    assert!(!line.contains("2.1.302"), "{line}");
+    // SAFETY: SIGINT to the supervisor this session started.
+    unsafe { libc::kill(session.job, libc::SIGINT) };
+    session.wait_exit();
+    assert_settled(&session.receipt());
+
     // A detached `agent` run keeps the profile's 2 h.
     let mut session = Session::start(Options::run(
         "agent",
@@ -1926,6 +2002,402 @@ fn k64_explain_the_pre_exec_line_the_receipt_and_the_wall_say_what_attached() {
     ));
     session.wait_exit();
     assert_eq!(wall(&session.receipt()), Some(Value::from("7200000")));
+}
+
+// ===========================================================================
+// The review of 2026-10-21: findings 1 to 7
+// ===========================================================================
+
+/// Review finding 1 (K57): a helper of the command's, in a group of its own
+/// and with `SIGTTOU` ignored, tries to take the terminal from the moment
+/// the command's stop is relayed: the terminal filter answers every
+/// `tcsetpgrp` with `EPERM`, the shell keeps the terminal and reads what is
+/// typed at it. Observation on and off.
+#[test]
+fn k57_no_jailed_group_takes_the_terminal_after_a_relayed_stop() {
+    if !common::live() {
+        return;
+    }
+    for observe in ["on", "off"] {
+        let mut session = Session::start(Options::run(
+            "tool",
+            &["--observe", observe],
+            &["tty-steal"],
+        ));
+        let shell = session.started_shell;
+        assert!(
+            session
+                .terminal
+                .wait_for("\"op\":\"tty-steal\"", common::SETTLE_BOUND),
+            "{observe}:\n{}",
+            session.terminal.text()
+        );
+        session.stop_event();
+        // The helper had its chances; then the operator types at the shell.
+        std::thread::sleep(Duration::from_millis(300));
+        session.terminal.type_bytes(b"echo secret\n");
+        std::thread::sleep(Duration::from_millis(300));
+        let drained = session.drain();
+        assert_eq!(
+            drained["foreground"],
+            shell,
+            "{observe}: the terminal was taken from the shell: {drained}\n{}",
+            session.diagnose()
+        );
+        assert_eq!(
+            drained["bytes"],
+            Value::from(b"echo secret\n".to_vec()),
+            "{observe}: the shell did not get what was typed: {drained}"
+        );
+        session.send("fg");
+        assert_eq!(
+            session.wait_exit().0,
+            Some(0),
+            "{observe}: {}",
+            session.diagnose()
+        );
+        let helper = session.report("tty-steal-result")["args"]["helper"].clone();
+        assert!(
+            helper["attempts"].as_u64().is_some_and(|tries| tries > 0),
+            "{observe}: the helper never tried: {helper}"
+        );
+        assert_eq!(helper["first_errno"], "EPERM", "{observe}: {helper}");
+        assert_eq!(helper["took"], false, "{observe}: {helper}");
+        assert_eq!(helper["read"], "", "{observe}: {helper}");
+        assert_settled(&session.receipt());
+    }
+}
+
+/// Review finding 2 (K59): a job stopped during its preparation and continued
+/// in the background (`^Z`, `bg`) is refused before its release, so the
+/// launcher's `tcsetpgrp` never takes the terminal from the shell. The swap
+/// seam of a `--from-path` run holds the supervisor at its last check.
+#[test]
+fn k59_a_job_sent_to_the_background_before_its_release_is_refused() {
+    if !common::live() {
+        return;
+    }
+    let root = common::private_tempdir();
+    for (name, mode) in [
+        ("data", 0o700),
+        ("config", 0o700),
+        ("config/launch", 0o700),
+        ("work", 0o755),
+        ("tools", 0o755),
+        ("tools/bin", 0o755),
+        ("seam", 0o700),
+    ] {
+        let path = root.path().join(name);
+        std::fs::create_dir(&path).unwrap();
+        std::fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(mode))
+            .unwrap();
+    }
+    // An ELF program found on PATH: a copy of the host's shell.
+    let program = root.path().join("tools/bin/bgjob");
+    std::fs::copy(Path::new("/bin/sh").canonicalize().unwrap(), &program).unwrap();
+    std::fs::set_permissions(
+        &program,
+        std::os::unix::fs::PermissionsExt::from_mode(0o755),
+    )
+    .unwrap();
+    let profile = root.path().join("config/launch/bgjob.toml");
+    std::fs::write(&profile, "name = \"bgjob\"\njail = \"tool\"\n").unwrap();
+    std::fs::set_permissions(
+        &profile,
+        std::os::unix::fs::PermissionsExt::from_mode(0o600),
+    )
+    .unwrap();
+    let seam = root.path().join("seam");
+    let mut path = root.path().join("tools/bin").into_os_string();
+    path.push(":/usr/bin:/bin");
+    let options = Options {
+        jail: [
+            "run",
+            "--launch",
+            "bgjob",
+            "--from-path",
+            "--",
+            "-c",
+            "sleep 1",
+        ]
+        .iter()
+        .map(OsString::from)
+        .collect(),
+        ..Options::default()
+    }
+    .env("PATH", path)
+    .env(ukai_jail::program::SWAP_SEAM, seam.clone().into_os_string());
+    let mut session = Session::start_in(root, options);
+    let shell = session.started_shell;
+    common::eventually(
+        "the supervisor at its last check before release",
+        common::SETTLE_BOUND,
+        || seam.join("rechecked").exists(),
+    );
+    session.terminal.type_bytes(b"\x1a");
+    session.stop_event();
+    session.send("bg");
+    std::fs::write(seam.join("go"), b"").unwrap();
+    session.send("wait");
+    let (code, _) = session.wait_exit();
+    assert_eq!(
+        session.left_foreground,
+        Some(i64::from(shell)),
+        "the job took the shell's terminal: {}",
+        session.diagnose()
+    );
+    assert_eq!(code, Some(125), "{}", session.diagnose());
+    let receipt = session.receipt();
+    assert_eq!(receipt["phase"], "refused", "{receipt:#}");
+    assert_eq!(
+        receipt["outcome"]["error"]["code"], "invalid_fd",
+        "{receipt:#}"
+    );
+    assert!(
+        session.terminal.text().contains("run it in the foreground"),
+        "{}",
+        session.terminal.text()
+    );
+}
+
+/// Review finding 3 (K62): a relayed stop hands the shell a terminal as
+/// clean as the settlement does: the reply to a status query the command
+/// never read is discarded, and the attribute it left (concealed text) is
+/// reset before the supervisor stops. Observation on and off.
+#[test]
+fn k62_a_relayed_stop_leaves_the_shell_nothing_to_read() {
+    if !common::live() {
+        return;
+    }
+    for observe in ["on", "off"] {
+        let mut session = Session::start(Options::run(
+            "tool",
+            &["--observe", observe],
+            &["tty-query-stop"],
+        ));
+        session
+            .terminal
+            .answer_queries
+            .store(true, Ordering::SeqCst);
+        session.stop_event();
+        let drained = session.drain();
+        assert_eq!(
+            drained["bytes"],
+            serde_json::json!([]),
+            "{observe}: the shell read the command's reply: {drained}"
+        );
+        let bytes = session.terminal.bytes();
+        let conceal = bytes
+            .windows(4)
+            .position(|window| window == b"\x1b[8m")
+            .unwrap_or_else(|| panic!("{observe}: no conceal:\n{}", session.terminal.text()));
+        let reset = b"\x1b[0m\x1b[?25h";
+        assert!(
+            bytes[conceal..]
+                .windows(reset.len())
+                .any(|window| window == reset),
+            "{observe}: no reset after the conceal:\n{}",
+            session.terminal.text()
+        );
+        session.send("fg");
+        assert_eq!(
+            session.wait_exit().0,
+            Some(0),
+            "{observe}: {}",
+            session.diagnose()
+        );
+        assert_settled(&session.receipt());
+    }
+}
+
+/// Review finding 4 (K58): a stop the supervisor asked for is never relayed.
+/// A command whose `SIGTERM` handler stops it, asked to end by `kill -INT`
+/// on the supervisor, is killed within the grace and the tree budget, and
+/// the supervisor never stops. Observation on and off.
+#[test]
+fn k58_a_command_that_stops_when_asked_to_end_is_ended_not_relayed() {
+    if !common::live() {
+        return;
+    }
+    let script = "trap 'kill -STOP $$' TERM; echo ready; while :; do sleep 0.1; done";
+    for observe in ["on", "off"] {
+        let options = Options {
+            jail: [
+                "run",
+                "--profile",
+                "tool",
+                "--observe",
+                observe,
+                "--",
+                "/bin/sh",
+                "-c",
+                script,
+            ]
+            .iter()
+            .map(OsString::from)
+            .collect(),
+            ..Options::default()
+        };
+        let mut session = Session::start(options);
+        assert!(session.terminal.wait_for("ready", common::SETTLE_BOUND));
+        assert!(
+            common::within(common::SETTLE_BOUND, || session
+                .transitions()
+                .iter()
+                .any(|transition| transition == "exec_confirmed")),
+            "{observe}: {}",
+            session.diagnose()
+        );
+        let asked = Instant::now();
+        // SAFETY: SIGINT to the supervisor this session started.
+        unsafe { libc::kill(session.job, libc::SIGINT) };
+        let event = session.status_event(SESSION);
+        assert_eq!(
+            event["event"],
+            "exited",
+            "{observe}: {event}\n{}",
+            session.diagnose()
+        );
+        // The grace (2 s) and the tree budget (5 s), with room.
+        assert!(
+            asked.elapsed() < Duration::from_secs(10),
+            "{observe}: {:?}",
+            asked.elapsed()
+        );
+        let receipt = session.receipt();
+        assert_settled(&receipt);
+        assert_eq!(
+            receipt["outcome"]["cause"], "operator_signal",
+            "{observe}: {receipt:#}"
+        );
+        assert!(
+            !session
+                .transitions()
+                .iter()
+                .any(|transition| transition == "terminal_stopped"),
+            "{observe}: {:?}",
+            session.transitions()
+        );
+    }
+}
+
+/// Review finding 5 (K59): a foreground job of the shell's whose group
+/// leader is gone (`cat small | less` once `cat` exited) is still another
+/// job's: a jail that ends in the background takes neither the terminal nor
+/// its settings from it.
+#[test]
+fn k59_a_pipeline_whose_leader_is_gone_keeps_the_terminal() {
+    if !common::live() {
+        return;
+    }
+    let mut session = Session::start(Options::run("tool", &[], &["sleep", "3000"]));
+    assert!(
+        session
+            .terminal
+            .wait_for("\"op\":\"sleep\"", common::SETTLE_BOUND)
+    );
+    session.terminal.type_bytes(b"\x1a");
+    session.stop_event();
+    session.send("bg");
+    session.send("pipeline");
+    let pipeline = session.status_event(common::STEP_BOUND);
+    assert_eq!(pipeline["event"], "pipeline", "{pipeline}");
+    let group = pipeline["pgrp"].as_i64().unwrap();
+    assert!(group > 0, "{pipeline}");
+    session.send("wait");
+    assert_eq!(session.wait_exit().0, Some(0), "{}", session.diagnose());
+    assert_eq!(
+        session.left_foreground,
+        Some(group),
+        "the jail took the pipeline's terminal: {}",
+        session.diagnose()
+    );
+    let cooked = u64::from(libc::ICANON | libc::ECHO);
+    assert_eq!(
+        session.left_lflag.unwrap() & cooked,
+        0,
+        "the jail restored its settings over the pipeline's"
+    );
+    let receipt = session.receipt();
+    assert_settled(&receipt);
+    assert_eq!(
+        restored(&receipt),
+        serde_json::json!({"foreground": false, "termios": false, "input_flushed": false,
+                           "reset_written": true, "after_tree_death": true}),
+        "{receipt:#}"
+    );
+    session.quit();
+}
+
+/// Review finding 7 (K58): once the settlement took the terminal back, the
+/// supervisor's group is the foreground until it exits; `^\` and `^Z` typed
+/// then neither kill nor stop it in the middle of its release and receipt.
+/// The command ignores both, so the keys reach only the jail.
+#[test]
+fn k58_keys_typed_while_the_jail_settles_neither_kill_nor_stop_it() {
+    if !common::live() {
+        return;
+    }
+    let options = Options {
+        jail: [
+            "run",
+            "--profile",
+            "tool",
+            "--",
+            "/bin/sh",
+            "-c",
+            "trap '' QUIT TSTP; echo ready; sleep 1",
+        ]
+        .iter()
+        .map(OsString::from)
+        .collect(),
+        ..Options::default()
+    };
+    let mut session = Session::start(options);
+    assert!(session.terminal.wait_for("ready", common::SETTLE_BOUND));
+    let master = session.terminal.master().try_clone().unwrap();
+    let typing = Arc::new(AtomicBool::new(true));
+    let typist = {
+        let typing = Arc::clone(&typing);
+        std::thread::spawn(move || {
+            while typing.load(Ordering::SeqCst) {
+                write_master(&master, b"\x1c\x1a");
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        })
+    };
+    let event = session.status_event(SESSION);
+    typing.store(false, Ordering::SeqCst);
+    typist.join().unwrap();
+    assert_eq!(event["event"], "exited", "{event}\n{}", session.diagnose());
+    assert_eq!(event["code"], 0, "{event}\n{}", session.diagnose());
+    let receipt = session.receipt();
+    assert_settled(&receipt);
+    all_restored(&receipt);
+}
+
+/// Review finding 7 (K61): a refusal before any boundary exists applied
+/// nothing to the terminal: the receipt has no `applied.terminal`, and the
+/// keys the operator typed ahead are still there for the shell.
+#[test]
+fn k61_a_refusal_before_the_boundary_leaves_the_terminal_alone() {
+    if !common::live() {
+        return;
+    }
+    let mut options =
+        Options::run("tool", &[], &["exit", "0"]).env("UKAI_JAIL_TEST_ARCH", "riscv64");
+    options.typed_ahead = Some(b"typed ahead\n".to_vec());
+    let mut session = Session::start(options);
+    assert_eq!(session.wait_exit().0, Some(125), "{}", session.diagnose());
+    let receipt = session.receipt();
+    assert_eq!(receipt["phase"], "refused", "{receipt:#}");
+    assert!(receipt["applied"].get("terminal").is_none(), "{receipt:#}");
+    let drained = session.drain();
+    assert_eq!(
+        drained["bytes"],
+        Value::from(b"typed ahead\n".to_vec()),
+        "the operator's type-ahead was discarded: {drained}"
+    );
 }
 
 // Helpers shared with the review's own probes.

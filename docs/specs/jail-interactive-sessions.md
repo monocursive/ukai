@@ -355,11 +355,11 @@ the common case, since §8.3 passes terminals through untouched. Rows marked
 | 3 | **Console keyboard and font ioctls** (`KDSKBENT`, `KDSKBSENT`, `KDSETKEYCODE`, `KDSKBMODE`, `PIO_FONT`…): remapped keys or function-key strings outlive the attempt, because keymaps are shared by all consoles | Refused without the console as controlling terminal or `CAP_SYS_TTY_CONFIG` (by reading `vt_ioctl`). | Reachable if a console were attached. | Never attach a console (§3.2). Cost: an operator at the Linux text console gets detached mode, or runs inside tmux or screen, which provide a pty. | By reading. |
 | 4 | **`TIOCSETD`**: changes the terminal's line discipline, which breaks the operator's terminal after the attempt. Rarely used disciplines have historically been a route to kernel bugs. | Reachable on an inherited terminal descriptor; no controlling terminal needed (by reading). With `ldisc_autoload = 0` (measured on the VPS), only disciplines already loaded. | Same. | Deny `TIOCSETD` in every baseline. Cost: tables and digests. Nothing known breaks. | By reading. |
 | 5 | **`termios` and window size** (`TCSETS*`, raw mode, echo off, `TIOCSWINSZ`) | Reachable on the descriptor. A killed agent leaves raw mode. | Same. Every terminal interface needs it. | Not filtered. Restore at settlement and on every relayed stop (§3.6). Cost: a deliberate `stty` change made from another terminal during the run is undone. | Inferred; K61 measures. |
-| 6 | **Foreground process group** (`TIOCSPGRP`) | Refused without the controlling terminal. | The agent can give the terminal to another of its own groups, but cannot name the shell's group across the PID namespace (§3.3). | Take the foreground back at settlement and at a relayed stop. Cost: none. | By reading; inside view measured. |
+| 6 | **Foreground process group** (`TIOCSPGRP`) | Refused without the controlling terminal. | The agent can give the terminal to another of its own groups, but cannot name the shell's group across the PID namespace (§3.3). **As implemented** (§8 item 22): refused (`EPERM`) by a filter the launcher stacks after its own `tcsetpgrp`, so no group of the jail but the command's ever holds the terminal. | Take the foreground back at settlement and at a relayed stop. Cost: none; with §8 item 22, no job control inside the jail. | By reading; inside view measured; the filter measured (K60, K61). |
 | 7 | **Signals to the job** (`kill(0, …)`) | Stay inside (new session). | With a shared group: reach processes outside the namespace that share the group. Measured for the probe's shell, which shared it. In a real job that group holds the supervisor, bubblewrap's outer process and any pipeline member (`ukai-jail … \| tee`) (inferred). | Own process group (§3.3). Cost: the stop relay (§3.4). | Measured with plain bubblewrap (§3.1). The job's members are inferred. |
 | 8 | **`/dev/tty`** | `ENXIO` (measured). | Opens: a second handle to the same terminal, not a new device (measured). Inside, `ttyname(0)` reads `/dev/console`, where bubblewrap's `--dev` binds a terminal (measured). Which descriptor's terminal bubblewrap binds there is by reading (standard output's, it appears); the probe had one pty on all three. | Allowed. This is part of what the mode is for. | Measured, except that one detail. |
 | 9 | **Escape sequences written to the terminal**. Replies the terminal sends back to queries (cursor reports, `DECRQSS`, window-title reports where a terminal still allows them, colour and clipboard queries) land in the input queue, which the shell reads after the agent ends. OSC 52 writes the operator's clipboard. OSC 8 hyperlinks can hide their target. Cursor movement and attributes can hide or imitate the jail's own lines. | **Identical**: the agent writes the terminal directly today. | Identical: terminal mode adds nothing to what can be written. | No filtering: the jail does not parse output, and a partial filter would be a promise it cannot keep. After verified tree death the supervisor flushes the input queue (`TCIFLUSH`), discarding replies the agent asked for and did not read, and writes an attribute reset (`SGR 0`) and cursor-visible before the summary. Still open: clipboard writes, hyperlinks, a reply arriving after the flush (network latency; **candidate**: a status-report sentinel read before the flush, measured on the terminals of §6.3), lines forged before the summary, and the terminal emulator's own bugs. Cost: keys the operator typed while the agent was ending are discarded, and two short sequences go to stderr, only when stderr is a terminal. | By reading of terminal behaviour; not measured. Varies by terminal. |
-| 10 | **Reading the operator's input after `^Z`** | Possible (§3.1, by reading). | A stopped group cannot read, and a background reader gets `SIGTTIN` (by reading). | Fixed by the mode itself. | By reading. |
+| 10 | **Reading the operator's input after `^Z`** | Possible (§3.1, by reading). | A stopped group cannot read, and a background reader gets `SIGTTIN` (by reading). **But** a member of the operator's session that blocks or ignores `SIGTTOU` may give the terminal to any group of that session it can name: a helper in a group of its own, which `^Z` does not stop, can take the terminal from the shell after the relayed stop or a `bg` and read what is typed there (review finding 1; reproduced on the reference host). | Not fixed by the mode itself, as this row first claimed. The terminal filter (§8 item 22) answers `TIOCSPGRP` with `EPERM` for everything the launcher executes, after its own call; a job sent to the background before its release is refused (§8 item 23). Cost: no job control inside the jail. | Kernel order by reading; the scenario and the fix measured (`k57_no_jailed_group_takes_the_terminal_after_a_relayed_stop`, observation on and off). |
 
 What stays refused, whatever the agent does:
 
@@ -367,6 +367,7 @@ What stays refused, whatever the agent does:
   controlling terminal;
 - terminal mode under `none`, under `--gate-fd`, or for a background job;
 - `TIOCSTI`, `TIOCLINUX` and `TIOCSETD`;
+- in terminal mode, `TIOCSPGRP` after the launcher's own call (§8 item 22);
 - any signal from the command's group to a process outside the PID
   namespace;
 - access to the operator's terminal after a settled attempt: settlement
@@ -408,8 +409,9 @@ the foreground back when its job ends. That is a named limit.
   ukai-jail: terminal: attached (/dev/pts/N) · wall 8h · ^C and ^Z go to NAME, not the jail; to end the attempt, exit NAME or run `kill -INT PID`
   ```
 
-  `NAME` is the final component of the target's argv 0 (escaped like every
-  child-chosen string), and `PID` is the supervisor's process id. Decision 2
+  `NAME` is the launch profile's name when the run comes from one (§8 item
+  24), otherwise the final component of the target's argv 0 (escaped like
+  every child-chosen string), and `PID` is the supervisor's process id. Decision 2
   requires the `^C` and `^Z` part on every attached run, because attaching
   changes what `^C` does for every terminal-started run (§3.8). The wall is
   shown because attached runs get their own default (decision 8). A
@@ -1184,3 +1186,98 @@ intent.
     made a symlink (before: `none yet`, `"held": false`), K67's fallback
     over a released holder whose `jail.lock` is held (before: named it),
     and K65's message (before: 18 spaces).
+
+Added after the same review (seven terminal findings, each with a
+live or unit test that failed before its fix and passes after it):
+
+22. **Nothing in the jail gives the terminal's foreground away (review
+    finding 1; §3.5 rows 6 and 10).** In terminal mode every jailed process
+    is in the operator's session with the terminal as its controlling
+    terminal, and the kernel lets a background member that blocks or
+    ignores `SIGTTOU` give the foreground to any group of that session it
+    can name (by reading of `tiocspgrp`). A helper in a group of its own,
+    which `^Z` does not stop, could take the terminal from the shell right
+    after a relayed stop, or after `bg`, and read what the operator typed
+    at the prompt: row 10's "fixed by the mode itself" was false. The
+    launcher now stacks one more filter, built before its no-allocation
+    section and installed right after its own `tcsetpgrp`, in terminal mode
+    only: `ioctl` with `TIOCSPGRP` (low word, as the baselines compare)
+    answers `EPERM` for the command and every descendant. It cannot join
+    the baselines, which are in force before that call; detached, the
+    command has no controlling terminal and the kernel refuses the request.
+    It is pinned like the baselines: `seccomp-table-terminal-x86_64.txt` and
+    `-aarch64.txt` (the latter written by the bless test in a native arm64
+    Linux container, which rewrote the five existing aarch64 tables and the
+    closed set byte for byte), its digest in the freeze (`terminal`), checked
+    by `portable_freeze.rs`, and unit tests run the program. A failed
+    install refuses the exec. The cost is that there is no job control
+    inside the jail in terminal mode, on any terminal, a pseudo-terminal the
+    agent opens itself included: an interactive shell there runs without
+    it. §3.4's undetected stop of a group the command gave the terminal to
+    no longer arises. K60 adds `TIOCSPGRP` on the terminal and on
+    `/dev/null`, K61's fixture now records `EPERM` for its foreground
+    change, and `k57_no_jailed_group_takes_the_terminal_after_a_relayed_stop`
+    runs the review's scenario (observation on and off).
+23. **A job sent to the background before its release is refused (review
+    finding 2).** The mode is decided once, while resolving. A job stopped
+    during its preparation and continued with `bg` would have the
+    launcher's `tcsetpgrp` take the terminal from the shell at its prompt,
+    and leave it to a dead group at settlement. The supervisor checks that
+    its group still holds the foreground as the last step before the
+    release byte, and otherwise refuses `invalid_fd` before exec, telling
+    the operator to run it in the foreground or pass `--terminal detach`.
+    Waiting for `fg` instead was not chosen: the preparation budget runs
+    while the job sits stopped, and the run cannot turn detached, since its
+    snapshot says attached and its boundary has no new session. The window
+    between that check and the launcher's call stays: a `^Z` and a `bg`
+    typed inside it are not caught.
+24. **A relayed stop discards pending input and resets attributes (review
+    finding 3; §3.4 step 3 restores `termios` only).** A reply the command
+    asked for and did not read reached the shell as typed input, and an
+    attribute it left (concealed text) hid the prompt. When no other job
+    holds the terminal, the relay now also runs §3.6 steps 3 and 4 before
+    the supervisor stops; keys typed before the `^Z` that the command did
+    not read are lost, as at settlement.
+25. **A stop the supervisor asked for is never relayed (review finding
+    4).** Once the supervisor asked the tree to stop (an operator signal,
+    the wall, a hangup, an evidence loss), a stop of the target (its
+    `SIGTERM` handler stopping it, say) was relayed: the supervisor stopped
+    with it and its grace was never acted on until someone continued the
+    job. Now such a stop is answered by the forced stop at once, since a
+    stopped target cannot end within its grace either. The tracer also
+    forgets a group-stop when the target dies, so a stop followed by a kill
+    within one supervision step is not relayed after the target's death.
+26. **A foreground group whose leader is gone is still another job's
+    (review finding 5; amends item 6).** Item 6 read the leader's PID
+    namespace: a pipeline whose first command exited and was reaped (`cat
+    small | less`) has no leader, and was taken as the jail's. The group is
+    now judged by a member found in `/proc`; a group with members none of
+    whose namespaces can be read (another user's processes) counts as
+    another job's, and only a group with no process left is taken.
+27. **Ids a PID namespace cannot name never attach (review finding 6; §3.2
+    conditions 3 and 4).** In a namespace that cannot name the session's
+    leader or the job's group (`unshare -pf ukai-jail …` from an interactive
+    shell) `getsid`, `tcgetsid`, `getpgrp` and `tcgetpgrp` all answer 0, so
+    the equalities held even for a background job, and a supervisor whose
+    own group reads 0 always seemed to hold the terminal. Every id must now
+    be positive; otherwise the run is detached as `stdin is not this
+    session's controlling terminal`. Unit-tested over raw values only.
+28. **The settlement holds the terminal without dying of it; a refusal
+    before release touches nothing (review finding 7; §3.6, §3.7).** From
+    the settlement's take on, the supervisor's group is the terminal's
+    foreground until it exits, so a `^\` or a `^Z` killed or stopped it
+    between the restore and its receipt and release (an unsettled receipt,
+    a state left unreleased or leased). It now ignores `SIGQUIT` and
+    `SIGTSTP` from that point on. And a refusal before the launcher was
+    released, when nothing in the jail could have held or changed the
+    terminal, no longer runs the restore: the operator's type-ahead is
+    kept, a refusal before any boundary records no `applied.terminal`, and
+    one after the boundary keeps the registered record with `restored`
+    null.
+29. **The pre-exec line names the launch profile (found by the interactive
+    Claude Code pilot; §3.7).** Claude Code's native install runs a
+    version-named binary (`~/.local/share/claude/versions/2.1.302`), so the
+    attached line read `^C and ^Z go to 2.1.302 … exit 2.1.302`. A run from
+    a launch profile (`ukai-jail claude …`, `run --launch NAME`) now names
+    the profile, escaped like the rest of the line; any other run keeps
+    argv 0's final component. K64 checks both.

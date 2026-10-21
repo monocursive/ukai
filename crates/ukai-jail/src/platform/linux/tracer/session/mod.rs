@@ -419,6 +419,14 @@ impl Session {
         // can run for a long time without reporting a single one.
         self.prune_retired();
         if libc::WIFEXITED(status) || libc::WIFSIGNALED(status) {
+            // J14 review finding 4: a dead target is no longer stopped; a
+            // stop it was killed in must not be relayed after its death.
+            if let Some((launcher, stopped)) = &self.group_stop
+                && *launcher == pid
+            {
+                let count = stopped.load(Ordering::Acquire) >> 8;
+                stopped.store(count << 8, Ordering::Release);
+            }
             self.handle_death(pid, status);
             return;
         }
@@ -762,6 +770,35 @@ mod tests {
         assert_ne!(state(), 't', "running again");
         child.kill();
         child.reap_into(&mut session);
+    }
+
+    /// J14 review finding 4: a tracee killed while group-stopped is no longer
+    /// reported stopped once its death is handled, so the supervisor never
+    /// relays a stop of a target that is already dead. The count stays.
+    #[test]
+    fn j14_a_tracee_killed_in_a_group_stop_is_not_reported_stopped() {
+        let dir = tempfile::tempdir().unwrap();
+        let (_, c) = target_path(dir.path());
+        let Some(child) = Mkdirer::start(&c) else {
+            return;
+        };
+        let (mut session, _rx) = new_session(TracerConfig::default(), LiveProc, 1024);
+        let stopped = Arc::new(AtomicU64::new(0));
+        session.group_stop = Some((child.pid, Arc::clone(&stopped)));
+        // SAFETY: a signal to this test's own child.
+        assert_eq!(unsafe { libc::kill(child.pid, libc::SIGSTOP) }, 0);
+        for _ in 0..2 {
+            let status = child.wait();
+            session.handle(child.pid, status);
+        }
+        assert_eq!(
+            stopped.load(Ordering::Acquire),
+            1 << 8 | u64::try_from(libc::SIGSTOP).unwrap(),
+            "stopped"
+        );
+        child.kill();
+        child.reap_into(&mut session);
+        assert_eq!(stopped.load(Ordering::Acquire), 1 << 8, "dead, not stopped");
     }
 
     /// The first window: the tracee is killed after the tracer has taken its
