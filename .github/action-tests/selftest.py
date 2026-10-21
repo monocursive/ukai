@@ -29,6 +29,42 @@ HOST_LINE = ("host setup (this runner only): bubblewrap 0.11.1 built from its re
              "binary only · kernel.apparmor_restrict_unprivileged_userns stays 1")
 ROWS = ["K76", "K77", "K78", "K79", "K80", "K81", "K82", "K83", "K84", "K85"]
 IMAGES = ["ubuntu-24.04", "ubuntu-24.04-arm"]
+# The checks each row needs on each image, so one that crashed before it
+# recorded anything is missing, not silently absent: (row, check name
+# fragments, any of which matches, images).
+REQUIRED = [
+    ("K76", ["the checkout's token, and hostile"], IMAGES),
+    ("K76", ["no refusal changed the host"], IMAGES),
+    ("K76", ["allow-checkout-token: true runs"], IMAGES),
+    ("K76", ["ubuntu-22.04 refused"], ["ubuntu-22.04"]),
+    ("K77", ["a tarball whose digest differs refuses before building"], IMAGES),
+    ("K77", ["the installed bwrap's digest"], IMAGES),
+    ("K77", ["the profile is loaded"], IMAGES),
+    ("K77", ["host-setup line matches"], IMAGES),
+    ("K77", ["sysctl the same before and after"], IMAGES),
+    ("K78", ["profile: the credential value is in no artifact file"], IMAGES),
+    ("K78", ["launch: the agent holds a placeholder"], IMAGES),
+    ("K78", ["absent from ukai-jail's own environment"], IMAGES),
+    ("K78", ["positive control: nothing was uploaded"], IMAGES),
+    ("K79", ["summary_check.py recomputes"], IMAGES),
+    ("K79", ["equal `tail --summary`"], IMAGES),
+    ("K80", ["no GITHUB_*"], IMAGES),
+    ("K80", ["are absent"], IMAGES),
+    ("K80", ["docker.sock"], IMAGES),
+    ("K80", ["off the allowlist"], IMAGES),
+    ("K80", ["metadata address is denied"], IMAGES),
+    ("K80", ["nested user namespace"], IMAGES),
+    ("K81", ["a failing command fails the step with its status"], IMAGES),
+    ("K81", ["a refusal fails the step with 125"], IMAGES),
+    ("K81", ["fail-on gaps fails"], IMAGES),
+    ("K82", ["pr-comment: true on", "same-repository pull request: exactly one"], IMAGES),
+    ("K83", ["launch mode equals"], IMAGES),
+    ("K83", ["profile mode runs"], IMAGES),
+    ("K85", ["every `args` line"], IMAGES),
+    ("K85", ["`run` reaches bash -c"], IMAGES),
+    ("K85", ["hostile version"], IMAGES),
+    ("K85", ["no input was evaluated"], IMAGES),
+]
 
 
 def env(name, default=None):
@@ -406,6 +442,12 @@ def cmd_rows():
     if not list(logs.glob("*.log")):
         lines.append({"row": "K78", "job": "rows", "image": "-", "check": "job logs fetched", "status": "fail",
                       "how": "real", "detail": "no log"})
+    for row, fragments, images in REQUIRED:
+        for image in images:
+            if not any(line["row"] == row and line["image"] == image and line["status"] in ("pass", "recorded")
+                       and any(f in line["check"] for f in fragments) for line in lines):
+                lines.append({"row": row, "job": "rows", "image": image, "how": "real", "status": "fail",
+                              "check": f"required check missing or failed: {' / '.join(fragments)}", "detail": ""})
     by_row = {row: [line for line in lines if line["row"] == row] for row in ROWS}
     verdicts = {}
     for row in ROWS:
