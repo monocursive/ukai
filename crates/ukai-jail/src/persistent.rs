@@ -1447,20 +1447,33 @@ pub fn gc_release(
     else {
         return Ok(GcRelease::NotHeld);
     };
-    let Some(mut record) =
-        read_record(&levels.key_dir, &levels.path).map_err(|error| error.message)?
-    else {
-        return Ok(GcRelease::NotHeld);
+    let holds = |levels: &Levels| -> Result<Option<Record>, String> {
+        Ok(read_record(&levels.key_dir, &levels.path)
+            .map_err(|error| error.message)?
+            .filter(|record| record.held_unreleased_by(attempt)))
     };
-    if !record.held_unreleased_by(attempt) {
-        return Ok(GcRelease::NotHeld);
-    }
     if dry_run {
-        return Ok(GcRelease::WouldRelease);
+        return Ok(match holds(&levels)? {
+            Some(_) => GcRelease::WouldRelease,
+            None => GcRelease::NotHeld,
+        });
     }
+    #[cfg(test)]
+    tests::before_gc_lease();
+    // The lease first, then the record written back: a copy read before the
+    // lease may be one another `gc` has released since, and writing it back
+    // would undo that release and every one after it (review: two `gc`
+    // runs).
     let Some(lease) = take_lease(&levels.key_dir, &levels.path).map_err(|error| error.message)?
     else {
-        return Ok(GcRelease::LeaseHeld);
+        // Read without the lease only to say whether anything is left.
+        return Ok(match holds(&levels)? {
+            Some(_) => GcRelease::LeaseHeld,
+            None => GcRelease::NotHeld,
+        });
+    };
+    let Some(mut record) = holds(&levels)? else {
+        return Ok(GcRelease::NotHeld);
     };
     if integrity_lost {
         record.quarantine.get_or_insert_with(|| Quarantine {
@@ -1665,6 +1678,110 @@ pub fn remove(data_dir: &Path, launch: &str, workspace: &Path) -> Result<Removed
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::RefCell;
+
+    thread_local! {
+        /// What [`gc_release`] runs on this thread just before it takes the
+        /// lease: another `gc`, and the attempts after it, in that gap.
+        static BEFORE_GC_LEASE: RefCell<Option<Box<dyn FnOnce()>>> = const { RefCell::new(None) };
+    }
+
+    pub(super) fn before_gc_lease() {
+        if let Some(hook) = BEFORE_GC_LEASE.with(|slot| slot.borrow_mut().take()) {
+            hook();
+        }
+    }
+
+    /// A private data directory and a workspace below it.
+    fn data_and_workspace() -> (tempfile::TempDir, PathBuf, PathBuf) {
+        let root = tempfile::Builder::new()
+            .permissions(std::os::unix::fs::PermissionsExt::from_mode(0o700))
+            .tempdir()
+            .unwrap();
+        let base = root.path().canonicalize().unwrap();
+        let (data, workspace) = (base.join("data"), base.join("workspace"));
+        for dir in [&data, &workspace] {
+            std::fs::create_dir(dir).unwrap();
+            std::fs::set_permissions(dir, std::os::unix::fs::PermissionsExt::from_mode(0o700))
+                .unwrap();
+        }
+        (root, data, workspace)
+    }
+
+    /// K71 (review: two `gc` runs): `gc` writes back only a record it read
+    /// under the lease. A `gc` that read the record, then lost the race for
+    /// the lease to another `gc` that released the state, and to an attempt
+    /// that acquired and released it after, finds nothing to release; before,
+    /// it wrote its stale copy back, undoing both releases.
+    #[test]
+    fn k71_a_gc_never_writes_back_a_record_read_before_the_lease() {
+        let (_root, data, workspace) = data_and_workspace();
+        let request = |attempt: &str| {
+            let request = Request {
+                data_dir: &data,
+                launch: "keeper",
+                workspace: &workspace,
+                attempt,
+            };
+            match acquire(&request).unwrap() {
+                Acquisition::Held(held) => held,
+                Acquisition::Fallback(fallback) => panic!("{fallback:?}"),
+            }
+        };
+        let key = key("keeper", workspace.as_os_str().as_bytes());
+        // The holder died without releasing.
+        let mut held = request("att_dead");
+        hold(&mut held, "att_dead").unwrap();
+        drop(held);
+        let (hook_data, hook_key, hook_workspace) = (data.clone(), key.clone(), workspace.clone());
+        BEFORE_GC_LEASE.with(|slot| {
+            *slot.borrow_mut() = Some(Box::new(move || {
+                let other = gc_release(
+                    &hook_data,
+                    "keeper",
+                    &hook_key,
+                    "att_dead",
+                    &[],
+                    false,
+                    false,
+                );
+                assert!(matches!(other, Ok(GcRelease::Released(_))), "{other:?}");
+                let mut next = match acquire(&Request {
+                    data_dir: &hook_data,
+                    launch: "keeper",
+                    workspace: &hook_workspace,
+                    attempt: "att_next",
+                })
+                .unwrap()
+                {
+                    Acquisition::Held(held) => held,
+                    Acquisition::Fallback(fallback) => panic!("{fallback:?}"),
+                };
+                hold(&mut next, "att_next").unwrap();
+                release(*next, "att_next", &[], &[], Releaser::Gc).unwrap();
+            }));
+        });
+        let late = gc_release(&data, "keeper", &key, "att_dead", &[], false, false);
+        assert_eq!(late, Ok(GcRelease::NotHeld));
+        let levels = open_levels(&data, "keeper", &key, false).unwrap().unwrap();
+        let record = read_record(&levels.key_dir, &levels.path).unwrap().unwrap();
+        assert_eq!(record.generation, 2, "{record:#?}");
+        assert_eq!(
+            record.holder,
+            Some(Holder {
+                attempt: "att_next".to_owned(),
+                released: true
+            })
+        );
+        assert_eq!(
+            record
+                .log
+                .iter()
+                .map(|entry| entry.attempt.as_str())
+                .collect::<Vec<_>>(),
+            ["att_dead", "att_next"]
+        );
+    }
 
     #[test]
     fn the_key_is_the_documented_construction() {
