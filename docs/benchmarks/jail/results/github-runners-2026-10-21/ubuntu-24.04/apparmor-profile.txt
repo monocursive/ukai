@@ -1,0 +1,7 @@
+abi <abi/4.0>,
+include <tunables/global>
+profile ukai-bwrap-spike /usr/local/bin/bwrap flags=(unconfined) {
+  userns,
+}
+load_rc=0
+unload_rc=0

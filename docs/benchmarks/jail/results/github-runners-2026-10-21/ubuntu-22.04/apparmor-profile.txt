@@ -1,0 +1,9 @@
+abi <abi/4.0>,
+include <tunables/global>
+profile ukai-bwrap-spike /usr/local/bin/bwrap flags=(unconfined) {
+  userns,
+}
+AppArmor parser error for /etc/apparmor.d/ukai-bwrap-spike in profile /etc/apparmor.d/ukai-bwrap-spike at line 1: Could not open 'abi/4.0': No such file or directory
+load_rc=1
+AppArmor parser error for /etc/apparmor.d/ukai-bwrap-spike in profile /etc/apparmor.d/ukai-bwrap-spike at line 1: Could not open 'abi/4.0': No such file or directory
+unload_rc=1

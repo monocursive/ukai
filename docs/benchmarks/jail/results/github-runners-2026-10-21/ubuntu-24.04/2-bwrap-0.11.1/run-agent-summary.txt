@@ -1,0 +1,5 @@
+ukai-jail: NOT settled (refused) · survivors: NOT verified · errors: missing_capability
+ukai-jail: workspace: not observed
+ukai-jail: network: not applied
+ukai-jail: evidence: observer not attached · 0/6 classes active · exec, fs.write, fs.deny, net, proxy.net, limits not observed
+ukai-jail: receipt /home/runner/work/_temp/ev/2-bwrap-0.11.1/data/attempts/att_802c9fd3-7f81-47cb-a884-3a72ff77f292/jail.json

@@ -1,0 +1,2 @@
+rc=127
+cat: greeting.txt: No such file or directory

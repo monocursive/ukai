@@ -1,0 +1,114 @@
+# SPIKE (2026-10-21), not for dev: can GitHub-hosted runners run ukai-jail
+# contained? Four variants per image, each recorded: (1) stock, apt's
+# bubblewrap; (2) bubblewrap 0.11.1 built from its pinned release tarball,
+# nothing else changed; (3) that, plus a one-binary AppArmor `userns` profile
+# (the pattern Ubuntu 24.04 ships for other sandboxing apps); (4) that bwrap
+# with kernel.apparmor_restrict_unprivileged_userns=0 on the throwaway runner.
+name: spike-runner-userns
+on:
+  push:
+    branches: [spike/gha-runner-userns]
+permissions:
+  contents: read
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - name: Probe
+        shell: bash
+        env:
+          BWRAP_URL: https://github.com/containers/bubblewrap/releases/download/v0.11.1/bubblewrap-0.11.1.tar.xz
+          BWRAP_SHA256: c1b7455a1283b1295879a46d5f001dfd088c0bb0f238abb5e128b3583a246f71
+        run: |
+          set +e
+          EV=$RUNNER_TEMP/ev; mkdir -p $EV
+          {
+            echo "== uname"; uname -a; echo "== os"; cat /etc/os-release
+            echo "== id"; id; echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"; echo "PATH=$PATH"
+            echo "== sysctl"
+            for k in kernel.apparmor_restrict_unprivileged_userns kernel.apparmor_restrict_unprivileged_unconfined kernel.unprivileged_userns_clone user.max_user_namespaces kernel.yama.ptrace_scope; do sysctl $k 2>&1; done
+            echo "== cgroup"; cat /proc/self/cgroup; stat -fc %T /sys/fs/cgroup; cat /sys/fs/cgroup/cgroup.controllers
+            echo "== systemd user"; systemctl --user is-system-running 2>&1; loginctl show-user "$(id -un)" -p Linger -p State 2>&1
+            echo "== apparmor"; ls /etc/apparmor.d | grep -i -E 'bwrap|userns|unpriv'; sudo aa-status 2>&1 | head -4; apparmor_parser --version 2>&1 | head -1
+            echo "== preinstalled bwrap"; command -v bwrap; bwrap --version 2>&1; dpkg -l bubblewrap 2>&1 | tail -1
+            echo "== unshare -Ur"; unshare -Ur true; echo "unshare_rc=$?"
+            echo "== resources"; nproc; free -m | head -2
+          } > $EV/facts.txt 2>&1
+          cat $EV/facts.txt
+
+          # ukai-jail 0.1.0-rc.4 from the public installer, exactly as published.
+          curl --proto '=https' --tlsv1.2 -fsSL https://ukai.sh/install.sh | bash > $EV/install.txt 2>&1
+          echo "install_rc=$?" >> $EV/install.txt
+          export PATH="$HOME/.local/bin:$PATH"
+          ukai-jail version --json > $EV/version.json 2>&1
+
+          check() {
+            local L=$1 D=$EV/$1
+            mkdir -p $D
+            export UKAI_CONFIG_DIR=$D/config UKAI_DATA_DIR=$D/data
+            { command -v bwrap; bwrap --version; } > $D/bwrap.txt 2>&1
+            bwrap --unshare-user --unshare-pid --ro-bind / / --proc /proc --dev /dev true > $D/bwrap-probe.txt 2>&1
+            echo "rc=$?" >> $D/bwrap-probe.txt
+            for p in tool agent; do
+              ukai-jail doctor --profile $p --json > $D/doctor-$p.json 2> $D/doctor-$p.err
+              ukai-jail doctor --profile $p > $D/doctor-$p.txt 2>&1
+            done
+            local W; W=$(mktemp -d "$RUNNER_TEMP/ws.XXXXXX")
+            (cd $W && ukai-jail run --profile tool --workspace $W --limit wall=30s -- /bin/sh -c 'printf "hello from the jail\n" > greeting.txt' > $D/run-tool.out 2> $D/run-tool.err; echo "rc=$?" >> $D/run-tool.out; cat greeting.txt >> $D/run-tool.out 2>&1; ukai-jail tail --summary > $D/run-tool-summary.txt 2>&1)
+            (cd $W && ukai-jail run --profile agent --workspace $W --allow-host api.github.com --limit wall=60s -- curl -sS -o /dev/null -w 'http %{http_code}\n' https://api.github.com/zen > $D/run-agent.out 2> $D/run-agent.err; echo "rc=$?" >> $D/run-agent.out; ukai-jail tail --summary > $D/run-agent-summary.txt 2>&1)
+            cp $D/data/attempts/*/jail.json $D/ 2>/dev/null
+            for f in $D/data/attempts/*/jail.json; do [ -f "$f" ] && cp "$f" "$D/$(basename $(dirname $f)).jail.json"; done
+            rm -rf $D/data $W
+            local tr ar
+            tr=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("ready"))' $D/doctor-tool.json 2>/dev/null)
+            ar=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("ready"))' $D/doctor-agent.json 2>/dev/null)
+            echo "| ${{ matrix.os }} | $L | $(bwrap --version 2>&1 | head -1) | $(tail -1 $D/bwrap-probe.txt) | $tr | $ar | $(grep '^rc=' $D/run-tool.out) | $(grep -E '^(http|rc=)' $D/run-agent.out | tr '\n' ' ') |" >> $EV/table.md
+          }
+
+          echo "| runner | variant | bwrap | bwrap probe | doctor tool ready | doctor agent ready | tool run | agent run |" > $EV/table.md
+          echo "|---|---|---|---|---|---|---|---|" >> $EV/table.md
+
+          # (1) stock: the distribution's bubblewrap.
+          sudo apt-get update -qq > /dev/null 2>&1
+          sudo apt-get install -y -qq bubblewrap > $EV/apt-bubblewrap.txt 2>&1
+          check 1-stock
+
+          # (2) bubblewrap 0.11.1 from its pinned release tarball, in /usr/local/bin.
+          sudo apt-get install -y -qq meson ninja-build libcap-dev pkg-config gcc > $EV/apt-build.txt 2>&1
+          cd $RUNNER_TEMP && curl -fsSL -o bwrap.tar.xz "$BWRAP_URL" && echo "$BWRAP_SHA256  bwrap.tar.xz" | sha256sum -c - > $EV/bwrap-tarball.txt 2>&1 \
+            && tar -xJf bwrap.tar.xz && cd bubblewrap-0.11.1 \
+            && meson setup build --prefix=/usr/local -Dman=disabled -Dselinux=disabled -Dtests=false -Dbash_completion=disabled -Dzsh_completion=disabled > $EV/bwrap-build.txt 2>&1 \
+            && ninja -C build >> $EV/bwrap-build.txt 2>&1 && sudo ninja -C build install >> $EV/bwrap-build.txt 2>&1
+          echo "build_rc=$?" >> $EV/bwrap-build.txt
+          cd $GITHUB_WORKSPACE 2>/dev/null || cd $RUNNER_TEMP
+          export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+          hash -r
+          check 2-bwrap-0.11.1
+
+          # (3) plus a one-binary AppArmor userns profile for /usr/local/bin/bwrap.
+          if command -v apparmor_parser > /dev/null; then
+            printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile ukai-bwrap-spike /usr/local/bin/bwrap flags=(unconfined) {\n  userns,\n}\n' | sudo tee /etc/apparmor.d/ukai-bwrap-spike > $EV/apparmor-profile.txt
+            sudo apparmor_parser -r /etc/apparmor.d/ukai-bwrap-spike >> $EV/apparmor-profile.txt 2>&1; echo "load_rc=$?" >> $EV/apparmor-profile.txt
+            check 3-bwrap-0.11.1+apparmor-profile
+            sudo apparmor_parser -R /etc/apparmor.d/ukai-bwrap-spike >> $EV/apparmor-profile.txt 2>&1; echo "unload_rc=$?" >> $EV/apparmor-profile.txt
+          fi
+
+          # (4) the restriction off, on this throwaway runner only.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 > $EV/sysctl.txt 2>&1
+          check 4-bwrap-0.11.1+sysctl0
+
+          cat $EV/table.md
+          cat $EV/table.md >> "$GITHUB_STEP_SUMMARY"
+          for d in $EV/[0-9]*; do echo "== $d"; cat $d/doctor-tool.txt | grep -v -E '^(schema|  )' | head -40; cat $d/run-tool.err | tail -5; cat $d/run-agent.err | tail -5; done
+          exit 0
+      - name: Evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: runner-userns-${{ matrix.os }}
+          path: ${{ runner.temp }}/ev

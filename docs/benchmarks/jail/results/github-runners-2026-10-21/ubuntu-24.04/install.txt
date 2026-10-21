@@ -1,0 +1,23 @@
+ukai-jail 0.1.0
+platform linux x86_64 (Linux 6.17.0-1022-azure)
+closed set linux-closed-v1
+schema receipt ukai.jail.receipt/1
+schema event ukai.event/1
+schema policy ukai.jail.policy/1
+schema policy_snapshot ukai.jail.policy-snapshot/1
+schema policy_file ukai.jail.policy-file/1
+schema gate ukai.jail.gate/1
+schema control ukai.jail.control/1
+schema network ukai.jail.network/1
+schema learned_policy ukai.jail.learned-policy/1
+schema doctor ukai.jail.doctor/1
+schema summary ukai.jail.summary/1
+schemas frozen (milestone 1)
+build rustc 1.98.1 (48a229cea 2026-09-01)
+build target x86_64-unknown-linux-gnu opt-level 3 debug-assertions false
+build revision eb9b67b1853827624b75e6a1cd3aa76352f7f3ee dirty false
+build inputs sha256:893f85686e76cffeeb87f57c33ba27fe16685524d73676ec7b72c937e7c20d03
+Installed release 0.1.0-rc.4 in /home/runner/.local/bin. Add that directory to PATH if needed.
+
+Check host support: /home/runner/.local/bin/ukai-jail doctor --profile tool
+install_rc=0

@@ -1,0 +1,48 @@
+== uname
+Linux runnervm958j6 6.8.0-1070-azure #78~22.04.1-Ubuntu SMP Thu Sep 24 18:46:45 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+== os
+PRETTY_NAME="Ubuntu 22.04.5 LTS"
+NAME="Ubuntu"
+VERSION_ID="22.04"
+VERSION="22.04.5 LTS (Jammy Jellyfish)"
+VERSION_CODENAME=jammy
+ID=ubuntu
+ID_LIKE=debian
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+UBUNTU_CODENAME=jammy
+== id
+uid=1001(runner) gid=1001(runner) groups=1001(runner),4(adm),100(users),101(systemd-journal),127(docker)
+XDG_RUNTIME_DIR=/run/user/1001
+PATH=/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+== sysctl
+kernel.apparmor_restrict_unprivileged_userns = 0
+kernel.apparmor_restrict_unprivileged_unconfined = 0
+kernel.unprivileged_userns_clone = 1
+user.max_user_namespaces = 63848
+kernel.yama.ptrace_scope = 1
+== cgroup
+0::/system.slice/hosted-compute-agent.service
+cgroup2fs
+cpuset cpu io memory hugetlb pids rdma misc
+== systemd user
+running
+State=lingering
+Linger=yes
+== apparmor
+apparmor module is loaded.
+41 profiles are loaded.
+41 profiles are in enforce mode.
+   /snap/snapd/28254/usr/lib/snapd/snap-confine
+AppArmor parser version 3.0.4
+== preinstalled bwrap
+/home/runner/work/_temp/51a51fcb-80b1-42c5-bfae-a194e00440d8.sh: line 11: bwrap: command not found
+dpkg-query: no packages found matching bubblewrap
+== unshare -Ur
+unshare_rc=0
+== resources
+4
+               total        used        free      shared  buff/cache   available
+Mem:           15988        1195       12047          40        2745       14433

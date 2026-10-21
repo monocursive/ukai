@@ -1,0 +1,340 @@
+{
+  "schema": "ukai.jail.receipt/1",
+  "attempt_id": "att_8922b03b-618c-4e28-99a4-dff3806b43cb",
+  "revision": 3,
+  "phase": "settled",
+  "platform": {
+    "os": "linux",
+    "arch": "x86_64",
+    "kernel": "Linux 6.17.0-1022-azure"
+  },
+  "jail": {
+    "component": "ukai-jail",
+    "version": "0.1.0",
+    "backend": "bubblewrap",
+    "backend_version": "bubblewrap 0.11.1"
+  },
+  "policy": {
+    "name": "tool",
+    "digest": "sha256:44c408d7bcedc428bab5a2f500ac72806edd625203667abb9cacece3415a715c",
+    "observe": "on",
+    "evidence": "strict",
+    "requirements": [
+      "tree_termination",
+      "closed_set_observation",
+      "filesystem_containment",
+      "syscall_filter",
+      "network_none",
+      "protected_coverage:existing_and_root",
+      "limit:wall"
+    ],
+    "grants": []
+  },
+  "containment": "enforced",
+  "child_protection": "enforced",
+  "exec_observed": true,
+  "argv_digest": "sha256:7a67f9b395fca6ca9e2683eed40554dbf406437c5859fd6db47496204658dda2",
+  "applied": {
+    "filesystem": {
+      "mechanism": "bubblewrap-binds",
+      "protected_coverage": "existing_and_root",
+      "mounts": [
+        {
+          "path": "/",
+          "mode": "ro"
+        },
+        {
+          "path": "/usr",
+          "mode": "ro"
+        },
+        {
+          "path": "/etc/ssl",
+          "mode": "ro"
+        },
+        {
+          "path": "/etc/resolv.conf",
+          "mode": "ro"
+        },
+        {
+          "path": "/etc/passwd",
+          "mode": "ro"
+        },
+        {
+          "path": "/etc/group",
+          "mode": "ro"
+        },
+        {
+          "path": "/etc/hosts",
+          "mode": "ro"
+        },
+        {
+          "path": "/etc/localtime",
+          "mode": "ro"
+        },
+        {
+          "path": "/etc/ld.so.cache",
+          "mode": "ro"
+        },
+        {
+          "path": "/proc",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev/null",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev/zero",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev/full",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev/random",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev/urandom",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev/tty",
+          "mode": "rw"
+        },
+        {
+          "path": "/dev/pts",
+          "mode": "rw"
+        },
+        {
+          "path": "/tmp",
+          "mode": "rw"
+        },
+        {
+          "path": "/home/runner/work/_temp/ws.QHUjpN",
+          "mode": "rw"
+        },
+        {
+          "path": "/tmp/.git",
+          "mode": "ro"
+        },
+        {
+          "path": "/tmp/.ukai",
+          "mode": "ro"
+        },
+        {
+          "path": "/home/runner/work/_temp/ws.QHUjpN/.git",
+          "mode": "ro"
+        },
+        {
+          "path": "/home/runner/work/_temp/ws.QHUjpN/.ukai",
+          "mode": "ro"
+        },
+        {
+          "path": "/run/ukai/jail",
+          "mode": "ro"
+        }
+      ]
+    },
+    "network": {
+      "mode": "none",
+      "mechanism": "network-namespace",
+      "allowed_hosts": []
+    },
+    "syscalls": {
+      "mechanism": "seccomp-bpf",
+      "digest": "sha256:429ecde5e5c3f1330ae57919180ae4238effed3c7c245778eb50ec87421184fc"
+    },
+    "limits": [
+      {
+        "key": "wall",
+        "requested": "30000",
+        "required": true,
+        "applied": true,
+        "mechanism": "boottime-deadline",
+        "scope": "tree",
+        "hit": false
+      },
+      {
+        "key": "pids",
+        "requested": "256",
+        "required": false,
+        "applied": true,
+        "mechanism": "pids.max",
+        "scope": "tree",
+        "hit": false
+      }
+    ],
+    "environment_names": [
+      "LANG",
+      "PATH",
+      "PWD",
+      "TMPDIR"
+    ],
+    "removed_environment_names": []
+  },
+  "observer": {
+    "backend": "ptrace",
+    "set": "linux-closed-v1",
+    "attached": true,
+    "sources": {
+      "wrapper": "active",
+      "audit": "active",
+      "proxy": "unsupported"
+    },
+    "gaps": []
+  },
+  "coverage": {
+    "exec": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 2,
+      "gaps": []
+    },
+    "fs.write": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 1,
+      "gaps": []
+    },
+    "fs.deny": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 0,
+      "gaps": []
+    },
+    "net": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 0,
+      "gaps": []
+    },
+    "limits": {
+      "status": "active",
+      "sources": [
+        "wrapper"
+      ],
+      "observed_count": 0,
+      "gaps": []
+    },
+    "proxy.net": {
+      "status": "unsupported",
+      "sources": [],
+      "observed_count": null,
+      "gaps": []
+    }
+  },
+  "process": {
+    "pid": 3692,
+    "identity": {
+      "kind": "linux_boot_start",
+      "value": {
+        "boot_id": "7558f6e6-9dc0-46cc-a747-ed6c44e49c8a",
+        "pid": 3692,
+        "start_time_ticks": 4546
+      }
+    }
+  },
+  "lifetime": {
+    "boundary": "pid_namespace",
+    "native": {
+      "os": "linux",
+      "details": {
+        "backend_exec_by": "descriptor",
+        "bootstrap_spawn": {
+          "mechanism": "clone3_into_cgroup"
+        },
+        "bwrap_pid": 3689,
+        "cgroup_namespace": 4026532276,
+        "command_rules": {
+          "deny": 0,
+          "forbid": 0
+        },
+        "execution_cgroup": {
+          "charged_helpers": [
+            {
+              "pid": 3689,
+              "role": "bubblewrap"
+            },
+            {
+              "pid": 3691,
+              "role": "namespace_init"
+            }
+          ],
+          "device": 30,
+          "inode": 10971,
+          "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_8922b03b-618c-4e28-99a4-dff3806b43cb.leaf",
+          "scope": "target_descendants_and_listed_helpers"
+        },
+        "filtered_readonly_opens": 0,
+        "launcher_pid": 3692,
+        "mnt_namespace": 4026532270,
+        "namespace_init_pid": 3691,
+        "narrowing_filter_digest": "sha256:757f0b370264a99ee411f18be75e1c69b28366d75515ccbc94e3b086042d7181",
+        "narrowing_filter_digest_installed": "sha256:720508a4aec0e00baed7515ab2c85e753d36fec08915e218629018585508923d",
+        "net_namespace": 4026532278,
+        "observer_plan": {
+          "backend": "ptrace",
+          "event_bytes_max": 65536,
+          "in_flight_max": 16384,
+          "kernel_ring_bytes": null,
+          "path_snapshot_max": 4096,
+          "queue_bytes_max": 4194304,
+          "queue_events_max": 16384,
+          "queue_lifecycle_reserve_bytes": 65536,
+          "queue_result_bytes_max": 4128768,
+          "test_seams": {}
+        },
+        "path_anchors_unverified": 0,
+        "path_claims_unverified": 0,
+        "pid_namespace": 4026532275,
+        "readonly_open_fast_path": true,
+        "requested_by_other_filters": 0,
+        "resolv_sanitization": "nameservers_only",
+        "seccomp_filters": {
+          "expected": 2,
+          "observed": 2
+        },
+        "supervisor_scope": {
+          "cgroup": "/user.slice/user-1001.slice/user@1001.service/app.slice/ukai-jail-3678-1c8be7a2f3e7437e.scope",
+          "reason": null,
+          "reason_code": null,
+          "state": "entered",
+          "unit": "ukai-jail-3678-1c8be7a2f3e7437e.scope"
+        },
+        "user_namespace": 4026532338,
+        "watcher_pid": 3690
+      }
+    },
+    "tree_empty": true,
+    "verified_at": "2026-10-21T19:00:59Z",
+    "verification_scope": "attempt_tree",
+    "integrity": "verified"
+  },
+  "outcome": {
+    "kind": "exited",
+    "code": 0,
+    "signal": null,
+    "cause": null,
+    "error": null
+  },
+  "state_cleanup": "complete",
+  "cleanup_error": null,
+  "created_at": "2026-10-21T19:00:59Z",
+  "updated_at": "2026-10-21T19:00:59Z",
+  "errors": [],
+  "credentials": []
+}

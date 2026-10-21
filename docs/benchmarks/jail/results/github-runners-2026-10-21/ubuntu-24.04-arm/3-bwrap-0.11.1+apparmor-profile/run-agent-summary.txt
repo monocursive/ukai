@@ -1,0 +1,5 @@
+ukai-jail: settled · exited 0 · 149ms exec→settled · survivors: none (verified)
+ukai-jail: workspace: 0 paths opened for writing
+ukai-jail: network: allowed api.github.com:443 (1)
+ukai-jail: evidence: 6/6 classes active, no gaps · reads and file contents are not observed
+ukai-jail: receipt /home/runner/work/_temp/ev/3-bwrap-0.11.1+apparmor-profile/data/attempts/att_4607116e-44d1-4bed-9f33-04e71d7718a7/jail.json

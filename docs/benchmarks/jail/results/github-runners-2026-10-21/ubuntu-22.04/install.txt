@@ -1,0 +1,2 @@
+ukai installer: glibc 2.35 is too old; this preview requires glibc 2.39 or newer
+install_rc=1

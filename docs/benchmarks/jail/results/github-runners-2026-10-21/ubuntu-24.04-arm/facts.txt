@@ -1,0 +1,52 @@
+== uname
+Linux runnervm05w4h 7.0.0-1017-azure #17~24.04.1-Ubuntu SMP PREEMPT Thu Sep 24 19:06:39 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+== os
+PRETTY_NAME="Ubuntu 24.04.5 LTS"
+NAME="Ubuntu"
+VERSION_ID="24.04"
+VERSION="24.04.5 LTS (Noble Numbat)"
+VERSION_CODENAME=noble
+ID=ubuntu
+ID_LIKE=debian
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+UBUNTU_CODENAME=noble
+LOGO=ubuntu-logo
+== id
+uid=1001(runner) gid=1001(runner) groups=1001(runner),4(adm),100(users),118(docker),999(systemd-journal)
+XDG_RUNTIME_DIR=/run/user/1001
+PATH=/snap/bin:/home/runner/.local/bin:/opt/pipx_bin:/home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/home/runner/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+== sysctl
+kernel.apparmor_restrict_unprivileged_userns = 1
+kernel.apparmor_restrict_unprivileged_unconfined = 0
+kernel.unprivileged_userns_clone = 1
+user.max_user_namespaces = 58304
+kernel.yama.ptrace_scope = 1
+== cgroup
+0::/system.slice/hosted-compute-agent.service
+cgroup2fs
+cpuset cpu io memory hugetlb pids rdma misc dmem
+== systemd user
+running
+State=lingering
+Linger=yes
+== apparmor
+lxc-usernsexec
+unprivileged_userns
+apparmor module is loaded.
+122 profiles are loaded.
+28 profiles are in enforce mode.
+   /usr/bin/man
+AppArmor parser version 4.0.1
+== preinstalled bwrap
+/home/runner/work/_temp/738d277f-1662-4e75-accc-02d592ac0f0b.sh: line 11: bwrap: command not found
+dpkg-query: no packages found matching bubblewrap
+== unshare -Ur
+unshare: write failed /proc/self/uid_map: Operation not permitted
+unshare_rc=1
+== resources
+4
+               total        used        free      shared  buff/cache   available
+Mem:           15941        1050       13939          39        1221       14891

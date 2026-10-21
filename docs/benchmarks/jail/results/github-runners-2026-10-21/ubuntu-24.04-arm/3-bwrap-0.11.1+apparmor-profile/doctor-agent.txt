@@ -1,0 +1,34 @@
+platform linux aarch64 (Linux 7.0.0-1017-azure)
+capability tree_termination available scope=tree reason=ok
+capability closed_set_observation available scope=tree reason=ok
+capability filesystem_containment available scope=tree reason=ok
+capability syscall_filter available scope=process reason=ok
+capability network_proxy available scope=tree reason=ok
+capability protected_coverage:existing_and_root available scope=tree reason=ok
+capability limit:wall available scope=tree reason=ok
+capability bwrap_present available scope=host reason=ok
+capability user_namespace available scope=host reason=ok
+capability pid_namespace available scope=host reason=ok
+capability network_namespace available scope=host reason=ok
+capability mount_readonly_bind available scope=host reason=ok
+capability seccomp_filter_load available scope=host reason=ok
+capability ptrace_seize_descendant available scope=host reason=ok
+capability observer_closed_set available scope=host reason=ok
+capability supervisor_scope available scope=host reason=entered
+capability cgroup_delegated_leaf available scope=host reason=ok
+capability cgroup_pids available scope=host reason=ok
+capability cgroup_memory available scope=host reason=ok
+capability cgroup_swap available scope=host reason=ok
+capability cgroup_cpu available scope=host reason=ok
+capability storage_ceiling unavailable scope=host reason=no_user_hard_quota
+capability apparmor_userns_restriction available scope=host reason=restriction_on
+capability nested_user_namespace available scope=host reason=ok
+capability seccomp_user_notification available scope=host reason=ok
+capability unix_socket_diagnostics available scope=host reason=ok
+capability agent_proxy_bridge available scope=host reason=ok
+capability agent_unix_peer_mediation available scope=host reason=ok
+capability agent_inner_sandbox unavailable scope=host reason=inner_sandbox_unproven
+capability gpu_passthrough unavailable scope=host reason=no_nvidia_devices
+terminal detached (stdin is not a terminal)
+terminal legacy_tiocsti=0: the kernel refuses TIOCSTI as well as the filter
+ready true

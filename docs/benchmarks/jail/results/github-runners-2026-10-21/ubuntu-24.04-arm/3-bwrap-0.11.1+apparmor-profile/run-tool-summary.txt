@@ -1,0 +1,5 @@
+ukai-jail: settled · exited 0 · 20ms exec→settled · survivors: none (verified)
+ukai-jail: workspace: 1 path opened for writing
+ukai-jail: network: none
+ukai-jail: evidence: 5/6 classes active · proxy.net not observed · reads and file contents are not observed
+ukai-jail: receipt /home/runner/work/_temp/ev/3-bwrap-0.11.1+apparmor-profile/data/attempts/att_0b23852f-be1d-4f3d-b0c6-976aa82cb8ee/jail.json

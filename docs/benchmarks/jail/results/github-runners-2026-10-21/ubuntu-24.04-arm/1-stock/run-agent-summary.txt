@@ -1,0 +1,5 @@
+ukai-jail: NOT settled (refused) · survivors: NOT verified · errors: missing_capability
+ukai-jail: workspace: not observed
+ukai-jail: network: not applied
+ukai-jail: evidence: observer not attached · 0/6 classes active · exec, fs.write, fs.deny, net, proxy.net, limits not observed
+ukai-jail: receipt /home/runner/work/_temp/ev/1-stock/data/attempts/att_0be89002-4d3d-4e7c-8077-83ed065ba38d/jail.json

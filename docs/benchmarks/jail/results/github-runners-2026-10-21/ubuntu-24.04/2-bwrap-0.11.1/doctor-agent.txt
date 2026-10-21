@@ -1,0 +1,34 @@
+platform linux x86_64 (Linux 6.17.0-1022-azure)
+capability tree_termination error scope=tree reason=probe_failed
+capability closed_set_observation available scope=tree reason=ok
+capability filesystem_containment error scope=tree reason=probe_failed
+capability syscall_filter unavailable scope=process reason=filter_not_enforced
+capability network_proxy error scope=tree reason=probe_failed
+capability protected_coverage:existing_and_root error scope=tree reason=probe_failed
+capability limit:wall available scope=tree reason=ok
+capability bwrap_present available scope=host reason=ok
+capability user_namespace error scope=host reason=probe_failed
+capability pid_namespace error scope=host reason=probe_failed
+capability network_namespace error scope=host reason=probe_failed
+capability mount_readonly_bind error scope=host reason=probe_failed
+capability seccomp_filter_load unavailable scope=host reason=filter_not_enforced
+capability ptrace_seize_descendant available scope=host reason=ok
+capability observer_closed_set available scope=host reason=ok
+capability supervisor_scope available scope=host reason=entered
+capability cgroup_delegated_leaf available scope=host reason=ok
+capability cgroup_pids available scope=host reason=ok
+capability cgroup_memory available scope=host reason=ok
+capability cgroup_swap available scope=host reason=ok
+capability cgroup_cpu available scope=host reason=ok
+capability storage_ceiling unavailable scope=host reason=no_user_hard_quota
+capability apparmor_userns_restriction available scope=host reason=restriction_on
+capability nested_user_namespace unavailable scope=host reason=nested_sandbox_denied
+capability seccomp_user_notification available scope=host reason=ok
+capability unix_socket_diagnostics available scope=host reason=ok
+capability agent_proxy_bridge error scope=host reason=probe_failed
+capability agent_unix_peer_mediation error scope=host reason=probe_failed
+capability agent_inner_sandbox error scope=host reason=probe_failed
+capability gpu_passthrough unavailable scope=host reason=no_nvidia_devices
+terminal detached (stdin is not a terminal)
+terminal legacy_tiocsti=0: the kernel refuses TIOCSTI as well as the filter
+ready false

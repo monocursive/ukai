@@ -1,0 +1,64 @@
+The Meson build system
+Version: 1.3.2
+Source dir: /home/runner/work/_temp/bubblewrap-0.11.1
+Build dir: /home/runner/work/_temp/bubblewrap-0.11.1/build
+Build type: native build
+Project name: bubblewrap
+Project version: 0.11.1
+C compiler for the host machine: cc (gcc 13.3.0 "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0")
+C linker for the host machine: cc ld.bfd 2.42
+Host machine cpu family: x86_64
+Host machine cpu: x86_64
+Compiler for C supports arguments -Werror=shadow: YES 
+Compiler for C supports arguments -Werror=empty-body: YES 
+Compiler for C supports arguments -Werror=strict-prototypes: YES 
+Compiler for C supports arguments -Werror=missing-prototypes: YES 
+Compiler for C supports arguments -Werror=implicit-function-declaration: YES 
+Compiler for C supports arguments -Werror=pointer-arith: YES 
+Compiler for C supports arguments -Werror=init-self: YES 
+Compiler for C supports arguments -Werror=missing-declarations: YES 
+Compiler for C supports arguments -Werror=return-type: YES 
+Compiler for C supports arguments -Werror=overflow: YES 
+Compiler for C supports arguments -Werror=int-conversion: YES 
+Compiler for C supports arguments -Werror=parenthesis: NO 
+Compiler for C supports arguments -Werror=incompatible-pointer-types: YES 
+Compiler for C supports arguments -Werror=misleading-indentation: YES 
+Compiler for C supports arguments -Werror=missing-include-dirs: YES 
+Compiler for C supports arguments -Werror=aggregate-return: YES 
+Compiler for C supports arguments -Werror=switch-default: YES 
+Compiler for C supports arguments -Wswitch-enum: YES 
+Compiler for C supports arguments -Wno-missing-field-initializers: YES 
+Compiler for C supports arguments -Wno-error=missing-field-initializers: YES 
+Compiler for C supports arguments -Werror=format=2: YES 
+Compiler for C supports arguments -Werror=format-security: YES 
+Compiler for C supports arguments -Werror=format-nonliteral: YES 
+Program bash found: YES (/usr/bin/bash)
+Program python3 found: YES (/usr/bin/python3)
+Found pkg-config: YES (/usr/bin/pkg-config) 1.8.1
+Run-time dependency libcap found: YES 2.66
+Dependency libselinux skipped: feature selinux disabled
+Configuring config.h using configuration
+Program xsltproc skipped: feature man disabled
+Build targets in project: 1
+
+bubblewrap 0.11.1
+
+  User defined options
+    prefix         : /usr/local
+    bash_completion: disabled
+    man            : disabled
+    selinux        : disabled
+    tests          : false
+    zsh_completion : disabled
+
+Found ninja-1.13.2 at /usr/local/bin/ninja
+ninja: Entering directory `build'
+[1/5] Compiling C object bwrap.p/bind-mount.c.o
+[2/5] Compiling C object bwrap.p/network.c.o
+[3/5] Compiling C object bwrap.p/utils.c.o
+[4/5] Compiling C object bwrap.p/bubblewrap.c.o
+[5/5] Linking target bwrap
+ninja: Entering directory `build'
+[0/1] Installing files.
+Installing bwrap to /usr/local/bin
+build_rc=0
