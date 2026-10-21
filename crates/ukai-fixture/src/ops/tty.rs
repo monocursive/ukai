@@ -634,6 +634,10 @@ fn job_shell(
                 libc::signal(signal, libc::SIG_DFL);
             }
             libc::sigprocmask(libc::SIG_SETMASK, &raw const blocked, std::ptr::null_mut());
+            // The shell's own descriptors go first: the gate may be placed
+            // at the number one of them had.
+            libc::close(control_fd);
+            libc::close(status_fd);
             if let Some(path) = &stdin_path {
                 let fd = libc::open(path.as_ptr(), libc::O_RDWR | libc::O_NOCTTY);
                 if fd < 0 {
@@ -651,8 +655,6 @@ fn job_shell(
                 libc::close(pipe[0]);
                 libc::close(pipe[1]);
             }
-            libc::close(control_fd);
-            libc::close(status_fd);
             libc::execv(argv_ptrs[0], argv_ptrs.as_ptr());
             libc::_exit(127);
         }
