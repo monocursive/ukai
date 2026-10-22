@@ -24,6 +24,8 @@
 //!    launcher's `blocked` report on E (the 8-byte `errno = 0, detail = 0`
 //!    sentinel of `macos::launcher`) then lets the supervisor send
 //!    `launcher-token` on A and wait for `token-seen` on B (§4.3 step 5).
+//!    S then registers both custodians and its expected root, and replays
+//!    every retained handshake event once, in delivery order.
 //! 5. Release (§4.3 step 6): `release-deadline` on A (continuous-clock
 //!    nanoseconds), then one release byte on R.
 //! 6. Exec (step 7): the launcher's `NOTIFY_EXEC` on S confirms it and its
@@ -39,10 +41,11 @@
 //! The two custodians signal the same identities, which is harmless. The
 //! supervisor settles from its own drain, or from the guardian's `record`
 //! frame on B within the budget; `tree_empty = true` needs one custodian
-//! that drained (empty table, contiguous stream, no user change). A guardian
+//! that drained (root observed, empty table, contiguous stream, no user
+//! change). A guardian
 //! that dies before the stop is recorded and the run continues from S alone
 //! (`tree_empty` stays possible from S); a guardian that stalls at the stop
-//! is ended by process group after the drain and recorded as stalled.
+//! is ended only while its direct-child PID is still owned, then reaped.
 //!
 //! # Live custody rows
 //!
@@ -62,11 +65,14 @@ use std::time::{Duration, Instant, SystemTime};
 use crate::lifecycle::Integrity;
 use crate::platform::macos::bridge::{self, BridgeConfig};
 use crate::platform::macos::custody::{
-    AUDIT_TOKEN_PID, AUDIT_TOKEN_PIDVERSION, Custodian, StopResult,
+    AUDIT_TOKEN_PID, AUDIT_TOKEN_PIDVERSION, Custodian, Signaller, StopResult,
 };
 use crate::platform::macos::custody_io::{self, EsNewResult, EsSignaller, Token};
 use crate::platform::macos::es::{self, CustodyClient, EsEvent};
-use crate::platform::macos::guardian::frames::{encode_launcher_token, encode_release_deadline};
+use crate::platform::macos::guardian::frames::{
+    MAX_FRAME_BYTES, NO_DEADLINE, encode_launcher_token, encode_release_deadline,
+    encode_release_without_deadline,
+};
 use crate::platform::macos::guardian::launch_block::{self, FdAction, LaunchBlock};
 use crate::platform::macos::guardian::record;
 use crate::platform::macos::guardian::rlimit::NPROC_HEADROOM;
@@ -77,9 +83,9 @@ use crate::platform::{
     ReleaseFailure, RunEvent, Sinks, StopReason, Teardown, TreeObservation, VerificationScope,
 };
 use crate::records::{
-    Applied, AppliedFilesystem, AppliedMount, AppliedNetwork, AppliedTerminal, ErrorCode,
-    ErrorStage, JailError, NativeLifetime, NativeString, Os, ProcessIdentity, ProcessRecord,
-    Remediation,
+    Applied, AppliedFilesystem, AppliedLimit, AppliedMount, AppliedNetwork, AppliedTerminal,
+    ErrorCode, ErrorStage, JailError, NativeLifetime, NativeString, Os, ProcessIdentity,
+    ProcessRecord, Remediation,
 };
 
 /// The stop budget, initial 5 s from the stop's start, as Linux's §9.3.
@@ -93,8 +99,6 @@ const STOP_GRACE_NS: u64 = 2_000_000_000;
 const GUARDIAN_TAIL: Duration = Duration::from_secs(60);
 /// One bounded-wait slice, in milliseconds.
 const TICK_MS: u32 = 20;
-// I1 wire bound; CUSTODY exports the shared constant during integration.
-const MAX_FRAME_LEN: usize = 4096;
 
 // ---------------------------------------------------------------------------
 // Refusals
@@ -770,12 +774,16 @@ fn build_applied(
         }),
         network: AppliedNetwork {
             mode: snapshot.network.mode.as_str().to_owned(),
-            mechanism: bridge.map(|_| "loopback_bridge".to_owned()),
+            mechanism: Some(if bridge.is_some() {
+                "loopback_bridge".to_owned()
+            } else {
+                "seatbelt-deny-network".to_owned()
+            }),
             allowed_hosts: snapshot.network.allow.clone(),
             tls_only: snapshot.network.tls_only.clone(),
         },
         syscalls: None,
-        limits: Vec::new(),
+        limits: limit_rows(&snapshot.limits),
         environment_names,
         removed_environment_names: Vec::new(),
         terminal: terminal.then(|| AppliedTerminal {
@@ -786,6 +794,28 @@ fn build_applied(
             restored: None,
         }),
     }
+}
+
+/// Preserve every requested ceiling, including preferred limits this tier
+/// cannot enforce. Only the wall is applied; headroom rlimits are not policy
+/// tree ceilings and must never be reported as such.
+fn limit_rows(limits: &crate::policy::LimitsSnapshot) -> Vec<AppliedLimit> {
+    crate::policy::LimitKey::ALL
+        .into_iter()
+        .filter_map(|key| {
+            let ceiling = limits.get(key)?;
+            let applied = key == crate::policy::LimitKey::Wall;
+            Some(AppliedLimit {
+                key: key.as_str().to_owned(),
+                requested: ceiling.value.clone(),
+                required: ceiling.required,
+                applied,
+                mechanism: applied.then(|| "both-custodians-continuous-clock".to_owned()),
+                scope: applied.then(|| "tree".to_owned()),
+                hit: applied.then_some(false),
+            })
+        })
+        .collect()
 }
 
 /// The audit-token identity's fields (§4.8): the pid and pid version ride in
@@ -854,8 +884,7 @@ impl BReader {
                 self.buffer[2],
                 self.buffer[3],
             ]) as usize;
-            // I1: synchronize with guardian::frames::MAX_FRAME_LEN in phase 2.
-            if length == 0 || length > MAX_FRAME_LEN {
+            if length == 0 || length > MAX_FRAME_BYTES {
                 return Err(spawn_error("invalid guardian frame length"));
             }
             if self.buffer.len() < 4 + length {
@@ -892,7 +921,7 @@ pub struct MacosPrepared {
     r_write: Fd,
     b_read: Fd,
     e_read: Fd,
-    guardian_pid: libc::pid_t,
+    guardian: GuardianProcess,
     launcher_token: Token,
     process: ProcessRecord,
     applied: Applied,
@@ -1013,24 +1042,57 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
     let mut built = built.expect("checked above");
 
     // Steps 3–5: the handshake, within the preparation budget.
-    let handshake = match handshake(
+    let mut handshake = match handshake(
         &client,
         &mut built.b_read,
         &mut built.e_read,
         built.pipe_a_write.0,
-        built.guardian_pid,
+        &mut built.guardian,
         &budget,
     ) {
         Ok(handshake) => handshake,
         Err(error) => {
             built.pipe_r_write.close();
-            abort_guardian(built.guardian_pid, built.pipe_a_write.take_fd());
+            abort_guardian(&mut built.guardian, built.pipe_a_write.take_fd());
             let _ = client.delete();
             return Err(error);
         }
     };
 
     let capacity = crate::platform::macos::custody::table_capacity(maxprocperuid());
+    let engine = (|| {
+        let supervisor =
+            es::self_token().ok_or_else(|| spawn_error("cannot read supervisor audit token"))?;
+        let engine = supervisor_custody(
+            capacity,
+            handshake.launcher_token,
+            supervisor,
+            built
+                .guardian
+                .pid
+                .expect("handshake retained the guardian child"),
+            &mut handshake.events,
+            client.ring_overflowed(),
+        )?;
+        if engine.gapped()
+            || engine.integrity_loss()
+            || !engine.contains_token(&handshake.launcher_token)
+        {
+            return Err(spawn_error(
+                "the supervisor could not verify the launcher's custody stream",
+            ));
+        }
+        Ok(engine)
+    })();
+    let engine = match engine {
+        Ok(engine) => engine,
+        Err(error) => {
+            built.pipe_r_write.close();
+            abort_guardian(&mut built.guardian, built.pipe_a_write.take_fd());
+            let _ = client.delete();
+            return Err(error);
+        }
+    };
     let process = ProcessRecord {
         pid: handshake.launcher_token[AUDIT_TOKEN_PID],
         identity: ProcessIdentity {
@@ -1048,7 +1110,7 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
                 Ok(started) => (Some(started.0), Some(started.1), Some(started.2)),
                 Err(error) => {
                     built.pipe_r_write.close();
-                    abort_guardian(built.guardian_pid, built.pipe_a_write.take_fd());
+                    abort_guardian(&mut built.guardian, built.pipe_a_write.take_fd());
                     let _ = client.delete();
                     return Err(error);
                 }
@@ -1058,12 +1120,12 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
     };
     Ok(Box::new(MacosPrepared {
         client: Some(client),
-        engine: Custodian::new(capacity).with_stop(SETTLE_NS, STOP_BUDGET_NS),
+        engine,
         a_write: built.pipe_a_write.take_fd(),
         r_write: built.pipe_r_write,
         b_read: built.b_read,
         e_read: built.e_read,
-        guardian_pid: built.guardian_pid,
+        guardian: built.guardian,
         launcher_token: handshake.launcher_token,
         process,
         applied: build_applied(
@@ -1224,7 +1286,7 @@ struct Spawned {
     pipe_a_write: Fd,
     pipe_r_write: Fd,
     profile_params: ProfileParams,
-    guardian_pid: libc::pid_t,
+    guardian: GuardianProcess,
 }
 
 fn build_and_spawn(
@@ -1363,7 +1425,7 @@ fn build_and_spawn(
         pipe_a_write: Fd(pipe_a.take_write()),
         pipe_r_write: Fd(pipe_r.take_write()),
         profile_params,
-        guardian_pid,
+        guardian: GuardianProcess::new(guardian_pid),
     })
 }
 
@@ -1374,9 +1436,54 @@ fn build_and_spawn(
 /// What the handshake leaves behind.
 struct Handshake {
     launcher_token: Token,
-    // I3: retained, never discarded. Phase 2 feeds these into the engine
-    // after registering the known guardian token with CUSTODY's API.
+    // Retained in delivery order, consumed by replay after custodian registration.
     events: Vec<es::EsPoll>,
+}
+
+/// Register both custodians before replay, using G's first observed token so
+/// its subsequent exec transitions remain part of the same sequenced stream.
+fn supervisor_custody(
+    capacity: usize,
+    launcher: Token,
+    supervisor: Token,
+    guardian_pid: libc::pid_t,
+    retained: &mut Vec<es::EsPoll>,
+    overflowed: bool,
+) -> Result<Custodian, JailError> {
+    let guardian = retained
+        .iter()
+        .map(|poll| *poll.event.token())
+        .find(|token| token[AUDIT_TOKEN_PID] as libc::pid_t == guardian_pid)
+        .ok_or_else(|| spawn_error("the supervisor never observed the guardian's identity"))?;
+    let mut engine = Custodian::new(capacity).with_stop(SETTLE_NS, STOP_BUDGET_NS);
+    engine.expect_root(launcher[AUDIT_TOKEN_PID] as libc::pid_t);
+    for token in [supervisor, guardian] {
+        engine
+            .register_custodian(token)
+            .map_err(|_| spawn_error("cannot register custody identities"))?;
+    }
+    replay_retained(&mut engine, retained);
+    if overflowed {
+        engine.note_stream_gap();
+    }
+    Ok(engine)
+}
+
+fn replay_retained(engine: &mut Custodian, retained: &mut Vec<es::EsPoll>) {
+    let events = std::mem::take(retained);
+    engine.replay_handshake(&events);
+}
+
+fn apply_supervisor_event(
+    engine: &mut Custodian,
+    poll: &es::EsPoll,
+    signaller: &mut dyn Signaller,
+) {
+    if engine.stop().begun() {
+        engine.apply_polled_during_stop(poll, signaller);
+    } else {
+        engine.apply_polled(poll);
+    }
 }
 
 fn handshake_timeout() -> JailError {
@@ -1388,28 +1495,16 @@ fn handshake_timeout() -> JailError {
     )
 }
 
-/// Reaps an aborted preparation: closes A (whose end-of-file is the
-/// guardian's stop), then ends and reaps the guardian.
-fn abort_guardian(guardian_pid: libc::pid_t, pipe_a_write: RawFd) {
+/// Reaps an aborted preparation. Once reaped, the child handle cannot wait
+/// for or signal a subsequently reused numeric PID.
+fn abort_guardian(guardian: &mut GuardianProcess, pipe_a_write: RawFd) {
     // SAFETY: a plain close of a descriptor this process owns.
     unsafe { libc::close(pipe_a_write) };
     let deadline = Instant::now() + Duration::from_secs(1);
-    loop {
-        // SAFETY: WNOHANG waitpid on a pid this process spawned.
-        let status = unsafe { libc::waitpid(guardian_pid, std::ptr::null_mut(), libc::WNOHANG) };
-        if status == guardian_pid || status < 0 {
-            return;
-        }
-        if Instant::now() >= deadline {
-            // SAFETY: scalar signal and reaping wait for the guardian.
-            unsafe {
-                libc::kill(guardian_pid, libc::SIGKILL);
-                libc::waitpid(guardian_pid, std::ptr::null_mut(), 0);
-            }
-            return;
-        }
+    while !guardian.poll() && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(10));
     }
+    guardian.end();
 }
 
 /// The handshake of §4.3 steps 3–5, within the preparation budget.
@@ -1418,17 +1513,18 @@ fn handshake(
     b_read: &mut Fd,
     e_read: &mut Fd,
     pipe_a_write: RawFd,
-    guardian_pid: libc::pid_t,
+    guardian: &mut GuardianProcess,
     budget: &ContinuousDeadline,
 ) -> Result<Handshake, JailError> {
     let deadline = Instant::now() + budget.remaining();
+    let guardian_pid = guardian.pid.expect("the spawned guardian is still owned");
     let mut reader = BReader::default();
     // `ready` (step 3). A guardian that dies names its failing step on
     // stderr and its exit status here.
     let mut ready = false;
     let mut events = Vec::new();
     loop {
-        for frame in read_b(&mut reader, b_read, guardian_pid)? {
+        for frame in read_b(&mut reader, b_read, guardian)? {
             match frame {
                 BFrame::Ready => ready = true,
                 other => {
@@ -1489,7 +1585,7 @@ fn handshake(
             // Step 5: the launcher's current token goes on A.
             write_frame(pipe_a_write, &encode_launcher_token(&token))?;
             loop {
-                for frame in read_b(&mut reader, b_read, guardian_pid)? {
+                for frame in read_b(&mut reader, b_read, guardian)? {
                     if matches!(frame, BFrame::TokenSeen) {
                         return Ok(Handshake {
                             launcher_token: token,
@@ -1508,7 +1604,7 @@ fn handshake(
         }
         // Continue decoding whole frames; never consume a byte just to
         // probe EOF (that would corrupt the next length prefix).
-        if !read_b(&mut reader, b_read, guardian_pid)?.is_empty() {
+        if !read_b(&mut reader, b_read, guardian)?.is_empty() {
             return Err(spawn_error(
                 "unexpected guardian frame before launcher token",
             ));
@@ -1524,12 +1620,12 @@ fn handshake(
 fn read_b(
     reader: &mut BReader,
     b_read: &mut Fd,
-    guardian_pid: libc::pid_t,
+    guardian: &mut GuardianProcess,
 ) -> Result<Vec<BFrame>, JailError> {
-    let mut buffer = [0u8; 4096];
+    let mut buffer = [0u8; MAX_FRAME_BYTES + 4];
     match b_read.read(&mut buffer) {
         Ok(0) => {
-            let code = guardian_exit_code(guardian_pid);
+            let code = guardian.exit_code();
             Err(refusal(
                 ErrorCode::BackendUnavailable,
                 ErrorStage::Preparing,
@@ -1602,7 +1698,7 @@ fn exec_report_refusal(report: &[u8]) -> JailError {
 
 /// Writes one frame to A in full.
 fn write_frame(fd: RawFd, payload: &[u8]) -> Result<(), JailError> {
-    if payload.is_empty() || payload.len() > MAX_FRAME_LEN {
+    if payload.is_empty() || payload.len() > MAX_FRAME_BYTES {
         return Err(spawn_error("invalid supervisor frame length"));
     }
     let mut frame = (payload.len() as u32).to_le_bytes().to_vec();
@@ -1632,23 +1728,122 @@ fn write_bytes(fd: RawFd, frame: &[u8]) -> Result<(), JailError> {
 }
 
 /// A remains the guardian's liveness channel. R alone carries release.
-fn release_launcher(a_write: RawFd, r_write: &mut Fd, deadline_ns: u64) -> Result<(), JailError> {
-    write_frame(a_write, &encode_release_deadline(deadline_ns))?;
+fn release_launcher(
+    a_write: RawFd,
+    r_write: &mut Fd,
+    deadline_ns: Option<u64>,
+) -> Result<(), JailError> {
+    let release = deadline_ns.map_or_else(encode_release_without_deadline, encode_release_deadline);
+    write_frame(a_write, &release)?;
     write_bytes(r_write.0, b"L")?;
     r_write.close();
     Ok(())
 }
 
-/// The reaping wait for a guardian that already exited; the exit code, or
-/// -1 when it did not exit cleanly.
-fn guardian_exit_code(guardian_pid: libc::pid_t) -> i32 {
+/// The PID is a child ownership capability only until waitpid reaps it.
+/// Keep the cached status separately; every later cleanup becomes a no-op.
+struct GuardianProcess {
+    pid: Option<libc::pid_t>,
+    status: Option<i32>,
+}
+
+impl GuardianProcess {
+    fn new(pid: libc::pid_t) -> Self {
+        assert!(pid > 0);
+        Self {
+            pid: Some(pid),
+            status: None,
+        }
+    }
+
+    fn poll(&mut self) -> bool {
+        self.poll_with(&mut wait_guardian)
+    }
+
+    fn poll_with(
+        &mut self,
+        wait: &mut impl FnMut(libc::pid_t, bool) -> std::io::Result<Option<i32>>,
+    ) -> bool {
+        let Some(pid) = self.pid else {
+            return true;
+        };
+        match wait(pid, true) {
+            Ok(None) => false,
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => false,
+            Ok(status) => {
+                self.status = status;
+                self.pid = None;
+                true
+            }
+            Err(_) => {
+                self.pid = None;
+                true
+            }
+        }
+    }
+
+    fn exit_code(&mut self) -> i32 {
+        self.poll();
+        self.status
+            .filter(|status| libc::WIFEXITED(*status))
+            .map_or(-1, |status| libc::WEXITSTATUS(status))
+    }
+
+    fn end(&mut self) -> bool {
+        self.end_with(&mut wait_guardian, &mut |pid| {
+            // SAFETY: only an owned, unreaped direct child reaches this call.
+            if unsafe { libc::kill(pid, libc::SIGKILL) } == 0 {
+                Ok(())
+            } else {
+                Err(std::io::Error::last_os_error())
+            }
+        })
+    }
+
+    fn end_with(
+        &mut self,
+        wait: &mut impl FnMut(libc::pid_t, bool) -> std::io::Result<Option<i32>>,
+        kill: &mut impl FnMut(libc::pid_t) -> std::io::Result<()>,
+    ) -> bool {
+        if self.poll_with(wait) {
+            return false;
+        }
+        let pid = self.pid.expect("poll kept ownership of the live child");
+        if kill(pid).is_err() {
+            return false;
+        }
+        loop {
+            match wait(pid, false) {
+                Ok(None) => continue,
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                Ok(status) => {
+                    self.status = status;
+                    break;
+                }
+                Err(_) => break,
+            }
+        }
+        self.pid = None;
+        true
+    }
+}
+
+fn wait_guardian(pid: libc::pid_t, nonblocking: bool) -> std::io::Result<Option<i32>> {
     let mut status = 0;
-    // SAFETY: a nonblocking reaping wait for a pid this process spawned.
-    let reaped = unsafe { libc::waitpid(guardian_pid, &mut status, libc::WNOHANG) };
-    if reaped == guardian_pid && libc::WIFEXITED(status) {
-        libc::WEXITSTATUS(status)
+    // SAFETY: wait only for the positive PID of this owned direct child.
+    let reaped = unsafe {
+        libc::waitpid(
+            pid,
+            &mut status,
+            if nonblocking { libc::WNOHANG } else { 0 },
+        )
+    };
+    if reaped < 0 {
+        Err(std::io::Error::last_os_error())
+    } else if reaped == 0 {
+        Ok(None)
     } else {
-        -1
+        Ok(Some(status))
     }
 }
 
@@ -1702,14 +1897,27 @@ impl PreparedExecution for MacosPrepared {
     }
 
     fn release(
-        mut self: Box<Self>,
+        self: Box<Self>,
     ) -> Result<Box<dyn crate::platform::RunningExecution>, Box<ReleaseFailure>> {
+        self.release_inner()
+            .map(|running| Box::new(running) as Box<dyn crate::platform::RunningExecution>)
+    }
+
+    fn abort(mut self: Box<Self>) -> Result<Teardown, JailError> {
+        Ok(self.abort_inner())
+    }
+}
+
+impl MacosPrepared {
+    fn release_inner(mut self) -> Result<MacosRunning, Box<ReleaseFailure>> {
         // §4.3 step 6: the release deadline on A, then the release byte on
         // R. The deadline is continuous-clock nanoseconds; both custodians
         // arm their wall from release, and it counts sleep.
         let release_ns = es::continuous_time_ns();
-        let deadline_ns = self.wall_ms.map_or(u64::MAX, |ms| {
-            release_ns.saturating_add(ms.saturating_mul(1_000_000))
+        let deadline_ns = self.wall_ms.map(|ms| {
+            release_ns
+                .saturating_add(ms.saturating_mul(1_000_000))
+                .min(NO_DEADLINE - 1)
         });
         let fail = |error: JailError, teardown: Teardown| {
             Box::new(ReleaseFailure {
@@ -1723,15 +1931,9 @@ impl PreparedExecution for MacosPrepared {
                 self.abort_inner(),
             ));
         }
-        Ok(Box::new(MacosRunning::from_prepared(*self, release_ns)))
+        Ok(MacosRunning::from_prepared(self, release_ns))
     }
 
-    fn abort(mut self: Box<Self>) -> Result<Teardown, JailError> {
-        Ok(self.abort_inner())
-    }
-}
-
-impl MacosPrepared {
     /// Tears the prepared boundary down without running the target: A's
     /// end-of-file is the guardian's stop, and the blocked launcher — the
     /// only member — is killed by token like any other (§4.5, §4.3).
@@ -1742,6 +1944,7 @@ impl MacosPrepared {
             unsafe { libc::close(self.a_write) };
             self.a_write = -1;
         }
+        self.engine.begin_stop(es::continuous_time_ns());
         let _ = es::signal_by_token(&self.launcher_token, libc::SIGKILL);
         let tree = self.settle_guardian(GUARDIAN_TAIL);
         if let Some(client) = self.client.take() {
@@ -1760,70 +1963,61 @@ impl MacosPrepared {
     fn settle_guardian(&mut self, tail: Duration) -> Option<TreeObservation> {
         let deadline = Instant::now() + tail;
         let mut reader = BReader::default();
-        let mut record_json: Option<Vec<u8>> = None;
-        while Instant::now() < deadline {
-            let mut buffer = [0u8; 4096];
+        let mut record = None;
+        let mut own = None;
+        loop {
+            if !self.custody().drain(TICK_MS) {
+                self.engine.note_stream_gap();
+            }
+            while let Some(poll) = self.custody().poll_full() {
+                apply_supervisor_event(&mut self.engine, &poll, &mut EsSignaller);
+            }
+            if self.custody().ring_overflowed() {
+                self.engine.note_stream_gap();
+            }
+            if own.is_none() {
+                own = self.engine.tick(es::continuous_time_ns(), &mut EsSignaller);
+            }
+            let mut buffer = [0u8; MAX_FRAME_BYTES + 4];
             match self.b_read.read(&mut buffer) {
                 Ok(0) => break,
                 Ok(n) => {
-                    if let Ok(frames) = reader.feed(&buffer[..n]) {
-                        for frame in frames {
-                            if let BFrame::Record(json) = frame {
-                                record_json = Some(json);
-                            }
-                        }
+                    if receive_guardian_record(&mut reader, &buffer[..n], &mut record).is_err() {
+                        break;
                     }
                 }
-                Err(_) => {}
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::WouldBlock
+                        || error.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(_) => break,
             }
-            if record_json.is_some() {
-                break;
-            }
-            // The supervisor's table keeps moving while the guardian works,
-            // so its own view stays current for the observation.
-            while let Some(poll) = self.custody().poll_full() {
-                if let Some(kind) = custody_io::custody_kind(poll.kind) {
-                    let _ =
-                        self.engine
-                            .apply_sequenced(kind, poll.global_seq, poll.seq, &poll.event);
-                }
-            }
-            // SAFETY: WNOHANG waitpid on a pid this process spawned.
-            if unsafe { libc::waitpid(self.guardian_pid, std::ptr::null_mut(), libc::WNOHANG) } != 0
+            if record.is_some()
+                || own.is_some_and(|result| result.drained())
+                || self.guardian.poll()
+                || Instant::now() >= deadline
             {
                 break;
             }
-            std::thread::sleep(Duration::from_millis(10));
         }
-        // SAFETY: the final reaping wait; the guardian exits after its
-        // record (§4.4), and a stalled one has been killed by its group.
-        if unsafe { libc::waitpid(self.guardian_pid, std::ptr::null_mut(), libc::WNOHANG) } == 0 {
-            // SAFETY: ending a guardian that did not finish in its tail.
-            unsafe {
-                libc::kill(self.guardian_pid, libc::SIGKILL);
-                libc::waitpid(self.guardian_pid, std::ptr::null_mut(), 0);
-            }
-        }
-        let record = record_json
-            .as_deref()
-            .map(serde_json::from_slice::<serde_json::Value>)
-            .and_then(Result::ok);
-        let integrity = self.engine.integrity_loss();
+        self.guardian.end();
+        let guardian_integrity = record
+            .as_ref()
+            .and_then(|r| r.get("reason"))
+            .and_then(serde_json::Value::as_str)
+            == Some("integrity");
+        let integrity = self.engine.integrity_loss() || guardian_integrity;
         let guardian_drained = record
             .as_ref()
-            .and_then(|record| record.get("drained"))
-            .and_then(serde_json::Value::as_bool);
-        let tree_empty = if integrity {
-            None
-        } else {
-            guardian_drained.filter(|drained| *drained)
-        };
-        let verified_at = tree_empty.filter(|empty| *empty).map(|_| SystemTime::now());
+            .and_then(|r| r.get("drained"))
+            .and_then(serde_json::Value::as_bool)
+            == Some(true);
+        let drained = own.is_some_and(|result| result.drained()) || guardian_drained;
+        let tree_empty = (!integrity && drained).then_some(true);
         Some(TreeObservation {
             tree_empty,
-            verified_at,
+            verified_at: tree_empty.map(|_| SystemTime::now()),
             verification_scope: VerificationScope::AttemptTree,
-            integrity: if tree_empty == Some(true) && !integrity {
+            integrity: if tree_empty == Some(true) {
                 Integrity::Verified
             } else if integrity {
                 Integrity::Lost
@@ -1846,7 +2040,7 @@ struct MacosRunning {
     b_read: Fd,
     e_read: Fd,
     b_reader: BReader,
-    guardian_pid: libc::pid_t,
+    guardian: GuardianProcess,
     guardian_record: Option<serde_json::Value>,
     guardian_lost: bool,
     guardian_stalled: bool,
@@ -1862,6 +2056,8 @@ struct MacosRunning {
     release_ns: u64,
     wall_ns: u64,
     wall_expired: bool,
+    settled_at_ns: Option<u64>,
+    limits: Vec<AppliedLimit>,
     stop: Option<StopDrive>,
     stop_result: Option<StopResult>,
     integrity_lost: bool,
@@ -1880,7 +2076,6 @@ struct MacosRunning {
 
 /// The cooperative grace, then the stop (§4.5).
 struct StopDrive {
-    #[allow(dead_code)]
     reason: StopReason,
     grace_ends_ns: u64,
     begun: bool,
@@ -1888,6 +2083,8 @@ struct StopDrive {
 
 impl MacosRunning {
     fn from_prepared(prepared: MacosPrepared, release_ns: u64) -> Self {
+        let events = prepared.engine.seq().counts().into_iter().sum();
+        let peak_members = prepared.engine.live_count();
         Self {
             client: prepared.client,
             engine: prepared.engine,
@@ -1895,7 +2092,7 @@ impl MacosRunning {
             b_read: prepared.b_read,
             e_read: prepared.e_read,
             b_reader: BReader::default(),
-            guardian_pid: prepared.guardian_pid,
+            guardian: prepared.guardian,
             guardian_record: None,
             guardian_lost: false,
             guardian_stalled: false,
@@ -1909,11 +2106,13 @@ impl MacosRunning {
                 .wall_ms
                 .map_or(0, |ms| ms.saturating_mul(1_000_000)),
             wall_expired: false,
+            settled_at_ns: None,
+            limits: prepared.applied.limits,
             stop: None,
             stop_result: None,
             integrity_lost: false,
-            events: 0,
-            peak_members: 0,
+            events,
+            peak_members,
             relay: prepared.relay,
             target_was_stopped: false,
             headroom: prepared.headroom,
@@ -1941,20 +2140,10 @@ impl MacosRunning {
     /// Applies one drained event to the engine; returns the run event it
     /// carries (the §4.3 step 7 and §4.4 mapping).
     fn apply_event(&mut self, poll: &es::EsPoll) -> Option<RunEvent> {
-        let kind = custody_io::custody_kind(poll.kind)?;
-        self.events += 1;
-        self.engine
-            .apply_sequenced(kind, poll.global_seq, poll.seq, &poll.event);
+        let gapped = self.engine.gapped();
+        self.events = self.events.saturating_add(1);
+        apply_supervisor_event(&mut self.engine, poll, &mut EsSignaller);
         self.peak_members = self.peak_members.max(self.engine.live_count());
-        if self.engine.integrity_loss() && !self.integrity_lost {
-            self.integrity_lost = true;
-            return Some(RunEvent::EvidenceLost {
-                reason: "membership integrity lost (a member changed user or the membership \
-                         table filled)"
-                    .to_owned(),
-                after_target_end: self.target_ended(),
-            });
-        }
         let event = track_target(
             &poll.event,
             &self.launcher_token,
@@ -1964,25 +2153,60 @@ impl MacosRunning {
         if let (Some(relay), Some(token)) = (&mut self.relay, self.target_token) {
             let _ = relay.set_workload_group(token[AUDIT_TOKEN_PID] as libc::pid_t);
         }
+        if self.engine.integrity_loss() && !self.integrity_lost {
+            self.integrity_lost = true;
+            return Some(RunEvent::EvidenceLost {
+                reason: "membership integrity lost (a member changed user or the membership \
+                         table filled)"
+                    .to_owned(),
+                after_target_end: self.target_ended(),
+            });
+        }
+        if self.engine.gapped() && !gapped {
+            return Some(RunEvent::EvidenceLost {
+                reason: "the custody stream lost sequence continuity".into(),
+                after_target_end: self.target_ended(),
+            });
+        }
         event
     }
 
     /// Drains everything available on S, returning the first run event.
     fn drain_events(&mut self) -> Option<RunEvent> {
-        while let Some(poll) = self.custody().poll_full() {
-            if let Some(event) = self.apply_event(&poll) {
-                return Some(event);
+        let stopping = self.engine.stop().begun();
+        let overflowed = self.custody().ring_overflowed();
+        let sync_failed = stopping && !self.custody().drain(TICK_MS);
+        let mut first = None;
+        if overflowed || sync_failed {
+            let was_gapped = self.engine.gapped();
+            self.engine.note_stream_gap();
+            if !was_gapped {
+                first = Some(RunEvent::EvidenceLost {
+                    reason: "the custody stream dropped messages or could not synchronize".into(),
+                    after_target_end: self.target_ended(),
+                });
             }
         }
-        if self.custody().ring_overflowed() && !self.engine.gapped() {
-            // §4.4: a gap marks the stream for the rest of the attempt.
-            self.engine.note_stream_gap();
-            return Some(RunEvent::EvidenceLost {
-                reason: "the custody stream dropped messages (ring overflow)".to_owned(),
-                after_target_end: self.target_ended(),
-            });
+        while let Some(poll) = self.custody().poll_full() {
+            let event = self.apply_event(&poll);
+            if first.is_none() {
+                first = event;
+            }
+            if !stopping && first.is_some() {
+                return first;
+            }
         }
-        None
+        if self.custody().ring_overflowed() {
+            let was_gapped = self.engine.gapped();
+            self.engine.note_stream_gap();
+            if !was_gapped && first.is_none() {
+                first = Some(RunEvent::EvidenceLost {
+                    reason: "the custody stream dropped messages (ring overflow)".into(),
+                    after_target_end: self.target_ended(),
+                });
+            }
+        }
+        first
     }
 
     /// One nonblocking read of E: a byte-carrying report is an exec failure;
@@ -2005,7 +2229,7 @@ impl MacosRunning {
     /// Reads frames from B, keeping the guardian's record and noticing a
     /// lost guardian (§4.6).
     fn poll_guardian(&mut self) {
-        let mut buffer = [0u8; 4096];
+        let mut buffer = [0u8; MAX_FRAME_BYTES + 4];
         match self.b_read.read(&mut buffer) {
             Ok(0) => {
                 self.guardian_lost |=
@@ -2066,13 +2290,8 @@ impl MacosRunning {
     /// Ends an unreaped direct child that stalled at the stop. An exited,
     /// unreaped child keeps its pid reserved; never signal after reaping.
     fn end_stalled_guardian(&mut self) {
-        // SAFETY: scalar signal and reaping wait for the guardian's group.
-        unsafe {
-            if libc::waitpid(self.guardian_pid, std::ptr::null_mut(), libc::WNOHANG) != 0 {
-                return;
-            }
-            libc::kill(self.guardian_pid, libc::SIGKILL);
-            libc::waitpid(self.guardian_pid, std::ptr::null_mut(), 0);
+        if !self.guardian.end() {
+            return;
         }
         self.guardian_stalled = true;
         // §4.6: the stall reaches the settled receipt's `errors[]`.
@@ -2080,9 +2299,7 @@ impl MacosRunning {
             crate::records::ErrorCode::CustodianStalled,
             crate::records::ErrorStage::Stopping,
             crate::records::Remediation::InspectState,
-            "the guardian custodian stalled at the stop and was ended; the supervisor drained \
-             the tree alone"
-                .to_owned(),
+            "the guardian custodian stalled at the stop and was ended".to_owned(),
         ));
     }
 
@@ -2111,6 +2328,12 @@ impl MacosRunning {
             }
             self.custody().drain(TICK_MS);
         }
+        self.settled_tree()
+    }
+
+    /// Combine the completed custody results into the receipt's tree fact.
+    fn settled_tree(&mut self) -> TreeObservation {
+        self.settled_at_ns = Some(es::continuous_time_ns());
         // The tree is ended, so no member can connect again: the loopback
         // relay stops before the proxy is drained (§4.10).
         self.serving.take();
@@ -2122,9 +2345,7 @@ impl MacosRunning {
                 crate::records::ErrorCode::CustodianLost,
                 crate::records::ErrorStage::Stopping,
                 crate::records::Remediation::InspectState,
-                "the guardian custodian was lost at the stop; the supervisor drained the tree \
-                 alone"
-                    .to_owned(),
+                "the guardian custodian was lost at the stop".to_owned(),
             ));
         }
         let own = self.stop_result;
@@ -2143,9 +2364,7 @@ impl MacosRunning {
         if integrity {
             self.integrity_lost = true;
         }
-        let drained = (self.handshake_events.is_empty()
-            && own.is_some_and(|result| result.drained()))
-            || guardian_drained == Some(true);
+        let drained = own.is_some_and(|result| result.drained()) || guardian_drained == Some(true);
         // tree_empty=true needs one custodian that drained; anything else is
         // tree_unknown (§4.5). Failed verification loses integrity and
         // retains state, as on Linux.
@@ -2241,10 +2460,10 @@ impl MacosRunning {
     fn custodian_facts(&self) -> serde_json::Value {
         serde_json::json!({
             "result": match self.stop_result {
-                Some(result) if result.drained() && self.handshake_events.is_empty() => "drained",
+                Some(result) if result.drained() => "drained",
                 _ => "not_drained",
             },
-            "stream": if self.engine.gapped() { "gapped" } else if !self.handshake_events.is_empty() { "unknown" } else { "contiguous" },
+            "stream": if self.engine.gapped() { "gapped" } else { "contiguous" },
             "events": self.events,
         })
     }
@@ -2378,6 +2597,16 @@ fn exit_status_event(status: i32) -> Option<RunEvent> {
 }
 
 impl crate::platform::RunningExecution for MacosRunning {
+    fn final_limits(&self) -> Vec<AppliedLimit> {
+        let mut limits = self.limits.clone();
+        for limit in &mut limits {
+            if limit.key == "wall" && limit.applied {
+                limit.hit = self.wall_hit();
+            }
+        }
+        limits
+    }
+
     fn integrity_lost(&self) -> bool {
         self.integrity_lost
     }
@@ -2437,26 +2666,7 @@ impl crate::platform::RunningExecution for MacosRunning {
     }
 
     fn request_stop(&mut self, reason: StopReason) {
-        match self.stop.as_mut() {
-            Some(stop) => {
-                // The grace is running; an explicit second ask ends it now:
-                // the caller owns the lifecycle and has asked again.
-                stop.grace_ends_ns = es::continuous_time_ns();
-            }
-            None => {
-                // §4.5: `SIGTERM` to the target by audit token, initial 2 s.
-                if let Some(token) = self.target_token {
-                    let _ = es::signal_by_token(&token, libc::SIGTERM);
-                }
-                // A termination request is not a terminal stop event.
-
-                self.stop = Some(StopDrive {
-                    reason,
-                    grace_ends_ns: es::continuous_time_ns() + STOP_GRACE_NS,
-                    begun: false,
-                });
-            }
-        }
+        self.request_stop_with(reason, &mut EsSignaller);
     }
 
     fn wait_tree(&mut self, budget: Duration) -> TreeObservation {
@@ -2466,14 +2676,50 @@ impl crate::platform::RunningExecution for MacosRunning {
     fn observer_summary(&mut self) -> Option<crate::observer::CoverageSummary> {
         // §4.10/§5: `proxy.net` comes from the bridge, as on Linux. Every
         // other class is the observer's (J17) or unobserved.
-        let proxy = self.proxy.take()?;
+        // As on Linux with observation off, audit classes are unsupported;
+        // the wrapper can still count its confirmed wall hits.
+        let mut coverage = crate::observer::CoverageSummary::unobserved();
+        let hit = self.wall_hit();
+        let gaps = if hit.is_none() {
+            // G's record does not carry its wall trigger. A deadline that
+            // passed while S was paused leaves the hit count unknown.
+            vec![crate::records::Gap {
+                classes: vec!["limits".into()],
+                source: "wrapper".into(),
+                start_ns: "0".into(),
+                end_ns: Some(crate::platform::elapsed_since_start_ns().to_string()),
+                reason: "wall_hit_unobserved".into(),
+                lost_count: None,
+            }]
+        } else {
+            Vec::new()
+        };
+        if !gaps.is_empty() {
+            coverage.sources.wrapper = crate::records::SourceStatus::Degraded;
+            coverage.gaps = gaps.clone();
+        }
+        coverage.classes.insert(
+            crate::observer::CoverageClass::Limits,
+            crate::observer::ClassSummary {
+                status: if hit.is_some() {
+                    crate::records::SourceStatus::Active
+                } else {
+                    crate::records::SourceStatus::Degraded
+                },
+                observed_count: hit.map(u64::from),
+                gaps,
+                resolver_refused: 0,
+            },
+        );
+        let Some(proxy) = self.proxy.take() else {
+            return Some(coverage);
+        };
         let stopped_at = (!proxy.serving()).then(crate::platform::elapsed_since_start_ns);
         let summary = proxy.stop(crate::proxy::MAX_DEADLINE);
         let (delivered, lost, resolver_refused) = self
             .proxy_sink
             .as_ref()
             .map_or((0, 0, 0), |sink| sink.account());
-        let mut coverage = crate::observer::CoverageSummary::unobserved();
         crate::proxy::coverage::apply_coverage(
             &mut coverage,
             &crate::proxy::coverage::Account {
@@ -2490,6 +2736,51 @@ impl crate::platform::RunningExecution for MacosRunning {
 }
 
 impl MacosRunning {
+    fn wall_hit(&self) -> Option<bool> {
+        // A later expiry during another stop's grace is still a hit, while
+        // the first stop remains the cause. Never infer a hit from elapsed
+        // settlement time or the target's signal/exit code.
+        if self.wall_expired
+            || self
+                .stop
+                .as_ref()
+                .is_some_and(|stop| stop.reason == StopReason::WallExpiry)
+        {
+            return Some(true);
+        }
+        let observed_at = self.settled_at_ns.unwrap_or_else(es::continuous_time_ns);
+        if self.wall_ns == 0 || observed_at < self.release_ns.saturating_add(self.wall_ns) {
+            Some(false)
+        } else {
+            // S never observed expiry and G does not report its trigger:
+            // after the deadline, neither a hit nor an unhit wall is proved.
+            None
+        }
+    }
+
+    fn request_stop_with(&mut self, reason: StopReason, signaller: &mut dyn Signaller) {
+        match self.stop.as_mut() {
+            Some(stop) => {
+                // The grace is running; an explicit second ask ends it now:
+                // the caller owns the lifecycle and has asked again.
+                stop.grace_ends_ns = es::continuous_time_ns();
+            }
+            None => {
+                // §4.5: `SIGTERM` to the target by audit token, initial 2 s.
+                if let Some(token) = self.target_token {
+                    let _ = signaller.signal(&token, libc::SIGTERM);
+                }
+                // A termination request is not a terminal stop event.
+
+                self.stop = Some(StopDrive {
+                    reason,
+                    grace_ends_ns: es::continuous_time_ns() + STOP_GRACE_NS,
+                    begun: false,
+                });
+            }
+        }
+    }
+
     /// One relay slice; `Some` is a stdio failure the supervisor records.
     fn pump_relay(&mut self) -> Option<RunEvent> {
         let relay = self.relay.as_mut()?;
@@ -2534,20 +2825,12 @@ impl Drop for MacosRunning {
         let deadline = Instant::now() + GUARDIAN_TAIL;
         while self.guardian_record.is_none() && Instant::now() < deadline {
             self.poll_guardian();
-            // SAFETY: WNOHANG waitpid on a pid this process spawned.
-            if unsafe { libc::waitpid(self.guardian_pid, std::ptr::null_mut(), libc::WNOHANG) } != 0
-            {
+            if self.guardian.poll() {
                 break;
             }
             std::thread::sleep(Duration::from_millis(10));
         }
-        // SAFETY: the final reaping wait, after ending a stalled guardian.
-        unsafe {
-            if libc::waitpid(self.guardian_pid, std::ptr::null_mut(), libc::WNOHANG) == 0 {
-                libc::kill(self.guardian_pid, libc::SIGKILL);
-                libc::waitpid(self.guardian_pid, std::ptr::null_mut(), 0);
-            }
-        }
+        self.guardian.end();
         if let Some(client) = self.client.take() {
             let _ = client.delete();
         }
@@ -2568,10 +2851,7 @@ pub fn map_sequence(events: &[es::EsPoll], launcher: &Token) -> Vec<RunEvent> {
     let mut out = Vec::new();
     let mut confirmed = false;
     for poll in events {
-        let Some(kind) = custody_io::custody_kind(poll.kind) else {
-            continue;
-        };
-        engine.apply_sequenced(kind, poll.global_seq, poll.seq, &poll.event);
+        engine.apply_polled(poll);
         match poll.event {
             EsEvent::Exec { token }
                 if !confirmed && token[AUDIT_TOKEN_PID] == launcher[AUDIT_TOKEN_PID] =>
@@ -2647,6 +2927,22 @@ mod tests {
         token
     }
 
+    fn pipe_read_bounded(fd: &mut Fd, bytes: &mut [u8]) -> usize {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            match fd.read(bytes) {
+                Ok(n) => return n,
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::WouldBlock
+                        && Instant::now() < deadline =>
+                {
+                    std::thread::sleep(Duration::from_millis(5))
+                }
+                Err(error) => panic!("pipe did not become readable within the bound: {error}"),
+            }
+        }
+    }
+
     fn frame(payload: &[u8]) -> Vec<u8> {
         let mut out = (payload.len() as u32).to_le_bytes().to_vec();
         out.extend_from_slice(payload);
@@ -2660,6 +2956,329 @@ mod tests {
             global_seq: global,
             seq,
         }
+    }
+
+    #[derive(Default)]
+    struct RecordedSignals(Vec<(Token, i32)>);
+
+    impl Signaller for RecordedSignals {
+        fn signal(&mut self, token: &Token, signal: i32) -> i32 {
+            self.0.push((*token, signal));
+            0
+        }
+    }
+
+    fn retained_handshake() -> (Vec<es::EsPoll>, Token, Token) {
+        let guardian_fork = token(1001);
+        let mut guardian = guardian_fork;
+        guardian[AUDIT_TOKEN_PIDVERSION] = 2;
+        let launcher_fork = token(2001);
+        let mut launcher = launcher_fork;
+        launcher[AUDIT_TOKEN_PIDVERSION] = 2;
+        (
+            vec![
+                poll(
+                    EsEvent::Fork {
+                        token: guardian_fork,
+                    },
+                    1,
+                    1,
+                    es::EVENT_FORK,
+                ),
+                poll(EsEvent::Exec { token: guardian }, 2, 1, es::EVENT_EXEC),
+                poll(
+                    EsEvent::Fork {
+                        token: launcher_fork,
+                    },
+                    3,
+                    2,
+                    es::EVENT_FORK,
+                ),
+                poll(EsEvent::Exec { token: launcher }, 4, 2, es::EVENT_EXEC),
+            ],
+            launcher,
+            guardian,
+        )
+    }
+
+    #[test]
+    fn supervisor_replays_the_handshake_once_in_delivery_order() {
+        let (mut retained, launcher, guardian) = retained_handshake();
+        let mut engine =
+            supervisor_custody(8, launcher, token(42), 1001, &mut retained, false).unwrap();
+        assert!(retained.is_empty(), "replay must consume the queue");
+        assert_eq!(engine.seq().counts(), [2, 2, 0]);
+        assert!(engine.contains_token(&launcher));
+        assert!(
+            !engine.contains_token(&token(2001)),
+            "exec replaced the fork token"
+        );
+        assert!(!engine.contains_token(&guardian));
+        assert_eq!(engine.live_count(), 1);
+        assert!(engine.table().root_entered());
+        replay_retained(&mut engine, &mut retained);
+        assert_eq!(engine.seq().counts(), [2, 2, 0]);
+        let child = token(3001);
+        apply_supervisor_event(
+            &mut engine,
+            &poll(EsEvent::Fork { token: child }, 5, 3, es::EVENT_FORK),
+            &mut RecordedSignals::default(),
+        );
+        assert_eq!(engine.seq().counts(), [3, 2, 0]);
+        assert!(engine.contains_token(&child));
+        assert!(
+            !engine.gapped(),
+            "replay and later polls share one sequence"
+        );
+    }
+
+    #[test]
+    fn a_registered_guardian_exit_does_not_gap_the_supervisors_drain() {
+        let (mut retained, launcher, guardian) = retained_handshake();
+        let mut engine =
+            supervisor_custody(8, launcher, token(42), 1001, &mut retained, false).unwrap();
+        assert!(
+            !engine.contains_token(&guardian),
+            "custodians must be excluded before any stop"
+        );
+        assert_eq!(engine.live_count(), 1);
+        let mut signaller = RecordedSignals::default();
+        apply_supervisor_event(
+            &mut engine,
+            &poll(
+                EsEvent::Exit {
+                    token: guardian,
+                    status: 0,
+                },
+                5,
+                1,
+                es::EVENT_EXIT,
+            ),
+            &mut signaller,
+        );
+        assert!(!engine.gapped());
+        assert_eq!(engine.live_count(), 1, "only the launcher is a member");
+        engine.begin_stop(0);
+        assert!(engine.tick(0, &mut signaller).is_none());
+        assert_eq!(signaller.0, [(launcher, libc::SIGSTOP)]);
+        apply_supervisor_event(
+            &mut engine,
+            &poll(
+                EsEvent::Exit {
+                    token: launcher,
+                    status: 0,
+                },
+                6,
+                2,
+                es::EVENT_EXIT,
+            ),
+            &mut signaller,
+        );
+        assert!(engine.tick(1, &mut signaller).unwrap().drained());
+        assert!(!engine.gapped());
+        assert_eq!(engine.seq().counts(), [2, 2, 2]);
+    }
+
+    #[test]
+    fn a_supervisor_stop_before_root_entry_cannot_answer_drained() {
+        let (mut retained, launcher, _) = retained_handshake();
+        retained.truncate(2); // G entered and execed; the launcher never entered S.
+        let mut engine =
+            supervisor_custody(8, launcher, token(42), 1001, &mut retained, false).unwrap();
+        assert_eq!(engine.live_count(), 0);
+        assert!(!engine.table().root_entered());
+        engine.begin_stop(0);
+        assert!(matches!(
+            engine.tick(0, &mut RecordedSignals::default()),
+            Some(StopResult::NotDrained {
+                reason: crate::platform::macos::custody::StopNotDrainedReason::Gap,
+                ..
+            })
+        ));
+        assert!(engine.gapped());
+    }
+
+    #[test]
+    fn handshake_overflow_vetoes_the_supervisors_drain() {
+        let (mut retained, launcher, _) = retained_handshake();
+        let mut engine =
+            supervisor_custody(8, launcher, token(42), 1001, &mut retained, true).unwrap();
+        assert!(engine.gapped());
+        apply_supervisor_event(
+            &mut engine,
+            &poll(
+                EsEvent::Exit {
+                    token: launcher,
+                    status: 0,
+                },
+                5,
+                1,
+                es::EVENT_EXIT,
+            ),
+            &mut RecordedSignals::default(),
+        );
+        assert_eq!(engine.live_count(), 0);
+        engine.begin_stop(0);
+        assert!(
+            !engine
+                .tick(0, &mut RecordedSignals::default())
+                .unwrap()
+                .drained()
+        );
+    }
+
+    #[test]
+    fn supervisor_signals_stop_arrivals_before_the_next_tick() {
+        let (mut retained, launcher, _) = retained_handshake();
+        let mut engine =
+            supervisor_custody(8, launcher, token(42), 1001, &mut retained, false).unwrap();
+        let mut signaller = RecordedSignals::default();
+        engine.begin_stop(0);
+        let child = token(3001);
+        apply_supervisor_event(
+            &mut engine,
+            &poll(EsEvent::Fork { token: child }, 5, 3, es::EVENT_FORK),
+            &mut signaller,
+        );
+        assert_eq!(signaller.0, [(child, libc::SIGSTOP)]);
+    }
+
+    #[test]
+    fn supervisor_does_not_skip_a_malformed_polled_event() {
+        let (mut retained, launcher, _) = retained_handshake();
+        let mut engine =
+            supervisor_custody(8, launcher, token(42), 1001, &mut retained, false).unwrap();
+        apply_supervisor_event(
+            &mut engine,
+            &poll(
+                EsEvent::Exit {
+                    token: launcher,
+                    status: 0,
+                },
+                5,
+                1,
+                u32::MAX,
+            ),
+            &mut RecordedSignals::default(),
+        );
+        assert!(engine.gapped());
+        assert_eq!(engine.live_count(), 0);
+    }
+
+    #[test]
+    fn missing_guardian_identity_refuses_supervisor_custody() {
+        let (_, launcher, _) = retained_handshake();
+        assert!(supervisor_custody(8, launcher, token(42), 1001, &mut Vec::new(), false).is_err());
+    }
+
+    #[test]
+    fn reaping_the_guardian_retires_its_pid_before_any_later_cleanup() {
+        let mut guardian = GuardianProcess::new(123);
+        let mut waits = 0;
+        let mut wait = |pid: libc::pid_t, nonblocking: bool| {
+            assert_eq!(pid, 123);
+            assert!(nonblocking);
+            waits += 1;
+            // A second wait represents an unrelated process reusing PID 123.
+            Ok(if waits == 1 { Some(7 << 8) } else { None })
+        };
+        assert!(guardian.poll_with(&mut wait));
+        let mut kills = Vec::new();
+        assert!(!guardian.end_with(&mut wait, &mut |pid| {
+            kills.push(pid);
+            Ok(())
+        }));
+        assert!(guardian.poll_with(&mut wait));
+        assert_eq!(guardian.exit_code(), 7, "status is cached, never re-waited");
+        assert_eq!(waits, 1);
+        assert!(kills.is_empty());
+    }
+
+    #[test]
+    fn guardian_cleanup_never_signals_after_echild() {
+        let mut guardian = GuardianProcess::new(123);
+        let mut waits = 0;
+        let mut wait = |_, _| {
+            waits += 1;
+            Err(std::io::Error::from_raw_os_error(libc::ECHILD))
+        };
+        let mut kills = 0;
+        let mut kill = |_| {
+            kills += 1;
+            Ok(())
+        };
+        assert!(!guardian.end_with(&mut wait, &mut kill));
+        assert!(!guardian.end_with(&mut wait, &mut kill));
+        assert_eq!(waits, 1);
+        assert_eq!(kills, 0);
+        assert!(guardian.pid.is_none());
+    }
+
+    #[test]
+    fn ending_a_live_guardian_signals_once_then_reaps_once() {
+        let mut guardian = GuardianProcess::new(123);
+        let mut waits = Vec::new();
+        let mut wait = |pid: libc::pid_t, nonblocking: bool| {
+            waits.push((pid, nonblocking));
+            Ok(if nonblocking {
+                None
+            } else {
+                Some(libc::SIGKILL)
+            })
+        };
+        let mut kills = Vec::new();
+        let mut kill = |pid| {
+            kills.push(pid);
+            Ok(())
+        };
+        assert!(guardian.end_with(&mut wait, &mut kill));
+        assert!(!guardian.end_with(&mut wait, &mut kill));
+        assert_eq!(waits, [(123, true), (123, false)]);
+        assert_eq!(kills, [123]);
+        assert_eq!(guardian.status, Some(libc::SIGKILL));
+        assert!(guardian.pid.is_none());
+    }
+
+    #[test]
+    fn an_exited_spawned_guardian_is_reaped_without_later_signalling() {
+        let pid = spawn_self(Path::new("/usr/bin/true"), &[], &[]).unwrap();
+        let mut guardian = GuardianProcess::new(pid);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !guardian.poll() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        if guardian.pid.is_some() {
+            guardian.end();
+            panic!("child did not exit within the bounded wait");
+        }
+        assert_eq!(guardian.exit_code(), 0);
+        assert!(!guardian.end());
+        assert!(guardian.poll());
+    }
+
+    #[test]
+    fn no_wall_release_uses_the_guardians_explicit_no_deadline_frame() {
+        use crate::platform::macos::guardian::frames::{Feed, Frame, FrameReader, wall_deadline};
+        let mut a = Pipe::new().unwrap();
+        let mut r = Pipe::new().unwrap();
+        let mut a_read = Fd::nonblocking(a.take_read()).unwrap();
+        let mut r_read = Fd::nonblocking(r.take_read()).unwrap();
+        let mut release = Fd(r.take_write());
+        release_launcher(a.write, &mut release, None).unwrap();
+        let mut bytes = [0u8; 128];
+        let n = a_read.read(&mut bytes).unwrap();
+        assert_eq!(
+            FrameReader::default().read(&bytes[..n], false),
+            Feed::Frames(vec![Ok(Frame::ReleaseDeadline(NO_DEADLINE))])
+        );
+        assert_eq!(wall_deadline(NO_DEADLINE), None);
+        assert_eq!(
+            a_read.read(&mut bytes).unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+        assert_eq!(r_read.read(&mut bytes).unwrap(), 1);
+        assert_eq!(bytes[0], b'L');
+        assert_eq!(pipe_read_bounded(&mut r_read, &mut bytes), 0);
     }
 
     #[test]
@@ -2911,7 +3530,7 @@ os.write({}, (','.join(map(str, fds))).encode())
 
     #[test]
     fn b_rejects_oversize_and_zero_lengths_immediately() {
-        for length in [0u32, 4097, u32::MAX] {
+        for length in [0u32, (MAX_FRAME_BYTES + 1) as u32, u32::MAX] {
             assert!(
                 decode_b_frames(&[&length.to_le_bytes()]).is_err(),
                 "{length}"
@@ -2958,6 +3577,486 @@ os.write({}, (','.join(map(str, fds))).encode())
                 exec_pins: Vec::new(),
             },
         )
+    }
+
+    /// No ES client or workload process is created. The production native
+    /// prepared/released objects still produce every receipt field; this
+    /// adapter replaces only the event source, signalling and host probes.
+    struct ReceiptPlatform {
+        wall_hit: Option<bool>,
+        prepared_receipt: std::sync::Arc<std::sync::Mutex<Option<serde_json::Value>>>,
+    }
+
+    struct ReceiptPrepared {
+        inner: MacosPrepared,
+        peers: [Fd; 2],
+        wall_hit: Option<bool>,
+        receipt_path: PathBuf,
+        prepared_receipt: std::sync::Arc<std::sync::Mutex<Option<serde_json::Value>>>,
+    }
+
+    struct ReceiptRun {
+        inner: MacosRunning,
+        _peers: [Fd; 2],
+        wall_hit: Option<bool>,
+        next_event: u8,
+    }
+
+    fn receipt_prepared(plan: &PreparedPlan) -> (MacosPrepared, [Fd; 2]) {
+        let params = profile_params(plan, None).unwrap();
+        let (mut events, launcher, _) = retained_handshake();
+        let engine = supervisor_custody(8, launcher, token(42), 1001, &mut events, false).unwrap();
+        let mut a = Pipe::new().unwrap();
+        let mut r = Pipe::new().unwrap();
+        let peers = [Fd(a.take_read()), Fd(r.take_read())];
+        (
+            MacosPrepared {
+                client: None,
+                engine,
+                a_write: a.take_write(),
+                r_write: Fd(r.take_write()),
+                b_read: Fd(-1),
+                e_read: Fd(-1),
+                guardian: GuardianProcess {
+                    pid: None,
+                    status: Some(0),
+                },
+                launcher_token: launcher,
+                process: ProcessRecord {
+                    pid: launcher[AUDIT_TOKEN_PID],
+                    identity: ProcessIdentity {
+                        kind: "macos_audit_token".to_owned(),
+                        value: audit_token_value(launcher),
+                    },
+                },
+                applied: build_applied(plan, &params, None, false),
+                wall_ms: plan
+                    .request
+                    .snapshot
+                    .limits
+                    .wall
+                    .as_ref()
+                    .map(|wall| wall.value.parse().unwrap()),
+                relay: None,
+                headroom: u64::from(NPROC_HEADROOM),
+                profile_params: params,
+                handshake_events: events,
+                proxy: None,
+                proxy_sink: None,
+                serving: None,
+            },
+            peers,
+        )
+    }
+
+    impl crate::platform::Platform for ReceiptPlatform {
+        fn identity(&self) -> crate::platform::PlatformIdentity {
+            crate::platform::macos::MacosPlatform.identity()
+        }
+
+        fn owner_identity(&self) -> Option<crate::platform::OwnerIdentity> {
+            crate::platform::macos::owner_identity()
+        }
+
+        fn probe(&self, plan: &crate::platform::PlanRequest) -> Vec<crate::capability::Capability> {
+            plan.requirements
+                .iter()
+                .map(|requirement| crate::capability::Capability {
+                    name: requirement.to_string(),
+                    status: crate::capability::CapabilityStatus::Available,
+                    scope: crate::capability::CapabilityScope::Tree,
+                    mechanism: Some("receipt-test-fake-probe".into()),
+                    reason_code: Some("ok".into()),
+                    measured_at: Some(crate::records::rfc3339_utc(SystemTime::now())),
+                    evidence_ref: Some("receipt-test".into()),
+                })
+                .collect()
+        }
+
+        fn prepare(
+            &self,
+            plan: PreparedPlan,
+            _: Sinks,
+        ) -> Result<Box<dyn PreparedExecution>, JailError> {
+            let (inner, peers) = receipt_prepared(&plan);
+            Ok(Box::new(ReceiptPrepared {
+                inner,
+                peers,
+                wall_hit: self.wall_hit,
+                receipt_path: plan.attempt_dir.join(crate::state::RECEIPT_NAME),
+                prepared_receipt: self.prepared_receipt.clone(),
+            }))
+        }
+    }
+
+    impl PreparedExecution for ReceiptPrepared {
+        fn boundary(&self) -> BoundaryIdentity {
+            self.inner.boundary()
+        }
+        fn applied(&self) -> Option<Applied> {
+            self.inner.applied()
+        }
+        fn release(
+            self: Box<Self>,
+        ) -> Result<Box<dyn crate::platform::RunningExecution>, Box<ReleaseFailure>> {
+            *self.prepared_receipt.lock().unwrap() =
+                Some(serde_json::from_slice(&std::fs::read(&self.receipt_path).unwrap()).unwrap());
+            let inner = self.inner.release_inner()?;
+            Ok(Box::new(ReceiptRun {
+                inner,
+                _peers: self.peers,
+                wall_hit: self.wall_hit,
+                next_event: 0,
+            }))
+        }
+        fn abort(self: Box<Self>) -> Result<Teardown, JailError> {
+            // The fixture owns this pipe; there is no real guardian or ES
+            // client to stop. Reaching this path is a test failure below.
+            let _a = Fd(self.inner.a_write);
+            Ok(Teardown { tree: None })
+        }
+    }
+
+    impl crate::platform::RunningExecution for ReceiptRun {
+        fn wait(&mut self, _: Deadline) -> RunEvent {
+            let event = self.next_event;
+            self.next_event += 1;
+            match event {
+                0 => {
+                    let mut target = self.inner.launcher_token;
+                    target[AUDIT_TOKEN_PIDVERSION] += 1;
+                    self.inner
+                        .apply_event(&poll(EsEvent::Exec { token: target }, 5, 3, es::EVENT_EXEC))
+                        .unwrap()
+                }
+                1 if self.wall_hit == Some(true) => {
+                    self.inner.release_ns = 0;
+                    self.inner.wall_ns = 1;
+                    self.inner.wall_check().unwrap()
+                }
+                1 | 2 => {
+                    if self.wall_hit.is_none() {
+                        self.inner.release_ns = 0;
+                        self.inner.wall_ns = 1; // No S wall check; G's cause is unknown.
+                    }
+                    let target = self.inner.target_token.unwrap();
+                    self.inner
+                        .apply_event(&poll(
+                            EsEvent::Exit {
+                                token: target,
+                                status: if self.wall_hit == Some(false) {
+                                    0
+                                } else {
+                                    libc::SIGKILL
+                                },
+                            },
+                            6,
+                            1,
+                            es::EVENT_EXIT,
+                        ))
+                        .unwrap()
+                }
+                _ => RunEvent::Poll,
+            }
+        }
+        fn request_stop(&mut self, reason: StopReason) {
+            self.inner
+                .request_stop_with(reason, &mut RecordedSignals::default());
+        }
+        fn wait_tree(&mut self, _: Duration) -> TreeObservation {
+            self.inner.begin_stop();
+            assert!(self.inner.tick_stop()); // The fake source already delivered the exit.
+            self.inner.settled_tree()
+        }
+        fn final_limits(&self) -> Vec<AppliedLimit> {
+            self.inner.final_limits()
+        }
+        fn observer_summary(&mut self) -> Option<crate::observer::CoverageSummary> {
+            self.inner.observer_summary()
+        }
+        fn final_native_details(&self) -> serde_json::Map<String, serde_json::Value> {
+            self.inner.final_native_details()
+        }
+    }
+
+    fn receipt_validator() -> jsonschema::Validator {
+        let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/specs/jail-v1");
+        let schemas: Vec<serde_json::Value> = std::fs::read_dir(&directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| {
+                path.file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .ends_with(".schema.json")
+            })
+            .map(|path| serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap())
+            .collect();
+        let resources: Vec<_> = schemas
+            .iter()
+            .map(|schema| {
+                (
+                    schema["$id"].as_str().unwrap().to_owned(),
+                    jsonschema::Resource::from_contents(schema.clone()),
+                )
+            })
+            .collect();
+        let registry = Box::leak(Box::new(
+            jsonschema::Registry::new()
+                .extend(resources)
+                .unwrap()
+                .prepare()
+                .unwrap(),
+        ));
+        let schema: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(directory.join("jail-receipt.schema.json")).unwrap(),
+        )
+        .unwrap();
+        jsonschema::options()
+            .with_registry(&*registry)
+            .should_validate_formats(true)
+            .build(&schema)
+            .unwrap()
+    }
+
+    #[test]
+    fn native_prepared_and_settled_producer_receipts_validate_with_and_without_a_wall_hit() {
+        use clap::Parser as _;
+        use std::os::unix::fs::PermissionsExt as _;
+        // Keep the explicit development opt-in local to a subprocess, so
+        // parallel gate-refusal tests continue to test the default-off state.
+        const CHILD: &str = "UKAI_CONTAINMENT_RECEIPT_TEST";
+        if std::env::var_os(CHILD).is_none() {
+            let test_name = format!(
+                "{}::native_prepared_and_settled_producer_receipts_validate_with_and_without_a_wall_hit",
+                module_path!().split_once("::").unwrap().1
+            );
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", &test_name, "--nocapture"])
+                .env(CHILD, "1")
+                .env("UKAI_JAIL_MACOS_NATIVE", "dev")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(
+                String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+                "the subprocess must execute the schema fixture: {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+            return;
+        }
+        let validator = receipt_validator();
+        for wall_hit in [Some(false), Some(true), None] {
+            let temp = tempfile::Builder::new()
+                .permissions(std::fs::Permissions::from_mode(0o700))
+                .tempdir()
+                .unwrap();
+            let root = temp.path().canonicalize().unwrap();
+            let workspace = root.join("work");
+            std::fs::create_dir(&workspace).unwrap();
+            let captured = std::sync::Arc::new(std::sync::Mutex::new(None));
+            let ctx = crate::supervisor::Context {
+                platform: Box::new(ReceiptPlatform {
+                    wall_hit,
+                    prepared_receipt: captured.clone(),
+                }),
+                env_settings: crate::config::EnvSettings {
+                    config_dir: Some(root.join("config")),
+                    data_dir: Some(root.join("data")),
+                    ..Default::default()
+                },
+                cwd: workspace.clone(),
+                home: Some(root.join("home")),
+                env_lookup: Box::new(|_| None),
+            };
+            let crate::cli::Command::Run(args) = crate::cli::Cli::parse_from([
+                "ukai-jail",
+                "run",
+                "--profile",
+                "tool",
+                "--workspace",
+                workspace.to_str().unwrap(),
+                "--",
+                "/usr/bin/true",
+            ])
+            .command
+            else {
+                unreachable!()
+            };
+            let report = crate::supervisor::run(&ctx, &args);
+            let settled = serde_json::to_value(report.receipt.as_ref().unwrap()).unwrap();
+            assert_eq!(
+                settled["phase"], "settled",
+                "{:?}\n{settled:#}",
+                report.error
+            );
+            let prepared = captured
+                .lock()
+                .unwrap()
+                .take()
+                .expect("the prepared receipt was persisted before release");
+            assert_eq!(prepared["phase"], "prepared");
+            for (receipt, hit) in [(&prepared, Some(false)), (&settled, wall_hit)] {
+                let errors: Vec<_> = validator
+                    .iter_errors(receipt)
+                    .map(|error| format!("{error} at {}", error.instance_path()))
+                    .collect();
+                assert!(errors.is_empty(), "{errors:?}\n{receipt:#}");
+                let rows = receipt["applied"]["limits"].as_array().unwrap();
+                let wall = rows
+                    .iter()
+                    .find(|row| row["key"] == "wall")
+                    .expect("native wall row");
+                assert_eq!(wall["mechanism"], "both-custodians-continuous-clock");
+                assert_eq!(wall["scope"], "tree");
+                assert_eq!(wall["required"], true);
+                assert_eq!(wall["applied"], true);
+                assert_eq!(wall["hit"], serde_json::json!(hit));
+            }
+            assert_eq!(settled["lifetime"]["tree_empty"], true);
+            assert_eq!(
+                settled["lifetime"]["native"]["details"]["custodians"]["supervisor"]["result"],
+                "drained"
+            );
+            assert_eq!(settled["observer"]["backend"], serde_json::Value::Null);
+            assert_eq!(settled["observer"]["attached"], false);
+            for class in ["exec", "fs.write", "fs.deny", "net", "proxy.net"] {
+                assert_eq!(settled["coverage"][class]["status"], "unsupported");
+                assert!(settled["coverage"][class]["observed_count"].is_null());
+            }
+            assert_eq!(
+                settled["coverage"]["limits"]["status"],
+                if wall_hit.is_some() {
+                    "active"
+                } else {
+                    "degraded"
+                }
+            );
+            assert_eq!(
+                settled["coverage"]["limits"]["observed_count"],
+                serde_json::json!(wall_hit.map(u64::from))
+            );
+            assert_eq!(
+                settled["outcome"]["cause"],
+                if wall_hit == Some(true) {
+                    serde_json::json!("wall_expiry")
+                } else {
+                    serde_json::Value::Null
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn native_limit_rows_preserve_all_requested_unapplied_ceilings() {
+        let mut limits = crate::policy::LimitsSnapshot::default();
+        for key in crate::policy::LimitKey::ALL {
+            *limits.get_mut(key) = Some(crate::policy::LimitCeiling {
+                value: "123".into(),
+                required: key == crate::policy::LimitKey::Wall,
+            });
+        }
+        let rows = limit_rows(&limits);
+        assert_eq!(rows.len(), crate::policy::LimitKey::ALL.len());
+        for row in rows {
+            assert_eq!(row.requested, "123");
+            if row.key != "wall" {
+                assert!(!row.applied);
+                assert!(!row.required);
+                assert_eq!((row.mechanism, row.scope, row.hit), (None, None, None));
+            }
+        }
+    }
+
+    #[test]
+    fn custodian_loss_errors_do_not_claim_an_unproved_drain() {
+        let (_dir, plan) = policy_plan(crate::policy::ProfileName::Tool);
+        let (prepared, _peers) = receipt_prepared(&plan);
+        let mut running = prepared.release_inner().unwrap();
+        running.guardian_lost = true;
+        running.engine.note_stream_gap();
+        running.begin_stop();
+        assert!(running.tick_stop());
+        assert_eq!(running.settled_tree().tree_empty, None);
+        assert_eq!(running.custodian_facts()["result"], "not_drained");
+        assert_eq!(running.custodian_errors.len(), 1);
+        assert!(!running.custodian_errors[0].message.contains("drained"));
+    }
+
+    #[test]
+    fn an_unobserved_late_wall_is_not_reported_as_an_unhit_ceiling() {
+        use crate::platform::RunningExecution as _;
+        let (_dir, plan) = policy_plan(crate::policy::ProfileName::Tool);
+        let (prepared, _peers) = receipt_prepared(&plan);
+        let mut running = prepared.release_inner().unwrap();
+        running.release_ns = 0;
+        running.wall_ns = 1; // S resumed after the deadline; no wall check ran.
+        let mut target = running.launcher_token;
+        target[AUDIT_TOKEN_PIDVERSION] += 1;
+        running.apply_event(&poll(EsEvent::Exec { token: target }, 5, 3, es::EVENT_EXEC));
+        running.apply_event(&poll(
+            EsEvent::Exit {
+                token: target,
+                status: libc::SIGKILL,
+            },
+            6,
+            1,
+            es::EVENT_EXIT,
+        ));
+        running.begin_stop();
+        assert!(running.tick_stop());
+        assert_eq!(running.settled_tree().tree_empty, Some(true));
+        let wall = running
+            .final_limits()
+            .into_iter()
+            .find(|row| row.key == "wall")
+            .unwrap();
+        assert_eq!(
+            wall.hit, None,
+            "SIGKILL and elapsed time cannot establish which custodian hit the wall"
+        );
+        let summary = running.observer_summary().unwrap();
+        let limits = &summary.classes[&crate::observer::CoverageClass::Limits];
+        assert_eq!(limits.status, crate::records::SourceStatus::Degraded);
+        assert_eq!(limits.observed_count, None);
+        assert!(
+            limits
+                .gaps
+                .iter()
+                .any(|gap| gap.reason == "wall_hit_unobserved")
+        );
+    }
+
+    #[test]
+    fn native_wall_hit_does_not_replace_an_earlier_stop_cause() {
+        use crate::platform::RunningExecution as _;
+        let (_dir, plan) = policy_plan(crate::policy::ProfileName::Tool);
+        let (prepared, _peers) = receipt_prepared(&plan);
+        let mut running = prepared.release_inner().unwrap();
+        running.request_stop_with(StopReason::OperatorSignal, &mut RecordedSignals::default());
+        running.wall_expired = true;
+        running.request_stop_with(StopReason::WallExpiry, &mut RecordedSignals::default());
+        assert_eq!(
+            running.stop.as_ref().unwrap().reason,
+            StopReason::OperatorSignal
+        );
+        let wall = running
+            .final_limits()
+            .into_iter()
+            .find(|row| row.key == "wall")
+            .unwrap();
+        assert_eq!(wall.hit, Some(true));
+        assert_eq!(
+            running.observer_summary().unwrap().classes[&crate::observer::CoverageClass::Limits]
+                .observed_count,
+            Some(1)
+        );
     }
 
     #[test]
@@ -3217,7 +4316,7 @@ int main(int argc, char **argv) {
         let mut a_read = Fd::nonblocking(a.take_read()).unwrap();
         let mut r_read = Fd::nonblocking(r.take_read()).unwrap();
         let mut release = Fd(r.take_write());
-        release_launcher(a.write, &mut release, 123).unwrap();
+        release_launcher(a.write, &mut release, Some(123)).unwrap();
         let mut bytes = [0u8; 128];
         let n = a_read.read(&mut bytes).unwrap();
         assert_eq!(
@@ -3231,13 +4330,13 @@ int main(int argc, char **argv) {
         assert_eq!(r_read.read(&mut bytes).unwrap(), 1);
         assert_eq!(bytes[0], b'L');
         assert_eq!(
-            r_read.read(&mut bytes).unwrap(),
+            pipe_read_bounded(&mut r_read, &mut bytes),
             0,
             "R closes after release"
         );
         drop(a);
         assert_eq!(
-            a_read.read(&mut bytes).unwrap(),
+            pipe_read_bounded(&mut a_read, &mut bytes),
             0,
             "A EOF is the later stop"
         );
