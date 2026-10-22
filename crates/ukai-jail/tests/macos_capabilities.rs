@@ -2,9 +2,8 @@
 //! baseline behavior (jail-macos.md §4.10).
 //!
 //! Everything here drives the built binary, because the macOS platform
-//! module is crate-private: what an operator sees is the contract. The live
-//! ES probe never skips — this Mac's own answer (`NotEntitled`, or
-//! `Unavailable` where the framework is absent) is the assertion.
+//! answers exposed to operators are the contract. The native tier's
+//! development gate is off in these tests; no ES client is attempted.
 
 #![cfg(target_os = "macos")]
 
@@ -109,7 +108,7 @@ fn doctor_rows_answer_the_section_4_10_table() {
     assert_eq!(tree["status"], serde_json::json!("unavailable"));
     let reason = tree["reason_code"].as_str().expect("a reason code");
     assert!(
-        reason == "es_not_entitled" || reason == "es_unavailable",
+        reason == "native_development_disabled",
         "the ES probe names its own refusal: {reason}"
     );
     println!("es_descendants reason: {reason}");
@@ -206,7 +205,7 @@ fn an_explicit_tree_ceiling_refuses() {
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("limit:pids") || stderr.contains("missing_capability"),
+        stderr.contains("unsupported_platform") && stderr.contains("UKAI_JAIL_MACOS_NATIVE=dev"),
         "the refusal names the unsupported ceiling: {stderr}"
     );
 }

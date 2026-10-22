@@ -66,51 +66,56 @@ pub fn os_build_version() -> Option<String> {
 /// scan saw (the caller passes the entries to
 /// [`crate::platform::macos::sandbox::ProfileParams::setuid_exec_denied`]).
 pub fn scan_root(root: &Path) -> io::Result<Vec<SetuidEntry>> {
-    let mut found = BTreeMap::new();
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let entries = match std::fs::read_dir(&dir) {
-            Ok(entries) => entries,
-            // Unreadable directories contribute nothing; the caller decides
-            // whether a partially-scanned granted root is acceptable (§4.7
-            // records the scanned set, so a hole is visible in the receipt).
-            Err(error) if error.kind() == io::ErrorKind::PermissionDenied => continue,
-            Err(error) if dir == root => return Err(error),
-            Err(_) => continue,
+    Ok(scan_root_report(root).entries)
+}
+
+/// Enumeration evidence. Holes are recorded, never described as a complete scan.
+#[derive(Clone, Debug, Default)]
+pub struct ScanReport {
+    pub entries: Vec<SetuidEntry>,
+    pub holes: Vec<PathBuf>,
+}
+
+fn scan_root_report(root: &Path) -> ScanReport {
+    let mut report = ScanReport::default();
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(path) = pending.pop() {
+        let metadata = match std::fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(_) => {
+                report.holes.push(path);
+                continue;
+            }
         };
-        for entry in entries {
-            let entry = match entry {
-                Ok(entry) => entry,
-                Err(_) => continue,
-            };
-            let path = entry.path();
-            let Ok(metadata) = std::fs::symlink_metadata(&path) else {
-                continue;
-            };
-            let file_type = metadata.file_type();
-            if file_type.is_dir() {
-                stack.push(path);
-                continue;
+        if metadata.is_dir() {
+            match std::fs::read_dir(&path) {
+                Ok(entries) => {
+                    for entry in entries {
+                        match entry {
+                            Ok(entry) => pending.push(entry.path()),
+                            Err(_) => report.holes.push(path.clone()),
+                        }
+                    }
+                }
+                Err(_) => report.holes.push(path),
             }
-            if !file_type.is_file() {
-                continue;
-            }
+        } else if metadata.is_file() {
             let mode = metadata.permissions().mode();
-            let setuid = mode & 0o4000 != 0;
-            let setgid = mode & 0o2000 != 0;
-            if setuid || setgid {
-                found.insert(
-                    path.clone(),
-                    SetuidEntry {
-                        path,
-                        setuid,
-                        setgid,
-                    },
-                );
+            if mode & 0o6000 != 0 {
+                report.entries.push(SetuidEntry {
+                    path,
+                    setuid: mode & 0o4000 != 0,
+                    setgid: mode & 0o2000 != 0,
+                });
             }
         }
+        // Symlinks are deliberately not followed; the kernel's setuid-exec
+        // denial remains the backstop for aliases and post-scan changes.
     }
-    Ok(found.into_values().collect())
+    report.entries.sort_by(|a, b| a.path.cmp(&b.path));
+    report.holes.sort();
+    report.holes.dedup();
+    report
 }
 
 /// The sealed-volume set for this build, enumerated once per process and
@@ -122,19 +127,23 @@ pub fn scan_root(root: &Path) -> io::Result<Vec<SetuidEntry>> {
 pub fn system_entries() -> &'static SystemSetuid {
     static SYSTEM: LazyLock<SystemSetuid> = LazyLock::new(|| {
         let mut found = BTreeMap::new();
-        for root in SYSTEM_ROOTS {
-            match scan_root(Path::new(root)) {
-                Ok(entries) => {
-                    for entry in entries {
-                        found.insert(entry.path.clone(), entry);
-                    }
-                }
-                Err(_) => continue,
+        let mut roots: Vec<PathBuf> = SYSTEM_ROOTS.into_iter().map(PathBuf::from).collect();
+        roots.extend(super::sandbox::runtime_roots());
+        roots.sort();
+        roots.dedup();
+        let mut holes = Vec::new();
+        for root in &roots {
+            let scan = scan_root_report(root);
+            for entry in scan.entries {
+                found.insert(entry.path.clone(), entry);
             }
+            holes.extend(scan.holes);
         }
         SystemSetuid {
             build: os_build_version().unwrap_or_default(),
             entries: found.into_values().collect(),
+            roots,
+            holes,
         }
     });
     &SYSTEM
@@ -147,6 +156,10 @@ pub struct SystemSetuid {
     pub build: String,
     /// Every setuid/setgid file under [`SYSTEM_ROOTS`], ordered by path.
     pub entries: Vec<SetuidEntry>,
+    /// Roots actually scanned, including runtime libraries.
+    pub roots: Vec<PathBuf>,
+    /// Paths whose metadata or directory entries could not be read.
+    pub holes: Vec<PathBuf>,
 }
 
 /// The absolute paths of `entries`, in order — the profile parameter and the
@@ -159,16 +172,35 @@ pub fn deny_paths(entries: &[SetuidEntry]) -> Vec<PathBuf> {
 /// Convenience used at preparation: one call enumerating the sealed roots
 /// plus every granted root, ordered by path.
 pub fn scan_readable_roots(granted_roots: &[PathBuf]) -> io::Result<Vec<SetuidEntry>> {
-    let mut found = BTreeMap::new();
-    for entry in system_entries().entries.clone() {
-        found.insert(entry.path.clone(), entry);
-    }
+    Ok(scan_readable_roots_report(granted_roots).entries)
+}
+
+/// Preparation's evidence, including explicit holes and file grants.
+pub fn scan_readable_roots_report(granted_roots: &[PathBuf]) -> ScanReport {
+    let system = system_entries();
+    let mut found: BTreeMap<_, _> = system
+        .entries
+        .iter()
+        .cloned()
+        .map(|e| (e.path.clone(), e))
+        .collect();
+    let mut holes = system.holes.clone();
     for root in granted_roots {
-        for entry in scan_root(root)? {
+        if system.roots.iter().any(|system| root.starts_with(system)) {
+            continue;
+        }
+        let scan = scan_root_report(root);
+        for entry in scan.entries {
             found.insert(entry.path.clone(), entry);
         }
+        holes.extend(scan.holes);
     }
-    Ok(found.into_values().collect())
+    holes.sort();
+    holes.dedup();
+    ScanReport {
+        entries: found.into_values().collect(),
+        holes,
+    }
 }
 
 #[cfg(test)]
@@ -214,5 +246,20 @@ mod tests {
         assert!(su_entry.setuid && !su_entry.setgid);
         assert!(sg_entry.setgid && !sg_entry.setuid);
         assert!(deny_paths(&found).contains(&su));
+    }
+    #[test]
+    fn individual_file_grants_are_scanned_and_missing_roots_are_holes() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("setgid");
+        std::fs::write(&file, b"fixture").unwrap();
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o2755)).unwrap();
+        let scan = scan_root_report(&file);
+        assert_eq!(scan.entries.len(), 1);
+        assert!(scan.entries[0].setgid);
+        assert!(scan.holes.is_empty());
+        let missing = dir.path().join("missing");
+        let scan = scan_root_report(&missing);
+        assert_eq!(scan.holes, vec![missing]);
+        assert!(scan.entries.is_empty());
     }
 }

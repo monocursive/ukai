@@ -118,13 +118,16 @@ pub const TEMPLATE: &str = r#"; ukai-jail native tier (macOS): defense profile.
 ; priority changes and proc_rlimit_control have no same-sandbox filter on
 ; this build and are denied outright; task ports via mach-task-name and
 ; mach-task-read close ptrace/task_for_pid/task_name_for_pid for every
-; target, members included. process-info READ subops stay open: runtimes
-; need self-info, and they inform but do not control.
+; target, members included. An explicit process-info denial is necessary
+; alongside the sysctl allowlist: default-deny alone still permits
+; KERN_PROCARGS2 on this build, exposing another process's environment.
 (deny signal)
 (allow signal (target same-sandbox))
 (deny system-suspend-resume)
 (deny system-memorystatus-control)
 (deny system-sched)
+(deny process-info*)
+(allow process-info* (target self))
 (deny process-info-setcontrol)
 (deny process-info-dirtycontrol)
 (deny process-info-ledger)
@@ -135,7 +138,18 @@ pub const TEMPLATE: &str = r#"; ukai-jail native tier (macOS): defense profile.
 ; dyld ignition enumerates the root directory while locating the shared
 ; cache; without this every exec dies in dyld4::CacheFinder (measured).
 (allow file-read-data (literal "/"))
-(allow sysctl-read)
+; No kern.proc* grant: it would expose other processes' argv/environment.
+(allow sysctl-read
+    (sysctl-name "hw.ncpu") (sysctl-name "hw.activecpu")
+    (sysctl-name "hw.logicalcpu") (sysctl-name "hw.logicalcpu_max")
+    (sysctl-name "hw.physicalcpu") (sysctl-name "hw.physicalcpu_max")
+    (sysctl-name "hw.memsize") (sysctl-name "hw.pagesize")
+    (sysctl-name "hw.optional.arm64") (sysctl-name "hw.optional.neon")
+    (sysctl-name "kern.osrelease") (sysctl-name "kern.osversion")
+    (sysctl-name "kern.ostype") (sysctl-name "kern.version")
+    (sysctl-name "kern.argmax") (sysctl-name "kern.boottime")
+    (sysctl-name "kern.maxfilesperproc") (sysctl-name "kern.maxprocperuid")
+    (sysctl-name "machdep.cpu.brand_string") (sysctl-name "vm.loadavg"))
 (allow file-ioctl (literal "/dev/dtracehelper"))
 ; Git opens /dev/null read-write and fails hard without the read half
 ; (measured with Homebrew's git).
@@ -158,13 +172,15 @@ pub const TEMPLATE: &str = r#"; ukai-jail native tier (macOS): defense profile.
 (allow process-fork)
 
 ; --- Filesystem: read-only admitted roots (jail-v2 §8.1) -------------------
-@@READ_ONLY_RULES@@
-; --- Filesystem: read-write roots (workspace, scratch, vendor state) -------
-@@READ_WRITE_RULES@@
+@@ACCESS_RULES@@
 ; --- Execution: admitted at the read-only roots only -----------------------
 @@EXEC_RULES@@
 ; --- Protected segments, AFTER the grants they override --------------------
 @@PROTECTED_RULES@@
+; Explicit read denials override every grant, including ancestor metadata.
+@@DENY_READ_RULES@@
+; Terminal control is confined to this attempt's own slave vnode.
+@@TERMINAL_RULES@@
 ; --- §4.7 class 3: no gaining another user ---------------------------------
 ; Executing every enumerated setuid/setgid file is denied by path; the
 ; kernel additionally refuses setuid-exec for any sandboxed process
@@ -198,12 +214,18 @@ pub struct ProfileParams {
     pub read_write: Vec<PathBuf>,
     /// Read-only roots: the admitted system roots and `--from-path` pins.
     pub read_only: Vec<PathBuf>,
+    /// Explicit read denials, applied after all grants.
+    pub deny_read: Vec<PathBuf>,
+    /// The attempt's pty slave, never a wildcard over /dev/ttys*.
+    pub terminal_slave: Option<PathBuf>,
     /// Protected segments denied for writing over the writable parents
     /// (`.git`, `.ukai`, an agent's `.git/hooks` and `.git/config`).
     pub protected_segments: Vec<PathBuf>,
     /// Every setuid/setgid file found in the readable roots (§4.7 class 3),
     /// from `crate::platform::macos::setuid` — denied for exec by path.
     pub setuid_exec_denied: Vec<PathBuf>,
+    /// Enumeration holes; the kernel setuid-exec backstop still applies.
+    pub setuid_scan_holes: Vec<PathBuf>,
     /// Admitted `mach-lookup` service names. Starts empty: measured on this
     /// build, Node, Git and a shell run with lookup fully denied. The
     /// backend evaluation pins the final list; K90 probes every entry.
@@ -218,6 +240,22 @@ pub struct ProfileParams {
     /// The attempt bridge's SOCKS5 port on loopback (`None` under
     /// `network_none`).
     pub bridge_socks_port: Option<u16>,
+}
+
+impl ProfileParams {
+    /// Public parameters only: never proxy secrets or environment values.
+    #[must_use]
+    pub fn receipt(&self) -> serde_json::Value {
+        serde_json::json!({
+            "read_write": self.read_write, "read_only": self.read_only, "deny_read": self.deny_read,
+            "protected_segments": self.protected_segments, "setuid_exec_denied": self.setuid_exec_denied,
+            "setuid_scan_holes": self.setuid_scan_holes.iter().map(|p| p.as_os_str().as_encoded_bytes()).collect::<Vec<_>>(),
+            "setuid_backstop": "kernel_sandbox_exec_denial",
+            "mach_services": self.mach_services, "unix_socket_paths": self.unix_socket_paths,
+            "terminal_slave": self.terminal_slave, "bridge_http_port": self.bridge_http_port,
+            "bridge_socks_port": self.bridge_socks_port,
+        })
+    }
 }
 
 /// The SBPL template, for readers and the receipt tooling.
@@ -252,35 +290,126 @@ pub fn digest(text: &str) -> String {
 /// closes exactly the classes the template closes (§4.7).
 #[must_use]
 pub fn generate(params: &ProfileParams) -> String {
-    TEMPLATE
-        .replace("@@TEMPLATE_DIGEST@@", &template_digest())
-        .replace("@@READ_ONLY_RULES@@", &read_rules(&params.read_only))
-        .replace("@@READ_WRITE_RULES@@", &write_rules(&params.read_write))
-        .replace(
-            "@@ANCESTOR_METADATA@@",
-            &ancestor_metadata(&params.read_only, &params.read_write),
-        )
-        .replace("@@EXEC_RULES@@", &exec_rules(&params.read_only))
-        .replace(
-            "@@PROTECTED_RULES@@",
-            &protected_rules(&params.protected_segments),
-        )
-        .replace(
-            "@@SETUID_RULES@@",
-            &setuid_rules(&params.setuid_exec_denied),
-        )
-        .replace(
-            "@@MACH_ALLOW_RULE@@",
-            &mach_allow_rule(&params.mach_services),
-        )
-        .replace(
-            "@@UNIX_ALLOW_RULE@@",
-            &unix_allow_rule(&params.unix_socket_paths),
-        )
-        .replace(
-            "@@BRIDGE_ALLOW_RULE@@",
-            &bridge_allow_rule(params.bridge_http_port, params.bridge_socks_port),
-        )
+    // Compatibility entry point. Invalid input grants nothing; production
+    // calls try_generate and reports a typed refusal before spawning.
+    try_generate(params).unwrap_or_else(|_| "(version 1)(deny default)".to_owned())
+}
+
+/// Validate and generate a profile, refusing byte paths and template markers.
+/// Literal SBPL strings are escaped once, and replacement text is NEVER
+/// parsed for template tokens. The launch-block interface currently carries
+/// source only; these constants have the same evaluation semantics as -D
+/// string parameters. Moving the transport to -D requires the guardian API.
+pub fn try_generate(params: &ProfileParams) -> Result<String, String> {
+    for path in params
+        .read_only
+        .iter()
+        .chain(&params.read_write)
+        .chain(&params.deny_read)
+        .chain(&params.protected_segments)
+        .chain(&params.setuid_exec_denied)
+        .chain(&params.unix_socket_paths)
+        .chain(params.terminal_slave.iter())
+    {
+        let Some(text) = path.to_str() else {
+            return Err("profile path is not UTF-8".into());
+        };
+        if !path.is_absolute() || text.contains("@@") || text.contains('\0') {
+            return Err(format!("invalid profile path: {path:?}"));
+        }
+    }
+    if params
+        .mach_services
+        .iter()
+        .any(|s| s.contains("@@") || s.contains('\0'))
+    {
+        return Err("invalid Mach service name".into());
+    }
+    let mut output = String::new();
+    // Scan only TEMPLATE. User data can never become a subsequent token.
+    let mut pieces = TEMPLATE.split("@@");
+    output.push_str(pieces.next().unwrap_or_default());
+    while let Some(token) = pieces.next() {
+        let value = match token {
+            "TEMPLATE_DIGEST" => template_digest(),
+            "ACCESS_RULES" => access_rules(params),
+            "ANCESTOR_METADATA" => ancestor_metadata(&params.read_only, &params.read_write),
+            "EXEC_RULES" => exec_rules(&params.read_only),
+            "PROTECTED_RULES" => protected_rules(&params.protected_segments),
+            "DENY_READ_RULES" => file_rules("deny file-read*", &params.deny_read, &|p| {
+                format!("(subpath {})", sbpl_string(p))
+            }),
+            "TERMINAL_RULES" => file_rules(
+                "allow file-ioctl",
+                &params.terminal_slave.iter().cloned().collect::<Vec<_>>(),
+                &|p| format!("(literal {})", sbpl_string(p)),
+            ),
+            "SETUID_RULES" => setuid_rules(&params.setuid_exec_denied),
+            "MACH_ALLOW_RULE" => mach_allow_rule(&params.mach_services),
+            "UNIX_ALLOW_RULE" => unix_allow_rule(&params.unix_socket_paths),
+            "BRIDGE_ALLOW_RULE" => {
+                bridge_allow_rule(params.bridge_http_port, params.bridge_socks_port)
+            }
+            _ => return Err(format!("unknown profile token {token}")),
+        };
+        output.push_str(&value);
+        output.push_str(pieces.next().ok_or("unterminated template token")?);
+    }
+    Ok(output)
+}
+
+/// Baseline reads/execution needed by system binaries and their loader.
+/// Operator-installed tools still require explicit policy or --from-path grants.
+#[must_use]
+pub fn runtime_roots() -> Vec<PathBuf> {
+    [
+        "/bin",
+        "/sbin",
+        "/usr/bin",
+        "/usr/sbin",
+        "/usr/lib",
+        "/usr/libexec",
+        "/usr/share",
+        "/System/Library",
+        "/private/var/db/dyld",
+        "/Library/Preferences/Logging",
+        "/private/var/db/uuidtext",
+        "/private/var/db/diagnostics",
+    ]
+    .into_iter()
+    .map(PathBuf::from)
+    .filter(|path| path.exists())
+    .collect()
+}
+
+/// More specific filesystem grants override parents, as in the policy
+/// resolver. Read-only children revoke writes granted by an ancestor.
+fn access_rules(params: &ProfileParams) -> String {
+    let mut paths: Vec<_> = params
+        .read_only
+        .iter()
+        .map(|p| (p, false))
+        .chain(params.read_write.iter().map(|p| (p, true)))
+        .collect();
+    paths.sort_by_key(|(path, write)| (path.components().count(), *path, *write));
+    paths
+        .into_iter()
+        .map(|(path, write)| {
+            let one = std::slice::from_ref(path);
+            if write {
+                write_rules(one)
+            } else {
+                format!(
+                    "{}{}",
+                    read_rules(one),
+                    file_rules("deny file-write*", one, &|p| format!(
+                        "(subpath {})",
+                        sbpl_string(p)
+                    ))
+                )
+            }
+        })
+        .collect()
 }
 
 /// `file-read-metadata` on every ancestor component above the granted
@@ -346,12 +475,12 @@ fn spellings(path: &Path) -> Vec<String> {
     for (logical, physical) in [("/tmp", "/private/tmp"), ("/var", "/private/var")] {
         if raw == *physical {
             all.push(logical.to_string());
-        } else if let Some(rest) = raw.strip_prefix(physical) {
-            all.push(format!("{logical}{rest}"));
+        } else if let Some(rest) = raw.strip_prefix(&format!("{physical}/")) {
+            all.push(format!("{logical}/{rest}"));
         } else if raw == *logical {
             all.push(physical.to_string());
-        } else if let Some(rest) = raw.strip_prefix(logical) {
-            all.push(format!("{physical}{rest}"));
+        } else if let Some(rest) = raw.strip_prefix(&format!("{logical}/")) {
+            all.push(format!("{physical}/{rest}"));
         }
     }
     all.sort();
@@ -360,7 +489,7 @@ fn spellings(path: &Path) -> Vec<String> {
 }
 
 fn require_absolute(path: &Path) -> String {
-    let raw = path.to_string_lossy().into_owned();
+    let raw = path.to_str().expect("validated UTF-8 path").to_owned();
     assert!(
         path.is_absolute(),
         "profile parameters must be absolute paths, got {raw:?}"
@@ -373,7 +502,7 @@ fn require_absolute(path: &Path) -> String {
 /// operation unconditionally — the empty list must mean "grant nothing").
 fn file_rules(allow: &str, paths: &[PathBuf], filter: &dyn Fn(&str) -> String) -> String {
     if paths.is_empty() {
-        return format!("({allow} (require-none (subpath \"/\")))\n");
+        return String::new();
     }
     let mut rules = String::new();
     rules.push('(');
@@ -508,8 +637,11 @@ mod tests {
         ProfileParams {
             read_write: vec![PathBuf::from("/ws"), PathBuf::from("/private/tmp/scratch")],
             read_only: vec![PathBuf::from("/usr/lib"), PathBuf::from("/bin")],
+            deny_read: Vec::new(),
+            terminal_slave: None,
             protected_segments: vec![PathBuf::from("/ws/.git"), PathBuf::from("/ws/.ukai")],
             setuid_exec_denied: vec![PathBuf::from("/usr/bin/sudo")],
+            setuid_scan_holes: Vec::new(),
             mach_services: Vec::new(),
             unix_socket_paths: Vec::new(),
             bridge_http_port: Some(8080),
@@ -534,6 +666,7 @@ mod tests {
     #[test]
     fn generate_keeps_the_invariant_skeleton_and_fills_parameters() {
         let profile = generate(&params());
+        assert_eq!(params().receipt()["read_write"][0], "/ws");
         assert!(profile.contains("(allow file-write* (subpath \"/ws\")"));
         assert!(profile.contains("(subpath \"/tmp/scratch\")"));
         assert!(profile.contains("(deny file-write* (subpath \"/ws/.git\")"));
@@ -580,7 +713,7 @@ mod tests {
         let profile = generate(&ProfileParams::default());
         // The unfiltered-allow hazard: an empty read-write parameter must
         // produce a rule that rejects every path, not an unconditional allow.
-        assert!(profile.contains("(allow file-write* (require-none (subpath \"/\")))"));
+        assert!(!profile.contains("require-none"));
         assert!(!profile.contains("(allow network-outbound"));
         assert!(!profile.contains("(allow mach-lookup"));
         assert!(!profile.contains("(allow file-write* )"));

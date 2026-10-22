@@ -4,8 +4,8 @@
 //!
 //! The live custody rows (K87–K97) need the Endpoint Security entitlement
 //! and run in the dev VM (docs/benchmarks/jail/macos-development.md); on
-//! this Mac the custody client refuses with `ERR_NOT_ENTITLED`, which is
-//! exactly what the first test asserts. The rest of the file is gated to
+//! this Mac the default development gate refuses before any ES client,
+//! which is what the first test asserts. The rest of the file is gated to
 //! macOS like the platform itself.
 #![cfg(target_os = "macos")]
 
@@ -97,7 +97,7 @@ impl Harness {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn k98_run_refuses_naming_err_not_entitled_and_unsupported() {
+fn k98_run_refuses_without_native_development_opt_in() {
     let harness = Harness::new();
     let marker = harness.work.join("marker");
     let output = harness.run(&[
@@ -116,14 +116,10 @@ fn k98_run_refuses_naming_err_not_entitled_and_unsupported() {
     );
     assert!(!marker.exists(), "nothing ran: the boundary was refused");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    // The requirements probe of §4.10 refuses first on this Mac (K98): the
-    // tree_termination row answers unavailable, naming the ES result the
-    // custody client creation got. The `unsupported`-remediated refusal of
-    // §4.3 step 1 itself is exercised at the platform seam in
-    // `boundary::prepare`'s own test.
+    // The deliberate native gate refuses before even asking for an ES client.
     assert!(
-        stderr.contains("es_not_entitled"),
-        "the refusal names the ES result (§4.3 step 1): {stderr}"
+        stderr.contains("UKAI_JAIL_MACOS_NATIVE=dev"),
+        "the refusal names the native development gate: {stderr}"
     );
     let receipts = harness.receipts();
     assert_eq!(receipts.len(), 1, "exactly one attempt was recorded");
@@ -131,12 +127,12 @@ fn k98_run_refuses_naming_err_not_entitled_and_unsupported() {
     assert_eq!(receipt["phase"], serde_json::json!("refused"));
     let errors = receipt["errors"].as_array().expect("errors[]");
     let refusal = &errors[errors.len() - 1];
-    assert_eq!(refusal["code"], serde_json::json!("missing_capability"));
+    assert_eq!(refusal["code"], serde_json::json!("unsupported_platform"));
     assert!(
         refusal["message"]
             .as_str()
-            .is_some_and(|message| message.contains("es_not_entitled")),
-        "the receipt names the ES result: {refusal}"
+            .is_some_and(|message| message.contains("UKAI_JAIL_MACOS_NATIVE=dev")),
+        "the receipt names the gate: {refusal}"
     );
     // The refusal happened at client S, before any resource existed.
     assert_eq!(receipt["applied"]["filesystem"], serde_json::Value::Null);
@@ -344,5 +340,131 @@ fn the_mapping_confirms_nothing_without_the_exec() {
     assert!(
         map_sequence(&events, &launcher).is_empty(),
         "an exec that never happened is no ExecConfirmed and no outcome"
+    );
+}
+
+#[test]
+fn launcher_protocol_fds_survive_sandbox_exec_but_not_target_exec() {
+    use std::io::{Read, Write};
+    use std::os::fd::{AsRawFd, FromRawFd};
+    use std::os::unix::process::CommandExt;
+    use std::time::{Duration, Instant};
+    let pipe = || {
+        let mut fds = [-1; 2];
+        // SAFETY: pipe fills two integers; Files own them on success.
+        assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0);
+        for fd in fds {
+            // SAFETY: sets close-on-exec only on this fixture's pipe.
+            let result = unsafe { libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC) };
+            assert_eq!(result, 0);
+        }
+        // SAFETY: both descriptors were just created, each is owned once.
+        unsafe {
+            (
+                std::fs::File::from_raw_fd(fds[0]),
+                std::fs::File::from_raw_fd(fds[1]),
+            )
+        }
+    };
+    let fixture = common::private_tempdir();
+    let source = fixture.path().join("descriptor-flags.c");
+    let binary = fixture.path().join("descriptor-flags");
+    std::fs::write(&source, r#"
+#include <libproc.h>
+#include <sys/proc_info.h>
+#include <stdlib.h>
+int main(int argc, char **argv) {
+    if (argc != 4) return 2;
+    for (int i = 2; i < 4; i++) {
+        struct pipe_fdinfo info = {0};
+        if (proc_pidfdinfo(atoi(argv[1]), atoi(argv[i]), PROC_PIDFDPIPEINFO, &info, sizeof(info)) != sizeof(info)) return 3;
+        if (!(info.pfi.fi_status & PROC_FP_CLEXEC)) return 4;
+    }
+    return 0;
+}
+"#).unwrap();
+    let compiled = Command::new("/usr/bin/cc")
+        .arg(&source)
+        .arg("-o")
+        .arg(&binary)
+        .output()
+        .unwrap();
+    assert!(compiled.status.success(), "{compiled:?}");
+    let (release_read, mut release_write) = pipe();
+    let (mut error_read, error_write) = pipe();
+    let (r, e) = (release_read.as_raw_fd(), error_write.as_raw_fd());
+    let mut command = Command::new("/usr/bin/sandbox-exec");
+    command
+        .args([
+            "-p",
+            "(version 1)(allow default)",
+            env!("CARGO_BIN_EXE_ukai-jail"),
+            "__launch-macos",
+            "--release-fd",
+        ])
+        .arg(r.to_string())
+        .arg("--error-fd")
+        .arg(e.to_string())
+        .args(["--", "/bin/sleep", "10"]);
+    // SAFETY: the pre-exec closure makes only async-signal-safe fcntl calls.
+    unsafe {
+        command.pre_exec(move || {
+            for fd in [r, e] {
+                if libc::fcntl(fd, libc::F_SETFD, 0) < 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+            }
+            Ok(())
+        });
+    }
+    let mut child = command.spawn().unwrap();
+    drop(release_read);
+    drop(error_write);
+    assert_eq!(
+        // SAFETY: set nonblocking only on this test's read end.
+        unsafe { libc::fcntl(error_read.as_raw_fd(), libc::F_SETFL, libc::O_NONBLOCK) },
+        0
+    );
+    let mut report = Vec::new();
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while report.len() < 8 && Instant::now() < deadline {
+        let mut bytes = [0u8; 8];
+        if let Ok(n) = error_read.read(&mut bytes) {
+            report.extend_from_slice(&bytes[..n]);
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    if report != [0u8; 8] {
+        let _ = child.kill();
+        let _ = child.wait();
+        panic!("no blocked report: {report:?}");
+    }
+    // Inspect both flags while blocked: R also closes explicitly at release,
+    // so checking only the target cannot detect a missing R CLOEXEC mark.
+    let flags = Command::new(&binary)
+        .args([child.id().to_string(), r.to_string(), e.to_string()])
+        .output()
+        .unwrap();
+    release_write.write_all(b"L").unwrap();
+    drop(release_write);
+    let mut eof = false;
+    while Instant::now() < deadline {
+        let mut byte = [0u8; 1];
+        if matches!(error_read.read(&mut byte), Ok(0)) {
+            eof = true;
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let still_running = child.try_wait().unwrap().is_none();
+    let _ = child.kill();
+    let _ = child.wait();
+    assert!(
+        flags.status.success(),
+        "R and E must both be CLOEXEC before release: {flags:?}"
+    );
+    assert!(
+        eof && still_running,
+        "E must close on exec while the target is still running"
     );
 }

@@ -11,8 +11,8 @@
 //!    **A** (supervisor → guardian) and **B** (guardian → supervisor), the
 //!    launcher's release pipe **R** and error pipe **E** — every descriptor
 //!    close-on-exec. The launcher's ends of R and E, the pty slave and the
-//!    launch block cross the guardian's spawn by explicit `dup2(fd, fd)`,
-//!    which clears close-on-exec on the child's copy: the inheritance
+//!    launch block cross the guardian's spawn by explicit `addinherit_np`,
+//!    with `POSIX_SPAWN_CLOEXEC_DEFAULT`: the inheritance
 //!    contract `guardian::spawn` continues with `addinherit_np` for
 //!    `sandbox-exec`'s child.
 //! 3. The guardian, this binary as `ukai-jail __guardian …`, spawned with
@@ -54,7 +54,7 @@
 
 use std::ffi::{CString, OsString};
 use std::io::Read;
-use std::os::fd::{AsFd as _, RawFd};
+use std::os::fd::{AsFd as _, IntoRawFd as _, RawFd};
 use std::os::unix::ffi::OsStringExt as _;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
@@ -93,6 +93,8 @@ const STOP_GRACE_NS: u64 = 2_000_000_000;
 const GUARDIAN_TAIL: Duration = Duration::from_secs(60);
 /// One bounded-wait slice, in milliseconds.
 const TICK_MS: u32 = 20;
+// I1 wire bound; CUSTODY exports the shared constant during integration.
+const MAX_FRAME_LEN: usize = 4096;
 
 // ---------------------------------------------------------------------------
 // Refusals
@@ -179,6 +181,13 @@ impl Pipe {
                 format!("pipe: {}", std::io::Error::last_os_error()),
             ));
         }
+        let pipe = Pipe {
+            read: fds[0],
+            write: fds[1],
+        };
+        // Darwin has no pipe2. All native spawns use CLOEXEC_DEFAULT and an
+        // explicit inheritance list, independent of this fcntl window; Rust
+        // Command on Darwin also uses CLOEXEC_DEFAULT. Never fork/exec here.
         for fd in fds {
             // SAFETY: F_SETFD takes scalars and dereferences nothing.
             if unsafe { libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC) } < 0 {
@@ -190,10 +199,24 @@ impl Pipe {
                 ));
             }
         }
-        Ok(Pipe {
-            read: fds[0],
-            write: fds[1],
-        })
+        Ok(pipe)
+    }
+    fn take_read(&mut self) -> RawFd {
+        std::mem::replace(&mut self.read, -1)
+    }
+    fn take_write(&mut self) -> RawFd {
+        std::mem::replace(&mut self.write, -1)
+    }
+}
+
+impl Drop for Pipe {
+    fn drop(&mut self) {
+        for fd in [self.read, self.write] {
+            if fd >= 0 {
+                // SAFETY: each end is owned here until taken.
+                unsafe { libc::close(fd) };
+            }
+        }
     }
 }
 
@@ -203,7 +226,16 @@ struct Fd(RawFd);
 impl Fd {
     /// Takes ownership of a descriptor and sets `O_NONBLOCK`: every read of
     /// B and E is one bounded poll slice, never a block without a deadline.
+    fn take_fd(&mut self) -> RawFd {
+        std::mem::replace(&mut self.0, -1)
+    }
+
+    fn close(&mut self) {
+        drop(Fd(self.take_fd()));
+    }
+
     fn nonblocking(fd: RawFd) -> Result<Self, JailError> {
+        let owned = Fd(fd);
         // SAFETY: F_GETFL takes a descriptor number and dereferences nothing.
         let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
         // SAFETY: F_SETFL takes scalars and dereferences nothing.
@@ -215,7 +247,7 @@ impl Fd {
                 format!("fcntl O_NONBLOCK: {}", std::io::Error::last_os_error()),
             ));
         }
-        Ok(Fd(fd))
+        Ok(owned)
     }
 }
 
@@ -255,8 +287,8 @@ fn environ() -> *const *const libc::c_char {
 const POSIX_SPAWN_SETPGID: libc::c_int = 0x0008;
 
 /// Spawns `exe args…` with `posix_spawn`, inheriting exactly the standard
-/// descriptors plus `fds` (a `dup2(fd, fd)` in the child clears
-/// close-on-exec on that number), in its own process group, with this
+/// descriptors plus `fds` (`addinherit_np` explicitly admits each one),
+/// with all other descriptors closed, in its own process group, with this
 /// process's signal mask.
 fn spawn_self(exe: &Path, args: &[String], fds: &[RawFd]) -> Result<libc::pid_t, JailError> {
     let text = |what: &'static str, bytes: &[u8]| -> Result<CString, JailError> {
@@ -279,16 +311,10 @@ fn spawn_self(exe: &Path, args: &[String], fds: &[RawFd]) -> Result<libc::pid_t,
         argv.iter().map(|part| part.as_ptr().cast_mut()).collect();
     argv_raw.push(std::ptr::null_mut());
 
-    let mut envp_raw: Vec<*const libc::c_char> = Vec::new();
-    // SAFETY: walking the C runtime's own NULL-terminated array, copying the
-    // pointers for one spawn call.
-    unsafe {
-        let mut env = environ();
-        while !(*env).is_null() {
-            envp_raw.push(*env);
-            env = env.add(1);
-        }
-    }
+    // Custody never needs the operator's tokens, proxy credentials, or loader
+    // environment. The launch block separately carries the workload's env.
+    let environment = [c"PATH=/usr/bin:/bin:/usr/sbin:/sbin", c"LANG=C"];
+    let mut envp_raw: Vec<*const libc::c_char> = environment.iter().map(|v| v.as_ptr()).collect();
     envp_raw.push(std::ptr::null());
 
     let mut actions = libc::posix_spawn_file_actions_t::default();
@@ -309,14 +335,22 @@ fn spawn_self(exe: &Path, args: &[String], fds: &[RawFd]) -> Result<libc::pid_t,
         }
     }
     let mut actions = Actions(actions);
-    for fd in fds {
-        // SAFETY: `actions.0` is an initialized record; `dup2(fd, fd)` keeps
-        // the number and clears close-on-exec on the child's copy — the
-        // documented inheritance contract of §4.3 step 2.
-        unsafe {
-            if libc::posix_spawn_file_actions_adddup2(&mut actions.0, *fd, *fd) != 0 {
-                return Err(spawn_error("posix_spawn_file_actions_adddup2"));
-            }
+    unsafe extern "C" {
+        fn posix_spawn_file_actions_addinherit_np(
+            actions: *mut libc::posix_spawn_file_actions_t,
+            fd: libc::c_int,
+        ) -> libc::c_int;
+    }
+    let mut inherited = vec![0, 1, 2];
+    inherited.extend_from_slice(fds);
+    inherited.sort_unstable();
+    inherited.dedup();
+    for fd in inherited {
+        // SAFETY: actions is initialized; addinherit clears CLOEXEC on the
+        // child's copy. Self-dup2 does not do that on Darwin.
+        let result = unsafe { posix_spawn_file_actions_addinherit_np(&mut actions.0, fd) };
+        if result != 0 {
+            return Err(spawn_error("posix_spawn_file_actions_addinherit_np"));
         }
     }
 
@@ -349,7 +383,8 @@ fn spawn_self(exe: &Path, args: &[String], fds: &[RawFd]) -> Result<libc::pid_t,
         }
         if libc::posix_spawnattr_setflags(
             &mut attributes.0,
-            (POSIX_SPAWN_SETPGID | libc::POSIX_SPAWN_SETSIGMASK) as libc::c_short,
+            (POSIX_SPAWN_SETPGID | libc::POSIX_SPAWN_SETSIGMASK | libc::POSIX_SPAWN_CLOEXEC_DEFAULT)
+                as libc::c_short,
         ) != 0
         {
             return Err(spawn_error("posix_spawnattr_setflags"));
@@ -525,53 +560,140 @@ fn profile_params(
     bridge: Option<&BridgeConfig>,
 ) -> Result<ProfileParams, JailError> {
     let snapshot = &plan.request.snapshot;
-    let path_of =
-        |native: &NativeString| PathBuf::from(OsString::from_vec(native.as_bytes().to_vec()));
+    if snapshot.filesystem.protected_coverage == crate::policy::ProtectedCoverage::AllDescendants {
+        return Err(refusal(
+            ErrorCode::UnsupportedPlatform,
+            ErrorStage::Preparing,
+            Remediation::Unsupported,
+            "native protected segments currently cover existing directories and their roots; all_descendants is unavailable",
+        ));
+    }
+    let scratch = match &snapshot.roots.scratch {
+        crate::policy::ScratchRoot::Managed => plan.attempt_dir.join("scratch"),
+        crate::policy::ScratchRoot::Host { path } => native_path(path),
+    };
+    if matches!(snapshot.roots.scratch, crate::policy::ScratchRoot::Managed) {
+        std::fs::create_dir_all(&scratch)
+            .map_err(|error| spawn_error(&format!("create scratch: {error}")))?;
+    }
+    std::fs::create_dir_all(plan.attempt_dir.join("vendor-state"))
+        .map_err(|e| profile_error(format!("create empty vendor root: {e}")))?;
+    let resolve = |reference: &crate::policy::PathRef| -> Result<PathBuf, JailError> {
+        use crate::policy::RootToken;
+        let suffix = native_path(&reference.path);
+        let path = match reference.root {
+            RootToken::Host => suffix,
+            RootToken::Workspace => plan.workspace.join(suffix),
+            RootToken::Scratch => scratch.join(suffix),
+            RootToken::VendorState => plan.attempt_dir.join("vendor-state").join(suffix),
+        };
+        Ok(path)
+    };
     let mut params = ProfileParams {
-        read_write: vec![path_of(&snapshot.roots.workspace)],
+        read_write: snapshot
+            .filesystem
+            .read_write
+            .iter()
+            .map(resolve)
+            .collect::<Result<_, _>>()?,
+        read_only: snapshot
+            .filesystem
+            .read_only
+            .iter()
+            .map(resolve)
+            .collect::<Result<_, _>>()?,
+        deny_read: snapshot
+            .filesystem
+            .deny_read
+            .iter()
+            .map(resolve)
+            .collect::<Result<_, _>>()?,
         ..ProfileParams::default()
     };
-    match &snapshot.roots.scratch {
-        crate::policy::ScratchRoot::Managed => {
-            // The managed scratch lives in the attempt directory; the
-            // profile admits exactly that directory.
-            let scratch = plan.attempt_dir.join("scratch");
-            let _ = std::fs::create_dir_all(&scratch);
-            params.read_write.push(scratch);
-        }
-        crate::policy::ScratchRoot::Host { path } => params.read_write.push(path_of(path)),
+    params.read_only.extend(seatbelt::runtime_roots());
+    // The launcher must execute inside the boundary before it can release
+    // the target. This admits this binary only, never its parent directory.
+    params
+        .read_only
+        .push(std::env::current_exe().map_err(|_| spawn_error("current_exe"))?);
+    params
+        .read_only
+        .extend(plan.pinned_roots.iter().map(|pin| pin.path.clone()));
+    for root in &params.read_write {
+        params.protected_segments.extend(protected_paths(
+            root,
+            &snapshot.filesystem.protected_segments,
+        )?);
     }
-    if snapshot.roots.vendor_state.is_some() {
-        // The vendor-state root is attempt-local (§4.11); the profile admits
-        // exactly that directory.
-        params
-            .read_write
-            .push(plan.attempt_dir.join("vendor-state"));
-    }
-    for pin in &plan.pinned_roots {
-        params.read_only.push(pin.path.clone());
-    }
-    let roots: Vec<PathBuf> = params
-        .read_write
+    params.read_only.sort();
+    params.read_only.dedup();
+    params.protected_segments.sort();
+    params.protected_segments.dedup();
+    // Validate before walking paths: byte paths must never become lossy grants.
+    seatbelt::try_generate(&params).map_err(profile_error)?;
+    let roots: Vec<_> = params
+        .read_only
         .iter()
-        .chain(params.read_only.iter())
+        .chain(&params.read_write)
         .cloned()
         .collect();
-    params.setuid_exec_denied = crate::platform::macos::setuid::scan_readable_roots(&roots)
-        .map(|entries| crate::platform::macos::setuid::deny_paths(&entries))
-        .map_err(|error| {
-            refusal(
-                ErrorCode::InternalError,
-                ErrorStage::Preparing,
-                Remediation::InspectState,
-                format!("the setuid scan failed: {error}"),
-            )
-        })?;
+    let scan = crate::platform::macos::setuid::scan_readable_roots_report(&roots);
+    params.setuid_exec_denied = crate::platform::macos::setuid::deny_paths(&scan.entries);
+    params.setuid_scan_holes = scan.holes;
     if let Some(bridge) = bridge {
         params.bridge_http_port = Some(bridge.http_port);
         params.bridge_socks_port = Some(bridge.socks_port);
     }
+    seatbelt::try_generate(&params).map_err(profile_error)?;
     Ok(params)
+}
+
+fn native_path(native: &NativeString) -> PathBuf {
+    PathBuf::from(OsString::from_vec(native.as_bytes().to_vec()))
+}
+
+fn profile_error(message: String) -> JailError {
+    refusal(
+        ErrorCode::InvalidConfig,
+        ErrorStage::Preparing,
+        Remediation::Configuration,
+        message,
+    )
+}
+
+/// Existing-and-root coverage: deny each suffix at the root and at every
+/// existing directory, without following directory symlinks. Future deep
+/// directories are not claimed (all_descendants refuses above).
+fn protected_paths(root: &Path, segments: &[String]) -> Result<Vec<PathBuf>, JailError> {
+    if segments.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut out: Vec<_> = segments.iter().map(|segment| root.join(segment)).collect();
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(dir) = pending.pop() {
+        if !dir.is_dir() {
+            continue;
+        }
+        for entry in std::fs::read_dir(&dir)
+            .map_err(|e| profile_error(format!("protected scan {dir:?}: {e}")))?
+        {
+            let entry = entry.map_err(|e| profile_error(format!("protected scan: {e}")))?;
+            let path = entry.path();
+            if segments
+                .iter()
+                .any(|segment| path.ends_with(Path::new(segment)))
+            {
+                out.push(path);
+            } else if entry
+                .file_type()
+                .map_err(|e| profile_error(format!("protected scan: {e}")))?
+                .is_dir()
+            {
+                pending.push(path);
+            }
+        }
+    }
+    Ok(out)
 }
 
 fn working_dir(plan: &PreparedPlan) -> Result<String, JailError> {
@@ -602,7 +724,12 @@ fn working_dir(plan: &PreparedPlan) -> Result<String, JailError> {
 /// The receipt's `applied` group (§4.8): the seatbelt profile, the bridge's
 /// ports, the terminal relay when attached. The profile's digest and the
 /// generated parameters ride in the native lifetime details.
-fn build_applied(plan: &PreparedPlan, bridge: Option<&BridgeConfig>, terminal: bool) -> Applied {
+fn build_applied(
+    plan: &PreparedPlan,
+    params: &ProfileParams,
+    bridge: Option<&BridgeConfig>,
+    terminal: bool,
+) -> Applied {
     let snapshot = &plan.request.snapshot;
     let mut mounts = Vec::new();
     let mut push = |bytes: &[u8], mode: &str| {
@@ -613,21 +740,14 @@ fn build_applied(plan: &PreparedPlan, bridge: Option<&BridgeConfig>, terminal: b
             });
         }
     };
-    push(snapshot.roots.workspace.as_bytes(), "rw");
-    if let crate::policy::ScratchRoot::Host { path } = &snapshot.roots.scratch {
-        push(path.as_bytes(), "rw");
-    }
-    if snapshot.roots.vendor_state.is_some() {
-        push(
-            plan.attempt_dir
-                .join("vendor-state")
-                .as_os_str()
-                .as_encoded_bytes(),
-            "rw",
-        );
-    }
-    for pin in &plan.pinned_roots {
-        push(pin.path.as_os_str().as_encoded_bytes(), "ro");
+    for (paths, mode) in [
+        (&params.read_write, "rw"),
+        (&params.read_only, "ro"),
+        (&params.deny_read, "deny"),
+    ] {
+        for path in paths {
+            push(path.as_os_str().as_encoded_bytes(), mode);
+        }
     }
     let mut environment_names: Vec<String> = snapshot
         .environment
@@ -734,6 +854,10 @@ impl BReader {
                 self.buffer[2],
                 self.buffer[3],
             ]) as usize;
+            // I1: synchronize with guardian::frames::MAX_FRAME_LEN in phase 2.
+            if length == 0 || length > MAX_FRAME_LEN {
+                return Err(spawn_error("invalid guardian frame length"));
+            }
             if self.buffer.len() < 4 + length {
                 return Ok(out);
             }
@@ -765,6 +889,7 @@ pub struct MacosPrepared {
     client: Option<CustodyClient>,
     engine: Custodian,
     a_write: RawFd,
+    r_write: Fd,
     b_read: Fd,
     e_read: Fd,
     guardian_pid: libc::pid_t,
@@ -774,11 +899,35 @@ pub struct MacosPrepared {
     wall_ms: Option<u64>,
     relay: Option<TerminalRelay>,
     headroom: u64,
+    profile_params: ProfileParams,
+    handshake_events: Vec<es::EsPoll>,
     /// The outside proxy, the sink that tallies its results, and the
     /// loopback relay to it (§4.10); `None` without a proxy-mode network.
     proxy: Option<crate::proxy::ProxyHandle>,
     proxy_sink: Option<std::sync::Arc<crate::proxy::coverage::TraceSink>>,
     serving: Option<bridge::Serving>,
+}
+
+/// Staging is unavailable until the native copy/trust/placeholder pipeline
+/// is implemented. Refuse even callers that bypass capability derivation.
+fn require_supported_staging(plan: &PreparedPlan) -> Result<(), JailError> {
+    if plan
+        .request
+        .requirements
+        .contains(&crate::capability::Requirement::CredentialStaging)
+        || plan.request.snapshot.roots.vendor_state.is_some()
+        || plan.launch.as_ref().is_some_and(|launch| {
+            !launch.binds.is_empty() || !launch.vault.is_empty() || launch.vendor_state.is_some()
+        })
+    {
+        return Err(refusal(
+            ErrorCode::UnsupportedPlatform,
+            ErrorStage::Preparing,
+            Remediation::Unsupported,
+            "native credential and vendor-state staging is unavailable",
+        ));
+    }
+    Ok(())
 }
 
 /// The supervisor's side of `Platform::prepare` (§4.3 steps 1–5).
@@ -800,6 +949,8 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
              provide one",
         ));
     }
+    super::require_native_enabled()?;
+    require_supported_staging(&plan)?;
     let budget = plan.prepare_deadline;
     if budget.remaining().is_zero() {
         return Err(refusal(
@@ -866,12 +1017,14 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
         &client,
         &mut built.b_read,
         &mut built.e_read,
-        built.pipe_a_write,
+        built.pipe_a_write.0,
         built.guardian_pid,
         &budget,
     ) {
         Ok(handshake) => handshake,
         Err(error) => {
+            built.pipe_r_write.close();
+            abort_guardian(built.guardian_pid, built.pipe_a_write.take_fd());
             let _ = client.delete();
             return Err(error);
         }
@@ -886,14 +1039,16 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
         },
     };
     // The outside proxy on the attempt's private socket, and the loopback
-    // relay to it (§4.10): the policy, the vault and the secret are the
-    // proxy's, and the relay interprets nothing.
+    // relay to it (§4.10): policy and secret are enforced at the proxy.
+    // Vault requests refuse before reaching this raw transport.
     let (proxy, proxy_sink, serving) = match bridge_bound {
         Some(bound) => {
             let started = start_proxy(&plan, &sinks, &bound);
             match started {
                 Ok(started) => (Some(started.0), Some(started.1), Some(started.2)),
                 Err(error) => {
+                    built.pipe_r_write.close();
+                    abort_guardian(built.guardian_pid, built.pipe_a_write.take_fd());
                     let _ = client.delete();
                     return Err(error);
                 }
@@ -904,13 +1059,20 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
     Ok(Box::new(MacosPrepared {
         client: Some(client),
         engine: Custodian::new(capacity).with_stop(SETTLE_NS, STOP_BUDGET_NS),
-        a_write: handshake.a_write,
+        a_write: built.pipe_a_write.take_fd(),
+        r_write: built.pipe_r_write,
         b_read: built.b_read,
         e_read: built.e_read,
         guardian_pid: built.guardian_pid,
         launcher_token: handshake.launcher_token,
         process,
-        applied: build_applied(&plan, bridge_config.as_ref(), relay.is_some()),
+        applied: build_applied(
+            &plan,
+            &built.profile_params,
+            bridge_config.as_ref(),
+            relay.is_some(),
+        ),
+        profile_params: built.profile_params,
         wall_ms: plan
             .request
             .snapshot
@@ -920,6 +1082,7 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
             .and_then(|wall| wall.value.parse::<u64>().ok()),
         relay,
         headroom: u64::from(NPROC_HEADROOM),
+        handshake_events: handshake.events,
         proxy,
         proxy_sink,
         serving,
@@ -929,7 +1092,7 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
 /// Starts the outside proxy on the attempt's private socket and the
 /// loopback relay to it (§4.10): the child's proxy URLs name the two
 /// loopback ports, the relay carries them to the proxy, and the proxy holds
-/// the policy, the vault and the per-attempt secret.
+/// the policy and the per-attempt secret. Vault staging is unavailable.
 fn start_proxy(
     plan: &PreparedPlan,
     sinks: &Sinks,
@@ -1058,13 +1221,15 @@ fn start_proxy(
 struct Spawned {
     b_read: Fd,
     e_read: Fd,
-    pipe_a_write: RawFd,
+    pipe_a_write: Fd,
+    pipe_r_write: Fd,
+    profile_params: ProfileParams,
     guardian_pid: libc::pid_t,
 }
 
 fn build_and_spawn(
     plan: &PreparedPlan,
-    relay: Option<&mut TerminalRelay>,
+    mut relay: Option<&mut TerminalRelay>,
     bridge: Option<&BridgeConfig>,
 ) -> Result<Spawned, JailError> {
     let record_path = plan.attempt_dir.join("guardian-record.json");
@@ -1076,10 +1241,12 @@ fn build_and_spawn(
             format!("the guardian record could not be created: {error}"),
         )
     })?;
-    let pipe_a = Pipe::new()?;
-    let pipe_b = Pipe::new()?;
-    let pipe_r = Pipe::new()?;
-    let pipe_e = Pipe::new()?;
+    let mut pipe_a = Pipe::new()?;
+    let mut pipe_b = Pipe::new()?;
+    let mut pipe_r = Pipe::new()?;
+    let mut pipe_e = Pipe::new()?;
+    let b_read = Fd::nonblocking(pipe_b.take_read())?;
+    let e_read = Fd::nonblocking(pipe_e.take_read())?;
 
     let exe = std::env::current_exe().map_err(|error| {
         refusal(
@@ -1089,7 +1256,7 @@ fn build_and_spawn(
             format!("the executable's path could not be read: {error}"),
         )
     })?;
-    let slave_fd = relay.and_then(|relay| relay.slave_fd());
+    let slave_fd = relay.as_deref().and_then(TerminalRelay::slave_fd);
     let sigmask = capture_mask();
     let launcher = launcher_argv(
         &exe,
@@ -1099,9 +1266,12 @@ fn build_and_spawn(
         sigmask,
         &plan.argv,
     )?;
+    let mut profile_params = profile_params(plan, bridge)?;
+    profile_params.terminal_slave = relay.as_deref().map(|r| PathBuf::from(r.device()));
+    let profile_source = seatbelt::try_generate(&profile_params).map_err(profile_error)?;
     let block = LaunchBlock {
         sandbox_exec_path: "/usr/bin/sandbox-exec".to_owned(),
-        sbpl_profile_source: seatbelt::generate(&profile_params(plan, bridge)?),
+        sbpl_profile_source: profile_source,
         child_argv: launcher,
         child_envp: child_envp(plan, bridge),
         working_dir: working_dir(plan)?,
@@ -1144,25 +1314,17 @@ fn build_and_spawn(
             format!("the launch block could not be written: {error}"),
         )
     })?;
-    // SAFETY: a plain open of a path this supervisor created; close-on-exec.
-    let block_fd = unsafe {
-        libc::open(
-            block_path.as_os_str().as_encoded_bytes().as_ptr().cast(),
-            libc::O_RDONLY | libc::O_CLOEXEC,
-        )
-    };
-    if block_fd < 0 {
-        return Err(refusal(
-            ErrorCode::InvalidFd,
-            ErrorStage::Preparing,
-            Remediation::InspectState,
-            format!(
-                "the launch block could not be reopened: {}",
-                std::io::Error::last_os_error()
-            ),
-        ));
-    }
-    let block_fd = Fd(block_fd);
+    // File::open handles the native path and sets CLOEXEC atomically.
+    let block_fd = Fd(std::fs::File::open(&block_path)
+        .map_err(|error| {
+            refusal(
+                ErrorCode::InvalidFd,
+                ErrorStage::Preparing,
+                Remediation::InspectState,
+                format!("the launch block could not be reopened: {error}"),
+            )
+        })?
+        .into_raw_fd());
 
     let record_arg = record_path.to_str().ok_or_else(|| {
         refusal(
@@ -1181,25 +1343,26 @@ fn build_and_spawn(
         pipe_e.write.to_string(),
         block_fd.0.to_string(),
     ];
-    let guardian_pid = spawn_self(
-        &exe,
-        &args,
-        &[
-            pipe_a.read,
-            pipe_b.write,
-            pipe_r.read,
-            pipe_e.write,
-            block_fd.0,
-        ],
-    )?;
-    // The child ends close: the parent keeps only its own pipe halves, the
-    // launch block closes, and the relay's slave has crossed the spawn chain
-    // (a Darwin pty master reports EOF only once every slave is closed).
-    drop(block_fd);
+    let mut inherited = vec![
+        pipe_a.read,
+        pipe_b.write,
+        pipe_r.read,
+        pipe_e.write,
+        block_fd.0,
+    ];
+    inherited.extend(slave_fd);
+    let guardian_pid = spawn_self(&exe, &args, &inherited)?;
+    // Pipe drops close EVERY child end. Only these four ends remain owned
+    // by the supervisor; B/E EOF and R cancellation now have meaning.
+    if let Some(relay) = relay.as_mut() {
+        relay.close_slave();
+    }
     Ok(Spawned {
-        b_read: Fd::nonblocking(pipe_b.read)?,
-        e_read: Fd::nonblocking(pipe_e.read)?,
-        pipe_a_write: pipe_a.write,
+        b_read,
+        e_read,
+        pipe_a_write: Fd(pipe_a.take_write()),
+        pipe_r_write: Fd(pipe_r.take_write()),
+        profile_params,
         guardian_pid,
     })
 }
@@ -1210,12 +1373,13 @@ fn build_and_spawn(
 
 /// What the handshake leaves behind.
 struct Handshake {
-    a_write: RawFd,
     launcher_token: Token,
+    // I3: retained, never discarded. Phase 2 feeds these into the engine
+    // after registering the known guardian token with CUSTODY's API.
+    events: Vec<es::EsPoll>,
 }
 
-fn handshake_timeout(guardian_pid: libc::pid_t, pipe_a_write: RawFd) -> JailError {
-    abort_guardian(guardian_pid, pipe_a_write);
+fn handshake_timeout() -> JailError {
     refusal(
         ErrorCode::PrepareTimeout,
         ErrorStage::Preparing,
@@ -1262,12 +1426,12 @@ fn handshake(
     // `ready` (step 3). A guardian that dies names its failing step on
     // stderr and its exit status here.
     let mut ready = false;
+    let mut events = Vec::new();
     loop {
         for frame in read_b(&mut reader, b_read, guardian_pid)? {
             match frame {
                 BFrame::Ready => ready = true,
                 other => {
-                    abort_guardian(guardian_pid, pipe_a_write);
                     return Err(refusal(
                         ErrorCode::BackendUnavailable,
                         ErrorStage::Preparing,
@@ -1281,7 +1445,7 @@ fn handshake(
             break;
         }
         if Instant::now() >= deadline {
-            return Err(handshake_timeout(guardian_pid, pipe_a_write));
+            return Err(handshake_timeout());
         }
         client.drain(TICK_MS);
     }
@@ -1289,14 +1453,15 @@ fn handshake(
     // guardian's own (§4.2). The launcher's `blocked` on E rides alongside.
     let mut launcher_token: Option<Token> = None;
     let mut blocked_seen = false;
+    let mut synced_after_block = false;
     loop {
-        if launcher_token.is_none() {
-            launcher_token = drain_until_launcher_fork(client, guardian_pid, launcher_token);
+        while let Some(poll) = client.poll_full() {
+            track_launcher(&mut launcher_token, guardian_pid, &poll.event);
+            events.push(poll);
         }
         if let Some(report) = read_e(e_read) {
             if report.is_empty() {
                 // End-of-file on E before `blocked`: the launcher never ran.
-                abort_guardian(guardian_pid, pipe_a_write);
                 return Err(exec_report_refusal(&[]));
             }
             if crate::platform::macos::launcher::is_blocked_report(&report) {
@@ -1304,40 +1469,52 @@ fn handshake(
             } else if launcher_token.is_some() {
                 // An exec report before `blocked` cannot happen in the
                 // grammar; treat it as what it is, a failed launch.
-                abort_guardian(guardian_pid, pipe_a_write);
                 return Err(exec_report_refusal(&report));
             }
         }
-        if let (Some(token), true) = (launcher_token, blocked_seen) {
+        // A blocked launcher cannot exec again before R. Synchronize S
+        // AFTER observing blocked, then consume the queued exec transitions,
+        // so the token sent on A cannot still be sandbox-exec's/fork's token.
+        if blocked_seen && !synced_after_block && client.drain(TICK_MS) {
+            while let Some(poll) = client.poll_full() {
+                track_launcher(&mut launcher_token, guardian_pid, &poll.event);
+                events.push(poll);
+            }
+            if client.ring_overflowed() {
+                return Err(spawn_error("custody overflow during the launch handshake"));
+            }
+            synced_after_block = true;
+        }
+        if let (Some(token), true) = (launcher_token, blocked_seen && synced_after_block) {
             // Step 5: the launcher's current token goes on A.
             write_frame(pipe_a_write, &encode_launcher_token(&token))?;
             loop {
                 for frame in read_b(&mut reader, b_read, guardian_pid)? {
                     if matches!(frame, BFrame::TokenSeen) {
                         return Ok(Handshake {
-                            a_write: pipe_a_write,
                             launcher_token: token,
+                            events,
                         });
                     }
                 }
                 if Instant::now() >= deadline {
-                    return Err(handshake_timeout(guardian_pid, pipe_a_write));
+                    return Err(handshake_timeout());
                 }
                 client.drain(TICK_MS);
+                while let Some(poll) = client.poll_full() {
+                    events.push(poll);
+                }
             }
         }
-        if b_eof(b_read)? {
-            abort_guardian(guardian_pid, pipe_a_write);
-            let code = guardian_exit_code(guardian_pid);
-            return Err(refusal(
-                ErrorCode::BackendUnavailable,
-                ErrorStage::Preparing,
-                Remediation::InspectState,
-                format!("the guardian exited during the launch handshake (exit {code})"),
+        // Continue decoding whole frames; never consume a byte just to
+        // probe EOF (that would corrupt the next length prefix).
+        if !read_b(&mut reader, b_read, guardian_pid)?.is_empty() {
+            return Err(spawn_error(
+                "unexpected guardian frame before launcher token",
             ));
         }
         if Instant::now() >= deadline {
-            return Err(handshake_timeout(guardian_pid, pipe_a_write));
+            return Err(handshake_timeout());
         }
         client.drain(TICK_MS);
     }
@@ -1371,28 +1548,21 @@ fn read_b(
     }
 }
 
-/// Whether B has reached end-of-file: the guardian is gone (§4.6).
-fn b_eof(b_read: &mut Fd) -> Result<bool, JailError> {
-    let mut byte = [0u8; 1];
-    Ok(matches!(b_read.read(&mut byte), Ok(0)))
-}
-
-/// Drains S until the launcher's fork appears; returns its token. The
-/// guardian's own fork (its pid) is not a member (§4.2).
-fn drain_until_launcher_fork(
-    client: &CustodyClient,
-    guardian_pid: libc::pid_t,
-    _previous: Option<Token>,
-) -> Option<Token> {
-    let mut found = None;
-    while let Some(poll) = client.poll_full() {
-        if let EsEvent::Fork { token } = poll.event
-            && token[AUDIT_TOKEN_PID] as libc::pid_t != guardian_pid
+/// Select the first non-guardian child, then follow that pid's exec tokens.
+fn track_launcher(current: &mut Option<Token>, guardian_pid: libc::pid_t, event: &EsEvent) {
+    match *event {
+        EsEvent::Fork { token }
+            if current.is_none() && token[AUDIT_TOKEN_PID] as libc::pid_t != guardian_pid =>
         {
-            found = Some(token);
+            *current = Some(token)
         }
+        EsEvent::Exec { token }
+            if current.is_some_and(|old| old[AUDIT_TOKEN_PID] == token[AUDIT_TOKEN_PID]) =>
+        {
+            *current = Some(token)
+        }
+        _ => {}
     }
-    found
 }
 
 /// One nonblocking read of E; `None` when nothing waits.
@@ -1431,13 +1601,22 @@ fn exec_report_refusal(report: &[u8]) -> JailError {
 }
 
 /// Writes one frame to A in full.
-fn write_frame(fd: RawFd, frame: &[u8]) -> Result<(), JailError> {
+fn write_frame(fd: RawFd, payload: &[u8]) -> Result<(), JailError> {
+    if payload.is_empty() || payload.len() > MAX_FRAME_LEN {
+        return Err(spawn_error("invalid supervisor frame length"));
+    }
+    let mut frame = (payload.len() as u32).to_le_bytes().to_vec();
+    frame.extend_from_slice(payload);
+    write_bytes(fd, &frame)
+}
+
+fn write_bytes(fd: RawFd, frame: &[u8]) -> Result<(), JailError> {
     let mut written = 0usize;
     while written < frame.len() {
         // SAFETY: the buffer is live and only `written` past its start.
         let n = unsafe { libc::write(fd, frame[written..].as_ptr().cast(), frame.len() - written) };
-        if n < 0 {
-            if errno() == libc::EINTR {
+        if n <= 0 {
+            if n < 0 && errno() == libc::EINTR {
                 continue;
             }
             return Err(refusal(
@@ -1452,12 +1631,20 @@ fn write_frame(fd: RawFd, frame: &[u8]) -> Result<(), JailError> {
     Ok(())
 }
 
+/// A remains the guardian's liveness channel. R alone carries release.
+fn release_launcher(a_write: RawFd, r_write: &mut Fd, deadline_ns: u64) -> Result<(), JailError> {
+    write_frame(a_write, &encode_release_deadline(deadline_ns))?;
+    write_bytes(r_write.0, b"L")?;
+    r_write.close();
+    Ok(())
+}
+
 /// The reaping wait for a guardian that already exited; the exit code, or
 /// -1 when it did not exit cleanly.
 fn guardian_exit_code(guardian_pid: libc::pid_t) -> i32 {
     let mut status = 0;
-    // SAFETY: a blocking reaping wait for a pid this process spawned.
-    let reaped = unsafe { libc::waitpid(guardian_pid, &mut status, 0) };
+    // SAFETY: a nonblocking reaping wait for a pid this process spawned.
+    let reaped = unsafe { libc::waitpid(guardian_pid, &mut status, libc::WNOHANG) };
     if reaped == guardian_pid && libc::WIFEXITED(status) {
         libc::WEXITSTATUS(status)
     } else {
@@ -1477,13 +1664,22 @@ impl PreparedExecution for MacosPrepared {
             serde_json::Value::from("es_descendants"),
         );
         details.insert("defense".to_owned(), serde_json::Value::from("seatbelt"));
+        details.insert("native_execution".to_owned(), serde_json::json!("dev"));
+        details.insert(
+            "profile_digest".to_owned(),
+            serde_json::json!(seatbelt::template_digest()),
+        );
+        details.insert(
+            "profile_parameters".to_owned(),
+            self.profile_params.receipt(),
+        );
+        details.insert(
+            "handshake_events_pending".to_owned(),
+            serde_json::Value::from(self.handshake_events.len()),
+        );
         details.insert(
             "process_headroom".to_owned(),
             serde_json::Value::from(self.headroom),
-        );
-        details.insert(
-            "profile_digest".to_owned(),
-            serde_json::Value::from(seatbelt::template_digest()),
         );
         BoundaryIdentity {
             boundary: BoundaryKind::NativeTree,
@@ -1512,39 +1708,21 @@ impl PreparedExecution for MacosPrepared {
         // R. The deadline is continuous-clock nanoseconds; both custodians
         // arm their wall from release, and it counts sleep.
         let release_ns = es::continuous_time_ns();
-        let wall_ns = self.wall_ms.map_or(0, |ms| ms.saturating_mul(1_000_000));
+        let deadline_ns = self.wall_ms.map_or(u64::MAX, |ms| {
+            release_ns.saturating_add(ms.saturating_mul(1_000_000))
+        });
         let fail = |error: JailError, teardown: Teardown| {
             Box::new(ReleaseFailure {
                 error,
                 teardown: Some(teardown),
             })
         };
-        if let Err(error) = write_frame(
-            self.a_write,
-            &encode_release_deadline(release_ns.saturating_add(wall_ns)),
-        ) {
-            let error = refusal(
-                ErrorCode::InvalidFd,
-                ErrorStage::Released,
-                Remediation::InspectState,
-                format!("the release deadline could not be sent: {}", error.message),
-            );
-            return Err(fail(error, self.abort_inner()));
+        if let Err(error) = release_launcher(self.a_write, &mut self.r_write, deadline_ns) {
+            return Err(fail(
+                error.in_stage(ErrorStage::Released),
+                self.abort_inner(),
+            ));
         }
-        if let Err(error) = write_frame(self.a_write, b"L") {
-            let error = refusal(
-                ErrorCode::InvalidFd,
-                ErrorStage::Released,
-                Remediation::InspectState,
-                format!("the release byte could not be sent: {}", error.message),
-            );
-            return Err(fail(error, self.abort_inner()));
-        }
-        // The supervisor holds no other end of R: end-of-file on R is the
-        // launcher's, exactly as on Linux (jail-v1 §8.3).
-        // SAFETY: a plain close of the descriptor this process owns.
-        unsafe { libc::close(self.a_write) };
-        self.a_write = -1;
         Ok(Box::new(MacosRunning::from_prepared(*self, release_ns)))
     }
 
@@ -1558,6 +1736,7 @@ impl MacosPrepared {
     /// end-of-file is the guardian's stop, and the blocked launcher — the
     /// only member — is killed by token like any other (§4.5, §4.3).
     fn abort_inner(&mut self) -> Teardown {
+        self.r_write.close();
         if self.a_write >= 0 {
             // SAFETY: a plain close of a descriptor this process owns.
             unsafe { libc::close(self.a_write) };
@@ -1571,9 +1750,6 @@ impl MacosPrepared {
         Teardown { tree }
     }
 
-    /// Waits for the guardian's record on B, then reaps it; ends a stalled
-    /// guardian by process group. The tree facts come from the record and
-    /// from S's own view.
     /// The live client, until [`MacosPrepared::abort_inner`] deletes it.
     fn custody(&self) -> &CustodyClient {
         self.client
@@ -1613,8 +1789,7 @@ impl MacosPrepared {
                 }
             }
             // SAFETY: WNOHANG waitpid on a pid this process spawned.
-            if unsafe { libc::waitpid(self.guardian_pid, std::ptr::null_mut(), libc::WNOHANG) }
-                == self.guardian_pid
+            if unsafe { libc::waitpid(self.guardian_pid, std::ptr::null_mut(), libc::WNOHANG) } != 0
             {
                 break;
             }
@@ -1622,9 +1797,7 @@ impl MacosPrepared {
         }
         // SAFETY: the final reaping wait; the guardian exits after its
         // record (§4.4), and a stalled one has been killed by its group.
-        if unsafe { libc::waitpid(self.guardian_pid, std::ptr::null_mut(), libc::WNOHANG) }
-            != self.guardian_pid
-        {
+        if unsafe { libc::waitpid(self.guardian_pid, std::ptr::null_mut(), libc::WNOHANG) } == 0 {
             // SAFETY: ending a guardian that did not finish in its tail.
             unsafe {
                 libc::kill(self.guardian_pid, libc::SIGKILL);
@@ -1640,7 +1813,11 @@ impl MacosPrepared {
             .as_ref()
             .and_then(|record| record.get("drained"))
             .and_then(serde_json::Value::as_bool);
-        let tree_empty = if integrity { None } else { guardian_drained };
+        let tree_empty = if integrity {
+            None
+        } else {
+            guardian_drained.filter(|drained| *drained)
+        };
         let verified_at = tree_empty.filter(|empty| *empty).map(|_| SystemTime::now());
         Some(TreeObservation {
             tree_empty,
@@ -1691,8 +1868,10 @@ struct MacosRunning {
     events: u64,
     peak_members: usize,
     relay: Option<TerminalRelay>,
-    target_stop_signal: Option<i32>,
+    target_was_stopped: bool,
     headroom: u64,
+    profile_params: ProfileParams,
+    handshake_events: Vec<es::EsPoll>,
     /// The outside proxy, its tally, and the loopback relay (§4.10).
     proxy: Option<crate::proxy::ProxyHandle>,
     proxy_sink: Option<std::sync::Arc<crate::proxy::coverage::TraceSink>>,
@@ -1736,8 +1915,10 @@ impl MacosRunning {
             events: 0,
             peak_members: 0,
             relay: prepared.relay,
-            target_stop_signal: None,
+            target_was_stopped: false,
             headroom: prepared.headroom,
+            profile_params: prepared.profile_params,
+            handshake_events: prepared.handshake_events,
             proxy: prepared.proxy,
             proxy_sink: prepared.proxy_sink,
             serving: prepared.serving,
@@ -1774,24 +1955,16 @@ impl MacosRunning {
                 after_target_end: self.target_ended(),
             });
         }
-        match poll.event {
-            // §4.3 step 7: the launcher's NOTIFY_EXEC confirms the exec. The
-            // exec event carries the new token; the launcher's process is
-            // known by its pid (the table's key), and its new token is the
-            // target's identity.
-            EsEvent::Exec { token }
-                if !self.exec_confirmed
-                    && token[AUDIT_TOKEN_PID] == self.launcher_token[AUDIT_TOKEN_PID] =>
-            {
-                self.exec_confirmed = true;
-                self.target_token = Some(token);
-                Some(RunEvent::ExecConfirmed)
-            }
-            EsEvent::Exit { token, status } if self.target_token == Some(token) => {
-                exit_status_event(status)
-            }
-            _ => None,
+        let event = track_target(
+            &poll.event,
+            &self.launcher_token,
+            &mut self.target_token,
+            &mut self.exec_confirmed,
+        );
+        if let (Some(relay), Some(token)) = (&mut self.relay, self.target_token) {
+            let _ = relay.set_workload_group(token[AUDIT_TOKEN_PID] as libc::pid_t);
         }
+        event
     }
 
     /// Drains everything available on S, returning the first run event.
@@ -1834,22 +2007,27 @@ impl MacosRunning {
     fn poll_guardian(&mut self) {
         let mut buffer = [0u8; 4096];
         match self.b_read.read(&mut buffer) {
-            Ok(0) => self.guardian_lost = true,
-            Ok(n) => {
-                if let Ok(frames) = self.b_reader.feed(&buffer[..n]) {
-                    for frame in frames
-                        .into_iter()
-                        .filter_map(|frame| match frame {
-                            BFrame::Record(json) => Some(json),
-                            _ => None,
-                        })
-                        .filter_map(|json| serde_json::from_slice(&json).ok())
-                    {
-                        self.guardian_record = Some(frame);
-                    }
+            Ok(0) => {
+                self.guardian_lost |=
+                    self.guardian_record.is_none() || !self.b_reader.buffer.is_empty();
+            }
+            Ok(n) if !self.guardian_lost => {
+                if let Err(()) = receive_guardian_record(
+                    &mut self.b_reader,
+                    &buffer[..n],
+                    &mut self.guardian_record,
+                ) {
+                    self.guardian_lost = true;
                 }
             }
-            Err(_) => {}
+            Ok(_) => {}
+            Err(error)
+                if error.kind() == std::io::ErrorKind::WouldBlock
+                    || error.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(_) => self.guardian_lost = true,
+        }
+        if self.guardian_lost {
+            self.guardian_record = None;
         }
     }
 
@@ -1885,13 +2063,14 @@ impl MacosRunning {
         false
     }
 
-    /// Ends a guardian that stalled at the stop, by process group (§4.5:
-    /// "the supervisor reaps it, and ends it by audit token first if it is
-    /// stalled"; the group is the pid here, the guardian being its own
-    /// group leader).
+    /// Ends an unreaped direct child that stalled at the stop. An exited,
+    /// unreaped child keeps its pid reserved; never signal after reaping.
     fn end_stalled_guardian(&mut self) {
         // SAFETY: scalar signal and reaping wait for the guardian's group.
         unsafe {
+            if libc::waitpid(self.guardian_pid, std::ptr::null_mut(), libc::WNOHANG) != 0 {
+                return;
+            }
             libc::kill(self.guardian_pid, libc::SIGKILL);
             libc::waitpid(self.guardian_pid, std::ptr::null_mut(), 0);
         }
@@ -1964,17 +2143,17 @@ impl MacosRunning {
         if integrity {
             self.integrity_lost = true;
         }
-        let drained = own.is_some_and(|result| result.drained()) || guardian_drained == Some(true);
-        let observed = own.is_some() || guardian_drained.is_some();
+        let drained = (self.handshake_events.is_empty()
+            && own.is_some_and(|result| result.drained()))
+            || guardian_drained == Some(true);
         // tree_empty=true needs one custodian that drained; anything else is
         // tree_unknown (§4.5). Failed verification loses integrity and
         // retains state, as on Linux.
-        let tree_empty = if !observed || integrity {
-            None
-        } else {
-            Some(drained)
-        };
+        let tree_empty = (!integrity && drained).then_some(true);
         let verified_at = tree_empty.filter(|empty| *empty).map(|_| SystemTime::now());
+        if let Some(relay) = self.relay.as_mut() {
+            relay.settle(tree_empty == Some(true));
+        }
         TreeObservation {
             tree_empty,
             verified_at,
@@ -1997,6 +2176,19 @@ impl MacosRunning {
             serde_json::Value::from("es_descendants"),
         );
         details.insert("defense".to_owned(), serde_json::Value::from("seatbelt"));
+        details.insert("native_execution".to_owned(), serde_json::json!("dev"));
+        details.insert(
+            "profile_digest".to_owned(),
+            serde_json::json!(seatbelt::template_digest()),
+        );
+        details.insert(
+            "profile_parameters".to_owned(),
+            self.profile_params.receipt(),
+        );
+        details.insert(
+            "handshake_events_pending".to_owned(),
+            serde_json::Value::from(self.handshake_events.len()),
+        );
         details.insert(
             "process_headroom".to_owned(),
             serde_json::Value::from(self.headroom),
@@ -2019,56 +2211,150 @@ impl MacosRunning {
             serde_json::Value::from(self.stop_result.map_or(0, |result| result.elapsed_ns())),
         );
         details.insert("stop".to_owned(), serde_json::Value::from(stop));
+        if let Some(relay) = &self.relay {
+            details.insert(
+                "relay_terminal".into(),
+                serde_json::json!(AppliedTerminal {
+                    device: relay.device().to_owned(),
+                    session: super::relay::RELAY_SESSION.into(),
+                    process_group: "own".into(),
+                    stops: relay.stops,
+                    restored: relay.restored,
+                }),
+            );
+        }
+        if let Some(token) = self.target_token {
+            details.insert(
+                "target_process".into(),
+                serde_json::json!(ProcessRecord {
+                    pid: token[AUDIT_TOKEN_PID],
+                    identity: ProcessIdentity {
+                        kind: "macos_audit_token".into(),
+                        value: audit_token_value(token)
+                    },
+                }),
+            );
+        }
         details
     }
 
     fn custodian_facts(&self) -> serde_json::Value {
         serde_json::json!({
             "result": match self.stop_result {
-                Some(result) if result.drained() => "drained",
+                Some(result) if result.drained() && self.handshake_events.is_empty() => "drained",
                 _ => "not_drained",
             },
-            "stream": if self.engine.gapped() { "gapped" } else { "contiguous" },
+            "stream": if self.engine.gapped() { "gapped" } else if !self.handshake_events.is_empty() { "unknown" } else { "contiguous" },
             "events": self.events,
         })
     }
 
     fn guardian_facts(&self) -> serde_json::Value {
-        let record = self.guardian_record.as_ref();
-        let result = if self.guardian_lost && record.is_none() {
-            "lost"
-        } else if self.guardian_stalled {
-            "stalled"
-        } else {
-            match record
-                .and_then(|record| record.get("drained"))
-                .and_then(serde_json::Value::as_bool)
-            {
-                Some(true) => "drained",
-                _ => "not_drained",
-            }
-        };
-        let stream = match record
-            .and_then(|record| record.get("reason"))
-            .and_then(serde_json::Value::as_str)
-        {
-            Some("gap") => "gapped",
-            _ => "contiguous",
-        };
-        let events = record
-            .map(|record| {
-                ["forks", "execs", "exits"]
-                    .iter()
-                    .filter_map(|key| record.get(*key).and_then(serde_json::Value::as_u64))
-                    .sum::<u64>()
-            })
-            .unwrap_or(0);
-        serde_json::json!({
-            "result": result,
-            "stream": stream,
-            "events": events,
-        })
+        guardian_facts(
+            self.guardian_record.as_ref(),
+            self.guardian_lost,
+            self.guardian_stalled,
+        )
     }
+}
+
+/// Exec replaces pidversion. Track every exec of the target pid, while only
+/// the first confirms release; only the current identity can end the target.
+fn track_target(
+    event: &EsEvent,
+    launcher: &Token,
+    target: &mut Option<Token>,
+    confirmed: &mut bool,
+) -> Option<RunEvent> {
+    match *event {
+        EsEvent::Exec { token } if token[AUDIT_TOKEN_PID] == launcher[AUDIT_TOKEN_PID] => {
+            *target = Some(token);
+            let first = !*confirmed;
+            *confirmed = true;
+            first.then_some(RunEvent::ExecConfirmed)
+        }
+        EsEvent::Exit { token, status } if *target == Some(token) => exit_status_event(status),
+        _ => None,
+    }
+}
+
+/// After token-seen, B carries exactly one well-formed final record. A bad
+/// frame invalidates this channel's evidence; EOF cannot later clear loss.
+fn receive_guardian_record(
+    reader: &mut BReader,
+    bytes: &[u8],
+    record: &mut Option<serde_json::Value>,
+) -> Result<(), ()> {
+    let accepted = (|| {
+        for frame in reader.feed(bytes).map_err(|_| ())? {
+            let BFrame::Record(json) = frame else {
+                return Err(());
+            };
+            if record.is_some() {
+                return Err(());
+            }
+            let value: serde_json::Value = serde_json::from_slice(&json).map_err(|_| ())?;
+            if value.get("schema").and_then(serde_json::Value::as_str) != Some(record::SCHEMA)
+                || value
+                    .get("drained")
+                    .and_then(serde_json::Value::as_bool)
+                    .is_none()
+            {
+                return Err(());
+            }
+            *record = Some(value);
+        }
+        Ok(())
+    })();
+    if accepted.is_err() {
+        *record = None;
+    }
+    accepted
+}
+
+fn guardian_facts(
+    record: Option<&serde_json::Value>,
+    lost: bool,
+    stalled: bool,
+) -> serde_json::Value {
+    let result = if lost && record.is_none() {
+        "lost"
+    } else if stalled {
+        "stalled"
+    } else {
+        match record
+            .and_then(|record| record.get("drained"))
+            .and_then(serde_json::Value::as_bool)
+        {
+            Some(true) => "drained",
+            _ => "not_drained",
+        }
+    };
+    let stream = match record
+        .and_then(|record| record.get("reason"))
+        .and_then(serde_json::Value::as_str)
+    {
+        Some("gap") => "gapped",
+        _ if record
+            .and_then(|r| r.get("drained"))
+            .and_then(serde_json::Value::as_bool)
+            .is_some() =>
+        {
+            "contiguous"
+        }
+        _ => "unknown",
+    };
+    let events = record.map(|record| {
+        ["forks", "execs", "exits"]
+            .iter()
+            .filter_map(|key| record.get(*key).and_then(serde_json::Value::as_u64))
+            .sum::<u64>()
+    });
+    serde_json::json!({
+        "result": result,
+        "stream": stream,
+        "events": events,
+    })
 }
 
 /// The target's outcome from its `NOTIFY_EXIT` wait status: the raw `stat`
@@ -2121,7 +2407,7 @@ impl crate::platform::RunningExecution for MacosRunning {
                 return event;
             }
             self.poll_guardian();
-            if self.guardian_lost && self.guardian_record.is_none() && self.a_write >= 0 {
+            if self.guardian_lost && self.guardian_record.is_none() && !self.loss_reported {
                 // §4.6: a guardian that dies mid-run is recorded, and the
                 // run continues from S alone; the stop it never ran is the
                 // supervisor's, and the loss is that stop's cause.
@@ -2159,14 +2445,11 @@ impl crate::platform::RunningExecution for MacosRunning {
             }
             None => {
                 // §4.5: `SIGTERM` to the target by audit token, initial 2 s.
-                if let Some(token) = self.target_token
-                    && es::signal_by_token(&token, libc::SIGTERM) == 0
-                {
-                    self.target_stop_signal = Some(libc::SIGTERM);
-                    if let Some(relay) = self.relay.as_mut() {
-                        let _ = relay.relayed_stop(libc::SIGTERM);
-                    }
+                if let Some(token) = self.target_token {
+                    let _ = es::signal_by_token(&token, libc::SIGTERM);
                 }
+                // A termination request is not a terminal stop event.
+
                 self.stop = Some(StopDrive {
                     reason,
                     grace_ends_ns: es::continuous_time_ns() + STOP_GRACE_NS,
@@ -2204,16 +2487,26 @@ impl crate::platform::RunningExecution for MacosRunning {
         );
         Some(coverage)
     }
-
-    fn target_stop(&mut self) -> Option<i32> {
-        self.target_stop_signal.take()
-    }
 }
 
 impl MacosRunning {
     /// One relay slice; `Some` is a stdio failure the supervisor records.
     fn pump_relay(&mut self) -> Option<RunEvent> {
         let relay = self.relay.as_mut()?;
+        if let Err(error) = relay.propagate_window() {
+            return Some(RunEvent::StdioFailed {
+                reason: format!("terminal window relay failed: {error}"),
+                after_target_end: self.target_ended(),
+            });
+        }
+        if let Some(token) = self.target_token {
+            let stopped =
+                super::relay::target_stopped(token[AUDIT_TOKEN_PID] as libc::pid_t).is_some();
+            if stopped && !self.target_was_stopped {
+                relay.stops += 1;
+            }
+            self.target_was_stopped = stopped;
+        }
         match relay.pump(0) {
             Ok(crate::platform::macos::relay::RelayEvent::Relayed { .. })
             | Ok(crate::platform::macos::relay::RelayEvent::Idle) => None,
@@ -2242,8 +2535,7 @@ impl Drop for MacosRunning {
         while self.guardian_record.is_none() && Instant::now() < deadline {
             self.poll_guardian();
             // SAFETY: WNOHANG waitpid on a pid this process spawned.
-            if unsafe { libc::waitpid(self.guardian_pid, std::ptr::null_mut(), libc::WNOHANG) }
-                == self.guardian_pid
+            if unsafe { libc::waitpid(self.guardian_pid, std::ptr::null_mut(), libc::WNOHANG) } != 0
             {
                 break;
             }
@@ -2251,9 +2543,7 @@ impl Drop for MacosRunning {
         }
         // SAFETY: the final reaping wait, after ending a stalled guardian.
         unsafe {
-            if libc::waitpid(self.guardian_pid, std::ptr::null_mut(), libc::WNOHANG)
-                != self.guardian_pid
-            {
+            if libc::waitpid(self.guardian_pid, std::ptr::null_mut(), libc::WNOHANG) == 0 {
                 libc::kill(self.guardian_pid, libc::SIGKILL);
                 libc::waitpid(self.guardian_pid, std::ptr::null_mut(), 0);
             }
@@ -2502,11 +2792,9 @@ mod tests {
         ));
     }
 
-    /// The §4.3 step 1 refusal, through the real platform seam: on this Mac
-    /// (no entitlement) client creation answers `ERR_NOT_ENTITLED` and
-    /// `prepare` refuses with remediation `unsupported`, naming the code.
+    /// The default-off development gate refuses before attempting any ES client.
     #[test]
-    fn prepare_refuses_naming_err_not_entitled_and_unsupported() {
+    fn prepare_refuses_when_the_native_development_gate_is_off() {
         use crate::platform::{PlanRequest, Sinks};
         use crate::policy::{ProfileName, ResolveInputs, ScratchRoot};
 
@@ -2553,7 +2841,7 @@ mod tests {
         assert_eq!(error.code, ErrorCode::UnsupportedPlatform);
         assert_eq!(error.remediation, Remediation::Unsupported);
         assert!(
-            error.message.contains("ERR_NOT_ENTITLED"),
+            error.message.contains("UKAI_JAIL_MACOS_NATIVE=dev"),
             "{}",
             error.message
         );
@@ -2564,5 +2852,504 @@ mod tests {
     fn the_grace_is_two_seconds_and_the_budget_five() {
         assert_eq!(stop_grace(), Duration::from_secs(2));
         assert_eq!(stop_budget_ns(), 5_000_000_000);
+    }
+    #[test]
+    fn supervisor_frames_reach_the_guardian_reader() {
+        use crate::platform::macos::guardian::frames::{Feed, Frame, FrameReader};
+        let mut pipe = Pipe::new().unwrap();
+        write_frame(pipe.write, &encode_launcher_token(&token(42))).unwrap();
+        write_frame(pipe.write, &encode_release_deadline(123)).unwrap();
+        let mut read = Fd::nonblocking(pipe.take_read()).unwrap();
+        let mut bytes = [0u8; 256];
+        let n = read.read(&mut bytes).unwrap();
+        let mut reader = FrameReader::default();
+        assert_eq!(
+            reader.read(&bytes[..n], false),
+            Feed::Frames(vec![
+                Ok(Frame::LauncherToken(token(42))),
+                Ok(Frame::ReleaseDeadline(123)),
+            ])
+        );
+    }
+
+    #[test]
+    fn guardian_spawn_inherits_exactly_requested_descriptors() {
+        let mut pipe = Pipe::new().unwrap();
+        // A deliberately inheritable extra descriptor must still be absent.
+        // SAFETY: dup returns an owned fd; fcntl changes that fd only.
+        let extra = Fd(unsafe { libc::dup(pipe.read) });
+        assert!(extra.0 >= 0);
+        let script = format!(
+            r#"import os, fcntl
+fds = []
+for fd in range(3, {}):
+    try: fcntl.fcntl(fd, fcntl.F_GETFD); fds.append(fd)
+    except OSError: pass
+os.write({}, (','.join(map(str, fds))).encode())
+"#,
+            extra.0.max(pipe.write) + 10,
+            pipe.write
+        );
+        let pid = spawn_self(
+            Path::new("/usr/bin/python3"),
+            &["-c".into(), script],
+            &[pipe.write],
+        )
+        .unwrap();
+        let mut status = 0;
+        // SAFETY: reaps only the child this test spawned.
+        assert_eq!(unsafe { libc::waitpid(pid, &mut status, 0) }, pid);
+        assert_eq!(status, 0, "fixture failed before reporting descriptors");
+        let mut read = Fd::nonblocking(pipe.take_read()).unwrap();
+        let mut bytes = [0u8; 1024];
+        let n = read.read(&mut bytes).unwrap();
+        assert_eq!(
+            std::str::from_utf8(&bytes[..n]).unwrap(),
+            pipe.write.to_string()
+        );
+    }
+
+    #[test]
+    fn b_rejects_oversize_and_zero_lengths_immediately() {
+        for length in [0u32, 4097, u32::MAX] {
+            assert!(
+                decode_b_frames(&[&length.to_le_bytes()]).is_err(),
+                "{length}"
+            );
+        }
+    }
+
+    fn policy_plan(profile: crate::policy::ProfileName) -> (tempfile::TempDir, PreparedPlan) {
+        use crate::policy::{ResolveInputs, ScratchRoot};
+        let dir = tempfile::tempdir().unwrap();
+        let workspace = dir.path().join("work");
+        let attempt = dir.path().join("attempt");
+        std::fs::create_dir_all(&workspace).unwrap();
+        std::fs::create_dir_all(&attempt).unwrap();
+        let resolved = crate::policy::resolve(&ResolveInputs {
+            platform: Os::Macos,
+            base_profile: profile,
+            policy_name: profile.as_str().into(),
+            baseline: crate::profiles::baseline(profile, Os::Macos, &|_| None),
+            workspace: workspace.as_os_str().as_encoded_bytes().to_vec(),
+            scratch: ScratchRoot::Managed,
+            vendor_state: None,
+            operator_home: None,
+            translation_prefixes: Vec::new(),
+            layers: Vec::new(),
+        })
+        .unwrap();
+        (
+            dir,
+            PreparedPlan {
+                attempt_id: "att_00000000-0000-4000-8000-000000000001".into(),
+                attempt_dir: attempt,
+                request: crate::platform::PlanRequest {
+                    snapshot: resolved.snapshot,
+                    requirements: resolved.requirements,
+                },
+                argv: vec![b"/usr/bin/true".to_vec()],
+                prepare_deadline: ContinuousDeadline::after(Duration::from_secs(30)),
+                workspace,
+                config_dir: PathBuf::from("/unused"),
+                launch: None,
+                proxy: None,
+                pinned_roots: Vec::new(),
+                exec_pins: Vec::new(),
+            },
+        )
+    }
+
+    #[test]
+    fn production_profiles_compile_and_execute_true() {
+        use crate::policy::ProfileName;
+        for profile in [ProfileName::Tool, ProfileName::Build, ProfileName::Agent] {
+            let (_dir, plan) = policy_plan(profile);
+            let params = profile_params(&plan, None).unwrap();
+            let output = std::process::Command::new("/usr/bin/sandbox-exec")
+                .args(["-p", &seatbelt::generate(&params), "/usr/bin/true"])
+                .current_dir("/")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{profile:?}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
+
+    #[test]
+    fn production_protected_segments_are_applied() {
+        use crate::policy::ProfileName;
+        for profile in [ProfileName::Tool, ProfileName::Agent] {
+            let (_dir, plan) = policy_plan(profile);
+            std::fs::create_dir_all(plan.workspace.join(".git")).unwrap();
+            let config = plan.workspace.join(".git/config");
+            std::fs::write(&config, "original").unwrap();
+            let params = profile_params(&plan, None).unwrap();
+            assert!(!params.protected_segments.is_empty());
+            let output = std::process::Command::new("/usr/bin/sandbox-exec")
+                .args([
+                    "-p",
+                    &seatbelt::generate(&params),
+                    "/bin/sh",
+                    "-c",
+                    "echo overwrite > \"$1\"",
+                    "sh",
+                ])
+                .arg(&config)
+                .current_dir("/")
+                .output()
+                .unwrap();
+            assert!(
+                String::from_utf8_lossy(&output.stderr).contains("Operation not permitted"),
+                "{output:?}"
+            );
+            assert_eq!(std::fs::read_to_string(config).unwrap(), "original");
+        }
+    }
+
+    #[test]
+    fn build_grants_scratch_without_writable_workspace() {
+        let (_dir, plan) = policy_plan(crate::policy::ProfileName::Build);
+        let params = profile_params(&plan, None).unwrap();
+        assert_eq!(params.read_write, vec![plan.attempt_dir.join("scratch")]);
+    }
+
+    #[test]
+    fn filesystem_read_only_deny_read_and_extra_grants_are_enforced() {
+        use crate::policy::{PathRef, ProfileName};
+        let (_dir, mut plan) = policy_plan(ProfileName::Tool);
+        let readonly = plan.workspace.join("readonly");
+        let hidden = plan.workspace.join("hidden");
+        let extra = plan.attempt_dir.join("extra");
+        for path in [&readonly, &hidden, &extra] {
+            std::fs::create_dir(path).unwrap();
+        }
+        std::fs::write(hidden.join("secret"), "private").unwrap();
+        let reference = |path: &Path| {
+            PathRef::host(
+                NativeString::from_bytes(path.as_os_str().as_encoded_bytes().to_vec()).unwrap(),
+            )
+        };
+        plan.request
+            .snapshot
+            .filesystem
+            .read_only
+            .push(reference(&readonly));
+        plan.request
+            .snapshot
+            .filesystem
+            .deny_read
+            .push(reference(&hidden));
+        plan.request
+            .snapshot
+            .filesystem
+            .read_write
+            .push(reference(&extra));
+        let params = profile_params(&plan, None).unwrap();
+        let profile = seatbelt::generate(&params);
+        let run = |script: &str, path: &Path| {
+            std::process::Command::new("/usr/bin/sandbox-exec")
+                .args(["-p", &profile, "/bin/sh", "-c", script, "sh"])
+                .arg(path)
+                .current_dir("/")
+                .output()
+                .unwrap()
+        };
+        assert!(run("echo allowed > \"$1/new\"", &extra).status.success());
+        let readonly_denial = run("echo denied > \"$1/new\"", &readonly);
+        assert!(!readonly_denial.status.success());
+        assert!(!readonly.join("new").exists());
+        let hidden_denial = run("cat \"$1/secret\"", &hidden);
+        assert!(!hidden_denial.status.success());
+        assert!(!String::from_utf8_lossy(&hidden_denial.stdout).contains("private"));
+    }
+
+    #[test]
+    fn production_profile_denies_other_process_arguments_and_environment() {
+        let (_dir, plan) = policy_plan(crate::policy::ProfileName::Tool);
+        let source = plan.attempt_dir.join("procargs.c");
+        let binary = plan.attempt_dir.join("procargs");
+        std::fs::write(&source, r#"
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+int main(int argc, char **argv) {
+    if (argc == 2 && strcmp(argv[1], "hold") == 0) { sleep(30); return 0; }
+    char bytes[65536]; size_t n = sizeof(bytes);
+    int pid = atoi(argv[1]);
+    int args[] = {CTL_KERN, KERN_PROCARGS2, pid};
+    int info[] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, pid};
+    if (argc == 3) n = sizeof(struct kinfo_proc);
+    int rc = argc == 3 ? sysctl(info, 4, bytes, &n, NULL, 0) : sysctl(args, 3, bytes, &n, NULL, 0);
+    if (rc < 0) { printf("errno=%d\n", errno); return 1; }
+    if (argc == 3) return n > 0 ? 0 : 2;
+    const char *secret = "UKAI_REVIEW_SECRET=containment-sentinel";
+    for (size_t i = 0; i + strlen(secret) <= n; i++) if (memcmp(bytes+i, secret, strlen(secret)) == 0) return 0;
+    return 2;
+}
+"#).unwrap();
+        let compile = std::process::Command::new("/usr/bin/cc")
+            .arg(&source)
+            .arg("-o")
+            .arg(&binary)
+            .output()
+            .unwrap();
+        assert!(compile.status.success(), "{compile:?}");
+        let mut params = profile_params(&plan, None).unwrap();
+        params.read_only.push(binary.clone());
+        let profile = seatbelt::generate(&params);
+        let mut victim = std::process::Command::new(&binary)
+            .arg("hold")
+            .env("UKAI_REVIEW_SECRET", "containment-sentinel")
+            .spawn()
+            .unwrap();
+        for info in [false, true] {
+            let mut outside = std::process::Command::new(&binary);
+            outside.arg(victim.id().to_string());
+            if info {
+                outside.arg("info");
+            }
+            let outside = outside.output().unwrap();
+            let mut inside = std::process::Command::new("/usr/bin/sandbox-exec");
+            inside
+                .args(["-p", &profile])
+                .arg(&binary)
+                .arg(victim.id().to_string())
+                .current_dir("/");
+            if info {
+                inside.arg("info");
+            }
+            let inside = inside.output().unwrap();
+            if !outside.status.success() || inside.status.code() != Some(1) {
+                let _ = victim.kill();
+                let _ = victim.wait();
+                panic!("positive control {outside:?}, sandbox {inside:?}");
+            }
+            assert_eq!(String::from_utf8_lossy(&inside.stdout).trim(), "errno=1");
+        }
+        let _ = victim.kill();
+        let _ = victim.wait();
+    }
+
+    #[test]
+    fn guardian_spawn_does_not_inherit_operator_environment() {
+        let script = "test -z \"${RUSTUP_TOOLCHAIN+x}\" && test -z \"${HOME+x}\" && test \"$PATH\" = /usr/bin:/bin:/usr/sbin:/sbin";
+        let pid = spawn_self(Path::new("/bin/sh"), &["-c".into(), script.into()], &[]).unwrap();
+        let mut status = 0;
+        // SAFETY: wait only for the child this test owns.
+        assert_eq!(unsafe { libc::waitpid(pid, &mut status, 0) }, pid);
+        assert_eq!(status, 0);
+    }
+
+    #[test]
+    fn a_kernel_bound_lifetime_never_enters_native_preparation() {
+        let (_dir, mut plan) = policy_plan(crate::policy::ProfileName::Tool);
+        plan.request.snapshot.lifetime_boundary =
+            Some(crate::policy::LifetimeBoundary::KernelBound);
+        let error = prepare(plan, Sinks { trace: None })
+            .err()
+            .expect("native must refuse --vm guarantee");
+        assert_eq!(error.code, ErrorCode::UnsupportedPlatform);
+        assert_eq!(error.remediation, Remediation::Unsupported);
+        assert!(error.message.contains("--vm is required"));
+    }
+
+    #[test]
+    fn launcher_tracking_selects_first_child_and_follows_exec_tokens() {
+        let mut current = None;
+        track_launcher(&mut current, 10, &EsEvent::Fork { token: token(10) });
+        assert_eq!(current, None);
+        let fork = token(11);
+        track_launcher(&mut current, 10, &EsEvent::Fork { token: fork });
+        track_launcher(&mut current, 10, &EsEvent::Fork { token: token(12) });
+        assert_eq!(current, Some(fork));
+        let mut exec = fork;
+        exec[AUDIT_TOKEN_PIDVERSION] += 1;
+        track_launcher(&mut current, 10, &EsEvent::Exec { token: exec });
+        assert_eq!(current, Some(exec));
+    }
+
+    #[test]
+    fn profile_evidence_records_paths_setuid_list_and_scan_holes() {
+        let (_dir, plan) = policy_plan(crate::policy::ProfileName::Tool);
+        let params = profile_params(&plan, None).unwrap();
+        let receipt = params.receipt();
+        assert!(receipt["read_write"].as_array().unwrap().iter().any(|p| {
+            p.as_str().is_some_and(|path| {
+                std::fs::canonicalize(path).ok() == std::fs::canonicalize(&plan.workspace).ok()
+            })
+        }));
+        assert!(
+            receipt["setuid_exec_denied"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|p| p == "/usr/bin/sudo")
+        );
+        assert!(
+            receipt["protected_segments"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|p| p
+                    .as_str()
+                    .is_some_and(|path| Path::new(path).ends_with("work/.git")))
+        );
+        assert!(receipt["setuid_scan_holes"].is_array());
+        let applied = build_applied(&plan, &params, None, false);
+        assert!(
+            applied.syscalls.is_none(),
+            "Seatbelt operation rules are recorded under native profile_parameters"
+        );
+    }
+    #[test]
+    fn release_writes_r_and_keeps_a_open_until_stop() {
+        use crate::platform::macos::guardian::frames::{Feed, Frame, FrameReader};
+        let mut a = Pipe::new().unwrap();
+        let mut r = Pipe::new().unwrap();
+        let mut a_read = Fd::nonblocking(a.take_read()).unwrap();
+        let mut r_read = Fd::nonblocking(r.take_read()).unwrap();
+        let mut release = Fd(r.take_write());
+        release_launcher(a.write, &mut release, 123).unwrap();
+        let mut bytes = [0u8; 128];
+        let n = a_read.read(&mut bytes).unwrap();
+        assert_eq!(
+            FrameReader::default().read(&bytes[..n], false),
+            Feed::Frames(vec![Ok(Frame::ReleaseDeadline(123))])
+        );
+        assert_eq!(
+            a_read.read(&mut bytes).unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+        assert_eq!(r_read.read(&mut bytes).unwrap(), 1);
+        assert_eq!(bytes[0], b'L');
+        assert_eq!(
+            r_read.read(&mut bytes).unwrap(),
+            0,
+            "R closes after release"
+        );
+        drop(a);
+        assert_eq!(
+            a_read.read(&mut bytes).unwrap(),
+            0,
+            "A EOF is the later stop"
+        );
+    }
+
+    #[test]
+    fn every_supervisor_pipe_end_is_close_on_exec() {
+        let pipe = Pipe::new().unwrap();
+        for fd in [pipe.read, pipe.write] {
+            // SAFETY: queries this pipe's owned descriptors.
+            let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+            assert_ne!(flags & libc::FD_CLOEXEC, 0);
+        }
+    }
+
+    #[test]
+    fn absent_guardian_evidence_cannot_be_a_contiguous_stream() {
+        let facts = guardian_facts(None, true, false);
+        assert_eq!(facts["result"], "lost");
+        assert_eq!(facts["stream"], "unknown");
+        assert!(facts["events"].is_null());
+        let drained = serde_json::json!({"drained": true, "reason": null, "forks": 1, "execs": 2, "exits": 1});
+        let facts = guardian_facts(Some(&drained), false, false);
+        assert_eq!(facts["stream"], "contiguous");
+        assert_eq!(facts["events"], 4);
+    }
+
+    #[test]
+    fn target_identity_tracks_every_exec_and_rejects_stale_exit() {
+        let launcher = token(42);
+        let mut first = launcher;
+        first[AUDIT_TOKEN_PIDVERSION] += 1;
+        let mut second = first;
+        second[AUDIT_TOKEN_PIDVERSION] += 1;
+        let mut current = None;
+        let mut confirmed = false;
+        assert_eq!(
+            track_target(
+                &EsEvent::Exec { token: first },
+                &launcher,
+                &mut current,
+                &mut confirmed
+            ),
+            Some(RunEvent::ExecConfirmed)
+        );
+        assert_eq!(current, Some(first));
+        assert_eq!(
+            track_target(
+                &EsEvent::Exec { token: second },
+                &launcher,
+                &mut current,
+                &mut confirmed
+            ),
+            None
+        );
+        assert_eq!(current, Some(second));
+        assert_eq!(
+            track_target(
+                &EsEvent::Exit {
+                    token: first,
+                    status: 0
+                },
+                &launcher,
+                &mut current,
+                &mut confirmed
+            ),
+            None
+        );
+        assert_eq!(
+            track_target(
+                &EsEvent::Exit {
+                    token: second,
+                    status: 0
+                },
+                &launcher,
+                &mut current,
+                &mut confirmed
+            ),
+            Some(RunEvent::TargetExited { code: 0 })
+        );
+    }
+
+    #[test]
+    fn required_staging_refuses_even_without_capability_derivation() {
+        let (_dir, mut plan) = policy_plan(crate::policy::ProfileName::Tool);
+        require_supported_staging(&plan).unwrap();
+        plan.request
+            .requirements
+            .push(crate::capability::Requirement::CredentialStaging);
+        let error = require_supported_staging(&plan).unwrap_err();
+        assert_eq!(error.code, crate::records::ErrorCode::UnsupportedPlatform);
+    }
+    #[test]
+    fn invalid_guardian_frames_invalidate_previous_evidence() {
+        let mut reader = BReader::default();
+        let mut record = None;
+        receive_guardian_record(
+            &mut reader,
+            &frame(br#"record {"schema":"ukai.jail.guardian-record/1","drained":true}"#),
+            &mut record,
+        )
+        .unwrap();
+        assert_eq!(record.as_ref().unwrap()["drained"], true);
+        assert!(receive_guardian_record(&mut reader, &0u32.to_le_bytes(), &mut record).is_err());
+        assert!(record.is_none());
+        for bytes in [
+            frame(b"record {invalid}"),
+            frame(b"ready"),
+            frame(b"record {}"),
+            frame(b"record null"),
+        ] {
+            assert!(receive_guardian_record(&mut BReader::default(), &bytes, &mut None).is_err());
+        }
     }
 }

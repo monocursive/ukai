@@ -76,6 +76,12 @@ pub(super) fn run_probes() -> Vec<ProbeRow> {
 /// `native_tree` under native custody, and only an entitled client proves
 /// the system grants one).
 fn es_row() -> ProbeRow {
+    if !super::native_enabled() {
+        return ProbeRow::new("es_descendants", "es_descendants").unavailable(
+            "native_development_disabled",
+            "UKAI_JAIL_MACOS_NATIVE=dev is not set".into(),
+        );
+    }
     match es_probe::es_probe() {
         EsProbeResult::Entitled => ProbeRow::new("es_descendants", "es_descendants"),
         EsProbeResult::NotEntitled { raw_code } => {
@@ -90,16 +96,15 @@ fn es_row() -> ProbeRow {
     }
 }
 
-/// `/usr/bin/sandbox-exec` present, and a minimal profile that denies by
-/// default compiles and runs a real child under it. The invocation this
-/// pins: `sandbox-exec -p '(version 1)(deny default)(allow process-exec
-/// (literal "/usr/bin/true"))(allow process-fork)(allow file-read*)'
-/// /usr/bin/true` — `(deny default)` alone leaves the child unable to exec
-/// the target, which would measure the profile's compile, not the child.
+/// Compile the production template with production runtime roots and run
+/// `/usr/bin/true`, so an invalid deny filter cannot satisfy the capability.
 fn seatbelt_row() -> ProbeRow {
     const SANDBOX_EXEC: &str = "/usr/bin/sandbox-exec";
-    const PROFILE: &str = "(version 1)(deny default)(allow process-exec (literal \
-                           \"/usr/bin/true\"))(allow process-fork)(allow file-read*)";
+    let params = super::sandbox::ProfileParams {
+        read_only: super::sandbox::runtime_roots(),
+        ..super::sandbox::ProfileParams::default()
+    };
+    let profile = super::sandbox::generate(&params);
     let row = ProbeRow::new("seatbelt_profile", "seatbelt_profile");
     let Ok(metadata) = std::fs::metadata(SANDBOX_EXEC) else {
         return row.unavailable(
@@ -117,7 +122,7 @@ fn seatbelt_row() -> ProbeRow {
     match run_with_timeout(
         std::process::Command::new(SANDBOX_EXEC)
             .arg("-p")
-            .arg(PROFILE)
+            .arg(profile)
             .arg("/usr/bin/true"),
         std::time::Duration::from_secs(5),
     ) {
@@ -239,29 +244,12 @@ fn maxprocperuid_row() -> ProbeRow {
 /// entitlement proof the custody probe makes, for the supervisor's third
 /// ES client. Mechanism `es_notify`.
 fn es_notify_row() -> ProbeRow {
-    match super::observe::ObserveClient::new() {
-        // The client's `Drop` (or `delete`) releases it; the probe holds
-        // nothing else.
-        Ok(client) => {
-            drop(client);
-            ProbeRow::new("es_notify", "es_notify")
-        }
-        Err(result) => {
-            let not_entitled = matches!(result, super::es::EsNewResult::NotEntitled);
-            let raw_code = result.raw();
-            if not_entitled {
-                ProbeRow::new("es_notify", "es_notify").unavailable(
-                    "es_not_entitled",
-                    format!("es_new_descendants_client={raw_code}"),
-                )
-            } else {
-                ProbeRow::new("es_notify", "es_notify").unavailable(
-                    "es_unavailable",
-                    format!("es_new_descendants_client returned {raw_code}"),
-                )
-            }
-        }
-    }
+    // I5: observation is not wired into runs in phase 1. Entitlement alone
+    // cannot establish a capability that the run does not actually attach.
+    ProbeRow::new("es_notify", "es_notify").unavailable(
+        "observer_not_wired",
+        "native observation is not wired into runs".into(),
+    )
 }
 
 /// Reads one sysctl variable as an integer.
@@ -354,39 +342,25 @@ fn inputs_for(
             "seatbelt_profile",
             CapabilityScope::Process,
         )),
-        // Protected coverage rests on the same profile: it applies to every
-        // member and covers new files (`all_descendants`, candidate until
-        // K102 measures the case-insensitive and symlink shapes).
+        // Existing-and-root coverage comes from explicit resolved denies.
+        // Future nested directories are not claimed; all_descendants refuses.
+        Requirement::ProtectedCoverage(crate::policy::ProtectedCoverage::AllDescendants) => None,
         Requirement::ProtectedCoverage(_) => Some((
             &["seatbelt_profile"],
             "seatbelt_profile",
             CapabilityScope::Tree,
         )),
         Requirement::NetworkNone => Some((
-            &["loopback_bind"],
+            &["seatbelt_profile", "loopback_bind"],
             "seatbelt-deny-network",
             CapabilityScope::Tree,
         )),
         Requirement::NetworkProxy => Some((
-            &["loopback_bind"],
+            &["seatbelt_profile", "loopback_bind"],
             "seatbelt-deny-network+outside-proxy+loopback-bridge",
             CapabilityScope::Tree,
         )),
-        // Staging is this implementation's own anchored copies into private
-        // directories and profile grants; no host mechanism has to provide
-        // it, so no probe gates it.
-        Requirement::CredentialStaging => {
-            Some((&[], "anchored-copy+profile-grant", CapabilityScope::Tree))
-        }
-        // J17 (§5): closed-set observation is the supervisor's third ES
-        // client, mechanism `es_notify`, gated on the same switch the
-        // baseline and the policy gate read. The per-class answers live in
-        // the runtime summary (`observe`): `exec` and `fs.write` are
-        // active-capable, `fs.deny` stays `unsupported` — Seatbelt denials
-        // are not ES events (§5).
-        Requirement::ClosedSetObservation if crate::profiles::J17_OBSERVE => {
-            Some((&["es_notify"], "es_notify", CapabilityScope::Tree))
-        }
+        Requirement::CredentialStaging => None,
         Requirement::ClosedSetObservation | Requirement::ExecutionBoundary => None,
         Requirement::OwnerLossTermination => None,
         Requirement::Limit(LimitKey::Wall) => Some((
@@ -543,6 +517,7 @@ mod tests {
         let measured_at = "2026-10-22T00:00:00Z";
         for requirement in [
             Requirement::ClosedSetObservation,
+            Requirement::CredentialStaging,
             Requirement::ExecutionBoundary,
             Requirement::Limit(LimitKey::Pids),
             Requirement::Limit(LimitKey::Mem),
@@ -583,7 +558,6 @@ mod tests {
             Requirement::SyscallFilter,
             Requirement::NetworkNone,
             Requirement::ProtectedCoverage(crate::policy::ProtectedCoverage::ExistingAndRoot),
-            Requirement::CredentialStaging,
             Requirement::Limit(LimitKey::Wall),
         ] {
             let capability = capability_for(requirement, &probes, measured_at);
@@ -647,8 +621,8 @@ mod tests {
         ] {
             assert!(!capability_for(requirement, &probes, measured_at).satisfies());
         }
-        // The network rows do not rest on the profile compile probe.
-        assert!(capability_for(Requirement::NetworkNone, &probes, measured_at).satisfies());
+        // Network containment also needs the actual deny-network profile.
+        assert!(!capability_for(Requirement::NetworkNone, &probes, measured_at).satisfies());
     }
 
     #[test]
@@ -656,48 +630,26 @@ mod tests {
         let probes = run_probes();
         let measured_at = "2026-10-22T00:00:00Z";
         let rows = probe_rows(&probes, measured_at);
-        assert_eq!(rows.len(), PROBE_NAMES.len());
+        assert_eq!(
+            rows.len(),
+            PROBE_NAMES.len() - usize::from(!crate::profiles::J17_OBSERVE)
+        );
         for row in &rows {
             assert_eq!(row.scope, CapabilityScope::Host);
             assert_eq!(row.measured_at, Some(measured_at.to_owned()));
         }
     }
 
-    /// jail-macos.md §5 (J17): with the switch on, `closed_set_observation`
-    /// is a measured answer — mechanism `es_notify`, resting on the
-    /// observation-client probe — and an unentitled or unavailable
-    /// observation client answers with its own reason, like the custody
-    /// rows do.
+    /// Entitlement alone proves neither observation wiring nor staging.
     #[test]
-    fn j17_closed_set_observation_rests_on_the_es_notify_probe() {
-        if !crate::profiles::J17_OBSERVE {
-            return;
-        }
-        let measured_at = "2026-10-22T00:00:00Z";
-        let probes = run_probes();
-        assert!(
-            probes.iter().any(|row| row.name == "es_notify"),
-            "the probe set carries the §5 observation row"
-        );
-        let capability = capability_for(Requirement::ClosedSetObservation, &probes, measured_at);
-        assert_eq!(capability.mechanism.as_deref(), Some("es_notify"));
-        assert_eq!(capability.measured_at, Some(measured_at.to_owned()));
-        // The live answer is this Mac's own; both honest answers are
-        // asserted, never a skip.
-        let es_notify = probes
-            .iter()
-            .find(|row| row.name == "es_notify")
-            .expect("the observation row");
-        match es_notify.status {
-            CapabilityStatus::Available => assert!(capability.satisfies()),
-            CapabilityStatus::Unavailable => {
-                assert!(!capability.satisfies());
-                assert_eq!(
-                    es_notify.reason, "es_not_entitled",
-                    "an unentitled client names the framework's refusal"
-                );
-            }
-            other => panic!("the observation probe answered {other:?}"),
+    fn unwired_observation_and_staging_cannot_be_available_even_with_entitlement() {
+        for requirement in [
+            Requirement::ClosedSetObservation,
+            Requirement::CredentialStaging,
+        ] {
+            let cap = capability_for(requirement, &all_available(), "now");
+            assert_eq!(cap.status, CapabilityStatus::Unsupported);
+            assert_eq!(cap.measured_at, None);
         }
     }
 }

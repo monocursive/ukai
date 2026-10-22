@@ -13,6 +13,8 @@
 
 #![cfg(target_os = "macos")]
 
+mod common;
+
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::os::fd::{FromRawFd, IntoRawFd};
@@ -38,13 +40,49 @@ const BASIC_CREDENTIALS: &str = "dWthaTpzZWNyZXQ=";
 /// socket. On this platform both are connected BSD sockets, and the proxy
 /// uses the descriptor only for reads, writes and socket timeouts, so it is
 /// taken over as a `UnixStream`, which closes it.
+fn accept_tcp(listener: &TcpListener) -> (TcpStream, std::net::SocketAddr) {
+    listener.set_nonblocking(true).unwrap();
+    let deadline = Instant::now() + WAIT;
+    loop {
+        match listener.accept() {
+            Ok(connection) => {
+                connection.0.set_nonblocking(false).unwrap();
+                return connection;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                assert!(Instant::now() < deadline, "TCP accept timed out");
+                thread::sleep(Duration::from_millis(5));
+            }
+            Err(error) => panic!("TCP accept failed: {error}"),
+        }
+    }
+}
+
+fn accept_unix(listener: &std::os::unix::net::UnixListener) -> UnixStream {
+    listener.set_nonblocking(true).unwrap();
+    let deadline = Instant::now() + WAIT;
+    loop {
+        match listener.accept() {
+            Ok((stream, _)) => {
+                stream.set_nonblocking(false).unwrap();
+                return stream;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                assert!(Instant::now() < deadline, "Unix accept timed out");
+                thread::sleep(Duration::from_millis(5));
+            }
+            Err(error) => panic!("Unix accept failed: {error}"),
+        }
+    }
+}
+
 fn serve_socks_once(
     listener: &TcpListener,
     auth: ProxyAuth,
 ) -> thread::JoinHandle<Result<Destination, Reason>> {
     let listener = listener.try_clone().expect("cloneable");
     thread::spawn(move || {
-        let (accepted, _) = listener.accept().expect("accepted");
+        let (accepted, _) = accept_tcp(&listener);
         // SAFETY: the descriptor came from `into_raw_fd` on the accepted
         // stream immediately above — open, connected, and owned by this
         // thread alone — and the `UnixStream` takes sole ownership of it and
@@ -68,7 +106,7 @@ fn serve_socks_once(
 fn serve_http_once(listener: &TcpListener, auth: ProxyAuth) -> thread::JoinHandle<Vec<u8>> {
     let listener = listener.try_clone().expect("cloneable");
     thread::spawn(move || {
-        let (accepted, _) = listener.accept().expect("accepted");
+        let (accepted, _) = accept_tcp(&listener);
         // SAFETY: as in `serve_socks_once`: sole ownership of an open,
         // connected TCP descriptor moves to the `UnixStream`, which closes
         // it on drop.
@@ -91,6 +129,7 @@ fn serve_http_once(listener: &TcpListener, auth: ProxyAuth) -> thread::JoinHandl
 fn connect(port: u16) -> TcpStream {
     let client = TcpStream::connect(("127.0.0.1", port)).expect("the listener answers");
     client.set_read_timeout(Some(WAIT)).expect("read timeout");
+    client.set_write_timeout(Some(WAIT)).expect("write timeout");
     client
 }
 
@@ -266,4 +305,114 @@ fn an_http_connect_with_the_secret_is_accepted_over_real_tcp() {
     client.read_to_end(&mut response).unwrap();
     assert_eq!(response, b"HTTP/1.1 200 Connection Established\r\n\r\n");
     assert_eq!(server.join().unwrap(), response);
+}
+
+#[test]
+fn serving_relays_both_directions_and_drops_with_idle_connections() {
+    use std::os::unix::net::UnixListener;
+    let dir = common::private_tempdir();
+    let path = dir.path().join("proxy");
+    let proxy = UnixListener::bind(&path).unwrap();
+    let bound = bridge::bind(ProxyAuth::generate()).unwrap();
+    let port = bound.config.http_port;
+    let serving = bridge::serve(bound, &path).unwrap();
+    let mut client = connect(port);
+    client
+        .set_read_timeout(Some(Duration::from_secs(1)))
+        .unwrap();
+    let mut upstream = accept_unix(&proxy);
+    upstream
+        .set_read_timeout(Some(Duration::from_secs(1)))
+        .unwrap();
+    client.write_all(b"request").unwrap();
+    let mut request = [0u8; 7];
+    upstream.read_exact(&mut request).unwrap();
+    upstream.write_all(b"reply").unwrap();
+    let mut reply = [0u8; 5];
+    let response = client.read_exact(&mut reply);
+    // A live idle connection must be cancelled too, not just the accept loops.
+    let (sent, received) = std::sync::mpsc::channel();
+    thread::spawn(move || {
+        drop(serving);
+        sent.send(()).unwrap();
+    });
+    let dropped = received.recv_timeout(Duration::from_secs(2));
+    assert_eq!(request, *b"request");
+    assert!(
+        response.is_ok(),
+        "upstream response never reached the child: {response:?}"
+    );
+    assert_eq!(reply, *b"reply");
+    assert!(dropped.is_ok(), "Serving::drop did not finish within 2s");
+}
+
+#[test]
+fn serving_drop_without_clients_is_bounded() {
+    let dir = common::private_tempdir();
+    let serving = bridge::serve(
+        bridge::bind(ProxyAuth::generate()).unwrap(),
+        &dir.path().join("unused"),
+    )
+    .unwrap();
+    // Ensure both threads have entered their accept loop.
+    thread::sleep(Duration::from_millis(50));
+    let (sent, received) = std::sync::mpsc::channel();
+    thread::spawn(move || {
+        drop(serving);
+        sent.send(()).unwrap();
+    });
+    assert!(received.recv_timeout(Duration::from_secs(2)).is_ok());
+}
+
+#[test]
+fn a_wrong_http_basic_secret_is_answered_407() {
+    let bound = bridge::bind(ProxyAuth {
+        user: "ukai".into(),
+        password: "actual-secret".into(),
+    })
+    .unwrap();
+    let server = serve_http_once(&bound.http, bound.config.auth.clone());
+    let mut client = connect(bound.config.http_port);
+    client.write_all(format!("CONNECT example.com:443 HTTP/1.1\r\nProxy-Authorization: Basic {BASIC_CREDENTIALS}\r\n\r\n").as_bytes()).unwrap();
+    let mut response = String::new();
+    client.read_to_string(&mut response).unwrap();
+    assert!(response.starts_with("HTTP/1.1 407 "), "{response}");
+    server.join().unwrap();
+}
+
+#[test]
+fn a_half_closed_request_receives_its_reply_and_drop_is_bounded() {
+    use std::net::Shutdown;
+    use std::os::unix::net::UnixListener;
+    let dir = common::private_tempdir();
+    let path = dir.path().join("proxy");
+    let proxy = UnixListener::bind(&path).unwrap();
+    let bound = bridge::bind(ProxyAuth::generate()).unwrap();
+    let port = bound.config.http_port;
+    let serving = bridge::serve(bound, &path).unwrap();
+    let mut client = connect(port);
+    let mut upstream = accept_unix(&proxy);
+    upstream.set_read_timeout(Some(WAIT)).unwrap();
+    upstream.set_write_timeout(Some(WAIT)).unwrap();
+    client.write_all(b"half request").unwrap();
+    client.shutdown(Shutdown::Write).unwrap();
+    let mut request = Vec::new();
+    let received_request = upstream.read_to_end(&mut request);
+    upstream.write_all(b"whole response").unwrap();
+    upstream.shutdown(Shutdown::Write).unwrap();
+    let mut response = Vec::new();
+    let received_response = client.read_to_end(&mut response);
+    let (sent, received) = std::sync::mpsc::channel();
+    thread::spawn(move || {
+        drop(serving);
+        let _ = sent.send(());
+    });
+    assert!(
+        received.recv_timeout(Duration::from_secs(2)).is_ok(),
+        "drop must remain bounded after half close"
+    );
+    assert!(received_request.is_ok(), "{received_request:?}");
+    assert!(received_response.is_ok(), "{received_response:?}");
+    assert_eq!(request, b"half request");
+    assert_eq!(response, b"whole response");
 }

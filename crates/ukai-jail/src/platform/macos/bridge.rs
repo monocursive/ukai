@@ -116,53 +116,56 @@ impl BridgeConfig {
 pub const MAX_RELAYS: usize = 256;
 
 /// Serves both listeners: every accepted connection is relayed byte for
-/// byte to the outside proxy's Unix socket, where the policy, the vault and
-/// the per-attempt secret are enforced. The relay interprets nothing.
+/// byte to the outside proxy's Unix socket, where policy and the per-attempt
+/// secret are enforced. Vault staging is unavailable; enabling it also needs
+/// the authenticated origin preamble. This raw relay interprets nothing.
 ///
 /// # Errors
 /// A thread cannot be started.
 pub fn serve(bound: Bound, proxy_socket: &std::path::Path) -> io::Result<Serving> {
-    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let in_flight = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let mut threads = Vec::with_capacity(2);
-    let mut fds = Vec::with_capacity(2);
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize},
+    };
+    let stop = Arc::new(AtomicBool::new(false));
+    let in_flight = Arc::new(AtomicUsize::new(0));
+    // On a partial spawn failure, the owned Serving cancels and joins the
+    // first loop too. Never leave a detached listener behind.
+    let mut serving = Serving {
+        stop,
+        threads: Vec::with_capacity(2),
+    };
     for listener in [bound.http, bound.socks] {
-        use std::os::fd::AsRawFd as _;
-        fds.push(listener.as_raw_fd());
-        let stop = std::sync::Arc::clone(&stop);
-        let in_flight = std::sync::Arc::clone(&in_flight);
+        listener.set_nonblocking(true)?;
+        let stop = Arc::clone(&serving.stop);
+        let in_flight = Arc::clone(&in_flight);
         let socket = proxy_socket.to_path_buf();
-        threads.push(
+        serving.threads.push(
             std::thread::Builder::new()
-                .name("ukai-macos-bridge".to_owned())
+                .name("ukai-macos-bridge".into())
                 .spawn(move || accept_loop(listener, socket, stop, in_flight))?,
         );
     }
-    Ok(Serving { stop, threads, fds })
+    Ok(serving)
 }
 
-/// The running relay. Dropping it stops both accept loops (a blocking
-/// `accept` is woken by shutting the listener's socket down) and waits for
-/// the loops and the connections in flight to end.
+/// Dropping the relay cancels bounded reads/writes and joins every worker,
+/// including idle connections. No reliance on shutdown waking accept on Darwin.
 pub struct Serving {
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
     threads: Vec<std::thread::JoinHandle<()>>,
-    fds: Vec<std::ffi::c_int>,
 }
 
 impl Drop for Serving {
     fn drop(&mut self) {
         self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
-        for fd in &self.fds {
-            // SAFETY: a scalar shutdown of a listening socket this relay
-            // owns; it only wakes the blocked `accept` with an error.
-            unsafe { libc::shutdown(*fd, libc::SHUT_RDWR) };
-        }
         for thread in self.threads.drain(..) {
             let _ = thread.join();
         }
     }
 }
+
+const RELAY_TICK: std::time::Duration = std::time::Duration::from_millis(25);
 
 fn accept_loop(
     listener: TcpListener,
@@ -170,50 +173,190 @@ fn accept_loop(
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
     in_flight: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 ) {
-    while !stop.load(std::sync::atomic::Ordering::SeqCst) {
-        let Ok((client, _)) = listener.accept() else {
-            continue;
+    use std::sync::atomic::Ordering::SeqCst;
+    let mut workers: Vec<std::thread::JoinHandle<()>> = Vec::new();
+    while !stop.load(SeqCst) {
+        let mut i = 0;
+        while i < workers.len() {
+            if workers[i].is_finished() {
+                let _ = workers.swap_remove(i).join();
+            } else {
+                i += 1;
+            }
+        }
+        let (client, _) = match listener.accept() {
+            Ok(connection) => connection,
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                std::thread::sleep(RELAY_TICK);
+                continue;
+            }
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(_) => break,
         };
-        if in_flight.load(std::sync::atomic::Ordering::SeqCst) >= MAX_RELAYS {
+        // One shared bound across both listeners; a load then increment races.
+        if in_flight
+            .fetch_update(SeqCst, SeqCst, |n| (n < MAX_RELAYS).then_some(n + 1))
+            .is_err()
+        {
             continue;
         }
-        let Ok(upstream) = std::os::unix::net::UnixStream::connect(&socket) else {
-            continue;
-        };
-        in_flight.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let counter = std::sync::Arc::clone(&in_flight);
-        let spawned = std::thread::Builder::new()
-            .name("ukai-macos-relay".to_owned())
+        let stop = std::sync::Arc::clone(&stop);
+        let socket = socket.clone();
+        match std::thread::Builder::new()
+            .name("ukai-macos-relay".into())
             .spawn(move || {
-                relay(client, upstream);
-                counter.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
-            });
-        if spawned.is_err() {
-            in_flight.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+                if let Ok(upstream) = connect_upstream(&socket, &stop) {
+                    relay(client, upstream, &stop);
+                }
+                counter.fetch_sub(1, SeqCst);
+            }) {
+            Ok(worker) => workers.push(worker),
+            Err(_) => {
+                in_flight.fetch_sub(1, SeqCst);
+            }
+        }
+    }
+    for worker in workers {
+        let _ = worker.join();
+    }
+}
+
+/// A nonblocking Unix connect: even a full/unresponsive proxy backlog must
+/// not hold Serving::drop. Owned socket, bounded poll, cancellation checked.
+fn connect_upstream(
+    path: &std::path::Path,
+    stop: &std::sync::atomic::AtomicBool,
+) -> io::Result<std::os::unix::net::UnixStream> {
+    use std::os::fd::{AsRawFd, FromRawFd};
+    use std::os::unix::ffi::OsStrExt;
+    // SAFETY: socket takes scalars; on success the stream immediately owns it.
+    let fd = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_STREAM, 0) };
+    if fd < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: fd is a new owned socket.
+    let stream = unsafe { std::os::unix::net::UnixStream::from_raw_fd(fd) };
+    stream.set_nonblocking(true)?;
+    // SAFETY: fcntl uses only the owned descriptor and scalar flags.
+    if unsafe { libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: sockaddr_un is plain C data; filled and bounded below.
+    let mut address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+    let bytes = path.as_os_str().as_bytes();
+    if bytes.len() >= address.sun_path.len() || bytes.contains(&0) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "invalid proxy socket path",
+        ));
+    }
+    address.sun_family = libc::AF_UNIX as _;
+    #[cfg(target_os = "macos")]
+    {
+        address.sun_len = std::mem::size_of_val(&address) as u8;
+    }
+    for (to, from) in address.sun_path.iter_mut().zip(bytes) {
+        *to = *from as libc::c_char;
+    }
+    // SAFETY: address and its size match; connect does not retain the pointer.
+    let result = unsafe {
+        libc::connect(
+            fd,
+            (&raw const address).cast(),
+            std::mem::size_of_val(&address) as _,
+        )
+    };
+    if result != 0 {
+        let error = io::Error::last_os_error();
+        if error.raw_os_error() != Some(libc::EINPROGRESS) {
+            return Err(error);
+        }
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
+        loop {
+            if stop.load(std::sync::atomic::Ordering::SeqCst)
+                || std::time::Instant::now() >= deadline
+            {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "proxy connect cancelled",
+                ));
+            }
+            let mut poll = libc::pollfd {
+                fd: stream.as_raw_fd(),
+                events: libc::POLLOUT,
+                revents: 0,
+            };
+            // SAFETY: one live pollfd, finite timeout.
+            if unsafe { libc::poll(&raw mut poll, 1, 25) } > 0 {
+                break;
+            }
+        }
+        if let Some(error) = stream.take_error()? {
+            return Err(error);
+        }
+    }
+    stream.set_nonblocking(false)?;
+    Ok(stream)
+}
+
+fn copy_direction(
+    mut from: impl io::Read,
+    mut to: impl io::Write,
+    stop: &std::sync::atomic::AtomicBool,
+) {
+    let mut buffer = [0u8; 16 * 1024];
+    while !stop.load(std::sync::atomic::Ordering::SeqCst) {
+        let count = match from.read(&mut buffer) {
+            Ok(0) => return,
+            Ok(n) => n,
+            Err(e) if transient(&e) => continue,
+            Err(_) => return,
+        };
+        let mut offset = 0;
+        while offset < count && !stop.load(std::sync::atomic::Ordering::SeqCst) {
+            match to.write(&buffer[offset..count]) {
+                Ok(0) => return,
+                Ok(n) => offset += n,
+                Err(e) if transient(&e) => continue,
+                Err(_) => return,
+            }
         }
     }
 }
 
-/// Copies bytes both ways until either side ends. The first direction to
-/// end closes the other (a half-closed proxy connection is not kept open
-/// for a child that will never write again), and errors end the relay: the
-/// child's proxy client retries a dropped connection itself.
-fn relay(client: std::net::TcpStream, upstream: std::os::unix::net::UnixStream) {
-    let client_read = match client.try_clone() {
-        Ok(stream) => stream,
-        Err(_) => return,
-    };
-    let upstream_write = match upstream.try_clone() {
-        Ok(stream) => stream,
-        Err(_) => return,
-    };
-    let to_upstream = std::thread::Builder::new()
-        .name("ukai-macos-relay".to_owned())
-        .spawn(move || {
-            let _ = std::io::copy(&mut &client_read, &mut &upstream_write);
+fn transient(error: &io::Error) -> bool {
+    matches!(
+        error.kind(),
+        io::ErrorKind::Interrupted | io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+    )
+}
+
+/// Responses flow upstream -> child. Preserve half-close so a client may
+/// finish its request and still read the response. Cancellation ends both.
+fn relay(
+    client: std::net::TcpStream,
+    upstream: std::os::unix::net::UnixStream,
+    stop: &std::sync::atomic::AtomicBool,
+) {
+    // Darwin inherits O_NONBLOCK from the listening socket. Restore blocking
+    // I/O here so socket timeouts bound each copy step without busy polling.
+    if client.set_nonblocking(false).is_err()
+        || client.set_read_timeout(Some(RELAY_TICK)).is_err()
+        || client.set_write_timeout(Some(RELAY_TICK)).is_err()
+        || upstream.set_read_timeout(Some(RELAY_TICK)).is_err()
+        || upstream.set_write_timeout(Some(RELAY_TICK)).is_err()
+    {
+        return;
+    }
+    std::thread::scope(|scope| {
+        let sender = scope.spawn(|| {
+            copy_direction(&client, &upstream, stop);
+            let _ = upstream.shutdown(std::net::Shutdown::Write);
         });
-    let _ = std::io::copy(&mut &client, &mut &upstream);
-    let _ = client.shutdown(std::net::Shutdown::Both);
-    let _ = upstream.shutdown(std::net::Shutdown::Both);
-    let _ = to_upstream.map(|thread| thread.join());
+        copy_direction(&upstream, &client, stop);
+        let _ = client.shutdown(std::net::Shutdown::Both);
+        let _ = upstream.shutdown(std::net::Shutdown::Both);
+        let _ = sender.join();
+    });
 }

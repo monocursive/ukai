@@ -305,6 +305,13 @@ impl<'a> Attempt<'a> {
         // A failed policy.json write is a refusal like every other failure
         // before exec.
         write_policy_file(&self.attempt_dir, &self.plan)?;
+        // Native macOS is deliberately gated before mechanism probes and
+        // staging. The VM tier keeps its independent preparation path.
+        #[cfg(target_os = "macos")]
+        if self.ctx.platform.identity().os == crate::records::Os::Macos && !self.args.requests_vm()
+        {
+            crate::platform::macos::require_native_enabled()?;
+        }
         // Step 2: probe the selected mechanisms.
         self.checkpoint(ErrorStage::Probing)?;
         let capabilities = self.ctx.platform.probe(&request);
@@ -408,7 +415,15 @@ impl<'a> Attempt<'a> {
         }
         // J14 §3.7: the platform reports what it applied; the terminal is
         // the supervisor's own record.
-        self.record.applied.terminal = self.applied_terminal();
+        if self
+            .record
+            .applied
+            .terminal
+            .as_ref()
+            .is_none_or(|t| t.session != "relay")
+        {
+            self.record.applied.terminal = self.applied_terminal();
+        }
         // The test seams in force are recorded in every receipt that has
         // native details (a receipt before any boundary has none; jail state
         // records them from the claim on).
@@ -744,6 +759,12 @@ impl<'a> Attempt<'a> {
             stop(running, &mut self.record, StopReason::OperatorSignal);
         }
         if self.terminal.is_some()
+            && self
+                .record
+                .lifetime
+                .native
+                .as_ref()
+                .is_none_or(|native| native.os != crate::records::Os::Macos)
             && let Some(signal) = running.target_stop()
         {
             self.relay_stop(running, run, signal);
@@ -969,6 +990,8 @@ impl<'a> Attempt<'a> {
         if self.record.exec_observed {
             return;
         }
+        #[cfg(target_os = "macos")]
+        update_native_facts(&mut self.record, running.final_native_details());
         self.record.exec_observed = true;
         self.journal.lifecycle("exec_confirmed");
         match self.submit(state::Site::EnforcedReceipt, Phase::Enforced) {
@@ -1243,6 +1266,9 @@ impl<'a> Attempt<'a> {
             }
         }
         // What the helpers did, known now that they stopped.
+        #[cfg(target_os = "macos")]
+        update_native_facts(&mut self.record, running.final_native_details());
+        #[cfg(not(target_os = "macos"))]
         if let Some(native) = self.record.lifetime.native.as_mut() {
             native.details.extend(running.final_native_details());
         }
@@ -1435,6 +1461,17 @@ impl<'a> Attempt<'a> {
     /// exits, so it ignores `^\` and `^Z`, which would otherwise kill or
     /// stop it in the middle of its release and its receipt.
     fn restore_terminal(&mut self, after_tree_death: bool) {
+        // A macOS relay owns its operator settings and has already restored
+        // them in wait_tree. Do not overwrite its receipt with caller-session facts.
+        if self
+            .record
+            .applied
+            .terminal
+            .as_ref()
+            .is_some_and(|t| t.session == "relay")
+        {
+            return;
+        }
         let Some(session) = self.terminal.as_mut() else {
             return;
         };
@@ -1786,6 +1823,28 @@ pub(super) fn first_record(
         updated_at: now,
         errors: Vec::new(),
         credentials: Vec::new(),
+    }
+}
+
+/// Existing native-details transport carries the current post-exec token
+/// additively in phase 1; phase 2 may give RunningExecution a typed accessor.
+#[cfg(target_os = "macos")]
+fn update_native_facts(
+    record: &mut AttemptRecord,
+    mut details: serde_json::Map<String, serde_json::Value>,
+) {
+    if let Some(value) = details.remove("target_process")
+        && let Ok(process) = serde_json::from_value(value)
+    {
+        record.process = Some(process);
+    }
+    if let Some(value) = details.remove("relay_terminal")
+        && let Ok(terminal) = serde_json::from_value(value)
+    {
+        record.applied.terminal = Some(terminal);
+    }
+    if let Some(native) = record.lifetime.native.as_mut() {
+        native.details.extend(details);
     }
 }
 

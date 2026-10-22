@@ -6,7 +6,7 @@
 //! session leader with the relay's slave as its controlling terminal, and a
 //! second pty standing in for the operator's terminal. Forked children that
 //! exec shells share the test process's fds where the fixture says so; the
-//! tests are serialized (`--test-threads=1`) because of the forks.
+//! tests are serialized by SERIAL because of the forks.
 #![cfg(target_os = "macos")]
 
 use std::os::fd::{AsRawFd as _, RawFd};
@@ -26,6 +26,7 @@ unsafe extern "C" {
 
 /// How long any fixture may wait for its counterpart.
 const BOUND: Duration = Duration::from_secs(10);
+static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 // ---------------------------------------------------------------------------
 // pty and process fixtures
@@ -236,6 +237,7 @@ fn wait_nohang(pid: pid_t) -> Option<c_int> {
 /// longer than the pump.
 #[test]
 fn bytes_round_trip_and_a_control_c_reaches_the_slaves_group() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let operator = open_pty();
     let mut relay = TerminalRelay::allocate(operator.slave.as_raw_fd()).expect("allocate");
     // An interactive shell: it reads its commands from the slave, the way
@@ -269,6 +271,7 @@ fn bytes_round_trip_and_a_control_c_reaches_the_slaves_group() {
 /// on the slave, and a `SIGWINCH` reaches the slave's foreground group.
 #[test]
 fn window_sizes_propagate_to_the_slave() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let operator = open_pty();
     let mut relay = TerminalRelay::allocate(operator.slave.as_raw_fd()).expect("allocate");
     let mut winsize: libc::winsize = libc::winsize {
@@ -318,6 +321,7 @@ fn window_sizes_propagate_to_the_slave() {
 /// flushes pending input.
 #[test]
 fn raw_mode_and_restore_round_trip() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let operator = open_pty();
     let before = termios_of(operator.slave.as_raw_fd());
     let mut relay = relay_on(&operator);
@@ -371,6 +375,7 @@ fn relay_on(operator: &Pty) -> TerminalRelay {
 /// it usually is not (the harness captures it), and that is `Ok(false)`.
 #[test]
 fn write_reset_answers_whether_stderr_is_a_terminal() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let operator = open_pty();
     let relay = relay_on(&operator);
     // SAFETY: isatty takes a descriptor number.
@@ -386,6 +391,7 @@ fn write_reset_answers_whether_stderr_is_a_terminal() {
 /// by `SIGCONT`, at the J14 §3.4 polling cadence.
 #[test]
 fn target_stopped_polls_the_bsd_info() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     // SAFETY: fork; the child pauses until signalled, then exits.
     let pid = unsafe { libc::fork() };
     assert!(pid >= 0, "fork");
@@ -399,7 +405,7 @@ fn target_stopped_polls_the_bsd_info() {
     // SAFETY: the child is this test's.
     unsafe { libc::kill(pid, libc::SIGSTOP) };
     common::eventually("the child to show stopped", BOUND, || {
-        target_stopped(pid) == Some(libc::SIGTSTP)
+        target_stopped(pid) == Some(0)
     });
     // SAFETY: as above.
     unsafe { libc::kill(pid, libc::SIGCONT) };
@@ -412,10 +418,10 @@ fn target_stopped_polls_the_bsd_info() {
 }
 
 /// The stop relay's terminal half: foreground back, saved `termios`
-/// restored, the stop counted, and the own-group stop only when the caller
-/// asks for it (signal 0 is the tests' "terminal steps only").
+/// restored and the stop counted, without signalling the supervisor group.
 #[test]
 fn relayed_stop_takes_back_the_terminal_and_counts() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let operator = open_pty();
     let before = termios_of(operator.slave.as_raw_fd());
     let mut relay = relay_on(&operator);
@@ -477,6 +483,7 @@ fn relayed_stop_takes_back_the_terminal_and_counts() {
 /// supervisor's pid.
 #[test]
 fn the_pre_exec_line_names_device_wall_target_and_supervisor() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let operator = open_pty();
     let relay = relay_on(&operator);
     assert_eq!(
@@ -498,6 +505,7 @@ fn the_pre_exec_line_names_device_wall_target_and_supervisor() {
 /// panic, and the settlement restore still runs complete.
 #[test]
 fn a_killed_agent_ends_the_relay_without_a_panic() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let operator = open_pty();
     let mut relay = TerminalRelay::allocate(operator.slave.as_raw_fd()).expect("allocate");
     let shell = spawn_session_leader(relay.device(), &["/bin/sh", "-c", "echo alive; sleep 30"]);
@@ -542,6 +550,7 @@ fn a_killed_agent_ends_the_relay_without_a_panic() {
 /// slice writes.
 #[test]
 fn receipt_facts_carry_session_stops_and_restore() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let operator = open_pty();
     let mut relay = relay_on(&operator);
     assert_eq!(relay.session(), "relay");
@@ -580,6 +589,7 @@ fn is_enotty(failures: &[ukai_jail::terminal::StepFailure], step: &str) -> bool 
 /// input flush — with the steps reported back in the exit status.
 #[test]
 fn settle_succeeds_when_the_terminal_is_the_callers_own() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let operator = open_pty();
     let before = termios_of(operator.slave.as_raw_fd());
     let path = std::ffi::CString::new(operator.path.as_str()).unwrap();
@@ -651,4 +661,135 @@ fn settle_succeeds_when_the_terminal_is_the_callers_own() {
         exited_with(status, 0b11111),
         "the child's settle did not run complete: status {status}"
     );
+}
+
+#[test]
+fn stopping_a_relay_never_signals_the_supervisors_groupmates() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "relay_stop_group_fixture", "--nocapture"])
+        .env("UKAI_TEST_RELAY_STOP_FIXTURE", "1")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "isolated supervisor fixture died: {output:?}"
+    );
+}
+
+#[test]
+fn relay_stop_group_fixture() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    if std::env::var_os("UKAI_TEST_RELAY_STOP_FIXTURE").is_none() {
+        return;
+    }
+    // SAFETY: this subprocess owns its new session; the parent test's group
+    // and the operator terminal are never touched by this fixture.
+    assert!(unsafe { libc::setsid() } > 0);
+    let operator = open_pty();
+    // SAFETY: this session's own fixture slave becomes its controlling tty.
+    assert_eq!(
+        // SAFETY: the fixture process owns this terminal and session.
+        unsafe { libc::ioctl(operator.slave, libc::TIOCSCTTY as libc::c_ulong, 0) },
+        0
+    );
+    let mut relay = TerminalRelay::allocate(operator.slave).unwrap();
+    let mut groupmate = std::process::Command::new("/bin/sleep")
+        .arg("3")
+        .spawn()
+        .unwrap();
+    let _ = relay.relayed_stop(libc::SIGTERM);
+    let alive = groupmate.try_wait().unwrap().is_none();
+    let _ = groupmate.kill();
+    let _ = groupmate.wait();
+    assert!(
+        alive,
+        "the supervisor's groupmate received the workload stop"
+    );
+    // Closing this fixture's controlling master sends SIGHUP to its own
+    // session; ignore that fixture cleanup signal after the stop assertion.
+    // SAFETY: this is the isolated fixture subprocess only.
+    unsafe {
+        libc::signal(libc::SIGHUP, libc::SIG_IGN);
+    }
+}
+
+#[test]
+fn relay_descriptors_are_close_on_exec() {
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let operator = open_pty();
+    let relay = TerminalRelay::allocate(operator.slave).unwrap();
+    for fd in [relay.master_fd(), relay.slave_fd().unwrap()] {
+        // SAFETY: reads flags of a live descriptor owned by the relay.
+        assert_ne!(
+            // SAFETY: only queries the relay's live descriptor.
+            unsafe { libc::fcntl(fd, libc::F_GETFD) } & libc::FD_CLOEXEC,
+            0
+        );
+    }
+}
+
+#[test]
+fn profile_allows_terminal_ioctls_only_on_the_attempt_slave() {
+    use std::os::fd::FromRawFd;
+    use std::process::{Command, Stdio};
+    use ukai_jail::platform::macos::sandbox;
+    let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let operator = open_pty();
+    let relay = TerminalRelay::allocate(operator.slave).unwrap();
+    let other = open_pty();
+    let dir = common::private_tempdir();
+    let source = dir.path().join("tty.c");
+    let binary = dir.path().join("tty");
+    std::fs::write(
+        &source,
+        r#"
+#include <termios.h>
+#include <sys/ioctl.h>
+#include <stdio.h>
+#include <errno.h>
+int main(void) {
+    struct termios t;
+    if (tcgetattr(0, &t)) { printf("errno=%d\n", errno); return 1; }
+    cfmakeraw(&t);
+    if (tcsetattr(0, TCSANOW, &t)) { printf("errno=%d\n", errno); return 1; }
+    struct winsize w = {29, 91, 0, 0};
+    if (ioctl(0, TIOCSWINSZ, &w)) { printf("errno=%d\n", errno); return 1; }
+    return 0;
+}
+"#,
+    )
+    .unwrap();
+    let compiled = Command::new("cc")
+        .arg(&source)
+        .arg("-o")
+        .arg(&binary)
+        .output()
+        .unwrap();
+    assert!(compiled.status.success(), "{compiled:?}");
+    let mut params = sandbox::ProfileParams {
+        read_only: sandbox::runtime_roots(),
+        terminal_slave: Some(relay.device().into()),
+        ..sandbox::ProfileParams::default()
+    };
+    params.read_only.push(binary.clone());
+    let profile = sandbox::generate(&params);
+    for (fd, allowed) in [(relay.slave_fd().unwrap(), true), (other.slave, false)] {
+        // SAFETY: duplicate an owned slave; Stdio takes sole ownership of the copy.
+        let copy = unsafe { libc::fcntl(fd, libc::F_DUPFD_CLOEXEC, 3) };
+        assert!(copy >= 0);
+        // SAFETY: copy is an owned descriptor just returned by fcntl.
+        let stdin = unsafe { Stdio::from_raw_fd(copy) };
+        let output = Command::new("/usr/bin/sandbox-exec")
+            .args(["-p", &profile])
+            .arg(&binary)
+            .stdin(stdin)
+            .current_dir("/")
+            .output()
+            .unwrap();
+        assert_eq!(output.status.success(), allowed, "{output:?}");
+        if !allowed {
+            assert!(String::from_utf8_lossy(&output.stdout).contains("errno=1"));
+        }
+    }
 }

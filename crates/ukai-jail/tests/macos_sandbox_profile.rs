@@ -34,7 +34,7 @@ use sandbox::{ProfileParams, TEMPLATE as TEMPLATE_TEXT};
 /// measured; changing the template is a deliberate act that updates this
 /// constant and re-runs the matrix in the same change.
 const PINNED_TEMPLATE_DIGEST: &str =
-    "7082956e4a0fce608a5674f47cd771c6afdc29a8ab51fd33524f49a28b2d38e6";
+    "e0af1798318b01f4fbfc90a77cca1b7d4b0a21b8a5a9459e5013ccb51849c478";
 
 const SANDBOX_EXEC: &str = "/usr/bin/sandbox-exec";
 
@@ -253,7 +253,7 @@ fn denials_are_ordered_after_the_grants_they_override() {
             .find(needle)
             .unwrap_or_else(|| panic!("missing {needle}"))
     };
-    assert!(position("(deny file-write* (subpath") > position("(allow file-write* (subpath"));
+    assert!(position("; --- Protected segments") > position("(allow file-write* (subpath"));
     assert!(position("(deny process-exec (literal") > position("(allow process-exec"));
     assert!(position("(allow network-outbound") > position("(deny network*)"));
 }
@@ -905,6 +905,11 @@ fn an_empty_write_parameter_grants_nothing() {
     let mut params = fixture.params(None);
     params.read_write.clear();
     let profile = sandbox::generate(&params);
+    let control = run_sandboxed(&profile, Path::new("/usr/bin/true"), &[]);
+    assert!(
+        ran(&control),
+        "profile must compile and execute the control: {control:?}"
+    );
     let output = run_sandboxed(
         &profile,
         Path::new("/bin/sh"),
@@ -945,4 +950,69 @@ fn the_setuid_enumeration_matches_the_sealed_volume() {
             && profile.contains(&format!("(literal \"{}\"))", planted.display())),
         "both spellings of the planted file are denied for exec",
     );
+}
+
+/// K6: substitution markers in data can never rewrite a later rule block.
+#[test]
+fn template_marker_paths_never_widen_a_grant() {
+    let fixture = Fixture::new();
+    let injected = fixture.workspace.join("@@UNIX_ALLOW_RULE@@");
+    std::fs::create_dir(&injected).unwrap();
+    let mut params = fixture.params(None);
+    params.read_write = vec![injected];
+    let profile = sandbox::generate(&params);
+    let sibling = fixture.workspace.join("sibling");
+    let output = run_sandboxed(
+        &profile,
+        Path::new("/usr/bin/touch"),
+        &[sibling.to_str().unwrap()],
+    );
+    assert!(
+        !output.status.success(),
+        "marker path granted its parent: {output:?}"
+    );
+    assert!(!sibling.exists());
+}
+
+#[test]
+fn non_utf8_paths_never_grant_their_lossy_spelling() {
+    use std::os::unix::ffi::OsStringExt;
+    let fixture = Fixture::new();
+    let malformed = fixture
+        .workspace
+        .join(std::ffi::OsString::from_vec(b"ws\xff".to_vec()));
+    let lossy = fixture.workspace.join("ws\u{fffd}");
+    // APFS itself rejects this byte name; profile validation must still
+    // refuse it rather than grant the separate, valid replacement spelling.
+    std::fs::create_dir(&lossy).unwrap();
+    let mut params = fixture.params(None);
+    params.read_write = vec![malformed];
+    let output = run_sandboxed(
+        &sandbox::generate(&params),
+        Path::new("/usr/bin/touch"),
+        &[lossy.join("x").to_str().unwrap()],
+    );
+    assert!(
+        !output.status.success(),
+        "a byte path became a different grant: {output:?}"
+    );
+    assert!(!lossy.join("x").exists());
+}
+
+/// Nonempty optional lists must remain quoted data and compile too.
+#[test]
+fn quoted_mach_and_unix_values_cannot_become_profile_code() {
+    let fixture = Fixture::new();
+    let mut params = fixture.params(None);
+    params.mach_services = vec!["example.\"service) (allow default)".into()];
+    params.unix_socket_paths = vec![fixture.workspace.join("socket\") (allow default)")];
+    let profile = sandbox::generate(&params);
+    let output = run_sandboxed(&profile, Path::new("/usr/bin/true"), &[]);
+    assert!(output.status.success(), "{output:?}");
+    let output = run_sandboxed(
+        &profile,
+        Path::new("/usr/bin/touch"),
+        &[fixture._root.path().join("outside").to_str().unwrap()],
+    );
+    assert!(!output.status.success(), "{output:?}");
 }

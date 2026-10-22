@@ -38,7 +38,7 @@ pub const BUFFER_BYTES: usize = 64 * 1024;
 /// The receipt's `applied.terminal.session` value (jail-macos.md §4.11).
 pub const RELAY_SESSION: &str = "relay";
 
-/// XNU's `P_LIST_STOPPED` (`bsd/sys/proc_internal.h`): the bit of
+/// XNU's `P_LIST_STOPPED` (`bsd/sys/proc_internal.h`): the value of
 /// `proc_bsdinfo.pbi_status` that marks a stopped process.
 const P_LIST_STOPPED: u32 = 0x4;
 
@@ -54,18 +54,15 @@ unsafe extern "C" {
 /// polling ([`target_stopped`], the J14 §3.4 100 ms cadence) or from
 /// whatever the integration observes.
 pub trait TargetStopSource {
-    /// The signal that stopped the target's group, or `None` while it runs.
+    /// A known stop signal, zero when unknown, or `None` while it runs.
     fn stopped_signal(&self) -> Option<libc::c_int>;
 }
 
 /// The reference [`TargetStopSource`]: one poll of the target's state, at
 /// the J14 §3.4 cadence (initially at most 100 ms apart in terminal mode).
 /// Reads `pbi_status` through `proc_pidinfo(PROC_PIDTBSDINFO)` and reports
-/// the `P_LIST_STOPPED` bit.
-///
-/// The poll cannot see *which* signal stopped the process; terminal `^Z`
-/// sends `SIGTSTP`, the signal the stop relay re-delivers to the
-/// supervisor's own group, so that is what a stop reports.
+/// the `P_LIST_STOPPED` value. The poll cannot identify the stop signal,
+/// so `Some(0)` reports a stop without inventing a signal to redeliver.
 #[must_use]
 pub fn target_stopped(pid: libc::pid_t) -> Option<libc::c_int> {
     // SAFETY: `info` is writable storage of exactly the size passed.
@@ -83,7 +80,7 @@ pub fn target_stopped(pid: libc::pid_t) -> Option<libc::c_int> {
     if read as usize != std::mem::size_of::<libc::proc_bsdinfo>() {
         return None;
     }
-    (info.pbi_status & P_LIST_STOPPED != 0).then_some(libc::SIGTSTP)
+    (info.pbi_status == P_LIST_STOPPED).then_some(0)
 }
 
 /// What one [`TerminalRelay::pump`] pass did.
@@ -250,6 +247,7 @@ pub struct TerminalRelay {
     /// The operator terminal: standard input in production, a fake pty in
     /// the tests.
     operator: RawFd,
+    workload_group: Option<libc::pid_t>,
     /// The `termios` saved at attach (or at the last continue), the copy
     /// every restore puts back.
     saved: libc::termios,
@@ -269,6 +267,13 @@ pub struct TerminalRelay {
 
 impl Drop for TerminalRelay {
     fn drop(&mut self) {
+        // Also restore on preparation failure, before a RunningExecution exists.
+        if self.restored.is_none() && !self.held_outside() {
+            let _ = with_sigttou_blocked(|| {
+                // SAFETY: saved came from this operator descriptor.
+                check(unsafe { libc::tcsetattr(self.operator, libc::TCSANOW, &self.saved) })
+            });
+        }
         // SAFETY: both descriptors are numbers this struct owns.
         unsafe {
             libc::close(self.master);
@@ -300,8 +305,16 @@ impl TerminalRelay {
     /// The errno of `posix_openpt`, `grantpt`, `unlockpt`, `ptsname_r`,
     /// `open`, `tcgetattr`, `tcsetattr` or `ioctl`.
     pub fn allocate(operator: RawFd) -> std::io::Result<TerminalRelay> {
+        // Do not change an operator terminal another foreground job holds.
+        // SAFETY: tcgetpgrp reads the supplied terminal descriptor.
+        let foreground = unsafe { libc::tcgetpgrp(operator) };
+        if foreground > 0 && foreground != group_of_own() {
+            return Err(std::io::Error::from_raw_os_error(libc::EPERM));
+        }
+        // Darwin posix_openpt accepts O_CLOEXEC; all native spawns additionally
+        // use CLOEXEC_DEFAULT, so no unrelated descriptor can cross a spawn.
         // SAFETY: posix_openpt takes a flag mask and returns a descriptor.
-        let master = unsafe { libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY) };
+        let master = unsafe { libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY | libc::O_CLOEXEC) };
         if master < 0 {
             return Err(std::io::Error::last_os_error());
         }
@@ -334,7 +347,7 @@ impl TerminalRelay {
                 std::ffi::CString::new(slave_path.as_str())
                     .unwrap_or_default()
                     .as_ptr(),
-                libc::O_RDWR | libc::O_NOCTTY,
+                libc::O_RDWR | libc::O_NOCTTY | libc::O_CLOEXEC,
             )
         };
         if slave < 0 {
@@ -410,6 +423,7 @@ impl TerminalRelay {
             slave: Some(slave),
             slave_path,
             operator,
+            workload_group: None,
             saved,
             window,
             stops: 0,
@@ -605,6 +619,9 @@ impl TerminalRelay {
     /// # Errors
     /// The errno of `tcgetattr` or `tcsetattr`.
     pub fn continued(&mut self) -> std::io::Result<()> {
+        if self.held_outside() {
+            return Ok(());
+        }
         // SAFETY: `termios` is writable storage tcgetattr fills.
         let mut saved: libc::termios = unsafe { std::mem::zeroed() };
         // SAFETY: the descriptor is a number.
@@ -622,58 +639,66 @@ impl TerminalRelay {
     /// # Errors
     /// The errno of `tcsetpgrp`.
     pub fn give_foreground(&self, group: libc::pid_t) -> std::io::Result<()> {
+        if self.held_outside() || group != group_of_own() {
+            return Err(std::io::Error::from_raw_os_error(libc::EPERM));
+        }
         with_sigttou_blocked(|| {
             // SAFETY: tcsetpgrp takes scalars.
             check(unsafe { libc::tcsetpgrp(self.operator, group) })
         })
     }
 
-    /// §3.4 steps 3–4, the stop relay. `signal` is the signal the
-    /// [`TargetStopSource`] saw. The relay takes the operator terminal's
-    /// foreground back for the supervisor's own group (with `SIGTTOU`
-    /// blocked), restores the saved `termios`, counts the stop
-    /// (`applied.terminal.stops`), and — unless `signal` is 0, which the
-    /// tests use to exercise only the terminal steps — stops the
-    /// supervisor's own process group with the same signal, so the
-    /// operator's shell sees its job stop and gives the prompt back. The
-    /// quiesce of §3.4 step 2 (no new persistence step; the in-flight one
-    /// under its no-progress budget; the `terminal_stopped` journal note)
-    /// is the supervisor's, before this call.
-    ///
-    /// # Errors
-    /// The errno of the terminal steps or the `kill`. The foreground and
-    /// the `termios` step are attempted whatever the other did; the first
-    /// error is returned. (In the tests, where the operator tty is not the
-    /// caller's controlling terminal, the foreground step answers `ENOTTY`;
-    /// a real supervisor passes condition 3 of §3.2, so its operator tty
-    /// is its own.)
-    pub fn relayed_stop(&mut self, signal: libc::c_int) -> std::io::Result<()> {
-        self.stops += 1;
-        let mut first = None;
-        if with_sigttou_blocked(|| {
-            // SAFETY: tcsetpgrp takes scalars.
-            check(unsafe { libc::tcsetpgrp(self.operator, group_of_own()) })
-        })
-        .is_err()
-        {
-            first = std::io::Error::last_os_error().into();
+    /// Configure only the workload's isolated session/group. Zero and the
+    /// supervisor's own group are forbidden at the signal boundary too.
+    pub fn set_workload_group(&mut self, group: libc::pid_t) -> std::io::Result<()> {
+        if group <= 1 || group == group_of_own() {
+            return Err(std::io::Error::from_raw_os_error(libc::EINVAL));
         }
-        if with_sigttou_blocked(|| {
-            // SAFETY: `saved` is a termios a tcgetattr filled.
-            check(unsafe { libc::tcsetattr(self.operator, libc::TCSANOW, &self.saved) })
-        })
-        .is_err()
-        {
-            first = first.or_else(|| std::io::Error::last_os_error().into());
-        }
-        if let Some(error) = first {
-            return Err(error);
-        }
-        if signal != 0 {
-            // SAFETY: kill takes scalars; 0 means this process's group.
-            check(unsafe { libc::kill(0, signal) })?;
-        }
+        self.workload_group = Some(group);
         Ok(())
+    }
+
+    /// Signal only the workload's isolated session leader's group. This
+    /// never takes the operator terminal or changes its termios.
+    pub fn signal_workload(&self, signal: libc::c_int) -> std::io::Result<()> {
+        let group = self
+            .workload_group
+            .ok_or_else(|| std::io::Error::from_raw_os_error(libc::EINVAL))?;
+        // SAFETY: scalar queries; group must still lead its isolated session.
+        if group <= 1 || group == group_of_own() || unsafe { libc::getsid(group) } != group {
+            return Err(std::io::Error::from_raw_os_error(libc::ESRCH));
+        }
+        // SAFETY: a strictly positive, foreign session/group, never kill(0).
+        check(unsafe { libc::kill(-group, signal) })
+    }
+
+    /// Whether some outside foreground job owns the operator terminal.
+    fn held_outside(&self) -> bool {
+        // SAFETY: only queries this operator descriptor.
+        let foreground = unsafe { libc::tcgetpgrp(self.operator) };
+        foreground > 0 && foreground != group_of_own()
+    }
+
+    /// Compatibility stop entry point. A real signal goes only to the
+    /// configured workload. Zero records/restores an observed terminal stop;
+    /// it never signals the supervisor or another foreground job.
+    pub fn relayed_stop(&mut self, signal: libc::c_int) -> std::io::Result<()> {
+        if signal != 0 {
+            return self.signal_workload(signal);
+        }
+        self.stops += 1;
+        if self.held_outside() {
+            return Ok(());
+        }
+        let foreground = with_sigttou_blocked(|| {
+            // SAFETY: no outside foreground group was observed.
+            check(unsafe { libc::tcsetpgrp(self.operator, group_of_own()) })
+        });
+        let termios = with_sigttou_blocked(|| {
+            // SAFETY: saved is the termios this relay captured.
+            check(unsafe { libc::tcsetattr(self.operator, libc::TCSANOW, &self.saved) })
+        });
+        foreground.and(termios)
     }
 
     /// §3.6: the settlement restore, after the tree's end, in order, each
@@ -684,12 +709,20 @@ impl TerminalRelay {
     /// is never restored: it reflects the real terminal. A failed step does
     /// not change the exit code; it is recorded here for the cleanup line.
     ///
-    /// The foreground step can fail with `EPERM` when a process of another
-    /// session holds the terminal (the operator's shell after `bg`); then
-    /// the terminal is the shell's, and the remaining steps still run —
-    /// `tcsetattr` and `tcflush` of a terminal that is not in this
-    /// session's foreground are allowed.
+    /// If another foreground group holds the operator terminal, leave all
+    /// of its state alone and record that no restoration step was performed.
     pub fn settle(&mut self, after_tree_death: bool) -> (TerminalRestored, Vec<StepFailure>) {
+        if self.held_outside() {
+            let restored = TerminalRestored {
+                foreground: false,
+                termios: false,
+                input_flushed: false,
+                reset_written: false,
+                after_tree_death,
+            };
+            self.restored = Some(restored);
+            return (restored, Vec::new());
+        }
         let mut failures = Vec::new();
         let mut step = |name: &'static str, result: std::io::Result<()>| match result {
             Ok(()) => true,

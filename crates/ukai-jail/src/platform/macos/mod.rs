@@ -1,10 +1,7 @@
-//! The macOS platform: policy inspection, native ES-custody probing (J16,
-//! jail-macos.md §4.10), and execution that still refuses: no backend is
-//! attached until the resource boundary and observation ship, so `prepare`
-//! returns a typed unsupported result and `run` refuses before exec. The
-//! capability rows, unlike the refusal, are real measurements: the probes in
-//! [`requirements`] run on this host, and nothing claims a probe that did
-//! not run.
+//! The macOS platform: policy inspection and measured native mechanisms.
+//! Execution is development-only (`UKAI_JAIL_MACOS_NATIVE=dev`), off by
+//! default. Even when enabled, missing custody, staging or observation
+//! guarantees refuse before the workload is created.
 
 mod es_probe;
 mod requirements;
@@ -56,6 +53,21 @@ pub mod relay;
 pub mod sandbox;
 #[cfg(target_os = "macos")]
 pub mod setuid;
+
+/// Deliberate opt-in to the unshipped native tier. No other value enables it.
+#[must_use]
+pub fn native_enabled() -> bool {
+    std::env::var_os("UKAI_JAIL_MACOS_NATIVE").is_some_and(|value| value == "dev")
+}
+
+/// Refuse before probes or workload creation when the development gate is off.
+pub fn require_native_enabled() -> Result<(), JailError> {
+    if native_enabled() {
+        return Ok(());
+    }
+    Err(JailError::new(ErrorCode::UnsupportedPlatform, ErrorStage::Probing, Remediation::Unsupported,
+        "native macOS execution is disabled; UKAI_JAIL_MACOS_NATIVE=dev explicitly enables the unshipped development tier".to_owned()))
+}
 
 /// The macOS platform implementation.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -206,8 +218,8 @@ mod tests {
             );
             for capability in &capabilities {
                 let unimplemented = capability.name == "execution_boundary"
-                    || (capability.name == "closed_set_observation"
-                        && !crate::profiles::J17_OBSERVE)
+                    || capability.name == "closed_set_observation"
+                    || capability.name == "credential_staging"
                     || capability.name.starts_with("limit:") && capability.name != "limit:wall";
                 if unimplemented {
                     assert_eq!(
@@ -245,6 +257,9 @@ mod tests {
         let plan = plan_for(ProfileName::Tool);
         let capabilities = MacosPlatform.probe_all(&plan);
         for name in requirements::PROBE_NAMES {
+            if *name == "es_notify" && !crate::profiles::J17_OBSERVE {
+                continue;
+            }
             let row = capabilities
                 .iter()
                 .find(|capability| &capability.name == name)

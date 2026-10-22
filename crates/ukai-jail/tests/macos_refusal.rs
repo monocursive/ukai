@@ -129,17 +129,10 @@ impl Harness {
 }
 
 fn assert_refusal_tuple(receipt: &serde_json::Value, containment: &str, protection: &str) {
-    // J16 (jail-macos.md §4.10): the capability gate refuses with
-    // `unsupported_platform` where a platform gap answers first
-    // (`execution_boundary`, observation), and with `missing_capability`
-    // where this host's own ES answer does (an unentitled or
-    // frameworkless `tree_termination`). Both refuse at probing, before
-    // exec, and the receipt tuple is the same shape.
-    let code = receipt["outcome"]["error"]["code"].clone();
-    assert!(
-        code == serde_json::json!("unsupported_platform")
-            || code == serde_json::json!("missing_capability"),
-        "the capability gate's refusal: {code}"
+    assert_eq!(receipt["outcome"]["error"]["code"], "unsupported_platform");
+    assert_eq!(
+        receipt["outcome"]["error"]["remediation_category"],
+        "unsupported"
     );
     assert_eq!(receipt["phase"], serde_json::json!("refused"));
     assert_eq!(receipt["containment"], serde_json::json!(containment));
