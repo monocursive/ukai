@@ -194,20 +194,24 @@ impl Harness {
         }
     }
 
-    fn run(&self, arguments: &[&str]) -> Output {
-        Command::new(
+    fn command(&self, arguments: &[&str]) -> Command {
+        let mut command = Command::new(
             std::env::var_os("UKAI_JAIL_TEST_BINARY")
                 .unwrap_or_else(|| env!("CARGO_BIN_EXE_ukai-jail").into()),
-        )
-        .env_clear()
-        .env("PATH", "/usr/bin:/bin")
-        .env("HOME", self.temp.path())
-        .env("UKAI_DATA_DIR", &self.data)
-        .env("UKAI_CONFIG_DIR", &self.config)
-        .current_dir(&self.work)
-        .args(arguments)
-        .output()
-        .expect("the binary runs")
+        );
+        command
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin")
+            .env("HOME", self.temp.path())
+            .env("UKAI_DATA_DIR", &self.data)
+            .env("UKAI_CONFIG_DIR", &self.config)
+            .current_dir(&self.work)
+            .args(arguments);
+        command
+    }
+
+    fn run(&self, arguments: &[&str]) -> Output {
+        self.command(arguments).output().expect("the binary runs")
     }
 }
 
@@ -283,21 +287,45 @@ fn plan_for(profile: ukai_jail::policy::ProfileName) -> ukai_jail::platform::Pla
 #[test]
 #[cfg(target_os = "macos")]
 fn a_kernel_bound_run_without_its_boundary_refuses_before_any_process() {
+    assert_kernel_bound_native_refusal(false);
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn a_kernel_bound_run_with_native_enabled_refuses_before_any_process() {
+    assert_kernel_bound_native_refusal(true);
+}
+
+#[cfg(target_os = "macos")]
+fn assert_kernel_bound_native_refusal(native_enabled: bool) {
     // Inspect the persisted snapshot AND derived requirement: a generic
     // entitlement refusal would pass even if the CLI dropped this key.
     let harness = Harness::new();
-    let output = harness.run(&[
+    let mut command = harness.command(&[
         "run",
         "--lifetime",
         "kernel-bound",
         "--terminal",
         "detach",
         "--",
-        "/bin/true",
+        "/bin/sh",
+        "-c",
+        "touch workload-ran",
     ]);
+    let (code, remediation) = if native_enabled {
+        command.env("UKAI_JAIL_MACOS_NATIVE", "dev");
+        ("missing_capability", "configuration")
+    } else {
+        ("unsupported_platform", "unsupported")
+    };
+    let output = command.output().expect("the binary runs");
     assert_eq!(output.status.code(), Some(125), "{output:?}");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("missing_capability"), "{stderr}");
+    assert!(
+        stderr.contains(&format!("error {code} at probing [{remediation}]")),
+        "{stderr}"
+    );
+    assert!(!harness.work.join("workload-ran").exists());
     assert!(
         !stderr.contains("exited") && !stderr.contains("settled"),
         "the target never ran: {stderr}"
@@ -313,6 +341,21 @@ fn a_kernel_bound_run_without_its_boundary_refuses_before_any_process() {
     assert_eq!(policy["snapshot"]["lifetime_boundary"], "kernel-bound");
     let receipt: serde_json::Value =
         serde_json::from_slice(&std::fs::read(attempt.join("jail.json")).unwrap()).unwrap();
+    assert_eq!(receipt["phase"], "refused");
+    assert!(receipt["process"].is_null(), "{receipt}");
+    let error = &receipt["outcome"]["error"];
+    assert_eq!(error["code"], code);
+    assert_eq!(error["stage"], "probing");
+    assert_eq!(error["remediation_category"], remediation);
+    if native_enabled {
+        assert!(
+            error["message"]
+                .as_str()
+                .unwrap()
+                .contains("`owner_loss_termination`"),
+            "the lifetime requirement itself refuses: {error}"
+        );
+    }
     assert!(
         receipt["policy"]["requirements"]
             .as_array()
@@ -560,14 +603,7 @@ fn vm_none_and_unimplemented_policy_requests_refuse_before_connecting() {
         argv.extend(args.clone());
         argv.extend(["--", "/bin/sh", "-c", "touch workload-ran"]);
         let output = harness.run(&argv);
-        // The pre-existing shared CLI guard treats --vm/none as usage (2).
-        // VM-owned capability refusals are 125. Changing that guard belongs
-        // to SHARED; this assertion also detects its removal (mutation M15).
-        assert_eq!(
-            output.status.code(),
-            Some(if args.contains(&"none") { 2 } else { 125 }),
-            "{args:?}: {output:?}"
-        );
+        assert_eq!(output.status.code(), Some(125), "{args:?}: {output:?}");
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(!stderr.contains("birth identity"), "{stderr}");
         assert!(!harness.work.join("workload-ran").exists());
