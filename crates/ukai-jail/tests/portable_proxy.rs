@@ -93,6 +93,15 @@ fn start_with(
     budgets: Budgets,
     resolver: Arc<dyn Resolver + Send + Sync>,
 ) -> Harness {
+    start_with_auth(allow, budgets, resolver, None)
+}
+
+fn start_with_auth(
+    allow: &[String],
+    budgets: Budgets,
+    resolver: Arc<dyn Resolver + Send + Sync>,
+    auth: Option<ProxyAuth>,
+) -> Harness {
     let dir = tempfile::tempdir().expect("a private temporary directory");
     let path = dir.path().join("proxy.sock");
     let listener = UnixListener::bind(&path).expect("binds the proxy socket");
@@ -104,7 +113,7 @@ fn start_with(
             rules,
             budgets,
             resolver,
-            auth: None,
+            auth,
         },
         Arc::clone(&sink) as Arc<dyn ProxySink>,
     )
@@ -143,7 +152,10 @@ impl Harness {
         let results = self.sink.snapshot();
         assert_eq!(
             summary.accepted,
-            summary.results_emitted + summary.results_missing + summary.without_request,
+            summary.results_emitted
+                + summary.results_missing
+                + summary.without_request
+                + summary.unattributable,
             "{summary:?}"
         );
         assert_eq!(
@@ -3133,4 +3145,86 @@ fn an_http_refusal_for_the_secret_is_a_407_with_the_basic_challenge() {
           \r\n\
           proxy_auth_required\n"
     );
+}
+
+#[test]
+fn s8_p2_absolute_form_requires_auth_before_policy_or_resolution() {
+    let auth = fixed_auth();
+    for field in ["", "Proxy-Authorization: Basic dWthaTp3cm9uZw==\r\n"] {
+        let head = format!("GET http://example.com/a HTTP/1.1\r\nHost: example.com\r\n{field}\r\n");
+        assert_eq!(
+            http::parse_request_with_auth(head.as_bytes(), 80, Some(&auth)).unwrap_err(),
+            Reason::ProxyAuthRequired
+        );
+    }
+}
+
+#[test]
+fn s8_p6_auth_rejects_prefixes_suffixes_and_empty_values() {
+    let auth = fixed_auth();
+    assert!(auth.matches(b"ukai", b"secret"));
+    for user in [b"".as_slice(), b"uka", b"ukai-extra"] {
+        assert!(!auth.matches(user, b"secret"), "user {user:?}");
+    }
+    for password in [b"".as_slice(), b"secre", b"secret-extra"] {
+        assert!(!auth.matches(b"ukai", password), "password {password:?}");
+    }
+}
+
+#[test]
+fn s8_p7_http_and_socks_handlers_enforce_the_configured_auth() {
+    let proxy = start_with_auth(&[], Budgets::DEFAULT, fixtures("", &[]), Some(fixed_auth()));
+    for method in ["CONNECT example.com:443", "GET http://example.com/"] {
+        for (credentials, expected) in [
+            ("", "407"),
+            ("Proxy-Authorization: Basic dWthaTp3cm9uZw==\r\n", "407"),
+            ("Proxy-Authorization: Basic dWthaTpzZWNyZXQ=\r\n", "403"),
+        ] {
+            let mut client = proxy.connect();
+            write!(
+                client,
+                "{method} HTTP/1.1\r\nHost: example.com\r\n{credentials}\r\n"
+            )
+            .unwrap();
+            let mut response = String::new();
+            client.read_to_string(&mut response).unwrap();
+            assert!(
+                response.starts_with(&format!("HTTP/1.1 {expected}")),
+                "{response:?}"
+            );
+        }
+    }
+    let mut no_auth = proxy.connect();
+    assert_eq!(writes_greeting(&mut no_auth, &[0]), [5, 0xff]);
+    drop(no_auth);
+    let mut wrong = proxy.connect();
+    assert_eq!(writes_greeting(&mut wrong, &[0, 2]), [5, 2]);
+    wrong.write_all(&userpass_frame("ukai", "wrong")).unwrap();
+    let mut reply = [0; 2];
+    wrong.read_exact(&mut reply).unwrap();
+    assert_eq!(reply, [1, 1]);
+    drop(wrong);
+    let mut correct = proxy.connect();
+    assert_eq!(writes_greeting(&mut correct, &[2]), [5, 2]);
+    correct
+        .write_all(&userpass_frame("ukai", "secret"))
+        .unwrap();
+    correct.read_exact(&mut reply).unwrap();
+    assert_eq!(reply, [1, 0]);
+    correct
+        .write_all(&[5, 1, 0, 1, 127, 0, 0, 1, 0, 80])
+        .unwrap();
+    let mut denied = [0; 10];
+    correct.read_exact(&mut denied).unwrap();
+    assert_eq!(denied[1], 2);
+    drop(correct);
+    let (summary, results) = proxy.stop(WAIT);
+    assert!(summary.complete());
+    assert_eq!(summary.unattributable, 6);
+    assert_eq!(
+        results.len(),
+        3,
+        "only authenticated requests belong to the attempt: {results:?}"
+    );
+    assert!(results.iter().all(|r| r.reason == Reason::HostNotAllowed));
 }

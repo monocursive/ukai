@@ -9,9 +9,11 @@ use std::process::ExitCode;
 
 use clap::Parser as _;
 use ukai_jail::capability::Capability;
+#[cfg(target_os = "macos")]
+use ukai_jail::cli::VmCommand;
 use ukai_jail::cli::{
     Cli, Command, CredentialCommand, DoctorArgs, ExplainArgs, GcArgs, RunArgs, StateCommand,
-    TailArgs, VersionArgs, VmCommand,
+    TailArgs, VersionArgs,
 };
 use ukai_jail::config;
 use ukai_jail::observer::CoverageSummary;
@@ -83,6 +85,7 @@ fn main() -> ExitCode {
         Command::Tail(args) => tail(&context, &args),
         Command::Credential(command) => credential(&context, &command),
         Command::State(command) => state(&context, &command),
+        #[cfg(target_os = "macos")]
         Command::Vm(command) => vm(&context, &command),
     }
 }
@@ -182,8 +185,9 @@ fn credential(context: &Context, command: &CredentialCommand) -> ExitCode {
 
 /// `ukai-jail vm` (J18, jail-macos.md §6): the warm-guest verbs. `stop`
 /// asks the per-operator `ukai-vm` for an orderly stop and exits 0 when no
-/// VM is running. The VM tier is macOS's: elsewhere the verb refuses the
-/// way `--vm` does, as a usage error (§6.4).
+/// VM is running. This verb exists only on macOS; elsewhere `vm` remains
+/// available as a launch-profile shortcut.
+#[cfg(target_os = "macos")]
 fn vm(context: &Context, command: &VmCommand) -> ExitCode {
     let VmCommand::Stop(args) = command;
     #[cfg(target_os = "macos")]
@@ -204,18 +208,6 @@ fn vm(context: &Context, command: &VmCommand) -> ExitCode {
             }
             Err(error) => fail(&error),
         }
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = (context, args);
-        let error = ukai_jail::records::JailError::new(
-            ukai_jail::records::ErrorCode::InvalidConfig,
-            ukai_jail::records::ErrorStage::Resolving,
-            ukai_jail::records::Remediation::Configuration,
-            "vm: the VM tier runs on macOS; there is no ukai-vm here".to_owned(),
-        )
-        .with_key_path("vm");
-        fail(&error)
     }
 }
 

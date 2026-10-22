@@ -1107,3 +1107,21 @@ fn m13_explain_prints_environment_names_only() {
         "and the omission is stated rather than left to be inferred"
     );
 }
+
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn s10_vm_keeps_its_launch_shortcut_on_linux() {
+    use clap::Parser as _;
+    use std::ffi::OsString;
+    let argv: Vec<OsString> = ["ukai-jail", "vm", "prompt"]
+        .into_iter()
+        .map(Into::into)
+        .collect();
+    let alias = ukai_jail::cli::alias_argv(&argv).expect("vm is a launch name outside macOS");
+    let parsed = ukai_jail::cli::Cli::try_parse_from(alias).unwrap();
+    let ukai_jail::cli::Command::Run(run) = parsed.command else {
+        panic!("launch alias")
+    };
+    assert_eq!(run.policy.selection.launch.as_deref(), Some("vm"));
+    assert_eq!(run.argv, [OsString::from("prompt")]);
+}

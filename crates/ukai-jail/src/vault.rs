@@ -428,7 +428,11 @@ impl Vault {
                 // §12); macOS has no mediator, and there the binding is the
                 // attempt's (jail-macos.md §4.11), so the initiator check is
                 // skipped and any member holding the proxy secret may use
-                // the vaulted credential.
+                // the vaulted credential. This is the executing backend,
+                // not the inspection snapshot's OS: a simulated snapshot
+                // cannot install a Linux mediator on a macOS host. Linux
+                // receipts omit `binding`, retaining rc.4 compatibility;
+                // they make no per-program claim when binaries is empty.
                 if cfg!(target_os = "linux") {
                     initiator.check(&secret.executables)?;
                 }

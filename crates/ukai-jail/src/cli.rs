@@ -55,6 +55,7 @@ pub enum Command {
     State(StateCommand),
     /// Inspect or stop the per-operator warm Linux guest (J18).
     #[command(subcommand)]
+    #[cfg(target_os = "macos")]
     Vm(VmCommand),
 }
 
@@ -72,6 +73,7 @@ pub const VERBS: &[&str] = &[
     "help",
     "credential",
     "state",
+    #[cfg(target_os = "macos")]
     "vm",
 ];
 
@@ -420,9 +422,9 @@ pub struct GcArgs {
     #[arg(long)]
     pub json: bool,
     /// J16 (jail-macos.md §4.9): accept the named attempt's unverified end:
-    /// record `gc_abandoned` and release its lease and resources. The one
-    /// way out, and it is explicit. With --dry-run, reports what an abandon
-    /// would do and changes nothing.
+    /// record `gc_abandoned` and release its lease and resources (macOS
+    /// only, after both custodians are confirmed gone). With --dry-run,
+    /// reports what an abandon would do and changes nothing.
     #[arg(long, value_name = "ATTEMPT")]
     pub abandon: Option<String>,
 }
@@ -653,8 +655,11 @@ mod tests {
         assert_eq!(args.lifetime_boundary.as_deref(), Some("kernel-bound"));
         assert!(!args.requests_vm(), "no --vm was given");
 
-        let cli = Cli::try_parse_from(["ukai-jail", "vm", "stop"]).expect("parses");
-        assert!(matches!(cli.command, Command::Vm(VmCommand::Stop(_))));
+        #[cfg(target_os = "macos")]
+        {
+            let cli = Cli::try_parse_from(["ukai-jail", "vm", "stop"]).expect("parses");
+            assert!(matches!(cli.command, Command::Vm(VmCommand::Stop(_))));
+        }
 
         let error = Cli::try_parse_from([
             "ukai-jail",

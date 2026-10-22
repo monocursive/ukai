@@ -47,6 +47,8 @@ pub struct StateView {
     /// abandoned the attempt (`gc_abandoned`), either of which releases the
     /// lease's hold on the resources for later passes too.
     pub custody_released: bool,
+    /// An operator release is never evidence that the tree drained.
+    pub custody_abandoned: bool,
 }
 
 // N7
@@ -227,6 +229,7 @@ pub fn parse_state(bytes: &[u8], id: &str) -> Result<StateView, String> {
     let mut gc_verified = Vec::new();
     let mut gc_removed_scratch = false;
     let mut custody_released = false;
+    let mut custody_abandoned = false;
     let mut gc_finished = None;
     for action in state.gc_actions.get().into_iter().flatten() {
         let verified_empty = action.verified_empty.get() == Some(&true);
@@ -258,7 +261,11 @@ pub fn parse_state(bytes: &[u8], id: &str) -> Result<StateView, String> {
             // J16 (jail-macos.md §4.9): a custody the guardian verified, or
             // an end the operator accepted, releases the hold for later
             // passes too.
-            "gc_custody_verified" | "gc_abandoned" => custody_released = true,
+            "gc_custody_verified" => custody_released = true,
+            "gc_abandoned" => {
+                custody_released = true;
+                custody_abandoned = true;
+            }
             // J4 wave 3 (G4)
             "gc_finished" => {
                 gc_finished = Some(
@@ -282,6 +289,7 @@ pub fn parse_state(bytes: &[u8], id: &str) -> Result<StateView, String> {
         gc_verified,
         gc_removed_scratch,
         custody_released,
+        custody_abandoned,
         gc_finished,
     })
 }

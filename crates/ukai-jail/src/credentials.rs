@@ -519,21 +519,10 @@ fn stage_one(
                 never_staged: true,
                 id: id.into(),
                 mode: mode.as_str().into(),
-                // The binding is what pins the connecting process (J12 §3.5,
-                // jail-macos.md §4.11): the seccomp mediator names the
-                // program on Linux; ES has no TCP connect event, so the
-                // native binding reaches only the attempt. The platform is
-                // the one the policy was resolved for (`snapshot.platform`),
-                // so a simulated Linux on a macOS build records the Linux
-                // shape its receipt declares.
-                binding: Some(
-                    if platform == Os::Macos {
-                        "attempt"
-                    } else {
-                        "program"
-                    }
-                    .to_owned(),
-                ),
+                // Native macOS proves only attempt membership. Linux keeps
+                // its rc.4 wire shape: the optional binary policy is not
+                // encoded here, and older readers reject a new field.
+                binding: (platform == Os::Macos).then(|| "attempt".to_owned()),
                 digest: None,
                 digest_unavailable_reason: Some("never_staged".into()),
             },
@@ -1378,6 +1367,47 @@ impl std::fmt::Debug for LaunchHandoff {
 mod tests {
     use super::*;
     use std::time::Instant;
+
+    #[test]
+    fn s2_linux_vault_receipts_keep_the_legacy_wire_shape() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let (_dir, path, handle) = directory();
+        let source = path.join("secret");
+        std::fs::write(&source, b"test-vault-secret").unwrap();
+        std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o600)).unwrap();
+        for binaries in [vec![], vec!["/bin/sh".to_owned()]] {
+            let declaration = CredentialDecl {
+                id: "token".to_owned(),
+                source: NativeString::from_bytes(source.as_os_str().as_encoded_bytes().to_vec())
+                    .unwrap(),
+                dest: NativeString::Text(".vault-token".to_owned()),
+                mode: CredentialMode::Vault,
+                vault: Some(crate::vault::Policy {
+                    hosts: vec!["https://api.example.com".to_owned()],
+                    binaries,
+                    ..crate::vault::Policy::default()
+                }),
+            };
+            for platform in [Os::Linux, Os::Macos] {
+                let staged =
+                    stage_one(&handle, platform, &declaration, &[], &mut 0, &|| false).unwrap();
+                let mut wire = serde_json::to_value(staged.record).unwrap();
+                if platform == Os::Macos {
+                    assert_eq!(
+                        wire.as_object_mut().unwrap().remove("binding"),
+                        Some(serde_json::json!("attempt"))
+                    );
+                }
+                assert_eq!(
+                    wire,
+                    serde_json::json!({
+                        "id": "token", "mode": "vault", "never_staged": true,
+                        "digest": null, "digest_unavailable_reason": "never_staged"
+                    })
+                );
+            }
+        }
+    }
 
     #[test]
     fn a_digest_is_the_prefixed_lowercase_hex_the_receipt_schema_requires() {

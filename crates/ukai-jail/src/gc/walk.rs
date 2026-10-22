@@ -163,6 +163,15 @@ pub fn gc_with(
     host: &dyn Host,
     options: Options,
 ) -> Result<Report, JailError> {
+    if args.abandon.is_some() && host.identity().os != crate::records::Os::Macos {
+        return Err(JailError::new(
+            ErrorCode::InvalidConfig,
+            ErrorStage::Resolving,
+            Remediation::Configuration,
+            "gc --abandon is available only for native macOS attempts",
+        )
+        .with_key_path("--abandon"));
+    }
     let mut report = Report {
         entries: Vec::new(),
         dry_run: args.dry_run,
@@ -494,7 +503,7 @@ fn visit(
                 // J16 (jail-macos.md §4.9): a custody the guardian verified
                 // or an end the operator accepted, this pass or an earlier
                 // one, releases the hold.
-                || decision.custody.releases_hold()
+                || decision.custody.releases_hold() && done.failure.is_none()
         }
     };
     // J3: the dead supervisor's proxy directory, then vendor state.
@@ -510,6 +519,7 @@ fn visit(
                 max_depth: pass.options.max_depth,
             },
             gc_verified,
+            native_custody: decision.custody.releases_hold(),
         },
     );
     // S7: what the resumption visited is charged to this invocation.
@@ -745,6 +755,12 @@ fn reconcile(
             }
             done.cgroup_final = true;
         }
+    }
+    // A failed durable custody record cannot authorize destructive cleanup:
+    // a later pass must still know why the resources were released.
+    if done.failure.is_some() {
+        done.custody_open = true;
+        return done;
     }
     // How the tree's end was verified by this pass, when it was.
     let mut verified: Option<&'static str> = None;
@@ -1148,10 +1164,16 @@ fn proxy_then_resume(
             ..
         }) => (
             Action::RemovedVendorState,
-            "the pending vendor-state cleanup completed; jail state and this report record it \
-             (gc's own verification of the leaf permitted it, and gc never rewrites a receipt \
-             that is not refused or settled)"
-                .to_owned(),
+            if resumption.native_custody {
+                "the pending vendor-state cleanup completed; jail state and this report record it \
+                 (the recorded custody authorization permitted it, and gc never rewrites a receipt \
+                 that is not refused or settled)"
+            } else {
+                "the pending vendor-state cleanup completed; jail state and this report record it \
+                 (gc's own verification of the leaf permitted it, and gc never rewrites a receipt \
+                 that is not refused or settled)"
+            }
+            .to_owned(),
         ),
         Ok(cleanup::Resume::WouldRemove { .. }) => (
             Action::WouldRemoveVendorState,
@@ -1219,8 +1241,10 @@ fn proxy_then_resume(
 struct Resumption {
     /// What is left of this invocation's bound (S7).
     limits: cleanup::Limits,
-    /// gc verified the registered leaf empty ([`verified_by_gc`]).
+    /// gc verified the registered leaf empty, or custody permits cleanup.
     gc_verified: bool,
+    /// macOS guardian proof or explicit operator abandonment, never a leaf.
+    native_custody: bool,
 }
 
 /// Whether jail state records that gc verified the registered execution

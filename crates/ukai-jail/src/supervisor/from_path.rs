@@ -48,96 +48,15 @@ fn widening(key: &str, message: String) -> JailError {
 // The group-writable rule (jail-macos.md §4.11)
 // ---------------------------------------------------------------------------
 
-/// jail-macos.md §4.11: J12 refuses a group-writable install directory, and
-/// Homebrew's `/opt/homebrew/bin` is group-writable by `admin`, which on the
-/// reference Mac holds exactly `root` and the operator. A group-writable
-/// directory is therefore accepted only when its group's member list, read
-/// at preparation, resolves to exactly `root` and the operator: no third
-/// member, no unresolvable member (which is what a nested group's name in
-/// `gr_mem` would be — nested groups are refused by not resolving), and no
-/// empty list (an empty `gr_mem` may hide membership the directory database
-/// does not enumerate, so it refuses).
-///
-/// `resolve` maps a member name to its uid; `None` is an unresolvable
-/// member. The rule is pure so a test can state the database.
-pub(crate) fn group_writable_ok(
-    _group_name: &str,
-    members: &[&str],
-    root_uid: u32,
-    operator_uid: u32,
-    resolve: &dyn Fn(&str) -> Option<u32>,
-) -> bool {
-    if members.is_empty() {
-        return false;
-    }
-    let mut uids: Vec<u32> = Vec::with_capacity(members.len());
-    for member in members {
-        match resolve(member) {
-            Some(uid) => uids.push(uid),
-            // A name the user database does not answer (a nested group, or
-            // a deleted account still listed) refuses.
-            None => return false,
-        }
-    }
-    uids.sort_unstable();
-    uids.dedup();
-    uids.len() == 2 && uids.contains(&root_uid) && uids.contains(&operator_uid)
-}
-
-/// The macOS wrapper: the group `gid`'s own member list from the group
-/// database, resolved through the user database, against root and this
-/// operator. `false` when the group cannot be read at all.
-#[cfg(target_os = "macos")]
-pub(crate) fn group_writable_install_dir(gid: u32) -> bool {
-    let operator_uid = crate::state::effective_uid();
-    let Ok(Some(group)) = crate::state::accounts::group(gid) else {
-        return false;
-    };
-    let members: Vec<&str> = group
-        .members
-        .iter()
-        .map(|member| std::str::from_utf8(member.as_slice()).unwrap_or(""))
-        .collect();
-    let name = String::from_utf8_lossy(&group.name).into_owned();
-    group_writable_ok(&name, &members, 0, operator_uid, &uid_of_name)
-}
-
-/// The non-macos stub: the rule is a macOS amendment (§4.11); Linux keeps
-/// J12's unconditional refusal.
-#[cfg(not(target_os = "macos"))]
+/// Group-writable install roots fail closed. `getgrgid`'s `gr_mem` is
+/// not an effective-membership proof on macOS: it omits nested groups and
+/// primary-gid members. Even enumerating local users and checking membership
+/// cannot exclude directory-service users that are not enumerable. Until a
+/// complete membership authority is available, no group-writable directory
+/// qualifies for the §4.11 exception. Linux retains its unconditional refusal.
+#[must_use]
 pub(crate) fn group_writable_install_dir(_gid: u32) -> bool {
     false
-}
-
-/// The uid a member name resolves to, or `None` when the user database has
-/// no such account.
-#[cfg(target_os = "macos")]
-fn uid_of_name(name: &str) -> Option<u32> {
-    use std::ffi::CString;
-
-    let Ok(name) = CString::new(name) else {
-        return None;
-    };
-    // SAFETY: `passwd` is a plain C struct; all-zero is a valid value that
-    // getpwnam_r overwrites before it is read.
-    let mut entry: libc::passwd = unsafe { std::mem::zeroed() };
-    let mut result: *mut libc::passwd = std::ptr::null_mut();
-    let mut buffer = vec![0_u8; 16 * 1024];
-    // SAFETY: every pointer is to a live local, the length is the buffer's
-    // own, and getpwnam_r writes only within them.
-    let rc = unsafe {
-        libc::getpwnam_r(
-            name.as_ptr(),
-            &raw mut entry,
-            buffer.as_mut_ptr().cast(),
-            buffer.len(),
-            &raw mut result,
-        )
-    };
-    if rc != 0 || result.is_null() {
-        return None;
-    }
-    Some(entry.pw_uid)
 }
 
 // ---------------------------------------------------------------------------
@@ -1017,75 +936,12 @@ pub(super) fn bind_program_token(
 mod tests {
     use super::*;
 
-    /// jail-macos.md §4.11: the pure group-writable rule. The stated
-    /// database resolves `root` to 0 and `operator` to 501; every other
-    /// name is unresolvable (as a nested group's name would be).
+    #[cfg(target_os = "macos")]
     #[test]
-    fn the_group_writable_rule_accepts_exactly_root_and_the_operator() {
-        let resolve = |name: &str| match name {
-            "root" => Some(0),
-            "operator" => Some(501),
-            _ => None,
-        };
-        // admin's member list on the reference Mac: root + the operator.
-        assert!(group_writable_ok(
-            "admin",
-            &["root", "operator"],
-            0,
-            501,
-            &resolve
-        ));
-        assert!(group_writable_ok(
-            "admin",
-            &["operator", "root"],
-            0,
-            501,
-            &resolve
-        ));
-        // A third member refuses.
-        assert!(!group_writable_ok(
-            "admin",
-            &["root", "operator", "intern"],
-            0,
-            501,
-            &resolve
-        ));
-        // An empty member list refuses: nested membership cannot be seen,
-        // so it is not accepted on faith.
-        assert!(!group_writable_ok("admin", &[], 0, 501, &resolve));
-        // A member the database does not resolve (a nested group's name, a
-        // deleted account) refuses.
-        assert!(!group_writable_ok(
-            "admin",
-            &["root", "operator", "developers"],
-            0,
-            501,
-            &resolve
-        ));
-        assert!(!group_writable_ok(
-            "admin",
-            &["root", "ghost"],
-            0,
-            501,
-            &resolve
-        ));
-        // A different operator, or root missing, refuses.
-        assert!(!group_writable_ok(
-            "staff",
-            &["root", "someone"],
-            0,
-            501,
-            &resolve
-        ));
-        assert!(!group_writable_ok("admin", &["operator"], 0, 501, &resolve));
-        // A lone operator entry that duplicates resolves to one member.
-        assert!(!group_writable_ok(
-            "admin",
-            &["operator", "operator"],
-            0,
-            501,
-            &resolve
-        ));
+    fn s7_unproven_effective_group_membership_refuses() {
+        // macOS admin (80) on the review host enumerates only root and the
+        // operator; that list says nothing about nested/directory-service members.
+        assert!(!group_writable_install_dir(80));
     }
 
     /// K34: discovery stops at a mount boundary, as git does by default,

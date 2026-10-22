@@ -960,6 +960,47 @@ mod scripted {
         calls.iter().filter(|call| call.contains("leaf")).collect()
     }
 
+    #[test]
+    fn s4_linux_abandon_refuses_before_touching_state() {
+        let fixture = Fixture::new();
+        let (id, dir) = orphan(&fixture, OTHER_BOOT);
+        let vendor = vendor_state_pending(&dir);
+        let host = Scripted::new(Liveness::Gone, LeafProbe::Absent);
+        let error = gc::gc_with(
+            &fixture.context(),
+            &cli::GcArgs {
+                dry_run: false,
+                json: false,
+                abandon: Some(id),
+            },
+            &host,
+            Options::DEFAULT,
+        )
+        .unwrap_err();
+        assert_eq!(error.code.as_str(), "invalid_config");
+        assert!(error.message.contains("macOS"));
+        assert!(vendor.exists());
+        assert!(host.calls().is_empty());
+    }
+
+    #[test]
+    fn s10_g1_nonprivate_attempt_is_retained_before_lock_or_host_probe() {
+        let fixture = Fixture::new();
+        let (id, dir) = orphan(&fixture, HOST_BOOT);
+        let vendor = vendor_state_pending(&dir);
+        std::fs::set_permissions(dir.root(), std::fs::Permissions::from_mode(0o750)).unwrap();
+        let host = Scripted::new(Liveness::Gone, LeafProbe::Identified { populated: true });
+        let report = run(&fixture, &host, false);
+        let entry = only(&report, &id);
+        assert!(
+            entry.reason.starts_with("not a private attempt root:"),
+            "{entry:?}"
+        );
+        assert!(host.calls().is_empty());
+        assert!(vendor.exists());
+        std::fs::set_permissions(dir.root(), std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+
     /// A `none` attempt whose supervisor died after release, recorded in
     /// `boot`, with its leaf registered in jail state (N7) and named in the
     /// receipt.
@@ -2491,10 +2532,10 @@ mod w3 {
 
     /// Fails, with ENOSPC, the first gc record that adds `action` to jail
     /// state (the record written right after the `rmdir` it follows).
-    struct FailRecordOf {
-        action: &'static str,
-        state_path: PathBuf,
-        fired: Mutex<bool>,
+    pub(super) struct FailRecordOf {
+        pub(super) action: &'static str,
+        pub(super) state_path: PathBuf,
+        pub(super) fired: Mutex<bool>,
     }
 
     impl state::PersistIo for FailRecordOf {
@@ -2901,6 +2942,99 @@ mod macos_custody {
             .unwrap_or_default()
     }
 
+    #[test]
+    fn s5_abandon_requires_both_custodians_confirmed_gone() {
+        for guardian in [Liveness::Alive, Liveness::Unknown("unreadable".to_owned())] {
+            let fixture = Fixture::new();
+            let (id, dir, mut host) = macos_orphan(&fixture, Some(false));
+            let vendor = vendor_state_pending(&dir);
+            let scratch = managed_scratch(&dir, 2);
+            host.guardian = guardian;
+            let report = run(&fixture, &host, &macos_args(false, Some(id.clone())));
+            let entry = only(&report, &id);
+            assert!(vendor.exists() && scratch.exists(), "{entry:?}");
+            assert!(actions(&dir).is_empty(), "{:?}", actions(&dir));
+            assert!(!host.calls().iter().any(|c| c.starts_with("kill_target")));
+        }
+        let fixture = Fixture::new();
+        let (id, dir, host) = macos_orphan(&fixture, None);
+        let vendor = vendor_state_pending(&dir);
+        run(&fixture, &host, &macos_args(false, Some(id)));
+        assert!(
+            vendor.exists(),
+            "an absent guardian identity is not proof it is gone"
+        );
+        assert!(!actions(&dir).contains(&"gc_abandoned".to_owned()));
+    }
+
+    #[test]
+    fn s6_failed_abandon_record_cannot_authorize_cleanup() {
+        let fixture = Fixture::new();
+        let (id, dir, host) = macos_orphan(&fixture, Some(false));
+        let vendor = vendor_state_pending(&dir);
+        let scratch = managed_scratch(&dir, 2);
+        let seam = std::sync::Arc::new(super::w3::FailRecordOf {
+            action: "gc_abandoned",
+            state_path: dir.state_path(),
+            fired: Mutex::new(false),
+        });
+        let first = state::with_persist_io(seam.clone(), || {
+            run(&fixture, &host, &macos_args(false, Some(id.clone())))
+        });
+        assert!(
+            *seam.fired.lock().unwrap(),
+            "the durable abandon write must be attempted"
+        );
+        assert!(!first.incomplete.is_empty());
+        assert!(
+            vendor.exists() && scratch.exists(),
+            "cleanup needs a durable authorization"
+        );
+        assert!(!actions(&dir).contains(&"gc_abandoned".to_owned()));
+        run(&fixture, &host, &macos_args(false, Some(id)));
+        assert!(!vendor.exists() && !scratch.exists());
+    }
+
+    #[test]
+    fn s6_interrupted_abandon_never_becomes_verified() {
+        for rebooted in [false, true] {
+            let fixture = Fixture::new();
+            let (id, dir, mut host) = macos_orphan(&fixture, Some(false));
+            let vendor = vendor_state_pending(&dir);
+            for i in 0..40 {
+                private_file(&vendor.join(format!("file{i}")), b"data");
+            }
+            let first = gc::gc_with(
+                &fixture.context(),
+                &macos_args(false, Some(id.clone())),
+                &host,
+                Options {
+                    max_entries: 3,
+                    ..Options::DEFAULT
+                },
+            )
+            .unwrap();
+            assert!(!first.incomplete.is_empty(), "{first:?}");
+            assert!(actions(&dir).contains(&"gc_abandoned".to_owned()));
+            assert!(vendor.exists());
+            if rebooted {
+                host.boot = Some("next-boot".to_owned());
+            }
+            let later = run(&fixture, &host, &macos_args(false, None));
+            assert!(!vendor.exists(), "{later:?}");
+            assert!(
+                !actions(&dir).contains(&"gc_custody_verified".to_owned()),
+                "{:?}",
+                actions(&dir)
+            );
+            assert!(
+                !only(&later, &id)
+                    .reason
+                    .contains("verification of the leaf")
+            );
+        }
+    }
+
     /// Same boot, the guardian's record `drained`: `gc_custody_verified`,
     /// and a pending vendor-state cleanup is permitted by it.
     #[test]
@@ -2963,7 +3097,7 @@ mod macos_custody {
     #[test]
     fn a_dry_run_would_report_without_recording() {
         let fixture = Fixture::new();
-        let (id, dir, host) = macos_orphan(&fixture, None);
+        let (id, dir, host) = macos_orphan(&fixture, Some(false));
         let report = run(&fixture, &host, &macos_args(true, Some(id.clone())));
         let entry = only(&report, &id);
         assert_eq!(entry.action, "would_abandon", "{entry:?}");
@@ -2980,7 +3114,7 @@ mod macos_custody {
     #[test]
     fn an_abandon_releases_the_lease_and_keeps_the_attempt() {
         let fixture = Fixture::new();
-        let (id, dir, host) = macos_orphan(&fixture, None);
+        let (id, dir, host) = macos_orphan(&fixture, Some(false));
         vendor_state_pending(&dir);
         let receipt_before = std::fs::read(dir.receipt_path()).unwrap();
         let report = run(&fixture, &host, &macos_args(false, Some(id.clone())));
@@ -3000,7 +3134,7 @@ mod macos_custody {
     fn an_abandon_refuses_unknown_and_malformed_names() {
         let fixture = Fixture::new();
         macos_orphan(&fixture, None);
-        let host = scripted::Scripted::new(Liveness::Gone, LeafProbe::Absent);
+        let (_, _, host) = macos_orphan(&fixture, Some(false));
         let missing = "att_00000000-0000-4000-8000-00000000000f".to_owned();
         let error = gc::gc_with(
             &fixture.context(),
@@ -3065,7 +3199,7 @@ mod macos_custody {
     #[test]
     fn an_abandoned_attempt_settles_scratch_and_later_passes() {
         let fixture = Fixture::new();
-        let (id, dir, host) = macos_orphan(&fixture, None);
+        let (id, dir, host) = macos_orphan(&fixture, Some(false));
         managed_scratch(&dir, 2);
         let report = run(&fixture, &host, &macos_args(false, Some(id.clone())));
         let entry = only(&report, &id);

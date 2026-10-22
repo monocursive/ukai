@@ -60,7 +60,7 @@ pub const RULES: &[(&str, &str)] = &[
     ),
     (
         "credential_binding",
-        r#"jail-v1.md §12 "A `vault`-mode credential's `header` declares where its placeholder may appear" and jail-macos.md §4.11: a credential records its binding only when it is a vault credential, and an attempt binding is native macOS"#,
+        r#"jail-v1.md §12 "A `vault`-mode credential's `header` declares where its placeholder may appear" and jail-macos.md §4.11: binding, when present, is attempt on a native macOS vault credential; Linux retains the legacy absent field"#,
     ),
     (
         "limit_key_unique",
@@ -248,7 +248,7 @@ pub fn receipt(record: &Value) -> Vec<Violation> {
         }
     }
     // J16 (jail-macos.md §4.11, §8): a credential records its binding only
-    // as a vault credential, and an attempt binding is native macOS.
+    // as attempt on a native macOS vault credential; Linux omits the field.
     for (index, item) in record["credentials"]
         .as_array()
         .into_iter()
@@ -267,11 +267,11 @@ pub fn receipt(record: &Value) -> Vec<Violation> {
                 format!("binding {binding} on mode {mode}"),
             ));
         }
-        if binding == "attempt" && os != "macos" {
+        if binding != "attempt" || os != "macos" {
             out.push(violation(
                 "credential_binding",
                 format!("$.credentials[{index}]"),
-                format!("binding attempt on {os}"),
+                format!("binding {binding} on {os}"),
             ));
         }
     }

@@ -4539,7 +4539,17 @@ impl OperatorChannels {
             // caller by `run`'s contract), so an open number here is the
             // operator's descriptor and has no other owner. A number two
             // channels name is taken once.
-            Some(unsafe { OwnedFd::from_raw_fd(fd) })
+            let owned = unsafe { OwnedFd::from_raw_fd(fd) };
+            // The operator hands these to the supervisor, never to a
+            // workload. Set CLOEXEC immediately, before any later spawn.
+            // SAFETY: owned keeps fd open across both fcntl calls.
+            let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+            // SAFETY: owned still holds fd; F_SETFD only changes its descriptor flags.
+            if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) } < 0
+            {
+                return None; // drops the fd; validation refuses this channel
+            }
+            Some(owned)
         };
         OperatorChannels {
             trace: own(args.trace_fd),
@@ -5116,6 +5126,35 @@ mod tests {
     use crate::observer::CoverageSummary;
     use crate::platform::RunEvent;
     use crate::records::{Os, Outcome};
+
+    #[test]
+    fn s9_adopted_operator_channels_are_close_on_exec() {
+        use std::os::fd::IntoRawFd as _;
+        let mut args = run_args(&[]);
+        let fds: Vec<_> = (0..3)
+            .map(|_| {
+                let fd = std::fs::OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open("/dev/null")
+                    .unwrap()
+                    .into_raw_fd();
+                // SAFETY: these descriptors were just opened and belong to this test.
+                assert_eq!(unsafe { libc::fcntl(fd, libc::F_SETFD, 0) }, 0);
+                fd
+            })
+            .collect();
+        args.trace_fd = Some(fds[0]);
+        args.control_fd = Some(fds[1]);
+        args.gate_fd = Some(fds[2]);
+        let channels = OperatorChannels::take(&args);
+        validate_channels(&args, &channels).unwrap();
+        for fd in fds {
+            // SAFETY: the channels keep these descriptors open.
+            let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+            assert_ne!(flags & libc::FD_CLOEXEC, 0);
+        }
+    }
 
     // Audit 2026-10-08 L22 (L04.4): the production deadline closure —
     // `ContinuousDeadline::remaining` over `elapsed_since_start_ns`, the

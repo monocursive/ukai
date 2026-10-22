@@ -253,27 +253,12 @@ fn decided_custody(
     })
 }
 
-/// The macOS custody decision (jail-macos.md §4.9), reached only when the
-/// recorded supervisor was established dead in this boot. Rules, in order:
-/// 1. `--abandon`: the operator's one explicit way out, whatever else is
-///    true; the lease and resources are released, the receipt is left as
-///    written, the attempt stays on disk.
-/// 2. A pass that already verified the custody or recorded an abandon
-///    decides the same again, idempotently.
-/// 3. The receipt proves the tree's end: as jail-v1 §14.2, nothing is
-///    killed and no custody record is needed.
-/// 4. Lost boundary integrity: kept for explicit recovery in every boot,
-///    until the operator abandons it (rule 1).
-/// 5. The guardian custodian: alive means the whole attempt is retained;
-///    liveness unknown keeps everything too.
-/// 6. Same boot, the guardian's record says `drained`: the tree's end is
-///    verified by the guardian; `gc_custody_verified` and cleanup is
-///    permitted, like `gc_terminated_orphan` on Linux.
-/// 7. Same boot, no record or `not_drained`: `SIGKILL` to the receipt's
-///    recorded target, by audit token; `gc_killed_target`. The tree's end
-///    is not verified, the attempt keeps `tree_unknown`, and the vendor
-///    lease stays held. A receipt that names no target identity keeps
-///    everything: nothing is killed and nothing is released.
+/// The macOS custody decision, after the supervisor is established dead.
+/// A live or unreadable guardian retains the whole attempt, even for
+/// `--abandon`. Only confirmed custodian loss permits an operator release;
+/// that release stays distinct from guardian proof on every later pass.
+/// Without a release or drained proof, a token signal does not verify the
+/// whole tree and cannot release the vendor lease.
 fn decide_macos(
     facts: &Facts,
     state: &StateView,
@@ -285,7 +270,51 @@ fn decide_macos(
     // Nothing on this platform keeps an execution cgroup; the generic
     // cgroup steps do not apply.
     let no_cgroup = CgroupStep::Settled("this platform keeps no execution cgroup".to_owned());
-    if facts.abandon {
+    // The attempt is retained whole while either custodian lives. The
+    // supervisor's liveness is the verdict; the guardian's is asked here.
+    if facts
+        .guardian_record
+        .as_ref()
+        .is_some_and(GuardianRecord::probeable)
+    {
+        let Some(guardian) = &facts.guardian else {
+            return Next::ProbeGuardian;
+        };
+        match guardian {
+            Liveness::Alive => {
+                return retained(
+                    "the recorded guardian is alive; it is a custodian of the attempt, so \
+                     nothing is touched while it lives"
+                        .to_owned(),
+                    false,
+                    Some(verdict),
+                );
+            }
+            Liveness::Unknown(reason) => {
+                return retained(
+                    format!("the guardian's liveness is unknown ({reason})"),
+                    false,
+                    Some(verdict),
+                );
+            }
+            Liveness::Gone | Liveness::Reused | Liveness::Exited => {}
+        }
+    }
+    if facts.abandon
+        && !state.custody_released
+        && !facts
+            .guardian_record
+            .as_ref()
+            .is_some_and(GuardianRecord::probeable)
+    {
+        return retained(
+            "the guardian's identity is absent; its death cannot be confirmed in this boot"
+                .to_owned(),
+            false,
+            Some(verdict),
+        );
+    }
+    if facts.abandon || state.custody_abandoned {
         return decided_custody(
             verdict,
             no_cgroup,
@@ -318,38 +347,6 @@ fn decide_macos(
             ),
             scratch.keep("boundary integrity was lost"),
         );
-    }
-    // The attempt is retained whole while either custodian lives. The
-    // supervisor's liveness is the verdict; the guardian's is asked here.
-    if facts
-        .guardian_record
-        .as_ref()
-        .is_some_and(GuardianRecord::probeable)
-    {
-        let Some(guardian) = &facts.guardian else {
-            return Next::ProbeGuardian;
-        };
-        match guardian {
-            Liveness::Alive => {
-                return retained(
-                    "the recorded guardian is alive; it is a custodian of the attempt, so \
-                     nothing is touched while it lives"
-                        .to_owned(),
-                    false,
-                    Some(verdict),
-                );
-            }
-            Liveness::Unknown(reason) => {
-                return decided(
-                    verdict,
-                    CgroupStep::Report(format!(
-                        "retained: the guardian's liveness is unknown ({reason})"
-                    )),
-                    scratch.keep("the tree's end is not verified"),
-                );
-            }
-            Liveness::Gone | Liveness::Reused | Liveness::Exited => {}
-        }
     }
     if facts
         .guardian_record
@@ -522,7 +519,7 @@ pub fn decide(facts: &Facts) -> Next {
         // J16 (jail-macos.md §4.9): an explicit abandon releases even an
         // attempt of another boot, whose §14.2 path would otherwise keep a
         // lost-integrity attempt in every boot.
-        if facts.abandon {
+        if facts.host.os == Os::Macos && (facts.abandon || state.custody_abandoned) {
             return decided_custody(
                 OwnerVerdict::Dead("recorded in another boot".to_owned()),
                 CgroupStep::Settled(
@@ -870,6 +867,7 @@ mod tests {
             gc_verified: Vec::new(),
             gc_removed_scratch: false,
             custody_released: false,
+            custody_abandoned: false,
             gc_finished: None,
         }
     }
@@ -1179,6 +1177,19 @@ mod tests {
     }
 
     #[test]
+    fn s4_abandon_never_changes_linux_decisions() {
+        for boot in ["boot-a", "boot-b"] {
+            let mut lost = receipt(None);
+            lost.tree_end.integrity_lost = true;
+            let mut baseline = facts(state(), lost);
+            baseline.host.boot_id = Some(boot.to_owned());
+            let mut abandon = baseline.clone();
+            abandon.abandon = true;
+            assert_eq!(decide(&baseline), decide(&abandon));
+        }
+    }
+
+    #[test]
     fn lost_integrity_keeps_scratch_in_another_boot_too() {
         let mut lost = receipt(None);
         lost.tree_end.integrity_lost = true;
@@ -1291,6 +1302,7 @@ mod macos_tests {
             gc_verified: Vec::new(),
             gc_removed_scratch: false,
             custody_released: false,
+            custody_abandoned: false,
             gc_finished: None,
         }
     }
@@ -1365,7 +1377,7 @@ mod macos_tests {
     }
 
     #[test]
-    fn abandon_releases_whatever_holds_the_lease() {
+    fn abandon_releases_after_both_custodians_are_gone() {
         let decided = decision(decide(&macos_facts()));
         assert!(matches!(decided.custody, CustodyStep::KillTarget(_)));
         let mut abandoned = macos_facts();

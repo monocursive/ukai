@@ -5,6 +5,8 @@
 //! custody decisions are covered portably in `portable_gc.rs` and in the
 //! `decide` unit tests.
 
+#![cfg(target_os = "macos")]
+
 mod common;
 
 use std::os::unix::fs::PermissionsExt as _;
@@ -340,11 +342,9 @@ fn custodian_liveness_reads_the_host() {
     assert!(matches!(host.owner(&gone), ukai_jail::gc::Liveness::Gone));
 }
 
-/// The audit-token kill tolerates `ESRCH`: a token whose pid is gone (and
-/// a pid version that is not the kernel's) is a no-op, recorded
-/// `gc_killed_target`, and the vendor lease stays held.
+/// An absent token is never a successful kill; the vendor lease stays held.
 #[test]
-fn the_kill_of_a_gone_target_is_recorded_and_holds_the_lease() {
+fn s3_a_gone_target_is_not_reported_as_killed() {
     let fixture = Fixture::new();
     let (_id, dir) = fresh(&fixture);
     claim(&dir, (reaped_pid(), gc::boot_session().unwrap(), 1));
@@ -364,13 +364,13 @@ fn the_kill_of_a_gone_target_is_recorded_and_holds_the_lease() {
     let output = fixture.binary(&["gc"]);
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-    assert!(stdout.contains("killed_target"), "{stdout}\n{stderr}");
+    assert!(stdout.contains("target not found"), "{stdout}\n{stderr}");
     assert!(
-        output.status.success(),
+        !output.status.success(),
         "exit {:?}: {stdout}\n{stderr}",
         output.status.code()
     );
-    assert!(actions(&dir).contains(&"gc_killed_target".to_owned()));
+    assert!(!actions(&dir).contains(&"gc_killed_target".to_owned()));
     assert!(vendor.exists(), "the vendor lease stays held");
 }
 
@@ -484,4 +484,88 @@ fn the_scan_names_a_drained_but_unrecorded_end_once() {
     let printed = gc::orphans::announce(&fixture.ctx());
     assert_eq!(printed, 1, "the scan names {id} once");
     assert!(actions(&dir).is_empty(), "the scan never writes");
+}
+
+// A subprocess of this test binary supplies its CURRENT post-exec token.
+// No ES client or entitlement is involved in reading one's own audit token.
+#[test]
+fn s3_audit_token_child() {
+    if std::env::var_os("UKAI_GC_TOKEN_CHILD").is_none() {
+        return;
+    }
+    use std::io::Write as _;
+    let token = ukai_jail::platform::macos::es::self_token().unwrap();
+    println!("GC_TOKEN {} {}", token[5], token[7]);
+    std::io::stdout().flush().unwrap();
+    std::thread::sleep(std::time::Duration::from_secs(15));
+}
+
+#[test]
+fn s3_g5_token_kill_really_signals_and_a_stale_token_does_not() {
+    use std::io::BufRead as _;
+    use std::os::unix::process::ExitStatusExt as _;
+    struct Child(std::process::Child);
+    impl Drop for Child {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    let mut child = Child(
+        Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "s3_audit_token_child", "--nocapture"])
+            .env("UKAI_GC_TOKEN_CHILD", "1")
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
+    let mut output = std::io::BufReader::new(child.0.stdout.take().unwrap());
+    let mut line = String::new();
+    let token = loop {
+        line.clear();
+        assert!(
+            output.read_line(&mut line).unwrap() > 0,
+            "child supplied no token"
+        );
+        if let Some((_, words)) = line.split_once("GC_TOKEN ") {
+            let words: Vec<u32> = words
+                .split_whitespace()
+                .map(|w| w.parse().unwrap())
+                .collect();
+            break gc::TargetToken {
+                pid: words[0],
+                pidversion: words[1],
+            };
+        }
+    };
+    assert_eq!(token.pid, child.0.id());
+    let ctx = context(PathBuf::from("/nonexistent"), &std::env::temp_dir());
+    let host = gc::native_host(&ctx);
+    let stale = gc::TargetToken {
+        pidversion: token.pidversion.wrapping_add(1),
+        ..token
+    };
+    assert!(
+        host.kill_target(&stale)
+            .unwrap_err()
+            .to_string()
+            .contains("target not found")
+    );
+    assert!(
+        child.0.try_wait().unwrap().is_none(),
+        "stale token must not signal the live pid"
+    );
+    host.kill_target(&token).unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    loop {
+        if let Some(status) = child.0.try_wait().unwrap() {
+            assert_eq!(status.signal(), Some(libc::SIGKILL));
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "successful token kill left the child alive"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 }

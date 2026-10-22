@@ -54,6 +54,8 @@ struct ResultSlot<'a> {
     transport: Transport,
     admitted: bool,
     done: bool,
+    /// A valid request authenticated, or the private Linux bridge has no auth.
+    attributed: bool,
     /// Whether the client may already have received bytes, so no error
     /// response can follow.
     replied: bool,
@@ -71,7 +73,11 @@ impl ResultSlot<'_> {
         if !self.done {
             self.done = true;
             self.release();
-            self.shared.emit(result);
+            if self.attributed {
+                self.shared.emit(result);
+            } else {
+                self.shared.unattributable();
+            }
         }
     }
 
@@ -168,6 +174,7 @@ pub(super) fn handle_connection(
         transport: Transport::Http,
         admitted: true,
         done: false,
+        attributed: shared.auth.is_none(),
         replied: false,
     };
     // A panic anywhere below (a resolver bug, say) still settles the
@@ -217,6 +224,7 @@ fn serve(
         slot.no_request();
         return Ok(());
     };
+    slot.attributed = true;
     slot.kind = request.kind();
     slot.destination = Some(request.destination.clone());
     if shared.is_stopping() {

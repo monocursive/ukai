@@ -789,28 +789,23 @@ fn check_directory(stat: &Stat, path: &Path, in_root: bool) -> Result<(), JailEr
             stat.uid
         )));
     }
-    // jail-macos.md §4.11: a group-writable directory (never world-writable)
-    // whose group lists exactly root and this operator is accepted, so
-    // Homebrew's `admin`-grouped install roots launch; any other member, an
-    // unresolvable member or an empty list keeps J12's refusal.
-    let group_writable_exception = cfg!(target_os = "macos")
-        && stat.mode & 0o002 == 0
+    // macOS cannot prove effective group membership from gr_mem (nested
+    // and nonenumerable directory-service members are missing). Even a
+    // locally private group cannot authorize an install-root write grant.
+    // Linux retains its existing private-group treatment.
+    let group_writable_unproven = cfg!(target_os = "macos")
         && stat.mode & 0o020 != 0
-        && crate::supervisor::from_path::group_writable_install_dir(stat.gid);
-    if crate::state::writable_by_others(stat.mode, stat.uid, stat.gid)
-        && stat.mode & 0o1000 == 0
-        && !group_writable_exception
-    {
+        && !crate::supervisor::from_path::group_writable_install_dir(stat.gid);
+    let writable_by_others =
+        crate::state::writable_by_others(stat.mode, stat.uid, stat.gid) || group_writable_unproven;
+    if writable_by_others && stat.mode & 0o1000 == 0 {
         return Err(widening(format!(
             "{} has mode {:04o}: writable by others without the sticky bit",
             path.display(),
             stat.mode
         )));
     }
-    if in_root
-        && crate::state::writable_by_others(stat.mode, stat.uid, stat.gid)
-        && !group_writable_exception
-    {
+    if in_root && writable_by_others {
         return Err(widening(format!(
             "{} has mode {:04o}: a directory in the program's install root may not be \
              writable by anyone but its owner (a group write is allowed only for the owner's \
@@ -1554,6 +1549,16 @@ mod tests {
             ctime: (0, 0),
             mount_root: Some(false),
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn s7_group_writable_install_root_requires_effective_membership_proof() {
+        let mut directory = synthetic(Kind::Directory, crate::state::effective_uid(), 0o775);
+        directory.gid = 80; // macOS admin
+        assert!(check_directory(&directory, Path::new("/install"), true).is_err());
+        directory.mode = 0o755;
+        assert!(check_directory(&directory, Path::new("/install"), true).is_ok());
     }
 
     /// The owner rules, which need a second local user to exercise end to

@@ -9,7 +9,9 @@
 use std::sync::Mutex;
 use std::time::SystemTime;
 
-use crate::observer::{ClassSummary, CoverageClass, CoverageSummary};
+#[cfg(target_os = "macos")]
+use crate::observer::CoverageSummary;
+use crate::observer::{ClassSummary, CoverageClass};
 use crate::proxy::{self, ProxyDecision, ProxyResult, ProxySink};
 use crate::records::{Gap, SourceStatus};
 use crate::trace::Priority;
@@ -151,6 +153,7 @@ pub fn coverage(account: &Account) -> ClassSummary {
 
 /// Applies [`coverage`] of `account` to a summary's `proxy.net` class, the
 /// settlement step every platform shares.
+#[cfg(target_os = "macos")]
 pub fn apply_coverage(summary: &mut CoverageSummary, account: &Account) {
     let class = coverage(account);
     summary.sources.proxy = class.status;

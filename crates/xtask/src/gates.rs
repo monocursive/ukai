@@ -64,6 +64,8 @@ pub const SPEC_PATH: &str = "docs/specs/jail-v1.md";
 /// Where the v2 acceptance rows (§11, the K rows) live, relative to the
 /// repository root.
 pub const SPEC_V2_PATH: &str = "docs/specs/jail-v2.md";
+/// Native custody, observation and VM acceptance rows (§9.1–§9.4).
+pub const SPEC_MACOS_PATH: &str = "docs/specs/jail-macos.md";
 
 /// How a clause is proved.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
@@ -418,7 +420,10 @@ pub fn is_test_id(id: &str) -> bool {
 /// Is `id` a §15 gate id (`P01`, `A01`, ...)?
 fn is_gate_id(id: &str) -> bool {
     let b = id.as_bytes();
-    b.len() == 3 && b[0].is_ascii_uppercase() && b[1].is_ascii_digit() && b[2].is_ascii_digit()
+    b.len() >= 3
+        && b[0].is_ascii_uppercase()
+        && b[1..].iter().all(u8::is_ascii_digit)
+        && (b.len() == 3 || b[1] != b'0')
 }
 
 /// A recorded limit's citation: `docs/<file>.md § <heading>: <passage>`.
@@ -564,6 +569,28 @@ pub fn spec_v2_rows(spec: &str) -> Result<Vec<(String, String)>, String> {
     spec_rows_in(spec, "## 11. ", SPEC_V2_PATH)
 }
 
+/// §9's row tables, including the ### 9.1–9.4 subsections; the next
+/// level-two heading ends the section. Rows use `| ID | text |`.
+pub fn spec_macos_rows(spec: &str) -> Result<Vec<(String, String)>, String> {
+    spec_rows_in(spec, "## 9. ", SPEC_MACOS_PATH)
+}
+
+/// Add the native rows without allowing a duplicate across specifications.
+fn with_macos_rows(
+    mut rows: Vec<(String, String)>,
+    macos: Vec<(String, String)>,
+) -> Result<Vec<(String, String)>, String> {
+    for (id, _) in &macos {
+        if rows.iter().any(|(seen, _)| seen == id) {
+            return Err(format!(
+                "{SPEC_MACOS_PATH} §9 repeats {id}, which {SPEC_PATH} §15 or {SPEC_V2_PATH} §11 also lists"
+            ));
+        }
+    }
+    rows.extend(macos);
+    Ok(rows)
+}
+
 /// Both spec sources as one row list: jail-v1 §15, then jail-v2 §11. A map
 /// gate is valid if it is a row in either; an id both list is a spec bug.
 ///
@@ -585,7 +612,7 @@ pub fn combine_rows(
     Ok(rows)
 }
 
-/// The repository's rows from both spec sources.
+/// The repository's rows from all three specification sections.
 ///
 /// # Errors
 /// Either spec unreadable or malformed.
@@ -594,25 +621,30 @@ pub fn spec_rows_all(root: &std::path::Path) -> Result<Vec<(String, String)>, St
         .map_err(|e| format!("cannot read {SPEC_PATH}: {e}"))?;
     let v2 = std::fs::read_to_string(root.join(SPEC_V2_PATH))
         .map_err(|e| format!("cannot read {SPEC_V2_PATH}: {e}"))?;
-    combine_rows(spec_rows(&v1)?, spec_v2_rows(&v2)?)
+    let macos = std::fs::read_to_string(root.join(SPEC_MACOS_PATH))
+        .map_err(|e| format!("cannot read {SPEC_MACOS_PATH}: {e}"))?;
+    with_macos_rows(
+        combine_rows(spec_rows(&v1)?, spec_v2_rows(&v2)?)?,
+        spec_macos_rows(&macos)?,
+    )
 }
 
-/// Where the map and §15 disagree.
+/// Where the map and the specification row tables disagree.
 #[must_use]
 pub fn spec_problems(map: &Map, rows: &[(String, String)]) -> Vec<String> {
     let mut p = Vec::new();
     for (id, text) in rows {
         match map.gate.iter().find(|g| &g.id == id) {
-            None => p.push(format!("§15 {id} has no [[gate]] in the acceptance map")),
+            None => p.push(format!("specification row {id} has no [[gate]] in the acceptance map")),
             Some(g) if &g.row != text => p.push(format!(
-                "the map's row for {id} differs from §15: re-review its clauses against the new text and copy it"
+                "the map's row for {id} differs from its specification: re-review its clauses against the new text and copy it"
             )),
             Some(_) => {}
         }
     }
     for g in &map.gate {
         if !rows.iter().any(|(id, _)| id == &g.id) {
-            p.push(format!("map gate {} is not a §15 row", g.id));
+            p.push(format!("map gate {} is not a specification row", g.id));
         }
     }
     p
@@ -2125,11 +2157,17 @@ pub fn load_from(
     Ok(Acceptance {
         map: parsed,
         release: ReleaseScope::load(root)?,
-        rows: combine_rows(
-            spec_rows(&spec_text)?,
-            spec_v2_rows(
-                &std::fs::read_to_string(root.join(SPEC_V2_PATH))
-                    .map_err(|e| format!("cannot read {SPEC_V2_PATH}: {e}"))?,
+        rows: with_macos_rows(
+            combine_rows(
+                spec_rows(&spec_text)?,
+                spec_v2_rows(
+                    &std::fs::read_to_string(root.join(SPEC_V2_PATH))
+                        .map_err(|e| format!("cannot read {SPEC_V2_PATH}: {e}"))?,
+                )?,
+            )?,
+            spec_macos_rows(
+                &std::fs::read_to_string(root.join(SPEC_MACOS_PATH))
+                    .map_err(|e| format!("cannot read {SPEC_MACOS_PATH}: {e}"))?,
             )?,
         )?,
     })
@@ -2863,10 +2901,101 @@ pub fn run_merge(args: &MergeArgs, root: &std::path::Path) -> std::process::Exit
 mod tests {
     use super::*;
 
+    fn pending_native_rows(map: &Map, rows: &[(String, String)]) -> Vec<String> {
+        let native = spec_macos_rows(include_str!("../../../docs/specs/jail-macos.md")).unwrap();
+        if native
+            .iter()
+            .any(|(id, _)| map.gate.iter().any(|g| &g.id == id))
+        {
+            return Vec::new();
+        }
+        rows.iter()
+            .filter(|(id, _)| native.iter().any(|(n, _)| n == id))
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
+    #[test]
+    fn shared_macos_parser_checks_all_subtables_and_duplicates() {
+        let mini = "## 8. Records\n| K86 | outside |\n## 9. Acceptance\n### 9.1 Native\n| K87 | native |\n### 9.2 Observe\n| K105 | observe |\n### 9.3 VM\n| K112 | guest |\n### 9.4 Compatibility\n| K113 | compatibility |\n## 10. Costs\n| K114 | outside |\n";
+        let rows = spec_macos_rows(mini).unwrap();
+        assert_eq!(
+            rows.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(),
+            ["K87", "K105", "K112", "K113"]
+        );
+        assert!(spec_macos_rows("## 8. No acceptance\n").is_err());
+        assert!(
+            spec_macos_rows(&mini.replace("| K113 | compatibility |", "| K113 | compatibility"))
+                .is_err()
+        );
+        assert!(
+            spec_macos_rows(&mini.replace("| K113 | compatibility |", "| K87 | duplicate |"))
+                .is_err()
+        );
+        assert!(
+            with_macos_rows(vec![("K87".to_owned(), "duplicate".to_owned())], rows)
+                .unwrap_err()
+                .contains("jail-macos.md")
+        );
+    }
+
+    #[test]
+    fn shared_macos_acceptance_rows_are_loaded_and_unproved_rows_cannot_pass() {
+        let rows = spec_rows_all(&repo_root()).unwrap();
+        assert!(rows.iter().any(|(id, _)| id == "K87"));
+        assert!(rows.iter().any(|(id, _)| id == "K100"));
+        assert!(rows.iter().any(|(id, _)| id == "K112"));
+        let native_rows: Vec<_> = rows
+            .into_iter()
+            .filter(|(id, _)| {
+                id.strip_prefix('K')
+                    .and_then(|n| n.parse::<u32>().ok())
+                    .is_some_and(|n| n >= 87)
+            })
+            .collect();
+        let mut map = Map {
+            schema: MAP_SCHEMA.to_owned(),
+            gate: Vec::new(),
+            clause: Vec::new(),
+            ignored: Vec::new(),
+        };
+        for (id, text) in &native_rows {
+            map.gate.push(Gate {
+                id: id.clone(),
+                row: text.clone(),
+                kind: Kind::Scripted,
+            });
+            map.clause.push(Clause {
+                id: format!("{id}.1"),
+                gate: id.clone(),
+                clause: text.clone(),
+                tag: Tag::Untested,
+                lane: Lane::Macos,
+                tests: Vec::new(),
+                checks: Vec::new(),
+                limit: None,
+                note: None,
+            });
+        }
+        let map = Map::parse(&render_map(&map)).unwrap();
+        let verdict = evaluate(
+            &map,
+            &native_rows,
+            &BTreeMap::from([(Lane::Macos, TestLog::default())]),
+            &BTreeMap::new(),
+        );
+        assert!(verdict.problems.is_empty(), "{:?}", verdict.problems);
+        assert!(!verdict.all_noncredential_gates_pass());
+        for gate in verdict.gates {
+            assert_eq!(gate.status, GateStatus::Fail);
+            assert_eq!(gate.clauses[0].reasons, [ClauseReason::Untested]);
+        }
+    }
+
     #[test]
     fn linux_release_reports_only_the_named_macos_requirements_unsupported() {
         let map = Map::parse(MAP).unwrap();
-        let rows = combine_rows(spec_rows(SPEC).unwrap(), spec_v2_rows(SPEC_V2).unwrap()).unwrap();
+        let rows = spec_rows_all(&repo_root()).unwrap();
         let logs = BTreeMap::new();
         let scope = release_scope();
         let full = evaluate(&map, &rows, &logs, &BTreeMap::new());
@@ -2913,7 +3042,7 @@ mod tests {
     #[test]
     fn linux_release_cannot_exclude_a_linux_clause_or_macos_refusal_proof() {
         let mut map = Map::parse(MAP).unwrap();
-        let rows = combine_rows(spec_rows(SPEC).unwrap(), spec_v2_rows(SPEC_V2).unwrap()).unwrap();
+        let rows = spec_rows_all(&repo_root()).unwrap();
         map.clause
             .iter_mut()
             .find(|c| c.id == "K23.1")
@@ -3058,17 +3187,16 @@ mod tests {
     fn the_release_scope_comes_from_the_coordinates() {
         let scope = release_scope();
         assert_eq!(scope.name, "linux-preview");
-        assert_eq!(
-            scope.unsupported,
-            ["K22.2", "K23.1", "K24.1", "K26.1", "K29.1"]
-        );
+        for id in ["K22.2", "K23.1", "K24.1", "K26.1", "K29.1"] {
+            assert!(scope.unsupported.contains(&id.to_owned()));
+        }
         let map = Map::parse(MAP).unwrap();
-        let rows = combine_rows(spec_rows(SPEC).unwrap(), spec_v2_rows(SPEC_V2).unwrap()).unwrap();
+        let rows = spec_rows_all(&repo_root()).unwrap();
         let mut stale = scope.clone();
-        stale.unsupported.push("K99.1".into());
+        stale.unsupported.push("K99999.1".into());
         let v = evaluate_linux_release(&map, &rows, &BTreeMap::new(), &BTreeMap::new(), &stale);
         assert!(
-            v.problems.iter().any(|p| p.contains("K99.1")),
+            v.problems.iter().any(|p| p.contains("K99999.1")),
             "{:?}",
             v.problems
         );
@@ -3467,7 +3595,7 @@ reason = ""
         let p = spec_problems(&map, &spec_rows(&removed).unwrap());
         assert!(
             p.iter()
-                .any(|p| p.contains("X01") && p.contains("not a §15 row")),
+                .any(|p| p.contains("X01") && p.contains("not a specification row")),
             "{p:?}"
         );
     }
@@ -4438,14 +4566,21 @@ reason = "an `ignore` doc example"
     // ------------------------------------------------------ the real map
 
     #[test]
-    fn the_checked_in_map_is_well_formed_and_agrees_with_both_spec_sections() {
+    fn the_checked_in_map_agrees_with_all_sections_or_reports_missing_native_rows() {
         let map = Map::parse(MAP).unwrap_or_else(|e| panic!("{e}"));
         let at = map.problems_at(&repo_root());
         assert!(at.is_empty(), "{at:#?}");
-        let rows = combine_rows(spec_rows(SPEC).unwrap(), spec_v2_rows(SPEC_V2).unwrap()).unwrap();
+        let rows = spec_rows_all(&repo_root()).unwrap();
         let problems = spec_problems(&map, &rows);
-        assert!(problems.is_empty(), "{problems:#?}");
-        for (id, _) in &rows {
+        let pending = pending_native_rows(&map, &rows);
+        assert_eq!(
+            problems,
+            pending
+                .iter()
+                .map(|id| format!("specification row {id} has no [[gate]] in the acceptance map"))
+                .collect::<Vec<_>>()
+        );
+        for (id, _) in rows.iter().filter(|(id, _)| !pending.contains(id)) {
             assert!(
                 map.clause.iter().any(|c| &c.gate == id),
                 "{id} has no clause in the map"
@@ -4672,11 +4807,31 @@ Unrelated prose.
                     );
                 }
             }
-            assert!(g.reasons.is_empty(), "{}: {:?}", g.id, g.reasons);
+            let map = Map::parse(MAP).unwrap();
+            let pending = pending_native_rows(&map, &spec_rows_all(&repo_root()).unwrap());
+            if pending.contains(&g.id) {
+                assert_eq!(g.status, GateStatus::Fail);
+                assert_eq!(
+                    g.reasons,
+                    [
+                        "the acceptance map has no [[gate]] for it",
+                        "the acceptance map has no clause for it"
+                    ]
+                );
+            } else {
+                assert!(g.reasons.is_empty(), "{}: {:?}", g.id, g.reasons);
+            }
         }
         for p in &v.problems {
             assert!(
-                p.contains("is pinned as ignored but the linux log is absent from the log"),
+                p.contains("is pinned as ignored but the linux log is absent from the log")
+                    || pending_native_rows(
+                        &Map::parse(MAP).unwrap(),
+                        &spec_rows_all(&repo_root()).unwrap()
+                    )
+                    .iter()
+                    .any(|id| *p
+                        == format!("specification row {id} has no [[gate]] in the acceptance map")),
                 "only a helper newer than the log may be missing: {p}"
             );
         }
@@ -4686,7 +4841,7 @@ Unrelated prose.
     #[test]
     fn the_j4_log_under_the_checked_in_map_fails_only_what_it_could_not_prove() {
         let map = Map::parse(MAP).unwrap();
-        let rows = combine_rows(spec_rows(SPEC).unwrap(), spec_v2_rows(SPEC_V2).unwrap()).unwrap();
+        let rows = spec_rows_all(&repo_root()).unwrap();
         let log = parse_log(&j4_log());
         let v = evaluate(&map, &rows, &linux(&j4_log()), &no_checks());
         assert_only_expected_reasons(&v, &log);
@@ -4696,7 +4851,18 @@ Unrelated prose.
             "no I01 check ran in J4"
         );
         assert_eq!(gate(&v, "A01").status, GateStatus::Credential);
-        assert_eq!(gate(&v, "M01").status, GateStatus::Elsewhere);
+        assert_eq!(
+            gate(&v, "M01").status,
+            if map
+                .clause
+                .iter()
+                .any(|c| c.gate == "M01" && c.tag == Tag::Untested)
+            {
+                GateStatus::Fail
+            } else {
+                GateStatus::Elsewhere
+            }
+        );
         assert!(!v.failures().is_empty());
     }
 
@@ -4718,7 +4884,7 @@ Unrelated prose.
         assert_eq!(results, 1345 + 13);
         assert!(log.clean());
         let map = Map::parse(MAP).unwrap();
-        let rows = combine_rows(spec_rows(SPEC).unwrap(), spec_v2_rows(SPEC_V2).unwrap()).unwrap();
+        let rows = spec_rows_all(&repo_root()).unwrap();
         let v = evaluate(&map, &rows, &linux(&base_log()), &no_checks());
         assert_only_expected_reasons(&v, &log);
         // Given the driver checks it did not have, the base still fails

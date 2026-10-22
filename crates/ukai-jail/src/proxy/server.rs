@@ -50,6 +50,7 @@ struct Accounting {
     accepted: u64,
     emitted: u64,
     without_request: u64,
+    unattributable: u64,
     sealed: bool,
 }
 
@@ -58,6 +59,7 @@ impl Accounting {
         self.accepted
             .saturating_sub(self.emitted)
             .saturating_sub(self.without_request)
+            .saturating_sub(self.unattributable)
     }
 }
 
@@ -149,6 +151,16 @@ impl Shared {
         // Emitting under the lock orders results with the seal: a result is
         // either delivered and counted, or dropped and reported missing.
         self.sink.emit(result);
+        drop(accounting);
+        self.settled.notify_all();
+    }
+
+    pub(super) fn unattributable(&self) {
+        let mut accounting = lock(&self.accounting);
+        if accounting.sealed {
+            return;
+        }
+        accounting.unattributable += 1;
         drop(accounting);
         self.settled.notify_all();
     }
@@ -379,6 +391,7 @@ impl ProxyHandle {
             results_emitted: accounting.emitted,
             results_missing: accounting.missing(),
             without_request: accounting.without_request,
+            unattributable: accounting.unattributable,
             listener_closed,
         }
     }
@@ -501,7 +514,11 @@ fn refuse_inline(
     accepted_at: Instant,
     reason: Reason,
 ) {
-    shared.emit(denial(id, None, RequestKind::Unknown, reason, accepted_at));
+    if shared.auth.is_some() {
+        shared.unattributable();
+    } else {
+        shared.emit(denial(id, None, RequestKind::Unknown, reason, accepted_at));
+    }
     if client.set_nonblocking(true).is_ok() {
         let _ = (&*client).write_all(&http::error_response(reason));
     }

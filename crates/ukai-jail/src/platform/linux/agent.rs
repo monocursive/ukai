@@ -46,13 +46,12 @@ use std::time::{Duration, SystemTime};
 use serde_json::{Map, Value};
 
 use crate::network::Rules;
-use crate::observer::{ClassSummary, CoverageClass, CoverageSummary};
+use crate::observer::{CoverageClass, CoverageSummary};
 use crate::platform::ProxyDirHandoff;
 use crate::proxy::{
-    self, Budgets, ProxyConfig, ProxyDecision, ProxyHandle, ProxyResult, ProxySink, ProxySummary,
-    SystemResolver,
+    self, Budgets, ProxyConfig, ProxyHandle, ProxySink, ProxySummary, SystemResolver,
 };
-use crate::records::{ErrorCode, ErrorStage, Event, Gap, JailError, Remediation, SourceStatus};
+use crate::records::{ErrorCode, ErrorStage, Event, JailError, Remediation};
 use crate::state::PROXY_SOCKET_NAME;
 use crate::trace::{Priority, SharedTrace};
 
@@ -1062,6 +1061,8 @@ fn drain_rejections(report: BorrowedFd<'_>) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use crate::proxy::{ProxyDecision, ProxyResult};
+    use crate::records::SourceStatus;
     fn seqpacket_pair() -> (OwnedFd, OwnedFd) {
         use std::os::fd::FromRawFd as _;
         let mut fds = [-1; 2];

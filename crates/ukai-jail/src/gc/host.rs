@@ -204,13 +204,13 @@ pub trait Host {
     }
     /// J16 (jail-macos.md §4.9): sends `SIGKILL` to the receipt's recorded
     /// target, by audit token. Safe after pid reuse (the kernel checks the
-    /// pid version in the token) and a no-op once the pid is gone (`ESRCH`
-    /// is success here). Signal 0 is never sent: with `proc_signal_with_
-    /// audittoken` it is documented as unusable (`EINVAL`). The default
+    /// pid version in the token). `ESRCH` is an unsuccessful signal: the
+    /// target was not found by its recorded token. Signal 0 is never sent:
+    /// with `proc_signal_with_audittoken` it is unusable (`EINVAL`). The default
     /// refuses, which keeps everything.
     ///
     /// # Errors
-    /// Why the signal was not delivered (anything but `ESRCH`).
+    /// Why the signal was not delivered, including a stale or absent token.
     fn kill_target(&self, _: &TargetToken) -> Result<(), HostFailure> {
         Err(HostFailure::new("no audit-token kill exists here"))
     }
@@ -408,14 +408,29 @@ mod native {
             // SAFETY: `audittoken` is a valid `audit_token_t` outliving the
             // call; `proc_signal_with_audittoken` reads it and signals.
             let error = unsafe { proc_signal_with_audittoken(&mut audittoken, libc::SIGKILL) };
-            if error == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH) {
-                return Ok(());
-            }
-            Err(HostFailure::os(
-                "proc_signal_with_audittoken",
-                std::io::Error::last_os_error(),
-            ))
+            signal_result(error, std::io::Error::last_os_error())
         }
+    }
+
+    /// libproc versions may return an errno directly; a syscall-style -1
+    /// instead uses errno. Never consult a stale errno for a positive result.
+    fn signal_result(rc: libc::c_int, errno: std::io::Error) -> Result<(), HostFailure> {
+        if rc == 0 {
+            return Ok(());
+        }
+        let error = if rc > 0 {
+            std::io::Error::from_raw_os_error(rc)
+        } else {
+            errno
+        };
+        Err(HostFailure::os(
+            if error.raw_os_error() == Some(libc::ESRCH) {
+                "target not found by its recorded token; no signal delivered and tree end unverified"
+            } else {
+                "proc_signal_with_audittoken"
+            },
+            error,
+        ))
     }
 
     impl super::Host for NativeHost {
@@ -473,6 +488,22 @@ mod native {
             Self::kill_by_token(token)
         }
     }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        #[test]
+        fn s3_token_signal_handles_direct_errno_and_syscall_errno() {
+            for (rc, errno) in [(libc::ESRCH, libc::EPERM), (-1, libc::ESRCH)] {
+                let error =
+                    signal_result(rc, std::io::Error::from_raw_os_error(errno)).unwrap_err();
+                assert!(error.to_string().contains("target not found"), "{error}");
+            }
+            let denied = signal_result(libc::EPERM, std::io::Error::from_raw_os_error(libc::ESRCH))
+                .unwrap_err();
+            assert!(!denied.to_string().contains("target not found"));
+            assert!(signal_result(0, std::io::Error::from_raw_os_error(libc::ESRCH)).is_ok());
+        }
+    }
 }
 
 /// J16 (jail-macos.md §4.3, §4.9): this host's boot session
@@ -520,7 +551,7 @@ impl Host for NativeHost {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 const NO_MECHANISM: &str = "this platform has no execution cgroup mechanism";
 
 /// Anywhere else: no process birth identity and no execution cgroup, so
