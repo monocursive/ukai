@@ -29,14 +29,13 @@ pub struct Entry {
     pub stopped: bool,
 }
 
-/// `audit_token_t` field positions, measured against the libbsm accessors on
-/// the record Mac (K98: `audit_token_to_pid` → `val[5]`,
-/// `audit_token_to_pidversion` → `val[7]`, `audit_token_to_ruid` → `val[0]`;
-/// asserted live in `macos_custody_core.rs` against `getpid`/`getuid`).
+/// `audit_token_t` layout from libbsm, checked with distinct-word tokens
+/// against its accessors (not inferred from a login session's equal UIDs).
 pub const AUDIT_TOKEN_PID: usize = 5;
 pub const AUDIT_TOKEN_PIDVERSION: usize = 7;
-pub const AUDIT_TOKEN_RUID: usize = 0;
-pub const AUDIT_TOKEN_RGID: usize = 2;
+pub const AUDIT_TOKEN_RUID: usize = 3;
+pub const AUDIT_TOKEN_RGID: usize = 4;
+pub const AUDIT_TOKEN_EUID: usize = 1;
 
 /// The PID a token names.
 pub fn token_pid(token: &[u32; 8]) -> i32 {
@@ -78,6 +77,8 @@ pub enum ExecOutcome {
 /// The PID-keyed table of members, capacity fixed at construction.
 pub struct MembershipTable {
     slots: Vec<Option<Entry>>,
+    root_pid: Option<i32>,
+    root_entered: bool,
 }
 
 impl MembershipTable {
@@ -85,7 +86,24 @@ impl MembershipTable {
     pub fn new(capacity: usize) -> Self {
         Self {
             slots: Vec::with_capacity(capacity),
+            root_pid: None,
+            root_entered: false,
         }
+    }
+
+    /// Bind the attempt's root before replaying events. Merely knowing a PID
+    /// is not evidence of entry: an event must actually put it in the table.
+    pub fn expect_root(&mut self, pid: i32) {
+        if self.root_pid == Some(pid) {
+            return;
+        }
+        self.root_pid = Some(pid);
+        let entered = self.live().any(|entry| entry.pid == pid);
+        self.root_entered = entered;
+    }
+
+    pub fn root_entered(&self) -> bool {
+        self.root_entered
     }
 
     pub fn capacity(&self) -> usize {
@@ -119,11 +137,12 @@ impl MembershipTable {
         // Reuse a freed slot in place; grow only inside the fixed capacity.
         if let Some(slot) = self.slots.iter_mut().position(|slot| slot.is_none()) {
             self.slots[slot] = Some(entry);
+            self.root_entered |= self.root_pid == Some(entry.pid);
             return Ok(());
         }
         if self.slots.len() < self.slots.capacity() {
             self.slots.push(Some(entry));
-            debug_assert!(self.slots.len() <= self.slots.capacity());
+            self.root_entered |= self.root_pid == Some(entry.pid);
             return Ok(());
         }
         Err(MembershipError::Full)
@@ -136,15 +155,23 @@ impl MembershipTable {
         let uid = token_ruid(&token);
         match self.find(&token) {
             Some(index) => {
-                let entry = self.slots[index]
-                    .as_mut()
-                    .expect("find returned a live index");
-                let outcome = if token_ruid(&entry.token) != uid {
+                let Some(entry) = self.slots[index].as_mut() else {
+                    return Err(MembershipError::Unknown);
+                };
+                // Darwin's signal permission test involves the target's real
+                // and saved UID. The token has no saved UID. Check real UID
+                // and also effective UID: setuid exec commonly preserves real
+                // UID while changing effective/saved UID. Conservatively veto
+                // proof on either change instead of claiming signal authority.
+                let outcome = if token_ruid(&entry.token) != uid
+                    || entry.token[AUDIT_TOKEN_EUID] != token[AUDIT_TOKEN_EUID]
+                {
                     ExecOutcome::UidChanged
                 } else {
                     ExecOutcome::Replaced
                 };
                 entry.token = token;
+                entry.pidversion = token_pidversion(&token);
                 entry.stopped = false;
                 Ok(outcome)
             }
@@ -160,11 +187,15 @@ impl MembershipTable {
     /// sequence tracker, not the table, decides what that means.
     pub fn exit(&mut self, token: &[u32; 8]) -> Result<(), MembershipError> {
         match self.find(token) {
-            Some(index) => {
+            Some(index)
+                if self.slots[index]
+                    .as_ref()
+                    .is_some_and(|entry| entry.token == *token) =>
+            {
                 self.slots[index] = None;
                 Ok(())
             }
-            None => Err(MembershipError::Unknown),
+            _ => Err(MembershipError::Unknown),
         }
     }
 
@@ -216,11 +247,13 @@ impl MembershipTable {
     pub fn mark_stopped(&mut self, token: &[u32; 8]) -> bool {
         match self.find(token) {
             Some(index) => {
-                self.slots[index]
-                    .as_mut()
-                    .expect("find returned a live index")
-                    .stopped = true;
-                true
+                if let Some(entry) = self.slots[index].as_mut()
+                    && entry.token == *token
+                {
+                    entry.stopped = true;
+                    return true;
+                }
+                false
             }
             None => false,
         }

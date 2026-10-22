@@ -41,6 +41,19 @@ unsafe extern "C" {
 /// `POSIX_SPAWN_SETSID` (sys/spawn.h): the child starts a new session —
 /// every launcher does (§4.3 step 2).
 const POSIX_SPAWN_SETSID: libc::c_int = 0x0400;
+const POSIX_SPAWN_CLOEXEC_DEFAULT: libc::c_int = 0x4000;
+
+/// Guardian-private descriptors must also be protected against any exec
+/// outside this spawn's allowlist.
+pub fn set_close_on_exec(fd: i32) -> Result<(), SpawnError> {
+    // SAFETY: fcntl validates the inherited descriptor; no ownership transfer.
+    let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+    // SAFETY: same descriptor, only its close-on-exec flag changes.
+    if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) } < 0 {
+        return Err(os("fcntl FD_CLOEXEC"));
+    }
+    Ok(())
+}
 
 #[derive(Debug)]
 pub struct SpawnError(&'static str, String);
@@ -138,9 +151,14 @@ pub fn spawn_sandbox_exec(block: &LaunchBlock) -> Result<i32, SpawnError> {
                     }
                 }
                 FdAction::Fd(source) => {
-                    if libc::posix_spawn_file_actions_adddup2(&mut actions.0, *source, target) != 0
-                    {
-                        return Err(os("posix_spawn_file_actions_adddup2"));
+                    let result = if *source == target {
+                        // dup2(fd, fd) preserves CLOEXEC on macOS 27.
+                        posix_spawn_file_actions_addinherit_np(&mut actions.0, target)
+                    } else {
+                        libc::posix_spawn_file_actions_adddup2(&mut actions.0, *source, target)
+                    };
+                    if result != 0 {
+                        return Err(SpawnError("stdio action", format!("errno {result}")));
                     }
                 }
             }
@@ -150,11 +168,15 @@ pub fn spawn_sandbox_exec(block: &LaunchBlock) -> Result<i32, SpawnError> {
         // so the child's copies are cleared explicitly. The pty slave is
         // inherited the same way in terminal mode.
         let mut inherited = vec![block.launcher_read_fd, block.launcher_error_fd];
-        for action in block.stdio {
-            if let FdAction::Fd(source) = action {
-                inherited.push(source);
+        if block.terminal {
+            for action in block.stdio {
+                if let FdAction::Fd(source) = action {
+                    inherited.push(source);
+                }
             }
         }
+        inherited.sort_unstable();
+        inherited.dedup();
         for fd in inherited {
             if fd < 0 {
                 continue;
@@ -183,7 +205,7 @@ pub fn spawn_sandbox_exec(block: &LaunchBlock) -> Result<i32, SpawnError> {
     // SAFETY: `attributes.0` is initialized; flags, sigsets and the mask are
     // the spawn attributes of §4.2/§4.3.
     unsafe {
-        let mut flags = 0;
+        let mut flags = POSIX_SPAWN_CLOEXEC_DEFAULT;
         if block.setsid {
             flags |= POSIX_SPAWN_SETSID;
         }
@@ -260,6 +282,8 @@ pub fn close_after_spawn(block: &LaunchBlock) {
             fds.push(source);
         }
     }
+    fds.sort_unstable();
+    fds.dedup();
     for fd in fds {
         if fd >= 0 {
             // SAFETY: plain close of a descriptor this process owns.

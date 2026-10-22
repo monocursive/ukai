@@ -43,7 +43,8 @@ int32_t ukai_es_new_descendants(ukai_es_client_t **out);
 /* es_unmute_all_paths + es_unmute_all_target_paths (§4.3 step 1). */
 bool ukai_es_unmute_all(ukai_es_client_t *client);
 
-/* Whether `event_type` is still muted by the default mute set (§4.3 step 1:
+/* `event_type` is UKAI_ES_EVENT_*, translated to the SDK enum here.
+ * Whether that custody event is still muted by the default mute set (§4.3 step 1:
  * refuse the client if any custody event stays muted). Fails closed: on a
  * readback error it reports the event as still muted. Allocates inside the
  * ES framework to answer, so it belongs to client creation only. */
@@ -52,10 +53,11 @@ bool ukai_es_muted_paths_events(ukai_es_client_t *client, uint32_t event_type);
 /* Subscribes NOTIFY_FORK, NOTIFY_EXEC, NOTIFY_EXIT — nothing else. */
 bool ukai_es_subscribe_custody(ukai_es_client_t *client);
 
+/* Step 3: set and read back fail-closed before readiness or any spawn. */
+bool ukai_es_prepare_guard(ukai_es_client_t *client);
+
 /* The guard subscription (§4.5 step 1): AUTH_SIGNAL,
- * AUTH_PROC_SUSPEND_RESUME and AUTH_EXEC; sets and reads back
- * ES_DEADLINE_MISS_MODE_FAIL_CLOSED (fail-closed denies a late answer and
- * never kills the client). Its callback denies every request inline, never
+ * AUTH_PROC_SUSPEND_RESUME and AUTH_EXEC. Its callback denies every request inline, never
  * caches a result, counts denials atomically and never kills the client. */
 bool ukai_es_subscribe_guard(ukai_es_client_t *client);
 
@@ -71,7 +73,8 @@ bool ukai_es_poll(ukai_es_client_t *client, ukai_es_event *out);
  * treats it as `gap` (§4.4, §4.5). */
 bool ukai_es_ring_overflowed(ukai_es_client_t *client);
 
-/* es_sync_client + semaphore with a wall timeout. */
+/* One outstanding es_sync_client marker, reusable block and generation-
+ * checked semaphore with a wall timeout. Late wakes never prove a new sync. */
 bool ukai_es_drain(ukai_es_client_t *client, uint32_t timeout_ms);
 
 /* Denials counted by the guard callback since client creation. */

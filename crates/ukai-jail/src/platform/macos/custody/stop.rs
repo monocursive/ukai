@@ -109,6 +109,9 @@ pub struct StopMachine {
     /// new token when the exec event arrives (§4.5 step 2). Bounded by the
     /// table capacity, like the table.
     pending_exec_retries: Vec<i32>,
+    resume_phase: Phase,
+    finished_reason: Option<StopNotDrainedReason>,
+    best_effort: bool,
 }
 
 impl StopMachine {
@@ -129,7 +132,61 @@ impl StopMachine {
             signalled: 0,
             arrived_since_sweep: false,
             pending_exec_retries: Vec::with_capacity(capacity),
+            resume_phase: Phase::Idle,
+            finished_reason: None,
+            best_effort: false,
         }
+    }
+
+    /// Configure an idle stop without replacing its sticky evidence or
+    /// allocating another retry vector.
+    pub fn configure(&mut self, settle_ns: u64, budget_ns: u64) {
+        if self.phase == Phase::Idle {
+            self.settle_ns = settle_ns;
+            self.budget_ns = budget_ns;
+        }
+    }
+
+    /// Extend a budget-exhausted stop in place. Its phase, evidence,
+    /// original start time, counters and pending retries survive the tail.
+    pub fn extend_budget(&mut self, budget_ns: u64) -> bool {
+        if self.phase != Phase::Finished
+            || self.finished_reason != Some(StopNotDrainedReason::Budget)
+            || budget_ns <= self.budget_ns
+        {
+            return false;
+        }
+        self.budget_ns = budget_ns;
+        self.phase = self.resume_phase;
+        self.finished_reason = None;
+        true
+    }
+
+    /// Resume signalling known members after evidence loss. This never
+    /// clears the veto: completion still reports Gap/Integrity, even if all
+    /// known members exit. Only the guardian uses the bounded continuation.
+    pub fn continue_after_loss(&mut self, budget_ns: u64) -> bool {
+        if self.phase != Phase::Finished
+            || self.best_effort
+            || !matches!(
+                self.finished_reason,
+                Some(StopNotDrainedReason::Gap | StopNotDrainedReason::Integrity)
+            )
+        {
+            return false;
+        }
+        self.best_effort = true;
+        self.budget_ns = budget_ns;
+        self.phase = self.resume_phase;
+        self.finished_reason = None;
+        true
+    }
+
+    /// Exit events retire retry slots, including an ESRCH followed directly
+    /// by exit (there need not be another exec).
+    pub fn on_exit(&mut self, token: &[u32; 8]) {
+        let pid = super::table::token_pid(token);
+        self.pending_exec_retries.retain(|pending| *pending != pid);
     }
 
     /// Whether the stop has begun (the arrival and exec hooks act only then).
@@ -141,12 +198,9 @@ impl StopMachine {
     /// `guard_active` (§4.5 step 1). The supervisor's stop has no guard and
     /// never calls this; safety is unaffected, liveness is weaker.
     pub fn arm_guard(&mut self) {
-        assert_eq!(
-            self.phase,
-            Phase::Idle,
-            "the guard is armed before the stop begins"
-        );
-        self.guard_active = true;
+        if self.phase == Phase::Idle {
+            self.guard_active = true;
+        }
     }
 
     pub fn guard_active(&self) -> bool {
@@ -183,14 +237,16 @@ impl StopMachine {
     /// Starts the stop at `now_ns`, moving straight into the freeze (§4.5
     /// step 2). The guard step belongs to the caller's client setup.
     pub fn begin(&mut self, now_ns: u64) {
-        assert_eq!(self.phase, Phase::Idle, "a stop begins once");
+        if self.phase != Phase::Idle {
+            return; // Repeated stop requests are idempotent, never a restart.
+        }
         self.start_ns = Some(now_ns);
         self.next_sweep_ns = now_ns;
         self.phase = Phase::Freezing;
     }
 
     fn elapsed_ns(&self, now_ns: u64) -> u64 {
-        now_ns - self.start_ns.expect("begin() was called")
+        now_ns.saturating_sub(self.start_ns.unwrap_or(now_ns))
     }
 
     /// The custodian reports a newly entered member while it holds no
@@ -215,7 +271,7 @@ impl StopMachine {
             _ => SIGKILL,
         };
         self.arrived_since_sweep = true;
-        self.signalled += 1;
+        self.signalled = self.signalled.saturating_add(1);
         let errno = signaller.signal(token, sig);
         if errno == libc::ESRCH {
             self.note_esrch(token);
@@ -237,7 +293,7 @@ impl StopMachine {
             .position(|pending| *pending == pid)
         {
             self.pending_exec_retries.swap_remove(index);
-            self.signalled += 1;
+            self.signalled = self.signalled.saturating_add(1);
             let sig = match self.phase {
                 Phase::Freezing => SIGSTOP,
                 _ => SIGKILL,
@@ -266,8 +322,11 @@ impl StopMachine {
     }
 
     fn sweep(&mut self, table: &mut MembershipTable, signaller: &mut dyn Signaller, sig: i32) {
-        self.sweeps += 1;
+        self.sweeps = self.sweeps.saturating_add(1);
         let freeze = sig == SIGSTOP;
+        if freeze {
+            table.mark_all_unstopped();
+        }
         for index in 0..table.slot_count() {
             let Some(token) = table
                 .entry_at(index)
@@ -276,7 +335,7 @@ impl StopMachine {
             else {
                 continue;
             };
-            self.signalled += 1;
+            self.signalled = self.signalled.saturating_add(1);
             match signaller.signal(&token, sig) {
                 0 if freeze => {
                     // The sweep's SIGSTOP landed: the member is stopped.
@@ -313,13 +372,24 @@ impl StopMachine {
         // first — a gapped stream can hold a live descendant no exit event
         // will ever name, and a user change means the custodian can no
         // longer answer for the tree — even with an empty table.
-        if self.gap {
-            return Some(self.finish(StopNotDrainedReason::Gap, elapsed));
-        }
-        if self.integrity {
-            return Some(self.finish(StopNotDrainedReason::Integrity, elapsed));
+        let loss = if self.gap {
+            Some(StopNotDrainedReason::Gap)
+        } else if self.integrity {
+            Some(StopNotDrainedReason::Integrity)
+        } else {
+            None
+        };
+        if let Some(reason) = loss
+            && (!self.best_effort || table.live_count() == 0 || elapsed >= self.budget_ns)
+        {
+            return Some(self.finish(reason, elapsed));
         }
         if table.live_count() == 0 {
+            if !table.root_entered() {
+                self.mark_gap();
+                return Some(self.finish(StopNotDrainedReason::Gap, elapsed));
+            }
+            self.phase = Phase::Finished;
             return Some(StopResult::Drained {
                 elapsed_ns: elapsed,
                 sweeps: self.sweeps,
@@ -342,22 +412,24 @@ impl StopMachine {
                     if settled {
                         self.phase = Phase::Killing;
                     }
-                    self.next_sweep_ns = now_ns + self.settle_ns;
+                    self.next_sweep_ns = now_ns.saturating_add(self.settle_ns);
                 }
             }
             Phase::Killing => {
                 if now_ns >= self.next_sweep_ns {
                     self.sweep(table, signaller, SIGKILL);
-                    self.next_sweep_ns = now_ns + self.settle_ns;
+                    self.next_sweep_ns = now_ns.saturating_add(self.settle_ns);
                 }
             }
-            _ => unreachable!("the idle and finished phases return above"),
+            Phase::Idle | Phase::Finished => {}
         }
         None
     }
 
     fn finish(&mut self, reason: StopNotDrainedReason, elapsed: u64) -> StopResult {
+        self.resume_phase = self.phase;
         self.phase = Phase::Finished;
+        self.finished_reason = Some(reason);
         StopResult::NotDrained {
             reason,
             elapsed_ns: elapsed,

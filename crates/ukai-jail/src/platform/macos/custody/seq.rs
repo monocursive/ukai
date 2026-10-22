@@ -1,7 +1,12 @@
 //! Custody stream sequencing (jail-macos §4.4).
 //!
 //! Every custody message carries `global_seq_num` overall and `seq_num` per
-//! event type. The first seen value initializes the tracker; any jump —
+//! event type. ESMessage.h documents increments but no initial baseline.
+//! Initial 0 or 1 is accepted (both conventions); a higher first value is
+//! conservatively a gap. Drops before the first delivered value remain
+//! undetectable within that ambiguity, so `contiguous` describes observed
+//! continuity, not verified delivery from client creation. Root entry is an
+//! independent prerequisite for a drain. Any subsequent jump —
 //! missing or repeated — marks the stream `gapped` permanently for the rest
 //! of the attempt. The prototype's exact rule is kept: a message too old to
 //! carry the custody fields (`m->version < 4`, measured) is an
@@ -50,32 +55,35 @@ impl SeqTracker {
     /// assumed) — marks the stream gapped permanently (§4.4).
     pub fn apply(&mut self, kind: CustodyKind, global_seq: u64, seq: u64) {
         if self.gapped {
-            self.counts[kind.index()] += 1;
+            self.counts[kind.index()] = self.counts[kind.index()].saturating_add(1);
+            return;
+        }
+        if (self.global.is_none() && global_seq > 1)
+            || (self.per_type[kind.index()].is_none() && seq > 1)
+        {
+            self.gapped = true;
+            self.counts[kind.index()] = self.counts[kind.index()].saturating_add(1);
             return;
         }
         match self.global {
             None => self.global = Some(global_seq),
             // The prototype's rule: `global_seq_num != sequence + 1` is a gap.
-            Some(previous) if global_seq == previous + 1 => self.global = Some(global_seq),
+            Some(previous) if Some(global_seq) == previous.checked_add(1) => {
+                self.global = Some(global_seq)
+            }
             Some(_) => {
                 self.gapped = true;
-                self.counts[kind.index()] += 1;
+                self.counts[kind.index()] = self.counts[kind.index()].saturating_add(1);
                 return;
             }
         }
         let slot = &mut self.per_type[kind.index()];
         match *slot {
             None => *slot = Some(seq),
-            Some(previous) if seq == previous + 1 => *slot = Some(seq),
+            Some(previous) if Some(seq) == previous.checked_add(1) => *slot = Some(seq),
             Some(_) => self.gapped = true,
         }
-        self.counts[kind.index()] += 1;
-    }
-
-    /// The invalid-version input of the prototype's rule: a message whose
-    /// version predates the custody fields gaps the stream permanently.
-    pub fn apply_invalid_version(&mut self) {
-        self.gapped = true;
+        self.counts[kind.index()] = self.counts[kind.index()].saturating_add(1);
     }
 
     /// Whether the stream has ever gapped. Sticky.
@@ -140,14 +148,6 @@ mod tests {
         // sequence by two (§4.4: a jump in either number counts dropped
         // messages).
         tracker.apply(CustodyKind::Exec, 4, 3);
-        assert!(tracker.gapped());
-    }
-
-    #[test]
-    fn an_invalid_version_input_gaps_the_stream() {
-        let mut tracker = SeqTracker::new();
-        sequence_ok(&mut tracker);
-        tracker.apply_invalid_version();
         assert!(tracker.gapped());
     }
 

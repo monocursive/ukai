@@ -88,6 +88,11 @@ fn exit(
 }
 
 fn feed(custodian: &mut Custodian, events: &[(CustodyKind, u64, u64, EsEvent)]) {
+    if let Some((_, _, _, event)) = events.first()
+        && custodian.seq().counts() == [0; 3]
+    {
+        custodian.expect_root(event.token()[AUDIT_TOKEN_PID] as i32);
+    }
     for (kind, global, seq, event) in events {
         custodian.apply_sequenced(*kind, *global, *seq, event);
     }
@@ -216,6 +221,7 @@ fn an_exit_that_precedes_its_fork_marks_the_stream_gapped() {
 #[test]
 fn deep_fork_chains_reuse_their_slots_and_drain() {
     let mut custodian = Custodian::new(16).with_stop(SETTLE_NS, BUDGET_NS);
+    custodian.expect_root(1000);
     // A chain of 16 members; every fourth exits before the next fork, so the
     // live set stays inside the table while far more than 8 PIDs pass
     // through it (slot reuse, §4.4).
@@ -561,6 +567,7 @@ fn freeze_settles_only_when_no_new_member_arrives_between_sweeps() {
     let mut custodian = Custodian::new(8).with_stop(SETTLE_NS, BUDGET_NS);
     custodian.begin_stop(0);
     let mut signaller = RecordingSignaller::default();
+    custodian.expect_root(100);
     // A new member arrives before each of the first two sweeps.
     for (index, pid) in [100u32, 101].into_iter().enumerate() {
         let arrival = fork(index as u64 + 1, index as u64 + 1, pid, 1, 501);
@@ -675,6 +682,9 @@ fn adversarial_interleavings_never_drain_into_a_false_empty_tree() {
                     fork_seq += 1;
                     let pidversion = 1 + (next() % 3) as u32;
                     let event = fork(global, fork_seq, pid, pidversion, 501);
+                    if global == 1 {
+                        custodian.expect_root(pid as i32);
+                    }
                     custodian.apply_sequenced(event.0, event.1, event.2, &event.3);
                     global += 1;
                     live.retain(|(seen, _)| *seen != pid);
@@ -840,4 +850,273 @@ fn this_process_audit_token_reads_pid_and_uid() {
         "audit token field {} is the real UID on this Mac",
         AUDIT_TOKEN_RUID
     );
+}
+
+// Fix-wave regressions: these use the existing public API so they also run
+// unchanged against 2da5c8d13.
+#[test]
+fn regression_c5_token_layout_matches_libbsm() {
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct AuditToken {
+        val: [u32; 8],
+    }
+    #[link(name = "bsm")]
+    unsafe extern "C" {
+        fn audit_token_to_ruid(token: AuditToken) -> u32;
+        fn audit_token_to_rgid(token: AuditToken) -> u32;
+    }
+    let token = AuditToken {
+        val: [101, 102, 103, 104, 105, 106, 107, 108],
+    };
+    // SAFETY: libbsm takes this fixed eight-word token by value.
+    unsafe {
+        assert_eq!(token.val[AUDIT_TOKEN_RUID], audit_token_to_ruid(token));
+        assert_eq!(
+            token.val[ukai_jail::platform::macos::custody::AUDIT_TOKEN_RGID],
+            audit_token_to_rgid(token)
+        );
+    }
+}
+
+#[test]
+fn regression_c6_empty_without_root_never_drains() {
+    let mut custodian = Custodian::new(1).with_stop(1, 10);
+    custodian.begin_stop(0);
+    assert!(
+        !custodian
+            .tick(0, &mut RecordingSignaller::default())
+            .unwrap()
+            .drained()
+    );
+}
+
+#[test]
+fn regression_c8_exec_into_full_table_is_integrity_loss() {
+    let mut custodian = Custodian::new(1);
+    custodian.apply_event(&EsEvent::Fork {
+        token: token(100, 1, 501),
+    });
+    custodian.apply_event(&EsEvent::Exec {
+        token: token(101, 2, 501),
+    });
+    assert!(custodian.integrity_loss());
+}
+
+#[test]
+fn regression_l1_exited_esrch_entries_do_not_exhaust_retries() {
+    let mut custodian = Custodian::new(1).with_stop(1, 100);
+    custodian.begin_stop(0);
+    let mut signaller = RecordingSignaller {
+        esrch: vec![100, 101, 102],
+        ..Default::default()
+    };
+    for pid in 100..103 {
+        custodian.apply_event(&EsEvent::Fork {
+            token: token(pid, 1, 501),
+        });
+        assert!(
+            custodian
+                .tick(u64::from(pid - 100), &mut signaller)
+                .is_none()
+        );
+        custodian.apply_event(&EsEvent::Exit {
+            token: token(pid, 1, 501),
+            status: 0,
+        });
+        assert!(
+            !custodian.integrity_loss(),
+            "retry for exited PID {pid} leaked"
+        );
+    }
+}
+
+#[test]
+fn regression_l4_noninitial_first_sequence_is_a_gap() {
+    let mut tracker = ukai_jail::platform::macos::custody::SeqTracker::new();
+    tracker.apply(CustodyKind::Fork, 5000, 700);
+    assert!(tracker.gapped());
+}
+
+#[test]
+fn regression_c2_begin_twice_does_not_panic() {
+    let mut custodian = Custodian::new(1).with_stop(1, 10);
+    custodian.begin_stop(0);
+    custodian.begin_stop(1);
+}
+
+#[test]
+fn registered_custodian_exit_is_not_a_member_exit_or_gap() {
+    use ukai_jail::platform::macos::custody::Applied;
+    let mut custody = Custodian::new(4).with_stop(1, 100);
+    let guardian = token(99, 1, 501);
+    custody.register_custodian(guardian).unwrap();
+    custody.expect_root(100);
+    feed(&mut custody, &[fork(1, 1, 100, 1, 501)]);
+    let outcome = custody.apply_sequenced(
+        CustodyKind::Exit,
+        2,
+        1,
+        &EsEvent::Exit {
+            token: guardian,
+            status: 9,
+        },
+    );
+    assert_eq!(outcome, Applied::CustodianIgnored);
+    assert!(!custody.gapped());
+    assert_eq!(custody.live_count(), 1);
+    // The exclusion ends with this identity's exit, not every future PID 99.
+    custody.apply_sequenced(
+        CustodyKind::Fork,
+        3,
+        2,
+        &EsEvent::Fork {
+            token: token(99, 20, 501),
+        },
+    );
+    assert_eq!(custody.live_count(), 2);
+}
+
+#[test]
+fn handshake_replay_preserves_root_exec_exit_and_sequences() {
+    use ukai_jail::platform::macos::es::EsPoll;
+    let mut custody = Custodian::new(4).with_stop(1, 100);
+    custody.expect_root(100);
+    let guardian = token(99, 1, 501);
+    custody.register_custodian(guardian).unwrap();
+    let events = [
+        EsPoll {
+            kind: es::EVENT_FORK,
+            global_seq: 1,
+            seq: 1,
+            event: EsEvent::Fork { token: guardian },
+        },
+        EsPoll {
+            kind: es::EVENT_FORK,
+            global_seq: 2,
+            seq: 2,
+            event: EsEvent::Fork {
+                token: token(100, 1, 501),
+            },
+        },
+        EsPoll {
+            kind: es::EVENT_EXEC,
+            global_seq: 3,
+            seq: 1,
+            event: EsEvent::Exec {
+                token: token(100, 2, 501),
+            },
+        },
+        EsPoll {
+            kind: es::EVENT_EXIT,
+            global_seq: 4,
+            seq: 1,
+            event: EsEvent::Exit {
+                token: token(100, 2, 501),
+                status: 0,
+            },
+        },
+    ];
+    custody.replay_handshake(&events);
+    assert_eq!(custody.seq().counts(), [2, 1, 1]);
+    assert_eq!(custody.live_count(), 0);
+    custody.begin_stop(0);
+    assert!(
+        custody
+            .tick(0, &mut RecordingSignaller::default())
+            .unwrap()
+            .drained()
+    );
+}
+
+#[test]
+fn an_unrelated_member_cannot_substitute_for_root_entry() {
+    let mut custody = Custodian::new(4).with_stop(1, 100);
+    custody.expect_root(100);
+    custody.apply_event(&EsEvent::Fork {
+        token: token(101, 1, 501),
+    });
+    custody.apply_event(&EsEvent::Exit {
+        token: token(101, 1, 501),
+        status: 0,
+    });
+    custody.begin_stop(0);
+    assert!(
+        !custody
+            .tick(0, &mut RecordingSignaller::default())
+            .unwrap()
+            .drained()
+    );
+}
+
+#[test]
+fn effective_uid_change_is_an_integrity_loss_even_when_real_uid_stays() {
+    let mut custody = Custodian::new(1);
+    let mut before = token(100, 1, 501);
+    before[1] = 501; // effective UID, independently of our exported constant
+    custody.apply_event(&EsEvent::Fork { token: before });
+    let mut after = before;
+    after[7] += 1;
+    after[1] = 0;
+    custody.apply_event(&EsEvent::Exec { token: after });
+    assert!(custody.integrity_loss());
+}
+
+#[test]
+fn stop_configuration_keeps_existing_gap_and_integrity_evidence() {
+    for integrity in [true, false] {
+        let mut custody = Custodian::new(1);
+        custody.expect_root(100);
+        custody.apply_event(&EsEvent::Fork {
+            token: token(100, 1, 501),
+        });
+        custody.apply_event(&EsEvent::Exit {
+            token: token(100, 1, 501),
+            status: 0,
+        });
+        if integrity {
+            custody.mark_integrity();
+        } else {
+            custody.note_stream_gap();
+        }
+        let mut custody = custody.with_stop(1, 100);
+        custody.begin_stop(0);
+        assert!(
+            !custody
+                .tick(0, &mut RecordingSignaller::default())
+                .unwrap()
+                .drained()
+        );
+    }
+}
+
+#[test]
+fn exec_holds_freeze_open_and_clears_stopped_mark_m23_m27() {
+    let mut custody = Custodian::new(2).with_stop(10, 100);
+    custody.expect_root(100);
+    custody.begin_stop(0);
+    custody.apply_event(&EsEvent::Fork {
+        token: token(100, 1, 501),
+    });
+    let mut signals = RecordingSignaller::default();
+    custody.tick(0, &mut signals); // Arrival keeps this first freeze open.
+    assert!(custody.table().entry_at(0).unwrap().stopped);
+    custody.apply_event(&EsEvent::Exec {
+        token: token(100, 2, 501),
+    });
+    let member = custody.table().entry_at(0).unwrap();
+    assert!(
+        !member.stopped,
+        "M27: exec invalidates the old stopped mark"
+    );
+    assert_eq!(member.pidversion, 2);
+    custody.tick(10, &mut signals); // Exec arrived between freeze sweeps.
+    custody.tick(20, &mut signals); // First quiet sweep can finish the freeze.
+    assert_eq!(
+        signals.calls_to(100, libc::SIGKILL),
+        0,
+        "M23: exec holds the freeze open"
+    );
+    custody.tick(30, &mut signals);
+    assert_eq!(signals.calls_to(100, libc::SIGKILL), 1);
 }

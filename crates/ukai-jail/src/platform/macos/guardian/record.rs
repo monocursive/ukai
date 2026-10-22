@@ -47,6 +47,10 @@ pub struct GuardianRecord {
     /// Whether G′ was armed for the stop; `false` also when the
     /// subscription failed and the stop proceeded unguarded (§4.5 step 1).
     pub guard_armed: bool,
+    /// ES documents increments, not a first-value baseline. Drops before
+    /// the first delivered message cannot be distinguished within the
+    /// accepted 0/1 start convention; disclose this on every record.
+    pub sequence_start: &'static str,
 }
 
 /// Map the engine's failure reason to the record's reason vocabulary.
@@ -60,9 +64,30 @@ pub fn reason_name(reason: StopNotDrainedReason) -> &'static str {
 
 /// Render the record as the exact bytes written to the file and sent on B.
 pub fn render(record: &GuardianRecord) -> String {
-    let mut value = serde_json::to_string(record).expect("the record serializes");
+    let mut value = serde_json::to_string(record).unwrap_or_default();
     value.push('\n');
     value
+}
+
+/// Serialize once into bounded stack storage and attempt both sinks. The
+/// file was opened before release. Failure of one sink never suppresses the
+/// other; the record and B carry identical bytes when both writes succeed.
+pub fn deliver(
+    record: &GuardianRecord,
+    file: &mut dyn std::io::Write,
+    b: &mut dyn std::io::Write,
+) -> std::io::Result<()> {
+    use std::io::Write as _;
+    let mut wire = [0u8; super::frames::MAX_FRAME_BYTES + 4];
+    wire[4..11].copy_from_slice(b"record ");
+    let mut json = std::io::Cursor::new(&mut wire[11..]);
+    serde_json::to_writer(&mut json, record).map_err(std::io::Error::other)?;
+    json.write_all(b"\n")?;
+    let end = 11 + json.position() as usize;
+    wire[..4].copy_from_slice(&((end - 4) as u32).to_le_bytes());
+    let persisted = file.write_all(&wire[11..end]).and_then(|()| file.flush());
+    let sent = b.write_all(&wire[..end]);
+    persisted.and(sent)
 }
 
 /// The guardian's tallies that travel with the stop result into the record.
@@ -114,6 +139,7 @@ pub fn from_stop_result(
         boot_session,
         members_peak: facts.members_peak,
         guard_armed: facts.guard_armed,
+        sequence_start: "unverified",
     }
 }
 
@@ -196,6 +222,7 @@ mod tests {
         let json = render(&record);
         let value: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         assert_eq!(value["schema"], "ukai.jail.guardian-record/1");
+        assert_eq!(value["sequence_start"], "unverified");
         assert_eq!(value["drained"], true);
         assert_eq!(value["reason"], serde_json::Value::Null);
         assert_eq!(value["forks"], 12);

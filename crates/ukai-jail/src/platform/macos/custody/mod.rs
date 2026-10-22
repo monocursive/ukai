@@ -21,7 +21,7 @@ use crate::platform::macos::es::EsEvent;
 pub use seq::{CustodyKind, SeqTracker};
 pub use stop::{SIGKILL, SIGSTOP, Signaller, StopMachine, StopNotDrainedReason, StopResult};
 pub use table::{
-    AUDIT_TOKEN_PID, AUDIT_TOKEN_PIDVERSION, AUDIT_TOKEN_RGID, AUDIT_TOKEN_RUID,
+    AUDIT_TOKEN_EUID, AUDIT_TOKEN_PID, AUDIT_TOKEN_PIDVERSION, AUDIT_TOKEN_RGID, AUDIT_TOKEN_RUID,
     Entry as MembershipEntry, ExecOutcome, MAX_TABLE_CAPACITY, MembershipError, MembershipTable,
     table_capacity,
 };
@@ -38,6 +38,8 @@ pub enum Applied {
     ExitRemoved,
     /// An exit the table never held; the sequence tracker's view governs.
     ExitUnknown,
+    /// A registered custodian, counted in the stream but never a member.
+    CustodianIgnored,
 }
 
 /// One custodian's view: its stream sequence, its membership table and, at
@@ -47,6 +49,7 @@ pub struct Custodian {
     table: MembershipTable,
     stop: StopMachine,
     integrity: bool,
+    custodians: [Option<[u32; 8]>; 2],
 }
 
 impl Custodian {
@@ -59,15 +62,91 @@ impl Custodian {
             table: MembershipTable::new(capacity),
             stop: StopMachine::new(0, 0, capacity),
             integrity: false,
+            custodians: [None; 2],
         }
     }
 
     /// The stop parameters are fixed at construction: the settle interval
     /// (initial 20 ms) and the budget (initial 5 s) of §4.5.
     pub fn with_stop(mut self, settle_ns: u64, budget_ns: u64) -> Self {
-        let capacity = self.table.capacity();
-        self.stop = StopMachine::new(settle_ns, budget_ns, capacity);
+        self.stop.configure(settle_ns, budget_ns);
         self
+    }
+
+    /// Register the launcher PID before applying or replaying its events.
+    /// An empty table cannot prove a drain until this root entered it.
+    pub fn expect_root(&mut self, pid: i32) {
+        self.table.expect_root(pid);
+    }
+
+    /// Exclude a known custodian from membership. Register its initial token
+    /// before handshake replay; subsequent execs update that identity until
+    /// its exit. A later PID reuse is not excluded. Two slots cover S and G.
+    pub fn register_custodian(&mut self, token: [u32; 8]) -> Result<(), MembershipError> {
+        let slot = self
+            .custodians
+            .iter()
+            .position(|known| *known == Some(token))
+            .or_else(|| self.custodians.iter().position(Option::is_none));
+        let Some(slot) = slot else {
+            self.mark_integrity();
+            return Err(MembershipError::Full);
+        };
+        self.custodians[slot] = Some(token);
+        if self.table.contains_token(&token) {
+            let _ = self.table.exit(&token);
+            self.stop.on_exit(&token);
+        }
+        Ok(())
+    }
+
+    /// Replay already-drained handshake events in original delivery order,
+    /// with their sequence numbers. No allocation, filtering or reordering.
+    pub fn replay_handshake(&mut self, events: &[crate::platform::macos::es::EsPoll]) {
+        for event in events {
+            self.apply_polled(event);
+        }
+    }
+
+    pub fn apply_polled(&mut self, polled: &crate::platform::macos::es::EsPoll) -> Applied {
+        use crate::platform::macos::es::{EVENT_EXEC, EVENT_EXIT, EVENT_FORK};
+        let (kind, raw) = match polled.event {
+            EsEvent::Fork { .. } => (CustodyKind::Fork, EVENT_FORK),
+            EsEvent::Exec { .. } => (CustodyKind::Exec, EVENT_EXEC),
+            EsEvent::Exit { .. } => (CustodyKind::Exit, EVENT_EXIT),
+        };
+        if polled.kind != raw {
+            self.note_stream_gap();
+        }
+        self.apply_sequenced(kind, polled.global_seq, polled.seq, &polled.event)
+    }
+
+    /// The production stop path: apply the event and signal arrivals and
+    /// stale-token exec retries immediately, before the next sweep.
+    pub fn apply_polled_during_stop(
+        &mut self,
+        polled: &crate::platform::macos::es::EsPoll,
+        signaller: &mut dyn Signaller,
+    ) -> Applied {
+        let applied = self.apply_polled(polled);
+        match applied {
+            Applied::ForkEntered | Applied::ExecEntered => {
+                self.on_arrival(polled.event.token(), signaller)
+            }
+            Applied::ExecReplaced | Applied::ExecUidChanged => {
+                self.on_exec_retry(polled.event.token(), signaller)
+            }
+            _ => {}
+        }
+        applied
+    }
+
+    pub fn extend_stop_budget(&mut self, budget_ns: u64) -> bool {
+        self.stop.extend_budget(budget_ns)
+    }
+
+    pub fn continue_stop_after_loss(&mut self, budget_ns: u64) -> bool {
+        self.stop.continue_after_loss(budget_ns)
     }
 
     /// Feeds one custody event from the ES stream. Never allocates: the
@@ -76,7 +155,23 @@ impl Custodian {
         // §4.4: the first event naming a member enters it; exec replaces the
         // token; exit removes it and frees its slot. The sequence tracker
         // sees every message, gaps included.
+        let token = event.token();
+        if let Some(index) = self.custodians.iter().position(|known| {
+            known.is_some_and(|known| {
+                known == *token
+                    || (matches!(event, EsEvent::Exec { .. })
+                        && table::token_pid(&known) == table::token_pid(token))
+            })
+        }) {
+            self.custodians[index] = if matches!(event, EsEvent::Exit { .. }) {
+                None
+            } else {
+                Some(*token)
+            };
+            return Applied::CustodianIgnored;
+        }
         match *event {
+            EsEvent::Fork { token } if self.table.contains_token(&token) => Applied::ForkKnown,
             EsEvent::Fork { token } => match self.table.enter(token) {
                 Ok(()) => {
                     self.on_entry();
@@ -103,10 +198,16 @@ impl Custodian {
                     self.mark_integrity();
                     Applied::ExecUidChanged
                 }
-                Err(_) => Applied::ExecReplaced,
+                Err(_) => {
+                    self.mark_integrity();
+                    Applied::ExecReplaced
+                }
             },
             EsEvent::Exit { token, status: _ } => match self.table.exit(&token) {
-                Ok(()) => Applied::ExitRemoved,
+                Ok(()) => {
+                    self.stop.on_exit(&token);
+                    Applied::ExitRemoved
+                }
                 Err(_) => {
                     // An exit for a member the table never held: ES enqueues
                     // a fork's message inside the fork (§4.5 safety), so the
@@ -136,13 +237,6 @@ impl Custodian {
     /// during the stop is re-signalled now, with its new token.
     pub fn on_exec_retry(&mut self, token: &[u32; 8], signaller: &mut dyn Signaller) {
         self.stop.on_exec(token, signaller);
-    }
-
-    /// The invalid-version input of the prototype's rule (§4.4): the stream
-    /// is gapped permanently.
-    pub fn note_invalid_version(&mut self) {
-        self.seq.apply_invalid_version();
-        self.stop.mark_gap();
     }
 
     /// The shim's sticky gap flag (ring overflow or a malformed message).

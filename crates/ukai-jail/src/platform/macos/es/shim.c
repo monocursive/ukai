@@ -1,6 +1,7 @@
 #include "shim.h"
 
 #include <dispatch/dispatch.h>
+#include <Block.h>
 #include <errno.h>
 #include <mach/mach.h>
 #include <mach/mach_time.h>
@@ -21,6 +22,9 @@ _Static_assert(sizeof(ukai_es_event) == 64, "custody events are fixed 64-byte re
 struct ukai_es_client {
     es_client_t *es;
     dispatch_semaphore_t synced;
+    void (^sync_block)(void); /* One heap block, allocated before release. */
+    _Atomic uint64_t sync_issued;
+    _Atomic uint64_t sync_completed;
     ukai_es_event *ring; /* UKAI_ES_RING_CAPACITY slots, allocated once. */
     _Atomic uint64_t head;
     _Atomic uint64_t tail;
@@ -117,10 +121,22 @@ int32_t ukai_es_new_descendants(ukai_es_client_t **out) {
         return (int32_t)ES_NEW_CLIENT_RESULT_ERR_INTERNAL;
     }
     ukai_es_client_t *captured = self;
+    self->sync_block = Block_copy(^{
+        uint64_t generation = atomic_load_explicit(&captured->sync_issued, memory_order_acquire);
+        atomic_store_explicit(&captured->sync_completed, generation, memory_order_release);
+        dispatch_semaphore_signal(captured->synced);
+    });
+    if (self->sync_block == NULL) {
+        free(self->ring);
+        dispatch_release(self->synced);
+        free(self);
+        return (int32_t)ES_NEW_CLIENT_RESULT_ERR_INTERNAL;
+    }
     es_new_client_result_t result = es_new_descendants_client(&self->es, ^(es_client_t *client, const es_message_t *m) {
         handle(client, m, captured);
     });
     if (result != ES_NEW_CLIENT_RESULT_SUCCESS) {
+        Block_release(self->sync_block);
         free(self->ring);
         dispatch_release(self->synced);
         free(self);
@@ -135,7 +151,18 @@ bool ukai_es_unmute_all(ukai_es_client_t *client) {
            es_unmute_all_target_paths(client->es) == ES_RETURN_SUCCESS;
 }
 
+static bool custody_event_type(uint32_t kind, es_event_type_t *out) {
+    switch (kind) {
+    case UKAI_ES_EVENT_FORK: *out = ES_EVENT_TYPE_NOTIFY_FORK; return true;
+    case UKAI_ES_EVENT_EXEC: *out = ES_EVENT_TYPE_NOTIFY_EXEC; return true;
+    case UKAI_ES_EVENT_EXIT: *out = ES_EVENT_TYPE_NOTIFY_EXIT; return true;
+    default: return false;
+    }
+}
+
 bool ukai_es_muted_paths_events(ukai_es_client_t *client, uint32_t event_type) {
+    es_event_type_t sdk_type;
+    if (!custody_event_type(event_type, &sdk_type)) { return true; }
     es_muted_paths_t *muted = NULL;
     if (es_muted_paths_events(client->es, &muted) != ES_RETURN_SUCCESS) {
         return true; /* Fail closed: unreadable mute state refuses the client. */
@@ -144,7 +171,7 @@ bool ukai_es_muted_paths_events(ukai_es_client_t *client, uint32_t event_type) {
     for (size_t i = 0; i < muted->count && !still_muted; ++i) {
         const es_muted_path_t *path = &muted->paths[i];
         for (size_t j = 0; j < path->event_count; ++j) {
-            if ((uint32_t)path->events[j] == event_type) {
+            if (path->events[j] == sdk_type) {
                 still_muted = true;
                 break;
             }
@@ -163,7 +190,7 @@ bool ukai_es_subscribe_custody(ukai_es_client_t *client) {
     return es_subscribe(client->es, types, 3) == ES_RETURN_SUCCESS;
 }
 
-bool ukai_es_subscribe_guard(ukai_es_client_t *client) {
+bool ukai_es_prepare_guard(ukai_es_client_t *client) {
     /* Fail-closed: set, then read back (§4.3 step 3). A late or dropped
      * answer is denied, and the client is never killed. */
     es_deadline_miss_mode_t mode = (es_deadline_miss_mode_t)ES_DEADLINE_MISS_MODE_KILL;
@@ -174,6 +201,10 @@ bool ukai_es_subscribe_guard(ukai_es_client_t *client) {
         mode != ES_DEADLINE_MISS_MODE_FAIL_CLOSED) {
         return false;
     }
+    return true;
+}
+
+bool ukai_es_subscribe_guard(ukai_es_client_t *client) {
     const es_event_type_t types[] = {
         ES_EVENT_TYPE_AUTH_SIGNAL,
         ES_EVENT_TYPE_AUTH_PROC_SUSPEND_RESUME,
@@ -206,12 +237,32 @@ bool ukai_es_ring_overflowed(ukai_es_client_t *client) {
     return atomic_load_explicit(&client->gap, memory_order_acquire);
 }
 
+/* A semaphore wake is only a hint. The generation is the evidence: a late
+ * callback for a timed-out request cannot complete a later request. At most
+ * one marker is outstanding; ES retains the preallocated heap block without
+ * copying a new stack block on every drain. The caller is single-threaded. */
+static bool wait_sync(ukai_es_client_t *client, uint64_t generation, dispatch_time_t deadline) {
+    while (atomic_load_explicit(&client->sync_completed, memory_order_acquire) < generation) {
+        if (dispatch_semaphore_wait(client->synced, deadline) != 0) {
+            return atomic_load_explicit(&client->sync_completed, memory_order_acquire) >= generation;
+        }
+    }
+    return true;
+}
+
 bool ukai_es_drain(ukai_es_client_t *client, uint32_t timeout_ms) {
-    if (es_sync_client(client->es, ^{ dispatch_semaphore_signal(client->synced); }) != ES_RETURN_SUCCESS) {
+    dispatch_time_t deadline = dispatch_time(DISPATCH_TIME_NOW, (int64_t)timeout_ms * NSEC_PER_MSEC);
+    uint64_t previous = atomic_load_explicit(&client->sync_issued, memory_order_acquire);
+    if (!wait_sync(client, previous, deadline) || previous == UINT64_MAX) {
         return false;
     }
-    return dispatch_semaphore_wait(client->synced,
-               dispatch_time(DISPATCH_TIME_NOW, (int64_t)timeout_ms * NSEC_PER_MSEC)) == 0;
+    uint64_t generation = previous + 1;
+    atomic_store_explicit(&client->sync_issued, generation, memory_order_release);
+    if (es_sync_client(client->es, client->sync_block) != ES_RETURN_SUCCESS) {
+        atomic_store_explicit(&client->sync_issued, previous, memory_order_release);
+        return false;
+    }
+    return wait_sync(client, generation, deadline);
 }
 
 uint64_t ukai_es_guard_denials(const ukai_es_client_t *client) {
@@ -244,6 +295,10 @@ uint64_t ukai_es_continuous_time(void) {
 
 bool ukai_es_delete(ukai_es_client_t *client) {
     bool deleted = es_delete_client(client->es) == ES_RETURN_SUCCESS;
+    /* A failed delete may still deliver callbacks. Keep their backing memory
+     * alive rather than freeing a live handler/sync capture. */
+    if (!deleted) { return false; }
+    Block_release(client->sync_block);
     free(client->ring);
     dispatch_release(client->synced);
     free(client);

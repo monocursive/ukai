@@ -13,8 +13,8 @@
 //! second descendants client, unmuted and muted on the guardian's own
 //! process (`es_mute_process`), subscribed to nothing until a stop (§4.5
 //! step 1 arms it, and a failed arm proceeds unguarded and records it). The
-//! shim's `subscribe_guard` sets and reads back
-//! `ES_DEADLINE_MISS_MODE_FAIL_CLOSED` with the subscription.
+//! shim's `prepare_guard` sets and reads back
+//! `ES_DEADLINE_MISS_MODE_FAIL_CLOSED` before readiness, at step 3.
 
 use crate::platform::macos::custody::{CustodyKind, Signaller};
 use crate::platform::macos::es;
@@ -77,16 +77,38 @@ pub fn setup_custody(client: &CustodyClient) -> Result<(), String> {
     Ok(())
 }
 
-/// Prepare the guard client G′ (§4.3 step 3): a second descendants client,
-/// unmuted, with the guardian's own process muted — every authorization
-/// request it will one day deliver therefore comes from a member. The
-/// fail-closed deadline mode is set and read back by [`arm_guard`] with the
-/// subscription, exactly at the stop.
+/// Prepare G′ at step 3; a failure refuses before ready/spawn. Only the
+/// authorization subscription is deferred until the stop.
 pub fn setup_guard(client: &CustodyClient) -> Result<(), String> {
-    if !client.unmute_all() {
+    setup_guard_with(client)
+}
+
+trait GuardSetup {
+    fn fail_closed(&self) -> bool;
+    fn unmute(&self) -> bool;
+    fn mute_guardian(&self) -> bool;
+}
+
+impl GuardSetup for CustodyClient {
+    fn fail_closed(&self) -> bool {
+        self.prepare_guard()
+    }
+    fn unmute(&self) -> bool {
+        self.unmute_all()
+    }
+    fn mute_guardian(&self) -> bool {
+        self.mute_self()
+    }
+}
+
+fn setup_guard_with(client: &impl GuardSetup) -> Result<(), String> {
+    if !client.fail_closed() {
+        return Err("ES_DEADLINE_MISS_MODE_FAIL_CLOSED set/readback failed".to_owned());
+    }
+    if !client.unmute() {
         return Err("es_unmute_all failed on the guard client".to_owned());
     }
-    if !client.mute_self() {
+    if !client.mute_guardian() {
         return Err("es_mute_process failed for the guardian".to_owned());
     }
     Ok(())
@@ -100,7 +122,7 @@ pub fn arm_guard(client: &CustodyClient) -> bool {
     client.subscribe_guard()
 }
 
-/// The shim's raw event-type numbers, for the mute read-back.
+/// Shim-internal kinds; the C boundary maps these to SDK enum values.
 fn event_type_of(kind: CustodyKind) -> u32 {
     match kind {
         CustodyKind::Fork => es::EVENT_FORK,
@@ -129,5 +151,46 @@ pub struct EsSignaller;
 impl Signaller for EsSignaller {
     fn signal(&mut self, token: &[u32; 8], sig: i32) -> i32 {
         signal_by_token(token, sig)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+    struct Fake {
+        calls: RefCell<Vec<&'static str>>,
+        fail_closed: bool,
+    }
+    impl GuardSetup for Fake {
+        fn fail_closed(&self) -> bool {
+            self.calls.borrow_mut().push("fail_closed");
+            self.fail_closed
+        }
+        fn unmute(&self) -> bool {
+            self.calls.borrow_mut().push("unmute");
+            true
+        }
+        fn mute_guardian(&self) -> bool {
+            self.calls.borrow_mut().push("mute");
+            true
+        }
+    }
+    #[test]
+    fn guard_setup_verifies_fail_closed_before_readiness() {
+        for available in [true, false] {
+            let fake = Fake {
+                calls: RefCell::new(Vec::new()),
+                fail_closed: available,
+            };
+            let result = setup_guard_with(&fake);
+            if available {
+                assert!(result.is_ok());
+                assert_eq!(*fake.calls.borrow(), ["fail_closed", "unmute", "mute"]);
+            } else {
+                assert!(result.unwrap_err().contains("FAIL_CLOSED"));
+                assert_eq!(*fake.calls.borrow(), ["fail_closed"]);
+            }
+        }
     }
 }

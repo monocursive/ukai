@@ -1,7 +1,7 @@
 //! The guardian: the second custodian (jail-macos §4.2–§4.6).
 //!
 //! The same `ukai-jail` executable, dispatched as `ukai-jail __guardian
-//! <record-path> <a-read-fd> <b-write-fd> <r-write-fd> <e-write-fd>
+//! <record-path> <a-read-fd> <b-write-fd> <r-read-fd> <e-write-fd>
 //! <launch-block-fd>` **before any configuration, policy or I/O setup**
 //! (§4.1 rule 2): this code path is libc, the ES shim and audit-token
 //! signalling, nothing else.
@@ -35,7 +35,7 @@
 //!    mute set, refuse naming any event still muted, subscribe the three
 //!    custody events (§4.3 step 3, checked as step 1).
 //! 3. Create guard client G′: descendants scope, unmute, mute the
-//!    guardian's own process; nothing subscribed until a stop.
+//!    guardian's own process, set/read back fail-closed; no subscription until stop.
 //! 4. Lower `RLIMIT_NPROC` soft and hard to this operator's process count
 //!    plus the headroom (§4.1 rule 6); any failure exits naming it.
 //! 5. Spawn `sandbox-exec` once from the launch block, then close the
@@ -83,7 +83,6 @@ use std::ffi::OsString;
 use std::io::Write as _;
 use std::os::unix::io::{FromRawFd as _, RawFd};
 use std::process::ExitCode;
-use std::time::Duration;
 
 use crate::platform::macos::custody::Custodian;
 use crate::platform::macos::custody_io::{
@@ -91,7 +90,7 @@ use crate::platform::macos::custody_io::{
     self_token,
 };
 
-use frames::{Feed, Frame, FrameReader};
+use frames::{Frame, FrameReader};
 
 /// The launcher-token handshake budget, initial 10 s (§4.3 step 5).
 const TOKEN_BUDGET_MS: u64 = 10_000;
@@ -115,7 +114,7 @@ const IGNORED_SIGNALS: [libc::c_int; 7] = [
 /// stdout is never touched.
 fn refuse(step: &str, code: impl std::fmt::Display) -> ExitCode {
     let _ = std::io::stdout().flush();
-    eprintln!("ukai-jail: guardian: {step}: {code}");
+    let _ = writeln!(std::io::stderr(), "ukai-jail: guardian: {step}: {code}");
     ExitCode::from(1)
 }
 
@@ -126,7 +125,7 @@ pub fn guardian_main(args: &[OsString]) -> ExitCode {
         return refuse(
             "arguments",
             format!(
-                "expected 6 (record-path a-read-fd b-write-fd r-write-fd e-write-fd \
+                "expected 6 (record-path a-read-fd b-write-fd r-read-fd e-write-fd \
                  launch-block-fd), got {}",
                 args.len()
             ),
@@ -144,8 +143,23 @@ pub fn guardian_main(args: &[OsString]) -> ExitCode {
             None => return refuse("arguments", format!("bad fd argument {raw:?}")),
         }
     }
-    let [a_read, b_write, _r_write, _e_write, launch_block_fd] = fds;
-    match run(record_path, a_read, b_write, launch_block_fd) {
+    for (index, fd) in fds.iter().enumerate() {
+        if *fd < 3 || fds[..index].contains(fd) {
+            return refuse(
+                "arguments",
+                "inherited descriptors must be distinct and above stdio",
+            );
+        }
+    }
+    let [a_read, b_write, r_read, e_write, launch_block_fd] = fds;
+    match run(
+        record_path,
+        a_read,
+        b_write,
+        r_read,
+        e_write,
+        launch_block_fd,
+    ) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => error,
     }
@@ -155,6 +169,8 @@ fn run(
     record_path: std::path::PathBuf,
     a_read: RawFd,
     b_write: RawFd,
+    r_read: RawFd,
+    e_write: RawFd,
     launch_block_fd: RawFd,
 ) -> Result<(), ExitCode> {
     let started_at = continuous_time_ns();
@@ -166,6 +182,10 @@ fn run(
         for signum in IGNORED_SIGNALS {
             libc::signal(signum, libc::SIG_IGN);
         }
+    }
+
+    for fd in [a_read, b_write, r_read, e_write, launch_block_fd] {
+        spawn::set_close_on_exec(fd).map_err(|error| refuse("guardian descriptors", error))?;
     }
 
     // Step 2: the custody client G (§4.3 step 3, checked as step 1). A
@@ -187,6 +207,26 @@ fn run(
 
     // Read the launch block once, from its inherited descriptor.
     let block = read_launch_block(launch_block_fd)?;
+    if block.launcher_read_fd != r_read
+        || block.launcher_error_fd != e_write
+        || block.stdio.iter().any(|action| {
+            matches!(action, launch_block::FdAction::Fd(fd)
+            if [a_read, b_write, launch_block_fd, r_read, e_write].contains(fd))
+        })
+    {
+        return Err(refuse("launch block", "descriptor ownership mismatch"));
+    }
+
+    let own = self_token().ok_or_else(|| refuse("self audit token", "unavailable"))?;
+    let mut custodian = Custodian::new(custody_io::table_capacity(MAX_TABLE_CAPACITY));
+    custodian
+        .register_custodian(own)
+        .map_err(|_| refuse("custodian registration", "full"))?;
+    let record_file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&record_path)
+        .map_err(|error| refuse("open guardian record", error))?;
+    let boot_session = record::boot_session_uuid();
 
     // Step 3 ends with `ready` (§4.3): the supervisor may proceed as soon
     // as it arrives; the spawn is step 4.
@@ -200,26 +240,30 @@ fn run(
     // the guardian's copies of them too). A spawn failure after `ready`
     // still exits non-zero naming the step, and the supervisor sees B's
     // end-of-file and refuses (§4.3).
-    spawn::spawn_sandbox_exec(&block).map_err(|error| refuse("sandbox-exec spawn", error))?;
+    let launcher_pid =
+        spawn::spawn_sandbox_exec(&block).map_err(|error| refuse("sandbox-exec spawn", error))?;
+    custodian.expect_root(launcher_pid);
     spawn::close_after_spawn(&block);
 
     // Step 6: the A/B conversation until a stop trigger.
 
-    let own = self_token().unwrap_or([0; 8]);
     let mut guardian = Guardian {
         custody: custody_client,
         guard: Some(guard_client),
-        custodian: Custodian::new(custody_io::table_capacity(MAX_TABLE_CAPACITY)),
+        custodian: Some(custodian),
         framer: FrameReader::default(),
         b,
         launcher_token: None,
         release_deadline_ns: None,
         grace_ns: u64::from(block.grace_ms) * 1_000_000,
         started_at,
-        record_path,
+        record_file,
+        boot_session,
+        diagnostic_written: false,
+        token_seen_sent: false,
+        token_wait_until: None,
         members_peak: 0,
         stop_started: false,
-        eof_a: false,
     };
     guardian.event_loop(a_read, own);
     Ok(())
@@ -233,22 +277,25 @@ fn es_result(result: &crate::platform::macos::custody_io::EsNewResult) -> String
 struct Guardian {
     custody: CustodyClient,
     guard: Option<CustodyClient>,
-    custodian: Custodian,
+    custodian: Option<Custodian>,
     framer: FrameReader,
     b: std::fs::File,
     launcher_token: Option<Token>,
     release_deadline_ns: Option<u64>,
     grace_ns: u64,
     started_at: u64,
-    record_path: std::path::PathBuf,
+    record_file: std::fs::File,
+    boot_session: String,
+    diagnostic_written: bool,
+    token_seen_sent: bool,
+    token_wait_until: Option<u64>,
     members_peak: usize,
     stop_started: bool,
-    eof_a: bool,
 }
 
 /// What one pass over A produced.
 enum FromA {
-    Frames(Vec<Result<Frame, &'static str>>),
+    Frame(Result<Frame, &'static str>),
     Eof,
     Idle,
 }
@@ -261,24 +308,11 @@ impl Guardian {
     fn event_loop(&mut self, a_read: RawFd, own: Token) {
         loop {
             match self.read_a(a_read) {
-                FromA::Frames(framed) => {
-                    for frame in framed {
-                        match frame {
-                            Ok(frame) => self.on_frame(frame),
-                            Err(name) => {
-                                // The supervisor disagrees about the
-                                // grammar: stop the tree rather than guess.
-                                let _ = std::io::stdout().flush();
-                                eprintln!("ukai-jail: guardian: frame on A: {name}");
-                                self.stop_and_finish(own);
-                                std::process::exit(1);
-                            }
-                        }
-                    }
-                    if self.eof_a {
-                        self.stop_and_finish(own);
-                        return;
-                    }
+                FromA::Frame(Ok(frame)) => self.on_frame(frame),
+                FromA::Frame(Err(name)) => {
+                    self.diagnose("frame on A", name);
+                    self.stop_and_finish(own);
+                    return;
                 }
                 FromA::Eof => {
                     self.stop_and_finish(own);
@@ -288,6 +322,10 @@ impl Guardian {
             }
 
             self.drain_custody();
+            if !self.check_token() {
+                self.stop_and_finish(own);
+                return;
+            }
 
             // The wall watchdog: deadline + grace on the continuous clock
             // (§4.3 step 6, cause `wall`).
@@ -302,39 +340,27 @@ impl Guardian {
         }
     }
 
-    /// One nonblocking pass over A: all readable frames, or end-of-file.
+    /// Read at most one complete frame using only fixed stack storage.
     fn read_a(&mut self, fd: RawFd) -> FromA {
-        let mut frames = Vec::new();
-        let mut eof = false;
+        let mut bytes = [0u8; frames::MAX_FRAME_BYTES];
         loop {
-            match read_once(fd) {
+            let wanted = self.framer.wanted();
+            match read_once(fd, &mut bytes[..wanted]) {
                 Err(error) => {
-                    // A read failure on A is fatal in the same sense as EOF:
-                    // the pipe can no longer carry the supervisor's will.
-                    let _ = std::io::stdout().flush();
-                    eprintln!("ukai-jail: guardian: read A: {error}");
+                    if error.kind() == std::io::ErrorKind::Interrupted {
+                        continue;
+                    }
+                    self.diagnose("read A", &error.to_string());
                     return FromA::Eof;
                 }
-                Ok(None) => break,
-                Ok(Some(bytes)) => {
-                    if bytes.is_empty() {
-                        eof = true;
-                        break;
-                    }
-                    match self.framer.read(&bytes, false) {
-                        Feed::Eof => unreachable!("eof only feeds on an empty read"),
-                        Feed::Frames(mut produced) => frames.append(&mut produced),
-                    }
-                }
+                Ok(None) => return FromA::Idle,
+                Ok(Some(count)) => match self.framer.read_one(&bytes[..count], count == 0) {
+                    Err(error) => return FromA::Frame(Err(error)),
+                    Ok(Some(frame)) => return FromA::Frame(Ok(frame)),
+                    Ok(None) if count == 0 => return FromA::Eof,
+                    Ok(None) => {}
+                },
             }
-        }
-        if eof {
-            self.eof_a = true;
-        }
-        if frames.is_empty() {
-            if eof { FromA::Eof } else { FromA::Idle }
-        } else {
-            FromA::Frames(frames)
         }
     }
 
@@ -342,55 +368,65 @@ impl Guardian {
         match frame {
             Frame::LauncherToken(token) => {
                 self.launcher_token = Some(token);
-                self.wait_for_token(token);
+                self.token_wait_until =
+                    Some(continuous_time_ns().saturating_add(TOKEN_BUDGET_MS * 1_000_000));
             }
             Frame::ReleaseDeadline(deadline) => {
-                self.release_deadline_ns = Some(deadline);
+                self.release_deadline_ns = frames::wall_deadline(deadline);
             }
         }
     }
 
-    /// §4.3 step 5: apply events from G until the table holds the
-    /// launcher's token, then answer `token-seen` on B. Running out of the
-    /// 10 s budget is not a refusal — the wall deadline and A's end-of-file
-    /// still govern the attempt — but the missed handshake is named on
-    /// stderr.
-    fn wait_for_token(&mut self, token: Token) {
-        let budget = continuous_time_ns() + TOKEN_BUDGET_MS * 1_000_000;
-        loop {
-            self.drain_custody();
-            if self.custodian.contains_token(&token) {
-                if let Err(error) = write_frame(&mut self.b, &frames::encode_token_seen()) {
-                    let _ = std::io::stdout().flush();
-                    eprintln!("ukai-jail: guardian: write token-seen on B: {error}");
-                    return;
-                }
-                return;
+    /// Handshake progress never blocks A's EOF or the wall watchdog.
+    fn check_token(&mut self) -> bool {
+        if self.token_seen_sent {
+            return true;
+        }
+        let Some(token) = self.launcher_token else {
+            return true;
+        };
+        if self
+            .custodian
+            .as_ref()
+            .is_some_and(|c| c.contains_token(&token))
+        {
+            if let Err(error) = write_frame(&mut self.b, b"token-seen") {
+                self.diagnose("write token-seen on B", &error);
+                return false;
             }
-            if continuous_time_ns() >= budget {
-                let _ = std::io::stdout().flush();
-                eprintln!(
-                    "ukai-jail: guardian: launcher-token handshake: budget of {TOKEN_BUDGET_MS} \
-                     ms passed without the token"
-                );
-                return;
-            }
-            std::thread::sleep(Duration::from_millis(1));
+            self.token_seen_sent = true;
+        } else if self
+            .token_wait_until
+            .is_some_and(|end| continuous_time_ns() >= end)
+        {
+            self.diagnose("launcher-token handshake", "budget exhausted");
+            return false;
+        }
+        true
+    }
+
+    fn diagnose(&mut self, step: &str, error: &str) {
+        if !self.diagnostic_written {
+            let _ = writeln!(std::io::stderr(), "ukai-jail: guardian: {step}: {error}");
+            self.diagnostic_written = true;
         }
     }
 
     /// Drain the ES ring into the custody core, tracking the membership
     /// peak and mirroring the client's sticky gap flag (§4.4).
     fn drain_custody(&mut self) {
-        while let Some(polled) = self.custody.poll_full() {
-            if let Some(kind) = custody_io::custody_kind(polled.kind) {
-                self.custodian
-                    .apply_sequenced(kind, polled.global_seq, polled.seq, &polled.event);
-            }
-            self.members_peak = self.members_peak.max(self.custodian.live_count());
+        let Some(custodian) = self.custodian.as_mut() else {
+            return;
+        };
+        for _ in 0..4096 {
+            let Some(polled) = self.custody.poll_full() else {
+                break;
+            };
+            custodian.apply_polled(&polled);
+            self.members_peak = self.members_peak.max(custodian.live_count());
         }
         if self.custody.ring_overflowed() {
-            self.custodian.note_stream_gap();
+            custodian.note_stream_gap();
         }
     }
 
@@ -402,52 +438,42 @@ impl Guardian {
         }
         self.stop_started = true;
         self.drain_custody();
-        let counts = self.custodian.seq().counts();
-        let custody = std::mem::replace(
-            &mut self.custodian,
-            Custodian::new(custody_io::table_capacity(MAX_TABLE_CAPACITY)),
-        );
+        let Some(custody) = self.custodian.take() else {
+            return;
+        };
         let stop = stop::GuardianStop::new(custody, self.guard.take());
-        let (outcome, guard) = stop.run(continuous_time_ns());
+        let (outcome, guard) = stop.run_with_source(continuous_time_ns(), &self.custody);
         self.guard = guard;
         let ended_at = continuous_time_ns();
 
         let record = record::from_stop_result(
             &outcome.result,
             record::StopFacts {
-                counts,
+                counts: outcome.counts,
                 guard_denials: outcome.guard_denials,
                 started_at: self.started_at,
                 ended_at,
-                members_peak: self.members_peak,
+                members_peak: self.members_peak.max(outcome.members_peak),
                 guard_armed: outcome.guard_armed,
             },
             own,
             self.launcher_token.unwrap_or([0; 8]),
-            record::boot_session_uuid(),
+            std::mem::take(&mut self.boot_session),
         );
-        let json = record::render(&record);
-
-        // The record is written once (§4.4); the same bytes go on B.
-        if let Err(error) = std::fs::write(&self.record_path, json.as_bytes()) {
-            let _ = std::io::stdout().flush();
-            eprintln!("ukai-jail: guardian: write guardian record: {error}");
-            std::process::exit(1);
-        }
-        if let Err(error) = write_frame(&mut self.b, &frames::encode_record(&json)) {
-            let _ = std::io::stdout().flush();
-            eprintln!("ukai-jail: guardian: write record on B: {error}");
-            std::process::exit(1);
+        if let Err(error) = record::deliver(&record, &mut self.record_file, &mut self.b) {
+            self.diagnose("guardian record delivery", &error.to_string());
         }
     }
 }
 
 /// One length-prefixed frame, flushed in full.
 fn write_frame(b: &mut std::fs::File, frame: &[u8]) -> Result<(), String> {
-    let mut wire = Vec::with_capacity(frame.len() + 4);
-    wire.extend_from_slice(&(frame.len() as u32).to_le_bytes());
-    wire.extend_from_slice(frame);
-    b.write_all(&wire).map_err(|error| error.to_string())
+    if frame.is_empty() || frame.len() > frames::MAX_FRAME_BYTES {
+        return Err("invalid frame length".to_owned());
+    }
+    b.write_all(&(frame.len() as u32).to_le_bytes())
+        .and_then(|()| b.write_all(frame))
+        .map_err(|error| error.to_string())
 }
 
 /// Read the launch block from its inherited descriptor, to end-of-file.
@@ -461,39 +487,32 @@ fn read_launch_block(fd: RawFd) -> Result<launch_block::LaunchBlock, ExitCode> {
 }
 
 /// One nonblocking read of A. `None` is an idle tick.
-fn read_once(fd: RawFd) -> Result<Option<Vec<u8>>, String> {
-    // SAFETY: one poll of one owned descriptor with a one-entry array.
+fn read_once(fd: RawFd, buffer: &mut [u8]) -> std::io::Result<Option<usize>> {
     let mut poll_fd = libc::pollfd {
         fd,
         events: libc::POLLIN,
         revents: 0,
     };
-    // SAFETY: one poll of one owned descriptor with a one-entry array.
+    // SAFETY: poll has one valid record and read is bounded by the slice.
     let ready = unsafe { libc::poll(&mut poll_fd, 1, 0) };
     if ready < 0 {
-        return Err(std::io::Error::last_os_error().to_string());
+        return Err(std::io::Error::last_os_error());
     }
     if ready == 0 {
         return Ok(None);
     }
-    if poll_fd.revents & libc::POLLIN == 0 {
-        if poll_fd.revents & (libc::POLLHUP | libc::POLLERR) != 0 {
-            // The supervisor's end closed: the residue read reports EOF.
-            return read_bytes(fd).map(Some);
-        }
+    if poll_fd.revents & libc::POLLNVAL != 0 {
+        return Err(std::io::Error::from_raw_os_error(libc::EBADF));
+    }
+    if poll_fd.revents & (libc::POLLIN | libc::POLLHUP | libc::POLLERR) == 0 {
         return Ok(None);
     }
-    read_bytes(fd).map(Some)
-}
-
-fn read_bytes(fd: RawFd) -> Result<Vec<u8>, String> {
-    let mut buffer = [0u8; 4096];
-    // SAFETY: read into a stack buffer of an owned descriptor.
+    // SAFETY: writable stack buffer, no ownership transfer of the inherited fd.
     let read = unsafe { libc::read(fd, buffer.as_mut_ptr().cast(), buffer.len()) };
     if read < 0 {
-        return Err(std::io::Error::last_os_error().to_string());
+        return Err(std::io::Error::last_os_error());
     }
-    Ok(buffer[..read as usize].to_vec())
+    Ok(Some(read as usize))
 }
 
 /// A bounded wait for A's readability, only an early wake for the next pass.

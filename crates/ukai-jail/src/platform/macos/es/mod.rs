@@ -23,6 +23,7 @@ mod shim {
         pub fn ukai_es_unmute_all(client: *mut UkaiEsClient) -> bool;
         pub fn ukai_es_muted_paths_events(client: *mut UkaiEsClient, event_type: u32) -> bool;
         pub fn ukai_es_subscribe_custody(client: *mut UkaiEsClient) -> bool;
+        pub fn ukai_es_prepare_guard(client: *mut UkaiEsClient) -> bool;
         pub fn ukai_es_subscribe_guard(client: *mut UkaiEsClient) -> bool;
         pub fn ukai_es_mute_self(client: *mut UkaiEsClient) -> bool;
         pub fn ukai_es_poll(client: *mut UkaiEsClient, out: *mut UkaiEsEvent) -> bool;
@@ -177,9 +178,15 @@ impl CustodyClient {
         unsafe { shim::ukai_es_subscribe_custody(self.raw.as_ptr()) }
     }
 
+    /// Set and read back fail-closed during setup, before ready/spawn.
+    pub fn prepare_guard(&self) -> bool {
+        // SAFETY: the client is live; the shim checks both ES results.
+        unsafe { shim::ukai_es_prepare_guard(self.raw.as_ptr()) }
+    }
+
     /// The guard subscription of §4.5 step 1: AUTH_SIGNAL,
-    /// AUTH_PROC_SUSPEND_RESUME and AUTH_EXEC, fail-closed deadline mode set
-    /// and read back, every request denied inline without caching. Returns
+    /// AUTH_PROC_SUSPEND_RESUME and AUTH_EXEC; `prepare_guard` has already
+    /// verified fail-closed. Every request is denied inline without caching. Returns
     /// false if any step failed; the stop then proceeds unguarded (§4.5).
     pub fn subscribe_guard(&self) -> bool {
         // SAFETY: `self.raw` is a live client from `ukai_es_new_descendants`.
@@ -318,5 +325,9 @@ pub fn continuous_time_ns() -> u64 {
     } else {
         (1, 1)
     };
-    continuous_time() * numer / denom
+    if denom == 0 {
+        return 0;
+    }
+    ((u128::from(continuous_time()) * u128::from(numer)) / u128::from(denom))
+        .min(u128::from(u64::MAX)) as u64
 }

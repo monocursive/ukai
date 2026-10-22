@@ -4,13 +4,9 @@
 //! member inherits the limit and cannot raise it without root, so a fork
 //! storm stops at the headroom and a stop has a bounded set to freeze.
 //!
-//! The count comes from one `sysctl` of `kern.proc` with `KERN_PROC_RUID`,
-//! the cheapest reliable same-UID count with libc alone: the kernel filters
-//! by real UID itself and returns the packed `kinfo_proc` array, so the
-//! count is the buffer length over the entry size (`libproc` would need an
-//! extra link-time dependency for the same answer). This runs before
-//! release, so §4.1 rule 4's "acquires nothing after release" is not
-//! touched.
+//! Count actual PID records returned by libproc's real-UID filter. Sizing
+//! calls are allocation estimates, never counts. All allocation occurs
+//! before release; the query retries if the returned array fills up.
 
 /// The initial headroom over the operator's current process count.
 pub const NPROC_HEADROOM: u32 = 1024;
@@ -39,60 +35,62 @@ fn os_error(step: &'static str) -> RlimitError {
     RlimitError(step, std::io::Error::last_os_error().to_string())
 }
 
-/// The size of one `kinfo_proc` entry, from a one-pid sizing query.
-fn kinfo_proc_size() -> Result<usize, RlimitError> {
-    // SAFETY: plain getpid.
-    let pid = unsafe { libc::getpid() };
-    let mut mib = [libc::CTL_KERN, libc::KERN_PROC, libc::KERN_PROC_PID, pid];
-    let mut size: usize = 0;
-    // SAFETY: the sizing call of a fixed MIB; the kernel writes the byte
-    // length of one `kinfo_proc`.
-    if unsafe {
-        libc::sysctl(
-            mib.as_mut_ptr(),
-            4 as libc::c_uint,
-            std::ptr::null_mut(),
-            &mut size,
-            std::ptr::null_mut(),
-            0,
-        )
-    } != 0
-        || size == 0
-    {
-        return Err(os_error("process count: kinfo_proc size"));
+unsafe extern "C" {
+    fn proc_listpids(
+        kind: u32,
+        uid: u32,
+        buffer: *mut libc::c_void,
+        bytes: libc::c_int,
+    ) -> libc::c_int;
+}
+const PROC_RUID_ONLY: u32 = 5; // sys/proc_info.h
+
+/// Count actual records in a complete real-UID-filtered PID snapshot.
+pub fn current_process_count_for_uid(uid: u32) -> Result<u64, RlimitError> {
+    // SAFETY: the null-buffer call returns the estimated byte capacity.
+    let estimate = unsafe { proc_listpids(PROC_RUID_ONLY, uid, std::ptr::null_mut(), 0) };
+    if estimate < 0 {
+        return Err(os_error("process count: proc_listpids size"));
     }
-    Ok(size)
+    let mut slots = (estimate as usize / std::mem::size_of::<i32>()).saturating_add(1024);
+    for _ in 0..8 {
+        if slots > 1_048_576 {
+            break;
+        }
+        let mut pids = vec![0i32; slots];
+        let bytes = std::mem::size_of_val(pids.as_slice());
+        // SAFETY: libproc receives the exact capacity of an initialized PID array.
+        let used =
+            unsafe { proc_listpids(PROC_RUID_ONLY, uid, pids.as_mut_ptr().cast(), bytes as i32) };
+        if used < 0 {
+            return Err(os_error("process count: proc_listpids read"));
+        }
+        if (used as usize) < bytes && (used as usize).is_multiple_of(std::mem::size_of::<i32>()) {
+            return Ok((used as usize / std::mem::size_of::<i32>()) as u64);
+        }
+        slots = slots.saturating_mul(2);
+    }
+    Err(RlimitError(
+        "process count",
+        "unstable or oversized PID snapshot".to_owned(),
+    ))
 }
 
-/// Count this real UID's live processes with one `sysctl(KERN_PROC_RUID)`.
-pub fn current_process_count_for_uid(uid: u32) -> Result<u64, RlimitError> {
-    let mut mib = [
-        libc::CTL_KERN,
-        libc::KERN_PROC,
-        libc::KERN_PROC_RUID,
-        uid as libc::c_int,
-    ];
-    let mut size: usize = 0;
-    // SAFETY: the sizing call of a fixed MIB; the kernel writes the byte
-    // length of the packed `kinfo_proc` array.
-    if unsafe {
-        libc::sysctl(
-            mib.as_mut_ptr(),
-            4 as libc::c_uint,
-            std::ptr::null_mut(),
-            &mut size,
-            std::ptr::null_mut(),
-            0,
-        )
-    } != 0
-    {
-        return Err(os_error("process count: sysctl size"));
+/// Clamp against the inherited hard ceiling; insufficient room is a named
+/// prelaunch refusal, never an attempted hard-limit increase or reduced claim.
+pub fn limit_with_headroom(current: u64, headroom: u64, hard: u64) -> Result<u64, RlimitError> {
+    let desired = current
+        .checked_add(headroom)
+        .filter(|n| *n <= i64::MAX as u64)
+        .ok_or_else(|| RlimitError("insufficient_headroom", "process count overflow".to_owned()))?;
+    let clamped = desired.min(hard);
+    if clamped < desired {
+        return Err(RlimitError(
+            "insufficient_headroom",
+            format!("need {desired}, inherited hard limit {hard}"),
+        ));
     }
-    if size == 0 {
-        return Ok(0);
-    }
-    let entry = kinfo_proc_size()?;
-    Ok((size / entry) as u64)
+    Ok(clamped)
 }
 
 /// Lower `RLIMIT_NPROC` soft and hard to `limit`. The caller runs before
@@ -108,7 +106,7 @@ pub fn lower_nproc(limit: u64) -> Result<(), RlimitError> {
         if libc::getrlimit(libc::RLIMIT_NPROC, &mut current) != 0 {
             return Err(os_error("RLIMIT_NPROC: getrlimit"));
         }
-        let limit = limit as libc::rlim_t;
+        let limit = limit_with_headroom(0, limit, current.rlim_max)? as libc::rlim_t;
         let lowered = libc::rlimit {
             rlim_cur: limit,
             rlim_max: limit,
@@ -160,42 +158,51 @@ mod tests {
         assert!(count > 0);
     }
 
-    // The lowered limit binds: soft == hard == current + headroom. The
-    // soft limit is restored; the hard limit is deliberately **not**
-    // restored, because an unprivileged process cannot raise a hard limit
-    // it has lowered — which is exactly the property rule 6 relies on.
+    #[test]
+    fn insufficient_headroom_is_named_before_setrlimit() {
+        assert!(
+            limit_with_headroom(900, 200, 1000)
+                .unwrap_err()
+                .to_string()
+                .starts_with("insufficient_headroom:")
+        );
+        assert_eq!(limit_with_headroom(900, 100, 1000).unwrap(), 1000);
+        assert_eq!(limit_with_headroom(100, 100, 1000).unwrap(), 200);
+    }
+
+    // Isolate the irreversible hard-limit change in a child test process.
     #[test]
     fn lowers_both_limits() {
-        // SAFETY: getrlimit/setrlimit with stack values; restore the soft
-        // limit below within the (lowered, final) hard limit.
+        const CHILD: &str = "UKAI_TEST_NPROC_CHILD";
+        if std::env::var_os(CHILD).is_none() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "platform::macos::guardian::rlimit::tests::lowers_both_limits",
+                    "--nocapture",
+                ])
+                .env(CHILD, "1")
+                .status()
+                .unwrap();
+            assert!(status.success());
+            return;
+        }
+        // SAFETY: process-local rlimits in this isolated child only.
         unsafe {
-            let mut original = libc::rlimit {
-                rlim_cur: 0,
-                rlim_max: 0,
-            };
+            let mut original: libc::rlimit = std::mem::zeroed();
             assert_eq!(libc::getrlimit(libc::RLIMIT_NPROC, &mut original), 0);
-            let count = current_process_count_for_uid(libc::getuid()).expect("sysctl answers");
-            let limit = lowered_limit(count, u64::from(NPROC_HEADROOM));
-            if limit >= original.rlim_max {
-                // The host's limits are already at or below the rule-6
-                // value; lowering is a no-op there and the binding asserts
-                // below would read the original numbers. Skip honestly.
-                return;
-            }
-            lower_nproc(limit).expect("setrlimit");
-            let mut check = libc::rlimit {
-                rlim_cur: 0,
-                rlim_max: 0,
-            };
+            let count = current_process_count_for_uid(libc::getuid()).unwrap();
+            let limit = limit_with_headroom(count, 32, original.rlim_max).unwrap();
+            lower_nproc(limit).unwrap();
+            let mut check: libc::rlimit = std::mem::zeroed();
             assert_eq!(libc::getrlimit(libc::RLIMIT_NPROC, &mut check), 0);
-            assert_eq!(check.rlim_cur, limit as libc::rlim_t);
-            assert_eq!(check.rlim_max, limit as libc::rlim_t);
-            // And it cannot be raised back (the property members inherit).
-            let raised = libc::rlimit {
-                rlim_cur: original.rlim_cur,
-                rlim_max: original.rlim_max,
-            };
-            assert_ne!(libc::setrlimit(libc::RLIMIT_NPROC, &raised), 0);
+            assert_eq!((check.rlim_cur, check.rlim_max), (limit, limit));
+            assert!(
+                lower_nproc(original.rlim_max.saturating_add(1))
+                    .unwrap_err()
+                    .to_string()
+                    .starts_with("insufficient_headroom:")
+            );
         }
     }
 }

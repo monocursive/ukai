@@ -1,136 +1,188 @@
-//! The guardian's stop (jail-macos §4.5): arm the guard, then drive the
-//! freeze/kill/drain machine from `custody/` to its end, with the stop's
-//! tail: the budget is initial 5 s, and past it the guardian **keeps
-//! stopping** for up to initial 60 s before finishing (§4.5 "After the
-//! budget").
-//!
-//! The control flow over the pure machine is all this module owns: the
-//! machine's sweeps, gap veto and drain proof are `custody::StopMachine`'s.
-//! Events reach the machine through [`GuardianStop::apply`], which the
-//! event loop calls for every drained custody message; the machine signals
-//! a newly arrived member at once (`SIGSTOP`), which is §4.5 step 2's "and
-//! to each newly reported member on arrival".
+//! Drive G throughout freeze, kill and the bounded tail (§4.5). Every tick
+//! polls custody events; arrivals and pending exec retries are signalled
+//! immediately. G′ denies inline and needs no polling or sync allocation.
 
-use crate::platform::macos::custody::{Custodian, StopResult};
+use crate::platform::macos::custody::{Custodian, Signaller, StopNotDrainedReason, StopResult};
 use crate::platform::macos::custody_io::{self, CustodyClient};
+use crate::platform::macos::es::EsPoll;
 
-/// The cooperative stop budget, initial 5 s (§4.5).
 pub const STOP_BUDGET_MS: u64 = 5_000;
-/// How long the guardian keeps stopping past the budget, initial 60 s.
 pub const STOP_TAIL_MS: u64 = 60_000;
-/// The settle interval between sweeps, initial 20 ms (§4.5 step 2).
 pub const SETTLE_MS: u64 = 20;
 
-/// The stop's outcome for the record.
-pub struct StopOutcome {
-    pub result: StopResult,
-    /// Whether G′ was armed; `false` when there was no guard client or the
-    /// subscription failed — the stop then proceeded unguarded and the
-    /// record says so (§4.5 step 1).
-    pub guard_armed: bool,
-    /// Denials G′ delivered during the stop.
-    pub guard_denials: u64,
+/// The production source and deterministic stand-ins share this boundary.
+pub trait CustodySource {
+    fn poll(&mut self) -> Option<EsPoll>;
+    fn gapped(&self) -> bool;
+    fn synchronize(&mut self, timeout_ms: u32) -> bool;
 }
 
-/// The guardian's stop driver: the custody core plus the guard client.
+impl CustodySource for &CustodyClient {
+    fn poll(&mut self) -> Option<EsPoll> {
+        self.poll_full()
+    }
+    fn gapped(&self) -> bool {
+        self.ring_overflowed()
+    }
+    fn synchronize(&mut self, timeout_ms: u32) -> bool {
+        self.drain(timeout_ms)
+    }
+}
+
+pub trait StopClock {
+    fn now_ns(&mut self) -> u64;
+    fn wait_tick(&mut self);
+}
+
+struct ContinuousClock;
+impl StopClock for ContinuousClock {
+    fn now_ns(&mut self) -> u64 {
+        custody_io::continuous_time_ns()
+    }
+    fn wait_tick(&mut self) {
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
+pub struct StopOutcome {
+    pub result: StopResult,
+    pub guard_armed: bool,
+    pub guard_denials: u64,
+    /// Includes events delivered during the stop, not just before it.
+    pub counts: [u64; 3],
+    pub members_peak: usize,
+}
+
 pub struct GuardianStop {
     custody: Custodian,
     guard: Option<CustodyClient>,
 }
 
 impl GuardianStop {
-    /// Assemble the stop from the custodian the event loop has fed and the
-    /// guard client G′ created at startup (`None` when its creation failed,
-    /// which the record then reports as unguarded).
     pub fn new(custody: Custodian, guard: Option<CustodyClient>) -> Self {
-        // The §4.5 numbers, stated here rather than defaulted: a 20 ms
-        // settle between sweeps and the initial 5 s budget.
-        let custody = custody.with_stop(ms(SETTLE_MS), ms(STOP_BUDGET_MS));
-        Self { custody, guard }
+        Self {
+            custody: custody.with_stop(ms(SETTLE_MS), ms(STOP_BUDGET_MS)),
+            guard,
+        }
     }
 
-    /// Run the stop to its end (or its 60 s tail) and report the outcome.
-    /// The caller has already applied every queued event.
-    pub fn run(mut self, now_ns: u64) -> (StopOutcome, Option<CustodyClient>) {
-        // Step 1: arm G′. A failure records `guard_armed=false` and the
-        // stop proceeds unguarded — liveness is weaker, safety is not
-        // affected (§4.5 step 1, §4.6).
-        let mut guard_armed = false;
-        if let Some(guard) = self.guard.as_ref() {
-            guard_armed = custody_io::arm_guard(guard);
+    /// Compatibility entry point. Without G, no stream can prove a drain.
+    /// Live callers use `run_with_source` instead.
+    pub fn run(self, now_ns: u64) -> (StopOutcome, Option<CustodyClient>) {
+        struct Missing;
+        impl CustodySource for Missing {
+            fn poll(&mut self) -> Option<EsPoll> {
+                None
+            }
+            fn gapped(&self) -> bool {
+                true
+            }
+            fn synchronize(&mut self, _: u32) -> bool {
+                false
+            }
         }
+        self.run_with_io(
+            now_ns,
+            &mut Missing,
+            &mut ContinuousClock,
+            &mut custody_io::EsSignaller,
+        )
+    }
+
+    pub fn run_with_source(
+        self,
+        now_ns: u64,
+        client: &CustodyClient,
+    ) -> (StopOutcome, Option<CustodyClient>) {
+        self.run_with_io(
+            now_ns,
+            &mut &*client,
+            &mut ContinuousClock,
+            &mut custody_io::EsSignaller,
+        )
+    }
+
+    /// Runs the exact production loop with injectable ES, clock and signal
+    /// boundaries. All storage was allocated before release.
+    pub fn run_with_io(
+        mut self,
+        now_ns: u64,
+        source: &mut dyn CustodySource,
+        clock: &mut dyn StopClock,
+        signaller: &mut dyn Signaller,
+    ) -> (StopOutcome, Option<CustodyClient>) {
+        let guard_armed = self.guard.as_ref().is_some_and(custody_io::arm_guard);
         if guard_armed {
             self.custody.arm_guard();
         }
-
-        // Steps 2–4 within the budget.
-        self.custody.begin_stop(now_ns);
-        let mut signaller = custody_io::EsSignaller;
-        let mut result = self.drive(now_ns, now_ns + ms(STOP_BUDGET_MS), &mut signaller);
-
-        // Past the budget: keep stopping until the tail (§4.5), then finish
-        // with whatever the last attempt decided.
-        if let StopResult::NotDrained {
-            reason: crate::platform::macos::custody::StopNotDrainedReason::Budget,
-            ..
-        } = result
-        {
-            let tail_end = now_ns + ms(STOP_BUDGET_MS) + ms(STOP_TAIL_MS);
-            // `begin` restarts the machine's clock with the tail as budget;
-            // the second end is the one the record keeps.
-            self.custody.begin_stop(now_ns + ms(STOP_BUDGET_MS));
-            result = self.drive(now_ns + ms(STOP_BUDGET_MS), tail_end, &mut signaller);
+        // EOF may precede delivery of the spawn event. Synchronize once,
+        // then poll G before any empty-table decision. A failed barrier
+        // cannot establish a complete prefix and is conservatively a gap.
+        if !source.synchronize(SETTLE_MS as u32) {
+            self.custody.note_stream_gap();
         }
-
-        let guard_denials = self
-            .guard
-            .as_ref()
-            .map(CustodyClient::guard_denials)
-            .unwrap_or(0);
+        self.custody.begin_stop(now_ns);
+        let mut peak = self.custody.live_count();
+        let mut in_tail = false;
+        let result = loop {
+            // Bound one batch so a producer cannot starve the clock/sweeps.
+            for _ in 0..4096 {
+                let Some(event) = source.poll() else {
+                    break;
+                };
+                self.custody.apply_polled_during_stop(&event, signaller);
+                peak = peak.max(self.custody.live_count());
+            }
+            if source.gapped() {
+                self.custody.note_stream_gap();
+            }
+            let now = clock.now_ns();
+            if let Some(result) = self.custody.tick(now, signaller) {
+                if matches!(
+                    result,
+                    StopResult::NotDrained {
+                        reason: StopNotDrainedReason::Budget,
+                        ..
+                    }
+                ) && !in_tail
+                    && self
+                        .custody
+                        .extend_stop_budget(ms(STOP_BUDGET_MS + STOP_TAIL_MS))
+                {
+                    in_tail = true;
+                    continue;
+                }
+                if matches!(
+                    result,
+                    StopResult::NotDrained {
+                        reason: StopNotDrainedReason::Gap | StopNotDrainedReason::Integrity,
+                        ..
+                    }
+                ) && self.custody.live_count() != 0
+                    && self
+                        .custody
+                        .continue_stop_after_loss(ms(STOP_BUDGET_MS + STOP_TAIL_MS))
+                {
+                    continue;
+                }
+                break result;
+            }
+            clock.wait_tick();
+        };
+        let guard_denials = self.guard.as_ref().map_or(0, CustodyClient::guard_denials);
         (
             StopOutcome {
                 result,
                 guard_armed,
                 guard_denials,
+                counts: self.custody.seq().counts(),
+                members_peak: peak,
             },
             self.guard.take(),
         )
     }
-
-    /// Tick the machine until it answers, servicing the guard's denial
-    /// queue. The machine gates its own sweeps by the settle interval
-    /// against the live continuous clock; the loop sleeps a millisecond
-    /// between ticks, well under the 20 ms settle.
-    fn drive(
-        &mut self,
-        _start_ns: u64,
-        end_ns: u64,
-        signaller: &mut custody_io::EsSignaller,
-    ) -> StopResult {
-        loop {
-            if let Some(guard) = self.guard.as_ref() {
-                // The shim denies inline; this only drains the queue.
-                let _ = guard.drain(0);
-            }
-            let now = custody_io::continuous_time_ns();
-            if let Some(result) = self.custody.tick(now, signaller) {
-                return result;
-            }
-            if now >= end_ns {
-                // The machine's own budget answers first in practice; this
-                // bounds a pathologically slow clock.
-                return StopResult::NotDrained {
-                    reason: crate::platform::macos::custody::StopNotDrainedReason::Budget,
-                    elapsed_ns: now - _start_ns,
-                    sweeps: self.custody.stop().sweeps(),
-                    signalled: self.custody.stop().signalled(),
-                };
-            }
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        }
-    }
 }
 
-fn ms(value: u64) -> u64 {
+const fn ms(value: u64) -> u64 {
     value * 1_000_000
 }

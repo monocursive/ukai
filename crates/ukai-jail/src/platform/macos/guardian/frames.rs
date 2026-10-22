@@ -16,6 +16,11 @@
 //!
 //! End-of-file on A means stop, whatever frames are pending (§4.3).
 
+/// Hard bound shared by both custodians, on A and B payloads (I1).
+pub const MAX_FRAME_BYTES: usize = 4096;
+/// Explicit release with no wall watchdog (I2); A's EOF still stops.
+pub const NO_DEADLINE: u64 = u64::MAX;
+
 pub const TOKEN_BYTES: usize = 8 * std::mem::size_of::<u32>();
 
 const LAUNCHER_TOKEN: &[u8] = b"launcher-token ";
@@ -30,8 +35,8 @@ pub type Token = [u32; 8];
 /// complete has arrived. `Err` means the supervisor disagrees about the
 /// grammar — the guardian stops rather than guess.
 pub fn decode_frame(payload: &[u8]) -> Result<Option<Frame>, &'static str> {
-    if payload.is_empty() {
-        return Ok(None);
+    if payload.is_empty() || payload.len() > MAX_FRAME_BYTES {
+        return Err("guardian: frame length outside 1..=MAX_FRAME_BYTES");
     }
     if let Some(rest) = payload.strip_prefix(LAUNCHER_TOKEN) {
         let token = token_from_bytes(rest)?;
@@ -59,7 +64,9 @@ fn token_from_bytes(bytes: &[u8]) -> Result<Token, &'static str> {
         return Err("guardian: launcher-token frame: bad length");
     }
     let (chunks, rest) = bytes.as_chunks::<4>();
-    debug_assert!(rest.is_empty());
+    if !rest.is_empty() {
+        return Err("guardian: partial token word");
+    }
     let mut token = [0u32; 8];
     for (word, raw) in token.iter_mut().zip(chunks) {
         *word = u32::from_le_bytes(*raw);
@@ -83,6 +90,15 @@ pub fn encode_release_deadline(deadline_ns: u64) -> Vec<u8> {
     frame.extend_from_slice(RELEASE_DEADLINE);
     frame.extend_from_slice(&deadline_ns.to_le_bytes());
     frame
+}
+
+/// Explicitly disable the wall watchdog; A stays open until the stop.
+pub fn encode_release_without_deadline() -> Vec<u8> {
+    encode_release_deadline(NO_DEADLINE)
+}
+
+pub fn wall_deadline(value: u64) -> Option<u64> {
+    (value != NO_DEADLINE).then_some(value)
 }
 
 /// The `ready` frame bytes.
@@ -111,11 +127,15 @@ pub struct FrameWriter {
 }
 
 impl FrameWriter {
-    pub fn queue(&mut self, frame: Vec<u8>) {
+    pub fn queue(&mut self, frame: Vec<u8>) -> Result<(), &'static str> {
+        if frame.is_empty() || frame.len() > MAX_FRAME_BYTES {
+            return Err("invalid frame length");
+        }
         self.buffer.reserve(frame.len() + 4);
         self.buffer
             .extend_from_slice(&(frame.len() as u32).to_le_bytes());
         self.buffer.extend_from_slice(&frame);
+        Ok(())
     }
 
     pub fn pending(&self) -> bool {
@@ -128,10 +148,20 @@ impl FrameWriter {
 }
 
 /// The length-prefixed reader over A. `Feed::Eof` means end-of-file: stop.
-#[derive(Default)]
 pub struct FrameReader {
-    buffer: Vec<u8>,
-    eof: bool,
+    buffer: [u8; MAX_FRAME_BYTES + 4],
+    used: usize,
+    failed: bool,
+}
+
+impl Default for FrameReader {
+    fn default() -> Self {
+        Self {
+            buffer: [0; MAX_FRAME_BYTES + 4],
+            used: 0,
+            failed: false,
+        }
+    }
 }
 
 /// What a read of A produced.
@@ -144,33 +174,78 @@ pub enum Feed {
 }
 
 impl FrameReader {
-    /// Push raw bytes from a read; an empty read with the pipe at EOF marks
-    /// the end.
-    pub fn read(&mut self, bytes: &[u8], eof: bool) -> Feed {
-        if bytes.is_empty() && eof {
-            self.eof = true;
-            return Feed::Eof;
+    /// Bytes needed for the next prefix or payload. Reading at most this
+    /// amount lets the live loop deliver one fixed-size value without a Vec.
+    pub fn wanted(&self) -> usize {
+        if self.used < 4 {
+            return 4 - self.used;
         }
-        self.buffer.extend_from_slice(bytes);
+        let length = u32::from_le_bytes([
+            self.buffer[0],
+            self.buffer[1],
+            self.buffer[2],
+            self.buffer[3],
+        ]) as usize;
+        (4 + length).saturating_sub(self.used).min(MAX_FRAME_BYTES)
+    }
+
+    pub fn read_one(&mut self, bytes: &[u8], eof: bool) -> Result<Option<Frame>, &'static str> {
+        if self.failed {
+            return Err("guardian: frame stream already invalid");
+        }
+        if eof && self.used != 0 {
+            self.failed = true;
+            return Err("guardian: truncated frame at EOF");
+        }
+        if bytes.len() > self.wanted() {
+            self.failed = true;
+            return Err("guardian: read crosses a frame boundary");
+        }
+        self.buffer[self.used..self.used + bytes.len()].copy_from_slice(bytes);
+        self.used += bytes.len();
+        if self.used < 4 {
+            return Ok(None);
+        }
+        let length = u32::from_le_bytes([
+            self.buffer[0],
+            self.buffer[1],
+            self.buffer[2],
+            self.buffer[3],
+        ]) as usize;
+        if length == 0 || length > MAX_FRAME_BYTES {
+            self.failed = true;
+            return Err("guardian: invalid frame length");
+        }
+        if self.used != 4 + length {
+            return Ok(None);
+        }
+        let result = decode_frame(&self.buffer[4..self.used]);
+        self.used = 0;
+        self.failed = result.is_err();
+        result
+    }
+
+    /// Batched convenience API for callers outside the allocation-free live
+    /// guardian loop. Backing storage remains bounded for arbitrary splits.
+    pub fn read(&mut self, mut bytes: &[u8], eof: bool) -> Feed {
         let mut frames = Vec::new();
-        loop {
-            if self.buffer.len() < 4 {
-                break;
-            }
-            let length = u32::from_le_bytes([
-                self.buffer[0],
-                self.buffer[1],
-                self.buffer[2],
-                self.buffer[3],
-            ]) as usize;
-            if self.buffer.len() < 4 + length {
-                break;
-            }
-            let payload: Vec<u8> = self.buffer.drain(..4 + length).collect();
-            match decode_frame(&payload[4..]) {
-                Err(name) => frames.push(Err(name)),
-                Ok(None) => {}
+        while !bytes.is_empty() {
+            let count = self.wanted().min(bytes.len());
+            match self.read_one(&bytes[..count], false) {
                 Ok(Some(frame)) => frames.push(Ok(frame)),
+                Ok(None) => {}
+                Err(error) => {
+                    frames.push(Err(error));
+                    return Feed::Frames(frames);
+                }
+            }
+            bytes = &bytes[count..];
+        }
+        if eof {
+            if let Err(error) = self.read_one(&[], true) {
+                frames.push(Err(error));
+            } else if frames.is_empty() {
+                return Feed::Eof;
             }
         }
         Feed::Frames(frames)
@@ -245,8 +320,8 @@ mod tests {
     #[test]
     fn writer_round_trips() {
         let mut writer = FrameWriter::default();
-        writer.queue(encode_ready_frame(&token()));
-        writer.queue(encode_deadline_frame(7));
+        writer.queue(encode_ready_frame(&token())).unwrap();
+        writer.queue(encode_deadline_frame(7)).unwrap();
         let outgoing = writer.take_outgoing();
         assert!(!writer.pending());
         let mut reader = FrameReader::default();

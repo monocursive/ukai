@@ -78,42 +78,89 @@ fn main() {
     // cannot clash.
     println!("cargo:rerun-if-changed=src/platform/macos/observe/obs_shim.c");
     println!("cargo:rerun-if-changed=src/platform/macos/observe/obs_shim.h");
-    if target.contains("apple-darwin") {
-        compile_es_shim();
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        compile_es_shim(&target);
     }
-    // The bindings in `platform/macos/es/mod.rs` have landed, so the
-    // guardian's custody facade (`platform/macos/custody_io.rs`) always
-    // compiles against them; the probe and the facade's fallback branch are
-    // gone (its TODO-EsShim).
-    println!("cargo:rustc-check-cfg=cfg(es_shim_present)");
-    println!("cargo:rustc-cfg=es_shim_present");
 }
 
-/// Compiles the fixed-size ES custody shim (`shim.c`, jail-macos §4.1,
-/// §4.3) with `-Werror` under C99 and links the EndpointSecurity and
-/// CoreFoundation frameworks. EndpointSecurity is linked as
-/// `-lEndpointSecurity`: its tbd stub ships in the SDK's `usr/lib` on every
-/// installed SDK here, while no SDK carries an
-/// `EndpointSecurity.framework` directory for `-framework` to find.
-#[cfg(target_os = "macos")]
-fn compile_es_shim() {
-    cc::Build::new()
-        .file("src/platform/macos/es/shim.c")
-        .include("src/platform/macos/es")
-        .file("src/platform/macos/observe/obs_shim.c")
-        .include("src/platform/macos/observe")
-        .flag("-std=c99")
-        .flag("-Werror")
-        .compile("ukai_es_shim");
+/// Build the Darwin-target shims regardless of the build script's host.
+/// `cc` is a host-conditional dependency in this crate; using the compiler
+/// directly here also supports Linux hosts with a Darwin clang and SDKROOT.
+/// A missing compiler/SDK fails the build instead of linking without a shim.
+fn compile_es_shim(target: &str) {
+    let out = PathBuf::from(std::env::var_os("OUT_DIR").expect("cargo sets OUT_DIR"));
+    let compiler_key = format!("CC_{}", target.replace('-', "_"));
+    let archiver_key = format!("AR_{}", target.replace('-', "_"));
+    let flags_key = format!("CFLAGS_{}", target.replace('-', "_"));
+    for key in [
+        &compiler_key,
+        &archiver_key,
+        &flags_key,
+        "CC",
+        "AR",
+        "CFLAGS",
+        "SDKROOT",
+        "MACOSX_DEPLOYMENT_TARGET",
+    ] {
+        println!("cargo:rerun-if-env-changed={key}");
+    }
+    let compiler = std::env::var_os(&compiler_key)
+        .or_else(|| std::env::var_os("CC"))
+        .unwrap_or_else(|| "clang".into());
+    let archiver = std::env::var_os(&archiver_key)
+        .or_else(|| std::env::var_os("AR"))
+        .unwrap_or_else(|| "ar".into());
+    let sdk = std::env::var_os("SDKROOT").or_else(|| {
+        // xcrun is a discovery convenience on a Darwin host, never the
+        // condition deciding whether to compile a Darwin target's shim.
+        Command::new("xcrun")
+            .args(["--sdk", "macosx", "--show-sdk-path"])
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .map(|s| s.trim().into())
+    });
+    let mut objects = Vec::new();
+    for (name, source) in [
+        ("custody", "src/platform/macos/es/shim.c"),
+        ("observe", "src/platform/macos/observe/obs_shim.c"),
+    ] {
+        let object = out.join(format!("{name}.o"));
+        let mut command = Command::new(&compiler);
+        command
+            .args([
+                "-target", target, "-fblocks", "-std=c11", "-Werror", "-c", source, "-o",
+            ])
+            .arg(&object);
+        if let Some(sdk) = &sdk {
+            command.arg("-isysroot").arg(sdk);
+        }
+        if let Ok(flags) = std::env::var(&flags_key).or_else(|_| std::env::var("CFLAGS")) {
+            command.args(flags.split_whitespace());
+        }
+        if let Ok(level) = std::env::var("OPT_LEVEL") {
+            command.arg(format!("-O{level}"));
+        }
+        checked_command(&mut command, "compile Darwin ES shim");
+        objects.push(object);
+    }
+    let archive = out.join("libukai_es_shim.a");
+    let mut command = Command::new(archiver);
+    command.arg("crs").arg(&archive).args(&objects);
+    checked_command(&mut command, "archive Darwin ES shim");
+    println!("cargo:rustc-link-search=native={}", out.display());
+    println!("cargo:rustc-link-lib=static=ukai_es_shim");
     println!("cargo:rustc-link-lib=EndpointSecurity");
     println!("cargo:rustc-link-lib=framework=CoreFoundation");
 }
 
-// The `cc` build-dependency is declared under
-// `[target.'cfg(target_os = "macos")'.build-dependencies]`, matched against
-// the host, so a Linux-target build never needs it and never sees this.
-#[cfg(not(target_os = "macos"))]
-fn compile_es_shim() {}
+fn checked_command(command: &mut Command, step: &str) {
+    let status = command
+        .status()
+        .unwrap_or_else(|error| panic!("{step}: {error}"));
+    assert!(status.success(), "{step}: {status}");
+}
 
 /// Where the repository's `.git` is present and git runs, a named revision
 /// must be `HEAD` and a clean claim must hold for the build inputs; a
