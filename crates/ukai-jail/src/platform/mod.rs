@@ -113,12 +113,12 @@ pub const MOUNT_TABLE_BYTES_MAX: u64 = 1024 * 1024;
 /// a fact about the implementation, never a measurement of the host.
 pub const REASON_UNSUPPORTED_PLATFORM: &str = "unsupported_platform";
 
-/// Who this binary is running as, for the receipt's `platform` group.
+/// An execution backend or state owner's OS, architecture and kernel.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct PlatformIdentity {
     /// `linux` or `macos`.
     pub os: Os,
-    /// The architecture this binary was built for.
+    /// The architecture of the execution backend or state-owning host.
     pub arch: String,
     /// The kernel release string, or a stated unknown.
     pub kernel: String,
@@ -515,16 +515,23 @@ pub struct Teardown {
 pub struct OwnerIdentity {
     /// The supervisor's process id.
     pub pid: u32,
-    /// `/proc/sys/kernel/random/boot_id`.
+    /// The host boot: Linux `boot_id`, or macOS `kern.bootsessionuuid`.
     pub boot_id: String,
-    /// The supervisor's field 22 of `/proc/<pid>/stat`.
+    /// Linux `/proc/<pid>/stat` field 22, or macOS `pbi_start_tvsec`.
     pub start_time_ticks: u64,
 }
 
 /// The platform contract (§4).
 pub trait Platform {
-    /// Who this binary is running as.
+    /// The execution platform used to resolve policy and describe receipts.
     fn identity(&self) -> PlatformIdentity;
+
+    /// The host that owns persisted attempt state and the supervisor's birth
+    /// identity. A guest backend overrides this independently of `identity`:
+    /// the guest's boot and process identifiers never identify the host owner.
+    fn state_identity(&self) -> PlatformIdentity {
+        self.identity()
+    }
 
     /// The supervisor's birth identity, where the platform can establish one
     /// (§7). `None` on platforms that only refuse execution.

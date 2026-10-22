@@ -1624,13 +1624,42 @@ fn c02_a_replaced_vendor_state_directory_is_never_deleted() {
 /// refuses before any boundary, exactly as a plain `--profile agent` run is,
 /// and stages nothing first.
 ///
-/// The real platform for this OS refuses here: macOS because execution is
-/// not implemented there, Linux because its capability probes run the
-/// current executable, which in this test is the test binary rather than
-/// `ukai-jail`, so `tree_termination` is reported missing at probing. Both
-/// refusals come before staging.
+/// macOS's native development gate refuses before probes when off; with
+/// `dev`, the missing ES capability refuses. Linux's probes run this test
+/// binary instead of `ukai-jail`, so `tree_termination` is missing. Every
+/// path refuses before staging. Each macOS gate case has its own process.
 #[test]
 fn an_agent_launch_profile_is_refused_before_staging_as_plain_agent_is() {
+    #[cfg(target_os = "macos")]
+    let gate_enabled = match std::env::var("UKAI_TEST_SHARED_LAUNCH_GATE") {
+        Err(std::env::VarError::NotPresent) => {
+            for gate in ["off", "dev"] {
+                let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+                command
+                    .args([
+                        "--exact",
+                        "an_agent_launch_profile_is_refused_before_staging_as_plain_agent_is",
+                        "--nocapture",
+                    ])
+                    .env("UKAI_TEST_SHARED_LAUNCH_GATE", gate)
+                    .env_remove("UKAI_JAIL_MACOS_NATIVE");
+                if gate == "dev" {
+                    command.env("UKAI_JAIL_MACOS_NATIVE", "dev");
+                }
+                let output = command.output().unwrap();
+                assert!(
+                    output.status.success(),
+                    "gate={gate}: {}\n{}",
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+            return;
+        }
+        Ok(gate) if gate == "off" => false,
+        Ok(gate) if gate == "dev" => true,
+        other => panic!("unexpected native gate test case: {other:?}"),
+    };
     let fixture = Fixture::new();
     let auth = fixture.credential("auth.json", b"a");
     let config = fixture.credential("config.toml", b"b");
@@ -1678,16 +1707,21 @@ fn an_agent_launch_profile_is_refused_before_staging_as_plain_agent_is() {
             &args,
         )
     };
-    // J16: both lanes answer the capability probe first — Linux's backend
-    // gate, macOS's ES entitlement (K98's `es_not_entitled`).
-    let code = ErrorCode::MissingCapability;
+    #[cfg(target_os = "macos")]
+    let (code, remediation) = if gate_enabled {
+        (ErrorCode::MissingCapability, Remediation::HostSetup)
+    } else {
+        (ErrorCode::UnsupportedPlatform, Remediation::Unsupported)
+    };
+    #[cfg(not(target_os = "macos"))]
+    let (code, remediation) = (ErrorCode::MissingCapability, Remediation::HostSetup);
     let stage = ukai_jail::records::ErrorStage::Probing;
     for (label, report) in [("plain", &plain), ("launched", &launched)] {
         assert_eq!(report.exit_code, 125, "{label}");
         let error = report.error.as_ref().expect("a refusal");
         assert_eq!(
-            (error.code, error.stage),
-            (code, stage),
+            (error.code, error.stage, error.remediation),
+            (code, stage, remediation),
             "{label}: {error:?}"
         );
     }

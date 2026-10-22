@@ -26,7 +26,8 @@ fn line(id: &str) -> String {
 /// whose end is not verified; macOS only. Returns how many lines were
 /// printed. Never fails, and never signals anything.
 pub fn announce(ctx: &Context) -> usize {
-    if ctx.platform.identity().os != Os::Macos {
+    let identity = ctx.platform.state_identity();
+    if identity.os != Os::Macos {
         return 0;
     }
     let Ok(data_dir) = state::data_dir(&ctx.env_settings, ctx.home.as_deref()) else {
@@ -55,6 +56,11 @@ pub fn announce(ctx: &Context) -> usize {
         let Ok(state) = parse_state(&bytes, id.as_str()) else {
             continue;
         };
+        // Birth times belong to the claiming host. Never interpret another
+        // OS's owner using macOS liveness, including during a VM run.
+        if state.os != identity.os.as_str() || state.arch != identity.arch {
+            continue;
+        }
         // An end a pass settled, verified or was released from needs no
         // operator, and `gc_finished` means gc costs this attempt nothing.
         if state.custody_released || state.gc_finished.is_some() || !state.gc_verified.is_empty() {

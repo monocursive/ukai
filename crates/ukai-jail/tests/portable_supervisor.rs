@@ -248,3 +248,213 @@ fn plain_doctor_never_inspects_credential_placement() {
     let report = result.unwrap_or_else(|error| panic!("plain doctor refused: {error:?}"));
     assert!(report.launch.is_none());
 }
+
+#[test]
+#[cfg(target_os = "macos")]
+fn p2_vm_none_is_a_guarantee_refusal_before_probe_or_prepare() {
+    struct NoBoundary;
+    impl Platform for NoBoundary {
+        fn identity(&self) -> PlatformIdentity {
+            sim::identity()
+        }
+        fn owner_identity(&self) -> Option<OwnerIdentity> {
+            Some(sim::owner())
+        }
+        fn probe(&self, _: &PlanRequest) -> Vec<Capability> {
+            panic!("the unsupported profile must refuse before probing")
+        }
+        fn prepare(
+            &self,
+            _: PreparedPlan,
+            _: Sinks,
+        ) -> Result<Box<dyn PreparedExecution>, JailError> {
+            panic!("the unsupported profile must refuse before staging")
+        }
+    }
+    let fixture = Fixture::new();
+    let cli::Command::Run(args) = cli::Cli::parse_from([
+        "ukai-jail",
+        "run",
+        "--vm",
+        "--profile",
+        "none",
+        "--terminal",
+        "detach",
+        "--",
+        "must-never-execute",
+    ])
+    .command
+    else {
+        unreachable!()
+    };
+    let ctx = supervisor::Context {
+        platform: Box::new(NoBoundary),
+        env_settings: EnvSettings {
+            config_dir: Some(fixture.root.join("config")),
+            data_dir: Some(fixture.data()),
+            ..Default::default()
+        },
+        cwd: fixture.workspace.clone(),
+        home: None,
+        env_lookup: Box::new(|_| None),
+    };
+    let report = supervisor::run(&ctx, &args);
+    assert_eq!(report.exit_code, 125, "{:?}", report.error);
+    let error = report.error.unwrap();
+    assert_eq!(
+        (error.code, error.stage, error.remediation),
+        (
+            ErrorCode::UnsupportedPlatform,
+            ErrorStage::Resolving,
+            Remediation::Unsupported
+        )
+    );
+    assert_eq!(error.key_path.as_deref(), Some("--vm"));
+    assert!(fixture.attempts().is_empty());
+}
+
+/// The boundary is scripted; the owner is this real macOS process. No VM
+/// starts. This exercises persisted state and native gc's birth-time probe.
+#[test]
+#[cfg(target_os = "macos")]
+fn p2_vm_state_and_gc_use_the_host_owner_not_the_guest_policy() {
+    use ukai_jail::gc::{self, Host as _};
+    use ukai_jail::records::Os;
+    struct GuestPolicy;
+    impl Platform for GuestPolicy {
+        fn identity(&self) -> PlatformIdentity {
+            sim::identity()
+        }
+        fn state_identity(&self) -> PlatformIdentity {
+            ukai_jail::platform::current().identity()
+        }
+        fn owner_identity(&self) -> Option<OwnerIdentity> {
+            ukai_jail::platform::current().owner_identity()
+        }
+        fn probe(&self, plan: &PlanRequest) -> Vec<Capability> {
+            Sim::default().probe(plan)
+        }
+        fn prepare(
+            &self,
+            plan: PreparedPlan,
+            sinks: Sinks,
+        ) -> Result<Box<dyn PreparedExecution>, JailError> {
+            assert_eq!(plan.request.snapshot.platform, Os::Linux);
+            Sim::default().prepare(plan, sinks)
+        }
+    }
+    let fixture = Fixture::new();
+    let cli::Command::Run(args) = cli::Cli::parse_from([
+        "ukai-jail",
+        "run",
+        "--vm",
+        "--profile",
+        "tool",
+        "--terminal",
+        "detach",
+        "--workspace",
+        fixture.workspace.to_str().unwrap(),
+        "--",
+        "simulated-target",
+    ])
+    .command
+    else {
+        unreachable!()
+    };
+    let ctx = supervisor::Context {
+        platform: Box::new(GuestPolicy),
+        env_settings: EnvSettings {
+            config_dir: Some(fixture.root.join("config")),
+            data_dir: Some(fixture.data()),
+            ..Default::default()
+        },
+        cwd: fixture.workspace.clone(),
+        home: None,
+        env_lookup: Box::new(|_| None),
+    };
+    let report = supervisor::run(&ctx, &args);
+    assert_eq!(
+        report.error.as_ref().map(|e| e.code),
+        Some(ErrorCode::BackendUnavailable)
+    );
+    let attempts = fixture.attempts();
+    assert_eq!(attempts.len(), 1);
+    let attempt = &attempts[0];
+    let state_path = attempt.join("jail-state.json");
+    let mut state: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&state_path).unwrap()).unwrap();
+    let host_owner = ctx
+        .platform
+        .owner_identity()
+        .expect("native process identity");
+    let host_platform = ctx.platform.state_identity();
+    assert_eq!(state["os"], "macos");
+    assert_eq!(state["arch"], host_platform.arch);
+    assert_eq!(state["kernel"], host_platform.kernel);
+    assert_eq!(state["owner"]["pid"], host_owner.pid);
+    assert_eq!(state["owner"]["boot_id"], host_owner.boot_id);
+    assert_eq!(
+        state["owner"]["start_time_ticks"],
+        host_owner.start_time_ticks
+    );
+    let receipt_path = attempt.join("jail.json");
+    let mut receipt = common::read_receipt(&receipt_path);
+    assert_eq!(receipt["platform"]["os"], "linux");
+    // A guest receipt's process boot differs from the host boot by design.
+    // An unverified guest end never authorizes host cleanup or a token kill.
+    receipt["phase"] = "enforced".into();
+    receipt["lifetime"]["boundary"] = "pid_namespace".into();
+    receipt["lifetime"]["integrity"] = "verified".into();
+    receipt["lifetime"]["tree_empty"] = serde_json::Value::Null;
+    receipt["lifetime"]["native"] = serde_json::json!({"os": "linux", "details": {}});
+    receipt["process"] = serde_json::json!({
+        "pid": 42,
+        "identity": {"kind": "linux_boot_start", "value": {"boot_id": "guest-boot", "start_time_ticks": "3"}}
+    });
+    std::fs::write(&receipt_path, serde_json::to_vec(&receipt).unwrap()).unwrap();
+    let host = gc::native_host(&ctx);
+    assert_eq!(host.identity().os, Os::Macos);
+    let args = cli::GcArgs {
+        dry_run: false,
+        json: false,
+        abandon: None,
+    };
+    let report = gc::gc_with(&ctx, &args, &host, gc::Options::DEFAULT).unwrap();
+    assert_eq!(report.entries.len(), 1);
+    assert_eq!(
+        report.entries[0].owner.as_deref(),
+        Some("alive"),
+        "{:?}",
+        report.entries
+    );
+    // macOS checks epoch-second birth time, including reuse; it never reads
+    // these as Linux /proc start ticks just because the policy is Linux.
+    state["owner"]["start_time_ticks"] = (host_owner.start_time_ticks + 1).into();
+    std::fs::write(&state_path, serde_json::to_vec(&state).unwrap()).unwrap();
+    let report = gc::gc_with(&ctx, &args, &host, gc::Options::DEFAULT).unwrap();
+    assert_eq!(
+        report.entries[0].owner.as_deref(),
+        Some("dead: its pid was reused (another birth time)")
+    );
+    assert!(!report.entries[0].reason.contains("killed_target"));
+    assert!(
+        report.entries[0]
+            .cgroup
+            .as_deref()
+            .is_some_and(|reason| reason.contains("no target identity")),
+        "{:?}",
+        report.entries
+    );
+    assert_eq!(
+        gc::orphans::announce(&ctx),
+        1,
+        "VM planning still scans host orphans"
+    );
+    state["os"] = "linux".into();
+    std::fs::write(&state_path, serde_json::to_vec(&state).unwrap()).unwrap();
+    assert_eq!(
+        gc::orphans::announce(&ctx),
+        0,
+        "a foreign owner is not read as a Mac process"
+    );
+}

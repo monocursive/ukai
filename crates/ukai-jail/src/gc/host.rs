@@ -29,7 +29,7 @@ pub struct OwnerRecord {
     pub pid: u32,
     /// The boot it was recorded in.
     pub boot_id: String,
-    /// Its birth time, field 22 of `/proc/<pid>/stat`.
+    /// Linux `/proc/<pid>/stat` field 22, or macOS epoch-second birth time.
     pub start_time_ticks: u64,
 }
 
@@ -224,7 +224,7 @@ pub(super) struct NativeHost {
 
 impl NativeHost {
     pub(super) fn new(ctx: &Context) -> NativeHost {
-        let platform = ctx.platform.identity();
+        let platform = ctx.platform.state_identity();
         NativeHost {
             identity: HostIdentity {
                 os: platform.os,

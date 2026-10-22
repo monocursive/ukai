@@ -143,6 +143,9 @@ pub struct ReceiptView {
     /// What `lifetime.integrity`, `boundary` and `tree_empty` say about the
     /// tree's end.
     pub tree_end: TreeEnd,
+    /// The execution OS of the recorded process boot. A Linux guest boot
+    /// is a separate identity domain from its macOS supervisor's boot.
+    pub boot_os: Option<String>,
     /// The boot the recorded process identity names, when it names one.
     pub boot_id: Option<String>,
     /// The execution leaf from `lifetime.native.details.execution_cgroup`.
@@ -350,6 +353,9 @@ pub fn parse_receipt(bytes: &[u8], id: &str) -> Result<ReceiptView, String> {
             text("boundary"),
             lifetime.get("tree_empty").and_then(Value::as_bool),
         ),
+        boot_os: native_os
+            .or_else(|| receipt.pointer("/platform/os").and_then(Value::as_str))
+            .map(str::to_owned),
         boot_id: receipt
             .pointer("/process/identity/value/boot_id")
             .or_else(|| receipt.pointer("/process/identity/value/boot_session"))

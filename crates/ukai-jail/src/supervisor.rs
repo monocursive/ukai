@@ -2043,15 +2043,17 @@ fn run_inner(
         },
     )?;
     let request = plan_request(&plan);
-    // J18 (jail-macos.md §6): the VM tier runs the guest jail, a contained
-    // profile. `none` is unsupported on macOS anyway, and the uncontained
-    // profile is meaningless in the guest, so `--vm` refuses it as a usage
-    // error instead of letting the platform refusal word it.
+    // J18 (jail-macos.md §6): valid syntax can request a guarantee this
+    // backend cannot provide. `none` has no contained guest boundary, so
+    // this is a pre-exec guarantee refusal (125), not a usage error (2).
     if args.requests_vm() && plan.resolved.snapshot.profile == ProfileName::None {
-        return Err(usage(
-            "--vm",
+        return Err(JailError::new(
+            ErrorCode::UnsupportedPlatform,
+            ErrorStage::Resolving,
+            Remediation::Unsupported,
             "--vm refuses --profile none: the VM tier runs a contained profile in the guest",
-        ));
+        )
+        .with_key_path("--vm"));
     }
     // J12 §3.3: under `--from-path` the operator's words follow the resolved
     // program (and an `env` expansion's interpreter); that is the argv the
@@ -4392,7 +4394,10 @@ fn claim_attempt(
     ctx: &Context,
     test_seams: Option<&serde_json::Value>,
 ) -> Result<(), JailError> {
-    let identity = ctx.platform.identity();
+    // The claim belongs to the host supervisor, even when policy and
+    // receipt identities describe a Linux guest. gc interprets owner birth
+    // times using this host OS, never the guest's OS or boot.
+    let identity = ctx.platform.state_identity();
     let owner = ctx.platform.owner_identity();
     if identity.os == crate::records::Os::Linux && owner.is_none() {
         return Err(JailError::new(

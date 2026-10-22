@@ -234,6 +234,12 @@ impl VmPlatform {
 }
 
 impl Platform for VmPlatform {
+    fn state_identity(&self) -> PlatformIdentity {
+        // State and the supervisor birth identity belong to the Mac host;
+        // policy and receipts retain the guest identity returned below.
+        crate::platform::macos::MacosPlatform.identity()
+    }
+
     fn owner_identity(&self) -> Option<crate::platform::OwnerIdentity> {
         crate::platform::macos::owner_identity()
     }
@@ -1051,3 +1057,30 @@ impl RunningExecution for VmRunning {
 #[cfg(test)]
 #[path = "vm/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[test]
+fn p2_vm_state_identity_is_the_mac_host_while_policy_identity_is_linux() {
+    let platform = VmPlatform {
+        data_dir: PathBuf::from("unused-data"),
+        install: Install {
+            root: PathBuf::from("unused-install"),
+            manifest: image::ImageManifest {
+                status: "prepared".into(),
+                disk_sha256: "d".repeat(64),
+                helper_sha256: "h".repeat(64),
+                custodian_sha256: "c".repeat(64),
+                seed_sha256: "s".repeat(64),
+            },
+        },
+    };
+    assert_eq!(platform.identity().os, Os::Linux);
+    assert_eq!(
+        platform.state_identity(),
+        crate::platform::macos::MacosPlatform.identity()
+    );
+    assert_eq!(
+        platform.owner_identity(),
+        crate::platform::macos::owner_identity()
+    );
+}

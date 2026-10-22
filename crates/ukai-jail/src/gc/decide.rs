@@ -506,7 +506,12 @@ pub fn decide(facts: &Facts) -> Next {
             keep_scratch("the tree's end is not verified"),
         );
     };
-    if let Some(receipt_boot) = receipt.and_then(|receipt| receipt.boot_id.as_ref())
+    // Guest process boots identify the Linux VM, not its Mac supervisor.
+    // Native and unknown domains retain the strict same-boot check; this
+    // exception never changes Linux-host decisions.
+    if let Some(receipt) = receipt
+        && let Some(receipt_boot) = &receipt.boot_id
+        && !(state.os == "macos" && receipt.boot_os.as_deref() == Some("linux"))
         && *receipt_boot != owner.boot_id
     {
         return decided(
@@ -880,6 +885,7 @@ mod tests {
                 crate::lifecycle::BoundaryKind::PidNamespace.as_str(),
                 tree_empty,
             ),
+            boot_os: Some("linux".to_owned()),
             boot_id: Some(BOOT.to_owned()),
             leaf: LeafSource::Recorded(leaf()),
             target: None,
@@ -1317,6 +1323,7 @@ mod macos_tests {
                 crate::lifecycle::BoundaryKind::NativeTree.as_str(),
                 None,
             ),
+            boot_os: Some("macos".to_owned()),
             boot_id: Some(SESSION.to_owned()),
             leaf: LeafSource::NotRecorded("macos".to_owned()),
             target: Some(TargetToken {
@@ -1484,5 +1491,30 @@ mod macos_tests {
             device: 1,
             inode: 2,
         }
+    }
+
+    #[test]
+    fn p2_only_a_linux_guest_boot_is_independent_of_a_mac_host_boot() {
+        for boot_os in [Some("linux"), Some("macos"), Some("unknown"), None] {
+            let mut facts = macos_facts();
+            facts.owner = None;
+            let receipt = facts.receipt.as_mut().unwrap().as_mut().unwrap();
+            receipt.boot_id = Some("different-boot".into());
+            receipt.boot_os = boot_os.map(str::to_owned);
+            if boot_os == Some("linux") {
+                assert!(matches!(decide(&facts), Next::ProbeOwner(_)));
+            } else {
+                let decision = decision(decide(&facts));
+                assert!(matches!(decision.owner, Some(OwnerVerdict::Unknown(_))));
+            }
+        }
+        // Linux never interprets a conflicting boot as a host/guest pair.
+        let mut linux = facts(state(), receipt(None));
+        linux.receipt.as_mut().unwrap().as_mut().unwrap().boot_os = Some("macos".into());
+        linux.receipt.as_mut().unwrap().as_mut().unwrap().boot_id = Some("different-boot".into());
+        assert!(matches!(
+            decision(decide(&linux)).owner,
+            Some(OwnerVerdict::Unknown(_))
+        ));
     }
 }
