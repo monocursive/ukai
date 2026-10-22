@@ -43,9 +43,7 @@ impl ObserveRun {
         if trace.is_poisoned() {
             return Err(ObserveStartError::Setup("trace_writer_poisoned"));
         }
-        if !workspace.starts_with(b"/") || workspace.contains(&0) {
-            return Err(ObserveStartError::Setup("workspace_not_absolute"));
-        }
+        let workspace = canonical_workspace(workspace)?;
         let mut client = ObserveClient::new().map_err(ObserveStartError::Client)?;
         if !client.unmute_all() || !client.verify_unmuted() {
             return Err(ObserveStartError::Setup("paths_still_muted"));
@@ -60,7 +58,7 @@ impl ObserveRun {
         if !client.subscribe() {
             return Err(ObserveStartError::Setup("subscribe_failed"));
         }
-        let journal = ObserveJournal::new(attempt_id, Some(trace.clone()), workspace);
+        let journal = ObserveJournal::new(attempt_id, Some(trace.clone()), &workspace);
         let (stop, receiver) = mpsc::sync_channel(1);
         let worker = std::thread::Builder::new()
             .name("ukai-observe".into())
@@ -71,7 +69,7 @@ impl ObserveRun {
             worker: Some(worker),
             attempt_id: attempt_id.into(),
             trace,
-            workspace: workspace.into(),
+            workspace,
         })
     }
 
@@ -107,6 +105,36 @@ impl Drop for ObserveRun {
             let _ = self.finish_inner();
         }
     }
+}
+
+/// Resolve the directory before ES attaches. The kernel's F_GETPATH resolves
+/// symlinks (including /var -> /private/var) and returns the stored case on a
+/// case-insensitive volume; realpath alone can preserve the caller's spelling.
+/// Only this preparation touches the namespace: event paths must not be looked
+/// up after delivery, when renames or unlinks may already have happened.
+fn canonical_workspace(workspace: &[u8]) -> Result<Vec<u8>, ObserveStartError> {
+    if !workspace.starts_with(b"/") || workspace.contains(&0) {
+        return Err(ObserveStartError::Setup("workspace_not_absolute"));
+    }
+    use std::os::fd::AsRawFd;
+    use std::os::unix::{ffi::OsStrExt, fs::OpenOptionsExt};
+    let directory = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_CLOEXEC)
+        .open(std::path::Path::new(std::ffi::OsStr::from_bytes(workspace)))
+        .map_err(|_| ObserveStartError::Setup("workspace_unresolvable"))?;
+    let mut path = [0u8; libc::PATH_MAX as usize];
+    // SAFETY: directory owns a live fd; F_GETPATH writes at most PATH_MAX bytes
+    // into the supplied buffer. The fd stays open through the call.
+    if unsafe { libc::fcntl(directory.as_raw_fd(), libc::F_GETPATH, path.as_mut_ptr()) } < 0 {
+        return Err(ObserveStartError::Setup("workspace_path_unavailable"));
+    }
+    let end = path
+        .iter()
+        .position(|byte| *byte == 0)
+        .filter(|end| *end > 0 && path[0] == b'/')
+        .ok_or(ObserveStartError::Setup("workspace_path_unavailable"))?;
+    Ok(path[..end].to_vec())
 }
 
 // This seam exercises the same worker loop with a deterministic synthetic source.
@@ -182,6 +210,60 @@ mod tests {
     use crate::observer::CoverageClass;
     use crate::records::SourceStatus;
     use crate::trace::{self, FileSink};
+    #[test]
+    fn r3_workspace_alias_matches_es_real_paths() {
+        let workspace = canonical_workspace(b"/var").unwrap();
+        assert_eq!(
+            super::super::classify_path(b"/private/var/observed", &workspace),
+            super::super::PathEvidence::WorkspaceRelative(b"observed".to_vec())
+        );
+    }
+
+    #[test]
+    fn r3_workspace_uses_on_disk_case_and_resolves_links() {
+        use std::os::unix::ffi::OsStrExt;
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().canonicalize().unwrap().join("MiXeD-Workspace");
+        std::fs::create_dir(&real).unwrap();
+        let case_variant = real.with_file_name("mixed-workspace");
+        if case_variant.try_exists().unwrap() {
+            let workspace = canonical_workspace(case_variant.as_os_str().as_bytes()).unwrap();
+            assert_eq!(workspace, real.as_os_str().as_bytes());
+            assert_eq!(
+                super::super::classify_path(
+                    real.join("observed").as_os_str().as_bytes(),
+                    &workspace
+                ),
+                super::super::PathEvidence::WorkspaceRelative(b"observed".to_vec())
+            );
+        } else {
+            // Case-sensitive volumes must refuse the non-existent variant.
+            assert!(canonical_workspace(case_variant.as_os_str().as_bytes()).is_err());
+        }
+        let link = dir.path().join("workspace-link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        assert_eq!(
+            canonical_workspace(link.as_os_str().as_bytes()).unwrap(),
+            real.as_os_str().as_bytes()
+        );
+    }
+
+    #[test]
+    fn r3_start_refuses_unresolvable_workspace_before_creating_an_es_client() {
+        use std::os::unix::ffi::OsStrExt;
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("file");
+        std::fs::write(&file, b"file").unwrap();
+        for path in [file, dir.path().join("missing")] {
+            let trace = trace::shared(FileSink::new(tempfile::tempfile().unwrap()));
+            let result = ObserveRun::start("attempt", trace, path.as_os_str().as_bytes(), &[]);
+            assert!(
+                matches!(result, Err(ObserveStartError::Setup(_))),
+                "invalid workspace must fail before ES setup"
+            );
+        }
+    }
+
     struct Synthetic {
         next: u64,
         available: u64,

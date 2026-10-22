@@ -281,6 +281,8 @@ struct FrameFields<'a> {
     #[serde(borrow)]
     action: Option<Str<'a>>,
     #[serde(borrow)]
+    observation: Option<Str<'a>>,
+    #[serde(borrow)]
     attempted_operation: Option<Str<'a>>,
     #[serde(borrow)]
     destination: Option<Str<'a>>,
@@ -400,6 +402,11 @@ const RENAMED: u8 = 2;
 const REMOVED: u8 = 4;
 /// A native notification confirmed a modification, not an open.
 const MODIFIED: u8 = 8;
+/// A native notification confirmed creation of a directory entry.
+const CREATED: u8 = 16;
+/// A native notification confirmed a metadata change.
+const METADATA: u8 = 32;
+const NATIVE_CHANGES: u8 = MODIFIED | CREATED | METADATA;
 
 /// Distinct named workspace paths, each with the ways it was seen. A name is
 /// allocated once, the first time it is seen.
@@ -427,10 +434,22 @@ impl Paths {
     /// Distinct paths seen in the way `how`.
     fn count(&self, how: u8) -> u64 {
         self.text
-            .values()
-            .chain(self.encoded.values())
-            .filter(|seen| **seen & how != 0)
+            .iter()
+            .chain(self.encoded.iter())
+            // The empty relative name denotes the workspace directory itself.
+            // Describe native root changes separately from entries inside it.
+            .filter(|(name, seen)| {
+                (how & NATIVE_CHANGES == 0 || !name.is_empty()) && **seen & how != 0
+            })
             .count() as u64
+    }
+
+    fn root_changed(&self, how: u8) -> bool {
+        self.text
+            .get("")
+            .into_iter()
+            .chain(self.encoded.get(""))
+            .any(|seen| seen & how != 0)
     }
 
     fn len(&self) -> usize {
@@ -682,14 +701,14 @@ impl Scan {
         let how = match operation {
             "fs.rename" => RENAMED,
             "fs.unlink" => REMOVED,
-            _ if matches!(
-                fields.action.as_deref(),
-                Some("modified" | "metadata_changed" | "hard_link_created" | "created")
-            ) =>
-            {
-                MODIFIED
-            }
-            _ => OPENED,
+            _ => match fields.action.as_deref() {
+                Some("modified") => MODIFIED,
+                Some("metadata_changed") => METADATA,
+                Some("hard_link_created" | "created") => CREATED,
+                Some("truncated") if fields.observation.as_deref() == Some("es_notify") => MODIFIED,
+                // Preserve the shipped Linux syscall summary vocabulary.
+                _ => OPENED,
+            },
         };
         for path in written.into_iter().flatten() {
             if let Some(name) = path.workspace() {
@@ -1278,11 +1297,22 @@ impl View<'_> {
                 }
                 for (n, what) in [
                     (modified, "modified"),
+                    (scan.paths.count(CREATED), "created"),
+                    (scan.paths.count(METADATA), "with metadata changes"),
                     (renamed, "in renames"),
                     (removed, "removed"),
                 ] {
                     if n > 0 {
                         seen.push(format!("{} {what}", write.number(n)));
+                    }
+                }
+                for (how, what) in [
+                    (MODIFIED, "content modified"),
+                    (CREATED, "created"),
+                    (METADATA, "metadata changed"),
+                ] {
+                    if scan.paths.root_changed(how) {
+                        seen.push(format!("workspace root {what}"));
                     }
                 }
                 let mut text = if seen.is_empty() {

@@ -306,6 +306,100 @@ fn observation_frames_validate_against_the_frozen_jail_event_schema() {
 }
 
 #[test]
+fn r3_ring_and_sequence_loss_are_not_counted_twice() {
+    for ring_first in [false, true] {
+        let capture = FrameCapture::new();
+        let mut journal = capture.journal();
+        journal.record(&obs(ObsKind::Exec, 0, b"/bin/true"));
+        if ring_first {
+            journal.record_shim_loss(5, false);
+        }
+        journal.record(&obs(ObsKind::Exec, 6, b"/bin/true"));
+        journal.record_shim_loss(5, false);
+        let gaps = &coverage(&journal).classes[&CoverageClass::Exec].gaps;
+        assert_eq!(gaps.iter().filter_map(|gap| gap.lost_count).sum::<u64>(), 5);
+        assert_eq!(
+            gaps.iter()
+                .find(|gap| gap.reason.contains("sequence_discontinuity"))
+                .unwrap()
+                .lost_count,
+            None
+        );
+        // Later ring-only loss remains known even without a following event.
+        journal.record_shim_loss(8, false);
+        let gaps = &coverage(&journal).classes[&CoverageClass::Exec].gaps;
+        assert_eq!(gaps.iter().filter_map(|gap| gap.lost_count).sum::<u64>(), 8);
+        common::check_trace(&capture.frames(), None).unwrap();
+    }
+}
+
+#[test]
+fn r3_sequences_accept_zero_or_one_and_disclose_the_start_residual() {
+    for first in [0, 1] {
+        let capture = FrameCapture::new();
+        let mut journal = capture.journal();
+        // Disclose the uncertainty even if the run delivers no audit frames.
+        assert!(
+            capture
+                .frames()
+                .iter()
+                .any(|frame| frame["fields"]["sequence_start"] == "unverified")
+        );
+        for (action, event_type, seq, global) in [
+            (ObsAction::Exec, 1, first, first),
+            (ObsAction::Modified, 2, first, first + 1),
+            (ObsAction::Exec, 1, first + 1, first + 2),
+        ] {
+            journal.record_message(&message(action, event_type, seq, global, b"/w/a", None));
+        }
+        assert_eq!(
+            coverage(&journal).classes[&CoverageClass::Exec].status,
+            SourceStatus::Active
+        );
+        assert!(
+            capture
+                .audit()
+                .iter()
+                .all(|frame| frame["fields"]["sequence_start"] == "unverified")
+        );
+        common::check_trace(&capture.frames(), None).unwrap();
+    }
+}
+
+#[test]
+fn r3_one_based_sequences_are_contiguous() {
+    let capture = FrameCapture::new();
+    let mut journal = capture.journal();
+    journal.record_message(&message(ObsAction::Exec, 1, 1, 1, b"/bin/tool", None));
+    journal.record_message(&message(ObsAction::Modified, 2, 1, 2, b"/w/a", None));
+    journal.record_message(&message(ObsAction::Exec, 1, 2, 3, b"/bin/tool", None));
+    assert_eq!(
+        coverage(&journal).classes[&CoverageClass::Exec].status,
+        SourceStatus::Active
+    );
+}
+
+#[test]
+fn r3_first_sequence_above_one_has_unknown_loss() {
+    for (seq, global) in [(2, 0), (0, 2), (4, 4)] {
+        let capture = FrameCapture::new();
+        let mut journal = capture.journal();
+        journal.record_message(&message(
+            ObsAction::Exec,
+            1,
+            seq,
+            global,
+            b"/bin/tool",
+            None,
+        ));
+        let class = &coverage(&journal).classes[&CoverageClass::Exec];
+        assert_eq!(class.status, SourceStatus::Degraded);
+        assert_eq!(class.gaps.len(), 1);
+        assert_eq!(class.gaps[0].lost_count, None);
+    }
+}
+
+#[test]
 fn first_and_global_sequence_loss_are_detected() {
     let capture = FrameCapture::new();
     let mut journal = capture.journal();
@@ -321,7 +415,7 @@ fn first_and_global_sequence_loss_are_detected() {
             .find(|g| g.reason.starts_with(OBSERVATION_GAP_REASON))
             .unwrap()
             .lost_count,
-        Some(4)
+        None
     );
     let capture = FrameCapture::new();
     let mut journal = capture.journal();
@@ -562,6 +656,10 @@ fn k107_rust_and_python_recompute_real_native_journal_frames() {
             Some(b"/w/new-link"),
         ),
         message(ObsAction::CreateDenied, 6, 0, 5, b"/w/denied", None),
+        message(ObsAction::Create, 7, 0, 6, b"/w/created", None),
+        message(ObsAction::Setmode, 3, 1, 7, b"/w", None),
+        message(ObsAction::Modified, 2, 1, 8, b"/w/modified", None),
+        message(ObsAction::Truncate, 8, 0, 9, b"/w/truncated", None),
     ];
     for event in &cases {
         journal.record_message(event);
@@ -577,10 +675,13 @@ fn k107_rust_and_python_recompute_real_native_journal_frames() {
         .find(|l| l.line == "workspace")
         .unwrap();
     assert!(
-        workspace.text.contains("at least 3 modified"),
+        workspace
+            .text
+            .contains("at least 2 modified, at least 2 created, at least 1 with metadata changes"),
         "{}",
         workspace.text
     );
+    assert!(workspace.text.contains("workspace root metadata changed"));
     assert_eq!(workspace.facts["opened_for_writing"], 0);
     assert_eq!(workspace.facts["renamed"], 1);
     let paths: Vec<_> = workspace.facts["paths"]
@@ -589,7 +690,18 @@ fn k107_rust_and_python_recompute_real_native_journal_frames() {
         .iter()
         .map(|p| p["value"].as_str().unwrap())
         .collect();
-    assert_eq!(paths, ["leaving", "mode", "modified", "new-link"]);
+    assert_eq!(
+        paths,
+        [
+            "",
+            "created",
+            "leaving",
+            "mode",
+            "modified",
+            "new-link",
+            "truncated"
+        ]
+    );
     let mut inflated = receipt;
     inflated["coverage"]["exec"]["observed_count"] = 99.into();
     let inflated_capture = FrameCapture::new();
@@ -611,6 +723,36 @@ fn k107_rust_and_python_recompute_real_native_journal_frames() {
 }
 
 #[test]
+fn r3_summary_describes_root_changes_without_counting_workspace_entries() {
+    for (action, expected) in [
+        (
+            ObsAction::Setmode,
+            "workspace: workspace root metadata changed",
+        ),
+        (
+            ObsAction::Modified,
+            "workspace: workspace root content modified",
+        ),
+        (ObsAction::Create, "workspace: workspace root created"),
+    ] {
+        let capture = FrameCapture::new();
+        let mut journal = capture.journal();
+        journal.record_message(&message(action, 1, 0, 0, b"/w", None));
+        let receipt = receipt_for(&journal);
+        settle(&receipt, &capture);
+        common::check_trace(&capture.frames(), Some(&receipt)).unwrap();
+        let summary = cross_check(&receipt, &capture);
+        let workspace = summary
+            .lines
+            .iter()
+            .find(|line| line.line == "workspace")
+            .unwrap();
+        assert_eq!(workspace.text, expected);
+        assert_eq!(workspace.facts["opened_for_writing"], 0);
+    }
+}
+
+#[test]
 fn an_unsigned_observe_run_refuses_not_entitled() {
     let signing = Command::new("/usr/bin/codesign")
         .args(["-d", "--entitlements", ":-"])
@@ -627,7 +769,7 @@ fn an_unsigned_observe_run_refuses_not_entitled() {
         "test requires an independently verified unentitled binary"
     );
     let capture = FrameCapture::new();
-    let result = ObserveRun::start(ATTEMPT, capture.trace, b"/w", &[[7; 8]]);
+    let result = ObserveRun::start(ATTEMPT, capture.trace, b"/", &[[7; 8]]);
     assert!(
         matches!(
             result,

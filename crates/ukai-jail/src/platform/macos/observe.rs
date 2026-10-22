@@ -238,6 +238,7 @@ pub struct ObserveJournal {
     global_lost: u64,
     type_lost: u64,
     sequence_unknown: bool,
+    ring_dropped: u64,
     created_ns: u128,
 }
 
@@ -258,6 +259,7 @@ impl ObserveJournal {
             global_lost: 0,
             type_lost: 0,
             sequence_unknown: false,
+            ring_dropped: 0,
             created_ns: crate::platform::elapsed_since_start_ns(),
         };
         journal.gap(
@@ -301,6 +303,9 @@ impl ObserveJournal {
             PathEvidence::Unavailable(_) | PathEvidence::Digest(_, "path_basis_unknown")
         );
         fields.insert("observation".into(), OBSERVER_BACKEND.into());
+        // ES documents increments, not the first value. Continuity begins at
+        // the first delivery; neither 0 nor 1 proves loss-free client startup.
+        fields.insert("sequence_start".into(), "unverified".into());
         fields.insert("es_event_type".into(), message.event_type.into());
         fields.insert(
             "pid".into(),
@@ -390,7 +395,9 @@ impl ObserveJournal {
     fn check_sequence(&mut self, message: &ObsMessage) {
         fn missing(last: Option<u64>, next: u64) -> Option<u64> {
             let expected = match last {
-                None => 0,
+                // Match custody: accept either starting convention. A higher
+                // first value is a gap, but its exact loss is unknowable.
+                None => return (next <= 1).then_some(0),
                 Some(last) => last.checked_add(1)?,
             };
             next.checked_sub(expected)
@@ -408,7 +415,8 @@ impl ObserveJournal {
         if global != Some(0) || per_type != Some(0) {
             // Both counters describe the same deliveries, not two independent
             // losses. Never add them. A regression/repeat has unknown loss.
-            let lost = (!self.sequence_unknown).then_some(self.global_lost.max(self.type_lost));
+            let lost = (!self.sequence_unknown && self.ring_dropped == 0)
+                .then_some(self.global_lost.max(self.type_lost));
             self.gap(
                 "sequence",
                 &OBSERVED_CLASSES,
@@ -432,11 +440,19 @@ impl ObserveJournal {
 
     pub fn record_shim_loss(&mut self, dropped: u64, invalid: bool) {
         if dropped > 0 {
+            self.ring_dropped = self.ring_dropped.max(dropped);
+            // Ring drops can also appear as sequence discontinuities. Without
+            // dropped sequence identities their overlap is unknowable. Keep
+            // the shim's exact count, and leave the sequence count unknown,
+            // rather than presenting the same loss as two additive counts.
+            if let Some(index) = self.gap_indices.get("sequence") {
+                self.gaps[*index].lost_count = None;
+            }
             self.gap(
                 "ring",
                 &OBSERVED_CLASSES,
                 "observation_ring_overflowed",
-                Some(dropped),
+                Some(self.ring_dropped),
             );
         }
         if invalid {
@@ -478,13 +494,17 @@ impl ObserveJournal {
         // because further loss may occur; the final receipt carries the total.
         let mut note_gap = gap;
         note_gap.lost_count = None;
-        let note = Event::coverage_gap_note(
+        let mut note = Event::coverage_gap_note(
             &self.attempt_id,
             0,
             std::time::SystemTime::now(),
             crate::platform::elapsed_since_start_ns(),
             &note_gap,
         );
+        // The initial partial-coverage note discloses this even for an empty
+        // audit stream, without claiming a known drop or degrading exec.
+        note.fields
+            .insert("sequence_start".into(), "unverified".into());
         if let Some(trace) = &self.trace {
             let _ = trace
                 .lock()

@@ -413,7 +413,9 @@ def unnamed_path(path):
 
 
 def workspace_line(receipt, frames, claims, state, size):
-    opened, renamed, removed, modified, named, unnamed, refused = set(), set(), set(), set(), {}, 0, 0
+    opened, renamed, removed, modified, created, metadata = (set() for _ in range(6))
+    named, unnamed, refused = {}, 0, 0
+    root = {("t", ""), ("b", "")}
     for frame in frames:
         fields, operation = frame.get("fields") or {}, frame.get("operation")
         if frame.get("source") != "audit":
@@ -433,7 +435,15 @@ def workspace_line(receipt, frames, claims, state, size):
                 continue
             key = ("t", value) if isinstance(value, str) else ("b", value["data"])
             named[key] = value if isinstance(value, str) else {"encoding": "base64", "data": value["data"]}
-            other = modified if fields.get("action") in ("modified", "metadata_changed", "hard_link_created", "created") else opened
+            action = fields.get("action")
+            if action == "modified" or (action == "truncated" and fields.get("observation") == "es_notify"):
+                other = modified
+            elif action == "metadata_changed":
+                other = metadata
+            elif action in ("hard_link_created", "created"):
+                other = created
+            else:
+                other = opened
             {"fs.rename": renamed, "fs.unlink": removed}.get(operation, other).add(key)
     write, deny = claims["fs.write"], claims["fs.deny"]
     observe_off = string(receipt, "policy", "observe") == "off"
@@ -447,9 +457,14 @@ def workspace_line(receipt, frames, claims, state, size):
         seen = []
         if opened or write == "exact":
             seen.append(f"{number(write, len(opened))} {noun(len(opened), 'path', 'paths')} opened for writing")
-        for n, what in [(len(modified), "modified"), (len(renamed), "in renames"), (len(removed), "removed")]:
+        for n, what in [(len(modified - root), "modified"), (len(created - root), "created"),
+                        (len(metadata - root), "with metadata changes"),
+                        (len(renamed), "in renames"), (len(removed), "removed")]:
             if n:
                 seen.append(f"{number(write, n)} {what}")
+        for paths, what in [(modified, "content modified"), (created, "created"), (metadata, "metadata changed")]:
+            if paths & root:
+                seen.append(f"workspace root {what}")
         text = ", ".join(seen) if seen else "none recorded (a lower bound)"
         if unnamed:
             text += f" · {number(write, unnamed)} " + noun(unnamed, "result with an unnamed path",
