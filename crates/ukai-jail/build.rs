@@ -104,8 +104,12 @@ fn compile_es_shim(target: &str) {
     ] {
         println!("cargo:rerun-if-env-changed={key}");
     }
+    // Without an explicit compiler, prefer the Xcode toolchain's clang over
+    // whatever `clang` comes first on PATH: an older toolchain (a Swift
+    // toolchain's clang, for one) cannot parse the macOS 27 SDK headers.
     let compiler = std::env::var_os(&compiler_key)
         .or_else(|| std::env::var_os("CC"))
+        .or_else(|| xcrun_find("clang"))
         .unwrap_or_else(|| "clang".into());
     let archiver = std::env::var_os(&archiver_key)
         .or_else(|| std::env::var_os("AR"))
@@ -153,6 +157,18 @@ fn compile_es_shim(target: &str) {
     println!("cargo:rustc-link-lib=static=ukai_es_shim");
     println!("cargo:rustc-link-lib=EndpointSecurity");
     println!("cargo:rustc-link-lib=framework=CoreFoundation");
+}
+
+/// The Xcode toolchain's path for `tool`, when `xcrun` exists and knows it.
+fn xcrun_find(tool: &str) -> Option<std::ffi::OsString> {
+    Command::new("xcrun")
+        .args(["--find", tool])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().into())
+        .filter(|s: &std::ffi::OsString| !s.is_empty())
 }
 
 fn checked_command(command: &mut Command, step: &str) {

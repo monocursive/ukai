@@ -511,8 +511,11 @@ fn shim_mapping_and_late_sync_wakes_use_sdk_typed_fakes() {
     let executable = temp.path().join("shim-tests");
     let source =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/platform/macos/es/shim_tests.c");
-    let output = Command::new("clang")
+    // `xcrun clang`, not the first `clang` on PATH: an older toolchain's
+    // clang cannot parse the macOS 27 SDK headers.
+    let output = Command::new("xcrun")
         .args([
+            "clang",
             "-fblocks",
             "-std=c11",
             "-Werror",
