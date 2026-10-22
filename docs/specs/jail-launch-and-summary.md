@@ -261,6 +261,15 @@ The install root is read-only inside, so the agent cannot update itself. The
 profile switches the updater off (`DISABLE_AUTOUPDATER=1` for Claude Code,
 per its documentation); updates happen on the host, between runs.
 
+**macOS group-writable rule (amended 2026-10-22,
+[jail-macos.md](jail-macos.md) §4.11, §8).** On macOS, step 2's
+group-writable refusal is adjusted for Homebrew: `/opt/homebrew/bin` is
+group-writable by `admin` (measured, where `admin` holds `root` and the
+operator). A group- or other-writable install directory — or any directory
+from the install root down to `E` — is therefore accepted only when its
+group's members, read at preparation, are exactly `root` and the operator;
+nested groups are refused. Every other case keeps the refusal.
+
 ### 3.4 Launch-profile grammar additions (amends jail-v1 §12)
 
 All data-only and agent-agnostic; validated at load like every existing key.

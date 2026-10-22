@@ -53,6 +53,9 @@ pub enum Command {
     /// List, show or remove persistent agent state.
     #[command(subcommand)]
     State(StateCommand),
+    /// Inspect or stop the per-operator warm Linux guest (J18).
+    #[command(subcommand)]
+    Vm(VmCommand),
 }
 
 /// The verbs `ukai-jail NAME` never takes as a launch name (J12,
@@ -69,7 +72,25 @@ pub const VERBS: &[&str] = &[
     "help",
     "credential",
     "state",
+    "vm",
 ];
+
+/// `ukai-jail vm` (J18, jail-macos.md §6): the per-operator warm guest,
+/// served by the `ukai-vm` host program.
+#[derive(Debug, Subcommand)]
+pub enum VmCommand {
+    /// Ask the running `ukai-vm` to stop its warm guest; exits 0 when none
+    /// is running.
+    Stop(VmStopArgs),
+}
+
+/// `ukai-jail vm stop`.
+#[derive(Debug, Args)]
+pub struct VmStopArgs {
+    /// Print JSON on stdout instead of text.
+    #[arg(long)]
+    pub json: bool,
+}
 
 /// `ukai-jail state` (J14, jail-interactive-sessions.md §4.9): the
 /// persistent vendor state kept per launch profile and workspace.
@@ -282,6 +303,18 @@ pub struct RunArgs {
     /// does. The default is `auto`, or `[jail] terminal` in config.toml.
     #[arg(long, value_name = "auto|detach", value_enum)]
     pub terminal: Option<crate::terminal::Choice>,
+    /// J18 (jail-macos.md §6): require a kernel-bound attempt lifetime. Only
+    /// `kernel-bound` is defined; anything else is a usage error. On macOS
+    /// without --vm this refuses naming --vm; on Linux a contained profile
+    /// provides it and `none` refuses.
+    #[arg(long = "lifetime", value_name = "kernel-bound", value_parser = ["kernel-bound"])]
+    pub lifetime_boundary: Option<String>,
+    /// J18 (jail-macos.md §6): run the command in the per-operator warm
+    /// Linux guest (`ukai-vm`), whose guest jail gives the attempt a
+    /// kernel-bound lifetime. macOS only: the flag does not exist elsewhere.
+    #[cfg(target_os = "macos")]
+    #[arg(long = "vm")]
+    pub vm: bool,
     /// PROGRAM and its arguments, after `--`; with --from-path, the
     /// arguments the resolved program gets.
     #[arg(
@@ -291,6 +324,23 @@ pub struct RunArgs {
         value_parser = clap::value_parser!(OsString)
     )]
     pub argv: Vec<OsString>,
+}
+
+impl RunArgs {
+    /// Whether this run asks for the VM tier. Portable code asks this; the
+    /// flag itself exists only on macOS, so the answer is always false where
+    /// `--vm` is a usage error.
+    #[must_use]
+    pub fn requests_vm(&self) -> bool {
+        #[cfg(target_os = "macos")]
+        {
+            self.vm
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            false
+        }
+    }
 }
 
 /// J12: the argv `ukai-jail NAME [ARG]...` stands for, exactly `ukai-jail run
@@ -369,6 +419,12 @@ pub struct GcArgs {
     /// Print JSON on stdout instead of text.
     #[arg(long)]
     pub json: bool,
+    /// J16 (jail-macos.md §4.9): accept the named attempt's unverified end:
+    /// record `gc_abandoned` and release its lease and resources. The one
+    /// way out, and it is explicit. With --dry-run, reports what an abandon
+    /// would do and changes nothing.
+    #[arg(long, value_name = "ATTEMPT")]
+    pub abandon: Option<String>,
 }
 
 /// `ukai-jail version`.
@@ -576,5 +632,62 @@ mod tests {
             Cli::try_parse_from(["ukai-jail", "run", "--observe", "maybe", "--", "/bin/true"])
                 .expect_err("a usage error");
         assert_eq!(error.exit_code(), 2);
+    }
+
+    /// J18: `--lifetime` takes exactly the one defined value; the `vm` verb
+    /// takes `stop`.
+    #[test]
+    fn the_lifetime_flag_and_vm_verb_parse_their_one_shape() {
+        let cli = Cli::try_parse_from([
+            "ukai-jail",
+            "run",
+            "--lifetime",
+            "kernel-bound",
+            "--",
+            "/bin/true",
+        ])
+        .expect("parses");
+        let Command::Run(args) = cli.command else {
+            panic!("expected run");
+        };
+        assert_eq!(args.lifetime_boundary.as_deref(), Some("kernel-bound"));
+        assert!(!args.requests_vm(), "no --vm was given");
+
+        let cli = Cli::try_parse_from(["ukai-jail", "vm", "stop"]).expect("parses");
+        assert!(matches!(cli.command, Command::Vm(VmCommand::Stop(_))));
+
+        let error = Cli::try_parse_from([
+            "ukai-jail",
+            "run",
+            "--lifetime",
+            "best-effort",
+            "--",
+            "/bin/true",
+        ])
+        .expect_err("only the defined value");
+        assert_eq!(error.exit_code(), 2);
+        let error = Cli::try_parse_from(["ukai-jail", "vm", "start"]).expect_err("no such verb");
+        assert_eq!(error.exit_code(), 2);
+    }
+
+    /// `--vm` exists on macOS only: elsewhere it is a usage refusal, the
+    /// grammar the Linux lane documents (J18 §6.1).
+    #[test]
+    #[cfg(not(target_os = "macos"))]
+    fn the_vm_flag_does_not_exist_off_macos() {
+        let error = Cli::try_parse_from(["ukai-jail", "run", "--vm", "--", "/bin/true"])
+            .expect_err("a usage error");
+        assert_eq!(error.exit_code(), 2);
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn the_vm_flag_parses_on_macos() {
+        let cli =
+            Cli::try_parse_from(["ukai-jail", "run", "--vm", "--", "/bin/true"]).expect("parses");
+        let Command::Run(args) = cli.command else {
+            panic!("expected run");
+        };
+        assert!(args.requests_vm());
     }
 }

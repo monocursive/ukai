@@ -14,7 +14,7 @@ use std::io::{self, Read};
 use std::os::unix::net::UnixStream;
 use std::time::Instant;
 
-use super::Reason;
+use super::{ProxyAuth, Reason};
 use crate::network::{Destination, parse_authority};
 
 /// A complete request head plus any bytes read after it.
@@ -297,13 +297,40 @@ fn authority_text(bytes: &[u8]) -> Result<&str, Reason> {
 /// A safe [`Reason`]: `malformed_request`, `ambiguous_framing`,
 /// `host_mismatch` or `unsupported_request`.
 pub fn parse_request(head: &[u8]) -> Result<Request, Reason> {
-    parse_request_with_port(head, 80)
+    parse_request_with_auth(head, 80, None)
 }
 
 pub(crate) fn parse_request_with_port(head: &[u8], default_port: u16) -> Result<Request, Reason> {
+    parse_request_with_auth(head, default_port, None)
+}
+
+/// Parses one request head, requiring the bridge's per-attempt secret when
+/// the attempt carries one (jail-macos.md §4.10).
+///
+/// With `auth`, both accepted shapes — `CONNECT` and absolute-form — must
+/// carry exactly one `Proxy-Authorization: Basic base64(user:password)`
+/// field (RFC 7617 §2) presenting `auth`; anything else refuses with
+/// [`Reason::ProxyAuthRequired`], which the response renders as `407` with
+/// the Basic challenge. A validated field is never forwarded: the head sent
+/// upstream drops it as hop-by-hop. Without `auth` the parse is
+/// byte-identical to [`parse_request_with_port`].
+///
+/// # Errors
+/// The [`parse_request_with_port`] refusals, plus
+/// [`Reason::ProxyAuthRequired`] when `auth` is set and the head fails it.
+pub fn parse_request_with_auth(
+    head: &[u8],
+    default_port: u16,
+    auth: Option<&ProxyAuth>,
+) -> Result<Request, Reason> {
     let mut lines = head_lines(head)?;
     let line = request_line(lines.next().ok_or(Reason::MalformedRequest)?)?;
     let fields = fields(lines)?;
+    // The secret is checked before anything else about the request, so an
+    // unauthenticated client learns nothing but the refusal.
+    if let Some(auth) = auth {
+        authorize(&fields, auth)?;
+    }
     let hosts = fields.named("host");
     if hosts.len() > 1 {
         return Err(Reason::MalformedRequest);
@@ -491,6 +518,38 @@ fn same_host(host: &Field<'_>, destination: &Destination, default_port: u16) -> 
     Ok(())
 }
 
+/// The Basic check of one request head against the attempt's secret (RFC
+/// 7617 §2): exactly one `Proxy-Authorization` field, whose value is the
+/// scheme `Basic` and the base64 of `user:password`. The password may
+/// contain a colon; the user may not, so the split takes the first.
+fn authorize(fields: &Fields<'_>, auth: &ProxyAuth) -> Result<(), Reason> {
+    let refused = Reason::ProxyAuthRequired;
+    // None is unauthenticated; more than one is a smuggling attempt. Both
+    // refuse without echoing anything about the values.
+    let presented = fields.named("proxy-authorization");
+    let [field] = presented.as_slice() else {
+        return Err(refused);
+    };
+    let mut parts = field.value.splitn(2, |&byte| byte == b' ');
+    let scheme = parts.next().unwrap_or_default();
+    let encoded = parts.next().ok_or(refused)?;
+    if !scheme.eq_ignore_ascii_case(b"basic") {
+        return Err(refused);
+    }
+    use base64::Engine as _;
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .map_err(|_| refused)?;
+    let mut credentials = decoded.splitn(2, |&byte| byte == b':');
+    let user = credentials.next().unwrap_or_default();
+    let password = credentials.next().ok_or(refused)?;
+    if auth.matches(user, password) {
+        Ok(())
+    } else {
+        Err(refused)
+    }
+}
+
 /// An `http://` absolute-form target.
 struct AbsoluteTarget<'a> {
     destination: Destination,
@@ -629,9 +688,16 @@ fn forward_head(
 pub fn error_response(reason: Reason) -> Vec<u8> {
     let (status, text) = reason.status();
     let body = format!("{}\n", reason.as_str());
+    // A 407 carries the scheme the client should retry with (RFC 9110
+    // §11.7.1): one fixed challenge naming the realm the secret belongs to.
+    let challenge = if reason == Reason::ProxyAuthRequired {
+        "Proxy-Authenticate: Basic realm=\"ukai\"\r\n"
+    } else {
+        ""
+    };
     format!(
         "HTTP/1.1 {status} {text}\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\
-         X-Ukai-Proxy-Reason: {}\r\nConnection: close\r\n\r\n{body}",
+         X-Ukai-Proxy-Reason: {}\r\n{challenge}Connection: close\r\n\r\n{body}",
         body.len(),
         reason.as_str()
     )

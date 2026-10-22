@@ -33,6 +33,44 @@ pub struct OwnerRecord {
     pub start_time_ticks: u64,
 }
 
+/// J16 (jail-macos.md §4.8): the target's recorded identity, the parts of
+/// its audit token the receipt carries (`process.identity.kind =
+/// macos_audit_token`). The kernel validates the pid version inside the
+/// token (`proc_find_audit_token`, xnu `kern_proc.c`: pid is `val[5]`, the
+/// pid version `val[7]`), so a kill through it is safe after pid reuse and
+/// a no-op after a later exec.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct TargetToken {
+    /// The target's pid (`token.val[5]`).
+    pub pid: u32,
+    /// The target's pid version (`token.val[7]`).
+    pub pidversion: u32,
+}
+
+/// The guardian's record (`guardian.json`, `ukai.jail.guardian-record/1`),
+/// read tolerantly: a record that is absent or corrupt is treated as absent
+/// (jail-macos.md §4.9). Only the identity and verdict fields are read.
+#[derive(Clone, PartialEq, Eq, Debug, Default)]
+pub struct GuardianRecord {
+    /// The guardian's pid, from `own_token` word 5.
+    pub pid: Option<u32>,
+    /// The guardian's pid version, from `own_token` word 7.
+    pub pidversion: Option<u32>,
+    /// The boot session the guardian recorded; `None`, or an empty string
+    /// (the kernel refused the sysctl), means gc cannot compare boots.
+    pub boot_session: Option<String>,
+    /// Whether the guardian drained the tree's members.
+    pub drained: Option<bool>,
+}
+
+impl GuardianRecord {
+    /// Whether gc can ask the host anything about this guardian.
+    #[must_use]
+    pub fn probeable(&self) -> bool {
+        self.pid.is_some()
+    }
+}
+
 /// What the host says about a recorded owner in this boot.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Liveness {
@@ -157,6 +195,25 @@ pub trait Host {
         path: &Path,
         entries: &mut usize,
     ) -> Result<(u64, u64), HostFailure>;
+    /// J16 (jail-macos.md §4.9): whether the guardian a custodian record
+    /// describes is alive. A custodian is dead when its audit token no
+    /// longer matches, or when the boot session differs. The default reads
+    /// no custodian identity, which retains the attempt.
+    fn guardian(&self, _: &GuardianRecord) -> Liveness {
+        Liveness::Unknown("no custodian identity is read here".to_owned())
+    }
+    /// J16 (jail-macos.md §4.9): sends `SIGKILL` to the receipt's recorded
+    /// target, by audit token. Safe after pid reuse (the kernel checks the
+    /// pid version in the token) and a no-op once the pid is gone (`ESRCH`
+    /// is success here). Signal 0 is never sent: with `proc_signal_with_
+    /// audittoken` it is documented as unusable (`EINVAL`). The default
+    /// refuses, which keeps everything.
+    ///
+    /// # Errors
+    /// Why the signal was not delivered (anything but `ESRCH`).
+    fn kill_target(&self, _: &TargetToken) -> Result<(), HostFailure> {
+        Err(HostFailure::new("no audit-token kill exists here"))
+    }
 }
 
 /// The host `gc` runs on: the platform's identity, and on Linux the
@@ -176,6 +233,255 @@ impl NativeHost {
             },
         }
     }
+}
+
+/// J16 (jail-macos.md §4.9): the macOS host. The boot identity is the boot
+/// session (`kern.bootsessionuuid`); custodian liveness is a
+/// `proc_pidinfo(PROC_PIDTBSDINFO)` read; the §4.9 kill is
+/// `proc_signal_with_audittoken` with the receipt's recorded token words.
+#[cfg(target_os = "macos")]
+mod native {
+    use super::{GuardianRecord, HostFailure, Liveness, NativeHost, OwnerRecord, TargetToken};
+
+    /// No cgroup mechanism exists on this platform.
+    const NO_MECHANISM: &str = "this platform has no execution cgroup mechanism";
+
+    /// The kernel's `proc_bsdinfo` (sys/proc_info.h), only the fields gc
+    /// reads. Field order and padding follow the C layout exactly.
+    #[repr(C)]
+    struct ProcBsdInfo {
+        pbi_flags: u32,
+        pbi_status: u32,
+        pbi_xstatus: u32,
+        pbi_pid: u32,
+        pbi_ppid: u32,
+        pbi_uid: u32,
+        pbi_gid: u32,
+        pbi_ruid: u32,
+        pbi_rgid: u32,
+        pbi_svuid: u32,
+        pbi_svgid: u32,
+        rfu_1: u32,
+        pbi_comm: [u8; 16],
+        pbi_name: [u8; 32],
+        pbi_nfiles: u32,
+        pbi_pgid: u32,
+        pbi_pjobc: u32,
+        e_tdev: u32,
+        e_tpgid: i32,
+        pbi_nice: i32,
+        pbi_start_tvsec: u64,
+        pbi_start_tvusec: u64,
+    }
+
+    /// The kernel's `audit_token_t` (mach/message.h).
+    #[repr(C)]
+    struct AuditToken {
+        val: [u32; 8],
+    }
+
+    // SAFETY: the signatures match the SDK's libproc declarations
+    // (libproc.h, mach/message.h); macOS links them from libSystem.
+    unsafe extern "C" {
+        fn proc_pidinfo(
+            pid: libc::c_int,
+            flavor: libc::c_int,
+            arg: u64,
+            buffer: *mut libc::c_void,
+            buffersize: libc::c_int,
+        ) -> libc::c_int;
+        fn proc_signal_with_audittoken(token: *mut AuditToken, sig: libc::c_int) -> libc::c_int;
+        fn sysctlbyname(
+            name: *const libc::c_char,
+            oldp: *mut libc::c_void,
+            oldlenp: *mut libc::size_t,
+            newp: *mut libc::c_void,
+            newlen: libc::size_t,
+        ) -> libc::c_int;
+    }
+
+    const PROC_PIDTBSDINFO: libc::c_int = 3;
+    /// sys/proc.h: the process is awaiting collection by its parent.
+    const SZOMB: u32 = 5;
+
+    /// The current boot session (`kern.bootsessionuuid`), or `None` when the
+    /// kernel refuses the sysctl (nothing is ever fabricated in its place).
+    #[must_use]
+    pub fn boot_session() -> Option<String> {
+        let name = b"kern.bootsessionuuid\0";
+        let mut buffer = [0u8; 64];
+        let mut length = buffer.len();
+        // SAFETY: `name` is NUL-terminated and outlives the call; `buffer`
+        // and `length` describe writable space sysctlbyname fills.
+        let ok = unsafe {
+            sysctlbyname(
+                name.as_ptr().cast(),
+                buffer.as_mut_ptr().cast(),
+                &mut length,
+                std::ptr::null_mut(),
+                0,
+            )
+        };
+        if ok != 0 || length == 0 || length > buffer.len() {
+            return None;
+        }
+        Some(String::from_utf8_lossy(&buffer[..length - 1]).into_owned())
+    }
+
+    /// Reads a live pid's birth identity, or why it cannot be read.
+    fn bsdinfo(pid: u32) -> Result<ProcBsdInfo, Liveness> {
+        let mut info = ProcBsdInfo {
+            pbi_flags: 0,
+            pbi_status: 0,
+            pbi_xstatus: 0,
+            pbi_pid: 0,
+            pbi_ppid: 0,
+            pbi_uid: 0,
+            pbi_gid: 0,
+            pbi_ruid: 0,
+            pbi_rgid: 0,
+            pbi_svuid: 0,
+            pbi_svgid: 0,
+            rfu_1: 0,
+            pbi_comm: [0; 16],
+            pbi_name: [0; 32],
+            pbi_nfiles: 0,
+            pbi_pgid: 0,
+            pbi_pjobc: 0,
+            e_tdev: 0,
+            e_tpgid: 0,
+            pbi_nice: 0,
+            pbi_start_tvsec: 0,
+            pbi_start_tvusec: 0,
+        };
+        // SAFETY: `info` is a valid `proc_bsdinfo`-sized buffer outliving
+        // the call; `PROC_PIDTBSDINFO` fills exactly that shape.
+        let got = unsafe {
+            proc_pidinfo(
+                pid as libc::c_int,
+                PROC_PIDTBSDINFO,
+                0,
+                std::ptr::addr_of_mut!(info).cast(),
+                std::mem::size_of::<ProcBsdInfo>() as libc::c_int,
+            )
+        };
+        if got == 0 {
+            // ESRCH: no process has the pid. Anything else is a read this
+            // host cannot establish, and §14.2 keeps what it cannot read.
+            return match std::io::Error::last_os_error().raw_os_error() {
+                Some(libc::ESRCH) => Err(Liveness::Gone),
+                _ => Err(Liveness::Unknown(
+                    "proc_pidinfo could not read the process".to_owned(),
+                )),
+            };
+        }
+        Ok(info)
+    }
+
+    /// The shared liveness rule: alive iff the pid names a live process
+    /// whose recorded start matches (jail-macos.md §4.9: "a custodian is
+    /// dead when its audit token no longer matches, or when the boot
+    /// session differs"; the caller compares boots).
+    fn liveness(pid: u32, start_time_secs: Option<u64>) -> Liveness {
+        match bsdinfo(pid) {
+            Err(why) => why,
+            Ok(info) if info.pbi_status & SZOMB == SZOMB => Liveness::Exited,
+            Ok(info) if start_time_secs.is_some_and(|start| start != info.pbi_start_tvsec) => {
+                Liveness::Reused
+            }
+            Ok(_) => Liveness::Alive,
+        }
+    }
+
+    impl NativeHost {
+        /// Sends `SIGKILL` through the recorded token words. The kernel
+        /// re-validates the pid version inside the token
+        /// (`proc_find_audit_token`), so a reused pid is `ESRCH`, which is
+        /// the no-op the spec calls for.
+        ///
+        /// Signal 0 is never used here: `psignal_by_audit_token` rejects it
+        /// (`EINVAL`), so it cannot serve as a liveness probe.
+        pub(super) fn kill_by_token(token: &TargetToken) -> Result<(), HostFailure> {
+            let mut audittoken = AuditToken { val: [0; 8] };
+            audittoken.val[5] = token.pid;
+            audittoken.val[7] = token.pidversion;
+            // SAFETY: `audittoken` is a valid `audit_token_t` outliving the
+            // call; `proc_signal_with_audittoken` reads it and signals.
+            let error = unsafe { proc_signal_with_audittoken(&mut audittoken, libc::SIGKILL) };
+            if error == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH) {
+                return Ok(());
+            }
+            Err(HostFailure::os(
+                "proc_signal_with_audittoken",
+                std::io::Error::last_os_error(),
+            ))
+        }
+    }
+
+    impl super::Host for NativeHost {
+        fn identity(&self) -> super::HostIdentity {
+            let mut identity = self.identity.clone();
+            if identity.boot_id.is_none() {
+                identity.boot_id = boot_session();
+            }
+            identity
+        }
+
+        fn owner(&self, owner: &OwnerRecord) -> Liveness {
+            liveness(owner.pid, Some(owner.start_time_ticks))
+        }
+
+        fn guardian(&self, record: &GuardianRecord) -> Liveness {
+            let Some(pid) = record.pid else {
+                return Liveness::Unknown("the record names no guardian pid".to_owned());
+            };
+            // The pid version cannot be re-read from user space without the
+            // token calls; a pid that was reused reads as alive, which
+            // keeps the attempt — the safe side.
+            liveness(pid, None)
+        }
+
+        fn probe_leaf(&self, _: &super::LeafRecord) -> super::LeafProbe {
+            super::LeafProbe::Unverifiable(NO_MECHANISM.to_owned())
+        }
+
+        fn terminate_leaf(
+            &self,
+            _: &super::LeafRecord,
+            _: std::time::Duration,
+        ) -> Result<(), HostFailure> {
+            Err(HostFailure::new(NO_MECHANISM))
+        }
+
+        fn remove_leaf(&self, _: &super::LeafRecord, _: &mut usize) -> Result<(), HostFailure> {
+            Err(HostFailure::new(NO_MECHANISM))
+        }
+
+        fn probe_named_leaf(&self, _: &std::path::Path) -> super::LeafProbe {
+            super::LeafProbe::Unverifiable(NO_MECHANISM.to_owned())
+        }
+
+        fn remove_named_leaf(
+            &self,
+            _: &std::path::Path,
+            _: &mut usize,
+        ) -> Result<(u64, u64), HostFailure> {
+            Err(HostFailure::new(NO_MECHANISM))
+        }
+
+        fn kill_target(&self, token: &TargetToken) -> Result<(), HostFailure> {
+            Self::kill_by_token(token)
+        }
+    }
+}
+
+/// J16 (jail-macos.md §4.3, §4.9): this host's boot session
+/// (`kern.bootsessionuuid`), the boot identity macOS records and compares.
+/// `None` when the kernel refuses the sysctl; nothing is fabricated.
+#[cfg(target_os = "macos")]
+#[must_use]
+pub fn boot_session() -> Option<String> {
+    native::boot_session()
 }
 
 /// On Linux: the identity-checked mechanisms of `platform::linux::reconcile`.
@@ -214,12 +520,12 @@ impl Host for NativeHost {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "linux")]
 const NO_MECHANISM: &str = "this platform has no execution cgroup mechanism";
 
-/// Elsewhere: no process birth identity and no execution cgroup, so nothing
-/// is verified and nothing is acted on.
-#[cfg(not(target_os = "linux"))]
+/// Anywhere else: no process birth identity and no execution cgroup, so
+/// nothing is verified and nothing is acted on.
+#[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
 impl Host for NativeHost {
     fn identity(&self) -> HostIdentity {
         self.identity.clone()

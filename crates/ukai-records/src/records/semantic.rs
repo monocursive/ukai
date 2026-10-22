@@ -59,6 +59,10 @@ pub const RULES: &[(&str, &str)] = &[
         r#"jail-v1.md §12 "IDs are unique logical names" and canonicalization.md "Ids are unique.": staged credentials have unique logical ids"#,
     ),
     (
+        "credential_binding",
+        r#"jail-v1.md §12 "A `vault`-mode credential's `header` declares where its placeholder may appear" and jail-macos.md §4.11: a credential records its binding only when it is a vault credential, and an attempt binding is native macOS"#,
+    ),
+    (
         "limit_key_unique",
         r#"jail-v1.md §6.4 "CLI duplicates refuse.", §9.3 "The receipt gives requested value, applied mechanism, scope and observed hit/unknown status." and §13.2 "Limits report hits in `applied.limits[].hit`": one limit per key, each stating its own scope and hit"#,
     ),
@@ -241,6 +245,34 @@ pub fn receipt(record: &Value) -> Vec<Violation> {
                     format!("duplicate {key} {}", item[key]),
                 ));
             }
+        }
+    }
+    // J16 (jail-macos.md §4.11, §8): a credential records its binding only
+    // as a vault credential, and an attempt binding is native macOS.
+    for (index, item) in record["credentials"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .enumerate()
+    {
+        let Some(binding) = item["binding"].as_str() else {
+            continue;
+        };
+        let mode = item["mode"].as_str().unwrap_or("?");
+        let os = record["platform"]["os"].as_str().unwrap_or("?");
+        if mode != "vault" {
+            out.push(violation(
+                "credential_binding",
+                format!("$.credentials[{index}]"),
+                format!("binding {binding} on mode {mode}"),
+            ));
+        }
+        if binding == "attempt" && os != "macos" {
+            out.push(violation(
+                "credential_binding",
+                format!("$.credentials[{index}]"),
+                format!("binding attempt on {os}"),
+            ));
         }
     }
     if let Some(coverage) = record["coverage"].as_object() {

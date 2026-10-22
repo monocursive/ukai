@@ -376,6 +376,12 @@ pub enum ErrorCode {
     /// The release of persistent vendor state found a vault credential's
     /// value in it and quarantined it.
     CredentialPersisted,
+    /// J16 (jail-macos.md §4.6): a native custody custodian was lost; the
+    /// other one ends the tree, and the receipt names which was lost.
+    CustodianLost,
+    /// J16 (jail-macos.md §4.6): a native custody custodian stalled at the
+    /// stop and was ended by the other.
+    CustodianStalled,
     /// A defect in this implementation, reported rather than papered over.
     InternalError,
 }
@@ -413,6 +419,8 @@ impl ErrorCode {
             ErrorCode::StateQuarantined => "state_quarantined",
             ErrorCode::StateWorkspaceChanged => "state_workspace_changed",
             ErrorCode::CredentialPersisted => "credential_persisted",
+            ErrorCode::CustodianLost => "custodian_lost",
+            ErrorCode::CustodianStalled => "custodian_stalled",
             ErrorCode::InternalError => "internal_error",
         }
     }
@@ -845,6 +853,9 @@ pub fn exit_code_for(code: ErrorCode) -> i32 {
         | ErrorCode::ExecUnconfirmed
         | ErrorCode::StateWriteFailed
         | ErrorCode::StdioFailed
+        // J16: custodian losses are tool failures after execution started
+        | ErrorCode::CustodianLost
+        | ErrorCode::CustodianStalled
         | ErrorCode::InternalError => 1,
     }
 }
@@ -1087,7 +1098,8 @@ pub struct Applied {
 pub struct AppliedTerminal {
     /// Always `pty`: only a pseudo-terminal slave attaches.
     pub device: String,
-    /// Always `caller`: the command runs in the operator's session.
+    /// `caller` (Linux: the command runs in the operator's session) or
+    /// `relay` (macOS terminal mode, the pty relay; jail-macos.md §4.11).
     pub session: String,
     /// Always `own`: the command's process group is its own.
     pub process_group: String,
@@ -1449,8 +1461,13 @@ pub struct CredentialRecord {
     pub never_staged: bool,
     /// Unique logical id.
     pub id: String,
-    /// `copy_rw` or `bind_ro`.
+    /// `copy_rw`, `bind_ro` or `vault`.
     pub mode: String,
+    /// J16 (jail-macos.md §4.11, §8): where the secret is bound. `program`
+    /// (the Linux vault pin) or `attempt` (macOS native). Absent on the
+    /// filesystem modes, which bind nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub binding: Option<String>,
     /// Content digest, or null.
     pub digest: Option<String>,
     /// Why the digest is absent; null when a digest is present.
@@ -2373,6 +2390,8 @@ mod tests {
             C::StateQuarantined,
             C::StateWorkspaceChanged,
             C::CredentialPersisted,
+            C::CustodianLost,
+            C::CustodianStalled,
             C::InternalError,
         ];
         for code in codes {
@@ -2405,6 +2424,8 @@ mod tests {
                 | C::StateQuarantined
                 | C::StateWorkspaceChanged
                 | C::CredentialPersisted
+                | C::CustodianLost
+                | C::CustodianStalled
                 | C::InternalError => {}
             }
             assert_eq!(serde_json::to_value(code).unwrap(), code.as_str());

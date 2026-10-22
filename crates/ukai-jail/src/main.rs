@@ -11,7 +11,7 @@ use clap::Parser as _;
 use ukai_jail::capability::Capability;
 use ukai_jail::cli::{
     Cli, Command, CredentialCommand, DoctorArgs, ExplainArgs, GcArgs, RunArgs, StateCommand,
-    TailArgs, VersionArgs,
+    TailArgs, VersionArgs, VmCommand,
 };
 use ukai_jail::config;
 use ukai_jail::observer::CoverageSummary;
@@ -83,6 +83,7 @@ fn main() -> ExitCode {
         Command::Tail(args) => tail(&context, &args),
         Command::Credential(command) => credential(&context, &command),
         Command::State(command) => state(&context, &command),
+        Command::Vm(command) => vm(&context, &command),
     }
 }
 
@@ -176,11 +177,50 @@ fn credential(context: &Context, command: &CredentialCommand) -> ExitCode {
 }
 
 // ---------------------------------------------------------------------------
-// state (J14, jail-interactive-sessions.md §4.9)
+// state (J14, jail-interactive-sessions.md §4.9), vm (J18, jail-macos.md §6)
 // ---------------------------------------------------------------------------
 
-/// `ukai-jail state list|show|rm`: 0 when done, 1 when refused or absent.
-/// File names below a state are printed only by `show`, on this host.
+/// `ukai-jail vm` (J18, jail-macos.md §6): the warm-guest verbs. `stop`
+/// asks the per-operator `ukai-vm` for an orderly stop and exits 0 when no
+/// VM is running. The VM tier is macOS's: elsewhere the verb refuses the
+/// way `--vm` does, as a usage error (§6.4).
+fn vm(context: &Context, command: &VmCommand) -> ExitCode {
+    let VmCommand::Stop(args) = command;
+    #[cfg(target_os = "macos")]
+    {
+        let data_dir =
+            match ukai_jail::state::data_dir(&context.env_settings, context.home.as_deref()) {
+                Ok(dir) => dir,
+                Err(error) => return fail(&error),
+            };
+        match platform::macos::vm::stop_guest(&data_dir, args.json) {
+            Ok(message) => {
+                if args.json {
+                    println!("{}", records::escape_control(&message));
+                } else {
+                    ukai_jail::diag!("ukai-jail: vm: {}", records::escape_control(&message));
+                }
+                ExitCode::SUCCESS
+            }
+            Err(error) => fail(&error),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (context, args);
+        let error = ukai_jail::records::JailError::new(
+            ukai_jail::records::ErrorCode::InvalidConfig,
+            ukai_jail::records::ErrorStage::Resolving,
+            ukai_jail::records::Remediation::Configuration,
+            "vm: the VM tier runs on macOS; there is no ukai-vm here".to_owned(),
+        )
+        .with_key_path("vm");
+        fail(&error)
+    }
+}
+
+/// `ukai-jail state` (J14, jail-interactive-sessions.md §4.9): the
+/// persistent vendor state kept per launch profile and workspace.
 fn state(context: &Context, command: &StateCommand) -> ExitCode {
     use ukai_jail::persistent;
     let data_dir = match ukai_jail::state::data_dir(&context.env_settings, context.home.as_deref())
@@ -1298,6 +1338,36 @@ fn doctor_text(report: &DoctorReport) -> String {
             }
         }
     }
+    // J16 (jail-macos.md §4.10): the macOS host facts `doctor` measured —
+    // the ES entitlement, the sandbox-exec profile compile, the loopback
+    // binds and the boot sysctls. Each names the probe row it came from;
+    // a probe that did not answer names its reason.
+    if report.platform.os == records::Os::Macos {
+        let find = |name: &str| {
+            report
+                .capabilities
+                .iter()
+                .find(|capability| capability.name == name)
+        };
+        let line = |capability: Option<&Capability>, label: &str| match capability {
+            Some(capability) => format!(
+                "macos_{label} status={} reason={}{}",
+                capability.status.as_str(),
+                capability.reason_code.as_deref().unwrap_or("unmeasured"),
+                capability
+                    .evidence_ref
+                    .as_deref()
+                    .map(|evidence| format!(" evidence={}", records::escape_control(evidence)))
+                    .unwrap_or_default()
+            ),
+            None => format!("macos_{label} unmeasured"),
+        };
+        for name in ["es_descendants", "seatbelt_profile", "loopback_bind"] {
+            let _ = writeln!(out, "{}", line(find(name), name));
+        }
+        let _ = writeln!(out, "{}", line(find("bootsessionuuid"), "bootsessionuuid"));
+        let _ = writeln!(out, "{}", line(find("maxprocperuid"), "maxprocperuid"));
+    }
     if let Some(state) = &report.persistent_state {
         let _ = writeln!(
             out,
@@ -1533,6 +1603,34 @@ fn gc_json(report: &ukai_jail::gc::Report) -> serde_json::Value {
 fn run(context: &Context, args: &RunArgs, channels: supervisor::OperatorChannels) -> ExitCode {
     // J5-B1: X05.3 — this binary's stdout is the target's (§8.3).
     supervisor::release_stdout_after_prepare();
+    // J18 (jail-macos.md §6): `--vm` selects the warm-VM backend for the
+    // whole run, so the native platform is never asked to prepare: the
+    // attempt is a normal Linux jail attempt inside the guest, and the
+    // kernel-bound lifetime key is satisfiable there.
+    #[cfg(target_os = "macos")]
+    let vm_context;
+    #[cfg(target_os = "macos")]
+    let context = if args.requests_vm() {
+        let data_dir =
+            match ukai_jail::state::data_dir(&context.env_settings, context.home.as_deref()) {
+                Ok(dir) => dir,
+                Err(error) => return fail(&error),
+            };
+        let platform = match ukai_jail::platform::macos::vm::VmPlatform::new(&data_dir) {
+            Ok(platform) => platform,
+            Err(error) => return fail(&error),
+        };
+        vm_context = supervisor::Context {
+            platform: Box::new(platform),
+            env_settings: context.env_settings.clone(),
+            cwd: context.cwd.clone(),
+            home: context.home.clone(),
+            env_lookup: Box::new(supervisor::env_bytes),
+        };
+        &vm_context
+    } else {
+        context
+    };
     let report = supervisor::run_with_channels(context, args, channels);
     // §6.1: `--label-only` prints the proposed execution label and describes
     // each capability; it executes nothing and copies no credential.
@@ -1579,6 +1677,25 @@ fn run(context: &Context, args: &RunArgs, channels: supervisor::OperatorChannels
         // journal on disk alone, as `tail --summary` computes it, so the two
         // print the same lines; the receipt line stays last. The exit code
         // never depends on it.
+        // J18 (jail-macos.md §6): a `--vm` attempt prints one transport
+        // line from its `vm-transport.json` beside the guest summary; the
+        // receipt line still stays last. No record, no line.
+        #[cfg(target_os = "macos")]
+        if let Some(dir) = path.parent() {
+            let record_path = dir.join(ukai_jail::platform::macos::vm::record::TRANSPORT_FILE);
+            if let Ok(text) = std::fs::read_to_string(&record_path)
+                && let Ok(record) = serde_json::from_str::<
+                    ukai_jail::platform::macos::vm::record::TransportRecord,
+                >(&text)
+                && let Ok(bytes) = std::fs::read(path)
+                && let Ok(receipt) = serde_json::from_slice::<serde_json::Value>(&bytes)
+            {
+                ukai_jail::diag!(
+                    "{}",
+                    ukai_jail::platform::macos::vm::record::transport_line(&receipt, &record)
+                );
+            }
+        }
         print_summary(path);
     }
     exit(report.exit_code)
@@ -1731,6 +1848,18 @@ fn internal_subcommand() -> Option<ExitCode> {
         // The in-namespace loopback bridge (jail-v1 §10)
         #[cfg(target_os = "linux")]
         "__bridge" => ukai_jail::platform::linux::bridge::bridge_main(&args[2..]),
+        // The guardian, the second custodian (jail-macos §4.2–§4.6).
+        // Dispatched before any configuration, policy or I/O setup
+        // (§4.1 rule 2).
+        #[cfg(target_os = "macos")]
+        "__guardian" => Some(ukai_jail::platform::macos::guardian::guardian_main(
+            &args[2..],
+        )),
+        // The launcher inside the final boundary (jail-macos §4.3 step 4).
+        // Dispatched before any configuration, policy or I/O setup, like
+        // the guardian and Linux's `__launch`. `launch_main` never returns.
+        #[cfg(target_os = "macos")]
+        "__launch-macos" => ukai_jail::platform::macos::launcher::launch_main(&args[2..]),
         _ => None,
     }
 }

@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use serde::Deserialize as _;
 
-use super::host::{LeafRecord, OwnerRecord};
+use super::host::{GuardianRecord, LeafRecord, OwnerRecord, TargetToken};
 use super::leaf_name_of;
 use crate::cleanup;
 use crate::lifecycle::TreeEnd;
@@ -42,6 +42,11 @@ pub struct StateView {
     pub gc_removed_scratch: bool,
     /// When an earlier pass found nothing left to do (`gc_finished`).
     pub gc_finished: Option<String>,
+    /// J16 (jail-macos.md §4.9): an earlier pass verified the tree's end by
+    /// the guardian's custody (`gc_custody_verified`) or the operator
+    /// abandoned the attempt (`gc_abandoned`), either of which releases the
+    /// lease's hold on the resources for later passes too.
+    pub custody_released: bool,
 }
 
 // N7
@@ -140,6 +145,11 @@ pub struct ReceiptView {
     pub boot_id: Option<String>,
     /// The execution leaf from `lifetime.native.details.execution_cgroup`.
     pub leaf: LeafSource,
+    /// J16 (jail-macos.md §4.8, §4.9): the target's recorded identity,
+    /// `process.identity.kind = macos_audit_token`. `gc` kills the tree's
+    /// target through it; `None` on Linux receipts and macOS receipts that
+    /// name no identity.
+    pub target: Option<TargetToken>,
 }
 
 impl ReceiptView {
@@ -216,6 +226,7 @@ pub fn parse_state(bytes: &[u8], id: &str) -> Result<StateView, String> {
     let mut gc_removed = Vec::new();
     let mut gc_verified = Vec::new();
     let mut gc_removed_scratch = false;
+    let mut custody_released = false;
     let mut gc_finished = None;
     for action in state.gc_actions.get().into_iter().flatten() {
         let verified_empty = action.verified_empty.get() == Some(&true);
@@ -244,6 +255,10 @@ pub fn parse_state(bytes: &[u8], id: &str) -> Result<StateView, String> {
                 }));
             }
             "gc_removed_scratch" => gc_removed_scratch = true,
+            // J16 (jail-macos.md §4.9): a custody the guardian verified, or
+            // an end the operator accepted, releases the hold for later
+            // passes too.
+            "gc_custody_verified" | "gc_abandoned" => custody_released = true,
             // J4 wave 3 (G4)
             "gc_finished" => {
                 gc_finished = Some(
@@ -266,6 +281,7 @@ pub fn parse_state(bytes: &[u8], id: &str) -> Result<StateView, String> {
         gc_removed,
         gc_verified,
         gc_removed_scratch,
+        custody_released,
         gc_finished,
     })
 }
@@ -289,7 +305,13 @@ pub fn parse_receipt(bytes: &[u8], id: &str) -> Result<ReceiptView, String> {
         .ok_or("it has no lifecycle phase")?;
     let lifetime = receipt.get("lifetime").unwrap_or(&Value::Null);
     let native = lifetime.get("native").unwrap_or(&Value::Null);
-    let leaf = if native.get("os").and_then(Value::as_str) == Some("linux") {
+    let native_os = native.get("os").and_then(Value::as_str);
+    let target = if native_os == Some("macos") {
+        parse_macos_target(&receipt)
+    } else {
+        None
+    };
+    let leaf = if native_os == Some("linux") {
         match native
             .get("details")
             .and_then(|details| details.get("execution_cgroup"))
@@ -322,9 +344,67 @@ pub fn parse_receipt(bytes: &[u8], id: &str) -> Result<ReceiptView, String> {
         ),
         boot_id: receipt
             .pointer("/process/identity/value/boot_id")
+            .or_else(|| receipt.pointer("/process/identity/value/boot_session"))
             .and_then(Value::as_str)
             .map(str::to_owned),
         leaf,
+        target,
+    })
+}
+
+/// J16 (jail-macos.md §4.8): the target identity a macOS receipt records,
+/// `process.identity.kind = macos_audit_token` with `pid` and `pidversion`
+/// in its value. A receipt that names another kind, or words the identity
+/// differently than the supervisor writes it, records no target, and gc
+/// never guesses one.
+fn parse_macos_target(receipt: &Value) -> Option<TargetToken> {
+    let identity = receipt.pointer("/process/identity").unwrap_or(&Value::Null);
+    if identity.get("kind").and_then(Value::as_str) != Some("macos_audit_token") {
+        return None;
+    }
+    let value = identity.get("value").unwrap_or(&Value::Null);
+    let (pid, pidversion) = match (
+        value.get("pid").and_then(Value::as_u64),
+        value.get("pidversion").and_then(Value::as_u64),
+    ) {
+        (Some(pid), Some(pidversion))
+            if pid <= u32::MAX.into() && pidversion <= u32::MAX.into() =>
+        {
+            (pid as u32, pidversion as u32)
+        }
+        _ => return None,
+    };
+    Some(TargetToken { pid, pidversion })
+}
+
+/// J16 (jail-macos.md §4.9): the guardian's record, read tolerantly — a
+/// record that is corrupt, of another schema, or missing fields is treated
+/// as absent (`None`), and only the fields the reader knows are taken.
+#[must_use]
+pub fn parse_guardian_record(bytes: &[u8]) -> Option<GuardianRecord> {
+    let record = serde_json::from_slice::<Value>(bytes).ok()?;
+    if record.get("schema").and_then(Value::as_str) != Some("ukai.jail.guardian-record/1") {
+        return None;
+    }
+    // `own_token` is the guardian's audit token as the eight words the
+    // kernel defines; pid is word 5, the pid version word 7.
+    let word = |index: usize| {
+        record
+            .get("own_token")
+            .and_then(Value::as_array)
+            .and_then(|words| words.get(index))
+            .and_then(Value::as_u64)
+            .filter(|word| *word <= u32::MAX.into())
+            .map(|word| word as u32)
+    };
+    Some(GuardianRecord {
+        pid: word(5),
+        pidversion: word(7),
+        boot_session: record
+            .get("boot_session")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        drained: record.get("drained").and_then(Value::as_bool),
     })
 }
 

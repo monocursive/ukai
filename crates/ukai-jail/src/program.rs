@@ -789,14 +789,28 @@ fn check_directory(stat: &Stat, path: &Path, in_root: bool) -> Result<(), JailEr
             stat.uid
         )));
     }
-    if crate::state::writable_by_others(stat.mode, stat.uid, stat.gid) && stat.mode & 0o1000 == 0 {
+    // jail-macos.md §4.11: a group-writable directory (never world-writable)
+    // whose group lists exactly root and this operator is accepted, so
+    // Homebrew's `admin`-grouped install roots launch; any other member, an
+    // unresolvable member or an empty list keeps J12's refusal.
+    let group_writable_exception = cfg!(target_os = "macos")
+        && stat.mode & 0o002 == 0
+        && stat.mode & 0o020 != 0
+        && crate::supervisor::from_path::group_writable_install_dir(stat.gid);
+    if crate::state::writable_by_others(stat.mode, stat.uid, stat.gid)
+        && stat.mode & 0o1000 == 0
+        && !group_writable_exception
+    {
         return Err(widening(format!(
             "{} has mode {:04o}: writable by others without the sticky bit",
             path.display(),
             stat.mode
         )));
     }
-    if in_root && crate::state::writable_by_others(stat.mode, stat.uid, stat.gid) {
+    if in_root
+        && crate::state::writable_by_others(stat.mode, stat.uid, stat.gid)
+        && !group_writable_exception
+    {
         return Err(widening(format!(
             "{} has mode {:04o}: a directory in the program's install root may not be \
              writable by anyone but its owner (a group write is allowed only for the owner's \

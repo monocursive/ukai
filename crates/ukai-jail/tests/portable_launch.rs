@@ -150,6 +150,7 @@ impl Fixture {
             &cli::GcArgs {
                 dry_run,
                 json: false,
+                abandon: None,
             },
         )
     }
@@ -1677,11 +1678,9 @@ fn an_agent_launch_profile_is_refused_before_staging_as_plain_agent_is() {
             &args,
         )
     };
-    let code = if cfg!(target_os = "linux") {
-        ErrorCode::MissingCapability
-    } else {
-        ErrorCode::UnsupportedPlatform
-    };
+    // J16: both lanes answer the capability probe first — Linux's backend
+    // gate, macOS's ES entitlement (K98's `es_not_entitled`).
+    let code = ErrorCode::MissingCapability;
     let stage = ukai_jail::records::ErrorStage::Probing;
     for (label, report) in [("plain", &plain), ("launched", &launched)] {
         assert_eq!(report.exit_code, 125, "{label}");
@@ -1726,7 +1725,7 @@ fn stage_one_source(fixture: &Fixture, source: &Path) -> Result<(), (JailError, 
         }],
         state_discard: None,
     };
-    ukai_jail::credentials::stage(&launch, vendor.as_fd(), &[])
+    ukai_jail::credentials::stage(&launch, Os::Linux, vendor.as_fd(), &[])
         .map(|_| ())
         .map_err(|refusal| (refusal.error, refusal.staged.len()))
 }
@@ -2346,7 +2345,7 @@ fn rm16_the_copy_budget_is_cumulative_across_credentials() {
     let vendor_path = fixture.root.join("vendor");
     private_dir(&vendor_path);
     let vendor = ukai_jail::state::anchored::Dir::open_trusted(&vendor_path).unwrap();
-    let refusal = ukai_jail::credentials::stage(&launch, vendor.as_fd(), &[])
+    let refusal = ukai_jail::credentials::stage(&launch, Os::Linux, vendor.as_fd(), &[])
         .expect_err("20 MiB under a 16 MiB per-attempt budget");
     assert_eq!(refusal.staged.len(), 1);
     assert!(
@@ -2561,7 +2560,7 @@ fn stage_one_source_with(
         }],
         state_discard: None,
     };
-    ukai_jail::credentials::stage(&launch, vendor.as_fd(), forbidden)
+    ukai_jail::credentials::stage(&launch, Os::Linux, vendor.as_fd(), forbidden)
         .map(|_| ())
         .map_err(|refusal| (refusal.error, refusal.staged.len()))
 }

@@ -53,7 +53,7 @@ use sha2::{Digest as _, Sha256};
 
 use crate::policy::{CredentialDecl, CredentialMode, LaunchSnapshot};
 use crate::records::{
-    CredentialRecord, ErrorCode, ErrorStage, JailError, NativeString, Remediation,
+    CredentialRecord, ErrorCode, ErrorStage, JailError, NativeString, Os, Remediation,
 };
 use crate::state::anchored::{self, Dir, Kind, Name, Stat};
 
@@ -148,6 +148,9 @@ fn state_failure(id: &str, what: &str, error: &std::io::Error) -> JailError {
 /// Stages every credential of `launch` into the vendor-state directory
 /// `vendor_state`, after creating its `state_subdirs` (§12).
 ///
+/// `platform` is the OS the policy was resolved for (`snapshot.platform`):
+/// a vault credential's recorded binding is the platform's (§4.11).
+///
 /// `forbidden` holds the `(dev, ino)` identities of every child-writable
 /// grant (the workspace, an explicit scratch, every writable host grant); a
 /// source whose no-follow walk passes through one of them, or is one of them,
@@ -161,10 +164,13 @@ fn state_failure(id: &str, what: &str, error: &std::io::Error) -> JailError {
 /// [`ErrorCode::StateWriteFailed`] when vendor state cannot be written.
 pub fn stage(
     launch: &LaunchSnapshot,
+    platform: Os,
     vendor_state: BorrowedFd<'_>,
     forbidden: &[(u64, u64)],
 ) -> Result<Vec<StagedCredential>, StagingRefusal> {
-    stage_reporting(launch, vendor_state, forbidden, &|_| {}, &|| false)
+    stage_reporting(launch, platform, vendor_state, forbidden, &|_| {}, &|| {
+        false
+    })
 }
 
 /// The longest single wait for the staging worker between two reads of the
@@ -198,6 +204,7 @@ const STAGING_WAIT_STEP: Duration = Duration::from_millis(250);
 /// result.
 pub fn stage_within(
     launch: &LaunchSnapshot,
+    platform: Os,
     vendor_state: BorrowedFd<'_>,
     forbidden: &[(u64, u64)],
     remaining: &dyn Fn() -> Duration,
@@ -212,6 +219,7 @@ pub fn stage_within(
     let result = within(remaining, move || {
         stage_reporting(
             &launch,
+            platform,
             vendor.as_fd(),
             &forbidden,
             &|credential| worker.report(credential),
@@ -355,6 +363,7 @@ fn abandoned_error() -> JailError {
 /// [`stage_within`] does at its deadline).
 fn stage_reporting(
     launch: &LaunchSnapshot,
+    platform: Os,
     vendor_state: BorrowedFd<'_>,
     forbidden: &[(u64, u64)],
     staged_one: &dyn Fn(&StagedCredential),
@@ -398,7 +407,14 @@ fn stage_reporting(
                 staged,
             });
         }
-        match stage_one(&vendor, declaration, forbidden, &mut copied, abandoned) {
+        match stage_one(
+            &vendor,
+            platform,
+            declaration,
+            forbidden,
+            &mut copied,
+            abandoned,
+        ) {
             Ok(credential) => {
                 staged_one(&credential);
                 staged.push(credential);
@@ -452,6 +468,7 @@ pub fn fits_copy_budget(copied: u64, size: u64) -> bool {
 /// a source on a hung filesystem can outlast the caller's deadline.
 fn stage_one(
     vendor: &Dir,
+    platform: Os,
     declaration: &CredentialDecl,
     forbidden: &[(u64, u64)],
     copied: &mut u64,
@@ -502,6 +519,21 @@ fn stage_one(
                 never_staged: true,
                 id: id.into(),
                 mode: mode.as_str().into(),
+                // The binding is what pins the connecting process (J12 §3.5,
+                // jail-macos.md §4.11): the seccomp mediator names the
+                // program on Linux; ES has no TCP connect event, so the
+                // native binding reaches only the attempt. The platform is
+                // the one the policy was resolved for (`snapshot.platform`),
+                // so a simulated Linux on a macOS build records the Linux
+                // shape its receipt declares.
+                binding: Some(
+                    if platform == Os::Macos {
+                        "attempt"
+                    } else {
+                        "program"
+                    }
+                    .to_owned(),
+                ),
                 digest: None,
                 digest_unavailable_reason: Some("never_staged".into()),
             },
@@ -549,6 +581,7 @@ fn stage_one(
                 never_staged: false,
                 id: id.to_owned(),
                 mode: mode.as_str().to_owned(),
+                binding: None,
                 digest: Some(digest),
                 digest_unavailable_reason: None,
             },
@@ -568,6 +601,7 @@ fn stage_one(
             never_staged: false,
             id: id.to_owned(),
             mode: mode.as_str().to_owned(),
+            binding: None,
             digest,
             digest_unavailable_reason: reason.map(str::to_owned),
         },
@@ -1597,7 +1631,7 @@ mod tests {
             let id = declaration.id.as_str();
             assert_eq!((check.id.as_str(), check.reason_code), (id, *reason));
             assert_eq!(check.available, *reason == REASON_VALUE_UNREAD, "{id}");
-            let staged = stage_one(&handle, declaration, &[], &mut 0, &|| false);
+            let staged = stage_one(&handle, Os::Linux, declaration, &[], &mut 0, &|| false);
             assert_eq!(
                 staged.is_ok(),
                 check.available,
@@ -1636,6 +1670,7 @@ mod tests {
         let reported = Mutex::new(0usize);
         let refused = stage_reporting(
             &launch,
+            Os::Linux,
             vendor.as_fd(),
             &[],
             &|_| *reported.lock().unwrap() += 1,
@@ -1702,7 +1737,7 @@ mod tests {
         let vendor = handle.mkdir_at(&Name::new(b"vs").unwrap(), 0o700).unwrap();
         let missing = copies(&path, &["gone"]);
         std::fs::remove_file(path.join("gone")).unwrap();
-        let refused = stage_reporting(&missing, vendor.as_fd(), &[], &|_| {}, &|| true)
+        let refused = stage_reporting(&missing, Os::Linux, vendor.as_fd(), &[], &|_| {}, &|| true)
             .expect_err("an abandoned worker stops");
         assert_eq!(refused.error.code, ErrorCode::CredentialUnavailable);
         assert!(
@@ -1715,6 +1750,7 @@ mod tests {
         let abandoned = AtomicBool::new(false);
         let refused = stage_reporting(
             &launch,
+            Os::Linux,
             vendor.as_fd(),
             &[],
             &|_| abandoned.store(true, Ordering::SeqCst),
@@ -1741,7 +1777,7 @@ mod tests {
         let vendor = handle.mkdir_at(&Name::new(b"vs").unwrap(), 0o700).unwrap();
         let launch = copies(&path, &["a"]);
         let asked = std::sync::atomic::AtomicUsize::new(0);
-        let refused = stage_reporting(&launch, vendor.as_fd(), &[], &|_| {}, &|| {
+        let refused = stage_reporting(&launch, Os::Linux, vendor.as_fd(), &[], &|_| {}, &|| {
             asked.fetch_add(1, Ordering::SeqCst) > 0
         })
         .expect_err("abandoned once the source was open");
@@ -1762,7 +1798,7 @@ mod tests {
     fn progress_records_nothing_after_it_is_abandoned() {
         let (_dir, path, handle) = directory();
         let vendor = handle.mkdir_at(&Name::new(b"vs").unwrap(), 0o700).unwrap();
-        let staged = stage(&copies(&path, &["a", "b"]), vendor.as_fd(), &[]).unwrap();
+        let staged = stage(&copies(&path, &["a", "b"]), Os::Linux, vendor.as_fd(), &[]).unwrap();
         let progress = Progress::default();
         assert!(!progress.abandoned());
         progress.report(&staged[0]);
@@ -1887,13 +1923,14 @@ mod tests {
         };
         let staged = stage_within(
             &launch,
+            Os::Linux,
             vendor.as_fd(),
             &[],
             &until(Instant::now() + std::time::Duration::from_secs(10)),
         )
         .expect("within a generous budget");
         assert_eq!(staged.len(), 2);
-        let expired = stage_within(&launch, vendor.as_fd(), &[], &|| Duration::ZERO);
+        let expired = stage_within(&launch, Os::Linux, vendor.as_fd(), &[], &|| Duration::ZERO);
         match expired {
             Err(refusal) if refusal.error.remediation == Remediation::Retry => {
                 assert_eq!(refusal.error.code, ErrorCode::CredentialUnavailable);

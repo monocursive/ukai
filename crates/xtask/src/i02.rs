@@ -351,6 +351,9 @@ mod tests {
                 &[
                     "base64",
                     "clap",
+                    // Compiles the Endpoint Security and observation shims
+                    // into the macOS build (jail-macos.md §3, §5).
+                    "cc",
                     "libc",
                     // The frozen receipt/event types and canonical encoding,
                     // shared with the ledger.

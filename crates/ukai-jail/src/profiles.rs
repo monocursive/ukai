@@ -64,9 +64,18 @@ pub const GENERATED_ENVIRONMENT_NAMES: [&str; 2] = [PATH_NAME, TMPDIR_NAME];
 /// A fixed value over the runtime roots the profile grants, never the
 /// supervisor's own. The operator's `PATH` names their home, their toolchain
 /// managers and whatever else they have installed; handing it to the child
-/// discloses all of that and points it at directories the jail does not grant,
-/// so every lookup through it would miss anyway.
+/// discloses all of that and points it at directories the jail does not
+/// grant, so every lookup through it would miss anyway.
 pub const CONTAINED_PATH: &str = "/usr/local/bin:/usr/bin:/bin";
+
+/// J17 (jail-macos.md §5): native observation landed. The macOS baseline
+/// observation mode reads this switch: `false` restores the §4.10
+/// pre-J17 shape (`observe = off`, and an explicit `--observe on`
+/// refusing in `policy.rs`), `true` returns the baselines to
+/// `observe = on` behind the supervisor's third ES client
+/// (`platform::macos::observe`). One switch, so the flip is a change to
+/// one documented constant and the gates that read it stay in step.
+pub const J17_OBSERVE: bool = true;
 
 /// Builds the baseline a built-in profile expands to.
 ///
@@ -97,9 +106,18 @@ pub fn baseline(profile: ProfileName, platform: Os, lookup: &EnvLookup) -> Profi
         path: NativeString::Text(String::new()),
     };
 
+    // The macOS observation baseline (jail-macos.md §4.10, flipped by §5 /
+    // J17): `observe = on` behind the supervisor's third ES client while
+    // [`J17_OBSERVE`] holds, `off` before it. The policy snapshot records
+    // it as a baseline value, not an implicit choice (jail-v1 I02); with
+    // the pre-J17 baseline an explicit `--observe on` refuses with
+    // `unsupported_platform` (policy.rs).
     let observation = ObservationSnapshot {
         learning: false,
-        mode: ObserveMode::On,
+        mode: match platform {
+            Os::Macos if !J17_OBSERVE => ObserveMode::Off,
+            _ => ObserveMode::On,
+        },
         evidence: EvidenceMode::Strict,
     };
 
@@ -166,10 +184,14 @@ pub fn baseline(profile: ProfileName, platform: Os, lookup: &EnvLookup) -> Profi
             limits: Ceilings {
                 wall: Some(required("1h", 60 * 60 * 1000)),
                 pids: Some(preferred("512", 512)),
-                // §6.4: `build` requires an explicit memory ceiling. The
-                // baseline leaves it absent so that resolving `build` without
-                // one refuses rather than inventing a number.
-                mem: None,
+                // jail-macos.md §4.10: on macOS `build`'s memory ceiling
+                // becomes preferred, recorded as not applied, instead of
+                // required, because no supervisor-owned boundary can apply
+                // it (the value rides a preferred ceiling's recording path).
+                // 2 GiB is the initial tunable until J17 gives the platform
+                // a real boundary to enforce it with; Linux keeps the
+                // required-when-explicit rule (§6.4) untouched.
+                mem: (platform == Os::Macos).then(|| preferred("2g", 2 * 1024 * 1024 * 1024)),
                 swap: None,
                 storage: None,
                 inodes: None,
@@ -315,6 +337,48 @@ mod tests {
         assert!(
             baseline.read_only.is_empty(),
             "no macOS mount plan is established by this milestone"
+        );
+    }
+
+    /// jail-macos.md §4.10 with the §5 / J17 flip: the macOS baseline
+    /// observation mode follows [`J17_OBSERVE`] — `on` since native
+    /// observation landed — and stays a baseline value, recorded, not
+    /// implicit. A preferred initial build memory ceiling is recorded as
+    /// not applied. Linux keeps observation on and `build`'s ceiling absent.
+    #[test]
+    fn macos_baselines_follow_the_j17_observe_switch_and_prefer_the_build_memory_ceiling() {
+        let expected_mode = if J17_OBSERVE {
+            ObserveMode::On
+        } else {
+            ObserveMode::Off
+        };
+        for profile in [
+            ProfileName::Tool,
+            ProfileName::Agent,
+            ProfileName::Build,
+            ProfileName::None,
+        ] {
+            let baseline = baseline(profile, Os::Macos, &empty);
+            assert_eq!(baseline.observation.mode, expected_mode, "{profile:?}");
+            assert_eq!(baseline.observation.evidence, EvidenceMode::Strict);
+        }
+        let mem = baseline(ProfileName::Build, Os::Macos, &empty)
+            .limits
+            .mem
+            .expect("the macOS build baseline prefers a memory ceiling");
+        assert!(!mem.required, "preferred, recorded as not applied");
+        assert_eq!(mem.requested, "2g");
+        assert_eq!(mem.value, 2 * 1024 * 1024 * 1024);
+        let linux_build = baseline(ProfileName::Build, Os::Linux, &empty);
+        assert_eq!(
+            linux_build.limits.mem, None,
+            "Linux stays required-when-set"
+        );
+        assert_eq!(
+            baseline(ProfileName::Tool, Os::Linux, &empty)
+                .observation
+                .mode,
+            ObserveMode::On
         );
     }
 

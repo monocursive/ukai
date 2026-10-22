@@ -89,6 +89,82 @@ pub struct ProxyConfig {
     pub budgets: Budgets,
     /// The host resolver; the jail never resolves inside the sandbox.
     pub resolver: Arc<dyn Resolver + Send + Sync>,
+    /// The per-attempt secret both bridge ports require (jail-macos.md
+    /// §4.10): RFC 1929 on the SOCKS5 port, Basic on the HTTP port. `None`
+    /// is the Linux bridge's no-auth serving (jail-v1 §10).
+    pub auth: Option<ProxyAuth>,
+}
+
+/// The bridge's per-attempt secret (jail-macos.md §4.10): the username and
+/// password every proxied request must carry — HTTP Basic authentication on
+/// the HTTP port, RFC 1929 username and password on the SOCKS5 port.
+///
+/// On the shared loopback a fixed port would be reachable from every
+/// same-uid process on the host, and an ephemeral port is merely harder to
+/// guess; the secret is what tells the attempt's requests apart from every
+/// other process that can address the loopback.
+#[derive(Clone, PartialEq, Eq)]
+pub struct ProxyAuth {
+    /// A fixed, non-secret name identifying the jail.
+    pub user: String,
+    /// The per-attempt secret.
+    pub password: String,
+}
+
+impl ProxyAuth {
+    /// Generates one attempt's secret: [`uuid::Uuid::new_v4`]'s 122 random
+    /// bits as 32 hexadecimal characters, the crate's existing random-token
+    /// shape (`scope.rs`'s tokens, attempt ids). Hexadecimal needs no
+    /// percent-escaping in a URL's userinfo and no quoting in a header
+    /// value, so the child's proxy URLs carry it as generated.
+    #[must_use]
+    pub fn generate() -> Self {
+        Self {
+            user: "ukai".to_owned(),
+            password: uuid::Uuid::new_v4().simple().to_string(),
+        }
+    }
+
+    /// Whether a presented username and password match this secret.
+    #[must_use]
+    pub fn matches(&self, user: &[u8], password: &[u8]) -> bool {
+        equal_in_fixed_time(user, self.user.as_bytes())
+            && equal_in_fixed_time(password, self.password.as_bytes())
+    }
+}
+
+/// Compares two byte strings without returning early on the first differing
+/// byte. The secret is random and per-attempt, so this is not load-bearing
+/// constant-time cryptography — a timing channel on it reveals nothing
+/// reusable — but a fixed-length fold costs nothing and answers a wrong
+/// guess no faster than a right one.
+fn equal_in_fixed_time(presented: &[u8], secret: &[u8]) -> bool {
+    presented.len() == secret.len()
+        && presented
+            .iter()
+            .zip(secret.iter())
+            .fold(0u8, |differences, (presented, secret)| {
+                differences | (presented ^ secret)
+            })
+            == 0
+}
+
+impl Drop for ProxyAuth {
+    fn drop(&mut self) {
+        // The secret lives in memory only while the attempt runs; wipe it on
+        // every exit, as a relayed head is wiped.
+        use zeroize::Zeroize as _;
+        self.password.zeroize();
+    }
+}
+
+impl std::fmt::Debug for ProxyAuth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProxyAuth")
+            .field("user", &self.user)
+            .field("password", &"[secret]")
+            .finish()
+    }
 }
 
 /// What kind of request a result describes.
@@ -205,6 +281,9 @@ pub enum Reason {
     Stopping,
     /// The handler failed unexpectedly; the request was not relayed.
     InternalError,
+    /// The request carried no, an ambiguous, or a wrong proxy secret, where
+    /// the attempt's bridge requires one (jail-macos.md §4.10).
+    ProxyAuthRequired,
 }
 
 impl Reason {
@@ -245,6 +324,7 @@ impl Reason {
             Reason::ResourceExhausted => "resource_exhausted",
             Reason::Stopping => "stopping",
             Reason::InternalError => "internal_error",
+            Reason::ProxyAuthRequired => "proxy_auth_required",
         }
     }
 
@@ -277,6 +357,7 @@ impl Reason {
             | Reason::ResolverOverloaded
             | Reason::Stopping => (503, "Service Unavailable"),
             Reason::InternalError => (500, "Internal Server Error"),
+            Reason::ProxyAuthRequired => (407, "Proxy Authentication Required"),
             Reason::MalformedRequest
             | Reason::AmbiguousFraming
             | Reason::HostMismatch

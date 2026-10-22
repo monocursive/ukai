@@ -32,8 +32,11 @@ bundle features natively, including the installed CLI commands.
 Fourteen starter launch profiles are embedded. OpenCode has recorded live
 runs, but a bundled profile is not a promise that every version of that agent
 works. The [compatibility records](https://github.com/monocursive/ukai/blob/dev/docs/specs/jail-v1/agent-compatibility.md)
-name the tested combinations. Native macOS `ukai-jail` supports inspection
-commands and refuses execution.
+name the tested combinations. Native macOS `ukai-jail` is now code-complete
+in two tiers ([jail-macos.md](specs/jail-macos.md)): the native custody tier
+(J16, J17) and the warm VM tier (J18). It is **not shipped**: native
+execution stays refusal-gated until Apple grants the Endpoint Security
+entitlement, and the VM preview remains the only Mac deliverable today.
 
 You can [build the jail and try a small command](https://github.com/monocursive/ukai/blob/dev/docs/guide.md#build-and-check-your-host)
 today. [Signed Linux developer-preview packages](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.4)
@@ -113,23 +116,36 @@ demo help people evaluate the tool; they do not replace those checks.
 
 ## Research: run natively on macOS
 
-We want the same local workflow on a Mac. The current blocker is making sure
-the entire process tree stops when its supervisor or privileged helper dies,
-including children that have detached from their parent.
+We want the same local workflow on a Mac. The blocker was making sure the
+entire process tree stops when its supervisor or privileged helper dies,
+including children that have detached from their parent. Apple answered that
+no supported, kernel-owned macOS boundary of that kind exists, and suggested
+making the custodians impossible for the workload to kill
+([the question and answer](benchmarks/jail/apple-lifetime-question.md)).
 
-The first Endpoint Security prototype cleans up while its custodian stays alive;
-killing that custodian left workloads running. A
-[reciprocal-custody prototype](https://github.com/monocursive/ukai/blob/dev/docs/benchmarks/jail/macos-reciprocal-custody.md) now
-uses two independent clients. In 200 development VM trials, either one could
-fail and the surviving client cleaned up the known fixture. Killing both left
-every known fixture process running, and fail-closed exec authorization did
-not prevent new execution after both clients disappeared. Apple's entitlement
-approval is also pending; approval alone will not fix that lifetime gap.
+The design now follows Apple's advice in two tiers
+([jail-macos.md](specs/jail-macos.md)), both code-complete and neither
+shipped:
 
-Native execution will stay disabled until cleanup works under normal macOS
-security settings and passes the failure tests. Inspection commands remain
-useful in the meantime. The released VM preview provides a local Linux guest
-while this native lifetime question remains open with Apple.
+- **Native custody (J16, J17).** Two Endpoint Security custodians that the
+  Seatbelt-contained workload cannot kill, plus Seatbelt containment. Killing
+  either custodian alone ends the tree within a bound (200 development-VM
+  trials); killing both is the named residual — the tree may survive until
+  `ukai-jail gc` kills the target, and `gc --abandon` accepts the unverified
+  end. J17 adds native exec and file-mutation observation from a third
+  client. This tier is refusal-gated until Apple grants the Endpoint
+  Security entitlement; J16 cannot ship before that grant, and its final
+  rows must be re-run on a normally protected Mac.
+- **Warm VM (J18).** The [VM preview](https://ukai.sh/guide/#macos-vm-preview)
+  becomes a backend: `--vm` runs Linux ARM64 programs in a warm guest whose
+  own jail gives the kernel-bound lifetime the Mac kernel cannot. `ukai-jail
+  vm stop` ends the guest. It needs only the virtualisation entitlement the
+  preview already uses.
+
+Native execution stays disabled until the entitlement arrives and the tier
+passes its failure tests on a protected Mac. Inspection commands remain
+useful in the meantime, and the released VM preview provides a local Linux
+guest today.
 
 ## Available in source: durable records across runs
 

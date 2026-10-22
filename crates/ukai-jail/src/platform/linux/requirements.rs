@@ -73,6 +73,15 @@ fn inputs_for(
             "cgroup-v2-delegated",
             CapabilityScope::Tree,
         ),
+        // J18: the kernel-bound lifetime rests on the same pid namespace the
+        // tree termination does — the boundary whose init's death ends the
+        // tree. A contained profile has one; `none` answers through its own
+        // mapping below, which refuses the requirement.
+        Requirement::OwnerLossTermination => (
+            &["bwrap_present", "pid_namespace"],
+            "pid-namespace",
+            CapabilityScope::Tree,
+        ),
         // Credential staging is anchored copies into vendor
         // state plus read-only descriptor binds, which rest on the backend and
         // on its read-only bind holding.

@@ -650,11 +650,22 @@ fn translation_prefixes_are_canonicalized_before_the_digest() {
 fn the_build_profile_requires_an_explicit_memory_ceiling() {
     let harness = Harness::new();
     let output = harness.run(&["explain", "--profile", "build"]);
-    assert_eq!(
-        output.status.code(),
-        Some(2),
-        "the defaults table makes mem required for build"
-    );
+    if cfg!(target_os = "macos") {
+        // J16 (jail-macos.md §4.10): on macOS the build ceiling is a
+        // preferred value the platform records as not applied, not a
+        // requirement, so resolving `build` never refuses for it.
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "the macOS baseline supplies a preferred build ceiling"
+        );
+    } else {
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "the defaults table makes mem required for build"
+        );
+    }
     let output = harness.run(&["explain", "--profile", "build", "--limit", "mem=512MiB"]);
     assert_eq!(output.status.code(), Some(0));
 }

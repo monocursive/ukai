@@ -604,6 +604,24 @@ the refusal; a `sh -c` re-spelling of a denied command still runs
 
 ## 8. J11 — the macOS execution lane
 
+> **Amended 2026-10-22.** This section's lifetime design is replaced by
+> [jail-macos.md](jail-macos.md) §4 (J16, the native tier: two Endpoint
+> Security custodians and Seatbelt containment, boundary `native_tree`).
+> Specifically: the "Native lifetime proof required before enabling
+> execution" subsection below — including its sentence "Do not select a
+> weaker native guarantee merely because these proofs need more work" — is
+> replaced by jail-macos.md §4, which does not seek a kernel-bound native
+> guarantee (Apple confirmed none exists) but names the residual instead
+> (jail-macos.md §4.6). K29 is replaced by jail-macos.md §9.1's K87–K104.
+> K23–K26 move into J16 (jail-macos.md §9.1, last paragraph). This §8.1's
+> containment design — the Seatbelt filesystem and network profile, the
+> private execution directories and the refusal of unenforceable limits —
+> stands unchanged as J16's containment (jail-macos.md §4.10). Execution on
+> macOS remains refusal-gated until Apple grants the entitlement
+> (jail-macos.md §4.12), so the "Design gate remains open" paragraph below
+> no longer describes the plan of record; the history is kept for what it
+> measured.
+
 **Design gate remains open.** Native research on this Mac disproved ordinary
 process-group cleanup, launchd job cleanup, and blocking only the `setsid` and
 `setpgid` syscalls. A stronger candidate exists in macOS 27's descendant-scoped
@@ -670,6 +688,10 @@ composed from the resolved policy snapshot:
 
 #### Native lifetime proof required before enabling execution
 
+> **Replaced 2026-10-22** by [jail-macos.md](jail-macos.md) §4 (see the
+> amendment note at the head of §8). The text below is the superseded
+> history.
+
 Investigate Seatbelt plus a descendant-scoped ES custodian, with the client
 created and subscribed before workload release, audit-token identities for
 signalling, and explicit detection of event loss. The macOS 27 API is an
@@ -729,6 +751,10 @@ termination. Do not select a weaker native guarantee merely because these
 proofs need more work.
 
 ### 8.2 J11 exit criteria
+
+> **Amended 2026-10-22.** Per the amendment note at the head of §8, the
+> rows this section names are superseded: K23–K26 are J16 rows and K29 is
+> replaced by K87–K104 ([jail-macos.md](jail-macos.md) §9.1).
 
 The macOS lane runs the §1.1-equivalent slice (write an allowed file,
 fail a protected access, exceed the wall) plus an opencode A01 row on

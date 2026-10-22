@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:ukai:schema:jail-doctor:1",
   "title": "Ukai jail doctor report v1",
-  "description": "The record `ukai-jail doctor --json` prints (jail-v1 \u00a73.2, \u00a714.1): the measured capabilities, the host manifest that supersedes host-manifest.sh, the binaries and the build that produced it. On Linux it carries `host`, `supervisor_scope` and the resolved bubblewrap; on macOS, where execution is unsupported in this milestone, it carries none of them and every capability is an unsupported requirement row.",
+  "description": "The record `ukai-jail doctor --json` prints (jail-v1 \u00a73.2, \u00a714.1): the measured capabilities, the host manifest that supersedes host-manifest.sh, the binaries and the build that produced it. On Linux it carries `host`, `supervisor_scope` and the resolved bubblewrap; on macOS, where execution is refused in this milestone (jail-macos.md), it carries none of them and its capability rows are what the native probes measured: the plan's requirement rows derived from the Endpoint Security, Seatbelt, loopback and sysctl probes, plus those host probe rows themselves, with an unentitled ES reporting `unavailable` rows with the reason `es_not_entitled`.",
   "type": "object",
   "properties": {
     "schema": {
@@ -226,28 +226,49 @@
             "items": {
               "properties": {
                 "name": {
-                  "pattern": "^(tree_termination|closed_set_observation|filesystem_containment|syscall_filter|network_none|network_proxy|execution_boundary|credential_staging|limit:(wall|pids|mem|cpu)|protected_coverage:(existing_and_root|all_descendants))$"
+                  "pattern": "^(tree_termination|closed_set_observation|filesystem_containment|syscall_filter|network_none|network_proxy|execution_boundary|credential_staging|owner_loss_termination|limit:(wall|pids|mem|cpu)|protected_coverage:(existing_and_root|all_descendants)|es_descendants|es_notify|seatbelt_profile|loopback_bind|bootsessionuuid|maxprocperuid)$"
                 },
                 "status": {
-                  "const": "unsupported"
+                  "enum": [
+                    "available",
+                    "unavailable",
+                    "unsupported",
+                    "skipped"
+                  ]
                 },
                 "scope": {
                   "enum": [
                     "process",
-                    "tree"
+                    "tree",
+                    "host"
                   ]
                 },
                 "mechanism": {
-                  "type": "null"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "reason_code": {
-                  "const": "unsupported_platform"
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_:.-]*$"
                 },
                 "measured_at": {
-                  "type": "null"
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  ]
                 },
                 "evidence_ref": {
-                  "type": "null"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               }
             }

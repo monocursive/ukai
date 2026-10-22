@@ -110,6 +110,41 @@ to fail those untested clauses. Every Linux clause, shared test and macOS
 execution-refusal test remains required; no failing Linux test is waived.
 The signed release plan binds this scope and both native Linux targets.
 
+## macOS Jail bundle (pending entitlement — NOT yet releasable)
+
+The Linux-only scope above has a macOS counterpart defined by
+[jail-macos.md](specs/jail-macos.md) §4.12 and §8. The code is complete, but
+**nothing here is releasable until Apple grants the Endpoint Security
+entitlement** (request `S9YJTLLH28`, submitted 2026-09-29); the procedure
+below is written now so the release run can start the day the grant lands.
+Until then, native execution remains refusal-gated and the VM preview is the
+only Mac deliverable.
+
+When the entitlement is granted, release a Mac build as a bundle, not a bare
+binary:
+
+1. **One entitled executable.** The supervisor and the guardian are both
+   `ukai-jail` inside `Ukai.app/Contents/MacOS/ukai-jail`, carrying
+   `com.apple.developer.endpoint-security.client`, authorised by the bundle's
+   **embedded provisioning profile**.
+2. **Bundle identifier** `com.monocursive.ouroboros.jail` — the identifier
+   request `S9YJTLLH28` names. It predates the rename; it stays rather than
+   reopening the request.
+3. **Signing requirements.** Developer ID, hardened runtime and
+   notarization; macOS 27 or later (`es_new_descendants_client`, by
+   reading). No root, no TCC approval and no Full Disk Access.
+4. **Install shape.** The installer places the bundle in `~/Applications`
+   without sudo and links `ukai-jail` onto the `PATH`.
+5. **Protected-Mac release run.** Before publishing, repeat every J16 row
+   ([jail-macos.md](specs/jail-macos.md) §9.1, including K23–K26) on a
+   normally protected Mac with SIP enabled and the approved provisioning
+   profile, on the release build (K104). A SIP-disabled development VM run
+   does not satisfy this.
+
+The native macOS evidence that exists today was measured in a development VM
+with SIP disabled ([macos-development.md](benchmarks/jail/macos-development.md));
+it proves mechanisms, not releasability.
+
 ## Prepare and validate
 
 Commit and review the release tree. Require `rust`, `contracts` and the actual

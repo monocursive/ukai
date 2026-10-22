@@ -310,6 +310,10 @@ struct Purpose<'a> {
     terminal: Option<crate::terminal::Choice>,
     /// `--gate-fd` is given: persistent state refuses (§4, §1).
     gate: bool,
+    /// J18: the lifetime boundary `--lifetime kernel-bound` requires, which
+    /// enters the snapshot (and its digest) after the layers resolve.
+    /// `run` carries it; every other purpose leaves the snapshot unchanged.
+    lifetime_boundary: Option<crate::policy::LifetimeBoundary>,
 }
 
 impl Purpose<'_> {
@@ -322,6 +326,7 @@ impl Purpose<'_> {
         argv0: None,
         terminal: None,
         gate: false,
+        lifetime_boundary: None,
     };
     /// `doctor`.
     const DOCTOR: Purpose<'static> = Purpose {
@@ -350,6 +355,7 @@ pub fn resolve_learning_plan(ctx: &Context, args: &PolicyArgs) -> Result<Plan, J
             argv0: None,
             terminal: None,
             gate: false,
+            lifetime_boundary: None,
         },
     )
 }
@@ -578,8 +584,26 @@ fn resolve(ctx: &Context, args: &PolicyArgs, purpose: Purpose<'_>) -> Result<Pla
             Ok(())
         })?;
     }
-    // §6.4: `build` requires an explicit memory ceiling; the baseline leaves it
-    // absent so that this refuses rather than inventing one.
+    // J18 (jail-macos.md §6): the kernel-bound key enters the snapshot, so
+    // the digest names it, and derives `owner_loss_termination`; a snapshot
+    // without the key is byte-identical to its old self.
+    if let Some(boundary) = purpose.lifetime_boundary {
+        resolved.amend(
+            vec![policy::ProvenanceEntry {
+                origin: "cli".to_owned(),
+                key: "lifetime_boundary".to_owned(),
+                detail: Some(boundary.as_str().to_owned()),
+            }],
+            |snapshot| {
+                snapshot.lifetime_boundary = Some(boundary);
+                Ok(())
+            },
+        )?;
+    }
+    // §6.4: `build` requires an explicit memory ceiling; the Linux baseline
+    // leaves it absent so that this refuses rather than inventing one. On
+    // macOS the baseline supplies a preferred ceiling the platform records
+    // as not applied (jail-macos.md §4.10), so this never fires there.
     if profile == ProfileName::Build && resolved.snapshot.limits.mem.is_none() {
         return Err(usage(
             "limits.mem",
@@ -1639,6 +1663,9 @@ pub fn explain(ctx: &Context, args: &ExplainArgs) -> Result<ExplainReport, JailE
 /// # Errors
 /// Returns the resolution errors of [`resolve_plan`].
 pub fn doctor(ctx: &Context, args: &DoctorArgs) -> Result<DoctorReport, JailError> {
+    // J16 §4.9 (jail-macos.md): the same unverified-end diagnostic `run`
+    // prints, before anything else; the scan itself never signals.
+    crate::gc::orphans::announce(ctx);
     // §6.1's grammar carries the selection flags; the workspace and scratch
     // roots are the same ones `run` accepts, so a doctor call can name the
     // plan it is checking instead of inheriting the invocation directory.
@@ -1881,6 +1908,16 @@ fn first_unsatisfied(
                 "the uncontained profile cannot apply `{requirement}`; a contained profile can"
             ),
         ),
+        // J18 (jail-macos.md §6): native macOS cannot answer the kernel-bound
+        // lifetime; the `--vm` tier can.
+        crate::capability::REASON_OWNER_LOSS_REQUIRES_VM => (
+            ErrorCode::MissingCapability,
+            Remediation::Configuration,
+            format!(
+                "`{requirement}` needs a kernel-bound lifetime, which this platform's own \
+                 boundary does not provide: run with --vm, whose guest jail has a pid_namespace"
+            ),
+        ),
         _ => (
             ErrorCode::MissingCapability,
             Remediation::HostSetup,
@@ -1957,6 +1994,10 @@ fn run_inner(
     // §13.1: pin the shared monotonic base before anything writes a trace
     // event, so wrapper, audit and gap intervals all count from here.
     crate::platform::mark_supervisor_start();
+    // J16 §4.9 (jail-macos.md): before anything else, name the attempts
+    // whose custodians are both dead and whose end is not verified. The
+    // scan never signals; killing is `gc`'s.
+    crate::gc::orphans::announce(ctx);
     // J14 §3.3 step 4: the mask the target gets is the one inherited, read
     // before any thread blocks anything.
     crate::platform::capture_inherited_mask();
@@ -1993,9 +2034,25 @@ fn run_inner(
                 Some(args.terminal.unwrap_or_default())
             },
             gate: args.gate_fd.is_some(),
+            // J18: `--lifetime kernel-bound` is part of the policy the
+            // digest names.
+            lifetime_boundary: args
+                .lifetime_boundary
+                .as_deref()
+                .and_then(crate::policy::LifetimeBoundary::parse),
         },
     )?;
     let request = plan_request(&plan);
+    // J18 (jail-macos.md §6): the VM tier runs the guest jail, a contained
+    // profile. `none` is unsupported on macOS anyway, and the uncontained
+    // profile is meaningless in the guest, so `--vm` refuses it as a usage
+    // error instead of letting the platform refusal word it.
+    if args.requests_vm() && plan.resolved.snapshot.profile == ProfileName::None {
+        return Err(usage(
+            "--vm",
+            "--vm refuses --profile none: the VM tier runs a contained profile in the guest",
+        ));
+    }
     // J12 §3.3: under `--from-path` the operator's words follow the resolved
     // program (and an `env` expansion's interpreter); that is the argv the
     // digest covers and the launcher executes.
@@ -2080,8 +2137,22 @@ fn check_run_usage(args: &RunArgs) -> Result<Option<AttemptId>, JailError> {
         ));
     }
     // §7: validate the id grammar before deriving any path, and before any
-    // other check, so a malformed id is the usage error X02 expects rather than
-    // whatever the next check happens to find first.
+    // other check, so a malformed id is the usage error X02 expects rather
+    // than whatever the next check happens to find first.
+    args.attempt_id
+        .as_deref()
+        .map(AttemptId::parse)
+        .transpose()?;
+    // J18: one lifetime boundary is defined; anything else is a usage error
+    // (§6.4), even where clap's own value parser has already narrowed it.
+    if let Some(text) = &args.lifetime_boundary
+        && crate::policy::LifetimeBoundary::parse(text).is_none()
+    {
+        return Err(usage(
+            "--lifetime",
+            format!("`{text}` is not a lifetime boundary; only `kernel-bound` is defined"),
+        ));
+    }
     args.attempt_id.as_deref().map(AttemptId::parse).transpose()
 }
 
@@ -3199,22 +3270,22 @@ fn prepare_launch(
             })?,
         );
     }
-    let mut staged =
-        match crate::credentials::stage_within(launch, vendor.as_fd(), &forbidden, &|| {
-            deadline.remaining()
-        }) {
-            Ok(staged) => staged,
-            Err(refusal) => {
-                // Both the receipt rows and the private provenance of every
-                // input staged before the refusal are kept (§12).
-                record.credentials = receipt_credentials(&refusal.staged);
-                state::record_staged_credentials(
-                    attempt_dir,
-                    &private_provenance(&refusal.staged),
-                )?;
-                return Err(refusal.error);
-            }
-        };
+    let mut staged = match crate::credentials::stage_within(
+        launch,
+        snapshot.platform,
+        vendor.as_fd(),
+        &forbidden,
+        &|| deadline.remaining(),
+    ) {
+        Ok(staged) => staged,
+        Err(refusal) => {
+            // Both the receipt rows and the private provenance of every
+            // input staged before the refusal are kept (§12).
+            record.credentials = receipt_credentials(&refusal.staged);
+            state::record_staged_credentials(attempt_dir, &private_provenance(&refusal.staged))?;
+            return Err(refusal.error);
+        }
+    };
     prepared.secrets = staged
         .iter()
         .filter_map(|credential| credential.vault.clone())

@@ -140,6 +140,12 @@ pub enum Requirement {
     /// plan (on Linux, a delegated cgroup v2 leaf); the requirement names
     /// the semantic.
     ExecutionBoundary,
+    /// `owner_loss_termination` (J18, jail-macos.md §6): if every Ukai
+    /// process of the attempt is lost, a kernel still ends the attempt's
+    /// tree. Derived only when the policy carries the kernel-bound
+    /// `lifetime_boundary` key; answered by a `pid_namespace` boundary (the
+    /// Linux jail, and the VM tier's guest jail).
+    OwnerLossTermination,
     /// `credential_staging`: anchored copies of launch credentials into
     /// vendor state and read-only binds of the exact source objects (§12).
     CredentialStaging,
@@ -160,6 +166,7 @@ impl fmt::Display for Requirement {
             Requirement::NetworkNone => f.write_str("network_none"),
             Requirement::NetworkProxy => f.write_str("network_proxy"),
             Requirement::ExecutionBoundary => f.write_str("execution_boundary"),
+            Requirement::OwnerLossTermination => f.write_str("owner_loss_termination"),
             Requirement::CredentialStaging => f.write_str("credential_staging"),
             Requirement::ProtectedCoverage(coverage) => {
                 write!(f, "protected_coverage:{}", coverage.as_str())
@@ -189,7 +196,16 @@ impl Requirement {
 /// separate measurement, which `explain` explicitly reports as unmeasured.
 #[must_use]
 pub fn requirements(snapshot: &PolicySnapshot) -> Vec<Requirement> {
-    let mut out = vec![Requirement::TreeTermination];
+    // J18 (jail-macos.md §6): the kernel-bound lifetime key derives its own
+    // requirement, which a `pid_namespace` boundary answers and every other
+    // boundary refuses — naming `--vm`. It is derived first, so a native
+    // refusal names it before the custody requirement an unentitled Mac
+    // also fails.
+    let mut out = Vec::new();
+    if snapshot.lifetime_boundary.is_some() {
+        out.push(Requirement::OwnerLossTermination);
+    }
+    out.push(Requirement::TreeTermination);
     if snapshot.observation.mode == ObserveMode::On {
         out.push(Requirement::ClosedSetObservation);
     }
@@ -248,6 +264,11 @@ pub fn requirements(snapshot: &PolicySnapshot) -> Vec<Requirement> {
 /// any host, because it applies no filesystem, syscall or network
 /// restriction (§3.1, §9.3).
 pub const REASON_NOT_APPLIED_BY_NONE: &str = "uncontained_profile";
+
+/// The reason code of `owner_loss_termination` on a platform whose boundary
+/// is not kernel-owned (J18, jail-macos.md §6): native macOS reports it and
+/// refuses naming `--vm`, the tier that provides the boundary.
+pub const REASON_OWNER_LOSS_REQUIRES_VM: &str = "kernel_bound_requires_vm";
 
 /// The requirements a `none` snapshot's restrictions derive.
 ///
@@ -320,6 +341,7 @@ mod tests {
             (Requirement::NetworkNone, "network_none"),
             (Requirement::NetworkProxy, "network_proxy"),
             (Requirement::ExecutionBoundary, "execution_boundary"),
+            (Requirement::OwnerLossTermination, "owner_loss_termination"),
             (Requirement::CredentialStaging, "credential_staging"),
             (
                 Requirement::ProtectedCoverage(ProtectedCoverage::AllDescendants),
@@ -391,6 +413,25 @@ mod tests {
         assert!(requirements.contains(&Requirement::ExecutionBoundary));
         assert!(!requirements.contains(&Requirement::FilesystemContainment));
         assert!(requirements.contains(&Requirement::ClosedSetObservation));
+    }
+
+    /// J18: only the kernel-bound key derives `owner_loss_termination`, on
+    /// every profile; a snapshot without the key never does, so its
+    /// requirements (and digest) are unchanged.
+    #[test]
+    fn the_kernel_bound_key_derives_owner_loss_termination() {
+        for profile in [ProfileName::Tool, ProfileName::None] {
+            let mut snapshot = snapshot_for(profile);
+            assert!(
+                !requirements(&snapshot).contains(&Requirement::OwnerLossTermination),
+                "{profile:?} without the key"
+            );
+            snapshot.lifetime_boundary = Some(crate::policy::LifetimeBoundary::KernelBound);
+            assert!(
+                requirements(&snapshot).contains(&Requirement::OwnerLossTermination),
+                "{profile:?} with the key"
+            );
+        }
     }
 
     /// Every tree-enforced ceiling — pids, mem, swap and cpu — needs the

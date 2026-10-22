@@ -66,7 +66,54 @@ fn main() {
     // profile is called (a custom profile inheriting `release` can say 0).
     let opt_level = std::env::var("OPT_LEVEL").unwrap_or_else(|_| "unknown".to_owned());
     println!("cargo:rustc-env=UKAI_BUILD_OPT_LEVEL={opt_level}");
+
+    // The ES custody shim (jail-macos §4.1) is compiled only for macOS
+    // targets: the build script itself runs on the host, so the target
+    // decides. The frameworks are linked here, not in Cargo.toml. The shim
+    // lives under `src/`, so the build provenance digest covers it.
+    println!("cargo:rerun-if-changed=src/platform/macos/es/shim.c");
+    println!("cargo:rerun-if-changed=src/platform/macos/es/shim.h");
+    // The J17 observation shim (jail-macos §5) compiles into the same
+    // static library: all its symbols are `ukai_obs_*`, so the two shims
+    // cannot clash.
+    println!("cargo:rerun-if-changed=src/platform/macos/observe/obs_shim.c");
+    println!("cargo:rerun-if-changed=src/platform/macos/observe/obs_shim.h");
+    if target.contains("apple-darwin") {
+        compile_es_shim();
+    }
+    // The bindings in `platform/macos/es/mod.rs` have landed, so the
+    // guardian's custody facade (`platform/macos/custody_io.rs`) always
+    // compiles against them; the probe and the facade's fallback branch are
+    // gone (its TODO-EsShim).
+    println!("cargo:rustc-check-cfg=cfg(es_shim_present)");
+    println!("cargo:rustc-cfg=es_shim_present");
 }
+
+/// Compiles the fixed-size ES custody shim (`shim.c`, jail-macos §4.1,
+/// §4.3) with `-Werror` under C99 and links the EndpointSecurity and
+/// CoreFoundation frameworks. EndpointSecurity is linked as
+/// `-lEndpointSecurity`: its tbd stub ships in the SDK's `usr/lib` on every
+/// installed SDK here, while no SDK carries an
+/// `EndpointSecurity.framework` directory for `-framework` to find.
+#[cfg(target_os = "macos")]
+fn compile_es_shim() {
+    cc::Build::new()
+        .file("src/platform/macos/es/shim.c")
+        .include("src/platform/macos/es")
+        .file("src/platform/macos/observe/obs_shim.c")
+        .include("src/platform/macos/observe")
+        .flag("-std=c99")
+        .flag("-Werror")
+        .compile("ukai_es_shim");
+    println!("cargo:rustc-link-lib=EndpointSecurity");
+    println!("cargo:rustc-link-lib=framework=CoreFoundation");
+}
+
+// The `cc` build-dependency is declared under
+// `[target.'cfg(target_os = "macos")'.build-dependencies]`, matched against
+// the host, so a Linux-target build never needs it and never sees this.
+#[cfg(not(target_os = "macos"))]
+fn compile_es_shim() {}
 
 /// Where the repository's `.git` is present and git runs, a named revision
 /// must be `HEAD` and a clean claim must hold for the build inputs; a

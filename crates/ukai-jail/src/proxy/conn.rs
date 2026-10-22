@@ -260,10 +260,11 @@ fn read_request(
     };
     slot.transport = transport;
     if transport == Transport::Socks5 {
-        let destination = socks::request(client, deadline).inspect_err(|_| {
-            // The SOCKS exchange answered the client itself.
-            slot.replied = true;
-        })?;
+        let destination = socks::request_with_auth(client, deadline, shared.auth.as_ref())
+            .inspect_err(|_| {
+                // The SOCKS exchange answered the client itself.
+                slot.replied = true;
+            })?;
         let request = http::Request {
             destination,
             framing: http::Framing::Tunnel,
@@ -282,7 +283,7 @@ fn read_request(
             });
         }
     };
-    let request = http::parse_request(head.head())?;
+    let request = http::parse_request_with_auth(head.head(), 80, shared.auth.as_ref())?;
     Ok(Some((head, request)))
 }
 
@@ -722,6 +723,7 @@ mod tests {
                 rules: Rules::from_strings(&["fixture.test:443".to_owned()], &[]).unwrap(),
                 budgets: Budgets::default(),
                 resolver: Arc::new(FixtureResolver::new()),
+                auth: None,
             },
             Arc::new(Sink(Mutex::new(sender))),
         )

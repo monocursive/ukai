@@ -347,6 +347,8 @@
                     "enum": [
                       "none_verified",
                       "none_verified_registered_boundary",
+                      "none_verified_native",
+                      "none_verified_native_guardian_lost",
                       "not_verified"
                     ]
                   },

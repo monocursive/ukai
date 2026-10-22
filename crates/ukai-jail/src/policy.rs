@@ -181,6 +181,40 @@ pub enum TerminalMode {
     Attached,
 }
 
+/// J18 (jail-macos.md §6): the top-level `lifetime_boundary` of the
+/// snapshot, present only when the policy requires a kernel-bound attempt
+/// lifetime. One value exists; a second would widen the contract without a
+/// second boundary kind to name.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub enum LifetimeBoundary {
+    /// If every Ukai process of the attempt is lost, a kernel still ends the
+    /// attempt's tree: `lifetime.boundary` `pid_namespace` (jail-macos.md
+    /// §3.2). On macOS this is the `--vm` tier's guest jail; on Linux, every
+    /// contained profile. The wire spelling is the flag's value.
+    #[serde(rename = "kernel-bound")]
+    KernelBound,
+}
+
+impl LifetimeBoundary {
+    /// The wire spelling, which the CLI flag's value spells too.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            LifetimeBoundary::KernelBound => "kernel-bound",
+        }
+    }
+
+    /// The value `text` spells, if any.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        if text == Self::KernelBound.as_str() {
+            Some(Self::KernelBound)
+        } else {
+            None
+        }
+    }
+}
+
 /// `roots` field group.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -536,6 +570,11 @@ pub struct PolicySnapshot {
     /// when detached, so every detached snapshot keeps its digest.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub terminal: Option<TerminalMode>,
+    /// J18 (jail-macos.md §6): present only when the policy requires a
+    /// kernel-bound lifetime; omitted otherwise, so every snapshot without
+    /// the key keeps its bytes and digest.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lifetime_boundary: Option<LifetimeBoundary>,
 }
 
 impl PolicySnapshot {
@@ -1916,6 +1955,32 @@ impl<'a> LayerStep<'a> {
                     format!("{} disables observation", label()),
                 ));
             }
+            // jail-macos.md §4.10: before J17 the macOS baseline is
+            // `observe = off` (native custody cannot observe a closed set
+            // yet), and a layer that would turn observation back on over
+            // that baseline refuses rather than recording a mode no
+            // boundary can honor; the baseline itself stays a recorded
+            // `baseline` value (I02). J17 (§5) returns the baselines to
+            // `observe = on` behind the supervisor's observation client,
+            // and this refusal reads the same [`profiles::J17_OBSERVE`]
+            // switch the baseline reads, so the two can never disagree.
+            if self.inputs.platform == Os::Macos
+                && !crate::profiles::J17_OBSERVE
+                && mode == ObserveMode::On
+                && self.base.observation.mode == ObserveMode::Off
+            {
+                return Err(JailError::new(
+                    ErrorCode::UnsupportedPlatform,
+                    ErrorStage::Resolving,
+                    Remediation::Unsupported,
+                    format!(
+                        "{} enables observation, which macOS native custody does not support \
+                         until J17 (jail-macos.md §4.10)",
+                        label()
+                    ),
+                )
+                .with_key_path(key));
+            }
             resolution.authority.observation.mode = mode;
             resolution.set_by(self.layer, key, None);
         }
@@ -2065,6 +2130,7 @@ fn build_snapshot(
         },
         launch: None,
         terminal: None,
+        lifetime_boundary: None,
     })
 }
 

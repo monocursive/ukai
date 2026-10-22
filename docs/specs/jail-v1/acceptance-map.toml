@@ -1890,7 +1890,7 @@ note = "tool, observation on and off: target and descendant both ignore SIGTERM 
 
 [[gate]]
 id = "L02"
-row = "Kill every lifetime link (backend, watcher, supervisor): contained descendants die within a bound; an `agent` network helper's death fails closed as §10 specifies (the bridge's is recorded and the tree continues; the proxy's is `proxy.net` evidence loss); none preserves its specified unknown case."
+row = "Kill every lifetime link (backend, watcher, supervisor): contained descendants die within a bound; an `agent` network helper's death fails closed as §10 specifies (the bridge's is recorded and the tree continues; the proxy's is `proxy.net` evidence loss); none preserves its specified unknown case. *Amended 2026-10-22 for native macOS ([jail-macos.md](jail-macos.md) §8): on the native tier, killing each lifetime link (each ES custodian, the supervisor) alone ends the tree within a bound (K87–K89, §9.1); killing both custodians is the named residual (K95) — the tree is not verified dead and `gc` kills only the target (§14.2).*"
 
 [[clause]]
 id = "L02.1"
@@ -2828,7 +2828,7 @@ tests = [
 
 [[gate]]
 id = "M01"
-row = "Shared tests run natively on macOS; run and none refuse without executing the marker."
+row = "Shared tests run natively on macOS; run and none refuse without executing the marker. *Amended 2026-10-22 ([jail-macos.md](jail-macos.md) §8): `run` executes natively on the J16 native tier and `none` refuses (`unsupported`, no sandbox defends the custodians, jail-macos.md §4.10), so the refusal clause now holds only for `none` and for the pre-entitlement gate (jail-macos.md §4.12).*"
 
 [[clause]]
 id = "M01.1"
@@ -2867,12 +2867,13 @@ note = "suite_clean over the macOS log, plus one test from each shared test file
 [[clause]]
 id = "M01.2"
 gate = "M01"
-clause = "run refuses before exec and the marker never appears"
+clause = "run refuses at the pre-entitlement gate before exec and the marker never appears"
 tag = "live-cli"
 lane = "macos"
 tests = [
   "ukai-jail/tests/macos_refusal.rs::m01_run_refuses_before_exec_and_the_marker_never_appears",
 ]
+note = "Amended 2026-10-22 (jail-macos.md §8): with the entitlement `run` executes natively on the J16 native tier; this refusal is the pre-entitlement gate (jail-macos.md §4.12), which an unentitled host exercises."
 
 [[clause]]
 id = "M01.3"
@@ -2952,11 +2953,11 @@ tests = [
 [[clause]]
 id = "M03.2"
 gate = "M03"
-clause = "macOS doctor reports every requirement unsupported and unmeasured"
+clause = "macOS doctor reports the measured capabilities and exits 125"
 tag = "live-cli"
 lane = "macos"
 tests = [
-  "ukai-jail/tests/macos_refusal.rs::m03_doctor_reports_every_requirement_as_unsupported_and_unmeasured",
+  "ukai-jail/tests/macos_refusal.rs::m03_doctor_reports_the_measured_capabilities_and_exit_125",
 ]
 
 [[clause]]
@@ -3625,12 +3626,12 @@ row = "macOS: receipts validate with macOS backend fields, audit classes `unsupp
 [[clause]]
 id = "K25.1"
 gate = "K25"
-clause = "macOS runs record the attempt artifacts and report every capability requirement unsupported and unmeasured"
+clause = "macOS runs record the attempt artifacts and doctor reports the measured capabilities"
 tag = "live-cli"
 lane = "macos"
 tests = [
   "ukai-jail/tests/macos_refusal.rs::m01_the_attempt_directory_holds_the_policy_and_the_claim",
-  "ukai-jail/tests/macos_refusal.rs::m03_doctor_reports_every_requirement_as_unsupported_and_unmeasured",
+  "ukai-jail/tests/macos_refusal.rs::m03_doctor_reports_the_measured_capabilities_and_exit_125",
 ]
 note = "The row's macOS receipt-field validation and `exec_unconfirmed` semantics are the v2 backend's, which does not exist yet; their Linux-side halves are j5_process/j5_records."
 

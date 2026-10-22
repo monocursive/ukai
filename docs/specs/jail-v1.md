@@ -385,6 +385,20 @@ sandboxes, and signed/notarized distribution. macOS support never requires the
 operator to disable SIP or silently grant Full Disk Access. Any required host
 provisioning must be explicit in that platform's implementation proposal.
 
+**Amended 2026-10-22** ([jail-macos.md](jail-macos.md) §8, row 2): the
+requirement above that the macOS implementation "must prove fork/exec/
+daemonization, stop, supervisor death and resource-limit semantics" before a
+policy requiring those guarantees refuses is replaced for the native tier by
+[jail-macos.md](jail-macos.md) §4. The native backend proves custody **while a
+custodian lives** — two defended Endpoint Security custodians whose loss one at
+a time ends the tree within a bound — and names the residual when both are
+lost (jail-macos.md §4.6, row K95): the tree may survive, `gc` kills only the
+target, and `gc --abandon ATTEMPT` (§6.1) is the explicit way out. The tier
+ships with receipt boundary `native_tree`, never a claim of kernel-bound
+supervisor-death semantics. A kernel-bound run keeps refusing natively and is
+the VM tier's contract (jail-macos.md §6). Execution remains refusal-gated
+until Apple grants the Endpoint Security entitlement (jail-macos.md §4.12).
+
 ## 4. Source layout and ownership
 
 The repository is one workspace (north star D7). Rust crates live under
@@ -714,8 +728,14 @@ ukai-jail explain [policy selection and override flags] [--json]
 ukai-jail doctor [--profile NAME|FILE] [--launch NAME]
   [--workspace PATH] [--scratch PATH] [--json]
 ukai-jail gc [--dry-run] [--json]
+ukai-jail gc --abandon ATTEMPT
 ukai-jail version [--json]
 ```
+
+`gc --abandon ATTEMPT` is macOS-native-tier only ([jail-macos.md](jail-macos.md)
+§4.9, §8): it accepts the unverified end of an attempt whose custodians are
+both dead, records `gc_abandoned`, and releases the attempt's lease and
+resources. It is the one way out of the residual and it is explicit (§14.2).
 
 `PROGRAM` is mandatory except with `--label-only`. Execution accepts literal
 OS argument bytes, never a shell command string. Shell semantics require the
@@ -3078,6 +3098,32 @@ is a future ledger concern. If execution evidence was lost, cleanup completion
 does not turn the execution outcome into success. A corrupt state file causes
 quarantine-by-reporting and retention, not guessed cleanup.
 
+**macOS native tier (amended 2026-10-22, [jail-macos.md](jail-macos.md)
+§4.9, §8).** On the native tier the owner is **both** Endpoint Security
+custodians; `gc` retains an attempt whole while either lives. A custodian is
+dead when its audit token no longer matches or the boot session differs. Three
+records join the gc vocabulary:
+
+- `gc_custody_verified` — same boot, guardian record `drained`: the tree's end
+  is verified by the guardian; cleanup proceeds as `gc_terminated_orphan` does
+  on Linux, and the receipt is left as written. Nothing is killed.
+- `gc_killed_target` — same boot, no guardian record or `not_drained`: both
+  custodians were lost or the stop failed. `gc` sends `SIGKILL` to the target
+  recorded in the receipt by audit token (safe after PID reuse, a no-op after a
+  later exec), records this, and keeps `tree_unknown`: the other descendants
+  are in no record. Vendor-state cleanup and a J14 lease stay held, as for
+  lost integrity on Linux.
+- `gc_abandoned` — recorded only by `gc --abandon ATTEMPT` (§6.1), which
+  accepts the unverified end and releases the lease and resources.
+
+**Boot-session rule.** A new boot session means nothing of that boot is
+alive: `gc` proceeds as this section does after a reboot, and lost-integrity
+attempts are kept in every boot until the operator abandons them. Before
+anything else, `run` and `doctor` on macOS list attempts of this operator
+whose custodians are both dead and whose end is unverified, one line each
+naming the attempt, `gc` and `gc --abandon`; they never kill anything
+themselves — killing is `gc`'s, as above.
+
 ## 15. Acceptance matrix
 
 Tests use a compiled/scripted fixture executable with explicit modes and a
@@ -3120,7 +3166,7 @@ its own processes. Never test against the operator's actual credentials.
 | O05 | Observation off emits no audit source and leaves audit net unsupported, even with active proxy.net; unavailable attachment refuses even in best-effort. Directory-operation losses degrade fs.write; denied connect counts only in fs.deny. |
 | O06 | Renamed cwd, dirfd, two-path calls, non-UTF-8 names and a racing pathname never produce a falsely resolved path, except by a race that moves a name's bytes or anchor and restores it between the two stops (§11.4's residual). |
 | L01 | Wall expiry, INT/TERM/HUP, SIGTERM-ignoring descendant and fork storm end at verified tree death or explicit unknown. |
-| L02 | Kill every lifetime link (backend, watcher, supervisor): contained descendants die within a bound; an `agent` network helper's death fails closed as §10 specifies (the bridge's is recorded and the tree continues; the proxy's is `proxy.net` evidence loss); none preserves its specified unknown case. |
+| L02 | Kill every lifetime link (backend, watcher, supervisor): contained descendants die within a bound; an `agent` network helper's death fails closed as §10 specifies (the bridge's is recorded and the tree continues; the proxy's is `proxy.net` evidence loss); none preserves its specified unknown case. *Amended 2026-10-22 for native macOS ([jail-macos.md](jail-macos.md) §8): on the native tier, killing each lifetime link (each ES custodian, the supervisor) alone ends the tree within a bound (K87–K89, §9.1); killing both custodians is the named residual (K95) — the tree is not verified dead and `gc` kills only the target (§14.2).* |
 | L03 | Missing required cgroup/controller refuses; missing preferred pids alone records absent and runs. Exercise cgroup available but pids controller absent, explicit same-value pids, and observe off. None without a usable cgroup refuses. |
 | L04 | pids/memory/CPU scopes are measured; exit 137 alone does not claim OOM; BOOTTIME deadlines ignore clock adjustments and include suspend. |
 | L05 | Simulated uninterruptible/unknown termination retains vendor state and never says settled/tree_empty=true. |
@@ -3133,7 +3179,7 @@ its own processes. Never test against the operator's actual credentials.
 | C01 | Copy/readonly-bind preserve sources and emit logical-id/mode/digest provenance without sensitive bytes; byte paths encode losslessly; unsafe state_subdirs and all LD_*/DYLD_* launch keys refuse. |
 | C02 | Normal exit/refusal cleans vendor state; interrupted cleanup resumes; symlinks cannot redirect deletion. |
 | C03 | GC skips live/foreign/unidentified resources; boot/PID/cgroup reuse does not target an unrelated process. |
-| M01 | Shared tests run natively on macOS; run and none refuse without executing the marker. |
+| M01 | Shared tests run natively on macOS; run and none refuse without executing the marker. *Amended 2026-10-22 ([jail-macos.md](jail-macos.md) §8): `run` executes natively on the J16 native tier and `none` refuses (`unsupported`, no sandbox defends the custodians, jail-macos.md §4.10), so the refusal clause now holds only for `none` and for the pre-entitlement gate (jail-macos.md §4.12).* |
 | M02 | Portable records validate with macOS identity/backend details and without Linux fields. |
 | M03 | macOS explain/doctor distinguish requested policy, unmeasured properties and unsupported execution; inspection and label-only exit codes follow §6.4. |
 | I01 | Full jail conformance passes with ledger and fleet absent from PATH and no BEAM installed. |

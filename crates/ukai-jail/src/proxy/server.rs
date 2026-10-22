@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 use super::conn::handle_connection;
 use super::{
-    Budgets, FD_HEADROOM, FDS_PER_CONNECTION, MAX_DEADLINE, ProxyConfig, ProxyDecision,
+    Budgets, FD_HEADROOM, FDS_PER_CONNECTION, MAX_DEADLINE, ProxyAuth, ProxyConfig, ProxyDecision,
     ProxyResult, ProxySink, ProxySummary, Reason, RequestKind, Resolver, Transport, http, sys,
 };
 use crate::network::{Destination, Rules};
@@ -66,6 +66,9 @@ pub(super) struct Shared {
     pub(super) rules: Rules,
     pub(super) budgets: Budgets,
     pub(super) resolver: Arc<dyn Resolver + Send + Sync>,
+    /// The bridge's per-attempt secret, when the attempt carries one
+    /// (jail-macos.md §4.10); `None` on the Linux bridge.
+    pub(super) auth: Option<ProxyAuth>,
     sink: Arc<dyn ProxySink>,
     registry: Mutex<Registry>,
     accounting: Mutex<Accounting>,
@@ -231,6 +234,7 @@ pub fn start_with_vault(
         rules,
         budgets,
         resolver,
+        auth,
     } = config;
     let deadline_ok = |deadline: Duration| !deadline.is_zero() && deadline <= MAX_DEADLINE;
     if budgets.max_connections == 0
@@ -277,6 +281,7 @@ pub fn start_with_vault(
         rules,
         budgets,
         resolver,
+        auth,
         sink,
         registry: Mutex::new(Registry::default()),
         accounting: Mutex::new(Accounting::default()),

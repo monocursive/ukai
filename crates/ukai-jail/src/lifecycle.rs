@@ -52,6 +52,9 @@ pub enum BoundaryKind {
     PidNamespace,
     /// The supervisor's own delegated execution cgroup (`none` on Linux).
     SupervisorCgroup,
+    /// A macOS tree two Endpoint Security custodians end (J16,
+    /// jail-macos.md §4): no kernel ends it without a living custodian.
+    NativeTree,
 }
 
 impl BoundaryKind {
@@ -61,6 +64,7 @@ impl BoundaryKind {
         match self {
             BoundaryKind::PidNamespace => "pid_namespace",
             BoundaryKind::SupervisorCgroup => "supervisor_cgroup",
+            BoundaryKind::NativeTree => "native_tree",
         }
     }
 }
@@ -143,6 +147,7 @@ mod tests {
     fn each_boundary_kind_and_scope_has_its_wire_spelling() {
         assert_eq!(BoundaryKind::PidNamespace.as_str(), "pid_namespace");
         assert_eq!(BoundaryKind::SupervisorCgroup.as_str(), "supervisor_cgroup");
+        assert_eq!(BoundaryKind::NativeTree.as_str(), "native_tree");
         assert_eq!(VerificationScope::AttemptTree.as_str(), "attempt_tree");
         assert_eq!(
             VerificationScope::RegisteredBoundary.as_str(),

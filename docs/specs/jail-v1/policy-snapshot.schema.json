@@ -958,6 +958,10 @@
     "terminal": {
       "const": "attached",
       "description": "J14 (jail-interactive-sessions.md \u00a73.7): present only when the operator's terminal is attached; omitted when detached, so a detached snapshot keeps its digest."
+    },
+    "lifetime_boundary": {
+      "const": "kernel-bound",
+      "description": "J18 (jail-macos.md \u00a76): present only when the policy requires a kernel-bound attempt lifetime (`lifetime.boundary` `pid_namespace`); omitted otherwise, so every snapshot without the key keeps its bytes and digest."
     }
   },
   "required": [

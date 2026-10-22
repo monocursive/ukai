@@ -424,7 +424,14 @@ impl Vault {
                 }
             }
             if !secret.policy.binaries.is_empty() {
-                initiator.check(&secret.executables)?;
+                // The process binding is the seccomp mediator's (jail-v1
+                // §12); macOS has no mediator, and there the binding is the
+                // attempt's (jail-macos.md §4.11), so the initiator check is
+                // skipped and any member holding the proxy secret may use
+                // the vaulted credential.
+                if cfg!(target_os = "linux") {
+                    initiator.check(&secret.executables)?;
+                }
             }
             let (value, generation) = secret.runtime.current()?;
             lease.add(Arc::clone(secret), generation);
@@ -695,6 +702,7 @@ mod tests {
                 .unwrap(),
                 budgets: Budgets::default(),
                 resolver: Arc::new(resolver),
+                auth: None,
             },
             Arc::new(Sink(Mutex::new(sender))),
             Some(Arc::new(vault)),
@@ -891,6 +899,7 @@ mod tests {
                 rules: Rules::from_strings(&["fixture.test:443".to_owned()], &[]).unwrap(),
                 budgets: Budgets::default(),
                 resolver: Arc::new(FixtureResolver::new()),
+                auth: None,
             },
             Arc::new(Sink(Mutex::new(sender))),
             Some(Arc::new(vault)),
@@ -1205,6 +1214,7 @@ mod tests {
                 .unwrap(),
                 budgets: Budgets::default(),
                 resolver: Arc::new(resolver),
+                auth: None,
             },
             Arc::new(Sink(Mutex::new(sender))),
             Some(Arc::new(vault)),
@@ -1389,6 +1399,7 @@ mod tests {
                 .unwrap(),
                 budgets: Budgets::default(),
                 resolver: Arc::new(resolver),
+                auth: None,
             },
             Arc::new(Sink(Mutex::new(sender))),
             Some(Arc::new(vault)),

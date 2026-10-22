@@ -115,6 +115,26 @@ Excluded, each for a stated reason:
 
 ## 3. Terminal mode
 
+> **Amended 2026-10-22** ([jail-macos.md](jail-macos.md) §4.11, §8; its
+> decision 3). On macOS there is no PID namespace, and the process-group
+> design below has no macOS equivalent: a member can change its process
+> group through `posix_spawn` attributes even with `setpgid` denied
+> (measured), Seatbelt's filtering of the terminal ioctls is unproven, and
+> nothing confines the group a member names to the attempt. macOS terminal
+> mode is therefore **alternative (b), the pty relay**, applied: the
+> supervisor allocates a pty, gives its slave to the launcher as
+> controlling terminal in a new session, and copies bytes, window sizes and
+> the stop relay between the operator's terminal and the master. The
+> receipt records `applied.terminal.session: relay` (widened from the
+> constant `caller`; also `caller` on Linux). What it closes and costs are
+> this section's own words: the workload never holds the operator's
+> terminal, so §3.5's rows 1–6 and 10 are unreachable on every macOS
+> release; the costs are §3.3 option (b)'s — **X05's byte equality does not
+> hold for macOS terminal runs** (the pty's output processing sits between
+> them), and raw mode, size propagation and end-of-file become jail code.
+> Detached and non-terminal runs keep X05: their launcher's new session has
+> no controlling terminal, so `/dev/tty` fails.
+
 ### 3.1 What happens today
 
 From the code at `b693b1573`:
@@ -287,7 +307,10 @@ Alternatives considered:
   - escape sequences still pass unless the jail parses the agent's output.
 
   This is the fallback if the K62 injection rows find a vector that the
-  filter and the settlement restore cannot close.
+  filter and the settlement restore cannot close. **It is no longer a
+  fallback on macOS**: it is the applied design there
+  ([jail-macos.md](jail-macos.md) §4.11; the amendment note at the head of
+  §3).
 
 ### 3.4 Signals and job control
 

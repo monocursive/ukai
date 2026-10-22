@@ -201,6 +201,18 @@ def semantic_receipt(record):
             gap_interval(gap, f"$.coverage.{name}.gaps[{index}]", out)
     for index, gap in enumerate(record["observer"]["gaps"]):
         gap_interval(gap, f"$.observer.gaps[{index}]", out)
+    # J16 (jail-macos.md §4.11, §8): a credential records its binding only
+    # as a vault credential, and an attempt binding is native macOS.
+    for index, item in enumerate(record["credentials"]):
+        binding = item.get("binding")
+        if not isinstance(binding, str):
+            continue
+        mode = item.get("mode")
+        if mode != "vault":
+            out.append(("credential_binding", f"$.credentials[{index}]", f"binding {binding} on mode {mode}"))
+        os_name = record["platform"].get("os")
+        if binding == "attempt" and os_name != "macos":
+            out.append(("credential_binding", f"$.credentials[{index}]", f"binding attempt on {os_name}"))
     return out
 
 

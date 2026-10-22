@@ -134,6 +134,35 @@ without host directories, signing keys or clipboard sharing. The host's SIP
 remained enabled. Its [raw results and timings](results/macos-es-development/rerun/summary.json)
 are development mechanism measurements, not production jail benchmarks.
 
+## J16–J18 implementation coverage (2026-10-22, code-complete)
+
+The [two-tier macOS design](../../specs/jail-macos.md) is implemented in
+`crates/ukai-jail` (`platform/macos/`, the bridge, the gc and requirement
+plumbing and the VM tier) with these test lanes. **No "supported" claim
+follows**: native execution remains refusal-gated until Apple grants the
+Endpoint Security entitlement ([jail-macos.md](../../specs/jail-macos.md)
+§4.12), and K104 — every J16 row on a normally protected Mac — has not run.
+
+| Lane | Covers |
+| --- | --- |
+| `macos_custody_core` | Custody lifecycle and receipt facts: start and release, membership, stop draining, `lifetime.native.details`, boundary `native_tree` (§§4.2–4.5, 4.8; parts of K87, K92, K97). |
+| `macos_guardian` | Custodian loss one at a time: `custodian_lost`, `custodian_stalled`, supervisor drain-alone, `tree_empty` from client S (§4.6; K89, parts of K88). |
+| `macos_sandbox_profile` | Seatbelt profile composition, digest pinning and the Mach allowlist (§4.7, §4.10; K90's profile fixtures, K100). |
+| `macos_defense_matrix` | The §4.7 attack classes from inside the sandbox against both custodians, with positive controls (K90). |
+| `macos_bridge` | Authenticated loopback HTTP and SOCKS5, per-attempt secret, credential binding `attempt` (§4.10; K99). |
+| `macos_terminal_relay` | The pty relay: relay session, no member holds the operator's terminal, raw-mode restore, `/dev/tty` fails detached (§4.11; K101). X05 byte equality does not hold for macOS terminal runs. |
+| `macos_gc` | `gc_custody_verified`, `gc_killed_target`, `gc --abandon`/`gc_abandoned`, the boot-session rules and the `run`/`doctor` orphan listing (§4.9; K88, K95's gc parts). |
+| `macos_boundary` | Refusals: no entitlement, `none`, explicit ceilings, `--observe on`, `execution_boundary` unsupported (K98, K112's native half). |
+| `macos_observe` | The J17 observation client: exec/`fs.write` classes, gap to `degraded` without touching custody (§5; K105–K106). |
+| `vm_tier` | `--vm` selection, `vm stop`, warm guest, guest receipt with transport record, `owner_loss_termination` narrowing (§6; K108, K111, K112). |
+| Portable extensions | Shared suites re-run on macOS where the mechanism is portable (resolution, group-writable rule §4.11, J12/J13/J14 amendments). |
+
+**Dev-VM note.** The development VM (`ouro-jail-es-dev`) used for the
+SIP-disabled ES trials has been deleted. The live rows K87–K104 require
+restoring it per [macos-development.md](macos-development.md), or running on
+an entitled Mac; without one of those, the lanes above prove design and
+code, not measured live custody.
+
 ## Distribution
 
 The [packager](../../../crates/ukai-jail/dist/package.py) signs SHA256SUMS with an

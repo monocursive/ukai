@@ -104,6 +104,7 @@ fn start_with(
             rules,
             budgets,
             resolver,
+            auth: None,
         },
         Arc::clone(&sink) as Arc<dyn ProxySink>,
     )
@@ -907,6 +908,7 @@ fn n03_a_resolved_omitted_port_grant_reaches_the_proxy_as_tls_only() {
                 rules,
                 budgets: Budgets::default(),
                 resolver: Arc::clone(&resolver) as Arc<dyn Resolver + Send + Sync>,
+                auth: None,
             },
             Arc::clone(&sink) as Arc<dyn ProxySink>,
         )
@@ -1793,6 +1795,7 @@ fn n04_unusable_budgets_refuse_to_start() {
                 rules: Rules::from_strings(&[], &[]).expect("empty rules"),
                 budgets,
                 resolver: Arc::new(FixtureResolver::new()),
+                auth: None,
             },
             Arc::new(Sink::default()),
         );
@@ -2220,6 +2223,7 @@ fn n04_the_slot_is_free_before_the_result_is_delivered() {
                 ..Budgets::default()
             },
             resolver: Arc::new(FixtureResolver::new()),
+            auth: None,
         },
         Arc::clone(&sink) as Arc<dyn ProxySink>,
     )
@@ -2556,6 +2560,7 @@ fn proxy_limits_helper() {
         rules: Rules::from_strings(&allow, &[]).expect("rules"),
         budgets,
         resolver: Arc::clone(&resolver),
+        auth: None,
     };
     let sink = Arc::new(Sink::default());
     match mode.as_str() {
@@ -2879,4 +2884,253 @@ fn named_first_flight_refusals_are_bounded_and_never_connect() {
         assert_eq!(listener.accept().unwrap_err().kind(), ErrorKind::WouldBlock);
     }
     assert!(harness.stop(WAIT).0.complete());
+}
+
+// ---------------------------------------------------------------------------
+// The bridge's per-attempt secret (jail-macos.md §4.10). The proxy half is
+// driven in process, on socket pairs, until the attempt's secret reaches the
+// real server through its configuration.
+// ---------------------------------------------------------------------------
+
+use ukai_jail::network::Destination;
+use ukai_jail::proxy::{ProxyAuth, http, socks};
+
+/// The fixed credentials the HTTP-lane tests present, `ukai:secret` as
+/// base64 (the password may be fixed here: the shape is what is under
+/// test, not the value).
+const BASIC_CREDENTIALS: &str = "dWthaTpzZWNyZXQ=";
+/// `ukai:wrong` as base64: a well-formed field with the wrong password.
+const BASIC_WRONG_PASSWORD: &str = "dWthaTp3cm9uZw==";
+/// `guest:secret` as base64: the wrong username.
+const BASIC_WRONG_USER: &str = "Z3Vlc3Q6c2VjcmV0";
+
+/// The fixed secret the HTTP-lane tests check against.
+fn fixed_auth() -> ProxyAuth {
+    ProxyAuth {
+        user: "ukai".to_owned(),
+        password: "secret".to_owned(),
+    }
+}
+
+/// Runs [`socks::request_with_auth`] on one end of a fresh pair; the other
+/// end is the scripted client's.
+fn socks_parser(
+    auth: Option<ProxyAuth>,
+) -> (UnixStream, thread::JoinHandle<Result<Destination, Reason>>) {
+    let (server, client) = UnixStream::pair().unwrap();
+    let deadline = Instant::now() + WAIT;
+    let handle = thread::spawn(move || socks::request_with_auth(&server, deadline, auth.as_ref()));
+    (client, handle)
+}
+
+/// The RFC 1929 subnegotiation frame for a name and password.
+fn userpass_frame(user: &str, password: &str) -> Vec<u8> {
+    let mut frame = vec![1, user.len() as u8];
+    frame.extend_from_slice(user.as_bytes());
+    frame.push(password.len() as u8);
+    frame.extend_from_slice(password.as_bytes());
+    frame
+}
+
+/// Writes a method-selection greeting and reads the method chosen.
+fn writes_greeting(client: &mut UnixStream, methods: &[u8]) -> [u8; 2] {
+    let mut greeting = vec![5, methods.len() as u8];
+    greeting.extend_from_slice(methods);
+    client.write_all(&greeting).unwrap();
+    let mut chosen = [0; 2];
+    client.read_exact(&mut chosen).unwrap();
+    chosen
+}
+
+#[test]
+fn the_generated_secret_is_hexadecimal_unique_and_redacted() {
+    let first = ProxyAuth::generate();
+    let second = ProxyAuth::generate();
+    assert_ne!(first, second);
+    assert_eq!(first.user, "ukai");
+    assert_eq!(first.password.len(), 32);
+    assert!(first.password.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    assert_eq!(
+        format!("{first:?}"),
+        "ProxyAuth { user: \"ukai\", password: \"[secret]\" }"
+    );
+}
+
+#[test]
+fn socks_with_a_secret_selects_userpass_and_accepts_the_right_credentials() {
+    let auth = ProxyAuth::generate();
+    let (mut client, parser) = socks_parser(Some(auth.clone()));
+    // The client offers both methods; the proxy must pick RFC 1929.
+    assert_eq!(writes_greeting(&mut client, &[0, 2]), [5, 2]);
+    client
+        .write_all(&userpass_frame(&auth.user, &auth.password))
+        .unwrap();
+    let mut status = [0; 2];
+    client.read_exact(&mut status).unwrap();
+    assert_eq!(status, [1, 0]);
+    // Accepted, the parser goes on to read the CONNECT itself.
+    client
+        .write_all(&[5, 1, 0, 1, 127, 0, 0, 1, 1, 187])
+        .unwrap();
+    assert_eq!(parser.join().unwrap().unwrap().to_string(), "127.0.0.1:443");
+}
+
+#[test]
+fn socks_with_a_secret_refuses_a_client_that_skips_authentication() {
+    let auth = ProxyAuth::generate();
+    let (mut client, parser) = socks_parser(Some(auth));
+    assert_eq!(writes_greeting(&mut client, &[0]), [5, 0xff]);
+    assert_eq!(
+        parser.join().unwrap().unwrap_err(),
+        Reason::ProxyAuthRequired
+    );
+    // The refusal closes the connection; nothing more comes from it.
+    let mut rest = Vec::new();
+    client.read_to_end(&mut rest).unwrap();
+    assert!(rest.is_empty());
+}
+
+#[test]
+fn socks_with_a_secret_refuses_the_wrong_password() {
+    let auth = ProxyAuth::generate();
+    let (mut client, parser) = socks_parser(Some(auth.clone()));
+    assert_eq!(writes_greeting(&mut client, &[0, 2]), [5, 2]);
+    client
+        .write_all(&userpass_frame(&auth.user, "not-the-secret"))
+        .unwrap();
+    let mut status = [0; 2];
+    client.read_exact(&mut status).unwrap();
+    assert_eq!(status, [1, 1]);
+    assert_eq!(
+        parser.join().unwrap().unwrap_err(),
+        Reason::ProxyAuthRequired
+    );
+    let mut rest = Vec::new();
+    client.read_to_end(&mut rest).unwrap();
+    assert!(rest.is_empty());
+}
+
+#[test]
+fn socks_userpass_frames_of_the_wrong_shape_refuse() {
+    // A subnegotiation version that is not 1 is malformed, not a refusal.
+    let auth = ProxyAuth::generate();
+    let (mut client, parser) = socks_parser(Some(auth));
+    assert_eq!(writes_greeting(&mut client, &[2]), [5, 2]);
+    client
+        .write_all(&[2, 4, b'u', b'k', b'a', b'i', 0])
+        .unwrap();
+    assert_eq!(
+        parser.join().unwrap().unwrap_err(),
+        Reason::MalformedRequest
+    );
+
+    // A declared length longer than what follows it, with the client then
+    // gone: a closed client, never a hang.
+    let auth = ProxyAuth::generate();
+    let (mut client, parser) = socks_parser(Some(auth));
+    assert_eq!(writes_greeting(&mut client, &[2]), [5, 2]);
+    client.write_all(&[1, 200, b'u', b'k']).unwrap();
+    drop(client);
+    assert_eq!(parser.join().unwrap().unwrap_err(), Reason::ClientClosed);
+}
+
+#[test]
+fn socks_without_a_secret_keeps_the_no_authentication_exchange() {
+    let (mut client, parser) = socks_parser(None);
+    assert_eq!(writes_greeting(&mut client, &[0]), [5, 0]);
+    client
+        .write_all(&[5, 1, 0, 1, 127, 0, 0, 1, 0, 80])
+        .unwrap();
+    assert_eq!(parser.join().unwrap().unwrap().to_string(), "127.0.0.1:80");
+
+    // A client that offers only username-and-password still gets
+    // no-acceptable-method, as before any secret existed.
+    let (mut client, parser) = socks_parser(None);
+    assert_eq!(writes_greeting(&mut client, &[2]), [5, 0xff]);
+    assert_eq!(
+        parser.join().unwrap().unwrap_err(),
+        Reason::UnsupportedRequest
+    );
+}
+
+#[test]
+fn http_with_a_secret_requires_exactly_one_correct_basic_field() {
+    let auth = fixed_auth();
+    let connect = |credentials: &str| {
+        format!("CONNECT example.com:443 HTTP/1.1\r\nProxy-Authorization: {credentials}\r\n\r\n")
+    };
+    let request = http::parse_request_with_auth(
+        connect(&format!("Basic {BASIC_CREDENTIALS}")).as_bytes(),
+        80,
+        Some(&auth),
+    )
+    .unwrap();
+    assert_eq!(request.framing, http::Framing::Tunnel);
+    for credentials in [
+        // No field at all.
+        "",
+        // Another scheme.
+        "Bearer dWthaTpzZWNyZXQ=",
+        // Not base64.
+        "Basic !!!",
+        // The wrong user, the wrong password.
+        &format!("Basic {BASIC_WRONG_USER}"),
+        &format!("Basic {BASIC_WRONG_PASSWORD}"),
+        // Well-formed but presented twice.
+        &format!("Basic {BASIC_CREDENTIALS}\r\nProxy-Authorization: Basic {BASIC_CREDENTIALS}"),
+    ] {
+        assert_eq!(
+            http::parse_request_with_auth(connect(credentials).as_bytes(), 80, Some(&auth))
+                .unwrap_err(),
+            Reason::ProxyAuthRequired,
+            "{credentials:?}"
+        );
+    }
+}
+
+#[test]
+fn a_validated_proxy_authorization_is_never_forwarded() {
+    let auth = fixed_auth();
+    let head = "GET http://example.com/a HTTP/1.1\r\nHost: example.com\r\n\
+                Proxy-Authorization: Basic dWthaTpzZWNyZXQ=\r\nX-Secret: 1\r\n\r\n";
+    let request =
+        http::parse_request_with_auth(head.as_bytes(), 80, Some(&auth)).expect("authenticated");
+    let forwarded = std::str::from_utf8(&request.forward_head).unwrap();
+    assert!(
+        !forwarded
+            .to_ascii_lowercase()
+            .contains("proxy-authorization"),
+        "{forwarded:?}"
+    );
+    assert!(forwarded.contains("X-Secret: 1"), "{forwarded:?}");
+}
+
+#[test]
+fn without_a_secret_the_http_lane_behaves_as_before_the_secret() {
+    // Unauthenticated parsing still accepts and strips the field silently.
+    let head =
+        "CONNECT example.com:443 HTTP/1.1\r\nProxy-Authorization: Basic Z3Vlc3Q6c2VjcmV0\r\n\r\n";
+    let request = http::parse_request_with_auth(head.as_bytes(), 80, None).expect("accepted");
+    assert_eq!(request.framing, http::Framing::Tunnel);
+    // And its refusal responses carry no challenge.
+    assert!(
+        !std::str::from_utf8(&http::error_response(Reason::HostNotAllowed))
+            .unwrap()
+            .contains("Proxy-Authenticate")
+    );
+}
+
+#[test]
+fn an_http_refusal_for_the_secret_is_a_407_with_the_basic_challenge() {
+    assert_eq!(
+        http::error_response(Reason::ProxyAuthRequired),
+        b"HTTP/1.1 407 Proxy Authentication Required\r\n\
+          Content-Type: text/plain\r\n\
+          Content-Length: 20\r\n\
+          X-Ukai-Proxy-Reason: proxy_auth_required\r\n\
+          Proxy-Authenticate: Basic realm=\"ukai\"\r\n\
+          Connection: close\r\n\
+          \r\n\
+          proxy_auth_required\n"
+    );
 }

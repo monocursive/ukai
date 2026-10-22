@@ -435,7 +435,10 @@
               "const": "pty"
             },
             "session": {
-              "const": "caller"
+              "enum": [
+                "caller",
+                "relay"
+              ]
             },
             "process_group": {
               "const": "own"
@@ -1196,6 +1199,12 @@
               "copy_rw",
               "bind_ro",
               "vault"
+            ]
+          },
+          "binding": {
+            "enum": [
+              "program",
+              "attempt"
             ]
           },
           "digest": {

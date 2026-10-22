@@ -2124,8 +2124,15 @@ fn k50_k52_the_summary_prints_on_a_terminal_and_quiet_or_config_turns_it_off() {
 
     // An error the run raised still prints in every mode.
     if cfg!(target_os = "macos") {
+        // J16: the honest refusal surface — an unentitled Mac answers the
+        // ES probe first (`missing_capability`/`es_not_entitled`, K98), and
+        // a host that fails a later gate answers `unsupported_platform`.
         for shown in [&printed, &quiet_printed, &configured_printed] {
-            assert!(shown.contains("unsupported_platform"), "{shown}");
+            assert!(
+                shown.contains("unsupported_platform")
+                    || (shown.contains("missing_capability") && shown.contains("es_not_entitled")),
+                "{shown}"
+            );
         }
     }
 }
@@ -2961,6 +2968,59 @@ fn survivors_are_verified_only_for_a_known_scope() {
             "{scope}: {status}"
         );
     }
+}
+
+/// J16 (jail-macos.md §4.8): a native run's verified tree names its custody
+/// and says it is not kernel-bound.
+#[test]
+fn native_custody_names_itself_in_the_survivors_line() {
+    let fixture = Fixture::from(example("receipt-macos-native.json"));
+    let summary = fixture.summary();
+    let status = texts(&summary)[0].clone();
+    assert!(
+        status.contains("survivors: none (verified · native custody, not kernel-bound)"),
+        "{status}"
+    );
+    assert_eq!(
+        facts(&summary, "status")["survivors"],
+        "none_verified_native"
+    );
+}
+
+/// J16 (jail-macos.md §4.8): with the guardian lost, the survivors line adds
+/// the named residual.
+#[test]
+fn a_lost_guardian_is_the_named_residual() {
+    let mut fixture = Fixture::from(example("receipt-macos-native.json"));
+    fixture.receipt["lifetime"]["native"]["details"]["custodians"]["guardian"]["result"] =
+        json!("lost");
+    let summary = fixture.summary();
+    let status = texts(&summary)[0].clone();
+    assert!(
+        status.contains(
+            "survivors: none (verified · native custody, not kernel-bound · guardian lost)"
+        ),
+        "{status}"
+    );
+    assert_eq!(
+        facts(&summary, "status")["survivors"],
+        "none_verified_native_guardian_lost"
+    );
+}
+
+/// J16 (jail-macos.md §4.8): details keys may be absent; the line degrades to
+/// the plain native form.
+#[test]
+fn missing_native_details_degrade_to_the_plain_form() {
+    let mut fixture = Fixture::from(example("receipt-macos-native.json"));
+    fixture.receipt["lifetime"]["native"]["details"] = json!({});
+    let summary = fixture.summary();
+    let status = texts(&summary)[0].clone();
+    assert!(
+        status.contains("survivors: none (verified · native custody, not kernel-bound)"),
+        "{status}"
+    );
+    assert!(!status.contains("guardian lost"), "{status}");
 }
 
 /// A lower bound prints only what was seen: no `at least 0`.

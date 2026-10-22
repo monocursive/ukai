@@ -132,6 +132,50 @@
 #   an optional `state` line (facts: the receipt's `vendor_state`) and the
 #   `cleanup` line's facts may carry the terminal restore. No shared field
 #   changed meaning.
+# - 2026-10-22 (J16, jail-macos.md §4.8, §4.9 and §8) re-blessed
+#   jail-receipt.schema.json and jail-summary.schema.json in place under
+#   their existing identifiers (ukai.jail.receipt/1, ukai.jail.summary/1).
+#   Rationale: additive only. A receipt's `applied.terminal.session` was the
+#   constant `caller` and is now the enum `caller`, `relay` (the macOS pty
+#   relay); a credentials item may carry `binding` (`program` on Linux,
+#   `attempt` on native macOS), absent otherwise, with the cross-field rules
+#   a schema cannot state added to the semantic corpus and both ports of it.
+#   The summary's `survivors` fact gains `none_verified_native` and
+#   `none_verified_native_guardian_lost` for `lifetime.boundary`
+#   `native_tree` runs. New example: receipt-macos-native.json (product
+#   output, frozen below), and the semantic corpus gains its cases. No
+#   shared field changed meaning: a receipt without `binding` keeps its
+#   bytes and digest, and a Linux summary line is unchanged.
+# - 2026-10-22 (J18, jail-macos.md §6 and §8) re-blessed
+#   policy-snapshot.schema.json in place under its existing identifier
+#   (ukai.jail.policy-snapshot/1). Rationale: additive field only. A
+#   snapshot may carry `lifetime_boundary: "kernel-bound"`, present exactly
+#   when the policy requires a kernel-bound attempt lifetime (the derived
+#   requirement `owner_loss_termination`); it is omitted otherwise, so
+#   every snapshot without the key keeps its bytes and digest. No shared
+#   field changed meaning, and no example changed: the field appears only
+#   in snapshots that set it.
+# - 2026-10-22 (J16–J18, jail-macos.md §4.8–§6) re-blessed
+#   jail-doctor.schema.json in place under ukai.jail.doctor/1. Rationale:
+#   additive widening only, in the macOS platform branch. The branch still
+#   pins every refusal-era rule (no `host`, no `supervisor_scope`, no
+#   backend record, `ready` false, the `-apple-darwin` target, probe rows
+#   never named as a requirement) and now also states what the native
+#   probes measure (jail-macos.md §3–§6): a macOS capability row may be a
+#   requirement row derived from the Endpoint Security, Seatbelt,
+#   loopback-bind and sysctl probes (mechanism set, `measured_at`
+#   RFC3339, an `evidence_ref`, statuses `available`, `unavailable`,
+#   `unsupported` or `skipped`, a reason-code pattern instead of the
+#   constant) or one of the six host probe rows themselves
+#   (es_descendants, es_notify, seatbelt_profile, loopback_bind,
+#   bootsessionuuid, maxprocperuid, `owner_loss_termination` joins the
+#   requirement names), including the J16 refusal-era rows this replaces
+#   on an unentitled host (`unsupported` with `unsupported_platform`).
+#   Every record valid before stays valid: the checked-in
+#   examples/doctor-macos.json is unchanged and still validates, and the
+#   semantic rules the base capability definition states (an available
+#   process/tree row says `ok`; a host row is never named as a
+#   requirement) are unchanged. No shared field changed meaning.
 schema = "ukai.jail.frozen-schemas/1"
 milestone = "milestone-1"
 
@@ -154,14 +198,14 @@ sha256 = "fa0ef7a7304567e7d91feb13492035cdedc8448f4d225e42e983d13dc71ab57e"
 file = "jail-receipt.schema.json"
 id = "urn:ukai:schema:jail-receipt:1"
 identifier = "ukai.jail.receipt/1"
-sha256 = "1fbd4740606015013a5aeac3dd335343cd5fd48b0c81b25ca9375653fdbb6dfb"
+sha256 = "c882b2d2c1eaa71e86fbfe0e65d0efe9910dfb24ffcc4a30f19cd3b81388ba18"
 
 # §6.3, canonicalization.md: the canonical policy snapshot
 [[frozen]]
 file = "policy-snapshot.schema.json"
 id = "urn:ukai:schema:jail-policy-snapshot:1"
 identifier = "ukai.jail.policy-snapshot/1"
-sha256 = "8bd95dcc5c2a4a5b8f408287114e083fa611e9c30959ac629c474d76dd25fce0"
+sha256 = "28abf80ad6abc0900b0c561ec2e2d81bee43118790aa31da51f425c38d493d4a"
 
 # §8.2: the managed gate release frame
 [[frozen]]
@@ -183,7 +227,7 @@ sha256 = "3258c99bd153e3b53697a4915fbed9f63414aa4aca172f4969931b46c5c025c7"
 file = "jail-doctor.schema.json"
 id = "urn:ukai:schema:jail-doctor:1"
 identifier = "ukai.jail.doctor/1"
-sha256 = "9d847566e8a5d7753a662eb99ac157ed92d508eb881ddc0694d46d58e88e9619"
+sha256 = "ca1488e3ef9e420d4f74bbae9938d1b4878236eb03fc95eb6fb36d41b3ecaa7f"
 
 # the canonical bytes, the policy and argv digest preimages and the private policy.json envelope
 [[frozen_artifact]]
@@ -237,7 +281,13 @@ sha256 = "fdd7b9d4054192056c9de703fd9d78fec8f98e16543f9e354f358cb417b65581"
 [[frozen_artifact]]
 file = "fixtures/semantic-cases.json"
 identifiers = ["ukai.jail.receipt/1", "ukai.event/1", "ukai.jail.control/1"]
-sha256 = "d4e00038535847e3efe6511d2ae65e34e384c77818d4e6b4a3de66c13ba8c686"
+sha256 = "d015d06856242f893a35b66484a88f69ecab58a9f095a51b826198f085425647"
+
+# J16 (jail-macos.md §4.8): a native macOS receipt
+[[frozen_artifact]]
+file = "examples/receipt-macos-native.json"
+identifiers = ["ukai.jail.receipt/1", "ukai.event/1", "ukai.jail.control/1"]
+sha256 = "2ae4a3fcafd678294cdc8d3a48549445ace90b7f86c2c71490590cfbb5a6f5c6"
 
 # an instance the semantic corpus changes
 [[frozen_artifact]]
@@ -316,7 +366,7 @@ sha256 = "1c93bdf014b5508d5abf0b2c17b31ea863e8de87d0af18416194dc93206cbd33"
 file = "jail-summary.schema.json"
 id = "urn:ukai:schema:jail-summary:1"
 identifier = "ukai.jail.summary/1"
-sha256 = "28a720e137dd954730fdbee26875aefee5f55feeb721bab9a11df1ccb2474503"
+sha256 = "e9f3ddffb7616605dc164a3e470fcb9691358b5e7004d6928017806515db9aa0"
 
 [[frozen]]
 file = "learned-policy.schema.json"

@@ -43,13 +43,14 @@
 //! header, token or body. The proxy writes no log.
 
 mod conn;
+pub(crate) mod coverage;
 mod event;
-pub(crate) mod http;
+pub mod http;
 pub(crate) mod origin;
 mod relay;
 mod resolve;
 mod server;
-mod socks;
+pub mod socks;
 pub(crate) mod sys;
 mod tls;
 mod types;
@@ -58,7 +59,6 @@ pub use event::proxy_event;
 pub use resolve::{
     FixtureAnswer, FixtureResolver, Lookup, ResolveError, Resolver, SystemResolver, absolute_name,
 };
-#[cfg(any(target_os = "linux", test))]
 pub(crate) use server::start_with_vault;
 pub use server::{ProxyHandle, start};
 /// The mount preparation reserves descriptors the same way the proxy does.
@@ -67,7 +67,7 @@ pub(crate) use sys::raise_nofile_soft_to_hard;
 pub use sys::{nofile_limits, open_descriptor_count};
 pub(crate) use types::Verification;
 pub use types::{
-    Budgets, EndReason, MAX_DEADLINE, ProxyConfig, ProxyDecision, ProxyResult, ProxySink,
-    ProxySummary, Reason, RequestKind, Transport,
+    Budgets, EndReason, MAX_DEADLINE, ProxyAuth, ProxyConfig, ProxyDecision, ProxyResult,
+    ProxySink, ProxySummary, Reason, RequestKind, Transport,
 };
 pub(crate) use types::{FD_HEADROOM, FDS_PER_CONNECTION};

@@ -15,6 +15,14 @@ path = "src/lib.rs"
 name = "ukai-jail"
 path = "src/main.rs"
 
+# J18 (jail-macos.md §6): the per-user warm-guest host program. It reuses the
+# preview's installed custodian and VZ client binaries and drives the guest
+# over the same vsock protocol; `ukai-jail --vm` and `ukai-jail vm stop` are
+# its operators.
+[[bin]]
+name = "ukai-vm"
+path = "src/bin/ukai-vm.rs"
+
 [lints]
 workspace = true
 
@@ -40,8 +48,19 @@ uuid = { workspace = true, features = ["v4"] }
 [build-dependencies]
 sha2.workspace = true
 
+# The ES custody shim (jail-macos §4.1) is compiled by build.rs for macOS
+# targets only; `cc` stays a local, single-crate dependency.
+[target.'cfg(target_os = "macos")'.build-dependencies]
+cc = "1"
+
 [dev-dependencies]
 jsonschema.workspace = true
+# The macOS sandbox tests #[path]-include src/platform/macos/{sandbox,setuid}.rs
+# so they exercise the exact shipped sources; the modules use sha2 (the
+# template digest) and libc (kern.osversion), which are regular dependencies
+# and therefore not visible to integration tests without these lines.
+sha2.workspace = true
+libc.workspace = true
 # The conformance suite drives the real jail through the shared harness and
 # runs the shared fixture inside it. No cycle: `ukai-fixture` does not depend
 # on `ukai-jail`, and this is a dev-dependency, so nothing ships with it.

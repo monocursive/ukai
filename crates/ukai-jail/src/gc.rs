@@ -41,14 +41,27 @@ use std::time::Duration;
 
 use crate::cleanup;
 use crate::state;
+use crate::supervisor::Context;
 
 mod decide;
 mod host;
 mod view;
 mod walk;
 
-pub use host::{Host, HostFailure, HostIdentity, LeafProbe, LeafRecord, Liveness, OwnerRecord};
-pub use walk::{gc, gc_with};
+#[cfg(target_os = "macos")]
+pub use host::boot_session;
+pub use host::{
+    GuardianRecord, Host, HostFailure, HostIdentity, LeafProbe, LeafRecord, Liveness, OwnerRecord,
+    TargetToken,
+};
+/// The host `gc` runs on natively, for callers that ask the same questions
+/// `gc` does (J16: the orphan scan's custodian liveness, and the macOS
+/// tests that pin it).
+pub fn native_host(ctx: &Context) -> impl Host {
+    host::NativeHost::new(ctx)
+}
+pub mod orphans;
+pub use walk::{FINISHED, gc, gc_with};
 
 /// The test seam that shrinks the per-invocation entry bound (S9).
 pub const SEAM_MAX_ENTRIES: &str = "UKAI_JAIL_TEST_GC_MAX_ENTRIES";

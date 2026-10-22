@@ -36,7 +36,7 @@ use ukai_jail::platform::linux::bwrap::{
 use ukai_jail::platform::linux::clock::Deadline;
 use ukai_jail::platform::linux::exec::{self, FdMap};
 use ukai_jail::policy::{CredentialDecl, CredentialMode, LaunchSnapshot};
-use ukai_jail::records::{ErrorCode, NativeString};
+use ukai_jail::records::{ErrorCode, NativeString, Os};
 use ukai_jail::state::anchored::{Dir, Name};
 
 mod common;
@@ -217,7 +217,7 @@ fn stage_two(staging: &Staging) -> (PathBuf, PathBuf, std::os::fd::OwnedFd) {
         decl("auth", &auth, "auth.json", "copy_rw"),
         decl("config", &config, "conf/config.toml", "bind_ro"),
     ]);
-    let mut staged = credentials::stage(&launch, staging.vendor.as_fd(), &[])
+    let mut staged = credentials::stage(&launch, Os::Linux, staging.vendor.as_fd(), &[])
         .unwrap_or_else(|refusal| panic!("staging: {:?}", refusal.error));
     assert_eq!(staged.len(), 2);
     assert_eq!(staged[1].record.digest, None);
@@ -486,7 +486,7 @@ fn p04_a_fifo_source_is_refused_without_ever_being_opened_for_io() {
     std::thread::sleep(Duration::from_millis(50));
     let launch = launch_of(vec![decl("pipe", &fifo, "pipe", "copy_rw")]);
     let credentials::StagingRefusal { error, staged } =
-        credentials::stage(&launch, staging.vendor.as_fd(), &[])
+        credentials::stage(&launch, Os::Linux, staging.vendor.as_fd(), &[])
             .expect_err("a FIFO source refuses");
     assert_eq!(error.code, ErrorCode::CredentialUnavailable);
     assert!(error.message.contains("a FIFO"), "{}", error.message);
@@ -530,7 +530,7 @@ fn p04_every_special_or_oversized_source_refuses_at_staging_on_this_host() {
     ] {
         let launch = launch_of(vec![decl(label, source, label, mode)]);
         let credentials::StagingRefusal { error, staged } =
-            credentials::stage(&launch, staging.vendor.as_fd(), &[]).expect_err(label);
+            credentials::stage(&launch, Os::Linux, staging.vendor.as_fd(), &[]).expect_err(label);
         assert_eq!(error.code, ErrorCode::CredentialUnavailable, "{label}");
         assert!(error.message.contains(needle), "{label}: {}", error.message);
         assert!(
@@ -1190,7 +1190,7 @@ fn m1_inner_bind_ro_digest_on_a_read_only_bind_of_a_writable_filesystem() {
         }],
         state_discard: None,
     };
-    let staged = credentials::stage(&launch, vendor.as_fd(), &[])
+    let staged = credentials::stage(&launch, Os::Linux, vendor.as_fd(), &[])
         .unwrap_or_else(|refusal| panic!("staging refused: {:?}", refusal.error));
     let record = staged[0].record.clone();
     println!("receipt row: {record:?}");

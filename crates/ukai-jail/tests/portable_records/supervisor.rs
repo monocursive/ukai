@@ -132,6 +132,7 @@ impl Fixture {
             &cli::GcArgs {
                 dry_run,
                 json: false,
+                abandon: None,
             },
         );
         match report {

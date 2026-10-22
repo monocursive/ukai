@@ -872,6 +872,7 @@ impl Fixture {
                 &cli::GcArgs {
                     dry_run: false,
                     json: false,
+                    abandon: None,
                 },
             )
         });
@@ -1461,6 +1462,7 @@ fn gc_cgroup_case(action: &'static str, fault: Fault) -> Vec<String> {
                 &cli::GcArgs {
                     dry_run: false,
                     json: false,
+                    abandon: None,
                 },
                 &host,
                 ukai_jail::gc::Options::DEFAULT,

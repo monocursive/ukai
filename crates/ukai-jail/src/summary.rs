@@ -1144,12 +1144,34 @@ impl View<'_> {
             .pointer("/lifetime/tree_empty")
             .and_then(Value::as_bool);
         let scope = self.text("/lifetime/verification_scope");
-        let survivors = match (tree_empty, scope) {
-            (Some(true), Some("registered_boundary")) => {
+        let boundary = self.text("/lifetime/boundary");
+        // J16 (jail-macos.md §4.8): native custody is verified while it
+        // lasts, but no kernel ends the tree, and a lost guardian is the
+        // named residual. Details may be absent; degrade to the plain form.
+        let guardian_lost = self
+            .receipt
+            .pointer("/lifetime/native/details/custodians/guardian/result")
+            .and_then(Value::as_str)
+            == Some("lost");
+        let survivors = match (tree_empty, boundary, scope) {
+            (Some(true), Some("native_tree"), _) if guardian_lost => {
+                parts.push(
+                    "survivors: none (verified · native custody, not kernel-bound · guardian lost)"
+                        .to_owned(),
+                );
+                "none_verified_native_guardian_lost"
+            }
+            (Some(true), Some("native_tree"), _) => {
+                parts.push(
+                    "survivors: none (verified · native custody, not kernel-bound)".to_owned(),
+                );
+                "none_verified_native"
+            }
+            (Some(true), _, Some("registered_boundary")) => {
                 parts.push("survivors: none (verified, registered cgroup only)".to_owned());
                 "none_verified_registered_boundary"
             }
-            (Some(true), Some("attempt_tree")) => {
+            (Some(true), _, Some("attempt_tree")) => {
                 parts.push("survivors: none (verified)".to_owned());
                 "none_verified"
             }

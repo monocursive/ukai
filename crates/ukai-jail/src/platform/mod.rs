@@ -20,7 +20,7 @@ use crate::records::{JailError, NativeLifetime, Os, ProcessRecord};
 use crate::trace::SharedTrace;
 
 #[cfg(target_os = "macos")]
-mod macos;
+pub mod macos;
 
 /// Nanoseconds since this supervisor started, on the §6.4 continuous clock.
 ///
@@ -309,6 +309,9 @@ pub enum StopReason {
     StateWriteFailed,
     /// A supervisor-owned stdio relay failed.
     StdioFailure,
+    /// J16 (jail-macos.md §4.6): the guardian custodian was lost, which
+    /// started the stop; the supervisor's custody ends the tree alone.
+    CustodianLost,
 }
 
 impl StopReason {
@@ -323,6 +326,7 @@ impl StopReason {
             StopReason::EvidenceLoss => "evidence_loss",
             StopReason::StateWriteFailed => "state_write_failed",
             StopReason::StdioFailure => "stdio_failure",
+            StopReason::CustodianLost => "custodian_lost",
         }
     }
 }
@@ -404,6 +408,14 @@ pub enum RunEvent {
         /// A safe reason.
         reason: String,
     },
+    /// J16 (jail-macos.md §4.6): the guardian custodian was lost mid-run;
+    /// the supervisor's custody continues and ends the tree alone. The stop
+    /// this starts records `custodian_lost` as its cause.
+    CustodianLost,
+    /// J16 (jail-macos.md §4.6): the guardian custodian stalled at the stop
+    /// and was ended by the supervisor; the tree was drained from the
+    /// supervisor's custody alone. Recorded, never a cause.
+    CustodianStalled,
     /// The facts needed are missing; never a fabricated outcome.
     Unknown {
         /// A safe reason.
@@ -605,6 +617,13 @@ pub trait RunningExecution {
     /// the platform enforces no storage ceilings.
     fn storage_loss(&self) -> Option<String> {
         None
+    }
+
+    /// J16 (jail-macos.md §4.6): custodian losses found at settlement (a
+    /// guardian that stalled or was lost during the stop), for the settled
+    /// receipt's `errors[]`. The default platform reports none.
+    fn custodian_errors(&mut self) -> Vec<crate::records::JailError> {
+        Vec::new()
     }
     // A detected lifetime-integrity loss reaches the next receipt (§9.3)
     /// Whether the platform has detected, while running, that the boundary's

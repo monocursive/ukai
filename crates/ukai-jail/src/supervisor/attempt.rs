@@ -871,6 +871,34 @@ impl<'a> Attempt<'a> {
                 let stop = (self.strict() && !after_target_end).then_some(StopReason::EvidenceLoss);
                 self.running_error(running, run, error, stop);
             }
+            // J16 (jail-macos.md §4.6): a lost custodian is recorded, and
+            // the stop it starts carries `custodian_lost` as its cause; the
+            // other custodian ends the tree.
+            RunEvent::CustodianLost => {
+                let error = JailError::new(
+                    ErrorCode::CustodianLost,
+                    ErrorStage::Running,
+                    Remediation::InspectState,
+                    "the guardian custodian was lost; the supervisor's custody ends the tree \
+                     alone"
+                        .to_owned(),
+                );
+                run.platform_loss_reported = true;
+                self.running_error(running, run, error, Some(StopReason::CustodianLost));
+            }
+            // J16: recorded only; the stall never started a stop, so it is
+            // never a cause.
+            RunEvent::CustodianStalled => {
+                let error = JailError::new(
+                    ErrorCode::CustodianStalled,
+                    ErrorStage::Stopping,
+                    Remediation::InspectState,
+                    "the guardian custodian stalled at the stop and was ended; the supervisor \
+                     drained the tree alone"
+                        .to_owned(),
+                );
+                self.running_error(running, run, error, None);
+            }
             // §6.4: the same honest unknown, and a coded error.
             RunEvent::ExecUnconfirmed { reason } => {
                 self.ended_unknown(running, reason);
@@ -1161,6 +1189,12 @@ impl<'a> Attempt<'a> {
             self.record
                 .errors
                 .push(storage_loss_error(reason).to_object());
+        }
+        // J16 (jail-macos.md §4.6): custodian losses found during the stop
+        // reach the settled receipt's `errors[]`; only a loss that started
+        // the stop is a cause, and that path recorded it already.
+        for error in running.custodian_errors() {
+            self.record.errors.push(error.to_object());
         }
         for limit in running.final_limits() {
             if let Some(recorded) = self

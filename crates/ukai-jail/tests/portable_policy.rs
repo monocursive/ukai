@@ -1001,7 +1001,10 @@ fn p02_every_narrowing_category_is_allowed() {
     assert!(resolved.snapshot.network.allow.is_empty());
     assert_eq!(resolved.snapshot.network.ruleset, None);
 
-    // Observation enabled and evidence strengthened.
+    // Observation enabled and evidence strengthened. The harness pins the
+    // platform to Linux, where the baseline can be turned off first, so
+    // enabling it is a narrowing. (macOS's own baseline refusal — observe
+    // on over the off baseline until J17 — is `macos_capabilities.rs`.)
     let resolved = workspace
         .resolve_project(
             ProfileName::Tool,
@@ -1614,6 +1617,20 @@ fn p01_a_semantic_change_in_a_canonical_toml_input_changes_only_the_policy_diges
             .join("../../docs/specs/jail-v1/fixtures/canonical-input.toml"),
     )
     .expect("the canonical input");
+    // jail-macos.md §4.10: before J17 the macOS baseline is `observe = off`,
+    // so the fixture's `observe on` layer refuses there; the digest battery
+    // is about canonical input, not observation, and the flip (§5, J17)
+    // returned the baseline to `observe = on` — the fixture resolves
+    // verbatim while [`ukai_jail::profiles::J17_OBSERVE`] holds, and keeps
+    // the baseline's own mode while it does not.
+    let canonical = if cfg!(target_os = "macos") && !ukai_jail::profiles::J17_OBSERVE {
+        canonical.replace(
+            "[observation]\nmode = \"on\"",
+            "[observation]\nmode = \"off\"",
+        )
+    } else {
+        canonical
+    };
     let profile = files.workspace.join("canonical.toml");
     let launch = |value: &str| {
         files.launch(

@@ -14,6 +14,11 @@
 //! `termios`, discarding pending input and the attribute reset of §3.6, each
 //! with `SIGTTOU` blocked on the calling thread only, so the mask the target
 //! inherits never carries it (§3.3 step 4).
+//!
+//! On macOS the mode is J14's option (b), the pty relay (jail-macos.md
+//! §4.11): [`decide`] picks the mode, and
+//! [`platform::macos::relay`](crate::platform::macos::relay) owns the relay
+//! itself.
 
 use std::os::fd::RawFd;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -124,6 +129,12 @@ pub struct Facts {
     pub major: Option<u32>,
     /// `ttyname(0)`.
     pub name: Option<String>,
+    /// A readable `termios` on standard input. macOS's terminal mode (the
+    /// pty relay, §4.11) asks for a real tty: `isatty` plus a `tcgetattr`
+    /// that answers, in place of Linux's device-major check — macOS pty
+    /// slaves (`/dev/ttysNNN`) carry other majors. Linux keeps the major
+    /// check and reads nothing extra.
+    pub tty_settings: bool,
 }
 
 impl Facts {
@@ -155,12 +166,43 @@ impl Facts {
             Some(Ok(major)) => Some(major),
             _ => device_major(fd),
         };
+        #[cfg(target_os = "macos")]
+        let tty_settings = {
+            // SAFETY: `termios` is writable storage tcgetattr fills.
+            let mut termios: libc::termios = unsafe { std::mem::zeroed() };
+            // SAFETY: the descriptor is a number.
+            (unsafe { libc::tcgetattr(fd, &raw mut termios) }) == 0
+        };
+        #[cfg(not(target_os = "macos"))]
+        let tty_settings = true;
         Facts {
             is_terminal,
             controlling,
             foreground,
             major,
             name: terminal_name(fd),
+            tty_settings,
+        }
+    }
+
+    /// §3.2 condition 5, per platform: Linux wants a Unix98 pty slave
+    /// (majors 136–143; a virtual console or a serial line stays detached);
+    /// macOS wants a real tty — `isatty` (already in `is_terminal`) plus a
+    /// readable `termios` (`tty_settings`), because its pty slaves,
+    /// `/dev/ttysNNN`, carry other majors than Linux's.
+    fn is_pty(&self) -> bool {
+        #[cfg(target_os = "linux")]
+        {
+            self.major
+                .is_some_and(|major| PTY_SLAVE_MAJORS.contains(&major))
+        }
+        #[cfg(target_os = "macos")]
+        {
+            self.tty_settings
+        }
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+        {
+            false
         }
     }
 }
@@ -223,10 +265,12 @@ fn terminal_name(fd: RawFd) -> Option<String> {
 /// §3.2. `applies` is conditions 1 and 2: the verb is `run`, the profile is
 /// contained, and neither `--gate-fd`, `--terminal detach` nor `[jail]
 /// terminal = "detach"` is in force. Conditions 3 to 5 are read from
-/// `facts`. Only Linux attaches: macOS refuses execution (§1).
+/// `facts`. Linux attaches with J14's shared group; macOS attaches through
+/// the pty relay (§4.11), whose condition 5 is a real tty rather than a
+/// device major. Any other platform stays detached.
 #[must_use]
 pub fn decide(applies: bool, facts: &Facts) -> Decision {
-    if !applies || !cfg!(target_os = "linux") {
+    if !applies {
         return Decision::Detached(None);
     }
     let reason = if !facts.is_terminal {
@@ -235,10 +279,7 @@ pub fn decide(applies: bool, facts: &Facts) -> Decision {
         Some(Detached::NotControlling)
     } else if !facts.foreground {
         Some(Detached::Background)
-    } else if !facts
-        .major
-        .is_some_and(|major| PTY_SLAVE_MAJORS.contains(&major))
-    {
+    } else if !facts.is_pty() {
         Some(Detached::NotPty)
     } else {
         None
@@ -249,8 +290,20 @@ pub fn decide(applies: bool, facts: &Facts) -> Decision {
             device: facts
                 .name
                 .clone()
-                .unwrap_or_else(|| "/dev/pts/?".to_owned()),
+                .unwrap_or_else(|| fallback_device().to_owned()),
         },
+    }
+}
+
+/// The device name an attached pre-exec line prints when `ttyname` failed.
+fn fallback_device() -> &'static str {
+    #[cfg(target_os = "linux")]
+    {
+        "/dev/pts/?"
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        "/dev/ttys?"
     }
 }
 
@@ -751,7 +804,7 @@ fn check(rc: libc::c_int) -> std::io::Result<()> {
 }
 
 /// The errno's symbolic name, or the error's text.
-fn errno_name(error: &std::io::Error) -> String {
+pub(crate) fn errno_name(error: &std::io::Error) -> String {
     match error.raw_os_error() {
         Some(libc::EIO) => "EIO".to_owned(),
         Some(libc::ENOTTY) => "ENOTTY".to_owned(),
@@ -876,23 +929,19 @@ mod tests {
             foreground: true,
             major: Some(major),
             name: Some("/dev/pts/7".to_owned()),
+            tty_settings: true,
         }
     }
 
     #[test]
     fn every_condition_must_hold_to_attach() {
         let attached = decide(true, &facts(136));
-        if cfg!(target_os = "linux") {
-            assert_eq!(
-                attached,
-                Decision::Attached {
-                    device: "/dev/pts/7".to_owned()
-                }
-            );
-        } else {
-            assert_eq!(attached, Decision::Detached(None));
-            return;
-        }
+        assert_eq!(
+            attached,
+            Decision::Attached {
+                device: "/dev/pts/7".to_owned()
+            }
+        );
         assert_eq!(decide(false, &facts(136)), Decision::Detached(None));
         for (change, reason) in [
             (
@@ -904,17 +953,35 @@ mod tests {
                 Detached::NotControlling,
             ),
             (|f: &mut Facts| f.foreground = false, Detached::Background),
-            (|f: &mut Facts| f.major = Some(4), Detached::NotPty),
-            (|f: &mut Facts| f.major = Some(204), Detached::NotPty),
-            (|f: &mut Facts| f.major = None, Detached::NotPty),
-            (|f: &mut Facts| f.major = Some(135), Detached::NotPty),
-            (|f: &mut Facts| f.major = Some(144), Detached::NotPty),
         ] {
             let mut measured = facts(136);
             change(&mut measured);
             assert_eq!(decide(true, &measured), Decision::Detached(Some(reason)));
         }
         assert!(decide(true, &facts(143)).attached());
+        // Condition 5, per platform: Linux wants a Unix98 pty slave major;
+        // macOS wants a real tty — `is_terminal` plus a readable `termios`
+        // (`tty_settings`), so the major is irrelevant there.
+        if cfg!(target_os = "linux") {
+            for major in [Some(4), Some(204), None, Some(135), Some(144)] {
+                let mut measured = facts(136);
+                measured.major = major;
+                assert_eq!(
+                    decide(true, &measured),
+                    Decision::Detached(Some(Detached::NotPty)),
+                    "{major:?}"
+                );
+            }
+        } else {
+            let mut measured = facts(136);
+            measured.major = Some(4);
+            assert!(decide(true, &measured).attached());
+            measured.tty_settings = false;
+            assert_eq!(
+                decide(true, &measured),
+                Decision::Detached(Some(Detached::NotPty))
+            );
+        }
     }
 
     #[test]
@@ -975,11 +1042,7 @@ mod tests {
         (measured.controlling, measured.foreground) = session_facts(0, 0, 0, 0);
         assert_eq!(
             decide(true, &measured),
-            if cfg!(target_os = "linux") {
-                Decision::Detached(Some(Detached::NotControlling))
-            } else {
-                Decision::Detached(None)
-            }
+            Decision::Detached(Some(Detached::NotControlling))
         );
     }
 

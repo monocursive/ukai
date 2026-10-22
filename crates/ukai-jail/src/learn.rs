@@ -294,6 +294,11 @@ pub fn run(ctx: &Context, mut args: LearnArgs) -> Result<i32, String> {
         quiet: true,
         // J14 §1: `learn` stays detached.
         terminal: Some(crate::terminal::Choice::Detach),
+        // J18: the grammar's grammar has no lifetime key, and `learn` never
+        // runs in the guest.
+        lifetime_boundary: None,
+        #[cfg(target_os = "macos")]
+        vm: false,
     };
     let report = supervisor::run_learning(ctx, &run);
     let receipt_path = report

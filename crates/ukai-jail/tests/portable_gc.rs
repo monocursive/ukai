@@ -171,6 +171,7 @@ fn gc_args(dry_run: bool) -> cli::GcArgs {
     cli::GcArgs {
         dry_run,
         json: false,
+        abandon: None,
     }
 }
 
@@ -864,6 +865,13 @@ mod scripted {
         pub owner: Liveness,
         pub leaf: LeafProbe,
         pub terminate: Result<(), String>,
+        /// J16 (jail-macos.md §4.9): the guardian's liveness, and whether a
+        /// kill through the recorded token succeeds.
+        pub guardian: Liveness,
+        pub kill: Result<(), String>,
+        /// The platform this scripted host claims; macOS for the custody
+        /// tests (J16), Linux for every J4 test.
+        pub os: Os,
         pub calls: Mutex<Vec<String>>,
     }
 
@@ -874,6 +882,9 @@ mod scripted {
                 owner,
                 leaf,
                 terminate: Ok(()),
+                guardian: Liveness::Gone,
+                kill: Ok(()),
+                os: Os::Linux,
                 calls: Mutex::new(Vec::new()),
             }
         }
@@ -888,7 +899,7 @@ mod scripted {
     impl Host for Scripted {
         fn identity(&self) -> HostIdentity {
             HostIdentity {
-                os: Os::Linux,
+                os: self.os,
                 arch: SIM_ARCH.to_owned(),
                 boot_id: self.boot.clone(),
             }
@@ -916,6 +927,14 @@ mod scripted {
         fn remove_named_leaf(&self, path: &Path, _: &mut usize) -> Result<(u64, u64), HostFailure> {
             self.log(format!("remove_named_leaf {}", path.display()));
             Ok((30, 5151))
+        }
+        fn guardian(&self, record: &ukai_jail::gc::GuardianRecord) -> Liveness {
+            self.log(format!("guardian {}", record.pid.unwrap_or(0)));
+            self.guardian.clone()
+        }
+        fn kill_target(&self, token: &ukai_jail::gc::TargetToken) -> Result<(), HostFailure> {
+            self.log(format!("kill_target {} {}", token.pid, token.pidversion));
+            self.kill.clone().map_err(HostFailure::new)
         }
     }
 
@@ -2024,11 +2043,9 @@ fn j4_w2s_gc_reports_leftover_temp_files() {
             "{args:?}: {entry:#}"
         );
         let temp_files = entry["temp_files"].as_str().unwrap_or_default();
-        if cfg!(target_os = "linux") {
-            assert!(temp_files.starts_with(linux), "{args:?}: {entry:#}");
-        } else {
-            assert!(temp_files.starts_with("retained"), "{args:?}: {entry:#}");
-        }
+        // J16 (jail-macos.md §4.9): macOS now reads the boot session, so the
+        // owner of another boot is established dead exactly as on Linux.
+        assert!(temp_files.starts_with(linux), "{args:?}: {entry:#}");
     }
 }
 
@@ -2777,6 +2794,288 @@ mod w3 {
         assert!(
             removed.iter().all(|(_, gone, _)| !gone),
             "managed scratch removed despite lost integrity: {removed:?}"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// J16 (jail-macos.md §4.9): custody and the abandon on macOS, driven through
+// the same walk with a scripted host. Portable: both lanes run these.
+// ---------------------------------------------------------------------------
+
+mod macos_custody {
+    use super::*;
+    use ukai_jail::gc::{self, LeafProbe, Liveness, Options};
+
+    const SESSION: &str = "boot-session-a";
+
+    fn macos_args(dry_run: bool, abandon: Option<String>) -> cli::GcArgs {
+        cli::GcArgs {
+            dry_run,
+            json: false,
+            abandon,
+        }
+    }
+
+    fn run(fixture: &Fixture, host: &scripted::Scripted, args: &cli::GcArgs) -> gc::Report {
+        gc::gc_with(&fixture.context(), args, host, Options::DEFAULT)
+            .unwrap_or_else(|error| panic!("gc scans: {error}"))
+    }
+
+    fn only<'a>(report: &'a gc::Report, id: &str) -> &'a gc::Entry {
+        report
+            .entries
+            .iter()
+            .find(|entry| entry.attempt_id == id)
+            .unwrap_or_else(|| panic!("no entry for {id}"))
+    }
+
+    /// A macOS attempt whose supervisor is gone: the claim names the
+    /// platform, the boot session and an epoch-second birth time nothing
+    /// has; the receipt records a `macos_audit_token` target identity and
+    /// an unverified end; the guardian's record is as `drained` says.
+    fn macos_orphan(
+        fixture: &Fixture,
+        drained: Option<bool>,
+    ) -> (String, AttemptDir, scripted::Scripted) {
+        let id = fresh_id();
+        let dir = fixture.root_of(&id);
+        free_lock(&dir);
+        claim(&dir, "macos", SIM_ARCH, Some((dead_pid(), SESSION, 1)));
+        let mut receipt = example("receipt-none-prepared.json");
+        let id_field = dir.root().file_name().unwrap().to_str().unwrap();
+        receipt["attempt_id"] = json!(id_field);
+        receipt["phase"] = json!("enforced");
+        receipt["exec_observed"] = json!(true);
+        receipt["process"]["identity"] = json!({
+            "kind": "macos_audit_token",
+            "value": {"pid": 4242, "pidversion": 91, "boot_session": SESSION},
+        });
+        receipt["lifetime"]["native"] = json!({
+            "os": "macos",
+            "details": {
+                "custody": "es_descendants",
+                "defense": "seatbelt",
+                "custodians": {
+                    "supervisor": {"result": "lost"},
+                    "guardian": {"result": "lost"},
+                },
+            },
+        });
+        receipt["lifetime"]["integrity"] = json!("verified");
+        receipt["lifetime"]["boundary"] = json!("native_tree");
+        receipt["lifetime"]["tree_empty"] = Value::Null;
+        private_file(
+            &dir.receipt_path(),
+            &serde_json::to_vec_pretty(&receipt).unwrap(),
+        );
+        if let Some(drained) = drained {
+            let token: Vec<u32> = (0..8)
+                .map(|word| if word == 5 { 88 } else { word + 1 })
+                .collect();
+            json_file(
+                &dir.root().join("guardian.json"),
+                &json!({
+                    "schema": "ukai.jail.guardian-record/1",
+                    "drained": drained,
+                    "own_token": token,
+                    "boot_session": SESSION,
+                }),
+            );
+        }
+        let mut host = scripted::Scripted::new(Liveness::Gone, LeafProbe::Absent);
+        host.os = Os::Macos;
+        host.boot = Some(SESSION.to_owned());
+        (id, dir, host)
+    }
+
+    fn actions(dir: &AttemptDir) -> Vec<String> {
+        read_json(&dir.state_path())["gc_actions"]
+            .as_array()
+            .map(|actions| {
+                actions
+                    .iter()
+                    .map(|action| action["action"].as_str().unwrap_or("").to_owned())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Same boot, the guardian's record `drained`: `gc_custody_verified`,
+    /// and a pending vendor-state cleanup is permitted by it.
+    #[test]
+    fn a_drained_record_verifies_custody_and_releases_the_lease() {
+        let fixture = Fixture::new();
+        let (id, dir, host) = macos_orphan(&fixture, Some(true));
+        vendor_state_pending(&dir);
+        let report = run(&fixture, &host, &macos_args(false, None));
+        let entry = only(&report, &id);
+        assert_eq!(entry.action, "removed_vendor_state", "{entry:?}");
+        assert!(actions(&dir).contains(&"gc_custody_verified".to_owned()));
+        assert!(
+            !host
+                .calls()
+                .iter()
+                .any(|call| call.starts_with("kill_target"))
+        );
+        assert!(report.incomplete.is_empty(), "{:?}", report.incomplete);
+    }
+
+    /// Same boot, `not_drained`: the recorded target is killed by token,
+    /// the tree stays `tree_unknown`, and the vendor lease stays held.
+    #[test]
+    fn an_undrained_or_absent_record_kills_the_recorded_target_and_holds_the_lease() {
+        for drained in [Some(false), None] {
+            let fixture = Fixture::new();
+            let (id, dir, host) = macos_orphan(&fixture, drained);
+            vendor_state_pending(&dir);
+            let report = run(&fixture, &host, &macos_args(false, None));
+            let entry = only(&report, &id);
+            assert_eq!(entry.action, "killed_target", "{drained:?}: {entry:?}");
+            let calls = host.calls();
+            match drained {
+                // A record naming a guardian is probed before the kill.
+                Some(_) => assert!(
+                    calls.len() == 3
+                        && calls[0].starts_with("owner ")
+                        && calls[1].starts_with("guardian ")
+                        && calls[2] == "kill_target 4242 91",
+                    "{calls:?}"
+                ),
+                // No record: the guardian is lost without a probe.
+                None => assert!(
+                    calls.len() == 2
+                        && calls[0].starts_with("owner ")
+                        && calls[1] == "kill_target 4242 91",
+                    "{calls:?}"
+                ),
+            }
+            let recorded = actions(&dir);
+            assert!(recorded.contains(&"gc_killing_target".to_owned()));
+            assert!(recorded.contains(&"gc_killed_target".to_owned()));
+            // The lease is held: the vendor state survives, cleanup pending.
+            assert!(dir.vendor_state_path().exists(), "{drained:?}");
+            assert!(report.incomplete.is_empty(), "{:?}", report.incomplete);
+        }
+    }
+
+    /// A dry run records nothing and reports what an abandon would do.
+    #[test]
+    fn a_dry_run_would_report_without_recording() {
+        let fixture = Fixture::new();
+        let (id, dir, host) = macos_orphan(&fixture, None);
+        let report = run(&fixture, &host, &macos_args(true, Some(id.clone())));
+        let entry = only(&report, &id);
+        assert_eq!(entry.action, "would_abandon", "{entry:?}");
+        assert!(actions(&dir).is_empty(), "{:?}", actions(&dir));
+        assert!(
+            host.calls()
+                .iter()
+                .all(|call| !call.starts_with("kill_target"))
+        );
+    }
+
+    /// `gc --abandon ATTEMPT`: `gc_abandoned`, vendor state released, the
+    /// receipt left as written, the attempt kept on disk.
+    #[test]
+    fn an_abandon_releases_the_lease_and_keeps_the_attempt() {
+        let fixture = Fixture::new();
+        let (id, dir, host) = macos_orphan(&fixture, None);
+        vendor_state_pending(&dir);
+        let receipt_before = std::fs::read(dir.receipt_path()).unwrap();
+        let report = run(&fixture, &host, &macos_args(false, Some(id.clone())));
+        let entry = only(&report, &id);
+        assert_eq!(entry.action, "removed_vendor_state", "{entry:?}");
+        let recorded = actions(&dir);
+        assert!(recorded.contains(&"gc_abandoned".to_owned()));
+        assert!(!dir.vendor_state_path().exists());
+        assert_eq!(std::fs::read(dir.receipt_path()).unwrap(), receipt_before);
+        assert!(dir.state_path().exists(), "the attempt stays on disk");
+        assert!(report.incomplete.is_empty(), "{:?}", report.incomplete);
+    }
+
+    /// The one way out, and it is explicit: an unknown attempt is refused
+    /// naming it, and a name that is not an attempt id is refused.
+    #[test]
+    fn an_abandon_refuses_unknown_and_malformed_names() {
+        let fixture = Fixture::new();
+        macos_orphan(&fixture, None);
+        let host = scripted::Scripted::new(Liveness::Gone, LeafProbe::Absent);
+        let missing = "att_00000000-0000-4000-8000-00000000000f".to_owned();
+        let error = gc::gc_with(
+            &fixture.context(),
+            &macos_args(false, Some(missing.clone())),
+            &host,
+            Options::DEFAULT,
+        )
+        .unwrap_err();
+        assert!(error.message.contains(&missing), "{}", error.message);
+        let error = gc::gc_with(
+            &fixture.context(),
+            &macos_args(false, Some("../escape".to_owned())),
+            &host,
+            Options::DEFAULT,
+        )
+        .unwrap_err();
+        assert!(error.message.contains("attempt id"), "{}", error.message);
+    }
+
+    /// gc retains the attempt whole while either custodian lives: a live
+    /// guardian means nothing is probed, killed or released.
+    #[test]
+    fn a_live_guardian_retains_the_attempt_whole() {
+        let fixture = Fixture::new();
+        let (id, dir, mut host) = macos_orphan(&fixture, Some(true));
+        vendor_state_pending(&dir);
+        host.guardian = Liveness::Alive;
+        let report = run(&fixture, &host, &macos_args(false, None));
+        let entry = only(&report, &id);
+        assert_eq!(entry.action, "retained", "{entry:?}");
+        assert!(actions(&dir).is_empty(), "{:?}", actions(&dir));
+        assert!(dir.vendor_state_path().exists());
+    }
+
+    /// A killed target keeps the attempt out of `gc_finished`: a later pass
+    /// lists it again, and the operator can still abandon it.
+    #[test]
+    fn a_killed_target_is_never_marked_finished() {
+        let fixture = Fixture::new();
+        let (id, dir, host) = macos_orphan(&fixture, None);
+        let first = run(&fixture, &host, &macos_args(false, None));
+        assert_eq!(only(&first, &id).action, "killed_target");
+        assert!(!actions(&dir).contains(&"gc_finished".to_owned()));
+        // A second pass repeats the (now no-op) kill, coalescing the record,
+        // and stays abandonable.
+        let second = run(&fixture, &host, &macos_args(false, None));
+        assert_eq!(
+            only(&second, &id).action,
+            "killed_target",
+            "{:?}",
+            actions(&dir)
+        );
+        let recorded: Vec<_> = actions(&dir)
+            .into_iter()
+            .filter(|action| action == "gc_killed_target")
+            .collect();
+        assert_eq!(recorded.len(), 1, "{:?}", recorded);
+    }
+
+    /// An attempt a pass released (`gc_abandoned`) costs a later pass
+    /// nothing further, and the scratch goes with it.
+    #[test]
+    fn an_abandoned_attempt_settles_scratch_and_later_passes() {
+        let fixture = Fixture::new();
+        let (id, dir, host) = macos_orphan(&fixture, None);
+        managed_scratch(&dir, 2);
+        let report = run(&fixture, &host, &macos_args(false, Some(id.clone())));
+        let entry = only(&report, &id);
+        assert_eq!(entry.action, "abandoned", "{entry:?}");
+        assert_eq!(entry.scratch.as_deref(), Some("removed"), "{entry:?}");
+        let later = run(&fixture, &host, &macos_args(false, None));
+        let later_entry = only(&later, &id);
+        assert!(
+            later_entry.reason.starts_with(gc::FINISHED) || later_entry.action == "retained",
+            "{later_entry:?}"
         );
     }
 }

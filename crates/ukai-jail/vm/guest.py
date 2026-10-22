@@ -6,6 +6,7 @@ import os
 from pathlib import Path, PurePosixPath
 import pwd
 import selectors
+import shutil
 import socket
 import stat
 import subprocess
@@ -21,6 +22,16 @@ MAX_FILE = 512 * 1024
 MAX_FILES = 5000
 WORKSPACE = Path('/home/ukai/workspace')
 EVIDENCE = Path('/home/ukai/evidence')
+# J18 (jail-macos.md §6): where an attempt's ephemeral credentials stage.
+# tmpfs, so a secret is never written to the guest disk; the path is the
+# jail's vault source location for the attempt. UKAI_VM_SECRETS relocates it
+# for tests, which run where /run is not writable; the value is read per
+# call, so a test cannot pin the module's import order.
+SECRETS = '/run/ukai-vm/credentials'
+
+
+def secrets_root():
+    return Path(os.environ.get('UKAI_VM_SECRETS', SECRETS))
 
 
 def clock():
@@ -40,25 +51,42 @@ def notify():
             sock.sendall(b'READY=1\nWATCHDOG=1')
 
 
+def kill_workload():
+    """cgroup.kill of the workload boundary, verified empty: the facts the
+    audit records stand on their own, so a warm session's cancel can share
+    them with the poweroff path."""
+    boundary = Path('/sys/fs/cgroup/user.slice')
+    with (boundary / 'cgroup.events').open() as events:
+        inode = os.fstat(events.fileno()).st_ino
+        (boundary / 'cgroup.kill').write_text('1')
+        deadline = clock() + 1
+        while True:
+            events.seek(0)
+            state = dict(line.split() for line in events.read().splitlines())
+            if state.get('populated') == '0':
+                audit('workload_tree_empty', boundary='user.slice', events_inode=inode)
+                return
+            if clock() >= deadline:
+                raise TimeoutError('cgroup did not empty')
+            time.sleep(.01)
+
+
+def stop_attempt_tree():
+    """Ends one attempt's tree without ending the session. A boundary that
+    cannot be verified empty is recorded and the session carries on: the
+    attempt's outcome is already unknown to the host."""
+    try:
+        kill_workload()
+    except (OSError, ValueError, TimeoutError) as error:
+        audit('workload_cleanup_unverified', error=type(error).__name__)
+
+
 def poweroff(reason):
     # VZ may retain its service while the Mac client is SIGSTOP'ed, even after
     # guest poweroff. First kill and verify the Linux workload boundary so
     # payload cleanup does not depend on the host processing a VM callback.
-    boundary = Path('/sys/fs/cgroup/user.slice')
     try:
-        with (boundary / 'cgroup.events').open() as events:
-            inode = os.fstat(events.fileno()).st_ino
-            (boundary / 'cgroup.kill').write_text('1')
-            deadline = clock() + 1
-            while True:
-                events.seek(0)
-                state = dict(line.split() for line in events.read().splitlines())
-                if state.get('populated') == '0':
-                    audit('workload_tree_empty', boundary='user.slice', events_inode=inode)
-                    break
-                if clock() >= deadline:
-                    raise TimeoutError('cgroup did not empty')
-                time.sleep(.01)
+        kill_workload()
     except (OSError, ValueError, TimeoutError) as error:
         audit('workload_cleanup_unverified', error=type(error).__name__)
     audit('poweroff', reason=reason)
@@ -74,6 +102,71 @@ def relative(name):
     if not parts or name.startswith('/') or '\0' in name or any(p in ('', '..', '.') for p in name.split('/')):
         raise ValueError('invalid relative path')
     return parts
+
+
+# ---------------------------------------------------------------------------
+# Warm sessions (J18, jail-macos.md §6)
+#
+# The preview's `run` op stays byte-for-byte what it was: one run per boot,
+# poweroff at completion. A warm guest instead runs a session: the host
+# resets the attempt directories, stages at most one workspace and a secret
+# set, runs the same jail command, and reads the attempt back — without a
+# poweroff. The lease on an attempt is the host's connection, not a timer:
+# the controller keeps the session until the vsock end closes or the VM
+# service ends.
+# ---------------------------------------------------------------------------
+
+def reset_attempt(account, workspace=WORKSPACE, evidence=EVIDENCE):
+    """Empties both attempt directories for the next attempt, as the host's
+    reset op asks. The directories, their modes and their owner come back
+    exactly as boot made them."""
+    for path in (workspace, evidence):
+        shutil.rmtree(path, ignore_errors=True)
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chown(path, account.pw_uid, account.pw_gid)
+
+
+def stage_secret(secret_id, payload, secrets=None):
+    """Writes one ephemeral credential to its tmpfs path, 0600. The value
+    crossed the vsock once for this attempt and lives here only until the
+    attempt ends."""
+    secrets = secrets_root() if secrets is None else Path(secrets)
+    parts = relative(secret_id)
+    path = secrets.joinpath(*parts)
+    secrets.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with path.open('xb') as output:
+        output.write(payload)
+    os.chmod(path, 0o600)
+    return path
+
+
+def clear_secrets(secrets=None):
+    """Removes every staged secret; every run2 attempt and every cancel ends
+    with this, so no value outlives its attempt."""
+    shutil.rmtree(secrets_root() if secrets is None else Path(secrets), ignore_errors=True)
+
+
+def run_command(profile, argv, wall, workspace=WORKSPACE, evidence=EVIDENCE):
+    """The jail command one attempt runs, in either mode. The single-run
+    `run` op builds exactly this list, and `run2` shares it, so the warm
+    design changes nothing about what the jail is asked to do."""
+    command = [b'/usr/local/bin/ukai-jail', b'run', b'--profile', profile.encode(),
+               b'--workspace', os.fsencode(workspace), b'--receipt', os.fsencode(Path(evidence) / 'jail.json'),
+               b'--limit', f'wall={wall}s'.encode(), b'--limit', b'mem=512MiB',
+               b'--limit', b'swap=0', b'--limit', b'pids=64']
+    # The build baseline grants only scratch. Explicitly grant
+    # this disposable copy, never the Mac's input directory.
+    if profile == 'build':
+        command += [b'--rw', os.fsencode(workspace)]
+    command += [b'--', *argv]
+    return command
+
+
+def attempt_environment(account):
+    """The environment one guest jail runs under, in either mode."""
+    return {'HOME': account.pw_dir, 'USER': 'ukai', 'LOGNAME': 'ukai',
+            'PATH': '/usr/local/bin:/usr/bin:/bin', 'LANG': 'C.UTF-8',
+            'XDG_RUNTIME_DIR': f'/run/user/{account.pw_uid}'}
 
 
 def main():
@@ -117,12 +210,41 @@ def main():
     stream_count = 0
     output_bytes = 0
     wall_deadline = None
+    # J18: a warm session keeps the VM up across attempts; `lease_expired`
+    # no longer applies, because the attempt's lease is this connection's
+    # end-of-file, not a timer. The vsock end closing still powers off, as
+    # does the outer wall backstop for a live attempt.
+    in_session = False
+
+    def discard_attempt():
+        """Closes one attempt's streams and counters, after its tree has
+        been ended: the next attempt stages from scratch."""
+        nonlocal process, stream_count, uploaded, files, output_bytes, wall_deadline
+        for key in list(selector.get_map().values()):
+            if key.data != 'control':
+                selector.unregister(key.fileobj)
+                key.fileobj.close()
+        if process is not None and process.poll() is None:
+            process.wait()
+        process = None
+        stream_count = 0
+        uploaded = files = output_bytes = 0
+        wall_deadline = None
+
     while True:
         notify()
-        if clock() - last_ping > LEASE:
+        if not in_session and clock() - last_ping > LEASE:
             poweroff('lease_expired')
         if wall_deadline is not None and clock() > wall_deadline:
-            poweroff('outer_wall_expired')
+            if not in_session:
+                poweroff('outer_wall_expired')
+            # The backstop ends the attempt, not the warm VM (§6: the guest
+            # jail's own wall still ends it first when the jail can act).
+            stop_attempt_tree()
+            clear_secrets()
+            reset_attempt(account)
+            discard_attempt()
+            send({'event': 'error', 'message': 'outer_wall_expired'})
         for key, _ in selector.select(.1):
             if key.data != 'control':
                 data = os.read(key.fd, 16384)
@@ -178,18 +300,8 @@ def main():
                     argv = [base64.b64decode(value, validate=True) for value in request['argv']]
                     if not argv or any(b'\0' in value for value in argv):
                         poweroff('invalid_argv')
-                    command = [b'/usr/local/bin/ukai-jail', b'run', b'--profile', profile.encode(),
-                               b'--workspace', os.fsencode(WORKSPACE), b'--receipt', os.fsencode(EVIDENCE / 'jail.json'),
-                               b'--limit', f'wall={wall}s'.encode(), b'--limit', b'mem=512MiB',
-                               b'--limit', b'swap=0', b'--limit', b'pids=64']
-                    # The build baseline grants only scratch. Explicitly grant
-                    # this disposable copy, never the Mac's input directory.
-                    if profile == 'build':
-                        command += [b'--rw', os.fsencode(WORKSPACE)]
-                    command += [b'--', *argv]
-                    env = {'HOME': account.pw_dir, 'USER': 'ukai', 'LOGNAME': 'ukai',
-                           'PATH': '/usr/local/bin:/usr/bin:/bin', 'LANG': 'C.UTF-8',
-                           'XDG_RUNTIME_DIR': f'/run/user/{account.pw_uid}'}
+                    command = run_command(profile, argv, wall)
+                    env = attempt_environment(account)
                     process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                                stderr=subprocess.PIPE, cwd=WORKSPACE, env=env,
                                                user=account.pw_uid, group=account.pw_gid, extra_groups=[])
@@ -199,6 +311,55 @@ def main():
                     wall_deadline = clock() + wall + 10
                     audit('running', supervisor_pid=process.pid)
                     send({'event': 'running', 'supervisor_pid': process.pid})
+                elif op == 'run2' and process is None and in_session:
+                    # J18: the warm session's run — the same jail command,
+                    # without the poweroff at completion. The host staged a
+                    # fresh workspace (reset op) before the puts.
+                    profile = request['profile']
+                    wall = request['wall_seconds']
+                    if profile not in ('tool', 'build') or type(wall) is not int or not 1 <= wall <= 300:
+                        poweroff('invalid_policy')
+                    argv = [base64.b64decode(value, validate=True) for value in request['argv']]
+                    if not argv or any(b'\0' in value for value in argv):
+                        poweroff('invalid_argv')
+                    command = run_command(profile, argv, wall)
+                    env = attempt_environment(account)
+                    process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                               stderr=subprocess.PIPE, cwd=WORKSPACE, env=env,
+                                               user=account.pw_uid, group=account.pw_gid, extra_groups=[])
+                    for stream, name in [(process.stdout, 'stdout'), (process.stderr, 'stderr')]:
+                        selector.register(stream, selectors.EVENT_READ, name)
+                    stream_count = 2
+                    wall_deadline = clock() + wall + 10
+                    audit('running', supervisor_pid=process.pid)
+                    send({'event': 'running', 'supervisor_pid': process.pid})
+                elif op == 'session' and process is None and not in_session:
+                    # J18: the warm session's handshake. After this the ping
+                    # lease no longer applies: the attempt's lease is this
+                    # connection's end-of-file (§6), not a timer.
+                    in_session = True
+                    audit('session_opened')
+                    send({'event': 'session', 'kernel': os.uname().release})
+                elif op == 'reset' and process is None and in_session:
+                    reset_attempt(account)
+                    uploaded = files = output_bytes = 0
+                    send({'event': 'reset'})
+                elif op == 'secret' and process is None and in_session:
+                    secret_id = request['id']
+                    if type(secret_id) is not str:
+                        poweroff('invalid_operation')
+                    stage_secret(secret_id, base64.b64decode(request['data'], validate=True))
+                    send({'event': 'secret', 'id': secret_id})
+                elif op == 'cancel2' and in_session:
+                    # The attempt lease's end-of-file reached the host's
+                    # ukai-vm, which passes the cancellation on. The session
+                    # and the VM stay up; no timer was involved.
+                    stop_attempt_tree()
+                    clear_secrets()
+                    reset_attempt(account)
+                    discard_attempt()
+                    audit('attempt_cancelled')
+                    send({'event': 'cancelled'})
                 elif op == 'cancel':
                     poweroff('cancelled')
                 else:
@@ -226,11 +387,17 @@ def main():
                               'executable': bool(info.st_mode & 0o111), 'data': base64.b64encode(payload).decode()})
             send({'event': 'done', 'exit_code': process.returncode})
             audit('done', exit_code=process.returncode)
-            # No new run and no reboot/resume. Host tears down this VM.
-            while clock() - last_ping <= LEASE:
-                notify()
-                time.sleep(.1)
-            poweroff('completed')
+            if not in_session:
+                # No new run and no reboot/resume. Host tears down this VM.
+                while clock() - last_ping <= LEASE:
+                    notify()
+                    time.sleep(.1)
+                poweroff('completed')
+            # J18: the warm session carries on — the ephemeral credentials
+            # die with the attempt, the next attempt stages its own
+            # workspace, and the VM stays up until the host asks it to stop.
+            clear_secrets()
+            discard_attempt()
 
 
 if __name__ == '__main__':

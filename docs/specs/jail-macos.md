@@ -1,7 +1,11 @@
 # Jail proposal: macOS in two tiers, native custody and a warm VM (J16–J18)
 
-Status: design proposal, 2026-10-22, decisions settled the same day (§12).
-Nothing is implemented. It was written against `dev` at `68512e1f1`, after
+Status: implemented, 2026-10-22, decisions settled the same day (§12).
+J16 (native custody) and J18 (the VM tier) are code-complete on `dev` at
+`ae14865f8`; nothing is "supported" yet. J16 cannot ship before Apple grants
+the Endpoint Security entitlement (§4.12), and its acceptance rows (§9.1)
+require a normally protected Mac (K104). J17 (§5) is code-complete behind
+the same gate. It was written against `dev` at `68512e1f1`, after
 Apple Developer Technical Support answered code-level support case `22799543`
 (the [question and answer](../benchmarks/jail/apple-lifetime-question.md)).
 

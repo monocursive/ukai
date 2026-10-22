@@ -1,8 +1,11 @@
 //! The decision, pure: [`Facts`] in, the next probe or a [`Decision`] out.
 //! Every "may gc touch this" rule lives here and is tested without a host.
 
-use super::host::{HostIdentity, LeafProbe, LeafRecord, Liveness, OwnerRecord};
+use super::host::{
+    GuardianRecord, HostIdentity, LeafProbe, LeafRecord, Liveness, OwnerRecord, TargetToken,
+};
 use super::view::{LeafSource, ReceiptView, StateView, recorded_leaf};
+use crate::records::Os;
 
 /// Everything `gc` knows about one leased attempt when it decides.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -17,6 +20,14 @@ pub struct Facts {
     pub owner: Option<Liveness>,
     /// The leaf probe, once [`Next::ProbeLeaf`] was answered.
     pub leaf: Option<LeafProbe>,
+    /// J16 (jail-macos.md §4.9): the guardian's custodian record
+    /// (`guardian.json`), read tolerantly — absent or corrupt means absent.
+    pub guardian_record: Option<GuardianRecord>,
+    /// The guardian's liveness, once [`Next::ProbeGuardian`] was answered.
+    pub guardian: Option<Liveness>,
+    /// The operator ran `gc --abandon ATTEMPT` for this attempt: the one
+    /// explicit way out of an unverified end (§4.9).
+    pub abandon: bool,
 }
 
 /// What [`decide`] needs next.
@@ -30,6 +41,9 @@ pub enum Next {
     /// Ask the host about the leaf registered by this name only, then
     /// decide again.
     ProbeNamedLeaf(std::path::PathBuf),
+    /// J16 (jail-macos.md §4.9): ask the host whether the guardian is
+    /// alive, then decide again.
+    ProbeGuardian,
     /// Done.
     Decided(Decision),
 }
@@ -103,6 +117,37 @@ impl OwnerVerdict {
     }
 }
 
+/// J16 (jail-macos.md §4.9): the custody step a macOS decision takes, after
+/// the recorded supervisor was established dead.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum CustodyStep {
+    /// Not a custody question (Linux, or the attempt was settled before it).
+    Nothing,
+    /// Same boot, the guardian's record says `drained`: the tree's end is
+    /// verified by the guardian. Cleanup is permitted, as for
+    /// `gc_terminated_orphan`; the receipt is left as written.
+    Verified,
+    /// Same boot, no record or `not_drained`: `SIGKILL` to the receipt's
+    /// recorded target, by audit token. The tree's end stays unverified
+    /// (`tree_unknown`) and the vendor lease stays held.
+    KillTarget(TargetToken),
+    /// The operator ran `gc --abandon ATTEMPT`: the end is accepted, the
+    /// lease and resources are released, the receipt is left as written and
+    /// the attempt stays on disk.
+    Abandoned,
+}
+
+impl CustodyStep {
+    /// Whether this step proves that the resources a lost lease holds may
+    /// be released: a custody the guardian verified, or an end the operator
+    /// accepted. A killed target never does: the other descendants are in
+    /// no record, so the end is unverified and the lease is held.
+    #[must_use]
+    pub fn releases_hold(&self) -> bool {
+        matches!(self, CustodyStep::Verified | CustodyStep::Abandoned)
+    }
+}
+
 /// What [`decide`] allows for one attempt.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Decision {
@@ -121,6 +166,8 @@ pub struct Decision {
     /// leaf: a receipt that exists (even one claiming an unverified tree)
     /// keeps the conservative retention.
     pub tree_never_existed: bool,
+    /// J16 (jail-macos.md §4.9): the custody step, on macOS.
+    pub custody: CustodyStep,
 }
 
 impl Decision {
@@ -142,6 +189,7 @@ fn retained(reason: String, failed_access: bool, owner: Option<OwnerVerdict>) ->
         cgroup: CgroupStep::Nothing,
         scratch: ScratchStep::NotApplicable,
         tree_never_existed: false,
+        custody: CustodyStep::Nothing,
     })
 }
 
@@ -185,7 +233,156 @@ impl ScratchRule {
 }
 
 fn decided(owner: OwnerVerdict, cgroup: CgroupStep, scratch: ScratchStep) -> Next {
-    decided_with(owner, cgroup, scratch, false)
+    decided_custody(owner, cgroup, scratch, CustodyStep::Nothing)
+}
+
+/// `decided` with a custody step (jail-macos.md §4.9).
+fn decided_custody(
+    owner: OwnerVerdict,
+    cgroup: CgroupStep,
+    scratch: ScratchStep,
+    custody: CustodyStep,
+) -> Next {
+    Next::Decided(Decision {
+        retain: None,
+        owner: Some(owner),
+        cgroup,
+        scratch,
+        tree_never_existed: false,
+        custody,
+    })
+}
+
+/// The macOS custody decision (jail-macos.md §4.9), reached only when the
+/// recorded supervisor was established dead in this boot. Rules, in order:
+/// 1. `--abandon`: the operator's one explicit way out, whatever else is
+///    true; the lease and resources are released, the receipt is left as
+///    written, the attempt stays on disk.
+/// 2. A pass that already verified the custody or recorded an abandon
+///    decides the same again, idempotently.
+/// 3. The receipt proves the tree's end: as jail-v1 §14.2, nothing is
+///    killed and no custody record is needed.
+/// 4. Lost boundary integrity: kept for explicit recovery in every boot,
+///    until the operator abandons it (rule 1).
+/// 5. The guardian custodian: alive means the whole attempt is retained;
+///    liveness unknown keeps everything too.
+/// 6. Same boot, the guardian's record says `drained`: the tree's end is
+///    verified by the guardian; `gc_custody_verified` and cleanup is
+///    permitted, like `gc_terminated_orphan` on Linux.
+/// 7. Same boot, no record or `not_drained`: `SIGKILL` to the receipt's
+///    recorded target, by audit token; `gc_killed_target`. The tree's end
+///    is not verified, the attempt keeps `tree_unknown`, and the vendor
+///    lease stays held. A receipt that names no target identity keeps
+///    everything: nothing is killed and nothing is released.
+fn decide_macos(
+    facts: &Facts,
+    state: &StateView,
+    receipt: Option<&ReceiptView>,
+    verdict: OwnerVerdict,
+    tree_verified: bool,
+    scratch: ScratchRule,
+) -> Next {
+    // Nothing on this platform keeps an execution cgroup; the generic
+    // cgroup steps do not apply.
+    let no_cgroup = CgroupStep::Settled("this platform keeps no execution cgroup".to_owned());
+    if facts.abandon {
+        return decided_custody(
+            verdict,
+            no_cgroup,
+            ScratchStep::Now("the operator abandoned the attempt".to_owned()),
+            CustodyStep::Abandoned,
+        );
+    }
+    if state.custody_released {
+        return decided_custody(
+            verdict,
+            no_cgroup,
+            scratch.keep("nothing is left to release"),
+            CustodyStep::Verified,
+        );
+    }
+    if tree_verified {
+        return decided(
+            verdict,
+            no_cgroup,
+            scratch.or(ScratchStep::Now(RECEIPT_PROVES_END.to_owned())),
+        );
+    }
+    if receipt.is_some_and(|receipt| receipt.tree_end.integrity_lost) {
+        return decided(
+            verdict,
+            CgroupStep::Report(
+                "retained: the receipt records lost boundary integrity; the attempt is kept \
+                 for explicit recovery until `gc --abandon` releases it"
+                    .to_owned(),
+            ),
+            scratch.keep("boundary integrity was lost"),
+        );
+    }
+    // The attempt is retained whole while either custodian lives. The
+    // supervisor's liveness is the verdict; the guardian's is asked here.
+    if facts
+        .guardian_record
+        .as_ref()
+        .is_some_and(GuardianRecord::probeable)
+    {
+        let Some(guardian) = &facts.guardian else {
+            return Next::ProbeGuardian;
+        };
+        match guardian {
+            Liveness::Alive => {
+                return retained(
+                    "the recorded guardian is alive; it is a custodian of the attempt, so \
+                     nothing is touched while it lives"
+                        .to_owned(),
+                    false,
+                    Some(verdict),
+                );
+            }
+            Liveness::Unknown(reason) => {
+                return decided(
+                    verdict,
+                    CgroupStep::Report(format!(
+                        "retained: the guardian's liveness is unknown ({reason})"
+                    )),
+                    scratch.keep("the tree's end is not verified"),
+                );
+            }
+            Liveness::Gone | Liveness::Reused | Liveness::Exited => {}
+        }
+    }
+    if facts
+        .guardian_record
+        .as_ref()
+        .is_some_and(|record| record.drained == Some(true))
+    {
+        return decided_custody(
+            verdict,
+            no_cgroup,
+            ScratchStep::Now("the guardian's record says the tree drained".to_owned()),
+            CustodyStep::Verified,
+        );
+    }
+    // No record, or not_drained: both custodians were lost, or the stop
+    // failed. Kill the target the receipt recorded, by audit token; the
+    // lease stays held, because the other descendants are in no record.
+    match receipt.and_then(|receipt| receipt.target) {
+        Some(target) => decided_custody(
+            verdict,
+            no_cgroup,
+            scratch.keep("the tree's end is not verified"),
+            CustodyStep::KillTarget(target),
+        ),
+        None => decided(
+            verdict,
+            CgroupStep::Report(
+                "retained: the receipt records no target identity, so nothing is killed and \
+                 the tree's end stays unverified"
+                    .to_owned(),
+            ),
+            scratch.keep("the tree's end is not verified"),
+        ),
+    }
 }
 
 /// `decided` with the S4 fact: see [`Decision::tree_never_existed`].
@@ -201,6 +398,7 @@ fn decided_with(
         cgroup,
         scratch,
         tree_never_existed,
+        custody: CustodyStep::Nothing,
     })
 }
 
@@ -321,6 +519,19 @@ pub fn decide(facts: &Facts) -> Next {
         );
     }
     if owner.boot_id != *host_boot {
+        // J16 (jail-macos.md §4.9): an explicit abandon releases even an
+        // attempt of another boot, whose §14.2 path would otherwise keep a
+        // lost-integrity attempt in every boot.
+        if facts.abandon {
+            return decided_custody(
+                OwnerVerdict::Dead("recorded in another boot".to_owned()),
+                CgroupStep::Settled(
+                    "recorded in another boot: the operator abandoned the attempt".to_owned(),
+                ),
+                ScratchStep::Now("the operator abandoned the attempt".to_owned()),
+                CustodyStep::Abandoned,
+            );
+        }
         // §14.2: "After host reboot, the old processes cannot be alive, but
         // any reused cgroup path must not be treated as the original
         // resource." Nothing is asked about the leaf or the owner's pid.
@@ -371,6 +582,13 @@ pub fn decide(facts: &Facts) -> Next {
         Liveness::Exited => "exited, not yet reaped",
     };
     let verdict = OwnerVerdict::Dead(owner_text.to_owned());
+
+    // J16 (jail-macos.md §4.9): macOS custody. There is no execution
+    // cgroup to verify; the tree's end is verified by the guardian's
+    // record, by the receipt itself, or accepted by the operator.
+    if facts.host.os == Os::Macos {
+        return decide_macos(facts, state, receipt, verdict, tree_verified, scratch);
+    }
 
     let key = match source {
         LeafSource::Recorded(leaf) => LeafKey::Identified(leaf),
@@ -637,7 +855,7 @@ mod tests {
         }
     }
 
-    fn state() -> StateView {
+    pub(super) fn state() -> StateView {
         StateView {
             attempt_id: "att_00000000-0000-4000-8000-000000000001".to_owned(),
             os: "linux".to_owned(),
@@ -651,11 +869,12 @@ mod tests {
             gc_removed: Vec::new(),
             gc_verified: Vec::new(),
             gc_removed_scratch: false,
+            custody_released: false,
             gc_finished: None,
         }
     }
 
-    fn receipt(tree_empty: Option<bool>) -> ReceiptView {
+    pub(super) fn receipt(tree_empty: Option<bool>) -> ReceiptView {
         ReceiptView {
             phase: crate::records::Phase::Enforced,
             tree_end: crate::lifecycle::TreeEnd::from_text(
@@ -665,20 +884,24 @@ mod tests {
             ),
             boot_id: Some(BOOT.to_owned()),
             leaf: LeafSource::Recorded(leaf()),
+            target: None,
         }
     }
 
-    fn facts(state: StateView, receipt: ReceiptView) -> Facts {
+    pub(super) fn facts(state: StateView, receipt: ReceiptView) -> Facts {
         Facts {
             host: host(),
             state: Ok(state),
             receipt: Ok(Some(receipt)),
             owner: Some(Liveness::Gone),
             leaf: Some(LeafProbe::Identified { populated: true }),
+            guardian_record: None,
+            guardian: None,
+            abandon: false,
         }
     }
 
-    fn decision(next: Next) -> Decision {
+    pub(super) fn decision(next: Next) -> Decision {
         match next {
             Next::Decided(decision) => decision,
             other => panic!("not decided: {other:?}"),
@@ -1030,5 +1253,224 @@ mod tests {
             "lost integrity keeps the scratch of a name-only leaf too: {:?}",
             decided.scratch
         );
+    }
+}
+
+/// J16 (jail-macos.md §4.9): the macOS custody arms, driven through the
+/// same pure [`decide`] with macOS-shaped facts. Portable: both lanes run
+/// these.
+#[cfg(test)]
+mod macos_tests {
+    use super::tests::{decision, facts, receipt, state};
+    use super::*;
+
+    const SESSION: &str = "boot-session-a";
+
+    fn macos_host() -> HostIdentity {
+        HostIdentity {
+            os: Os::Macos,
+            arch: "aarch64".to_owned(),
+            boot_id: Some(SESSION.to_owned()),
+        }
+    }
+
+    /// A macOS claim: same shape the supervisor writes, no cgroup, the
+    /// owner's start in epoch seconds (pbi_start_tvsec).
+    fn macos_state() -> StateView {
+        StateView {
+            attempt_id: "att_00000000-0000-4000-8000-000000000001".to_owned(),
+            os: "macos".to_owned(),
+            arch: "aarch64".to_owned(),
+            owner: Some(OwnerRecord {
+                pid: 77,
+                boot_id: SESSION.to_owned(),
+                start_time_ticks: 1_700_000_000,
+            }),
+            leaf: None,
+            gc_removed: Vec::new(),
+            gc_verified: Vec::new(),
+            gc_removed_scratch: false,
+            custody_released: false,
+            gc_finished: None,
+        }
+    }
+
+    /// A macOS receipt: native custody, `tree_unknown`, and the target's
+    /// recorded audit-token identity.
+    fn macos_receipt() -> ReceiptView {
+        ReceiptView {
+            phase: crate::records::Phase::Enforced,
+            tree_end: crate::lifecycle::TreeEnd::from_text(
+                crate::lifecycle::Integrity::Verified.as_str(),
+                crate::lifecycle::BoundaryKind::NativeTree.as_str(),
+                None,
+            ),
+            boot_id: Some(SESSION.to_owned()),
+            leaf: LeafSource::NotRecorded("macos".to_owned()),
+            target: Some(TargetToken {
+                pid: 4242,
+                pidversion: 91,
+            }),
+        }
+    }
+
+    fn macos_facts() -> Facts {
+        let mut base = facts(macos_state(), macos_receipt());
+        base.host = macos_host();
+        base.guardian_record = Some(GuardianRecord {
+            pid: Some(88),
+            pidversion: Some(17),
+            boot_session: Some(SESSION.to_owned()),
+            drained: Some(false),
+        });
+        base.guardian = Some(Liveness::Gone);
+        base.leaf = None;
+        base
+    }
+
+    #[test]
+    fn same_boot_with_a_drained_record_verifies_custody() {
+        let mut drained = macos_facts();
+        drained.guardian_record.as_mut().unwrap().drained = Some(true);
+        let decided = decision(decide(&drained));
+        assert_eq!(decided.custody, CustodyStep::Verified);
+        assert!(decided.custody.releases_hold());
+        assert!(!decided.owner_dead() || decided.retain.is_none());
+    }
+
+    #[test]
+    fn same_boot_without_a_drained_record_kills_the_recorded_target() {
+        let decided = decision(decide(&macos_facts()));
+        assert_eq!(
+            decided.custody,
+            CustodyStep::KillTarget(TargetToken {
+                pid: 4242,
+                pidversion: 91
+            })
+        );
+        assert!(!decided.custody.releases_hold(), "the lease stays held");
+    }
+
+    #[test]
+    fn a_receipt_without_a_target_identity_is_retained_whole() {
+        let mut no_target = macos_facts();
+        no_target.receipt = Ok(Some(ReceiptView {
+            target: None,
+            ..macos_receipt()
+        }));
+        let decided = decision(decide(&no_target));
+        // Nothing is killed and the end stays unverified: the lease is held.
+        assert!(matches!(decided.cgroup, CgroupStep::Report(_)));
+        assert_eq!(decided.custody, CustodyStep::Nothing);
+    }
+
+    #[test]
+    fn abandon_releases_whatever_holds_the_lease() {
+        let decided = decision(decide(&macos_facts()));
+        assert!(matches!(decided.custody, CustodyStep::KillTarget(_)));
+        let mut abandoned = macos_facts();
+        abandoned.abandon = true;
+        let decided = decision(decide(&abandoned));
+        assert_eq!(decided.custody, CustodyStep::Abandoned);
+        assert!(decided.custody.releases_hold());
+    }
+
+    #[test]
+    fn a_live_or_unreadable_guardian_retains_the_attempt() {
+        let mut alive = macos_facts();
+        alive.guardian = Some(Liveness::Alive);
+        assert!(decision(decide(&alive)).retain.is_some());
+        let mut unknown = macos_facts();
+        unknown.guardian = Some(Liveness::Unknown("cannot read".to_owned()));
+        let decided = decision(decide(&unknown));
+        assert!(decided.retain.is_some() || matches!(decided.cgroup, CgroupStep::Report(_)));
+    }
+
+    #[test]
+    fn the_guardian_is_probed_only_when_a_record_can_name_one() {
+        let mut unprobed = macos_facts();
+        unprobed.guardian = None;
+        assert_eq!(decide(&unprobed), Next::ProbeGuardian);
+        let mut no_record = macos_facts();
+        no_record.guardian_record = None;
+        no_record.guardian = None;
+        // A lost guardian (no record) with a target to kill.
+        assert!(matches!(
+            decision(decide(&no_record)).custody,
+            CustodyStep::KillTarget(_)
+        ));
+    }
+
+    #[test]
+    fn a_receipt_proving_the_trees_end_is_left_alone() {
+        let mut settled = macos_facts();
+        settled.receipt = Ok(Some(ReceiptView {
+            tree_end: crate::lifecycle::TreeEnd::from_text(
+                crate::lifecycle::Integrity::Verified.as_str(),
+                crate::lifecycle::BoundaryKind::NativeTree.as_str(),
+                Some(true),
+            ),
+            ..macos_receipt()
+        }));
+        let decided = decision(decide(&settled));
+        assert_eq!(decided.custody, CustodyStep::Nothing);
+        assert!(matches!(decided.scratch, ScratchStep::Now(_)));
+    }
+
+    #[test]
+    fn another_boot_ends_the_custody_but_keeps_lost_integrity() {
+        let mut other = macos_facts();
+        other.host.boot_id = Some("boot-session-b".to_owned());
+        let decided = decision(decide(&other));
+        assert_eq!(decided.custody, CustodyStep::Nothing);
+        assert!(matches!(decided.scratch, ScratchStep::Now(_)));
+        // And the operator's abandon releases it even so.
+        other.abandon = true;
+        let decided = decision(decide(&other));
+        assert_eq!(decided.custody, CustodyStep::Abandoned);
+        let mut lost = macos_receipt();
+        lost.tree_end.integrity_lost = true;
+        let mut lost_boot = facts(macos_state(), lost);
+        lost_boot.host = macos_host();
+        lost_boot.host.boot_id = Some("boot-session-b".to_owned());
+        assert!(matches!(
+            decision(decide(&lost_boot)).scratch,
+            ScratchStep::Keep(_)
+        ));
+        lost_boot.abandon = true;
+        assert!(matches!(
+            decision(decide(&lost_boot)).custody,
+            CustodyStep::Abandoned
+        ));
+    }
+
+    #[test]
+    fn an_earlier_pass_custody_record_decides_the_same_again() {
+        let mut released = macos_state();
+        released.custody_released = true;
+        let mut facts_released = facts(released, macos_receipt());
+        facts_released.host = macos_host();
+        facts_released.guardian_record = macos_facts().guardian_record;
+        facts_released.guardian = Some(Liveness::Gone);
+        let decided = decision(decide(&facts_released));
+        assert_eq!(decided.custody, CustodyStep::Verified);
+    }
+
+    #[test]
+    fn a_linux_shaped_attempt_never_reaches_the_custody_arms() {
+        // The Linux facts of `tests::facts`, unchanged: the leaf machinery
+        // decides, the custody step stays Nothing.
+        let linux = facts(state(), receipt(None));
+        let decided = decision(decide(&linux));
+        assert_eq!(decided.custody, CustodyStep::Nothing);
+        assert_eq!(decided.cgroup, CgroupStep::Terminate(leaf_record()));
+    }
+
+    fn leaf_record() -> LeafRecord {
+        LeafRecord {
+            path: "/sys/fs/cgroup/x/ukai-att_00000000-0000-4000-8000-000000000001.leaf".into(),
+            device: 1,
+            inode: 2,
+        }
     }
 }

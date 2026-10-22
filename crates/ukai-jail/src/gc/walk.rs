@@ -9,12 +9,14 @@
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use super::decide::{CgroupStep, Decision, Facts, Next, OwnerVerdict, ScratchStep, decide};
+use super::decide::{
+    CgroupStep, CustodyStep, Decision, Facts, Next, OwnerVerdict, ScratchStep, decide,
+};
 use super::host::{Host, LeafRecord, NativeHost};
-use super::view::{leaf_entry, parse_receipt, parse_state};
+use super::view::{leaf_entry, parse_guardian_record, parse_receipt, parse_state};
 use super::{Budget, Entry, Options, RECORD_MAX, Report, SEAM_MAX_ENTRIES, seam_max_entries};
 use crate::cleanup;
 use crate::cli::GcArgs;
@@ -68,6 +70,13 @@ enum Action {
     // J14 §4.9
     ReleasedPersistentState,
     WouldReleasePersistentState,
+    // J16 §4.9 (jail-macos.md): the macOS custody outcomes.
+    CustodyVerified,
+    KilledTarget,
+    Abandoned,
+    WouldCustodyVerify,
+    WouldKillTarget,
+    WouldAbandon,
 }
 
 impl Action {
@@ -89,6 +98,12 @@ impl Action {
             Action::WouldCompleteCleanup => "would_complete_cleanup",
             Action::ReleasedPersistentState => "released_persistent_state",
             Action::WouldReleasePersistentState => "would_release_persistent_state",
+            Action::CustodyVerified => "custody_verified",
+            Action::KilledTarget => "killed_target",
+            Action::Abandoned => "abandoned",
+            Action::WouldCustodyVerify => "would_custody_verify",
+            Action::WouldKillTarget => "would_kill_target",
+            Action::WouldAbandon => "would_abandon",
         }
     }
 }
@@ -101,6 +116,9 @@ struct Pass<'a> {
     host: &'a dyn Host,
     options: Options,
     dry_run: bool,
+    /// J16 (jail-macos.md §4.9): this pass abandons its attempt, the one
+    /// named on the command line.
+    abandon: bool,
 }
 
 fn state_access(path: &Path, detail: impl std::fmt::Display) -> JailError {
@@ -158,13 +176,32 @@ pub fn gc_with(
         test_seams: BTreeMap::new(),
         state_removals: Vec::new(),
     };
+    // J16 (jail-macos.md §4.9): `gc --abandon ATTEMPT` works on exactly the
+    // named attempt; a name that is not an attempt id is refused naming it.
+    let abandon = args.abandon.as_deref().map(AttemptId::parse).transpose()?;
     let data_dir = state::data_dir(&ctx.env_settings, ctx.home.as_deref())?;
     // §14.2 enumerates "the registered state root". A root that fails the
     // §6.2 checks is not this operator's registered state, so `gc` says so
     // instead of printing a clean scan of a directory anyone can write.
     match std::fs::symlink_metadata(&data_dir) {
         Ok(_) => state::check_state_dir(&data_dir)?,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(report),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            // J16 (§4.9): an abandon still names its attempt, and one that
+            // does not exist is refused naming it even here.
+            if let Some(id) = &abandon {
+                return Err(JailError::new(
+                    ErrorCode::InvalidConfig,
+                    ErrorStage::Reconciling,
+                    Remediation::InspectState,
+                    format!(
+                        "gc --abandon: no attempt `{}` is registered in {}",
+                        id.as_str(),
+                        data_dir.display()
+                    ),
+                ));
+            }
+            return Ok(report);
+        }
         Err(error) => {
             return Err(JailError::new(
                 ErrorCode::UnsafeStatePath,
@@ -203,12 +240,33 @@ pub fn gc_with(
         }
     }
     names.sort();
+    // J16 (jail-macos.md §4.9): an abandon names one attempt; one that does
+    // not exist is refused naming it.
+    if let Some(id) = &abandon {
+        if !names
+            .iter()
+            .any(|name| name.to_string_lossy() == id.as_str())
+        {
+            return Err(JailError::new(
+                ErrorCode::InvalidConfig,
+                ErrorStage::Reconciling,
+                Remediation::InspectState,
+                format!(
+                    "gc --abandon: no attempt `{}` is registered in {}",
+                    id.as_str(),
+                    data_dir.display()
+                ),
+            ));
+        }
+        names.retain(|name| name.to_string_lossy() == id.as_str());
+    }
     let pass = Pass {
         data_dir: &data_dir,
         attempts: &attempts,
         host,
         options,
         dry_run: args.dry_run,
+        abandon: abandon.is_some(),
     };
     for name in names {
         let entry = visit(&pass, &name, &mut meter, &mut report.incomplete);
@@ -374,6 +432,13 @@ fn visit(
         drop(lease);
         return entry;
     }
+    // J16 (jail-macos.md §4.9): the guardian's custodian record, read
+    // tolerantly — absent, unreadable, corrupt or of another shape is as
+    // good as absent.
+    let guardian_record = state::read_capped(&guardian_record_path(&dir), RECORD_MAX)
+        .ok()
+        .flatten()
+        .and_then(|bytes| parse_guardian_record(&bytes));
     let facts = Facts {
         host: pass.host.identity(),
         state,
@@ -382,6 +447,9 @@ fn visit(
         }),
         owner: None,
         leaf: None,
+        guardian_record,
+        guardian: None,
+        abandon: pass.abandon,
     };
     let decision = settle(facts, pass.host);
     entry.owner = decision.owner.as_ref().map(OwnerVerdict::describe);
@@ -414,8 +482,20 @@ fn visit(
     // which unblocks the cleanup a supervisor SIGKILL between staging and
     // preparation would otherwise retain forever.
     let gc_verified = match done.action {
-        Some(Action::WouldTerminateOrphan | Action::WouldRemoveCgroup) if dry_run => true,
-        _ => verified_by_gc(&dir) || decision.tree_never_existed,
+        Some(
+            Action::WouldTerminateOrphan
+            | Action::WouldRemoveCgroup
+            | Action::WouldCustodyVerify
+            | Action::WouldAbandon,
+        ) if dry_run => true,
+        _ => {
+            verified_by_gc(&dir)
+                || decision.tree_never_existed
+                // J16 (jail-macos.md §4.9): a custody the guardian verified
+                // or an end the operator accepted, this pass or an earlier
+                // one, releases the hold.
+                || decision.custody.releases_hold()
+        }
     };
     // J3: the dead supervisor's proxy directory, then vendor state.
     let (action, reason, visited, resumed_settled) = proxy_then_resume(
@@ -451,6 +531,7 @@ fn visit(
     // before it only costs the next pass this one's (idempotent) work.
     let finished = !dry_run
         && decision.owner_dead()
+        && !done.custody_open
         && done.failure.is_none()
         && done.cgroup_final
         && leftover.failure.is_none()
@@ -470,6 +551,12 @@ fn visit(
 /// The first word of the reason of an attempt an earlier pass finished.
 pub const FINISHED: &str = "finished";
 
+/// J16 (jail-macos.md §4.9): where the guardian writes its custodian record.
+/// It is attempt-fixed, next to the receipt it explains.
+fn guardian_record_path(dir: &AttemptDir) -> PathBuf {
+    dir.root().join("guardian.json")
+}
+
 /// Asks [`decide`] until it decides, answering its probes from the host.
 fn settle(mut facts: Facts, host: &dyn Host) -> Decision {
     loop {
@@ -478,6 +565,17 @@ fn settle(mut facts: Facts, host: &dyn Host) -> Decision {
             Next::ProbeLeaf(leaf) => facts.leaf = Some(host.probe_leaf(&leaf)),
             // J4 W2-S: N7
             Next::ProbeNamedLeaf(path) => facts.leaf = Some(host.probe_named_leaf(&path)),
+            // J16 (jail-macos.md §4.9)
+            Next::ProbeGuardian => {
+                facts.guardian = Some(
+                    host.guardian(
+                        facts
+                            .guardian_record
+                            .as_ref()
+                            .expect("a probe only follows a probeable record"),
+                    ),
+                );
+            }
             Next::Decided(decision) => return decision,
         }
     }
@@ -532,6 +630,10 @@ struct Done {
     cgroup_final: bool,
     /// The attempt's scratch as this pass left it.
     scratch: cleanup::Scratch,
+    /// J16 (jail-macos.md §4.9): whether a later pass could still have
+    /// custody work (`gc_killed_target` keeps the attempt listable and
+    /// abandonable; nothing else on this platform does).
+    custody_open: bool,
 }
 
 /// Performs the cgroup and scratch steps of a decision and records them.
@@ -548,7 +650,102 @@ fn reconcile(
         failure: None,
         cgroup_final: false,
         scratch: cleanup::managed_scratch(dir),
+        custody_open: false,
     };
+    // J16 (jail-macos.md §4.9): the custody step comes first: it is what
+    // makes the rest (cleanup, scratch) permitted or held.
+    match &decision.custody {
+        CustodyStep::Nothing => {}
+        CustodyStep::Verified => {
+            if dry_run {
+                done.action = Some(Action::WouldCustodyVerify);
+                entry.cgroup = Some("would_custody_verify".to_owned());
+            } else {
+                let verified = state::GcAction {
+                    basis: state::Field::Set(
+                        "the guardian's record says the tree drained".to_owned(),
+                    ),
+                    ..act("gc_custody_verified")
+                };
+                match record(dir, verified, &mut entry.recorded) {
+                    Ok(()) => {
+                        entry.cgroup = Some("custody_verified".to_owned());
+                        done.action = Some(Action::CustodyVerified);
+                    }
+                    Err(failure) => {
+                        entry.cgroup = Some(format!("failed: {failure}"));
+                        done.failure = Some(format!("custody: {failure}"));
+                    }
+                }
+            }
+            done.cgroup_final = true;
+        }
+        CustodyStep::Abandoned => {
+            if dry_run {
+                done.action = Some(Action::WouldAbandon);
+                entry.cgroup = Some("would_abandon".to_owned());
+            } else {
+                let abandoned = state::GcAction {
+                    basis: state::Field::Set(
+                        "the operator accepted the attempt's unverified end".to_owned(),
+                    ),
+                    ..act("gc_abandoned")
+                };
+                match record(dir, abandoned, &mut entry.recorded) {
+                    Ok(()) => {
+                        entry.cgroup = Some("abandoned".to_owned());
+                        done.action = Some(Action::Abandoned);
+                    }
+                    Err(failure) => {
+                        entry.cgroup = Some(format!("failed: {failure}"));
+                        done.failure = Some(format!("abandon: {failure}"));
+                    }
+                }
+            }
+            done.cgroup_final = true;
+        }
+        CustodyStep::KillTarget(token) => {
+            done.custody_open = true;
+            let basis = format!(
+                "the receipt's recorded target (pid {}, pidversion {})",
+                token.pid, token.pidversion
+            );
+            if dry_run {
+                done.action = Some(Action::WouldKillTarget);
+                entry.cgroup = Some("would_kill_target".to_owned());
+            } else {
+                // The intent is durable before the kill, as for a cgroup.
+                let killing = state::GcAction {
+                    basis: state::Field::Set(basis.clone()),
+                    ..act("gc_killing_target")
+                };
+                let kill = record(dir, killing, &mut entry.recorded)
+                    .map_err(|error| format!("{error}; nothing was signalled"))
+                    .and_then(|()| pass.host.kill_target(token).map_err(|f| f.to_string()))
+                    .and_then(|()| {
+                        record(
+                            dir,
+                            state::GcAction {
+                                basis: state::Field::Set(basis.clone()),
+                                ..act("gc_killed_target")
+                            },
+                            &mut entry.recorded,
+                        )
+                    });
+                match kill {
+                    Ok(()) => {
+                        entry.cgroup = Some("killed_target".to_owned());
+                        done.action = Some(Action::KilledTarget);
+                    }
+                    Err(failure) => {
+                        entry.cgroup = Some(format!("failed: {failure}"));
+                        done.failure = Some(format!("custody: {failure}"));
+                    }
+                }
+            }
+            done.cgroup_final = true;
+        }
+    }
     // How the tree's end was verified by this pass, when it was.
     let mut verified: Option<&'static str> = None;
     match &decision.cgroup {

@@ -126,6 +126,11 @@ fn never_applied(requirement: Requirement) -> bool {
             | Requirement::NetworkProxy
             | Requirement::Limit(LimitKey::Storage | LimitKey::Inodes)
             | Requirement::ProtectedCoverage(_)
+            // J18: `none`'s boundary is the supervisor's own cgroup
+            // (supervisor_cgroup), so it cannot answer whether a kernel ends
+            // the tree once every Ukai process is lost; the requirement is a
+            // narrowing `none` refuses, not one it drops.
+            | Requirement::OwnerLossTermination
     )
 }
 
@@ -190,6 +195,12 @@ fn unapplied_restriction(snapshot: &PolicySnapshot) -> Option<&'static str> {
         Some("filesystem.protected_coverage")
     } else if snapshot.network.mode != crate::network::NetworkMode::Host {
         Some("network.mode")
+    } else if snapshot.lifetime_boundary.is_some() {
+        // J18: the kernel-bound key is a narrowing `none` refuses (its
+        // boundary is supervisor_cgroup); the capability check refuses it
+        // first, and this keeps the boundary itself from running with it
+        // dropped.
+        Some("lifetime_boundary")
     } else {
         None
     }

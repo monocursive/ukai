@@ -344,7 +344,18 @@ def status_line(receipt, frames, scanned):
         parts.append(f"{duration(wall_ms)} attempt (wall clock)")
     tree_empty = pointer(receipt, "lifetime", "tree_empty")
     scope = string(receipt, "lifetime", "verification_scope")
-    if tree_empty is True and scope == "registered_boundary":
+    boundary = string(receipt, "lifetime", "boundary")
+    # J16 (jail-macos.md §4.8): native custody is verified while it lasts,
+    # but no kernel ends the tree, and a lost guardian is the named residual.
+    # Details may be absent; degrade to the plain form.
+    guardian_lost = pointer(receipt, "lifetime", "native", "details", "custodians", "guardian", "result") == "lost"
+    if tree_empty is True and boundary == "native_tree" and guardian_lost:
+        parts.append("survivors: none (verified · native custody, not kernel-bound · guardian lost)")
+        survivors = "none_verified_native_guardian_lost"
+    elif tree_empty is True and boundary == "native_tree":
+        parts.append("survivors: none (verified · native custody, not kernel-bound)")
+        survivors = "none_verified_native"
+    elif tree_empty is True and scope == "registered_boundary":
         parts.append("survivors: none (verified, registered cgroup only)")
         survivors = "none_verified_registered_boundary"
     elif tree_empty is True and scope == "attempt_tree":

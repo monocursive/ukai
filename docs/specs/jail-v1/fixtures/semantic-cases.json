@@ -13,7 +13,8 @@
     "control_attempt_mixed": "jail-v1.md \u00a78.2 \"Control output uses NDJSON, with schema `ukai.jail.control/1`, attempt id\": control output carries one attempt's messages",
     "control_seq_order": "jail-v1.md \u00a78.2 \"monotonically increasing message number starting at 1\": the message number increases monotonically",
     "trace_loss_recorded": "jail-v1.md \u00a713.3 \"Once a trace loss is known, every later receipt records it\" and \"starting from the last point every accepted frame had been delivered\": the first loss writes one trace_transport_loss note from the last healthy point, and every later receipt records that loss on each covered evidence class",
-    "control_kind_order": "jail-v1.md \u00a78.2 \"`refused` is sent only while the target has not executed\" and \"once the target has executed, the terminal message is `settled` or `unsettled`\", and \u00a78.1 \"Termination after target exec cannot be reclassified as a pre-exec refusal.\": prepared, then exec_confirmed, then one terminal message; refused never after exec; nothing after a terminal message"
+    "control_kind_order": "jail-v1.md \u00a78.2 \"`refused` is sent only while the target has not executed\" and \"once the target has executed, the terminal message is `settled` or `unsettled`\", and \u00a78.1 \"Termination after target exec cannot be reclassified as a pre-exec refusal.\": prepared, then exec_confirmed, then one terminal message; refused never after exec; nothing after a terminal message",
+    "credential_binding": "jail-v1.md \u00a712 \"A `vault`-mode credential's `header` declares where its placeholder may appear\" and jail-macos.md \u00a74.11: a credential records its binding only when it is a vault credential, and an attempt binding is native macOS"
   },
   "cases": [
     {
@@ -3924,6 +3925,73 @@
       "violations": [
         "trace_final_receipt",
         "trace_loss_recorded"
+      ]
+    },
+    {
+      "name": "receipt-macos-native is semantically valid",
+      "check": "receipt",
+      "base": "examples/receipt-macos-native.json",
+      "changes": [],
+      "violations": []
+    },
+    {
+      "name": "a binding on a filesystem credential",
+      "check": "receipt",
+      "base": "examples/receipt-agent-proxy-only.json",
+      "changes": [
+        {
+          "path": [
+            "credentials",
+            0,
+            "binding"
+          ],
+          "value": "program"
+        }
+      ],
+      "violations": [
+        "credential_binding"
+      ]
+    },
+    {
+      "name": "an attempt binding outside macOS",
+      "check": "receipt",
+      "base": "examples/receipt-agent-proxy-only.json",
+      "changes": [
+        {
+          "path": [
+            "credentials",
+            0,
+            "mode"
+          ],
+          "value": "vault"
+        },
+        {
+          "path": [
+            "credentials",
+            0,
+            "digest"
+          ],
+          "value": null
+        },
+        {
+          "path": [
+            "credentials",
+            0,
+            "digest_unavailable_reason"
+          ],
+          "value": "vault"
+        },
+        {
+          "path": [
+            "credentials",
+            0,
+            "binding"
+          ],
+          "value": "attempt"
+        }
+      ],
+      "violations": [
+        "credential_binding"
       ]
     }
   ]

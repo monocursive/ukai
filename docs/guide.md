@@ -134,6 +134,33 @@ To uninstall the default installation, remove `~/.local/bin/ouro-vm` and
 `~/.local/share/ouro-vm/0.1.0-preview.1`. Keep or delete attempt directories as
 needed. A crashed launcher can leave a disk there; never boot or reuse it.
 
+## macOS: the native tier and `--vm` (code-complete, not shipped)
+
+The macOS design has two tiers ([jail-macos.md](specs/jail-macos.md)); both
+are code-complete and **neither is shipped yet**. Native execution stays
+refusal-gated until Apple grants the Endpoint Security entitlement, which
+J16 cannot ship without.
+
+**Native tier (J16), the default once released.** A run is contained by a
+Seatbelt profile and kept bounded by two custodian processes the contained
+workload cannot kill. The summary's lifetime line names this boundary:
+`native_tree`. It means the tree's end was verified by native custody while
+a custodian lived — **not** the kernel-bound guarantee Linux gives. If both
+custodians are lost (a named residual), the tree can survive until you run
+`ukai-jail gc`, which kills the recorded target by audit token; only
+`ukai-jail gc --abandon ATTEMPT` releases the attempt's lease and accepts
+that unverified end. `run` and `doctor` list any such attempt by name. Runs
+that must not depend on a userspace custodian use the VM tier instead.
+
+**VM tier (J18): `--vm`.** A run with `--vm` executes in a warm Linux guest
+whose own jail provides the kernel-bound lifetime (`pid_namespace`,
+requirement `owner_loss_termination`). Native macOS refuses that
+requirement, naming `--vm`; Linux `none` refuses it too. The guest is
+started on first use, kept warm between runs, and stopped after an idle
+period or with `ukai-jail vm stop`. This tier is the Linux VM preview above
+made into a backend, and the preview's limits — Linux ARM64 programs only,
+no Mac-built native add-ons such as compiled `node_modules` — carry over.
+
 ## Build and check your host
 
 The remaining Linux examples use the current Ukai source build. The published
@@ -558,8 +585,12 @@ might ever need. Nothing is adopted automatically.
 ## When something doesn't work
 
 **The host check refuses the profile.** Read `doctor`'s missing requirements.
-Explicit resource limits need host support. For native `ukai-jail` on macOS, refusal is the current
-expected behavior. Changing to `none` would remove containment.
+Explicit resource limits need host support. For native `ukai-jail` on macOS,
+refusal remains the expected behavior until Apple grants the Endpoint
+Security entitlement — the release gate for the native tier
+([jail-macos.md](specs/jail-macos.md) §4.12) — and `none` always refuses
+there, because without a sandbox nothing defends the custodians. Changing to
+`none` would remove containment.
 
 **`doctor` prints `workspace unusable`.** `doctor` checks the plan for the
 directory you ran it from. Your home directory, `/` and the directories

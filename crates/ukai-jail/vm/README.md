@@ -179,3 +179,102 @@ records must not be substituted for each other or presented as native Mac proof.
 Apple references: [Virtualization](https://developer.apple.com/documentation/virtualization),
 [virtualization entitlement](https://developer.apple.com/documentation/virtualization/adding-the-virtualization-entitlement-to-your-project),
 [unconditional stop](https://developer.apple.com/documentation/virtualization/vzvirtualmachine/stop(completionhandler:)).
+
+## J18: the warm VM tier (`--vm`)
+
+[jail-macos.md §6](../../../docs/specs/jail-macos.md) turns this preview into
+the Mac's second tier. `ukai-jail run --vm` (macOS only) drives a **warm**
+guest through two new programs in this crate:
+
+- **`ukai-vm`** (`crates/ukai-jail/src/bin/ukai-vm.rs`, one binary, no Python
+  runtime) is the per-operator host service. `ukai-vm serve` locates the
+  installed preview artifacts exactly where `install.sh.in` puts them
+  (`~/.local/share/ukai-vm/<version>/`, or `UKAI_VM_HOME`), verifies every
+  image hash the way `run.py`'s `load_image` does, reuses the installed
+  `custodian` and `vz` binaries **unmodified**, clones the base disk, boots
+  once, and serves attempts until `ukai-jail vm stop` or an idle period
+  (initial 10 min, on `mach_continuous_time`) ends it. It is a foreground
+  process, not a launchd job.
+- **`ukai-jail --vm`** selects `platform/macos/vm.rs`'s `VmPlatform` instead
+  of native preparation. The policy resolves for the guest (`platform`
+  `linux`); the boundary is the guest jail's pid namespace; the receipt is
+  the guest's Linux receipt, digest-verified on the host and stored in the
+  attempt directory beside `vm-transport.json`, a
+  `ukai.jail.vm-transport/1` record naming the VM boot id, image digests,
+  vsock port, the sockets, the host wall times and the receipt digest. The
+  summary's one transport line renders from that record
+  (`record::transport_line`), as the J15 action adds its host-setup line.
+
+### The wire protocols
+
+All frames are NDJSON, one object per line, defined once in
+`src/platform/macos/vm/protocol.rs` and included **by path** from both ends,
+so the host program and the jail cannot drift apart silently:
+
+- `ukai.jail.vm-control/1`, on `<data-dir>/vm/control.sock`: `status` and
+  `stop`.
+- `ukai.jail.vm-attempt/1`, on `<data-dir>/vm/attempt.sock`, one connection
+  per attempt: the host sends `prepare` (argv as base64, the profile, the
+  wall, the ephemeral credentials), then one `put` per workspace file, then
+  `run`; the service answers `ready`, `prepared`, `released`, `stdout`,
+  `stderr`, `file`, `receipt` (bytes plus their SHA-256) and `done`.
+  **The connection is the lease**: its end-of-file cancels that attempt in
+  the guest. No timer is involved, so a host `Ctrl-Z` suspends the run
+  without ending it (§6), and the guest jail's own wall deadline still ends
+  a suspended-host attempt.
+
+### The warm guest session
+
+`guest.py` gains a warm session beside its unchanged single-run `run` op
+(preview compatibility, one run per boot, poweroff at completion): the
+host's `session` op opens it; per attempt the host sends `reset` (both
+attempt directories are emptied and recreated), `secret` (each ephemeral
+credential), `put` (workspace files), `run2` (the **same jail command** the
+`run` op builds — see `guest.run_command`, shared by both, so the warm
+design changes nothing about what the jail is asked to do), and, on the
+lease's end-of-file, `cancel2`. After a `done` the controller clears the
+staged secrets and waits for the next attempt; the VM stays up until the
+host stops or the idle budget ends. The outer-wall backstop and `cancel2`
+end the attempt tree with the same `cgroup.kill` + verified-empty sequence
+the poweroff path uses (`kill_workload`), without the poweroff.
+
+### Credentials (J18 §6)
+
+Vault values cross **once per attempt** and are never written to the guest
+disk. What was implemented, exactly:
+
+1. The supervisor's staged vault values (`launch.vault`) are carried in the
+   `prepare` frame's `secrets` entries (id + base64 value).
+2. `ukai-vm` relays each one as a vsock `secret` op, holding the bytes in
+   memory only.
+3. The guest controller stages each value at
+   `/run/ukai-vm/credentials/<id>` — **tmpfs**, mode 0600, directory 0700
+   (`guest.stage_secret`; the jail's credential grammar names source
+   *files*, J12 §3.5, so a file is what the attempt's sources can name).
+4. The controller deletes the whole staging directory at the end of every
+   attempt — completion, cancellation, wall backstop —
+   (`guest.clear_secrets`), so no value outlives its attempt.
+
+What is **not** implemented yet, because it needs the live guest and the
+in-guest launch-profile path: generating the guest-side credential
+declarations that point at those tmpfs sources and running the in-guest
+proxy's placeholder replacement. The transport, staging and deletion above
+are stand-in tested; that last wiring is not.
+
+### Tests and what stays untested here
+
+`tests/vm_tier.rs` (portable, both CI lanes) covers the policy key
+(derivation, digest stability, the native `--vm` answer, the Linux `none`
+refusal), the CLI grammar (`--lifetime`, `vm stop`, the Linux `--vm` usage
+refusal), the transport record's shape and its one escaped summary line, and
+the attempt/control protocols against scripted stand-in servers. The Python
+side is `vm/test_guest_warm.py` (command parity between `run` and `run2`,
+reset, ephemeral staging and its traversal refusals).
+
+Not covered here, because it needs a booted VM (the preview fault matrix,
+K108–K110): warm reuse latency, the live workspace share, every
+kill/suspend case of the warm design, the EOF lease against a real
+connection loss, the in-guest credential wiring above, and any receipt a
+real guest jail produced. `ukai-vm serve`'s boot path itself (custodian
+spawn, lease thread, disk clone) is likewise exercised only against a real
+image on a qualified host.

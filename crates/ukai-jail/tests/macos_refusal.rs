@@ -129,6 +129,18 @@ impl Harness {
 }
 
 fn assert_refusal_tuple(receipt: &serde_json::Value, containment: &str, protection: &str) {
+    // J16 (jail-macos.md §4.10): the capability gate refuses with
+    // `unsupported_platform` where a platform gap answers first
+    // (`execution_boundary`, observation), and with `missing_capability`
+    // where this host's own ES answer does (an unentitled or
+    // frameworkless `tree_termination`). Both refuse at probing, before
+    // exec, and the receipt tuple is the same shape.
+    let code = receipt["outcome"]["error"]["code"].clone();
+    assert!(
+        code == serde_json::json!("unsupported_platform")
+            || code == serde_json::json!("missing_capability"),
+        "the capability gate's refusal: {code}"
+    );
     assert_eq!(receipt["phase"], serde_json::json!("refused"));
     assert_eq!(receipt["containment"], serde_json::json!(containment));
     assert_eq!(receipt["child_protection"], serde_json::json!(protection));
@@ -150,14 +162,6 @@ fn assert_refusal_tuple(receipt: &serde_json::Value, containment: &str, protecti
     assert_eq!(receipt["process"], serde_json::Value::Null);
     assert_eq!(receipt["outcome"]["kind"], serde_json::json!("refused"));
     assert_eq!(receipt["revision"], serde_json::json!(1));
-    assert_eq!(
-        receipt["outcome"]["error"]["code"],
-        serde_json::json!("unsupported_platform")
-    );
-    assert_eq!(
-        receipt["outcome"]["error"]["remediation_category"],
-        serde_json::json!("unsupported")
-    );
     assert_eq!(receipt["platform"]["os"], serde_json::json!("macos"));
     assert_eq!(receipt["observer"]["attached"], serde_json::json!(false));
     for class in ["exec", "fs.write", "fs.deny", "net", "limits", "proxy.net"] {
@@ -198,7 +202,8 @@ fn m01_run_refuses_before_exec_and_the_marker_never_appears() {
         "no user command may execute before the boundary exists (I01)"
     );
     assert!(
-        String::from_utf8_lossy(&output.stderr).contains("unsupported_platform"),
+        String::from_utf8_lossy(&output.stderr).contains("unsupported_platform")
+            || String::from_utf8_lossy(&output.stderr).contains("missing_capability"),
         "the diagnostic names the refusal code"
     );
 
@@ -334,13 +339,13 @@ fn m03_inspection_commands_use_the_exit_codes_of_section_six_four() {
                 serde_json::from_slice(&output.stdout).expect("JSON on stdout");
             let rows = report["capabilities"].as_array().expect("capability rows");
             assert!(
-                rows.iter()
-                    .any(|row| row["name"] == "tree_termination" && row["status"] == "unsupported"),
+                rows.iter().any(|row| row["name"] == "tree_termination"),
                 "{arguments:?} still describes each capability: {stdout}"
             );
         } else {
+            let stdout = String::from_utf8_lossy(&output.stdout);
             assert!(
-                stdout.contains("capability tree_termination unsupported"),
+                stdout.contains("capability tree_termination "),
                 "{arguments:?} still describes each capability: {stdout}"
             );
         }
@@ -374,7 +379,7 @@ fn m03_explain_distinguishes_requested_policy_from_unmeasured_capability() {
 }
 
 #[test]
-fn m03_doctor_reports_every_requirement_as_unsupported_and_unmeasured() {
+fn m03_doctor_reports_the_measured_capabilities_and_exit_125() {
     let harness = Harness::new();
     let output = harness.run(&["doctor", "--json"]);
     assert_eq!(output.status.code(), Some(125));
@@ -383,17 +388,24 @@ fn m03_doctor_reports_every_requirement_as_unsupported_and_unmeasured() {
     assert_eq!(report["ready"], serde_json::json!(false));
     let capabilities = report["capabilities"].as_array().expect("capabilities");
     assert!(!capabilities.is_empty());
+    // J16 (jail-macos.md §4.10): the rows the platform probes are real
+    // measurements of this host; the platform's own gaps stay `unsupported`
+    // and unmeasured.
     for capability in capabilities {
-        assert_eq!(capability["status"], serde_json::json!("unsupported"));
-        assert_eq!(
-            capability["measured_at"],
-            serde_json::Value::Null,
-            "no probe ran, so there is no measurement time"
-        );
-        assert_eq!(
-            capability["reason_code"],
-            serde_json::json!("unsupported_platform")
-        );
+        let measured = !capability["measured_at"].is_null();
+        if capability["status"] == serde_json::json!("unsupported") {
+            assert_eq!(
+                capability["measured_at"],
+                serde_json::Value::Null,
+                "an unsupported row claims no probe ran"
+            );
+            assert_eq!(
+                capability["reason_code"],
+                serde_json::json!("unsupported_platform")
+            );
+        } else {
+            assert!(measured, "a probed row is measured: {}", capability["name"]);
+        }
     }
     let names: Vec<&str> = capabilities
         .iter()
@@ -474,9 +486,11 @@ fn a_control_descriptor_receives_the_refused_message() {
     assert_eq!(message["kind"], serde_json::json!("refused"));
     assert_eq!(message["receipt_phase"], serde_json::json!("refused"));
     assert_eq!(message["seq"], serde_json::json!(1));
-    assert_eq!(
-        message["error"]["code"],
-        serde_json::json!("unsupported_platform")
+    let code = message["error"]["code"].clone();
+    assert!(
+        code == serde_json::json!("unsupported_platform")
+            || code == serde_json::json!("missing_capability"),
+        "the capability gate's refusal: {code}"
     );
     assert_eq!(
         message["attempt_id"],
