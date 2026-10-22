@@ -646,7 +646,16 @@ composed from the resolved policy snapshot:
   namespace on macOS, so "closed view" means the profile's denial of
   everything unnamed — the receipt's containment record for macOS names
   the mechanism (`seatbelt_profile`) and does not claim a namespace
-  boundary.
+  boundary. The native implementation also write-denies every ancestor of
+  a guarded protected/`deny_read` path within its writable root, excluding
+  that root unless it is inside another writable root, to prevent
+  rename/unlink/link escapes; `deny_read` paths deny
+  both reads and writes. Preparation refuses existing guarded regular files
+  with more than one hard link. `existing_and_root` covers root suffixes and
+  matching paths present at preparation; nested repositories created later
+  at unguarded paths remain outside coverage. The receipt records the pinned
+  ancestor literals in `profile_parameters.path_anchors`
+  ([jail-macos §4.10](jail-macos.md#410-requirements-and-containment-on-macos)).
 - **Network**: the profile denies all network egress and allows
   loopback to the bridge's two ports only. The bridge (the same Rust
   userspace, compiled for darwin) runs outside the profile, attached to
@@ -667,7 +676,7 @@ composed from the resolved policy snapshot:
   (`unsupported_platform`, key `limits.*`), and preferred limits are
   recorded as not applied, exactly as v1 records a missing controller.
   The development native wall row uses `both-custodians-continuous-clock`
-  and records `hit=false` when the stop is observed before the deadline,
+  and records `hit=false` when settlement finishes before the deadline,
   `hit=true` on a confirmed expiry, or `hit=null` when the deadline elapsed
   without an observed trigger. In the null case, limits coverage is
   `degraded`, with a null observed count and a `wall_hit_unobserved` gap.

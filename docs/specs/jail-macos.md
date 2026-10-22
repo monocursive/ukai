@@ -243,8 +243,13 @@ These rules are the design. The rest of §4 applies them.
    through `proc_signal_with_audittoken`. A PID never goes through `kill(2)`.
 6. **Growth is bounded.** Before it spawns the launcher, the guardian lowers
    its own `RLIMIT_NPROC` soft and hard limits to the operator's current
-   process count plus a headroom (initial 1024). Every member inherits the
-   limit, and none can raise it without root. XNU checks the per-user process
+   process count plus `PROCESS_HEADROOM=1024`; neither inherited limit is raised.
+   Preparation refuses if either inherited limit cannot provide that full
+   allowance. A successful set is insufficient: kernel read-back must confirm
+   both limits at the requested ceiling, or preparation refuses (including
+   kernel clamping below the allowance). The receipt records 1024 only after
+   this check. Every member inherits the limit, and none can raise it without
+   root. XNU checks the per-user process
    count against the forking process's limit (by reading; candidate, K92). A
    fork storm stops at the headroom instead of exhausting the operator's
    session, and a stop has a bounded set to freeze.
@@ -318,8 +323,9 @@ final boundary before `prepared`.
      never sees a system daemon, and the custody clients hold no
      authorization subscription.
    - Refuse if client creation fails, naming the result code.
-     `ERR_NOT_ENTITLED` refuses with remediation `unsupported`, and
-     `ERR_TOO_MANY_CLIENTS` with `retry`.
+     `ERR_NOT_ENTITLED` (`es_not_entitled`) refuses with remediation
+     `unsupported`; `ERR_TOO_MANY_CLIENTS` (`es_too_many_clients`) uses
+     `retry`. These mappings apply to requirement checks in inspect and run.
 2. **Spawning the guardian.** The supervisor creates:
    - the guardian record (§4.4);
    - pipe **A**, supervisor → guardian, and pipe **B**, guardian → supervisor;
@@ -450,6 +456,11 @@ and stops the tree itself. On A's end-of-file, the guardian runs its own stop
 on its own table. It also starts one on its own when the wall deadline plus
 the grace passes. The two signal the same identities, which is harmless, and
 neither waits on the other.
+
+A synchronization timeout is not a gap. The initial synchronization is a
+bounded delivery wait; a timeout continues polling the stream. Root entry,
+actual sequence/ring loss and identity integrity still govern the drain
+verdict. Neither a successful wait nor a timeout establishes completeness.
 
 The stop, per custodian:
 
@@ -643,7 +654,8 @@ events" Apple names, and it is why the boundary is `native_tree`.
   - `custody: es_descendants`, `defense: seatbelt` and `native_execution: dev`;
   - `profile_digest` (64 lowercase hex digits for the template) and
     `profile_parameters`: read/write, read-only and deny roots, protected
-    paths, setuid exec denials and scan holes, the kernel setuid backstop,
+    paths and `path_anchors` (the pinned ancestor literals), setuid exec
+    denials and scan holes, the kernel setuid backstop,
     Mach services, Unix sockets, terminal slave and bridge ports. These are
     public parameters, never environment values or proxy secrets;
   - the process headroom (rule 6) and pending handshake-event count;
@@ -661,7 +673,7 @@ events" Apple names, and it is why the boundary is `native_tree`.
   production allows.
 - The wall row is required and applied with mechanism
   `both-custodians-continuous-clock`; preferred resource ceilings remain
-  unapplied. The final row records `hit=false` when the stop is observed
+  unapplied. The final row records `hit=false` when settlement finishes
   before the deadline, `hit=true` on a confirmed expiry, or `hit=null` when
   the deadline elapsed without an observed trigger. The null case records
   limits coverage `degraded`, a null observed count and a
@@ -669,9 +681,14 @@ events" Apple names, and it is why the boundary is `native_tree`.
   it is a known follow-up. Elapsed time alone does not establish a hit.
 - Observation is off: no attached audit observer and no audit counts.
   Wrapper limit facts remain available without an audit observer or proxy.
+  In the native settled receipt, `observer.sources.wrapper` is `supported`
+  with known wall evidence (while `coverage.limits` is `active`); unknown wall
+  evidence makes both `degraded` as above.
 - `process.identity.kind` is `macos_audit_token`, with `pid`, `pidversion`,
   `boot_session` and the full token. Exec changes the token: the receipt
-  carries the current target identity.
+  carries the current target identity, republished on each later confirmed
+  target exec. `target_process` is not retained inside native details: the
+  producer moves that identity into the receipt's top-level `process`.
 - [receipt-macos-native.json](jail-v1/examples/receipt-macos-native.json) is a
   hand-written illustrative development receipt with the product field
   shapes. Its identities, paths, counts, times and drainage are synthetic;
@@ -692,14 +709,25 @@ On macOS the owner is **both** custodians. `gc` retains an attempt whole while
 either one lives (jail-v1 §14.2). A custodian is dead when its audit token no
 longer matches, or when the boot session differs.
 
+- **Proven refusal before preparation.** On the Mac host, native and VM-policy
+  refusals can settle without a tree when the recorded supervisor is dead,
+  the receipt is `refused` with boundary `pending`, integrity is not lost,
+  process is null, `exec_observed=false`, and its nonempty errors are all at
+  resolving/probing. `guardian.json` must be genuinely absent, not unreadable
+  or corrupt. A missing process alone is insufficient. Ordinary `gc` or
+  `gc --abandon` can finish managed-scratch cleanup and record `gc_finished`,
+  without `gc_abandoned` because no tree was created.
 - **The receipt proves tree death** (settled, `tree_empty=true`). As jail-v1
   §14.2: nothing is killed.
 - **Same boot, guardian record `drained`.** The tree's end is verified by
   the guardian. `gc` records `gc_custody_verified` and permits cleanup, like
   `gc_terminated_orphan` on Linux. The receipt is left as written (jail-v1
   §14.2).
-- **Same boot, no record or `not_drained`.** Both custodians were lost, or
-  the stop failed. `gc` sends `SIGKILL` to the target recorded in the receipt
+- **Same boot, no drain proof.** Once preparation may have begun, a missing
+  record does not prove the guardian dead. Once the supervisor is dead,
+  `gc` checks any probeable guardian identity and retains everything if its
+  liveness is alive or unknown. Otherwise it attempts `SIGKILL` on the target
+  recorded in the receipt
   (`process.identity`), by audit token. That does not signal a reused PID.
   `gc_killed_target` is recorded only when signalling succeeds; a stale token
   or ESRCH is a target-not-found failure, never a claim that it was killed. The tree's end is
@@ -708,16 +736,25 @@ longer matches, or when the boot session differs.
   - Vendor-state cleanup and a J14 lease stay held, as for lost integrity on
     Linux. J14's visible throwaway fallback applies to later sessions.
   - To accept the unverified end, the operator runs
-    `ukai-jail gc --abandon ATTEMPT`. It records `gc_abandoned` and releases
-    the lease and resources. It is the one way out, and it is explicit.
+    `ukai-jail gc --abandon ATTEMPT`, but only once both custodians' deaths
+    are established. Success records `gc_abandoned` and releases the lease
+    and resources. If the guardian identity is absent, unreadable or corrupt
+    and no pre-preparation proof applies, same-boot abandonment refuses with
+    exit 1 and retains state. Reboot, then run `ukai-jail gc`; lost integrity
+    can still require explicit abandonment after reboot.
 - **New boot session.** Nothing of that boot is alive. `gc` proceeds as
   jail-v1 §14.2 does after a reboot. Lost-integrity attempts are kept in every
   boot there, and here too, until the operator abandons them.
 
 Before doing anything else, `run` and `doctor` on macOS look for attempts of
-this operator whose custodians are both dead and whose end is not verified.
-For each, they print one line naming the attempt, `gc` and `gc --abandon`.
-They never kill anything themselves: killing is `gc`'s, as on Linux.
+this operator whose supervisor is dead and whose end is not verified. A
+probeable guardian identity suppresses the warning unless its probe establishes
+death; missing guardian identity requires recovery without assuming death.
+The diagnostic names each attempt and an actionable recovery: `gc` or
+`gc --abandon` when the guardian's death can be checked; reboot then `gc`
+when its identity is absent or unreadable, with explicit abandonment after
+reboot if lost integrity requires it. They never kill anything themselves:
+killing is `gc`'s, as on Linux.
 
 ### 4.10 Requirements and containment on macOS
 
@@ -740,11 +777,29 @@ or a supported release:
 | `limit:wall` | Available when probes pass; custodians use the continuous clock. Live wall-expiry acceptance is outstanding. |
 | `limit:pids`, `mem`, `swap`, `cpu`, `storage`, `inodes` | `unsupported`. An explicit request refuses, and a preferred value is recorded as not applied. |
 
+**Path protection.** The native profile pins every ancestor of a protected
+or `deny_read` path within each writable root, excluding the writable root
+itself, with literal write denies. A writable root contained by another
+writable root can itself be pinned. The guarded path also denies writes;
+`deny_read` additionally denies reads. Thus rename, unlink and link of the
+guarded path or its pinned parents are denied, while ordinary writes inside
+unprotected children remain allowed. `profile_parameters.path_anchors`
+is a sorted, deduplicated array of absolute strings for those ancestor
+literals. Preparation refuses with `unsupported` when an existing guarded
+regular file has more than one hard link, including a file inside a guarded
+directory: an already-existing alias would escape a path-based denial.
+`existing_and_root` covers the configured root suffixes and matching guarded
+paths that exist at preparation; nested repositories created later at
+unguarded paths are outside it; no future nested-repository or inode-wide
+protection is claimed. These are implementation/component-test rules, not
+live custody acceptance.
+
 Changes and additions:
 
 - **Profiles.** `tool`, `build` and plain `agent` may proceed only with the
   development opt-in and all required probes. A launch that needs native
-  vendor/credential staging refuses. `none` refuses with
+  vendor/credential staging refuses before acquisition of managed or
+  persistent vendor state. `none` refuses with
   remediation `unsupported`, because without a sandbox nothing defends the
   custodians.
 - **macOS profile baselines** (`profiles.rs` is already per-OS) set two values
@@ -760,7 +815,21 @@ Changes and additions:
   secret, carried in the child's proxy URLs (HTTP proxy authentication, and
   SOCKS5 username and password). The profile allows outbound loopback to
   those two ports only. This is a candidate, and K99 measures Claude Code and
-  OpenCode through both.
+  OpenCode through both. A connection is attributed to the attempt as soon
+  as the secret verifies, even if HTTP Host/framing checks or the SOCKS
+  command subsequently refuse, or the client disconnects. Before that proof,
+  a refusal cannot safely become a workload event. Accepted connections refused
+  before attribution, including proxy capacity, bridge relay capacity and
+  upstream Unix-socket connect failure, contribute to `proxy_unattributable`.
+  That gap has source `proxy`, class `proxy.net` and `lost_count` equal to the
+  accepted connections refused before attribution; it is not a count of proven
+  workload events or of events known to have been lost. Nonzero uncertainty
+  makes proxy coverage `degraded` with a null observed count. Linux's private
+  proxy path without a bridge secret retains its existing attribution.
+  Transient interrupted/aborted accepts retry; persistent accept errors or
+  fatal worker-spawn failures stop both bridge loops. Settlement records
+  `proxy_stopped` from the first failure timestamp with degraded proxy coverage
+  and a null count, never a silent complete interval.
 - **DNS.** `com.apple.dnssd.service` is not in the Mach allowlist. A proxied
   child resolves through the proxy, and DNS is not an exfiltration channel.
 - **Keychain.** The Security server and the keychain files are denied. A
@@ -817,7 +886,8 @@ Changes and additions:
     new session has no controlling terminal, so `/dev/tty` fails, and the
     operator's terminal is out of reach there too.
   - **The receipt** records `applied.terminal.session: relay`.
-- **Persistent vendor state.** Native vendor staging currently refuses. The
+- **Persistent vendor state.** Native vendor staging refuses before acquisition,
+  even when the launch declares state without credentials. The
   intended J14 layout and lease integration remain acceptance work; a lease
   must be released only with a verified end or `gc --abandon` (§4.9).
 
@@ -862,6 +932,20 @@ supervisor. The unwired worker maps:
 Unlike the custody clients, it reads paths. A crash there takes the
 supervisor, which the guardian covers (§4.6).
 
+The worker resolves the existing workspace directory through `F_GETPATH`
+before creating ES: symlink aliases, `/var` versus `/private/var`, and stored
+capitalization on case-insensitive APFS use the kernel path. Missing or
+non-directory roots refuse. Delivered event paths are not looked up later.
+
+Both global and per-type sequences may start at 0 or 1. A first value above
+1 is a gap with unknown exact loss. Audit frames and coverage notes carry
+`sequence_start: "unverified"`, including the initial partial-coverage note
+for an empty audit stream: loss before the first delivered message can remain
+undetectable. Global and per-type loss counters are not added together. The
+shim's cumulative ring-drop count remains exact; a potentially overlapping
+sequence gap has a null count. Repeated snapshots do not count a drop again,
+and no exact combined total is invented.
+
 The worker treats a sequence or sink loss as an observation gap with
 `degraded` status. Its bookkeeping is separate from custody; live integration
 still needs K106. Even without a detected gap, `fs.write` is always
@@ -878,6 +962,13 @@ Other classes:
   coverage while required classes are unsupported or degraded.
 - **`learn`** stays refused while `fs.deny` is unsupported.
 
+For native journal frames, the summary separates paths whose content was
+`modified` (including truncation), entries `created`, and paths `with metadata
+changes`. Workspace-root changes are stated as `workspace root content
+modified`, `workspace root created` or `workspace root metadata changed`,
+and are excluded from entry counts. Partial coverage still makes those
+counts lower bounds. These worker/summary behaviors do not enable J17.
+
 ## 6. VM tier: a warm guest (J18)
 
 The [VM preview](../../crates/ukai-jail/vm/README.md) cold-boots a disposable
@@ -886,7 +977,25 @@ offline. Current J18 CLI execution is unavailable: **every `run --vm`
 refuses before connecting**, without contacting the control or attempt
 socket or staging credentials. There is no qualified backend. The helper
 and protocol tests do not prove a guest preflight, full policy translation,
-workspace sharing, network, agent or credential support.
+workspace sharing, network, agent or credential support. A missing or invalid
+VM installation is a host prerequisite refusal: exit 125, `backend_unavailable`
+at `probing`, remediation `host_setup`, including `--profile none`. Once
+installation discovery succeeds, VM-policy requirements refuse with
+`unsupported`: enforcement is unavailable in this build. With native
+development enabled, `--lifetime kernel-bound` also refuses with
+`unsupported`, explaining that
+native macOS cannot provide it and VM policy enforcement is unavailable in
+this build; adding `--vm` is not offered as a working remedy.
+
+The lifetime key is implemented in top-level profile files and operator and
+project `[jail]` tables as `lifetime_boundary = "kernel-bound"`. It has the
+same narrowing, canonical bytes and digest as the CLI; omission in a later
+layer does not remove it, and an unknown value is `invalid_config` (exit 2).
+
+The helper's orderly SIGTERM path now exits 0 during startup, idle,
+preparation or running and removes its service socket; a previously recorded
+custody/transport failure still exits 125. Synthetic helper tests establish
+that distinction without booting a VM or qualifying `run --vm`.
 
 The following are future backend requirements, not current behavior:
 
@@ -895,7 +1004,9 @@ The following are future backend requirements, not current behavior:
   kernel-bound lifetime (`lifetime.boundary` `pid_namespace`). It comes with
   a jail-v1 §6.3 narrowing row, a canonical-bytes update and a derived
   requirement name, `owner_loss_termination`. Native macOS reports it
-  `unsupported` and refuses, naming `--vm`. Linux `none` refuses.
+  `unsupported` and refuses; this build's VM tier is unavailable too.
+  Linux `none` refuses. A future qualified VM backend must supply the
+  kernel-bound lifetime before it can accept the requirement.
 - **One warm guest per operator.** A per-user host program, `ukai-vm`, starts
   the guest on first use and stops it after an idle period (initial 10 min)
   or on `ukai-jail vm stop`. `ukai-vm` keeps the preview's separate custodian
@@ -1017,7 +1128,7 @@ are J16 rows, and K104 includes them.
 | K109 | Live workspace: writes granted by policy appear on the host. Writes outside the grants and the share are absent. |
 | K110 | The preview's fault matrix, rerun for the warm design. Killing the host `ukai-jail` ends that attempt through its lease, and `Ctrl-Z` of it does not. Killing the custodian, the VZ client or `ukai-vm` ends the VM service and every attempt. With every host controller suspended, the guest's wall deadline ends the attempt. All are checked before any test cleanup. |
 | K111 | The stored receipt is the guest's Linux receipt, verified by digest, and the summary's transport line comes from the transport record. |
-| K112 | The kernel-bound key: it runs under `--vm`, refuses natively naming `--vm`, and refuses under Linux `none`. |
+| K112 | The kernel-bound key derives `owner_loss_termination`: native macOS and this build's installed `--vm` backend refuse with `unsupported`; Linux `none` refuses. A qualified VM backend must provide a kernel-bound lifetime before accepting it. |
 
 ### 9.4 Compatibility records (A-rows)
 

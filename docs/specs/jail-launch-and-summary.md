@@ -531,6 +531,14 @@ name [`ukai.event/1`](jail-v1/jail-event.schema.json) frames in the attempt's
 | Cleanup and protection (only when relevant) | Pending vendor-state removal; an uncontained run | `/state_cleanup` `pending`; `/child_protection` `unprotected`. | `vendor state cleanup pending: run ukai-jail gc`; `uncontained (none): nothing above was enforced`. |
 | Receipt | The canonical receipt path | Existing line. | Unchanged. |
 
+The workspace row's open-for-writing rule above describes the Linux syscall
+vocabulary. Native ES journal frames distinguish content `modified` (including
+truncation), entries `created`, and paths `with metadata changes`. A change to
+the root itself prints `workspace root content modified`, `workspace root
+created` or `workspace root metadata changed`, without inflating workspace
+entry counts. Partial native coverage makes entry counts lower bounds. This
+summary support does not enable the unwired J17 observer.
+
 Consistency check: for a complete journal, the number of events per class
 must equal `/coverage/<class>/observed_count`, the equality the performance
 protocol already requires ([jail-v1 §5.2](jail-v1.md#52-observer-candidate-and-privilege-boundary)).

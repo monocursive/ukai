@@ -4304,12 +4304,12 @@ note = "No guest boot, received receipt verification or live transport summary."
 
 [[gate]]
 id = "K112"
-row = "The kernel-bound key: it runs under `--vm`, refuses natively naming `--vm`, and refuses under Linux `none`."
+row = "The kernel-bound key derives `owner_loss_termination`: native macOS and this build's installed `--vm` backend refuse with `unsupported`; Linux `none` refuses. A qualified VM backend must provide a kernel-bound lifetime before accepting it."
 
 [[clause]]
 id = "K112.1"
 gate = "K112"
-clause = "The kernel-bound key: it runs under `--vm`, refuses natively naming `--vm`, and refuses under Linux `none`."
+clause = "The kernel-bound key derives `owner_loss_termination`: native macOS and this build's installed `--vm` backend refuse with `unsupported`; Linux `none` refuses. A qualified VM backend must provide a kernel-bound lifetime before accepting it."
 tag = "untested"
 lane = "macos"
 note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
@@ -4319,7 +4319,6 @@ id = "K112.2"
 gate = "K112"
 clause = "Setting kernel-bound in the snapshot changes its digest and derives owner_loss_termination; the Linux none capability mapping rejects that requirement"
 tag = "portable"
-lane = "macos"
 tests = [
   "ukai-jail/tests/vm_tier.rs::the_kernel_bound_key_changes_exactly_the_digest_and_the_requirements",
   "ukai-jail/tests/vm_tier.rs::the_kernel_bound_key_is_a_narrowing_none_refuses",

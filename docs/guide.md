@@ -150,6 +150,10 @@ Current implementation: native execution is **off by default**. Setting
 `unsupported` and refuse. `J17_OBSERVE=false`: `ObserveRun` exists but is
 unwired; `fs.write` would still be `degraded`/partial even if wired. Every
 `run --vm` refuses before connecting: no qualified VM backend exists yet.
+A missing VM installation is exit 125 with `host_setup`; an installed but
+unavailable VM-policy backend uses `unsupported`. With native development
+enabled, a kernel-bound request explains that the VM tier is unavailable in
+this build; `--vm` is not a working remedy.
 
 **Native tier (J16), the intended default once released.** The design
 requires Seatbelt containment and two custodians defended from the workload;
@@ -164,16 +168,22 @@ boundary does not provide Linux's kernel-bound lifetime guarantee. If both
 custodians are lost (a named residual), the tree can survive until you run
 `ukai-jail gc`, which attempts to signal only the recorded target by audit
 token. A gone or stale token is reported as target not found, not killed. Only
-`ukai-jail gc --abandon ATTEMPT` releases the attempt's lease and accepts
-that unverified end. `run` and `doctor` list any such attempt by name. Runs
-that must not depend on a userspace custodian need a supported Linux
+`ukai-jail gc --abandon ATTEMPT` accepts that unverified end and releases
+the lease once both custodians' deaths are established. If the guardian's
+identity is absent or unreadable and preparation may have begun, abandonment
+refuses with exit 1 and retains state; `run` and `doctor` advise reboot, then
+`gc` (and explicit abandonment after reboot if integrity was lost). A proven
+refusal before preparation instead settles with `gc_finished`, without
+abandonment; a missing process alone is not that proof (§4.9 of jail-macos).
+Runs that must not depend on a userspace custodian need a supported Linux
 deployment or the separate released VM preview within its documented
 limits; this tree's `run --vm` refuses.
 
 **VM tier (J18), intended behavior: `--vm`.** A run executes in a warm Linux guest
 whose own jail provides the kernel-bound lifetime (`pid_namespace`,
 requirement `owner_loss_termination`). Native macOS refuses that
-requirement, naming `--vm`; Linux `none` refuses it too. The guest is
+requirement with `unsupported`; this build's VM-policy backend is unavailable
+too. Linux `none` refuses it. In the intended qualified backend, the guest is
 started on first use, kept warm between runs, and stopped after an idle
 period or with `ukai-jail vm stop`. This tier is the Linux VM preview above
 made into a backend, and the preview's limits — Linux ARM64 programs only,

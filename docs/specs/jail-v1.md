@@ -738,15 +738,23 @@ ukai-jail version [--json]
 J18 adds the `--vm` (macOS only) and `ukai-jail vm stop` interfaces for a
 proposed warm Linux guest. Every current `run --vm` refuses before connecting
 because no qualified VM backend exists. `--lifetime kernel-bound` requires `owner_loss_termination`;
-it narrows authority rather than selecting a backend. Native macOS refuses
-that requirement with `--vm` remediation; Linux `none` refuses it too.
+it narrows authority rather than selecting a backend. With native development
+enabled, macOS refuses that requirement with `unsupported`: VM policy
+enforcement is unavailable in this build, so `--vm` is not a working remedy. Linux `none` refuses it too.
+A missing or invalid VM installation instead refuses with exit 125,
+`backend_unavailable` at `probing` and `host_setup`, including `--profile none`;
+once installation discovery succeeds, the unavailable VM-policy backend
+refuses with `unsupported` before connecting.
 These flags are working-tree interfaces, not a supported Mac release; see
 [jail-macos.md](jail-macos.md) §6 for the intended behavior and missing pieces.
 
 `gc --abandon ATTEMPT` is macOS-native-tier only ([jail-macos.md](jail-macos.md)
 §4.9, §8): it accepts the unverified end of an attempt whose custodians are
 both dead, records `gc_abandoned`, and releases the attempt's lease and
-resources. It is the one way out of the residual and it is explicit (§14.2).
+resources. If the guardian's identity is missing or unreadable and no proof
+of refusal before preparation applies, same-boot abandonment fails with exit 1
+and retains state; reboot then `gc` is the recovery, with explicit abandonment
+after reboot if integrity was lost (§14.2).
 
 `PROGRAM` is mandatory except with `--label-only`. Execution accepts literal
 OS argument bytes, never a shell command string. Shell semantics require the
@@ -967,6 +975,12 @@ omitted when not required), `filesystem.read_write`, `filesystem.read_only`,
 `observation.mode`, and `observation.evidence`.
 `extends` is required for custom profiles, forbidden in project config;
 project fields live under `[jail]` with the same subordinate tables.
+The top-level `lifetime_boundary` key in a custom profile and the same key
+in operator and project `[jail]` tables accept only `"kernel-bound"`. All
+three file layers produce the same canonical bytes and digest as
+`--lifetime kernel-bound`; they derive `owner_loss_termination`. Omitting the
+key in a later layer preserves the requirement. Unknown values are
+`invalid_config` (exit 2); files without the key keep their previous bytes.
 Launch data has a separate grammar (§12). User-supplied seccomp, SBPL, backend
 command fragments and arbitrary environment entries are not policy keys.
 
@@ -2297,6 +2311,17 @@ not on each counter poll or repeated pids denial; no hits means zero. Missing
 hit evidence makes coverage degraded and the count null. Preferred unapplied
 limits remain explicitly absent and are not treated as monitored ceilings.
 
+On the shared native-macOS bridge, an accepted connection is attributed as
+soon as its per-attempt secret verifies, even if later parsing or command
+validation refuses it. An accepted connection refused before attribution
+cannot safely become a workload event. Such connections, including capacity
+refusals and bridge upstream-connect failures, produce a `proxy_unattributable`
+gap (source `proxy`, class `proxy.net`). Its `lost_count` counts connections of
+uncertain attempt attribution, not proven workload events or known lost
+events. A nonzero count makes that class degraded with null observed count.
+Persistent bridge accept errors and fatal worker-spawn failures produce
+`proxy_stopped`; interrupted/aborted accepts retry. The Linux private-proxy attribution path is unchanged.
+
 In a final receipt, `observer.attached` means attachment was established for
 that attempt. It does not say a kernel probe remains live after settlement.
 Coverage intervals state when observation was active; finishing the observer
@@ -3120,21 +3145,42 @@ records join the gc vocabulary:
 - `gc_custody_verified` — same boot, guardian record `drained`: the tree's end
   is verified by the guardian; cleanup proceeds as `gc_terminated_orphan` does
   on Linux, and the receipt is left as written. Nothing is killed.
-- `gc_killed_target` — same boot, no guardian record or `not_drained`: both
-  custodians were lost or the stop failed. `gc` sends `SIGKILL` to the target
-  recorded in the receipt by audit token (safe after PID reuse, a no-op after a
-  later exec), records this, and keeps `tree_unknown`: the other descendants
+- `gc_killed_target` — same boot, no drain proof: once the supervisor is
+  dead, `gc` checks any probeable guardian identity and retains everything if
+  its liveness is alive or unknown. Otherwise it attempts `SIGKILL` on the
+  target recorded in the receipt by audit token. It records `gc_killed_target`
+  only when signalling succeeds; a gone or stale token (including after an
+  unrecorded later exec) reports target not found, never killed. It keeps
+  `tree_unknown`: the other descendants
   are in no record. Vendor-state cleanup and a J14 lease stay held, as for
   lost integrity on Linux.
 - `gc_abandoned` — recorded only by `gc --abandon ATTEMPT` (§6.1), which
-  accepts the unverified end and releases the lease and resources.
+  accepts the unverified end and releases the lease and resources only once
+  the custodians' deaths are established.
+
+**No-tree settlement on a Mac host.** Native and VM-policy refusals may settle
+when the recorded supervisor is dead, the receipt is `refused` with boundary
+`pending`, integrity is not lost, process is null, `exec_observed=false`, and
+its nonempty errors are all at resolving/probing. `guardian.json` must be
+genuinely absent, not unreadable or corrupt. A null process alone proves
+nothing. `gc` (including `--abandon`) can finish managed-scratch cleanup and
+record `gc_finished`, without `gc_abandoned`, because no tree was created.
+
+**Failed abandonment.** When preparation may have begun and the guardian
+identity is absent, unreadable or corrupt, its death cannot be established in
+this boot. Without the no-tree proof, `gc --abandon` refuses with exit 1 and
+retains state. The diagnostic advises reboot, then `ukai-jail gc`; lost
+integrity may still require explicit abandonment after reboot.
 
 **Boot-session rule.** A new boot session means nothing of that boot is
 alive: `gc` proceeds as this section does after a reboot, and lost-integrity
 attempts are kept in every boot until the operator abandons them. Before
 anything else, `run` and `doctor` on macOS list attempts of this operator
-whose custodians are both dead and whose end is unverified, one line each
-naming the attempt, `gc` and `gc --abandon`; they never kill anything
+whose supervisor is dead and whose end is unverified. A probeable guardian
+identity suppresses the warning unless its probe establishes death. Each line
+names the attempt and the recovery its evidence permits: `gc`/`gc --abandon`
+when custody death is established, or reboot then `gc` when guardian identity
+is absent or unreadable. They never kill anything
 themselves — killing is `gc`'s, as above.
 
 ## 15. Acceptance matrix

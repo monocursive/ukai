@@ -23,8 +23,8 @@
       "tree_termination",
       "filesystem_containment",
       "syscall_filter",
-      "protected_coverage:existing_and_root",
       "network_none",
+      "protected_coverage:existing_and_root",
       "limit:wall"
     ],
     "grants": []
@@ -82,7 +82,7 @@
     "set": null,
     "attached": false,
     "sources": {
-      "wrapper": "active",
+      "wrapper": "supported",
       "audit": "unsupported",
       "proxy": "unsupported"
     },
@@ -166,14 +166,17 @@
           "elapsed_ns": 1200000000
         },
         "native_execution": "dev",
-        "profile_digest": "e0af1798318b01f4fbfc90a77cca1b7d4b0a21b8a5a9459e5013ccb51849c478",
+        "profile_digest": "23917ae508660fdd58f330ee90d70271a0547b43584c9265f7fad76176b5f11e",
         "profile_parameters": {
           "read_write": [
             "/work"
           ],
           "read_only": [],
           "deny_read": [],
-          "protected_segments": [],
+          "protected_segments": [
+            "/work/.git",
+            "/work/.ukai"
+          ],
           "setuid_exec_denied": [],
           "setuid_scan_holes": [],
           "setuid_backstop": "kernel_sandbox_exec_denial",
@@ -181,21 +184,10 @@
           "unix_socket_paths": [],
           "terminal_slave": null,
           "bridge_http_port": null,
-          "bridge_socks_port": null
+          "bridge_socks_port": null,
+          "path_anchors": []
         },
-        "handshake_events_pending": 0,
-        "target_process": {
-          "pid": 1234,
-          "identity": {
-            "kind": "macos_audit_token",
-            "value": {
-              "pid": 1234,
-              "pidversion": 987654321,
-              "boot_session": "A1B2C3D4-0011-2233-4455-66778899AABB",
-              "token": "000001f5000001f500000014000001f500000014000004d2000000013ade68b1"
-            }
-          }
-        }
+        "handshake_events_pending": 0
       }
     },
     "tree_empty": true,

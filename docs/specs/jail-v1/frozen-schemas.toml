@@ -159,11 +159,12 @@
 #   in snapshots that set it.
 # - 2026-10-22 (J16–J18, jail-macos.md §4.8–§6) re-blessed
 #   jail-doctor.schema.json in place under ukai.jail.doctor/1. Rationale:
-#   additive widening only, in the macOS platform branch. The branch still
-#   pins every refusal-era rule (no `host`, no `supervisor_scope`, no
-#   backend record, `ready` false, the `-apple-darwin` target, probe rows
-#   never named as a requirement) and now also states what the native
-#   probes measure (jail-macos.md §3–§6): a macOS capability row may be a
+#   additive widening only, in the macOS platform branch. Together with the
+#   DOCS review entry below, the current branch keeps no `host`, no
+#   `supervisor_scope`, no backend record and the `-apple-darwin` target,
+#   while allowing ready true with available nonempty requirement rows.
+#   Host probe rows are never requirements. Native probe descriptions
+#   (jail-macos.md §3–§6) allow a macOS capability row to be a
 #   requirement row derived from the Endpoint Security, Seatbelt,
 #   loopback-bind and sysctl probes (mechanism set, `measured_at`
 #   RFC3339, an `evidence_ref`, statuses `available`, `unavailable`,
@@ -215,6 +216,15 @@
 #   integrated producer and its deny-network profile. The example remains
 #   illustrative, not live evidence. The schema still accepts the earlier null
 #   mechanism; no schema, identifier or shared field meaning is changed.
+# - 2026-10-23 round 3 re-blessed examples/receipt-macos-native.json in
+#   place against a synthetic-test producer receipt: target identity lives
+#   only in process, wrapper source is supported with known wall evidence,
+#   requirements retain producer order, and profile_parameters gains
+#   path_anchors. Root protected suffixes are illustrated explicitly.
+#   The template digest matches the integrated Seatbelt template; identities,
+#   paths, counts, times and policy/argv digests remain illustrative. The
+#   sample and this example are not live acceptance evidence. No schema or
+#   identifier changes, and every previously accepted record stays valid.
 schema = "ukai.jail.frozen-schemas/1"
 milestone = "milestone-1"
 
@@ -327,7 +337,7 @@ sha256 = "80813b00687e0a131a083df0f98a25dfc2aff2dcdba974a0436d80b54478ba31"
 [[frozen_artifact]]
 file = "examples/receipt-macos-native.json"
 identifiers = ["ukai.jail.receipt/1", "ukai.event/1", "ukai.jail.control/1"]
-sha256 = "1e3955c37d6ee9183ff94e229da0f09a097574d529e495068fad4d25f19a0202"
+sha256 = "870d7a721298575ba850bf055ef6a60ab6506fb01bac1c3d2f2894aa7f5ac9ba"
 
 # an instance the semantic corpus changes
 [[frozen_artifact]]

@@ -5,7 +5,7 @@
 """DOCS contract regressions; no live ES, guest or release claims.
 
 Run: uv run --offline docs/specs/jail-v1/test_macos_contract.py
-For the red side, add --base 2da5c8d13 (phase 1) or c151e4e20 (phase 2). Reads that commit with git show;
+For the red side, add --base 2da5c8d13 (phase 1) or c151e4e20 (phase 2), or 395294c42 (round 3). Reads that commit with git show;
 never switches or writes a checkout. Schema/semantic checks exercise records;
 prose checks pin the scope disclosures that prevent historical evidence or
 component tests from being presented as implementation acceptance.
@@ -268,7 +268,7 @@ class MacosContract(unittest.TestCase):
         self.assertEqual(set(details["profile_parameters"]), {
             "read_write", "read_only", "deny_read", "protected_segments", "setuid_exec_denied",
             "setuid_scan_holes", "setuid_backstop", "mach_services", "unix_socket_paths",
-            "terminal_slave", "bridge_http_port", "bridge_socks_port"})
+            "terminal_slave", "bridge_http_port", "bridge_socks_port", "path_anchors"})
         for facts in details["custodians"].values():
             self.assertTrue(facts["events"] is None or type(facts["events"]) is int)
             if facts["events"] is None:
@@ -284,7 +284,7 @@ class MacosContract(unittest.TestCase):
         for path in ["docs/specs/jail-macos.md", "docs/specs/jail-v2.md"]:
             with self.subTest(path=path):
                 text = " ".join(read(path).split())
-                for fact in ["`hit=false`", "stop is observed before the deadline",
+                for fact in ["`hit=false`", "settlement finishes before the deadline",
                              "`hit=true`", "confirmed expiry", "`hit=null`",
                              "deadline elapsed without an observed trigger",
                              "`degraded`", "`wall_hit_unobserved`",
@@ -340,6 +340,86 @@ class MacosContract(unittest.TestCase):
             if item["file"] not in {"fixtures/semantic-cases.json", "examples/receipt-macos-native.json"}:
                 continue
             self.assertEqual(item["sha256"], hashlib.sha256(read(CONTRACT + item["file"]).encode()).hexdigest())
+
+    def test_r3_k112_component_clause_uses_its_linux_test_lane(self):
+        acceptance = tomllib.loads(read(CONTRACT + "acceptance-map.toml"))
+        clause = next(c for c in acceptance["clause"] if c["id"] == "K112.2")
+        self.assertEqual(clause.get("lane", "linux"), "linux")
+        self.assertRegex(read("crates/ukai-jail/tests/vm_tier.rs"),
+                         r'#\[cfg\(target_os = "linux"\)\]\s+fn the_kernel_bound_key_is_a_narrowing_none_refuses')
+        self.assertIn("unavailable in this build", " ".join(read("docs/specs/jail-macos.md").split()))
+
+    def test_r3_illustration_uses_the_producer_structure_and_requirement_order(self):
+        value = record("examples/receipt-macos-native.json")
+        self.assertNotIn("target_process", value["lifetime"]["native"]["details"])
+        self.assertEqual(value["observer"]["sources"]["wrapper"], "supported")
+        self.assertEqual(value["lifetime"]["native"]["details"]["profile_digest"],
+                         "23917ae508660fdd58f330ee90d70271a0547b43584c9265f7fad76176b5f11e")
+        self.assertEqual(value["policy"]["requirements"], [
+            "tree_termination", "filesystem_containment", "syscall_filter", "network_none",
+            "protected_coverage:existing_and_root", "limit:wall"])
+        self.assertEqual(value["lifetime"]["native"]["details"]["profile_parameters"]["path_anchors"], [])
+        self.assertEqual(value["process"]["identity"]["kind"], "macos_audit_token")
+
+    def test_r3_gc_documents_proof_refusal_and_recovery(self):
+        for path in ["docs/specs/jail-macos.md", "docs/specs/jail-v1.md"]:
+            with self.subTest(path=path):
+                text = " ".join(read(path).split())
+                for fact in ["`gc_finished`", "`exec_observed=false`", "resolving/probing",
+                             "`guardian.json`", "genuinely absent", "exit 1", "reboot",
+                             "only when signalling succeeds"]:
+                    self.assertIn(fact, text)
+        self.assertNotIn("a no-op after a later exec), records this", " ".join(read("docs/specs/jail-v1.md").split()))
+
+    def test_r3_proxy_attribution_and_uncertain_count_are_disclosed(self):
+        text = " ".join(read("docs/specs/jail-macos.md").split())
+        for fact in ["as soon as the secret verifies", "proxy_unattributable",
+                     "accepted connections refused before attribution", "relay capacity",
+                     "upstream Unix-socket connect failure", "`lost_count`", "null observed count",
+                     "not a count of proven workload events", "proxy_stopped"]:
+            self.assertIn(fact, text)
+        self.assertIn("proxy_unattributable", read("docs/specs/jail-v1.md"))
+
+    def test_r3_policy_and_refusal_remediations_are_current(self):
+        text = " ".join(read("docs/specs/jail-v1.md").split())
+        for fact in ["top-level `lifetime_boundary`", "operator and project `[jail]`",
+                     "same canonical bytes and digest", "exit 125", "host_setup",
+                     "unavailable in this build", "unsupported"]:
+            self.assertIn(fact, text)
+        self.assertNotIn("that requirement with `--vm` remediation", text)
+        self.assertNotIn("requirement, naming `--vm`", " ".join(read("docs/guide.md").split()))
+        native = " ".join(read("docs/specs/jail-macos.md").split())
+        self.assertIn("`es_not_entitled`", native)
+        self.assertIn("`es_too_many_clients`", native)
+
+    def test_r3_custody_headroom_and_sync_evidence_are_honest(self):
+        text = " ".join(read("docs/specs/jail-macos.md").split())
+        for fact in ["`PROCESS_HEADROOM=1024`", "neither inherited limit is raised",
+                     "kernel read-back", "refuses", "A synchronization timeout is not a gap"]:
+            self.assertIn(fact, text)
+
+    def test_r3_observation_start_overlap_paths_and_summary_are_disclosed(self):
+        text = " ".join(read("docs/specs/jail-macos.md").split("## 5.", 1)[1].split("## 6.", 1)[0].split())
+        for fact in ["0 or 1", 'sequence_start: "unverified"', "unknown exact loss",
+                     "not added together", "F_GETPATH", "created", "metadata changes",
+                     "workspace root", "entry counts"]:
+            self.assertIn(fact, text)
+        summary = read("docs/specs/jail-launch-and-summary.md")
+        self.assertIn("workspace root content modified", summary)
+        self.assertIn("workspace root metadata changed", summary)
+
+    def test_r3_native_paths_and_staging_scope_are_explicit(self):
+        text = " ".join(read("docs/specs/jail-macos.md").split())
+        for fact in ["`profile_parameters.path_anchors`", "every ancestor", "rename, unlink and link",
+                     "more than one hard link", "nested repositories created later",
+                     "before acquisition", "each later confirmed target exec"]:
+            self.assertIn(fact, text)
+
+    def test_r3_doctor_rebless_notes_describe_current_readiness(self):
+        notes = " ".join(read(CONTRACT + "frozen-schemas.toml").split())
+        self.assertNotIn("pins every refusal-era rule", notes)
+        self.assertNotIn("backend record, `ready` false", notes)
+        self.assertIn("ready true", notes)
 
     def test_freeze_requires_a_new_reference_run(self):
         text = read("docs/RELEASING.md")
