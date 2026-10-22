@@ -103,12 +103,6 @@ fn es_result_row(result: EsProbeResult) -> ProbeRow {
                 format!("es_new_descendants_client={raw_code}"),
             )
         }
-        EsProbeResult::TooManyClients { raw_code } => {
-            ProbeRow::new("es_descendants", "es_descendants").unavailable(
-                "es_too_many_clients",
-                format!("es_new_descendants_client={raw_code}"),
-            )
-        }
         EsProbeResult::Unavailable { reason } => {
             ProbeRow::new("es_descendants", "es_descendants").unavailable("es_unavailable", reason)
         }
