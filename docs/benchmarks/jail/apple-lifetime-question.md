@@ -3,7 +3,9 @@
 **Submitted through Apple code-level support on 2026-10-11.** This is the original
 draft; the [submission record](apple-lifetime-support-2026-10-11.md) preserves the
 exact form text and confirmation. Apple's acknowledgement confirms
-**Case-ID: 22799543**; the technical response is pending.
+**Case-ID: 22799543**. Apple DTS asked for the question to be posted on the
+Developer Forums and answered it there; the answer, relayed by the operator on
+2026-10-22, is recorded [below](#apples-answer-2026-10-22): no such facility exists.
 Related entitlement request: **S9YJTLLH28**, submitted
 2026-09-29 for `com.apple.developer.endpoint-security.client`, Monocursive team
 `64SGQ348QJ`, proposed identifier `com.monocursive.ouroboros.jail`.
@@ -56,3 +58,46 @@ understand the ES entitlement is separate from a lifetime guarantee. Please
 clarify whether an approved descendant-scoped ES deployment can provide that
 owner-loss guarantee through a documented API, whether another supported
 facility is appropriate, or whether meeting this contract requires a VM boundary.
+
+## Apple's answer (2026-10-22)
+
+Kevin Elliott (DTS Engineer, CoreOS/Hardware) answered on the Developer Forums
+thread opened for this case. The operator relayed it on 2026-10-22. Verbatim:
+
+> No, nothing like this currently exists. What is possible is:
+>
+> An es_new_descendants_client can defend itself from all child activity.
+> External events may still terminate it, but its children cannot.
+>
+> A "full" client (using es_new_client) can defend itself from ALL activity
+> system-wide.
+>
+> The main risk/downside here is bugs in the client causing the client to
+> terminate, but the best solution to that is to minimize the code involved so
+> that it's as simple as possible to test and validate. To that end, I would
+> probably start with a basic two-level architecture like this:
+>
+> The first process's ONLY job is to monitor child process activity and defend
+> itself and the secondary client from manipulation from children. It sets all
+> of that up using es_new_descendants_client, then spawns the second process.
+>
+> The second process is responsible for all other monitoring that occurs and is
+> where the bulk of the work actually occurs. It sets up its own
+> es_new_descendants_client, then spawns the "work" that you'll actually be
+> monitoring.
+>
+> (optional) If you're concerned about system-wide attacks, then I think I
+> would introduce a 3rd process which uses the full es_client to defend itself
+> and the other two processes.
+>
+> That 3rd component can also be embedded in either/both of 1 & 2.
+
+The answer closes the question this document asked. macOS has no supported
+facility that ends an inherited workload once every userspace custodian is
+gone. The reciprocal prototype already has the shape Apple suggests, a
+guardian and a ward each holding a descendants client. Its simultaneous-loss
+counterexample therefore stands as a property of the platform, not a gap in
+the prototype. The [two-tier proposal](../../specs/jail-macos.md) designs the
+native tier around that, with a disclosed weaker lifetime, and keeps a
+kernel-bound VM tier. Apple did not comment on the Mach exception-port,
+debugger or fatal-port evidence.
