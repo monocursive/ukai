@@ -4075,16 +4075,65 @@
       "changes": [
         {
           "path": [
-            "credentials",
-            0,
-            "binding"
+            "credentials"
           ],
-          "value": "program"
+          "value": [
+            {
+              "id": "fixture.auth",
+              "mode": "vault",
+              "binding": "program",
+              "digest": null,
+              "digest_unavailable_reason": "vault"
+            }
+          ]
         }
       ],
       "violations": [
         "credential_binding"
       ]
+    },
+    {
+      "name": "a synthetic macOS vault entry may bind the attempt",
+      "check": "receipt",
+      "base": "examples/receipt-macos-native.json",
+      "changes": [
+        {
+          "path": [
+            "credentials"
+          ],
+          "value": [
+            {
+              "id": "fixture.auth",
+              "mode": "vault",
+              "binding": "attempt",
+              "digest": null,
+              "digest_unavailable_reason": "vault"
+            }
+          ]
+        }
+      ],
+      "violations": []
+    },
+    {
+      "name": "a synthetic macOS vault entry may omit binding",
+      "check": "receipt",
+      "base": "examples/receipt-macos-native.json",
+      "changes": [
+        {
+          "path": [
+            "credentials"
+          ],
+          "value": [
+            {
+              "id": "fixture.auth",
+              "mode": "vault",
+              "digest": null,
+              "digest_unavailable_reason": "vault"
+            }
+          ]
+        }
+      ],
+      "violations": []
     }
   ]
 }

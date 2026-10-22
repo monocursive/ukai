@@ -1842,9 +1842,6 @@
               "filesystem": {
                 "type": "object"
               },
-              "syscalls": {
-                "type": "object"
-              },
               "network": {
                 "properties": {
                   "mode": {
@@ -1852,17 +1849,81 @@
                       "none",
                       "proxy"
                     ]
-                  },
-                  "mechanism": {
-                    "type": "string",
-                    "minLength": 1
                   }
                 }
               }
             }
           }
-        }
-      }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "platform": {
+                  "properties": {
+                    "os": {
+                      "const": "linux"
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "applied": {
+                  "properties": {
+                    "syscalls": {
+                      "type": "object"
+                    },
+                    "network": {
+                      "properties": {
+                        "mechanism": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "applied": {
+                  "properties": {
+                    "network": {
+                      "properties": {
+                        "mode": {
+                          "const": "proxy"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "applied": {
+                  "properties": {
+                    "network": {
+                      "properties": {
+                        "mechanism": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "$comment": "An enforced native Seatbelt receipt may omit a separate syscall filter and, with network none, a bridge mechanism. Linux enforcement and any proxy-mode receipt retain their required mechanism records."
     },
     {
       "if": {

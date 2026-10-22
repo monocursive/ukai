@@ -189,9 +189,27 @@
 #   not evidence that a native host is ready. canonicalization.md now names
 #   the existing optional lifetime_boundary field; old snapshots keep their
 #   bytes. The illustrative receipt no longer claims fs.deny or net audit
-#   coverage and uses best-effort evidence. Native details remain illustrative
-#   until phase 2 reconciles the producer. Linux omits credential binding;
+#   coverage and uses best-effort evidence. The phase-2 entry below aligns native details with the producer. Linux omits credential binding;
 #   optional macOS vault binding is attempt, as checked by both validators.
+# - 2026-10-22 integration re-blessed fixtures/semantic-cases.json and
+#   examples/receipt-macos-native.json in place under their existing identifiers.
+#   The corpus adds the integrated binding/record invariants; its program-binding
+#   negative case now inserts its own synthetic vault item because the illustrative
+#   native receipt has no credentials. Positive cases retain macOS attempt and
+#   absent-binding acceptance. Native staging is unsupported. Linux vault
+#   receipts omit binding; absence remains valid, and a present binding is only
+#   attempt on a macOS vault item. Both semantic validators enforce the same rule.
+#   The hand-written receipt now follows the development producer: native_execution
+#   dev, profile_parameters, null syscalls, integer custodian events (null without
+#   evidence), unknown guardian stream without a record, observation off and
+#   existing_and_root coverage. No live execution or drainage is claimed. No schema
+#   is narrowed, no shared field changes meaning, and no identifier is bumped.
+#   jail-receipt.schema.json is additively widened under ukai.jail.receipt/1:
+#   an enforced macOS record may have null applied.syscalls and a null network
+#   mechanism under network none, as the native producer emits. Linux still
+#   requires both mechanism records; proxy mode still requires its mechanism.
+#   Previous native records with those objects remain valid. Validation cases
+#   cover the new native shape, retained Linux/proxy refusals and old shapes.
 schema = "ukai.jail.frozen-schemas/1"
 milestone = "milestone-1"
 
@@ -214,7 +232,7 @@ sha256 = "fa0ef7a7304567e7d91feb13492035cdedc8448f4d225e42e983d13dc71ab57e"
 file = "jail-receipt.schema.json"
 id = "urn:ukai:schema:jail-receipt:1"
 identifier = "ukai.jail.receipt/1"
-sha256 = "c882b2d2c1eaa71e86fbfe0e65d0efe9910dfb24ffcc4a30f19cd3b81388ba18"
+sha256 = "5f1073b90c214ee9948585f65bbf6900c69917d9d8b3ef4be8ecbae21343474d"
 
 # §6.3, canonicalization.md: the canonical policy snapshot
 [[frozen]]
@@ -297,14 +315,14 @@ sha256 = "fdd7b9d4054192056c9de703fd9d78fec8f98e16543f9e354f358cb417b65581"
 [[frozen_artifact]]
 file = "fixtures/semantic-cases.json"
 identifiers = ["ukai.jail.receipt/1", "ukai.event/1", "ukai.jail.control/1"]
-sha256 = "d015d06856242f893a35b66484a88f69ecab58a9f095a51b826198f085425647"
+sha256 = "80813b00687e0a131a083df0f98a25dfc2aff2dcdba974a0436d80b54478ba31"
 
 # J16 (jail-macos.md §4.8): hand-written illustrative native receipt,
-# not product output or live evidence. Phase 2 must align producer fields.
+# not product output or live evidence; aligned to the development producer shape.
 [[frozen_artifact]]
 file = "examples/receipt-macos-native.json"
 identifiers = ["ukai.jail.receipt/1", "ukai.event/1", "ukai.jail.control/1"]
-sha256 = "a152abdd96aa23643bcb7243b78bd90509613a6d11f4bee247bc8695fae8aa1f"
+sha256 = "105f7be2e5bee1e7bfc2376983e8ffce2ae2fde93c7bff1f9b48b2bfce5ff497"
 
 # an instance the semantic corpus changes
 [[frozen_artifact]]

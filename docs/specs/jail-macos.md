@@ -1,8 +1,14 @@
 # Jail proposal: macOS in two tiers, native custody and a warm VM (J16–J18)
 
-Status: work in progress in the working tree (uncommitted), 2026-10-22;
-J16–J18 are not supported or released. `dev` at `ae14865f8` still has the
-refusal-only macOS platform; it does not contain this implementation work.
+Status: work in progress on the integration branch, 2026-10-22;
+J16–J18 are not supported or released. `dev` at `ae14865f8` remains the
+refusal-only historical baseline, not the integrated implementation.
+Current implementation: native execution is **off by default**. Setting
+`UKAI_JAIL_MACOS_NATIVE=dev` enables development only; a native receipt records
+`native_execution=dev`. Native credential, vault and vendor staging answer
+`unsupported` and refuse. `J17_OBSERVE=false`: `ObserveRun` exists but is
+unwired; `fs.write` would still be `degraded`/partial even if wired. Every
+`run --vm` refuses before connecting: no qualified VM backend exists yet.
 The new custody implementation has not run with live Endpoint Security.
 J16 lacks the bundle, Info.plist, entitlements and `~/Applications` installer;
 J18 lacks network, the `agent` profile, a workspace share and in-guest
@@ -10,8 +16,9 @@ credentials. Decision 5's K92/K93/K90-class-2 measurement spike has not run.
 The development VM was deleted on 2026-10-22 and must be re-cloned (§4.12).
 Apple's entitlement and the protected-Mac acceptance run (K104) remain
 release gates, alongside completing and validating the implementation.
-Sections below specify the intended contract, not properties proved by this
-working tree; historical prototype evidence is identified separately.
+Sections below specify release requirements where they describe behavior
+beyond those gates; they are not live acceptance evidence. Historical
+prototype evidence is identified separately.
 Decisions were settled on 2026-10-22 (§12). The proposal was written against
 `dev` at `68512e1f1`, after
 Apple Developer Technical Support answered code-level support case `22799543`
@@ -47,8 +54,9 @@ custodians impossible for the workload to kill. Each custodian holds an
 `es_new_descendants_client`, which *"can defend itself from all child activity.
 External events may still terminate it, but its children cannot."* So native
 macOS cannot meet the Linux lifetime contract, and no amount of further work
-changes that. This proposal stops trying to. It gives the Mac two tiers, each
-with a contract it can keep, and makes the receipt state which one a run had:
+changes that. This proposal stops trying to. It proposes two tiers and requires the receipt to state which boundary a
+run had. The following table is the intended release contract; the current
+implementation gates above remain in force:
 
 | | Native tier (J16, J17) | VM tier (J18) |
 | --- | --- | --- |
@@ -59,12 +67,15 @@ with a contract it can keep, and makes the receipt state which one a run had:
 | If every Ukai process of the attempt is lost | **the tree may survive**. The workload cannot cause the loss (§4.7). | the guest's own death chain ends it, as on any Linux host (§6) |
 | Receipt's `lifetime.boundary` | `native_tree` | `pid_namespace` (a Linux receipt) |
 
-The native tier is the default on a Mac. The VM tier is for runs that must
-not depend on a userspace custodian.
+The native tier is the intended default after qualification. Today the
+default refuses; the development opt-in does not make it supported. A run
+that needs a kernel-bound lifetime must use a supported Linux deployment or
+the separate released VM preview within its documented limits. `run --vm`
+in this tree refuses.
 
 ## 1. Scope
 
-In scope:
+Release targets (not all implemented):
 
 - **J16, the native tier.** Seatbelt containment and two Endpoint Security
   custodians. Covers `tool`, `build` and `agent`, headless and in terminal
@@ -86,7 +97,8 @@ Out of scope, each its own later work:
 - Command rules and `learn` on native macOS. Both stay refused (jail-v2 §7.2
   and §8.1).
 - Importing a Claude Keychain credential (north-star §4.5 leaves it
-  unscheduled). The vault path of J12 §3.5 is used instead (§4.11).
+  unscheduled). A future vault path is specified in §4.11; native
+  credential staging currently refuses.
 - macOS guests in the VM tier, Intel Macs, and macOS before 27.
 - Any private interface: coalition management, `task_get_fatal_port`, and
   `sandbox_check` on other processes.
@@ -97,13 +109,16 @@ Out of scope, each its own later work:
   never runs a policy that requires more than it has. From J18 on, that
   includes a kernel-bound lifetime (§6).
 - **Nothing claims more than the evidence.** `tree_empty=true` needs the drain
-  proof of §4.5, from a custody stream with no gap. Every other end is
+  proof of §4.5, which requires the root to have entered the table and no
+  detected stream gap. The pre-first-message limit remains disclosed (§4.4).
+  Every other end is
   `tree_unknown`. The boundary value says on every receipt whether a kernel
   would have ended the tree without any Ukai process (§3.2).
 - **Vaulted credentials never enter the sandbox** (J12 §3.5). The workload is
   also denied the Keychain (§4.10), because there the operator's tokens are
-  one Mach lookup away. Copied and bound credentials (jail-v1 §12) are staged
-  as on Linux.
+  one Mach lookup away. Current native credential staging, including vault,
+  copy and bind modes, is unsupported and refuses before staging. The Linux
+  staging contract is unchanged.
 - **The jail configures no host** (jail-v1 §3, and north-star D9 in spirit).
   The native tier installs no launchd job, system extension or root helper,
   and needs no sudo or SIP change (jail-v1 §3.3). It does need Apple's ES
@@ -144,11 +159,12 @@ The research had already shown that no mechanism within reach closes the gap:
   ([native services](../benchmarks/jail/macos-native-services-2026-10-10.md)).
 
 Apple's two-level architecture is the shape the reciprocal prototype already
-has: a guardian and a ward, each with its own descendants client. What remains
-is a change of contract, not of mechanism. While at least one custodian lives,
-the tree is ended and the end is proved. The workload must be unable to take
-both custodians away. If something outside the workload does, the receipt has
-already said that the tree may survive.
+has: a guardian and a ward, each with its own descendants client. The new
+implementation changes the heartbeat, defense, startup and stop paths; the
+prototype does not validate them. The release requirement is that one
+surviving custodian can stop and verify the registered tree under §4.5's
+conditions. The workload must be unable to take both custodians away. An
+external loss of both leaves the disclosed possibility of survivors.
 
 ### 3.2 Owner loss, read from the boundary
 
@@ -179,8 +195,8 @@ everyday use:
 
 For the interactive laptop case that the adoption ranking puts first, the
 native tier is what people will use. So the native tier must be honest about
-what it is, and the VM tier stays available for runs that must not depend on a
-userspace custodian.
+what it is. The proposed VM backend is not yet available; the current
+`run --vm` path refuses before connecting.
 
 ## 4. Native tier: defended custody (J16)
 
@@ -315,8 +331,9 @@ final boundary before `prepared`.
    - the launch block, which holds the `sandbox-exec` argv, environment,
      working directory, standard-descriptor actions, the signal attributes of
      §4.2, and `POSIX_SPAWN_SETSID`. Every launcher starts a new session.
-     Paths reach the profile as `-D` parameters, never in its source
-     (jail-v1 §3.3).
+     The renderer escapes path bytes as SBPL literals in a fixed template,
+     rejects values it cannot represent, and records the public parameters.
+     It does not pass them through `sandbox-exec -D`.
    - the grace period.
 3. **Clients G and G′.** The guardian creates its custody client G,
    unmutes it and checks it as in step 1, and subscribes the custody events.
@@ -343,11 +360,14 @@ final boundary before `prepared`.
    - On `blocked`, the supervisor sends the launcher's current token from
      client S on A.
    - The guardian answers on B once client G's table holds that same token.
+   - Both engines register the expected launcher root and known custodian
+     tokens before replaying buffered handshake events in order. A buffered
+     overflow or gap must remain an integrity failure, never be discarded.
    - Every requirement is then applied. The supervisor persists the
      `prepared` receipt and publishes `prepared`, and waits for `--gate-fd`
      if one was given (jail-v1 §8.1 step 6).
-6. **Release.** The supervisor writes the release deadline on A, then
-   `release` on R. The wall deadline runs on the continuous clock
+6. **Release.** The supervisor writes the release deadline frame on A, then
+   `release` on R and closes its R write end. A stays open until stop. The wall deadline runs on the continuous clock
    (`mach_continuous_time`, which counts sleep), from release, on both
    custodians.
 7. **Exec.** The launcher executes the target, exactly as the Linux launcher
@@ -361,7 +381,9 @@ final boundary before `prepared`.
 its end. Its death closes it the same way, so a deliberate stop and a lost
 supervisor run the same guardian path.
 
-- **A and B.** Only the two custodians hold them.
+- **A and B.** Only the two custodians hold them. Each frame is a little-endian
+  u32 length followed by at most 4096 bytes. Oversize or malformed frames are
+  protocol loss; the guardian stops and the supervisor records guardian loss.
 - **R and E.** The supervisor and the launcher hold them. The guardian holds
   them only until its spawn returns.
 - **Close-on-exec.** Every pipe descriptor is close-on-exec, except the
@@ -392,8 +414,12 @@ member's current audit token:
 - **Any gap** in a message's sequence numbers (`global_seq_num` overall,
   `seq_num` per type) marks the stream `gapped` for the rest of the attempt.
   Per `ESMessage.h`, a jump in those numbers counts dropped messages (by
-  reading). Contiguous sequences were measured. Real gaps were not, and K93
-  forces one.
+  reading). The checker accepts first values 0 or 1 and rejects a later
+  starting value. The SDK does not promise the first-value baseline: a drop
+  before the first delivered message that still fits 0/1 is indistinguishable.
+  Contiguity after the first message cannot prove absence of that loss.
+  Prototype contiguous sequences were measured; K93 still needs a live
+  forced-gap run on this implementation.
 
 The **guardian record** is a small file that the supervisor creates in the
 attempt directory before it spawns the guardian. The guardian writes it once,
@@ -403,7 +429,9 @@ when its stop ends, and sends the same result on B:
   `budget`);
 - counts and timestamps;
 - its own token and the launcher's first token;
-- the boot session (`kern.bootsessionuuid`).
+- the boot session (`kern.bootsessionuuid`);
+- `sequence_start: "unverified"` on every record, disclosing the
+  pre-first-message residual even when `drained` is true.
 
 The record is how `gc` learns how a stop ended once the supervisor is gone.
 The workload cannot reach it: the attempt directory is outside every
@@ -443,18 +471,24 @@ The stop, per custodian:
    has arrived since the previous sweep.
 3. **Kill.** Send `SIGKILL` to every member, and to each newly reported member
    on arrival.
-4. **Drain.** The stop is done when the table is empty, meaning every member
-   has its exit event, and the stream has no gap.
+4. **Drain.** The stop requires the root to have entered the table. An empty
+   table without that root, including one that held only unrelated members,
+   never proves drainage. Once the root entered, every recorded member must
+   have its exit event, with no detected gap or identity integrity loss.
 
 **Safety: the drain proof.** ES delivers a client's messages strictly
 serially, in the order they were enqueued, and a fork's message is enqueued
 inside the fork (by reading, `ESClient.h` and `ESMessage.h`). A process's fork
 events therefore reach a client before its own exit event, because the exit
-follows the end of the last thread. So when the table is empty and the
-stream has no gap, every descendant was reported before its parent's exit and
-has itself exited. No descendant can exist that the table never held. Neither
-the settle interval nor any synchronisation marker is part of this proof. K92
-measures it with many threads forking in parallel.
+follows the end of the last thread. This argument requires the root to have
+entered the table, replay of every buffered handshake event, no identity
+integrity loss, and complete delivery from subscription onward. The engine
+checks root entry and detected gaps, but cannot establish that last condition
+before the first delivered message (§4.4). Its `drained` result is conditional
+on that disclosed sequence-start residual; it is not proof of loss-free
+subscription startup. Neither the settle interval nor a synchronisation
+marker proves completeness. K92 still requires a live adversarial run;
+synthetic root-registration and replay tests are component evidence only.
 
 **Liveness: why the freeze ends** (a candidate, inferred; K92 measures it
 with adversarial fixtures).
@@ -475,8 +509,9 @@ with adversarial fixtures).
 **Budget and settlement.** The budget is initial 5 s from the stop's start,
 as Linux's §9.3.
 
-- **`tree_empty=true`** needs one custodian that **drained**: an empty table,
-  a contiguous stream and no user change. The supervisor settles from its own
+- **`tree_empty=true`** needs one custodian that **drained**: the root entered,
+  its table is now empty, with no detected stream gap or user change. This
+  retains the disclosed unverified sequence start (§4.4). The supervisor settles from its own
   drain, or from the guardian's `drained` result on B within the budget. The
   other custodian's gap is recorded in its result and is not an integrity
   loss. The verification scope is `attempt_tree`.
@@ -601,14 +636,37 @@ events" Apple names, and it is why the boundary is `native_tree`.
 - `applied.filesystem.mechanism` is `seatbelt_profile`, and the profile's
   digest is recorded (§4.7).
 - `lifetime.native.details` (macOS) holds:
-  - `custody: es_descendants` and `defense: seatbelt`;
-  - the process headroom (rule 6);
+  - `custody: es_descendants`, `defense: seatbelt` and `native_execution: dev`;
+  - `profile_digest` (64 lowercase hex digits for the template) and
+    `profile_parameters`: read/write, read-only and deny roots, protected
+    paths, setuid exec denials and scan holes, the kernel setuid backstop,
+    Mach services, Unix sockets, terminal slave and bridge ports. These are
+    public parameters, never environment values or proxy secrets;
+  - the process headroom (rule 6) and pending handshake-event count;
   - per custodian (`supervisor`, `guardian`), one `result`: `drained`,
-    `not_drained`, `lost` or `stalled`, plus `stream` (`contiguous` or
-    `gapped`) and event counts;
+    `not_drained`, `lost` or `stalled`, plus `stream` (`contiguous`,
+    `gapped` or `unknown`). `events` is an integer, not a per-event object;
+    without a guardian record it is null and the guardian stream is
+    `unknown`. An absent record never asserts continuity;
   - the stop's member count, budget and elapsed time.
-- `process.identity.kind` is `macos_audit_token`, with `pid`, `pidversion`
-  and `boot_session`.
+- `applied.syscalls` is null: the backend does not emit a separate syscall
+  filter record. `applied.filesystem.protected_coverage` is
+  `existing_and_root`; `all_descendants` is unsupported.
+- The wall row is required and applied with mechanism
+  `both-custodians-continuous-clock`; preferred resource ceilings remain
+  unapplied. A confirmed wall hit is recorded in the final limits.
+- Observation is off: no attached audit observer and no audit counts.
+  Wrapper limit facts remain available without an audit observer or proxy.
+- `process.identity.kind` is `macos_audit_token`, with `pid`, `pidversion`,
+  `boot_session` and the full token. Exec changes the token: the receipt
+  carries the current target identity.
+- [receipt-macos-native.json](jail-v1/examples/receipt-macos-native.json) is a
+  hand-written illustrative development receipt with the product field
+  shapes. Its identities, paths, counts, times and drainage are synthetic;
+  it is not product output or live evidence. The example's guardian has no
+  record (`not_drained`, `unknown`, null events); its illustrated verified
+  end relies only on the supervisor. Missing evidence alone does not assert
+  that the guardian was lost.
 - The J13 survivors line names the custody, for example
   `survivors: none (verified · native custody, not kernel-bound)`. With the
   guardian lost, it adds `· guardian lost`. One lost guardian is a handled
@@ -630,8 +688,9 @@ longer matches, or when the boot session differs.
   §14.2).
 - **Same boot, no record or `not_drained`.** Both custodians were lost, or
   the stop failed. `gc` sends `SIGKILL` to the target recorded in the receipt
-  (`process.identity`), by audit token. That is safe after PID reuse, and a
-  no-op after a later exec. It records `gc_killed_target`. The tree's end is
+  (`process.identity`), by audit token. That does not signal a reused PID.
+  `gc_killed_target` is recorded only when signalling succeeds; a stale token
+  or ESRCH is a target-not-found failure, never a claim that it was killed. The tree's end is
   **not** verified, because the other descendants are in no record.
   - The attempt keeps `tree_unknown`.
   - Vendor-state cleanup and a J14 lease stay held, as for lost integrity on
@@ -652,24 +711,28 @@ They never kill anything themselves: killing is `gc`'s, as on Linux.
 
 jail-v2 §8.1's filesystem, network and in-child path design stands. It is the
 containment that §4.7 depends on. How the macOS platform answers each
-requirement (`capability.rs`) in J16:
+requirement (`capability.rs`) behind the explicit development opt-in.
+“Available when probes pass” describes a capability answer, not live proof
+or a supported release:
 
 | Requirement | J16 on macOS |
 | --- | --- |
-| `tree_termination` | Supported, mechanism `es_descendants` (§4). Boundary `native_tree`. |
-| `filesystem_containment` | Supported, `seatbelt_profile`. |
-| `syscall_filter` | Supported, `seatbelt_profile`: the profile's operation and syscall denials. The table is pinned in the backend evaluation, as Linux's is (candidate). |
-| `protected_coverage:*` | `all_descendants`. Seatbelt applies to every member, and path rules cover new files (candidate; K102 includes case-insensitive names). |
-| `network_none`, `network_proxy` | Supported (below). |
-| `credential_staging` | Supported. Private directories and profile grants. |
-| `closed_set_observation` | `unsupported` until J17. |
+| `tree_termination` | Available when required probes pass, mechanism `es_descendants` (§4); boundary `native_tree`, with the sequence-start residual. |
+| `filesystem_containment` | Available when probes pass, `seatbelt_profile`. |
+| `syscall_filter` | Capability maps to `seatbelt_profile` operation denials when the probe passes; `applied.syscalls` remains null. No separate syscall-filter receipt is emitted. |
+| `protected_coverage:*` | `existing_and_root` when probes pass; `all_descendants` is unsupported and refuses. No complete future nested-path coverage is claimed. |
+| `network_none`, `network_proxy` | Available when the profile and loopback probes pass (below). |
+| `credential_staging` | `unsupported`, including vault, copied/bound credentials and vendor staging; refuses before staging. |
+| `closed_set_observation` | `unsupported`; J17 is off and `ObserveRun` is unwired. |
 | `execution_boundary` | `unsupported`. There is no supervisor-owned resource boundary, so `none` and every explicit tree ceiling refuse. |
-| `limit:wall` | Supported, enforced by both custodians on the continuous clock. |
+| `limit:wall` | Available when probes pass; custodians use the continuous clock. Live wall-expiry acceptance is outstanding. |
 | `limit:pids`, `mem`, `swap`, `cpu`, `storage`, `inodes` | `unsupported`. An explicit request refuses, and a preferred value is recorded as not applied. |
 
 Changes and additions:
 
-- **Profiles.** `tool`, `build` and `agent` run. `none` refuses with
+- **Profiles.** `tool`, `build` and plain `agent` may proceed only with the
+  development opt-in and all required probes. A launch that needs native
+  vendor/credential staging refuses. `none` refuses with
   remediation `unsupported`, because without a sandbox nothing defends the
   custodians.
 - **macOS profile baselines** (`profiles.rs` is already per-OS) set two values
@@ -710,8 +773,9 @@ Changes and additions:
     equivalent, because there is no `fexecve`. The program is checked before
     release, and a swap by a same-UID process outside the jail is outside the
     threat model. This is a recorded limit.
-- **Credentials** (J12 §3.5): the vault and the proxy as on Linux, with one
-  difference, settled by decision 4.
+- **Credentials** (J12 §3.5): native credential, vault and vendor staging are
+  unsupported and refuse, including `ukai-jail claude`. The following is the
+  future contract from decision 4, not implemented native credential use.
   - **The binding is weaker.** The bundled `claude` profile binds its
     credential to `@program`. On Linux, the seccomp mediator pins the
     connecting process (`vault/origin.rs`). ES has no TCP connect event, only
@@ -719,8 +783,8 @@ Changes and additions:
     attempt: any member that holds the
     proxy secret can use the vaulted credential. It still never sees the
     value. The receipt's credential entry records `binding: attempt`.
-  - **No Keychain.** Claude Code finds none (§4.10) and uses the vaulted
-    token's placeholder.
+  - **No Keychain.** The future vendor run must use a vault placeholder,
+    with Keychain access denied (§4.10); no such run is claimed.
 - **Terminal mode** (J14 §3) **uses J14's option (b), the pty relay**, on
   macOS. J14 kept the operator's terminal and made it safe with the PID
   namespace and a seccomp filter on `TIOCSTI`, `TIOCSETD` and `TIOCSPGRP`.
@@ -741,8 +805,9 @@ Changes and additions:
     new session has no controlling terminal, so `/dev/tty` fails, and the
     operator's terminal is out of reach there too.
   - **The receipt** records `applied.terminal.session: relay`.
-- **Persistent vendor state.** J14 §4, the same layout and leases. A lease is
-  released only with a verified end or `gc --abandon` (§4.9).
+- **Persistent vendor state.** Native vendor staging currently refuses. The
+  intended J14 layout and lease integration remain acceptance work; a lease
+  must be released only with a verified end or `gc --abandon` (§4.9).
 
 ### 4.12 Packaging and the entitlement
 
@@ -769,8 +834,13 @@ Changes and additions:
 
 ## 5. Native observation (J17)
 
-A fourth ES client, in addition to S, G and G′ and held by the supervisor,
-carries observation and nothing else:
+Current status: `J17_OBSERVE=false`; the `ObserveRun` worker API exists but
+is unwired into an attempt. The native baseline stays `observe = off` and
+an explicit observation requirement refuses. Toggling the constant alone
+does not qualify observation. No live observed attempt is recorded.
+
+A fourth ES client is proposed, in addition to S, G and G′ and held by the
+supervisor. The unwired worker maps:
 
 - `NOTIFY_EXEC` for the `exec` class;
 - `NOTIFY_CREATE`, `NOTIFY_RENAME`, `NOTIFY_UNLINK`, `NOTIFY_LINK`,
@@ -780,21 +850,33 @@ carries observation and nothing else:
 Unlike the custody clients, it reads paths. A crash there takes the
 supervisor, which the guardian covers (§4.6).
 
-A gap in this client is an observation gap with `degraded` status, as on
-Linux. It never touches custody. Other classes:
+The worker treats a sequence or sink loss as an observation gap with
+`degraded` status. Its bookkeeping is separate from custody; live integration
+still needs K106. Even without a detected gap, `fs.write` is always
+`degraded`/partial (`macos-es-notify-partial-v1`): uncovered mutation paths
+and mmap writes are disclosed gaps with null observed counts. `exec` may
+be active in the worker, but is unsupported in an actual unobserved run.
+Other classes:
 
 - **`fs.deny`** stays `unsupported`. Seatbelt denials are not ES events, and a
   sandbox denial log is not evidence (jail-v1 §3.3).
 - **`proxy.net`** comes from the bridge, as on Linux.
-- **The macOS baselines** return to `observe = on`. `strict` evidence refuses
-  while any class it needs is unsupported.
+- **The macOS baselines** stay `observe = off`. A later baseline change
+  requires wiring and acceptance; `strict` evidence cannot claim complete
+  coverage while required classes are unsupported or degraded.
 - **`learn`** stays refused while `fs.deny` is unsupported.
 
 ## 6. VM tier: a warm guest (J18)
 
 The [VM preview](../../crates/ukai-jail/vm/README.md) cold-boots a disposable
 Ubuntu guest for every command. It copies inputs in and outputs out, and it is
-offline. J18 makes it a backend:
+offline. Current J18 CLI execution is unavailable: **every `run --vm`
+refuses before connecting**, without contacting the control or attempt
+socket or staging credentials. There is no qualified backend. The helper
+and protocol tests do not prove a guest preflight, full policy translation,
+workspace sharing, network, agent or credential support.
+
+The following are future backend requirements, not current behavior:
 
 - **Selection.** `--vm` on macOS.
 - **The requirement.** J18 also adds a policy key that requires a
@@ -860,17 +942,17 @@ entitlement that the preview already uses.
 | Where | Change | Kind |
 | --- | --- | --- |
 | [jail-v2](jail-v2.md) §8 | J11's lifetime design and its sentence "Do not select a weaker native guarantee merely because these proofs need more work" are replaced by §4 for the native tier. K29 is replaced by K87–K104. K23–K26 move into J16; K24's bridge gains the per-attempt secret (§4.10). | Amendment (decision 1) |
-| [jail-v1](jail-v1.md) §3.3 | The macOS native backend proves custody while a custodian lives, and names the both-lost residual (§4.6) instead of proving supervisor-death semantics with a kernel boundary. | Amendment (decision 1) |
-| jail-v1 L02, M01 | L02 on macOS native: killing each lifetime link alone ends the tree within a bound, and killing both is the named residual (K95). M01: `run` executes natively, and `none` refuses. | Row amendments (decision 1) |
-| jail-v1 receipt schema | `lifetime.native.details` for macOS (§4.8), identity kind `macos_audit_token`, `applied.terminal.session` widened from the constant `caller` to `caller` or `relay`, and optional `credentials[].binding`. Linux vault receipts omit `binding`, retaining the rc.4 shape; native macOS vault entries carry `binding: attempt`. If present, `binding` is valid only on a macOS vault entry and only as `attempt`; an absent field remains valid. The field addition is optional. | Schema |
+| [jail-v1](jail-v1.md) §3.3 | The intended native contract requires verified custody under §4.5's root-entry and sequence assumptions, with the both-lost residual (§4.6); no live acceptance run or kernel-bound lifetime is claimed. | Amendment (decision 1) |
+| jail-v1 L02, M01 | Intended native contract: each custodian lost alone ends the tree within a bound; both lost is the residual (K95). Execution is currently off by default; the development opt-in and all required probes are necessary. Native live clauses remain untested. | Row amendments (decision 1) |
+| jail-v1 receipt schema | `lifetime.native.details` for macOS (§4.8), identity kind `macos_audit_token`, `applied.terminal.session` widened from the constant `caller` to `caller` or `relay`, and optional `credentials[].binding`. Linux vault receipts omit `binding`, retaining the rc.4 shape; a native macOS vault entry, if present, carries `binding: attempt` (a schema contract; native staging currently refuses). If present, `binding` is valid only on a macOS vault entry and only as `attempt`; an absent field remains valid. The field addition is optional. | Schema |
 | jail-v1 §6.1, §14.2 | `gc --abandon ATTEMPT`, and macOS `gc` records `gc_custody_verified`, `gc_killed_target` and `gc_abandoned` (§4.9). | Addition |
 | `profiles.rs` macOS baselines | `observe = off` and a preferred `build` memory ceiling until J17 (§4.10). | Baseline |
 | [jail-launch-and-summary](jail-launch-and-summary.md) §3.3 (J12) | The macOS group-writable rule (§4.11). | Amendment |
 | jail-launch-and-summary §4 (J13), `ukai.jail.summary/1` | The survivors line names native custody (§4.8). | Addition |
 | [jail-interactive-sessions](jail-interactive-sessions.md) §3 (J14) | macOS terminal mode is the pty relay (decision 3). X05 does not hold for macOS terminal runs. | Amendment |
 | jail-v1 §6.1, §6.3 (J18) | `--vm`, `vm stop`, and the kernel-bound lifetime key with its narrowing row and requirement name (§6). | Addition |
-| `crates/ukai-jail` | The macOS platform implements `prepare`, which is now a refusal. Guardian and launcher modes of the one executable, and a small C shim for ES blocks. | Implementation |
-| `crates/ukai-jail/vm` | The preview becomes the J18 backend. | Implementation |
+| `crates/ukai-jail` | Default native refusal; development-gated preparation, guardian and launcher modes, and the ES shim. Credential/vendor staging and closed-set observation refuse. | Implementation |
+| `crates/ukai-jail/vm` | Helper and transport components exist; every `run --vm` refuses pending a qualified backend. | Implementation |
 | Installer, [RELEASING](../RELEASING.md) | The Mac bundle, provisioning profile and notarization, and the protected-Mac release run. | Procedure |
 | [roadmap](../roadmap.md), [guide](../guide.md) | Record Apple's answer and the two tiers, and explain the native boundary and `--vm`. | Guide |
 
@@ -911,7 +993,7 @@ are J16 rows, and K104 includes them.
 
 | Row | Claim |
 | --- | --- |
-| K105 | Exec and `fs.write` classes are `active` with the A01 fixture's expected operations present, and `fs.deny` is `unsupported`. |
+| K105 | Once wired, the A01 fixture's expected exec and supported file-mutation events are present; exec may be `active`, `fs.write` remains `degraded` with its partial-coverage gaps and null count, and `fs.deny` is `unsupported`. Until then native observation refuses. |
 | K106 | An observation-client gap marks the classes `degraded` and leaves custody streams and `tree_empty` untouched. |
 | K107 | The J13 summary recomputes from a macOS receipt with `summary_check.py`. |
 
@@ -961,7 +1043,9 @@ The pass conditions are those of the Linux rows, plus:
 - **The residual.** If both custodians are lost, the tree runs until the
   operator runs `gc`. Even then only the target is killed, and its other
   descendants can survive. The boundary, the summary and `doctor` say so.
-  This is the price of not using the VM.
+  The pre-first-message sequence ambiguity (§4.4) is a separate residual.
+  The proposed VM backend is unavailable; only the released preview has its
+  own recorded, narrower contract.
 
 ## 11. Open questions
 
@@ -1009,10 +1093,11 @@ to each remaining question. These are those answers:
    code and X05's byte equality for terminal runs, is the one J14 had already
    accepted as its fallback.
 4. **An attempt-level credential binding, disclosed** (`binding: attempt`).
-   `ukai-jail claude` works natively. The credential value still never enters
-   the sandbox; the binding only narrows which member may use it. The
-   socket-holder check is dropped, because it would be racy without a
-   connect-time pin (§7).
+   This is the future native vault contract. The current implementation
+   refuses native credential/vendor staging, including `ukai-jail claude`.
+   Linux vault receipts omit `binding`; the optional macOS field, when
+   present, is only `attempt`. The socket-holder check is dropped because it
+   would be racy without a connect-time pin (§7).
 5. **Order.**
    - **First, a measurement spike in the development VM**, because these rows
      can still change the design: K92 (drain proof and freeze), K93 (event

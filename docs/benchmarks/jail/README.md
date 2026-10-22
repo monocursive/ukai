@@ -136,28 +136,35 @@ are development mechanism measurements, not production jail benchmarks.
 
 ## J16–J18 working-tree coverage (2026-10-22, work in progress)
 
-The [two-tier macOS design](../../specs/jail-macos.md) has uncommitted
-implementation work in `crates/ukai-jail`; it is not supported or shipped.
+The [two-tier macOS design](../../specs/jail-macos.md) has work in progress
+in `crates/ukai-jail`; it is not supported or shipped.
 The new custody code has not run with live Endpoint Security. J16 packaging
 and decision 5's measurement spike remain outstanding; J18 lacks network,
 the `agent` profile, a workspace share and in-guest credentials. Apple's
 entitlement and K104 (every J16 row on a protected Mac) are still required.
 The table describes assertions in the current test sources, not a passing
-live acceptance record; phase 2 must recheck it after code integration.
+live acceptance record; every mapped native test was rechecked after integration.
+
+Current implementation: native execution is **off by default**. Setting
+`UKAI_JAIL_MACOS_NATIVE=dev` enables development only; a native receipt records
+`native_execution=dev`. Native credential, vault and vendor staging answer
+`unsupported` and refuse. `J17_OBSERVE=false`: `ObserveRun` exists but is
+unwired; `fs.write` would still be `degraded`/partial even if wired. Every
+`run --vm` refuses before connecting: no qualified VM backend exists yet.
 
 | Lane | Covers |
 | --- | --- |
-| `macos_custody_core` | Synthetic custody-event sequences: membership, exec-token changes, gap/integrity vetoes, freeze/kill/drain state transitions, budgets and preallocation. Also live unentitled-client refusal, clock reads and the test process audit token. No start/release or receipt integration proof. |
+| `macos_custody_core` | Synthetic custody-event sequences: membership, root-entry prerequisites, custodian registration, handshake replay, exec-token changes, gap/integrity vetoes, freeze/kill/drain state transitions, budgets and preallocation. Also live unentitled-client refusal, clock reads and the test process audit token. No start/release or receipt integration proof. |
 | `macos_guardian` | Launch-block round trips and malformed-input/size refusals, rlimit arithmetic, guardian grammar and unentitled-client refusal. No live custodian-loss or stall trial (K88/K89). |
 | `macos_sandbox_profile` | Generated profile digest and composition; live sandbox fixtures for filesystem grants, protected names, Mach denial, network ports, signalling, setuid and deputies. These are profile checks, not custody integration. |
 | `macos_defense_matrix` | Classes 1–3 against an operator sleeper and a sibling member, with outside controls. Custodian targets and the full K90 matrix remain untested. |
 | `macos_bridge` | Two loopback ports, secret-bearing URLs/environment, HTTP CONNECT and SOCKS5 authentication over real loopback sockets. No vendor-agent run or credential-binding receipt assertion (K99). |
 | `macos_terminal_relay` | Real ptys and shell fixtures: byte/interrupt relay, window size, raw-mode restore, stop polling, killed-agent handling and relay receipt facts. No complete jailed descriptor-isolation or detached `/dev/tty` acceptance run (K101). |
 | `macos_gc` | Host boot/session and custodian-liveness probes; fabricated attempt roots for abandon, orphan listing and drained-record scanning; a gone-target kill errno path. No live both-custodian-loss recovery proof (K95). |
-| `macos_boundary` | Unentitled `run`/requirements refusals, launcher/guardian grammar, blocked report, B-frame codec and synthetic RunEvent mapping. No `none`, ceiling or `--observe on` refusal assertion in this file. |
-| `macos_observe` | Synthetic event mapping into a real trace sink, synthetic gap/coverage handling and summary receipt, plus client creation on an unentitled host. No observed live attempt (K105–K107). |
+| `macos_boundary` | Default refusal without the native development opt-in (including a `none` marker test), requirements refusal, launcher/guardian grammar, blocked report, B-frame codec and synthetic RunEvent mapping. No live entitled execution or per-ceiling/observation acceptance proof. |
+| `macos_observe` | Synthetic events map into schema-checked audit frames and partial `fs.write` coverage; synthetic gap/summary checks and unentitled-client refusal. `ObserveRun` remains unwired. No observed live attempt (K105–K107). |
 | `vm_tier` | Policy key/digest/narrowing, CLI grammar and refusals, transport facts, and attempt/control protocols against a scripted stand-in. No VM boots; warm reuse and K108–K110 remain untested. |
-| Portable extensions | Shared resolution, policy and record assertions where the named suite actually runs on macOS; these do not prove live native custody or nested-group handling. |
+| Portable extensions | Shared resolution, policy and record assertions where the named suite actually runs on macOS; these do not prove live native custody. Group- and other-writable install roots refuse; no group-membership exception remains. |
 
 **Dev-VM note.** The development VM (`ouro-jail-es-dev`) used for the
 SIP-disabled ES trials has been deleted. The live rows K87–K104 require

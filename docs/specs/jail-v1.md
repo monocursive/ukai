@@ -389,15 +389,17 @@ provisioning must be explicit in that platform's implementation proposal.
 requirement above that the macOS implementation "must prove fork/exec/
 daemonization, stop, supervisor death and resource-limit semantics" before a
 policy requiring those guarantees refuses is replaced for the native tier by
-[jail-macos.md](jail-macos.md) §4. The native backend proves custody **while a
-custodian lives** — two defended Endpoint Security custodians whose loss one at
-a time ends the tree within a bound — and names the residual when both are
-lost (jail-macos.md §4.6, row K95): the tree may survive, `gc` kills only the
-target, and `gc --abandon ATTEMPT` (§6.1) is the explicit way out. The tier
-ships with receipt boundary `native_tree`, never a claim of kernel-bound
-supervisor-death semantics. A kernel-bound run keeps refusing natively and is
-the VM tier's contract (jail-macos.md §6). Execution remains refusal-gated
-until Apple grants the Endpoint Security entitlement (jail-macos.md §4.12).
+[jail-macos.md](jail-macos.md) §4. The intended native contract is custody **while a
+custodian lives**, with the both-lost residual (jail-macos.md §4.6, K95).
+Execution is off by default; `UKAI_JAIL_MACOS_NATIVE=dev` enables development
+only and is recorded as `native_execution=dev`. Native credential/vendor
+staging and observation refuse. The drain argument requires root entry,
+complete handshake replay and no detected gap; the guardian record discloses
+`sequence_start: "unverified"`. There is no live custody acceptance evidence.
+A future supported native tier would use `native_tree`, not a kernel-bound
+lifetime. Every current `run --vm` also refuses before connecting. Apple’s
+entitlement alone does not qualify either tier; implementation, packaging
+and the required acceptance runs remain gates (jail-macos.md §4.12 and §9).
 
 ## 4. Source layout and ownership
 
@@ -733,8 +735,9 @@ ukai-jail vm stop
 ukai-jail version [--json]
 ```
 
-J18 adds `--vm` (macOS only) and `ukai-jail vm stop` to select and stop the
-warm Linux guest. `--lifetime kernel-bound` requires `owner_loss_termination`;
+J18 adds the `--vm` (macOS only) and `ukai-jail vm stop` interfaces for a
+proposed warm Linux guest. Every current `run --vm` refuses before connecting
+because no qualified VM backend exists. `--lifetime kernel-bound` requires `owner_loss_termination`;
 it narrows authority rather than selecting a backend. Native macOS refuses
 that requirement with `--vm` remediation; Linux `none` refuses it too.
 These flags are working-tree interfaces, not a supported Mac release; see
@@ -3176,7 +3179,7 @@ its own processes. Never test against the operator's actual credentials.
 | O05 | Observation off emits no audit source and leaves audit net unsupported, even with active proxy.net; unavailable attachment refuses even in best-effort. Directory-operation losses degrade fs.write; denied connect counts only in fs.deny. |
 | O06 | Renamed cwd, dirfd, two-path calls, non-UTF-8 names and a racing pathname never produce a falsely resolved path, except by a race that moves a name's bytes or anchor and restores it between the two stops (§11.4's residual). |
 | L01 | Wall expiry, INT/TERM/HUP, SIGTERM-ignoring descendant and fork storm end at verified tree death or explicit unknown. |
-| L02 | Kill every lifetime link (backend, watcher, supervisor): contained descendants die within a bound; an `agent` network helper's death fails closed as §10 specifies (the bridge's is recorded and the tree continues; the proxy's is `proxy.net` evidence loss); none preserves its specified unknown case. *Amended 2026-10-22 for native macOS ([jail-macos.md](jail-macos.md) §8): on the native tier, killing each lifetime link (each ES custodian, the supervisor) alone ends the tree within a bound (K87–K89, §9.1); killing both custodians is the named residual (K95) — the tree is not verified dead and `gc` kills only the target (§14.2).* |
+| L02 | Kill every lifetime link (backend, watcher, supervisor): contained descendants die within a bound; an `agent` network helper's death fails closed as §10 specifies (the bridge's is recorded and the tree continues; the proxy's is `proxy.net` evidence loss); none preserves its specified unknown case. *Amended 2026-10-22 for native macOS ([jail-macos.md](jail-macos.md) §8): the intended native release contract requires each ES custodian lost alone to leave a verified empty tree within a bound, subject to root registration and the disclosed sequence-start residual (K87–K89, §9.1); this implementation has no live acceptance record; killing both custodians is the named residual (K95) — the tree is not verified dead and `gc` kills only the target (§14.2).* |
 | L03 | Missing required cgroup/controller refuses; missing preferred pids alone records absent and runs. Exercise cgroup available but pids controller absent, explicit same-value pids, and observe off. None without a usable cgroup refuses. |
 | L04 | pids/memory/CPU scopes are measured; exit 137 alone does not claim OOM; BOOTTIME deadlines ignore clock adjustments and include suspend. |
 | L05 | Simulated uninterruptible/unknown termination retains vendor state and never says settled/tree_empty=true. |
@@ -3189,7 +3192,7 @@ its own processes. Never test against the operator's actual credentials.
 | C01 | Copy/readonly-bind preserve sources and emit logical-id/mode/digest provenance without sensitive bytes; byte paths encode losslessly; unsafe state_subdirs and all LD_*/DYLD_* launch keys refuse. |
 | C02 | Normal exit/refusal cleans vendor state; interrupted cleanup resumes; symlinks cannot redirect deletion. |
 | C03 | GC skips live/foreign/unidentified resources; boot/PID/cgroup reuse does not target an unrelated process. |
-| M01 | Shared tests run natively on macOS; run and none refuse without executing the marker. *Amended 2026-10-22 ([jail-macos.md](jail-macos.md) §8): `run` executes natively on the J16 native tier and `none` refuses (`unsupported`, no sandbox defends the custodians, jail-macos.md §4.10), so the refusal clause now holds only for `none` and for the pre-entitlement gate (jail-macos.md §4.12).* |
+| M01 | Shared tests run natively on macOS; run and none refuse without executing the marker. *Amended 2026-10-22 ([jail-macos.md](jail-macos.md) §8): current native `run` refuses by default. The explicit development opt-in and all required probes are necessary to proceed; `none`, native staging and observation still refuse. A real native execution with the intended guarantees remains an untested release clause, not a property established by entitlement alone.* |
 | M02 | Portable records validate with macOS identity/backend details and without Linux fields. |
 | M03 | macOS explain/doctor distinguish requested policy, unmeasured properties and unsupported execution; inspection and label-only exit codes follow §6.4. |
 | I01 | Full jail conformance passes with ledger and fleet absent from PATH and no BEAM installed. |

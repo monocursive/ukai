@@ -4337,5 +4337,85 @@
         ]
       }
     ]
+  },
+  {
+    "name": "J16 enforced native receipt has no separate syscall filter or network-none bridge",
+    "schema": "jail-receipt",
+    "base": "examples/receipt-macos-native.json",
+    "valid": true,
+    "changes": []
+  },
+  {
+    "name": "Linux enforced receipt still requires a syscall filter",
+    "schema": "jail-receipt",
+    "base": "examples/receipt-settled-unknown.json",
+    "valid": false,
+    "changes": [
+      {
+        "path": [
+          "applied",
+          "syscalls"
+        ],
+        "value": null
+      }
+    ]
+  },
+  {
+    "name": "Linux enforced receipt still requires a network mechanism",
+    "schema": "jail-receipt",
+    "base": "examples/receipt-settled-unknown.json",
+    "valid": false,
+    "changes": [
+      {
+        "path": [
+          "applied",
+          "network",
+          "mechanism"
+        ],
+        "value": null
+      }
+    ]
+  },
+  {
+    "name": "Native proxy receipt still requires a bridge mechanism",
+    "schema": "jail-receipt",
+    "base": "examples/receipt-macos-native.json",
+    "valid": false,
+    "changes": [
+      {
+        "path": [
+          "applied",
+          "network",
+          "mode"
+        ],
+        "value": "proxy"
+      }
+    ]
+  },
+  {
+    "name": "Prior native syscall and network mechanism records remain valid",
+    "schema": "jail-receipt",
+    "base": "examples/receipt-macos-native.json",
+    "valid": true,
+    "changes": [
+      {
+        "path": [
+          "applied",
+          "syscalls"
+        ],
+        "value": {
+          "mechanism": "fixture-seatbelt",
+          "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      },
+      {
+        "path": [
+          "applied",
+          "network",
+          "mechanism"
+        ],
+        "value": "fixture-native-network"
+      }
+    ]
   }
 ]

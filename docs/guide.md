@@ -137,25 +137,38 @@ needed. A crashed launcher can leave a disk there; never boot or reuse it.
 ## macOS: the native tier and `--vm` (work in progress)
 
 The macOS design has two tiers ([jail-macos.md](specs/jail-macos.md)); their
-implementation is work in progress in the working tree (uncommitted), and
+implementation is work in progress on the integration branch, and
 **neither is supported or shipped**. The new custody code has not run with
 live Endpoint Security. J16 still needs packaging, the measurement spike,
 Apple's entitlement and the protected-Mac acceptance run. J18 still lacks
 network, the `agent` profile, a workspace share and in-guest credentials.
 The following describes the intended contract.
 
+Current implementation: native execution is **off by default**. Setting
+`UKAI_JAIL_MACOS_NATIVE=dev` enables development only; a native receipt records
+`native_execution=dev`. Native credential, vault and vendor staging answer
+`unsupported` and refuse. `J17_OBSERVE=false`: `ObserveRun` exists but is
+unwired; `fs.write` would still be `degraded`/partial even if wired. Every
+`run --vm` refuses before connecting: no qualified VM backend exists yet.
+
 **Native tier (J16), the intended default once released.** The design
 requires Seatbelt containment and two custodians defended from the workload;
 that defense still needs live acceptance evidence. The receipt's boundary
 `native_tree` identifies the custody mechanism, not a verified end. Only
 `tree_empty: true` with the required drain proof says the tree's end was
-verified; a `native_tree` receipt can instead report `tree_unknown`. This
+verified; a `native_tree` receipt can instead report `tree_unknown`. Drainage
+requires the root to have entered the custody table. The guardian record
+always carries `sequence_start: "unverified"`: loss before the first
+delivered ES message may escape sequence-gap detection. This
 boundary does not provide Linux's kernel-bound lifetime guarantee. If both
 custodians are lost (a named residual), the tree can survive until you run
-`ukai-jail gc`, which kills the recorded target by audit token; only
+`ukai-jail gc`, which attempts to signal only the recorded target by audit
+token. A gone or stale token is reported as target not found, not killed. Only
 `ukai-jail gc --abandon ATTEMPT` releases the attempt's lease and accepts
 that unverified end. `run` and `doctor` list any such attempt by name. Runs
-that must not depend on a userspace custodian use the VM tier instead.
+that must not depend on a userspace custodian need a supported Linux
+deployment or the separate released VM preview within its documented
+limits; this tree's `run --vm` refuses.
 
 **VM tier (J18), intended behavior: `--vm`.** A run executes in a warm Linux guest
 whose own jail provides the kernel-bound lifetime (`pid_namespace`,

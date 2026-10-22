@@ -1890,7 +1890,7 @@ note = "tool, observation on and off: target and descendant both ignore SIGTERM 
 
 [[gate]]
 id = "L02"
-row = "Kill every lifetime link (backend, watcher, supervisor): contained descendants die within a bound; an `agent` network helper's death fails closed as §10 specifies (the bridge's is recorded and the tree continues; the proxy's is `proxy.net` evidence loss); none preserves its specified unknown case. *Amended 2026-10-22 for native macOS ([jail-macos.md](jail-macos.md) §8): on the native tier, killing each lifetime link (each ES custodian, the supervisor) alone ends the tree within a bound (K87–K89, §9.1); killing both custodians is the named residual (K95) — the tree is not verified dead and `gc` kills only the target (§14.2).*"
+row = "Kill every lifetime link (backend, watcher, supervisor): contained descendants die within a bound; an `agent` network helper's death fails closed as §10 specifies (the bridge's is recorded and the tree continues; the proxy's is `proxy.net` evidence loss); none preserves its specified unknown case. *Amended 2026-10-22 for native macOS ([jail-macos.md](jail-macos.md) §8): the intended native release contract requires each ES custodian lost alone to leave a verified empty tree within a bound, subject to root registration and the disclosed sequence-start residual (K87–K89, §9.1); this implementation has no live acceptance record; killing both custodians is the named residual (K95) — the tree is not verified dead and `gc` kills only the target (§14.2).*"
 
 [[clause]]
 id = "L02.1"
@@ -2836,7 +2836,7 @@ tests = [
 
 [[gate]]
 id = "M01"
-row = "Shared tests run natively on macOS; run and none refuse without executing the marker. *Amended 2026-10-22 ([jail-macos.md](jail-macos.md) §8): `run` executes natively on the J16 native tier and `none` refuses (`unsupported`, no sandbox defends the custodians, jail-macos.md §4.10), so the refusal clause now holds only for `none` and for the pre-entitlement gate (jail-macos.md §4.12).*"
+row = "Shared tests run natively on macOS; run and none refuse without executing the marker. *Amended 2026-10-22 ([jail-macos.md](jail-macos.md) §8): current native `run` refuses by default. The explicit development opt-in and all required probes are necessary to proceed; `none`, native staging and observation still refuse. A real native execution with the intended guarantees remains an untested release clause, not a property established by entitlement alone.*"
 
 [[clause]]
 id = "M01.1"
@@ -2896,7 +2896,7 @@ tests = [
 [[clause]]
 id = "M01.4"
 gate = "M01"
-clause = "With the required capabilities, a real J16 run executes natively inside its final boundary"
+clause = "With the explicit development opt-in and all required capabilities, a real J16 run executes natively inside its final boundary"
 tag = "untested"
 lane = "macos"
 note = "Not run with live ES. Portable checks and unentitled refusals do not prove native execution."
@@ -3851,7 +3851,7 @@ gate = "K87"
 clause = "Ends with both custodians alive: wall expiry, operator cancel and target exit each leave the fixture empty and settle `tree_empty=true`."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ------------------------------------------------------------------ K88
 
@@ -3865,7 +3865,7 @@ gate = "K88"
 clause = "Supervisor `SIGKILL`: the fixture is empty within the budget, the record reads `drained`, and `gc` then records `gc_custody_verified`. Supervisor `SIGSTOP` past the wall deadline: the guardian empties the fixture at the deadline plus the grace, and `gc` retains the attempt while the stopped supervisor lives. `killall ukai-jail` settles `tree_empty=true` as an operator stop."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ------------------------------------------------------------------ K89
 
@@ -3879,7 +3879,7 @@ gate = "K89"
 clause = "Guardian `SIGKILL`: the fixture is empty, the receipt carries `custodian_lost`, and `tree_empty=true` comes from client S. Guardian `SIGSTOP`: the receipt carries `custodian_stalled`, the supervisor drains alone and ends the guardian, and `tree_empty=true`."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ------------------------------------------------------------------ K90
 
@@ -3893,12 +3893,12 @@ gate = "K90"
 clause = "Defense matrix, run against the exact shipped profile digest. Every attack of §4.7 classes 1–4 from inside the sandbox fails, against both custodians, against other members during a stop, and against the operator's other processes. Each attack has a positive control from outside the sandbox. Anything that runs is recorded."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 [[clause]]
 id = "K90.2"
 gate = "K90"
-clause = "The generated profile denies the tested direct process-control and deputy attacks against a sleeper or sibling, with outside controls; no custodian targets"
+clause = "The generated profile records inside process-control and deputy refusals against a sleeper, own child or sibling and outside controls; no custodian targets or causal claim where outside also refuses"
 tag = "live-lib"
 lane = "macos"
 tests = [
@@ -3920,7 +3920,7 @@ gate = "K91"
 clause = "Descriptors: only the custodians hold A and B. R and E are held by the supervisor and the launcher, and by the guardian only until its spawn returns. No member holds a copy of the guardian's standard descriptors or of a pty slave it passed on. Every descriptor of every member is listed."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ------------------------------------------------------------------ K92
 
@@ -3934,18 +3934,20 @@ gate = "K92"
 clause = "Drain proof and freeze, with adversarial fixtures: many threads forking in parallel, members that `SIGCONT` each other, an orphaned process group holding a stopped member, a fork chain, and an exec loop. Each stop settles `tree_empty` with every exit observed, or `tree_unknown`, never a false `tree_empty`. The `RLIMIT_NPROC` headroom holds. The p50 and p95 stop times are reported."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 [[clause]]
 id = "K92.2"
 gate = "K92"
-clause = "Synthetic event sequences veto a drained result on a gap or integrity loss and exercise fork/exec interleavings and a stop budget"
+clause = "Synthetic event sequences veto drainage without root entry or under gap/integrity loss, and exercise fork/exec interleavings and a stop budget"
 tag = "simulated"
 lane = "macos"
 tests = [
-  "ukai-jail/tests/macos_custody_core.rs::never_drained_while_a_gap_or_integrity_stands_even_with_an_empty_table",
+  "ukai-jail/tests/macos_custody_core.rs::stop_configuration_keeps_existing_gap_and_integrity_evidence",
   "ukai-jail/tests/macos_custody_core.rs::adversarial_interleavings_never_drain_into_a_false_empty_tree",
   "ukai-jail/tests/macos_custody_core.rs::the_budget_overrun_names_the_budget",
+  "ukai-jail/tests/macos_custody_core.rs::regression_c6_empty_without_root_never_drains",
+  "ukai-jail/tests/macos_custody_core.rs::an_unrelated_member_cannot_substitute_for_root_entry",
 ]
 note = "No live freeze, headroom exhaustion or stop-time distribution."
 
@@ -3961,7 +3963,7 @@ gate = "K93"
 clause = "Event load: a fork and exec storm, and a signal flood during a stop, either drain or produce a real sequence gap. A gap gives `tree_unknown` unless the other custodian drained, and the guard's load never gaps client G. No custodian is terminated by the system. **And** a parallel build of a large repository (named in the record) does not gap."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ------------------------------------------------------------------ K94
 
@@ -3975,7 +3977,7 @@ gate = "K94"
 clause = "Exec and gate: a missing program, a non-executable file and a missing interpreter refuse with jail-v1's distinctions. With `--gate-fd`, owner death before release kills the blocked launcher, and no target instruction runs."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 [[clause]]
 id = "K94.2"
@@ -4000,7 +4002,7 @@ gate = "K95"
 clause = "Both custodians `SIGKILL`ed, one by one and with `killall -9 ukai-jail`: the receipt never settles, and the next `run` warns. `gc` kills the target by token and reports `tree_unknown`. The lease stays held until `gc --abandon`. The test lists the survivors it found."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ------------------------------------------------------------------ K96
 
@@ -4014,7 +4016,7 @@ gate = "K96"
 clause = "Memory pressure induced by the workload: whether each custodian survives is recorded over 10 trials. A custodian that dies is handled as K88 or K89."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ------------------------------------------------------------------ K97
 
@@ -4028,7 +4030,7 @@ gate = "K97"
 clause = "Identity and clocks: forced PID reuse never signals a replacement. A wall deadline spanning a host sleep expires on the continuous clock."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ------------------------------------------------------------------ K98
 
@@ -4042,17 +4044,16 @@ gate = "K98"
 clause = "Refusals before any workload process: no entitlement, the client limit reached, a custody event that stays muted after unmuting (injected in a development build), `--profile none`, an explicit `pids`, `mem` or `cpu` ceiling, and `--observe on`."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 [[clause]]
 id = "K98.2"
 gate = "K98"
-clause = "On an unentitled Mac, run refuses before workload execution and names the entitlement failure"
+clause = "Without the native development opt-in, run refuses with unsupported_platform before workload execution and records the opt-in remediation"
 tag = "live-cli"
 lane = "macos"
 tests = [
-  "ukai-jail/tests/macos_boundary.rs::k98_run_refuses_naming_err_not_entitled_and_unsupported",
-  "ukai-jail/tests/macos_boundary.rs::k98_tool_refuses_at_the_requirements_before_any_boundary",
+  "ukai-jail/tests/macos_boundary.rs::k98_run_refuses_without_native_development_opt_in",
 ]
 note = "Other K98 refusal conditions remain in the untested clause."
 
@@ -4068,7 +4069,7 @@ gate = "K99"
 clause = "Proxy: Claude Code and OpenCode reach an allowed host through the authenticated HTTP and SOCKS5 ports. A connection without the secret, and any other loopback port, fails. The credential entry records `binding: attempt`."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 [[clause]]
 id = "K99.2"
@@ -4096,7 +4097,7 @@ gate = "K100"
 clause = "Keychain, DNS and Apple Events: a sandboxed Keychain read, a direct DNS query and `osascript` to System Events all fail."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ------------------------------------------------------------------ K101
 
@@ -4110,7 +4111,7 @@ gate = "K101"
 clause = "Terminal relay: the operator's terminal is never a member's descriptor. `TIOCSTI`, `setpgid` and `TIOCSPGRP` from members reach only the relay pty. `^C`, `^Z` and window size behave as in J14, raw mode is restored after a killed agent, and the guardian is never signalled. The `SIGTERM` grace, `^C` and a shell `trap` reach the target (the dispositions of §4.2). In a detached run, `/dev/tty` fails."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 [[clause]]
 id = "K101.2"
@@ -4137,19 +4138,19 @@ gate = "K102"
 clause = "jail-v1 §3.3's list: `/var` versus `/private/var`, case-insensitive APFS (`.GIT` against a protected `.git`), symlinks, bundles and dynamic libraries, and nested vendor sandboxes (an agent's own Seatbelt use inside the jail) recorded. Group- or other-writable install directories refuse, including Homebrew's admin-writable prefix, with remediation to an operator- or root-owned directory that is neither group-writable nor other-writable."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 [[clause]]
 id = "K102.2"
 gate = "K102"
-clause = "Generated Seatbelt profiles deny protected-segment case variants and resolve var/tmp spellings to the same vnode"
+clause = "Generated Seatbelt profiles deny tested protected-path case variants and permit writes through both /var/tmp and /private/var/tmp spellings"
 tag = "live-lib"
 lane = "macos"
 tests = [
   "ukai-jail/tests/macos_sandbox_profile.rs::protected_segments_and_case_variants_are_denied",
   "ukai-jail/tests/macos_sandbox_profile.rs::var_and_tmp_spellings_resolve_to_the_same_vnode",
 ]
-note = "No bundle, dynamic-library, nested-vendor-sandbox or group-membership acceptance claim."
+note = "No bundle, dynamic-library, nested-vendor-sandbox or install-root permission acceptance claim."
 
 # ------------------------------------------------------------------ K103
 
@@ -4163,7 +4164,7 @@ gate = "K103"
 clause = "Costs: release latency and stop-to-settled time over 20 runs, p50 and p95, on the named Mac."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ------------------------------------------------------------------ K104
 
@@ -4177,30 +4178,30 @@ gate = "K104"
 clause = "A protected Mac: every J16 row passes with SIP enabled and the approved provisioning profile, on the release build."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ------------------------------------------------------------------ K105
 
 [[gate]]
 id = "K105"
-row = "Exec and `fs.write` classes are `active` with the A01 fixture's expected operations present, and `fs.deny` is `unsupported`."
+row = "Once wired, the A01 fixture's expected exec and supported file-mutation events are present; exec may be `active`, `fs.write` remains `degraded` with its partial-coverage gaps and null count, and `fs.deny` is `unsupported`. Until then native observation refuses."
 
 [[clause]]
 id = "K105.1"
 gate = "K105"
-clause = "Exec and `fs.write` classes are `active` with the A01 fixture's expected operations present, and `fs.deny` is `unsupported`."
+clause = "Once wired, the A01 fixture's expected exec and supported file-mutation events are present; exec may be `active`, `fs.write` remains `degraded` with its partial-coverage gaps and null count, and `fs.deny` is `unsupported`. Until then native observation refuses."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 [[clause]]
 id = "K105.2"
 gate = "K105"
-clause = "Synthetic exec and file-mutation input maps to audit frames and active exec/fs.write coverage while fs.deny stays unsupported"
+clause = "Synthetic exec and file-mutation input maps to schema-valid audit frames; exec has a count, fs.write is degraded/partial, and fs.deny stays unsupported"
 tag = "simulated"
 lane = "macos"
 tests = [
-  "ukai-jail/tests/macos_observe.rs::k105_events_map_to_the_audit_vocabulary_and_active_classes",
+  "ukai-jail/tests/macos_observe.rs::k105_events_map_to_schema_valid_audit_results_with_honest_coverage",
 ]
 note = "Synthetic journal input, not an observed native attempt or a vendor compatibility run."
 
@@ -4216,7 +4217,7 @@ gate = "K106"
 clause = "An observation-client gap marks the classes `degraded` and leaves custody streams and `tree_empty` untouched."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ------------------------------------------------------------------ K107
 
@@ -4230,7 +4231,7 @@ gate = "K107"
 clause = "The J13 summary recomputes from a macOS receipt with `summary_check.py`."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ------------------------------------------------------------------ K108
 
@@ -4244,7 +4245,7 @@ gate = "K108"
 clause = "Warm reuse: a second attempt in a running guest is released within initial 1 s of the guest jail's own release time, over 20 runs."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ------------------------------------------------------------------ K109
 
@@ -4258,7 +4259,7 @@ gate = "K109"
 clause = "Live workspace: writes granted by policy appear on the host. Writes outside the grants and the share are absent."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ------------------------------------------------------------------ K110
 
@@ -4272,7 +4273,7 @@ gate = "K110"
 clause = "The preview's fault matrix, rerun for the warm design. Killing the host `ukai-jail` ends that attempt through its lease, and `Ctrl-Z` of it does not. Killing the custodian, the VZ client or `ukai-vm` ends the VM service and every attempt. With every host controller suspended, the guest's wall deadline ends the attempt. All are checked before any test cleanup."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ------------------------------------------------------------------ K111
 
@@ -4286,7 +4287,7 @@ gate = "K111"
 clause = "The stored receipt is the guest's Linux receipt, verified by digest, and the summary's transport line comes from the transport record."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 [[clause]]
 id = "K111.2"
@@ -4311,12 +4312,12 @@ gate = "K112"
 clause = "The kernel-bound key: it runs under `--vm`, refuses natively naming `--vm`, and refuses under Linux `none`."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 [[clause]]
 id = "K112.2"
 gate = "K112"
-clause = "The kernel-bound policy key changes the snapshot digest and derived requirement and is a narrowing that none refuses"
+clause = "Setting kernel-bound in the snapshot changes its digest and derives owner_loss_termination; the Linux none capability mapping rejects that requirement"
 tag = "portable"
 lane = "macos"
 tests = [
@@ -4337,7 +4338,7 @@ gate = "K113"
 clause = "Each compatibility record's summary names its custody (native) or its transport (VM)."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; phase 2 must reconcile the integrated tests and recorded evidence."
+note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
 
 # ---------------------------------------- the pinned ignored set, linux lane
 

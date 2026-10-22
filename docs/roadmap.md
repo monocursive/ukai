@@ -33,13 +33,20 @@ Fourteen starter launch profiles are embedded. OpenCode has recorded live
 runs, but a bundled profile is not a promise that every version of that agent
 works. The [compatibility records](https://github.com/monocursive/ukai/blob/dev/docs/specs/jail-v1/agent-compatibility.md)
 name the tested combinations. The two-tier macOS implementation is work in
-progress in the working tree (uncommitted): native custody (J16, J17) and a
+progress on the integration branch: native custody (J16, J17) and a
 warm VM (J18), specified in [jail-macos.md](specs/jail-macos.md). Neither tier
 is supported or shipped. Native custody has not run with live Endpoint
 Security; the measurement spike, packaging and protected-Mac acceptance run
 remain outstanding. J18 still lacks network, the `agent` profile, a workspace
 share and in-guest credentials. The released VM preview is the only Mac
 deliverable today.
+
+Current implementation: native execution is **off by default**. Setting
+`UKAI_JAIL_MACOS_NATIVE=dev` enables development only; a native receipt records
+`native_execution=dev`. Native credential, vault and vendor staging answer
+`unsupported` and refuse. `J17_OBSERVE=false`: `ObserveRun` exists but is
+unwired; `fs.write` would still be `degraded`/partial even if wired. Every
+`run --vm` refuses before connecting: no qualified VM backend exists yet.
 
 You can [build the jail and try a small command](https://github.com/monocursive/ukai/blob/dev/docs/guide.md#build-and-check-your-host)
 today. [Signed Linux developer-preview packages](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.4)
@@ -139,8 +146,9 @@ is supported or shipped:
   `(allow default)` profile; they do not prove the new design. This
   implementation has not run with live Endpoint Security. Killing both
   custodians is the named residual: the tree may survive, and recovery
-  cannot verify all descendants dead. J17 adds exec and file-mutation
-  observation from a fourth ES client (custody uses S, G and G′).
+  cannot verify all descendants dead. J17's fourth-client worker exists
+  but is unwired (custody uses S, G and G′); even when wired, filesystem
+  mutation coverage remains partial.
   J16 requires Apple's entitlement, completed packaging, the measurement
   spike and a passing protected-Mac acceptance run before release.
 - **Warm VM (J18).** The intended backend reuses a warm Linux ARM64 guest

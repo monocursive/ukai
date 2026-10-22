@@ -104,9 +104,13 @@ validation and publication steps below.
 
 Use `cargo xtask gates --linux-release` and
 `cargo xtask conformance --linux-release` for this developer preview. This fixed
-scope reports K22.2, K23.1, K24.1, K26.1 and K29.1 **unsupported** because native
-macOS execution is not distributed. The full verdict without the flag continues
-to fail those untested clauses. Every Linux clause, shared test and macOS
+scope reports the explicit `jail.unsupported_clauses` in
+[`release.json`](../crates/ukai-jail/dist/release.json) as **unsupported**:
+K22.2, K23.1, K24.1, K26.1, K29.1, L02.12, M01.4 and each `.1` clause
+from K87.1 through K113.1, individually listed in that file. These are the
+untested native or proposed Mac VM acceptance claims; no prefix exemption
+is used. Tested component clauses remain required. The full verdict without
+the flag continues to fail those untested clauses. Every Linux clause, shared test and macOS
 execution-refusal test remains required; no failing Linux test is waived.
 The signed release plan binds this scope and both native Linux targets.
 
@@ -114,14 +118,21 @@ The signed release plan binds this scope and both native Linux targets.
 
 The Linux-only scope above has a macOS counterpart defined by
 [jail-macos.md](specs/jail-macos.md) §4.12 and §8. J16–J18 are work in
-progress in the working tree (uncommitted), not supported or releasable.
+progress on the integration branch, not supported or releasable.
 The new custody implementation has not run with live Endpoint Security;
 decision 5's measurement spike has not run. J16 still needs its bundle,
 Info.plist, entitlements and `~/Applications` installer. J18 still lacks
 network, the `agent` profile, a workspace share and in-guest credentials.
 Apple's Endpoint Security grant (request `S9YJTLLH28`, submitted 2026-09-29)
 is necessary, but does not by itself make the release run ready. The procedure
-below is a release requirement, not an implemented packaging workflow. The
+below is a release requirement, not an implemented packaging workflow.
+
+Current implementation: native execution is **off by default**. Setting
+`UKAI_JAIL_MACOS_NATIVE=dev` enables development only; a native receipt records
+`native_execution=dev`. Native credential, vault and vendor staging answer
+`unsupported` and refuse. `J17_OBSERVE=false`: `ObserveRun` exists but is
+unwired; `fs.write` would still be `degraded`/partial even if wired. Every
+`run --vm` refuses before connecting: no qualified VM backend exists yet. The
 released VM preview remains the only Mac deliverable.
 
 After implementation, packaging and the measurement spike are complete and

@@ -10,18 +10,22 @@
   },
   "jail": {
     "component": "ukai-jail",
-    "version": "0.0.0-fixture",
-    "backend": "ukai-macos-native",
-    "backend_version": "0.0.0-fixture"
+    "version": "0.1.0",
+    "backend": "ukai-jail-macos",
+    "backend_version": "0.1.0"
   },
   "policy": {
     "name": "tool",
     "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "observe": "on",
+    "observe": "off",
     "evidence": "best-effort",
     "requirements": [
       "tree_termination",
-      "closed_set_observation"
+      "filesystem_containment",
+      "syscall_filter",
+      "protected_coverage:existing_and_root",
+      "network_none",
+      "limit:wall"
     ],
     "grants": []
   },
@@ -32,7 +36,7 @@
   "applied": {
     "filesystem": {
       "mechanism": "seatbelt_profile",
-      "protected_coverage": "all_descendants",
+      "protected_coverage": "existing_and_root",
       "mounts": [
         {
           "path": "/work",
@@ -42,20 +46,17 @@
     },
     "network": {
       "mode": "none",
-      "mechanism": "fixture-native-network",
+      "mechanism": null,
       "allowed_hosts": []
     },
-    "syscalls": {
-      "mechanism": "seatbelt_profile",
-      "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-    },
+    "syscalls": null,
     "limits": [
       {
         "key": "wall",
-        "requested": "30m",
+        "requested": "1800000",
         "required": true,
         "applied": true,
-        "mechanism": "monotonic-deadline",
+        "mechanism": "both-custodians-continuous-clock",
         "scope": "tree",
         "hit": false
       },
@@ -70,51 +71,34 @@
       }
     ],
     "environment_names": [
-      "PATH",
       "LANG",
+      "PATH",
       "TMPDIR"
     ],
-    "removed_environment_names": [],
-    "terminal": {
-      "device": "pty",
-      "session": "relay",
-      "process_group": "own",
-      "stops": 1,
-      "restored": {
-        "foreground": true,
-        "termios": true,
-        "input_flushed": true,
-        "reset_written": true,
-        "after_tree_death": true
-      }
-    }
+    "removed_environment_names": []
   },
   "observer": {
-    "backend": "fixture-native-observer",
-    "set": "fixture-macos-closed-set",
-    "attached": true,
+    "backend": null,
+    "set": null,
+    "attached": false,
     "sources": {
       "wrapper": "active",
-      "audit": "active",
+      "audit": "unsupported",
       "proxy": "unsupported"
     },
     "gaps": []
   },
   "coverage": {
     "exec": {
-      "status": "active",
-      "sources": [
-        "audit"
-      ],
-      "observed_count": 1,
+      "status": "unsupported",
+      "sources": [],
+      "observed_count": null,
       "gaps": []
     },
     "fs.write": {
-      "status": "active",
-      "sources": [
-        "audit"
-      ],
-      "observed_count": 1,
+      "status": "unsupported",
+      "sources": [],
+      "observed_count": null,
       "gaps": []
     },
     "fs.deny": {
@@ -151,7 +135,8 @@
       "value": {
         "pid": 1234,
         "pidversion": 987654321,
-        "boot_session": "A1B2C3D4-0011-2233-4455-66778899AABB"
+        "boot_session": "A1B2C3D4-0011-2233-4455-66778899AABB",
+        "token": "000001f5000001f500000014000001f500000014000004d2000000013ade68b1"
       }
     }
   },
@@ -167,26 +152,49 @@
           "supervisor": {
             "result": "drained",
             "stream": "contiguous",
-            "events": {
-              "fork": 4,
-              "exec": 3,
-              "exit": 4
-            }
+            "events": 11
           },
           "guardian": {
-            "result": "drained",
-            "stream": "contiguous",
-            "events": {
-              "fork": 4,
-              "exec": 3,
-              "exit": 4
-            }
+            "result": "not_drained",
+            "stream": "unknown",
+            "events": null
           }
         },
         "stop": {
           "members": 4,
           "budget_ns": 5000000000,
           "elapsed_ns": 1200000000
+        },
+        "native_execution": "dev",
+        "profile_digest": "e0af1798318b01f4fbfc90a77cca1b7d4b0a21b8a5a9459e5013ccb51849c478",
+        "profile_parameters": {
+          "read_write": [
+            "/work"
+          ],
+          "read_only": [],
+          "deny_read": [],
+          "protected_segments": [],
+          "setuid_exec_denied": [],
+          "setuid_scan_holes": [],
+          "setuid_backstop": "kernel_sandbox_exec_denial",
+          "mach_services": [],
+          "unix_socket_paths": [],
+          "terminal_slave": null,
+          "bridge_http_port": null,
+          "bridge_socks_port": null
+        },
+        "handshake_events_pending": 0,
+        "target_process": {
+          "pid": 1234,
+          "identity": {
+            "kind": "macos_audit_token",
+            "value": {
+              "pid": 1234,
+              "pidversion": 987654321,
+              "boot_session": "A1B2C3D4-0011-2233-4455-66778899AABB",
+              "token": "000001f5000001f500000014000001f500000014000004d2000000013ade68b1"
+            }
+          }
         }
       }
     },
@@ -207,13 +215,5 @@
   "created_at": "2026-09-21T12:00:00Z",
   "updated_at": "2026-09-21T12:00:01Z",
   "errors": [],
-  "credentials": [
-    {
-      "id": "fixture.auth",
-      "mode": "vault",
-      "binding": "attempt",
-      "digest": null,
-      "digest_unavailable_reason": "vault"
-    }
-  ]
+  "credentials": []
 }

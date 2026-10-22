@@ -2,16 +2,17 @@
 # requires-python = ">=3.11"
 # dependencies = ["jsonschema==4.26.0", "rfc3339-validator==0.1.4", "rfc8785==0.1.4"]
 # ///
-"""DOCS phase-1 regressions; no live ES, guest or release claims.
+"""DOCS contract regressions; no live ES, guest or release claims.
 
 Run: uv run --offline docs/specs/jail-v1/test_macos_contract.py
-For the red side, add --base 2da5c8d13. Reads that commit with git show;
+For the red side, add --base 2da5c8d13 (phase 1) or c151e4e20 (phase 2). Reads that commit with git show;
 never switches or writes a checkout. Schema/semantic checks exercise records;
 prose checks pin the scope disclosures that prevent historical evidence or
 component tests from being presented as implementation acceptance.
 """
 
 import copy
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -70,8 +71,8 @@ class MacosContract(unittest.TestCase):
         for path in ["docs/specs/jail-macos.md", "docs/roadmap.md", "docs/guide.md",
                      "docs/RELEASING.md", "docs/benchmarks/jail/README.md"]:
             with self.subTest(path=path):
-                text = read(path)
-                self.assertIn("uncommitted", text)
+                text = " ".join(read(path).split())
+                self.assertIn("work in progress", text)
                 self.assertIn("measurement spike", text)
                 self.assertRegex(text, r"(?s)J18.*?lacks.*?network.*?`agent`.*?workspace.*?credentials")
                 self.assertNotRegex(text, r"(?i)(?:are|is now|both|2026-10-22,) code-complete|The code is complete")
@@ -96,7 +97,7 @@ class MacosContract(unittest.TestCase):
             "macos_bridge": "No vendor-agent run or credential-binding receipt assertion",
             "macos_terminal_relay": "No complete jailed descriptor-isolation",
             "macos_gc": "fabricated attempt roots",
-            "macos_boundary": "No `none`, ceiling or `--observe on` refusal assertion",
+            "macos_boundary": "development opt-in",
             "macos_observe": "No observed live attempt",
             "vm_tier": "No VM boots",
         }
@@ -206,6 +207,7 @@ class MacosContract(unittest.TestCase):
                     with self.subTest(os=os_name, mode=mode, binding=binding):
                         value = record("examples/receipt-macos-native.json")
                         value["platform"]["os"] = os_name
+                        value["credentials"] = [copy.deepcopy(record("examples/receipt-agent-proxy-only.json")["credentials"][0])]
                         item = value["credentials"][0]
                         item["mode"] = mode
                         item.pop("binding", None)
@@ -215,7 +217,7 @@ class MacosContract(unittest.TestCase):
                         valid = binding == "absent" or (os_name == "macos" and mode == "vault" and binding == "attempt")
                         self.assertEqual("credential_binding" not in rules, valid)
         value = record("examples/receipt-macos-native.json")
-        value["credentials"][0].pop("binding", None)
+        value["credentials"] = []
         self.validators["jail-receipt"].validate(value)
 
     def test_l1_counterexample_is_bounded_by_the_design_choice(self):
@@ -250,6 +252,82 @@ class MacosContract(unittest.TestCase):
         self.assertIn("deleted on 2026-10-22", text)
         self.assertIn("must be re-cloned", text)
         self.assertNotIn("continues in the SIP-disabled VM", text)
+
+    def test_phase2_product_shape_illustration(self):
+        value = record("examples/receipt-macos-native.json")
+        self.assertEqual(value["jail"]["backend"], "ukai-jail-macos")
+        self.assertEqual(value["policy"]["observe"], "off")
+        self.assertNotIn("closed_set_observation", value["policy"]["requirements"])
+        self.assertEqual(value["credentials"], [])
+        self.assertIsNone(value["applied"]["syscalls"])
+        self.assertEqual(value["applied"]["filesystem"]["protected_coverage"], "existing_and_root")
+        details = value["lifetime"]["native"]["details"]
+        self.assertEqual(details["native_execution"], "dev")
+        self.assertRegex(details["profile_digest"], r"^[a-f0-9]{64}$")
+        self.assertEqual(set(details["profile_parameters"]), {
+            "read_write", "read_only", "deny_read", "protected_segments", "setuid_exec_denied",
+            "setuid_scan_holes", "setuid_backstop", "mach_services", "unix_socket_paths",
+            "terminal_slave", "bridge_http_port", "bridge_socks_port"})
+        for facts in details["custodians"].values():
+            self.assertTrue(facts["events"] is None or type(facts["events"]) is int)
+            if facts["events"] is None:
+                self.assertEqual(facts["stream"], "unknown")
+        self.assertIsNone(value["observer"]["backend"])
+        self.assertFalse(value["observer"]["attached"])
+        for name in ["exec", "fs.write", "fs.deny", "net"]:
+            self.assertEqual(value["coverage"][name], dict(status="unsupported", sources=[], observed_count=None, gaps=[]))
+        self.validators["jail-receipt"].validate(value)
+        self.assertEqual(self.module.semantic_receipt(value), [])
+
+    def test_phase2_native_shape_widening_keeps_linux_and_proxy_requirements(self):
+        native = record("examples/receipt-macos-native.json")
+        native["applied"]["syscalls"] = None
+        native["applied"]["network"]["mechanism"] = None
+        self.validators["jail-receipt"].validate(native)
+        for field in ["syscalls", "network"]:
+            linux = record("examples/receipt-settled-unknown.json")
+            if field == "syscalls":
+                linux["applied"][field] = None
+            else:
+                linux["applied"][field]["mechanism"] = None
+            self.assertTrue(list(self.validators["jail-receipt"].iter_errors(linux)))
+        native["applied"]["network"]["mode"] = "proxy"
+        self.assertTrue(list(self.validators["jail-receipt"].iter_errors(native)))
+
+    def test_phase2_status_matches_deliberate_refusals(self):
+        for path in ["docs/specs/jail-macos.md", "docs/roadmap.md", "docs/guide.md",
+                     "docs/RELEASING.md", "docs/benchmarks/jail/README.md"]:
+            with self.subTest(path=path):
+                text = " ".join(read(path).split())
+                for fact in ["UKAI_JAIL_MACOS_NATIVE=dev", "native_execution=dev", "J17_OBSERVE=false",
+                             "ObserveRun", "unwired", "fs.write", "degraded", "before connecting"]:
+                    self.assertIn(fact, text)
+                self.assertRegex(text, r"credential.*vault.*vendor.*unsupported")
+        spec = read("docs/specs/jail-macos.md")
+        self.assertIn('`sequence_start: "unverified"`', spec)
+        self.assertIn("requires the root to have entered the table", " ".join(spec.split()))
+        self.assertIn("before the first delivered message", spec)
+
+    def test_phase2_release_scope_is_explicit_and_complete(self):
+        acceptance = tomllib.loads(read(CONTRACT + "acceptance-map.toml"))
+        clauses = {c["id"]: c for c in acceptance["clause"]}
+        native = {c["id"] for c in clauses.values() if c["tag"] == "untested" and
+                  (c["gate"] in {f"K{i}" for i in range(87, 114)} or c["id"] in {"L02.12", "M01.4"})}
+        release = json.loads(read("crates/ukai-jail/dist/release.json"))["jail"]["unsupported_clauses"]
+        self.assertEqual(set(release), native | {"K22.2", "K23.1", "K24.1", "K26.1", "K29.1"})
+        self.assertEqual(len(release), len(set(release)))
+        self.assertTrue(all(re.fullmatch(r"[A-Z][0-9]+\.[0-9]+", c) for c in release))
+        self.assertEqual(clauses["K105.2"]["tests"], ["ukai-jail/tests/macos_observe.rs::k105_events_map_to_schema_valid_audit_results_with_honest_coverage"])
+        self.assertIn("degraded", clauses["K105.2"]["clause"])
+
+    def test_phase2_reblessed_artifacts_match_digests(self):
+        frozen = tomllib.loads(read(CONTRACT + "frozen-schemas.toml"))
+        artifacts = {item["file"]: item for item in frozen["frozen_artifact"]}
+        self.assertTrue({"fixtures/semantic-cases.json", "examples/receipt-macos-native.json"} <= artifacts.keys())
+        for item in artifacts.values():
+            if item["file"] not in {"fixtures/semantic-cases.json", "examples/receipt-macos-native.json"}:
+                continue
+            self.assertEqual(item["sha256"], hashlib.sha256(read(CONTRACT + item["file"]).encode()).hexdigest())
 
     def test_freeze_requires_a_new_reference_run(self):
         text = read("docs/RELEASING.md")
