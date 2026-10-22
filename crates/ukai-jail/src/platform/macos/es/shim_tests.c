@@ -17,6 +17,8 @@ static void (^pending_sync)(void);
 static unsigned sync_calls;
 static unsigned set_calls, get_calls, subscriptions;
 static unsigned mode_failure;
+static bool sync_failure, delete_failure, complete_on_delete;
+static void complete_sync(void);
 es_return_t fake_set_mode(es_client_t *client, es_deadline_miss_mode_t mode) {
     (void)client;
     assert(mode == ES_DEADLINE_MISS_MODE_FAIL_CLOSED);
@@ -51,6 +53,7 @@ void fake_release_paths(es_muted_paths_t *paths) { (void)paths; }
 es_return_t fake_sync(es_client_t *client, void (^block)(void)) {
     (void)client;
     assert(pending_sync == NULL);
+    if (sync_failure) { return ES_RETURN_ERROR; }
     pending_sync = Block_copy(block);
     sync_calls++;
     return ES_RETURN_SUCCESS;
@@ -60,7 +63,12 @@ es_new_client_result_t fake_new(es_client_t **out, es_handler_block_t handler) {
     *out = (es_client_t *)1;
     return ES_NEW_CLIENT_RESULT_SUCCESS;
 }
-es_return_t fake_delete(es_client_t *client) { (void)client; return ES_RETURN_SUCCESS; }
+es_return_t fake_delete(es_client_t *client) {
+    (void)client;
+    if (delete_failure) { return ES_RETURN_ERROR; }
+    if (complete_on_delete) { complete_sync(); }
+    return ES_RETURN_SUCCESS;
+}
 static void complete_sync(void) {
     assert(pending_sync != NULL);
     void (^block)(void) = pending_sync;
@@ -94,6 +102,32 @@ int main(int argc, char **argv) {
         assert(sync_calls == 2);
 #endif
         complete_sync();
+    } else if (strcmp(argv[1], "pending-sync-delete") == 0) {
+        assert(!ukai_es_drain(client, 0));
+        assert(ukai_es_delete(client));
+        // A successful delete is not evidence that an already queued sync
+        // callback cannot run. ASan checks the actual late callback accesses.
+        complete_sync();
+        return 0;
+    } else if (strcmp(argv[1], "sync-error") == 0) {
+        sync_failure = true;
+        for (int i = 0; i < 100; i++) assert(!ukai_es_drain(client, 0));
+        assert(atomic_load(&client->sync->references) == 1);
+        assert(atomic_load(&client->sync->issued) == 0);
+        sync_failure = false;
+        assert(!ukai_es_drain(client, 0));
+        complete_sync();
+        assert(atomic_load(&client->sync->references) == 1);
+    } else if (strcmp(argv[1], "delete-error") == 0) {
+        assert(!ukai_es_drain(client, 0));
+        delete_failure = true;
+        assert(!ukai_es_delete(client));
+        complete_sync();
+        assert(atomic_load(&client->sync->references) == 1);
+        delete_failure = false;
+    } else if (strcmp(argv[1], "sync-during-delete") == 0) {
+        assert(!ukai_es_drain(client, 0));
+        complete_on_delete = true;
     } else if (strcmp(argv[1], "invalid-version") == 0) {
         es_message_t message = {.version = 3, .event_type = ES_EVENT_TYPE_NOTIFY_FORK};
         handle(client->es, &message, client);

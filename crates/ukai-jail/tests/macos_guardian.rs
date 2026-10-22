@@ -325,6 +325,7 @@ struct FakeCustody {
     now: std::rc::Rc<std::cell::Cell<u64>>,
     events: std::collections::VecDeque<(u64, ukai_jail::platform::macos::es::EsPoll)>,
     syncs: usize,
+    sync_ok: bool,
     gap: bool,
 }
 impl ukai_jail::platform::macos::guardian::stop::CustodySource for FakeCustody {
@@ -344,7 +345,7 @@ impl ukai_jail::platform::macos::guardian::stop::CustodySource for FakeCustody {
     }
     fn synchronize(&mut self, _: u32) -> bool {
         self.syncs += 1;
-        true
+        self.sync_ok
     }
 }
 #[derive(Default)]
@@ -403,6 +404,7 @@ fn stop_polls_custody_retries_exec_and_drains_during_tail() {
         ]
         .into(),
         syncs: 0,
+        sync_ok: true,
         gap: false,
     };
     let mut custody = Custodian::new(2);
@@ -473,6 +475,7 @@ fn stop_tail_expiry_is_not_drained_and_never_rebegins() {
         now: now.clone(),
         events: [(0, stop_event(es::EVENT_FORK, 1, 1, token))].into(),
         syncs: 0,
+        sync_ok: true,
         gap: false,
     };
     let mut custody = Custodian::new(1);
@@ -521,6 +524,8 @@ fn shim_mapping_and_late_sync_wakes_use_sdk_typed_fakes() {
             "-Werror",
             "-Wno-deprecated-declarations",
             "-DUKAI_SYNC_REUSE_TEST",
+            "-fsanitize=address",
+            "-g",
         ])
         .arg(source)
         .args(["-lEndpointSecurity", "-o"])
@@ -532,14 +537,19 @@ fn shim_mapping_and_late_sync_wakes_use_sdk_typed_fakes() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    for test in ["mapping", "sync", "invalid-version", "overflow", "guard"] {
-        assert!(
-            Command::new(&executable)
-                .arg(test)
-                .status()
-                .unwrap()
-                .success()
-        );
+    for test in [
+        "mapping",
+        "sync",
+        "invalid-version",
+        "overflow",
+        "guard",
+        "pending-sync-delete",
+        "sync-error",
+        "delete-error",
+        "sync-during-delete",
+    ] {
+        let output = Command::new(&executable).arg(test).output().unwrap();
+        assert!(output.status.success(), "{test}: {output:?}");
     }
 }
 
@@ -745,6 +755,7 @@ fn a_gap_keeps_stopping_known_members_without_ever_proving_a_drain() {
         ]
         .into(),
         syncs: 0,
+        sync_ok: true,
         gap: true,
     };
     let mut custody = Custodian::new(1);
@@ -771,4 +782,49 @@ fn a_gap_keeps_stopping_known_members_without_ever_proving_a_drain() {
             .any(|(_, signal)| *signal == libc::SIGKILL)
     );
     assert_eq!(out.counts, [1, 0, 1]);
+}
+
+#[test]
+fn r3_c2_sync_timeout_keeps_draining_a_contiguous_stream() {
+    use ukai_jail::platform::macos::{custody::Custodian, es, guardian::stop::GuardianStop};
+    let mut token = [0u32; 8];
+    token[5] = 100;
+    token[7] = 2;
+    for (root, gap, drained) in [(100, false, true), (100, true, false), (200, false, false)] {
+        let now = std::rc::Rc::new(std::cell::Cell::new(0));
+        let mut source = FakeCustody {
+            now: now.clone(),
+            events: [
+                (0, stop_event(es::EVENT_FORK, 1, 1, token)),
+                (41_000_000, stop_event(es::EVENT_EXIT, 2, 1, token)),
+            ]
+            .into(),
+            syncs: 0,
+            sync_ok: false,
+            gap,
+        };
+        let mut custody = Custodian::new(1);
+        custody.expect_root(root);
+        let mut signals = FakeSignals::default();
+        let (out, _) = GuardianStop::new(custody, None).run_with_io(
+            0,
+            &mut source,
+            &mut FakeClock(now),
+            &mut signals,
+        );
+        assert_eq!(
+            out.result.drained(),
+            drained,
+            "root={root}, gap={gap}: {:?}",
+            out.result
+        );
+        assert_eq!(out.counts, [1, 0, 1]);
+        assert_eq!(source.syncs, 1);
+        assert!(
+            signals
+                .calls
+                .iter()
+                .any(|(t, sig)| *t == token && *sig == libc::SIGKILL)
+        );
+    }
 }

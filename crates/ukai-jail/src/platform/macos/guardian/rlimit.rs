@@ -1,6 +1,7 @@
 //! Rule 6 (jail-macos §4.1): before it spawns the launcher, the guardian
 //! lowers its own `RLIMIT_NPROC` soft **and** hard limit to the operator's
-//! current same-UID process count plus a headroom (initial 1024). Every
+//! current same-UID process count plus a headroom (initial 1024), without
+//! raising either inherited limit. Kernel read-back must confirm both. Every
 //! member inherits the limit and cannot raise it without root, so a fork
 //! storm stops at the headroom and a stop has a bounded set to freeze.
 //!
@@ -8,8 +9,12 @@
 //! calls are allocation estimates, never counts. All allocation occurs
 //! before release; the query retries if the returned array fills up.
 
-/// The initial headroom over the operator's current process count.
-pub const NPROC_HEADROOM: u32 = 1024;
+/// The required headroom over the operator's process-count snapshot.
+/// `apply` refuses unless kernel read-back proves this entire allowance.
+pub const PROCESS_HEADROOM: u64 = 1024;
+
+/// Compatibility name for callers using the original 32-bit constant.
+pub const NPROC_HEADROOM: u32 = PROCESS_HEADROOM as u32;
 
 /// The pure math of rule 6: the lowered limit from the current same-UID
 /// process count and the headroom. Saturating at `i64::MAX` because
@@ -96,24 +101,63 @@ pub fn limit_with_headroom(current: u64, headroom: u64, hard: u64) -> Result<u64
 /// Lower `RLIMIT_NPROC` soft and hard to `limit`. The caller runs before
 /// release; a failure refuses the attempt (§4.3 step 3).
 pub fn lower_nproc(limit: u64) -> Result<(), RlimitError> {
-    // SAFETY: getrlimit/setrlimit on the calling process with a stack
-    // rlimit value; no invariants beyond the syscall contract.
-    unsafe {
-        let mut current = libc::rlimit {
-            rlim_cur: 0,
-            rlim_max: 0,
-        };
-        if libc::getrlimit(libc::RLIMIT_NPROC, &mut current) != 0 {
-            return Err(os_error("RLIMIT_NPROC: getrlimit"));
+    lower_nproc_with(limit, read_nproc, |lowered| {
+        // SAFETY: a process-local syscall with a valid rlimit value.
+        if unsafe { libc::setrlimit(libc::RLIMIT_NPROC, lowered) } != 0 {
+            Err(os_error("RLIMIT_NPROC: setrlimit"))
+        } else {
+            Ok(())
         }
-        let limit = limit_with_headroom(0, limit, current.rlim_max)? as libc::rlim_t;
-        let lowered = libc::rlimit {
-            rlim_cur: limit,
-            rlim_max: limit,
-        };
-        if libc::setrlimit(libc::RLIMIT_NPROC, &lowered) != 0 {
-            return Err(os_error("RLIMIT_NPROC: setrlimit"));
-        }
+    })
+}
+
+fn read_nproc() -> Result<libc::rlimit, RlimitError> {
+    let mut value = libc::rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
+    // SAFETY: getrlimit fills the valid stack value for this process.
+    if unsafe { libc::getrlimit(libc::RLIMIT_NPROC, &mut value) } != 0 {
+        Err(os_error("RLIMIT_NPROC: getrlimit"))
+    } else {
+        Ok(value)
+    }
+}
+
+fn lower_nproc_with(
+    limit: u64,
+    mut get: impl FnMut() -> Result<libc::rlimit, RlimitError>,
+    mut set: impl FnMut(&libc::rlimit) -> Result<(), RlimitError>,
+) -> Result<(), RlimitError> {
+    let inherited = get()?;
+    let limit = limit_with_headroom(0, limit, inherited.rlim_max)?;
+    if limit > inherited.rlim_cur {
+        return Err(RlimitError(
+            "insufficient_headroom",
+            format!("need {limit}, inherited soft limit {}", inherited.rlim_cur),
+        ));
+    }
+    set(&libc::rlimit {
+        rlim_cur: limit,
+        rlim_max: limit,
+    })?;
+    // Darwin can return success while clamping NPROC to kern.maxprocperuid.
+    // The requested limit is not evidence of the allowance actually inherited.
+    let effective = get()?;
+    if effective.rlim_cur < limit || effective.rlim_max < limit {
+        return Err(RlimitError(
+            "insufficient_headroom",
+            format!(
+                "need {limit}, kernel applied soft {} hard {}",
+                effective.rlim_cur, effective.rlim_max
+            ),
+        ));
+    }
+    if effective.rlim_cur != limit || effective.rlim_max != limit {
+        return Err(RlimitError(
+            "RLIMIT_NPROC: read-back",
+            "kernel did not lower both limits to the requested ceiling".to_owned(),
+        ));
     }
     Ok(())
 }
@@ -124,7 +168,7 @@ pub fn apply() -> Result<u64, RlimitError> {
     // SAFETY: plain getuid.
     let uid = unsafe { libc::getuid() };
     let count = current_process_count_for_uid(uid)?;
-    let limit = lowered_limit(count, u64::from(NPROC_HEADROOM));
+    let limit = limit_with_headroom(count, PROCESS_HEADROOM, u64::MAX)?;
     lower_nproc(limit)?;
     Ok(limit)
 }
@@ -170,21 +214,142 @@ mod tests {
         assert_eq!(limit_with_headroom(100, 100, 1000).unwrap(), 200);
     }
 
+    #[test]
+    fn r3_c1_kernel_read_back_must_confirm_the_full_headroom_and_ceiling() {
+        use std::cell::Cell;
+        let count = 750;
+        let desired = count + PROCESS_HEADROOM;
+        for (soft, hard, expected) in [
+            (desired, desired, None),
+            (desired - 1, desired, Some("insufficient_headroom:")),
+            (desired, desired - 1, Some("insufficient_headroom:")),
+            (desired - 1, desired - 1, Some("insufficient_headroom:")),
+            (desired, desired + 1, Some("RLIMIT_NPROC: read-back:")),
+        ] {
+            let reads = Cell::new(0);
+            let set_called = Cell::new(false);
+            let result = lower_nproc_with(
+                desired,
+                || {
+                    let previous = reads.get();
+                    reads.set(previous + 1);
+                    Ok(if previous == 0 {
+                        libc::rlimit {
+                            rlim_cur: 5000,
+                            rlim_max: 6000,
+                        }
+                    } else {
+                        assert!(set_called.get());
+                        libc::rlimit {
+                            rlim_cur: soft,
+                            rlim_max: hard,
+                        }
+                    })
+                },
+                |requested| {
+                    assert_eq!((requested.rlim_cur, requested.rlim_max), (desired, desired));
+                    set_called.set(true);
+                    Ok(()) // Success does not imply the kernel applied what we asked.
+                },
+            );
+            assert_eq!(
+                reads.get(),
+                2,
+                "must inspect the effective kernel allowance"
+            );
+            if let Some(prefix) = expected {
+                assert!(result.unwrap_err().to_string().starts_with(prefix));
+            } else {
+                result.unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn r3_c1_apply_never_raises_the_inherited_soft_limit() {
+        const CHILD: &str = "UKAI_TEST_NPROC_SOFT_CHILD";
+        if std::env::var_os(CHILD).is_none() {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "platform::macos::guardian::rlimit::tests::r3_c1_apply_never_raises_the_inherited_soft_limit",
+                    "--nocapture",
+                ])
+                .env(CHILD, "1")
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{output:?}");
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            assert!(stdout.contains("test result: ok. 1 passed"), "{stdout}");
+            assert!(stdout.contains("soft-limit fixture ran"), "{stdout}");
+            return;
+        }
+        // SAFETY: all limit changes are confined to this child process.
+        unsafe {
+            let mut original: libc::rlimit = std::mem::zeroed();
+            assert_eq!(libc::getrlimit(libc::RLIMIT_NPROC, &mut original), 0);
+            let inherited = libc::rlimit {
+                rlim_cur: original.rlim_cur.min(u64::from(NPROC_HEADROOM) - 1),
+                rlim_max: original.rlim_max,
+            };
+            assert_eq!(libc::setrlimit(libc::RLIMIT_NPROC, &inherited), 0);
+            let result = apply();
+            let mut after: libc::rlimit = std::mem::zeroed();
+            assert_eq!(libc::getrlimit(libc::RLIMIT_NPROC, &mut after), 0);
+            assert_eq!(
+                after.rlim_cur, inherited.rlim_cur,
+                "operator's soft ceiling changed"
+            );
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .starts_with("insufficient_headroom:")
+            );
+        }
+        println!("soft-limit fixture ran");
+    }
+
+    #[test]
+    fn r3_c3_isolated_limit_test_emits_one_harness_result() {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "platform::macos::guardian::rlimit::tests::lowers_both_limits",
+                "--nocapture",
+            ])
+            .env_remove("UKAI_TEST_NPROC_CHILD")
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert_eq!(
+            stdout.matches("test result:").count(),
+            1,
+            "nested harness results corrupt suite_clean: {stdout}"
+        );
+        assert_eq!(stdout.matches("running 1 test").count(), 1, "{stdout}");
+        assert!(stdout.contains("test result: ok. 1 passed"), "{stdout}");
+    }
+
     // Isolate the irreversible hard-limit change in a child test process.
     #[test]
     fn lowers_both_limits() {
         const CHILD: &str = "UKAI_TEST_NPROC_CHILD";
         if std::env::var_os(CHILD).is_none() {
-            let status = std::process::Command::new(std::env::current_exe().unwrap())
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
                 .args([
                     "--exact",
                     "platform::macos::guardian::rlimit::tests::lowers_both_limits",
                     "--nocapture",
                 ])
                 .env(CHILD, "1")
-                .status()
+                .output()
                 .unwrap();
-            assert!(status.success());
+            assert!(output.status.success(), "{output:?}");
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            assert!(stdout.contains("test result: ok. 1 passed"), "{stdout}");
+            assert!(stdout.contains("lowered-limit fixture ran"), "{stdout}");
             return;
         }
         // SAFETY: process-local rlimits in this isolated child only.
@@ -204,5 +369,6 @@ mod tests {
                     .starts_with("insufficient_headroom:")
             );
         }
+        println!("lowered-limit fixture ran");
     }
 }

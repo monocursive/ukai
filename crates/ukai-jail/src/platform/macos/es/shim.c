@@ -19,12 +19,27 @@ _Static_assert(sizeof(ukai_es_event) == 64, "custody events are fixed 64-byte re
  * publishes each slot before it is read. Everything else is written by the
  * handler only, or by the custodian before the first event.
  */
+/* The client and every outstanding sync marker own one reference each.
+ * A successful es_delete_client is not assumed to cancel queued markers.
+ * Their block captures only this state, never the freed client/ring. */
+struct sync_state {
+    dispatch_semaphore_t synced;
+    _Atomic unsigned references;
+    _Atomic uint64_t issued;
+    _Atomic uint64_t completed;
+};
+
+static void sync_release(struct sync_state *state) {
+    if (atomic_fetch_sub_explicit(&state->references, 1, memory_order_acq_rel) == 1) {
+        dispatch_release(state->synced);
+        free(state);
+    }
+}
+
 struct ukai_es_client {
     es_client_t *es;
-    dispatch_semaphore_t synced;
+    struct sync_state *sync;
     void (^sync_block)(void); /* One heap block, allocated before release. */
-    _Atomic uint64_t sync_issued;
-    _Atomic uint64_t sync_completed;
     ukai_es_event *ring; /* UKAI_ES_RING_CAPACITY slots, allocated once. */
     _Atomic uint64_t head;
     _Atomic uint64_t tail;
@@ -111,34 +126,42 @@ int32_t ukai_es_new_descendants(ukai_es_client_t **out) {
         return (int32_t)ES_NEW_CLIENT_RESULT_ERR_INTERNAL;
     }
     self->ring = calloc(UKAI_ES_RING_CAPACITY, sizeof(ukai_es_event));
-    self->synced = dispatch_semaphore_create(0);
-    if (self->ring == NULL || self->synced == NULL) {
+    self->sync = calloc(1, sizeof(*self->sync));
+    if (self->sync != NULL) {
+        self->sync->synced = dispatch_semaphore_create(0);
+        atomic_init(&self->sync->references, 1);
+    }
+    if (self->ring == NULL || self->sync == NULL || self->sync->synced == NULL) {
         free(self->ring);
-        if (self->synced != NULL) {
-            dispatch_release(self->synced);
+        if (self->sync != NULL) {
+            if (self->sync->synced != NULL) { dispatch_release(self->sync->synced); }
+            free(self->sync);
         }
         free(self);
         return (int32_t)ES_NEW_CLIENT_RESULT_ERR_INTERNAL;
     }
-    ukai_es_client_t *captured = self;
+    struct sync_state *sync = self->sync;
     self->sync_block = Block_copy(^{
-        uint64_t generation = atomic_load_explicit(&captured->sync_issued, memory_order_acquire);
-        atomic_store_explicit(&captured->sync_completed, generation, memory_order_release);
-        dispatch_semaphore_signal(captured->synced);
+        uint64_t generation = atomic_load_explicit(&sync->issued, memory_order_acquire);
+        atomic_store_explicit(&sync->completed, generation, memory_order_release);
+        dispatch_semaphore_signal(sync->synced);
+        /* Last access: delete may already have released the client owner. */
+        sync_release(sync);
     });
     if (self->sync_block == NULL) {
         free(self->ring);
-        dispatch_release(self->synced);
+        sync_release(self->sync);
         free(self);
         return (int32_t)ES_NEW_CLIENT_RESULT_ERR_INTERNAL;
     }
+    ukai_es_client_t *captured = self;
     es_new_client_result_t result = es_new_descendants_client(&self->es, ^(es_client_t *client, const es_message_t *m) {
         handle(client, m, captured);
     });
     if (result != ES_NEW_CLIENT_RESULT_SUCCESS) {
         Block_release(self->sync_block);
         free(self->ring);
-        dispatch_release(self->synced);
+        sync_release(self->sync);
         free(self);
         return (int32_t)result;
     }
@@ -241,10 +264,10 @@ bool ukai_es_ring_overflowed(ukai_es_client_t *client) {
  * callback for a timed-out request cannot complete a later request. At most
  * one marker is outstanding; ES retains the preallocated heap block without
  * copying a new stack block on every drain. The caller is single-threaded. */
-static bool wait_sync(ukai_es_client_t *client, uint64_t generation, dispatch_time_t deadline) {
-    while (atomic_load_explicit(&client->sync_completed, memory_order_acquire) < generation) {
-        if (dispatch_semaphore_wait(client->synced, deadline) != 0) {
-            return atomic_load_explicit(&client->sync_completed, memory_order_acquire) >= generation;
+static bool wait_sync(struct sync_state *state, uint64_t generation, dispatch_time_t deadline) {
+    while (atomic_load_explicit(&state->completed, memory_order_acquire) < generation) {
+        if (dispatch_semaphore_wait(state->synced, deadline) != 0) {
+            return atomic_load_explicit(&state->completed, memory_order_acquire) >= generation;
         }
     }
     return true;
@@ -252,17 +275,20 @@ static bool wait_sync(ukai_es_client_t *client, uint64_t generation, dispatch_ti
 
 bool ukai_es_drain(ukai_es_client_t *client, uint32_t timeout_ms) {
     dispatch_time_t deadline = dispatch_time(DISPATCH_TIME_NOW, (int64_t)timeout_ms * NSEC_PER_MSEC);
-    uint64_t previous = atomic_load_explicit(&client->sync_issued, memory_order_acquire);
-    if (!wait_sync(client, previous, deadline) || previous == UINT64_MAX) {
+    struct sync_state *state = client->sync;
+    uint64_t previous = atomic_load_explicit(&state->issued, memory_order_acquire);
+    if (!wait_sync(state, previous, deadline) || previous == UINT64_MAX) {
         return false;
     }
     uint64_t generation = previous + 1;
-    atomic_store_explicit(&client->sync_issued, generation, memory_order_release);
+    atomic_store_explicit(&state->issued, generation, memory_order_release);
+    atomic_fetch_add_explicit(&state->references, 1, memory_order_relaxed);
     if (es_sync_client(client->es, client->sync_block) != ES_RETURN_SUCCESS) {
-        atomic_store_explicit(&client->sync_issued, previous, memory_order_release);
+        atomic_store_explicit(&state->issued, previous, memory_order_release);
+        sync_release(state); /* No callback was queued on failure. */
         return false;
     }
-    return wait_sync(client, generation, deadline);
+    return wait_sync(state, generation, deadline);
 }
 
 uint64_t ukai_es_guard_denials(const ukai_es_client_t *client) {
@@ -300,7 +326,7 @@ bool ukai_es_delete(ukai_es_client_t *client) {
     if (!deleted) { return false; }
     Block_release(client->sync_block);
     free(client->ring);
-    dispatch_release(client->synced);
+    sync_release(client->sync);
     free(client);
     return deleted;
 }

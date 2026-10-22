@@ -115,12 +115,11 @@ impl GuardianStop {
         if guard_armed {
             self.custody.arm_guard();
         }
-        // EOF may precede delivery of the spawn event. Synchronize once,
-        // then poll G before any empty-table decision. A failed barrier
-        // cannot establish a complete prefix and is conservatively a gap.
-        if !source.synchronize(SETTLE_MS as u32) {
-            self.custody.note_stream_gap();
-        }
+        // Give already queued events a bounded chance to arrive. A slow
+        // barrier is not evidence of lost messages: continue polling G.
+        // The root-entry veto prevents early EOF from proving an empty tree;
+        // actual sequence/ring loss still vetoes a drain independently.
+        let _ = source.synchronize(SETTLE_MS as u32);
         self.custody.begin_stop(now_ns);
         let mut peak = self.custody.live_count();
         let mut in_tail = false;

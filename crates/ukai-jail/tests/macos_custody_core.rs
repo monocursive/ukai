@@ -1120,3 +1120,73 @@ fn exec_holds_freeze_open_and_clears_stopped_mark_m23_m27() {
     custody.tick(30, &mut signals);
     assert_eq!(signals.calls_to(100, libc::SIGKILL), 1);
 }
+
+#[test]
+fn r3_c4_exited_custodian_cannot_exempt_a_reused_pid_on_exec() {
+    use ukai_jail::platform::macos::custody::Applied;
+    let mut custody = Custodian::new(2);
+    let old = token(200, 1, 501);
+    let replacement = token(200, 2, 501);
+    custody.register_custodian(old).unwrap();
+    assert_eq!(
+        custody.apply_event(&EsEvent::Exit {
+            token: old,
+            status: 0
+        }),
+        Applied::CustodianIgnored
+    );
+    assert_eq!(
+        custody.apply_event(&EsEvent::Exec { token: replacement }),
+        Applied::ExecEntered
+    );
+    assert!(custody.table().contains_token(&replacement));
+    assert_eq!(
+        custody.apply_event(&EsEvent::Exit {
+            token: replacement,
+            status: 0
+        }),
+        Applied::ExitRemoved
+    );
+    assert!(!custody.gapped());
+    // Retiring the exemption also frees one of the two custodian slots.
+    custody.register_custodian(token(201, 1, 501)).unwrap();
+    custody.register_custodian(token(202, 1, 501)).unwrap();
+}
+
+#[test]
+fn r3_c4_only_the_exact_current_token_can_remove_a_member() {
+    use ukai_jail::platform::macos::custody::Applied;
+    let current = token(100, 2, 501);
+    for word in 0..8 {
+        let mut custody = Custodian::new(1).with_stop(1, 10);
+        custody.expect_root(100);
+        custody.apply_event(&EsEvent::Fork { token: current });
+        let mut stale = current;
+        stale[word] = stale[word].wrapping_add(1);
+        assert_eq!(
+            custody.apply_event(&EsEvent::Exit {
+                token: stale,
+                status: 0
+            }),
+            Applied::ExitUnknown,
+            "word {word}"
+        );
+        assert!(custody.table().contains_token(&current), "word {word}");
+        assert_eq!(custody.live_count(), 1);
+        assert!(custody.gapped());
+        assert_eq!(
+            custody.apply_event(&EsEvent::Exit {
+                token: current,
+                status: 0
+            }),
+            Applied::ExitRemoved
+        );
+        custody.begin_stop(0);
+        assert!(
+            !custody
+                .tick(0, &mut RecordingSignaller::default())
+                .unwrap()
+                .drained()
+        );
+    }
+}
