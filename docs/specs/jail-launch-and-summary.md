@@ -263,12 +263,14 @@ per its documentation); updates happen on the host, between runs.
 
 **macOS group-writable rule (amended 2026-10-22,
 [jail-macos.md](jail-macos.md) §4.11, §8).** On macOS, step 2's
-group-writable refusal is adjusted for Homebrew: `/opt/homebrew/bin` is
-group-writable by `admin` (measured, where `admin` holds `root` and the
-operator). A group- or other-writable install directory — or any directory
-from the install root down to `E` — is therefore accepted only when its
-group's members, read at preparation, are exactly `root` and the operator;
-nested groups are refused. Every other case keeps the refusal.
+group-writable refusal applies to Homebrew too: `/opt/homebrew/bin` is
+`admin`-writable (observed, not recorded). Group- or other-writable install
+directories, including every directory from the install root down to `E`,
+refuse. The proposed root+operator group exception was withdrawn on
+2026-10-22 because directory-service membership cannot be proved complete
+(jail-macos.md §12 decision 6). Install the agent in an operator- or
+root-owned directory that is neither group-writable nor other-writable.
+Linux is unchanged.
 
 ### 3.4 Launch-profile grammar additions (amends jail-v1 §12)
 

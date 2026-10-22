@@ -134,25 +134,30 @@ To uninstall the default installation, remove `~/.local/bin/ouro-vm` and
 `~/.local/share/ouro-vm/0.1.0-preview.1`. Keep or delete attempt directories as
 needed. A crashed launcher can leave a disk there; never boot or reuse it.
 
-## macOS: the native tier and `--vm` (code-complete, not shipped)
+## macOS: the native tier and `--vm` (work in progress)
 
-The macOS design has two tiers ([jail-macos.md](specs/jail-macos.md)); both
-are code-complete and **neither is shipped yet**. Native execution stays
-refusal-gated until Apple grants the Endpoint Security entitlement, which
-J16 cannot ship without.
+The macOS design has two tiers ([jail-macos.md](specs/jail-macos.md)); their
+implementation is work in progress in the working tree (uncommitted), and
+**neither is supported or shipped**. The new custody code has not run with
+live Endpoint Security. J16 still needs packaging, the measurement spike,
+Apple's entitlement and the protected-Mac acceptance run. J18 still lacks
+network, the `agent` profile, a workspace share and in-guest credentials.
+The following describes the intended contract.
 
-**Native tier (J16), the default once released.** A run is contained by a
-Seatbelt profile and kept bounded by two custodian processes the contained
-workload cannot kill. The summary's lifetime line names this boundary:
-`native_tree`. It means the tree's end was verified by native custody while
-a custodian lived — **not** the kernel-bound guarantee Linux gives. If both
+**Native tier (J16), the intended default once released.** The design
+requires Seatbelt containment and two custodians defended from the workload;
+that defense still needs live acceptance evidence. The receipt's boundary
+`native_tree` identifies the custody mechanism, not a verified end. Only
+`tree_empty: true` with the required drain proof says the tree's end was
+verified; a `native_tree` receipt can instead report `tree_unknown`. This
+boundary does not provide Linux's kernel-bound lifetime guarantee. If both
 custodians are lost (a named residual), the tree can survive until you run
 `ukai-jail gc`, which kills the recorded target by audit token; only
 `ukai-jail gc --abandon ATTEMPT` releases the attempt's lease and accepts
 that unverified end. `run` and `doctor` list any such attempt by name. Runs
 that must not depend on a userspace custodian use the VM tier instead.
 
-**VM tier (J18): `--vm`.** A run with `--vm` executes in a warm Linux guest
+**VM tier (J18), intended behavior: `--vm`.** A run executes in a warm Linux guest
 whose own jail provides the kernel-bound lifetime (`pid_namespace`,
 requirement `owner_loss_termination`). Native macOS refuses that
 requirement, naming `--vm`; Linux `none` refuses it too. The guest is

@@ -18,7 +18,7 @@
     "name": "tool",
     "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "observe": "on",
-    "evidence": "strict",
+    "evidence": "best-effort",
     "requirements": [
       "tree_termination",
       "closed_set_observation"
@@ -118,19 +118,15 @@
       "gaps": []
     },
     "fs.deny": {
-      "status": "active",
-      "sources": [
-        "audit"
-      ],
-      "observed_count": 0,
+      "status": "unsupported",
+      "sources": [],
+      "observed_count": null,
       "gaps": []
     },
     "net": {
-      "status": "active",
-      "sources": [
-        "audit"
-      ],
-      "observed_count": 0,
+      "status": "unsupported",
+      "sources": [],
+      "observed_count": null,
       "gaps": []
     },
     "limits": {

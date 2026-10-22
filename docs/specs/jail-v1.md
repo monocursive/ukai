@@ -722,15 +722,23 @@ ukai-jail run [--profile agent|tool|build|none|FILE] [--launch NAME]
   [--deny-read PATH]... [--allow-host HOST[:PORT]]... [--limit KEY=VALUE]...
   [--observe on|off] [--evidence strict|best-effort]
   [--receipt PATH] [--trace-fd N] [--control-fd N] [--gate-fd N]
-  [--attempt-id ID]
+  [--attempt-id ID] [--vm] [--lifetime kernel-bound]
   [--label-only] -- PROGRAM [ARG]...
 ukai-jail explain [policy selection and override flags] [--json]
 ukai-jail doctor [--profile NAME|FILE] [--launch NAME]
   [--workspace PATH] [--scratch PATH] [--json]
 ukai-jail gc [--dry-run] [--json]
 ukai-jail gc --abandon ATTEMPT
+ukai-jail vm stop
 ukai-jail version [--json]
 ```
+
+J18 adds `--vm` (macOS only) and `ukai-jail vm stop` to select and stop the
+warm Linux guest. `--lifetime kernel-bound` requires `owner_loss_termination`;
+it narrows authority rather than selecting a backend. Native macOS refuses
+that requirement with `--vm` remediation; Linux `none` refuses it too.
+These flags are working-tree interfaces, not a supported Mac release; see
+[jail-macos.md](jail-macos.md) §6 for the intended behavior and missing pieces.
 
 `gc --abandon ATTEMPT` is macOS-native-tier only ([jail-macos.md](jail-macos.md)
 §4.9, §8): it accepts the unverified end of an attempt whose custodians are
@@ -948,7 +956,8 @@ mode = "on"
 evidence = "strict"
 ```
 
-File keys: `schema`, `extends`, `filesystem.read_write`, `filesystem.read_only`,
+File keys: `schema`, `extends`, `lifetime_boundary` (only `"kernel-bound"`,
+omitted when not required), `filesystem.read_write`, `filesystem.read_only`,
 `filesystem.deny_read`, `filesystem.protected_coverage`, `network.mode`,
 `network.allow`, `limits.wall`, `limits.pids`, `limits.mem`, `limits.swap`,
 `limits.storage`, `limits.inodes`, `limits.cpu`,
@@ -963,6 +972,7 @@ command fragments and arbitrary environment entries are not policy keys.
 | Remove writable/visible authority or make a writable subtree read-only | Allow |
 | Add a denied subtree | Allow |
 | Require stronger protected-path coverage | Allow; refuse at capability check if unsupported |
+| Add `lifetime_boundary = "kernel-bound"` | Allow; derive `owner_loss_termination` and refuse if unavailable; omission in a later narrowing layer preserves the requirement, it never clears it |
 | Lower a wall, pids, mem, swap, storage, inodes or CPU ceiling | Allow |
 | Add a previously absent finite limit | Allow, and require its enforcement |
 | Change proxy network to none, or shrink its allowed host set | Allow |

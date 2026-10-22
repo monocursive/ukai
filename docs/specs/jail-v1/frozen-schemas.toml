@@ -137,14 +137,16 @@
 #   their existing identifiers (ukai.jail.receipt/1, ukai.jail.summary/1).
 #   Rationale: additive only. A receipt's `applied.terminal.session` was the
 #   constant `caller` and is now the enum `caller`, `relay` (the macOS pty
-#   relay); a credentials item may carry `binding` (`program` on Linux,
-#   `attempt` on native macOS), absent otherwise, with the cross-field rules
-#   a schema cannot state added to the semantic corpus and both ports of it.
+#   relay); a macOS vault credentials item may carry `binding: attempt`.
+#   Linux vault receipts omit `binding`, retaining the rc.4 shape. If present,
+#   binding is valid only on a macOS vault item and only as `attempt`;
+#   an absent field remains valid. The semantic corpus and both ports enforce
+#   this rule; the additive wire enum alone does not enforce those semantics.
 #   The summary's `survivors` fact gains `none_verified_native` and
 #   `none_verified_native_guardian_lost` for `lifetime.boundary`
-#   `native_tree` runs. New example: receipt-macos-native.json (product
-#   output, frozen below), and the semantic corpus gains its cases. No
-#   shared field changed meaning: a receipt without `binding` keeps its
+#   `native_tree` runs. New example: receipt-macos-native.json (hand-written
+#   illustrative fixture, not product output, frozen below), and the semantic
+#   corpus gains its cases. No shared field changed meaning: a receipt without `binding` keeps its
 #   bytes and digest, and a Linux summary line is unchanged.
 # - 2026-10-22 (J18, jail-macos.md §6 and §8) re-blessed
 #   policy-snapshot.schema.json in place under its existing identifier
@@ -176,6 +178,20 @@
 #   semantic rules the base capability definition states (an available
 #   process/tree row says `ok`; a host row is never named as a
 #   requirement) are unchanged. No shared field changed meaning.
+# - 2026-10-22 DOCS review (D4/D5/D6/D9) re-blessed jail-doctor.schema.json,
+#   canonicalization.md and examples/receipt-macos-native.json in place.
+#   Doctor widening is additive: macOS may express ready true when its
+#   nonempty requirement rows are available; empty readiness claims still
+#   refuse. The ready containment requirement for binaries.bwrap is
+#   Linux-only. owner_loss_termination is also admitted in
+#   the requirement list. All previously valid doctor records remain valid;
+#   the refusal example is unchanged. New schema cases are synthetic inputs,
+#   not evidence that a native host is ready. canonicalization.md now names
+#   the existing optional lifetime_boundary field; old snapshots keep their
+#   bytes. The illustrative receipt no longer claims fs.deny or net audit
+#   coverage and uses best-effort evidence. Native details remain illustrative
+#   until phase 2 reconciles the producer. Linux omits credential binding;
+#   optional macOS vault binding is attempt, as checked by both validators.
 schema = "ukai.jail.frozen-schemas/1"
 milestone = "milestone-1"
 
@@ -227,13 +243,13 @@ sha256 = "3258c99bd153e3b53697a4915fbed9f63414aa4aca172f4969931b46c5c025c7"
 file = "jail-doctor.schema.json"
 id = "urn:ukai:schema:jail-doctor:1"
 identifier = "ukai.jail.doctor/1"
-sha256 = "ca1488e3ef9e420d4f74bbae9938d1b4878236eb03fc95eb6fb36d41b3ecaa7f"
+sha256 = "4821401b8e529434e0c1d12e07e70e0b01790ac5d09009fd05b78dac742544b0"
 
 # the canonical bytes, the policy and argv digest preimages and the private policy.json envelope
 [[frozen_artifact]]
 file = "canonicalization.md"
 identifiers = ["ukai.jail.policy/1", "ukai.jail.policy-file/1", "ukai.jail.policy-snapshot/1"]
-sha256 = "fb6ca3944ceddb06a7da8e0721b5974e9fee86e12262abdaca80af8e5a001564"
+sha256 = "eb7ac3774c0d73ac8838181aa7455f3092c220d50b8e0553782aa618274af4be"
 
 # the golden snapshot
 [[frozen_artifact]]
@@ -283,11 +299,12 @@ file = "fixtures/semantic-cases.json"
 identifiers = ["ukai.jail.receipt/1", "ukai.event/1", "ukai.jail.control/1"]
 sha256 = "d015d06856242f893a35b66484a88f69ecab58a9f095a51b826198f085425647"
 
-# J16 (jail-macos.md §4.8): a native macOS receipt
+# J16 (jail-macos.md §4.8): hand-written illustrative native receipt,
+# not product output or live evidence. Phase 2 must align producer fields.
 [[frozen_artifact]]
 file = "examples/receipt-macos-native.json"
 identifiers = ["ukai.jail.receipt/1", "ukai.event/1", "ukai.jail.control/1"]
-sha256 = "2ae4a3fcafd678294cdc8d3a48549445ace90b7f86c2c71490590cfbb5a6f5c6"
+sha256 = "a152abdd96aa23643bcb7243b78bd90509613a6d11f4bee247bc8695fae8aa1f"
 
 # an instance the semantic corpus changes
 [[frozen_artifact]]

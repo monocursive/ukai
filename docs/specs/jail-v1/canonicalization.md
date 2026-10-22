@@ -19,13 +19,16 @@ The byte encoding does not bypass redaction: trace paths still obey §11.3.
 
 The complete hash input is the `ukai.jail.policy-snapshot/1` object validated
 by [policy-snapshot.schema.json](policy-snapshot.schema.json). The schema's
-`required` list and `additionalProperties: false` govern presence: every field
-the schema requires is present, optional values use null or empty arrays, and
-four kinds of value are omitted rather than emitted as null, false or empty —
-`commands` when both filter lists are empty, `network.tls_only` when empty,
-`limits.swap`, `limits.storage` and `limits.inodes` when unset, and
-`observation.learning` when false. No other fields are accepted. Resolve configuration, expand the built-in profile and
-apply project narrowing before constructing it:
+`required` list and `additionalProperties: false` govern presence. Every
+required field is present. Optional fields follow their schema's omission
+rules, including `commands` when both filter lists are empty,
+`network.tls_only` when empty, unset `limits.swap`, `limits.storage` and
+`limits.inodes`, `observation.learning` when false, and `lifetime_boundary`
+when no kernel-bound lifetime is required. J12/J14 additions (`roots.cwd`,
+persistent vendor state, terminal and optional launch/credential fields)
+also follow the schema; omission preserves older policy bytes. No fields
+outside the schema are accepted. Resolve configuration, expand the built-in
+profile and apply project narrowing before constructing it:
 
 | Field | Canonical meaning |
 |---|---|
@@ -33,6 +36,7 @@ apply project narrowing before constructing it:
 | profile | Base `agent`, `tool`, `build`, or `none`; custom display/file names excluded |
 | profile_version | `1`, the built-in semantic contract version |
 | platform | `linux` or `macos`; never kernel/build/probe results |
+| lifetime_boundary | Optional `"kernel-bound"`, present exactly when `owner_loss_termination` is required. It participates in the policy digest; absent otherwise, preserving previous bytes and digests |
 | roots | Absolute resolved workspace; scratch as managed or explicit host path; vendor_state as managed or null |
 | filesystem | Effective read_write/read_only/deny_read path-reference sets, protected_segments set, protected_coverage |
 | network | Mode, normalized allow-rule set, the TLS-only subset of it (`tls_only`, below), ruleset identifier and configured translation-prefix set |

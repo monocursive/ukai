@@ -113,15 +113,19 @@ The signed release plan binds this scope and both native Linux targets.
 ## macOS Jail bundle (pending entitlement — NOT yet releasable)
 
 The Linux-only scope above has a macOS counterpart defined by
-[jail-macos.md](specs/jail-macos.md) §4.12 and §8. The code is complete, but
-**nothing here is releasable until Apple grants the Endpoint Security
-entitlement** (request `S9YJTLLH28`, submitted 2026-09-29); the procedure
-below is written now so the release run can start the day the grant lands.
-Until then, native execution remains refusal-gated and the VM preview is the
-only Mac deliverable.
+[jail-macos.md](specs/jail-macos.md) §4.12 and §8. J16–J18 are work in
+progress in the working tree (uncommitted), not supported or releasable.
+The new custody implementation has not run with live Endpoint Security;
+decision 5's measurement spike has not run. J16 still needs its bundle,
+Info.plist, entitlements and `~/Applications` installer. J18 still lacks
+network, the `agent` profile, a workspace share and in-guest credentials.
+Apple's Endpoint Security grant (request `S9YJTLLH28`, submitted 2026-09-29)
+is necessary, but does not by itself make the release run ready. The procedure
+below is a release requirement, not an implemented packaging workflow. The
+released VM preview remains the only Mac deliverable.
 
-When the entitlement is granted, release a Mac build as a bundle, not a bare
-binary:
+After implementation, packaging and the measurement spike are complete and
+the entitlement is granted, prepare a Mac release bundle as follows:
 
 1. **One entitled executable.** The supervisor and the guardian are both
    `ukai-jail` inside `Ukai.app/Contents/MacOS/ukai-jail`, carrying
@@ -141,9 +145,11 @@ binary:
    profile, on the release build (K104). A SIP-disabled development VM run
    does not satisfy this.
 
-The native macOS evidence that exists today was measured in a development VM
-with SIP disabled ([macos-development.md](benchmarks/jail/macos-development.md));
-it proves mechanisms, not releasability.
+The existing live-ES evidence comes from historical prototypes in a
+SIP-disabled development VM, not this implementation. That VM was deleted
+on 2026-10-22 and must be re-cloned using
+[macos-development.md](benchmarks/jail/macos-development.md) for further
+development measurements; release evidence requires the protected Mac.
 
 ## Prepare and validate
 
@@ -156,7 +162,11 @@ since the recorded VM run needs a new one first (`onboarding_vm.py`). A plain
 needs at least 4 GiB free for a release build. Record successful conformance with
 `cargo xtask freeze --doctor`, then require
 `cargo +1.98.1 run -q -p xtask -- freeze --check` to pass. A tree-only freeze,
-skipped reference host or an older passing run is insufficient.
+skipped reference host or an older passing run is insufficient. The next
+release needs a fresh reference conformance rerun on the VPS, followed by
+`cargo xtask freeze --doctor <successful-run>/doctor.json`. The current
+`milestone-1-freeze.toml` has no `[tested]` record: regenerating a tree-only
+freeze intentionally removes it and cannot establish release readiness.
 
 Set the reviewed coordinates and production key:
 

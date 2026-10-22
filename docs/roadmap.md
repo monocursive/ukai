@@ -32,11 +32,14 @@ bundle features natively, including the installed CLI commands.
 Fourteen starter launch profiles are embedded. OpenCode has recorded live
 runs, but a bundled profile is not a promise that every version of that agent
 works. The [compatibility records](https://github.com/monocursive/ukai/blob/dev/docs/specs/jail-v1/agent-compatibility.md)
-name the tested combinations. Native macOS `ukai-jail` is now code-complete
-in two tiers ([jail-macos.md](specs/jail-macos.md)): the native custody tier
-(J16, J17) and the warm VM tier (J18). It is **not shipped**: native
-execution stays refusal-gated until Apple grants the Endpoint Security
-entitlement, and the VM preview remains the only Mac deliverable today.
+name the tested combinations. The two-tier macOS implementation is work in
+progress in the working tree (uncommitted): native custody (J16, J17) and a
+warm VM (J18), specified in [jail-macos.md](specs/jail-macos.md). Neither tier
+is supported or shipped. Native custody has not run with live Endpoint
+Security; the measurement spike, packaging and protected-Mac acceptance run
+remain outstanding. J18 still lacks network, the `agent` profile, a workspace
+share and in-guest credentials. The released VM preview is the only Mac
+deliverable today.
 
 You can [build the jail and try a small command](https://github.com/monocursive/ukai/blob/dev/docs/guide.md#build-and-check-your-host)
 today. [Signed Linux developer-preview packages](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.4)
@@ -124,23 +127,28 @@ making the custodians impossible for the workload to kill
 ([the question and answer](benchmarks/jail/apple-lifetime-question.md)).
 
 The design now follows Apple's advice in two tiers
-([jail-macos.md](specs/jail-macos.md)), both code-complete and neither
-shipped:
+([jail-macos.md](specs/jail-macos.md)); both are work in progress and neither
+is supported or shipped:
 
-- **Native custody (J16, J17).** Two Endpoint Security custodians that the
-  Seatbelt-contained workload cannot kill, plus Seatbelt containment. Killing
-  either custodian alone ends the tree within a bound (200 development-VM
-  trials); killing both is the named residual — the tree may survive until
-  `ukai-jail gc` kills the target, and `gc --abandon` accepts the unverified
-  end. J17 adds native exec and file-mutation observation from a third
-  client. This tier is refusal-gated until Apple grants the Endpoint
-  Security entitlement; J16 cannot ship before that grant, and its final
-  rows must be re-run on a normally protected Mac.
-- **Warm VM (J18).** The [VM preview](https://ukai.sh/guide/#macos-vm-preview)
-  becomes a backend: `--vm` runs Linux ARM64 programs in a warm guest whose
-  own jail gives the kernel-bound lifetime the Mac kernel cannot. `ukai-jail
-  vm stop` ends the guest. It needs only the virtualisation entitlement the
-  preview already uses.
+- **Native custody (J16, J17).** The design requires Seatbelt to defend two
+  Endpoint Security custodians from the workload; the defense matrix has
+  not run against those custodians. In a 2026-09-30 `macos_es_pair.c`
+  prototype (not this code), either surviving custodian emptied a
+  seven-process fixture in 40 of 40 single-custodian kill trials. Those
+  were 40 of 200 total trials, using a 750 ms heartbeat and an
+  `(allow default)` profile; they do not prove the new design. This
+  implementation has not run with live Endpoint Security. Killing both
+  custodians is the named residual: the tree may survive, and recovery
+  cannot verify all descendants dead. J17 adds exec and file-mutation
+  observation from a fourth ES client (custody uses S, G and G′).
+  J16 requires Apple's entitlement, completed packaging, the measurement
+  spike and a passing protected-Mac acceptance run before release.
+- **Warm VM (J18).** The intended backend reuses a warm Linux ARM64 guest
+  through `--vm`, with `ukai-jail vm stop` to stop it. Network, the `agent`
+  profile, a workspace share and in-guest credentials are still missing;
+  warm reuse and fault behavior need new live evidence. The released
+  [VM preview](https://ukai.sh/guide/#macos-vm-preview) is a separate,
+  cold-boot implementation.
 
 Native execution stays disabled until the entitlement arrives and the tier
 passes its failure tests on a protected Mac. Inspection commands remain

@@ -134,34 +134,37 @@ without host directories, signing keys or clipboard sharing. The host's SIP
 remained enabled. Its [raw results and timings](results/macos-es-development/rerun/summary.json)
 are development mechanism measurements, not production jail benchmarks.
 
-## J16–J18 implementation coverage (2026-10-22, code-complete)
+## J16–J18 working-tree coverage (2026-10-22, work in progress)
 
-The [two-tier macOS design](../../specs/jail-macos.md) is implemented in
-`crates/ukai-jail` (`platform/macos/`, the bridge, the gc and requirement
-plumbing and the VM tier) with these test lanes. **No "supported" claim
-follows**: native execution remains refusal-gated until Apple grants the
-Endpoint Security entitlement ([jail-macos.md](../../specs/jail-macos.md)
-§4.12), and K104 — every J16 row on a normally protected Mac — has not run.
+The [two-tier macOS design](../../specs/jail-macos.md) has uncommitted
+implementation work in `crates/ukai-jail`; it is not supported or shipped.
+The new custody code has not run with live Endpoint Security. J16 packaging
+and decision 5's measurement spike remain outstanding; J18 lacks network,
+the `agent` profile, a workspace share and in-guest credentials. Apple's
+entitlement and K104 (every J16 row on a protected Mac) are still required.
+The table describes assertions in the current test sources, not a passing
+live acceptance record; phase 2 must recheck it after code integration.
 
 | Lane | Covers |
 | --- | --- |
-| `macos_custody_core` | Custody lifecycle and receipt facts: start and release, membership, stop draining, `lifetime.native.details`, boundary `native_tree` (§§4.2–4.5, 4.8; parts of K87, K92, K97). |
-| `macos_guardian` | Custodian loss one at a time: `custodian_lost`, `custodian_stalled`, supervisor drain-alone, `tree_empty` from client S (§4.6; K89, parts of K88). |
-| `macos_sandbox_profile` | Seatbelt profile composition, digest pinning and the Mach allowlist (§4.7, §4.10; K90's profile fixtures, K100). |
-| `macos_defense_matrix` | The §4.7 attack classes from inside the sandbox against both custodians, with positive controls (K90). |
-| `macos_bridge` | Authenticated loopback HTTP and SOCKS5, per-attempt secret, credential binding `attempt` (§4.10; K99). |
-| `macos_terminal_relay` | The pty relay: relay session, no member holds the operator's terminal, raw-mode restore, `/dev/tty` fails detached (§4.11; K101). X05 byte equality does not hold for macOS terminal runs. |
-| `macos_gc` | `gc_custody_verified`, `gc_killed_target`, `gc --abandon`/`gc_abandoned`, the boot-session rules and the `run`/`doctor` orphan listing (§4.9; K88, K95's gc parts). |
-| `macos_boundary` | Refusals: no entitlement, `none`, explicit ceilings, `--observe on`, `execution_boundary` unsupported (K98, K112's native half). |
-| `macos_observe` | The J17 observation client: exec/`fs.write` classes, gap to `degraded` without touching custody (§5; K105–K106). |
-| `vm_tier` | `--vm` selection, `vm stop`, warm guest, guest receipt with transport record, `owner_loss_termination` narrowing (§6; K108, K111, K112). |
-| Portable extensions | Shared suites re-run on macOS where the mechanism is portable (resolution, group-writable rule §4.11, J12/J13/J14 amendments). |
+| `macos_custody_core` | Synthetic custody-event sequences: membership, exec-token changes, gap/integrity vetoes, freeze/kill/drain state transitions, budgets and preallocation. Also live unentitled-client refusal, clock reads and the test process audit token. No start/release or receipt integration proof. |
+| `macos_guardian` | Launch-block round trips and malformed-input/size refusals, rlimit arithmetic, guardian grammar and unentitled-client refusal. No live custodian-loss or stall trial (K88/K89). |
+| `macos_sandbox_profile` | Generated profile digest and composition; live sandbox fixtures for filesystem grants, protected names, Mach denial, network ports, signalling, setuid and deputies. These are profile checks, not custody integration. |
+| `macos_defense_matrix` | Classes 1–3 against an operator sleeper and a sibling member, with outside controls. Custodian targets and the full K90 matrix remain untested. |
+| `macos_bridge` | Two loopback ports, secret-bearing URLs/environment, HTTP CONNECT and SOCKS5 authentication over real loopback sockets. No vendor-agent run or credential-binding receipt assertion (K99). |
+| `macos_terminal_relay` | Real ptys and shell fixtures: byte/interrupt relay, window size, raw-mode restore, stop polling, killed-agent handling and relay receipt facts. No complete jailed descriptor-isolation or detached `/dev/tty` acceptance run (K101). |
+| `macos_gc` | Host boot/session and custodian-liveness probes; fabricated attempt roots for abandon, orphan listing and drained-record scanning; a gone-target kill errno path. No live both-custodian-loss recovery proof (K95). |
+| `macos_boundary` | Unentitled `run`/requirements refusals, launcher/guardian grammar, blocked report, B-frame codec and synthetic RunEvent mapping. No `none`, ceiling or `--observe on` refusal assertion in this file. |
+| `macos_observe` | Synthetic event mapping into a real trace sink, synthetic gap/coverage handling and summary receipt, plus client creation on an unentitled host. No observed live attempt (K105–K107). |
+| `vm_tier` | Policy key/digest/narrowing, CLI grammar and refusals, transport facts, and attempt/control protocols against a scripted stand-in. No VM boots; warm reuse and K108–K110 remain untested. |
+| Portable extensions | Shared resolution, policy and record assertions where the named suite actually runs on macOS; these do not prove live native custody or nested-group handling. |
 
 **Dev-VM note.** The development VM (`ouro-jail-es-dev`) used for the
 SIP-disabled ES trials has been deleted. The live rows K87–K104 require
 restoring it per [macos-development.md](macos-development.md), or running on
-an entitled Mac; without one of those, the lanes above prove design and
-code, not measured live custody.
+an entitled Mac for development measurements; K104 specifically requires a
+normally protected, entitled release host. The listed unit, synthetic and
+profile checks do not prove measured live custody.
 
 ## Distribution
 

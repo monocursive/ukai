@@ -4233,5 +4233,109 @@
         }
       }
     ]
+  },
+  {
+    "name": "J16 doctor can express a ready native Mac without bubblewrap",
+    "schema": "jail-doctor",
+    "base": "fixtures/doctor-macos-ready.json",
+    "valid": true,
+    "changes": []
+  },
+  {
+    "name": "J16 doctor cannot claim ready with an unavailable native requirement",
+    "schema": "jail-doctor",
+    "base": "fixtures/doctor-macos-ready.json",
+    "valid": false,
+    "changes": [
+      {
+        "path": [
+          "capabilities",
+          0,
+          "status"
+        ],
+        "value": "unavailable"
+      },
+      {
+        "path": [
+          "capabilities",
+          0,
+          "reason_code"
+        ],
+        "value": "es_not_entitled"
+      }
+    ]
+  },
+  {
+    "name": "J16 doctor cannot claim ready with no required or measured capabilities",
+    "schema": "jail-doctor",
+    "base": "fixtures/doctor-macos-ready.json",
+    "valid": false,
+    "changes": [
+      {
+        "path": [
+          "capabilities"
+        ],
+        "value": []
+      },
+      {
+        "path": [
+          "requirements"
+        ],
+        "value": []
+      }
+    ]
+  },
+  {
+    "name": "J16 ready native doctor still cannot carry Linux bubblewrap",
+    "schema": "jail-doctor",
+    "base": "fixtures/doctor-macos-ready.json",
+    "valid": false,
+    "changes": [
+      {
+        "path": [
+          "binaries",
+          "bwrap"
+        ],
+        "value": null
+      }
+    ]
+  },
+  {
+    "name": "J18 doctor can name the owner loss requirement when native execution refuses",
+    "schema": "jail-doctor",
+    "base": "fixtures/doctor-macos-ready.json",
+    "valid": true,
+    "changes": [
+      {
+        "path": [
+          "ready"
+        ],
+        "value": false
+      },
+      {
+        "path": [
+          "requirements"
+        ],
+        "value": [
+          "owner_loss_termination"
+        ]
+      },
+      {
+        "path": [
+          "capabilities"
+        ],
+        "value": [
+          {
+            "name": "owner_loss_termination",
+            "status": "unsupported",
+            "scope": "tree",
+            "mechanism": null,
+            "reason_code": "vm_required",
+            "measured_at": null,
+            "evidence_ref": null
+          }
+        ]
+      }
+    ]
   }
 ]

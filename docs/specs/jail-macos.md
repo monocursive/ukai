@@ -1,11 +1,19 @@
 # Jail proposal: macOS in two tiers, native custody and a warm VM (J16–J18)
 
-Status: implemented, 2026-10-22, decisions settled the same day (§12).
-J16 (native custody) and J18 (the VM tier) are code-complete on `dev` at
-`ae14865f8`; nothing is "supported" yet. J16 cannot ship before Apple grants
-the Endpoint Security entitlement (§4.12), and its acceptance rows (§9.1)
-require a normally protected Mac (K104). J17 (§5) is code-complete behind
-the same gate. It was written against `dev` at `68512e1f1`, after
+Status: work in progress in the working tree (uncommitted), 2026-10-22;
+J16–J18 are not supported or released. `dev` at `ae14865f8` still has the
+refusal-only macOS platform; it does not contain this implementation work.
+The new custody implementation has not run with live Endpoint Security.
+J16 lacks the bundle, Info.plist, entitlements and `~/Applications` installer;
+J18 lacks network, the `agent` profile, a workspace share and in-guest
+credentials. Decision 5's K92/K93/K90-class-2 measurement spike has not run.
+The development VM was deleted on 2026-10-22 and must be re-cloned (§4.12).
+Apple's entitlement and the protected-Mac acceptance run (K104) remain
+release gates, alongside completing and validating the implementation.
+Sections below specify the intended contract, not properties proved by this
+working tree; historical prototype evidence is identified separately.
+Decisions were settled on 2026-10-22 (§12). The proposal was written against
+`dev` at `68512e1f1`, after
 Apple Developer Technical Support answered code-level support case `22799543`
 (the [question and answer](../benchmarks/jail/apple-lifetime-question.md)).
 
@@ -45,7 +53,7 @@ with a contract it can keep, and makes the receipt state which one a run had:
 | | Native tier (J16, J17) | VM tier (J18) |
 | --- | --- | --- |
 | Runs | macOS programs, natively | Linux arm64 programs in a guest |
-| Start | per run, two ES clients and one extra process; the single-client prototype was ready in 40–70 ms p50 (measured, development VM) | warm: the Linux jail's own start; cold: about 22 s (measured, preview) |
+| Start | per run, three ES clients (S, G, G′; four with J17) and one extra process; the single-client prototype was ready in 40–70 ms p50 (measured, development VM) | warm: the Linux jail's own start; cold: about 22 s (measured, preview) |
 | Containment | Seatbelt (jail-v2 §8.1) | the Linux jail, unchanged, inside the guest |
 | While a custodian lives | the tree ends on stop, verified (§4.5) | the tree ends on stop, verified (jail-v1) |
 | If every Ukai process of the attempt is lost | **the tree may survive**. The workload cannot cause the loss (§4.7). | the guest's own death chain ends it, as on any Linux host (§6) |
@@ -110,7 +118,8 @@ Out of scope, each its own later work:
 Apple's answer settles the question that the native research lane left open.
 The research had already shown that no mechanism within reach closes the gap:
 
-- **Two reciprocal ES custodians** (development VM):
+- **Two reciprocal ES custodians** (2026-09-30 `macos_es_pair.c` prototype,
+  development VM, `(allow default)` profile; not the J16 implementation):
   - **Either one killed:** the other emptied the seven-process fixture in 40
     of 40 trials.
   - **Either one stopped:** emptied in 40 of 40 trials, through a 750 ms
@@ -203,9 +212,10 @@ These rules are the design. The rest of §4 applies them.
      controls, so crafted input cannot crash both custodians through code they
      share. Apple names client bugs as the main risk.
    - Exec is in the set because exec replaces the audit token's PID version
-     (by reading, `ESMessage.h`). This happened at 900 of 900 exec events in
-     the prototype's log (measured). A custodian that missed an exec could no
-     longer signal that member.
+     (by reading, `ESMessage.h`). The prototype's reported 900-of-900
+     count is observed, not recorded with a reproducible derivation; it is
+     not acceptance evidence for this implementation. A custodian that
+     missed an exec could no longer signal that member.
 4. **After release, the custody path acquires nothing.** The custody path is
    the guardian, and the supervisor's handler and stop. It forks no process,
    opens no descriptor and allocates no memory. The membership table is
@@ -601,9 +611,10 @@ events" Apple names, and it is why the boundary is `native_tree`.
   and `boot_session`.
 - The J13 survivors line names the custody, for example
   `survivors: none (verified · native custody, not kernel-bound)`. With the
-  guardian lost, it adds `· guardian lost`. With `tree_unknown`, it says what
-  is unknown, as on Linux. The summary is still computed from the receipt
-  alone (K54).
+  guardian lost, it adds `· guardian lost`. One lost guardian is a handled
+  single-custodian failure, not the named residual: that is the loss of both
+  custodians (§4.6). With `tree_unknown`, it says what is unknown, as on
+  Linux. The summary is still computed from the receipt alone (K54).
 
 ### 4.9 gc and the next start
 
@@ -687,12 +698,14 @@ Changes and additions:
 
 - **Program resolution** (J12 §3.3):
   - **Mach-O programs**, with the same install-root grants.
-  - **Group-writable directories.** One macOS adjustment: J12 refuses a
-    group-writable install directory, and Homebrew's `/opt/homebrew/bin` is
-    group-writable by `admin`, measured on this Mac, where `admin` holds
-    `root` and the operator. A group-writable directory is therefore accepted
-    only when its group's members, read at preparation, are `root` and the
-    operator, with nested groups refused.
+  - **Group-writable directories.** J12's refusal also applies on macOS.
+    Homebrew's `/opt/homebrew/bin` is
+    group-writable by `admin` (observed, not recorded). Group- or
+    other-writable install directories refuse on macOS, as on Linux; there
+    is no group-membership exception. Directory-service membership cannot
+    be proved complete. Homebrew's admin-writable prefix is a known refusal:
+    install the agent in an operator- or root-owned directory that is
+    neither group-writable nor other-writable (decision 6).
   - **No exec pins.** Linux's exec-by-descriptor pins (F5, F2) have no macOS
     equivalent, because there is no `fexecve`. The program is checked before
     release, and a swap by a same-UID process outside the jail is outside the
@@ -748,15 +761,16 @@ Changes and additions:
   reading), Developer ID, hardened runtime and notarization. No root, no TCC
   approval and no Full Disk Access: the descendants client removes those
   requirements (by reading, SDK).
-- **Development** continues in the SIP-disabled VM, under the existing
-  [runbook](../benchmarks/jail/macos-development.md).
+- **Development VM:** deleted on 2026-10-22. It must be re-cloned under the
+  existing [runbook](../benchmarks/jail/macos-development.md) before further
+  SIP-disabled live-ES measurements; none were run on the new implementation.
 - **Release must** repeat every J16 row on a normally protected Mac, with the
   approved profile. **J16 cannot ship before Apple grants the entitlement.**
 
 ## 5. Native observation (J17)
 
-A third ES client, held by the supervisor, carries observation and nothing
-else:
+A fourth ES client, in addition to S, G and G′ and held by the supervisor,
+carries observation and nothing else:
 
 - `NOTIFY_EXEC` for the `exec` class;
 - `NOTIFY_CREATE`, `NOTIFY_RENAME`, `NOTIFY_UNLINK`, `NOTIFY_LINK`,
@@ -848,8 +862,7 @@ entitlement that the preview already uses.
 | [jail-v2](jail-v2.md) §8 | J11's lifetime design and its sentence "Do not select a weaker native guarantee merely because these proofs need more work" are replaced by §4 for the native tier. K29 is replaced by K87–K104. K23–K26 move into J16; K24's bridge gains the per-attempt secret (§4.10). | Amendment (decision 1) |
 | [jail-v1](jail-v1.md) §3.3 | The macOS native backend proves custody while a custodian lives, and names the both-lost residual (§4.6) instead of proving supervisor-death semantics with a kernel boundary. | Amendment (decision 1) |
 | jail-v1 L02, M01 | L02 on macOS native: killing each lifetime link alone ends the tree within a bound, and killing both is the named residual (K95). M01: `run` executes natively, and `none` refuses. | Row amendments (decision 1) |
-| jail-v1 receipt schema | `lifetime.native.details` for macOS (§4.8), identity kind `macos_audit_token`, `applied.terminal.session` widened from the constant `caller` to `caller` or
-`relay`, and `credentials[].binding` (`program` on Linux, `attempt` on native macOS). All are additive. | Schema |
+| jail-v1 receipt schema | `lifetime.native.details` for macOS (§4.8), identity kind `macos_audit_token`, `applied.terminal.session` widened from the constant `caller` to `caller` or `relay`, and optional `credentials[].binding`. Linux vault receipts omit `binding`, retaining the rc.4 shape; native macOS vault entries carry `binding: attempt`. If present, `binding` is valid only on a macOS vault entry and only as `attempt`; an absent field remains valid. The field addition is optional. | Schema |
 | jail-v1 §6.1, §14.2 | `gc --abandon ATTEMPT`, and macOS `gc` records `gc_custody_verified`, `gc_killed_target` and `gc_abandoned` (§4.9). | Addition |
 | `profiles.rs` macOS baselines | `observe = off` and a preferred `build` memory ceiling until J17 (§4.10). | Baseline |
 | [jail-launch-and-summary](jail-launch-and-summary.md) §3.3 (J12) | The macOS group-writable rule (§4.11). | Amendment |
@@ -887,7 +900,7 @@ snapshot of every recorded birth identity, taken before any emergency cleanup.
 | K99 | Proxy: Claude Code and OpenCode reach an allowed host through the authenticated HTTP and SOCKS5 ports. A connection without the secret, and any other loopback port, fails. The credential entry records `binding: attempt`. |
 | K100 | Keychain, DNS and Apple Events: a sandboxed Keychain read, a direct DNS query and `osascript` to System Events all fail. |
 | K101 | Terminal relay: the operator's terminal is never a member's descriptor. `TIOCSTI`, `setpgid` and `TIOCSPGRP` from members reach only the relay pty. `^C`, `^Z` and window size behave as in J14, raw mode is restored after a killed agent, and the guardian is never signalled. The `SIGTERM` grace, `^C` and a shell `trap` reach the target (the dispositions of §4.2). In a detached run, `/dev/tty` fails. |
-| K102 | jail-v1 §3.3's list: `/var` versus `/private/var`, case-insensitive APFS (`.GIT` against a protected `.git`), symlinks, bundles and dynamic libraries, and nested vendor sandboxes (an agent's own Seatbelt use inside the jail) recorded. Also the group-writable rule: `admin` with root and the operator is accepted, and another member refuses. |
+| K102 | jail-v1 §3.3's list: `/var` versus `/private/var`, case-insensitive APFS (`.GIT` against a protected `.git`), symlinks, bundles and dynamic libraries, and nested vendor sandboxes (an agent's own Seatbelt use inside the jail) recorded. Group- or other-writable install directories refuse, including Homebrew's admin-writable prefix, with remediation to an operator- or root-owned directory that is neither group-writable nor other-writable. |
 | K103 | Costs: release latency and stop-to-settled time over 20 runs, p50 and p95, on the named Mac. |
 | K104 | A protected Mac: every J16 row passes with SIP enabled and the approved provisioning profile, on the release build. |
 
@@ -920,13 +933,16 @@ Each tier is supported for an agent only after its own record:
   OpenCode headless (K26).
 - **J18:** Claude Code headless in the guest.
 
-The pass conditions are those of the Linux rows, plus K113: each record's
-summary names its custody (native) or its transport (VM).
+The pass conditions are those of the Linux rows, plus:
+
+| Row | Claim |
+| --- | --- |
+| K113 | Each compatibility record's summary names its custody (native) or its transport (VM). |
 
 ## 10. Costs
 
-- **Native, per run.** Two ES clients and one extra process. The
-  single-client prototype's readiness, from helper launch through fixture
+- **Native, per run.** Three ES clients (S, G and G′; four with J17) and
+  one extra process. The single-client prototype's readiness, from helper launch through fixture
   registration, was 40–70 ms p50 in the development VM (measured). K103
   measures the real design.
 - **Native, overall:**
@@ -1008,3 +1024,9 @@ to each remaining question. These are those answers:
    - **J17 last.**
    - **Apple:** §11's question 1 goes to the forum thread now. It is the only
      remaining question.
+6. **Install-directory rule, amended 2026-10-22.** The root+operator group
+   exception was withdrawn because directory-service membership cannot be
+   proved complete. Homebrew's admin-writable prefix refuses. Remediation:
+   install the agent in an operator- or root-owned directory that is neither
+   group-writable nor other-writable. The operator chose to keep this refusal;
+   Linux is unchanged.

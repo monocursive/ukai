@@ -96,8 +96,11 @@ The answer closes the question this document asked. macOS has no supported
 facility that ends an inherited workload once every userspace custodian is
 gone. The reciprocal prototype already has the shape Apple suggests, a
 guardian and a ward each holding a descendants client. Its simultaneous-loss
-counterexample therefore stands as a property of the platform, not a gap in
-the prototype. The [two-tier proposal](../../specs/jail-macos.md) designs the
+counterexample therefore remains a limit of this design without a root
+component. Apple's optional full `es_new_client` could defend the custodians
+against external kills, but needs root and Full Disk Access; the two-tier
+design declines that component (§7). It would still not supply a kernel-owned
+death chain after every custodian is gone. The [two-tier proposal](../../specs/jail-macos.md) designs the
 native tier around that, with a disclosed weaker lifetime, and keeps a
 kernel-bound VM tier. Apple did not comment on the Mach exception-port,
 debugger or fatal-port evidence.
