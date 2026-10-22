@@ -104,19 +104,59 @@ fn forged_or_replayed_receipts_never_establish_tree_facts() {
         assert!(run.receipt.is_none());
         assert!(!dir.path().join("evidence/jail.json").exists());
     }
-    for mutate in [
-        |b: &mut protocol::ReceiptBinding| b.attempt_id = "another".into(),
-        |b: &mut protocol::ReceiptBinding| b.boot_id = "another".into(),
-        |b: &mut protocol::ReceiptBinding| b.profile = "build".into(),
-        |b: &mut protocol::ReceiptBinding| b.argv_digest = "another".into(),
-        |b: &mut protocol::ReceiptBinding| b.guest_attempt_id = "another".into(),
-        |b: &mut protocol::ReceiptBinding| b.guest_boot_id = "another".into(),
+    for field in [
+        "attempt_id",
+        "boot_id",
+        "profile",
+        "argv_digest",
+        "guest_attempt_id",
+        "guest_boot_id",
     ] {
-        let (mut run, _, _) = running();
+        let (mut run, _peer, dir) = running();
         let (hash, data) = encoded(&receipt());
-        let mut bind = binding();
-        mutate(&mut bind);
-        assert!(run.store_receipt(&hash, &data, &bind).is_err());
+        let mut bind = serde_json::to_value(binding()).unwrap();
+        bind[field] = "another".into();
+        let bind = serde_json::from_value(bind).unwrap();
+        assert_eq!(
+            run.store_receipt(&hash, &data, &bind).unwrap_err(),
+            "guest receipt does not bind to this attempt, argv, profile and boot",
+            "{field}"
+        );
+        assert!(run.receipt.is_none(), "{field}");
+        for file in ["jail.json", "vm-binding.json"] {
+            assert!(!dir.path().join("evidence").join(file).exists(), "{field}");
+        }
+        // The very same receipt exports successfully once its binding is
+        // correct; a missing TempDir must never stand in for verification.
+        run.store_receipt(&hash, &data, &binding()).unwrap();
+        assert_eq!(
+            std::fs::read(dir.path().join("evidence/jail.json")).unwrap(),
+            serde_json::to_vec(&receipt()).unwrap(),
+            "{field}"
+        );
+    }
+}
+
+#[test]
+fn empty_guest_identifiers_never_bind_a_receipt() {
+    for (field, pointer) in [
+        ("guest_attempt_id", "/attempt_id"),
+        ("guest_boot_id", "/process/identity/value/boot_id"),
+    ] {
+        let (mut run, _peer, dir) = running();
+        let mut changed = receipt();
+        *changed.pointer_mut(pointer).unwrap() = "".into();
+        let mut bind = serde_json::to_value(binding()).unwrap();
+        bind[field] = "".into();
+        let bind = serde_json::from_value(bind).unwrap();
+        let (hash, data) = encoded(&changed);
+        assert_eq!(
+            run.store_receipt(&hash, &data, &bind).unwrap_err(),
+            "guest receipt does not bind to this attempt, argv, profile and boot",
+            "{field}"
+        );
+        assert!(run.receipt.is_none());
+        assert!(!dir.path().join("evidence/jail.json").exists());
     }
 }
 
@@ -260,13 +300,25 @@ fn ready_must_match_locally_verified_digests() {
 
 #[test]
 fn guest_limits_must_match_every_requested_value_and_requirement() {
-    for pointer in [
-        "/applied/limits/0/requested",
-        "/applied/limits/1/required",
-        "/applied/limits/2/requested",
-        "/applied/limits/3/applied",
+    for (pointer, reason) in [
+        (
+            "/applied/limits/0/requested",
+            "guest did not apply requested wall ceiling",
+        ),
+        (
+            "/applied/limits/1/required",
+            "guest did not apply requested pids ceiling",
+        ),
+        (
+            "/applied/limits/2/requested",
+            "guest did not apply requested mem ceiling",
+        ),
+        (
+            "/applied/limits/3/applied",
+            "guest did not apply every required limit",
+        ),
     ] {
-        let (mut run, _, _) = running();
+        let (mut run, _peer, dir) = running();
         let mut changed = receipt();
         let field = changed.pointer_mut(pointer).unwrap();
         *field = if field.is_boolean() {
@@ -275,9 +327,40 @@ fn guest_limits_must_match_every_requested_value_and_requirement() {
             Value::String("wrong".into())
         };
         let (hash, data) = encoded(&changed);
-        assert!(
-            run.store_receipt(&hash, &data, &binding()).is_err(),
+        assert_eq!(
+            run.store_receipt(&hash, &data, &binding()).unwrap_err(),
+            reason,
             "{pointer}"
+        );
+        assert!(run.receipt.is_none());
+        assert!(!dir.path().join("evidence/jail.json").exists());
+    }
+}
+
+#[test]
+fn unrequested_guest_limit_rows_are_rejected_before_export() {
+    // All requested rows remain correct. Only the additional unrequested
+    // ceiling distinguishes this receipt from one the host can accept.
+    for key in ["cpu", "unknown"] {
+        let (mut run, _peer, dir) = running();
+        let mut changed = receipt();
+        let rows = changed["applied"]["limits"].as_array_mut().unwrap();
+        let mut extra = rows[1].clone();
+        extra["key"] = key.into();
+        rows.push(extra);
+        let (hash, data) = encoded(&changed);
+        assert_eq!(
+            run.store_receipt(&hash, &data, &binding()).unwrap_err(),
+            "guest applied limits differ from requested limits",
+            "{key}"
+        );
+        assert!(run.receipt.is_none());
+        assert!(!dir.path().join("evidence/jail.json").exists());
+        let (hash, data) = encoded(&receipt());
+        run.store_receipt(&hash, &data, &binding()).unwrap();
+        assert_eq!(
+            serde_json::to_value(run.final_limits()).unwrap(),
+            receipt()["applied"]["limits"]
         );
     }
 }

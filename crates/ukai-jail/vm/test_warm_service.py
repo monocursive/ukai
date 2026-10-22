@@ -52,6 +52,9 @@ def guest(value, split=False):
     for offset in range(0, len(raw), 65536 if split else len(raw)):
         emit(dict(event='data', data=base64.b64encode(raw[offset:offset+65536] if split else raw).decode()))
 
+if os.environ.get('BLOCK_READY') == '1':
+    sys.stdin.read()
+    sys.exit(0)
 guest(dict(event='ready', kernel='stand-in-kernel'))
 sessions = 0
 for line in sys.stdin:
@@ -67,7 +70,10 @@ for line in sys.stdin:
             if sessions > 1:
                 guest(dict(event='error', message='duplicate session'))
                 sys.exit(125)
-            guest(dict(event='session', kernel='stand-in-kernel'))
+            if os.environ.get('BAD_SESSION') == '1':
+                guest(dict(event='session'))
+            else:
+                guest(dict(event='session', kernel='stand-in-kernel'))
             if os.environ.get('EXIT_AFTER_SESSION') == '1': sys.exit(1)
         elif op == 'reset':
             guest(dict(event='reset'))
@@ -143,6 +149,11 @@ class WarmServiceTests(unittest.TestCase):
                                  env=dict(self.env, **env), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         self.children.append(child)
         return child
+
+    def assert_exit(self, child, expected):
+        _, stderr = child.communicate(timeout=6)
+        self.assertEqual(child.returncode, expected, stderr.decode())
+        return stderr.decode()
 
     def socket(self, name):
         stream = socket.socket(socket.AF_UNIX)
@@ -247,22 +258,50 @@ class WarmServiceTests(unittest.TestCase):
                 self.socket('control')  # silent client cannot hold teardown
                 if idle == 0:
                     child.send_signal(signal.SIGTERM)
-                child.wait(timeout=6)
+                self.assert_exit(child, 0)
+
+    def test_sigterm_is_an_orderly_stop_before_and_during_an_attempt(self):
+        for phase in ('starting', 'idle', 'preparing', 'running'):
+            with self.subTest(phase=phase):
+                child = self.launch(idle=0, HOLD_RUN='1',
+                                    BLOCK_READY='1' if phase == 'starting' else '0')
+                if phase == 'starting':
+                    self.assertTrue(self.control('status')['warm'])
+                elif phase == 'idle':
+                    deadline = time.monotonic() + 3
+                    while self.control('status')['kernel'] is None:
+                        if time.monotonic() >= deadline:
+                            self.fail('service did not finish its session handshake')
+                        time.sleep(.01)
+                elif phase == 'preparing':
+                    stream = self.socket('attempt')
+                    self.assertEqual(self.frame(stream)['event'], 'ready')
+                else:
+                    self.attempt()
+                child.send_signal(signal.SIGTERM)
+                stderr = self.assert_exit(child, 0)
+                self.assertNotIn('VM custody or transport failed', stderr)
+                for name in ('control.sock', 'attempt.sock'):
+                    self.assertFalse((self.root / 'data/vm' / name).exists())
 
     def test_ack_invalid_or_absent_terminates_within_bound(self):
         for mode in ('invalid', 'silent'):
             with self.subTest(mode=mode):
                 child = self.launch(ACK_MODE=mode)
-                child.wait(timeout=6)
+                self.assert_exit(child, 125)
+
+    def test_bad_session_is_not_an_orderly_stop(self):
+        child = self.launch(BAD_SESSION='1')
+        self.assertIn('session omitted kernel', self.assert_exit(child, 125))
 
     def test_helper_death_and_stop_during_silent_attempt_are_bounded(self):
         child = self.launch(EXIT_AFTER_SESSION='1')
-        child.wait(timeout=6)
+        self.assert_exit(child, 125)
         child = self.launch()
         stream = self.socket('attempt')
         self.frame(stream)  # never send prepare
         self.control('stop')
-        child.wait(timeout=6)
+        self.assert_exit(child, 0)
 
     def test_second_serve_cannot_unlink_first_sockets(self):
         first = self.launch()

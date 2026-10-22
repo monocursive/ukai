@@ -178,6 +178,14 @@ struct Shared {
     failed: AtomicBool,
 }
 
+impl Shared {
+    fn stop_requested(&self) -> bool {
+        // The signal handler can only set STOP. Every thread must observe
+        // that request before interpreting teardown as a custody failure.
+        STOP.load(AtomicOrdering::SeqCst) || self.stopping.load(AtomicOrdering::SeqCst)
+    }
+}
+
 // SAFETY: a plain system call; the symbol is linked only on macOS, where
 // the call site compiles in.
 #[cfg(target_os = "macos")]
@@ -326,7 +334,7 @@ fn read_helper(
     let mut helper = protocol::LineSplitter::default();
     let mut guest = protocol::LineSplitter::default();
     let mut chunk = [0u8; 16384];
-    while !shared.stopping.load(AtomicOrdering::SeqCst) {
+    while !shared.stop_requested() {
         let n = match stdout.read(&mut chunk) {
             Ok(0) => return Err("helper EOF".to_owned()),
             Ok(n) => n,
@@ -371,7 +379,7 @@ fn maintain_lease(
     nonblocking(&ack_read)?;
     let mut acknowledged = continuous_ns();
     let mut sent = 0;
-    while !shared.stopping.load(AtomicOrdering::SeqCst) && !STOP.load(AtomicOrdering::SeqCst) {
+    while !shared.stop_requested() {
         let now = continuous_ns();
         if sent == 0 || now.saturating_sub(sent) >= LEASE_REFRESH.as_nanos() {
             // SAFETY: one byte from a live buffer to our lease descriptor.
@@ -397,6 +405,9 @@ fn maintain_lease(
         }
         std::thread::sleep(Duration::from_millis(10));
     }
+    // Publish an orderly stop before dropping the lease lets the custodian
+    // terminate the helper and close its output pipe.
+    shared.stopping.store(true, AtomicOrdering::SeqCst);
     Ok(())
 }
 
@@ -457,7 +468,7 @@ fn serve(args: ServeArgs) -> Result<(), String> {
     let reader_shared = Arc::clone(&shared);
     let reader = std::thread::spawn(move || {
         let result = read_helper(helper_stdout, &guest_sender, &reader_shared);
-        if !reader_shared.stopping.load(AtomicOrdering::SeqCst) {
+        if !reader_shared.stop_requested() {
             reader_shared.failed.store(true, AtomicOrdering::SeqCst);
             STOP.store(true, AtomicOrdering::SeqCst);
         }
@@ -472,8 +483,10 @@ fn serve(args: ServeArgs) -> Result<(), String> {
     let lease_shared = Arc::clone(&shared);
     let lease = std::thread::spawn(move || {
         if let Err(error) = maintain_lease(lease_write, ack_read, &lease_shared) {
-            eprintln!("ukai-vm: {error}");
-            lease_shared.failed.store(true, AtomicOrdering::SeqCst);
+            if !lease_shared.stop_requested() {
+                eprintln!("ukai-vm: {error}");
+                lease_shared.failed.store(true, AtomicOrdering::SeqCst);
+            }
             STOP.store(true, AtomicOrdering::SeqCst);
             lease_shared.stopping.store(true, AtomicOrdering::SeqCst);
         }
@@ -503,6 +516,10 @@ fn serve(args: ServeArgs) -> Result<(), String> {
             args.idle_seconds,
         )
     })();
+    // A signal or control stop can interrupt the initial guest handshake.
+    // Capture the request before our own teardown sets `stopping`; actual
+    // custody/transport failures remain latched and take precedence below.
+    let stop_requested = service.shared.stop_requested();
     service.shared.stopping.store(true, AtomicOrdering::SeqCst);
     let _ = write_helper(&service, &HelperWrite::Stop);
     let _ = lease.join(); // closes the lease: the custodian has a three-second backstop
@@ -522,7 +539,7 @@ fn serve(args: ServeArgs) -> Result<(), String> {
     if service.shared.failed.load(AtomicOrdering::SeqCst) {
         return Err("VM custody or transport failed".to_owned());
     }
-    result
+    if stop_requested { Ok(()) } else { result }
 }
 
 fn serve_control(service: &Service, listener: &UnixListener, idle_seconds: u64) {
@@ -598,6 +615,11 @@ fn drive_attempts(
                     .shared
                     .attempt_live
                     .store(false, AtomicOrdering::SeqCst);
+                if service.shared.stop_requested() {
+                    // Whole-service teardown ends the guest. Do not start
+                    // an attempt-cancellation handshake after that stop.
+                    return Ok(());
+                }
                 if let Err(error) = outcome {
                     eprintln!("ukai-vm: attempt failed: {error}");
                     // Cancel and drain this attempt before accepting another one. If
