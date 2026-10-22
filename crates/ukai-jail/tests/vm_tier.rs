@@ -314,7 +314,9 @@ fn assert_kernel_bound_native_refusal(native_enabled: bool) {
     ]);
     let (code, remediation) = if native_enabled {
         command.env("UKAI_JAIL_MACOS_NATIVE", "dev");
-        ("missing_capability", "configuration")
+        // Native macOS has no kernel-bound lifetime and this build's VM
+        // backend refuses every policy, so the answer is `unsupported`.
+        ("missing_capability", "unsupported")
     } else {
         ("unsupported_platform", "unsupported")
     };
@@ -354,6 +356,11 @@ fn assert_kernel_bound_native_refusal(native_enabled: bool) {
                 .unwrap()
                 .contains("`owner_loss_termination`"),
             "the lifetime requirement itself refuses: {error}"
+        );
+        // No advice to use a backend that refuses every policy today.
+        assert!(
+            stderr.contains("unavailable in this build") && !stderr.contains("run with --vm"),
+            "{stderr}"
         );
     }
     assert!(
