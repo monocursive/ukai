@@ -27,6 +27,31 @@ pub const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(30);
 /// is never a protocol byte sequence.
 const IDLE: &str = "\u{0}idle\u{0}";
 
+/// Wait for readable bytes or EOF without changing SO_RCVTIMEO. Darwin
+/// rejects setsockopt after peer close even when unread bytes remain.
+///
+/// # Errors
+/// A poll failure other than an interrupted wait.
+pub fn wait_readable(stream: &UnixStream, timeout: Duration) -> std::io::Result<bool> {
+    use std::os::fd::AsRawFd as _;
+    let mut descriptor = libc::pollfd {
+        fd: stream.as_raw_fd(),
+        events: libc::POLLIN,
+        revents: 0,
+    };
+    let millis = i32::try_from(timeout.as_millis().max(1)).unwrap_or(i32::MAX);
+    // SAFETY: poll receives one writable descriptor record with a live fd.
+    let ready = unsafe { libc::poll(&mut descriptor, 1, millis) };
+    if ready < 0 {
+        let error = std::io::Error::last_os_error();
+        if error.kind() == std::io::ErrorKind::Interrupted {
+            return Ok(false);
+        }
+        return Err(error);
+    }
+    Ok(ready > 0)
+}
+
 /// The control socket's path beneath the runtime state directory.
 #[must_use]
 pub fn control_socket(data_dir: &Path) -> std::path::PathBuf {
@@ -83,24 +108,43 @@ pub fn control_round_trip(path: &Path, request: ToControl) -> Result<FromControl
     stream.write_all(&line).map_err(|error| {
         ControlError::Failed(FrameError(format!("the control request failed: {error}")))
     })?;
+    let deadline = std::time::Instant::now() + CONTROL_TIMEOUT;
     let mut buffer = Vec::new();
     let mut chunk = [0u8; 4096];
     loop {
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() {
+            return Err(ControlError::Failed(FrameError(
+                "control reply timed out".to_owned(),
+            )));
+        }
+        if !wait_readable(&stream, remaining)
+            .map_err(|e| ControlError::Failed(FrameError(e.to_string())))?
+        {
+            continue;
+        }
         let read = stream.read(&mut chunk).map_err(|error| {
             ControlError::Failed(FrameError(format!("the control reply failed: {error}")))
         })?;
         if read == 0 {
             break;
         }
+        let newline = chunk[..read].iter().position(|b| *b == b'\n');
+        let length = buffer.len() + newline.unwrap_or(read);
         buffer.extend_from_slice(&chunk[..read]);
-        if buffer.contains(&b'\n') {
-            break;
-        }
-        if buffer.len() > protocol::MAX_FRAME {
+        if length > protocol::MAX_FRAME {
             return Err(ControlError::Failed(FrameError(
                 "oversized control reply".to_owned(),
             )));
         }
+        if newline.is_some() {
+            break;
+        }
+    }
+    if !buffer.contains(&b'\n') {
+        return Err(ControlError::Failed(FrameError(
+            "truncated control reply".to_owned(),
+        )));
     }
     let line = buffer
         .split(|byte| *byte == b'\n')
@@ -138,6 +182,7 @@ impl AttemptConnection {
     pub fn connect(path: &Path) -> Result<Self, FrameError> {
         let stream = UnixStream::connect(path)
             .map_err(|error| FrameError(format!("the attempt socket does not answer: {error}")))?;
+        let _ = stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT));
         Ok(AttemptConnection {
             stream,
             buffer: Vec::new(),
@@ -200,6 +245,7 @@ impl AttemptConnection {
     }
 
     fn next_line(&mut self, timeout: Option<Duration>) -> Result<Option<Vec<u8>>, FrameError> {
+        let deadline = timeout.map(|budget| std::time::Instant::now() + budget);
         loop {
             if let Some(position) = self.buffer.iter().position(|byte| *byte == b'\n') {
                 let mut line: Vec<u8> = self.buffer.drain(..=position).collect();
@@ -215,13 +261,23 @@ impl AttemptConnection {
             if self.eof {
                 return Ok(None);
             }
-            self.stream
-                .set_read_timeout(timeout)
-                .map_err(|error| FrameError(format!("the attempt stream failed: {error}")))?;
+            let remaining =
+                deadline.map(|at| at.saturating_duration_since(std::time::Instant::now()));
+            if remaining.is_some_and(|d| d.is_zero()) {
+                return Err(FrameError(IDLE.to_owned()));
+            }
+            if let Some(remaining) = remaining
+                && !wait_readable(&self.stream, remaining).map_err(|e| FrameError(e.to_string()))?
+            {
+                return Err(FrameError(IDLE.to_owned()));
+            }
             let mut chunk = [0u8; 16384];
             match self.stream.read(&mut chunk) {
                 Ok(0) => {
                     self.eof = true;
+                    if !self.buffer.is_empty() {
+                        return Err(FrameError("truncated attempt frame".to_owned()));
+                    }
                     return Ok(None);
                 }
                 Ok(read) => {
@@ -346,5 +402,103 @@ mod tests {
         connection.send(&ToVm::Run).expect("sends");
         let frame = connection.next_frame().expect("reads").expect("a frame");
         assert!(matches!(frame, FromVm::Ready { .. }));
+    }
+}
+
+#[cfg(test)]
+mod bound_regressions {
+    use super::*;
+
+    fn pair() -> (AttemptConnection, UnixStream) {
+        let (a, b) = UnixStream::pair().unwrap();
+        (
+            AttemptConnection {
+                stream: a,
+                buffer: Vec::new(),
+                total: 0,
+                eof: false,
+            },
+            b,
+        )
+    }
+
+    #[test]
+    fn attempt_line_tail_total_and_truncation_are_independent_bounds() {
+        let (mut connection, _) = pair();
+        connection.buffer = vec![b'x'; protocol::MAX_FRAME + 1];
+        assert!(
+            connection
+                .next_line(Some(Duration::from_millis(10)))
+                .unwrap_err()
+                .0
+                .contains("oversized")
+        );
+        connection.buffer.push(b'\n');
+        assert!(
+            connection
+                .next_line(Some(Duration::from_millis(10)))
+                .unwrap_err()
+                .0
+                .contains("oversized")
+        );
+        let (mut connection, mut peer) = pair();
+        connection.total = protocol::MAX_TOTAL;
+        peer.write_all(b"\n").unwrap();
+        assert!(
+            connection
+                .next_line(Some(Duration::from_millis(10)))
+                .unwrap_err()
+                .0
+                .contains("total transport")
+        );
+        let (mut connection, mut peer) = pair();
+        peer.write_all(b"{\"event\":\"done\",\"exit_code\":0}")
+            .unwrap();
+        drop(peer);
+        let error = connection.next_frame().unwrap_err();
+        assert!(error.0.contains("truncated"), "{error}");
+    }
+
+    #[test]
+    fn trickled_bytes_do_not_restart_attempt_deadline() {
+        let (mut connection, mut peer) = pair();
+        let sender = std::thread::spawn(move || {
+            for _ in 0..40 {
+                if peer.write_all(b" ").is_err() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        });
+        let start = std::time::Instant::now();
+        assert!(matches!(
+            connection
+                .next_frame_within(Duration::from_millis(40))
+                .unwrap(),
+            Within::Idle
+        ));
+        assert!(start.elapsed() < Duration::from_millis(150));
+        drop(connection);
+        sender.join().unwrap();
+    }
+
+    #[test]
+    fn oversized_control_reply_is_refused_before_decoding() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("control.sock");
+        let listener = std::os::unix::net::UnixListener::bind(&path).unwrap();
+        let sender = std::thread::spawn(move || {
+            let (mut peer, _) = listener.accept().unwrap();
+            let mut request = [0u8; 64];
+            let _ = peer.read(&mut request);
+            let _ = peer.write_all(&vec![b' '; protocol::MAX_FRAME + 1]);
+            let _ = peer.write_all(b"\n");
+        });
+        let error = control_round_trip(&path, ToControl::Status).unwrap_err();
+        assert!(
+            error.to_string().contains("oversized control reply"),
+            "{error}"
+        );
+        sender.join().unwrap();
     }
 }

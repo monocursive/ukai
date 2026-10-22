@@ -130,5 +130,46 @@ class SessionAgreementTests(unittest.TestCase):
         self.assertIn("'event': 'session', 'kernel':", Path(guest.__file__).read_text())
 
 
+
+class GuestSafetyRegressionTests(unittest.TestCase):
+    def test_reset_replaces_workload_symlink_without_touching_destination(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            outside = root / 'outside'
+            outside.mkdir(mode=0o755)
+            (outside / 'keep').write_text('untouched')
+            (root / 'workspace').symlink_to(outside)
+            account = mock.Mock(pw_uid=os.getuid(), pw_gid=os.getgid())
+            guest.reset_attempt(account, root / 'workspace', root / 'evidence')
+            self.assertFalse((root / 'workspace').is_symlink())
+            self.assertEqual((outside / 'keep').read_text(), 'untouched')
+            self.assertEqual(stat.S_IMODE(outside.stat().st_mode), 0o755)
+
+    def test_reset_never_chowns_by_path_after_workload(self):
+        with tempfile.TemporaryDirectory() as temp, mock.patch.object(guest.os, 'chown', side_effect=AssertionError('path chown')):
+            account = mock.Mock(pw_uid=os.getuid(), pw_gid=os.getgid())
+            guest.reset_attempt(account, Path(temp) / 'workspace', Path(temp) / 'evidence')
+
+    def test_unverified_cleanup_cannot_reuse_guest(self):
+        with mock.patch.object(guest, 'kill_workload', side_effect=TimeoutError), mock.patch.object(guest, 'audit'):
+            with self.assertRaises(TimeoutError):
+                guest.stop_attempt_tree()
+
+    def test_receipt_binding_uses_canonical_argv_and_rejects_wrong_boot(self):
+        import hashlib
+        import struct
+        argv = [b'/bin/true', b'']
+        preimage = b'ukai.jail.argv/1\0' + struct.pack('>Q', len(argv))
+        preimage += b''.join(struct.pack('>Q', len(a)) + a for a in argv)
+        digest = 'sha256:' + hashlib.sha256(preimage).hexdigest()
+        request = dict(attempt_id='host', boot_id='boot', profile='tool', argv=[base64.b64encode(a).decode() for a in argv])
+        receipt = dict(attempt_id='guest', argv_digest=digest, policy=dict(name='tool'), process=dict(identity=dict(value=dict(boot_id='linux'))))
+        binding = guest.receipt_binding(request, receipt, 'linux')
+        self.assertEqual(binding['attempt_id'], 'host')
+        self.assertEqual(binding['argv_digest'], digest)
+        with self.assertRaises(ValueError):
+            guest.receipt_binding(request, receipt, 'other-boot')
+
+
 if __name__ == '__main__':
     unittest.main()

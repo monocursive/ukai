@@ -2,6 +2,8 @@
 """Single-attempt guest controller. Installed root-owned outside the jail."""
 import base64
 import json
+import hashlib
+import struct
 import os
 from pathlib import Path, PurePosixPath
 import pwd
@@ -75,10 +77,9 @@ def stop_attempt_tree():
     """Ends one attempt's tree without ending the session. A boundary that
     cannot be verified empty is recorded and the session carries on: the
     attempt's outcome is already unknown to the host."""
-    try:
-        kill_workload()
-    except (OSError, ValueError, TimeoutError) as error:
-        audit('workload_cleanup_unverified', error=type(error).__name__)
+    # A warm reset must never run alongside surviving workload processes.
+    # Failure propagates to the controller's poweroff path.
+    kill_workload()
 
 
 def poweroff(reason):
@@ -120,10 +121,29 @@ def reset_attempt(account, workspace=WORKSPACE, evidence=EVIDENCE):
     """Empties both attempt directories for the next attempt, as the host's
     reset op asks. The directories, their modes and their owner come back
     exactly as boot made them."""
-    for path in (workspace, evidence):
-        shutil.rmtree(path, ignore_errors=True)
-        path.mkdir(mode=0o700, parents=True, exist_ok=True)
-        os.chown(path, account.pw_uid, account.pw_gid)
+    for path in (Path(workspace), Path(evidence)):
+        parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            try:
+                info = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+            except FileNotFoundError:
+                info = None
+            if info is not None:
+                if stat.S_ISDIR(info.st_mode):
+                    if not shutil.rmtree.avoids_symlink_attacks:
+                        raise RuntimeError('fd-relative safe rmtree is required')
+                    shutil.rmtree(path.name, dir_fd=parent)
+                else:
+                    os.unlink(path.name, dir_fd=parent)
+            os.mkdir(path.name, mode=0o700, dir_fd=parent)
+            directory = os.open(path.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+            try:
+                os.fchmod(directory, 0o700)
+                os.fchown(directory, account.pw_uid, account.pw_gid)
+            finally:
+                os.close(directory)
+        finally:
+            os.close(parent)
 
 
 def stage_secret(secret_id, payload, secrets=None):
@@ -169,12 +189,28 @@ def attempt_environment(account):
             'XDG_RUNTIME_DIR': f'/run/user/{account.pw_uid}'}
 
 
+def receipt_binding(request, receipt, guest_boot_id):
+    """Keep the raw jail receipt unchanged; bind its identity in a separate envelope.
+
+    These are controller reports. The host verifies consistency, not kernel
+    attestation. A stale receipt with a different argv/boot/profile is refused.
+    """
+    argv = [base64.b64decode(value, validate=True) for value in request['argv']]
+    preimage = b'ukai.jail.argv/1\0' + struct.pack('>Q', len(argv))
+    preimage += b''.join(struct.pack('>Q', len(value)) + value for value in argv)
+    digest = 'sha256:' + hashlib.sha256(preimage).hexdigest()
+    if receipt['argv_digest'] != digest or receipt['policy']['name'] != request['profile']:
+        raise ValueError('receipt argv/profile mismatch')
+    if receipt['process']['identity']['value']['boot_id'] != guest_boot_id:
+        raise ValueError('receipt boot mismatch')
+    return dict(attempt_id=request['attempt_id'], boot_id=request['boot_id'],
+                guest_attempt_id=receipt['attempt_id'], guest_boot_id=guest_boot_id,
+                profile=request['profile'], argv_digest=digest)
+
+
 def main():
     account = pwd.getpwnam('ukai')
-    WORKSPACE.mkdir(mode=0o700, exist_ok=True)
-    EVIDENCE.mkdir(mode=0o700, exist_ok=True)
-    for path in (WORKSPACE, EVIDENCE):
-        os.chown(path, account.pw_uid, account.pw_gid)
+    reset_attempt(account)
     server = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
     server.bind((socket.VMADDR_CID_ANY, PORT))
     server.listen(1)
@@ -215,6 +251,8 @@ def main():
     # end-of-file, not a timer. The vsock end closing still powers off, as
     # does the outer wall backstop for a live attempt.
     in_session = False
+    run_request = None
+    guest_boot_id = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
 
     def discard_attempt():
         """Closes one attempt's streams and counters, after its tree has
@@ -315,6 +353,9 @@ def main():
                     # J18: the warm session's run — the same jail command,
                     # without the poweroff at completion. The host staged a
                     # fresh workspace (reset op) before the puts.
+                    run_request = request
+                    if not request.get("attempt_id") or not request.get("boot_id"):
+                        poweroff("missing_attempt_binding")
                     profile = request['profile']
                     wall = request['wall_seconds']
                     if profile not in ('tool', 'build') or type(wall) is not int or not 1 <= wall <= 300:
@@ -341,15 +382,12 @@ def main():
                     audit('session_opened')
                     send({'event': 'session', 'kernel': os.uname().release})
                 elif op == 'reset' and process is None and in_session:
+                    stop_attempt_tree()
                     reset_attempt(account)
                     uploaded = files = output_bytes = 0
                     send({'event': 'reset'})
                 elif op == 'secret' and process is None and in_session:
-                    secret_id = request['id']
-                    if type(secret_id) is not str:
-                        poweroff('invalid_operation')
-                    stage_secret(secret_id, base64.b64decode(request['data'], validate=True))
-                    send({'event': 'secret', 'id': secret_id})
+                    poweroff('vault_credentials_unsupported')
                 elif op == 'cancel2' and in_session:
                     # The attempt lease's end-of-file reached the host's
                     # ukai-vm, which passes the cancellation on. The session
@@ -365,9 +403,12 @@ def main():
                 else:
                     poweroff('invalid_operation')
         if process is not None and process.poll() is not None and stream_count == 0:
+            if in_session:
+                stop_attempt_tree()
             # Only regular files are transported. Never dereference guest links.
             count = 0
             total = 0
+            binding = None
             for root, label in [(WORKSPACE, 'workspace'), (EVIDENCE, 'evidence')]:
                 for directory, dirs, names in os.walk(root, followlinks=False):
                     dirs[:] = [d for d in dirs if not (Path(directory) / d).is_symlink()]
@@ -383,9 +424,13 @@ def main():
                             if count > MAX_FILES or total > MAX_BYTES or info.st_size > MAX_FILE:
                                 raise ValueError('export_limit')
                             payload = source.read(MAX_FILE + 1)
+                        if in_session and label == 'evidence' and path.name == 'jail.json' and path.parent == EVIDENCE:
+                            binding = receipt_binding(run_request, json.loads(payload), guest_boot_id)
                         send({'event': 'file', 'group': label, 'path': str(path.relative_to(root)),
                               'executable': bool(info.st_mode & 0o111), 'data': base64.b64encode(payload).decode()})
-            send({'event': 'done', 'exit_code': process.returncode})
+            if in_session and binding is None:
+                raise ValueError('missing bound jail receipt')
+            send({'event': 'done', 'exit_code': process.returncode, **({'binding': binding} if in_session else {})})
             audit('done', exit_code=process.returncode)
             if not in_session:
                 # No new run and no reboot/resume. Host tears down this VM.

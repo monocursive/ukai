@@ -195,16 +195,19 @@ impl Harness {
     }
 
     fn run(&self, arguments: &[&str]) -> Output {
-        Command::new(env!("CARGO_BIN_EXE_ukai-jail"))
-            .env_clear()
-            .env("PATH", "/usr/bin:/bin")
-            .env("HOME", self.temp.path())
-            .env("UKAI_DATA_DIR", &self.data)
-            .env("UKAI_CONFIG_DIR", &self.config)
-            .current_dir(&self.work)
-            .args(arguments)
-            .output()
-            .expect("the binary runs")
+        Command::new(
+            std::env::var_os("UKAI_JAIL_TEST_BINARY")
+                .unwrap_or_else(|| env!("CARGO_BIN_EXE_ukai-jail").into()),
+        )
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", self.temp.path())
+        .env("UKAI_DATA_DIR", &self.data)
+        .env("UKAI_CONFIG_DIR", &self.config)
+        .current_dir(&self.work)
+        .args(arguments)
+        .output()
+        .expect("the binary runs")
     }
 }
 
@@ -280,10 +283,8 @@ fn plan_for(profile: ukai_jail::policy::ProfileName) -> ukai_jail::platform::Pla
 #[test]
 #[cfg(target_os = "macos")]
 fn a_kernel_bound_run_without_its_boundary_refuses_before_any_process() {
-    // On this host the native probes answer first (`tree_termination` needs
-    // the ES entitlement), so the run refuses with that fact; what the test
-    // pins is that nothing executes and the refusal is the probing stage's,
-    // never a silently weakened policy (§2: a missing guarantee refuses).
+    // Inspect the persisted snapshot AND derived requirement: a generic
+    // entitlement refusal would pass even if the CLI dropped this key.
     let harness = Harness::new();
     let output = harness.run(&[
         "run",
@@ -300,6 +301,23 @@ fn a_kernel_bound_run_without_its_boundary_refuses_before_any_process() {
     assert!(
         !stderr.contains("exited") && !stderr.contains("settled"),
         "the target never ran: {stderr}"
+    );
+    let attempt = std::fs::read_dir(harness.data.join("attempts"))
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let policy: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(attempt.join("policy.json")).unwrap()).unwrap();
+    assert_eq!(policy["snapshot"]["lifetime_boundary"], "kernel-bound");
+    let receipt: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(attempt.join("jail.json")).unwrap()).unwrap();
+    assert!(
+        receipt["policy"]["requirements"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("owner_loss_termination"))
     );
 }
 
@@ -495,9 +513,109 @@ fn the_transport_line_renders_one_escaped_line() {
     });
     let line = record::transport_line(&receipt, &facts);
     assert!(
-        line.starts_with("vm: guest linux tool boundary=pid_namespace"),
+        line.starts_with("vm: guest-reported facts in evidence/jail.json"),
         "{line}"
     );
     assert!(line.contains("U+000A"), "control bytes are escaped: {line}");
     assert_eq!(line.lines().count(), 1);
+}
+
+#[cfg(target_os = "macos")]
+impl Harness {
+    fn install_stand_in(&self) {
+        let root = self.temp.path().join(".local/share/ukai-vm/0.10.0/image");
+        std::fs::create_dir_all(&root).unwrap();
+        for name in ["base.raw", "vz", "custodian", "seed.iso"] {
+            std::fs::write(root.join(name), name).unwrap();
+        }
+        let manifest = image::ImageManifest {
+            status: "prepared".into(),
+            disk_sha256: image::digest(&root.join("base.raw")).unwrap(),
+            helper_sha256: image::digest(&root.join("vz")).unwrap(),
+            custodian_sha256: image::digest(&root.join("custodian")).unwrap(),
+            seed_sha256: image::digest(&root.join("seed.iso")).unwrap(),
+        };
+        std::fs::write(
+            root.join("image.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+    }
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn vm_none_and_unimplemented_policy_requests_refuse_before_connecting() {
+    for args in [
+        vec!["--profile", "none", "--lifetime", "kernel-bound"],
+        vec!["--profile", "agent"],
+        vec!["--profile", "tool", "--deny-read", "private"],
+        vec!["--profile", "tool", "--limit", "mem=256MiB"],
+        vec!["--profile", "tool"],
+    ] {
+        let harness = Harness::new();
+        harness.install_stand_in();
+        std::fs::write(harness.work.join("private"), b"must never be staged").unwrap();
+        let mut argv = vec!["run", "--vm", "--terminal", "detach"];
+        argv.extend(args.clone());
+        argv.extend(["--", "/bin/sh", "-c", "touch workload-ran"]);
+        let output = harness.run(&argv);
+        // The pre-existing shared CLI guard treats --vm/none as usage (2).
+        // VM-owned capability refusals are 125. Changing that guard belongs
+        // to SHARED; this assertion also detects its removal (mutation M15).
+        assert_eq!(
+            output.status.code(),
+            Some(if args.contains(&"none") { 2 } else { 125 }),
+            "{args:?}: {output:?}"
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!stderr.contains("birth identity"), "{stderr}");
+        assert!(!harness.work.join("workload-ran").exists());
+        assert!(
+            !harness.data.join("vm").exists(),
+            "no VM connection or staging: {args:?}"
+        );
+        if args.contains(&"none") {
+            assert!(stderr.contains("--vm refuses --profile none"), "{stderr}");
+        }
+        if args == vec!["--profile", "tool"] {
+            assert!(
+                stderr.contains("unavailable") || stderr.contains("missing_capability"),
+                "{stderr}"
+            );
+        }
+    }
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn installation_discovery_uses_numeric_versions_end_to_end() {
+    let harness = Harness::new();
+    harness.install_stand_in();
+    let old = harness.temp.path().join(".local/share/ukai-vm/0.9.0/image");
+    std::fs::create_dir_all(&old).unwrap();
+    std::fs::write(
+        old.join("image.json"),
+        serde_json::to_vec(&image::ImageManifest {
+            status: "preparing".into(),
+            disk_sha256: "old".into(),
+            helper_sha256: "old".into(),
+            custodian_sha256: "old".into(),
+            seed_sha256: "old".into(),
+        })
+        .unwrap(),
+    )
+    .unwrap();
+    let output = harness.run(&[
+        "run",
+        "--vm",
+        "--profile",
+        "tool",
+        "--terminal",
+        "detach",
+        "--",
+        "/bin/true",
+    ]);
+    assert_eq!(output.status.code(), Some(125), "{output:?}");
+    assert!(!String::from_utf8_lossy(&output.stderr).contains("not `prepared`"));
 }

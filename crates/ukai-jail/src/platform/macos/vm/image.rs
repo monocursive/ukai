@@ -127,10 +127,7 @@ impl Install {
             .filter_map(|entry| entry.ok().map(|entry| entry.path()))
             .filter(|path| path.join("image/image.json").is_file())
             .collect();
-        // Newest version last: a plain string sort orders 0.1.0 before
-        // 0.2.0 and before 0.10.0's components correctly at this width;
-        // versions sort lexicographically by their dotted fields.
-        candidates.sort();
+        candidates.sort_by_key(|path| version_key(path));
         let root = candidates.pop().ok_or_else(|| {
             refusal(format!(
                 "no ukai-vm installation beneath {}",
@@ -190,6 +187,58 @@ impl Install {
         Ok(())
     }
 
+    /// Copy to a private boot directory and verify those exact copies before use.
+    /// This closes the hash-source-then-clone race for the disk and executables.
+    ///
+    /// # Errors
+    /// Refuses changed artifacts, links, nonregular inputs, or a failed copy.
+    pub fn verified_copy(&self, root: &Path) -> Result<Self, Refusal> {
+        let image = root.join("image");
+        std::fs::create_dir(&image).map_err(|e| refusal(e.to_string()))?;
+        std::fs::set_permissions(&image, std::fs::Permissions::from_mode(0o700))
+            .map_err(|e| refusal(e.to_string()))?;
+        for name in ["base.raw", "vz", "custodian", "seed.iso"] {
+            let source = self.root.join("image").join(name);
+            let destination = image.join(name);
+            let metadata =
+                std::fs::symlink_metadata(&source).map_err(|e| refusal(e.to_string()))?;
+            if !metadata.is_file() {
+                return Err(refusal("image artifact is not a regular file"));
+            }
+            // APFS clone remains cheap for the disk. Verification is AFTER cp;
+            // a source substitution cannot select unchecked executable bytes.
+            let status = std::process::Command::new("/bin/cp")
+                .args(["-c", "--"])
+                .arg(&source)
+                .arg(&destination)
+                .status()
+                .map_err(|e| refusal(e.to_string()))?;
+            if !status.success() {
+                return Err(refusal("image copy failed"));
+            }
+            let copied =
+                std::fs::symlink_metadata(&destination).map_err(|e| refusal(e.to_string()))?;
+            if !copied.is_file() {
+                return Err(refusal("copied artifact is not a regular file"));
+            }
+            std::fs::set_permissions(
+                &destination,
+                std::fs::Permissions::from_mode(if name == "vz" || name == "custodian" {
+                    0o700
+                } else {
+                    0o600
+                }),
+            )
+            .map_err(|e| refusal(e.to_string()))?;
+        }
+        let copy = Self {
+            root: root.to_path_buf(),
+            manifest: self.manifest.clone(),
+        };
+        copy.verify()?;
+        Ok(copy)
+    }
+
     /// The custodian binary the preview installed, reused unmodified.
     #[must_use]
     pub fn custodian(&self) -> PathBuf {
@@ -213,6 +262,56 @@ impl Install {
     pub fn base_disk(&self) -> PathBuf {
         self.root.join("image").join("base.raw")
     }
+}
+
+fn version_key(path: &Path) -> (Vec<u64>, bool, String) {
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let (core, suffix) = name.split_once('-').unwrap_or((&name, ""));
+    (
+        core.split('.').map(|n| n.parse().unwrap_or(0)).collect(),
+        suffix.is_empty(),
+        suffix.to_owned(),
+    )
+}
+
+/// Validate both the receipt and the controller's statement binding it to this run.
+/// It establishes consistency of guest reports, not independent kernel attestation.
+///
+/// # Errors
+/// Refuses a replay, wrong boundary, wrong argv, boot, profile, or unapplied limit.
+pub fn verify_bound_guest_receipt(
+    receipt: &serde_json::Value,
+    binding: &super::protocol::ReceiptBinding,
+    attempt_id: &str,
+    boot_id: &str,
+    profile: &str,
+    argv_digest: &str,
+) -> Result<(), Refusal> {
+    verify_guest_receipt(receipt, profile)?;
+    if binding.attempt_id != attempt_id
+        || binding.boot_id != boot_id
+        || binding.profile != profile
+        || binding.argv_digest != argv_digest
+        || binding.guest_attempt_id.is_empty()
+        || binding.guest_boot_id.is_empty()
+        || receipt
+            .pointer("/attempt_id")
+            .and_then(serde_json::Value::as_str)
+            != Some(binding.guest_attempt_id.as_str())
+        || receipt
+            .pointer("/argv_digest")
+            .and_then(serde_json::Value::as_str)
+            != Some(argv_digest)
+        || receipt
+            .pointer("/process/identity/value/boot_id")
+            .and_then(serde_json::Value::as_str)
+            != Some(binding.guest_boot_id.as_str())
+    {
+        return Err(refusal(
+            "guest receipt does not bind to this attempt, argv, profile and boot",
+        ));
+    }
+    Ok(())
 }
 
 /// Verifies the guest's Linux receipt on the host, `run.py`'s
@@ -239,6 +338,9 @@ pub fn verify_guest_receipt(receipt: &serde_json::Value, profile: &str) -> Resul
         || receipt.pointer("/exec_observed") != Some(&serde_json::Value::Bool(true))
     {
         return Err(refusal("guest did not confirm contained execution"));
+    }
+    if string("/lifetime/boundary")? != "pid_namespace" {
+        return Err(refusal("guest receipt did not establish a pid namespace"));
     }
     if receipt.pointer("/lifetime/tree_empty") != Some(&serde_json::Value::Bool(true))
         || string("/lifetime/integrity")? != "verified"
@@ -479,7 +581,7 @@ mod tests {
             "schema": "ukai.jail.receipt/1", "platform": {"os": "linux"},
             "policy": {"name": "tool"}, "containment": "enforced",
             "child_protection": "enforced", "exec_observed": true,
-            "lifetime": {"tree_empty": true, "integrity": "verified"},
+            "lifetime": {"boundary": "pid_namespace", "tree_empty": true, "integrity": "verified"},
             "state_cleanup": "complete", "errors": [],
             "applied": {"network": {"mode": "none"}, "limits": limits},
         });
@@ -552,5 +654,40 @@ mod tests {
         drop(file);
         let error = snapshot_workspace(&big).expect_err("too large");
         assert!(error.0.contains("512 KiB"), "{error}");
+    }
+}
+
+#[cfg(test)]
+mod regression_tests {
+    use super::*;
+    #[test]
+    fn versions_are_ordered_numerically() {
+        assert!(version_key(Path::new("0.10.0")) > version_key(Path::new("0.9.0")));
+        assert!(version_key(Path::new("0.10.0")) > version_key(Path::new("0.10.0-rc.1")));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn copy_is_verified_after_source_replacement() {
+        let dir = tempfile::tempdir().unwrap();
+        let image = dir.path().join("image");
+        std::fs::create_dir(&image).unwrap();
+        for name in ["base.raw", "vz", "seed.iso", "custodian"] {
+            std::fs::write(image.join(name), name).unwrap();
+        }
+        let install = Install {
+            root: dir.path().to_path_buf(),
+            manifest: ImageManifest {
+                status: "prepared".into(),
+                disk_sha256: digest(&image.join("base.raw")).unwrap(),
+                helper_sha256: digest(&image.join("vz")).unwrap(),
+                seed_sha256: digest(&image.join("seed.iso")).unwrap(),
+                custodian_sha256: digest(&image.join("custodian")).unwrap(),
+            },
+        };
+        install.verify().unwrap();
+        std::fs::write(image.join("base.raw"), "substituted after verification").unwrap();
+        let boot = tempfile::tempdir().unwrap();
+        assert!(install.verified_copy(boot.path()).is_err());
     }
 }

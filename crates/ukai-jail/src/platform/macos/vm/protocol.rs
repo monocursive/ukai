@@ -212,6 +212,19 @@ pub enum ToVm {
     Run,
 }
 
+/// A guest-controller statement connecting a guest jail receipt to this host run.
+/// This is guest-reported provenance, not a host measurement of the Linux kernel.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReceiptBinding {
+    pub attempt_id: String,
+    pub boot_id: String,
+    pub guest_attempt_id: String,
+    pub guest_boot_id: String,
+    pub profile: String,
+    pub argv_digest: String,
+}
+
 /// vm → host, one attempt session.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
@@ -272,6 +285,12 @@ pub enum FromVm {
         sha256: String,
         /// The receipt bytes, base64.
         data: String,
+    },
+    /// Receipt with a per-run guest-controller binding. Unbound receipts refuse.
+    BoundReceipt {
+        sha256: String,
+        data: String,
+        binding: ReceiptBinding,
     },
     /// The attempt ended with the guest jail's own exit status.
     Done {
@@ -459,5 +478,60 @@ mod tests {
             total.extend_from_slice(&one);
         }
         assert!(splitter.push(&total).is_err(), "an over-limit stream fails");
+    }
+}
+
+#[cfg(test)]
+mod bound_regressions {
+    use super::*;
+
+    #[test]
+    fn decode_checks_size_even_for_valid_json() {
+        let line = serde_json::to_vec(
+            &serde_json::json!({"event":"error", "message":"x".repeat(MAX_FRAME)}),
+        )
+        .unwrap();
+        assert!(
+            decode::<FromVm>(&line)
+                .unwrap_err()
+                .0
+                .contains("frame bound")
+        );
+    }
+
+    #[test]
+    fn splitter_tail_bound_is_independent_of_newline_bound() {
+        let mut split = LineSplitter::default();
+        split.push(&vec![b'x'; MAX_FRAME]).unwrap();
+        assert!(split.push(b"x").unwrap_err().0.contains("oversized"));
+    }
+
+    #[test]
+    fn splitter_total_bound_uses_small_valid_lines() {
+        let mut split = LineSplitter::default();
+        let chunk = [vec![b'x'; 1023], vec![b'\n']].concat();
+        for _ in 0..(MAX_TOTAL / chunk.len() as u64) {
+            split.push(&chunk).unwrap();
+        }
+        assert!(split.push(b"\n").unwrap_err().0.contains("total transport"));
+    }
+
+    #[test]
+    fn split_hundred_kilobyte_export_is_lossless() {
+        let payload = vec![b'x'; 100_000];
+        let frame = FromVm::File {
+            group: "workspace".into(),
+            path: "large".into(),
+            executable: false,
+            data: encode_data(&payload),
+        };
+        let encoded = encode(&frame).unwrap();
+        let mut split = LineSplitter::default();
+        let mut lines = Vec::new();
+        for chunk in encoded.chunks(65536) {
+            lines.extend(split.push(chunk).unwrap());
+        }
+        assert_eq!(lines.len(), 1);
+        assert_eq!(decode::<FromVm>(&lines[0]).unwrap(), frame);
     }
 }

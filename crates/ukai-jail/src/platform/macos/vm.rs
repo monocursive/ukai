@@ -1,20 +1,12 @@
 //! The VM tier (J18, jail-macos.md §6): a warm Linux guest per operator,
 //! selected with `--vm` before native preparation.
 //!
-//! [`VmPlatform`] implements the [`Platform`] seam by driving the
-//! per-operator `ukai-vm` host program over its two Unix sockets. The
-//! policy is resolved for the guest (`platform` `linux`), the boundary is
-//! the guest jail's pid namespace — the fact the guest's own Linux receipt
-//! carries, which the host verifies, stores beside a
-//! [`ukai.jail.vm-transport/1`](record::TransportRecord) and never
-//! relabels — and the lease on the attempt is the attempt connection's
-//! end-of-file, never a timer (§6).
-//!
-//! Wiring: the `--vm` execution path selects this platform instead of
-//! `MacosPlatform` before native preparation, where `platform::current()` is
-//! chosen for a run whose `RunArgs::requests_vm()` is true. The summary's
-//! transport line is [`record::transport_line`], printed beside the summary
-//! lines from the record in the attempt directory (`vm-transport.json`).
+//! [`VmPlatform`] currently refuses every CLI policy before connection or
+//! staging: the live workspace share and pre-release guest measurements are
+//! not implemented. The transport implementation below is tested with stand-ins.
+//! Its guest reports are checked for consistency and binding; they are not
+//! independent host measurements of guest kernel enforcement.
+//! The host supervisor's identity is macOS even though policies resolve for Linux.
 
 use std::io::Write as _;
 use std::os::fd::AsRawFd as _;
@@ -242,6 +234,10 @@ impl VmPlatform {
 }
 
 impl Platform for VmPlatform {
+    fn owner_identity(&self) -> Option<crate::platform::OwnerIdentity> {
+        crate::platform::macos::owner_identity()
+    }
+
     fn identity(&self) -> PlatformIdentity {
         // The policy resolves for the guest: the profile's baselines, the
         // workspace grants and the limits are the guest jail's, and the
@@ -256,19 +252,17 @@ impl Platform for VmPlatform {
     }
 
     fn probe(&self, plan: &PlanRequest) -> Vec<Capability> {
-        // No probe runs on the Mac host: every row is a claim about the
-        // backend, recorded as such, and the run itself verifies the guest's
-        // receipt against the same facts before anything completes.
+        let reason = policy_refusal(&plan.snapshot).0;
         plan.requirements
             .iter()
             .map(|&requirement| Capability {
                 name: requirement.to_string(),
-                status: CapabilityStatus::Available,
+                status: CapabilityStatus::Unavailable,
                 scope: Self::scope_for(requirement),
-                mechanism: Some("linux-jail-in-guest".to_owned()),
-                reason_code: Some("ok".to_owned()),
-                measured_at: Some(rfc3339_utc(SystemTime::now())),
-                evidence_ref: Some(record::SCHEMA_TRANSPORT.to_owned()),
+                mechanism: None,
+                reason_code: Some(reason.to_owned()),
+                measured_at: None,
+                evidence_ref: None,
             })
             .collect()
     }
@@ -295,6 +289,11 @@ struct VmExecution {
     vsock_port: u32,
     started: Instant,
     started_wall: String,
+    profile: String,
+    argv_digest: String,
+    limits: crate::policy::LimitsSnapshot,
+    stdout: std::fs::File,
+    stderr: std::fs::File,
 }
 
 impl VmExecution {
@@ -303,10 +302,14 @@ impl VmExecution {
         plan: PreparedPlan,
         _sinks: Sinks,
     ) -> Result<Self, JailError> {
+        // The missing share/measurement applies to every current VM policy.
+        // Refuse before connecting, staging files, or moving any credentials.
+        validate_policy(&plan.request.snapshot)?;
         platform.ensure_serving()?;
         let socket = control::attempt_socket(&platform.data_dir);
         let mut connection = control::AttemptConnection::connect(&socket).map_err(transport)?;
         let ready = expect_ready(&mut connection)?;
+        verify_ready(&ready, &platform.install.manifest)?;
         let snapshot = &plan.request.snapshot;
         let wall = guest_wall(snapshot)?;
         let profile = snapshot.profile.as_str().to_owned();
@@ -320,14 +323,14 @@ impl VmExecution {
             .map_err(|error| invalid(format!("--vm: {}", error.0)))?;
         let staged = protocol::ToVm::Prepare {
             attempt_id: plan.attempt_id.clone(),
-            profile,
+            profile: profile.clone(),
             wall_seconds: wall,
             argv: plan
                 .argv
                 .iter()
                 .map(|argument| protocol::encode_data(argument))
                 .collect(),
-            secrets: vault_secrets(&plan)?,
+            secrets: Vec::new(),
         };
         connection.send(&staged).map_err(transport)?;
         let guest_kernel = expect_prepared(&mut connection)?;
@@ -340,6 +343,11 @@ impl VmExecution {
                 }))
                 .map_err(transport)?;
         }
+        for group in ["workspace", "evidence"] {
+            std::fs::create_dir(plan.attempt_dir.join(group)).map_err(transport)?;
+        }
+        let stdout = duplicate_output(libc::STDOUT_FILENO)?;
+        let stderr = duplicate_output(libc::STDERR_FILENO)?;
         Ok(VmExecution {
             attempt_dir: plan.attempt_dir,
             attempt_id: plan.attempt_id,
@@ -351,14 +359,19 @@ impl VmExecution {
             boot_id: ready.boot_id,
             guest_kernel,
             image: record::ImageDigests {
-                disk_sha256: ready.disk_sha256,
-                helper_sha256: ready.helper_sha256,
-                custodian_sha256: ready.custodian_sha256,
-                seed_sha256: ready.seed_sha256,
+                disk_sha256: platform.install.manifest.disk_sha256.clone(),
+                helper_sha256: platform.install.manifest.helper_sha256.clone(),
+                custodian_sha256: platform.install.manifest.custodian_sha256.clone(),
+                seed_sha256: platform.install.manifest.seed_sha256.clone(),
             },
             vsock_port: ready.vsock_port,
             started: Instant::now(),
             started_wall: rfc3339_utc(SystemTime::now()),
+            profile,
+            argv_digest: crate::canonical::argv_digest(&plan.argv),
+            limits: snapshot.limits.clone(),
+            stdout,
+            stderr,
         })
     }
 }
@@ -389,24 +402,100 @@ fn guest_wall(snapshot: &crate::policy::PolicySnapshot) -> Result<u32, JailError
     Ok(u32::try_from(seconds).unwrap_or(protocol::WALL_MAX))
 }
 
-/// The vault values the launch profile staged, as the protocol's ephemeral
-/// entries (§6): the values cross once per attempt and are never written to
-/// the guest disk.
-fn vault_secrets(plan: &PreparedPlan) -> Result<Vec<protocol::SecretEntry>, JailError> {
-    let Some(launch) = &plan.launch else {
-        return Ok(Vec::new());
-    };
-    let mut out = Vec::new();
-    for secret in &launch.vault {
-        let (values, _) = secret.loaded_values();
-        for value in values {
-            out.push(protocol::SecretEntry {
-                id: secret.id.clone(),
-                data: protocol::encode_data(value.as_slice()),
-            });
+fn policy_refusal(snapshot: &crate::policy::PolicySnapshot) -> (&'static str, String) {
+    use crate::policy::ProfileName;
+    if !matches!(snapshot.profile, ProfileName::Tool | ProfileName::Build) {
+        return (
+            "vm:profile-unsupported:offline-tool-and-build-only",
+            format!(
+                "--vm: profile {} is unsupported; only offline tool/build previews exist",
+                snapshot.profile.as_str()
+            ),
+        );
+    }
+    if snapshot.launch.is_some() {
+        return (
+            "vm:launch-and-vault-credentials-not-implemented",
+            "--vm: launch profiles and vault credentials are not wired into the guest jail"
+                .to_owned(),
+        );
+    }
+    if snapshot.network.mode != crate::network::NetworkMode::None {
+        return (
+            "vm:network-unavailable:no-guest-nat-or-proxy",
+            "--vm: network and proxy policy are unavailable; the guest has no run-mode NAT"
+                .to_owned(),
+        );
+    }
+    if !snapshot.filesystem.deny_read.is_empty() {
+        return (
+            "vm:deny-read-not-supported-by-workspace-copy",
+            "--vm: deny-read policy cannot be honored by workspace copying; no files were staged"
+                .to_owned(),
+        );
+    }
+    ("vm:policy-unavailable:live-workspace-share-and-guest-measurements-not-implemented",
+        "--vm: policy enforcement is unavailable: a live workspace share and pre-release guest capability measurements are not implemented; no workload was started".to_owned())
+}
+
+fn validate_policy(snapshot: &crate::policy::PolicySnapshot) -> Result<(), JailError> {
+    Err(refused(policy_refusal(snapshot).1))
+}
+
+fn duplicate_output(fd: libc::c_int) -> Result<std::fs::File, JailError> {
+    use std::os::fd::FromRawFd as _;
+    // SAFETY: fcntl duplicates the caller's output before the supervisor redirects it.
+    let copy = unsafe { libc::fcntl(fd, libc::F_DUPFD_CLOEXEC, 3) };
+    if copy < 0 {
+        return Err(transport(std::io::Error::last_os_error()));
+    }
+    // SAFETY: the duplicate is newly owned.
+    Ok(unsafe { std::fs::File::from_raw_fd(copy) })
+}
+
+fn verify_ready(ready: &ReadyFrame, manifest: &image::ImageManifest) -> Result<(), JailError> {
+    if ready.boot_id.is_empty()
+        || ready.disk_sha256 != manifest.disk_sha256
+        || ready.helper_sha256 != manifest.helper_sha256
+        || ready.custodian_sha256 != manifest.custodian_sha256
+        || ready.seed_sha256 != manifest.seed_sha256
+        || ready.vsock_port != 1024
+    {
+        return Err(refused(
+            "--vm: ready does not match the host-verified installation",
+        ));
+    }
+    Ok(())
+}
+
+fn verify_applied_limits(
+    receipt: &Value,
+    expected: &crate::policy::LimitsSnapshot,
+) -> Result<(), String> {
+    let rows: Vec<AppliedLimit> = serde_json::from_value(
+        receipt
+            .pointer("/applied/limits")
+            .cloned()
+            .ok_or("missing applied limits")?,
+    )
+    .map_err(|e| e.to_string())?;
+    let expected = serde_json::to_value(expected).map_err(|e| e.to_string())?;
+    let expected = expected.as_object().ok_or("invalid expected limits")?;
+    let count = expected.values().filter(|v| !v.is_null()).count();
+    if rows.len() != count {
+        return Err("guest applied limits differ from requested limits".to_owned());
+    }
+    for (key, ceiling) in expected.iter().filter(|(_, v)| !v.is_null()) {
+        let matching: Vec<_> = rows.iter().filter(|row| &row.key == key).collect();
+        if matching.len() != 1
+            || !matching[0].applied
+            || Some(matching[0].requested.as_str()) != ceiling["value"].as_str()
+            || Some(matching[0].required) != ceiling["required"].as_bool()
+        {
+            return Err(format!("guest did not apply requested {key} ceiling"));
         }
     }
-    Ok(out)
+    Ok(())
 }
 
 fn expect_ready(connection: &mut control::AttemptConnection) -> Result<ReadyFrame, JailError> {
@@ -458,11 +547,10 @@ fn expect_prepared(connection: &mut control::AttemptConnection) -> Result<String
 
 impl PreparedExecution for VmExecution {
     fn boundary(&self) -> BoundaryIdentity {
-        // The boundary is the guest jail's pid namespace (§6): its init's
-        // death ends the tree, whatever happens on the Mac. The identity the
-        // receipt finally carries comes from the guest's own receipt, which
-        // the host verifies before storing; the details here name the
-        // transport that carried the attempt.
+        // Requested guest mechanism, not a host-kernel observation. The
+        // current capability/policy gate prevents any CLI run from reaching
+        // this provisional boundary. Enabling it requires a measured guest
+        // preflight; a post-run consistency check is not a substitute.
         BoundaryIdentity {
             boundary: BoundaryKind::PidNamespace,
             verification_scope: VerificationScope::AttemptTree,
@@ -470,6 +558,10 @@ impl PreparedExecution for VmExecution {
                 os: Os::Linux,
                 details: {
                     let mut details = serde_json::Map::new();
+                    details.insert(
+                        "evidence_origin".to_owned(),
+                        Value::String("guest_reported; host verifies consistency only".to_owned()),
+                    );
                     details.insert("vm_boot_id".to_owned(), Value::String(self.boot_id.clone()));
                     details.insert(
                         "disk_sha256".to_owned(),
@@ -527,6 +619,7 @@ impl PreparedExecution for VmExecution {
             inner: execution,
             receipt: None,
             finished: false,
+            failed: false,
         }))
     }
 
@@ -541,6 +634,7 @@ struct VmRunning {
     inner: VmExecution,
     receipt: Option<Value>,
     finished: bool,
+    failed: bool,
 }
 
 impl VmRunning {
@@ -685,7 +779,15 @@ impl VmRunning {
     /// Verifies and stores the guest receipt; the one path to a completed
     /// attempt runs through this check (§6: the receipt is the guest's Linux
     /// receipt, verified on the host).
-    fn store_receipt(&mut self, sha256: &str, data: &str) -> Result<(), String> {
+    fn store_receipt(
+        &mut self,
+        sha256: &str,
+        data: &str,
+        binding: &protocol::ReceiptBinding,
+    ) -> Result<(), String> {
+        if self.receipt.is_some() {
+            return Err("duplicate guest receipt".to_owned());
+        }
         let bytes = protocol::decode_data(data).map_err(|error| error.to_string())?;
         let digest = image::hex(&sha2::Sha256::digest(&bytes));
         if digest != sha256 {
@@ -695,26 +797,35 @@ impl VmRunning {
                     .to_owned(),
             );
         }
-        let evidence = self.inner.attempt_dir.join("evidence");
-        std::fs::create_dir_all(&evidence)
-            .map_err(|error| format!("the evidence directory failed: {error}"))?;
-        std::fs::write(evidence.join("jail.json"), &bytes)
-            .map_err(|error| format!("the guest receipt could not be stored: {error}"))?;
         let receipt: Value = serde_json::from_slice(&bytes)
             .map_err(|error| format!("the guest receipt is not JSON: {error}"))?;
+        image::verify_bound_guest_receipt(
+            &receipt,
+            binding,
+            &self.inner.attempt_id,
+            &self.inner.boot_id,
+            &self.inner.profile,
+            &self.inner.argv_digest,
+        )
+        .map_err(|e| e.to_string())?;
+        verify_applied_limits(&receipt, &self.inner.limits)?;
+        self.export("evidence", "jail.json", false, &bytes)
+            .map_err(|e| e.message)?;
+        let binding = serde_json::to_vec(binding).map_err(|e| e.to_string())?;
+        self.export("evidence", "vm-binding.json", false, &binding)
+            .map_err(|e| e.message)?;
         self.receipt = Some(receipt);
         Ok(())
     }
 
     /// Writes the transport record once the verified receipt and the guest's
     /// `done` have both landed (§6, row K111).
-    fn settle_record(&self) {
-        let Some(receipt) = &self.receipt else {
-            return;
-        };
-        let Ok(bytes) = std::fs::read(self.inner.attempt_dir.join("evidence/jail.json")) else {
-            return;
-        };
+    fn settle_record(&self) -> Result<(), String> {
+        if self.failed || self.receipt.is_none() {
+            return Err("no verified guest receipt".to_owned());
+        }
+        let bytes = std::fs::read(self.inner.attempt_dir.join("evidence/jail.json"))
+            .map_err(|e| format!("guest evidence read failed: {e}"))?;
         let record = record::TransportRecord::new(
             self.inner.attempt_id.clone(),
             self.inner.boot_id.clone(),
@@ -727,66 +838,14 @@ impl VmRunning {
             self.inner.started.elapsed().as_secs_f64(),
             image::hex(&sha2::Sha256::digest(&bytes)),
         );
-        let _ = record.write_in(&self.inner.attempt_dir);
-        let _ = receipt;
+        record
+            .write_in(&self.inner.attempt_dir)
+            .map_err(|e| format!("transport record write failed: {e}"))
     }
 }
 
-impl RunningExecution for VmRunning {
-    fn final_limits(&self) -> Vec<AppliedLimit> {
-        // The guest receipt's rows are the applied truth; the guest's own
-        // shape (preview) names `key` and `applied`, and the host receipt
-        // carries them as tree-enforced rows.
-        self.receipt
-            .as_ref()
-            .and_then(|receipt| receipt.pointer("/applied/limits"))
-            .and_then(Value::as_array)
-            .map(|limits| {
-                limits
-                    .iter()
-                    .filter_map(|limit| {
-                        let key = limit.get("key")?.as_str()?.to_owned();
-                        let applied = limit
-                            .get("applied")
-                            .and_then(Value::as_bool)
-                            .unwrap_or(false);
-                        Some(AppliedLimit {
-                            key,
-                            requested: String::new(),
-                            required: true,
-                            applied,
-                            mechanism: applied.then(|| "linux-jail-in-guest".to_owned()),
-                            scope: applied.then(|| "tree".to_owned()),
-                            hit: None,
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-
-    fn limit_cause(&self) -> Option<LimitCause> {
-        None
-    }
-
-    fn integrity_lost(&self) -> bool {
-        self.receipt
-            .as_ref()
-            .and_then(|receipt| receipt.pointer("/lifetime/integrity"))
-            .and_then(Value::as_str)
-            == Some("lost")
-    }
-
-    fn final_native_details(&self) -> serde_json::Map<String, Value> {
-        let mut details = serde_json::Map::new();
-        details.insert(
-            "transport".to_owned(),
-            Value::String(record::SCHEMA_TRANSPORT.to_owned()),
-        );
-        details
-    }
-
-    fn wait(&mut self, deadline: Deadline) -> RunEvent {
+impl VmRunning {
+    fn wait_frames(&mut self, deadline: Deadline) -> RunEvent {
         loop {
             let budget = deadline
                 .at
@@ -817,17 +876,35 @@ impl RunningExecution for VmRunning {
             };
             match frame {
                 protocol::FromVm::Stdout { data } => {
-                    if let Ok(payload) = protocol::decode_data(&data) {
-                        let mut out = std::io::stdout().lock();
-                        let _ = out.write_all(&payload);
-                        let _ = out.flush();
+                    let payload = match protocol::decode_data(&data) {
+                        Ok(data) => data,
+                        Err(error) => {
+                            self.failed = true;
+                            return RunEvent::Unknown {
+                                reason: error.to_string(),
+                            };
+                        }
+                    };
+                    // Choose by frame before moving its payload (handled below).
+                    if let Err(error) = self.inner.stdout.write_all(&payload) {
+                        self.failed = true;
+                        return RunEvent::Unknown {
+                            reason: format!("guest stdout delivery failed: {error}"),
+                        };
                     }
                 }
                 protocol::FromVm::Stderr { data } => {
-                    if let Ok(payload) = protocol::decode_data(&data) {
-                        let mut err = std::io::stderr().lock();
-                        let _ = err.write_all(&payload);
-                        let _ = err.flush();
+                    let result = protocol::decode_data(&data)
+                        .map_err(|e| e.to_string())
+                        .and_then(|data| {
+                            self.inner
+                                .stderr
+                                .write_all(&data)
+                                .map_err(|e| e.to_string())
+                        });
+                    if let Err(reason) = result {
+                        self.failed = true;
+                        return RunEvent::Unknown { reason };
                     }
                 }
                 protocol::FromVm::File {
@@ -850,10 +927,21 @@ impl RunningExecution for VmRunning {
                         };
                     }
                 }
-                protocol::FromVm::Receipt { sha256, data } => {
-                    if let Err(reason) = self.store_receipt(&sha256, &data) {
+                protocol::FromVm::BoundReceipt {
+                    sha256,
+                    data,
+                    binding,
+                } => {
+                    if let Err(reason) = self.store_receipt(&sha256, &data, &binding) {
+                        self.failed = true;
                         return RunEvent::Unknown { reason };
                     }
+                }
+                protocol::FromVm::Receipt { .. } => {
+                    self.failed = true;
+                    return RunEvent::Unknown {
+                        reason: "unbound guest receipt refused".to_owned(),
+                    };
                 }
                 protocol::FromVm::Released { .. } => {}
                 protocol::FromVm::Ready { .. } | protocol::FromVm::Prepared { .. } => {
@@ -866,12 +954,63 @@ impl RunningExecution for VmRunning {
                 }
                 protocol::FromVm::Done { exit_code } => {
                     self.finished = true;
-                    self.settle_record();
+                    if let Err(reason) = self.settle_record() {
+                        self.failed = true;
+                        return RunEvent::Unknown { reason };
+                    }
                     let code = u8::try_from(exit_code).unwrap_or(125);
                     return RunEvent::TargetExited { code };
                 }
             }
         }
+    }
+}
+
+impl RunningExecution for VmRunning {
+    fn final_limits(&self) -> Vec<AppliedLimit> {
+        self.receipt
+            .as_ref()
+            .and_then(|receipt| receipt.pointer("/applied/limits"))
+            .and_then(|limits| serde_json::from_value::<Vec<AppliedLimit>>(limits.clone()).ok())
+            .unwrap_or_default()
+    }
+
+    fn limit_cause(&self) -> Option<LimitCause> {
+        None
+    }
+
+    fn integrity_lost(&self) -> bool {
+        self.failed
+            || self
+                .receipt
+                .as_ref()
+                .and_then(|receipt| receipt.pointer("/lifetime/integrity"))
+                .and_then(Value::as_str)
+                == Some("lost")
+    }
+
+    fn final_native_details(&self) -> serde_json::Map<String, Value> {
+        let mut details = serde_json::Map::new();
+        details.insert(
+            "transport".to_owned(),
+            Value::String(record::SCHEMA_TRANSPORT.to_owned()),
+        );
+        details.insert(
+            "evidence_origin".to_owned(),
+            Value::String("guest_reported; host verifies consistency only".to_owned()),
+        );
+        details
+    }
+
+    fn wait(&mut self, deadline: Deadline) -> RunEvent {
+        let event = self.wait_frames(deadline);
+        if matches!(
+            event,
+            RunEvent::Unknown { .. } | RunEvent::StdioFailed { .. }
+        ) {
+            self.failed = true;
+        }
+        event
     }
 
     fn request_stop(&mut self, _reason: StopReason) {
@@ -882,58 +1021,25 @@ impl RunningExecution for VmRunning {
     }
 
     fn wait_tree(&mut self, budget: Duration) -> TreeObservation {
-        // After the target's end the guest still sends whatever exports,
-        // receipt and `done` remain; this drains them, bounded, before the
-        // tree is judged from the receipt the host verified.
-        let deadline = Instant::now() + budget;
-        while !self.finished && Instant::now() < deadline {
-            match self.inner.connection.next_frame_within(
-                POLL_STEP.min(deadline.saturating_duration_since(Instant::now())),
-            ) {
-                Ok(control::Within::Frame(protocol::FromVm::Done { .. })) => {
-                    self.finished = true;
-                }
-                Ok(control::Within::Frame(protocol::FromVm::Receipt { sha256, data })) => {
-                    let _ = self.store_receipt(&sha256, &data);
-                }
-                Ok(control::Within::Frame(protocol::FromVm::File {
-                    group,
-                    path,
-                    executable,
-                    data,
-                })) => {
-                    if let Ok(payload) = protocol::decode_data(&data) {
-                        let _ = self.export(&group, &path, executable, &payload);
-                    }
-                }
-                Ok(control::Within::Frame(_)) => {}
-                Ok(_) => {}
-                Err(_) => break,
+        if !self.finished && !self.failed {
+            let event = self.wait(Deadline {
+                at: Some(Instant::now() + budget),
+            });
+            if !matches!(event, RunEvent::TargetExited { .. }) {
+                self.failed = true;
             }
         }
-        if self.finished {
-            self.settle_record();
-        }
-        let lifetime = self
-            .receipt
-            .as_ref()
-            .and_then(|receipt| receipt.pointer("/lifetime"));
-        let tree_empty = lifetime
-            .and_then(|lifetime| lifetime.pointer("/tree_empty"))
-            .and_then(Value::as_bool);
-        let integrity = lifetime
-            .and_then(|lifetime| lifetime.pointer("/integrity"))
-            .and_then(Value::as_str)
-            .map_or(Integrity::Pending, |text| match text {
-                "verified" => Integrity::Verified,
-                "lost" => Integrity::Lost,
-                _ => Integrity::Pending,
-            });
+        let verified =
+            self.finished && !self.failed && self.receipt.is_some() && self.settle_record().is_ok();
         TreeObservation {
-            tree_empty,
+            tree_empty: verified.then_some(true),
             verified_at: None,
             verification_scope: VerificationScope::AttemptTree,
-            integrity,
+            integrity: if verified {
+                Integrity::Verified
+            } else {
+                Integrity::Lost
+            },
         }
     }
 
@@ -941,3 +1047,7 @@ impl RunningExecution for VmRunning {
         None
     }
 }
+
+#[cfg(test)]
+#[path = "vm/tests.rs"]
+mod tests;

@@ -110,7 +110,7 @@ enum GuestOp {
     /// Empty the attempt directories for the next attempt.
     Reset,
     /// Stage one ephemeral credential in the guest's tmpfs.
-    Secret { id: String, data: String },
+
     /// One workspace file, the preview's frame.
     Put {
         path: String,
@@ -119,6 +119,8 @@ enum GuestOp {
     },
     /// Run the jail, warm: no poweroff at completion.
     Run2 {
+        attempt_id: String,
+        boot_id: String,
         profile: String,
         wall_seconds: u32,
         argv: Vec<String>,
@@ -159,6 +161,8 @@ struct GuestEvent {
     sequence: Option<i64>,
     #[serde(default)]
     message: Option<String>,
+    #[serde(default)]
+    binding: Option<protocol::ReceiptBinding>,
 }
 
 // ---------------------------------------------------------------------------
@@ -170,6 +174,8 @@ struct GuestEvent {
 struct Shared {
     stopping: AtomicBool,
     attempt_live: AtomicBool,
+    helper_alive: AtomicBool,
+    failed: AtomicBool,
 }
 
 // SAFETY: a plain system call; the symbol is linked only on macOS, where
@@ -242,21 +248,33 @@ struct Service {
 
 /// One guest frame as the reader thread delivered it, or the transport's end.
 enum GuestLine {
-    Frame(GuestEvent),
+    Frame(Box<GuestEvent>),
     HelperEnded(String),
 }
 
 fn write_helper(service: &Service, frame: &HelperWrite) -> Result<(), String> {
-    let line = serde_json::to_vec(frame).map_err(|error| error.to_string())?;
+    let line = protocol::encode(frame).map_err(|error| error.to_string())?;
     let mut stdin = service
         .helper_stdin
         .lock()
         .map_err(|error| error.to_string())?;
-    stdin
-        .write_all(&line)
-        .and_then(|()| stdin.write_all(b"\n"))
-        .and_then(|()| stdin.flush())
-        .map_err(|error| format!("the VZ client stopped reading: {error}"))
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    let mut pending = line.as_slice();
+    while !pending.is_empty() {
+        match stdin.write(pending) {
+            Ok(0) => return Err("the VZ client stopped reading".to_owned()),
+            Ok(n) => pending = &pending[n..],
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                if std::time::Instant::now() >= deadline {
+                    return Err("the VZ client write timed out".to_owned());
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => return Err(format!("the VZ client stopped reading: {error}")),
+        }
+    }
+    Ok(())
 }
 
 fn guest_line(service: &Service, frame: &GuestOp) -> Result<(), String> {
@@ -270,36 +288,155 @@ fn guest_line(service: &Service, frame: &GuestOp) -> Result<(), String> {
     )
 }
 
+/// The lock precedes every unlink and remains owned until all children end.
+fn lock_runtime(runtime: &Path) -> Result<std::fs::File, String> {
+    use std::os::unix::fs::OpenOptionsExt as _;
+    let lock = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(runtime.join("serve.lock"))
+        .map_err(|e| e.to_string())?;
+    // SAFETY: flock only operates on the owned open file description.
+    if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
+        return Err("a ukai-vm service already owns this runtime".to_owned());
+    }
+    Ok(lock)
+}
+
+fn nonblocking(fd: &impl std::os::fd::AsRawFd) -> Result<(), String> {
+    // SAFETY: both fcntl calls operate on a live owned descriptor.
+    unsafe {
+        let flags = libc::fcntl(fd.as_raw_fd(), libc::F_GETFL);
+        if flags < 0 || libc::fcntl(fd.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK) < 0 {
+            return Err(std::io::Error::last_os_error().to_string());
+        }
+    }
+    Ok(())
+}
+
+fn read_helper(
+    mut stdout: std::process::ChildStdout,
+    sender: &std::sync::mpsc::Sender<GuestLine>,
+    shared: &Shared,
+) -> Result<(), String> {
+    let mut helper = protocol::LineSplitter::default();
+    let mut guest = protocol::LineSplitter::default();
+    let mut chunk = [0u8; 16384];
+    while !shared.stopping.load(AtomicOrdering::SeqCst) {
+        let n = match stdout.read(&mut chunk) {
+            Ok(0) => return Err("helper EOF".to_owned()),
+            Ok(n) => n,
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                std::thread::sleep(Duration::from_millis(10));
+                continue;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error.to_string()),
+        };
+        for line in helper.push(&chunk[..n]).map_err(|e| e.to_string())? {
+            let event: HelperEvent = protocol::decode(&line).map_err(|e| e.to_string())?;
+            match event.event.as_str() {
+                "data" => {
+                    let bytes =
+                        protocol::decode_data(event.data.as_deref().ok_or("missing helper data")?)
+                            .map_err(|e| e.to_string())?;
+                    for line in guest.push(&bytes).map_err(|e| e.to_string())? {
+                        let frame =
+                            protocol::decode::<GuestEvent>(&line).map_err(|e| e.to_string())?;
+                        sender
+                            .send(GuestLine::Frame(Box::new(frame)))
+                            .map_err(|e| e.to_string())?;
+                    }
+                }
+                "error" => return Err(event.error.unwrap_or_else(|| "helper error".to_owned())),
+                "stopped" | "guest_stopped" => return Err("helper stopped".to_owned()),
+                "owner" | "booted" | "connected" | "stopping" => {}
+                other => return Err(format!("unknown helper event: {other}")),
+            }
+        }
+    }
+    Ok(())
+}
+
+fn maintain_lease(
+    lease_write: std::os::fd::OwnedFd,
+    ack_read: std::os::fd::OwnedFd,
+    shared: &Shared,
+) -> Result<(), String> {
+    nonblocking(&lease_write)?;
+    nonblocking(&ack_read)?;
+    let mut acknowledged = continuous_ns();
+    let mut sent = 0;
+    while !shared.stopping.load(AtomicOrdering::SeqCst) && !STOP.load(AtomicOrdering::SeqCst) {
+        let now = continuous_ns();
+        if sent == 0 || now.saturating_sub(sent) >= LEASE_REFRESH.as_nanos() {
+            // SAFETY: one byte from a live buffer to our lease descriptor.
+            if unsafe { libc::write(lease_write.as_raw_fd(), b".".as_ptr().cast(), 1) } != 1 {
+                return Err("the custody lease closed".to_owned());
+            }
+            sent = now;
+        }
+        let mut bytes = [0u8; 64];
+        match read_nonblocking(&ack_read, &mut bytes) {
+            Ok(0) => return Err("the custody acknowledgement closed".to_owned()),
+            Ok(n) => {
+                if bytes[..n].iter().any(|b| *b != b'.') {
+                    return Err("invalid custody acknowledgement".to_owned());
+                }
+                acknowledged = now;
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+            Err(e) => return Err(e.to_string()),
+        }
+        if now.saturating_sub(acknowledged) > LEASE_ACK.as_nanos() {
+            return Err("the custody lease stopped being acknowledged".to_owned());
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    Ok(())
+}
+
+/// Own and reap only the custodian this service spawned, including on early errors.
+struct Custodian(std::process::Child);
+impl Drop for Custodian {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
 fn serve(args: ServeArgs) -> Result<(), String> {
     install_signal_handlers();
     let install = image::Install::discover().map_err(|e| e.0)?;
     install.verify().map_err(|e| e.0)?;
-    let data_dir = data_dir()?;
-    let runtime = data_dir.join("vm");
-    std::fs::create_dir_all(&runtime)
-        .map_err(|error| format!("{} cannot be created: {error}", runtime.display()))?;
+    let runtime = data_dir()?.join("vm");
+    std::fs::create_dir_all(&runtime).map_err(|e| e.to_string())?;
     private_dir(&runtime)?;
+    let _lock = lock_runtime(&runtime)?;
     for stale in ["control.sock", "attempt.sock"] {
         let _ = std::fs::remove_file(runtime.join(stale));
     }
-    // A crashed earlier serve may leave its clone; it is disposable state,
-    // never a resumed VM (the preview's rule), so the boot starts clean.
-    let disk = runtime.join("guest.raw");
-    let _ = std::fs::remove_file(&disk);
-    let nvram = runtime.join("guest.nvram");
-    let _ = std::fs::remove_file(&nvram);
-    let console = runtime.join("console.log");
-    let _ = std::fs::remove_file(&console);
-    clone_disk(&install.base_disk(), &disk)?;
-
-    // The custody lease, the preview's shape: the custodian owns the VZ
-    // client as an unreaped child and kills it when this lease expires.
+    let boot_id = format!("vm-{}", uuid::Uuid::new_v4());
+    // Copy first, then hash the private copies that are actually executed.
+    let boot = runtime.join(&boot_id);
+    std::fs::create_dir(&boot).map_err(|e| e.to_string())?;
+    private_dir(&boot)?;
+    let install = install.verified_copy(&boot).map_err(|e| e.0)?;
+    let disk = install.base_disk();
+    let nvram = boot.join("guest.nvram");
+    let console = boot.join("console.log");
+    let control_listener = bind_socket(&runtime.join("control.sock"))?;
+    let attempt_listener = bind_socket(&runtime.join("attempt.sock"))?;
+    control_listener
+        .set_nonblocking(true)
+        .map_err(|e| e.to_string())?;
     let (lease_read, lease_write) = fd_pipe()?;
     let (ack_read, ack_write) = fd_pipe()?;
-    // The custodian owns the lease's read end and the ack's write end in
-    // the child; the parent keeps the write and read ends alive for the
-    // lease thread's whole life.
-    let mut custodian = spawn_custodian(
+    let mut custodian = Custodian(spawn_custodian(
         &install,
         &disk,
         &install.seed(),
@@ -307,211 +444,134 @@ fn serve(args: ServeArgs) -> Result<(), String> {
         &console,
         &lease_read,
         &ack_write,
-    )?;
-    let helper_stdin = custodian.stdin.take().ok_or("no helper stdin")?;
-    let helper_stdout = custodian.stdout.take().ok_or("no helper stdout")?;
-    let mut stdout_reader = std::io::BufReader::new(helper_stdout);
-
-    let (guest_sender, guest_frames) = std::sync::mpsc::channel::<GuestLine>();
+    )?);
+    drop(lease_read);
+    drop(ack_write);
+    let helper_stdin = custodian.0.stdin.take().ok_or("no helper stdin")?;
+    let helper_stdout = custodian.0.stdout.take().ok_or("no helper stdout")?;
+    nonblocking(&helper_stdin)?;
+    nonblocking(&helper_stdout)?;
+    let (guest_sender, guest_frames) = std::sync::mpsc::channel();
     let shared = Arc::new(Shared::default());
+    shared.helper_alive.store(true, AtomicOrdering::SeqCst);
     let reader_shared = Arc::clone(&shared);
     let reader = std::thread::spawn(move || {
-        let mut buffer = Vec::new();
-        let mut chunk = [0u8; 16384];
-        'outer: loop {
-            match stdout_reader.read(&mut chunk) {
-                Ok(0) => break,
-                Ok(read) => buffer.extend_from_slice(&chunk[..read]),
-                Err(error) => {
-                    let _ = std::fs::OpenOptions::new()
-                        .append(true)
-                        .open("/dev/stderr")
-                        .and_then(|mut err| writeln!(err, "ukai-vm: helper read failed: {error}"));
-                    break;
-                }
-            }
-            while let Some(position) = buffer.iter().position(|byte| *byte == b'\n') {
-                let line: Vec<u8> = buffer.drain(..=position).collect();
-                let Ok(event) = serde_json::from_slice::<HelperEvent>(&line[..line.len() - 1])
-                else {
-                    continue;
-                };
-                match event.event.as_str() {
-                    "data" => {
-                        let Some(encoded) = event.data.as_deref() else {
-                            continue;
-                        };
-                        let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(encoded)
-                        else {
-                            continue;
-                        };
-                        for frame in bytes.split(|byte| *byte == b'\n') {
-                            if frame.is_empty() {
-                                continue;
-                            }
-                            match serde_json::from_slice::<GuestEvent>(frame) {
-                                Ok(parsed) => {
-                                    if guest_sender.send(GuestLine::Frame(parsed)).is_err() {
-                                        break 'outer;
-                                    }
-                                }
-                                Err(_) => continue,
-                            }
-                        }
-                    }
-                    "error" => {
-                        let _ = guest_sender.send(GuestLine::HelperEnded(
-                            event.error.unwrap_or_else(|| "helper error".to_owned()),
-                        ));
-                        break 'outer;
-                    }
-                    "stopped" => {
-                        let _ = guest_sender.send(GuestLine::HelperEnded(String::from("stopped")));
-                        break 'outer;
-                    }
-                    _ => {}
-                }
-            }
-            if buffer.len() > 4 * 1024 * 1024 || reader_shared.stopping.load(AtomicOrdering::SeqCst)
-            {
-                break;
-            }
+        let result = read_helper(helper_stdout, &guest_sender, &reader_shared);
+        if !reader_shared.stopping.load(AtomicOrdering::SeqCst) {
+            reader_shared.failed.store(true, AtomicOrdering::SeqCst);
+            STOP.store(true, AtomicOrdering::SeqCst);
+        }
+        reader_shared
+            .helper_alive
+            .store(false, AtomicOrdering::SeqCst);
+        reader_shared.stopping.store(true, AtomicOrdering::SeqCst);
+        let _ = guest_sender.send(GuestLine::HelperEnded(
+            result.err().unwrap_or_else(|| "stopped".to_owned()),
+        ));
+    });
+    let lease_shared = Arc::clone(&shared);
+    let lease = std::thread::spawn(move || {
+        if let Err(error) = maintain_lease(lease_write, ack_read, &lease_shared) {
+            eprintln!("ukai-vm: {error}");
+            lease_shared.failed.store(true, AtomicOrdering::SeqCst);
+            STOP.store(true, AtomicOrdering::SeqCst);
+            lease_shared.stopping.store(true, AtomicOrdering::SeqCst);
         }
     });
-
-    // The lease thread: refresh, check the acknowledgement, die loudly.
-    let lease = {
-        let shared = Arc::clone(&shared);
-        let lease_write = lease_write.try_clone_to_owned()?;
-        let ack_read = ack_read.try_clone_to_owned()?;
-        std::thread::spawn(move || {
-            let mut refreshed = continuous_ns();
-            let mut ack_buffer = [0u8; 64];
-            while !shared.stopping.load(AtomicOrdering::SeqCst)
-                && !STOP.load(AtomicOrdering::SeqCst)
-            {
-                std::thread::sleep(LEASE_REFRESH);
-                let now = continuous_ns();
-                let _ = read_nonblocking(&ack_read, &mut ack_buffer);
-                if now.saturating_sub(refreshed) > u128::from(LEASE_ACK.as_secs()) {
-                    // The custodian is about to kill the VZ client on its
-                    // own three-second lease; record and let it.
-                    eprintln!("ukai-vm: the custody lease stopped being acknowledged");
-                    std::process::exit(125);
-                }
-                refreshed = now;
-                // SAFETY: `write` on an owned descriptor with a valid buffer.
-                let written =
-                    unsafe { libc::write(lease_write.as_raw_fd(), b".".as_ptr().cast(), 1) };
-                if written < 0 {
-                    eprintln!("ukai-vm: the custody lease closed");
-                    std::process::exit(125);
-                }
-            }
-        })
-    };
-
-    let control_listener = bind_socket(&runtime.join("control.sock"))?;
-    let attempt_listener = bind_socket(&runtime.join("attempt.sock"))?;
-    eprintln!(
-        "ukai-vm: serving warm guest {} on {}",
-        install.root.display(),
-        runtime.join("control.sock").display()
-    );
-
     let service = Arc::new(Service {
         helper_stdin: Arc::new(Mutex::new(helper_stdin)),
-        shared: Arc::clone(&shared),
-        boot_id: format!("vm-{}", std::process::id()),
+        shared,
+        boot_id,
         install,
         sockets: (runtime.join("control.sock"), runtime.join("attempt.sock")),
     });
-
-    // The control thread answers status and stop while attempts run.
-    let control_shared = Arc::clone(&service.shared);
-    let control_install = image::Install::from_root(service.install.root.clone())
-        .map(|install| install.manifest)
-        .map_err(|error| error.to_string())?;
-    let control_stop = {
-        let service = Arc::clone(&service);
-        move || {
-            let _ = write_helper(&service, &HelperWrite::Stop);
-        }
-    };
+    let control_service = Arc::clone(&service);
     let control_thread = std::thread::spawn(move || {
-        for stream in control_listener.incoming() {
-            let Ok(mut stream) = stream else { continue };
-            let mut line = Vec::new();
-            let mut byte = [0u8; 1];
-            loop {
-                match stream.read(&mut byte) {
-                    Ok(0) | Err(_) => break,
-                    Ok(_) => {
-                        line.push(byte[0]);
-                        if byte[0] == b'\n' || line.len() > protocol::MAX_FRAME {
-                            break;
-                        }
-                    }
-                }
-            }
-            let Ok(request) = serde_json::from_slice::<protocol::ToControl>(&line) else {
-                continue;
-            };
-            let reply = match request {
-                protocol::ToControl::Status => protocol::FromControl::Status {
-                    schema: protocol::SCHEMA_CONTROL.to_owned(),
-                    boot_id: String::from("reported-by-serve"),
-                    warm: !control_shared.stopping.load(AtomicOrdering::SeqCst),
-                    attempt_live: control_shared.attempt_live.load(AtomicOrdering::SeqCst),
-                    kernel: SHARED_GUEST_KERNEL
-                        .lock()
-                        .ok()
-                        .and_then(|guard| guard.clone()),
-                    disk_sha256: control_install.disk_sha256.clone(),
-                    helper_sha256: control_install.helper_sha256.clone(),
-                    custodian_sha256: control_install.custodian_sha256.clone(),
-                    seed_sha256: control_install.seed_sha256.clone(),
-                    vsock_port: GUEST_PORT,
-                    idle_seconds: IDLE_SECONDS,
-                },
-                protocol::ToControl::Stop => {
-                    control_shared.stopping.store(true, AtomicOrdering::SeqCst);
-                    STOP.store(true, AtomicOrdering::SeqCst);
-                    control_stop();
-                    protocol::FromControl::Stopping {
-                        schema: protocol::SCHEMA_CONTROL.to_owned(),
-                    }
-                }
-            };
-            if let Ok(mut frame) = serde_json::to_vec(&reply) {
-                frame.push(b'\n');
-                let _ = stream.write_all(&frame);
-            }
-            if matches!(reply, protocol::FromControl::Stopping { .. }) {
-                break;
-            }
-        }
+        serve_control(&control_service, &control_listener, args.idle_seconds);
     });
-
-    let boot_id = service.boot_id.clone();
-    let result = drive_attempts(
-        &service,
-        &guest_frames,
-        &attempt_listener,
-        args.idle_seconds,
-    );
-    // Orderly stop: the guest session ends, the VM service ends, the sockets
-    // come down.
+    // Exactly one session handshake per boot, including the first kernel reply.
+    let result = (|| {
+        expect_guest(&guest_frames, "ready")?;
+        guest_line(&service, &GuestOp::Session)?;
+        let session = expect_guest(&guest_frames, "session")?;
+        *SHARED_GUEST_KERNEL.lock().map_err(|e| e.to_string())? =
+            Some(session.kernel.ok_or("session omitted kernel")?);
+        drive_attempts(
+            &service,
+            &guest_frames,
+            &attempt_listener,
+            args.idle_seconds,
+        )
+    })();
     service.shared.stopping.store(true, AtomicOrdering::SeqCst);
     let _ = write_helper(&service, &HelperWrite::Stop);
-    let _ = std::fs::remove_file(&service.sockets.0);
-    let _ = std::fs::remove_file(&service.sockets.1);
-    let _ = std::fs::remove_file(&disk);
+    let _ = lease.join(); // closes the lease: the custodian has a three-second backstop
+    let deadline = std::time::Instant::now() + Duration::from_secs(4);
+    while custodian.0.try_wait().map_err(|e| e.to_string())?.is_none()
+        && std::time::Instant::now() < deadline
+    {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    drop(custodian);
     let _ = reader.join();
-    let _ = lease.join();
     let _ = control_thread.join();
-    eprintln!("ukai-vm: stopped boot {boot_id}");
+    for socket in [&service.sockets.0, &service.sockets.1] {
+        let _ = std::fs::remove_file(socket);
+    }
+    std::fs::remove_dir_all(&boot).map_err(|e| e.to_string())?;
+    if service.shared.failed.load(AtomicOrdering::SeqCst) {
+        return Err("VM custody or transport failed".to_owned());
+    }
     result
+}
+
+fn serve_control(service: &Service, listener: &UnixListener, idle_seconds: u64) {
+    while !service.shared.stopping.load(AtomicOrdering::SeqCst)
+        && !STOP.load(AtomicOrdering::SeqCst)
+    {
+        let (mut stream, _) = match listener.accept() {
+            Ok(pair) => pair,
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                std::thread::sleep(Duration::from_millis(20));
+                continue;
+            }
+            Err(_) => break,
+        };
+        let Ok(line) = read_line(&mut stream, Duration::from_secs(1)) else {
+            continue;
+        };
+        let Ok(request) = protocol::decode::<protocol::ToControl>(&line) else {
+            continue;
+        };
+        let manifest = &service.install.manifest;
+        let reply = match request {
+            protocol::ToControl::Status => protocol::FromControl::Status {
+                schema: protocol::SCHEMA_CONTROL.to_owned(),
+                boot_id: service.boot_id.clone(),
+                warm: service.shared.helper_alive.load(AtomicOrdering::SeqCst)
+                    && !service.shared.stopping.load(AtomicOrdering::SeqCst),
+                attempt_live: service.shared.attempt_live.load(AtomicOrdering::SeqCst),
+                kernel: SHARED_GUEST_KERNEL.lock().ok().and_then(|g| g.clone()),
+                disk_sha256: manifest.disk_sha256.clone(),
+                helper_sha256: manifest.helper_sha256.clone(),
+                custodian_sha256: manifest.custodian_sha256.clone(),
+                seed_sha256: manifest.seed_sha256.clone(),
+                vsock_port: GUEST_PORT,
+                idle_seconds,
+            },
+            protocol::ToControl::Stop => {
+                service.shared.stopping.store(true, AtomicOrdering::SeqCst);
+                STOP.store(true, AtomicOrdering::SeqCst);
+                protocol::FromControl::Stopping {
+                    schema: protocol::SCHEMA_CONTROL.to_owned(),
+                }
+            }
+        };
+        if let Ok(frame) = protocol::encode(&reply) {
+            let _ = stream.set_write_timeout(Some(Duration::from_secs(1)));
+            let _ = stream.write_all(&frame);
+        }
+    }
 }
 
 /// Accepts attempt connections until stopped, or until the guest has been
@@ -533,18 +593,25 @@ fn drive_attempts(
         }
         match listener.accept() {
             Ok((stream, _)) => {
-                idle_since = continuous_ns();
                 let outcome = run_attempt(service, frames, stream);
                 service
                     .shared
                     .attempt_live
                     .store(false, AtomicOrdering::SeqCst);
-                outcome?;
+                if let Err(error) = outcome {
+                    eprintln!("ukai-vm: attempt failed: {error}");
+                    // Cancel and drain this attempt before accepting another one. If
+                    // cleanup cannot be acknowledged the entire guest must stop.
+                    guest_line(service, &GuestOp::Cancel2)?;
+                    expect_guest(frames, "cancelled")?;
+                }
+                idle_since = continuous_ns();
             }
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
             Err(error) => return Err(error.to_string()),
         }
-        if !service.shared.attempt_live.load(AtomicOrdering::SeqCst)
+        if idle_seconds != 0
+            && !service.shared.attempt_live.load(AtomicOrdering::SeqCst)
             && continuous_ns().saturating_sub(idle_since) > u128::from(idle_seconds) * 1_000_000_000
         {
             eprintln!("ukai-vm: the guest has been idle for {idle_seconds}s");
@@ -566,6 +633,10 @@ fn run_attempt(
         .attempt_live
         .store(true, AtomicOrdering::SeqCst);
     let mut stream = stream;
+    stream.set_nonblocking(false).map_err(|e| e.to_string())?;
+    stream
+        .set_write_timeout(Some(Duration::from_secs(2)))
+        .map_err(|e| e.to_string())?;
     let send = |stream: &mut UnixStream, frame: &protocol::FromVm| -> Result<(), String> {
         let mut line = serde_json::to_vec(frame).map_err(|error| error.to_string())?;
         line.push(b'\n');
@@ -605,10 +676,14 @@ fn run_attempt(
                     "the attempt names a wall of {wall_seconds}s, past the guest grammar"
                 ));
             }
-            for argument in &argv {
-                if protocol::decode_data(argument)
-                    .map_err(|error| error.to_string())?
-                    .is_empty()
+            if argv.is_empty() {
+                return Err("empty argv".to_owned());
+            }
+            for (index, argument) in argv.iter().enumerate() {
+                if (index == 0
+                    && protocol::decode_data(argument)
+                        .map_err(|error| error.to_string())?
+                        .is_empty())
                     || protocol::decode_data(argument)
                         .map_err(|error| error.to_string())?
                         .contains(&0)
@@ -624,35 +699,24 @@ fn run_attempt(
             Err("the attempt opened with staging frames instead of `prepare`".to_owned())
         }
     }?;
-    let (_, profile, wall_seconds, argv, secrets) = prepared;
+    let (attempt_id, profile, wall_seconds, argv, secrets) = prepared;
+    if !secrets.is_empty() {
+        return Err("--vm: vault credentials are not wired into the guest jail".to_owned());
+    }
 
-    // The warm session, once per boot.
-    guest_line(service, &GuestOp::Session)?;
-    expect_guest(frames, "session")?;
     guest_line(service, &GuestOp::Reset)?;
     expect_guest(frames, "reset")?;
-    let kernel = guest_kernel(frames)?;
-    if let Ok(mut guard) = SHARED_GUEST_KERNEL.lock() {
-        *guard = Some(kernel.clone());
-    }
-    for secret in &secrets {
-        guest_line(
-            service,
-            &GuestOp::Secret {
-                id: secret.id.clone(),
-                data: secret.data.clone(),
-            },
-        )?;
-        expect_guest(frames, "secret")?;
-    }
-    let staged = service_staged_files(service, &mut stream)?;
+    let kernel = SHARED_GUEST_KERNEL
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or("session did not establish a guest kernel")?;
     send(
         &mut stream,
         &protocol::FromVm::Prepared {
             kernel: kernel.clone(),
         },
     )?;
-    let _ = staged;
 
     // The release loop ends only by sending `run`; from there the attempt
     // is released.
@@ -678,40 +742,29 @@ fn run_attempt(
     guest_line(
         service,
         &GuestOp::Run2 {
+            attempt_id,
+            boot_id: service.boot_id.clone(),
             profile,
             wall_seconds,
             argv,
         },
     )?;
-    expect_guest(frames, "running")?;
-
-    // The lease: this stream's end cancels the attempt. The watcher holds a
-    // clone and blocks on it; the client sends nothing after `run`.
-    let watch_stream = stream.try_clone().map_err(|error| error.to_string())?;
-    let watch_flag = Arc::new(AtomicBool::new(false));
-    let watcher_flag = Arc::clone(&watch_flag);
-    let watcher = std::thread::spawn(move || {
-        let mut stream = watch_stream;
-        let mut buffer = [0u8; 1];
-        loop {
-            match stream.read(&mut buffer) {
-                Ok(0) | Err(_) => break,
-                Ok(_) => {}
-            }
-        }
-        watcher_flag.store(true, AtomicOrdering::SeqCst);
-    });
-
-    let outcome = relay_attempt(service, frames, &mut stream, &watch_flag);
-    watcher.join().map_err(|_| "the lease watcher failed")?;
-    outcome
+    let running = expect_guest(frames, "running")?;
+    send(
+        &mut stream,
+        &protocol::FromVm::Released {
+            supervisor_pid: running
+                .supervisor_pid
+                .ok_or("running omitted supervisor_pid")?,
+        },
+    )?;
+    relay_attempt(service, frames, &mut stream)
 }
 
 fn relay_attempt(
     service: &Service,
     frames: &std::sync::mpsc::Receiver<GuestLine>,
     stream: &mut UnixStream,
-    watch_flag: &AtomicBool,
 ) -> Result<(), String> {
     let deadline = continuous_ns() + u128::from(protocol::WALL_MAX + 90) * 1_000_000_000;
     let mut receipt: Option<(String, Vec<u8>)> = None;
@@ -723,6 +776,33 @@ fn relay_attempt(
             .map_err(|error| format!("the attempt connection failed: {error}"))
     };
     loop {
+        if STOP.load(AtomicOrdering::SeqCst) || service.shared.stopping.load(AtomicOrdering::SeqCst)
+        {
+            return Err("service stopping".to_owned());
+        }
+        let mut byte = [0u8; 1];
+        // SAFETY: recv peeks into caller-owned memory without consuming protocol data.
+        let peer = unsafe {
+            libc::recv(
+                stream.as_raw_fd(),
+                byte.as_mut_ptr().cast(),
+                1,
+                libc::MSG_PEEK | libc::MSG_DONTWAIT,
+            )
+        };
+        if peer == 0 {
+            return Err("the attempt lease ended".to_owned());
+        }
+        if peer > 0 {
+            return Err("unexpected data after release".to_owned());
+        }
+        let error = std::io::Error::last_os_error();
+        if !matches!(
+            error.kind(),
+            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::Interrupted
+        ) {
+            return Err(error.to_string());
+        }
         if continuous_ns() > deadline {
             return Err("the attempt ran past its host deadline".to_owned());
         }
@@ -732,16 +812,6 @@ fn relay_attempt(
                 return Err(format!("the VM service ended: {reason}"));
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                if watch_flag.load(AtomicOrdering::SeqCst) {
-                    // The lease's end-of-file: cancel the attempt, and the
-                    // session stays warm (§6). The client is gone, so the
-                    // outcome goes nowhere; the guest's audit has it.
-                    guest_line(service, &GuestOp::Cancel2)?;
-                    let _ = expect_guest(frames, "cancelled");
-                    return Err(
-                        "the attempt's lease ended: the guest attempt was cancelled".to_owned()
-                    );
-                }
                 continue;
             }
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
@@ -770,6 +840,9 @@ fn relay_attempt(
                         protocol::decode_data(&data).map_err(|error| error.to_string())?,
                     ));
                 }
+                if group == "evidence" && path == "jail.json" {
+                    continue;
+                }
                 send(
                     stream,
                     &protocol::FromVm::File {
@@ -788,9 +861,10 @@ fn relay_attempt(
                 let digest = image::hex(&sha2::Sha256::digest(&bytes));
                 send(
                     stream,
-                    &protocol::FromVm::Receipt {
+                    &protocol::FromVm::BoundReceipt {
                         sha256: digest,
                         data: sha256,
+                        binding: frame.binding.ok_or("guest omitted receipt binding")?,
                     },
                 )?;
                 send(stream, &protocol::FromVm::Done { exit_code })?;
@@ -809,33 +883,63 @@ fn relay_attempt(
     }
 }
 
-/// Reads and acknowledges the attempt's `put` frames, so the guest stages
-/// them before the run is released.
-fn service_staged_files(_service: &Service, _stream: &mut UnixStream) -> Result<usize, String> {
-    // The puts arrive after `prepared` (the host sends them once the guest
-    // accepted the staging), so this side reads them in the release loop.
-    Ok(0)
+fn read_line(stream: &mut UnixStream, timeout: Duration) -> Result<Vec<u8>, String> {
+    // macOS accepted sockets inherit O_NONBLOCK from the listener.
+    stream.set_nonblocking(false).map_err(|e| e.to_string())?;
+    let deadline = std::time::Instant::now() + timeout;
+    let mut line = Vec::new();
+    let mut chunk = [0u8; 16384];
+    loop {
+        if STOP.load(AtomicOrdering::SeqCst) || std::time::Instant::now() >= deadline {
+            return Err("request timed out or service stopping".to_owned());
+        }
+        if !control::wait_readable(stream, Duration::from_millis(100)).map_err(|e| e.to_string())? {
+            continue;
+        }
+        // Peek to consume only this line; the next request stays in the socket.
+        // SAFETY: recv writes into the caller-owned chunk, and the stream is live.
+        let peeked = unsafe {
+            libc::recv(
+                stream.as_raw_fd(),
+                chunk.as_mut_ptr().cast(),
+                chunk.len(),
+                libc::MSG_PEEK,
+            )
+        };
+        if peeked == 0 {
+            return Err("the connection closed".to_owned());
+        }
+        if peeked < 0 {
+            let e = std::io::Error::last_os_error();
+            if matches!(
+                e.kind(),
+                std::io::ErrorKind::WouldBlock
+                    | std::io::ErrorKind::TimedOut
+                    | std::io::ErrorKind::Interrupted
+            ) {
+                continue;
+            }
+            return Err(e.to_string());
+        }
+        let available = peeked as usize;
+        let end = chunk[..available].iter().position(|b| *b == b'\n');
+        let count = end.map_or(available, |n| n + 1);
+        stream
+            .read_exact(&mut chunk[..count])
+            .map_err(|e| e.to_string())?;
+        line.extend_from_slice(&chunk[..end.unwrap_or(count)]);
+        if line.len() > protocol::MAX_FRAME {
+            return Err("oversized request".to_owned());
+        }
+        if end.is_some() {
+            return Ok(line);
+        }
+    }
 }
 
 fn read_request(stream: &mut UnixStream) -> Result<protocol::ToVm, String> {
-    let mut line = Vec::new();
-    let mut byte = [0u8; 1];
-    loop {
-        match stream.read(&mut byte) {
-            Ok(0) => return Err("the attempt connection closed".to_owned()),
-            Ok(_) => {
-                if byte[0] == b'\n' {
-                    break;
-                }
-                line.push(byte[0]);
-                if line.len() > protocol::MAX_FRAME {
-                    return Err("the attempt sent an oversized frame".to_owned());
-                }
-            }
-            Err(error) => return Err(format!("the attempt connection failed: {error}")),
-        }
-    }
-    protocol::decode::<protocol::ToVm>(&line).map_err(|error| error.to_string())
+    let line = read_line(stream, control::HANDSHAKE_TIMEOUT)?;
+    protocol::decode(&line).map_err(|e| e.to_string())
 }
 
 fn expect_guest(
@@ -844,11 +948,11 @@ fn expect_guest(
 ) -> Result<GuestEvent, String> {
     let deadline = continuous_ns() + 30 * 1_000_000_000;
     loop {
-        if continuous_ns() > deadline {
+        if STOP.load(AtomicOrdering::SeqCst) || continuous_ns() > deadline {
             return Err(format!("the guest did not answer `{event}`"));
         }
         match frames.recv_timeout(Duration::from_millis(100)) {
-            Ok(GuestLine::Frame(frame)) if frame.event == event => return Ok(frame),
+            Ok(GuestLine::Frame(frame)) if frame.event == event => return Ok(*frame),
             Ok(GuestLine::Frame(frame)) if frame.event == "error" => {
                 return Err(frame.message.unwrap_or_else(|| "guest error".to_owned()));
             }
@@ -862,19 +966,6 @@ fn expect_guest(
             }
         }
     }
-}
-
-fn guest_kernel(frames: &std::sync::mpsc::Receiver<GuestLine>) -> Result<String, String> {
-    let mut guard = SHARED_GUEST_KERNEL
-        .lock()
-        .map_err(|error| error.to_string())?;
-    if let Some(kernel) = guard.as_ref() {
-        return Ok(kernel.clone());
-    }
-    let frame = expect_guest(frames, "session")?;
-    let kernel = frame.kernel.clone().unwrap_or_else(|| "unknown".to_owned());
-    *guard = Some(kernel.clone());
-    Ok(kernel)
 }
 
 fn expect_guest_put(
@@ -913,30 +1004,23 @@ fn bind_socket(path: &Path) -> Result<UnixListener, String> {
     UnixListener::bind(path).map_err(|error| format!("{} cannot bind: {error}", path.display()))
 }
 
-fn clone_disk(base: &Path, destination: &Path) -> Result<(), String> {
-    let status = std::process::Command::new("/bin/cp")
-        .arg("-c")
-        .arg(base)
-        .arg(destination)
-        .status()
-        .map_err(|error| format!("cp cannot start: {error}"))?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!(
-            "the guest disk clone failed: {} is not a clone of {}",
-            destination.display(),
-            base.display()
-        ))
-    }
-}
-
 fn fd_pipe() -> Result<(std::os::fd::OwnedFd, std::os::fd::OwnedFd), String> {
     // SAFETY: the array is plain writable storage `pipe` fills.
     let mut fds = [0 as libc::c_int; 2];
     // SAFETY: `pipe` writes exactly two descriptor numbers into the array.
     if unsafe { libc::pipe(fds.as_mut_ptr()) } != 0 {
         return Err(format!("pipe failed: {}", std::io::Error::last_os_error()));
+    }
+    for fd in fds {
+        // SAFETY: these descriptors were just created by pipe.
+        if unsafe { libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC) } < 0 {
+            // SAFETY: close both fresh descriptors on the error path.
+            unsafe {
+                libc::close(fds[0]);
+                libc::close(fds[1]);
+            }
+            return Err(std::io::Error::last_os_error().to_string());
+        }
     }
     // SAFETY: both descriptors are freshly created and owned.
     Ok(unsafe {
@@ -945,16 +1029,6 @@ fn fd_pipe() -> Result<(std::os::fd::OwnedFd, std::os::fd::OwnedFd), String> {
             std::os::fd::OwnedFd::from_raw_fd(fds[1]),
         )
     })
-}
-
-trait TryCloneFd {
-    fn try_clone_to_owned(&self) -> Result<std::os::fd::OwnedFd, String>;
-}
-
-impl TryCloneFd for std::os::fd::OwnedFd {
-    fn try_clone_to_owned(&self) -> Result<std::os::fd::OwnedFd, String> {
-        self.try_clone().map_err(|error| error.to_string())
-    }
 }
 
 fn spawn_custodian(
@@ -968,11 +1042,9 @@ fn spawn_custodian(
 ) -> Result<std::process::Child, String> {
     use std::os::fd::AsRawFd as _;
     use std::process::Stdio;
-    let lease_fd = lease_read.as_raw_fd();
-    let ack_fd = ack_write.as_raw_fd();
     let mut command = std::process::Command::new(install.custodian());
     command
-        .args([lease_fd.to_string(), ack_fd.to_string()])
+        .args(["3", "4"])
         .arg(install.helper())
         .arg(disk)
         .arg(seed)
@@ -984,12 +1056,17 @@ fn spawn_custodian(
         .stderr(Stdio::null());
     // The closure must own its descriptors ('static); the clones die
     // with the child's exec or with the command.
-    let lease_child = lease_read
-        .try_clone()
-        .map_err(|error| format!("the lease end cannot be cloned: {error}"))?;
-    let ack_child = ack_write
-        .try_clone()
-        .map_err(|error| format!("the ack end cannot be cloned: {error}"))?;
+    let duplicate = |fd: &std::os::fd::OwnedFd| {
+        // SAFETY: duplicate a live descriptor above the dup2 destinations.
+        let n = unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 10) };
+        if n < 0 {
+            return Err(std::io::Error::last_os_error().to_string());
+        }
+        // SAFETY: fcntl returned a fresh owned descriptor.
+        Ok(unsafe { std::os::fd::OwnedFd::from_raw_fd(n) })
+    };
+    let lease_child = duplicate(lease_read)?;
+    let ack_child = duplicate(ack_write)?;
     // SAFETY: `pre_exec` runs the closure in the child, before exec. It
     // moves the lease and acknowledgement descriptors to the numbers the
     // custodian's grammar names — the duplicates lose the close-on-exec
@@ -1015,9 +1092,6 @@ fn read_nonblocking(fd: &std::os::fd::OwnedFd, buffer: &mut [u8]) -> std::io::Re
     let count = unsafe { libc::read(fd.as_raw_fd(), buffer.as_mut_ptr().cast(), buffer.len()) };
     if count < 0 {
         let error = std::io::Error::last_os_error();
-        if error.kind() == std::io::ErrorKind::WouldBlock {
-            return Ok(0);
-        }
         return Err(error);
     }
     Ok(count as usize)
@@ -1075,14 +1149,22 @@ fn main() -> std::process::ExitCode {
             Ok(())
         }
         Command::Status => control_round_trip(protocol::ToControl::Status).and_then(|reply| {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&reply).map_err(|error| error.to_string())?
-            );
+            if let Some(reply) = reply {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&reply).map_err(|e| e.to_string())?
+                );
+            } else {
+                println!("ukai-vm: no VM is running");
+            }
             Ok(())
         }),
-        Command::Stop => control_round_trip(protocol::ToControl::Stop).map(|_| {
-            println!("ukai-vm: stopping: the warm guest ends with its service");
+        Command::Stop => control_round_trip(protocol::ToControl::Stop).map(|reply| {
+            if reply.is_some() {
+                println!("ukai-vm: stopping: the warm guest ends with its service");
+            } else {
+                println!("ukai-vm: no VM is running");
+            }
         }),
         Command::Serve(args) => qualified().and_then(|()| serve(args)),
     };
@@ -1095,14 +1177,13 @@ fn main() -> std::process::ExitCode {
     }
 }
 
-fn control_round_trip(request: protocol::ToControl) -> Result<(), String> {
+fn control_round_trip(
+    request: protocol::ToControl,
+) -> Result<Option<protocol::FromControl>, String> {
     let socket = control_socket();
     match control::control_round_trip(&socket, request) {
-        Ok(_) => Ok(()),
-        Err(control::ControlError::Absent) => {
-            println!("ukai-vm: no VM is running");
-            Ok(())
-        }
+        Ok(reply) => Ok(Some(reply)),
+        Err(control::ControlError::Absent) => Ok(None),
         Err(control::ControlError::Failed(error)) => Err(error.to_string()),
     }
 }
@@ -1150,5 +1231,65 @@ fn qualified() -> Result<(), String> {
     #[cfg(not(target_os = "macos"))]
     {
         Err("ukai-vm serves on macOS hosts; there is no VM service here".to_owned())
+    }
+}
+
+#[cfg(test)]
+mod service_regressions {
+    use super::*;
+
+    #[test]
+    fn request_bound_is_reached_before_json_decode_or_timeout() {
+        let (mut reader, mut peer) = UnixStream::pair().unwrap();
+        let writer = std::thread::spawn(move || {
+            let _ = peer.write_all(&vec![b' '; protocol::MAX_FRAME + 1]);
+        });
+        let error = read_request(&mut reader).unwrap_err();
+        assert!(error.contains("oversized request"), "{error}");
+        drop(reader);
+        writer.join().unwrap();
+    }
+
+    #[test]
+    fn nonblocking_accepted_request_waits_for_a_delayed_frame() {
+        let (mut reader, mut peer) = UnixStream::pair().unwrap();
+        reader.set_nonblocking(true).unwrap();
+        let writer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(20));
+            peer.write_all(b"{\"op\":\"run\"}\n").unwrap();
+        });
+        assert_eq!(read_request(&mut reader).unwrap(), protocol::ToVm::Run);
+        writer.join().unwrap();
+    }
+
+    #[test]
+    fn silent_and_trickled_requests_have_an_absolute_deadline() {
+        let (mut reader, mut peer) = UnixStream::pair().unwrap();
+        let writer = std::thread::spawn(move || {
+            for _ in 0..40 {
+                if peer.write_all(b" ").is_err() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        });
+        let start = std::time::Instant::now();
+        assert!(
+            read_line(&mut reader, Duration::from_millis(40))
+                .unwrap_err()
+                .contains("timed out")
+        );
+        assert!(start.elapsed() < Duration::from_millis(150));
+        drop(reader);
+        writer.join().unwrap();
+    }
+
+    #[test]
+    fn runtime_lock_is_exclusive_and_released_with_its_owner() {
+        let dir = tempfile::tempdir().unwrap();
+        let lock = lock_runtime(dir.path()).unwrap();
+        assert!(lock_runtime(dir.path()).is_err());
+        drop(lock);
+        lock_runtime(dir.path()).unwrap();
     }
 }

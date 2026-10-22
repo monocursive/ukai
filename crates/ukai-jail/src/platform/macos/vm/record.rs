@@ -119,27 +119,15 @@ impl TransportRecord {
 /// The summary's transport line (§6: "the summary prints the guest summary
 /// plus one transport line from that record").
 ///
-/// `receipt` is the guest receipt as JSON: the line names its platform,
-/// policy and lifetime boundary, every one a fact the host verified before
-/// storing the bytes. Every evidence string is escaped through
-/// [`escape_control`], the records' rule, so the text stays one line.
+/// The existing caller passes a host receipt. That parameter is retained for
+/// compatibility and deliberately ignored: its fields cannot certify guest facts.
+/// This line names the guest evidence separately and escapes transport values.
 #[must_use]
-pub fn transport_line(receipt: &serde_json::Value, record: &TransportRecord) -> String {
-    let guest = receipt
-        .pointer("/platform/os")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or("unknown");
-    let policy = receipt
-        .pointer("/policy/name")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or("unknown");
-    let boundary = receipt
-        .pointer("/lifetime/boundary")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or("unknown");
+pub fn transport_line(_receipt: &serde_json::Value, record: &TransportRecord) -> String {
+    // The current caller passes the HOST receipt. Do not turn its fields
+    // into guest facts. The separately stored guest evidence is authoritative.
     format!(
-        "vm: guest {guest} {policy} boundary={boundary} · boot {} · image {} · vsock {} · \
-         receipt sha256:{}",
+        "vm: guest-reported facts in evidence/jail.json · boot {} · image {} · vsock {} · receipt sha256:{}",
         escape_control(&record.boot_id),
         short(&record.image.disk_sha256),
         record.vsock_port,
@@ -215,7 +203,7 @@ mod tests {
         facts.boot_id = "boot-with\nnewline".to_owned();
         let line = transport_line(&receipt(), &facts);
         assert!(
-            line.starts_with("vm: guest linux tool boundary=pid_namespace"),
+            line.starts_with("vm: guest-reported facts in evidence/jail.json"),
             "{line}"
         );
         assert!(
@@ -236,7 +224,7 @@ mod tests {
             serde_json::json!(7),
         ] {
             let line = transport_line(&receipt, &record());
-            assert!(line.contains("unknown"), "{line}");
+            assert!(line.contains("guest-reported"), "{line}");
         }
     }
 }

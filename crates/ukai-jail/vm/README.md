@@ -89,7 +89,7 @@ These mechanisms require fault measurements; merely booting a VM does not prove
 owner-loss cleanup.
 
 ```sh
-python3 -m unittest discover -s crates/ukai-jail/vm -p 'test_*.py'
+(cd crates/ukai-jail/vm && python3 -s -E -m unittest discover -p 'test_*.py')
 python3 crates/ukai-jail/vm/check.py \
   --image evidence/my-vm-image --out evidence/my-vm-faults --repeat 3
 ```
@@ -180,101 +180,67 @@ Apple references: [Virtualization](https://developer.apple.com/documentation/vir
 [virtualization entitlement](https://developer.apple.com/documentation/virtualization/adding-the-virtualization-entitlement-to-your-project),
 [unconditional stop](https://developer.apple.com/documentation/virtualization/vzvirtualmachine/stop(completionhandler:)).
 
-## J18: the warm VM tier (`--vm`)
+## J18: warm service development (`--vm` currently refuses)
 
-[jail-macos.md §6](../../../docs/specs/jail-macos.md) turns this preview into
-the Mac's second tier. `ukai-jail run --vm` (macOS only) drives a **warm**
-guest through two new programs in this crate:
+The warm service is under development. **Every `ukai-jail run --vm` request
+currently refuses before connecting, staging files or starting a workload.**
+Pre-release guest capability measurements and the specified live workspace
+share are missing. Reporting guest capabilities as available without measuring
+them would certify guarantees the host has not established.
 
-- **`ukai-vm`** (`crates/ukai-jail/src/bin/ukai-vm.rs`, one binary, no Python
-  runtime) is the per-operator host service. `ukai-vm serve` locates the
-  installed preview artifacts exactly where `install.sh.in` puts them
-  (`~/.local/share/ukai-vm/<version>/`, or `UKAI_VM_HOME`), verifies every
-  image hash the way `run.py`'s `load_image` does, reuses the installed
-  `custodian` and `vz` binaries **unmodified**, clones the base disk, boots
-  once, and serves attempts until `ukai-jail vm stop` or an idle period
-  (initial 10 min, on `mach_continuous_time`) ends it. It is a foreground
-  process, not a launchd job.
-- **`ukai-jail --vm`** selects `platform/macos/vm.rs`'s `VmPlatform` instead
-  of native preparation. The policy resolves for the guest (`platform`
-  `linux`); the boundary is the guest jail's pid namespace; the receipt is
-  the guest's Linux receipt, digest-verified on the host and stored in the
-  attempt directory beside `vm-transport.json`, a
-  `ukai.jail.vm-transport/1` record naming the VM boot id, image digests,
-  vsock port, the sockets, the host wall times and the receipt digest. The
-  summary's one transport line renders from that record
-  (`record::transport_line`), as the J15 action adds its host-setup line.
+The refusal also identifies unsupported `none`/`agent` profiles, network/proxy
+policy, launch profiles, vault credentials and deny-read staging. Resource,
+environment, filesystem and observation policies are not silently dropped:
+there is no permitted CLI release path until all requested elements can be
+applied and measured. `--lifetime kernel-bound` is preserved in the snapshot
+and requirements, but this tier does not currently satisfy it.
 
-### The wire protocols
+The low-level `ukai-vm serve` protocol is a development interface to the offline
+preview's fixed `tool`/`build` command, with copied inputs and exported outputs.
+It is not a full-policy execution interface. It never updates the input
+workspace in place. Run-mode NAT, agent/provider integration, credential
+injection and interactive stdin are absent. Vault values are refused by both
+the service and guest controller; they are not transported or staged.
 
-All frames are NDJSON, one object per line, defined once in
-`src/platform/macos/vm/protocol.rs` and included **by path** from both ends,
-so the host program and the jail cannot drift apart silently:
+The service holds an exclusive runtime lock before removing stale sockets. It
+copies the installed artifacts to a private boot directory and verifies the
+copies before executing them. A boot has one session handshake. Each attempt
+resets its directories, stages files, releases, relays output and returns its
+receipt. Client EOF cancels only that attempt; an unacknowledged cancellation
+ends the service. The custody heartbeat validates acknowledgement bytes and
+uses a continuous-clock deadline. Control requests, handshakes, writes and
+shutdown have bounds. No live VM lifecycle claim follows from these unit tests.
 
-- `ukai.jail.vm-control/1`, on `<data-dir>/vm/control.sock`: `status` and
-  `stop`.
-- `ukai.jail.vm-attempt/1`, on `<data-dir>/vm/attempt.sock`, one connection
-  per attempt: the host sends `prepare` (argv as base64, the profile, the
-  wall, the ephemeral credentials), then one `put` per workspace file, then
-  `run`; the service answers `ready`, `prepared`, `released`, `stdout`,
-  `stderr`, `file`, `receipt` (bytes plus their SHA-256) and `done`.
-  **The connection is the lease**: its end-of-file cancels that attempt in
-  the guest. No timer is involved, so a host `Ctrl-Z` suspends the run
-  without ending it (§6), and the guest jail's own wall deadline still ends
-  a suspended-host attempt.
+The `bound_receipt` frame keeps the original guest jail receipt bytes and
+carries a separate controller binding: host attempt/boot, guest attempt/boot,
+profile and canonical argv digest. The host checks the digest, these bindings,
+containment, namespace boundary, cleanup, required limits and errors before
+storing `evidence/jail.json` and `evidence/vm-binding.json`. A receipt without a
+binding refuses. These are **guest-reported facts checked for consistency**,
+not independent host attestation of the guest kernel. The transport summary
+labels that provenance and does not reuse the host receipt's boundary as a
+guest measurement. Record-write failures cannot produce a successful outcome.
 
-### The warm guest session
+From the repository root, build and run the stand-in tests without a VM:
 
-`guest.py` gains a warm session beside its unchanged single-run `run` op
-(preview compatibility, one run per boot, poweroff at completion): the
-host's `session` op opens it; per attempt the host sends `reset` (both
-attempt directories are emptied and recreated), `secret` (each ephemeral
-credential), `put` (workspace files), `run2` (the **same jail command** the
-`run` op builds — see `guest.run_command`, shared by both, so the warm
-design changes nothing about what the jail is asked to do), and, on the
-lease's end-of-file, `cancel2`. After a `done` the controller clears the
-staged secrets and waits for the next attempt; the VM stays up until the
-host stops or the idle budget ends. The outer-wall backstop and `cancel2`
-end the attempt tree with the same `cgroup.kill` + verified-empty sequence
-the poweroff path uses (`kill_workload`), without the poweroff.
+```sh
+export RUSTUP_TOOLCHAIN=1.98.1
+cargo build -p ukai-jail --bins --offline
+cargo test -p ukai-jail --test vm_tier --offline
+cd crates/ukai-jail/vm
+python3 -s -E -m unittest discover -p 'test_*.py'
+```
 
-### Credentials (J18 §6)
+`python3 -s -E -m unittest test_guest_warm` is the focused guest suite; `-I`
+removes this directory from Python's import path and is not its invocation.
+`test_warm_service.py` uses synthetic, nonbootable images and stand-in
+custodian/VZ processes. It exercises two attempts, a fragmented 100 KB export,
+EOF cancellation, the lease, stop/idle/signals, helper death, locking and
+status output. `UKAI_VM_TEST_BINARY` can select an older binary for regression
+replay. Rust tests cover the receipt gate, output sinks, export traversal,
+frame bounds, record failures, policy refusal and CLI lifetime persistence.
 
-Vault values cross **once per attempt** and are never written to the guest
-disk. What was implemented, exactly:
-
-1. The supervisor's staged vault values (`launch.vault`) are carried in the
-   `prepare` frame's `secrets` entries (id + base64 value).
-2. `ukai-vm` relays each one as a vsock `secret` op, holding the bytes in
-   memory only.
-3. The guest controller stages each value at
-   `/run/ukai-vm/credentials/<id>` — **tmpfs**, mode 0600, directory 0700
-   (`guest.stage_secret`; the jail's credential grammar names source
-   *files*, J12 §3.5, so a file is what the attempt's sources can name).
-4. The controller deletes the whole staging directory at the end of every
-   attempt — completion, cancellation, wall backstop —
-   (`guest.clear_secrets`), so no value outlives its attempt.
-
-What is **not** implemented yet, because it needs the live guest and the
-in-guest launch-profile path: generating the guest-side credential
-declarations that point at those tmpfs sources and running the in-guest
-proxy's placeholder replacement. The transport, staging and deletion above
-are stand-in tested; that last wiring is not.
-
-### Tests and what stays untested here
-
-`tests/vm_tier.rs` (portable, both CI lanes) covers the policy key
-(derivation, digest stability, the native `--vm` answer, the Linux `none`
-refusal), the CLI grammar (`--lifetime`, `vm stop`, the Linux `--vm` usage
-refusal), the transport record's shape and its one escaped summary line, and
-the attempt/control protocols against scripted stand-in servers. The Python
-side is `vm/test_guest_warm.py` (command parity between `run` and `run2`,
-reset, ephemeral staging and its traversal refusals).
-
-Not covered here, because it needs a booted VM (the preview fault matrix,
-K108–K110): warm reuse latency, the live workspace share, every
-kill/suspend case of the warm design, the EOF lease against a real
-connection loss, the in-guest credential wiring above, and any receipt a
-real guest jail produced. `ukai-vm serve`'s boot path itself (custodian
-spawn, lease thread, disk clone) is likewise exercised only against a real
-image on a qualified host.
+Still unmeasured against a real VM: K108 latency, K109 live workspace behavior,
+K110's full kill/suspend matrix, guest capability probes, policy translation,
+real guest receipts and kernel guarantees. These checks do not establish a
+release, signed-package qualification or production readiness.
