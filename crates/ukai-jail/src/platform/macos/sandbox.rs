@@ -177,6 +177,8 @@ pub const TEMPLATE: &str = r#"; ukai-jail native tier (macOS): defense profile.
 @@EXEC_RULES@@
 ; --- Protected segments, AFTER the grants they override --------------------
 @@PROTECTED_RULES@@
+; Literal ancestor denials pin guarded paths while their other children stay writable.
+@@PATH_ANCHOR_RULES@@
 ; Explicit read denials override every grant, including ancestor metadata.
 @@DENY_READ_RULES@@
 ; Terminal control is confined to this attempt's own slave vnode.
@@ -248,7 +250,8 @@ impl ProfileParams {
     pub fn receipt(&self) -> serde_json::Value {
         serde_json::json!({
             "read_write": self.read_write, "read_only": self.read_only, "deny_read": self.deny_read,
-            "protected_segments": self.protected_segments, "setuid_exec_denied": self.setuid_exec_denied,
+            "protected_segments": self.protected_segments, "path_anchors": path_anchors(self),
+            "setuid_exec_denied": self.setuid_exec_denied,
             "setuid_scan_holes": self.setuid_scan_holes.iter().map(|p| p.as_os_str().as_encoded_bytes()).collect::<Vec<_>>(),
             "setuid_backstop": "kernel_sandbox_exec_denial",
             "mach_services": self.mach_services, "unix_socket_paths": self.unix_socket_paths,
@@ -336,9 +339,16 @@ pub fn try_generate(params: &ProfileParams) -> Result<String, String> {
             "ANCESTOR_METADATA" => ancestor_metadata(&params.read_only, &params.read_write),
             "EXEC_RULES" => exec_rules(&params.read_only),
             "PROTECTED_RULES" => protected_rules(&params.protected_segments),
-            "DENY_READ_RULES" => file_rules("deny file-read*", &params.deny_read, &|p| {
-                format!("(subpath {})", sbpl_string(p))
+            "PATH_ANCHOR_RULES" => file_rules("deny file-write*", &path_anchors(params), &|p| {
+                format!("(literal {})", sbpl_string(p))
             }),
+            // Read denials also pin the denied vnode/subtree: otherwise a
+            // writable sibling name bypasses a pathname-only read denial.
+            "DENY_READ_RULES" => {
+                file_rules("deny file-read* file-write*", &params.deny_read, &|p| {
+                    format!("(subpath {})", sbpl_string(p))
+                })
+            }
             "TERMINAL_RULES" => file_rules(
                 "allow file-ioctl",
                 &params.terminal_slave.iter().cloned().collect::<Vec<_>>(),
@@ -552,6 +562,29 @@ fn exec_rules(paths: &[PathBuf]) -> String {
         file_rules("allow process-exec", paths, &subpath),
         file_rules("allow process-exec-interpreter", paths, &subpath)
     )
+}
+
+/// A pathname deny is stable only while the workload cannot rename/delete
+/// its ancestors. Deny writes on each ancestor vnode *literally*, excluding
+/// a writable root unless another writable root also contains it. Descendant
+/// creation (for example .git/objects) remains permitted. Source-side
+/// file-write denials also prevent hard links out of the guarded subtree.
+fn path_anchors(params: &ProfileParams) -> Vec<PathBuf> {
+    params
+        .protected_segments
+        .iter()
+        .chain(&params.deny_read)
+        .flat_map(|path| path.ancestors().skip(1))
+        .filter(|ancestor| {
+            params
+                .read_write
+                .iter()
+                .any(|root| *ancestor != root && ancestor.starts_with(root))
+        })
+        .map(Path::to_path_buf)
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 /// Protected segments: write-denials over the writable parents, emitted

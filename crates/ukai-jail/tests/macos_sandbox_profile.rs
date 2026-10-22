@@ -34,7 +34,7 @@ use sandbox::{ProfileParams, TEMPLATE as TEMPLATE_TEXT};
 /// measured; changing the template is a deliberate act that updates this
 /// constant and re-runs the matrix in the same change.
 const PINNED_TEMPLATE_DIGEST: &str =
-    "e0af1798318b01f4fbfc90a77cca1b7d4b0a21b8a5a9459e5013ccb51849c478";
+    "23917ae508660fdd58f330ee90d70271a0547b43584c9265f7fad76176b5f11e";
 
 const SANDBOX_EXEC: &str = "/usr/bin/sandbox-exec";
 

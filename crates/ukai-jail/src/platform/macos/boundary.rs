@@ -75,7 +75,7 @@ use crate::platform::macos::guardian::frames::{
 };
 use crate::platform::macos::guardian::launch_block::{self, FdAction, LaunchBlock};
 use crate::platform::macos::guardian::record;
-use crate::platform::macos::guardian::rlimit::NPROC_HEADROOM;
+use crate::platform::macos::guardian::rlimit::PROCESS_HEADROOM;
 use crate::platform::macos::relay::TerminalRelay;
 use crate::platform::macos::sandbox::{self as seatbelt, ProfileParams};
 use crate::platform::{
@@ -633,6 +633,7 @@ fn profile_params(
     params.read_only.dedup();
     params.protected_segments.sort();
     params.protected_segments.dedup();
+    refuse_guarded_hard_links(&params)?;
     // Validate before walking paths: byte paths must never become lossy grants.
     seatbelt::try_generate(&params).map_err(profile_error)?;
     let roots: Vec<_> = params
@@ -665,9 +666,11 @@ fn profile_error(message: String) -> JailError {
     )
 }
 
-/// Existing-and-root coverage: deny each suffix at the root and at every
-/// existing directory, without following directory symlinks. Future deep
-/// directories are not claimed (all_descendants refuses above).
+/// Existing-and-root coverage: deny each suffix at every writable root
+/// (including future root-level creation), plus matching paths found in the
+/// preparation walk, without following directory symlinks. The profile pins
+/// their ancestor names. New nested repositories at previously unguarded
+/// paths after preparation are not covered; all_descendants refuses above.
 fn protected_paths(root: &Path, segments: &[String]) -> Result<Vec<PathBuf>, JailError> {
     if segments.is_empty() {
         return Ok(Vec::new());
@@ -698,6 +701,55 @@ fn protected_paths(root: &Path, segments: &[String]) -> Result<Vec<PathBuf>, Jai
         }
     }
     Ok(out)
+}
+
+/// Seatbelt path denies do not bind every name of a multiply-linked file.
+/// Unknown pre-existing aliases may be writable/readable under another grant;
+/// refuse rather than advertise protection of that inode's contents. Directory
+/// link counts are not file aliases; symlinked directories are not traversed.
+fn refuse_guarded_hard_links(params: &ProfileParams) -> Result<(), JailError> {
+    use std::os::unix::fs::MetadataExt as _;
+    let mut pending: Vec<_> = params
+        .protected_segments
+        .iter()
+        .chain(&params.deny_read)
+        .cloned()
+        .collect();
+    let mut visited = std::collections::BTreeSet::new();
+    while let Some(path) = pending.pop() {
+        if !visited.insert(path.clone()) {
+            continue;
+        }
+        let metadata = match std::fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                return Err(profile_error(format!(
+                    "guarded alias scan {path:?}: {error}"
+                )));
+            }
+        };
+        if metadata.is_file() && metadata.nlink() > 1 {
+            return Err(refusal(
+                ErrorCode::UnsupportedPlatform,
+                ErrorStage::Preparing,
+                Remediation::Unsupported,
+                format!("native path denials cannot protect pre-existing hard links to {path:?}"),
+            ));
+        }
+        if metadata.is_dir() {
+            for entry in std::fs::read_dir(&path)
+                .map_err(|error| profile_error(format!("guarded alias scan {path:?}: {error}")))?
+            {
+                pending.push(
+                    entry
+                        .map_err(|error| profile_error(format!("guarded alias scan: {error}")))?
+                        .path(),
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 fn working_dir(plan: &PreparedPlan) -> Result<String, JailError> {
@@ -937,24 +989,42 @@ pub struct MacosPrepared {
     serving: Option<bridge::Serving>,
 }
 
-/// Staging is unavailable until the native copy/trust/placeholder pipeline
-/// is implemented. Refuse even callers that bypass capability derivation.
-fn require_supported_staging(plan: &PreparedPlan) -> Result<(), JailError> {
-    if plan
-        .request
+/// Refuse unsupported native staging before the shared supervisor acquires
+/// vendor state, including a state-only launch with no credential requirement.
+pub(crate) fn require_supported_staging_request(
+    request: &crate::platform::PlanRequest,
+) -> Result<(), JailError> {
+    if request
         .requirements
         .contains(&crate::capability::Requirement::CredentialStaging)
-        || plan.request.snapshot.roots.vendor_state.is_some()
-        || plan.launch.as_ref().is_some_and(|launch| {
-            !launch.binds.is_empty() || !launch.vault.is_empty() || launch.vendor_state.is_some()
-        })
+        || request.snapshot.roots.vendor_state.is_some()
+        || request
+            .snapshot
+            .launch
+            .as_ref()
+            .is_some_and(|launch| !launch.credentials.is_empty())
     {
-        return Err(refusal(
-            ErrorCode::UnsupportedPlatform,
-            ErrorStage::Preparing,
-            Remediation::Unsupported,
-            "native credential and vendor-state staging is unavailable",
-        ));
+        return Err(staging_unavailable());
+    }
+    Ok(())
+}
+
+fn staging_unavailable() -> JailError {
+    refusal(
+        ErrorCode::UnsupportedPlatform,
+        ErrorStage::Preparing,
+        Remediation::Unsupported,
+        "native credential and vendor-state staging is unavailable",
+    )
+}
+
+/// Also reject handoffs from callers bypassing the shared supervisor.
+fn require_supported_staging(plan: &PreparedPlan) -> Result<(), JailError> {
+    require_supported_staging_request(&plan.request)?;
+    if plan.launch.as_ref().is_some_and(|launch| {
+        !launch.binds.is_empty() || !launch.vault.is_empty() || launch.vendor_state.is_some()
+    }) {
+        return Err(staging_unavailable());
     }
     Ok(())
 }
@@ -1143,7 +1213,7 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
             .as_ref()
             .and_then(|wall| wall.value.parse::<u64>().ok()),
         relay,
-        headroom: u64::from(NPROC_HEADROOM),
+        headroom: PROCESS_HEADROOM,
         handshake_events: handshake.events,
         proxy,
         proxy_sink,
@@ -1467,6 +1537,18 @@ fn supervisor_custody(
         engine.note_stream_gap();
     }
     Ok(engine)
+}
+
+fn synchronize_supervisor(
+    engine: &mut Custodian,
+    source: &mut impl super::guardian::stop::CustodySource,
+) {
+    // A bounded delivery wait expiring says nothing about lost messages.
+    // Keep polling; root entry, sequence checks and real overflow decide.
+    let _ = source.synchronize(TICK_MS);
+    if source.gapped() {
+        engine.note_stream_gap();
+    }
 }
 
 fn replay_retained(engine: &mut Custodian, retained: &mut Vec<es::EsPoll>) {
@@ -1966,9 +2048,10 @@ impl MacosPrepared {
         let mut record = None;
         let mut own = None;
         loop {
-            if !self.custody().drain(TICK_MS) {
-                self.engine.note_stream_gap();
-            }
+            synchronize_supervisor(
+                &mut self.engine,
+                &mut self.client.as_ref().expect("live custody client"),
+            );
             while let Some(poll) = self.custody().poll_full() {
                 apply_supervisor_event(&mut self.engine, &poll, &mut EsSignaller);
             }
@@ -2072,6 +2155,8 @@ struct MacosRunning {
     proxy: Option<crate::proxy::ProxyHandle>,
     proxy_sink: Option<std::sync::Arc<crate::proxy::coverage::TraceSink>>,
     serving: Option<bridge::Serving>,
+    bridge_stopped_at: Option<u128>,
+    bridge_unattributable: u64,
 }
 
 /// The cooperative grace, then the stop (§4.5).
@@ -2121,6 +2206,8 @@ impl MacosRunning {
             proxy: prepared.proxy,
             proxy_sink: prepared.proxy_sink,
             serving: prepared.serving,
+            bridge_stopped_at: None,
+            bridge_unattributable: 0,
         }
     }
 
@@ -2174,19 +2261,19 @@ impl MacosRunning {
     /// Drains everything available on S, returning the first run event.
     fn drain_events(&mut self) -> Option<RunEvent> {
         let stopping = self.engine.stop().begun();
-        let overflowed = self.custody().ring_overflowed();
-        let sync_failed = stopping && !self.custody().drain(TICK_MS);
-        let mut first = None;
-        if overflowed || sync_failed {
-            let was_gapped = self.engine.gapped();
+        let was_gapped = self.engine.gapped();
+        if stopping {
+            synchronize_supervisor(
+                &mut self.engine,
+                &mut self.client.as_ref().expect("live custody client"),
+            );
+        } else if self.custody().ring_overflowed() {
             self.engine.note_stream_gap();
-            if !was_gapped {
-                first = Some(RunEvent::EvidenceLost {
-                    reason: "the custody stream dropped messages or could not synchronize".into(),
-                    after_target_end: self.target_ended(),
-                });
-            }
         }
+        let mut first = (self.engine.gapped() && !was_gapped).then(|| RunEvent::EvidenceLost {
+            reason: "the custody stream dropped messages".into(),
+            after_target_end: self.target_ended(),
+        });
         while let Some(poll) = self.custody().poll_full() {
             let event = self.apply_event(&poll);
             if first.is_none() {
@@ -2336,7 +2423,9 @@ impl MacosRunning {
         self.settled_at_ns = Some(es::continuous_time_ns());
         // The tree is ended, so no member can connect again: the loopback
         // relay stops before the proxy is drained (§4.10).
-        self.serving.take();
+        if let Some(serving) = self.serving.take() {
+            (self.bridge_stopped_at, self.bridge_unattributable) = serving.stop();
+        }
         // §4.6: a guardian lost during the stop, without the mid-run event,
         // still names itself in the settled receipt.
         if self.guardian_lost && !self.loss_reported {
@@ -2490,7 +2579,13 @@ fn track_target(
             *target = Some(token);
             let first = !*confirmed;
             *confirmed = true;
-            first.then_some(RunEvent::ExecConfirmed)
+            // Yield each exec to the supervisor so it can persist the current
+            // token before draining another exec in an interpreter chain.
+            Some(if first {
+                RunEvent::ExecConfirmed
+            } else {
+                RunEvent::Poll
+            })
         }
         EsEvent::Exit { token, status } if *target == Some(token) => exit_status_event(status),
         _ => None,
@@ -2714,13 +2809,21 @@ impl crate::platform::RunningExecution for MacosRunning {
         let Some(proxy) = self.proxy.take() else {
             return Some(coverage);
         };
-        let stopped_at = (!proxy.serving()).then(crate::platform::elapsed_since_start_ns);
+        let stopped_at = self
+            .bridge_stopped_at
+            .or_else(|| self.serving.as_ref().and_then(bridge::Serving::stopped_at))
+            .or_else(|| (!proxy.serving()).then(crate::platform::elapsed_since_start_ns));
         let summary = proxy.stop(crate::proxy::MAX_DEADLINE);
         let (delivered, lost, resolver_refused) = self
             .proxy_sink
             .as_ref()
             .map_or((0, 0, 0), |sink| sink.account());
-        crate::proxy::coverage::apply_coverage(
+        let bridge_refusals = self.bridge_unattributable.saturating_add(
+            self.serving
+                .as_ref()
+                .map_or(0, bridge::Serving::unattributable),
+        );
+        crate::proxy::coverage::apply_coverage_with_unattributable(
             &mut coverage,
             &crate::proxy::coverage::Account {
                 delivered,
@@ -2730,6 +2833,7 @@ impl crate::platform::RunningExecution for MacosRunning {
                 stopped_at,
                 now: crate::platform::elapsed_since_start_ns(),
             },
+            summary.unattributable.saturating_add(bridge_refusals),
         );
         Some(coverage)
     }
@@ -3096,6 +3200,49 @@ mod tests {
             })
         ));
         assert!(engine.gapped());
+    }
+
+    #[test]
+    fn a_slow_supervisor_sync_does_not_invent_a_stream_gap() {
+        struct SlowSource(bool);
+        impl super::super::guardian::stop::CustodySource for SlowSource {
+            fn poll(&mut self) -> Option<es::EsPoll> {
+                None
+            }
+            fn gapped(&self) -> bool {
+                self.0
+            }
+            fn synchronize(&mut self, _: u32) -> bool {
+                false
+            }
+        }
+        for overflowed in [false, true] {
+            let (mut retained, launcher, _) = retained_handshake();
+            let mut engine =
+                supervisor_custody(8, launcher, token(42), 1001, &mut retained, false).unwrap();
+            engine.begin_stop(0);
+            synchronize_supervisor(&mut engine, &mut SlowSource(overflowed));
+            apply_supervisor_event(
+                &mut engine,
+                &poll(
+                    EsEvent::Exit {
+                        token: launcher,
+                        status: 0,
+                    },
+                    5,
+                    1,
+                    es::EVENT_EXIT,
+                ),
+                &mut RecordedSignals::default(),
+            );
+            assert_eq!(
+                engine
+                    .tick(1, &mut RecordedSignals::default())
+                    .unwrap()
+                    .drained(),
+                !overflowed
+            );
+        }
     }
 
     #[test]
@@ -3596,6 +3743,7 @@ os.write({}, (','.join(map(str, fds))).encode())
     }
 
     struct ReceiptRun {
+        receipt_path: PathBuf,
         inner: MacosRunning,
         _peers: [Fd; 2],
         wall_hit: Option<bool>,
@@ -3638,7 +3786,7 @@ os.write({}, (','.join(map(str, fds))).encode())
                     .as_ref()
                     .map(|wall| wall.value.parse().unwrap()),
                 relay: None,
-                headroom: u64::from(NPROC_HEADROOM),
+                headroom: PROCESS_HEADROOM,
                 profile_params: params,
                 handshake_events: events,
                 proxy: None,
@@ -3703,6 +3851,7 @@ os.write({}, (','.join(map(str, fds))).encode())
                 Some(serde_json::from_slice(&std::fs::read(&self.receipt_path).unwrap()).unwrap());
             let inner = self.inner.release_inner()?;
             Ok(Box::new(ReceiptRun {
+                receipt_path: self.receipt_path,
                 inner,
                 _peers: self.peers,
                 wall_hit: self.wall_hit,
@@ -3729,12 +3878,46 @@ os.write({}, (','.join(map(str, fds))).encode())
                         .apply_event(&poll(EsEvent::Exec { token: target }, 5, 3, es::EVENT_EXEC))
                         .unwrap()
                 }
-                1 if self.wall_hit == Some(true) => {
+                1 => {
+                    let mut target = self.inner.target_token.unwrap();
+                    target[AUDIT_TOKEN_PIDVERSION] += 1;
+                    self.inner
+                        .apply_event(&poll(EsEvent::Exec { token: target }, 6, 4, es::EVENT_EXEC))
+                        .unwrap_or(RunEvent::Poll)
+                }
+                2 => {
+                    // The real supervisor must persist the new identity while
+                    // the target is live, before any settlement can repair it.
+                    let deadline = Instant::now() + Duration::from_secs(5);
+                    loop {
+                        let receipt: serde_json::Value =
+                            serde_json::from_slice(&std::fs::read(&self.receipt_path).unwrap())
+                                .unwrap();
+                        if receipt["process"]["identity"]["value"]["pidversion"] == 4 {
+                            assert_eq!(receipt["phase"], "enforced");
+                            assert_eq!(receipt["exec_observed"], true);
+                            assert_eq!(
+                                receipt["revision"], 3,
+                                "one identity update, no duplicate exec confirmation"
+                            );
+                            break;
+                        }
+                        assert!(
+                            Instant::now() < deadline,
+                            "live receipt kept first-exec token: {}",
+                            receipt["process"]
+                        );
+                        std::thread::sleep(Duration::from_millis(5));
+                    }
+                    if self.wall_hit != Some(true) {
+                        return RunEvent::Poll;
+                    }
+
                     self.inner.release_ns = 0;
                     self.inner.wall_ns = 1;
                     self.inner.wall_check().unwrap()
                 }
-                1 | 2 => {
+                3 => {
                     if self.wall_hit.is_none() {
                         self.inner.release_ns = 0;
                         self.inner.wall_ns = 1; // No S wall check; G's cause is unknown.
@@ -3750,7 +3933,7 @@ os.write({}, (','.join(map(str, fds))).encode())
                                     libc::SIGKILL
                                 },
                             },
-                            6,
+                            7,
                             1,
                             es::EVENT_EXIT,
                         ))
@@ -3818,6 +4001,108 @@ os.write({}, (','.join(map(str, fds))).encode())
             .should_validate_formats(true)
             .build(&schema)
             .unwrap()
+    }
+
+    #[test]
+    fn native_vendor_state_refuses_before_acquisition_even_without_credentials() {
+        use clap::Parser as _;
+        use std::os::unix::fs::PermissionsExt as _;
+        use std::sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        };
+        const CHILD: &str = "UKAI_CONTAINMENT_VENDOR_TEST";
+        if std::env::var_os(CHILD).is_none() {
+            let name = format!(
+                "{}::native_vendor_state_refuses_before_acquisition_even_without_credentials",
+                module_path!().split_once("::").unwrap().1
+            );
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", &name, "--nocapture"])
+                .env(CHILD, "1")
+                .env("UKAI_JAIL_MACOS_NATIVE", "dev")
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{output:?}");
+            assert!(String::from_utf8_lossy(&output.stdout).contains("running 1 test"));
+            return;
+        }
+        struct NativeWithAvailableProbes(Arc<AtomicBool>);
+        impl crate::platform::Platform for NativeWithAvailableProbes {
+            fn identity(&self) -> crate::platform::PlatformIdentity {
+                crate::platform::macos::MacosPlatform.identity()
+            }
+            fn probe(
+                &self,
+                plan: &crate::platform::PlanRequest,
+            ) -> Vec<crate::capability::Capability> {
+                ReceiptPlatform {
+                    wall_hit: Some(false),
+                    prepared_receipt: Default::default(),
+                }
+                .probe(plan)
+            }
+            fn prepare(
+                &self,
+                plan: PreparedPlan,
+                sinks: Sinks,
+            ) -> Result<Box<dyn PreparedExecution>, JailError> {
+                self.0.store(true, Ordering::SeqCst);
+                // The production path refuses staging before touching ES.
+                prepare(plan, sinks)
+            }
+        }
+        for state in ["attempt", "persistent"] {
+            let root = tempfile::tempdir().unwrap();
+            let root = root.path().canonicalize().unwrap();
+            let workspace = root.join("work");
+            let config = root.join("config");
+            std::fs::create_dir(&workspace).unwrap();
+            std::fs::create_dir_all(config.join("launch")).unwrap();
+            std::fs::write(config.join("launch/keeper.toml"), format!("name = \"keeper\"\njail = \"agent\"\nstate_var = \"KEEPER_HOME\"\nstate = \"{state}\"\n")).unwrap();
+            std::fs::set_permissions(
+                config.join("launch/keeper.toml"),
+                std::fs::Permissions::from_mode(0o600),
+            )
+            .unwrap();
+            let entered = Arc::new(AtomicBool::new(false));
+            let ctx = crate::supervisor::Context {
+                platform: Box::new(NativeWithAvailableProbes(entered.clone())),
+                env_settings: crate::config::EnvSettings {
+                    config_dir: Some(config),
+                    data_dir: Some(root.join("data")),
+                    ..Default::default()
+                },
+                cwd: workspace.clone(),
+                home: Some(root.join("home")),
+                env_lookup: Box::new(|_| None),
+            };
+            let crate::cli::Command::Run(args) = crate::cli::Cli::parse_from([
+                "ukai-jail",
+                "run",
+                "--launch",
+                "keeper",
+                "--workspace",
+                workspace.to_str().unwrap(),
+                "--",
+                "/usr/bin/true",
+            ])
+            .command
+            else {
+                unreachable!()
+            };
+            let report = crate::supervisor::run(&ctx, &args);
+            assert!(
+                !entered.load(Ordering::SeqCst),
+                "{state}: staging reached boundary preparation after acquiring vendor state"
+            );
+            let error = report.error.unwrap();
+            assert_eq!(error.code, ErrorCode::UnsupportedPlatform, "{error:?}");
+            assert_eq!(error.remediation, Remediation::Unsupported);
+            let receipt = serde_json::to_value(report.receipt.unwrap()).unwrap();
+            assert_eq!(receipt["vendor_state"], serde_json::Value::Null);
+            assert_eq!(receipt["process"], serde_json::Value::Null);
+        }
     }
 
     #[test]
@@ -3903,6 +4188,10 @@ os.write({}, (','.join(map(str, fds))).encode())
                 .expect("the prepared receipt was persisted before release");
             assert_eq!(prepared["phase"], "prepared");
             for (receipt, hit) in [(&prepared, Some(false)), (&settled, wall_hit)] {
+                assert_eq!(
+                    receipt["lifetime"]["native"]["details"]["process_headroom"],
+                    1024
+                );
                 let errors: Vec<_> = validator
                     .iter_errors(receipt)
                     .map(|error| format!("{error} at {}", error.instance_path()))
@@ -4034,6 +4323,99 @@ os.write({}, (','.join(map(str, fds))).encode())
     }
 
     #[test]
+    fn native_proxy_coverage_retains_bridge_failure_and_unattributable_requests() {
+        use crate::platform::RunningExecution as _;
+        use std::io::{Read as _, Write as _};
+        for (failed, unauthenticated, bridge_refusal) in [
+            (false, false, false),
+            (true, false, false),
+            (false, true, false),
+            (true, true, false),
+            (false, false, true),
+            (false, true, true),
+        ] {
+            let unattributable = u64::from(unauthenticated) + u64::from(bridge_refusal);
+            let (_dir, mut plan) = policy_plan(crate::policy::ProfileName::Tool);
+            let (prepared, _peers) = receipt_prepared(&plan);
+            let mut running = prepared.release_inner().unwrap();
+            // The generated socket is short enough for sockaddr_un.
+            let socket_dir = tempfile::tempdir().unwrap();
+            plan.proxy = Some(crate::platform::ProxyDirHandoff {
+                host_path: socket_dir.path().to_path_buf(),
+                fd: std::sync::Arc::new(std::fs::File::open(socket_dir.path()).unwrap().into()),
+                identity: (0, 0),
+                socket: std::sync::Arc::new(std::sync::OnceLock::new()),
+            });
+            let bound = bridge::bind(crate::proxy::ProxyAuth::generate()).unwrap();
+            let (proxy, sink, serving) =
+                start_proxy(&plan, &Sinks { trace: None }, &bound).unwrap();
+            if unauthenticated {
+                // A complete unauthenticated request is rejected locally,
+                // without resolving or connecting to an external destination.
+                let mut client =
+                    std::net::TcpStream::connect((bridge::LOOPBACK, bound.config.http_port))
+                        .unwrap();
+                client
+                    .set_read_timeout(Some(Duration::from_secs(2)))
+                    .unwrap();
+                client
+                    .set_write_timeout(Some(Duration::from_secs(2)))
+                    .unwrap();
+                client
+                    .write_all(
+                        b"CONNECT example.test:443 HTTP/1.1\r\nHost: example.test:443\r\n\r\n",
+                    )
+                    .unwrap();
+                let mut response = String::new();
+                client.read_to_string(&mut response).unwrap();
+                assert!(response.starts_with("HTTP/1.1 407"), "{response:?}");
+            }
+            if failed {
+                serving.simulate_accept_failure();
+            }
+            if bridge_refusal {
+                serving.simulate_pre_auth_refusal();
+            }
+            running.proxy = Some(proxy);
+            running.proxy_sink = Some(sink);
+            running.serving = Some(serving);
+            running.settled_tree();
+            let summary = running.observer_summary().unwrap();
+            let class = &summary.classes[&crate::observer::CoverageClass::ProxyNet];
+            assert_eq!(
+                class.status,
+                if failed || unattributable > 0 {
+                    crate::records::SourceStatus::Degraded
+                } else {
+                    crate::records::SourceStatus::Active
+                }
+            );
+            assert_eq!(
+                class.observed_count,
+                if failed || unattributable > 0 {
+                    None
+                } else {
+                    Some(0)
+                }
+            );
+            assert_eq!(
+                class.gaps.iter().any(|gap| gap.reason == "proxy_stopped"),
+                failed
+            );
+            let gap = class
+                .gaps
+                .iter()
+                .find(|gap| gap.reason == "proxy_unattributable");
+            assert_eq!(gap.is_some(), unattributable > 0);
+            if let Some(gap) = gap {
+                assert_eq!(gap.lost_count, Some(unattributable));
+                assert_eq!(gap.source, "proxy");
+                assert!(summary.gaps.contains(gap));
+            }
+        }
+    }
+
+    #[test]
     fn native_wall_hit_does_not_replace_an_earlier_stop_cause() {
         use crate::platform::RunningExecution as _;
         let (_dir, plan) = policy_plan(crate::policy::ProfileName::Tool);
@@ -4107,6 +4489,352 @@ os.write({}, (','.join(map(str, fds))).encode())
             );
             assert_eq!(std::fs::read_to_string(config).unwrap(), "original");
         }
+    }
+
+    fn sandbox_script(
+        params: &ProfileParams,
+        script: &str,
+        paths: &[&Path],
+    ) -> std::process::Output {
+        std::process::Command::new("/usr/bin/sandbox-exec")
+            .args([
+                "-p",
+                &seatbelt::try_generate(params).unwrap(),
+                "/bin/sh",
+                "-c",
+                script,
+                "sh",
+            ])
+            .args(paths)
+            .current_dir("/")
+            .output()
+            .unwrap()
+    }
+
+    /// Direct syscalls avoid a utility refusing at lstat before it ever
+    /// reaches the rename/unlink/link operation whose denial is under test.
+    fn path_mutator() -> (tempfile::TempDir, PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("mutator.c");
+        let binary = dir.path().join("mutator");
+        std::fs::write(
+            &source,
+            r#"
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+int main(int argc, char **argv) {
+    if (argc != 4) return 2;
+    int rc;
+    if (!strcmp(argv[1], "rename")) rc = rename(argv[2], argv[3]);
+    else if (!strcmp(argv[1], "link")) rc = link(argv[2], argv[3]);
+    else if (!strcmp(argv[1], "unlink")) rc = unlink(argv[2]);
+    else return 2;
+    if (rc != 0) { fprintf(stderr, "errno=%d\n", errno); return 1; }
+    return 0;
+}
+"#,
+        )
+        .unwrap();
+        let output = std::process::Command::new("/usr/bin/cc")
+            .arg(&source)
+            .arg("-o")
+            .arg(&binary)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        (dir, binary)
+    }
+
+    fn verify_path_mutator(params: &ProfileParams, mutator: &Path, workspace: &Path) {
+        let original = workspace.join("control-source");
+        let alias = workspace.join("control-link");
+        std::fs::write(&original, "control").unwrap();
+        let output = sandbox_script(
+            params,
+            "\"$3\" link \"$1\" \"$2\" && \"$3\" rename \"$2\" \"$2.renamed\" && \"$3\" unlink \"$1\" unused",
+            &[&original, &alias, mutator],
+        );
+        assert!(
+            output.status.success(),
+            "syscall positive controls: {output:?}"
+        );
+        assert!(!original.exists());
+        assert_eq!(
+            std::fs::read(workspace.join("control-link.renamed")).unwrap(),
+            b"control"
+        );
+    }
+
+    #[test]
+    fn protected_paths_cannot_move_through_their_parents_or_aliases() {
+        use crate::policy::ProfileName;
+        let (_fixture, mutator) = path_mutator();
+        let mut bypasses = Vec::new();
+        for profile in [ProfileName::Tool, ProfileName::Agent] {
+            for nested in [false, true] {
+                for attack in ["rename-parent", "rename-self", "unlink", "hard-link"] {
+                    let (_dir, plan) = policy_plan(profile);
+                    let relative = if nested { "project/sub/.git" } else { ".git" };
+                    let git = plan.workspace.join(relative);
+                    std::fs::create_dir_all(git.join("objects")).unwrap();
+                    let config = git.join("config");
+                    std::fs::write(&config, "original").unwrap();
+                    let mut params = profile_params(&plan, None).unwrap();
+                    params.read_only.push(mutator.clone());
+                    verify_path_mutator(&params, &mutator, &plan.workspace);
+                    assert!(
+                        sandbox_script(&params, "/usr/bin/true", &[])
+                            .status
+                            .success()
+                    );
+                    let alias = plan.workspace.join("moved");
+                    let (script, source, destination_data) = match attack {
+                        "rename-parent" => (
+                            "\"$4\" rename \"$1\" \"$2\" && printf compromised >> \"$3\"",
+                            if nested {
+                                plan.workspace.join("project")
+                            } else {
+                                git.clone()
+                            },
+                            alias.join(if nested { "sub/.git/config" } else { "config" }),
+                        ),
+                        "rename-self" => (
+                            "\"$4\" rename \"$1\" \"$2\" && printf compromised >> \"$2\"",
+                            config.clone(),
+                            alias.clone(),
+                        ),
+                        "unlink" => ("\"$4\" unlink \"$1\" \"$2\"", config.clone(), alias.clone()),
+                        _ => (
+                            "\"$4\" link \"$1\" \"$2\" && printf compromised >> \"$2\"",
+                            config.clone(),
+                            alias.clone(),
+                        ),
+                    };
+                    let output = sandbox_script(
+                        &params,
+                        script,
+                        &[&source, &alias, &destination_data, &mutator],
+                    );
+                    if output.status.success()
+                        || std::fs::read(&config).ok().as_deref() != Some(b"original")
+                    {
+                        bypasses.push(format!("{profile:?} nested={nested} {attack}: {output:?}"));
+                    }
+                    // Literal ancestor denials must not become subtree denials.
+                    if profile == ProfileName::Agent && config.exists() {
+                        let object = git.join("objects/new-object");
+                        let ordinary =
+                            sandbox_script(&params, "printf allowed > \"$1\"", &[&object]);
+                        assert!(
+                            ordinary.status.success(),
+                            "ordinary Git object creation: {ordinary:?}"
+                        );
+                    }
+                }
+            }
+        }
+        assert!(
+            bypasses.is_empty(),
+            "protected-path bypasses: {bypasses:#?}"
+        );
+    }
+
+    #[test]
+    fn existing_and_root_does_not_claim_future_nested_repository_paths() {
+        for profile in [
+            crate::policy::ProfileName::Tool,
+            crate::policy::ProfileName::Agent,
+        ] {
+            let (_dir, plan) = policy_plan(profile);
+            let params = profile_params(&plan, None).unwrap();
+            assert_eq!(
+                build_applied(&plan, &params, None, false)
+                    .filesystem
+                    .unwrap()
+                    .protected_coverage,
+                "existing_and_root"
+            );
+            let future = plan.workspace.join("created/after/preparation/.git");
+            let output = sandbox_script(
+                &params,
+                "mkdir -p \"$1\" && printf allowed > \"$1/config\"",
+                &[&future],
+            );
+            assert!(
+                output.status.success(),
+                "the snapshot must not claim all_descendants: {output:?}"
+            );
+            let root_git = plan.workspace.join(".git");
+            let root_attempt = sandbox_script(
+                &params,
+                "mkdir -p \"$1\" && printf denied > \"$1/config\"",
+                &[&root_git],
+            );
+            assert!(
+                !root_attempt.status.success(),
+                "root suffixes stay protected even when absent at preparation"
+            );
+        }
+    }
+
+    #[test]
+    fn guarded_files_with_existing_hard_links_are_denied_or_refused() {
+        use crate::policy::{PathRef, ProfileName};
+        for (relative, hidden, directory) in [
+            (".git/config", false, false),
+            (".git/hooks/hook", false, true),
+            ("secrets/key", true, false),
+            ("secrets/deep/key", true, true),
+        ] {
+            let (_dir, mut plan) = policy_plan(ProfileName::Agent);
+            let file = plan.workspace.join(relative);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(&file, "PRIVATE-SENTINEL").unwrap();
+            let alias = plan.workspace.join("already-linked");
+            std::fs::hard_link(&file, &alias).unwrap();
+            if hidden {
+                let denied = if directory {
+                    plan.workspace.join("secrets")
+                } else {
+                    file.clone()
+                };
+                plan.request
+                    .snapshot
+                    .filesystem
+                    .deny_read
+                    .push(PathRef::host(
+                        NativeString::from_bytes(denied.as_os_str().as_encoded_bytes().to_vec())
+                            .unwrap(),
+                    ));
+            }
+            let params = match profile_params(&plan, None) {
+                Ok(params) => params,
+                Err(error) => {
+                    assert_eq!(error.code, ErrorCode::UnsupportedPlatform);
+                    assert_eq!(error.remediation, Remediation::Unsupported);
+                    assert!(error.message.contains("pre-existing hard links"));
+                    continue;
+                }
+            };
+            let output = sandbox_script(
+                &params,
+                if hidden {
+                    "cat \"$1\""
+                } else {
+                    "printf compromised >> \"$1\""
+                },
+                &[&alias],
+            );
+            assert!(
+                !output.status.success(),
+                "preexisting hard link bypassed hidden={hidden}: {output:?}"
+            );
+            assert_eq!(std::fs::read(&file).unwrap(), b"PRIVATE-SENTINEL");
+        }
+    }
+
+    #[test]
+    fn existing_nested_protected_paths_are_inventoried_before_generation() {
+        for profile in [
+            crate::policy::ProfileName::Tool,
+            crate::policy::ProfileName::Agent,
+        ] {
+            let (_dir, plan) = policy_plan(profile);
+            let config = plan.workspace.join("existing/deep/.git/config");
+            std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+            std::fs::write(&config, "original").unwrap();
+            let params = profile_params(&plan, None).unwrap();
+            let output = sandbox_script(&params, "printf compromised > \"$1\"", &[&config]);
+            assert!(
+                !output.status.success(),
+                "nested protection missing: {output:?}"
+            );
+            assert_eq!(std::fs::read(&config).unwrap(), b"original");
+        }
+    }
+
+    #[test]
+    fn deny_read_paths_cannot_be_renamed_overwritten_unlinked_or_hard_linked() {
+        use crate::policy::{PathRef, ProfileName};
+        let (_fixture, mutator) = path_mutator();
+        let mut bypasses = Vec::new();
+        for directory in [false, true] {
+            for attack in [
+                "rename-parent",
+                "rename-self",
+                "overwrite",
+                "unlink",
+                "hard-link",
+            ] {
+                let (_dir, mut plan) = policy_plan(ProfileName::Tool);
+                let secret = plan.workspace.join("parent/secrets/key");
+                std::fs::create_dir_all(secret.parent().unwrap()).unwrap();
+                std::fs::write(&secret, "PRIVATE-SENTINEL").unwrap();
+                let denied = if directory {
+                    secret.parent().unwrap().to_path_buf()
+                } else {
+                    secret.clone()
+                };
+                plan.request
+                    .snapshot
+                    .filesystem
+                    .deny_read
+                    .push(PathRef::host(
+                        NativeString::from_bytes(denied.as_os_str().as_encoded_bytes().to_vec())
+                            .unwrap(),
+                    ));
+                let mut params = profile_params(&plan, None).unwrap();
+                params.read_only.push(mutator.clone());
+                verify_path_mutator(&params, &mutator, &plan.workspace);
+                assert!(
+                    sandbox_script(&params, "/usr/bin/true", &[])
+                        .status
+                        .success()
+                );
+                let alias = plan.workspace.join("alias");
+                let (script, source, data) = match attack {
+                    "rename-parent" => (
+                        "\"$4\" rename \"$1\" \"$2\" && cat \"$3\"",
+                        plan.workspace.join("parent"),
+                        alias.join("secrets/key"),
+                    ),
+                    "rename-self" => (
+                        "\"$4\" rename \"$1\" \"$2\" && cat \"$3\"",
+                        denied.clone(),
+                        if directory {
+                            alias.join("key")
+                        } else {
+                            alias.clone()
+                        },
+                    ),
+                    "overwrite" => ("printf replaced > \"$1\"", secret.clone(), alias.clone()),
+                    "unlink" => ("\"$4\" unlink \"$1\" \"$2\"", secret.clone(), alias.clone()),
+                    _ => (
+                        "\"$4\" link \"$1\" \"$2\" && cat \"$2\"",
+                        secret.clone(),
+                        alias.clone(),
+                    ),
+                };
+                let output = sandbox_script(&params, script, &[&source, &alias, &data, &mutator]);
+                if output.status.success()
+                    || std::fs::read(&secret).ok().as_deref() != Some(b"PRIVATE-SENTINEL")
+                    || String::from_utf8_lossy(&output.stdout).contains("PRIVATE-SENTINEL")
+                {
+                    bypasses.push(format!("directory={directory} {attack}: {output:?}"));
+                }
+                let ordinary = plan.workspace.join("parent/ordinary");
+                if ordinary.parent().unwrap().exists() {
+                    assert!(
+                        sandbox_script(&params, "printf allowed > \"$1\"", &[&ordinary])
+                            .status
+                            .success()
+                    );
+                }
+            }
+        }
+        assert!(bypasses.is_empty(), "deny_read bypasses: {bypasses:#?}");
     }
 
     #[test]
@@ -4390,7 +5118,7 @@ int main(int argc, char **argv) {
                 &mut current,
                 &mut confirmed
             ),
-            None
+            Some(RunEvent::Poll)
         );
         assert_eq!(current, Some(second));
         assert_eq!(

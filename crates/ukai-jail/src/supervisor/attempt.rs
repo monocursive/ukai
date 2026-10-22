@@ -318,6 +318,11 @@ impl<'a> Attempt<'a> {
         if let Some(error) = first_unsatisfied(&self.plan.resolved.requirements, &capabilities) {
             return Err(error);
         }
+        #[cfg(target_os = "macos")]
+        if self.ctx.platform.identity().os == crate::records::Os::Macos && !self.args.requests_vm()
+        {
+            crate::platform::macos::boundary::require_supported_staging_request(&request)?;
+        }
         // §8.1 step 2 and §12: register vendor state before creating it,
         // then stage credentials into it, before any boundary.
         self.checkpoint(ErrorStage::Preparing)?;
@@ -829,6 +834,11 @@ impl<'a> Attempt<'a> {
         run: &mut Supervision,
         event: RunEvent,
     ) -> Step {
+        // Native exec changes pidversion. Publish every new confirmed target
+        // identity while the tree is live; the first exec still has exactly
+        // one lifecycle/control acknowledgement below.
+        #[cfg(target_os = "macos")]
+        self.refresh_native_identity(running, run);
         match event {
             RunEvent::Poll => {}
             RunEvent::StdioFailed {
@@ -976,6 +986,40 @@ impl<'a> Attempt<'a> {
             wall.hit = Some(true);
         }
         stop(running, &mut self.record, StopReason::WallExpiry);
+    }
+
+    #[cfg(target_os = "macos")]
+    fn refresh_native_identity(
+        &mut self,
+        running: &mut dyn RunningExecution,
+        run: &mut Supervision,
+    ) {
+        if !self.record.exec_observed
+            || self
+                .record
+                .lifetime
+                .native
+                .as_ref()
+                .is_none_or(|native| native.os != crate::records::Os::Macos)
+        {
+            return;
+        }
+        let details = running.final_native_details();
+        let Some(process) = details.get("target_process").and_then(|value| {
+            serde_json::from_value::<crate::records::ProcessRecord>(value.clone()).ok()
+        }) else {
+            return;
+        };
+        if self.record.process.as_ref() == Some(&process) {
+            return;
+        }
+        update_native_facts(&mut self.record, details);
+        match self.submit(state::Site::EnforcedReceipt, Phase::Enforced) {
+            Ok(write) => run.in_flight.push_back(write),
+            Err(error) => {
+                persistence_failed(running, &mut self.record, &mut run.outcome_error, error)
+            }
+        }
     }
 
     /// §11.2: the one confirmed exec of the attempt. Its enforced receipt is
@@ -1899,6 +1943,35 @@ fn settled_exit_code(
                 128 + i32::try_from(record.outcome.signal.unwrap_or(0)).unwrap_or(0)
             }
             _ => 1,
+        }
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod native_refusal_tests {
+    use super::*;
+
+    #[test]
+    fn es_client_refusals_have_actionable_remediation() {
+        use crate::capability::{Capability, CapabilityScope, CapabilityStatus, Requirement};
+        for (reason, remediation) in [
+            ("es_not_entitled", Remediation::Unsupported),
+            ("es_too_many_clients", Remediation::Retry),
+        ] {
+            let requirement = Requirement::TreeTermination;
+            let capability = Capability {
+                name: requirement.to_string(),
+                status: CapabilityStatus::Unavailable,
+                scope: CapabilityScope::Tree,
+                mechanism: Some("es_descendants".into()),
+                reason_code: Some(reason.into()),
+                measured_at: None,
+                evidence_ref: None,
+            };
+            let error = first_unsatisfied(&[requirement], &[capability]).unwrap();
+            assert_eq!(error.code, ErrorCode::MissingCapability);
+            assert_eq!(error.stage, ErrorStage::Probing);
+            assert_eq!(error.remediation, remediation, "{reason}");
         }
     }
 }

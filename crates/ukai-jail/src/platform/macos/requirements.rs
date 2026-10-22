@@ -8,7 +8,10 @@
 //! actually ran on this host; the platform's own gaps stay `unsupported` and
 //! unmeasured.
 
-use crate::capability::{Capability, CapabilityScope, CapabilityStatus, Requirement};
+use crate::capability::{
+    Capability, CapabilityScope, CapabilityStatus, REASON_ES_NOT_ENTITLED,
+    REASON_ES_TOO_MANY_CLIENTS, Requirement,
+};
 use crate::platform::{PlanRequest, REASON_UNSUPPORTED_PLATFORM};
 use crate::policy::LimitKey;
 
@@ -56,8 +59,8 @@ pub(super) const PROBE_NAMES: &[&str] = &[
 
 /// Runs every probe this platform has, for `doctor` and for the requirement
 /// derivation. None of them is expensive: one `dlopen`, one `sandbox-exec`
-/// child, two loopback binds, two sysctls and, since J17 (§5), the
-/// creation and deletion of the observation client.
+/// child, two loopback binds and two sysctls. J17 remains unwired; its row,
+/// when requested, reports unsupported without creating an observation client.
 pub(super) fn run_probes() -> Vec<ProbeRow> {
     let mut rows = vec![
         es_row(),
@@ -82,11 +85,21 @@ fn es_row() -> ProbeRow {
             "UKAI_JAIL_MACOS_NATIVE=dev is not set".into(),
         );
     }
-    match es_probe::es_probe() {
+    es_result_row(es_probe::es_probe())
+}
+
+fn es_result_row(result: EsProbeResult) -> ProbeRow {
+    match result {
         EsProbeResult::Entitled => ProbeRow::new("es_descendants", "es_descendants"),
         EsProbeResult::NotEntitled { raw_code } => {
             ProbeRow::new("es_descendants", "es_descendants").unavailable(
-                "es_not_entitled",
+                REASON_ES_NOT_ENTITLED,
+                format!("es_new_descendants_client={raw_code}"),
+            )
+        }
+        EsProbeResult::TooManyClients { raw_code } => {
+            ProbeRow::new("es_descendants", "es_descendants").unavailable(
+                REASON_ES_TOO_MANY_CLIENTS,
                 format!("es_new_descendants_client={raw_code}"),
             )
         }
@@ -246,11 +259,10 @@ fn maxprocperuid_row() -> ProbeRow {
     }
 }
 
-/// Creates and deletes the real §5 observation client (J17): the same
-/// entitlement proof the custody probe makes, for the supervisor's third
-/// ES client. Mechanism `es_notify`.
+/// Reports the unwired §5 observation capability (J17). This does not create
+/// an observation client; custody entitlement cannot prove run observation.
 fn es_notify_row() -> ProbeRow {
-    // I5: observation is not wired into runs in phase 1. Entitlement alone
+    // I5: observation is not wired into runs. Entitlement alone
     // cannot establish a capability that the run does not actually attach.
     ProbeRow::new("es_notify", "es_notify").unavailable(
         "observer_not_wired",
@@ -486,6 +498,36 @@ pub(super) fn probe_rows(probes: &[ProbeRow], measured_at: &str) -> Vec<Capabili
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn es_refusal_reasons_survive_capability_derivation() {
+        for (result, reason, raw_code) in [
+            (
+                EsProbeResult::NotEntitled { raw_code: 3 },
+                "es_not_entitled",
+                3,
+            ),
+            (
+                EsProbeResult::TooManyClients { raw_code: 5 },
+                "es_too_many_clients",
+                5,
+            ),
+        ] {
+            let row = es_result_row(result);
+            let mut probes = all_available();
+            *probes
+                .iter_mut()
+                .find(|row| row.name == "es_descendants")
+                .unwrap() = row;
+            let capability = capability_for(Requirement::TreeTermination, &probes, "now");
+            assert_eq!(capability.status, CapabilityStatus::Unavailable);
+            assert_eq!(capability.reason_code.as_deref(), Some(reason));
+            assert_eq!(
+                capability.evidence_ref.as_deref(),
+                Some(format!("es_new_descendants_client={raw_code}").as_str())
+            );
+        }
+    }
 
     fn unavailable(name: &str, reason: &str) -> ProbeRow {
         let mut row = ProbeRow::new(

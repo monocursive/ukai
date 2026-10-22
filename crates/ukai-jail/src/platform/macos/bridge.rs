@@ -133,17 +133,30 @@ pub fn serve(bound: Bound, proxy_socket: &std::path::Path) -> io::Result<Serving
     // first loop too. Never leave a detached listener behind.
     let mut serving = Serving {
         stop,
+        failed_at: Default::default(),
+        unattributable: Default::default(),
         threads: Vec::with_capacity(2),
     };
     for listener in [bound.http, bound.socks] {
         listener.set_nonblocking(true)?;
         let stop = Arc::clone(&serving.stop);
         let in_flight = Arc::clone(&in_flight);
+        let failed_at = Arc::clone(&serving.failed_at);
+        let unattributable = Arc::clone(&serving.unattributable);
         let socket = proxy_socket.to_path_buf();
         serving.threads.push(
             std::thread::Builder::new()
                 .name("ukai-macos-bridge".into())
-                .spawn(move || accept_loop(listener, socket, stop, in_flight))?,
+                .spawn(move || {
+                    accept_loop(
+                        || listener.accept(),
+                        socket,
+                        stop,
+                        in_flight,
+                        failed_at,
+                        unattributable,
+                    )
+                })?,
         );
     }
     Ok(serving)
@@ -154,10 +167,46 @@ pub fn serve(bound: Bound, proxy_socket: &std::path::Path) -> io::Result<Serving
 pub struct Serving {
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
     threads: Vec<std::thread::JoinHandle<()>>,
+    failed_at: std::sync::Arc<std::sync::Mutex<Option<u128>>>,
+    unattributable: std::sync::Arc<std::sync::atomic::AtomicU64>,
 }
 
-impl Drop for Serving {
-    fn drop(&mut self) {
+impl Serving {
+    /// The first fatal serving failure, in the supervisor clock. An ordinary
+    /// requested shutdown is not evidence loss.
+    #[must_use]
+    pub fn stopped_at(&self) -> Option<u128> {
+        *crate::sync::lock(&self.failed_at)
+    }
+
+    /// Join the loops before sampling failure evidence so a simultaneous
+    /// accept failure cannot be lost during settlement.
+    #[must_use]
+    pub fn stop(mut self) -> (Option<u128>, u64) {
+        self.join();
+        (self.stopped_at(), self.unattributable())
+    }
+
+    /// Accepted connections refused before the proxy could authenticate or
+    /// account for them. These are coverage gaps, not attributed results.
+    #[must_use]
+    pub fn unattributable(&self) -> u64 {
+        self.unattributable
+            .load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    #[cfg(test)]
+    pub(super) fn simulate_accept_failure(&self) {
+        serving_failed(&self.stop, &self.failed_at);
+    }
+
+    #[cfg(test)]
+    pub(super) fn simulate_pre_auth_refusal(&self) {
+        self.unattributable
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    fn join(&mut self) {
         self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
         for thread in self.threads.drain(..) {
             let _ = thread.join();
@@ -165,13 +214,31 @@ impl Drop for Serving {
     }
 }
 
+impl Drop for Serving {
+    fn drop(&mut self) {
+        self.join();
+    }
+}
+
+fn serving_failed(
+    stop: &std::sync::atomic::AtomicBool,
+    failed_at: &std::sync::Mutex<Option<u128>>,
+) {
+    crate::sync::lock(failed_at).get_or_insert_with(crate::platform::elapsed_since_start_ns);
+    // Both accept loops and every active relay terminate together. A fatal
+    // serving failure is retained separately from an ordinary stop request.
+    stop.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
 const RELAY_TICK: std::time::Duration = std::time::Duration::from_millis(25);
 
 fn accept_loop(
-    listener: TcpListener,
+    mut accept: impl FnMut() -> io::Result<(std::net::TcpStream, std::net::SocketAddr)>,
     socket: std::path::PathBuf,
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
     in_flight: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    failed_at: std::sync::Arc<std::sync::Mutex<Option<u128>>>,
+    unattributable: std::sync::Arc<std::sync::atomic::AtomicU64>,
 ) {
     use std::sync::atomic::Ordering::SeqCst;
     let mut workers: Vec<std::thread::JoinHandle<()>> = Vec::new();
@@ -184,36 +251,51 @@ fn accept_loop(
                 i += 1;
             }
         }
-        let (client, _) = match listener.accept() {
+        let (client, _) = match accept() {
             Ok(connection) => connection,
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
                 std::thread::sleep(RELAY_TICK);
                 continue;
             }
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
-            Err(_) => break,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::Interrupted | io::ErrorKind::ConnectionAborted
+                ) =>
+            {
+                continue;
+            }
+            Err(_) => {
+                serving_failed(&stop, &failed_at);
+                break;
+            }
         };
         // One shared bound across both listeners; a load then increment races.
         if in_flight
             .fetch_update(SeqCst, SeqCst, |n| (n < MAX_RELAYS).then_some(n + 1))
             .is_err()
         {
+            unattributable.fetch_add(1, SeqCst);
             continue;
         }
         let counter = std::sync::Arc::clone(&in_flight);
-        let stop = std::sync::Arc::clone(&stop);
+        let worker_stop = std::sync::Arc::clone(&stop);
+        let refused = std::sync::Arc::clone(&unattributable);
         let socket = socket.clone();
         match std::thread::Builder::new()
             .name("ukai-macos-relay".into())
             .spawn(move || {
-                if let Ok(upstream) = connect_upstream(&socket, &stop) {
-                    relay(client, upstream, &stop);
+                if let Ok(upstream) = connect_upstream(&socket, &worker_stop) {
+                    relay(client, upstream, &worker_stop);
+                } else if !worker_stop.load(SeqCst) {
+                    refused.fetch_add(1, SeqCst);
                 }
                 counter.fetch_sub(1, SeqCst);
             }) {
             Ok(worker) => workers.push(worker),
             Err(_) => {
                 in_flight.fetch_sub(1, SeqCst);
+                serving_failed(&stop, &failed_at);
             }
         }
     }
@@ -359,4 +441,112 @@ fn relay(
         let _ = upstream.shutdown(std::net::Shutdown::Both);
         let _ = sender.join();
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::SeqCst},
+    };
+
+    #[test]
+    fn aborted_and_interrupted_accepts_do_not_end_serving() {
+        for errno in [libc::EINTR, libc::ECONNABORTED] {
+            let stop = Arc::new(AtomicBool::new(false));
+            let failed_at = Arc::new(Mutex::new(None));
+            let mut attempts = 0;
+            accept_loop(
+                || {
+                    attempts += 1;
+                    if attempts == 1 {
+                        Err(io::Error::from_raw_os_error(errno))
+                    } else {
+                        stop.store(true, SeqCst);
+                        Err(io::Error::from(io::ErrorKind::WouldBlock))
+                    }
+                },
+                "/unused".into(),
+                Arc::clone(&stop),
+                Arc::new(AtomicUsize::new(0)),
+                Arc::clone(&failed_at),
+                Arc::new(AtomicU64::new(0)),
+            );
+            assert_eq!(attempts, 2, "transient accept errno {errno} ended service");
+            assert_eq!(*crate::sync::lock(&failed_at), None);
+        }
+    }
+
+    #[test]
+    fn fatal_accept_errors_cancel_both_loops_and_retain_the_first_failure() {
+        for errno in [libc::EMFILE, libc::EBADF] {
+            let stop = Arc::new(AtomicBool::new(false));
+            let failed_at = Arc::new(Mutex::new(None));
+            let mut attempts = 0;
+            accept_loop(
+                || {
+                    attempts += 1;
+                    assert_eq!(attempts, 1, "persistent failure must not spin");
+                    Err(io::Error::from_raw_os_error(errno))
+                },
+                "/unused".into(),
+                Arc::clone(&stop),
+                Arc::new(AtomicUsize::new(0)),
+                Arc::clone(&failed_at),
+                Arc::new(AtomicU64::new(0)),
+            );
+            assert!(stop.load(SeqCst), "fatal accept errno {errno} was silent");
+            let at = *crate::sync::lock(&failed_at);
+            assert!(at.is_some());
+            let serving = Serving {
+                stop,
+                threads: Vec::new(),
+                failed_at,
+                unattributable: Default::default(),
+            };
+            assert_eq!(serving.stop(), (at, 0));
+        }
+    }
+
+    #[test]
+    fn pre_auth_bridge_capacity_and_connect_refusals_are_accounted() {
+        use std::io::Read as _;
+        let mut refused = Vec::new();
+        for full in [false, true] {
+            let listener = TcpListener::bind((LOOPBACK, 0)).unwrap();
+            let mut client = std::net::TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+            client
+                .set_read_timeout(Some(std::time::Duration::from_secs(2)))
+                .unwrap();
+            let mut accepted = Some(listener.accept().unwrap());
+            let stop = Arc::new(AtomicBool::new(false));
+            let unattributable = Arc::new(AtomicU64::new(0));
+            let dir = tempfile::tempdir().unwrap();
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+            accept_loop(
+                || {
+                    if let Some(connection) = accepted.take() {
+                        return Ok(connection);
+                    }
+                    if unattributable.load(SeqCst) > 0 || std::time::Instant::now() >= deadline {
+                        stop.store(true, SeqCst);
+                    }
+                    Err(io::Error::from(io::ErrorKind::WouldBlock))
+                },
+                dir.path().join("no-proxy.sock"),
+                Arc::clone(&stop),
+                Arc::new(AtomicUsize::new(if full { MAX_RELAYS } else { 0 })),
+                Arc::new(Mutex::new(None)),
+                Arc::clone(&unattributable),
+            );
+            assert_eq!(client.read(&mut [0]).unwrap(), 0);
+            refused.push((full, unattributable.load(SeqCst)));
+        }
+        assert_eq!(
+            refused,
+            [(false, 1), (true, 1)],
+            "pre-auth refusal vanished"
+        );
+    }
 }
