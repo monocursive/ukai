@@ -2985,12 +2985,15 @@ fn native_custody_names_itself_in_the_survivors_line() {
         facts(&summary, "status")["survivors"],
         "none_verified_native"
     );
+    let bin = Bin::new();
+    let attempt = bin.record(&fixture, Some(&fixture.journal()));
+    recompute(&attempt, &summary.to_json());
 }
 
 /// J16 (jail-macos.md §4.8): with the guardian lost, the survivors line adds
-/// the named residual.
+/// its recorded custodian failure; the residual requires both custodians lost.
 #[test]
-fn a_lost_guardian_is_the_named_residual() {
+fn a_lost_guardian_is_a_recorded_custodian_failure() {
     let mut fixture = Fixture::from(example("receipt-macos-native.json"));
     fixture.receipt["lifetime"]["native"]["details"]["custodians"]["guardian"]["result"] =
         json!("lost");
@@ -3006,6 +3009,9 @@ fn a_lost_guardian_is_the_named_residual() {
         facts(&summary, "status")["survivors"],
         "none_verified_native_guardian_lost"
     );
+    let bin = Bin::new();
+    let attempt = bin.record(&fixture, Some(&fixture.journal()));
+    recompute(&attempt, &summary.to_json());
 }
 
 /// J16 (jail-macos.md §4.8): details keys may be absent; the line degrades to
@@ -3021,6 +3027,9 @@ fn missing_native_details_degrade_to_the_plain_form() {
         "{status}"
     );
     assert!(!status.contains("guardian lost"), "{status}");
+    let bin = Bin::new();
+    let attempt = bin.record(&fixture, Some(&fixture.journal()));
+    recompute(&attempt, &summary.to_json());
 }
 
 /// A lower bound prints only what was seen: no `at least 0`.
@@ -3774,4 +3783,29 @@ fn k72_a_failed_terminal_restore_is_on_the_cleanup_line() {
             .iter()
             .any(|line| line.text.contains("terminal not restored"))
     );
+}
+
+#[test]
+fn native_survivors_require_an_attempt_tree_scope() {
+    for scope in [
+        Value::Null,
+        json!("process_group"),
+        json!("registered_boundary"),
+    ] {
+        for guardian in ["drained", "lost"] {
+            let mut fixture = Fixture::from(example("receipt-macos-native.json"));
+            fixture.receipt["lifetime"]["verification_scope"] = scope.clone();
+            fixture.receipt["lifetime"]["native"]["details"]["custodians"]["guardian"]["result"] =
+                json!(guardian);
+            let summary = fixture.summary();
+            assert_eq!(
+                facts(&summary, "status")["survivors"],
+                "not_verified",
+                "scope {scope}, guardian {guardian}"
+            );
+            let bin = Bin::new();
+            let attempt = bin.record(&fixture, Some(&fixture.journal()));
+            recompute(&attempt, &summary.to_json());
+        }
+    }
 }

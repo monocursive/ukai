@@ -68,14 +68,14 @@ pub const GENERATED_ENVIRONMENT_NAMES: [&str; 2] = [PATH_NAME, TMPDIR_NAME];
 /// grant, so every lookup through it would miss anyway.
 pub const CONTAINED_PATH: &str = "/usr/local/bin:/usr/bin:/bin";
 
-/// J17 (jail-macos.md §5): native observation landed. The macOS baseline
+/// J17 (jail-macos.md §5): disabled until ObserveRun is wired before release. The macOS baseline
 /// observation mode reads this switch: `false` restores the §4.10
 /// pre-J17 shape (`observe = off`, and an explicit `--observe on`
 /// refusing in `policy.rs`), `true` returns the baselines to
 /// `observe = on` behind the supervisor's third ES client
 /// (`platform::macos::observe`). One switch, so the flip is a change to
 /// one documented constant and the gates that read it stay in step.
-pub const J17_OBSERVE: bool = true;
+pub const J17_OBSERVE: bool = false;
 
 /// Builds the baseline a built-in profile expands to.
 ///

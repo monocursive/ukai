@@ -1,165 +1,161 @@
 #include "obs_shim.h"
-
 #include <dispatch/dispatch.h>
 #include <mach/mach.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 
-/*
- * The same ring discipline as the custody shim (§4.1): the handler thread
- * writes ring slots and the head index; the supervisor thread reads slots
- * and the tail index. Release/acquire on the two indexes publishes each
- * slot before it is read. The gap flag is sticky.
- */
 struct ukai_obs_client {
     es_client_t *es;
-    dispatch_semaphore_t synced;
-    ukai_obs_event *ring; /* UKAI_OBS_RING_CAPACITY slots, allocated once. */
+    ukai_obs_event *ring;
     _Atomic uint64_t head;
     _Atomic uint64_t tail;
+    _Atomic uint64_t dropped;
     _Atomic bool gap;
+    _Atomic bool invalid;
+    bool subscribed;
+    size_t helper_count;
+    uint32_t helpers[UKAI_OBS_HELPERS_MAX][UKAI_OBS_TOKEN_WORDS];
 };
-
+static const es_event_type_t types[] = {
+    ES_EVENT_TYPE_NOTIFY_EXEC, ES_EVENT_TYPE_NOTIFY_CREATE,
+    ES_EVENT_TYPE_NOTIFY_RENAME, ES_EVENT_TYPE_NOTIFY_UNLINK,
+    ES_EVENT_TYPE_NOTIFY_LINK, ES_EVENT_TYPE_NOTIFY_TRUNCATE,
+    ES_EVENT_TYPE_NOTIFY_SETATTRLIST, ES_EVENT_TYPE_NOTIFY_SETMODE,
+    ES_EVENT_TYPE_NOTIFY_CLOSE,
+};
 static void mark_gap(ukai_obs_client_t *self) {
+    atomic_store_explicit(&self->invalid, true, memory_order_release);
     atomic_store_explicit(&self->gap, true, memory_order_release);
 }
-
-/* Copies one es_string_token_t into the slot's fixed path buffer. A path the
- * buffer cannot hold whole is not evidence (§11.3: say what the path was or
- * say nothing), so it marks the stream gapped instead. */
-static void push_path(ukai_obs_client_t *self, int32_t type, const es_message_t *m,
-                      const es_process_t *process, const es_string_token_t *path,
-                      int32_t modified) {
+static uint16_t copy_path(ukai_obs_client_t *self, uint8_t *out,
+                          const es_file_t *file, const es_string_token_t *name) {
+    if (file == NULL || file->path_truncated || file->path.length == 0 ||
+        file->path.data == NULL || file->path.data[0] != '/') {
+        mark_gap(self);
+        return 0;
+    }
+    size_t size = file->path.length;
+    bool slash = name != NULL && file->path.data[size - 1] != '/';
+    if (name != NULL && (name->data == NULL || name->length == 0 ||
+        memchr(name->data, '/', name->length) != NULL ||
+        (name->length == 1 && name->data[0] == '.') ||
+        (name->length == 2 && memcmp(name->data, "..", 2) == 0))) {
+        mark_gap(self);
+        return 0;
+    }
+    if (size > UKAI_OBS_PATH_MAX || (name != NULL &&
+        (name->length > UKAI_OBS_PATH_MAX || size + slash + name->length > UKAI_OBS_PATH_MAX))) {
+        mark_gap(self);
+        return 0;
+    }
+    if (memchr(file->path.data, '\0', size) != NULL ||
+        (name != NULL && memchr(name->data, '\0', name->length) != NULL)) {
+        mark_gap(self);
+        return 0;
+    }
+    memcpy(out, file->path.data, size);
+    if (name != NULL) {
+        if (slash) out[size++] = '/';
+        memcpy(out + size, name->data, name->length);
+        size += name->length;
+    }
+    return (uint16_t)size;
+}
+static bool excluded(const ukai_obs_client_t *self, const uint32_t token[8]) {
+    for (size_t i = 0; i < self->helper_count; ++i) {
+        if (memcmp(self->helpers[i], token, sizeof(self->helpers[i])) == 0) return true;
+    }
+    return false;
+}
+static void handle(es_client_t *client, const es_message_t *m, ukai_obs_client_t *self) {
+    (void)client;
+    if (m->version < 4) { mark_gap(self); return; }
     uint64_t head = atomic_load_explicit(&self->head, memory_order_relaxed);
     uint64_t tail = atomic_load_explicit(&self->tail, memory_order_acquire);
     if (head - tail >= UKAI_OBS_RING_CAPACITY) {
-        /* Full ring: drop the event and raise the sticky gap flag; the
-         * handler never blocks (§4.1 rule 4). */
-        mark_gap(self);
+        atomic_fetch_add_explicit(&self->dropped, 1, memory_order_release);
+        atomic_store_explicit(&self->gap, true, memory_order_release);
         return;
     }
-    ukai_obs_event event;
-    memset(&event, 0, sizeof(event));
-    event.type = type;
+    ukai_obs_event event = {0};
+    event.event_type = m->event_type;
     event.global_seq = m->global_seq_num;
     event.seq = m->seq_num;
-    event.modified = modified;
-    if (process != NULL) {
-        for (int i = 0; i < UKAI_OBS_TOKEN_WORDS; ++i) {
-            event.token[i] = process->audit_token.val[i];
-        }
+    const es_process_t *process = m->event_type == ES_EVENT_TYPE_NOTIFY_EXEC ? m->event.exec.target : m->process;
+    if (process == NULL) { mark_gap(self); return; }
+    memcpy(event.token, process->audit_token.val, sizeof(event.token));
+    event.ignored = excluded(self, event.token);
+    const es_file_t *path = NULL, *path2 = NULL;
+    const es_string_token_t *name = NULL, *name2 = NULL;
+    switch (m->event_type) {
+    case ES_EVENT_TYPE_NOTIFY_EXEC:
+        event.type = UKAI_OBS_EXEC;
+        path = process->executable;
+        break;
+    case ES_EVENT_TYPE_NOTIFY_CREATE:
+        if (m->event.create.destination_type == ES_DESTINATION_TYPE_NEW_PATH) {
+            event.type = UKAI_OBS_CREATE_DENIED;
+            path = m->event.create.destination.new_path.dir;
+            name = &m->event.create.destination.new_path.filename;
+        } else if (m->event.create.destination_type == ES_DESTINATION_TYPE_EXISTING_FILE) {
+            event.type = UKAI_OBS_CREATE;
+            path = m->event.create.destination.existing_file;
+        } else { mark_gap(self); return; }
+        break;
+    case ES_EVENT_TYPE_NOTIFY_RENAME:
+        event.type = UKAI_OBS_RENAME;
+        path = m->event.rename.source;
+        if (m->event.rename.destination_type == ES_DESTINATION_TYPE_NEW_PATH) {
+            path2 = m->event.rename.destination.new_path.dir;
+            name2 = &m->event.rename.destination.new_path.filename;
+        } else if (m->event.rename.destination_type == ES_DESTINATION_TYPE_EXISTING_FILE) {
+            path2 = m->event.rename.destination.existing_file;
+        } else { mark_gap(self); return; }
+        break;
+    case ES_EVENT_TYPE_NOTIFY_LINK:
+        event.type = UKAI_OBS_LINK;
+        path = m->event.link.source;
+        path2 = m->event.link.target_dir;
+        name2 = &m->event.link.target_filename;
+        break;
+    case ES_EVENT_TYPE_NOTIFY_UNLINK:
+        event.type = UKAI_OBS_UNLINK; path = m->event.unlink.target; break;
+    case ES_EVENT_TYPE_NOTIFY_TRUNCATE:
+        event.type = UKAI_OBS_TRUNCATE; path = m->event.truncate.target; break;
+    case ES_EVENT_TYPE_NOTIFY_SETATTRLIST:
+        event.type = UKAI_OBS_SETATTRLIST; path = m->event.setattrlist.target; break;
+    case ES_EVENT_TYPE_NOTIFY_SETMODE:
+        event.type = UKAI_OBS_SETMODE; path = m->event.setmode.target; break;
+    case ES_EVENT_TYPE_NOTIFY_CLOSE:
+        event.modified = m->event.close.modified;
+        event.type = event.modified ? UKAI_OBS_WRITE : UKAI_OBS_CLOSE_UNMODIFIED;
+        event.ignored |= !event.modified;
+        path = m->event.close.target;
+        break;
+    default: mark_gap(self); return;
     }
-    if (path != NULL) {
-        if (path->length >= UKAI_OBS_PATH_MAX) {
-            mark_gap(self);
-            return;
-        }
-        event.path_len = (uint16_t)path->length;
-        memcpy(event.path, path->data, path->length);
+    if (!event.ignored) {
+        event.path_len = copy_path(self, event.path, path, name);
+        if (event.type == UKAI_OBS_RENAME || event.type == UKAI_OBS_LINK)
+            event.path2_len = copy_path(self, event.path2, path2, name2);
     }
+    // Even unmodified CLOSE and helper messages consume sequence numbers.
     self->ring[head % UKAI_OBS_RING_CAPACITY] = event;
     atomic_store_explicit(&self->head, head + 1, memory_order_release);
 }
-
-static const es_string_token_t *file_path(const es_file_t *file) {
-    return file == NULL ? NULL : &file->path;
-}
-
-static void handle(es_client_t *client, const es_message_t *m, ukai_obs_client_t *self) {
-    (void)client;
-    if (m->version < 4) {
-        /* The custody shim's measured rule: a message too old to carry the
-         * sequencing fields cannot be trusted; the stream is gapped. */
-        mark_gap(self);
-        return;
-    }
-    switch (m->event_type) {
-    case ES_EVENT_TYPE_NOTIFY_EXEC:
-        push_path(self, UKAI_OBS_EXEC, m, m->event.exec.target,
-                  file_path(m->event.exec.target->executable), 0);
-        return;
-    case ES_EVENT_TYPE_NOTIFY_CREATE:
-        /* NOTIFY_CREATE usually arrives after the object exists, so the
-         * destination is usually an existing file; a NEW_PATH destination
-         * carries dir + filename, and only the filename is a path this
-         * event can name (obs_shim.h: one interesting path). */
-        if (m->event.create.destination_type == ES_DESTINATION_TYPE_NEW_PATH) {
-            push_path(self, UKAI_OBS_CREATE, m, m->process,
-                      &m->event.create.destination.new_path.filename, 0);
-        } else {
-            push_path(self, UKAI_OBS_CREATE, m, m->process,
-                      file_path(m->event.create.destination.existing_file), 0);
-        }
-        return;
-    case ES_EVENT_TYPE_NOTIFY_RENAME:
-        /* The destination is the state the workspace takes on; the source is
-         * not carried (see obs_shim.h). A NEW_PATH destination names dir +
-         * filename; the filename is the path this event can name. */
-        if (m->event.rename.destination_type == ES_DESTINATION_TYPE_NEW_PATH) {
-            push_path(self, UKAI_OBS_RENAME, m, m->process,
-                      &m->event.rename.destination.new_path.filename, 0);
-        } else {
-            push_path(self, UKAI_OBS_RENAME, m, m->process,
-                      file_path(m->event.rename.destination.existing_file), 0);
-        }
-        return;
-    case ES_EVENT_TYPE_NOTIFY_UNLINK:
-        push_path(self, UKAI_OBS_UNLINK, m, m->process, file_path(m->event.unlink.target), 0);
-        return;
-    case ES_EVENT_TYPE_NOTIFY_LINK:
-        push_path(self, UKAI_OBS_WRITE, m, m->process, &m->event.link.target_filename, 0);
-        return;
-    case ES_EVENT_TYPE_NOTIFY_TRUNCATE:
-        push_path(self, UKAI_OBS_WRITE, m, m->process, file_path(m->event.truncate.target), 0);
-        return;
-    case ES_EVENT_TYPE_NOTIFY_SETATTRLIST:
-        push_path(self, UKAI_OBS_WRITE, m, m->process, file_path(m->event.setattrlist.target), 0);
-        return;
-    case ES_EVENT_TYPE_NOTIFY_SETMODE:
-        push_path(self, UKAI_OBS_WRITE, m, m->process, file_path(m->event.setmode.target), 0);
-        return;
-    case ES_EVENT_TYPE_NOTIFY_CLOSE:
-        /* §5: CLOSE counts when `modified` is set and nowhere else; an
-         * unmodified close is not evidence and not a gap. */
-        if (m->event.close.modified) {
-            push_path(self, UKAI_OBS_WRITE, m, m->process, file_path(m->event.close.target), 1);
-        }
-        return;
-    default:
-        /* §5 fixes the subscription set; anything else is a stream this
-         * code cannot trust. */
-        mark_gap(self);
-        return;
-    }
-}
-
 int32_t ukai_obs_new_descendants(ukai_obs_client_t **out) {
     *out = NULL;
-    /* The last allocations of the observation path (§4.1 rule 4). */
     ukai_obs_client_t *self = calloc(1, sizeof(*self));
-    if (self == NULL) {
-        return (int32_t)ES_NEW_CLIENT_RESULT_ERR_INTERNAL;
-    }
+    if (self == NULL) return (int32_t)ES_NEW_CLIENT_RESULT_ERR_INTERNAL;
     self->ring = calloc(UKAI_OBS_RING_CAPACITY, sizeof(ukai_obs_event));
-    self->synced = dispatch_semaphore_create(0);
-    if (self->ring == NULL || self->synced == NULL) {
-        free(self->ring);
-        if (self->synced != NULL) {
-            dispatch_release(self->synced);
-        }
-        free(self);
-        return (int32_t)ES_NEW_CLIENT_RESULT_ERR_INTERNAL;
-    }
+    if (self->ring == NULL) { free(self); return (int32_t)ES_NEW_CLIENT_RESULT_ERR_INTERNAL; }
     ukai_obs_client_t *captured = self;
     es_new_client_result_t result = es_new_descendants_client(&self->es, ^(es_client_t *client, const es_message_t *m) {
         handle(client, m, captured);
     });
     if (result != ES_NEW_CLIENT_RESULT_SUCCESS) {
-        free(self->ring);
-        dispatch_release(self->synced);
-        free(self);
-        return (int32_t)result;
+        free(self->ring); free(self); return (int32_t)result;
     }
     *out = self;
     return (int32_t)result;
@@ -189,20 +185,6 @@ bool ukai_obs_muted_paths_events(ukai_obs_client_t *client, uint32_t event_type)
     return still_muted;
 }
 
-bool ukai_obs_subscribe(ukai_obs_client_t *client) {
-    const es_event_type_t types[] = {
-        ES_EVENT_TYPE_NOTIFY_EXEC,
-        ES_EVENT_TYPE_NOTIFY_CREATE,
-        ES_EVENT_TYPE_NOTIFY_RENAME,
-        ES_EVENT_TYPE_NOTIFY_UNLINK,
-        ES_EVENT_TYPE_NOTIFY_LINK,
-        ES_EVENT_TYPE_NOTIFY_TRUNCATE,
-        ES_EVENT_TYPE_NOTIFY_SETATTRLIST,
-        ES_EVENT_TYPE_NOTIFY_SETMODE,
-        ES_EVENT_TYPE_NOTIFY_CLOSE,
-    };
-    return es_subscribe(client->es, types, 9) == ES_RETURN_SUCCESS;
-}
 
 bool ukai_obs_mute_self(ukai_obs_client_t *client) {
     audit_token_t self_token;
@@ -212,6 +194,7 @@ bool ukai_obs_mute_self(ukai_obs_client_t *client) {
     }
     return es_mute_process(client->es, &self_token) == ES_RETURN_SUCCESS;
 }
+
 
 bool ukai_obs_poll(ukai_obs_client_t *client, ukai_obs_event *out) {
     uint64_t tail = atomic_load_explicit(&client->tail, memory_order_relaxed);
@@ -228,18 +211,48 @@ bool ukai_obs_gap(const ukai_obs_client_t *client) {
     return atomic_load_explicit(&client->gap, memory_order_acquire);
 }
 
+bool ukai_obs_verify_unmuted(ukai_obs_client_t *client) {
+    for (size_t i = 0; i < sizeof(types) / sizeof(types[0]); ++i)
+        if (ukai_obs_muted_paths_events(client, types[i])) return false;
+    return true;
+}
+bool ukai_obs_subscribe(ukai_obs_client_t *client) {
+    client->subscribed = true; // freeze helper table before any callback
+    return es_subscribe(client->es, types, sizeof(types) / sizeof(types[0])) == ES_RETURN_SUCCESS;
+}
+bool ukai_obs_exclude_token(ukai_obs_client_t *client, const uint32_t token[8]) {
+    if (client->subscribed || client->helper_count >= UKAI_OBS_HELPERS_MAX || token[5] == 0) return false;
+    if (!excluded(client, token)) memcpy(client->helpers[client->helper_count++], token, sizeof(client->helpers[0]));
+    return true;
+}
+bool ukai_obs_invalid(const ukai_obs_client_t *client) {
+    return atomic_load_explicit(&client->invalid, memory_order_acquire);
+}
+uint64_t ukai_obs_dropped(const ukai_obs_client_t *client) {
+    return atomic_load_explicit(&client->dropped, memory_order_acquire);
+}
 bool ukai_obs_drain(ukai_obs_client_t *client, uint32_t timeout_ms) {
-    if (es_sync_client(client->es, ^{ dispatch_semaphore_signal(client->synced); }) != ES_RETURN_SUCCESS) {
+    // A fresh semaphore belongs only to this sync. A callback arriving after
+    // timeout cannot satisfy another wait, and holds no pointer to the client.
+    dispatch_semaphore_t synced = dispatch_semaphore_create(0);
+    if (synced == NULL) return false;
+    dispatch_retain(synced); // callback reference, including after timeout
+    if (es_sync_client(client->es, ^{ dispatch_semaphore_signal(synced); dispatch_release(synced); }) != ES_RETURN_SUCCESS) {
+        dispatch_release(synced);
+        dispatch_release(synced);
         return false;
     }
-    return dispatch_semaphore_wait(client->synced,
-               dispatch_time(DISPATCH_TIME_NOW, (int64_t)timeout_ms * NSEC_PER_MSEC)) == 0;
+    bool done = dispatch_semaphore_wait(synced,
+        dispatch_time(DISPATCH_TIME_NOW, (int64_t)timeout_ms * NSEC_PER_MSEC)) == 0;
+    dispatch_release(synced);
+    return done;
 }
-
 bool ukai_obs_delete(ukai_obs_client_t *client) {
-    bool deleted = es_delete_client(client->es) == ES_RETURN_SUCCESS;
+    // ES says its pointer is invalid after delete, even on an error. Never
+    // retry it; retain the handler's backing state on shutdown failure rather
+    // than risking callbacks into freed memory. Caller records the failure.
+    if (es_delete_client(client->es) != ES_RETURN_SUCCESS) return false;
     free(client->ring);
-    dispatch_release(client->synced);
     free(client);
-    return deleted;
+    return true;
 }

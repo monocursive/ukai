@@ -1,576 +1,705 @@
-//! J17: native observation, the supervisor's third ES client
-//! (jail-macos.md §5, §4.10 flip, §9.2 K105–K107).
-//!
-//! The mapping and the gap semantics run here against a real trace sink;
-//! the live client creation runs against this Mac (an unentitled host
-//! answers `NotEntitled`, and J17 falls back honestly); the K107 summary
-//! recompute runs `summary::summary()` over a synthetic macOS receipt and
-//! journal, mirroring `summary_check.py`'s arms.
-
+//! Synthetic J17 mapping, shim, loss and frozen-contract checks. No live ES
+//! conformance claim; an unsigned executable must refuse client creation.
 #![cfg(target_os = "macos")]
-
 mod common;
-
-use std::io::Write as _;
-use std::path::{Path, PathBuf};
-
 use serde_json::{Value, json};
-
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use ukai_jail::observer::{CoverageClass, CoverageSummary};
 use ukai_jail::platform::macos::observe::{
-    OBSERVATION_GAP_REASON, OBSERVED_CLASSES, OBSERVER_BACKEND, ObsEvent, ObsKind, ObserveJournal,
-    PathEvidence, classify_path,
+    OBSERVATION_GAP_REASON, OBSERVATION_SET, OBSERVED_CLASSES, ObsAction, ObsEvent, ObsKind,
+    ObsMessage, ObserveJournal, ObserveRun, ObserveStartError, PathEvidence, classify_path,
 };
-use ukai_jail::records::{Gap, SourceStatus};
+use ukai_jail::records::{Event, Phase, SourceStatus};
 use ukai_jail::summary::{self, Journal, JournalState};
-use ukai_jail::trace::{self, FileSink, SharedTrace};
-
-const ATTEMPT: &str = "attempt-observe";
-
-/// `sha256:` over the receipt's RFC 8785 bytes: the name the journal's
-/// receipt note carries.
-fn digest(receipt: &Value) -> String {
-    ukai_jail::canonical::sha256_prefixed(
-        &ukai_jail::canonical::to_jcs(receipt).expect("a receipt canonicalizes"),
-    )
-}
-
-/// One synthetic §5 notification.
+use ukai_jail::trace::{self, FileSink, Priority, SharedTrace};
+const ATTEMPT: &str = "att_00000000-0000-4000-8000-000000000001";
 fn obs(kind: ObsKind, seq: u64, path: &[u8]) -> ObsEvent {
     ObsEvent {
         kind,
         global_seq: seq,
         seq,
         token: [7; 8],
-        path: path.to_vec(),
+        path: path.into(),
     }
 }
-
-/// A trace whose frames land in a file the test reads back.
+fn message(
+    action: ObsAction,
+    event_type: u32,
+    seq: u64,
+    global_seq: u64,
+    path: &[u8],
+    path2: Option<&[u8]>,
+) -> ObsMessage {
+    let mut event = obs(action.kind(), seq, path);
+    event.global_seq = global_seq;
+    ObsMessage {
+        event,
+        event_type,
+        action,
+        path2: path2.map(Vec::from),
+        ignored: false,
+    }
+}
 struct FrameCapture {
     trace: SharedTrace,
     path: PathBuf,
     _dir: tempfile::TempDir,
 }
-
 impl FrameCapture {
     fn new() -> Self {
         let dir = common::private_tempdir();
-        let path = dir.path().join("trace.jsonl");
-        let file = std::fs::File::create(&path).expect("the trace file opens");
-        FrameCapture {
-            trace: trace::shared(FileSink::new(file)),
+        let path = dir.path().join("trace.ndjson");
+        let trace = trace::shared(FileSink::new(std::fs::File::create(&path).unwrap()));
+        Self {
+            trace,
             path,
             _dir: dir,
         }
     }
-
-    /// The audit frames, in write order.
+    fn journal(&self) -> ObserveJournal {
+        ObserveJournal::new(ATTEMPT, Some(self.trace.clone()), b"/w")
+    }
     fn frames(&self) -> Vec<Value> {
-        // Dropping the journal released the only other handle; the file sink
-        // wrote every accepted frame straight through.
-        let bytes = std::fs::read(&self.path).expect("the trace reads back");
-        bytes
+        std::fs::read(&self.path)
+            .unwrap()
             .split(|byte| *byte == b'\n')
             .filter(|line| !line.is_empty())
-            .map(|line| serde_json::from_slice(line).expect("a whole JSON frame"))
+            .map(|line| serde_json::from_slice(line).unwrap())
+            .collect()
+    }
+    fn audit(&self) -> Vec<Value> {
+        self.frames()
+            .into_iter()
+            .filter(|frame| frame["source"] == "audit")
             .collect()
     }
 }
-
-/// The workspace root the classification is relative to.
-fn workspace(temp: &Path) -> PathBuf {
-    temp.join("work")
+fn coverage(journal: &ObserveJournal) -> CoverageSummary {
+    journal.summary(CoverageSummary::applied(true))
 }
-
-/// A macOS receipt under construction: `receipt-tool.json` re-based to the
-/// §5 observation shape, with the journal frames kept beside it.
-struct Fixture {
-    receipt: Value,
-    events: Vec<Value>,
-    audit_seq: u64,
-    wrapper_seq: u64,
-    ns: u64,
+fn specs() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/specs/jail-v1")
 }
-
-impl Fixture {
-    fn macos() -> Self {
-        let mut receipt: Value = serde_json::from_slice(
-            &std::fs::read(
-                Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("../../docs/specs/jail-v1/examples/receipt-tool.json"),
-            )
-            .expect("the example is checked in"),
-        )
-        .expect("the example is JSON");
-        // The §5 shape: the observation backend, no closed-set name (the
-        // closed set stays Linux's), every audit class the macOS observer
-        // does not produce left unsupported, `limits` the wrapper's own.
-        receipt["observer"] = json!({
-            "backend": OBSERVER_BACKEND,
-            "set": Value::Null,
-            "attached": true,
-            "sources": {"wrapper": "active", "audit": "active", "proxy": "unsupported"},
-            "gaps": [],
-        });
-        receipt["coverage"] = json!({
-            "exec": {"status": "active", "sources": ["audit"], "observed_count": 0, "gaps": []},
-            "fs.write": {"status": "active", "sources": ["audit"], "observed_count": 0, "gaps": []},
-            "fs.deny": {"status": "unsupported", "sources": [], "observed_count": null, "gaps": []},
-            "net": {"status": "unsupported", "sources": [], "observed_count": null, "gaps": []},
-            "limits": {"status": "active", "sources": ["wrapper"], "observed_count": 0, "gaps": []},
-            "proxy.net": {"status": "unsupported", "sources": [], "observed_count": null, "gaps": []},
-        });
-        Fixture {
-            receipt,
-            events: Vec::new(),
-            audit_seq: 0,
-            wrapper_seq: 0,
-            ns: 100_000_000,
-        }
-    }
-
-    fn audit(&mut self, operation: &str, path: Value) {
-        self.audit_seq += 1;
-        self.ns += 1_000_000;
-        let attempt_id = self.receipt["attempt_id"].clone();
-        self.events.push(json!({
-            "schema": "ukai.event/1",
-            "attempt_id": attempt_id,
-            "source": "audit",
-            "source_seq": self.audit_seq,
-            "observed_at": "2026-10-22T12:00:00Z",
-            "monotonic_ns": self.ns.to_string(),
-            "operation": operation,
-            "stage": "result",
-            "decision": Value::Null,
-            "outcome": {"ok": true, "return_value": 0, "errno": null,
-                        "completion": if operation == "proc.exec" { "exec_transition" } else { "syscall_return" }},
-            "fields": {"path": path},
-        }));
-    }
-
-    /// Syncs each active audit class's count with the frames (the K47 arm).
-    fn sync(&mut self) {
-        let exec = self
-            .events
-            .iter()
-            .filter(|event| event["operation"] == "proc.exec")
-            .count();
-        let write = self
-            .events
-            .iter()
-            .filter(|event| {
-                matches!(
-                    event["operation"].as_str(),
-                    Some("fs.create") | Some("fs.write") | Some("fs.rename") | Some("fs.unlink")
-                )
-            })
-            .count();
-        self.receipt["coverage"]["exec"]["observed_count"] = json!(exec);
-        self.receipt["coverage"]["fs.write"]["observed_count"] = json!(write);
-    }
-
-    /// The complete journal: frames, then the receipt's note.
-    fn journal(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        for event in &self.events {
-            bytes.extend(serde_json::to_vec(event).expect("serializes"));
-            bytes.push(b'\n');
-        }
-        let note = json!({
-            "schema": "ukai.event/1",
-            "attempt_id": self.receipt["attempt_id"],
-            "source": "wrapper",
-            "source_seq": self.wrapper_seq + 1,
-            "observed_at": "2026-10-22T12:00:01Z",
-            "monotonic_ns": (self.ns + 1_000_000).to_string(),
-            "operation": "jail.receipt",
-            "stage": "result",
-            "decision": Value::Null,
-            "outcome": {"ok": true, "return_value": null, "errno": null, "completion": "wrapper"},
-            "fields": {"phase": self.receipt["phase"], "receipt_digest": digest(&self.receipt)},
-        });
-        bytes.extend(serde_json::to_vec(&note).expect("serializes"));
-        bytes.push(b'\n');
-        bytes
-    }
-
-    fn summarize(&self) -> summary::Summary {
-        summary::summary(&self.receipt, Journal::Bytes(&self.journal()))
-    }
-
-    fn evidence_facts(&self) -> Value {
-        self.summarize()
-            .lines
-            .into_iter()
-            .find(|line| line.line == "evidence")
-            .expect("an evidence line")
-            .facts
-    }
-}
-
-/// K105: the expected operations are present — one event per §5
-/// notification journals as the Linux audit vocabulary, the path
-/// workspace-relative where the path is under the workspace root and a
-/// digest everywhere else, and the classes come out `active` with counts
-/// while `fs.deny` stays `unsupported`.
-#[test]
-fn k105_events_map_to_the_audit_vocabulary_and_active_classes() {
-    let temp = common::private_tempdir();
-    let root = workspace(temp.path());
-    std::fs::create_dir(&root).expect("the workspace");
-    let capture = FrameCapture::new();
-    let mut journal = ObserveJournal::new(
-        ATTEMPT,
-        Some(capture.trace.clone()),
-        root.as_os_str().as_encoded_bytes(),
+fn cross_check(receipt: &Value, capture: &FrameCapture) -> summary::Summary {
+    let dir = common::private_tempdir();
+    let attempt = dir.path().join(ATTEMPT);
+    std::fs::create_dir(&attempt).unwrap();
+    std::fs::write(
+        attempt.join("jail.json"),
+        serde_json::to_vec(receipt).unwrap(),
+    )
+    .unwrap();
+    let bytes = std::fs::read(&capture.path).unwrap();
+    std::fs::write(attempt.join("trace.ndjson"), &bytes).unwrap();
+    let summary = summary::summary(receipt, Journal::Bytes(&bytes));
+    let output_path = dir.path().join("summary.json");
+    std::fs::write(
+        &output_path,
+        serde_json::to_vec(&summary.to_json()).unwrap(),
+    )
+    .unwrap();
+    let result = Command::new(common::PYTHON)
+        .arg("-I")
+        .arg(specs().join("summary_check.py"))
+        .arg(&attempt)
+        .arg(&output_path)
+        .output()
+        .expect("Python is required for this cross-check");
+    assert!(
+        result.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
     );
+    assert!(common::validators()["jail-summary"].is_valid(&summary.to_json()));
+    summary
+}
+fn receipt_for(journal: &ObserveJournal) -> Value {
+    let mut receipt: Value = serde_json::from_slice(
+        &std::fs::read(specs().join("examples/receipt-macos-native.json")).unwrap(),
+    )
+    .unwrap();
+    receipt["attempt_id"] = ATTEMPT.into();
+    receipt["policy"]["observe"] = "on".into();
+    receipt["observer"] = serde_json::to_value(coverage(journal).to_observer_record()).unwrap();
+    receipt["coverage"] = serde_json::to_value(coverage(journal).to_coverage()).unwrap();
+    receipt
+}
+fn settle(receipt: &Value, capture: &FrameCapture) {
+    let digest =
+        ukai_jail::canonical::sha256_prefixed(&ukai_jail::canonical::to_jcs(receipt).unwrap());
+    let event = Event::receipt_note(
+        ATTEMPT,
+        0,
+        std::time::SystemTime::now(),
+        ukai_jail::platform::elapsed_since_start_ns(),
+        Phase::Settled,
+        &digest,
+    );
+    capture
+        .trace
+        .lock()
+        .unwrap()
+        .write_event(&event, Priority::Reserve)
+        .unwrap();
+}
 
-    journal.record(&obs(ObsKind::Exec, 1, b"/usr/bin/true"));
-    journal.record(&obs(ObsKind::Create, 1, &joined(&root, "created.txt")));
-    journal.record(&obs(ObsKind::Write, 1, &joined(&root, "written.txt")));
-    journal.record(&obs(ObsKind::Rename, 1, &joined(&root, "renamed.txt")));
-    journal.record(&obs(ObsKind::Unlink, 1, &joined(&root, "removed.txt")));
-
-    let frames: Vec<Value> = capture
-        .frames()
-        .into_iter()
-        .filter(|frame| frame["source"] == "audit")
-        .collect();
-    let operations: Vec<&str> = frames
+#[test]
+fn phase_one_observation_is_off_until_a_run_attaches_it() {
+    use ukai_jail::policy::ProfileName;
+    use ukai_jail::records::{ObserveMode, Os};
+    assert_eq!(
+        ukai_jail::profiles::baseline(ProfileName::Tool, Os::Macos, &|_| None)
+            .observation
+            .mode,
+        ObserveMode::Off
+    );
+    assert_eq!(
+        ukai_jail::profiles::baseline(ProfileName::Tool, Os::Linux, &|_| None)
+            .observation
+            .mode,
+        ObserveMode::On
+    );
+    let dir = common::private_tempdir();
+    let output = Command::new(env!("CARGO_BIN_EXE_ukai-jail"))
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", dir.path())
+        .env("UKAI_CONFIG_DIR", dir.path().join("config"))
+        .env("UKAI_DATA_DIR", dir.path().join("data"))
+        .current_dir(dir.path())
+        .args(["explain", "--json"])
+        .output()
+        .unwrap();
+    let report: Value = serde_json::from_slice(&output.stdout).expect("explain JSON");
+    assert_eq!(report["policy"]["snapshot"]["observation"]["mode"], "off");
+    use ukai_jail::platform::{PlanRequest, Platform};
+    let plan = PlanRequest {
+        snapshot: ukai_jail::policy::resolve(&ukai_jail::policy::ResolveInputs {
+            platform: Os::Macos,
+            base_profile: ProfileName::Tool,
+            policy_name: "tool".into(),
+            baseline: ukai_jail::profiles::baseline(ProfileName::Tool, Os::Macos, &|_| None),
+            workspace: dir.path().as_os_str().as_encoded_bytes().to_vec(),
+            scratch: ukai_jail::policy::ScratchRoot::Managed,
+            vendor_state: None,
+            operator_home: None,
+            translation_prefixes: Vec::new(),
+            layers: Vec::new(),
+        })
+        .unwrap()
+        .snapshot,
+        requirements: vec![ukai_jail::capability::Requirement::ClosedSetObservation],
+    };
+    let capabilities = ukai_jail::platform::macos::MacosPlatform.probe(&plan);
+    let row = capabilities
         .iter()
-        .map(|frame| frame["operation"].as_str().expect("an operation"))
+        .find(|row| row.name == "closed_set_observation")
+        .unwrap();
+    assert_eq!(
+        row.status,
+        ukai_jail::capability::CapabilityStatus::Unsupported
+    );
+}
+
+#[test]
+fn k105_events_map_to_schema_valid_audit_results_with_honest_coverage() {
+    let capture = FrameCapture::new();
+    let mut journal = capture.journal();
+    for (i, action) in [
+        ObsAction::Exec,
+        ObsAction::Create,
+        ObsAction::Modified,
+        ObsAction::Rename,
+        ObsAction::Unlink,
+        ObsAction::Truncate,
+        ObsAction::Setmode,
+        ObsAction::Setattrlist,
+        ObsAction::Link,
+        ObsAction::CreateDenied,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        journal.record_message(&message(
+            action,
+            i as u32,
+            0,
+            i as u64,
+            b"/w/source",
+            Some(b"/w/dest"),
+        ));
+    }
+    let frames = capture.audit();
+    assert_eq!(frames.len(), 10);
+    let ops: Vec<_> = frames
+        .iter()
+        .map(|f| f["operation"].as_str().unwrap())
         .collect();
     assert_eq!(
-        operations,
+        ops,
         [
             "proc.exec",
             "fs.create",
             "fs.write",
             "fs.rename",
-            "fs.unlink"
-        ],
-        "the A01 fixture's expected operations, in arrival order"
+            "fs.unlink",
+            "fs.write",
+            "fs.write",
+            "fs.write",
+            "fs.create",
+            "fs.create"
+        ]
     );
-    for frame in &frames {
-        assert_eq!(frame["schema"], "ukai.event/1");
-        assert_eq!(frame["stage"], "result");
-        assert_eq!(frame["decision"], Value::Null);
-        assert_eq!(frame["outcome"]["ok"], true);
-    }
-    // The workspace-relative form names the component-wise suffix.
     assert_eq!(
-        frames[1]["fields"]["path"],
-        json!({"kind": "workspace_relative", "value": "created.txt"})
+        frames[0]["fields"]["path"],
+        json!({"kind":"unavailable", "reason":"argument_not_read"})
     );
-    // The exec image lies outside the workspace: digest only, with its
-    // reason — never a host path (§11.3).
-    assert_eq!(frames[0]["fields"]["path"]["kind"], "digest");
-    assert_eq!(frames[0]["fields"]["path"]["reason"], "outside_workspace");
-    assert_eq!(
-        frames[0]["fields"]["path"]["digest"],
-        ukai_jail::canonical::sha256_prefixed(b"/usr/bin/true")
-    );
-
-    let summary = journal.summary(CoverageSummary::applied(true));
-    assert_eq!(summary.backend.as_deref(), Some(OBSERVER_BACKEND));
-    assert_eq!(summary.sources.audit, SourceStatus::Active);
-    assert_eq!(
-        summary.classes[&CoverageClass::Exec].status,
-        SourceStatus::Active
-    );
+    assert_eq!(frames[0]["fields"]["executable"]["value"], "source");
+    assert_eq!(frames[0]["fields"]["pid"], 7);
+    assert_eq!(frames[0]["fields"]["pid_start_ticks"], Value::Null);
+    assert_eq!(frames[3]["fields"]["path"]["value"], "source");
+    assert_eq!(frames[3]["fields"]["path2"]["value"], "dest");
+    assert_eq!(frames[2]["fields"]["action"], "modified");
+    assert_eq!(frames[5]["fields"]["action"], "truncated");
+    assert_eq!(frames[6]["fields"]["action"], "metadata_changed");
+    assert_eq!(frames[8]["fields"]["action"], "hard_link_created");
+    assert_eq!(frames[9]["outcome"]["ok"], false);
+    common::check_trace(&capture.frames(), None).expect("real journal frames meet frozen schemas");
+    let summary = coverage(&journal);
+    assert_eq!(summary.set.as_deref(), Some(OBSERVATION_SET));
     assert_eq!(
         summary.classes[&CoverageClass::Exec].observed_count,
         Some(1)
     );
+    assert_eq!(journal.count(CoverageClass::FsWrite), 9);
     assert_eq!(
         summary.classes[&CoverageClass::FsWrite].status,
-        SourceStatus::Active
+        SourceStatus::Degraded
     );
     assert_eq!(
-        summary.classes[&CoverageClass::FsWrite].observed_count,
+        summary.classes[&CoverageClass::FsDeny].status,
+        SourceStatus::Unsupported
+    );
+}
+
+#[test]
+fn observation_frames_validate_against_the_frozen_jail_event_schema() {
+    let capture = FrameCapture::new();
+    let mut journal = capture.journal();
+    for (index, kind) in [
+        ObsKind::Exec,
+        ObsKind::Create,
+        ObsKind::Write,
+        ObsKind::Rename,
+        ObsKind::Unlink,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut event = obs(kind, 0, b"/w/file");
+        event.global_seq = index as u64;
+        journal.record(&event);
+    }
+    common::check_trace(&capture.frames(), None).unwrap();
+}
+
+#[test]
+fn first_and_global_sequence_loss_are_detected() {
+    let capture = FrameCapture::new();
+    let mut journal = capture.journal();
+    journal.record(&obs(ObsKind::Exec, 4, b"/bin/true"));
+    assert_eq!(
+        coverage(&journal).classes[&CoverageClass::Exec].status,
+        SourceStatus::Degraded
+    );
+    assert_eq!(
+        journal
+            .gaps()
+            .iter()
+            .find(|g| g.reason.starts_with(OBSERVATION_GAP_REASON))
+            .unwrap()
+            .lost_count,
         Some(4)
     );
-    // fs.deny stays unsupported (§5): Seatbelt denials are not ES events.
+    let capture = FrameCapture::new();
+    let mut journal = capture.journal();
+    journal.record(&obs(ObsKind::Exec, 0, b"/bin/true"));
     assert_eq!(
-        summary.classes[&CoverageClass::FsDeny].status,
-        SourceStatus::Unsupported
+        coverage(&journal).classes[&CoverageClass::Exec].status,
+        SourceStatus::Active
     );
-    assert_eq!(summary.classes[&CoverageClass::FsDeny].observed_count, None);
-    assert!(summary.gaps.is_empty());
+    let mut second = obs(ObsKind::Create, 0, b"/w/a");
+    second.global_seq = 2;
+    journal.record(&second);
+    assert_eq!(
+        coverage(&journal).classes[&CoverageClass::Exec].status,
+        SourceStatus::Degraded
+    );
+}
 
-    // The classification helper alone agrees with the journal.
-    assert_eq!(
-        classify_path(
-            &joined(&root, "nested/x"),
-            root.as_os_str().as_encoded_bytes()
-        ),
-        PathEvidence::WorkspaceRelative(b"nested/x".to_vec())
-    );
-    assert!(matches!(
-        classify_path(b"/etc/hosts", root.as_os_str().as_encoded_bytes()),
-        PathEvidence::Digest(_, "outside_workspace")
+#[test]
+fn sequence_buckets_are_real_types_and_include_unmodified_closes() {
+    let capture = FrameCapture::new();
+    let mut journal = capture.journal();
+    journal.record_message(&message(ObsAction::Modified, 10, 0, 0, b"/w/a", None));
+    journal.record_message(&message(ObsAction::Setmode, 20, 0, 1, b"/w/a", None));
+    journal.record_message(&message(
+        ObsAction::CloseUnmodified,
+        10,
+        1,
+        2,
+        b"/w/a",
+        None,
     ));
+    journal.record_message(&message(ObsAction::Modified, 10, 2, 3, b"/w/a", None));
+    assert_eq!(
+        coverage(&journal).classes[&CoverageClass::Exec].status,
+        SourceStatus::Active
+    );
+    assert_eq!(journal.count(CoverageClass::FsWrite), 3);
+    assert_eq!(capture.audit().len(), 3);
+    // SETMODE cannot hide a skipped CLOSE, even with continuous global input.
+    journal.record_message(&message(ObsAction::Setmode, 20, 1, 4, b"/w/a", None));
+    journal.record_message(&message(ObsAction::Modified, 10, 4, 5, b"/w/a", None));
+    assert_eq!(
+        coverage(&journal).classes[&CoverageClass::Exec].status,
+        SourceStatus::Degraded
+    );
 }
 
-fn joined(root: &Path, name: &str) -> Vec<u8> {
-    let mut bytes = root.as_os_str().as_encoded_bytes().to_vec();
-    bytes.push(b'/');
-    bytes.extend_from_slice(name.as_bytes());
-    bytes
-}
-
-/// K106: a gap in the observation client — here a skipped per-type
-/// `seq_num`, the §5 gap semantics — marks `exec` and `fs.write`
-/// `degraded` with a gap naming the reason and nulls their counts, and
-/// touches nothing else: not the custody-facing wrapper source, not
-/// `tree_empty`, not the other classes.
 #[test]
 fn k106_a_gap_degrades_only_the_observed_classes() {
-    let temp = common::private_tempdir();
-    let root = workspace(temp.path());
-    std::fs::create_dir(&root).expect("the workspace");
     let capture = FrameCapture::new();
-    let mut journal = ObserveJournal::new(
-        ATTEMPT,
-        Some(capture.trace.clone()),
-        root.as_os_str().as_encoded_bytes(),
-    );
-
-    journal.record(&obs(ObsKind::Exec, 1, b"/usr/bin/true"));
-    // Notification 2 never arrived.
-    journal.record(&obs(ObsKind::Exec, 3, b"/usr/bin/false"));
-
-    assert!(journal.is_degraded());
+    let mut journal = capture.journal();
+    journal.record(&obs(ObsKind::Exec, 0, b"/bin/true"));
+    journal.record(&obs(ObsKind::Exec, 2, b"/bin/true"));
     let known = CoverageSummary::applied(true);
-    let summary = journal.summary(known.clone());
+    let result = journal.summary(known.clone());
     for class in OBSERVED_CLASSES {
-        let entry = &summary.classes[&class];
-        assert_eq!(entry.status, SourceStatus::Degraded, "{class:?}");
-        // §11.4: "Unsupported and degraded counts are null."
-        assert_eq!(entry.observed_count, None, "{class:?}");
-        assert_eq!(entry.gaps.len(), 1, "{class:?}");
+        assert_eq!(result.classes[&class].status, SourceStatus::Degraded);
+        assert_eq!(result.classes[&class].observed_count, None);
     }
-    let gap = &summary.classes[&CoverageClass::Exec].gaps[0];
-    assert_eq!(gap.classes, ["exec", "fs.write"]);
-    assert_eq!(gap.source, "audit");
-    assert!(
-        gap.reason.starts_with(OBSERVATION_GAP_REASON),
-        "{}",
-        gap.reason
-    );
-    // Custody and the rest of the summary are untouched: the wrapper source
-    // keeps its status, attachment and every non-observed class stay what
-    // `known` said, and `tree_empty` (a lifetime fact, not an observer one)
-    // does not appear here at all.
-    assert_eq!(summary.sources.wrapper, known.sources.wrapper);
-    assert_eq!(summary.sources.proxy, known.sources.proxy);
-    assert_eq!(summary.attached, known.attached);
-    assert_eq!(
-        summary.classes[&CoverageClass::FsDeny].status,
-        SourceStatus::Unsupported
-    );
-    assert!(
-        summary
-            .gaps
-            .iter()
-            .any(|g: &Gap| g.reason.starts_with(OBSERVATION_GAP_REASON))
-    );
-
-    // The shim's own sticky flag (ring overflow, an untrustable message)
-    // lands in the same place.
-    let mut journal = ObserveJournal::new(ATTEMPT, None, root.as_os_str().as_encoded_bytes());
-    journal.record(&obs(ObsKind::Create, 1, &joined(&root, "a")));
-    journal.mark_gap("observation_ring_overflowed");
-    let summary = journal.summary(CoverageSummary::applied(true));
-    assert_eq!(summary.sources.audit, SourceStatus::Degraded);
-    for class in OBSERVED_CLASSES {
-        assert_eq!(summary.classes[&class].status, SourceStatus::Degraded);
+    for class in [
+        CoverageClass::FsDeny,
+        CoverageClass::Net,
+        CoverageClass::ProxyNet,
+        CoverageClass::Limits,
+    ] {
+        assert_eq!(result.classes[&class], known.classes[&class]);
     }
+    assert_eq!(result.sources.wrapper, known.sources.wrapper);
+    assert_eq!(result.sources.proxy, known.sources.proxy);
+    assert_eq!(result.attached, known.attached);
+    common::check_trace(&capture.frames(), None).unwrap();
 }
 
-/// §5: `strict` evidence refuses while a class it needs is degraded — the
-/// settlement reads the coverage statuses (`supervisor::settlement_loss`)
-/// — and `fs.deny`, which stays unsupported, never refuses: a healthy
-/// §5 summary carries the statuses strict needs, and a degraded one names
-/// its gap for the refusal to cite.
 #[test]
-fn strict_evidence_reads_the_coverage_statuses() {
-    let temp = common::private_tempdir();
-    let root = workspace(temp.path());
-    std::fs::create_dir(&root).expect("the workspace");
-    let mut journal = ObserveJournal::new(ATTEMPT, None, root.as_os_str().as_encoded_bytes());
-    journal.record(&obs(ObsKind::Exec, 1, b"/usr/bin/true"));
-    let healthy = journal.summary(CoverageSummary::applied(true));
-    // Every stream class the strict settlement needs is neither degraded
-    // nor unsupported-where-observed: `exec` and `fs.write` active,
-    // `fs.deny` unsupported and therefore not a need (§5 says so).
-    for class in OBSERVED_CLASSES {
-        assert_eq!(healthy.classes[&class].status, SourceStatus::Active);
-        assert_eq!(healthy.classes[&class].gaps, Vec::<Gap>::new());
+fn gap_notes_and_loss_counts_are_coalesced() {
+    let capture = FrameCapture::new();
+    let mut journal = capture.journal();
+    for seq in (0..2000).step_by(2) {
+        journal.record(&obs(ObsKind::Exec, seq, b"/bin/true"));
     }
+    let gaps: Vec<_> = journal
+        .gaps()
+        .iter()
+        .filter(|gap| gap.classes.iter().any(|c| c == "exec"))
+        .collect();
+    assert_eq!(gaps.len(), 1);
+    assert_eq!(gaps[0].lost_count, Some(999));
+    let notes: Vec<_> = capture
+        .frames()
+        .into_iter()
+        .filter(|f| {
+            f["fields"]["reason"]
+                .as_str()
+                .is_some_and(|r| r.starts_with(OBSERVATION_GAP_REASON))
+        })
+        .collect();
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0]["fields"]["kind"], "coverage_gap");
+    journal.record_shim_loss(7, false);
+    journal.record_shim_loss(12, false);
+    assert_eq!(
+        journal
+            .gaps()
+            .iter()
+            .find(|g| g.reason == "observation_ring_overflowed")
+            .unwrap()
+            .lost_count,
+        Some(12)
+    );
+    common::check_trace(&capture.frames(), None).unwrap();
+}
 
-    journal.mark_gap(OBSERVATION_GAP_REASON);
-    let degraded = journal.summary(CoverageSummary::applied(true));
-    for class in OBSERVED_CLASSES {
-        assert_eq!(degraded.classes[&class].status, SourceStatus::Degraded);
-        assert!(
-            !degraded.classes[&class].gaps.is_empty(),
-            "a degraded class names its gap"
+#[test]
+fn relative_and_missing_paths_are_not_claimed_outside() {
+    for path in [b"renamed.txt".as_slice(), b""] {
+        assert_ne!(
+            classify_path(path, b"/w").into_json()["reason"],
+            "outside_workspace"
         );
     }
-    // And `fs.deny` never moves off unsupported in either summary: the
-    // strict refusal must not fire for it.
     assert_eq!(
-        degraded.classes[&CoverageClass::FsDeny].status,
-        SourceStatus::Unsupported
+        classify_path(b"", b"/w"),
+        PathEvidence::Unavailable("path_not_available")
+    );
+    assert_eq!(
+        classify_path(b"/w/../outside", b"/w").into_json()["reason"],
+        "path_basis_unknown"
+    );
+    let capture = FrameCapture::new();
+    let mut journal = capture.journal();
+    journal.record(&obs(ObsKind::Write, 0, b""));
+    assert_eq!(capture.audit()[0]["fields"]["path_complete"], false);
+    common::check_trace(&capture.frames(), None).unwrap();
+}
+#[test]
+fn path_prefixes_are_component_wise() {
+    assert_eq!(
+        classify_path(b"/w/ab", b"/w/a").into_json()["reason"],
+        "outside_workspace"
+    );
+    assert_eq!(
+        classify_path(b"/w/a/b", b"/w/a/"),
+        PathEvidence::WorkspaceRelative(b"b".to_vec())
+    );
+    assert_eq!(
+        classify_path(b"/x", b"/"),
+        PathEvidence::WorkspaceRelative(b"x".to_vec())
+    );
+    assert_eq!(
+        classify_path(b"/w/a \n/file", b"/w/a \n"),
+        PathEvidence::WorkspaceRelative(b"file".to_vec())
+    );
+}
+#[test]
+fn incomplete_mutation_subscription_cannot_claim_active_fs_write() {
+    let capture = FrameCapture::new();
+    let journal = capture.journal();
+    let summary = coverage(&journal);
+    let write = &summary.classes[&CoverageClass::FsWrite];
+    assert_eq!(write.status, SourceStatus::Degraded);
+    assert_eq!(write.observed_count, None);
+    assert!(
+        write
+            .gaps
+            .iter()
+            .any(|g| g.reason.contains("uncovered_mutations") && g.reason.contains("mmap"))
+    );
+    assert_eq!(
+        summary.classes[&CoverageClass::Exec].status,
+        SourceStatus::Active
+    );
+}
+#[test]
+fn refused_and_poisoned_trace_frames_are_not_counted() {
+    let dir = common::private_tempdir();
+    let file = std::fs::File::create(dir.path().join("trace")).unwrap();
+    let trace = trace::shared(FileSink::with_bounds(file, 16384, 16384));
+    let mut journal = ObserveJournal::new(ATTEMPT, Some(trace.clone()), b"/w");
+    journal.record(&obs(ObsKind::Exec, 0, b"/bin/true"));
+    assert_eq!(journal.count(CoverageClass::Exec), 0);
+    assert_eq!(
+        coverage(&journal).classes[&CoverageClass::Exec].status,
+        SourceStatus::Degraded
+    );
+    assert!(
+        journal
+            .gaps()
+            .iter()
+            .any(|g| g.reason == "observation_trace_unavailable")
+    );
+    let _ = std::thread::spawn(move || {
+        let _held = trace.lock().unwrap();
+        panic!("deliberately poison trace");
+    })
+    .join();
+    journal.record(&obs(ObsKind::Exec, 1, b"/bin/true"));
+    assert_eq!(journal.count(CoverageClass::Exec), 0);
+    assert!(
+        journal
+            .gaps()
+            .iter()
+            .any(|g| g.reason == "trace_writer_poisoned")
+    );
+}
+#[test]
+fn no_trace_means_no_delivered_frames() {
+    let mut journal = ObserveJournal::new(ATTEMPT, None, b"/w");
+    journal.record(&obs(ObsKind::Exec, 0, b"/bin/true"));
+    assert_eq!(journal.count(CoverageClass::Exec), 0);
+    assert_eq!(
+        coverage(&journal).classes[&CoverageClass::Exec].status,
+        SourceStatus::Degraded
     );
 }
 
-/// K107: the J13 summary recomputes from a macOS receipt — active classes
-/// whose counts the journal's frames exactly account for claim agreement,
-/// `fs.deny` is not observed, and a receipt count the journal cannot back
-/// is a disagreement, `summary_check.py`'s arms.
 #[test]
-fn k107_the_summary_recomputes_from_a_macos_receipt() {
-    let temp = common::private_tempdir();
-    let root = workspace(temp.path());
-    std::fs::create_dir(&root).expect("the workspace");
-    let mut fixture = Fixture::macos();
-    fixture.audit(
-        "proc.exec",
-        json!({"kind": "digest", "digest": "sha256:aa", "reason": "outside_workspace"}),
-    );
-    fixture.audit(
-        "proc.exec",
-        json!({"kind": "digest", "digest": "sha256:bb", "reason": "outside_workspace"}),
-    );
-    fixture.audit(
-        "fs.create",
-        json!({"kind": "workspace_relative", "value": "one"}),
-    );
-    fixture.audit(
-        "fs.write",
-        json!({"kind": "workspace_relative", "value": "two"}),
-    );
-    fixture.audit(
-        "fs.rename",
-        json!({"kind": "workspace_relative", "value": "three"}),
-    );
-    fixture.sync();
-
-    let facts = fixture.evidence_facts();
-    assert_eq!(
-        facts["classes"],
-        json!({
-            "exec": "active",
-            "fs.write": "active",
-            "fs.deny": "unsupported",
-            "net": "unsupported",
-            "proxy.net": "unsupported",
-            "limits": "active",
-        })
-    );
-    assert_eq!(facts["attached"], true);
-    assert_eq!(facts["disagree"], json!([]));
-    let summary = fixture.summarize();
+fn k107_rust_and_python_recompute_real_native_journal_frames() {
+    let capture = FrameCapture::new();
+    let mut journal = capture.journal();
+    let cases = [
+        message(ObsAction::Exec, 1, 0, 0, b"/bin/true", None),
+        message(ObsAction::Modified, 2, 0, 1, b"/w/modified", None),
+        message(ObsAction::Setmode, 3, 0, 2, b"/w/mode", None),
+        message(
+            ObsAction::Rename,
+            4,
+            0,
+            3,
+            b"/w/leaving",
+            Some(b"/outside/dest"),
+        ),
+        message(
+            ObsAction::Link,
+            5,
+            0,
+            4,
+            b"/w/existing",
+            Some(b"/w/new-link"),
+        ),
+        message(ObsAction::CreateDenied, 6, 0, 5, b"/w/denied", None),
+    ];
+    for event in &cases {
+        journal.record_message(event);
+    }
+    let receipt = receipt_for(&journal);
+    settle(&receipt, &capture);
+    common::check_trace(&capture.frames(), Some(&receipt)).unwrap();
+    let summary = cross_check(&receipt, &capture);
     assert_eq!(summary.journal, JournalState::Complete);
-    let evidence = summary
+    let workspace = summary
         .lines
         .iter()
-        .find(|line| line.line == "evidence")
-        .expect("an evidence line");
+        .find(|l| l.line == "workspace")
+        .unwrap();
     assert!(
-        // exec and fs.write from the §5 observer, limits the wrapper's own.
-        evidence.text.contains("3/6 classes active"),
+        workspace.text.contains("at least 3 modified"),
         "{}",
-        evidence.text
+        workspace.text
     );
-    assert!(
-        evidence
-            .text
-            .contains("fs.deny, net, proxy.net not observed"),
-        "{}",
-        evidence.text
-    );
-
-    // The disagreement arm: a receipt count above what the journal carries
-    // is a claim the journal contradicts.
-    let mut inflated = fixture;
-    inflated.receipt["coverage"]["fs.write"]["observed_count"] = json!(99);
-    let facts = inflated.evidence_facts();
-    assert_eq!(
-        facts["disagree"],
-        json!(["fs.write"]),
-        "the journal cannot back the receipt's count"
-    );
-}
-
-/// The live fallback (§5): an observation client this Mac cannot create —
-/// no Endpoint Security entitlement — never fails the run. The platform
-/// proceeds with observation unavailable: the honest summary carries
-/// `attached = false` and the observed classes `unsupported`, and the
-/// capability answer names `es_not_entitled`. On an entitled Mac the same
-/// call must succeed; both answers are asserted, never a skip.
-#[test]
-fn an_unavailable_observation_client_degrades_the_run_neither_stops_it() {
-    let client = ukai_jail::platform::macos::observe::ObserveClient::new();
-    match client {
-        Ok(client) => {
-            client.delete();
-        }
-        Err(result) => {
-            // The framework's refusal, carried verbatim into the capability
-            // answer's reason (the es_notify probe row's `es_not_entitled`).
-            use ukai_jail::platform::macos::es::EsNewResult;
-            let raw = result.raw();
-            println!("es_new_descendants_client (observation) answered {raw}");
-            let reason = match result {
-                EsNewResult::NotEntitled => "es_not_entitled",
-                _ => "es_unavailable",
-            };
-            // The fallback receipt: attached false, the observed classes
-            // unsupported with null counts, no invented zeros.
-            let summary = CoverageSummary::applied(false);
-            assert!(!summary.attached);
-            for class in OBSERVED_CLASSES {
-                let entry = &summary.classes[&class];
-                assert_eq!(entry.status, SourceStatus::Unsupported);
-                assert_eq!(entry.observed_count, None);
-            }
-            assert!(
-                reason == "es_not_entitled" || reason == "es_unavailable",
-                "the refusal names one of the honest reasons, not {raw}"
-            );
-            if let EsNewResult::NotEntitled = result {
-                assert_eq!(reason, "es_not_entitled");
-            }
-        }
+    assert_eq!(workspace.facts["opened_for_writing"], 0);
+    assert_eq!(workspace.facts["renamed"], 1);
+    let paths: Vec<_> = workspace.facts["paths"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["value"].as_str().unwrap())
+        .collect();
+    assert_eq!(paths, ["leaving", "mode", "modified", "new-link"]);
+    let mut inflated = receipt;
+    inflated["coverage"]["exec"]["observed_count"] = 99.into();
+    let inflated_capture = FrameCapture::new();
+    let mut inflated_journal = inflated_capture.journal();
+    for event in &cases {
+        inflated_journal.record_message(event);
     }
+    settle(&inflated, &inflated_capture);
+    let summary = cross_check(&inflated, &inflated_capture);
+    assert_eq!(
+        summary
+            .lines
+            .iter()
+            .find(|l| l.line == "evidence")
+            .unwrap()
+            .facts["disagree"],
+        json!(["exec"])
+    );
 }
 
-/// The receipt-capture type exists so the mapping tests read real frames;
-/// make sure the trace handle survives to the end of a test (a dropped
-/// `SharedTrace` with no writer would silently take frames with it).
 #[test]
-fn the_capture_keeps_the_stream_alive() {
-    let capture = FrameCapture::new();
-    let temp = common::private_tempdir();
-    let root = workspace(temp.path());
-    std::fs::create_dir(&root).expect("the workspace");
-    let mut journal = ObserveJournal::new(
-        ATTEMPT,
-        Some(capture.trace.clone()),
-        root.as_os_str().as_encoded_bytes(),
+fn an_unsigned_observe_run_refuses_not_entitled() {
+    let signing = Command::new("/usr/bin/codesign")
+        .args(["-d", "--entitlements", ":-"])
+        .arg(std::env::current_exe().unwrap())
+        .output()
+        .unwrap();
+    let info = format!(
+        "{}{}",
+        String::from_utf8_lossy(&signing.stdout),
+        String::from_utf8_lossy(&signing.stderr)
     );
-    journal.record(&obs(ObsKind::Create, 1, &joined(&root, "kept.txt")));
-    drop(journal);
-    let frames = capture.frames();
-    assert_eq!(frames.len(), 1, "the frame reached the sink");
-    assert_eq!(frames[0]["operation"], "fs.create");
-    // And the file on disk holds it whole.
-    let bytes = std::fs::read(&capture.path).expect("the trace reads back");
-    std::io::sink().write_all(&bytes).expect("a sink write");
-    assert!(bytes.ends_with(b"\n"), "frames end on line breaks");
+    assert!(
+        !info.contains("com.apple.developer.endpoint-security.client"),
+        "test requires an independently verified unentitled binary"
+    );
+    let capture = FrameCapture::new();
+    let result = ObserveRun::start(ATTEMPT, capture.trace, b"/w", &[[7; 8]]);
+    assert!(
+        matches!(
+            result,
+            Err(ObserveStartError::Client(
+                ukai_jail::platform::macos::es::EsNewResult::NotEntitled
+            ))
+        ),
+        "unsigned process must refuse, not silently degrade/start"
+    );
+}
+
+fn shim_case(name: &str) {
+    static BINARY: std::sync::OnceLock<(tempfile::TempDir, PathBuf)> = std::sync::OnceLock::new();
+    let (_, binary) = BINARY.get_or_init(|| {
+        let dir = common::private_tempdir();
+        let binary = dir.path().join("shim-synthetic");
+        let source =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("src/platform/macos/observe/synthetic.c");
+        let output = Command::new("/usr/bin/clang")
+            .args(["-std=c11", "-fblocks", "-Wall", "-Wextra", "-Werror"])
+            .arg(source)
+            .args(["-lEndpointSecurity", "-framework", "CoreFoundation", "-o"])
+            .arg(&binary)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        (dir, binary)
+    });
+    let output = Command::new(binary).arg(name).output().unwrap();
+    assert!(
+        output.status.success(),
+        "{name}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+#[test]
+fn shim_counts_unmodified_closes() {
+    shim_case("close");
+}
+#[test]
+fn shim_retains_real_types() {
+    shim_case("types");
+}
+#[test]
+fn shim_joins_directory_names_and_keeps_both_paths() {
+    shim_case("paths");
+}
+#[test]
+fn shim_marks_missing_paths_unknown() {
+    shim_case("unknown");
+}
+#[test]
+fn shim_rejects_truncated_paths() {
+    shim_case("truncated");
+}
+#[test]
+fn shim_counts_overflow_including_final_drops() {
+    shim_case("overflow");
+}
+#[test]
+fn shim_excludes_all_helpers_but_not_the_workload_exec() {
+    shim_case("helpers");
+}
+#[test]
+fn shim_a_late_sync_cannot_complete_the_next_drain() {
+    shim_case("drain");
+}
+#[test]
+fn shim_retains_callback_memory_when_delete_fails() {
+    shim_case("delete");
 }

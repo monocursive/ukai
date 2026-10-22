@@ -398,6 +398,8 @@ const OPENED: u8 = 1;
 const RENAMED: u8 = 2;
 /// A path seen removed.
 const REMOVED: u8 = 4;
+/// A native notification confirmed a modification, not an open.
+const MODIFIED: u8 = 8;
 
 /// Distinct named workspace paths, each with the ways it was seen. A name is
 /// allocated once, the first time it is seen.
@@ -470,6 +472,9 @@ fn written<'f, 'a>(
     let (path, path2) = (fields.path.as_ref(), fields.path2.as_ref());
     match (operation, fields.syscall.as_deref()) {
         ("fs.rename", _) => Some(vec![path, path2]),
+        ("fs.create", _) if fields.action.as_deref() == Some("hard_link_created") => {
+            Some(vec![path2])
+        }
         ("fs.create", Some("link" | "linkat")) => Some(vec![path2]),
         ("fs.create", Some("symlink" | "symlinkat")) => Some(vec![path]),
         ("fs.create", _) if path2.is_some() => None,
@@ -655,7 +660,7 @@ impl Scan {
         if operation == "fs.write"
             && !matches!(
                 fields.action.as_deref(),
-                Some("opened_for_mutation" | "truncated")
+                Some("opened_for_mutation" | "truncated" | "modified" | "metadata_changed")
             )
         {
             return;
@@ -677,6 +682,13 @@ impl Scan {
         let how = match operation {
             "fs.rename" => RENAMED,
             "fs.unlink" => REMOVED,
+            _ if matches!(
+                fields.action.as_deref(),
+                Some("modified" | "metadata_changed" | "hard_link_created" | "created")
+            ) =>
+            {
+                MODIFIED
+            }
             _ => OPENED,
         };
         for path in written.into_iter().flatten() {
@@ -1146,26 +1158,30 @@ impl View<'_> {
         let scope = self.text("/lifetime/verification_scope");
         let boundary = self.text("/lifetime/boundary");
         // J16 (jail-macos.md §4.8): native custody is verified while it
-        // lasts, but no kernel ends the tree, and a lost guardian is the
-        // named residual. Details may be absent; degrade to the plain form.
+        // lasts, but no kernel ends the tree. Both custodians lost is the
+        // residual; a lost guardian alone is a recorded custodian failure. Details may be absent; degrade to the plain form.
         let guardian_lost = self
             .receipt
             .pointer("/lifetime/native/details/custodians/guardian/result")
             .and_then(Value::as_str)
             == Some("lost");
         let survivors = match (tree_empty, boundary, scope) {
-            (Some(true), Some("native_tree"), _) if guardian_lost => {
+            (Some(true), Some("native_tree"), Some("attempt_tree")) if guardian_lost => {
                 parts.push(
                     "survivors: none (verified · native custody, not kernel-bound · guardian lost)"
                         .to_owned(),
                 );
                 "none_verified_native_guardian_lost"
             }
-            (Some(true), Some("native_tree"), _) => {
+            (Some(true), Some("native_tree"), Some("attempt_tree")) => {
                 parts.push(
                     "survivors: none (verified · native custody, not kernel-bound)".to_owned(),
                 );
                 "none_verified_native"
+            }
+            (_, Some("native_tree"), _) => {
+                parts.push("survivors: NOT verified".to_owned());
+                "not_verified"
             }
             (Some(true), _, Some("registered_boundary")) => {
                 parts.push("survivors: none (verified, registered cgroup only)".to_owned());
@@ -1238,10 +1254,11 @@ impl View<'_> {
         let observe_off = self.text("/policy/observe") == Some("off");
         let empty = Scan::default();
         let scan = self.scan.unwrap_or(&empty);
-        let (opened, renamed, removed) = (
+        let (opened, renamed, removed, modified) = (
             scan.paths.count(OPENED),
             scan.paths.count(RENAMED),
             scan.paths.count(REMOVED),
+            scan.paths.count(MODIFIED),
         );
         let text = match write {
             Claim::NotObserved if observe_off => "not observed (--observe off)".to_owned(),
@@ -1259,7 +1276,11 @@ impl View<'_> {
                         noun(opened, "path", "paths")
                     ));
                 }
-                for (n, what) in [(renamed, "in renames"), (removed, "removed")] {
+                for (n, what) in [
+                    (modified, "modified"),
+                    (renamed, "in renames"),
+                    (removed, "removed"),
+                ] {
                     if n > 0 {
                         seen.push(format!("{} {what}", write.number(n)));
                     }

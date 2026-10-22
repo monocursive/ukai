@@ -346,15 +346,19 @@ def status_line(receipt, frames, scanned):
     scope = string(receipt, "lifetime", "verification_scope")
     boundary = string(receipt, "lifetime", "boundary")
     # J16 (jail-macos.md §4.8): native custody is verified while it lasts,
-    # but no kernel ends the tree, and a lost guardian is the named residual.
+    # but no kernel ends the tree. Both custodians lost is the residual;
+    # a lost guardian alone is a recorded custodian failure.
     # Details may be absent; degrade to the plain form.
     guardian_lost = pointer(receipt, "lifetime", "native", "details", "custodians", "guardian", "result") == "lost"
-    if tree_empty is True and boundary == "native_tree" and guardian_lost:
+    if tree_empty is True and boundary == "native_tree" and scope == "attempt_tree" and guardian_lost:
         parts.append("survivors: none (verified · native custody, not kernel-bound · guardian lost)")
         survivors = "none_verified_native_guardian_lost"
-    elif tree_empty is True and boundary == "native_tree":
+    elif tree_empty is True and boundary == "native_tree" and scope == "attempt_tree":
         parts.append("survivors: none (verified · native custody, not kernel-bound)")
         survivors = "none_verified_native"
+    elif boundary == "native_tree":
+        parts.append("survivors: NOT verified")
+        survivors = "not_verified"
     elif tree_empty is True and scope == "registered_boundary":
         parts.append("survivors: none (verified, registered cgroup only)")
         survivors = "none_verified_registered_boundary"
@@ -392,7 +396,7 @@ def written(operation, fields):
     path, path2, syscall = fields.get("path"), fields.get("path2"), fields.get("syscall")
     if operation == "fs.rename":
         return [path, path2]
-    if operation == "fs.create" and syscall in ("link", "linkat"):
+    if operation == "fs.create" and (syscall in ("link", "linkat") or fields.get("action") == "hard_link_created"):
         return [path2]
     if operation == "fs.create" and syscall in ("symlink", "symlinkat"):
         return [path]
@@ -409,7 +413,7 @@ def unnamed_path(path):
 
 
 def workspace_line(receipt, frames, claims, state, size):
-    opened, renamed, removed, named, unnamed, refused = set(), set(), set(), {}, 0, 0
+    opened, renamed, removed, modified, named, unnamed, refused = set(), set(), set(), set(), {}, 0, 0
     for frame in frames:
         fields, operation = frame.get("fields") or {}, frame.get("operation")
         if frame.get("source") != "audit":
@@ -418,7 +422,7 @@ def workspace_line(receipt, frames, claims, state, size):
             refused += 1
         if operation not in WRITE_OPERATIONS or (frame.get("outcome") or {}).get("ok") is not True:
             continue
-        if operation == "fs.write" and fields.get("action") not in ("opened_for_mutation", "truncated"):
+        if operation == "fs.write" and fields.get("action") not in ("opened_for_mutation", "truncated", "modified", "metadata_changed"):
             continue
         paths = written(operation, fields)
         if paths is None or any(unnamed_path(path) for path in paths):
@@ -429,7 +433,8 @@ def workspace_line(receipt, frames, claims, state, size):
                 continue
             key = ("t", value) if isinstance(value, str) else ("b", value["data"])
             named[key] = value if isinstance(value, str) else {"encoding": "base64", "data": value["data"]}
-            {"fs.rename": renamed, "fs.unlink": removed}.get(operation, opened).add(key)
+            other = modified if fields.get("action") in ("modified", "metadata_changed", "hard_link_created", "created") else opened
+            {"fs.rename": renamed, "fs.unlink": removed}.get(operation, other).add(key)
     write, deny = claims["fs.write"], claims["fs.deny"]
     observe_off = string(receipt, "policy", "observe") == "off"
     if write == "not_observed":
@@ -442,7 +447,7 @@ def workspace_line(receipt, frames, claims, state, size):
         seen = []
         if opened or write == "exact":
             seen.append(f"{number(write, len(opened))} {noun(len(opened), 'path', 'paths')} opened for writing")
-        for n, what in [(len(renamed), "in renames"), (len(removed), "removed")]:
+        for n, what in [(len(modified), "modified"), (len(renamed), "in renames"), (len(removed), "removed")]:
             if n:
                 seen.append(f"{number(write, n)} {what}")
         text = ", ".join(seen) if seen else "none recorded (a lower bound)"
