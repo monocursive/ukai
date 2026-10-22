@@ -666,6 +666,13 @@ composed from the resolved policy snapshot:
   macOS: an explicit request refuses at resolving
   (`unsupported_platform`, key `limits.*`), and preferred limits are
   recorded as not applied, exactly as v1 records a missing controller.
+  The development native wall row uses `both-custodians-continuous-clock`
+  and records `hit=false` when the stop is observed before the deadline,
+  `hit=true` on a confirmed expiry, or `hit=null` when the deadline elapsed
+  without an observed trigger. In the null case, limits coverage is
+  `degraded`, with a null observed count and a `wall_hit_unobserved` gap.
+  The guardian record has no stop trigger; adding it is a known follow-up
+  ([jail-macos §4.8](jail-macos.md#48-what-the-receipt-and-the-summary-say)).
 - **Observation**: there is no proved closed-set observer on macOS —
   `ptrace` there is not the Linux observer. macOS 27's
   `es_new_descendants_client` removes root and TCC requirements but retains

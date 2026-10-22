@@ -4339,11 +4339,20 @@
     ]
   },
   {
-    "name": "J16 enforced native receipt has no separate syscall filter or network-none bridge",
+    "name": "Previously accepted native network-none null mechanism remains valid",
     "schema": "jail-receipt",
     "base": "examples/receipt-macos-native.json",
     "valid": true,
-    "changes": []
+    "changes": [
+      {
+        "path": [
+          "applied",
+          "network",
+          "mechanism"
+        ],
+        "value": null
+      }
+    ]
   },
   {
     "name": "Linux enforced receipt still requires a syscall filter",
@@ -4389,6 +4398,14 @@
           "mode"
         ],
         "value": "proxy"
+      },
+      {
+        "path": [
+          "applied",
+          "network",
+          "mechanism"
+        ],
+        "value": null
       }
     ]
   },

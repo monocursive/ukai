@@ -433,6 +433,10 @@ when its stop ends, and sends the same result on B:
 - `sequence_start: "unverified"` on every record, disclosing the
   pre-first-message residual even when `drained` is true.
 
+The guardian record has no stop trigger. Adding that evidence is a known
+follow-up: after the deadline, a drained record alone cannot establish a
+wall hit when the supervisor did not observe the trigger (§4.8).
+
 The record is how `gc` learns how a stop ended once the supervisor is gone.
 The workload cannot reach it: the attempt directory is outside every
 child-visible root, and Seatbelt denies it.
@@ -652,9 +656,17 @@ events" Apple names, and it is why the boundary is `native_tree`.
 - `applied.syscalls` is null: the backend does not emit a separate syscall
   filter record. `applied.filesystem.protected_coverage` is
   `existing_and_root`; `all_descendants` is unsupported.
+- For network mode `none`, `applied.network.mechanism` is
+  `seatbelt-deny-network`: the profile emits `(deny network*)` with no
+  production allows.
 - The wall row is required and applied with mechanism
   `both-custodians-continuous-clock`; preferred resource ceilings remain
-  unapplied. A confirmed wall hit is recorded in the final limits.
+  unapplied. The final row records `hit=false` when the stop is observed
+  before the deadline, `hit=true` on a confirmed expiry, or `hit=null` when
+  the deadline elapsed without an observed trigger. The null case records
+  limits coverage `degraded`, a null observed count and a
+  `wall_hit_unobserved` gap. The guardian record has no stop trigger; adding
+  it is a known follow-up. Elapsed time alone does not establish a hit.
 - Observation is off: no attached audit observer and no audit counts.
   Wrapper limit facts remain available without an audit observer or proxy.
 - `process.identity.kind` is `macos_audit_token`, with `pid`, `pidversion`,

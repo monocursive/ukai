@@ -206,10 +206,15 @@
 #   is narrowed, no shared field changes meaning, and no identifier is bumped.
 #   jail-receipt.schema.json is additively widened under ukai.jail.receipt/1:
 #   an enforced macOS record may have null applied.syscalls and a null network
-#   mechanism under network none, as the native producer emits. Linux still
-#   requires both mechanism records; proxy mode still requires its mechanism.
-#   Previous native records with those objects remain valid. Validation cases
-#   cover the new native shape, retained Linux/proxy refusals and old shapes.
+#   mechanism under network none, preserving the earlier development shape.
+#   Linux still requires both mechanism records; proxy mode still requires its
+#   mechanism. Previous native records with those objects remain valid.
+#   Validation cases cover the native shapes and retained Linux/proxy refusals.
+# - 2026-10-23 final integration re-blessed examples/receipt-macos-native.json
+#   in place: network none now records seatbelt-deny-network, matching the
+#   integrated producer and its deny-network profile. The example remains
+#   illustrative, not live evidence. The schema still accepts the earlier null
+#   mechanism; no schema, identifier or shared field meaning is changed.
 schema = "ukai.jail.frozen-schemas/1"
 milestone = "milestone-1"
 
@@ -322,7 +327,7 @@ sha256 = "80813b00687e0a131a083df0f98a25dfc2aff2dcdba974a0436d80b54478ba31"
 [[frozen_artifact]]
 file = "examples/receipt-macos-native.json"
 identifiers = ["ukai.jail.receipt/1", "ukai.event/1", "ukai.jail.control/1"]
-sha256 = "105f7be2e5bee1e7bfc2376983e8ffce2ae2fde93c7bff1f9b48b2bfce5ff497"
+sha256 = "1e3955c37d6ee9183ff94e229da0f09a097574d529e495068fad4d25f19a0202"
 
 # an instance the semantic corpus changes
 [[frozen_artifact]]

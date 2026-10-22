@@ -260,6 +260,7 @@ class MacosContract(unittest.TestCase):
         self.assertNotIn("closed_set_observation", value["policy"]["requirements"])
         self.assertEqual(value["credentials"], [])
         self.assertIsNone(value["applied"]["syscalls"])
+        self.assertEqual(value["applied"]["network"]["mechanism"], "seatbelt-deny-network")
         self.assertEqual(value["applied"]["filesystem"]["protected_coverage"], "existing_and_root")
         details = value["lifetime"]["native"]["details"]
         self.assertEqual(details["native_execution"], "dev")
@@ -278,6 +279,17 @@ class MacosContract(unittest.TestCase):
             self.assertEqual(value["coverage"][name], dict(status="unsupported", sources=[], observed_count=None, gaps=[]))
         self.validators["jail-receipt"].validate(value)
         self.assertEqual(self.module.semantic_receipt(value), [])
+
+    def test_native_wall_hit_states_and_guardian_followup_are_documented(self):
+        for path in ["docs/specs/jail-macos.md", "docs/specs/jail-v2.md"]:
+            with self.subTest(path=path):
+                text = " ".join(read(path).split())
+                for fact in ["`hit=false`", "stop is observed before the deadline",
+                             "`hit=true`", "confirmed expiry", "`hit=null`",
+                             "deadline elapsed without an observed trigger",
+                             "`degraded`", "`wall_hit_unobserved`",
+                             "guardian record has no stop trigger", "known follow-up"]:
+                    self.assertIn(fact, text)
 
     def test_phase2_native_shape_widening_keeps_linux_and_proxy_requirements(self):
         native = record("examples/receipt-macos-native.json")

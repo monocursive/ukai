@@ -46,7 +46,7 @@
     },
     "network": {
       "mode": "none",
-      "mechanism": null,
+      "mechanism": "seatbelt-deny-network",
       "allowed_hosts": []
     },
     "syscalls": null,
