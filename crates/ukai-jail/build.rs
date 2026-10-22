@@ -150,6 +150,14 @@ fn compile_es_shim(target: &str) {
         objects.push(object);
     }
     let archive = out.join("libukai_es_shim.a");
+    // `ar crs` adds to an existing archive, and OUT_DIR survives build.rs
+    // changes: an earlier build's members (the `cc` crate's hashed objects)
+    // would otherwise stay in it and link twice.
+    match std::fs::remove_file(&archive) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => panic!("remove stale Darwin ES shim archive: {error}"),
+    }
     let mut command = Command::new(archiver);
     command.arg("crs").arg(&archive).args(&objects);
     checked_command(&mut command, "archive Darwin ES shim");
