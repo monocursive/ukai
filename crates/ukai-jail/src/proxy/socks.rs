@@ -145,6 +145,17 @@ pub fn request_with_auth(
     deadline: Instant,
     auth: Option<&ProxyAuth>,
 ) -> Result<Destination, Reason> {
+    request_reporting_auth(stream, deadline, auth, || {})
+}
+
+/// Reports the verified secret before replying or reading the command, so
+/// a later refusal or disconnect still belongs to the authenticated attempt.
+pub(super) fn request_reporting_auth(
+    stream: &UnixStream,
+    deadline: Instant,
+    auth: Option<&ProxyAuth>,
+    authenticated: impl FnOnce(),
+) -> Result<Destination, Reason> {
     let mut head = [0; 2];
     read(stream, &mut head, deadline)?;
     if head[0] != VERSION || head[1] == 0 {
@@ -181,6 +192,9 @@ pub fn request_with_auth(
         let mut password = vec![0; usize::from(length[0])];
         read(stream, &mut password, deadline)?;
         let accepted = auth.matches(&name, &password);
+        if accepted {
+            authenticated();
+        }
         let status = if accepted { AUTH_SUCCESS } else { AUTH_FAILURE };
         write_all(stream, &[AUTH_VERSION, status])?;
         if !accepted {

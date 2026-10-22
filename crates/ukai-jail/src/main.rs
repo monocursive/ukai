@@ -1610,7 +1610,14 @@ fn run(context: &Context, args: &RunArgs, channels: supervisor::OperatorChannels
             };
         let platform = match ukai_jail::platform::macos::vm::VmPlatform::new(&data_dir) {
             Ok(platform) => platform,
-            Err(error) => return fail(&error),
+            Err(mut error) => {
+                // Discovery/verification failures describe host prerequisites,
+                // not malformed CLI or policy input. No attempt exists yet.
+                error.code = ukai_jail::records::ErrorCode::BackendUnavailable;
+                error.stage = ukai_jail::records::ErrorStage::Probing;
+                error.remediation = ukai_jail::records::Remediation::HostSetup;
+                return fail(&error);
+            }
         };
         vm_context = supervisor::Context {
             platform: Box::new(platform),

@@ -323,6 +323,17 @@ pub fn parse_request_with_auth(
     default_port: u16,
     auth: Option<&ProxyAuth>,
 ) -> Result<Request, Reason> {
+    parse_request_reporting_auth(head, default_port, auth, || {})
+}
+
+/// Attributes a connection as soon as its secret verifies, even when later
+/// request validation refuses it. The public parser keeps its old API.
+pub(super) fn parse_request_reporting_auth(
+    head: &[u8],
+    default_port: u16,
+    auth: Option<&ProxyAuth>,
+    authenticated: impl FnOnce(),
+) -> Result<Request, Reason> {
     let mut lines = head_lines(head)?;
     let line = request_line(lines.next().ok_or(Reason::MalformedRequest)?)?;
     let fields = fields(lines)?;
@@ -330,6 +341,7 @@ pub fn parse_request_with_auth(
     // unauthenticated client learns nothing but the refusal.
     if let Some(auth) = auth {
         authorize(&fields, auth)?;
+        authenticated();
     }
     let hosts = fields.named("host");
     if hosts.len() > 1 {

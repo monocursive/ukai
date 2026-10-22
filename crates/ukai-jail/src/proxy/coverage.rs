@@ -151,12 +151,93 @@ pub fn coverage(account: &Account) -> ClassSummary {
     }
 }
 
+/// Coverage for a shared bridge. Pre-authentication refusals (including
+/// overload) may belong to the attempt but cannot safely emit its events.
+/// Count that uncertainty as a gap, never as complete observation or as a
+/// claim that an unauthenticated caller was the workload.
+#[cfg(any(target_os = "macos", test))]
+#[must_use]
+pub fn coverage_with_unattributable(account: &Account, unattributable: u64) -> ClassSummary {
+    let mut class = coverage(account);
+    if unattributable > 0 {
+        class.status = SourceStatus::Degraded;
+        class.observed_count = None;
+        class.gaps.push(Gap {
+            classes: vec![CoverageClass::ProxyNet.as_str().to_owned()],
+            source: "proxy".to_owned(),
+            start_ns: "0".to_owned(),
+            end_ns: Some(account.now.to_string()),
+            reason: "proxy_unattributable".to_owned(),
+            lost_count: Some(unattributable),
+        });
+    }
+    class
+}
+
 /// Applies [`coverage`] of `account` to a summary's `proxy.net` class, the
 /// settlement step every platform shares.
 #[cfg(target_os = "macos")]
+#[allow(
+    dead_code,
+    reason = "Compatibility entry point for bridges without authentication"
+)]
 pub fn apply_coverage(summary: &mut CoverageSummary, account: &Account) {
-    let class = coverage(account);
+    apply_coverage_with_unattributable(summary, account, 0);
+}
+
+/// Applies shared-bridge coverage, including accepted connections refused
+/// before attribution, to the attempt summary.
+#[cfg(target_os = "macos")]
+pub fn apply_coverage_with_unattributable(
+    summary: &mut CoverageSummary,
+    account: &Account,
+    unattributable: u64,
+) {
+    let class = coverage_with_unattributable(account, unattributable);
     summary.sources.proxy = class.status;
     summary.gaps.extend(class.gaps.iter().cloned());
     summary.classes.insert(CoverageClass::ProxyNet, class);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pre_auth_refusals_degrade_coverage_without_inventing_attempt_events() {
+        let account = Account {
+            delivered: 2,
+            lost: 0,
+            resolver_refused: 0,
+            missing: Some(0),
+            stopped_at: None,
+            now: 10,
+        };
+        let class = coverage_with_unattributable(&account, 3);
+        assert_eq!(class.status, SourceStatus::Degraded);
+        assert_eq!(class.observed_count, None);
+        assert_eq!(class.gaps.len(), 1);
+        assert_eq!(class.gaps[0].reason, "proxy_unattributable");
+        assert_eq!(class.gaps[0].lost_count, Some(3));
+        assert_eq!(class.gaps[0].classes, ["proxy.net"]);
+        assert_eq!(
+            coverage_with_unattributable(&account, 0),
+            coverage(&account)
+        );
+        let class = coverage_with_unattributable(
+            &Account {
+                lost: 1,
+                missing: Some(2),
+                ..account
+            },
+            3,
+        );
+        assert_eq!(
+            class.gaps.len(),
+            2,
+            "drain loss and attribution loss are separate counts"
+        );
+        assert_eq!(class.gaps[0].lost_count, Some(3));
+        assert_eq!(class.gaps[1].lost_count, Some(3));
+    }
 }

@@ -441,10 +441,11 @@ fn visit(
         drop(lease);
         return entry;
     }
-    // J16 (jail-macos.md §4.9): the guardian's custodian record, read
-    // tolerantly — absent, unreadable, corrupt or of another shape is as
-    // good as absent.
-    let guardian_record = state::read_capped(&guardian_record_path(&dir), RECORD_MAX)
+    // Only a confirmed absent path agrees with proof that preparation was
+    // never entered. Unreadable/malformed records cannot prove no guardian.
+    let guardian_bytes = state::read_capped(&guardian_record_path(&dir), RECORD_MAX);
+    let guardian_record_absent = matches!(guardian_bytes, Ok(None));
+    let guardian_record = guardian_bytes
         .ok()
         .flatten()
         .and_then(|bytes| parse_guardian_record(&bytes));
@@ -457,6 +458,7 @@ fn visit(
         owner: None,
         leaf: None,
         guardian_record,
+        guardian_record_absent,
         guardian: None,
         abandon: pass.abandon,
     };

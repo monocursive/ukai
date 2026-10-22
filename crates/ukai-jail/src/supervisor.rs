@@ -1045,13 +1045,14 @@ fn select_base(
         )
         .with_key_path("extends"));
     }
-    let delta = config::delta_from_sections(
+    let mut delta = config::delta_from_sections(
         "",
         &file.filesystem,
         &file.network,
         &file.limits,
         &file.observation,
     )?;
+    delta.lifetime_boundary = file.lifetime_boundary;
     let name = path
         .file_stem()
         .map(|stem| stem.to_string_lossy().into_owned())
@@ -1108,13 +1109,14 @@ fn operator_layer(
     operator_jail: &config::JailSection,
     config_dir: &Path,
 ) -> Result<Layer, JailError> {
-    let delta = config::delta_from_sections(
+    let mut delta = config::delta_from_sections(
         "jail.",
         &operator_jail.filesystem,
         &operator_jail.network,
         &operator_jail.limits,
         &operator_jail.observation,
     )?;
+    delta.lifetime_boundary = operator_jail.lifetime_boundary;
     Ok(Layer {
         origin: LayerOrigin::OperatorConfig("config.toml".to_owned()),
         // §6.2: apply paths relative to the file containing them, and
@@ -1194,13 +1196,14 @@ fn project_layer(workspace: &Path) -> Result<Option<Layer>, JailError> {
         return Ok(None);
     };
     config::check_schema("jail.schema", section.schema.as_deref())?;
-    let delta = config::delta_from_sections(
+    let mut delta = config::delta_from_sections(
         "jail.",
         &section.filesystem,
         &section.network,
         &section.limits,
         &section.observation,
     )?;
+    delta.lifetime_boundary = section.lifetime_boundary;
     Ok(Some(Layer {
         origin: LayerOrigin::ProjectConfig("ukai.toml".to_owned()),
         base_dir: Some(os_bytes(workspace)),
@@ -1908,15 +1911,35 @@ fn first_unsatisfied(
                 "the uncontained profile cannot apply `{requirement}`; a contained profile can"
             ),
         ),
-        // J18 (jail-macos.md §6): native macOS cannot answer the kernel-bound
-        // lifetime; the `--vm` tier can.
+        // The native tier cannot answer owner loss, and this build's VM
+        // policy enforcement is unavailable too. No actionable VM fallback
+        // exists merely by adding the flag.
         crate::capability::REASON_OWNER_LOSS_REQUIRES_VM => (
             ErrorCode::MissingCapability,
-            Remediation::Configuration,
+            Remediation::Unsupported,
             format!(
-                "`{requirement}` needs a kernel-bound lifetime, which this platform's own \
-                 boundary does not provide: run with --vm, whose guest jail has a pid_namespace"
+                "`{requirement}` needs a kernel-bound lifetime, which native macOS does not \
+                 provide; VM policy enforcement is unavailable in this build"
             ),
+        ),
+        crate::capability::REASON_ES_NOT_ENTITLED => (
+            ErrorCode::MissingCapability,
+            Remediation::Unsupported,
+            format!(
+                "`{requirement}` is unavailable: this binary lacks the Endpoint Security entitlement ({reason})"
+            ),
+        ),
+        crate::capability::REASON_ES_TOO_MANY_CLIENTS => (
+            ErrorCode::MissingCapability,
+            Remediation::Retry,
+            format!(
+                "`{requirement}` is temporarily unavailable: Endpoint Security client capacity is exhausted ({reason})"
+            ),
+        ),
+        reason if reason.starts_with("vm:") => (
+            ErrorCode::MissingCapability,
+            Remediation::Unsupported,
+            format!("`{requirement}` is unavailable in this build's VM tier ({reason})"),
         ),
         _ => (
             ErrorCode::MissingCapability,
@@ -6316,6 +6339,87 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn es_refusals_distinguish_unsupported_entitlement_and_retryable_capacity() {
+        use crate::capability::{CapabilityScope, CapabilityStatus};
+        let actual: Vec<_> = ["es_not_entitled", "es_too_many_clients"]
+            .into_iter()
+            .map(|reason| {
+                first_unsatisfied(
+                    &[Requirement::TreeTermination],
+                    &[Capability {
+                        name: "tree_termination".into(),
+                        status: CapabilityStatus::Unavailable,
+                        scope: CapabilityScope::Tree,
+                        mechanism: None,
+                        reason_code: Some(reason.into()),
+                        measured_at: None,
+                        evidence_ref: None,
+                    }],
+                )
+                .unwrap()
+                .remediation
+            })
+            .collect();
+        assert_eq!(actual, [Remediation::Unsupported, Remediation::Retry]);
+    }
+
+    #[test]
+    fn native_and_vm_unavailability_have_actionable_remediation() {
+        use crate::capability::{CapabilityScope, CapabilityStatus};
+        for (reason, remediation) in [
+            (
+                crate::capability::REASON_OWNER_LOSS_REQUIRES_VM,
+                Remediation::Unsupported,
+            ),
+            (
+                "vm:profile-unsupported:offline-tool-and-build-only",
+                Remediation::Unsupported,
+            ),
+            (
+                "vm:launch-and-vault-credentials-not-implemented",
+                Remediation::Unsupported,
+            ),
+            (
+                "vm:network-unavailable:no-guest-nat-or-proxy",
+                Remediation::Unsupported,
+            ),
+            (
+                "vm:deny-read-not-supported-by-workspace-copy",
+                Remediation::Unsupported,
+            ),
+            (
+                "vm:policy-unavailable:live-workspace-share-and-guest-measurements-not-implemented",
+                Remediation::Unsupported,
+            ),
+        ] {
+            let error = first_unsatisfied(
+                &[Requirement::TreeTermination],
+                &[Capability {
+                    name: "tree_termination".into(),
+                    status: CapabilityStatus::Unavailable,
+                    scope: CapabilityScope::Tree,
+                    mechanism: None,
+                    reason_code: Some(reason.into()),
+                    measured_at: None,
+                    evidence_ref: None,
+                }],
+            )
+            .unwrap();
+            assert_eq!(error.remediation, remediation, "{reason}: {error:?}");
+            assert_eq!(error.exit_code(), 125);
+            assert_eq!(error.stage, ErrorStage::Probing);
+            if reason == crate::capability::REASON_OWNER_LOSS_REQUIRES_VM {
+                assert!(
+                    error.message.contains("unavailable in this build"),
+                    "{}",
+                    error.message
+                );
+                assert!(!error.message.contains("run with --vm"));
+            }
+        }
     }
 
     /// SUP-10: a stop records the cause of the very reason it sends, a

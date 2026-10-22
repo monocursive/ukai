@@ -1709,7 +1709,7 @@ fn an_agent_launch_profile_is_refused_before_staging_as_plain_agent_is() {
     };
     #[cfg(target_os = "macos")]
     let (code, remediation) = if gate_enabled {
-        (ErrorCode::MissingCapability, Remediation::HostSetup)
+        (ErrorCode::MissingCapability, Remediation::Unsupported)
     } else {
         (ErrorCode::UnsupportedPlatform, Remediation::Unsupported)
     };

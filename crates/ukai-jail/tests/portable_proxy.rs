@@ -3228,3 +3228,77 @@ fn s8_p7_http_and_socks_handlers_enforce_the_configured_auth() {
     );
     assert!(results.iter().all(|r| r.reason == Reason::HostNotAllowed));
 }
+
+#[test]
+fn authenticated_parse_refusals_keep_their_attempt_results() {
+    let proxy = start_with_auth(
+        &["example.com:80".to_owned()],
+        Budgets::DEFAULT,
+        fixtures("", &[]),
+        Some(fixed_auth()),
+    );
+    let mut client = proxy.connect();
+    write!(client, "GET http://example.com/ HTTP/1.1\r\nHost: other.example\r\nProxy-Authorization: Basic dWthaTpzZWNyZXQ=\r\n\r\n").unwrap();
+    let mut response = String::new();
+    client.read_to_string(&mut response).unwrap();
+    assert!(response.starts_with("HTTP/1.1 400"), "{response}");
+    let mut socks = proxy.connect();
+    assert_eq!(writes_greeting(&mut socks, &[2]), [5, 2]);
+    socks.write_all(&userpass_frame("ukai", "secret")).unwrap();
+    let mut reply = [0; 2];
+    socks.read_exact(&mut reply).unwrap();
+    assert_eq!(reply, [1, 0]);
+    socks.write_all(&[5, 2, 0, 1, 127, 0, 0, 1, 0, 80]).unwrap();
+    let mut rest = Vec::new();
+    socks.read_to_end(&mut rest).unwrap();
+    assert_eq!(rest[1], 2);
+    let (summary, results) = proxy.stop(WAIT);
+    assert_eq!(summary.unattributable, 0);
+    assert_eq!(summary.results_emitted, 2);
+    assert_eq!(
+        results.iter().map(|r| r.reason).collect::<Vec<_>>(),
+        [Reason::HostMismatch, Reason::UnsupportedRequest]
+    );
+    assert!(summary.complete());
+}
+
+#[test]
+fn pre_auth_capacity_refusals_are_counted_for_shared_bridge_coverage() {
+    let proxy = start_with_auth(
+        &[],
+        Budgets {
+            max_connections: 1,
+            ..Budgets::DEFAULT
+        },
+        fixtures("", &[]),
+        Some(fixed_auth()),
+    );
+    // Hold the one admitted slot after authenticating, before its command.
+    let mut held = proxy.connect();
+    assert_eq!(writes_greeting(&mut held, &[2]), [5, 2]);
+    held.write_all(&userpass_frame("ukai", "secret")).unwrap();
+    let mut reply = [0; 2];
+    held.read_exact(&mut reply).unwrap();
+    assert_eq!(reply, [1, 0]);
+    let mut excess = proxy.connect();
+    // This is the attempt's credential, but the capacity refusal cannot
+    // afford to parse it. Its uncertainty must survive in coverage.
+    let _ = excess.write_all(
+        b"CONNECT example.com:443 HTTP/1.1\r\nProxy-Authorization: Basic dWthaTpzZWNyZXQ=\r\n\r\n",
+    );
+    let mut response = String::new();
+    excess.read_to_string(&mut response).unwrap();
+    assert!(response.starts_with("HTTP/1.1 503"), "{response}");
+    drop(held);
+    let (summary, results) = proxy.stop(WAIT);
+    assert_eq!(summary.unattributable, 1);
+    assert_eq!(
+        results.len(),
+        1,
+        "the authenticated disconnect is attributable"
+    );
+    assert!(
+        summary.complete(),
+        "the drain finished, despite the attribution gap"
+    );
+}

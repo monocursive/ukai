@@ -449,6 +449,7 @@ fn doctor_names_unverified_ends_and_nothing_else() {
         (reaped_pid(), 0),
         gc::boot_session().unwrap().as_str(),
     );
+    guardian_record(&dir, false);
     let (settled, settled_dir) = fresh(&fixture);
     claim(&settled_dir, (reaped_pid(), gc::boot_session().unwrap(), 1));
     // A released custody: gc_abandoned in jail state.
@@ -567,5 +568,91 @@ fn s3_g5_token_kill_really_signals_and_a_stale_token_does_not() {
             "successful token kill left the child alive"
         );
         std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn abandon_without_a_guardian_identity_fails_and_doctor_advises_reboot() {
+    for contents in [
+        None,
+        Some(b"not json".as_slice()),
+        Some(b"{\"schema\":\"ukai.jail.guardian-record/1\"}".as_slice()),
+    ] {
+        let fixture = Fixture::new();
+        let (id, dir) = fresh(&fixture);
+        claim(&dir, (reaped_pid(), gc::boot_session().unwrap(), 1));
+        receipt(&dir, (reaped_pid(), 0), &gc::boot_session().unwrap());
+        if let Some(contents) = contents {
+            std::fs::write(dir.root().join("guardian.json"), contents).unwrap();
+        }
+        let before = std::fs::read(dir.state_path()).unwrap();
+        let output = fixture.binary(&["gc", "--abandon", &id]);
+        assert_eq!(
+            output.status.code(),
+            Some(1),
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert_eq!(std::fs::read(dir.state_path()).unwrap(), before);
+        let doctor = fixture.binary(&["doctor"]);
+        let stderr = String::from_utf8_lossy(&doctor.stderr);
+        let line = stderr
+            .lines()
+            .find(|line| line.contains(&format!("attempt {id} ended unverified")))
+            .unwrap();
+        assert!(line.contains("reboot"), "{line}");
+        assert!(!line.contains("gc --abandon"), "{line}");
+    }
+}
+
+#[test]
+fn pre_prepare_native_and_vm_refusals_settle_without_a_guardian() {
+    for (guest, abandon) in [(false, false), (false, true), (true, false), (true, true)] {
+        let fixture = Fixture::new();
+        let (id, dir) = fresh(&fixture);
+        claim(&dir, (reaped_pid(), gc::boot_session().unwrap(), 1));
+        receipt(&dir, (reaped_pid(), 0), &gc::boot_session().unwrap());
+        let mut refused = read_json(&dir.receipt_path());
+        refused["phase"] = json!("refused");
+        refused["process"] = Value::Null;
+        refused["exec_observed"] = json!(false);
+        refused["lifetime"]["boundary"] = json!("pending");
+        refused["lifetime"]["integrity"] = json!("pending");
+        refused["lifetime"]["native"] = Value::Null;
+        refused["errors"] = json!([{"code":"missing_capability", "stage":"probing", "remediation_category":"unsupported", "message":"unavailable"}]);
+        refused["platform"]["os"] = json!(if guest { "linux" } else { "macos" });
+        json_file(&dir.receipt_path(), &refused);
+        json_file(
+            &dir.policy_path(),
+            &json!({"snapshot": {"roots": {"scratch": {"kind": "managed"}}}}),
+        );
+        private_dir(&dir.root().join(state::SCRATCH_NAME));
+        std::fs::write(
+            dir.root().join(state::SCRATCH_NAME).join("file"),
+            b"leftover",
+        )
+        .unwrap();
+        let output = if abandon {
+            fixture.binary(&["gc", "--abandon", &id])
+        } else {
+            fixture.binary(&["gc"])
+        };
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert!(
+            actions(&dir).contains(&"gc_finished".to_owned()),
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert!(!dir.root().join(state::SCRATCH_NAME).exists());
+        assert!(
+            !actions(&dir).contains(&"gc_abandoned".to_owned()),
+            "no tree is settled, never labelled abandoned"
+        );
+        assert_eq!(read_json(&dir.receipt_path()), refused);
     }
 }

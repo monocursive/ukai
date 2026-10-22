@@ -21,8 +21,12 @@ pub struct Facts {
     /// The leaf probe, once [`Next::ProbeLeaf`] was answered.
     pub leaf: Option<LeafProbe>,
     /// J16 (jail-macos.md §4.9): the guardian's custodian record
-    /// (`guardian.json`), read tolerantly — absent or corrupt means absent.
+    /// (`guardian.json`), read tolerantly: `None` when no usable record was
+    /// read. `guardian_record_absent` distinguishes absence from read failure.
     pub guardian_record: Option<GuardianRecord>,
+    /// The record path was confirmed absent, not unreadable or malformed.
+    /// Only this absence can agree with a refusal before preparation.
+    pub guardian_record_absent: bool,
     /// The guardian's liveness, once [`Next::ProbeGuardian`] was answered.
     pub guardian: Option<Liveness>,
     /// The operator ran `gc --abandon ATTEMPT` for this attempt: the one
@@ -164,7 +168,8 @@ pub struct Decision {
     /// nothing was ever charged to a tree and no record claims otherwise.
     /// Only this combination may clean vendor state without a verified
     /// leaf: a receipt that exists (even one claiming an unverified tree)
-    /// keeps the conservative retention.
+    /// keeps the conservative retention. On macOS this also covers a
+    /// refusal before preparation with a confirmed absent guardian record.
     pub tree_never_existed: bool,
     /// J16 (jail-macos.md §4.9): the custody step, on macOS.
     pub custody: CustodyStep,
@@ -269,7 +274,7 @@ fn decide_macos(
 ) -> Next {
     // Nothing on this platform keeps an execution cgroup; the generic
     // cgroup steps do not apply.
-    let no_cgroup = CgroupStep::Settled("this platform keeps no execution cgroup".to_owned());
+    let no_cgroup = CgroupStep::Settled("no separately removable execution boundary".to_owned());
     // The attempt is retained whole while either custodian lives. The
     // supervisor's liveness is the verdict; the guardian's is asked here.
     if facts
@@ -300,6 +305,22 @@ fn decide_macos(
             Liveness::Gone | Liveness::Reused | Liveness::Exited => {}
         }
     }
+    if facts.guardian_record_absent
+        && facts.guardian_record.is_none()
+        && receipt.is_some_and(|receipt| receipt.refused_before_prepare)
+    {
+        // The supervisor never entered preparation and no guardian record
+        // contradicts that proof. There was no workload tree, as for a
+        // Linux refusal before any execution boundary was registered.
+        return decided_with(
+            verdict,
+            CgroupStep::Settled(
+                "refused before preparation: no workload tree was created".to_owned(),
+            ),
+            scratch.or(ScratchStep::Now(RECEIPT_PROVES_END.to_owned())),
+            true,
+        );
+    }
     if facts.abandon
         && !state.custody_released
         && !facts
@@ -308,9 +329,11 @@ fn decide_macos(
             .is_some_and(GuardianRecord::probeable)
     {
         return retained(
-            "the guardian's identity is absent; its death cannot be confirmed in this boot"
+            "the guardian's identity is absent or unreadable; its death cannot be confirmed \
+             in this boot and no pre-preparation refusal proves it never spawned; reboot, \
+             then run `ukai-jail gc` (or explicitly abandon after reboot if integrity was lost)"
                 .to_owned(),
-            false,
+            true,
             Some(verdict),
         );
     }
@@ -879,6 +902,7 @@ mod tests {
 
     pub(super) fn receipt(tree_empty: Option<bool>) -> ReceiptView {
         ReceiptView {
+            refused_before_prepare: false,
             phase: crate::records::Phase::Enforced,
             tree_end: crate::lifecycle::TreeEnd::from_text(
                 crate::lifecycle::Integrity::Verified.as_str(),
@@ -900,6 +924,7 @@ mod tests {
             owner: Some(Liveness::Gone),
             leaf: Some(LeafProbe::Identified { populated: true }),
             guardian_record: None,
+            guardian_record_absent: true,
             guardian: None,
             abandon: false,
         }
@@ -1317,6 +1342,7 @@ mod macos_tests {
     /// recorded audit-token identity.
     fn macos_receipt() -> ReceiptView {
         ReceiptView {
+            refused_before_prepare: false,
             phase: crate::records::Phase::Enforced,
             tree_end: crate::lifecycle::TreeEnd::from_text(
                 crate::lifecycle::Integrity::Verified.as_str(),
@@ -1345,6 +1371,28 @@ mod macos_tests {
         base.guardian = Some(Liveness::Gone);
         base.leaf = None;
         base
+    }
+
+    #[test]
+    fn unreadable_or_contradictory_guardian_records_do_not_prove_no_spawn() {
+        let mut refused = macos_facts();
+        let receipt = refused.receipt.as_mut().unwrap().as_mut().unwrap();
+        receipt.phase = crate::records::Phase::Refused;
+        receipt.tree_end = crate::lifecycle::TreeEnd::from_text("pending", "pending", None);
+        receipt.refused_before_prepare = true;
+        receipt.target = None;
+        refused.abandon = true;
+        refused.guardian_record = None;
+        refused.guardian_record_absent = false; // unreadable, not absent
+        assert!(decision(decide(&refused)).retain.unwrap().failed_access);
+        refused.guardian_record_absent = true;
+        assert!(decision(decide(&refused)).tree_never_existed);
+        refused.guardian_record = macos_facts().guardian_record;
+        refused.guardian = Some(Liveness::Alive);
+        assert!(
+            decision(decide(&refused)).retain.is_some(),
+            "a live guardian contradicts a no-spawn claim"
+        );
     }
 
     #[test]

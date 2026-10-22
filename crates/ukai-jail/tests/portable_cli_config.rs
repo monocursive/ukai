@@ -1125,3 +1125,130 @@ fn s10_vm_keeps_its_launch_shortcut_on_linux() {
     assert_eq!(run.policy.selection.launch.as_deref(), Some("vm"));
     assert_eq!(run.argv, [OsString::from("prompt")]);
 }
+
+#[test]
+fn policy_file_lifetime_boundary_has_the_cli_canonical_bytes() {
+    let harness = Harness::new();
+    let profile = harness.config.join("kernel.toml");
+    let base = "schema = \"ukai.jail.policy/1\"\nextends = \"tool\"\n";
+    std::fs::write(&profile, base).unwrap();
+    let baseline = harness.run(&["explain", "--json", "--profile", profile.to_str().unwrap()]);
+    assert_eq!(baseline.status.code(), Some(0));
+    let baseline: serde_json::Value = serde_json::from_slice(&baseline.stdout).unwrap();
+    std::fs::write(
+        &profile,
+        format!("{base}lifetime_boundary = \"kernel-bound\"\n"),
+    )
+    .unwrap();
+    // Later layers that omit the key cannot remove its guarantee.
+    std::fs::write(harness.work.join("ukai.toml"), "[jail]\n").unwrap();
+    let output = harness.run(&["explain", "--json", "--profile", profile.to_str().unwrap()]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let mut expected = baseline["policy"]["snapshot"].clone();
+    expected["lifetime_boundary"] = serde_json::json!("kernel-bound");
+    assert_eq!(report["policy"]["snapshot"], expected);
+    assert!(
+        report["requirements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|requirement| requirement["name"] == "owner_loss_termination")
+    );
+    let cli = harness.run(&[
+        "run",
+        "--label-only",
+        "--profile",
+        "tool",
+        "--lifetime",
+        "kernel-bound",
+    ]);
+    assert!(
+        String::from_utf8_lossy(&cli.stdout).contains(report["policy"]["digest"].as_str().unwrap()),
+        "{}",
+        String::from_utf8_lossy(&cli.stdout)
+    );
+    std::fs::write(
+        &profile,
+        format!("{base}lifetime_boundary = \"supervised\"\n"),
+    )
+    .unwrap();
+    let bad = harness.run(&["explain", "--json", "--profile", profile.to_str().unwrap()]);
+    assert_eq!(bad.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&bad.stderr).contains("invalid_config"));
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn a_missing_vm_installation_is_a_host_prerequisite_refusal() {
+    let harness = Harness::new();
+    let absent = harness.temp.path().join("missing-vm");
+    for profile in ["tool", "none"] {
+        let output = harness.run_with_env(
+            &["run", "--vm", "--profile", profile, "--", "/usr/bin/true"],
+            &[("UKAI_VM_HOME", absent.to_str().unwrap())],
+        );
+        assert_eq!(
+            output.status.code(),
+            Some(125),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("backend_unavailable at probing [host_setup]"),
+            "{stderr}"
+        );
+        assert!(!harness.data.join("attempts").exists());
+    }
+}
+
+#[test]
+fn operator_and_project_lifetime_requirements_only_strengthen_the_policy() {
+    let harness = Harness::new();
+    let key = "[jail]\nlifetime_boundary = \"kernel-bound\"\n";
+    let read = || {
+        let output = harness.run(&["explain", "--json", "--profile", "tool"]);
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap()
+    };
+    let baseline = read();
+    std::fs::write(harness.config.join("config.toml"), key).unwrap();
+    std::fs::write(harness.work.join("ukai.toml"), "[jail]\n").unwrap();
+    let operator = read();
+    assert_eq!(
+        operator["policy"]["snapshot"]["lifetime_boundary"],
+        "kernel-bound"
+    );
+    std::fs::write(harness.config.join("config.toml"), "[jail]\n").unwrap();
+    std::fs::write(harness.work.join("ukai.toml"), key).unwrap();
+    let project = read();
+    assert_eq!(
+        project["policy"]["snapshot"],
+        operator["policy"]["snapshot"]
+    );
+    assert_eq!(project["policy"]["digest"], operator["policy"]["digest"]);
+    std::fs::write(harness.work.join("ukai.toml"), "[jail]\n").unwrap();
+    let omitted = read();
+    assert_eq!(
+        omitted["policy"]["snapshot"],
+        baseline["policy"]["snapshot"]
+    );
+    assert_eq!(omitted["policy"]["digest"], baseline["policy"]["digest"]);
+    std::fs::write(
+        harness.work.join("ukai.toml"),
+        "[jail]\nlifetime_boundary = \"supervised\"\n",
+    )
+    .unwrap();
+    assert_eq!(harness.run(&["explain"]).status.code(), Some(2));
+}

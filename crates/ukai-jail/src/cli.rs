@@ -309,11 +309,18 @@ pub struct RunArgs {
     /// `kernel-bound` is defined; anything else is a usage error. On macOS
     /// without --vm this refuses naming --vm; on Linux a contained profile
     /// provides it and `none` refuses.
+    // Preserve the shipped Linux help. The native Mac tier has no usable
+    // VM fallback in this build, so its help must not recommend that flag.
+    #[cfg_attr(
+        target_os = "macos",
+        arg(
+            help = "Require a kernel-bound attempt lifetime; native macOS cannot provide it and VM policy enforcement is unavailable in this build"
+        )
+    )]
     #[arg(long = "lifetime", value_name = "kernel-bound", value_parser = ["kernel-bound"])]
     pub lifetime_boundary: Option<String>,
-    /// J18 (jail-macos.md §6): run the command in the per-operator warm
-    /// Linux guest (`ukai-vm`), whose guest jail gives the attempt a
-    /// kernel-bound lifetime. macOS only: the flag does not exist elsewhere.
+    /// Select the macOS VM tier. Policy enforcement is unavailable in this
+    /// build, so a run refuses before starting a workload.
     #[cfg(target_os = "macos")]
     #[arg(long = "vm")]
     pub vm: bool,

@@ -182,6 +182,8 @@ pub struct PolicyFile {
     pub schema: String,
     /// Exactly one built-in contained profile.
     pub extends: String,
+    /// A required attempt lifetime; omission never clears an earlier layer.
+    pub lifetime_boundary: Option<crate::policy::LifetimeBoundary>,
     /// Filesystem keys.
     #[serde(default)]
     pub filesystem: FilesystemSection,
@@ -210,6 +212,8 @@ pub struct JailSection {
     pub profile: Option<String>,
     /// `jail.extends`: forbidden in a project file and in `config.toml`.
     pub extends: Option<String>,
+    /// `jail.lifetime_boundary`, a stronger lifetime requirement.
+    pub lifetime_boundary: Option<crate::policy::LifetimeBoundary>,
     /// Filesystem keys.
     #[serde(default)]
     pub filesystem: FilesystemSection,

@@ -1,7 +1,7 @@
 //! The orphan scan jail-macos.md §4.9 asks of `run` and `doctor`: before
 //! doing anything else on macOS, look for attempts of this operator whose
 //! custodians are both dead and whose end is not verified, and print one
-//! line naming each, `gc` and `gc --abandon`. They never kill anything:
+//! line naming each and its recovery path. They never kill anything:
 //! killing is `gc`'s. The scan never touches a receipt, the journal or
 //! jail state, and a root it cannot read is skipped, not reported as a
 //! failure: it is a diagnostic, not a reconciliation.
@@ -14,7 +14,14 @@ use crate::state::{self, AttemptId};
 use crate::supervisor::Context;
 
 /// The line printed per attempt. The backticks are the command names.
-fn line(id: &str) -> String {
+fn line(id: &str, guardian_unknown: bool) -> String {
+    if guardian_unknown {
+        return format!(
+            "ukai-jail: attempt {id} ended unverified: guardian identity is absent or unreadable; \
+             reboot, then run `ukai-jail gc` (explicit abandonment after reboot may be needed \
+             if boundary integrity was lost)"
+        );
+    }
     format!(
         "ukai-jail: attempt {id} ended unverified: run `ukai-jail gc` \
          (or `ukai-jail gc --abandon {id}` to release it)"
@@ -38,6 +45,7 @@ pub fn announce(ctx: &Context) -> usize {
         return 0;
     };
     let host = NativeHost::new(ctx);
+    let host_boot = host.identity().boot_id;
     let mut printed = 0;
     // Bounded like gc's listing (§14.2, S7); a diagnostic stops at the same
     // bound a reconciliation would.
@@ -87,9 +95,8 @@ pub fn announce(ctx: &Context) -> usize {
         if !dead(&host.owner(owner)) {
             continue;
         }
-        // Custodian two: the guardian its record describes. No record, or
-        // nothing to probe in one, is a lost guardian (§4.6: the named
-        // residual is that both custodians died).
+        // A missing identity cannot establish a guardian dead in this
+        // boot. The recovery line must not advise same-boot abandonment.
         let guardian = state::read_capped(&dir.root().join("guardian.json"), RECORD_MAX)
             .ok()
             .flatten()
@@ -100,7 +107,11 @@ pub fn announce(ctx: &Context) -> usize {
         {
             continue;
         }
-        diag!("{}", line(id.as_str()));
+        let guardian_unknown = !guardian.as_ref().is_some_and(|record| record.probeable())
+            && !host_boot
+                .as_ref()
+                .is_some_and(|boot| *boot != owner.boot_id);
+        diag!("{}", line(id.as_str(), guardian_unknown));
         printed += 1;
     }
     printed
@@ -123,7 +134,7 @@ mod tests {
     fn the_line_names_the_attempt_and_both_commands() {
         let id = "att_00000000-0000-4000-8000-000000000001";
         assert_eq!(
-            line(id),
+            line(id, false),
             format!(
                 "ukai-jail: attempt {id} ended unverified: run `ukai-jail gc` \
                  (or `ukai-jail gc --abandon {id}` to release it)"

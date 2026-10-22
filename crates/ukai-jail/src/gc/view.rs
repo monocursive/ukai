@@ -140,6 +140,11 @@ pub enum LeafSource {
 pub struct ReceiptView {
     /// The lifecycle phase.
     pub phase: Phase,
+    /// A refused receipt explicitly records no process, a pending boundary,
+    /// and only resolving/probing errors. Preparation (and therefore a
+    /// guardian spawn) was never entered; a missing process alone is not
+    /// this proof.
+    pub refused_before_prepare: bool,
     /// What `lifetime.integrity`, `boundary` and `tree_empty` say about the
     /// tree's end.
     pub tree_end: TreeEnd,
@@ -346,13 +351,32 @@ pub fn parse_receipt(bytes: &[u8], id: &str) -> Result<ReceiptView, String> {
         LeafSource::NotRecorded("the receipt records no Linux lifetime details".to_owned())
     };
     let text = |key: &str| lifetime.get(key).and_then(Value::as_str).unwrap_or("");
+    let tree_end = TreeEnd::from_text(
+        text("integrity"),
+        text("boundary"),
+        lifetime.get("tree_empty").and_then(Value::as_bool),
+    );
+    let refused_before_prepare = phase == Phase::Refused
+        && tree_end.no_boundary
+        && !tree_end.integrity_lost
+        && receipt.get("process") == Some(&Value::Null)
+        && receipt.get("exec_observed").and_then(Value::as_bool) == Some(false)
+        && receipt
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_some_and(|errors| {
+                !errors.is_empty()
+                    && errors.iter().all(|error| {
+                        matches!(
+                            error.get("stage").and_then(Value::as_str),
+                            Some("resolving" | "probing")
+                        )
+                    })
+            });
     Ok(ReceiptView {
         phase,
-        tree_end: TreeEnd::from_text(
-            text("integrity"),
-            text("boundary"),
-            lifetime.get("tree_empty").and_then(Value::as_bool),
-        ),
+        refused_before_prepare,
+        tree_end,
         boot_os: native_os
             .or_else(|| receipt.pointer("/platform/os").and_then(Value::as_str))
             .map(str::to_owned),
@@ -471,6 +495,48 @@ pub(super) fn recorded_leaf(state: &StateView, receipt: Option<&ReceiptView>) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn no_process_alone_does_not_prove_preparation_never_started() {
+        let id = "att_00000000-0000-4000-8000-000000000001";
+        let good = serde_json::json!({
+            "schema": SCHEMA_RECEIPT, "attempt_id": id, "phase": "refused",
+            "process": null, "exec_observed": false,
+            "lifetime": {"boundary": "pending", "integrity": "pending"},
+            "errors": [{"stage": "probing"}]
+        });
+        let proof = |value: &Value| {
+            parse_receipt(&serde_json::to_vec(value).unwrap(), id)
+                .unwrap()
+                .refused_before_prepare
+        };
+        assert!(proof(&good));
+        for stage in [
+            "preparing",
+            "prepared",
+            "released",
+            "running",
+            "stopping",
+            "reconciling",
+            "settled",
+            "unknown",
+        ] {
+            let mut value = good.clone();
+            value["errors"][0]["stage"] = serde_json::json!(stage);
+            assert!(!proof(&value), "{stage}");
+        }
+        for (pointer, replacement) in [
+            ("/process", serde_json::json!({})),
+            ("/exec_observed", serde_json::json!(true)),
+            ("/lifetime/boundary", serde_json::json!("native_tree")),
+            ("/lifetime/integrity", serde_json::json!("lost")),
+            ("/errors", serde_json::json!([])),
+        ] {
+            let mut value = good.clone();
+            *value.pointer_mut(pointer).unwrap() = replacement;
+            assert!(!proof(&value), "{pointer}");
+        }
+    }
 
     #[test]
     fn state_and_receipt_views_refuse_what_the_supervisor_does_not_write() {

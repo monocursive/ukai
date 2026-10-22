@@ -54,7 +54,7 @@ struct ResultSlot<'a> {
     transport: Transport,
     admitted: bool,
     done: bool,
-    /// A valid request authenticated, or the private Linux bridge has no auth.
+    /// The secret verified, or the private Linux bridge has no auth.
     attributed: bool,
     /// Whether the client may already have received bytes, so no error
     /// response can follow.
@@ -224,7 +224,6 @@ fn serve(
         slot.no_request();
         return Ok(());
     };
-    slot.attributed = true;
     slot.kind = request.kind();
     slot.destination = Some(request.destination.clone());
     if shared.is_stopping() {
@@ -268,7 +267,10 @@ fn read_request(
     };
     slot.transport = transport;
     if transport == Transport::Socks5 {
-        let destination = socks::request_with_auth(client, deadline, shared.auth.as_ref())
+        let destination =
+            socks::request_reporting_auth(client, deadline, shared.auth.as_ref(), || {
+                slot.attributed = true;
+            })
             .inspect_err(|_| {
                 // The SOCKS exchange answered the client itself.
                 slot.replied = true;
@@ -291,7 +293,10 @@ fn read_request(
             });
         }
     };
-    let request = http::parse_request_with_auth(head.head(), 80, shared.auth.as_ref())?;
+    let request =
+        http::parse_request_reporting_auth(head.head(), 80, shared.auth.as_ref(), || {
+            slot.attributed = true;
+        })?;
     Ok(Some((head, request)))
 }
 

@@ -267,8 +267,13 @@ pub const REASON_NOT_APPLIED_BY_NONE: &str = "uncontained_profile";
 
 /// The reason code of `owner_loss_termination` on a platform whose boundary
 /// is not kernel-owned (J18, jail-macos.md §6): native macOS reports it and
-/// refuses naming `--vm`, the tier that provides the boundary.
+/// refuses it. VM policy enforcement is unavailable in this build.
 pub const REASON_OWNER_LOSS_REQUIRES_VM: &str = "kernel_bound_requires_vm";
+
+/// The binary lacks the Endpoint Security entitlement (jail-macos §4.3).
+pub const REASON_ES_NOT_ENTITLED: &str = "es_not_entitled";
+/// Endpoint Security client capacity is exhausted; retry when it is free.
+pub const REASON_ES_TOO_MANY_CLIENTS: &str = "es_too_many_clients";
 
 /// The requirements a `none` snapshot's restrictions derive.
 ///

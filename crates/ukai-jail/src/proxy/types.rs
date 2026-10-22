@@ -528,8 +528,10 @@ pub struct ProxySummary {
     pub results_missing: u64,
     /// Connections that closed before sending a byte: no request, no result.
     pub without_request: u64,
-    /// Connections rejected before authenticating on a shared bridge.
-    /// They belong to no proven attempt and never emit attempt events.
+    /// Connections rejected before authenticating on a shared bridge,
+    /// including capacity refusals. They belong to no proven attempt and
+    /// never emit attempt events, but may belong to this attempt: settlement
+    /// records their count in the `proxy_unattributable` coverage gap.
     pub unattributable: u64,
     /// The accept loop exited and dropped the listener within the budget.
     pub listener_closed: bool,
@@ -540,7 +542,8 @@ impl ProxySummary {
     /// or it sent no request, or it was counted as unattributable before
     /// authenticating. When false, `proxy.net` coverage has a gap
     /// (§10, §11.4: "An interrupted drain can leave that result missing;
-    /// coverage must reflect it").
+    /// coverage must reflect it"). A completed drain can still have an
+    /// attribution gap when `unattributable` is nonzero.
     #[must_use]
     pub fn complete(&self) -> bool {
         self.results_missing == 0

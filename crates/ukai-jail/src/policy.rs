@@ -1041,6 +1041,8 @@ impl LayerOrigin {
 /// The semantic delta one configuration layer contributes.
 #[derive(Clone, Default, PartialEq, Eq, Debug)]
 pub struct PolicyDelta {
+    /// Require a kernel-bound lifetime; no layer can clear the requirement.
+    pub lifetime_boundary: Option<LifetimeBoundary>,
     /// Raw `filesystem.read_write` entries, unresolved native bytes.
     pub read_write: Vec<Vec<u8>>,
     /// Raw `filesystem.read_only` entries.
@@ -1155,6 +1157,7 @@ enum AccessMode {
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 struct Authority {
+    lifetime_boundary: Option<LifetimeBoundary>,
     read_write: Vec<PathRef>,
     read_only: Vec<PathRef>,
     deny_read: Vec<PathRef>,
@@ -1501,6 +1504,7 @@ pub fn resolve(inputs: &ResolveInputs) -> Result<Resolved, JailError> {
         network_allow: inputs.baseline.network_allow.clone(),
         limits: inputs.baseline.limits.clone(),
         observation: inputs.baseline.observation,
+        lifetime_boundary: None,
     };
     let mut resolution = Resolution {
         authority,
@@ -1665,7 +1669,21 @@ impl<'a> LayerStep<'a> {
         self.network_mode(resolution)?;
         self.network_allow(resolution)?;
         self.limits(resolution)?;
+        self.lifetime_boundary(resolution);
         self.observation(resolution)
+    }
+
+    fn lifetime_boundary(&self, resolution: &mut Resolution) {
+        // Only a stronger guarantee can be expressed. An omitted value
+        // preserves the base, including in a later narrowing project layer.
+        if let Some(boundary) = self.layer.delta.lifetime_boundary {
+            resolution.authority.lifetime_boundary = Some(boundary);
+            resolution.set_by(
+                self.layer,
+                format!("{}lifetime_boundary", self.prefix),
+                Some(boundary.as_str().to_owned()),
+            );
+        }
     }
 
     /// `raw` with a leading `~/` expanded, for a layer whose paths may use it.
@@ -2130,7 +2148,7 @@ fn build_snapshot(
         },
         launch: None,
         terminal: None,
-        lifetime_boundary: None,
+        lifetime_boundary: authority.lifetime_boundary,
     })
 }
 
@@ -2324,6 +2342,7 @@ mod tests {
     #[test]
     fn denial_wins_and_read_only_overrides_a_writable_parent() {
         let authority = Authority {
+            lifetime_boundary: None,
             read_write: vec![reference(RootToken::Workspace, "")],
             read_only: vec![reference(RootToken::Workspace, "vendor")],
             deny_read: vec![reference(RootToken::Workspace, "vendor/secrets")],
