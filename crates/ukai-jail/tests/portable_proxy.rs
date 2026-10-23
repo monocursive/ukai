@@ -3248,10 +3248,9 @@ fn authenticated_parse_refusals_keep_their_attempt_results() {
     let mut reply = [0; 2];
     socks.read_exact(&mut reply).unwrap();
     assert_eq!(reply, [1, 0]);
-    // Only the command header: the proxy refuses BIND before it reads an
-    // address, and on Linux closing over unread bytes resets the
-    // connection, which can discard the reply before this read sees it.
-    socks.write_all(&[5, 2, 0, 1]).unwrap();
+    // A whole BIND request, as a real client sends it: the proxy reads it
+    // all before refusing, so on Linux the refusal is not lost to a reset.
+    socks.write_all(&[5, 2, 0, 1, 127, 0, 0, 1, 0, 80]).unwrap();
     let mut rest = Vec::new();
     socks.read_to_end(&mut rest).unwrap();
     assert_eq!(rest[1], 2);

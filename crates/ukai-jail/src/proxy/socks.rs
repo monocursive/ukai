@@ -209,6 +209,23 @@ pub(super) fn request_reporting_auth(
         return Err(Reason::MalformedRequest);
     }
     if header[1] != CONNECT {
+        // Read the rest of the request before answering: closing over
+        // unread bytes makes Linux reset the connection, which can discard
+        // this reply before the client reads it.
+        let address = match header[3] {
+            IPV4 => 4,
+            IPV6 => 16,
+            DOMAIN => {
+                let mut len = [0];
+                read(stream, &mut len, deadline)?;
+                usize::from(len[0])
+            }
+            _ => 0,
+        };
+        let mut rest = vec![0; address + 2];
+        if header[3] == IPV4 || header[3] == IPV6 || header[3] == DOMAIN {
+            read(stream, &mut rest, deadline)?;
+        }
         reply(
             stream,
             if header[1] == BIND {

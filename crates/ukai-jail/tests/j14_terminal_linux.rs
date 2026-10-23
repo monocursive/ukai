@@ -1779,6 +1779,15 @@ fn k63_the_targets_bytes_reach_the_terminal_unchanged_and_in_order() {
         &["--no-report", "stdout-bytes", bytes],
     ));
     assert_eq!(session.wait_exit().0, Some(0));
+    // The job's exit can be seen before the reader has drained the last
+    // bytes from the master: wait for the summary the jail writes last.
+    assert!(
+        session
+            .terminal
+            .wait_for("ukai-jail: settled", common::SETTLE_BOUND),
+        "{}",
+        session.terminal.text()
+    );
     let seen = session.terminal.bytes();
     let reset = b"\x1b[0m\x1b[?25h";
     let end = seen

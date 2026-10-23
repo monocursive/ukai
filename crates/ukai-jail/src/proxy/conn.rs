@@ -747,11 +747,13 @@ mod tests {
             client
                 .set_read_timeout(Some(Duration::from_secs(10)))
                 .unwrap();
-            // The method offer, then the request up to its command: the
-            // proxy answers on the command, and a request byte it never
-            // read would turn the close into a reset on Linux.
+            // The method offer, then a whole request as real clients send
+            // it: the proxy reads all of it before refusing, so the close
+            // after its answer is not a reset on Linux.
             client.write_all(&[5, 1, 0]).unwrap();
-            client.write_all(&[5, command, 0, 1]).unwrap();
+            client
+                .write_all(&[5, command, 0, 1, 127, 0, 0, 1, 0, 80])
+                .unwrap();
             let mut answered = Vec::new();
             client.read_to_end(&mut answered).unwrap();
             assert_eq!(
