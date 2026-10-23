@@ -1,0 +1,20 @@
+ukai-jail 0.1.0
+platform linux x86_64 (Linux 7.0.0-34-generic)
+closed set linux-closed-v1
+schema receipt ukai.jail.receipt/1
+schema event ukai.event/1
+schema policy ukai.jail.policy/1
+schema policy_snapshot ukai.jail.policy-snapshot/1
+schema policy_file ukai.jail.policy-file/1
+schema gate ukai.jail.gate/1
+schema control ukai.jail.control/1
+schema network ukai.jail.network/1
+schema learned_policy ukai.jail.learned-policy/1
+schema doctor ukai.jail.doctor/1
+schema summary ukai.jail.summary/1
+schemas frozen (milestone 1)
+build rustc 1.98.1 (48a229cea 2026-09-01)
+build target x86_64-unknown-linux-gnu opt-level 3 debug-assertions false
+build revision 94198dcea6c1793cd303c941aca6ccc7007ca09a dirty false
+build inputs sha256:188328556e73ff58f3e8e47e54604f4bfa2a3fdb7cd9a3bc18bf53b9a379e140
+Installed release 0.1.0-rc.5 in /home/ubuntu/.local/bin. Add that directory to PATH if needed.
