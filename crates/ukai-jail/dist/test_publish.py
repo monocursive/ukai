@@ -14,6 +14,14 @@ from bootstrap import archive_pins, BLOCK
 from coordinates import UNSUPPORTED_CLAUSES
 
 
+def native_macos_untested_clauses():
+    """Clause ids the acceptance map tags `untested` on the `macos` lane."""
+    import tomllib
+    with (ROOT / 'docs/specs/jail-v1/acceptance-map.toml').open('rb') as handle:
+        clauses = tomllib.load(handle)['clause']
+    return {c['id'] for c in clauses if c.get('lane') == 'macos' and c.get('tag') == 'untested'}
+
+
 class ReleaseLookupTests(unittest.TestCase):
     def test_draft_and_public_lookup_use_authenticated_numeric_identity(self):
         url = 'https://api.github.com/repos/monocursive/ukai/releases/123'
@@ -66,7 +74,13 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(plan['target_commit'], REVISION)
         self.assertEqual(plan['publication_scope'], 'linux-preview')
         self.assertEqual(plan['unsupported_clauses'], UNSUPPORTED_CLAUSES)
-        self.assertTrue(UNSUPPORTED_CLAUSES and all(c.startswith('K') for c in UNSUPPORTED_CLAUSES))
+        self.assertTrue(UNSUPPORTED_CLAUSES)
+        # A Linux preview may exclude only K rows and native-macOS clauses that
+        # the acceptance map itself marks untested on the macOS lane; never a
+        # Linux clause of a jail-v1 row.
+        native = native_macos_untested_clauses()
+        for clause in UNSUPPORTED_CLAUSES:
+            self.assertTrue(clause.startswith('K') or clause in native, clause)
         self.assertEqual(len(names), 8)
         bootstrap = (self.candidate / 'bootstrap.sh').read_text()
         pins = archive_pins(bootstrap)

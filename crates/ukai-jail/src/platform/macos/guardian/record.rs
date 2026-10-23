@@ -80,10 +80,13 @@ pub fn deliver(
     use std::io::Write as _;
     let mut wire = [0u8; super::frames::MAX_FRAME_BYTES + 4];
     wire[4..11].copy_from_slice(b"record ");
-    let mut json = std::io::Cursor::new(&mut wire[11..]);
-    serde_json::to_writer(&mut json, record).map_err(std::io::Error::other)?;
-    json.write_all(b"\n")?;
-    let end = 11 + json.position() as usize;
+    // A slice writer advances over the free space; what it consumed is the
+    // frame body.
+    let mut free: &mut [u8] = &mut wire[11..];
+    let capacity = free.len();
+    serde_json::to_writer(&mut free, record).map_err(std::io::Error::other)?;
+    free.write_all(b"\n")?;
+    let end = 11 + (capacity - free.len());
     wire[..4].copy_from_slice(&((end - 4) as u32).to_le_bytes());
     let persisted = file.write_all(&wire[11..end]).and_then(|()| file.flush());
     let sent = b.write_all(&wire[..end]);
