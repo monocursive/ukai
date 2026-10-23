@@ -2915,7 +2915,7 @@ mod macos_custody {
                 .map(|word| if word == 5 { 88 } else { word + 1 })
                 .collect();
             json_file(
-                &dir.root().join("guardian.json"),
+                &dir.root().join(ukai_jail::state::GUARDIAN_RECORD_NAME),
                 &json!({
                     "schema": "ukai.jail.guardian-record/1",
                     "drained": drained,

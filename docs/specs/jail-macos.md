@@ -406,6 +406,9 @@ target's token (by reading, `ESMessage.h`). There is no second source.
 
 ### 4.4 Membership and the guardian record
 
+The guardian stop record is `guardian.json` in the attempt directory. The
+supervisor creates it before spawning the guardian; GC uses the same name.
+
 Each custodian keeps a table of members, keyed by PID, that holds each
 member's current audit token:
 

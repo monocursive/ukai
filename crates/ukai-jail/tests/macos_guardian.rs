@@ -131,7 +131,7 @@ fn fabricated_launch(temp: &tempfile::TempDir) -> (Vec<String>, Vec<std::os::fd:
     }
     let args = vec![
         temp.path()
-            .join("guardian.json")
+            .join(ukai_jail::state::GUARDIAN_RECORD_NAME)
             .to_string_lossy()
             .into_owned(),
         held[0].as_raw_fd().to_string(),
@@ -200,7 +200,10 @@ fn guardian_refuses_fast_without_entitlement() {
     // Nothing was written to the record: the refusal happened before any
     // stop could run.
     assert!(
-        !temp.path().join("guardian.json").exists(),
+        !temp
+            .path()
+            .join(ukai_jail::state::GUARDIAN_RECORD_NAME)
+            .exists(),
         "no record on a pre-custody refusal"
     );
 }

@@ -139,12 +139,10 @@ pub const TEMPLATE: &str = r#"; ukai-jail native tier (macOS): defense profile.
 ; cache; without this every exec dies in dyld4::CacheFinder (measured).
 (allow file-read-data (literal "/"))
 ; No kern.proc* grant: it would expose other processes' argv/environment.
+; Hardware facts include libSystem's hw.pagesize_compat and Rust's
+; hw.optional.* feature probes. Kernel facts remain explicitly enumerated.
 (allow sysctl-read
-    (sysctl-name "hw.ncpu") (sysctl-name "hw.activecpu")
-    (sysctl-name "hw.logicalcpu") (sysctl-name "hw.logicalcpu_max")
-    (sysctl-name "hw.physicalcpu") (sysctl-name "hw.physicalcpu_max")
-    (sysctl-name "hw.memsize") (sysctl-name "hw.pagesize")
-    (sysctl-name "hw.optional.arm64") (sysctl-name "hw.optional.neon")
+    (sysctl-name-prefix "hw.")
     (sysctl-name "kern.osrelease") (sysctl-name "kern.osversion")
     (sysctl-name "kern.ostype") (sysctl-name "kern.version")
     (sysctl-name "kern.argmax") (sysctl-name "kern.boottime")

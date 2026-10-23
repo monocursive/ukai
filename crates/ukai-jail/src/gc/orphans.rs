@@ -97,10 +97,11 @@ pub fn announce(ctx: &Context) -> usize {
         }
         // A missing identity cannot establish a guardian dead in this
         // boot. The recovery line must not advise same-boot abandonment.
-        let guardian = state::read_capped(&dir.root().join("guardian.json"), RECORD_MAX)
-            .ok()
-            .flatten()
-            .and_then(|bytes| parse_guardian_record(&bytes));
+        let guardian =
+            state::read_capped(&dir.root().join(state::GUARDIAN_RECORD_NAME), RECORD_MAX)
+                .ok()
+                .flatten()
+                .and_then(|bytes| parse_guardian_record(&bytes));
         if let Some(record) = &guardian
             && record.probeable()
             && !dead(&host.guardian(record))

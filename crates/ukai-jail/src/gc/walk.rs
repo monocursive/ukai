@@ -566,7 +566,7 @@ pub const FINISHED: &str = "finished";
 /// J16 (jail-macos.md §4.9): where the guardian writes its custodian record.
 /// It is attempt-fixed, next to the receipt it explains.
 fn guardian_record_path(dir: &AttemptDir) -> PathBuf {
-    dir.root().join("guardian.json")
+    dir.root().join(state::GUARDIAN_RECORD_NAME)
 }
 
 /// Asks [`decide`] until it decides, answering its probes from the host.
@@ -1436,6 +1436,62 @@ fn combine(action: Action, reason: String, done: &Done) -> (Action, String) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn gc_reads_the_record_created_by_the_native_boundary() {
+        use crate::platform::macos::{boundary, custody::StopResult, guardian::record};
+        let temp = state::testing::private_tempdir();
+        let dir = AttemptDir::from_root(temp.path().to_path_buf());
+        assert!(
+            state::read_capped(&guardian_record_path(&dir), RECORD_MAX)
+                .unwrap()
+                .is_none()
+        );
+        let written_path = boundary::create_guardian_record(dir.root()).unwrap();
+        let empty = state::read_capped(&guardian_record_path(&dir), RECORD_MAX).unwrap();
+        assert_eq!(
+            empty,
+            Some(Vec::new()),
+            "a created record is not absent, even before delivery"
+        );
+        let mut own_token = [0; 8];
+        own_token[5] = 88;
+        own_token[7] = 3;
+        let emitted = record::from_stop_result(
+            &StopResult::Drained {
+                elapsed_ns: 1,
+                sweeps: 1,
+                signalled: 0,
+            },
+            record::StopFacts {
+                counts: [1, 2, 2],
+                guard_denials: 0,
+                started_at: 1,
+                ended_at: 2,
+                members_peak: 2,
+                guard_armed: true,
+            },
+            own_token,
+            [0; 8],
+            "same-boot".to_owned(),
+        );
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .open(written_path)
+            .unwrap();
+        record::deliver(&emitted, &mut file, &mut Vec::new()).unwrap();
+        let bytes = state::read_capped(&guardian_record_path(&dir), RECORD_MAX)
+            .unwrap()
+            .unwrap();
+        let read =
+            parse_guardian_record(&bytes).expect("gc must parse the guardian's actual wire format");
+        assert_eq!(read.drained, Some(true));
+        assert!(read.probeable());
+        assert_eq!(read.pid, Some(88));
+        assert_eq!(read.pidversion, Some(3));
+        assert_eq!(read.boot_session.as_deref(), Some("same-boot"));
+    }
 
     #[test]
     fn a_repeated_record_is_kept_once_with_a_count() {

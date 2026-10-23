@@ -7,6 +7,10 @@ use super::{PROXY_DIR_NAME, VENDOR_STATE_NAME, create_private_dir, unsafe_path};
 use crate::config::EnvSettings;
 use crate::records::{ErrorCode, ErrorStage, JailError, Remediation};
 
+/// Native guardian stop record, shared by the boundary and recovery readers
+/// (jail-macos §4.4, §4.9). A created but empty file is not an absent record.
+pub const GUARDIAN_RECORD_NAME: &str = "guardian.json";
+
 /// Resolves the configuration directory (§6.2).
 ///
 /// # Errors

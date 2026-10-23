@@ -185,7 +185,10 @@ fn the_guardian_mode_refuses_fast_on_an_unreadable_launch_block() {
     let harness = Harness::new();
     // A record path in the private temp dir; descriptors 30..35 are closed,
     // so the guardian's first read fails and it exits naming the step.
-    let record = harness.temp.path().join("guardian-record.json");
+    let record = harness
+        .temp
+        .path()
+        .join(ukai_jail::state::GUARDIAN_RECORD_NAME);
     let output = harness.run_internal(&[
         "__guardian",
         record.to_str().expect("a UTF-8 path"),

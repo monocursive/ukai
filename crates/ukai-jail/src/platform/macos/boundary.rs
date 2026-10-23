@@ -1472,12 +1472,8 @@ struct Spawned {
     guardian: GuardianProcess,
 }
 
-fn build_and_spawn(
-    plan: &PreparedPlan,
-    mut relay: Option<&mut TerminalRelay>,
-    bridge: Option<&BridgeConfig>,
-) -> Result<Spawned, JailError> {
-    let record_path = plan.attempt_dir.join("guardian-record.json");
+pub(crate) fn create_guardian_record(attempt_dir: &Path) -> Result<PathBuf, JailError> {
+    let record_path = attempt_dir.join(crate::state::GUARDIAN_RECORD_NAME);
     std::fs::write(&record_path, b"").map_err(|error| {
         refusal(
             ErrorCode::StateWriteFailed,
@@ -1486,6 +1482,15 @@ fn build_and_spawn(
             format!("the guardian record could not be created: {error}"),
         )
     })?;
+    Ok(record_path)
+}
+
+fn build_and_spawn(
+    plan: &PreparedPlan,
+    mut relay: Option<&mut TerminalRelay>,
+    bridge: Option<&BridgeConfig>,
+) -> Result<Spawned, JailError> {
+    let record_path = create_guardian_record(&plan.attempt_dir)?;
     let mut pipe_a = Pipe::new()?;
     let mut pipe_b = Pipe::new()?;
     let mut pipe_r = Pipe::new()?;
@@ -5067,6 +5072,45 @@ os.write({}, (','.join(map(str, fds))).encode())
                 "{profile:?}: {}",
                 String::from_utf8_lossy(&output.stderr)
             );
+        }
+    }
+
+    #[test]
+    fn production_profiles_start_the_built_rust_launcher() {
+        use crate::policy::ProfileName;
+        // Cargo's integration tests build this binary beside deps/. Use the
+        // real executable: /usr/bin/true does not exercise Rust's startup.
+        let test_exe = std::env::current_exe().unwrap();
+        let binary = test_exe
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("ukai-jail");
+        assert!(
+            binary.is_file(),
+            "build ukai-jail before this test: {binary:?}"
+        );
+        for profile in [ProfileName::Tool, ProfileName::Build, ProfileName::Agent] {
+            let (_dir, plan) = policy_plan(profile);
+            let mut params = profile_params(&plan, None).unwrap();
+            // profile_params admits current_exe; here that is the test harness.
+            // Substitute the actual launcher, exactly as production does.
+            params.read_only.retain(|path| path != &test_exe);
+            params.read_only.push(binary.clone());
+            let output = std::process::Command::new("/usr/bin/sandbox-exec")
+                .args(["-p", &seatbelt::generate(&params)])
+                .arg(&binary)
+                .args(["__launch-macos", "--wat", "--", "x"])
+                .env_clear()
+                .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
+                .current_dir(&plan.workspace)
+                .output()
+                .unwrap();
+            assert_eq!(output.status.code(), Some(125), "{profile:?}: {output:?}");
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(stderr.contains("__launch-macos"), "{profile:?}: {stderr}");
+            assert!(!stderr.contains("panicked"), "{profile:?}: {stderr}");
         }
     }
 

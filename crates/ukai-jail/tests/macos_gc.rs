@@ -264,7 +264,7 @@ fn guardian_record(dir: &AttemptDir, drained: bool) {
         .map(|word| if word == 5 { 88 } else { word + 1 })
         .collect();
     json_file(
-        &dir.root().join("guardian.json"),
+        &dir.root().join(ukai_jail::state::GUARDIAN_RECORD_NAME),
         &json!({
             "schema": "ukai.jail.guardian-record/1",
             "drained": drained,
@@ -583,7 +583,11 @@ fn abandon_without_a_guardian_identity_fails_and_doctor_advises_reboot() {
         claim(&dir, (reaped_pid(), gc::boot_session().unwrap(), 1));
         receipt(&dir, (reaped_pid(), 0), &gc::boot_session().unwrap());
         if let Some(contents) = contents {
-            std::fs::write(dir.root().join("guardian.json"), contents).unwrap();
+            std::fs::write(
+                dir.root().join(ukai_jail::state::GUARDIAN_RECORD_NAME),
+                contents,
+            )
+            .unwrap();
         }
         let before = std::fs::read(dir.state_path()).unwrap();
         let output = fixture.binary(&["gc", "--abandon", &id]);

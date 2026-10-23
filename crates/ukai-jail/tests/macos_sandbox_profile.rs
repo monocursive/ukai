@@ -34,7 +34,7 @@ use sandbox::{ProfileParams, TEMPLATE as TEMPLATE_TEXT};
 /// measured; changing the template is a deliberate act that updates this
 /// constant and re-runs the matrix in the same change.
 const PINNED_TEMPLATE_DIGEST: &str =
-    "23917ae508660fdd58f330ee90d70271a0547b43584c9265f7fad76176b5f11e";
+    "d9bb61b9bad696ac631e70edc36a77998a243d2305c5b7e93ddf277b08f2285d";
 
 const SANDBOX_EXEC: &str = "/usr/bin/sandbox-exec";
 
@@ -946,9 +946,11 @@ fn the_setuid_enumeration_matches_the_sealed_volume() {
     params.setuid_exec_denied = setuid::deny_paths(&scanned);
     let profile = sandbox::generate(&params);
     assert!(
-        profile.contains(&format!("(literal \"{}\"", planted.display()))
-            && profile.contains(&format!("(literal \"{}\"))", planted.display())),
-        "both spellings of the planted file are denied for exec",
+        profile.lines().any(|line| {
+            line.starts_with("(deny process-exec ")
+                && line.contains(&format!("(literal \"{}\")", planted.display()))
+        }),
+        "the planted file is denied for exec, regardless of its position in the sorted list"
     );
 }
 

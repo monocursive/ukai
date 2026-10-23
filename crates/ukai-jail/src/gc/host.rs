@@ -48,7 +48,8 @@ pub struct TargetToken {
 }
 
 /// The guardian's record (`guardian.json`, `ukai.jail.guardian-record/1`),
-/// read tolerantly: a record that is absent or corrupt is treated as absent
+/// read tolerantly: absent or corrupt records supply no usable identity.
+/// Only a genuinely absent file can support pre-preparation refusal proof
 /// (jail-macos.md §4.9). Only the identity and verdict fields are read.
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub struct GuardianRecord {
