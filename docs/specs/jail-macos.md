@@ -408,6 +408,10 @@ target's token (by reading, `ESMessage.h`). There is no second source.
 
 The guardian stop record is `guardian.json` in the attempt directory. The
 supervisor creates it before spawning the guardian; GC uses the same name.
+Once the handshake names the guardian, and before release, the supervisor
+also persists the guardian's identity in `guardian-identity.json`, so `gc`
+can establish the guardian dead even when both custodians are lost before
+its record is written (K95).
 
 Each custodian keeps a table of members, keyed by PID, that holds each
 member's current audit token:
