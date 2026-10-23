@@ -31,8 +31,10 @@ unsafe extern "C" {
         actions: *mut libc::posix_spawn_file_actions_t,
         fd: libc::c_int,
     ) -> libc::c_int;
-    /// `posix_spawn_file_actions_addchdir`: the child's working directory.
-    fn posix_spawn_file_actions_addchdir(
+    /// `posix_spawn_file_actions_addchdir_np`: the child's working
+    /// directory. The `_np` name exists in libSystem since macOS 10.15; the
+    /// POSIX name only in newer SDKs, so a macOS 15 build cannot link it.
+    fn posix_spawn_file_actions_addchdir_np(
         actions: *mut libc::posix_spawn_file_actions_t,
         path: *const libc::c_char,
     ) -> libc::c_int;
@@ -130,8 +132,8 @@ pub fn spawn_sandbox_exec(block: &LaunchBlock) -> Result<i32, SpawnError> {
     unsafe {
         if !block.working_dir.is_empty() {
             let dir = cstring("working directory", &block.working_dir)?;
-            if posix_spawn_file_actions_addchdir(&mut actions.0, dir.as_ptr()) != 0 {
-                return Err(os("posix_spawn_file_actions_addchdir"));
+            if posix_spawn_file_actions_addchdir_np(&mut actions.0, dir.as_ptr()) != 0 {
+                return Err(os("posix_spawn_file_actions_addchdir_np"));
             }
         }
         for (target, action) in block.stdio.iter().enumerate() {
