@@ -141,3 +141,15 @@ candidate.
   published tag `ukai-jail-v0.1.0-rc.5`.
 - The README, guide, roadmap and release procedure link the rc.5 release. The
   interactive Claude Code record keeps naming rc.4, the build it ran on.
+
+## Website and public installation
+
+The website was deployed with `npm run deploy` (Cloudflare Pages project `ukai`)
+from the rollout tree (`73dd18932`). `https://ukai.sh/install.sh` and
+`https://ukai.sh/release.pub` were then fetched and are byte-identical to the
+repository's `install.sh` (default `0.1.0-rc.5`) and `release.pub`.
+
+On the reference VPS and the Raspberry Pi, `curl … https://ukai.sh/install.sh |
+bash` in a fresh `HOME` installed rc.5 (revision `0fe655440`, the inputs above),
+`doctor --profile tool` reported ready, and the guide's first command printed
+`hello from the jail` and settled.
