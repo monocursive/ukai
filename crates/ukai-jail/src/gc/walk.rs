@@ -16,7 +16,10 @@ use super::decide::{
     CgroupStep, CustodyStep, Decision, Facts, Next, OwnerVerdict, ScratchStep, decide,
 };
 use super::host::{Host, LeafRecord, NativeHost};
-use super::view::{leaf_entry, parse_guardian_record, parse_receipt, parse_state};
+use super::view::{
+    guardian_with_identity, leaf_entry, parse_guardian_identity, parse_guardian_record,
+    parse_receipt, parse_state,
+};
 use super::{Budget, Entry, Options, RECORD_MAX, Report, SEAM_MAX_ENTRIES, seam_max_entries};
 use crate::cleanup;
 use crate::cli::GcArgs;
@@ -445,10 +448,16 @@ fn visit(
     // never entered. Unreadable/malformed records cannot prove no guardian.
     let guardian_bytes = state::read_capped(&guardian_record_path(&dir), RECORD_MAX);
     let guardian_record_absent = matches!(guardian_bytes, Ok(None));
-    let guardian_record = guardian_bytes
-        .ok()
-        .flatten()
-        .and_then(|bytes| parse_guardian_record(&bytes));
+    let guardian_record = guardian_with_identity(
+        guardian_bytes
+            .ok()
+            .flatten()
+            .and_then(|bytes| parse_guardian_record(&bytes)),
+        state::read_capped(&dir.root().join(state::GUARDIAN_IDENTITY_NAME), RECORD_MAX)
+            .ok()
+            .flatten()
+            .and_then(|bytes| parse_guardian_identity(&bytes)),
+    );
     let facts = Facts {
         host: pass.host.identity(),
         state,

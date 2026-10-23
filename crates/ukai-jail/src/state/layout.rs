@@ -11,6 +11,11 @@ use crate::records::{ErrorCode, ErrorStage, JailError, Remediation};
 /// (jail-macos §4.4, §4.9). A created but empty file is not an absent record.
 pub const GUARDIAN_RECORD_NAME: &str = "guardian.json";
 
+/// The guardian's identity, written by the supervisor as soon as the
+/// handshake names it (jail-macos §4.9): if both custodians are lost before
+/// the guardian's own record, gc can still establish the guardian dead.
+pub const GUARDIAN_IDENTITY_NAME: &str = "guardian-identity.json";
+
 /// Resolves the configuration directory (§6.2).
 ///
 /// # Errors

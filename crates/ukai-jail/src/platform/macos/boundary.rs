@@ -109,19 +109,24 @@ enum SettleStep {
     EndStalledGuardian,
 }
 
-/// Settlement ends when the guardian delivers its record or is lost. The
-/// supervisor's own drain does not end it: a guardian that never answers
-/// within the budget stalled, and is ended and recorded (K89), even when the
-/// supervisor drained the tree alone.
+/// Settlement ends with the guardian's record. A lost guardian leaves the
+/// supervisor to drain alone, so settlement then waits for that drain. A
+/// guardian that neither answers nor is lost within the budget stalled: it
+/// is ended and recorded (K89), even when the supervisor drained alone.
 fn settle_step(
-    // Deliberately not a reason to settle; kept so the rule is stated and tested.
-    _supervisor_done: bool,
+    supervisor_done: bool,
     guardian_record: bool,
     guardian_lost: bool,
     deadline_passed: bool,
 ) -> SettleStep {
-    if guardian_record || guardian_lost {
+    if guardian_record {
         SettleStep::Settled
+    } else if guardian_lost {
+        if supervisor_done || deadline_passed {
+            SettleStep::Settled
+        } else {
+            SettleStep::Continue
+        }
     } else if deadline_passed {
         SettleStep::EndStalledGuardian
     } else {
@@ -1063,6 +1068,21 @@ struct CustodySetup {
     overflowed: bool,
 }
 
+/// Persists the guardian's identity before release (§4.9): the guardian's
+/// own record arrives only when its stop ends, and losing both custodians
+/// before then must not leave gc unable to establish the guardian dead.
+fn write_guardian_identity(attempt_dir: &Path, token: Token) -> Result<(), JailError> {
+    let identity = serde_json::json!({
+        "schema": "ukai.jail.guardian-identity/1",
+        "own_token": token,
+        "boot_session": crate::gc::boot_session().unwrap_or_default(),
+    });
+    crate::state::replace_atomically(
+        &attempt_dir.join(crate::state::GUARDIAN_IDENTITY_NAME),
+        &serde_json::to_vec(&identity).expect("a JSON value serializes"),
+    )
+}
+
 fn prepare_custody_and_observation(
     plan: &PreparedPlan,
     sinks: &Sinks,
@@ -1084,6 +1104,7 @@ fn prepare_custody_and_observation(
         .map(|poll| *poll.event.token())
         .find(|token| token[AUDIT_TOKEN_PID] as libc::pid_t == setup.guardian_pid)
         .ok_or_else(|| spawn_error("cannot read guardian audit token"))?;
+    write_guardian_identity(&plan.attempt_dir, guardian_token)?;
     let engine = supervisor_custody(
         setup.capacity,
         handshake.launcher_token,
@@ -5117,10 +5138,13 @@ os.write({}, (','.join(map(str, fds))).encode())
         // A guardian that never answers within the budget stalled.
         assert_eq!(settle_step(true, false, false, true), EndStalledGuardian);
         assert_eq!(settle_step(false, false, false, true), EndStalledGuardian);
-        // Its record or its loss ends settlement.
+        // Its record ends settlement.
         assert_eq!(settle_step(true, true, false, false), Settled);
-        assert_eq!(settle_step(false, true, false, true), Settled);
+        assert_eq!(settle_step(false, true, false, false), Settled);
+        // A lost guardian leaves the supervisor's own drain to finish first.
+        assert_eq!(settle_step(false, false, true, false), Continue);
         assert_eq!(settle_step(true, false, true, false), Settled);
+        assert_eq!(settle_step(false, false, true, true), Settled);
     }
 
     #[test]

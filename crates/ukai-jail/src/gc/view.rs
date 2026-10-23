@@ -415,6 +415,53 @@ fn parse_macos_target(receipt: &Value) -> Option<TargetToken> {
     Some(TargetToken { pid, pidversion })
 }
 
+/// The guardian's identity as the supervisor persisted it before release
+/// (`guardian-identity.json`): pid, pid version and boot session, no verdict.
+#[must_use]
+pub fn parse_guardian_identity(bytes: &[u8]) -> Option<GuardianRecord> {
+    let record = serde_json::from_slice::<Value>(bytes).ok()?;
+    if record.get("schema").and_then(Value::as_str) != Some("ukai.jail.guardian-identity/1") {
+        return None;
+    }
+    let word = |index: usize| {
+        record
+            .get("own_token")
+            .and_then(Value::as_array)
+            .and_then(|words| words.get(index))
+            .and_then(Value::as_u64)
+            .filter(|word| *word <= u32::MAX.into())
+            .map(|word| word as u32)
+    };
+    Some(GuardianRecord {
+        pid: word(5),
+        pidversion: word(7),
+        boot_session: record
+            .get("boot_session")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        drained: None,
+    })
+}
+
+/// The guardian's record, completed from its persisted identity when the
+/// record itself names none (both custodians lost before the guardian's stop
+/// ended): the verdict stays the record's, the identity comes from either.
+#[must_use]
+pub fn guardian_with_identity(
+    record: Option<GuardianRecord>,
+    identity: Option<GuardianRecord>,
+) -> Option<GuardianRecord> {
+    match (record, identity) {
+        (Some(record), _) if record.probeable() => Some(record),
+        (Some(record), Some(identity)) => Some(GuardianRecord {
+            drained: record.drained,
+            ..identity
+        }),
+        (None, Some(identity)) => Some(identity),
+        (record, None) => record,
+    }
+}
+
 /// J16 (jail-macos.md §4.9): the guardian's record, read tolerantly — a
 /// record that is corrupt, of another schema, or missing fields is treated
 /// as absent (`None`), and only the fields the reader knows are taken.
@@ -494,6 +541,40 @@ pub(super) fn recorded_leaf(state: &StateView, receipt: Option<&ReceiptView>) ->
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_record_without_identity_is_completed_from_the_persisted_identity() {
+        use super::{GuardianRecord, guardian_with_identity};
+        let identity = GuardianRecord {
+            pid: Some(7),
+            pidversion: Some(2),
+            boot_session: Some("b".into()),
+            drained: None,
+        };
+        let with_pid = GuardianRecord {
+            pid: Some(9),
+            drained: Some(true),
+            ..GuardianRecord::default()
+        };
+        let verdict_only = GuardianRecord {
+            drained: Some(false),
+            ..GuardianRecord::default()
+        };
+        // The record's own identity wins.
+        assert_eq!(
+            guardian_with_identity(Some(with_pid.clone()), Some(identity.clone())),
+            Some(with_pid)
+        );
+        // A record without identity keeps its verdict, takes the identity.
+        let merged = guardian_with_identity(Some(verdict_only), Some(identity.clone())).unwrap();
+        assert_eq!((merged.pid, merged.drained), (Some(7), Some(false)));
+        // No record at all: the identity alone, with no verdict.
+        assert_eq!(
+            guardian_with_identity(None, Some(identity.clone())),
+            Some(identity)
+        );
+        assert_eq!(guardian_with_identity(None, None), None);
+    }
+
     use super::*;
 
     #[test]

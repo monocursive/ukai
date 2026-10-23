@@ -7,7 +7,10 @@
 //! failure: it is a diagnostic, not a reconciliation.
 
 use super::host::{Host, Liveness, NativeHost};
-use super::view::{parse_guardian_record, parse_receipt, parse_state};
+use super::view::{
+    guardian_with_identity, parse_guardian_identity, parse_guardian_record, parse_receipt,
+    parse_state,
+};
 use super::{Options, RECORD_MAX};
 use crate::records::Os;
 use crate::state::{self, AttemptId};
@@ -97,11 +100,16 @@ pub fn announce(ctx: &Context) -> usize {
         }
         // A missing identity cannot establish a guardian dead in this
         // boot. The recovery line must not advise same-boot abandonment.
-        let guardian =
+        let guardian = guardian_with_identity(
             state::read_capped(&dir.root().join(state::GUARDIAN_RECORD_NAME), RECORD_MAX)
                 .ok()
                 .flatten()
-                .and_then(|bytes| parse_guardian_record(&bytes));
+                .and_then(|bytes| parse_guardian_record(&bytes)),
+            state::read_capped(&dir.root().join(state::GUARDIAN_IDENTITY_NAME), RECORD_MAX)
+                .ok()
+                .flatten()
+                .and_then(|bytes| parse_guardian_identity(&bytes)),
+        );
         if let Some(record) = &guardian
             && record.probeable()
             && !dead(&host.guardian(record))

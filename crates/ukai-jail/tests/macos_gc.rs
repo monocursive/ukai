@@ -610,6 +610,35 @@ fn abandon_without_a_guardian_identity_fails_and_doctor_advises_reboot() {
 }
 
 #[test]
+fn both_custodians_lost_before_the_guardian_record_can_still_be_abandoned() {
+    // K95 (found live in the dev VM): both custodians were killed before the
+    // guardian's stop ended, so `guardian.json` is the empty file the
+    // supervisor created. The supervisor persisted the guardian's identity
+    // before release; gc establishes the guardian dead from it and the
+    // explicit abandon releases the attempt in this boot.
+    let fixture = Fixture::new();
+    let (id, dir) = fresh(&fixture);
+    let boot = gc::boot_session().unwrap();
+    claim(&dir, (reaped_pid(), boot.clone(), 1));
+    receipt(&dir, (reaped_pid(), 0), &boot);
+    std::fs::write(dir.root().join(state::GUARDIAN_RECORD_NAME), b"").unwrap();
+    let mut token = [0u32; 8];
+    token[5] = reaped_pid();
+    token[7] = 1;
+    json_file(
+        &dir.root().join(state::GUARDIAN_IDENTITY_NAME),
+        &json!({"schema": "ukai.jail.guardian-identity/1", "own_token": token, "boot_session": boot}),
+    );
+    let output = fixture.binary(&["gc", "--abandon", &id]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(output.status.code(), Some(0), "{stdout}");
+    assert!(
+        String::from_utf8_lossy(&std::fs::read(dir.state_path()).unwrap()).contains("gc_abandoned"),
+        "{stdout}"
+    );
+}
+
+#[test]
 fn pre_prepare_native_and_vm_refusals_settle_without_a_guardian() {
     for (guest, abandon) in [(false, false), (false, true), (true, false), (true, true)] {
         let fixture = Fixture::new();
