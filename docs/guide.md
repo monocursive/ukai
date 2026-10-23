@@ -147,8 +147,10 @@ The following describes the intended contract.
 Current implementation: native execution is **off by default**. Setting
 `UKAI_JAIL_MACOS_NATIVE=dev` enables development only; a native receipt records
 `native_execution=dev`. Native credential, vault and vendor staging answer
-`unsupported` and refuse. `J17_OBSERVE=false`: `ObserveRun` exists but is
-unwired; `fs.write` would still be `degraded`/partial even if wired. Every
+`unsupported` and refuse. J17 is wired before release (`J17_OBSERVE=true`):
+`macos-closed-v1` declares the exact ES notification set; loss-free attached
+`exec` and `fs.write` coverage is active only over that set. Synthetic producer
+receipts are tested; no live observed native run is proved. Every
 `run --vm` refuses before connecting: no qualified VM backend exists yet.
 A missing VM installation is exit 125 with `host_setup`; an installed but
 unavailable VM-policy backend uses `unsupported`. With native development

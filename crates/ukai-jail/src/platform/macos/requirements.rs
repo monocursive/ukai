@@ -59,8 +59,8 @@ pub(super) const PROBE_NAMES: &[&str] = &[
 
 /// Runs every probe this platform has, for `doctor` and for the requirement
 /// derivation. None of them is expensive: one `dlopen`, one `sandbox-exec`
-/// child, two loopback binds and two sysctls. J17 remains unwired; its row,
-/// when requested, reports unsupported without creating an observation client.
+/// child, two loopback binds and two sysctls. The J17 row creates and deletes
+/// its own observation client; a successful custody probe is not substituted.
 pub(super) fn run_probes() -> Vec<ProbeRow> {
     let mut rows = vec![
         es_row(),
@@ -260,21 +260,55 @@ fn maxprocperuid_row() -> ProbeRow {
     }
 }
 
-/// Reports the unwired §5 observation capability (J17). This does not create
-/// an observation client; custody entitlement cannot prove run observation.
+/// Create/delete the observation client itself. This is an entitlement/SDK
+/// probe, not proof that a later subscription or observed run will succeed.
 fn es_notify_row() -> ProbeRow {
-    if cfg!(ukai_es_sdk_absent) {
+    es_notify_row_with(super::native_enabled(), es_notify_probe)
+}
+
+fn es_notify_row_with(enabled: bool, probe: impl FnOnce() -> EsProbeResult) -> ProbeRow {
+    let result = if cfg!(ukai_es_sdk_absent) {
+        EsProbeResult::SdkAbsent
+    } else if !enabled {
         return ProbeRow::new("es_notify", "es_notify").unavailable(
-            super::es::SDK_ABSENT_REASON,
-            "this binary was built without the required Endpoint Security SDK APIs".into(),
+            "native_development_disabled",
+            "UKAI_JAIL_MACOS_NATIVE=dev is not set".into(),
         );
+    } else {
+        probe()
+    };
+    let mut row = es_result_row(result);
+    row.name = "es_notify";
+    row.mechanism = "es_notify";
+    row
+}
+
+fn es_notify_probe() -> EsProbeResult {
+    use super::es::EsNewResult;
+    match super::observe::ObserveClient::new() {
+        Ok(client) => {
+            if client.delete() {
+                EsProbeResult::Entitled
+            } else {
+                EsProbeResult::Unavailable {
+                    reason: "observation_delete_failed".into(),
+                }
+            }
+        }
+        Err(EsNewResult::SdkAbsent) => EsProbeResult::SdkAbsent,
+        Err(EsNewResult::NotEntitled) => EsProbeResult::NotEntitled {
+            raw_code: EsNewResult::NotEntitled.raw(),
+        },
+        Err(EsNewResult::TooManyClients) => EsProbeResult::TooManyClients {
+            raw_code: EsNewResult::TooManyClients.raw(),
+        },
+        Err(result) => EsProbeResult::Unavailable {
+            reason: format!(
+                "observation client: {}",
+                super::custody_io::es_new_result_name(result)
+            ),
+        },
     }
-    // I5: observation is not wired into runs. Entitlement alone
-    // cannot establish a capability that the run does not actually attach.
-    ProbeRow::new("es_notify", "es_notify").unavailable(
-        "observer_not_wired",
-        "native observation is not wired into runs".into(),
-    )
 }
 
 /// Reads one sysctl variable as an integer.
@@ -386,6 +420,9 @@ fn inputs_for(
             CapabilityScope::Tree,
         )),
         Requirement::CredentialStaging => None,
+        Requirement::ClosedSetObservation if crate::profiles::J17_OBSERVE => {
+            Some((&["es_notify"], "es_notify", CapabilityScope::Tree))
+        }
         Requirement::ClosedSetObservation | Requirement::ExecutionBoundary => None,
         Requirement::OwnerLossTermination => None,
         Requirement::Limit(LimitKey::Wall) => Some((
@@ -507,15 +544,58 @@ mod tests {
     use super::*;
 
     #[test]
-    fn notify_probe_reports_sdk_absence_before_unwired_observation() {
+    fn notify_probe_reports_real_sdk_or_client_result() {
         let row = es_notify_row();
+        assert_eq!(row.name, "es_notify");
+        assert_ne!(row.reason, "observer_not_wired");
+        if cfg!(ukai_es_sdk_absent) {
+            assert_eq!(row.status, CapabilityStatus::Unavailable);
+            assert_eq!(row.reason, "es_sdk_absent");
+        } else if !super::super::native_enabled() {
+            assert_eq!(row.reason, "native_development_disabled");
+        } else {
+            assert!(
+                matches!(
+                    row.reason,
+                    "ok" | "es_not_entitled" | "es_too_many_clients" | "es_unavailable"
+                ),
+                "{}",
+                row.reason
+            );
+        }
+        let capability = capability_for(
+            Requirement::ClosedSetObservation,
+            std::slice::from_ref(&row),
+            "2026-10-23T00:00:00Z",
+        );
+        assert_eq!(capability.status, row.status);
+        assert_eq!(capability.reason_code.as_deref(), Some(row.reason));
+    }
+
+    #[test]
+    fn notify_probe_never_creates_a_client_with_the_dev_gate_off() {
+        let row = es_notify_row_with(false, || panic!("gate off must not create an ES client"));
         assert_eq!(row.status, CapabilityStatus::Unavailable);
         assert_eq!(
             row.reason,
             if cfg!(ukai_es_sdk_absent) {
                 "es_sdk_absent"
             } else {
-                "observer_not_wired"
+                "native_development_disabled"
+            }
+        );
+        let mut called = false;
+        let enabled = es_notify_row_with(true, || {
+            called = true;
+            EsProbeResult::NotEntitled { raw_code: 3 }
+        });
+        assert_eq!(called, !cfg!(ukai_es_sdk_absent));
+        assert_eq!(
+            enabled.reason,
+            if cfg!(ukai_es_sdk_absent) {
+                "es_sdk_absent"
+            } else {
+                "es_not_entitled"
             }
         );
     }
@@ -718,16 +798,15 @@ mod tests {
         }
     }
 
-    /// Entitlement alone proves neither observation wiring nor staging.
+    /// J17 uses its own successful client probe; staging is still unavailable.
     #[test]
-    fn unwired_observation_and_staging_cannot_be_available_even_with_entitlement() {
-        for requirement in [
-            Requirement::ClosedSetObservation,
-            Requirement::CredentialStaging,
-        ] {
-            let cap = capability_for(requirement, &all_available(), "now");
-            assert_eq!(cap.status, CapabilityStatus::Unsupported);
-            assert_eq!(cap.measured_at, None);
-        }
+    fn wired_observation_is_available_with_its_probe_but_staging_is_not() {
+        let observation =
+            capability_for(Requirement::ClosedSetObservation, &all_available(), "now");
+        assert_eq!(observation.status, CapabilityStatus::Available);
+        assert_eq!(observation.mechanism.as_deref(), Some("es_notify"));
+        let staging = capability_for(Requirement::CredentialStaging, &all_available(), "now");
+        assert_eq!(staging.status, CapabilityStatus::Unsupported);
+        assert_eq!(staging.measured_at, None);
     }
 }

@@ -394,6 +394,11 @@ def written(operation, fields):
     that is neither: which path is the new entry is not established. A slot
     is None where the result recorded no such path."""
     path, path2, syscall = fields.get("path"), fields.get("path2"), fields.get("syscall")
+    if fields.get("observation") == "es_notify":
+        if fields.get("action") in ("cloned", "copied"):
+            return [path2]
+        if fields.get("action") == "exchanged":
+            return [path, path2]
     if operation == "fs.rename":
         return [path, path2]
     if operation == "fs.create" and (syscall in ("link", "linkat") or fields.get("action") == "hard_link_created"):
@@ -424,7 +429,8 @@ def workspace_line(receipt, frames, claims, state, size):
             refused += 1
         if operation not in WRITE_OPERATIONS or (frame.get("outcome") or {}).get("ok") is not True:
             continue
-        if operation == "fs.write" and fields.get("action") not in ("opened_for_mutation", "truncated", "modified", "metadata_changed"):
+        native_mutation = fields.get("observation") == "es_notify" and fields.get("action") in ("copied", "exchanged")
+        if operation == "fs.write" and fields.get("action") not in ("opened_for_mutation", "truncated", "modified", "metadata_changed") and not native_mutation:
             continue
         paths = written(operation, fields)
         if paths is None or any(unnamed_path(path) for path in paths):
@@ -436,7 +442,9 @@ def workspace_line(receipt, frames, claims, state, size):
             key = ("t", value) if isinstance(value, str) else ("b", value["data"])
             named[key] = value if isinstance(value, str) else {"encoding": "base64", "data": value["data"]}
             action = fields.get("action")
-            if action == "modified" or (action == "truncated" and fields.get("observation") == "es_notify"):
+            if fields.get("observation") == "es_notify" and action == "cloned":
+                other = created
+            elif native_mutation or action == "modified" or (action == "truncated" and fields.get("observation") == "es_notify"):
                 other = modified
             elif action == "metadata_changed":
                 other = metadata
@@ -447,6 +455,7 @@ def workspace_line(receipt, frames, claims, state, size):
             {"fs.rename": renamed, "fs.unlink": removed}.get(operation, other).add(key)
     write, deny = claims["fs.write"], claims["fs.deny"]
     observe_off = string(receipt, "policy", "observe") == "off"
+    native_notify = string(receipt, "observer", "backend") == "es_notify"
     if write == "not_observed":
         text = "not observed (--observe off)" if observe_off else "not observed"
     elif write == "unavailable":
@@ -455,7 +464,7 @@ def workspace_line(receipt, frames, claims, state, size):
         text = "journal and receipt disagree on fs.write"
     else:
         seen = []
-        if opened or write == "exact":
+        if opened or (write == "exact" and not native_notify):
             seen.append(f"{number(write, len(opened))} {noun(len(opened), 'path', 'paths')} opened for writing")
         for n, what in [(len(modified - root), "modified"), (len(created - root), "created"),
                         (len(metadata - root), "with metadata changes"),
@@ -465,7 +474,7 @@ def workspace_line(receipt, frames, claims, state, size):
         for paths, what in [(modified, "content modified"), (created, "created"), (metadata, "metadata changed")]:
             if paths & root:
                 seen.append(f"workspace root {what}")
-        text = ", ".join(seen) if seen else "none recorded (a lower bound)"
+        text = ", ".join(seen) if seen else ("no in-set mutations recorded" if native_notify and write == "exact" else "none recorded (a lower bound)")
         if unnamed:
             text += f" · {number(write, unnamed)} " + noun(unnamed, "result with an unnamed path",
                                                           "results with unnamed paths")

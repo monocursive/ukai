@@ -315,7 +315,26 @@ impl<'a> Attempt<'a> {
         // Step 2: probe the selected mechanisms.
         self.checkpoint(ErrorStage::Probing)?;
         let capabilities = self.ctx.platform.probe(&request);
-        if let Some(error) = first_unsatisfied(&self.plan.resolved.requirements, &capabilities) {
+        let requirements = &self.plan.resolved.requirements;
+        #[cfg(target_os = "macos")]
+        let native_requirements;
+        #[cfg(target_os = "macos")]
+        let requirements = if self.ctx.platform.identity().os == crate::records::Os::Macos
+            && !self.args.requests_vm()
+        {
+            // The probe is informative. The native boundary must attempt the
+            // actual attachment before release: strict refuses its failure,
+            // best-effort records an unattached, degraded observer.
+            native_requirements = requirements
+                .iter()
+                .copied()
+                .filter(|r| *r != crate::capability::Requirement::ClosedSetObservation)
+                .collect::<Vec<_>>();
+            &native_requirements
+        } else {
+            requirements
+        };
+        if let Some(error) = first_unsatisfied(requirements, &capabilities) {
             return Err(error);
         }
         #[cfg(target_os = "macos")]

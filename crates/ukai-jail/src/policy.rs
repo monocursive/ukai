@@ -1973,15 +1973,9 @@ impl<'a> LayerStep<'a> {
                     format!("{} disables observation", label()),
                 ));
             }
-            // jail-macos.md §4.10: before J17 the macOS baseline is
-            // `observe = off` (native custody cannot observe a closed set
-            // yet), and a layer that would turn observation back on over
-            // that baseline refuses rather than recording a mode no
-            // boundary can honor; the baseline itself stays a recorded
-            // `baseline` value (I02). J17 (§5) returns the baselines to
-            // `observe = on` behind the supervisor's observation client,
-            // and this refusal reads the same [`profiles::J17_OBSERVE`]
-            // switch the baseline reads, so the two can never disagree.
+            // The baseline and explicit-on gate share the J17 implementation
+            // switch. SDK and entitlement are probed at execution, not guessed
+            // during policy resolution (jail-macos.md §5).
             if self.inputs.platform == Os::Macos
                 && !crate::profiles::J17_OBSERVE
                 && mode == ObserveMode::On

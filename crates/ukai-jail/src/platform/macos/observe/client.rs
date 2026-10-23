@@ -109,7 +109,7 @@ impl ObserveClient {
             },
             event_type: raw.event_type,
             action,
-            path2: matches!(action, ObsAction::Rename | ObsAction::Link).then_some(path2),
+            path2: action.has_two_paths().then_some(path2),
             ignored: raw.ignored != 0,
         })
     }

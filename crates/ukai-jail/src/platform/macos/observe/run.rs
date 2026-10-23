@@ -1,4 +1,8 @@
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -31,9 +35,9 @@ impl std::error::Error for ObserveStartError {}
 /// observation before exec. While running, the worker continuously consumes the
 /// bounded shim ring; finish only after custody has stopped the workload.
 ///
-/// `fs.write` remains degraded for uncovered mutations, so attaching this API
-/// alone does not make strict full-mutation evidence available.
+/// Coverage is active only over the published macos-closed-v1 subscription.
 pub struct ObserveRun {
+    lost: Arc<AtomicBool>,
     stop: Option<SyncSender<()>>,
     worker: Option<JoinHandle<ObserveJournal>>,
     attempt_id: String,
@@ -47,37 +51,58 @@ impl ObserveRun {
         workspace: &[u8],
         muted_tokens: &[[u32; 8]],
     ) -> Result<Self, ObserveStartError> {
+        Self::start_with(attempt_id, trace, workspace, muted_tokens, || {
+            ObserveClient::new().map_err(ObserveStartError::Client)
+        })
+    }
+
+    pub(crate) fn start_with<S: Source + Send + 'static>(
+        attempt_id: &str,
+        trace: SharedTrace,
+        workspace: &[u8],
+        muted_tokens: &[[u32; 8]],
+        create: impl FnOnce() -> Result<S, ObserveStartError>,
+    ) -> Result<Self, ObserveStartError> {
         if trace.is_poisoned() {
             return Err(ObserveStartError::Setup("trace_writer_poisoned"));
         }
         let workspace = canonical_workspace(workspace)?;
-        let mut client = ObserveClient::new().map_err(ObserveStartError::Client)?;
-        if !client.unmute_all() || !client.verify_unmuted() {
-            return Err(ObserveStartError::Setup("paths_still_muted"));
-        }
-        // Every jail helper is excluded, not only the supervisor. No ES process
-        // mute is installed: it could hide a new image or an instigated child.
-        for token in muted_tokens {
-            if !client.exclude_token(token) {
-                return Err(ObserveStartError::Setup("helper_exclusion_failed"));
-            }
-        }
-        if !client.subscribe() {
-            return Err(ObserveStartError::Setup("subscribe_failed"));
-        }
+        let mut client = create()?;
+        client.prepare(muted_tokens)?;
         let journal = ObserveJournal::new(attempt_id, Some(trace.clone()), &workspace);
+        if journal.is_degraded() {
+            return Err(ObserveStartError::Setup("observation_trace_unavailable"));
+        }
         let (stop, receiver) = mpsc::sync_channel(1);
+        let lost = Arc::new(AtomicBool::new(false));
+        let worker_lost = lost.clone();
         let worker = std::thread::Builder::new()
             .name("ukai-observe".into())
-            .spawn(move || consume(client, journal, receiver))
+            .spawn(move || {
+                consume(
+                    client,
+                    journal,
+                    receiver,
+                    &worker_lost,
+                    Receiver::recv_timeout,
+                )
+            })
             .map_err(ObserveStartError::Worker)?;
         Ok(Self {
+            lost,
             stop: Some(stop),
             worker: Some(worker),
             attempt_id: attempt_id.into(),
             trace,
             workspace,
         })
+    }
+
+    /// Sticky health for the supervisor's strict/best-effort loss rule.
+    #[must_use]
+    pub fn evidence_lost(&self) -> bool {
+        self.lost.load(Ordering::Acquire)
+            || self.worker.as_ref().is_some_and(JoinHandle::is_finished)
     }
 
     /// Drains (bounded to one second), deletes the ES client, and merges only
@@ -145,7 +170,8 @@ fn canonical_workspace(workspace: &[u8]) -> Result<Vec<u8>, ObserveStartError> {
 }
 
 // This seam exercises the same worker loop with a deterministic synthetic source.
-trait Source {
+pub(crate) trait Source {
+    fn prepare(&mut self, muted_tokens: &[[u32; 8]]) -> Result<(), ObserveStartError>;
     fn poll_message(&mut self) -> Option<super::ObsMessage>;
     fn gap(&self) -> bool;
     fn dropped(&self) -> u64;
@@ -154,6 +180,23 @@ trait Source {
     fn delete(self) -> bool;
 }
 impl Source for ObserveClient {
+    fn prepare(&mut self, muted_tokens: &[[u32; 8]]) -> Result<(), ObserveStartError> {
+        if !self.unmute_all() || !self.verify_unmuted() {
+            return Err(ObserveStartError::Setup("paths_still_muted"));
+        }
+        // Exact tokens, not ES process mutes: a launcher's new exec image and
+        // its instigated children must still be observable.
+        for token in muted_tokens {
+            if !self.exclude_token(token) {
+                return Err(ObserveStartError::Setup("helper_exclusion_failed"));
+            }
+        }
+        if !self.subscribe() {
+            return Err(ObserveStartError::Setup("subscribe_failed"));
+        }
+        Ok(())
+    }
+
     fn poll_message(&mut self) -> Option<super::ObsMessage> {
         ObserveClient::poll_message(self)
     }
@@ -174,10 +217,12 @@ impl Source for ObserveClient {
     }
 }
 
-fn poll(client: &mut impl Source, journal: &mut ObserveJournal) {
+fn poll(client: &mut impl Source, journal: &mut ObserveJournal) -> bool {
+    let mut full = true;
     // Bound each batch so heavy producers cannot starve stop processing.
     for _ in 0..1024 {
         let Some(message) = client.poll_message() else {
+            full = false;
             break;
         };
         journal.record_message(&message);
@@ -187,15 +232,28 @@ fn poll(client: &mut impl Source, journal: &mut ObserveJournal) {
     if client.gap() {
         journal.record_shim_loss(client.dropped(), client.invalid());
     }
+    full
 }
 fn consume(
     mut client: impl Source,
     mut journal: ObserveJournal,
     stop: Receiver<()>,
+    lost: &AtomicBool,
+    mut wait: impl FnMut(&Receiver<()>, Duration) -> Result<(), RecvTimeoutError>,
 ) -> ObserveJournal {
     loop {
-        poll(&mut client, &mut journal);
-        match stop.recv_timeout(Duration::from_millis(5)) {
+        let full = poll(&mut client, &mut journal);
+        if journal.is_degraded() {
+            lost.store(true, Ordering::Release);
+        }
+        // Check stop after every bounded batch, but only sleep after poll
+        // has observed the ring empty. A full batch may have more ready work.
+        let timeout = if full {
+            Duration::ZERO
+        } else {
+            Duration::from_millis(5)
+        };
+        match wait(&stop, timeout) {
             Err(RecvTimeoutError::Timeout) => continue,
             _ => break,
         }
@@ -203,7 +261,7 @@ fn consume(
     if !client.drain(1000) {
         journal.mark_gap("observation_drain_timeout");
     }
-    poll(&mut client, &mut journal);
+    while poll(&mut client, &mut journal) {}
     if !client.delete() {
         journal.mark_gap("observation_delete_failed");
     }
@@ -279,6 +337,9 @@ mod tests {
         delete_ok: bool,
     }
     impl Source for Synthetic {
+        fn prepare(&mut self, _: &[[u32; 8]]) -> Result<(), ObserveStartError> {
+            Ok(())
+        }
         fn poll_message(&mut self) -> Option<ObsMessage> {
             if self.next == self.available {
                 return None;
@@ -330,8 +391,43 @@ mod tests {
         );
         let (stop, receiver) = mpsc::sync_channel(1);
         stop.send(()).unwrap();
-        consume(source, journal, receiver)
+        consume(
+            source,
+            journal,
+            receiver,
+            &AtomicBool::new(false),
+            Receiver::recv_timeout,
+        )
     }
+    #[test]
+    fn j17_start_refuses_a_trace_that_cannot_record_the_scope() {
+        let dir = tempfile::tempdir().unwrap();
+        let trace = trace::shared(FileSink::with_bounds(
+            tempfile::tempfile().unwrap(),
+            16384,
+            16384,
+        ));
+        let result = ObserveRun::start_with(
+            "att_00000000-0000-4000-8000-000000000001",
+            trace,
+            dir.path().as_os_str().as_encoded_bytes(),
+            &[],
+            || {
+                Ok(Synthetic {
+                    next: 0,
+                    available: 0,
+                    loss: 0,
+                    drain_ok: true,
+                    delete_ok: true,
+                })
+            },
+        );
+        assert!(matches!(
+            result,
+            Err(ObserveStartError::Setup("observation_trace_unavailable"))
+        ));
+    }
+
     #[test]
     fn worker_consumes_events_and_drains_before_deleting() {
         let journal = run(Synthetic {
@@ -347,6 +443,62 @@ mod tests {
             SourceStatus::Active
         );
     }
+    #[test]
+    fn worker_drains_full_batches_without_sleeping() {
+        let trace = trace::shared(FileSink::new(tempfile::tempfile().unwrap()));
+        let journal = ObserveJournal::new(
+            "att_00000000-0000-4000-8000-000000000001",
+            Some(trace),
+            b"/w",
+        );
+        let (_stop, receiver) = mpsc::sync_channel(1);
+        let mut waits = Vec::new();
+        let journal = consume(
+            Synthetic {
+                next: 0,
+                available: 3073,
+                loss: 0,
+                drain_ok: true,
+                delete_ok: true,
+            },
+            journal,
+            receiver,
+            &AtomicBool::new(false),
+            |_, timeout| {
+                waits.push(timeout);
+                if timeout.is_zero() {
+                    Err(RecvTimeoutError::Timeout)
+                } else {
+                    Ok(())
+                }
+            },
+        );
+        assert_eq!(
+            waits,
+            [
+                Duration::ZERO,
+                Duration::ZERO,
+                Duration::ZERO,
+                Duration::from_millis(5)
+            ]
+        );
+        assert_eq!(journal.count(CoverageClass::Exec), 3074);
+        assert!(!journal.is_degraded());
+    }
+
+    #[test]
+    fn worker_handles_stop_between_full_batches_and_drains_the_remainder() {
+        let journal = run(Synthetic {
+            next: 0,
+            available: 3073,
+            loss: 0,
+            drain_ok: true,
+            delete_ok: true,
+        });
+        assert_eq!(journal.count(CoverageClass::Exec), 3074);
+        assert!(!journal.is_degraded());
+    }
+
     #[test]
     fn worker_reads_shim_loss_and_records_both_shutdown_failures() {
         let journal = run(Synthetic {

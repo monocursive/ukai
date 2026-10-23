@@ -56,7 +56,49 @@ int main(int argc, char **argv) {
     es_message_t m = {0};
     m.version = 4; m.process = &process;
     ukai_obs_event out;
-    if (!strcmp(argv[1], "close")) {
+    if (!strcmp(argv[1], "declared-set")) {
+        assert(sizeof(types) / sizeof(types[0]) == 18);
+        for (size_t i = 0; i < sizeof(types) / sizeof(types[0]); ++i) {
+            assert(types[i] != ES_EVENT_TYPE_NOTIFY_WRITE);
+            assert(types[i] != ES_EVENT_TYPE_NOTIFY_FILE_PROVIDER_MATERIALIZE);
+            assert(types[i] != ES_EVENT_TYPE_NOTIFY_FILE_PROVIDER_UPDATE);
+            memset(&m.event, 0, sizeof(m.event));
+            m.event_type = types[i]; m.seq_num = 0; m.global_seq_num = i;
+            switch (types[i]) {
+            case ES_EVENT_TYPE_NOTIFY_EXEC: m.event.exec.target = &process; break;
+            case ES_EVENT_TYPE_NOTIFY_CREATE: m.event.create.destination_type = ES_DESTINATION_TYPE_EXISTING_FILE; m.event.create.destination.existing_file = &src; break;
+            case ES_EVENT_TYPE_NOTIFY_RENAME: m.event.rename.source = &src; m.event.rename.destination_type = ES_DESTINATION_TYPE_EXISTING_FILE; m.event.rename.destination.existing_file = &dir; break;
+            case ES_EVENT_TYPE_NOTIFY_UNLINK: m.event.unlink.target = &src; break;
+            case ES_EVENT_TYPE_NOTIFY_LINK: m.event.link.source = &src; m.event.link.target_dir = &dir; m.event.link.target_filename = name("new"); break;
+            case ES_EVENT_TYPE_NOTIFY_CLOSE: m.event.close.target = &src; m.event.close.modified = true; break;
+            case ES_EVENT_TYPE_NOTIFY_TRUNCATE: m.event.truncate.target = &src; break;
+            case ES_EVENT_TYPE_NOTIFY_SETMODE: m.event.setmode.target = &src; break;
+            case ES_EVENT_TYPE_NOTIFY_SETATTRLIST: m.event.setattrlist.target = &src; break;
+            case ES_EVENT_TYPE_NOTIFY_CLONE: m.event.clone.source = &src; m.event.clone.target_dir = &dir; m.event.clone.target_name = name("new"); break;
+            case ES_EVENT_TYPE_NOTIFY_COPYFILE: m.event.copyfile.source = &src; m.event.copyfile.target_dir = &dir; m.event.copyfile.target_name = name("new"); break;
+            case ES_EVENT_TYPE_NOTIFY_EXCHANGEDATA: m.event.exchangedata.file1 = &src; m.event.exchangedata.file2 = &dir; break;
+            case ES_EVENT_TYPE_NOTIFY_SETEXTATTR: m.event.setextattr.target = &src; break;
+            case ES_EVENT_TYPE_NOTIFY_DELETEEXTATTR: m.event.deleteextattr.target = &src; break;
+            case ES_EVENT_TYPE_NOTIFY_UTIMES: m.event.utimes.target = &src; break;
+            case ES_EVENT_TYPE_NOTIFY_SETOWNER: m.event.setowner.target = &src; break;
+            case ES_EVENT_TYPE_NOTIFY_SETFLAGS: m.event.setflags.target = &src; break;
+            case ES_EVENT_TYPE_NOTIFY_SETACL: m.event.setacl.target = &src; break;
+            default: assert(!"row has no synthetic payload");
+            }
+            handle(NULL, &m, self); assert(ukai_obs_poll(self, &out));
+            assert(!out.ignored && !ukai_obs_gap(self));
+            assert(out.event_type == (uint32_t)types[i]); assert(out.path_len > 0);
+            if (out.type == UKAI_OBS_CLONE || out.type == UKAI_OBS_COPYFILE || out.type == UKAI_OBS_EXCHANGEDATA) {
+                assert(out.path2_len > 0);
+                equals(out.path, out.path_len, "/w/source");
+            }
+        }
+        // copyfile overwrite uses target_file even without a directory/name.
+        memset(&m.event, 0, sizeof(m.event)); m.event_type = ES_EVENT_TYPE_NOTIFY_COPYFILE;
+        m.event.copyfile.source = &src; m.event.copyfile.target_file = &dir;
+        handle(NULL, &m, self); assert(ukai_obs_poll(self, &out));
+        equals(out.path2, out.path2_len, "/w/dest"); assert(!ukai_obs_gap(self));
+    } else if (!strcmp(argv[1], "close")) {
         m.event_type = ES_EVENT_TYPE_NOTIFY_CLOSE; m.event.close.target = &src;
         m.event.close.modified = false; handle(NULL, &m, self);
         assert(ukai_obs_poll(self, &out));
@@ -67,6 +109,8 @@ int main(int argc, char **argv) {
         m.seq_num = 1; m.global_seq_num = 1; m.event.close.modified = true;
         handle(NULL, &m, self); assert(ukai_obs_poll(self, &out));
         assert(out.seq == 1 && out.modified == 1);
+        assert(out.type == UKAI_OBS_WRITE && !out.ignored);
+        equals(out.path, out.path_len, "/w/source");
     } else if (!strcmp(argv[1], "types")) {
         m.event_type = ES_EVENT_TYPE_NOTIFY_SETMODE; m.event.setmode.target = &src;
         handle(NULL, &m, self); assert(ukai_obs_poll(self, &out));

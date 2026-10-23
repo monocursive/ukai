@@ -148,8 +148,10 @@ live acceptance record; every mapped native test was rechecked after integration
 Current implementation: native execution is **off by default**. Setting
 `UKAI_JAIL_MACOS_NATIVE=dev` enables development only; a native receipt records
 `native_execution=dev`. Native credential, vault and vendor staging answer
-`unsupported` and refuse. `J17_OBSERVE=false`: `ObserveRun` exists but is
-unwired; `fs.write` would still be `degraded`/partial even if wired. Every
+`unsupported` and refuse. J17 is wired before release (`J17_OBSERVE=true`):
+`macos-closed-v1` declares the exact ES notification set; loss-free attached
+`exec` and `fs.write` coverage is active only over that set. Synthetic producer
+receipts are tested; no live observed native run is proved. Every
 `run --vm` refuses before connecting: no qualified VM backend exists yet.
 
 | Lane | Covers |
@@ -162,7 +164,7 @@ unwired; `fs.write` would still be `degraded`/partial even if wired. Every
 | `macos_terminal_relay` | Real ptys and shell fixtures: byte/interrupt relay, window size, raw-mode restore, stop polling, killed-agent handling and relay receipt facts. No complete jailed descriptor-isolation or detached `/dev/tty` acceptance run (K101). |
 | `macos_gc` | Host boot/session and custodian-liveness probes; fabricated attempt roots for abandon, orphan listing and drained-record scanning; a gone-target kill errno path. No live both-custodian-loss recovery proof (K95). |
 | `macos_boundary` | Default refusal without the native development opt-in (including a `none` marker test), requirements refusal, launcher/guardian grammar, blocked report, B-frame codec and synthetic RunEvent mapping. No live entitled execution or per-ceiling/observation acceptance proof. |
-| `macos_observe` | Synthetic events map into schema-checked audit frames and partial `fs.write` coverage; synthetic gap/summary checks and unentitled-client refusal. `ObserveRun` remains unwired. No observed live attempt (K105–K107). |
+| `macos_observe` | Synthetic events cover the published 18-notification `macos-closed-v1` table; loss-free exec/fs.write counts, gaps and summary recomputation are checked. The native boundary producer fixture also checks shared handshake token selection and attachment, startup refusal in both modes, strict runtime stop and best-effort runtime degradation. J17 is wired; no observed live attempt (K105–K107), and no live performance result. |
 | `vm_tier` | Policy key/digest/narrowing, CLI grammar and refusals, transport facts, and attempt/control protocols against a scripted stand-in. No VM boots; warm reuse and K108–K110 remain untested. |
 | Portable extensions | Shared resolution, policy and record assertions where the named suite actually runs on macOS; these do not prove live native custody. Group- and other-writable install roots refuse; no group-membership exception remains. |
 

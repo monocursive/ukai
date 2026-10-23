@@ -76,6 +76,7 @@ use crate::platform::macos::guardian::frames::{
 use crate::platform::macos::guardian::launch_block::{self, FdAction, LaunchBlock};
 use crate::platform::macos::guardian::record;
 use crate::platform::macos::guardian::rlimit::PROCESS_HEADROOM;
+use crate::platform::macos::observe::{ObserveRun, ObserveStartError};
 use crate::platform::macos::relay::TerminalRelay;
 use crate::platform::macos::sandbox::{self as seatbelt, ProfileParams};
 use crate::platform::{
@@ -970,8 +971,120 @@ impl BReader {
 // prepare: §4.3 steps 1–5
 // ---------------------------------------------------------------------------
 
+/// Observation has no custody authority. Requested attachment must succeed
+/// before release in either evidence mode; observation off has no audit claim.
+enum NativeObservation {
+    Off,
+    Running(ObserveRun),
+}
+impl NativeObservation {
+    fn evidence_lost(&self) -> bool {
+        match self {
+            Self::Off => false,
+            Self::Running(run) => run.evidence_lost(),
+        }
+    }
+    fn finish(self, known: crate::observer::CoverageSummary) -> crate::observer::CoverageSummary {
+        match self {
+            Self::Off => known,
+            Self::Running(run) => run.finish(known),
+        }
+    }
+}
+
+fn start_observation(
+    plan: &PreparedPlan,
+    sinks: &Sinks,
+    tokens: &[[u32; 8]],
+    start: impl FnOnce(
+        &str,
+        crate::trace::SharedTrace,
+        &[u8],
+        &[[u32; 8]],
+    ) -> Result<ObserveRun, ObserveStartError>,
+) -> Result<NativeObservation, JailError> {
+    use crate::records::ObserveMode;
+    use std::os::unix::ffi::OsStrExt as _;
+    if plan.request.snapshot.observation.mode == ObserveMode::Off {
+        return Ok(NativeObservation::Off);
+    }
+    let workspace = plan.workspace.as_os_str().as_bytes();
+    let started = match sinks.trace.clone() {
+        Some(trace) => start(&plan.attempt_id, trace, workspace, tokens),
+        None => Err(ObserveStartError::Setup("trace_unavailable")),
+    };
+    match started {
+        Ok(run) => Ok(NativeObservation::Running(run)),
+        Err(error) => Err(refusal(
+            ErrorCode::ObserverUnavailable,
+            ErrorStage::Preparing,
+            Remediation::HostSetup,
+            format!(
+                "the macos-closed-v1 observer could not attach: {error}; an ES-capable SDK and an Endpoint Security entitled executable are required"
+            ),
+        )),
+    }
+}
+
+/// Inputs already established by the real handshake. Tests replace the host
+/// source, but use this same custody replay, token selection and attachment.
+struct CustodySetup {
+    capacity: usize,
+    supervisor: Token,
+    guardian_pid: libc::pid_t,
+    overflowed: bool,
+}
+
+fn prepare_custody_and_observation(
+    plan: &PreparedPlan,
+    sinks: &Sinks,
+    handshake: &mut Handshake,
+    setup: CustodySetup,
+    start: impl FnOnce(
+        &str,
+        crate::trace::SharedTrace,
+        &[u8],
+        &[[u32; 8]],
+    ) -> Result<ObserveRun, ObserveStartError>,
+) -> Result<(Custodian, NativeObservation), JailError> {
+    // Observation excludes the guardian's latest exec identity; custody must
+    // replay from its first identity. Select before replay consumes the queue.
+    let guardian_token = handshake
+        .events
+        .iter()
+        .rev()
+        .map(|poll| *poll.event.token())
+        .find(|token| token[AUDIT_TOKEN_PID] as libc::pid_t == setup.guardian_pid)
+        .ok_or_else(|| spawn_error("cannot read guardian audit token"))?;
+    let engine = supervisor_custody(
+        setup.capacity,
+        handshake.launcher_token,
+        setup.supervisor,
+        setup.guardian_pid,
+        &mut handshake.events,
+        setup.overflowed,
+    )?;
+    if engine.gapped()
+        || engine.integrity_loss()
+        || !engine.contains_token(&handshake.launcher_token)
+    {
+        return Err(spawn_error(
+            "the supervisor could not verify the launcher's custody stream",
+        ));
+    }
+    // Custody is established and the launcher is still blocked on R.
+    let observation = start_observation(
+        plan,
+        sinks,
+        &[setup.supervisor, guardian_token, handshake.launcher_token],
+        start,
+    )?;
+    Ok((engine, observation))
+}
+
 /// The one prepared macOS boundary.
 pub struct MacosPrepared {
+    observation: NativeObservation,
     client: Option<CustodyClient>,
     engine: Custodian,
     a_write: RawFd,
@@ -1134,33 +1247,27 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
         }
     };
 
-    let capacity = crate::platform::macos::custody::table_capacity(maxprocperuid());
-    let engine = (|| {
+    let prepared = (|| {
         let supervisor =
             es::self_token().ok_or_else(|| spawn_error("cannot read supervisor audit token"))?;
-        let engine = supervisor_custody(
-            capacity,
-            handshake.launcher_token,
-            supervisor,
-            built
-                .guardian
-                .pid
-                .expect("handshake retained the guardian child"),
-            &mut handshake.events,
-            client.ring_overflowed(),
-        )?;
-        if engine.gapped()
-            || engine.integrity_loss()
-            || !engine.contains_token(&handshake.launcher_token)
-        {
-            return Err(spawn_error(
-                "the supervisor could not verify the launcher's custody stream",
-            ));
-        }
-        Ok(engine)
+        prepare_custody_and_observation(
+            &plan,
+            &sinks,
+            &mut handshake,
+            CustodySetup {
+                capacity: crate::platform::macos::custody::table_capacity(maxprocperuid()),
+                supervisor,
+                guardian_pid: built
+                    .guardian
+                    .pid
+                    .expect("handshake retained the guardian child"),
+                overflowed: client.ring_overflowed(),
+            },
+            ObserveRun::start,
+        )
     })();
-    let engine = match engine {
-        Ok(engine) => engine,
+    let (engine, observation) = match prepared {
+        Ok(prepared) => prepared,
         Err(error) => {
             built.pipe_r_write.close();
             abort_guardian(&mut built.guardian, built.pipe_a_write.take_fd());
@@ -1194,6 +1301,7 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
         None => (None, None, None),
     };
     Ok(Box::new(MacosPrepared {
+        observation,
         client: Some(client),
         engine,
         a_write: built.pipe_a_write.take_fd(),
@@ -2122,6 +2230,8 @@ impl MacosPrepared {
 
 /// The supervisor's custodian state while the target runs.
 struct MacosRunning {
+    observation: NativeObservation,
+    observation_loss_reported: bool,
     client: Option<CustodyClient>,
     engine: Custodian,
     a_write: RawFd,
@@ -2176,6 +2286,8 @@ impl MacosRunning {
         let events = prepared.engine.seq().counts().into_iter().sum();
         let peak_members = prepared.engine.live_count();
         Self {
+            observation: prepared.observation,
+            observation_loss_reported: false,
             client: prepared.client,
             engine: prepared.engine,
             a_write: prepared.a_write,
@@ -2723,6 +2835,9 @@ impl crate::platform::RunningExecution for MacosRunning {
         let bounded = Instant::now() + Duration::from_millis(100);
         let step_end = deadline.at.map_or(bounded, |at| at.min(bounded));
         loop {
+            if let Some(event) = self.observation_event() {
+                return event;
+            }
             // The relay first (§4.11): the operator's bytes and window sizes
             // move whether or not the target has reported, and the
             // workload never holds the operator's terminal.
@@ -2811,6 +2926,8 @@ impl crate::platform::RunningExecution for MacosRunning {
                 resolver_refused: 0,
             },
         );
+        coverage =
+            std::mem::replace(&mut self.observation, NativeObservation::Off).finish(coverage);
         let Some(proxy) = self.proxy.take() else {
             return Some(coverage);
         };
@@ -2845,6 +2962,17 @@ impl crate::platform::RunningExecution for MacosRunning {
 }
 
 impl MacosRunning {
+    fn observation_event(&mut self) -> Option<RunEvent> {
+        if !self.observation_loss_reported && self.observation.evidence_lost() {
+            self.observation_loss_reported = true;
+            return Some(RunEvent::EvidenceLost {
+                reason: "macos-closed-v1 observation evidence lost; see coverage gaps".into(),
+                after_target_end: self.target_ended(),
+            });
+        }
+        None
+    }
+
     fn wall_hit(&self) -> Option<bool> {
         // A later expiry during another stop's grace is still a hit, while
         // the first stop remains the cause. Never infer a hit from elapsed
@@ -3731,15 +3859,104 @@ os.write({}, (','.join(map(str, fds))).encode())
         )
     }
 
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum ReceiptObservation {
+        Off,
+        Clean,
+        Loss,
+        NotEntitled,
+        SdkAbsent,
+        SetupFailure,
+        DrainFailure,
+        DeleteFailure,
+    }
+
+    struct ObservationControl {
+        send: std::sync::mpsc::Sender<super::super::observe::ObsMessage>,
+        dropped: std::sync::Arc<std::sync::atomic::AtomicU64>,
+        workspace: PathBuf,
+    }
+    impl ObservationControl {
+        fn send(
+            &self,
+            global: u64,
+            seq: u64,
+            action: super::super::observe::ObsAction,
+            token: Token,
+        ) {
+            use super::super::observe::{ObsEvent, ObsMessage};
+            self.send
+                .send(ObsMessage {
+                    event: ObsEvent {
+                        kind: action.kind(),
+                        global_seq: global,
+                        seq,
+                        token,
+                        path: self
+                            .workspace
+                            .join("observed")
+                            .as_os_str()
+                            .as_encoded_bytes()
+                            .to_vec(),
+                    },
+                    event_type: action as u32,
+                    action,
+                    path2: None,
+                    ignored: false,
+                })
+                .unwrap();
+        }
+    }
+    struct ReceiptSource {
+        receive: std::sync::mpsc::Receiver<super::super::observe::ObsMessage>,
+        dropped: std::sync::Arc<std::sync::atomic::AtomicU64>,
+        mode: ReceiptObservation,
+        tokens: [Token; 3],
+    }
+    impl super::super::observe::Source for ReceiptSource {
+        fn prepare(&mut self, tokens: &[[u32; 8]]) -> Result<(), ObserveStartError> {
+            assert_eq!(
+                tokens, &self.tokens,
+                "supervisor, guardian and launcher exclusions"
+            );
+            if self.mode == ReceiptObservation::SetupFailure {
+                Err(ObserveStartError::Setup("synthetic_subscribe_failed"))
+            } else {
+                Ok(())
+            }
+        }
+        fn poll_message(&mut self) -> Option<super::super::observe::ObsMessage> {
+            self.receive.try_recv().ok()
+        }
+        fn gap(&self) -> bool {
+            self.dropped() > 0
+        }
+        fn dropped(&self) -> u64 {
+            self.dropped.load(std::sync::atomic::Ordering::Acquire)
+        }
+        fn invalid(&self) -> bool {
+            false
+        }
+        fn drain(&mut self, _: u32) -> bool {
+            self.mode != ReceiptObservation::DrainFailure
+        }
+        fn delete(self) -> bool {
+            self.mode != ReceiptObservation::DeleteFailure
+        }
+    }
+
     /// No ES client or workload process is created. The production native
     /// prepared/released objects still produce every receipt field; this
     /// adapter replaces only the event source, signalling and host probes.
     struct ReceiptPlatform {
+        observation: ReceiptObservation,
         wall_hit: Option<bool>,
         prepared_receipt: std::sync::Arc<std::sync::Mutex<Option<serde_json::Value>>>,
     }
 
     struct ReceiptPrepared {
+        observation: ReceiptObservation,
+        control: Option<ObservationControl>,
         inner: MacosPrepared,
         peers: [Fd; 2],
         wall_hit: Option<bool>,
@@ -3748,6 +3965,8 @@ os.write({}, (','.join(map(str, fds))).encode())
     }
 
     struct ReceiptRun {
+        observation: ReceiptObservation,
+        control: Option<ObservationControl>,
         receipt_path: PathBuf,
         inner: MacosRunning,
         _peers: [Fd; 2],
@@ -3756,14 +3975,37 @@ os.write({}, (','.join(map(str, fds))).encode())
     }
 
     fn receipt_prepared(plan: &PreparedPlan) -> (MacosPrepared, [Fd; 2]) {
+        let (mut events, launcher_token, _) = retained_handshake();
+        let engine =
+            supervisor_custody(8, launcher_token, token(42), 1001, &mut events, false).unwrap();
+        receipt_prepared_parts(
+            plan,
+            Handshake {
+                launcher_token,
+                events,
+            },
+            engine,
+            NativeObservation::Off,
+        )
+    }
+
+    fn receipt_prepared_parts(
+        plan: &PreparedPlan,
+        handshake: Handshake,
+        engine: Custodian,
+        observation: NativeObservation,
+    ) -> (MacosPrepared, [Fd; 2]) {
         let params = profile_params(plan, None).unwrap();
-        let (mut events, launcher, _) = retained_handshake();
-        let engine = supervisor_custody(8, launcher, token(42), 1001, &mut events, false).unwrap();
+        let Handshake {
+            launcher_token: launcher,
+            events,
+        } = handshake;
         let mut a = Pipe::new().unwrap();
         let mut r = Pipe::new().unwrap();
         let peers = [Fd(a.take_read()), Fd(r.take_read())];
         (
             MacosPrepared {
+                observation,
                 client: None,
                 engine,
                 a_write: a.take_write(),
@@ -3829,10 +4071,66 @@ os.write({}, (','.join(map(str, fds))).encode())
         fn prepare(
             &self,
             plan: PreparedPlan,
-            _: Sinks,
+            sinks: Sinks,
         ) -> Result<Box<dyn PreparedExecution>, JailError> {
-            let (inner, peers) = receipt_prepared(&plan);
+            let (events, launcher_token, guardian_token) = retained_handshake();
+            let mut handshake = Handshake {
+                launcher_token,
+                events,
+            };
+            let (send, receive) = std::sync::mpsc::channel();
+            let dropped = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+            let source = ReceiptSource {
+                receive,
+                dropped: dropped.clone(),
+                mode: self.observation,
+                // Expectations derive from the handshake's post-exec tokens,
+                // independently of the production selector under test.
+                tokens: [token(42), guardian_token, launcher_token],
+            };
+            let (engine, observation) = prepare_custody_and_observation(
+                &plan,
+                &sinks,
+                &mut handshake,
+                CustodySetup {
+                    capacity: 8,
+                    supervisor: token(42),
+                    guardian_pid: 1001,
+                    overflowed: false,
+                },
+                |attempt, trace, workspace, muted| {
+                    assert_ne!(
+                        self.observation,
+                        ReceiptObservation::Off,
+                        "observe off creates no client"
+                    );
+                    ObserveRun::start_with(attempt, trace, workspace, muted, || {
+                        match self.observation {
+                            ReceiptObservation::NotEntitled => {
+                                Err(ObserveStartError::Client(EsNewResult::NotEntitled))
+                            }
+                            ReceiptObservation::SdkAbsent => {
+                                Err(ObserveStartError::Client(EsNewResult::SdkAbsent))
+                            }
+                            _ => Ok(source),
+                        }
+                    })
+                },
+            )?;
+            assert!(
+                handshake.events.is_empty(),
+                "shared preparation replayed custody before attachment"
+            );
+            let (inner, peers) = receipt_prepared_parts(&plan, handshake, engine, observation);
+            let control =
+                (self.observation != ReceiptObservation::Off).then(|| ObservationControl {
+                    send,
+                    dropped,
+                    workspace: plan.workspace.clone(),
+                });
             Ok(Box::new(ReceiptPrepared {
+                observation: self.observation,
+                control,
                 inner,
                 peers,
                 wall_hit: self.wall_hit,
@@ -3856,6 +4154,8 @@ os.write({}, (','.join(map(str, fds))).encode())
                 Some(serde_json::from_slice(&std::fs::read(&self.receipt_path).unwrap()).unwrap());
             let inner = self.inner.release_inner()?;
             Ok(Box::new(ReceiptRun {
+                observation: self.observation,
+                control: self.control,
                 receipt_path: self.receipt_path,
                 inner,
                 _peers: self.peers,
@@ -3873,12 +4173,19 @@ os.write({}, (','.join(map(str, fds))).encode())
 
     impl crate::platform::RunningExecution for ReceiptRun {
         fn wait(&mut self, _: Deadline) -> RunEvent {
+            if let Some(event) = self.inner.observation_event() {
+                return event;
+            }
             let event = self.next_event;
             self.next_event += 1;
             match event {
                 0 => {
                     let mut target = self.inner.launcher_token;
                     target[AUDIT_TOKEN_PIDVERSION] += 1;
+                    if let Some(control) = &self.control {
+                        control.send(0, 0, super::super::observe::ObsAction::Exec, target);
+                        control.send(1, 0, super::super::observe::ObsAction::Modified, target);
+                    }
                     self.inner
                         .apply_event(&poll(EsEvent::Exec { token: target }, 5, 3, es::EVENT_EXEC))
                         .unwrap()
@@ -3886,6 +4193,9 @@ os.write({}, (','.join(map(str, fds))).encode())
                 1 => {
                     let mut target = self.inner.target_token.unwrap();
                     target[AUDIT_TOKEN_PIDVERSION] += 1;
+                    if let Some(control) = &self.control {
+                        control.send(2, 1, super::super::observe::ObsAction::Exec, target);
+                    }
                     self.inner
                         .apply_event(&poll(EsEvent::Exec { token: target }, 6, 4, es::EVENT_EXEC))
                         .unwrap_or(RunEvent::Poll)
@@ -3913,6 +4223,24 @@ os.write({}, (','.join(map(str, fds))).encode())
                             receipt["process"]
                         );
                         std::thread::sleep(Duration::from_millis(5));
+                    }
+                    if self.observation == ReceiptObservation::Loss {
+                        self.control
+                            .as_ref()
+                            .unwrap()
+                            .dropped
+                            .store(7, std::sync::atomic::Ordering::Release);
+                        let deadline = Instant::now() + Duration::from_secs(5);
+                        loop {
+                            if let Some(event) = self.inner.observation_event() {
+                                return event;
+                            }
+                            assert!(
+                                Instant::now() < deadline,
+                                "worker must report loss while target is live"
+                            );
+                            std::thread::sleep(Duration::from_millis(1));
+                        }
                     }
                     if self.wall_hit != Some(true) {
                         return RunEvent::Poll;
@@ -3952,6 +4280,19 @@ os.write({}, (','.join(map(str, fds))).encode())
                 .request_stop_with(reason, &mut RecordedSignals::default());
         }
         fn wait_tree(&mut self, _: Duration) -> TreeObservation {
+            if !self.inner.target_ended() {
+                // A strict loss stops before the fixture's natural exit.
+                let target = self.inner.target_token.unwrap();
+                self.inner.apply_event(&poll(
+                    EsEvent::Exit {
+                        token: target,
+                        status: libc::SIGKILL,
+                    },
+                    7,
+                    1,
+                    es::EVENT_EXIT,
+                ));
+            }
             self.inner.begin_stop();
             assert!(self.inner.tick_stop()); // The fake source already delivered the exit.
             self.inner.settled_tree()
@@ -3964,6 +4305,266 @@ os.write({}, (','.join(map(str, fds))).encode())
         }
         fn final_native_details(&self) -> serde_json::Map<String, serde_json::Value> {
             self.inner.final_native_details()
+        }
+    }
+
+    #[test]
+    fn j17_requested_attachment_failure_refuses_in_both_modes() {
+        use crate::records::{EvidenceMode, ObserveMode};
+        for evidence in [EvidenceMode::Strict, EvidenceMode::BestEffort] {
+            for failure in 0..4 {
+                let (_dir, mut plan) = policy_plan(crate::policy::ProfileName::Tool);
+                plan.request.snapshot.observation.mode = ObserveMode::On;
+                plan.request.snapshot.observation.evidence = evidence;
+                let sinks = Sinks {
+                    trace: (failure != 3).then(|| {
+                        crate::trace::shared(crate::trace::FileSink::new(
+                            tempfile::tempfile().unwrap(),
+                        ))
+                    }),
+                };
+                let (events, launcher_token, guardian) = retained_handshake();
+                let mut handshake = Handshake {
+                    launcher_token,
+                    events,
+                };
+                let result = prepare_custody_and_observation(
+                    &plan,
+                    &sinks,
+                    &mut handshake,
+                    CustodySetup {
+                        capacity: 8,
+                        supervisor: token(42),
+                        guardian_pid: 1001,
+                        overflowed: false,
+                    },
+                    |_, _, _, tokens| {
+                        assert_eq!(tokens, &[token(42), guardian, launcher_token]);
+                        Err(match failure {
+                            0 => ObserveStartError::Client(EsNewResult::NotEntitled),
+                            1 => ObserveStartError::Client(EsNewResult::SdkAbsent),
+                            2 => ObserveStartError::Setup("synthetic_subscribe_failed"),
+                            _ => panic!("missing trace must refuse before starting the client"),
+                        })
+                    },
+                );
+                let error = match result {
+                    Err(error) => error,
+                    Ok(_) => panic!("requested attachment failure must refuse in {evidence:?}"),
+                };
+                assert_eq!(error.code, ErrorCode::ObserverUnavailable);
+                assert_eq!(error.stage, ErrorStage::Preparing);
+                assert_eq!(error.remediation, Remediation::HostSetup);
+            }
+        }
+    }
+
+    #[test]
+    fn j17_synthetic_native_producer_receipts_and_strict_refusal() {
+        use clap::Parser as _;
+        use std::os::unix::fs::PermissionsExt as _;
+        const CHILD: &str = "UKAI_J17_PRODUCER_TEST";
+        if std::env::var_os(CHILD).is_none() {
+            let name = format!(
+                "{}::j17_synthetic_native_producer_receipts_and_strict_refusal",
+                module_path!().split_once("::").unwrap().1
+            );
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", &name, "--nocapture"])
+                .env(CHILD, "1")
+                .env("UKAI_JAIL_MACOS_NATIVE", "dev")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(String::from_utf8_lossy(&output.stdout).contains("running 1 test"));
+            return;
+        }
+        let validator = receipt_validator();
+        for mode in [
+            ReceiptObservation::Off,
+            ReceiptObservation::Clean,
+            ReceiptObservation::Loss,
+            ReceiptObservation::NotEntitled,
+            ReceiptObservation::SdkAbsent,
+            ReceiptObservation::SetupFailure,
+            ReceiptObservation::DrainFailure,
+            ReceiptObservation::DeleteFailure,
+        ] {
+            for evidence in ["strict", "best-effort"] {
+                let temp = tempfile::Builder::new()
+                    .permissions(std::fs::Permissions::from_mode(0o700))
+                    .tempdir()
+                    .unwrap();
+                let root = temp.path().canonicalize().unwrap();
+                let workspace = root.join("work");
+                std::fs::create_dir(&workspace).unwrap();
+                let captured = std::sync::Arc::new(std::sync::Mutex::new(None));
+                let ctx = crate::supervisor::Context {
+                    platform: Box::new(ReceiptPlatform {
+                        observation: mode,
+                        wall_hit: Some(false),
+                        prepared_receipt: captured.clone(),
+                    }),
+                    env_settings: crate::config::EnvSettings {
+                        config_dir: Some(root.join("config")),
+                        data_dir: Some(root.join("data")),
+                        ..Default::default()
+                    },
+                    cwd: workspace.clone(),
+                    home: Some(root.join("home")),
+                    env_lookup: Box::new(|_| None),
+                };
+                let crate::cli::Command::Run(args) = crate::cli::Cli::parse_from([
+                    "ukai-jail",
+                    "run",
+                    "--profile",
+                    "tool",
+                    "--observe",
+                    if mode == ReceiptObservation::Off {
+                        "off"
+                    } else {
+                        "on"
+                    },
+                    "--evidence",
+                    evidence,
+                    "--workspace",
+                    workspace.to_str().unwrap(),
+                    "--",
+                    "/usr/bin/true",
+                ])
+                .command
+                else {
+                    unreachable!()
+                };
+                let report = crate::supervisor::run(&ctx, &args);
+                let receipt = serde_json::to_value(report.receipt.as_ref().unwrap()).unwrap();
+                let errors: Vec<_> = validator
+                    .iter_errors(&receipt)
+                    .map(|e| e.to_string())
+                    .collect();
+                assert!(
+                    errors.is_empty(),
+                    "{mode:?}/{evidence}: {errors:?}\n{receipt:#}"
+                );
+                let start_failed = matches!(
+                    mode,
+                    ReceiptObservation::NotEntitled
+                        | ReceiptObservation::SdkAbsent
+                        | ReceiptObservation::SetupFailure
+                );
+                if start_failed {
+                    assert_eq!(report.exit_code, 125, "{mode:?}: {:?}", report.error);
+                    let error = report.error.as_ref().unwrap();
+                    assert_eq!(error.code, ErrorCode::ObserverUnavailable);
+                    assert_eq!(error.remediation, Remediation::HostSetup);
+                    assert!(captured.lock().unwrap().is_none(), "refused before release");
+                    assert!(receipt["process"].is_null());
+                    assert_eq!(receipt["exec_observed"], false);
+                    continue;
+                }
+                assert_eq!(
+                    receipt["phase"], "settled",
+                    "{mode:?}/{evidence}: {:?}",
+                    report.error
+                );
+                assert!(
+                    captured.lock().unwrap().is_some(),
+                    "prepared before release"
+                );
+                if mode == ReceiptObservation::Off {
+                    assert_eq!(report.exit_code, 0);
+                    assert_eq!(receipt["observer"]["attached"], false);
+                    assert!(receipt["observer"]["set"].is_null());
+                    for class in ["exec", "fs.write"] {
+                        assert_eq!(receipt["coverage"][class]["status"], "unsupported");
+                    }
+                    let attempt = report.receipt_path.as_ref().unwrap().parent().unwrap();
+                    let trace = std::fs::read_to_string(attempt.join("trace.ndjson")).unwrap();
+                    assert!(!trace.lines().any(|line| {
+                        serde_json::from_str::<serde_json::Value>(line).unwrap()["source"]
+                            == "audit"
+                    }));
+                    continue;
+                }
+                assert_eq!(receipt["observer"]["set"], "macos-closed-v1");
+                assert_eq!(receipt["observer"]["backend"], "es_notify");
+                assert_eq!(receipt["observer"]["attached"], true);
+                assert_eq!(
+                    receipt["lifetime"]["tree_empty"], true,
+                    "observation loss does not lose custody"
+                );
+                for class in ["fs.deny", "net", "proxy.net"] {
+                    assert_eq!(receipt["coverage"][class]["status"], "unsupported");
+                }
+                for (class, count) in [("exec", 2), ("fs.write", 1)] {
+                    let row = &receipt["coverage"][class];
+                    assert_eq!(
+                        row["status"],
+                        if mode == ReceiptObservation::Clean {
+                            "active"
+                        } else {
+                            "degraded"
+                        }
+                    );
+                    if mode == ReceiptObservation::Clean {
+                        assert_eq!(row["observed_count"], count);
+                    } else {
+                        assert!(row["observed_count"].is_null());
+                        assert!(!row["gaps"].as_array().unwrap().is_empty());
+                    }
+                }
+                if mode == ReceiptObservation::Loss && evidence == "strict" {
+                    assert_eq!(receipt["outcome"]["cause"], "evidence_loss");
+                    assert_eq!(report.exit_code, 1);
+                } else if evidence == "best-effort" || mode == ReceiptObservation::Clean {
+                    assert_eq!(
+                        report.exit_code, 0,
+                        "{mode:?}/{evidence}: {:?}\n{receipt:#}",
+                        report.error
+                    );
+                } else {
+                    assert_eq!(report.exit_code, 1, "shutdown loss fails strict evidence");
+                }
+                let attempt = report.receipt_path.as_ref().unwrap().parent().unwrap();
+                let trace = std::fs::read(attempt.join("trace.ndjson")).unwrap();
+                let summary =
+                    crate::summary::summary(&receipt, crate::summary::Journal::Bytes(&trace));
+                assert_eq!(summary.journal, crate::summary::JournalState::Complete);
+                let summary_path = root.join("summary.json");
+                std::fs::write(
+                    &summary_path,
+                    serde_json::to_vec(&summary.to_json()).unwrap(),
+                )
+                .unwrap();
+                let script = Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../docs/specs/jail-v1/summary_check.py");
+                let checked = std::process::Command::new("python3")
+                    .arg("-I")
+                    .arg(script)
+                    .arg(attempt)
+                    .arg(&summary_path)
+                    .output()
+                    .unwrap();
+                assert!(
+                    checked.status.success(),
+                    "{mode:?}/{evidence}: {}{}",
+                    String::from_utf8_lossy(&checked.stdout),
+                    String::from_utf8_lossy(&checked.stderr)
+                );
+                if let Some(base) = std::env::var_os("UKAI_J17_RECEIPT_DIR") {
+                    let saved = PathBuf::from(base).join(format!("{mode:?}-{evidence}"));
+                    std::fs::create_dir_all(&saved).unwrap();
+                    for name in ["jail.json", "trace.ndjson"] {
+                        std::fs::copy(attempt.join(name), saved.join(name)).unwrap();
+                    }
+                    std::fs::copy(summary_path, saved.join("summary.json")).unwrap();
+                }
+            }
         }
     }
 
@@ -4042,6 +4643,7 @@ os.write({}, (','.join(map(str, fds))).encode())
                 plan: &crate::platform::PlanRequest,
             ) -> Vec<crate::capability::Capability> {
                 ReceiptPlatform {
+                    observation: ReceiptObservation::Off,
                     wall_hit: Some(false),
                     prepared_receipt: Default::default(),
                 }
@@ -4153,6 +4755,7 @@ os.write({}, (','.join(map(str, fds))).encode())
             let captured = std::sync::Arc::new(std::sync::Mutex::new(None));
             let ctx = crate::supervisor::Context {
                 platform: Box::new(ReceiptPlatform {
+                    observation: ReceiptObservation::Off,
                     wall_hit,
                     prepared_receipt: captured.clone(),
                 }),
@@ -4170,6 +4773,8 @@ os.write({}, (','.join(map(str, fds))).encode())
                 "run",
                 "--profile",
                 "tool",
+                "--observe",
+                "off",
                 "--workspace",
                 workspace.to_str().unwrap(),
                 "--",

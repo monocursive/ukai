@@ -18,11 +18,9 @@ struct ukai_obs_client {
     uint32_t helpers[UKAI_OBS_HELPERS_MAX][UKAI_OBS_TOKEN_WORDS];
 };
 static const es_event_type_t types[] = {
-    ES_EVENT_TYPE_NOTIFY_EXEC, ES_EVENT_TYPE_NOTIFY_CREATE,
-    ES_EVENT_TYPE_NOTIFY_RENAME, ES_EVENT_TYPE_NOTIFY_UNLINK,
-    ES_EVENT_TYPE_NOTIFY_LINK, ES_EVENT_TYPE_NOTIFY_TRUNCATE,
-    ES_EVENT_TYPE_NOTIFY_SETATTRLIST, ES_EVENT_TYPE_NOTIFY_SETMODE,
-    ES_EVENT_TYPE_NOTIFY_CLOSE,
+#define UKAI_OBS_EVENT(event, coverage, operation, meaning) ES_EVENT_TYPE_NOTIFY_##event,
+#include "closed_set.def"
+#undef UKAI_OBS_EVENT
 };
 static void mark_gap(ukai_obs_client_t *self) {
     atomic_store_explicit(&self->invalid, true, memory_order_release);
@@ -127,6 +125,29 @@ static void handle(es_client_t *client, const es_message_t *m, ukai_obs_client_t
         event.type = UKAI_OBS_SETATTRLIST; path = m->event.setattrlist.target; break;
     case ES_EVENT_TYPE_NOTIFY_SETMODE:
         event.type = UKAI_OBS_SETMODE; path = m->event.setmode.target; break;
+    case ES_EVENT_TYPE_NOTIFY_CLONE:
+        event.type = UKAI_OBS_CLONE; path = m->event.clone.source;
+        path2 = m->event.clone.target_dir; name2 = &m->event.clone.target_name; break;
+    case ES_EVENT_TYPE_NOTIFY_COPYFILE:
+        event.type = UKAI_OBS_COPYFILE; path = m->event.copyfile.source;
+        if (m->event.copyfile.target_file != NULL) path2 = m->event.copyfile.target_file;
+        else { path2 = m->event.copyfile.target_dir; name2 = &m->event.copyfile.target_name; }
+        break;
+    case ES_EVENT_TYPE_NOTIFY_EXCHANGEDATA:
+        event.type = UKAI_OBS_EXCHANGEDATA;
+        path = m->event.exchangedata.file1; path2 = m->event.exchangedata.file2; break;
+    case ES_EVENT_TYPE_NOTIFY_SETEXTATTR:
+        event.type = UKAI_OBS_METADATA; path = m->event.setextattr.target; break;
+    case ES_EVENT_TYPE_NOTIFY_DELETEEXTATTR:
+        event.type = UKAI_OBS_METADATA; path = m->event.deleteextattr.target; break;
+    case ES_EVENT_TYPE_NOTIFY_UTIMES:
+        event.type = UKAI_OBS_METADATA; path = m->event.utimes.target; break;
+    case ES_EVENT_TYPE_NOTIFY_SETOWNER:
+        event.type = UKAI_OBS_METADATA; path = m->event.setowner.target; break;
+    case ES_EVENT_TYPE_NOTIFY_SETFLAGS:
+        event.type = UKAI_OBS_METADATA; path = m->event.setflags.target; break;
+    case ES_EVENT_TYPE_NOTIFY_SETACL:
+        event.type = UKAI_OBS_METADATA; path = m->event.setacl.target; break;
     case ES_EVENT_TYPE_NOTIFY_CLOSE:
         event.modified = m->event.close.modified;
         event.type = event.modified ? UKAI_OBS_WRITE : UKAI_OBS_CLOSE_UNMODIFIED;
@@ -137,7 +158,9 @@ static void handle(es_client_t *client, const es_message_t *m, ukai_obs_client_t
     }
     if (!event.ignored) {
         event.path_len = copy_path(self, event.path, path, name);
-        if (event.type == UKAI_OBS_RENAME || event.type == UKAI_OBS_LINK)
+        if (event.type == UKAI_OBS_RENAME || event.type == UKAI_OBS_LINK ||
+            event.type == UKAI_OBS_CLONE || event.type == UKAI_OBS_COPYFILE ||
+            event.type == UKAI_OBS_EXCHANGEDATA)
             event.path2_len = copy_path(self, event.path2, path2, name2);
     }
     // Even unmodified CLOSE and helper messages consume sequence numbers.

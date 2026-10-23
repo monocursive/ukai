@@ -4184,12 +4184,12 @@ note = "Full acceptance row not run on the J16-J18 implementation. Any component
 
 [[gate]]
 id = "K105"
-row = "Once wired, the A01 fixture's expected exec and supported file-mutation events are present; exec may be `active`, `fs.write` remains `degraded` with its partial-coverage gaps and null count, and `fs.deny` is `unsupported`. Until then native observation refuses."
+row = "The A01 fixture's expected exec and in-set file-mutation events are present with observer.set `macos-closed-v1`; attached loss-free exec and fs.write are `active` with counts, while fs.deny and native net are `unsupported`. Live acceptance remains untested."
 
 [[clause]]
 id = "K105.1"
 gate = "K105"
-clause = "Once wired, the A01 fixture's expected exec and supported file-mutation events are present; exec may be `active`, `fs.write` remains `degraded` with its partial-coverage gaps and null count, and `fs.deny` is `unsupported`. Until then native observation refuses."
+clause = "The A01 fixture's expected exec and in-set file-mutation events are present with observer.set `macos-closed-v1`; attached loss-free exec and fs.write are `active` with counts, while fs.deny and native net are `unsupported`. Live acceptance remains untested."
 tag = "untested"
 lane = "macos"
 note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
@@ -4197,13 +4197,21 @@ note = "Full acceptance row not run on the J16-J18 implementation. Any component
 [[clause]]
 id = "K105.2"
 gate = "K105"
-clause = "Synthetic exec and file-mutation input maps to schema-valid audit frames; exec has a count, fs.write is degraded/partial, and fs.deny stays unsupported"
+clause = "Synthetic exec and in-set file mutations produce schema-valid frames and real-supervisor native receipts: macos-closed-v1 attached with active counts; loss degrades with gaps, strict stops, attachment failure refuses in both evidence modes, and Rust/Python summaries agree; fs.deny stays unsupported"
 tag = "simulated"
 lane = "macos"
 tests = [
   "ukai-jail/tests/macos_observe.rs::k105_events_map_to_schema_valid_audit_results_with_honest_coverage",
+  "ukai-jail/tests/macos_observe.rs::j17_published_closed_set_equals_the_subscription_rows",
+  "ukai-jail/tests/macos_observe.rs::j17_all_subscribed_mutations_decode_in_the_c_shim",
+  "ukai-jail/tests/macos_observe.rs::j17_new_mutation_actions_validate_and_recompute_only_mutated_paths",
+  "ukai-jail/tests/macos_observe.rs::j17_provider_actions_do_not_claim_workload_content_changes",
+  "ukai-jail/src/lib.rs::platform::macos::observe::run::tests::worker_drains_full_batches_without_sleeping",
+  "ukai-jail/src/lib.rs::platform::macos::requirements::tests::notify_probe_never_creates_a_client_with_the_dev_gate_off",
+  "ukai-jail/src/lib.rs::platform::macos::boundary::tests::j17_synthetic_native_producer_receipts_and_strict_refusal",
+  "ukai-jail/src/lib.rs::platform::macos::boundary::tests::j17_requested_attachment_failure_refuses_in_both_modes",
 ]
-note = "Synthetic journal input, not an observed native attempt or a vendor compatibility run."
+note = "Synthetic ES source through shared production custody replay, handshake token selection, observation attachment, ObserveRun and the real supervisor/native receipt producer; no live ES, real workload or vendor compatibility proof. K105.1, K106.1 and K107.1 remain untested live. The shared K105.2 producer fixture also checks K106 loss behavior and K107 recomputation synthetically."
 
 # ------------------------------------------------------------------ K106
 

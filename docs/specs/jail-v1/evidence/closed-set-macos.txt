@@ -1,0 +1,28 @@
+ukai-jail observer closed set `macos-closed-v1` (macOS, es_notify backend)
+Generated from observe/closed_set.def; jail-macos §5, jail-v1 §11.
+
+notification | class | audit operation | meaning
+NOTIFY_EXEC | exec | proc.exec | exec_transition
+NOTIFY_CREATE | fs.write | fs.create | created or creation_denied
+NOTIFY_RENAME | fs.write | fs.rename | renamed
+NOTIFY_UNLINK | fs.write | fs.unlink | unlinked
+NOTIFY_LINK | fs.write | fs.create | hard_link_created
+NOTIFY_CLOSE | fs.write | fs.write | modified only; unmodified closes sequence only
+NOTIFY_TRUNCATE | fs.write | fs.write | truncated
+NOTIFY_SETMODE | fs.write | fs.write | metadata_changed
+NOTIFY_SETATTRLIST | fs.write | fs.write | metadata_changed
+NOTIFY_CLONE | fs.write | fs.create | cloned; destination=path2
+NOTIFY_COPYFILE | fs.write | fs.write | copied; destination=path2
+NOTIFY_EXCHANGEDATA | fs.write | fs.write | exchanged; both paths
+NOTIFY_SETEXTATTR | fs.write | fs.write | metadata_changed
+NOTIFY_DELETEEXTATTR | fs.write | fs.write | metadata_changed
+NOTIFY_UTIMES | fs.write | fs.write | metadata_changed
+NOTIFY_SETOWNER | fs.write | fs.write | metadata_changed
+NOTIFY_SETFLAGS | fs.write | fs.write | metadata_changed
+NOTIFY_SETACL | fs.write | fs.write | metadata_changed
+
+Outside the set: individual write calls (NOTIFY_WRITE); cloud materialization and File Provider updates; mmap-only writes without a modified close or other subscribed notification; mutations without an attributable descendants notification (including autonomous OS/File Provider work); mount/remount/unmount and fcntl effects without a subscribed mutation notification; Seatbelt denials (fs.deny unsupported); native network activity (net unsupported; proxy.net is separate).
+Writes are represented by modified CLOSE, including implicit closes at process exit.
+Counts are delivered notification results, not syscalls, bytes or content diffs.
+Helper tokens and unmodified CLOSE participate in sequencing but emit no audit result.
+No live ES performance or completeness claim.

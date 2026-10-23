@@ -1,13 +1,15 @@
 # Jail proposal: macOS in two tiers, native custody and a warm VM (J16–J18)
 
-Status: work in progress on `dev` (merged 2026-10-23), decisions of 2026-10-22;
+Status: work in progress on `dev` (merged 2026-10-23), decisions of 2026-10-22 with the 2026-10-23 declared-set amendment;
 J16–J18 are not supported or released. `dev` at `ae14865f8` was the
 refusal-only baseline before this implementation was merged.
 Current implementation: native execution is **off by default**. Setting
 `UKAI_JAIL_MACOS_NATIVE=dev` enables development only; a native receipt records
 `native_execution=dev`. Native credential, vault and vendor staging answer
-`unsupported` and refuse. `J17_OBSERVE=false`: `ObserveRun` exists but is
-unwired; `fs.write` would still be `degraded`/partial even if wired. Every
+`unsupported` and refuse. J17 is wired before release (`J17_OBSERVE=true`):
+`macos-closed-v1` declares the exact ES notification set; loss-free attached
+`exec` and `fs.write` coverage is active only over that set. Synthetic producer
+receipts are tested; no live observed native run is proved. Every
 `run --vm` refuses before connecting: no qualified VM backend exists yet.
 The new custody implementation has not run with live Endpoint Security.
 J16 lacks the bundle, Info.plist, entitlements and `~/Applications` installer;
@@ -679,7 +681,12 @@ events" Apple names, and it is why the boundary is `native_tree`.
   limits coverage `degraded`, a null observed count and a
   `wall_hit_unobserved` gap. The guardian record has no stop trigger; adding
   it is a known follow-up. Elapsed time alone does not establish a hit.
-- Observation is off: no attached audit observer and no audit counts.
+- With observation on, `observer.backend=es_notify` and
+  `observer.set=macos-closed-v1`; `attached=true` only after successful setup.
+  `exec` and `fs.write` are active with counts over §5's declared set when no
+  evidence was lost. Setup failure refuses before exec in either evidence mode;
+  an unattached observer never permits a requested observed run.
+  With observation off there is no audit attachment or count.
   Wrapper limit facts remain available without an audit observer or proxy.
   In the native settled receipt, `observer.sources.wrapper` is `supported`
   with known wall evidence (while `coverage.limits` is `active`); unknown wall
@@ -772,7 +779,7 @@ or a supported release:
 | `protected_coverage:*` | `existing_and_root` when probes pass; `all_descendants` is unsupported and refuses. No complete future nested-path coverage is claimed. |
 | `network_none`, `network_proxy` | Available when the profile and loopback probes pass (below). |
 | `credential_staging` | `unsupported`, including vault, copied/bound credentials and vendor staging; refuses before staging. |
-| `closed_set_observation` | `unsupported`; J17 is off and `ObserveRun` is unwired. |
+| `closed_set_observation` | Available when the development gate is enabled and the observation client create/delete probe succeeds (`es_notify`); SDK absence, a disabled gate or entitlement refusal is reported honestly. Actual attachment before release is still required (§5). |
 | `execution_boundary` | `unsupported`. There is no supervisor-owned resource boundary, so `none` and every explicit tree ceiling refuse. |
 | `limit:wall` | Available when probes pass; custodians use the continuous clock. Live wall-expiry acceptance is outstanding. |
 | `limit:pids`, `mem`, `swap`, `cpu`, `storage`, `inodes` | `unsupported`. An explicit request refuses, and a preferred value is recorded as not applied. |
@@ -802,14 +809,13 @@ Changes and additions:
   persistent vendor state. `none` refuses with
   remediation `unsupported`, because without a sandbox nothing defends the
   custodians.
-- **macOS profile baselines** (`profiles.rs` is already per-OS) set two values
-  until J17, which the policy snapshot records as baseline values, not
-  implicit choices (jail-v1 I02):
-  - `observe = off`. An explicit `--observe on` refuses with
-    `unsupported_platform`, and the summary says `evidence: not observed on
-    macOS native`.
-  - `build`'s memory ceiling becomes preferred, recorded as not applied,
-    instead of required.
+- **macOS profile baselines** (`profiles.rs` is per-OS) record
+  `observe = on` after J17 wiring, over `macos-closed-v1`. An explicit
+  `--observe on` resolves to the same requirement. Requested attachment failure
+  refuses before exec in both evidence modes; `observe = off` still runs
+  without an observation client (§5). `build`'s memory ceiling stays preferred and recorded as not applied.
+  The policy snapshot records these baseline values, never implicit choices
+  (jail-v1 I02).
 - **The bridge on a shared loopback.** The bridge keeps jail-v2's two ports,
   HTTP and SOCKS5, on ephemeral loopback ports. Each requires a per-attempt
   secret, carried in the child's proxy URLs (HTTP proxy authentication, and
@@ -916,58 +922,106 @@ Changes and additions:
 
 ## 5. Native observation (J17)
 
-Current status: `J17_OBSERVE=false`; the `ObserveRun` worker API exists but
-is unwired into an attempt. The native baseline stays `observe = off` and
-an explicit observation requirement refuses. Toggling the constant alone
-does not qualify observation. No live observed attempt is recorded.
+**2026-10-23: declared partial set, operator decision.** J17 is wired into
+native attempts, behind `UKAI_JAIL_MACOS_NATIVE=dev` and the ES entitlement.
+The implementation and synthetic producer tests do not establish live ES
+acceptance: K105–K107 remain untested live. No entitled native observation
+run or performance measurement is claimed.
 
-A fourth ES client is proposed, in addition to S, G and G′ and held by the
-supervisor. The unwired worker maps:
+The supervisor starts a fourth ES client after custody is established and
+before releasing the blocked launcher. It excludes the exact current audit
+tokens of the supervisor, guardian and launcher; a new exec token is not
+excluded. These exclusions are local to observation, not ES process mutes
+that could hide a new image or instigated child. Ignored helper notifications
+and unmodified CLOSE still participate in sequence checks. Observation has
+no custody authority; its gaps do not by themselves invalidate custody's
+`tree_empty` evidence.
 
-- `NOTIFY_EXEC` for the `exec` class;
-- `NOTIFY_CREATE`, `NOTIFY_RENAME`, `NOTIFY_UNLINK`, `NOTIFY_LINK`,
-  `NOTIFY_TRUNCATE`, `NOTIFY_SETATTRLIST`, `NOTIFY_SETMODE` and `NOTIFY_CLOSE`
-  with `modified` set, for `fs.write`.
+The declared closed set is **`macos-closed-v1`**, following jail-v1 §11.2 and
+§11.4's declared-set rule. The [published table](jail-v1/evidence/closed-set-macos.txt)
+is generated from `observe/closed_set.def`, the same rows the C shim uses
+for subscription and mute verification. A test requires byte equality.
 
-Unlike the custody clients, it reads paths. A crash there takes the
-supervisor, which the guardian covers (§4.6).
+- `exec`: `NOTIFY_EXEC`, emitting the observed image transition, not a claim
+  to have read the original exec argument or syscall.
+- `fs.write`: `NOTIFY_CREATE`, `RENAME`, `UNLINK`, `LINK`, `CLOSE` with
+  `modified`, `TRUNCATE`, `SETMODE`, `SETATTRLIST`, `CLONE`, `COPYFILE`,
+  `EXCHANGEDATA`, `SETEXTATTR`, `DELETEEXTATTR`, `UTIMES`, `SETOWNER`,
+  `SETFLAGS` and `SETACL`.
+  Clone/copy results retain source and destination; summaries count
+  the destination as changed, and both sides of an exchange. NEW_PATH CREATE
+  denotes ES-denied creation, with unknown syscall errno, not a successful
+  creation or a Seatbelt-denial observation.
 
-The worker resolves the existing workspace directory through `F_GETPATH`
-before creating ES: symlink aliases, `/var` versus `/private/var`, and stored
-capitalization on case-insensitive APFS use the kernel path. Missing or
-non-directory roots refuse. Delivered event paths are not looked up later.
+All these mutation notifications are subscribed: their callback work is
+bounded fixed-size path copying with no filesystem lookup or dynamic
+allocation. Individual write calls (`NOTIFY_WRITE`) are deliberately outside
+the set: per-call delivery adds no path-modification evidence beyond modified
+CLOSE and can flood the ring on write-heavy builds. Writes are represented by
+modified CLOSE, including implicit closes at process exit. This matches Linux's
+path-mutation granularity (`opened_for_mutation`, `truncated`). Ring overflow
+remains real loss. This is a cost rationale, not a measured performance claim.
+The installed 27 SDK event list was checked; the 26.5 build uses the explicit
+`es_sdk_absent` path when the required descendants APIs are missing.
 
-Both global and per-type sequences may start at 0 or 1. A first value above
-1 is a gap with unknown exact loss. Audit frames and coverage notes carry
-`sequence_start: "unverified"`, including the initial partial-coverage note
-for an empty audit stream: loss before the first delivered message can remain
-undetectable. Global and per-type loss counters are not added together. The
-shim's cumulative ring-drop count remains exact; a potentially overlapping
-sequence gap has a null count. Repeated snapshots do not count a drop again,
-and no exact combined total is invented.
+Outside the set are writes only through a memory mapping with no modified
+close or other subscribed notification, and effects ES cannot attribute to
+the descendants stream. Cloud materialization and File Provider updates
+(`FILE_PROVIDER_MATERIALIZE`, `FILE_PROVIDER_UPDATE`) are outside the set.
+A descendants client also receives instigated events: a read may trigger cloud
+materialization whose event process is a provider daemon, not the workload.
+These events therefore cannot establish workload content changes. Autonomous
+OS effects are also outside the set. Mount/remount/unmount and generic fcntl
+operations are not mutation results in this table; their effects without a
+subscribed notification are outside it. mmap/mprotect notifications describe
+mapping/protection, not proof that memory was subsequently written. These
+exclusions alone never degrade coverage. Counts are delivered notification
+results, not unique syscalls, bytes, file counts or content diffs.
 
-The worker treats a sequence or sink loss as an observation gap with
-`degraded` status. Its bookkeeping is separate from custody; live integration
-still needs K106. Even without a detected gap, `fs.write` is always
-`degraded`/partial (`macos-es-notify-partial-v1`): uncovered mutation paths
-and mmap writes are disclosed gaps with null observed counts. `exec` may
-be active in the worker, but is unsupported in an actual unobserved run.
-Other classes:
+`fs.deny` stays unsupported: Seatbelt denials are not ES events. Native `net`
+stays unsupported; `proxy.net` comes independently from the bridge, including
+its unattributable-refusal accounting. `learn` stays refused without fs.deny.
 
-- **`fs.deny`** stays `unsupported`. Seatbelt denials are not ES events, and a
-  sandbox denial log is not evidence (jail-v1 §3.3).
-- **`proxy.net`** comes from the bridge, as on Linux.
-- **The macOS baselines** stay `observe = off`. A later baseline change
-  requires wiring and acceptance; `strict` evidence cannot claim complete
-  coverage while required classes are unsupported or degraded.
-- **`learn`** stays refused while `fs.deny` is unsupported.
+When attachment succeeds and no in-set evidence is lost, `exec` and `fs.write`
+are active with observed counts. Sequence discontinuity, ring overflow,
+invalid/truncated messages, worker failure, drain/delete failure and trace
+refusal degrade the affected classes with named gaps and null counts. There
+is no standing `uncovered_mutations` gap. The worker reports loss while the
+attempt runs: strict evidence stops as `evidence_lost` (stop cause
+`evidence_loss`); best-effort continues with degraded coverage. Loss found
+only during final drain still fails strict evidence at settlement, without
+inventing an earlier stop. Requested observation that cannot start (SDK absent,
+not entitled or setup failure) refuses before exec in both strict and
+best-effort modes with exit 125, `observer_unavailable`, stage `preparing`,
+remediation `host_setup`, as the frozen jail-v1 attach contract requires.
+`observe = off` creates no observation client. Custody and all other required
+capabilities remain mandatory in either evidence mode. The `es_notify`
+capability probe follows the same development gate as `es_descendants`: on
+an SDK-capable build, an unset `UKAI_JAIL_MACOS_NATIVE=dev` returns
+`native_development_disabled` without creating a client. SDK-absent builds
+report `es_sdk_absent` without creating one. With the gate enabled, the probe
+creates and deletes a real observation client; actual start is authoritative.
+The worker checks stop between bounded batches and continues draining without
+sleeping while a batch is full; it waits only after observing the ring empty.
 
-For native journal frames, the summary separates paths whose content was
-`modified` (including truncation), entries `created`, and paths `with metadata
-changes`. Workspace-root changes are stated as `workspace root content
-modified`, `workspace root created` or `workspace root metadata changed`,
-and are excluded from entry counts. Partial coverage still makes those
-counts lower bounds. These worker/summary behaviors do not enable J17.
+The worker resolves the existing workspace through `F_GETPATH` before
+creating ES, including symlink aliases and stored case. Missing or
+non-directory roots refuse setup. Delivered paths are never looked up later.
+Both global and per-type sequences may start at 0 or 1; a first value above
+1 is a gap with unknown exact loss. Audit frames and gap notes carry
+`sequence_start: "unverified"`: loss before the first delivery may remain
+undetectable. Global and per-type losses are not added together. Ring-drop
+counts are exact; overlapping sequence loss has a null count. Repeated
+snapshots do not count a drop again.
+
+Receipts name `observer.set=macos-closed-v1`. `version --json` announces
+`observation.closed_set=macos-closed-v1` on SDK-capable macOS builds; an
+`es_sdk_absent` build announces null. This describes build capability, not
+host entitlement or the development gate's runtime setting. No schema change is needed. The native summary distinguishes
+modified content, created entries and metadata changes; workspace-root changes
+are named separately from entry counts. Rust and `summary_check.py` recompute
+the synthetic supervisor-produced receipts. Their agreement is component
+proof, not live acceptance or full-filesystem coverage.
 
 ## 6. VM tier: a warm guest (J18)
 
@@ -1069,12 +1123,12 @@ entitlement that the preview already uses.
 | jail-v1 L02, M01 | Intended native contract: each custodian lost alone ends the tree within a bound; both lost is the residual (K95). Execution is currently off by default; the development opt-in and all required probes are necessary. Native live clauses remain untested. | Row amendments (decision 1) |
 | jail-v1 receipt schema | `lifetime.native.details` for macOS (§4.8), identity kind `macos_audit_token`, `applied.terminal.session` widened from the constant `caller` to `caller` or `relay`, and optional `credentials[].binding`. Linux vault receipts omit `binding`, retaining the rc.4 shape; a native macOS vault entry, if present, carries `binding: attempt` (a schema contract; native staging currently refuses). If present, `binding` is valid only on a macOS vault entry and only as `attempt`; an absent field remains valid. The field addition is optional. | Schema |
 | jail-v1 §6.1, §14.2 | `gc --abandon ATTEMPT`, and macOS `gc` records `gc_custody_verified`, `gc_killed_target` and `gc_abandoned` (§4.9). | Addition |
-| `profiles.rs` macOS baselines | `observe = off` and a preferred `build` memory ceiling until J17 (§4.10). | Baseline |
+| `profiles.rs` macOS baselines | `observe = on` over `macos-closed-v1` and a preferred `build` memory ceiling (§4.10). | Baseline |
 | [jail-launch-and-summary](jail-launch-and-summary.md) §3.3 (J12) | The macOS group-writable rule (§4.11). | Amendment |
 | jail-launch-and-summary §4 (J13), `ukai.jail.summary/1` | The survivors line names native custody (§4.8). | Addition |
 | [jail-interactive-sessions](jail-interactive-sessions.md) §3 (J14) | macOS terminal mode is the pty relay (decision 3). X05 does not hold for macOS terminal runs. | Amendment |
 | jail-v1 §6.1, §6.3 (J18) | `--vm`, `vm stop`, and the kernel-bound lifetime key with its narrowing row and requirement name (§6). | Addition |
-| `crates/ukai-jail` | Default native refusal; development-gated preparation, guardian and launcher modes, and the ES shim. Credential/vendor staging and closed-set observation refuse. | Implementation |
+| `crates/ukai-jail` | Default native refusal; development-gated preparation, guardian and launcher modes, and the ES shim. Credential/vendor staging refuses. J17 attaches the declared observer before release; strict startup failure refuses. | Implementation |
 | `crates/ukai-jail/vm` | Helper and transport components exist; every `run --vm` refuses pending a qualified backend. | Implementation |
 | Installer, [RELEASING](../RELEASING.md) | The Mac bundle, provisioning profile and notarization, and the protected-Mac release run. | Procedure |
 | [roadmap](../roadmap.md), [guide](../guide.md) | Record Apple's answer and the two tiers, and explain the native boundary and `--vm`. | Guide |
@@ -1116,7 +1170,7 @@ are J16 rows, and K104 includes them.
 
 | Row | Claim |
 | --- | --- |
-| K105 | Once wired, the A01 fixture's expected exec and supported file-mutation events are present; exec may be `active`, `fs.write` remains `degraded` with its partial-coverage gaps and null count, and `fs.deny` is `unsupported`. Until then native observation refuses. |
+| K105 | The A01 fixture's expected exec and in-set file-mutation events are present with observer.set `macos-closed-v1`; attached loss-free exec and fs.write are `active` with counts, while fs.deny and native net are `unsupported`. Live acceptance remains untested. |
 | K106 | An observation-client gap marks the classes `degraded` and leaves custody streams and `tree_empty` untouched. |
 | K107 | The J13 summary recomputes from a macOS receipt with `summary_check.py`. |
 
@@ -1190,7 +1244,7 @@ The pass conditions are those of the Linux rows, plus:
 4. **Faster recovery.** A user LaunchAgent that runs `gc` on an orphaned
    attempt would shorten the residual's window. This is deferred, as in §7.
 
-## 12. Decisions (settled 2026-10-22)
+## 12. Decisions (2026-10-22; amendment 2026-10-23)
 
 The operator chose two tiers, and then asked for the best and simplest answer
 to each remaining question. These are those answers:
@@ -1238,3 +1292,13 @@ to each remaining question. These are those answers:
    install the agent in an operator- or root-owned directory that is neither
    group-writable nor other-writable. The operator chose to keep this refusal;
    Linux is unchanged.
+
+7. **2026-10-23: declared partial set, operator decision.** Native observation
+   adopts `macos-closed-v1` (§5), defined by its exact published notification
+   table. Out-of-set effects alone do not degrade exec/fs.write coverage;
+   actual evidence loss does. J17 is wired before release and the baseline
+   becomes observe on. Attachment failure refuses before exec in both evidence
+   modes; best-effort applies only to loss after successful attachment. This
+   amendment does not waive live
+   K105–K107 acceptance, entitlement, packaging or performance gates, and
+   does not change Linux's closed set or behavior.

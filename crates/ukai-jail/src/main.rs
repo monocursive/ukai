@@ -660,15 +660,18 @@ fn platform_json(platform: &PlatformRecord) -> serde_json::Value {
 
 // The running platform's closed set (§3.2)
 /// The closed set this build observes: `linux-closed-v1` on Linux built for
-/// an architecture the syscall tables cover, and none anywhere else (macOS,
-/// and a Linux build for another architecture, whose observer reports
-/// `unsupported_architecture`; §3.2).
+/// an architecture the syscall tables cover; macos-closed-v1 on a macOS build
+/// with the required SDK APIs. This is not an entitlement/live-run claim.
 fn closed_set() -> Option<&'static str> {
     closed_set_for(cfg!(target_os = "linux"), std::env::consts::ARCH)
 }
 
 /// [`closed_set`] for a stated OS and architecture.
 fn closed_set_for(linux: bool, arch: &str) -> Option<&'static str> {
+    #[cfg(all(target_os = "macos", not(ukai_es_sdk_absent)))]
+    if !linux && ukai_jail::profiles::J17_OBSERVE {
+        return Some(ukai_jail::platform::macos::observe::OBSERVATION_SET);
+    }
     (linux && ukai_jail::platform::linux::seccomp::tables_cover(arch))
         .then(CoverageSummary::linux_closed_set)
 }
@@ -2298,7 +2301,15 @@ mod tests {
             assert_eq!(closed_set_for(true, arch), None, "{arch}");
         }
         for arch in ["x86_64", "aarch64"] {
-            assert_eq!(closed_set_for(false, arch), None, "macOS {arch}");
+            assert_eq!(
+                closed_set_for(false, arch),
+                if cfg!(all(target_os = "macos", not(ukai_es_sdk_absent))) {
+                    Some("macos-closed-v1")
+                } else {
+                    None
+                },
+                "macOS {arch}"
+            );
         }
         // And the running binary uses exactly that rule.
         assert_eq!(

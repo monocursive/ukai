@@ -44,8 +44,10 @@ deliverable today.
 Current implementation: native execution is **off by default**. Setting
 `UKAI_JAIL_MACOS_NATIVE=dev` enables development only; a native receipt records
 `native_execution=dev`. Native credential, vault and vendor staging answer
-`unsupported` and refuse. `J17_OBSERVE=false`: `ObserveRun` exists but is
-unwired; `fs.write` would still be `degraded`/partial even if wired. Every
+`unsupported` and refuse. J17 is wired before release (`J17_OBSERVE=true`):
+`macos-closed-v1` declares the exact ES notification set; loss-free attached
+`exec` and `fs.write` coverage is active only over that set. Synthetic producer
+receipts are tested; no live observed native run is proved. Every
 `run --vm` refuses before connecting: no qualified VM backend exists yet.
 
 You can [build the jail and try a small command](https://github.com/monocursive/ukai/blob/dev/docs/guide.md#build-and-check-your-host)
@@ -146,9 +148,10 @@ is supported or shipped:
   `(allow default)` profile; they do not prove the new design. This
   implementation has not run with live Endpoint Security. Killing both
   custodians is the named residual: the tree may survive, and recovery
-  cannot verify all descendants dead. J17's fourth-client worker exists
-  but is unwired (custody uses S, G and G′); even when wired, filesystem
-  mutation coverage remains partial.
+  cannot verify all descendants dead. J17's fourth-client worker is wired
+  before release (custody uses S, G and G′). Its declared `macos-closed-v1`
+  set has synthetic producer/loss/summary proof; K105–K107 remain untested
+  with live ES. Active coverage describes the set, not every mutation.
   J16 requires Apple's entitlement, completed packaging, the measurement
   spike and a passing protected-Mac acceptance run before release.
 - **Warm VM (J18).** The intended backend reuses a warm Linux ARM64 guest

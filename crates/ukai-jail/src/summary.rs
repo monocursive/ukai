@@ -489,6 +489,13 @@ fn written<'f, 'a>(
     fields: &'f FrameFields<'a>,
 ) -> Option<Vec<Option<&'f FramePath<'a>>>> {
     let (path, path2) = (fields.path.as_ref(), fields.path2.as_ref());
+    if fields.observation.as_deref() == Some("es_notify") {
+        match fields.action.as_deref() {
+            Some("cloned" | "copied") => return Some(vec![path2]),
+            Some("exchanged") => return Some(vec![path, path2]),
+            _ => {}
+        }
+    }
     match (operation, fields.syscall.as_deref()) {
         ("fs.rename", _) => Some(vec![path, path2]),
         ("fs.create", _) if fields.action.as_deref() == Some("hard_link_created") => {
@@ -681,6 +688,8 @@ impl Scan {
                 fields.action.as_deref(),
                 Some("opened_for_mutation" | "truncated" | "modified" | "metadata_changed")
             )
+            && !(fields.observation.as_deref() == Some("es_notify")
+                && matches!(fields.action.as_deref(), Some("copied" | "exchanged")))
         {
             return;
         }
@@ -702,6 +711,12 @@ impl Scan {
             "fs.rename" => RENAMED,
             "fs.unlink" => REMOVED,
             _ => match fields.action.as_deref() {
+                Some("cloned") if fields.observation.as_deref() == Some("es_notify") => CREATED,
+                Some("copied" | "exchanged")
+                    if fields.observation.as_deref() == Some("es_notify") =>
+                {
+                    MODIFIED
+                }
                 Some("modified") => MODIFIED,
                 Some("metadata_changed") => METADATA,
                 Some("hard_link_created" | "created") => CREATED,
@@ -1271,6 +1286,7 @@ impl View<'_> {
         let write = claim_of(self.classes, "fs.write");
         let deny = claim_of(self.classes, "fs.deny");
         let observe_off = self.text("/policy/observe") == Some("off");
+        let native_notify = self.text("/observer/backend") == Some("es_notify");
         let empty = Scan::default();
         let scan = self.scan.unwrap_or(&empty);
         let (opened, renamed, removed, modified) = (
@@ -1288,7 +1304,7 @@ impl View<'_> {
                 // An exact zero is a finding; a lower bound of zero says
                 // nothing, so a lower bound prints only what was seen.
                 let mut seen = Vec::new();
-                if opened > 0 || write == Claim::Exact {
+                if opened > 0 || (write == Claim::Exact && !native_notify) {
                     seen.push(format!(
                         "{} {} opened for writing",
                         write.number(opened),
@@ -1315,7 +1331,9 @@ impl View<'_> {
                         seen.push(format!("workspace root {what}"));
                     }
                 }
-                let mut text = if seen.is_empty() {
+                let mut text = if seen.is_empty() && native_notify && write == Claim::Exact {
+                    "no in-set mutations recorded".to_owned()
+                } else if seen.is_empty() {
                     "none recorded (a lower bound)".to_owned()
                 } else {
                     seen.join(", ")

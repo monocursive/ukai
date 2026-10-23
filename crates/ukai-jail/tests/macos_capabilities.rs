@@ -354,10 +354,13 @@ fn sdk_absence_is_reported_without_probing_in_explain_and_before_native_exec() {
     if !cfg!(ukai_es_sdk_absent) {
         // SDK support alone never enables the unshipped native tier.
         let report = doctor_json(&Harness::new());
-        assert_eq!(
-            capability(&report, "es_descendants")["reason_code"],
-            "native_development_disabled"
-        );
+        for name in ["es_descendants", "es_notify", "closed_set_observation"] {
+            assert_eq!(
+                capability(&report, name)["reason_code"],
+                "native_development_disabled",
+                "{name}"
+            );
+        }
         return;
     }
     let harness = Harness::new();
@@ -379,7 +382,13 @@ fn sdk_absence_is_reported_without_probing_in_explain_and_before_native_exec() {
         let output = invoke(&["doctor", "--json"]);
         assert_eq!(output.status.code(), Some(125));
         let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-        for name in ["es_descendants", "tree_termination", "limit:wall"] {
+        for name in [
+            "es_descendants",
+            "es_notify",
+            "closed_set_observation",
+            "tree_termination",
+            "limit:wall",
+        ] {
             let row = capability(&report, name);
             assert_eq!(row["status"], "unavailable", "{name}");
             assert_eq!(row["reason_code"], "es_sdk_absent", "{name}");

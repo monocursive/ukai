@@ -127,10 +127,12 @@ fn the_announced_schema_identifiers_match_the_checked_in_schema_files() {
 #[test]
 fn the_announced_closed_set_is_the_one_the_specification_names() {
     let announced = version_json();
-    // J5-D: the running platform's closed set; macOS has none in this
-    // milestone (§3.2), so it announces null rather than Linux's name.
+    // The running build names its implemented set; SDK-absent macOS
+    // announces null without borrowing Linux's observer claim.
     let expected = if cfg!(target_os = "linux") {
         serde_json::json!("linux-closed-v1")
+    } else if cfg!(all(target_os = "macos", not(ukai_es_sdk_absent))) {
+        serde_json::json!("macos-closed-v1")
     } else {
         serde_json::Value::Null
     };
@@ -138,6 +140,7 @@ fn the_announced_closed_set_is_the_one_the_specification_names() {
     let spec = std::fs::read_to_string(repo_root().join("docs/specs/jail-v1.md"))
         .expect("the specification is checked in");
     assert!(spec.contains("linux-closed-v1"));
+    assert!(spec.contains("macos-closed-v1"));
 }
 
 #[test]

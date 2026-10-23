@@ -1,9 +1,8 @@
 //! Native ES notification evidence. This module does not provide custody.
 //!
-//! The nine subscribed notifications cover exec transitions and some filesystem
-//! mutations. `fs.write` is always partial (including the mmap blind spot), and
-//! `fs.deny` is unsupported. J17 stays disabled until `ObserveRun` is integrated
-//! before workload release. Synthetic tests do not establish live ES conformance.
+//! `macos-closed-v1` covers the declared ES notification subscription, not
+//! every filesystem mutation. Out-of-set operations alone do not degrade it.
+//! Loss of in-set evidence does; synthetic tests do not establish live ES proof.
 #![cfg(target_os = "macos")]
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -19,13 +18,39 @@ mod client;
 mod client;
 mod run;
 pub use client::ObserveClient;
+#[cfg(test)]
+pub(crate) use run::Source;
 pub use run::{ObserveRun, ObserveStartError};
 
 pub const OBSERVER_BACKEND: &str = "es_notify";
 /// Identifies the subscription, not a claim of complete mutation coverage.
-pub const OBSERVATION_SET: &str = "macos-es-notify-partial-v1";
+pub const OBSERVATION_SET: &str = "macos-closed-v1";
 pub const OBSERVATION_GAP_REASON: &str = "observation_client_gap";
-pub const UNCOVERED_MUTATIONS: &str = "uncovered_mutations: clone, copyfile, exchangedata, write, setextattr, deleteextattr, utimes, setowner, setflags, setacl, mmap";
+/// Exclusions describe the set, never a standing coverage gap.
+pub const OUTSIDE_SET: &str = "individual write calls (NOTIFY_WRITE); cloud materialization and File Provider updates; mmap-only writes without a modified close or other subscribed notification; mutations without an attributable descendants notification (including autonomous OS/File Provider work); mount/remount/unmount and fcntl effects without a subscribed mutation notification; Seatbelt denials (fs.deny unsupported); native network activity (net unsupported; proxy.net is separate)";
+
+/// Generated from the very rows included by the C subscription/mute check.
+#[must_use]
+pub fn closed_set_table() -> String {
+    let mut table = format!(
+        "ukai-jail observer closed set `{OBSERVATION_SET}` (macOS, es_notify backend)\nGenerated from observe/closed_set.def; jail-macos §5, jail-v1 §11.\n\nnotification | class | audit operation | meaning\n"
+    );
+    for line in include_str!("observe/closed_set.def").lines() {
+        if let Some(row) = line
+            .strip_prefix("UKAI_OBS_EVENT(")
+            .and_then(|s| s.strip_suffix(')'))
+        {
+            let columns: Vec<_> = row.split(", ").map(|s| s.trim_matches('"')).collect();
+            table.push_str(&format!(
+                "NOTIFY_{} | {} | {} | {}\n",
+                columns[0], columns[1], columns[2], columns[3]
+            ));
+        }
+    }
+    table.push_str(&format!("\nOutside the set: {OUTSIDE_SET}.\nWrites are represented by modified CLOSE, including implicit closes at process exit.\nCounts are delivered notification results, not syscalls, bytes or content diffs.\nHelper tokens and unmodified CLOSE participate in sequencing but emit no audit result.\nNo live ES performance or completeness claim.\n"));
+    table
+}
+
 pub const OBSERVED_CLASSES: [CoverageClass; 2] = [CoverageClass::Exec, CoverageClass::FsWrite];
 
 /// Compatibility vocabulary. New producers use `ObsMessage` to retain the
@@ -78,6 +103,10 @@ pub enum ObsAction {
     Link = 9,
     CloseUnmodified = 10,
     CreateDenied = 11,
+    Clone = 12,
+    Copyfile = 13,
+    Exchangedata = 14,
+    Metadata = 15,
 }
 
 impl ObsAction {
@@ -95,6 +124,10 @@ impl ObsAction {
             9 => Self::Link,
             10 => Self::CloseUnmodified,
             11 => Self::CreateDenied,
+            12 => Self::Clone,
+            13 => Self::Copyfile,
+            14 => Self::Exchangedata,
+            15 => Self::Metadata,
             _ => return None,
         })
     }
@@ -102,11 +135,18 @@ impl ObsAction {
     pub fn kind(self) -> ObsKind {
         match self {
             Self::Exec => ObsKind::Exec,
-            Self::Create | Self::Link | Self::CreateDenied => ObsKind::Create,
+            Self::Create | Self::Link | Self::CreateDenied | Self::Clone => ObsKind::Create,
             Self::Rename => ObsKind::Rename,
             Self::Unlink => ObsKind::Unlink,
             _ => ObsKind::Write,
         }
+    }
+
+    pub(super) fn has_two_paths(self) -> bool {
+        matches!(
+            self,
+            Self::Rename | Self::Link | Self::Clone | Self::Copyfile | Self::Exchangedata
+        )
     }
 
     fn name(self) -> &'static str {
@@ -117,7 +157,10 @@ impl ObsAction {
             Self::Rename => "renamed",
             Self::Unlink => "unlinked",
             Self::Truncate => "truncated",
-            Self::Setattrlist | Self::Setmode => "metadata_changed",
+            Self::Setattrlist | Self::Setmode | Self::Metadata => "metadata_changed",
+            Self::Clone => "cloned",
+            Self::Copyfile => "copied",
+            Self::Exchangedata => "exchanged",
             Self::Link => "hard_link_created",
             Self::CloseUnmodified => "unmodified",
             Self::CreateDenied => "creation_denied",
@@ -267,12 +310,21 @@ impl ObserveJournal {
             ring_dropped: 0,
             created_ns: crate::platform::elapsed_since_start_ns(),
         };
-        journal.gap(
-            "partial",
-            &[CoverageClass::FsWrite],
-            UNCOVERED_MUTATIONS,
-            None,
+        // A scope disclosure, not a coverage gap: even an empty stream states
+        // the sequence-start residual and the declared set's exclusions.
+        let mut note = Event::lifecycle_note(
+            attempt_id,
+            0,
+            std::time::SystemTime::now(),
+            crate::platform::elapsed_since_start_ns(),
+            "observation_scope",
         );
+        note.fields
+            .insert("sequence_start".into(), "unverified".into());
+        note.fields
+            .insert("observer_set".into(), OBSERVATION_SET.into());
+        note.fields.insert("outside_set".into(), OUTSIDE_SET.into());
+        journal.emit(&note);
         journal
     }
 
@@ -345,7 +397,7 @@ impl ObserveJournal {
                 "normalized_notification".into(),
             );
         }
-        if matches!(message.action, ObsAction::Rename | ObsAction::Link) {
+        if message.action.has_two_paths() {
             let path2 = classify_path(
                 message.path2.as_deref().unwrap_or_default(),
                 &self.workspace,
@@ -506,8 +558,7 @@ impl ObserveJournal {
             crate::platform::elapsed_since_start_ns(),
             &note_gap,
         );
-        // The initial partial-coverage note discloses this even for an empty
-        // audit stream, without claiming a known drop or degrading exec.
+        // Sequence startup is not proof of a complete pre-subscription history.
         note.fields
             .insert("sequence_start".into(), "unverified".into());
         if let Some(trace) = &self.trace {

@@ -393,7 +393,8 @@ policy requiring those guarantees refuses is replaced for the native tier by
 custodian lives**, with the both-lost residual (jail-macos.md §4.6, K95).
 Execution is off by default; `UKAI_JAIL_MACOS_NATIVE=dev` enables development
 only and is recorded as `native_execution=dev`. Native credential/vendor
-staging and observation refuse. The drain argument requires root entry,
+staging refuses. J17 observation is wired over the declared `macos-closed-v1`
+set (§11), with synthetic proof only. The drain argument requires root entry,
 complete handshake replay and no detected gap; the guardian record discloses
 `sequence_start: "unverified"`. There is no live custody acceptance evidence.
 A future supported native tier would use `native_tree`, not a kernel-bound
@@ -814,8 +815,9 @@ stdio, not those channels. Fd validation fails before preparation.
 `version --json` announces the schema identifiers this build writes,
 `"frozen": true` since the milestone-1 freeze (§13), the running platform's
 closed set (`observation.closed_set`: `linux-closed-v1` on a Linux build whose
-architecture the syscall tables cover, §3.2, otherwise null, as on macOS in
-this milestone) and a `build` object. `build` carries `revision` and `dirty`,
+architecture the syscall tables cover, §3.2; `macos-closed-v1` on an SDK-capable
+macOS build, otherwise null) and a `build` object. The macOS name describes
+build capability, not entitlement or live acceptance (§11). `build` carries `revision` and `dirty`,
 the build environment's claims (`UKAI_BUILD_REVISION`, `UKAI_BUILD_DIRTY`),
 validated: a revision is a full, non-zero 40-hex commit, `dirty` requires a
 revision, a malformed or contradictory pair fails the build, where the
@@ -1986,6 +1988,19 @@ second proxy event. No public DNS dependency is required in tests: controlled
 resolver and server fixtures cover rebinding, IPv6 and forbidden addresses.
 
 ## 11. Observation and event semantics
+
+macOS amendment (2026-10-23): native J17 uses the declared notification set
+`macos-closed-v1`, specified in [jail-macos §5](jail-macos.md#5-native-observation-j17)
+and its [generated table](jail-v1/evidence/closed-set-macos.txt). Attached,
+loss-free exec/fs.write are active over that set. Individual write calls are
+outside the set; writes are represented by modified CLOSE, including implicit
+closes at process exit. Cloud materialization and File Provider updates are
+also outside the set. mmap-only/unattributable mutations outside the set do
+not alone degrade coverage. Requested attachment failure refuses before exec
+in either evidence mode. Real loss follows §11.4's
+strict/best-effort rule; fs.deny and native net remain unsupported. Receipts
+name the set and SDK-capable macOS version output announces it. This is wired
+and synthetically tested, not live ES acceptance. Linux below is unchanged.
 
 ### 11.1 Scope and attachment
 

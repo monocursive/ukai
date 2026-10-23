@@ -146,14 +146,14 @@ fn settle(receipt: &Value, capture: &FrameCapture) {
 }
 
 #[test]
-fn phase_one_observation_is_off_until_a_run_attaches_it() {
+fn j17_baseline_and_explicit_observe_on_use_the_declared_set() {
     use ukai_jail::policy::ProfileName;
     use ukai_jail::records::{ObserveMode, Os};
     assert_eq!(
         ukai_jail::profiles::baseline(ProfileName::Tool, Os::Macos, &|_| None)
             .observation
             .mode,
-        ObserveMode::Off
+        ObserveMode::On
     );
     assert_eq!(
         ukai_jail::profiles::baseline(ProfileName::Tool, Os::Linux, &|_| None)
@@ -173,7 +173,7 @@ fn phase_one_observation_is_off_until_a_run_attaches_it() {
         .output()
         .unwrap();
     let report: Value = serde_json::from_slice(&output.stdout).expect("explain JSON");
-    assert_eq!(report["policy"]["snapshot"]["observation"]["mode"], "off");
+    assert_eq!(report["policy"]["snapshot"]["observation"]["mode"], "on");
     use ukai_jail::platform::{PlanRequest, Platform};
     let plan = PlanRequest {
         snapshot: ukai_jail::policy::resolve(&ukai_jail::policy::ResolveInputs {
@@ -197,9 +197,23 @@ fn phase_one_observation_is_off_until_a_run_attaches_it() {
         .iter()
         .find(|row| row.name == "closed_set_observation")
         .unwrap();
-    assert_eq!(
+    assert_ne!(
         row.status,
         ukai_jail::capability::CapabilityStatus::Unsupported
+    );
+    assert_eq!(row.mechanism.as_deref(), Some("es_notify"));
+    let version = Command::new(env!("CARGO_BIN_EXE_ukai-jail"))
+        .args(["version", "--json"])
+        .output()
+        .unwrap();
+    let version: Value = serde_json::from_slice(&version.stdout).unwrap();
+    assert_eq!(
+        version["observation"]["closed_set"],
+        if cfg!(ukai_es_sdk_absent) {
+            Value::Null
+        } else {
+            json!("macos-closed-v1")
+        }
     );
 }
 
@@ -276,7 +290,7 @@ fn k105_events_map_to_schema_valid_audit_results_with_honest_coverage() {
     assert_eq!(journal.count(CoverageClass::FsWrite), 9);
     assert_eq!(
         summary.classes[&CoverageClass::FsWrite].status,
-        SourceStatus::Degraded
+        SourceStatus::Active
     );
     assert_eq!(
         summary.classes[&CoverageClass::FsDeny].status,
@@ -570,24 +584,45 @@ fn path_prefixes_are_component_wise() {
     );
 }
 #[test]
-fn incomplete_mutation_subscription_cannot_claim_active_fs_write() {
+fn j17_declared_set_is_active_without_a_standing_out_of_set_gap() {
     let capture = FrameCapture::new();
     let journal = capture.journal();
     let summary = coverage(&journal);
-    let write = &summary.classes[&CoverageClass::FsWrite];
-    assert_eq!(write.status, SourceStatus::Degraded);
-    assert_eq!(write.observed_count, None);
-    assert!(
-        write
-            .gaps
-            .iter()
-            .any(|g| g.reason.contains("uncovered_mutations") && g.reason.contains("mmap"))
+    assert_eq!(summary.set.as_deref(), Some("macos-closed-v1"));
+    for class in OBSERVED_CLASSES {
+        assert_eq!(summary.classes[&class].status, SourceStatus::Active);
+        assert_eq!(summary.classes[&class].observed_count, Some(0));
+        assert!(summary.classes[&class].gaps.is_empty());
+    }
+    assert!(summary.gaps.is_empty());
+}
+
+#[test]
+fn j17_published_closed_set_equals_the_subscription_rows() {
+    let table = ukai_jail::platform::macos::observe::closed_set_table();
+    assert_eq!(
+        table,
+        std::fs::read_to_string(specs().join("evidence/closed-set-macos.txt")).unwrap()
     );
     assert_eq!(
-        summary.classes[&CoverageClass::Exec].status,
-        SourceStatus::Active
+        table
+            .lines()
+            .filter(|line| line.starts_with("NOTIFY_"))
+            .count(),
+        18
     );
+    assert!(!table.lines().any(|line| line.starts_with("NOTIFY_WRITE |")));
+    assert!(
+        !table
+            .lines()
+            .any(|line| line.starts_with("NOTIFY_FILE_PROVIDER_"))
+    );
+    assert!(table.contains("cloud materialization and File Provider updates"));
+    assert!(table.contains("individual write calls"));
+    assert!(table.contains("implicit closes at process exit"));
+    assert!(table.contains("mmap-only writes"));
 }
+
 #[test]
 fn refused_and_poisoned_trace_frames_are_not_counted() {
     let dir = common::private_tempdir();
@@ -677,7 +712,7 @@ fn k107_rust_and_python_recompute_real_native_journal_frames() {
     assert!(
         workspace
             .text
-            .contains("at least 2 modified, at least 2 created, at least 1 with metadata changes"),
+            .contains("2 modified, 2 created, 1 with metadata changes"),
         "{}",
         workspace.text
     );
@@ -867,4 +902,97 @@ fn shim_a_late_sync_cannot_complete_the_next_drain() {
 #[test]
 fn shim_retains_callback_memory_when_delete_fails() {
     shim_case("delete");
+}
+
+#[test]
+fn j17_all_subscribed_mutations_decode_in_the_c_shim() {
+    shim_case("declared-set");
+}
+
+#[test]
+fn j17_new_mutation_actions_validate_and_recompute_only_mutated_paths() {
+    let capture = FrameCapture::new();
+    let mut journal = capture.journal();
+    for (i, action) in [
+        ObsAction::Clone,
+        ObsAction::Copyfile,
+        ObsAction::Exchangedata,
+        ObsAction::Metadata,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        journal.record_message(&message(
+            action,
+            50 + i as u32,
+            0,
+            i as u64,
+            if action == ObsAction::Exchangedata {
+                b"/w/exchanged-a"
+            } else {
+                b"/outside/source"
+            },
+            Some(format!("/w/dest-{i}").as_bytes()),
+        ));
+    }
+    let receipt = receipt_for(&journal);
+    settle(&receipt, &capture);
+    common::check_trace(&capture.frames(), Some(&receipt)).unwrap();
+    assert_eq!(receipt["coverage"]["fs.write"]["observed_count"], 4);
+    let summary = cross_check(&receipt, &capture);
+    let workspace = summary
+        .lines
+        .iter()
+        .find(|line| line.line == "workspace")
+        .unwrap();
+    assert!(
+        workspace.text.contains("3 modified, 1 created"),
+        "{}",
+        workspace.text
+    );
+    assert_eq!(workspace.facts["paths"].as_array().unwrap().len(), 4);
+    assert_eq!(workspace.facts["opened_for_writing"], 0);
+}
+
+#[test]
+fn j17_provider_actions_do_not_claim_workload_content_changes() {
+    let capture = FrameCapture::new();
+    let mut journal = capture.journal();
+    for i in 0..2 {
+        journal.record_message(&message(
+            ObsAction::Copyfile,
+            50,
+            i,
+            i,
+            b"/outside/provider",
+            Some(b"/w/cloud-file"),
+        ));
+    }
+    let receipt = receipt_for(&journal);
+    settle(&receipt, &capture);
+    // Former provider actions may occur in old evidence. They must not be
+    // interpreted as workload content modifications by either recomputer.
+    let mut frames = capture.frames();
+    let mut actions = ["materialized", "updated"].into_iter();
+    for frame in &mut frames {
+        if frame["source"] == "audit" {
+            frame["fields"]["action"] = actions.next().unwrap().into();
+        }
+    }
+    let bytes = frames
+        .iter()
+        .map(|frame| format!("{}\n", serde_json::to_string(frame).unwrap()))
+        .collect::<String>();
+    std::fs::write(&capture.path, bytes).unwrap();
+    let summary = cross_check(&receipt, &capture);
+    let workspace = summary
+        .lines
+        .iter()
+        .find(|line| line.line == "workspace")
+        .unwrap();
+    assert!(
+        workspace.facts["paths"].as_array().unwrap().is_empty(),
+        "{}",
+        workspace.text
+    );
 }

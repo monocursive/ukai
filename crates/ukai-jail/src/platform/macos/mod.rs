@@ -218,7 +218,6 @@ mod tests {
             );
             for capability in &capabilities {
                 let unimplemented = capability.name == "execution_boundary"
-                    || capability.name == "closed_set_observation"
                     || capability.name == "credential_staging"
                     || capability.name.starts_with("limit:") && capability.name != "limit:wall";
                 if unimplemented {
