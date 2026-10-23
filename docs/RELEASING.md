@@ -118,7 +118,7 @@ The signed release plan binds this scope and both native Linux targets.
 
 The Linux-only scope above has a macOS counterpart defined by
 [jail-macos.md](specs/jail-macos.md) §4.12 and §8. J16–J18 are work in
-progress on the integration branch, not supported or releasable.
+progress on `dev`, not supported or releasable.
 The new custody implementation has not run with live Endpoint Security;
 decision 5's measurement spike has not run. J16 still needs its bundle,
 Info.plist, entitlements and `~/Applications` installer. J18 still lacks

@@ -33,7 +33,7 @@ Fourteen starter launch profiles are embedded. OpenCode has recorded live
 runs, but a bundled profile is not a promise that every version of that agent
 works. The [compatibility records](https://github.com/monocursive/ukai/blob/dev/docs/specs/jail-v1/agent-compatibility.md)
 name the tested combinations. The two-tier macOS implementation is work in
-progress on the integration branch: native custody (J16, J17) and a
+progress on `dev`: native custody (J16, J17) and a
 warm VM (J18), specified in [jail-macos.md](specs/jail-macos.md). Neither tier
 is supported or shipped. Native custody has not run with live Endpoint
 Security; the measurement spike, packaging and protected-Mac acceptance run

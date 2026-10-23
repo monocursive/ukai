@@ -1,8 +1,8 @@
 # Jail proposal: macOS in two tiers, native custody and a warm VM (J16–J18)
 
-Status: work in progress on the integration branch, 2026-10-22;
-J16–J18 are not supported or released. `dev` at `ae14865f8` remains the
-refusal-only historical baseline, not the integrated implementation.
+Status: work in progress on `dev` (merged 2026-10-23), decisions of 2026-10-22;
+J16–J18 are not supported or released. `dev` at `ae14865f8` was the
+refusal-only baseline before this implementation was merged.
 Current implementation: native execution is **off by default**. Setting
 `UKAI_JAIL_MACOS_NATIVE=dev` enables development only; a native receipt records
 `native_execution=dev`. Native credential, vault and vendor staging answer

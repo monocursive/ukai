@@ -137,7 +137,7 @@ needed. A crashed launcher can leave a disk there; never boot or reuse it.
 ## macOS: the native tier and `--vm` (work in progress)
 
 The macOS design has two tiers ([jail-macos.md](specs/jail-macos.md)); their
-implementation is work in progress on the integration branch, and
+implementation is work in progress on `dev`, and
 **neither is supported or shipped**. The new custody code has not run with
 live Endpoint Security. J16 still needs packaging, the measurement spike,
 Apple's entitlement and the protected-Mac acceptance run. J18 still lacks

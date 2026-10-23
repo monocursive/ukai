@@ -134,7 +134,7 @@ without host directories, signing keys or clipboard sharing. The host's SIP
 remained enabled. Its [raw results and timings](results/macos-es-development/rerun/summary.json)
 are development mechanism measurements, not production jail benchmarks.
 
-## J16–J18 working-tree coverage (2026-10-22, work in progress)
+## J16–J18 coverage on `dev` (2026-10-22, work in progress)
 
 The [two-tier macOS design](../../specs/jail-macos.md) has work in progress
 in `crates/ukai-jail`; it is not supported or shipped.
