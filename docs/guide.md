@@ -26,9 +26,9 @@ Ukai was called Ouroboros until 15 October 2026. Linux previews from
 same command the later sections use. The macOS VM preview was published before
 the rename and keeps its `ouro-vm` command. For the guide exactly as released,
 use the
-[release guide](https://github.com/monocursive/ukai/blob/ukai-jail-v0.1.0-rc.4/docs/guide.md).
+[release guide](https://github.com/monocursive/ukai/blob/ukai-jail-v0.1.0-rc.5/docs/guide.md).
 
-[Linux preview 0.1.0-rc.4](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.4)
+[Linux preview 0.1.0-rc.5](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.5)
 ships Linux x86_64 and ARM64 packages. Install your distribution's
 `bubblewrap` package first. The binaries require glibc 2.39 or
 newer; Alpine/musl and macOS execution are unavailable in this preview.
@@ -234,7 +234,7 @@ for the packaged release.
 ## Verify a supplied package
 
 For offline installation, save the [Bash installer](https://ukai.sh/install.sh)
-and the archive for your architecture from the [release](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.4).
+and the archive for your architecture from the [release](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.5).
 The installer verifies its embedded SHA-256 pin even when the archive comes from
 a local directory. No checksum manifest or signature tool is needed:
 

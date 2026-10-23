@@ -5,7 +5,7 @@ main() (
     umask 077
     export LC_ALL=C
     repository=https://github.com/monocursive/ukai
-    version=0.1.0-rc.4
+    version=0.1.0-rc.5
     macos_version=0.1.0-preview.1
     version_selected=false
     prefix=${HOME:?HOME must be set}/.local/bin
@@ -119,6 +119,8 @@ EOF
         0.1.0-rc.3:x86_64-unknown-linux-gnu) expected='9798ead7866a98456406456b2d9b13d7e881f265d24eb2b9674e4b602144029a' ;;
         0.1.0-rc.4:aarch64-unknown-linux-gnu) expected='305d79aa1b826ad4d7aed209720c257df4cf6002e734bcbde3bd593487a9601d' ;;
         0.1.0-rc.4:x86_64-unknown-linux-gnu) expected='c5ddd09e91e584e2f7ad98454f0fe38572dd3db75905e26b197b788e2e46b269' ;;
+        0.1.0-rc.5:aarch64-unknown-linux-gnu) expected='2af9d2ef48ec12c4072822b6b6dca3cb867ee8fb0054c9e142d4e86a0221a752' ;;
+        0.1.0-rc.5:x86_64-unknown-linux-gnu) expected='33f397057c4d8996a01d60d382852223ac328075f2facd084b51a2068b5ce03e' ;;
         *) fail "no pinned SHA-256 for $version ($target); download the current installer" ;;
     esac
     # END SHA256 PINS

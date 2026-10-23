@@ -1,11 +1,10 @@
 # Publish a Ukai Jail developer preview
 
-[Linux preview 0.1.0-rc.4](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.4), which adds
-interactive sessions (J14), was published on 21 October 2026 from
-`eb9b67b1853827624b75e6a1cd3aa76352f7f3ee`; its
-[publication record](benchmarks/jail/release-preview-2026-10-21.md) lists the
-exact-commit checks, the clean-VM evidence, the interactive Claude Code record
-and the verified installations.
+[Linux preview 0.1.0-rc.5](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.5), which carries
+the fixes of the 22–23 October review, was published on 23 October 2026 from
+`0fe655440db7fd0012257cbbbc7d7a790cd7eca1`; its
+[publication record](benchmarks/jail/release-preview-2026-10-23.md) lists the
+exact-commit checks, the clean-VM evidence and the verified installations.
 
 [Linux preview 0.1.0-rc.3](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.3), the first
 release under the Ukai name, was published on 18 October 2026 from
@@ -182,7 +181,7 @@ freeze intentionally removes it and cannot establish release readiness.
 Set the reviewed coordinates and production key:
 
 ```sh
-release_version=0.1.0-rc.4
+release_version=0.1.0-rc.5
 release_revision=$(git rev-parse HEAD)
 release_public_key=$(sed -n '2p' crates/ukai-jail/dist/release.pub)
 release_private_key="$HOME/.config/ouroboros/release-keys/ouro-jail-2026-10-10.key"

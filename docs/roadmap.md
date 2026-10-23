@@ -49,7 +49,7 @@ unwired; `fs.write` would still be `degraded`/partial even if wired. Every
 `run --vm` refuses before connecting: no qualified VM backend exists yet.
 
 You can [build the jail and try a small command](https://github.com/monocursive/ukai/blob/dev/docs/guide.md#build-and-check-your-host)
-today. [Signed Linux developer-preview packages](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.4)
+today. [Signed Linux developer-preview packages](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.5)
 are also available; a Homebrew tap remains unconfigured.
 
 The separate [Ukai VM preview for Apple Silicon](https://ukai.sh/guide/#macos-vm-preview)

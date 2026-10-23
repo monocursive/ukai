@@ -18,14 +18,16 @@ Ukai was called Ouroboros until 15 October 2026. Linux previews from
 earlier Linux previews and the macOS VM preview were published under the old
 name, as `ouro-jail` and `ouro-vm`.
 
-**Developer preview 0.1.0-rc.4.** [Signed Linux x86_64 and ARM64 packages](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.4)
+**Developer preview 0.1.0-rc.5.** [Signed Linux x86_64 and ARM64 packages](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.5)
 are available. The reference x86_64 conformance host and native Raspberry Pi
 checks are recorded; available profiles depend on the host's kernel capabilities.
 Native macOS `ukai-jail` builds provide inspection commands and refuse execution.
 See the [platform requirements](docs/specs/jail-v1.md#32-initial-support-matrix)
-and the [rc.4 publication record](docs/benchmarks/jail/release-preview-2026-10-21.md).
-rc.4 adds interactive sessions: an attached terminal, and agent state kept per
-repository.
+and the [rc.5 publication record](docs/benchmarks/jail/release-preview-2026-10-23.md).
+rc.5 carries the fixes of the 22–23 October review for Linux: vault receipts
+claim only the binding they have, gc never reports a kill it did not make,
+proxy refusals keep their attribution, and `lifetime_boundary` works in policy
+files. rc.4 added interactive sessions.
 
 **macOS VM preview 0.1.0-preview.1.** [Signed and notarized Apple Silicon DMG](https://github.com/monocursive/ukai/releases/tag/ouro-vm-v0.1.0-preview.1)
 is available for macOS 27+. The published `ouro-vm` command runs offline Linux
@@ -81,7 +83,7 @@ after installing, then follow the [Mac example](docs/guide.md#macos-vm-preview).
 
 See the [guide](docs/guide.md#install-the-developer-preview) for supported hosts,
 upgrades and explicit downgrade handling. The remaining examples use the current
-Ukai source build; the published preview's own [guide](https://github.com/monocursive/ukai/blob/ukai-jail-v0.1.0-rc.4/docs/guide.md)
+Ukai source build; the published preview's own [guide](https://github.com/monocursive/ukai/blob/ukai-jail-v0.1.0-rc.5/docs/guide.md)
 documents exactly what it ships. To build from source:
 
 Install Rust 1.98.1 and your distribution's bubblewrap package. Run as your
