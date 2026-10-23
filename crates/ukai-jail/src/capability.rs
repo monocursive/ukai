@@ -270,10 +270,27 @@ pub const REASON_NOT_APPLIED_BY_NONE: &str = "uncontained_profile";
 /// refuses it. VM policy enforcement is unavailable in this build.
 pub const REASON_OWNER_LOSS_REQUIRES_VM: &str = "kernel_bound_requires_vm";
 
-/// The binary lacks the Endpoint Security entitlement (jail-macos §4.3).
+/// The binary was built without the required Endpoint Security SDK APIs.
+pub const REASON_ES_SDK_ABSENT: &str = "es_sdk_absent";
+/// The executable lacks the Endpoint Security entitlement.
 pub const REASON_ES_NOT_ENTITLED: &str = "es_not_entitled";
 /// Endpoint Security client capacity is exhausted; retry when it is free.
 pub const REASON_ES_TOO_MANY_CLIENTS: &str = "es_too_many_clients";
+
+/// A build-time limitation can be reported by explain without probing the host.
+#[must_use]
+pub fn build_unavailability(requirement: Requirement) -> Option<&'static str> {
+    if cfg!(all(target_os = "macos", ukai_es_sdk_absent))
+        && matches!(
+            requirement,
+            Requirement::TreeTermination | Requirement::Limit(LimitKey::Wall)
+        )
+    {
+        Some(REASON_ES_SDK_ABSENT)
+    } else {
+        None
+    }
+}
 
 /// The requirements a `none` snapshot's restrictions derive.
 ///

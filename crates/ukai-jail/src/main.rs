@@ -782,12 +782,17 @@ fn explain_json(report: &ExplainReport) -> Result<serde_json::Value, JailError> 
         .requirements
         .iter()
         .map(|name| {
-            serde_json::json!({
+            let mut row = serde_json::json!({
                 "name": name,
                 // `explain` does not probe (§6.1), so every capability is
                 // explicitly unmeasured rather than assumed available.
                 "measurement": "unmeasured",
-            })
+            });
+            if let Some(reason) = ukai_jail::capability::build_unavailability(*name) {
+                row["status"] = "unavailable".into();
+                row["reason_code"] = reason.into();
+            }
+            row
         })
         .collect();
     Ok(serde_json::json!({
@@ -1073,7 +1078,14 @@ fn explain_text(report: &ExplainReport) -> String {
         );
     }
     for requirement in &report.resolved.requirements {
-        let _ = writeln!(out, "requirement {requirement} unmeasured");
+        if let Some(reason) = ukai_jail::capability::build_unavailability(*requirement) {
+            let _ = writeln!(
+                out,
+                "requirement {requirement} unavailable ({reason}; build-time)"
+            );
+        } else {
+            let _ = writeln!(out, "requirement {requirement} unmeasured");
+        }
     }
     let _ = writeln!(out, "capabilities unmeasured (explain does not probe)");
     out

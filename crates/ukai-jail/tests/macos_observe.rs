@@ -754,6 +754,10 @@ fn r3_summary_describes_root_changes_without_counting_workspace_entries() {
 
 #[test]
 fn an_unsigned_observe_run_refuses_not_entitled() {
+    if cfg!(ukai_es_sdk_absent) {
+        assert_observer_sdk_absent();
+        return;
+    }
     let signing = Command::new("/usr/bin/codesign")
         .args(["-d", "--entitlements", ":-"])
         .arg(std::env::current_exe().unwrap())
@@ -781,14 +785,33 @@ fn an_unsigned_observe_run_refuses_not_entitled() {
     );
 }
 
+fn assert_observer_sdk_absent() {
+    use ukai_jail::platform::macos::{es::EsNewResult, observe::ObserveClient};
+    assert!(matches!(ObserveClient::new(), Err(EsNewResult::SdkAbsent)));
+    let capture = FrameCapture::new();
+    let result = ObserveRun::start(ATTEMPT, capture.trace.clone(), b"/", &[[7; 8]]);
+    let error = result.err().expect("SDK absence prevents observer startup");
+    assert!(matches!(
+        error,
+        ObserveStartError::Client(EsNewResult::SdkAbsent)
+    ));
+    assert!(error.to_string().contains("es_sdk_absent"));
+    assert!(capture.frames().is_empty(), "no observation stream started");
+}
+
 fn shim_case(name: &str) {
+    if cfg!(ukai_es_sdk_absent) {
+        assert_observer_sdk_absent();
+        return;
+    }
     static BINARY: std::sync::OnceLock<(tempfile::TempDir, PathBuf)> = std::sync::OnceLock::new();
     let (_, binary) = BINARY.get_or_init(|| {
         let dir = common::private_tempdir();
         let binary = dir.path().join("shim-synthetic");
         let source =
             Path::new(env!("CARGO_MANIFEST_DIR")).join("src/platform/macos/observe/synthetic.c");
-        let output = Command::new("/usr/bin/clang")
+        let output = Command::new("xcrun")
+            .arg("clang")
             .args(["-std=c11", "-fblocks", "-Wall", "-Wextra", "-Werror"])
             .arg(source)
             .args(["-lEndpointSecurity", "-framework", "CoreFoundation", "-o"])

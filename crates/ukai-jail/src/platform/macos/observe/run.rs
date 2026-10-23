@@ -15,7 +15,14 @@ pub enum ObserveStartError {
 }
 impl std::fmt::Display for ObserveStartError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "observation could not start: {self:?}")
+        match self {
+            Self::Client(result) => write!(
+                f,
+                "observation could not start: {}",
+                crate::platform::macos::custody_io::es_new_result_name(*result)
+            ),
+            _ => write!(f, "observation could not start: {self:?}"),
+        }
     }
 }
 impl std::error::Error for ObserveStartError {}

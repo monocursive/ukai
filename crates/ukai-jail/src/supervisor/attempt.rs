@@ -1955,6 +1955,7 @@ mod native_refusal_tests {
     fn es_client_refusals_have_actionable_remediation() {
         use crate::capability::{Capability, CapabilityScope, CapabilityStatus, Requirement};
         for (reason, remediation) in [
+            ("es_sdk_absent", Remediation::Unsupported),
             ("es_not_entitled", Remediation::Unsupported),
             ("es_too_many_clients", Remediation::Retry),
         ] {

@@ -108,7 +108,12 @@ fn doctor_rows_answer_the_section_4_10_table() {
     assert_eq!(tree["status"], serde_json::json!("unavailable"));
     let reason = tree["reason_code"].as_str().expect("a reason code");
     assert!(
-        reason == "native_development_disabled",
+        reason
+            == if cfg!(ukai_es_sdk_absent) {
+                "es_sdk_absent"
+            } else {
+                "native_development_disabled"
+            },
         "the ES probe names its own refusal: {reason}"
     );
     println!("es_descendants reason: {reason}");
@@ -342,4 +347,89 @@ fn capability_lines_keep_their_shape() {
         stdout.contains("capability limit:wall "),
         "the wall row is a capability line: {stdout}"
     );
+}
+
+#[test]
+fn sdk_absence_is_reported_without_probing_in_explain_and_before_native_exec() {
+    if !cfg!(ukai_es_sdk_absent) {
+        // SDK support alone never enables the unshipped native tier.
+        let report = doctor_json(&Harness::new());
+        assert_eq!(
+            capability(&report, "es_descendants")["reason_code"],
+            "native_development_disabled"
+        );
+        return;
+    }
+    let harness = Harness::new();
+    for development in [false, true] {
+        let invoke = |args: &[&str]| {
+            let mut cmd = Command::new(env!("CARGO_BIN_EXE_ukai-jail"));
+            cmd.env_clear()
+                .env("PATH", "/usr/bin:/bin")
+                .env("HOME", harness.temp.path())
+                .env("UKAI_DATA_DIR", &harness.data)
+                .env("UKAI_CONFIG_DIR", &harness.config)
+                .current_dir(&harness.work)
+                .args(args);
+            if development {
+                cmd.env("UKAI_JAIL_MACOS_NATIVE", "dev");
+            }
+            cmd.output().unwrap()
+        };
+        let output = invoke(&["doctor", "--json"]);
+        assert_eq!(output.status.code(), Some(125));
+        let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        for name in ["es_descendants", "tree_termination", "limit:wall"] {
+            let row = capability(&report, name);
+            assert_eq!(row["status"], "unavailable", "{name}");
+            assert_eq!(row["reason_code"], "es_sdk_absent", "{name}");
+        }
+        let output = invoke(&["explain", "--json"]);
+        assert!(output.status.success());
+        let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(report["probed"], false);
+        let tree = report["requirements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["name"] == "tree_termination")
+            .unwrap();
+        assert_eq!(tree["measurement"], "unmeasured");
+        assert_eq!(tree["status"], "unavailable");
+        assert_eq!(tree["reason_code"], "es_sdk_absent");
+        let output = invoke(&["explain"]);
+        assert!(output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stdout)
+                .contains("tree_termination unavailable (es_sdk_absent; build-time)")
+        );
+        if development {
+            let receipt = harness.temp.path().join("sdk-refusal.json");
+            let marker = harness.work.join("must-not-execute");
+            let output = invoke(&[
+                "run",
+                "--receipt",
+                receipt.to_str().unwrap(),
+                "--",
+                "/usr/bin/touch",
+                marker.to_str().unwrap(),
+            ]);
+            assert_eq!(output.status.code(), Some(125));
+            assert!(!marker.exists());
+            assert!(String::from_utf8_lossy(&output.stderr).contains("es_sdk_absent"));
+            let receipt: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(receipt).unwrap()).unwrap();
+            assert_eq!(receipt["phase"], "refused");
+            assert_eq!(
+                receipt["outcome"]["error"]["remediation_category"],
+                "unsupported"
+            );
+            assert!(
+                receipt["outcome"]["error"]["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("es_sdk_absent")
+            );
+        }
+    }
 }

@@ -35,6 +35,7 @@ pub type Token = [u32; 8];
 #[must_use]
 pub fn es_new_result_name(result: EsNewResult) -> String {
     match result {
+        EsNewResult::SdkAbsent => es::SDK_ABSENT_REASON.to_owned(),
         EsNewResult::Success => "SUCCESS".to_owned(),
         EsNewResult::InvalidArgument => "ERR_INVALID_ARGUMENT".to_owned(),
         EsNewResult::Internal => "ERR_INTERNAL".to_owned(),

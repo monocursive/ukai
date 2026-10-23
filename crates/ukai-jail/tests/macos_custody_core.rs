@@ -798,6 +798,24 @@ fn the_engine_documents_and_honors_its_preallocation() {
 
 #[test]
 fn client_creation_without_the_entitlement_refuses_not_entitled() {
+    if cfg!(ukai_es_sdk_absent) {
+        // S, G and the guard G-prime all use this constructor. No client is
+        // fabricated, and the guardian facade preserves the stable reason.
+        for _ in 0..3 {
+            assert!(matches!(
+                es::CustodyClient::new(),
+                Err(EsNewResult::SdkAbsent)
+            ));
+            let result = ukai_jail::platform::macos::custody_io::create_custody_client()
+                .err()
+                .expect("SDK absence refuses client creation");
+            assert_eq!(
+                ukai_jail::platform::macos::custody_io::es_new_result_name(result),
+                "es_sdk_absent"
+            );
+        }
+        return;
+    }
     match es::CustodyClient::new() {
         // The mapped enum is the assertion; the raw code is recorded for the
         // K98 row-1 record.

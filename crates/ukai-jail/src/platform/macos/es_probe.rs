@@ -14,6 +14,8 @@ use super::es::{CustodyClient, EsNewResult};
 pub enum EsProbeResult {
     /// The client was created and deleted: the process is entitled.
     Entitled,
+    /// This binary was built without the required SDK APIs; no client was attempted.
+    SdkAbsent,
     /// The system refused the client. `raw_code` is the framework's own
     /// `es_new_client_result_t` value, reported verbatim.
     NotEntitled { raw_code: i32 },
@@ -40,10 +42,7 @@ impl EsProbe for RealEsProbe {
         match CustodyClient::new() {
             // The client's `Drop` (or `delete`) releases it; the probe holds
             // nothing else.
-            Ok(client) => {
-                drop(client);
-                EsProbeResult::Entitled
-            }
+            Ok(_client) => EsProbeResult::Entitled,
             Err(result) => probe_failure(result),
         }
     }
@@ -52,6 +51,7 @@ impl EsProbe for RealEsProbe {
 fn probe_failure(result: EsNewResult) -> EsProbeResult {
     let raw_code = result.raw();
     match result {
+        EsNewResult::SdkAbsent => EsProbeResult::SdkAbsent,
         EsNewResult::NotEntitled => EsProbeResult::NotEntitled { raw_code },
         EsNewResult::TooManyClients => EsProbeResult::TooManyClients { raw_code },
         _ => EsProbeResult::Unavailable {
@@ -96,7 +96,15 @@ mod tests {
         // The live answer depends on the host: entitled here means
         // `Entitled`; an unentitled host answers `NotEntitled` with the
         // framework's own code. The probe always answers; it never skips.
+        if cfg!(ukai_es_sdk_absent) {
+            assert_eq!(es_probe(), EsProbeResult::SdkAbsent);
+        }
         match es_probe() {
+            EsProbeResult::SdkAbsent => {
+                if !cfg!(ukai_es_sdk_absent) {
+                    panic!("an SDK-capable build must attempt the ES client");
+                }
+            }
             EsProbeResult::Entitled => {}
             EsProbeResult::NotEntitled { raw_code } => {
                 println!("es_new_descendants_client raw code: {raw_code}");

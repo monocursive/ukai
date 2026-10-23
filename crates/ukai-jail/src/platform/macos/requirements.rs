@@ -79,6 +79,9 @@ pub(super) fn run_probes() -> Vec<ProbeRow> {
 /// `native_tree` under native custody, and only an entitled client proves
 /// the system grants one).
 fn es_row() -> ProbeRow {
+    if cfg!(ukai_es_sdk_absent) {
+        return es_result_row(es_probe::es_probe());
+    }
     if !super::native_enabled() {
         return ProbeRow::new("es_descendants", "es_descendants").unavailable(
             "native_development_disabled",
@@ -90,6 +93,10 @@ fn es_row() -> ProbeRow {
 
 fn es_result_row(result: EsProbeResult) -> ProbeRow {
     match result {
+        EsProbeResult::SdkAbsent => ProbeRow::new("es_descendants", "es_descendants").unavailable(
+            super::es::SDK_ABSENT_REASON,
+            "this binary was built without the required Endpoint Security SDK APIs".into(),
+        ),
         EsProbeResult::Entitled => ProbeRow::new("es_descendants", "es_descendants"),
         EsProbeResult::NotEntitled { raw_code } => {
             ProbeRow::new("es_descendants", "es_descendants").unavailable(
@@ -256,6 +263,12 @@ fn maxprocperuid_row() -> ProbeRow {
 /// Reports the unwired §5 observation capability (J17). This does not create
 /// an observation client; custody entitlement cannot prove run observation.
 fn es_notify_row() -> ProbeRow {
+    if cfg!(ukai_es_sdk_absent) {
+        return ProbeRow::new("es_notify", "es_notify").unavailable(
+            super::es::SDK_ABSENT_REASON,
+            "this binary was built without the required Endpoint Security SDK APIs".into(),
+        );
+    }
     // I5: observation is not wired into runs. Entitlement alone
     // cannot establish a capability that the run does not actually attach.
     ProbeRow::new("es_notify", "es_notify").unavailable(
@@ -494,7 +507,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn notify_probe_reports_sdk_absence_before_unwired_observation() {
+        let row = es_notify_row();
+        assert_eq!(row.status, CapabilityStatus::Unavailable);
+        assert_eq!(
+            row.reason,
+            if cfg!(ukai_es_sdk_absent) {
+                "es_sdk_absent"
+            } else {
+                "observer_not_wired"
+            }
+        );
+    }
+
+    #[test]
     fn es_refusal_reasons_survive_capability_derivation() {
+        let row = es_result_row(EsProbeResult::SdkAbsent);
+        for requirement in [
+            Requirement::TreeTermination,
+            Requirement::Limit(LimitKey::Wall),
+        ] {
+            let capability = capability_for(requirement, std::slice::from_ref(&row), "now");
+            assert_eq!(capability.status, CapabilityStatus::Unavailable);
+            assert_eq!(capability.reason_code.as_deref(), Some("es_sdk_absent"));
+        }
         for (result, reason, raw_code) in [
             (
                 EsProbeResult::NotEntitled { raw_code: 3 },

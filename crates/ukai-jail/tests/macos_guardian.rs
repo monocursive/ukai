@@ -158,7 +158,7 @@ fn run_guardian() -> (Output, tempfile::TempDir) {
 // K98, refusal evidence on this Mac: before any workload process exists, a
 // guardian without the ES entitlement fails **fast** at custody client G's
 // creation, one stderr line naming the ES result code, non-zero exit. With
-// the shim's bindings compiled in (always, since the ES slice landed) the
+// the required SDK APIs compiled in, the
 // code is `ERR_NOT_ENTITLED`; if the framework were somehow entitled on a
 // dev machine, the test still asserts the fast, one-line refusal naming the
 // failing step — the entitlement-specific assertion is what this Mac
@@ -188,7 +188,9 @@ fn guardian_refuses_fast_without_entitlement() {
         "names the failing step: {}",
         lines[0]
     );
-    if std::env::var_os("UKAI_GUARDIAN_ENTITLED").is_none() {
+    if cfg!(ukai_es_sdk_absent) {
+        assert!(lines[0].ends_with("es_sdk_absent"), "{stderr}");
+    } else if std::env::var_os("UKAI_GUARDIAN_ENTITLED").is_none() {
         assert!(
             lines[0].contains("ERR_NOT_ENTITLED"),
             "this Mac has no ES entitlement: {}",
@@ -510,6 +512,16 @@ fn release_without_deadline_leaves_watchdog_unarmed() {
 
 #[test]
 fn shim_mapping_and_late_sync_wakes_use_sdk_typed_fakes() {
+    if cfg!(ukai_es_sdk_absent) {
+        assert!(matches!(
+            ukai_jail::platform::macos::custody_io::create_custody_client(),
+            Err(ukai_jail::platform::macos::es::EsNewResult::SdkAbsent)
+        ));
+        let (output, _) = run_guardian();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("custody client: es_sdk_absent"));
+        return;
+    }
     let temp = common::private_tempdir();
     let executable = temp.path().join("shim-tests");
     let source =
@@ -695,45 +707,94 @@ fn darwin_target_build_compiles_shims_with_linux_host_cfg() {
     let driver = temp.path().join("c-driver");
     std::fs::write(
         &driver,
-        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$UKAI_BUILD_PROBE_LOG\"\n",
+        r#"#!/bin/sh
+printf '%s\n' "$*" >> "$UKAI_BUILD_PROBE_LOG"
+case "$UKAI_BUILD_PROBE_FAIL:$*" in
+  probe:*-fsyntax-only*|custody:*-c*es/shim.c*|observe:*-c*obs_shim.c*)
+    echo "selected compilation failed" >&2
+    exit 1 ;;
+esac
+"#,
     )
     .unwrap();
     std::fs::set_permissions(&driver, std::fs::Permissions::from_mode(0o700)).unwrap();
-    let log = temp.path().join("actions");
-    let output = Command::new(&executable)
-        .current_dir(manifest)
-        .env("CARGO_MANIFEST_DIR", manifest)
-        .env("CARGO_CFG_TARGET_OS", "macos")
-        .env("HOST", "x86_64-unknown-linux-gnu")
-        .env("TARGET", "aarch64-apple-darwin")
-        .env("OUT_DIR", temp.path())
-        .env("OPT_LEVEL", "0")
-        .env("SDKROOT", temp.path())
-        .env("CC_aarch64_apple_darwin", &driver)
-        .env("AR_aarch64_apple_darwin", &driver)
-        .env("UKAI_BUILD_PROBE_LOG", &log)
-        .env_remove("UKAI_BUILD_REVISION")
-        .env_remove("UKAI_BUILD_DIRTY")
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let actions = std::fs::read_to_string(log).unwrap_or_default();
-    assert_eq!(
-        actions
-            .lines()
-            .filter(|line| line.contains("-target aarch64-apple-darwin"))
-            .count(),
-        2,
-        "both shims must compile on a non-Darwin host: {actions}"
-    );
-    assert!(
-        actions.lines().any(|line| line.starts_with("crs ")),
-        "the shims must be archived: {actions}"
-    );
+    for failure in ["none", "probe", "custody", "observe"] {
+        let log = temp.path().join(format!("actions-{failure}"));
+        let output = Command::new(&executable)
+            .current_dir(manifest)
+            .env("CARGO_MANIFEST_DIR", manifest)
+            .env("CARGO_CFG_TARGET_OS", "macos")
+            .env("HOST", "x86_64-unknown-linux-gnu")
+            .env("TARGET", "aarch64-apple-darwin")
+            .env("OUT_DIR", temp.path())
+            .env("OPT_LEVEL", "0")
+            .env("SDKROOT", temp.path())
+            .env("CC_aarch64_apple_darwin", &driver)
+            .env("AR_aarch64_apple_darwin", &driver)
+            .env("UKAI_BUILD_PROBE_LOG", &log)
+            .env("UKAI_BUILD_PROBE_FAIL", failure)
+            .env_remove("UKAI_BUILD_REVISION")
+            .env_remove("UKAI_BUILD_DIRTY")
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let actions = std::fs::read_to_string(log).unwrap();
+        let calls: Vec<_> = actions.lines().collect();
+        assert!(
+            calls[0].contains("-fsyntax-only src/platform/macos/es/sdk_probe.c"),
+            "{actions}"
+        );
+        assert!(calls[0].contains("-Werror"), "{actions}");
+        assert!(
+            calls[0].contains("-target aarch64-apple-darwin"),
+            "{actions}"
+        );
+        assert!(
+            calls[0].contains(&format!("-isysroot {}", temp.path().display())),
+            "{actions}"
+        );
+        assert!(
+            stdout.contains("cargo:rustc-check-cfg=cfg(ukai_es_sdk_absent)"),
+            "{stdout}"
+        );
+        if failure == "probe" {
+            assert!(output.status.success(), "{stderr}");
+            assert!(
+                stdout.contains("cargo:rustc-cfg=ukai_es_sdk_absent"),
+                "{stdout}"
+            );
+            assert!(!stdout.contains("cargo:rustc-link-"), "{stdout}");
+            assert_eq!(
+                calls.len(),
+                1,
+                "shims must not compile without SDK APIs: {actions}"
+            );
+            assert!(
+                std::fs::read_to_string(temp.path().join("es-sdk-probe.stderr"))
+                    .unwrap()
+                    .contains("selected compilation failed")
+            );
+        } else {
+            assert!(
+                !stdout.contains("cargo:rustc-cfg=ukai_es_sdk_absent"),
+                "{stdout}"
+            );
+            if failure == "none" {
+                assert!(output.status.success(), "{stderr}");
+                assert_eq!(calls.len(), 4, "probe, two shims and archive: {actions}");
+                assert!(calls[3].starts_with("crs "), "{actions}");
+                assert!(stdout.contains("cargo:rustc-link-lib=static=ukai_es_shim"));
+            } else {
+                assert!(
+                    !output.status.success(),
+                    "a real shim error must fail the build"
+                );
+                assert!(stderr.contains("compile Darwin ES shim"), "{stderr}");
+                assert!(!stdout.contains("cargo:rustc-link-lib"));
+            }
+        }
+    }
 }
 
 #[test]

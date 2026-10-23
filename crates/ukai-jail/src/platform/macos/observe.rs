@@ -12,6 +12,10 @@ use crate::observer::{ClassSummary, ClosedOperation, CoverageClass, CoverageSumm
 use crate::records::{Completion, Event, EventOutcome, Gap, SourceStatus};
 use crate::trace::{Priority, SharedTrace};
 
+#[cfg(not(ukai_es_sdk_absent))]
+mod client;
+#[cfg(ukai_es_sdk_absent)]
+#[path = "observe/absent.rs"]
 mod client;
 mod run;
 pub use client::ObserveClient;
@@ -77,6 +81,7 @@ pub enum ObsAction {
 }
 
 impl ObsAction {
+    #[cfg(not(ukai_es_sdk_absent))]
     fn from_raw(value: i32) -> Option<Self> {
         Some(match value {
             1 => Self::Exec,

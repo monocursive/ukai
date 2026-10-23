@@ -67,6 +67,8 @@ fn main() {
     let opt_level = std::env::var("OPT_LEVEL").unwrap_or_else(|_| "unknown".to_owned());
     println!("cargo:rustc-env=UKAI_BUILD_OPT_LEVEL={opt_level}");
 
+    println!("cargo:rustc-check-cfg=cfg(ukai_es_sdk_absent)");
+
     // The ES custody shim (jail-macos §4.1) is compiled only for macOS
     // targets: the build script itself runs on the host, so the target
     // decides. The frameworks are linked here, not in Cargo.toml. The shim
@@ -86,7 +88,8 @@ fn main() {
 /// Build the Darwin-target shims regardless of the build script's host.
 /// `cc` is a host-conditional dependency in this crate; using the compiler
 /// directly here also supports Linux hosts with a Darwin clang and SDKROOT.
-/// A missing compiler/SDK fails the build instead of linking without a shim.
+/// Probe the selected SDK before compiling; a shim error after a successful
+/// probe is a build failure, never evidence that the SDK is absent.
 fn compile_es_shim(target: &str) {
     let out = PathBuf::from(std::env::var_os("OUT_DIR").expect("cargo sets OUT_DIR"));
     let compiler_key = format!("CC_{}", target.replace('-', "_"));
@@ -125,18 +128,9 @@ fn compile_es_shim(target: &str) {
             .and_then(|o| String::from_utf8(o.stdout).ok())
             .map(|s| s.trim().into())
     });
-    let mut objects = Vec::new();
-    for (name, source) in [
-        ("custody", "src/platform/macos/es/shim.c"),
-        ("observe", "src/platform/macos/observe/obs_shim.c"),
-    ] {
-        let object = out.join(format!("{name}.o"));
+    let compile_command = || {
         let mut command = Command::new(&compiler);
-        command
-            .args([
-                "-target", target, "-fblocks", "-std=c11", "-Werror", "-c", source, "-o",
-            ])
-            .arg(&object);
+        command.args(["-target", target, "-fblocks", "-std=c11"]);
         if let Some(sdk) = &sdk {
             command.arg("-isysroot").arg(sdk);
         }
@@ -146,7 +140,36 @@ fn compile_es_shim(target: &str) {
         if let Ok(level) = std::env::var("OPT_LEVEL") {
             command.arg(format!("-O{level}"));
         }
-        checked_command(&mut command, "compile Darwin ES shim");
+        command.arg("-Werror");
+        command
+    };
+    let probe_source = "src/platform/macos/es/sdk_probe.c";
+    println!("cargo:rerun-if-changed={probe_source}");
+    let probe = compile_command()
+        .args(["-fsyntax-only", probe_source])
+        .output()
+        .unwrap_or_else(|error| panic!("run Darwin ES SDK probe: {error}"));
+    // Keep the compiler's exact diagnosis next to the other build evidence.
+    std::fs::write(out.join("es-sdk-probe.stderr"), &probe.stderr)
+        .expect("record Darwin ES SDK probe diagnostics");
+    if !probe.status.success() {
+        println!("cargo:rustc-cfg=ukai_es_sdk_absent");
+        println!(
+            "cargo:warning=es_sdk_absent: selected SDK cannot compile the required Endpoint Security APIs; diagnostics: {}",
+            out.join("es-sdk-probe.stderr").display()
+        );
+        return;
+    }
+    let mut objects = Vec::new();
+    for (name, source) in [
+        ("custody", "src/platform/macos/es/shim.c"),
+        ("observe", "src/platform/macos/observe/obs_shim.c"),
+    ] {
+        let object = out.join(format!("{name}.o"));
+        checked_command(
+            compile_command().args(["-c", source, "-o"]).arg(&object),
+            "compile Darwin ES shim",
+        );
         objects.push(object);
     }
     let archive = out.join("libukai_es_shim.a");

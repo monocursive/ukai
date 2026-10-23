@@ -121,6 +121,11 @@ fn create_client_s() -> Result<CustodyClient, JailError> {
         Err(result) => {
             let name = custody_io::es_new_result_name(result);
             let (code, remediation, hint) = match result {
+                EsNewResult::SdkAbsent => (
+                    ErrorCode::UnsupportedPlatform,
+                    Remediation::Unsupported,
+                    "this binary was built without the required Endpoint Security SDK APIs",
+                ),
                 EsNewResult::NotEntitled => (
                     ErrorCode::UnsupportedPlatform,
                     Remediation::Unsupported,

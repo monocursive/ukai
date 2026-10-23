@@ -1922,6 +1922,13 @@ fn first_unsatisfied(
                  provide; VM policy enforcement is unavailable in this build"
             ),
         ),
+        crate::capability::REASON_ES_SDK_ABSENT => (
+            ErrorCode::MissingCapability,
+            Remediation::Unsupported,
+            format!(
+                "`{requirement}` is unavailable: this binary was built without the required Endpoint Security SDK APIs ({reason})"
+            ),
+        ),
         crate::capability::REASON_ES_NOT_ENTITLED => (
             ErrorCode::MissingCapability,
             Remediation::Unsupported,
