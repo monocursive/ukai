@@ -1375,7 +1375,11 @@ mod tests {
         let source = path.join("secret");
         std::fs::write(&source, b"test-vault-secret").unwrap();
         std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o600)).unwrap();
-        for binaries in [vec![], vec!["/bin/sh".to_owned()]] {
+        // The vault pins its executable with O_NOFOLLOW; on Ubuntu /bin/sh is
+        // a symlink, so name the file it resolves to.
+        let shell = std::fs::canonicalize("/bin/sh").unwrap();
+        let shell = shell.to_str().unwrap().to_owned();
+        for binaries in [vec![], vec![shell]] {
             let declaration = CredentialDecl {
                 id: "token".to_owned(),
                 source: NativeString::from_bytes(source.as_os_str().as_encoded_bytes().to_vec())

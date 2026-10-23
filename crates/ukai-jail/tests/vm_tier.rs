@@ -232,11 +232,17 @@ fn the_lifetime_flag_and_vm_verb_answer_the_grammar() {
 #[test]
 #[cfg(not(target_os = "macos"))]
 fn the_vm_verb_refuses_off_macos_like_the_flag() {
+    // Off macOS `vm` is not a verb: the name is free for a launch profile
+    // (cli.rs), so without one it is an unknown verb or profile, a usage
+    // error that names it.
     let harness = Harness::new();
     let output = harness.run(&["vm", "stop"]);
     assert_eq!(output.status.code(), Some(2), "{output:?}");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("macOS"), "{stderr}");
+    assert!(
+        stderr.contains("no verb or launch profile `vm`"),
+        "{stderr}"
+    );
 }
 
 #[test]

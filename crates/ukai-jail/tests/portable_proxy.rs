@@ -3248,7 +3248,10 @@ fn authenticated_parse_refusals_keep_their_attempt_results() {
     let mut reply = [0; 2];
     socks.read_exact(&mut reply).unwrap();
     assert_eq!(reply, [1, 0]);
-    socks.write_all(&[5, 2, 0, 1, 127, 0, 0, 1, 0, 80]).unwrap();
+    // Only the command header: the proxy refuses BIND before it reads an
+    // address, and on Linux closing over unread bytes resets the
+    // connection, which can discard the reply before this read sees it.
+    socks.write_all(&[5, 2, 0, 1]).unwrap();
     let mut rest = Vec::new();
     socks.read_to_end(&mut rest).unwrap();
     assert_eq!(rest[1], 2);
@@ -3281,11 +3284,10 @@ fn pre_auth_capacity_refusals_are_counted_for_shared_bridge_coverage() {
     held.read_exact(&mut reply).unwrap();
     assert_eq!(reply, [1, 0]);
     let mut excess = proxy.connect();
-    // This is the attempt's credential, but the capacity refusal cannot
-    // afford to parse it. Its uncertainty must survive in coverage.
-    let _ = excess.write_all(
-        b"CONNECT example.com:443 HTTP/1.1\r\nProxy-Authorization: Basic dWthaTpzZWNyZXQ=\r\n\r\n",
-    );
+    // The capacity refusal answers at accept and reads nothing, so even the
+    // attempt's own credential could not be parsed: its uncertainty must
+    // survive in coverage. Nothing is written first: on Linux, closing over
+    // unread bytes resets the connection and can discard the 503.
     let mut response = String::new();
     excess.read_to_string(&mut response).unwrap();
     assert!(response.starts_with("HTTP/1.1 503"), "{response}");
