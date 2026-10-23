@@ -101,6 +101,34 @@ const GUARDIAN_TAIL: Duration = Duration::from_secs(60);
 /// One bounded-wait slice, in milliseconds.
 const TICK_MS: u32 = 20;
 
+/// What settlement does next (§4.5, §4.6).
+#[derive(Debug, PartialEq, Eq)]
+enum SettleStep {
+    Continue,
+    Settled,
+    EndStalledGuardian,
+}
+
+/// Settlement ends when the guardian delivers its record or is lost. The
+/// supervisor's own drain does not end it: a guardian that never answers
+/// within the budget stalled, and is ended and recorded (K89), even when the
+/// supervisor drained the tree alone.
+fn settle_step(
+    // Deliberately not a reason to settle; kept so the rule is stated and tested.
+    _supervisor_done: bool,
+    guardian_record: bool,
+    guardian_lost: bool,
+    deadline_passed: bool,
+) -> SettleStep {
+    if guardian_record || guardian_lost {
+        SettleStep::Settled
+    } else if deadline_passed {
+        SettleStep::EndStalledGuardian
+    } else {
+        SettleStep::Continue
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Refusals
 // ---------------------------------------------------------------------------
@@ -2520,20 +2548,25 @@ impl MacosRunning {
         if !already_begun {
             self.begin_stop();
         }
+        let mut supervisor_done = false;
         loop {
             let _ = self.drain_events();
             self.poll_guardian();
-            if self.tick_stop() {
-                break;
+            if !supervisor_done {
+                supervisor_done = self.tick_stop();
             }
-            // The guardian's record is its stop's end (§4.4): settled from
-            // it when the supervisor's own machine is still running.
-            if self.guardian_record.is_some() {
-                break;
-            }
-            if Instant::now() >= deadline {
-                self.end_stalled_guardian();
-                break;
+            match settle_step(
+                supervisor_done,
+                self.guardian_record.is_some(),
+                self.guardian_lost,
+                Instant::now() >= deadline,
+            ) {
+                SettleStep::Continue => {}
+                SettleStep::Settled => break,
+                SettleStep::EndStalledGuardian => {
+                    self.end_stalled_guardian();
+                    break;
+                }
             }
             self.custody().drain(TICK_MS);
         }
@@ -5073,6 +5106,21 @@ os.write({}, (','.join(map(str, fds))).encode())
                 String::from_utf8_lossy(&output.stderr)
             );
         }
+    }
+
+    #[test]
+    fn settlement_waits_for_the_guardian_and_ends_a_stalled_one() {
+        use SettleStep::{Continue, EndStalledGuardian, Settled};
+        // The supervisor drained alone: keep waiting for the guardian (K89).
+        assert_eq!(settle_step(true, false, false, false), Continue);
+        assert_eq!(settle_step(false, false, false, false), Continue);
+        // A guardian that never answers within the budget stalled.
+        assert_eq!(settle_step(true, false, false, true), EndStalledGuardian);
+        assert_eq!(settle_step(false, false, false, true), EndStalledGuardian);
+        // Its record or its loss ends settlement.
+        assert_eq!(settle_step(true, true, false, false), Settled);
+        assert_eq!(settle_step(false, true, false, true), Settled);
+        assert_eq!(settle_step(true, false, true, false), Settled);
     }
 
     #[test]
