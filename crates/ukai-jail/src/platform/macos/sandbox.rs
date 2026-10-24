@@ -165,6 +165,15 @@ pub const TEMPLATE: &str = r#"; ukai-jail native tier (macOS): defense profile.
 ; root (the launcher sets it to the workspace) resolves its own position.
 (allow file-read-metadata (literal "/tmp") (literal "/var") (literal "/private") (literal "/"))
 @@ANCESTOR_METADATA@@
+; The system selection links, read as metadata (readlink): /bin/sh reads
+; select/sh and otherwise prints "Error opening …" on every invocation;
+; xcode-select, every xcrun shim and the toolchain's own make read
+; select/developer_dir and refuse to run without it (measured). Only the
+; links: the selected toolchain stays ungranted until policy admits it,
+; and an unadmitted selection fails loudly rather than falling back to
+; another toolchain (xcode_select_link, the fallback, stays denied).
+(allow file-read-metadata
+    (literal "/private/var/select/sh") (literal "/private/var/select/developer_dir"))
 ; The workload forks and spawns pipelines; the child inherits the sandbox,
 ; so a fork starts no process outside it (§4.7 closes exec, not fork).
 (allow process-fork)

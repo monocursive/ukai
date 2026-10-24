@@ -34,7 +34,7 @@ use sandbox::{ProfileParams, TEMPLATE as TEMPLATE_TEXT};
 /// measured; changing the template is a deliberate act that updates this
 /// constant and re-runs the matrix in the same change.
 const PINNED_TEMPLATE_DIGEST: &str =
-    "d9bb61b9bad696ac631e70edc36a77998a243d2305c5b7e93ddf277b08f2285d";
+    "d2e80843e426a294ee39c4e0c358e8219c28ab641df0100eeadfc5d8ca97e007";
 
 const SANDBOX_EXEC: &str = "/usr/bin/sandbox-exec";
 
@@ -459,6 +459,103 @@ fn node_git_and_shell_run_with_mach_lookup_fully_denied() {
     } else {
         eprintln!("no node on this Mac; the empty-allowlist node row is unexercised");
     }
+}
+
+/// `/bin/sh` reads the `select/sh` link on every start; a denied read
+/// still runs bash but prints "Error opening /private/var/select/sh" to
+/// stderr (the spike's K93 row, re-measured here), so stderr must be empty.
+#[test]
+fn the_system_shell_starts_without_a_selection_error() {
+    let fixture = Fixture::new();
+    let profile = generated(&fixture, None);
+    let output = run_sandboxed(&profile, Path::new("/bin/sh"), &["-c", "true"]);
+    assert!(ran(&output), "sh under the profile: {:?}", output.stderr);
+    assert!(
+        output.stderr.is_empty(),
+        "sh printed under the profile: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// The host's `xcode-select -p`. Building this crate needs the developer
+/// tools (the ES shim is compiled with them), so every Mac running this
+/// file has a selection.
+fn selected_developer_dir() -> PathBuf {
+    let output = Command::new("/usr/bin/xcode-select")
+        .arg("-p")
+        .output()
+        .expect("xcode-select runs");
+    assert!(
+        output.status.success(),
+        "this Mac has no developer tools selected"
+    );
+    PathBuf::from(String::from_utf8_lossy(&output.stdout).trim())
+}
+
+/// The tree a developer selection is admitted as: an Xcode selection is its
+/// whole bundle (the tools stat the bundle's Info.plist), in its spelled
+/// and resolved forms; any other selection is itself.
+fn developer_roots(selected: &Path) -> Vec<PathBuf> {
+    let bundle = selected
+        .ancestors()
+        .find(|path| path.extension().is_some_and(|ext| ext == "app"))
+        .unwrap_or(selected)
+        .to_path_buf();
+    let mut roots = vec![bundle.clone()];
+    if let Ok(resolved) = std::fs::canonicalize(&bundle)
+        && resolved != bundle
+    {
+        roots.push(resolved);
+    }
+    roots
+}
+
+/// The developer tools resolve their selection through the `developer_dir`
+/// link: with the selected tree admitted, `xcode-select -p` inside reports
+/// exactly the host's selection. With the selection unadmitted it refuses,
+/// and never substitutes another installed toolchain even when that one is
+/// admitted (the fallback link stays denied).
+#[test]
+fn the_developer_tools_follow_the_host_selection_or_refuse() {
+    let fixture = Fixture::new();
+    let selected = selected_developer_dir();
+    let env = [("TMPDIR", fixture.scratch.to_str().expect("utf-8 scratch"))];
+    let xcode_select = Path::new("/usr/bin/xcode-select");
+
+    let mut params = fixture.params(None);
+    params.read_only.extend(developer_roots(&selected));
+    let output = run_sandboxed_env(&sandbox::generate(&params), xcode_select, &["-p"], &env);
+    assert!(
+        ran(&output),
+        "xcode-select with {} admitted: {:?}",
+        selected.display(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        selected.to_str().expect("utf-8 selection")
+    );
+
+    // Admit every other installed toolchain, so a fallback would succeed.
+    let others: Vec<PathBuf> = [
+        "/Library/Developer/CommandLineTools",
+        "/Applications/Xcode.app/Contents/Developer",
+    ]
+    .iter()
+    .map(PathBuf::from)
+    .filter(|path| path.exists())
+    .filter(|path| std::fs::canonicalize(path).ok() != std::fs::canonicalize(&selected).ok())
+    .collect();
+    let mut params = fixture.params(None);
+    for other in &others {
+        params.read_only.extend(developer_roots(other));
+    }
+    let output = run_sandboxed_env(&sandbox::generate(&params), xcode_select, &["-p"], &env);
+    assert!(
+        !ran(&output) && output.stdout.is_empty(),
+        "an unadmitted selection must refuse with {others:?} admitted, got {:?}",
+        String::from_utf8_lossy(&output.stdout)
+    );
 }
 
 /// Git's real object work inside an existing repository: index locks and
