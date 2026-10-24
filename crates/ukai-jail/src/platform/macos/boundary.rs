@@ -1798,11 +1798,11 @@ fn handshake_timeout() -> JailError {
 /// for or signal a subsequently reused numeric PID.
 /// A refusal after the spawn still delivers what the attempt's processes
 /// wrote to relayed output before `blocked`, such as `sandbox-exec`'s own
-/// diagnostic, within the output budget: without the relay that text went
+/// diagnostic, within one idle window: without the relay that text went
 /// to the operator's descriptor directly. The refusal is the outcome either
 /// way, so a delivery failure here adds nothing to it.
 fn deliver_before_refusal(relays: &mut Vec<StdioRelay>) {
-    let _ = stdio::drain_output_relays(relays, stdio::OUTPUT_DRAIN_BUDGET);
+    let _ = stdio::drain_output_relays(relays, stdio::OUTPUT_DRAIN_IDLE, stdio::OUTPUT_DRAIN_IDLE);
 }
 
 fn abort_guardian(guardian: &mut GuardianProcess, pipe_a_write: RawFd) {
@@ -2663,9 +2663,11 @@ impl MacosRunning {
     /// The members are ended, so their pipe ends are closed: what they wrote
     /// reaches the operator before the outcome is recorded (jail-v1 §8.3).
     fn deliver_stdio_output(&mut self) {
-        if let Err(reason) =
-            stdio::drain_output_relays(&mut self.stdio_relays, stdio::OUTPUT_DRAIN_BUDGET)
-        {
+        if let Err(reason) = stdio::drain_output_relays(
+            &mut self.stdio_relays,
+            stdio::OUTPUT_DRAIN_IDLE,
+            stdio::OUTPUT_DRAIN_CAP,
+        ) {
             self.record_stdio_failure(reason);
         }
     }
@@ -4470,8 +4472,7 @@ os.write({}, (','.join(map(str, fds))).encode())
             assert!(self.inner.tick_stop()); // The fake source already delivered the exit.
             if self.undelivered_output {
                 self.inner.record_stdio_failure(
-                    "a stdio relay could not drain its output within the delivery budget"
-                        .to_owned(),
+                    "a stdio relay could not drain its output: no byte moved for 250 ms".to_owned(),
                 );
             }
             self.inner.settled_tree()

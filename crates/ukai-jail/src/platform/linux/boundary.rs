@@ -58,8 +58,8 @@ use super::running::{
 };
 use super::seccomp;
 use super::stdio::{
-    OUTPUT_DRAIN_BUDGET, StdioPlan, StdioRelay, drain_output_relays, pump_stdio_relays,
-    validate_stdio,
+    OUTPUT_DRAIN_CAP, OUTPUT_DRAIN_IDLE, StdioPlan, StdioRelay, drain_output_relays,
+    pump_stdio_relays, validate_stdio,
 };
 use super::sys::{nap, set_nonblocking, write_all, write_until};
 use super::tracer::Tracer;
@@ -2826,7 +2826,7 @@ impl Tree for Boundary {
     /// reaches the operator before the outcome is recorded.
     fn deliver_output(&mut self, run: &mut RunState) {
         let relays = &mut self.started.stdio_relays;
-        if let Err(err) = drain_output_relays(relays, OUTPUT_DRAIN_BUDGET) {
+        if let Err(err) = drain_output_relays(relays, OUTPUT_DRAIN_IDLE, OUTPUT_DRAIN_CAP) {
             run.pending.push_back(RunEvent::StdioFailed {
                 reason: format!("a stdio relay failed: {err}"),
                 after_target_end: true,
@@ -2838,7 +2838,8 @@ impl Tree for Boundary {
             .any(|relay| !relay.to_child && !relay.buffer.is_empty())
         {
             run.pending.push_back(RunEvent::StdioFailed {
-                reason: "a stdio relay could not drain its output within the delivery budget"
+                reason: "a stdio relay could not drain its output: it stopped moving, or the \
+                         10 s limit after the target's end passed"
                     .to_owned(),
                 after_target_end: true,
             });

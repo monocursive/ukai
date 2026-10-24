@@ -1432,8 +1432,13 @@ remediation `configuration`, exit 1), recorded in `errors[]` while preserving
 the observed target outcome. It stops a target that is still running with
 cause `stdio_failure`; a failure observed after target end requests no stop
 and does not change the cause. A child closing stdin is an ordinary stream
-end. Undelivered output remaining at the drain deadline is a tool error,
-never silently discarded as successful delivery.
+end. After the target's end the output relays drain for as long as output
+keeps moving: the drain ends when every output stream has ended, after
+250 ms in which no byte moved, or 10 s after it began, whichever comes
+first. A reader that stopped therefore costs 250 ms, and a slow reader that
+keeps accepting bytes receives them up to the 10 s limit. Undelivered output
+remaining at the drain deadline is a tool error, never silently discarded as
+successful delivery.
 
 Use a single owner of lifecycle transitions. Signal handlers wake the loop;
 they do not allocate, serialize JSON or perform cleanup. The implementation

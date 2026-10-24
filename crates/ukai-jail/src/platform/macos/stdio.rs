@@ -33,7 +33,7 @@ use std::ffi::{CString, OsStr};
 use std::os::fd::{AsFd as _, AsRawFd as _, BorrowedFd, FromRawFd as _, OwnedFd, RawFd};
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -214,9 +214,18 @@ pub(super) struct StdioRelay {
 /// The staging bound per relayed stream: one pipe capacity.
 const RELAY_BUFFER: usize = 1 << 16;
 
-/// How long relayed output gets, once the tree has ended, to reach the
-/// operator's descriptors before the outcome is recorded (Linux's budget).
-pub(super) const OUTPUT_DRAIN_BUDGET: Duration = Duration::from_millis(250);
+/// Once the tree has ended, relayed output drains for as long as it keeps
+/// moving (jail-v1 §8.3): the drain gives up when no byte has moved for
+/// this long, so a reader that stopped costs no more than before…
+pub(super) const OUTPUT_DRAIN_IDLE: Duration = Duration::from_millis(250);
+
+/// …and in any case this long after it began, so a reader that keeps
+/// trickling cannot hold the settlement indefinitely.
+pub(super) const OUTPUT_DRAIN_CAP: Duration = Duration::from_secs(10);
+
+/// What a socket writer sends per call, so its progress is visible to the
+/// drain at this granularity instead of once per staged chunk.
+const WRITER_SLICE: usize = 8 * 1024;
 
 impl StdioRelay {
     /// The relay for standard descriptor `fd`, and the pipe end the child
@@ -350,6 +359,7 @@ impl StdioRelay {
                 if let Some(error) = writer.failure() {
                     return Err(error);
                 }
+                progress |= writer.delivered_since_last_look();
                 progress |= writer.offer(&mut self.buffer);
             } else if !self.buffer.is_empty() && origin_ready(self.origin.as_fd(), false) {
                 match relay_write(self.origin.as_raw_fd(), &self.buffer) {
@@ -383,15 +393,21 @@ impl StdioRelay {
 /// block the supervision loop. Setting `O_NONBLOCK` would change the
 /// operator's shared descriptor, which §8.3 keeps as it is. This thread does
 /// the blocking sends instead: the loop hands it one chunk at a time and
-/// never waits on it. A thread still blocked when the supervisor exits ends
-/// with the process, and the bytes it held were reported undelivered.
+/// never waits on it. Once the relay is dropped the thread sends nothing
+/// past its current slice; a thread still blocked in that slice when the
+/// supervisor exits ends with the process, and the bytes it held were
+/// reported undelivered.
 struct SocketWriter {
-    /// Dropping the sender lets the thread exit after its current chunk.
+    /// Dropping the sender (and marking the writer abandoned) ends the
+    /// thread after its current slice.
     queue: Option<std::sync::mpsc::SyncSender<Vec<u8>>>,
     shared: Arc<WriterShared>,
-    /// The read end of a pipe the thread writes a byte to whenever a chunk
-    /// completes or fails, so a drain waiting in `poll` wakes for it.
+    /// The read end of a pipe the thread writes a byte to whenever a slice
+    /// is sent or a send fails, so a drain waiting in `poll` wakes for it.
     wake: OwnedFd,
+    /// `in_flight` when the loop last looked: a smaller value since is
+    /// delivery.
+    seen: usize,
 }
 
 #[derive(Default)]
@@ -400,6 +416,9 @@ struct WriterShared {
     in_flight: AtomicUsize,
     /// The send failure that ended the thread.
     failure: Mutex<Option<std::io::Error>>,
+    /// The relay is gone: what the drain gave up on is not sent after it,
+    /// beyond the slice already being sent.
+    abandoned: AtomicBool,
 }
 
 impl SocketWriter {
@@ -417,22 +436,36 @@ impl SocketWriter {
             .name("ukai-stdio-socket".to_owned())
             .spawn(move || {
                 for chunk in chunks {
-                    if let Err(error) = send_all(socket.as_fd(), &chunk) {
-                        if let Ok(mut failure) = thread.failure.lock() {
-                            *failure = Some(error);
+                    for slice in chunk.chunks(WRITER_SLICE) {
+                        if thread.abandoned.load(Ordering::Acquire) {
+                            return;
                         }
+                        if let Err(error) = send_all(socket.as_fd(), slice) {
+                            if let Ok(mut failure) = thread.failure.lock() {
+                                *failure = Some(error);
+                            }
+                            let _ = relay_write(wake_write.as_raw_fd(), &[1]);
+                            return;
+                        }
+                        thread.in_flight.fetch_sub(slice.len(), Ordering::AcqRel);
                         let _ = relay_write(wake_write.as_raw_fd(), &[1]);
-                        return;
                     }
-                    thread.in_flight.fetch_sub(chunk.len(), Ordering::AcqRel);
-                    let _ = relay_write(wake_write.as_raw_fd(), &[1]);
                 }
             })?;
         Ok(Self {
             queue: Some(queue),
             shared,
             wake,
+            seen: 0,
         })
+    }
+
+    /// Whether the thread delivered bytes since the loop last looked.
+    fn delivered_since_last_look(&mut self) -> bool {
+        let in_flight = self.in_flight();
+        let delivered = in_flight < self.seen;
+        self.seen = in_flight;
+        delivered
     }
 
     fn in_flight(&self) -> usize {
@@ -461,6 +494,7 @@ impl SocketWriter {
         };
         let chunk = std::mem::replace(staged, Vec::with_capacity(RELAY_BUFFER));
         self.shared.in_flight.store(chunk.len(), Ordering::Release);
+        self.seen = chunk.len();
         match queue.try_send(chunk) {
             Ok(()) => true,
             // The thread exited (its failure is reported on the next pump)
@@ -470,6 +504,7 @@ impl SocketWriter {
                 | std::sync::mpsc::TrySendError::Disconnected(chunk),
             ) => {
                 self.shared.in_flight.store(0, Ordering::Release);
+                self.seen = 0;
                 *staged = chunk;
                 false
             }
@@ -484,6 +519,7 @@ impl SocketWriter {
 
 impl Drop for SocketWriter {
     fn drop(&mut self) {
+        self.shared.abandoned.store(true, Ordering::Release);
         self.queue = None;
     }
 }
@@ -543,15 +579,21 @@ pub(super) fn pump_stdio_relays(relays: &mut [StdioRelay]) -> std::io::Result<bo
     failure.map_or(Ok(progress), Err)
 }
 
-/// Delivers what the child wrote through the output relays within `budget`,
-/// then names what could not be delivered. Only output relays are waited
-/// for: a stdin relay finishes only at its origin's end-of-file, which the
-/// tree's end does not bring. A pass that moves nothing waits in `poll`.
+/// Delivers what the child wrote through the output relays for as long as
+/// it keeps moving: until every output stream has ended, until `idle`
+/// passes with no byte moved, or until `cap` after the start, whichever
+/// comes first. Then it names what could not be delivered. Only output
+/// relays are waited for: a stdin relay finishes only at its origin's
+/// end-of-file, which the tree's end does not bring. A pass that moves
+/// nothing waits in `poll`.
 pub(super) fn drain_output_relays(
     relays: &mut Vec<StdioRelay>,
-    budget: Duration,
+    idle: Duration,
+    cap: Duration,
 ) -> Result<(), String> {
-    let deadline = Instant::now() + budget;
+    let started = Instant::now();
+    let cap_at = started + cap;
+    let mut idle_at = started + idle;
     loop {
         let progress = match pump_stdio_relays(relays) {
             Ok(progress) => progress,
@@ -562,6 +604,10 @@ pub(super) fn drain_output_relays(
         };
         let mut waits = output_waits(relays);
         let now = Instant::now();
+        if progress {
+            idle_at = now + idle;
+        }
+        let deadline = idle_at.min(cap_at);
         if waits.is_empty() || now >= deadline {
             break;
         }
@@ -590,9 +636,15 @@ pub(super) fn drain_output_relays(
         .any(|relay| !relay.to_child && relay.undelivered() > 0)
     {
         relays.clear();
-        return Err(
-            "a stdio relay could not drain its output within the delivery budget".to_owned(),
-        );
+        let why = if Instant::now() >= cap_at {
+            format!(
+                "the {} s limit after the tree's end passed",
+                cap.as_secs_f32()
+            )
+        } else {
+            format!("no byte moved for {} ms", idle.as_millis())
+        };
+        return Err(format!("a stdio relay could not drain its output: {why}"));
     }
     Ok(())
 }
@@ -1012,8 +1064,8 @@ mod tests {
         child.write_all(b"from the child\n").unwrap();
         drop(child);
         let started = Instant::now();
-        drain_output_relays(&mut relays, OUTPUT_DRAIN_BUDGET).unwrap();
-        assert!(started.elapsed() < OUTPUT_DRAIN_BUDGET);
+        drain_output_relays(&mut relays, OUTPUT_DRAIN_IDLE, OUTPUT_DRAIN_CAP).unwrap();
+        assert!(started.elapsed() < OUTPUT_DRAIN_IDLE);
         assert!(relays[0].done());
         assert_eq!(
             std::fs::read_to_string(&path).unwrap(),
@@ -1215,7 +1267,7 @@ mod tests {
         stdin.buffer = b"unread input".to_vec();
         let mut relays = vec![out, stdin];
         let started = Instant::now();
-        drain_output_relays(&mut relays, Duration::from_secs(5)).unwrap();
+        drain_output_relays(&mut relays, Duration::from_secs(5), Duration::from_secs(5)).unwrap();
         assert!(
             started.elapsed() < Duration::from_secs(2),
             "the drain waited for a stdin relay the tree's end cannot finish"
@@ -1228,10 +1280,10 @@ mod tests {
         assert_eq!(text, "last words");
     }
 
-    /// Output still staged when the budget runs out is named, never counted
-    /// as delivered.
+    /// Output that stops moving is named once the idle window passes,
+    /// however long the cap, and never counted as delivered.
     #[test]
-    fn undelivered_output_is_an_error_at_the_deadline() {
+    fn output_that_stops_moving_is_undelivered_after_the_idle_window() {
         let (socket, _peer) = std::os::unix::net::UnixStream::pair().unwrap();
         let (mut relay, child_end) = output_relay(socket.into(), true);
         // More than the unread peer's buffers can take.
@@ -1240,9 +1292,73 @@ mod tests {
         let mut child = std::fs::File::from(child_end);
         child.write_all(b"cannot be delivered").unwrap();
         drop(child);
-        let error = drain_output_relays(&mut relays, Duration::from_millis(50)).unwrap_err();
-        assert!(error.contains("could not drain"), "{error}");
+        let started = Instant::now();
+        let error = drain_output_relays(&mut relays, Duration::from_millis(50), OUTPUT_DRAIN_CAP)
+            .unwrap_err();
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "the cap was waited for"
+        );
+        assert!(
+            error.contains("could not drain") && error.contains("no byte moved"),
+            "{error}"
+        );
         assert!(relays.is_empty());
+    }
+
+    /// A reader that drains a 64 KiB staged chunk at about 80 KB/s, so
+    /// delivery takes several idle windows, and the bytes it received.
+    fn slow_reader(relay_buffer: usize) -> (StdioRelay, std::thread::JoinHandle<usize>) {
+        let (socket, peer) = std::os::unix::net::UnixStream::pair().unwrap();
+        let (mut relay, child_end) = output_relay(socket.into(), true);
+        relay.buffer = vec![b'x'; relay_buffer];
+        drop(child_end);
+        let reader = std::thread::spawn(move || {
+            let mut peer = peer;
+            let mut received = 0;
+            let mut chunk = [0u8; 2048];
+            loop {
+                match peer.read(&mut chunk) {
+                    Ok(0) | Err(_) => return received,
+                    Ok(read) => received += read,
+                }
+                std::thread::sleep(Duration::from_millis(25));
+            }
+        });
+        (relay, reader)
+    }
+
+    /// A slow reader that keeps accepting bytes gets all of them, although
+    /// delivery outlasts the idle window several times over.
+    #[test]
+    fn a_slow_reader_that_keeps_moving_gets_everything() {
+        let idle = Duration::from_millis(500);
+        let (relay, reader) = slow_reader(RELAY_BUFFER);
+        let mut relays = vec![relay];
+        let started = Instant::now();
+        drain_output_relays(&mut relays, idle, OUTPUT_DRAIN_CAP).unwrap();
+        assert!(
+            started.elapsed() > idle,
+            "delivery should outlast one idle window"
+        );
+        drop(relays);
+        assert_eq!(reader.join().unwrap(), RELAY_BUFFER);
+    }
+
+    /// The cap ends delivery to a reader that is still moving.
+    #[test]
+    fn the_cap_ends_delivery_to_a_reader_still_moving() {
+        let (relay, reader) = slow_reader(RELAY_BUFFER);
+        let mut relays = vec![relay];
+        let error = drain_output_relays(
+            &mut relays,
+            Duration::from_millis(500),
+            Duration::from_millis(200),
+        )
+        .unwrap_err();
+        assert!(error.contains("limit after the tree's end"), "{error}");
+        drop(relays);
+        assert!(reader.join().unwrap() < RELAY_BUFFER);
     }
 
     #[test]

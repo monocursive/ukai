@@ -387,40 +387,56 @@ pub(super) fn relay_write(fd: RawFd, buffer: &[u8], socket: bool) -> std::io::Re
     }
 }
 
-/// How long relayed output gets, once the target has ended, to reach the
-/// operator's descriptors before the outcome is recorded.
-pub(super) const OUTPUT_DRAIN_BUDGET: Duration = Duration::from_millis(250);
+/// Once the target has ended, relayed output drains for as long as it keeps
+/// moving (§8.3): the drain gives up when no byte has moved for this long,
+/// so a reader that stopped costs no more than before…
+pub(super) const OUTPUT_DRAIN_IDLE: Duration = Duration::from_millis(250);
 
-/// Delivers what the child wrote through the output relays, within
-/// `budget`. Only output relays are waited for: a stdin relay finishes only
-/// at its origin's end-of-file or a broken pipe, which the target's end does
-/// not bring, so waiting for it would spend the whole budget on nothing. A
-/// pass that moves nothing waits in `poll` for a relay to have something to
-/// move, rather than spin.
+/// …and in any case this long after it began, so a reader that keeps
+/// trickling cannot hold the settlement indefinitely.
+pub(super) const OUTPUT_DRAIN_CAP: Duration = Duration::from_secs(10);
+
+/// Delivers what the child wrote through the output relays for as long as
+/// it keeps moving: until every output stream has ended, until `idle`
+/// passes with no byte moved, or until `cap` after the start, whichever
+/// comes first. Only output relays are waited for: a stdin relay finishes
+/// only at its origin's end-of-file or a broken pipe, which the target's end
+/// does not bring, so waiting for it would spend the whole drain on
+/// nothing. A pass that moves nothing waits in `poll` for a relay to have
+/// something to move, rather than spin.
 pub(super) fn drain_output_relays(
     relays: &mut [StdioRelay],
-    budget: Duration,
+    idle: Duration,
+    cap: Duration,
 ) -> std::io::Result<()> {
-    drain_output_relays_counted(relays, budget).map(drop)
+    drain_output_relays_counted(relays, idle, cap).map(drop)
 }
 
 /// [`drain_output_relays`], returning how many passes over the relays it
 /// took: a drain that waits in `poll` takes one per wake, not one per tick.
 fn drain_output_relays_counted(
     relays: &mut [StdioRelay],
-    budget: Duration,
+    idle: Duration,
+    cap: Duration,
 ) -> std::io::Result<usize> {
-    let deadline = clock::Deadline::after(budget);
+    let limit = clock::Deadline::after(cap);
+    let mut quiet = clock::Deadline::after(idle);
     let mut passes = 0;
     loop {
         passes += 1;
         let progress = pump_stdio_relays(relays)?;
+        if progress {
+            quiet = clock::Deadline::after(idle);
+        }
         let mut waits = output_waits(relays);
-        if waits.is_empty() || deadline.expired() {
+        if waits.is_empty() || quiet.expired() || limit.expired() {
             return Ok(passes);
         }
         if !progress {
-            match super::sys::poll_fds(&mut waits, deadline.remaining_millis_capped(i32::MAX)) {
+            let wait = quiet
+                .remaining_millis_capped(i32::MAX)
+                .min(limit.remaining_millis_capped(i32::MAX));
+            match super::sys::poll_fds(&mut waits, wait) {
                 Ok(_) => {}
                 Err(err) if err.kind() == std::io::ErrorKind::Interrupted => {}
                 Err(err) => return Err(err),
@@ -602,7 +618,12 @@ mod tests {
         };
         let mut relays = [out, stdin];
         let started = std::time::Instant::now();
-        super::drain_output_relays(&mut relays, std::time::Duration::from_secs(5)).unwrap();
+        super::drain_output_relays(
+            &mut relays,
+            std::time::Duration::from_secs(5),
+            std::time::Duration::from_secs(5),
+        )
+        .unwrap();
         assert!(
             started.elapsed() < std::time::Duration::from_secs(2),
             "the drain waited for a stdin relay the target's end cannot finish"
@@ -635,9 +656,12 @@ mod tests {
         });
         let mut relays = [out];
         let started = std::time::Instant::now();
-        let passes =
-            super::drain_output_relays_counted(&mut relays, std::time::Duration::from_secs(10))
-                .unwrap();
+        let passes = super::drain_output_relays_counted(
+            &mut relays,
+            std::time::Duration::from_secs(10),
+            std::time::Duration::from_secs(10),
+        )
+        .unwrap();
         let spent = started.elapsed();
         late.join().unwrap();
         assert!(
