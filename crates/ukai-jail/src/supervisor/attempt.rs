@@ -1276,11 +1276,17 @@ impl<'a> Attempt<'a> {
                 .errors
                 .push(storage_loss_error(reason).to_object());
         }
-        // J16 (jail-macos.md §4.6): custodian losses found during the stop
-        // reach the settled receipt's `errors[]`; only a loss that started
-        // the stop is a cause, and that path recorded it already.
-        for error in running.custodian_errors() {
+        // Settlement errors reach the settled receipt's `errors[]`: custodian
+        // losses found during the stop (jail-macos.md §4.6; only a loss that
+        // started the stop is a cause, and that path recorded it already)
+        // and relayed output the tree's end left undelivered. Neither is a
+        // cause, but §8.3 makes a stdio failure exit 1 wherever it is found,
+        // as the run loop's `running_error` does.
+        for error in running.settlement_errors() {
             self.record.errors.push(error.to_object());
+            if error.code == ErrorCode::StdioFailed {
+                run.outcome_error.get_or_insert(error);
+            }
         }
         for limit in running.final_limits() {
             if let Some(recorded) = self

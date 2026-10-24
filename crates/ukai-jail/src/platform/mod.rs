@@ -626,10 +626,12 @@ pub trait RunningExecution {
         None
     }
 
-    /// J16 (jail-macos.md §4.6): custodian losses found at settlement (a
-    /// guardian that stalled or was lost during the stop), for the settled
-    /// receipt's `errors[]`. The default platform reports none.
-    fn custodian_errors(&mut self) -> Vec<crate::records::JailError> {
+    /// Errors found at settlement, for the settled receipt's `errors[]`:
+    /// on the native macOS tier, custodian losses (a guardian that stalled
+    /// or was lost during the stop, jail-macos.md §4.6) and relayed stdio
+    /// output that could not be delivered after the tree ended (jail-v1
+    /// §8.3). None of them is a cause. The default platform reports none.
+    fn settlement_errors(&mut self) -> Vec<crate::records::JailError> {
         Vec::new()
     }
     // A detected lifetime-integrity loss reaches the next receipt (§9.3)

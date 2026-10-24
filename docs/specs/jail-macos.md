@@ -334,8 +334,14 @@ final boundary before `prepared`.
    - the launcher's release pipe **R** and error pipe **E**, as on Linux.
 
    It spawns its own executable in guardian mode with only these inherited:
+   - its standard descriptors;
    - the record and the guardian's ends of A and B;
    - the launcher's ends of R and E, which the guardian passes on and closes;
+   - in terminal mode the relay's pty slave, and otherwise the child's end of
+     each stdio relay. Under jail-v1 §8.3 a regular-file or socket stream is
+     relayed: the launch block names a supervisor-owned pipe end in its
+     place, and the supervisor keeps the operator's descriptor. The guardian
+     passes each on and closes it;
    - the launch block, which holds the `sandbox-exec` argv, environment,
      working directory, standard-descriptor actions, the signal attributes of
      §4.2, and `POSIX_SPAWN_SETSID`. Every launcher starts a new session.
@@ -356,8 +362,11 @@ final boundary before `prepared`.
 4. **Launch.** The guardian calls `posix_spawn` once for `sandbox-exec`. It
    interprets nothing in the launch block: it turns the block into
    `posix_spawn` arguments and nothing else. It then closes its copies of R,
-   E, the standard descriptors and any pty slave, so that end-of-file means
-   what it does on Linux (jail-v1 §8.3). `sandbox-exec` applies the profile
+   E and every stdio source the block names (a standard descriptor passed
+   through, a stdio relay's pipe end, or the pty slave), so that end-of-file
+   means what it does on Linux (jail-v1 §8.3). A standard descriptor the
+   block does not name, because its stream is relayed or a pty is attached,
+   stays open in the guardian; no member inherits it. `sandbox-exec` applies the profile
    and executes the Ukai launcher, which is `ukai-jail`'s launcher mode,
    running inside the profile. The launcher:
    - marks its ends of R and E close-on-exec;

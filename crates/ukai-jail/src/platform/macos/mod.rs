@@ -53,6 +53,9 @@ pub mod relay;
 pub mod sandbox;
 #[cfg(target_os = "macos")]
 pub mod setuid;
+/// jail-v1 §8.3 on the native tier: stdio validation and relays.
+#[cfg(target_os = "macos")]
+mod stdio;
 
 /// Deliberate opt-in to the unshipped native tier. No other value enables it.
 #[must_use]

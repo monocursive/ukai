@@ -57,7 +57,7 @@
 
 use std::ffi::{CString, OsString};
 use std::io::Read;
-use std::os::fd::{AsFd as _, IntoRawFd as _, RawFd};
+use std::os::fd::{AsFd as _, AsRawFd, IntoRawFd as _, RawFd};
 use std::os::unix::ffi::OsStringExt as _;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
@@ -79,6 +79,7 @@ use crate::platform::macos::guardian::rlimit::PROCESS_HEADROOM;
 use crate::platform::macos::observe::{ObserveRun, ObserveStartError};
 use crate::platform::macos::relay::TerminalRelay;
 use crate::platform::macos::sandbox::{self as seatbelt, ProfileParams};
+use crate::platform::macos::stdio::{self, StdioPlan, StdioRelay};
 use crate::platform::{
     BoundaryIdentity, BoundaryKind, ContinuousDeadline, Deadline, PreparedExecution, PreparedPlan,
     ReleaseFailure, RunEvent, Sinks, StopReason, Teardown, TreeObservation, VerificationScope,
@@ -791,6 +792,16 @@ fn refuse_guarded_hard_links(params: &ProfileParams) -> Result<(), JailError> {
     Ok(())
 }
 
+/// The state root of the attempt directory `<data>/attempts/<id>`: two
+/// levels up, and everything under it is supervisor state (jail-v1 §7), as
+/// on Linux.
+fn state_root(attempt_dir: &Path) -> &Path {
+    attempt_dir
+        .parent()
+        .and_then(Path::parent)
+        .unwrap_or(attempt_dir)
+}
+
 fn working_dir(plan: &PreparedPlan) -> Result<String, JailError> {
     let utf8 = |what: &'static str, native: &NativeString| -> Result<String, JailError> {
         std::str::from_utf8(native.as_bytes())
@@ -1146,6 +1157,8 @@ pub struct MacosPrepared {
     applied: Applied,
     wall_ms: Option<u64>,
     relay: Option<TerminalRelay>,
+    /// The regular-file and socket stdio relays (jail-v1 §8.3).
+    stdio_relays: Vec<StdioRelay>,
     headroom: u64,
     profile_params: ProfileParams,
     handshake_events: Vec<es::EsPoll>,
@@ -1227,13 +1240,23 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
              was built",
         ));
     }
+    // jail-v1 §8.3: the operator's stdio is inspected before anything of
+    // the attempt exists. Terminal mode hands the child only the relay's
+    // pty slave, so the operator's descriptors never reach it there.
+    let wants_terminal =
+        plan.request.snapshot.terminal == Some(crate::policy::TerminalMode::Attached);
+    let stdio_plans = stdio::plan_stdio(
+        wants_terminal,
+        stdio::standard_descriptors(),
+        state_root(&plan.attempt_dir),
+        &plan.config_dir,
+    )?;
+
     // Step 1: client S, before any other process of the attempt exists.
     let client = create_client_s()?;
 
     // Step 2: the applied resources, then the record, the pipes and the
     // launch block. A failure past this point tears the client down.
-    let wants_terminal =
-        plan.request.snapshot.terminal == Some(crate::policy::TerminalMode::Attached);
     let mut relay = if wants_terminal {
         match TerminalRelay::allocate(0) {
             Ok(relay) => Some(relay),
@@ -1271,7 +1294,7 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
             (None, None)
         };
 
-    let built = build_and_spawn(&plan, relay.as_mut(), bridge_config.as_ref());
+    let built = build_and_spawn(&plan, relay.as_mut(), bridge_config.as_ref(), stdio_plans);
     if let Err(error) = built {
         let _ = client.delete();
         return Err(error);
@@ -1291,6 +1314,7 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
         Err(error) => {
             built.pipe_r_write.close();
             abort_guardian(&mut built.guardian, built.pipe_a_write.take_fd());
+            deliver_before_refusal(&mut built.stdio_relays);
             let _ = client.delete();
             return Err(error);
         }
@@ -1320,6 +1344,7 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
         Err(error) => {
             built.pipe_r_write.close();
             abort_guardian(&mut built.guardian, built.pipe_a_write.take_fd());
+            deliver_before_refusal(&mut built.stdio_relays);
             let _ = client.delete();
             return Err(error);
         }
@@ -1342,6 +1367,7 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
                 Err(error) => {
                     built.pipe_r_write.close();
                     abort_guardian(&mut built.guardian, built.pipe_a_write.take_fd());
+                    deliver_before_refusal(&mut built.stdio_relays);
                     let _ = client.delete();
                     return Err(error);
                 }
@@ -1375,6 +1401,7 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
             .as_ref()
             .and_then(|wall| wall.value.parse::<u64>().ok()),
         relay,
+        stdio_relays: built.stdio_relays,
         headroom: PROCESS_HEADROOM,
         handshake_events: handshake.events,
         proxy,
@@ -1519,6 +1546,7 @@ struct Spawned {
     pipe_r_write: Fd,
     profile_params: ProfileParams,
     guardian: GuardianProcess,
+    stdio_relays: Vec<StdioRelay>,
 }
 
 pub(crate) fn create_guardian_record(attempt_dir: &Path) -> Result<PathBuf, JailError> {
@@ -1538,6 +1566,7 @@ fn build_and_spawn(
     plan: &PreparedPlan,
     mut relay: Option<&mut TerminalRelay>,
     bridge: Option<&BridgeConfig>,
+    stdio_plans: [StdioPlan; 3],
 ) -> Result<Spawned, JailError> {
     let record_path = create_guardian_record(&plan.attempt_dir)?;
     let mut pipe_a = Pipe::new()?;
@@ -1556,6 +1585,20 @@ fn build_and_spawn(
         )
     })?;
     let slave_fd = relay.as_deref().and_then(TerminalRelay::slave_fd);
+    // jail-v1 §8.3: a regular file or socket reaches the child as a
+    // supervisor-owned pipe end. The guardian passes it on as that stream
+    // and closes its copy after the spawn, like every stdio source.
+    let mut detached_stdio = [FdAction::Fd(0), FdAction::Fd(1), FdAction::Fd(2)];
+    let mut stdio_relays = Vec::new();
+    let mut child_ends = Vec::new();
+    for (fd, stdio_plan) in (0..).zip(stdio_plans) {
+        if let StdioPlan::Relay { socket } = stdio_plan {
+            let (stdio_relay, child_end) = StdioRelay::attach(fd, socket)?;
+            detached_stdio[fd as usize] = FdAction::Fd(child_end.as_raw_fd());
+            stdio_relays.push(stdio_relay);
+            child_ends.push(child_end);
+        }
+    }
     let sigmask = capture_mask();
     let launcher = launcher_argv(
         &exe,
@@ -1583,7 +1626,7 @@ fn build_and_spawn(
                 FdAction::Fd(slave),
                 FdAction::Fd(slave),
             ],
-            None => [FdAction::Fd(0), FdAction::Fd(1), FdAction::Fd(2)],
+            None => detached_stdio,
         },
         // §4.2: the terminal signals the guardian ignores come back to their
         // default disposition, and the mask is the supervisor's inherited
@@ -1650,12 +1693,18 @@ fn build_and_spawn(
         block_fd.0,
     ];
     inherited.extend(slave_fd);
+    inherited.extend(child_ends.iter().map(AsRawFd::as_raw_fd));
     let guardian_pid = spawn_self(&exe, &args, &inherited)?;
-    // Pipe drops close EVERY child end. Only these four ends remain owned
-    // by the supervisor; B/E EOF and R cancellation now have meaning.
+    // Pipe drops close EVERY child end. Of the handshake pipes only these
+    // four ends remain owned by the supervisor; B/E EOF and R cancellation
+    // now have meaning. The stdio relays' child ends close here too, so a
+    // relayed stream ends when the members holding it do; the supervisor
+    // keeps each relay's own end and its duplicate of the operator's
+    // descriptor.
     if let Some(relay) = relay.as_mut() {
         relay.close_slave();
     }
+    drop(child_ends);
     Ok(Spawned {
         b_read,
         e_read,
@@ -1663,6 +1712,7 @@ fn build_and_spawn(
         pipe_r_write: Fd(pipe_r.take_write()),
         profile_params,
         guardian: GuardianProcess::new(guardian_pid),
+        stdio_relays,
     })
 }
 
@@ -1746,6 +1796,15 @@ fn handshake_timeout() -> JailError {
 
 /// Reaps an aborted preparation. Once reaped, the child handle cannot wait
 /// for or signal a subsequently reused numeric PID.
+/// A refusal after the spawn still delivers what the attempt's processes
+/// wrote to relayed output before `blocked`, such as `sandbox-exec`'s own
+/// diagnostic, within the output budget: without the relay that text went
+/// to the operator's descriptor directly. The refusal is the outcome either
+/// way, so a delivery failure here adds nothing to it.
+fn deliver_before_refusal(relays: &mut Vec<StdioRelay>) {
+    let _ = stdio::drain_output_relays(relays, stdio::OUTPUT_DRAIN_BUDGET);
+}
+
 fn abort_guardian(guardian: &mut GuardianProcess, pipe_a_write: RawFd) {
     // SAFETY: a plain close of a descriptor this process owns.
     unsafe { libc::close(pipe_a_write) };
@@ -2296,9 +2355,10 @@ struct MacosRunning {
     guardian_record: Option<serde_json::Value>,
     guardian_lost: bool,
     guardian_stalled: bool,
-    /// J16 §4.6: custodian errors found during the stop, drained into the
-    /// settled receipt's `errors[]`.
-    custodian_errors: Vec<crate::records::JailError>,
+    /// Errors found at settlement, drained into the settled receipt's
+    /// `errors[]`: custodian losses during the stop (J16 §4.6) and stdio
+    /// output that could not be delivered after the tree ended (§8.3).
+    settlement_errors: Vec<crate::records::JailError>,
     /// Whether the guardian's loss already reached the run loop as an event,
     /// so the settlement drain does not name it twice.
     loss_reported: bool,
@@ -2316,6 +2376,7 @@ struct MacosRunning {
     events: u64,
     peak_members: usize,
     relay: Option<TerminalRelay>,
+    stdio_relays: Vec<StdioRelay>,
     target_was_stopped: bool,
     headroom: u64,
     profile_params: ProfileParams,
@@ -2352,7 +2413,7 @@ impl MacosRunning {
             guardian_record: None,
             guardian_lost: false,
             guardian_stalled: false,
-            custodian_errors: Vec::new(),
+            settlement_errors: Vec::new(),
             loss_reported: false,
             launcher_token: prepared.launcher_token,
             target_token: None,
@@ -2370,6 +2431,7 @@ impl MacosRunning {
             events,
             peak_members,
             relay: prepared.relay,
+            stdio_relays: prepared.stdio_relays,
             target_was_stopped: false,
             headroom: prepared.headroom,
             profile_params: prepared.profile_params,
@@ -2553,7 +2615,7 @@ impl MacosRunning {
         }
         self.guardian_stalled = true;
         // §4.6: the stall reaches the settled receipt's `errors[]`.
-        self.custodian_errors.push(crate::records::JailError::new(
+        self.settlement_errors.push(crate::records::JailError::new(
             crate::records::ErrorCode::CustodianStalled,
             crate::records::ErrorStage::Stopping,
             crate::records::Remediation::InspectState,
@@ -2572,6 +2634,9 @@ impl MacosRunning {
         let mut supervisor_done = false;
         loop {
             let _ = self.drain_events();
+            if let Err(RunEvent::StdioFailed { reason, .. }) = self.pump_stdio() {
+                self.record_stdio_failure(reason);
+            }
             self.poll_guardian();
             if !supervisor_done {
                 supervisor_done = self.tick_stop();
@@ -2591,7 +2656,18 @@ impl MacosRunning {
             }
             self.custody().drain(TICK_MS);
         }
+        self.deliver_stdio_output();
         self.settled_tree()
+    }
+
+    /// The members are ended, so their pipe ends are closed: what they wrote
+    /// reaches the operator before the outcome is recorded (jail-v1 §8.3).
+    fn deliver_stdio_output(&mut self) {
+        if let Err(reason) =
+            stdio::drain_output_relays(&mut self.stdio_relays, stdio::OUTPUT_DRAIN_BUDGET)
+        {
+            self.record_stdio_failure(reason);
+        }
     }
 
     /// Combine the completed custody results into the receipt's tree fact.
@@ -2606,7 +2682,7 @@ impl MacosRunning {
         // still names itself in the settled receipt.
         if self.guardian_lost && !self.loss_reported {
             self.loss_reported = true;
-            self.custodian_errors.push(crate::records::JailError::new(
+            self.settlement_errors.push(crate::records::JailError::new(
                 crate::records::ErrorCode::CustodianLost,
                 crate::records::ErrorStage::Stopping,
                 crate::records::Remediation::InspectState,
@@ -2886,8 +2962,8 @@ impl crate::platform::RunningExecution for MacosRunning {
         self.native_details()
     }
 
-    fn custodian_errors(&mut self) -> Vec<crate::records::JailError> {
-        std::mem::take(&mut self.custodian_errors)
+    fn settlement_errors(&mut self) -> Vec<crate::records::JailError> {
+        std::mem::take(&mut self.settlement_errors)
     }
 
     fn wait(&mut self, deadline: Deadline) -> RunEvent {
@@ -2903,6 +2979,10 @@ impl crate::platform::RunningExecution for MacosRunning {
             if let Some(event) = self.pump_relay() {
                 return event;
             }
+            let stdio_moved = match self.pump_stdio() {
+                Ok(moved) => moved,
+                Err(event) => return event,
+            };
             if let Some(event) = self.drain_events() {
                 return event;
             }
@@ -2935,7 +3015,9 @@ impl crate::platform::RunningExecution for MacosRunning {
             if Instant::now() >= step_end {
                 return RunEvent::Poll;
             }
-            self.custody().drain(TICK_MS);
+            // A relay that moved bytes keeps the loop fast, so a chatty
+            // child is not throttled to one pipe capacity per tick.
+            self.custody().drain(if stdio_moved { 1 } else { TICK_MS });
         }
     }
 
@@ -3075,6 +3157,31 @@ impl MacosRunning {
                 });
             }
         }
+    }
+
+    /// Moves the relayed stdio streams (jail-v1 §8.3); `Ok(true)` when bytes
+    /// moved. A failed stream cannot deliver more: the relays close once
+    /// and the supervisor records the failure, stopping a live tree.
+    fn pump_stdio(&mut self) -> Result<bool, RunEvent> {
+        stdio::pump_stdio_relays(&mut self.stdio_relays).map_err(|error| {
+            self.stdio_relays.clear();
+            RunEvent::StdioFailed {
+                reason: format!("a stdio relay failed: {error}"),
+                after_target_end: self.target_ended(),
+            }
+        })
+    }
+
+    /// A stdio failure found after the run loop ended, for the settled
+    /// receipt: the loop's code, stage and remediation. The supervisor makes
+    /// it the outcome error (exit 1, §8.3) without making it a cause.
+    fn record_stdio_failure(&mut self, reason: String) {
+        self.settlement_errors.push(crate::records::JailError::new(
+            crate::records::ErrorCode::StdioFailed,
+            ErrorStage::Running,
+            crate::records::Remediation::Configuration,
+            reason,
+        ));
     }
 
     /// One relay slice; `Some` is a stdio failure the supervisor records.
@@ -4011,6 +4118,8 @@ os.write({}, (','.join(map(str, fds))).encode())
         observation: ReceiptObservation,
         wall_hit: Option<bool>,
         prepared_receipt: std::sync::Arc<std::sync::Mutex<Option<serde_json::Value>>>,
+        /// Settlement finds relayed output it could not deliver (§8.3).
+        undelivered_output: bool,
     }
 
     struct ReceiptPrepared {
@@ -4021,6 +4130,7 @@ os.write({}, (','.join(map(str, fds))).encode())
         wall_hit: Option<bool>,
         receipt_path: PathBuf,
         prepared_receipt: std::sync::Arc<std::sync::Mutex<Option<serde_json::Value>>>,
+        undelivered_output: bool,
     }
 
     struct ReceiptRun {
@@ -4031,6 +4141,7 @@ os.write({}, (','.join(map(str, fds))).encode())
         _peers: [Fd; 2],
         wall_hit: Option<bool>,
         next_event: u8,
+        undelivered_output: bool,
     }
 
     fn receipt_prepared(plan: &PreparedPlan) -> (MacosPrepared, [Fd; 2]) {
@@ -4092,6 +4203,7 @@ os.write({}, (','.join(map(str, fds))).encode())
                     .as_ref()
                     .map(|wall| wall.value.parse().unwrap()),
                 relay: None,
+                stdio_relays: Vec::new(),
                 headroom: PROCESS_HEADROOM,
                 profile_params: params,
                 handshake_events: events,
@@ -4195,6 +4307,7 @@ os.write({}, (','.join(map(str, fds))).encode())
                 wall_hit: self.wall_hit,
                 receipt_path: plan.attempt_dir.join(crate::state::RECEIPT_NAME),
                 prepared_receipt: self.prepared_receipt.clone(),
+                undelivered_output: self.undelivered_output,
             }))
         }
     }
@@ -4220,6 +4333,7 @@ os.write({}, (','.join(map(str, fds))).encode())
                 _peers: self.peers,
                 wall_hit: self.wall_hit,
                 next_event: 0,
+                undelivered_output: self.undelivered_output,
             }))
         }
         fn abort(self: Box<Self>) -> Result<Teardown, JailError> {
@@ -4354,7 +4468,16 @@ os.write({}, (','.join(map(str, fds))).encode())
             }
             self.inner.begin_stop();
             assert!(self.inner.tick_stop()); // The fake source already delivered the exit.
+            if self.undelivered_output {
+                self.inner.record_stdio_failure(
+                    "a stdio relay could not drain its output within the delivery budget"
+                        .to_owned(),
+                );
+            }
             self.inner.settled_tree()
+        }
+        fn settlement_errors(&mut self) -> Vec<crate::records::JailError> {
+            self.inner.settlement_errors()
         }
         fn final_limits(&self) -> Vec<AppliedLimit> {
             self.inner.final_limits()
@@ -4468,6 +4591,7 @@ os.write({}, (','.join(map(str, fds))).encode())
                         observation: mode,
                         wall_hit: Some(false),
                         prepared_receipt: captured.clone(),
+                        undelivered_output: false,
                     }),
                     env_settings: crate::config::EnvSettings {
                         config_dir: Some(root.join("config")),
@@ -4705,6 +4829,7 @@ os.write({}, (','.join(map(str, fds))).encode())
                     observation: ReceiptObservation::Off,
                     wall_hit: Some(false),
                     prepared_receipt: Default::default(),
+                    undelivered_output: false,
                 }
                 .probe(plan)
             }
@@ -4817,6 +4942,7 @@ os.write({}, (','.join(map(str, fds))).encode())
                     observation: ReceiptObservation::Off,
                     wall_hit,
                     prepared_receipt: captured.clone(),
+                    undelivered_output: false,
                 }),
                 env_settings: crate::config::EnvSettings {
                     config_dir: Some(root.join("config")),
@@ -4932,6 +5058,212 @@ os.write({}, (','.join(map(str, fds))).encode())
         }
     }
 
+    /// The protected state is the whole runtime state root, two levels above
+    /// the attempt, not only this attempt's directory (§8.3, as on Linux).
+    #[test]
+    fn the_stdio_state_root_is_two_levels_above_the_attempt() {
+        assert_eq!(
+            state_root(Path::new("/data/attempts/0190-attempt")),
+            Path::new("/data")
+        );
+    }
+
+    /// §8.3 through the real supervisor: relayed output that settlement could
+    /// not deliver is `stdio_failed` in `errors[]` and exit 1, while the
+    /// target's own exit 0 and the absent cause are preserved.
+    #[test]
+    fn undelivered_output_at_settlement_exits_1_and_keeps_the_outcome() {
+        use clap::Parser as _;
+        use std::os::unix::fs::PermissionsExt as _;
+        // The development opt-in stays local to a subprocess, as above.
+        const CHILD: &str = "UKAI_STDIO_SETTLEMENT_TEST";
+        if std::env::var_os(CHILD).is_none() {
+            let test_name = format!(
+                "{}::undelivered_output_at_settlement_exits_1_and_keeps_the_outcome",
+                module_path!().split_once("::").unwrap().1
+            );
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", &test_name, "--nocapture"])
+                .env(CHILD, "1")
+                .env("UKAI_JAIL_MACOS_NATIVE", "dev")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(
+                String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+                "the subprocess must execute the fixture: {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+            return;
+        }
+        for undelivered_output in [false, true] {
+            let temp = tempfile::Builder::new()
+                .permissions(std::fs::Permissions::from_mode(0o700))
+                .tempdir()
+                .unwrap();
+            let root = temp.path().canonicalize().unwrap();
+            let workspace = root.join("work");
+            std::fs::create_dir(&workspace).unwrap();
+            let ctx = crate::supervisor::Context {
+                platform: Box::new(ReceiptPlatform {
+                    observation: ReceiptObservation::Off,
+                    wall_hit: Some(false),
+                    prepared_receipt: Default::default(),
+                    undelivered_output,
+                }),
+                env_settings: crate::config::EnvSettings {
+                    config_dir: Some(root.join("config")),
+                    data_dir: Some(root.join("data")),
+                    ..Default::default()
+                },
+                cwd: workspace.clone(),
+                home: Some(root.join("home")),
+                env_lookup: Box::new(|_| None),
+            };
+            let crate::cli::Command::Run(args) = crate::cli::Cli::parse_from([
+                "ukai-jail",
+                "run",
+                "--profile",
+                "tool",
+                "--observe",
+                "off",
+                "--workspace",
+                workspace.to_str().unwrap(),
+                "--",
+                "/usr/bin/true",
+            ])
+            .command
+            else {
+                unreachable!()
+            };
+            let report = crate::supervisor::run(&ctx, &args);
+            let settled = serde_json::to_value(report.receipt.as_ref().unwrap()).unwrap();
+            assert_eq!(settled["phase"], "settled", "{settled:#}");
+            assert_eq!(settled["outcome"]["kind"], "exited");
+            assert_eq!(settled["outcome"]["code"], 0);
+            assert_eq!(settled["outcome"]["cause"], serde_json::Value::Null);
+            let stdio_errors: Vec<_> = settled["errors"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|error| error["code"] == "stdio_failed")
+                .collect();
+            if undelivered_output {
+                assert_eq!(report.exit_code, 1, "{settled:#}");
+                assert_eq!(stdio_errors.len(), 1, "{settled:#}");
+                assert_eq!(stdio_errors[0]["stage"], "running");
+                assert_eq!(
+                    report.error.as_ref().map(|error| error.code),
+                    Some(ErrorCode::StdioFailed)
+                );
+            } else {
+                assert_eq!(report.exit_code, 0, "{settled:#}");
+                assert!(stdio_errors.is_empty(), "{settled:#}");
+            }
+        }
+    }
+
+    /// §8.3 at settlement: output a member wrote before the tree ended
+    /// reaches the operator's file; output that cannot be delivered within
+    /// the budget is a settlement error with the loop's code, stage and
+    /// remediation, never silent success.
+    #[test]
+    fn settlement_delivers_relayed_output_or_names_what_was_lost() {
+        use std::io::Write as _;
+        let (dir, plan) = policy_plan(crate::policy::ProfileName::Tool);
+        let path = dir.path().join("operator-stdout.log");
+        let operator = std::fs::File::create(&path).unwrap();
+        let (relay, child_end) = StdioRelay::attach(operator.as_raw_fd(), false).unwrap();
+        let (mut prepared, _peers) = receipt_prepared(&plan);
+        prepared.stdio_relays.push(relay);
+        let mut running = prepared.release_inner().unwrap();
+        let mut member = std::fs::File::from(child_end);
+        member.write_all(b"written before the end\n").unwrap();
+        drop(member);
+        running.deliver_stdio_output();
+        assert!(running.settlement_errors.is_empty());
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "written before the end\n"
+        );
+
+        // An operator end that accepts nothing: a full nonblocking pipe.
+        let mut fds = [0; 2];
+        // SAFETY: `fds` is a valid out array for `pipe`.
+        assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0);
+        let (full_read, full_write) = (Fd(fds[0]), Fd::nonblocking(fds[1]).unwrap());
+        // SAFETY: a write from a live buffer to a descriptor owned here.
+        while unsafe { libc::write(full_write.0, [0u8; 4096].as_ptr().cast(), 4096) } > 0 {}
+        let (relay, child_end) = StdioRelay::attach(full_write.0, false).unwrap();
+        let (mut prepared, _peers) = receipt_prepared(&plan);
+        prepared.stdio_relays.push(relay);
+        let mut running = prepared.release_inner().unwrap();
+        let mut member = std::fs::File::from(child_end);
+        member.write_all(b"undeliverable").unwrap();
+        drop(member);
+        running.deliver_stdio_output();
+        assert_eq!(running.settlement_errors.len(), 1);
+        let error = &running.settlement_errors[0];
+        assert_eq!(error.code, ErrorCode::StdioFailed);
+        assert_eq!(error.stage, ErrorStage::Running);
+        assert_eq!(error.remediation, Remediation::Configuration);
+        assert!(
+            error.message.contains("could not drain"),
+            "{}",
+            error.message
+        );
+        drop(full_read);
+    }
+
+    /// A relay failure while the run is live is the loop's `StdioFailed`
+    /// event, with the target's state at the time, and the failed streams
+    /// close once.
+    #[test]
+    fn a_failed_relay_is_a_stdio_failed_event() {
+        for target_ended in [false, true] {
+            let (_dir, plan) = policy_plan(crate::policy::ProfileName::Tool);
+            // An operator socket whose reader leaves: the writer's send is EPIPE.
+            let (socket, peer) = std::os::unix::net::UnixStream::pair().unwrap();
+            let (relay, child_end) = StdioRelay::attach(socket.as_raw_fd(), true).unwrap();
+            drop((socket, peer));
+            let (mut prepared, _peers) = receipt_prepared(&plan);
+            prepared.stdio_relays.push(relay);
+            let mut running = prepared.release_inner().unwrap();
+            if target_ended {
+                // A target token the engine no longer holds has exited.
+                running.target_token = Some(token(77));
+            }
+            assert_eq!(running.target_ended(), target_ended);
+            let mut member = std::fs::File::from(child_end);
+            std::io::Write::write_all(&mut member, b"to a reader that left").unwrap();
+            let deadline = Instant::now() + Duration::from_secs(5);
+            let failed = loop {
+                if let Err(event) = running.pump_stdio() {
+                    break event;
+                }
+                assert!(Instant::now() < deadline, "the failure never surfaced");
+                std::thread::sleep(Duration::from_millis(1));
+            };
+            match failed {
+                RunEvent::StdioFailed {
+                    reason,
+                    after_target_end,
+                } => {
+                    assert!(reason.contains("a stdio relay failed"), "{reason}");
+                    assert_eq!(after_target_end, target_ended);
+                }
+                other => panic!("expected StdioFailed, got {other:?}"),
+            }
+            assert!(running.stdio_relays.is_empty());
+            assert_eq!(running.pump_stdio().ok(), Some(false));
+        }
+    }
+
     #[test]
     fn custodian_loss_errors_do_not_claim_an_unproved_drain() {
         let (_dir, plan) = policy_plan(crate::policy::ProfileName::Tool);
@@ -4943,8 +5275,8 @@ os.write({}, (','.join(map(str, fds))).encode())
         assert!(running.tick_stop());
         assert_eq!(running.settled_tree().tree_empty, None);
         assert_eq!(running.custodian_facts()["result"], "not_drained");
-        assert_eq!(running.custodian_errors.len(), 1);
-        assert!(!running.custodian_errors[0].message.contains("drained"));
+        assert_eq!(running.settlement_errors.len(), 1);
+        assert!(!running.settlement_errors[0].message.contains("drained"));
     }
 
     #[test]
