@@ -153,6 +153,10 @@ pub const TEMPLATE: &str = r#"; ukai-jail native tier (macOS): defense profile.
 ; (measured with Homebrew's git).
 (allow file-read* (literal "/dev/null"))
 (allow file-write* (literal "/dev/null"))
+; The read-only devices Linux's sandbox provides too: scripts read
+; /dev/zero and /dev/urandom directly (`dd if=/dev/zero` was refused,
+; measured). Reading them discloses nothing; writing stays denied.
+(allow file-read* (literal "/dev/zero") (literal "/dev/random") (literal "/dev/urandom"))
 (allow system-socket)
 ; Creating a file needs file-read-metadata on the parent directory (measured:
 ; open(O_CREAT) stats the parent), which the read grants below carry for the

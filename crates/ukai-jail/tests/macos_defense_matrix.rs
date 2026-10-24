@@ -40,7 +40,7 @@ const SANDBOX_EXEC: &str = "/usr/bin/sandbox-exec";
 /// against (§4.7). Same constant as in `macos_sandbox_profile.rs`; a
 /// template change updates both in the same commit and re-runs the matrix.
 const PINNED_TEMPLATE_DIGEST: &str =
-    "d2e80843e426a294ee39c4e0c358e8219c28ab641df0100eeadfc5d8ca97e007";
+    "ae7214c117927cd24038b855a788d6243778b69424559c85588ea5266539e110";
 
 // ---------------------------------------------------------------------------
 // The attack probe: one C binary that attempts exactly one attack and

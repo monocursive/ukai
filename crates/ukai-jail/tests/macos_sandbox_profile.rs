@@ -34,7 +34,7 @@ use sandbox::{ProfileParams, TEMPLATE as TEMPLATE_TEXT};
 /// measured; changing the template is a deliberate act that updates this
 /// constant and re-runs the matrix in the same change.
 const PINNED_TEMPLATE_DIGEST: &str =
-    "d2e80843e426a294ee39c4e0c358e8219c28ab641df0100eeadfc5d8ca97e007";
+    "ae7214c117927cd24038b855a788d6243778b69424559c85588ea5266539e110";
 
 const SANDBOX_EXEC: &str = "/usr/bin/sandbox-exec";
 
@@ -458,6 +458,36 @@ fn node_git_and_shell_run_with_mach_lookup_fully_denied() {
         );
     } else {
         eprintln!("no node on this Mac; the empty-allowlist node row is unexercised");
+    }
+}
+
+/// The zero and random devices read as on Linux, and stay unwritable.
+#[test]
+fn the_zero_and_random_devices_are_readable_only() {
+    let fixture = Fixture::new();
+    let profile = generated(&fixture, None);
+    for device in ["/dev/zero", "/dev/random", "/dev/urandom"] {
+        let output = run_sandboxed(
+            &profile,
+            Path::new("/bin/sh"),
+            &["-c", &format!("head -c 4 {device} | wc -c")],
+        );
+        assert!(ran(&output), "{device}: {:?}", output.stderr);
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout).trim(),
+            "4",
+            "{device}"
+        );
+        assert!(output.stderr.is_empty(), "{device}: {:?}", output.stderr);
+        let output = run_sandboxed(
+            &profile,
+            Path::new("/bin/sh"),
+            &["-c", &format!("echo x > {device}")],
+        );
+        assert!(
+            !ran(&output) && denied_by_sandbox(&output),
+            "{device} written"
+        );
     }
 }
 
