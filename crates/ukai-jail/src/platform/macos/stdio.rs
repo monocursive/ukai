@@ -1306,8 +1306,10 @@ mod tests {
         assert!(relays.is_empty());
     }
 
-    /// A reader that drains a 64 KiB staged chunk at about 80 KB/s, so
-    /// delivery takes several idle windows, and the bytes it received.
+    /// A reader that drains a 64 KiB staged chunk at about 20 KB/s (one
+    /// 8 KiB writer slice per ~400 ms), so delivery takes about 3 s, and the
+    /// bytes it received. An interrupted read is retried, not taken as the
+    /// end: other tests in this binary install signal handlers.
     fn slow_reader(relay_buffer: usize) -> (StdioRelay, std::thread::JoinHandle<usize>) {
         let (socket, peer) = std::os::unix::net::UnixStream::pair().unwrap();
         let (mut relay, child_end) = output_relay(socket.into(), true);
@@ -1316,13 +1318,15 @@ mod tests {
         let reader = std::thread::spawn(move || {
             let mut peer = peer;
             let mut received = 0;
-            let mut chunk = [0u8; 2048];
+            let mut chunk = [0u8; 1024];
             loop {
                 match peer.read(&mut chunk) {
-                    Ok(0) | Err(_) => return received,
+                    Ok(0) => return received,
                     Ok(read) => received += read,
+                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(_) => return received,
                 }
-                std::thread::sleep(Duration::from_millis(25));
+                std::thread::sleep(Duration::from_millis(50));
             }
         });
         (relay, reader)
@@ -1332,7 +1336,7 @@ mod tests {
     /// delivery outlasts the idle window several times over.
     #[test]
     fn a_slow_reader_that_keeps_moving_gets_everything() {
-        let idle = Duration::from_millis(500);
+        let idle = Duration::from_millis(1500);
         let (relay, reader) = slow_reader(RELAY_BUFFER);
         let mut relays = vec![relay];
         let started = Instant::now();
@@ -1352,7 +1356,7 @@ mod tests {
         let mut relays = vec![relay];
         let error = drain_output_relays(
             &mut relays,
-            Duration::from_millis(500),
+            Duration::from_millis(1500),
             Duration::from_millis(200),
         )
         .unwrap_err();
