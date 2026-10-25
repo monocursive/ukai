@@ -179,6 +179,10 @@ h3 { font-size: 20px; font-weight: 600; line-height: 28px; letter-spacing: -.3px
   .button { padding-inline: var(--space-16); }
   .eyebrow { font-size: 11px; letter-spacing: 1px; }
 }
+@media (max-width: 480px) {
+  .navigation nav { gap: 18px; }
+  .navigation nav .github-link { display: none; }
+}
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 
 /* Home page: install command in the hero, a real run, agents and limits */
@@ -197,6 +201,11 @@ h3 { font-size: 20px; font-weight: 600; line-height: 28px; letter-spacing: -.3px
 .reasons { display: flex; flex-direction: column; gap: var(--space-16); }
 .reasons ul, .limits-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-16); }
 .reasons li, .limits-list li { color: var(--muted); padding-left: var(--space-16); border-left: 2px solid var(--line); }
+.arena-home-feature { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; padding-block: 80px; border-top: 1px solid var(--line); }
+.arena-home-feature h2 { margin-top: 16px; font-size: 48px; line-height: 1.1; }
+.arena-home-feature p:not(.eyebrow) { color: var(--muted); font-size: 15px; }
+.arena-home-feature .text-link { margin-top: 12px; }
+@media (max-width: 760px) { .arena-home-feature { grid-template-columns: 1fr; gap: 24px; padding-block: 64px; } .arena-home-feature h2 { font-size: 40px; } }
 .limits-list { max-width: 760px; }
 .install-content { display: flex; flex-direction: column; gap: var(--space-40); }
 .footer-story { max-width: 520px; }

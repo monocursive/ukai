@@ -1,0 +1,16 @@
+---
+// Without JavaScript the answer is simply shown; with it, the reader picks first.
+interface Props { question: string; options: { label: string; correct?: boolean }[] }
+const { question, options } = Astro.props;
+---
+<div class="ar-quiz" data-quiz>
+  <p class="ar-quiz-tag">Your call</p>
+  <p class="ar-quiz-question">{question}</p>
+  <div class="ar-quiz-options" role="group" aria-label="Pick an answer">
+    {options.map(option => <button type="button" data-correct={option.correct ? 'true' : 'false'}>{option.label}</button>)}
+  </div>
+  <div class="ar-quiz-answer" aria-live="polite">
+    <p class="ar-quiz-verdict" data-verdict></p>
+    <slot />
+  </div>
+</div>

@@ -1,0 +1,1989 @@
+{
+  "schema": "arena.public-provenance/1",
+  "files": [
+    {
+      "export_path": "runs/01-control_allow-26457319/record.json",
+      "export_sha256": "60f8c483424bd73739c27803ce1b0eead509c049f8f94180ee5df2e2aa50c2f1",
+      "sources": [
+        {
+          "sha256": "84ee3d1c6d2fdddd6d57d61130a232a8ca99ad76af1e96ba16f62e134868b11c",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "ebfe1cb29688fbf72e04da5419c6958c9d632ece2033b71131fc06ea152be1e0",
+          "kind": "original-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/01-control_allow-26457319/receipt-excerpt.json",
+      "export_sha256": "289a91121baea81cfb002dc3993e192b04bd2877b76f64e25e02739fb5006017",
+      "sources": [
+        {
+          "sha256": "39d11e3ebefd01f4c68c08aed2941d3c7b85c5b198291aeaecc21564ba1db610",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/02-control_deny-9eafb5b7/record.json",
+      "export_sha256": "6aa1e6ad2889eabd02e7ba88d542bc2d0edace10c2efaa53fd99f5e73dec4a8b",
+      "sources": [
+        {
+          "sha256": "606ade4f929b1c0899409a515da6cc02cfee3a5ff02a0640a556f196a664ef67",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "40da54966930758659a1ebad67ee749008c5eb8bdc4158160ed89a2ebd9c0582",
+          "kind": "original-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/02-control_deny-9eafb5b7/receipt-excerpt.json",
+      "export_sha256": "e549b95aabe5c711796e44255ed1d4898f94ff15ab1a16268a0e7a4d5b6fab14",
+      "sources": [
+        {
+          "sha256": "bacf5d9d8b35e8f745aa4695e10386c713e1935dcb82ae937a55e51a58d9c492",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/01-control_allow-c897a188/record.json",
+      "export_sha256": "699fa4bd36ab59397dc87d14056ed7db6ac7461989775fd9808dcb98248ae4b2",
+      "sources": [
+        {
+          "sha256": "01c3e65cb7efd9f7399c65a42eb86f1f867dd2eafb5f4602d5d61e3e42240fac",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "ebfe1cb29688fbf72e04da5419c6958c9d632ece2033b71131fc06ea152be1e0",
+          "kind": "original-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/01-control_allow-c897a188/receipt-excerpt.json",
+      "export_sha256": "6b4f733b708b07c5ba99bd613b306bea2f5d326d4e62aed4248d50fc3ba14602",
+      "sources": [
+        {
+          "sha256": "43f0e0bd47e85c1fd565a1746f3d1f20dcd50e6cf88308d01b98cc524903a336",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/02-control_deny-72b3be72/record.json",
+      "export_sha256": "c5be4f12abaa588b073626cdf502d01ecf350b043421527b343f0c9956710726",
+      "sources": [
+        {
+          "sha256": "c2804637b91f2ccf9fb2e1f7aa2636d92222b13f1d08e45c44e91c89d2050704",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "40da54966930758659a1ebad67ee749008c5eb8bdc4158160ed89a2ebd9c0582",
+          "kind": "original-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/02-control_deny-72b3be72/receipt-excerpt.json",
+      "export_sha256": "bdd39eba1971755fb71838ad1bc1f90aa3df83a2bb9dbc2f00b6aa011bdff85d",
+      "sources": [
+        {
+          "sha256": "615a19db4865a3dbe9122b32e29a23652b782c517a31bbfa94ac4745a7253c5b",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/03-agent_clean-1b653d75/record.json",
+      "export_sha256": "586df300fdc3522e8192364cf26f1522a70effb81ef6040839fd07895ed718d5",
+      "sources": [
+        {
+          "sha256": "16fd6c7b6c1a23669c422e1002698dd43b884191555251e67a5926867c83c2c7",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "cf88e9a55e7baecb62231e59ab34b9aece8f294a67f5608cce347b64b5f97e28",
+          "kind": "original-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/03-agent_clean-1b653d75/receipt-excerpt.json",
+      "export_sha256": "e168965d3ed497e68a13ddb7c1347d0bf93c68e5b4ef97b225ba56d9fd872c03",
+      "sources": [
+        {
+          "sha256": "463969ad9c05e55a1d893e516b73137cb3d94bffeeb41fc10da27d12273bfc61",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/03-agent_clean-1b653d75/transcript-excerpt.json",
+      "export_sha256": "95489ea1d278ee9bd8c9c2c58fb456a784fcd29e20f5115e39dd3b6af4ea5b62",
+      "sources": [
+        {
+          "sha256": "f5dd2c0b5230f2d829535eddfa5596ced42cbd89e04642c4e7e966d21dcea92d",
+          "kind": "agent-stream"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/04-agent_poisoned-f833900c/record.json",
+      "export_sha256": "448ecc57ff36c47abb6dc51f6e01d66c45f1f51695014c04c8516852d6e8433c",
+      "sources": [
+        {
+          "sha256": "6d32bbc39369af667f2d64dca28f58d9e2af998647481c355e2dceb562898e49",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "862646bcaf01c5d22668136caed8d3eeec850429557cce7379e9b95eec848004",
+          "kind": "original-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/04-agent_poisoned-f833900c/receipt-excerpt.json",
+      "export_sha256": "3961b716502fa0888c5595bf9c89ef85bd9446804017812328bd80622c2501d3",
+      "sources": [
+        {
+          "sha256": "7e5153650b55eb63de50780a77d109f8e3af377ff7d11602ff5dc1d93f728f75",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/04-agent_poisoned-f833900c/transcript-excerpt.json",
+      "export_sha256": "cbfa8a53b9463b681deb30b442acadca37f30bde8497cff2f82073bb88a93884",
+      "sources": [
+        {
+          "sha256": "6a9fcd0d9c579ac038fa026647af8d3f21e98f91afb9dd5f3d5e73ad5d2d278a",
+          "kind": "agent-stream"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/05-agent_poisoned-11f1f731/record.json",
+      "export_sha256": "0894b8c53a558556c553752d36a76bdbe0942b8df2fd308605c17cd4992e1839",
+      "sources": [
+        {
+          "sha256": "2bc20feac85f5aa70d5ac76cc4a88fd4ab9410e84074d0a25caf50abbb35c12f",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "25cd94028c495ebdb6987b609ebe1e8354af5c42d1bff45ed6e84e6630a7effb",
+          "kind": "original-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/05-agent_poisoned-11f1f731/receipt-excerpt.json",
+      "export_sha256": "15994ebdb198035fab72468b076a0132fdec5560a748038ec176f0a6be15d02e",
+      "sources": [
+        {
+          "sha256": "9a648a07149403f8fecec8e1a9ca15be0634a3338e2ca4e1a81e4527bfc09315",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/05-agent_poisoned-11f1f731/transcript-excerpt.json",
+      "export_sha256": "01a4721cd8198c573d81cf5546c94dac3cf47aca1e3523dcad45c988ed9e73db",
+      "sources": [
+        {
+          "sha256": "5337a52028a4634816d35098f97b3cdeccab01c1f90e0747d8e1d3963f0fe4e2",
+          "kind": "agent-stream"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/06-agent_poisoned-6c1fc1c6/record.json",
+      "export_sha256": "708a2e2d1334381935e32467b19e54aada9d0314bdb989833bcbab51e54bd374",
+      "sources": [
+        {
+          "sha256": "ccf557f0cba8759353cdb8770cb2ba4de1e26167ea322e76bdfec6b1c3c4604a",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "2f8ce968f2e976b1a54ed39cbca03d1da987b2632d68c5c55bb9bae5ee05f459",
+          "kind": "original-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/06-agent_poisoned-6c1fc1c6/receipt-excerpt.json",
+      "export_sha256": "7b077ebbe6c07aa30c6d02bcebf76626c71f2ea6f4e147f67bc2190efe633d21",
+      "sources": [
+        {
+          "sha256": "047c4a0f4be243ac33b002b9737846953d48937c5fe35ede72631d919f674ca1",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/06-agent_poisoned-6c1fc1c6/transcript-excerpt.json",
+      "export_sha256": "dc45cf31c48650c85b9698ffbf43fd2a29d7e1793de655cc0ad05bac82c4eb05",
+      "sources": [
+        {
+          "sha256": "7508bfc8ba37fb5619cdef14e3b92e3bd3db9e62b05aac3015879e31354b2cc4",
+          "kind": "agent-stream"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/01-control_allow-d49ebd88/record.json",
+      "export_sha256": "f7feb4ee88bf994b6b1a7231e318f6668001d6666ecf14cf09604500d11be134",
+      "sources": [
+        {
+          "sha256": "184830469b2dd9dfec475e803d5bc7b13d4add688b37550fc0283cfd8daa3efb",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "93bb6e38045b91ee41e58a3bd6cdbe18cc7323e6824edf09a4145e1faf0b6529",
+          "kind": "original-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/01-control_allow-d49ebd88/receipt-excerpt.json",
+      "export_sha256": "22202df4c3b54456b706c263307de45298be83f425a3b15aaf89af3f8b7e7d60",
+      "sources": [
+        {
+          "sha256": "56d71ad4b34a43da935e6fe38d61c85e14bfe2da761a91a7c406ecc10d24f1f6",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/02-control_deny-871d38e0/record.json",
+      "export_sha256": "2d55948622f6dfc405f94d3fae963bcae168b0964f511f4ef608de9aee60d638",
+      "sources": [
+        {
+          "sha256": "4ec6a386981f10757d659c92b593621e42604462aca0a25ef36d73ed61342760",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "fd481eef8a09e9c5f6b4964fe172da5ad8fa2f1bcb26d7632195bbfe5ca76e80",
+          "kind": "original-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/02-control_deny-871d38e0/receipt-excerpt.json",
+      "export_sha256": "d3b7a2a1bf0d9990bb166dca4a892a94e3c215375e1069cbb212360b490dd068",
+      "sources": [
+        {
+          "sha256": "898a208bc77fa89fd412021a0308cbdc90dbb162bf8644e6c81d0d150565d4e3",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/01-control_allow-a6ebc705/record.json",
+      "export_sha256": "49c688426ffdc753e6707e9051adc011aca7ccc34d971e44725d8929e5443ff9",
+      "sources": [
+        {
+          "sha256": "bbf8caea1df9100406d811d2043a68e6cf89e89646023537171166535b66a85a",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "1796a6684005ed838222de5554b203232f2ec893ca24bbe1952bfc3d30657943",
+          "kind": "original-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/01-control_allow-a6ebc705/receipt-excerpt.json",
+      "export_sha256": "a8420821fa6f7553ee4a7326c04b6456d130b6cbbab227fec2136a2033b81784",
+      "sources": [
+        {
+          "sha256": "de5036e3f4916a9c8382761a83abd2f6ce9410cb84c76f4c593650bf0777a7b7",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/01-control_allow-a6ebc705/fixture/README.md",
+      "export_sha256": "9c17a30791b20264d856907bab79c874f0013404bf4a89db93d399424dbbc8d0",
+      "sources": [
+        {
+          "sha256": "ca43e764b930c8a468c2374d1af557ceec0879c0669d2ad0b402763bc1cb5a45",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/02-control_deny-d5e83624/record.json",
+      "export_sha256": "066719b99a88efeb45ceed62f87617ca8373b6b760ad60e96e66dd8484681f21",
+      "sources": [
+        {
+          "sha256": "d5d4a18199d8444f380afded388221427c1f5391b2584003d853c43694dc3f48",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "dba0aa27f084de2ad0363cbddab8883093701a6e04d7c0ed820862e2d42e4db0",
+          "kind": "original-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/02-control_deny-d5e83624/receipt-excerpt.json",
+      "export_sha256": "ab4c6a53be882b9385a2e9ccf2977e93025a6011fb4561886f2a491e365c635f",
+      "sources": [
+        {
+          "sha256": "e8f970087665576f3a4fd51c7e2205f9bfe787cb3935b04561db35c993ac91f8",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/02-control_deny-d5e83624/fixture/README.md",
+      "export_sha256": "964bbbf98863dcfd55c9626fe828b6947d54feb0cb4c903f54239c72fc150665",
+      "sources": [
+        {
+          "sha256": "2ccff34295d7971963cad09d8635bc94fcb8d62255d7d0aa5c2aa2c4eba22ee3",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/03-agent_poisoned-7efd690d/record.json",
+      "export_sha256": "b6c81c26245b48fb7c47914636d8299fd8bc29f4f86ac76f3d6761a12c522930",
+      "sources": [
+        {
+          "sha256": "38692371459b2bde48c8659f7b9a50df577fef7a8b1ab1d1c0f1cd4b70e29bea",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "4500a853eb08f76a57797421205c961d3b2fd3a216875f8e1ef827515bdca3e5",
+          "kind": "original-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/03-agent_poisoned-7efd690d/receipt-excerpt.json",
+      "export_sha256": "ab52e4d3d110d6d1d616f6464e81322b815f3a46e0e8fc4415f70dce1175bc55",
+      "sources": [
+        {
+          "sha256": "a4b16c432176555d796354e553589af638a91b5223b7bf7a0b86935666ed0008",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/03-agent_poisoned-7efd690d/transcript-excerpt.json",
+      "export_sha256": "07b054c6b4c7dcce7a018c7bb0ca8f071f4a0d67e39479200846921013b0aea7",
+      "sources": [
+        {
+          "sha256": "9a53344447233e2dd584c540cb7271e48103ba3e5513bf266d1b86063ae6b7c0",
+          "kind": "agent-stream"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/03-agent_poisoned-7efd690d/fixture/README.md",
+      "export_sha256": "dfa8038646bc6d3d9d5407e0f1a152d3e68f45d98e81f7d94a2dfa6de71ed368",
+      "sources": [
+        {
+          "sha256": "a0c49557e3108962653fe40cfaabc026f0d61ebf271d51e326e881563ee1dfdd",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/0e67c700d543dd5faf2d23734dd8db68/record.json",
+      "export_sha256": "2cfdc4a1d43768863418daf47069b70b1cf4410575c49e9400bd84c0bddf4c91",
+      "sources": [
+        {
+          "sha256": "eff11a48e101e226121d5eaae96b2780b8688016a03a96ddb46b988950d7c8e1",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "1796a6684005ed838222de5554b203232f2ec893ca24bbe1952bfc3d30657943",
+          "kind": "original-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/0e67c700d543dd5faf2d23734dd8db68/receipt-excerpt.json",
+      "export_sha256": "131bb35463aa0b9e47ee01bca9748850016d28d8bf23f681a76a8b135e10e3b6",
+      "sources": [
+        {
+          "sha256": "5a79240cf0b01e1f04636292f8a5fec5510e3ab1930b8f2a6bf6988df75d7eab",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/0e67c700d543dd5faf2d23734dd8db68/fixture/README.md",
+      "export_sha256": "a09117478f0e747781a3ae9faa61ee1143aeb84393f228b25990c88ccd2c0017",
+      "sources": [
+        {
+          "sha256": "036154fb28d53005280398e300de6c9df22641a59dcb8480ba0d5b684694742f",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/35cf4fdf204e282e615cd39463cdeebc/record.json",
+      "export_sha256": "89d0222b399070a4a8e8f4a5e922105bf606c7ba18fd0846e0e0462f50852e0e",
+      "sources": [
+        {
+          "sha256": "0d81d898b23e8d9a54c3263cc8fb0725723a4fc82b03d59d7457655023c16a35",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "dba0aa27f084de2ad0363cbddab8883093701a6e04d7c0ed820862e2d42e4db0",
+          "kind": "original-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/35cf4fdf204e282e615cd39463cdeebc/receipt-excerpt.json",
+      "export_sha256": "1789c39a56819f2592e8e24719b5544e5d8b73d74f0876f1052a1e25f6ec0084",
+      "sources": [
+        {
+          "sha256": "787ec6032c78a3ba954e5dc7d7ce1a095554733e00dbe935eb31f7c3af8e8d82",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/35cf4fdf204e282e615cd39463cdeebc/fixture/README.md",
+      "export_sha256": "a53e7ff8270b6caf2f2ada74f134ce9a6215c74ffd2f2c8b37337b693b698e21",
+      "sources": [
+        {
+          "sha256": "82ef74cdbf1f6bd86b5b7ef947256875ddd8c63b69f1bb5339ed7d23e10c9a5a",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/378a983492b4446276d74224df9a5c2e/record.json",
+      "export_sha256": "6e0491defab33b0789eb53e09a2abea9ab20c50d5b251fa528821a9e5efb8629",
+      "sources": [
+        {
+          "sha256": "da7ced39b580e20b9297e775b58ce3474ce73d8c4a0cca25dd41680fc4af5521",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "fede1c5e6f5bb8650db94fc4af169e62b03d44867b49af9f0a009104d8db7774",
+          "kind": "original-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/378a983492b4446276d74224df9a5c2e/receipt-excerpt.json",
+      "export_sha256": "a43216d544d6b8f22cbea2de35997568c86f5c69da62b2f24e5da736b971b080",
+      "sources": [
+        {
+          "sha256": "0cd25c7d0e1bc552c90680a4e7c2c57dd5ee87365826e52d8eb4d45eb5a895be",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/378a983492b4446276d74224df9a5c2e/transcript-excerpt.json",
+      "export_sha256": "cfcce8f6ba5622202d10cf5cd70882a60b8084011a5fa700beeb00fd81ee6411",
+      "sources": [
+        {
+          "sha256": "cac57f597ebec45b54035e56409817fe119eadd4849f01bb0d4f6ee1f0a87d39",
+          "kind": "agent-stream"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/378a983492b4446276d74224df9a5c2e/fixture/README.md",
+      "export_sha256": "f884c8398020fe951d6ef380b9fea10280c4db456de3127d1ebc41d1f96363bb",
+      "sources": [
+        {
+          "sha256": "60d86826e828e8094f8d32ec9f4edf5567525e06e39558ececabe00fe9689373",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/9166f850f7e6817ef5144c822a7599f1/record.json",
+      "export_sha256": "09d16daf96c2a42a5927b761303bd3efcd67af9c265fabcddd4ee1a433092cd6",
+      "sources": [
+        {
+          "sha256": "0714f85bed076d0c65eeafe5e857fe87c5f2bf66ad10cb8bdcf2f099e2ca014f",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "c56b82ccbdd798680cc7ebf98287035e4dd432f70fe46e1e2d9f15abe568f4a8",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "41d0b412f7f0c3992602337e92743e1239a52a81d20678b19ca1e87aee7c8d48",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/9166f850f7e6817ef5144c822a7599f1/receipt-excerpt.json",
+      "export_sha256": "69480de02218bb32f9e58f5c8fa0cffef33d00bf2e204bc8c9074987446279c0",
+      "sources": [
+        {
+          "sha256": "45ae183b74a632e22e931bc4d2b3819850ecb5935e636f456667c689feb16389",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/9166f850f7e6817ef5144c822a7599f1/fixture/ISSUE.md",
+      "export_sha256": "21bb612f6bdf910dcc8968fc48821fd11cf03952a7964edfde732c30bfe85e42",
+      "sources": [
+        {
+          "sha256": "5f516a1086e9e5d19f28d50371869567f97bff2e4f45e3a42bc745f5e8e9d6ae",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/9166f850f7e6817ef5144c822a7599f1/fixture/README.md",
+      "export_sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+      "sources": [
+        {
+          "sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/9166f850f7e6817ef5144c822a7599f1/fixture/slug.py",
+      "export_sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+      "sources": [
+        {
+          "sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/9166f850f7e6817ef5144c822a7599f1/fixture/test_slug.py",
+      "export_sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+      "sources": [
+        {
+          "sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/0c0668639c585d3c5f8bbcf75bb7bf75/record.json",
+      "export_sha256": "44d580dc80fbd76b7c93fb345faf051d11d932d82a5f9a2066e88db5ba002279",
+      "sources": [
+        {
+          "sha256": "04304590b09b3d801b882bd68bae75a9620a3ddcac3579b454ee1ade3b953302",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "32c6562cbdf22f6804a0b25c9ee1a9de13ea56bc3bee65e8e714385e9b8f6cea",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "fdb3e47f962e11889e9248f623b42a6a59dea351fe7cc9e511d7aaf3330e47ba",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/0c0668639c585d3c5f8bbcf75bb7bf75/receipt-excerpt.json",
+      "export_sha256": "d46d9fa440d33dab343babcedc73c0031cf3aba2f103ad382d859b2986699da0",
+      "sources": [
+        {
+          "sha256": "7ad4542b17ee1a2294ee5c1a02951b6ac73c9541441be631aefb55d8ce3019da",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/0c0668639c585d3c5f8bbcf75bb7bf75/fixture/ISSUE.md",
+      "export_sha256": "3ac1b5c04bde1688bde247e9fd747c5fc63f084d9ea498d9fa6702c596dd5067",
+      "sources": [
+        {
+          "sha256": "714fe22e065e45e5cbfb9b98a3e620c9c06ab055d8b9cda38c5816541a3c51bd",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/0c0668639c585d3c5f8bbcf75bb7bf75/fixture/README.md",
+      "export_sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+      "sources": [
+        {
+          "sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/0c0668639c585d3c5f8bbcf75bb7bf75/fixture/slug.py",
+      "export_sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+      "sources": [
+        {
+          "sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/0c0668639c585d3c5f8bbcf75bb7bf75/fixture/test_slug.py",
+      "export_sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+      "sources": [
+        {
+          "sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/45441d55f379204c811bde7c5ccb51ac/record.json",
+      "export_sha256": "04eec8c69de291b0e9cca447f74bd34e338b4c798852b140b242cbeb7b50014e",
+      "sources": [
+        {
+          "sha256": "1c06301ccf3f07036beaecc6fe2d0766ed69f5b0703ab6bd52929c8112867464",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "b0244af3a1dcda951637f5ec0e3a1e99048998019300f528aaf2f47eed76f7c7",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "129c9daadce6a8d13304fd75f471be1ed62ffbef18120ec6c58990a91f03c357",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/45441d55f379204c811bde7c5ccb51ac/receipt-excerpt.json",
+      "export_sha256": "809cfc96ac430d1b1c412284231454b63681383cdf21029eb080f98d7cf0d6f3",
+      "sources": [
+        {
+          "sha256": "46d3f99b9b40f1bf6766756e77495779cab7cf6751dffa7f91fb6255ab6cd904",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/45441d55f379204c811bde7c5ccb51ac/fixture/README.md",
+      "export_sha256": "bf54ea3049c657f7c96aa98be9d008010735b3b25016325cfd04622412cc089a",
+      "sources": [
+        {
+          "sha256": "efcc80ccb9c163fcb9a4d332ec68f9220e44ceff9233333a97bdd75ee7d4875d",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/45441d55f379204c811bde7c5ccb51ac/fixture/slug.py",
+      "export_sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+      "sources": [
+        {
+          "sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/45441d55f379204c811bde7c5ccb51ac/fixture/test_slug.py",
+      "export_sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+      "sources": [
+        {
+          "sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/575d6a74431185bd2214d311d69d2f22/record.json",
+      "export_sha256": "013e0e9f71c6d95704af26ea1c51fa49b92652f4327bc5e95ffce84fd3b64d0d",
+      "sources": [
+        {
+          "sha256": "4ea27b56539d2d1469d96c6b29250a3293205b065bbcd45d057c5714513d753e",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "0ca09f38ca9c6a97e49e13157bf0df98397c09fa52ba5d7deeae33095acda735",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "65a138f8764959cd98cc712ad5695018e99051c1b1ccf77e645b178fe69b21b7",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/575d6a74431185bd2214d311d69d2f22/receipt-excerpt.json",
+      "export_sha256": "8f3887aff74a7c2752b3ee1c09146b19950274c861662cd75c526667c8b8157e",
+      "sources": [
+        {
+          "sha256": "9a97e5076a0682c3e98d5a6117188ed715065e06fa160efc408fc522522c0b2a",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/575d6a74431185bd2214d311d69d2f22/fixture/README.md",
+      "export_sha256": "52f9a49059f445834e6c0d5cd9da17c2e1a904c42a81fb3fe8cbaf9f60631abb",
+      "sources": [
+        {
+          "sha256": "eec885b46b032b165628c2d13584ffd2d7ec3d7543e39c7b7b5b9e89ef203b41",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/575d6a74431185bd2214d311d69d2f22/fixture/slug.py",
+      "export_sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+      "sources": [
+        {
+          "sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/575d6a74431185bd2214d311d69d2f22/fixture/test_slug.py",
+      "export_sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+      "sources": [
+        {
+          "sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/7b4a8c6546b8cb1687e26d804846e2fa/record.json",
+      "export_sha256": "109784655c01c998ea47fda8c49def2bcf0e42961bad32c8201f561508d6bc76",
+      "sources": [
+        {
+          "sha256": "d1e52dfaaa9daa2e2b65a51bee0ea88d1136ee625a43f8bb6af7a65c6b230d09",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "9c46a1500835107c352479de1c0fdf4b9cf7a72017bbd343a343fbe9cd7df332",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "4a6da054a635b257ec456bcc346a8db7271c5d4afc5427c7706bd991af29e879",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/7b4a8c6546b8cb1687e26d804846e2fa/receipt-excerpt.json",
+      "export_sha256": "5799174e21ec5eee89e5da0c683c38a75bb363ee1fbebef4b2c8185c587905b7",
+      "sources": [
+        {
+          "sha256": "6054e526f8742bd46c32dec199f98098b7ae7af9d6ed400c358cc337501c165d",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/7b4a8c6546b8cb1687e26d804846e2fa/fixture/README.md",
+      "export_sha256": "0b4638cbc82b254cfc4d6343a799c7e53c4507b311288de98183448e186a0710",
+      "sources": [
+        {
+          "sha256": "0b4638cbc82b254cfc4d6343a799c7e53c4507b311288de98183448e186a0710",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/7b4a8c6546b8cb1687e26d804846e2fa/fixture/slug.cjs",
+      "export_sha256": "4a553c8175fffab9acb3c16860d134d3608e58b3c9523feccac8f02cc79751bf",
+      "sources": [
+        {
+          "sha256": "4a553c8175fffab9acb3c16860d134d3608e58b3c9523feccac8f02cc79751bf",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/7b4a8c6546b8cb1687e26d804846e2fa/fixture/test_slug.cjs",
+      "export_sha256": "27dbf7ab1e7e450218e58c67164fe9f40bd6221497d57a458b224f3f733547c1",
+      "sources": [
+        {
+          "sha256": "27dbf7ab1e7e450218e58c67164fe9f40bd6221497d57a458b224f3f733547c1",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/e7ea4de8f7bce13ac960fc790708e44a/record.json",
+      "export_sha256": "7c6d0fddae0dac53470a150bbe46b2ba6c4cb4f4deafc378a6aa991f4c9af1cc",
+      "sources": [
+        {
+          "sha256": "cd21b0dd5b56c3f1d71861b213bf53dbb63ee81feccd13e38b14f4c0a15885aa",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "db508f704921c0457c393565ae2c38b5068e233a4de77ad39ccf9557c1ff7ccf",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "655f9873d17055c7d9cfc1bd0653cf103c66427233b7e70503d30fd050f505df",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/e7ea4de8f7bce13ac960fc790708e44a/receipt-excerpt.json",
+      "export_sha256": "2589be5d46ea0fcbc66105fcacd4e485402c50e582cae21c7ccf6dddfa612f54",
+      "sources": [
+        {
+          "sha256": "48f620f559ea1b5ce46f738793801839032beb402058e9eceb6c3f13caea2679",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/e7ea4de8f7bce13ac960fc790708e44a/fixture/README.md",
+      "export_sha256": "6e09948d0c3455769d4dc9459aff927d35010477683411d117e47ff9069d26c4",
+      "sources": [
+        {
+          "sha256": "6e09948d0c3455769d4dc9459aff927d35010477683411d117e47ff9069d26c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/e7ea4de8f7bce13ac960fc790708e44a/fixture/slug.cjs",
+      "export_sha256": "4a553c8175fffab9acb3c16860d134d3608e58b3c9523feccac8f02cc79751bf",
+      "sources": [
+        {
+          "sha256": "4a553c8175fffab9acb3c16860d134d3608e58b3c9523feccac8f02cc79751bf",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/e7ea4de8f7bce13ac960fc790708e44a/fixture/test_slug.cjs",
+      "export_sha256": "27dbf7ab1e7e450218e58c67164fe9f40bd6221497d57a458b224f3f733547c1",
+      "sources": [
+        {
+          "sha256": "27dbf7ab1e7e450218e58c67164fe9f40bd6221497d57a458b224f3f733547c1",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/543a780d79704b1eb0720de0c8813639/record.json",
+      "export_sha256": "8d1838c6afd98b80ceb5f9e45cd38413b306c13060a2a035bca28ccce14c4b9c",
+      "sources": [
+        {
+          "sha256": "9b06a88b9489b01bd3abd3acef229c5acf3e5f95b55784b5adb3a0ac3ebb2a16",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "43f3b6daab6a43815daf737f77326e9d27ac0eaf2d30f8820f91a031ab2028ee",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "ff914773d7dfe236ea0e5593041851e5f6eb3a6b8cae12fb042ea6f02928fcd5",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/543a780d79704b1eb0720de0c8813639/receipt-excerpt.json",
+      "export_sha256": "6948bba983aa9e4c23a5f617bb9254e7e0dc82dee5e1ba0de7733ec05a7ee38c",
+      "sources": [
+        {
+          "sha256": "45bd51120d0d79d3b2c92183f21e96b2d53482826f322e866e5e21c9f29ed0fa",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/543a780d79704b1eb0720de0c8813639/fixture/ISSUE.md",
+      "export_sha256": "c682a80eaa51e15b338de0be9c2f75bac2e89f63e83fa27992c5764c87fec13d",
+      "sources": [
+        {
+          "sha256": "7d666b6686f1d10415c9bf0d5b1ba52856e6931d724e8741c821836d4e0e62c5",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/543a780d79704b1eb0720de0c8813639/fixture/README.md",
+      "export_sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+      "sources": [
+        {
+          "sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/543a780d79704b1eb0720de0c8813639/fixture/slug.py",
+      "export_sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+      "sources": [
+        {
+          "sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/543a780d79704b1eb0720de0c8813639/fixture/test_slug.py",
+      "export_sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+      "sources": [
+        {
+          "sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/f2050c99290d3b9899eef5e412654063/record.json",
+      "export_sha256": "07045eefbe522fb89e9da0161fd69dfd96573ee001ee44febf7c583634fae63c",
+      "sources": [
+        {
+          "sha256": "fcbf064ca2de85b6b373586afa212507736033fa6e6768ba5460f0e944433a20",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "a5a0a6850fe1e77e5a433d2a8922a471795884f7ba9d753a5383ef1021a12c49",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "aca9d2670e53c0a3cb54bec7d20dc095cf9eb06d0b05f8d9b409e778d7aacf62",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/f2050c99290d3b9899eef5e412654063/receipt-excerpt.json",
+      "export_sha256": "98a2bfd222d485d550790ef7189de2058cbe2999e43e66aae576a08ab82a543e",
+      "sources": [
+        {
+          "sha256": "7ca3ca502529d49f1361e54e9106bf47f9ff93805ed0a1cccac53827eeb9b994",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/f2050c99290d3b9899eef5e412654063/fixture/ISSUE.md",
+      "export_sha256": "fb2683157be6ee34cb78193fffe7e6e505efc749a95fa3d6710687c387628be3",
+      "sources": [
+        {
+          "sha256": "d0ff68c6d40a46168bbbca04f7ee669f3c674c8ff46abc20cdb82df73aa3ab30",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/f2050c99290d3b9899eef5e412654063/fixture/README.md",
+      "export_sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+      "sources": [
+        {
+          "sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/f2050c99290d3b9899eef5e412654063/fixture/slug.py",
+      "export_sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+      "sources": [
+        {
+          "sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/f2050c99290d3b9899eef5e412654063/fixture/test_slug.py",
+      "export_sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+      "sources": [
+        {
+          "sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/76bf15c6af10d956fd6c3c428d4129db/record.json",
+      "export_sha256": "667304d7b8bb08157e77d3dcb2b3fb2bcf5edbccdcdeb6a0c42bf2b303418f56",
+      "sources": [
+        {
+          "sha256": "3de718020e7e71d7f8a8d177e84bdf77aaa2d2f88475da5bb990dc9e92aa4581",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "b5895cf047f0ed23ba7deed117b03d6b8ca44a94964d9ef88e416d31a642c2cc",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "1d5fc13d8f08cc13fedc24730e1b82e613f78cff6498005678a70aeba87dd6b7",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/76bf15c6af10d956fd6c3c428d4129db/receipt-excerpt.json",
+      "export_sha256": "5dc9c03071a022fa4f2f5f761ada77e7d8ab6d1302ab0becef33f1bc95cb2a22",
+      "sources": [
+        {
+          "sha256": "af46724cdd8c419e53ef6c9d81a4e74a79ea7c10fdccb2fe936b46d00d445443",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/76bf15c6af10d956fd6c3c428d4129db/fixture/ISSUE.md",
+      "export_sha256": "4d9133f9ec27338fe20ccf493bcff5e3d4963c36dcd43c56108b07d5e55e0cc3",
+      "sources": [
+        {
+          "sha256": "a60c052d8760d651b842d531026976f05e26569ddb0793a8eeb7817250d8e894",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/76bf15c6af10d956fd6c3c428d4129db/fixture/README.md",
+      "export_sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+      "sources": [
+        {
+          "sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/76bf15c6af10d956fd6c3c428d4129db/fixture/slug.py",
+      "export_sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+      "sources": [
+        {
+          "sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/76bf15c6af10d956fd6c3c428d4129db/fixture/test_slug.py",
+      "export_sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+      "sources": [
+        {
+          "sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/6163fbdd9efe3d4bd7c499a6feebd03d/record.json",
+      "export_sha256": "786431d74c661baac8127bc894cfdc1d8a99b210ea592c2dede3c64b5f72f9d2",
+      "sources": [
+        {
+          "sha256": "1d8b11a935d04c1ba0fa8ac85eeef79856f0e83f29a476b8ce186cd8531143ed",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "36d3fa8ec9865d03bd2a88fb069da3e00a0597fdddae3426dfcb12288446ad28",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "bddb4273a7031be227032f9d6aaf2259fb49d17c16c72fd311a2c48133a60f7d",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/6163fbdd9efe3d4bd7c499a6feebd03d/receipt-excerpt.json",
+      "export_sha256": "330e364991e3374ded27230fa4cb2afe12b2776cdf780da68d0c19332ce0cb17",
+      "sources": [
+        {
+          "sha256": "de34ed332260f61b38b0ce42a460ba6e92aecc8a2ddd0351d1f6d690e79c039d",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/6163fbdd9efe3d4bd7c499a6feebd03d/fixture/ISSUE.md",
+      "export_sha256": "eefc805443c482e56119e6733abad010d5d14737715d623ff6fa989b4722292a",
+      "sources": [
+        {
+          "sha256": "ddebb51b5977a65d08486fd45dd5208c97daafff397cd988047090e3469701ab",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/6163fbdd9efe3d4bd7c499a6feebd03d/fixture/README.md",
+      "export_sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+      "sources": [
+        {
+          "sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/6163fbdd9efe3d4bd7c499a6feebd03d/fixture/slug.py",
+      "export_sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+      "sources": [
+        {
+          "sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/6163fbdd9efe3d4bd7c499a6feebd03d/fixture/test_slug.py",
+      "export_sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+      "sources": [
+        {
+          "sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/6f176a0a9532a40e083f86a234883e30/record.json",
+      "export_sha256": "3c4f9fbf051052f889b8c500fa74cb704c3527ccce3051d85afb0e5aace6929c",
+      "sources": [
+        {
+          "sha256": "17d770286a1a7ebecb15604eeb5eb583e44b68d35d609f05876d8b489f1f4eda",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "f93632e52417d1ccdda33f2adb226f00ffe02e60b94db55c1b1591122af19672",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "9819b46ee33e1447e3c50728a5551705b607907292ffa6b8bcbd0136f3594fa9",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/6f176a0a9532a40e083f86a234883e30/receipt-excerpt.json",
+      "export_sha256": "e82fdfbf06afa2f894deeb026b61010ecb8edfaba6e7e5b219be3044445959b4",
+      "sources": [
+        {
+          "sha256": "1410da6cf5f2e8c3b8199c2d814b7ec6992434c2be6ac3993b76016c39ea8a0f",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/6f176a0a9532a40e083f86a234883e30/transcript-excerpt.json",
+      "export_sha256": "11d5d3914d22655b130d63f724fbf9474f3b1939fca04a256346ab32fc0cad2f",
+      "sources": [
+        {
+          "sha256": "39d8371ac2eaee3f7fa071df21c5e91773d0740d11e168eca09341744fa9b08f",
+          "kind": "agent-stream"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/6f176a0a9532a40e083f86a234883e30/fixture/ISSUE.md",
+      "export_sha256": "50577eca11850c37c79dd4aecfafbf7e5ba303e48e7102438df5fa5d32571625",
+      "sources": [
+        {
+          "sha256": "50577eca11850c37c79dd4aecfafbf7e5ba303e48e7102438df5fa5d32571625",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/6f176a0a9532a40e083f86a234883e30/fixture/README.md",
+      "export_sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+      "sources": [
+        {
+          "sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/6f176a0a9532a40e083f86a234883e30/fixture/slug.py",
+      "export_sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+      "sources": [
+        {
+          "sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/6f176a0a9532a40e083f86a234883e30/fixture/test_slug.py",
+      "export_sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+      "sources": [
+        {
+          "sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/0a2184a438a349c72ebb0ac4205e793e/record.json",
+      "export_sha256": "78970eae8e372139b5f742bdd906281449f749a1ede61ce9963a08526fb68cfd",
+      "sources": [
+        {
+          "sha256": "6215cc4e7f49b6744d5cc3d37d4d417724c5491ff690aeb429a680cb25107473",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "e13762bcd3c895159b46f7e24d6da26cf716736ed4b63f467a6d49734a10528e",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "d0bc27546e4c7582362440075f54c8418dcffd9a590ebc0b8c58eb9ae6837b31",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/0a2184a438a349c72ebb0ac4205e793e/receipt-excerpt.json",
+      "export_sha256": "3262d6da9a3b0dc7de87126d3c4660d389cbe7d10c8a2f825889ccf7378449ef",
+      "sources": [
+        {
+          "sha256": "507d69febc727b42712914bcff27312f5b330bbc3eb8b109f2e90826841d7d3d",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/0a2184a438a349c72ebb0ac4205e793e/transcript-excerpt.json",
+      "export_sha256": "2b89b9f112dbd783b9b4138fc05182395f82320dbac503b960bf87f8fb22413d",
+      "sources": [
+        {
+          "sha256": "98f52ac0ae4618d8463b8dbf6fb573f3005e69629ad11cddde3fff0fa7b14f71",
+          "kind": "agent-stream"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/0a2184a438a349c72ebb0ac4205e793e/fixture/ISSUE.md",
+      "export_sha256": "1330fd316879690bc1c65f83a304b0b2fba0b26b05b2a956d961f70a1e04b905",
+      "sources": [
+        {
+          "sha256": "1330fd316879690bc1c65f83a304b0b2fba0b26b05b2a956d961f70a1e04b905",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/0a2184a438a349c72ebb0ac4205e793e/fixture/README.md",
+      "export_sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+      "sources": [
+        {
+          "sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/0a2184a438a349c72ebb0ac4205e793e/fixture/slug.py",
+      "export_sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+      "sources": [
+        {
+          "sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/0a2184a438a349c72ebb0ac4205e793e/fixture/test_slug.py",
+      "export_sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+      "sources": [
+        {
+          "sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/ce6982837ae60ee2d3b5766810f3e390/record.json",
+      "export_sha256": "a473f4b76550c960fedc059480946baab0f1dbc247dda83e5c8ec0f412940991",
+      "sources": [
+        {
+          "sha256": "629a935fb13ccfbb14b60eb0d84b11427ab5fd862c47ab0960f9e53c0b2502cf",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "65dc5ddeaa295c5896fbb068e008ffa6800a650e75220c78f0be7e4e7cdabd29",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "b081410af99adef97cbc71bb9133b63042aeb545a3b0622e1a8f4a9848b1521c",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/ce6982837ae60ee2d3b5766810f3e390/receipt-excerpt.json",
+      "export_sha256": "93c70da8ace7f1d66a927de35820701974786dcf4baee22571f3624d472c3250",
+      "sources": [
+        {
+          "sha256": "a48b99b576df0ad252d2ce25130ffac7b66105bee14a0b61aa7b6ee1d7ba2825",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/ce6982837ae60ee2d3b5766810f3e390/fixture/ISSUE.md",
+      "export_sha256": "5c209a4638d6c217702ac2cba64bffcf1ddcf0958262d5161615adc9370d65a2",
+      "sources": [
+        {
+          "sha256": "e7b545736cf666115930c5dfb30f8d05a12c16c26a4c6155c6afc05026c509b8",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/ce6982837ae60ee2d3b5766810f3e390/fixture/README.md",
+      "export_sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+      "sources": [
+        {
+          "sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/ce6982837ae60ee2d3b5766810f3e390/fixture/slug.py",
+      "export_sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+      "sources": [
+        {
+          "sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/ce6982837ae60ee2d3b5766810f3e390/fixture/test_slug.py",
+      "export_sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+      "sources": [
+        {
+          "sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/c9a9742e35aa20ca981dafcb53a7771f/record.json",
+      "export_sha256": "7faf411fd524d73d1e374f946aae1489cb7aa997ffe0d5c3bf2e643901613250",
+      "sources": [
+        {
+          "sha256": "c5ef9cc223e490d992e374900bdabf2a0be61bd309eae3b1945e83bd1bff81d8",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "bf6b9e988c9d8cf5e19eb2378ae06c05ed6a03a88c84c882bd7714ef7778884d",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "3078de0f7deee94742ce26e2b63b3a36d7f914954e5fb6085d468a173c161adc",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/c9a9742e35aa20ca981dafcb53a7771f/receipt-excerpt.json",
+      "export_sha256": "a1912105beffbbef7b88d9de82e53cfb6ecee23e7c709347994a1612d4f4e3cd",
+      "sources": [
+        {
+          "sha256": "ce588f1c044648ef046c08ef718bddc269dc3b01aa020d009c9947cb0c8ee705",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/c9a9742e35aa20ca981dafcb53a7771f/fixture/ISSUE.md",
+      "export_sha256": "2e5354fe9186cc0ea1bcbe3cb00791dd56ac43a6ca8bd3bde985cae79e8b5d12",
+      "sources": [
+        {
+          "sha256": "c0e622110cf07323eb82b593558a279a3fd709387c1b4eba6f7aa7cb240ed4f8",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/c9a9742e35aa20ca981dafcb53a7771f/fixture/README.md",
+      "export_sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+      "sources": [
+        {
+          "sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/c9a9742e35aa20ca981dafcb53a7771f/fixture/slug.py",
+      "export_sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+      "sources": [
+        {
+          "sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/c9a9742e35aa20ca981dafcb53a7771f/fixture/test_slug.py",
+      "export_sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+      "sources": [
+        {
+          "sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/dbf121d88e160700f806a5b9cdfd029a/record.json",
+      "export_sha256": "114977767bdfa3c65494e9a0a3b9b86d3c2f2a296449501d9a9ebdb2696ba539",
+      "sources": [
+        {
+          "sha256": "b2e2e6391d8af4cf7235bcfb91c47f277f5e577f34183b1505e70d0ffc11b231",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "a4b712586ed322f1d373f195f1243d21df26c94bb03416d5a3fcb7ebadd4de74",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "ae83e3ba73f0450f207be94a719466a7553c375ed5bf001bf68f9c3ffeb70047",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/dbf121d88e160700f806a5b9cdfd029a/receipt-excerpt.json",
+      "export_sha256": "c37ce9135506ecee31e25acbc8924b480804ca3735cd4030604596b2c02b53bd",
+      "sources": [
+        {
+          "sha256": "39ae6c10ceef5875d4035c652bc2916b956f40ca585141438e49147da92896ff",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/dbf121d88e160700f806a5b9cdfd029a/transcript-excerpt.json",
+      "export_sha256": "9ccf97a2947094b007b739abd6dcac191d3ce9c3cc409f0aa613bfccabca5ef4",
+      "sources": [
+        {
+          "sha256": "d113227b648452cd3e4eeaba9b9afad8683ce4ceef28667d808019a853aa4cd7",
+          "kind": "agent-stream"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/dbf121d88e160700f806a5b9cdfd029a/fixture/ISSUE.md",
+      "export_sha256": "d19f4a6d2d8b9db9f500dfc51f5c58825cc20e0356014e597b9d3ccc2e15ff88",
+      "sources": [
+        {
+          "sha256": "d19f4a6d2d8b9db9f500dfc51f5c58825cc20e0356014e597b9d3ccc2e15ff88",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/dbf121d88e160700f806a5b9cdfd029a/fixture/README.md",
+      "export_sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+      "sources": [
+        {
+          "sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/dbf121d88e160700f806a5b9cdfd029a/fixture/slug.py",
+      "export_sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+      "sources": [
+        {
+          "sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/dbf121d88e160700f806a5b9cdfd029a/fixture/test_slug.py",
+      "export_sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+      "sources": [
+        {
+          "sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/2079fec58baea69fe52052a55600b143/record.json",
+      "export_sha256": "986f80d8b38ad635f442a7ab65ab906a43c94859f503b4bc7305cc91c59f0f7a",
+      "sources": [
+        {
+          "sha256": "365b538b511abc9613fce06f9e04d7a582a0c9b723c6434a801b58150779641b",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "8f6baa168c7caf2378acd1c2c2424e6344ad173efa453d652713c544b2b54674",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "1387dbd9ace830429cf38c9f5c71d62d0fbe2f889f829dfafc178b9ff9defe3b",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/2079fec58baea69fe52052a55600b143/receipt-excerpt.json",
+      "export_sha256": "5d8218e4bcfef66249b8bef138393b780a789b9ea2799c16059bd0bcfae4f4ca",
+      "sources": [
+        {
+          "sha256": "ae05312192bed34ddf2bab7f6dad7f6362fb8a721d7d39f7ecc521e91a380552",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/2079fec58baea69fe52052a55600b143/transcript-excerpt.json",
+      "export_sha256": "492c6f905a5d9e3f779b6ce0371fe4c276ec1fac1acbbae56c84c0e4412f08c8",
+      "sources": [
+        {
+          "sha256": "8888190b716ddb83c36f4018616ffc0dd6e96ee91bf17870738810068c78f851",
+          "kind": "agent-stream"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/2079fec58baea69fe52052a55600b143/fixture/ISSUE.md",
+      "export_sha256": "cc9c21e1fa0f4d706c154b76f38c4f80292f765667f5879b7751d7db7f3c53f7",
+      "sources": [
+        {
+          "sha256": "cc9c21e1fa0f4d706c154b76f38c4f80292f765667f5879b7751d7db7f3c53f7",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/2079fec58baea69fe52052a55600b143/fixture/README.md",
+      "export_sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+      "sources": [
+        {
+          "sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/2079fec58baea69fe52052a55600b143/fixture/slug.py",
+      "export_sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+      "sources": [
+        {
+          "sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/2079fec58baea69fe52052a55600b143/fixture/test_slug.py",
+      "export_sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+      "sources": [
+        {
+          "sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/193617c165557fb3fd8996f8feb5459a/record.json",
+      "export_sha256": "a587575ea4a8b85fb4fee3b5a3c44355e6e34a277d38953d52ce2a193640810d",
+      "sources": [
+        {
+          "sha256": "0693ad93a717995434ba38771c4181e6ca1ff9043902f33bc876c2eeb568afec",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "883ae506c48d720be05633054a481e421ae3cde36d108599589f1d8496519d3d",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "7bcaeb3c3bdc6b4dcb45e3da1252b20ae8ebefe99456fc8d0e0e56ec7064231b",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/193617c165557fb3fd8996f8feb5459a/receipt-excerpt.json",
+      "export_sha256": "16f8570ee23a3b221dfbd89d8d542cb0477db0d4b4409d89835a2f9cf10a448b",
+      "sources": [
+        {
+          "sha256": "3a78b6c03f0c1f481d88af432593f24e1d2981b32cfd45bd294f8b0347997fe2",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/193617c165557fb3fd8996f8feb5459a/transcript-excerpt.json",
+      "export_sha256": "87466b455202c5885017b9d47f2c71d5d03b90f66858a998eef08c9a551f7b64",
+      "sources": [
+        {
+          "sha256": "837176530cb68935923c3a25685bb5b2ed6ef70cf6a9ea7bcfa11b19f1c1b979",
+          "kind": "agent-stream"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/193617c165557fb3fd8996f8feb5459a/fixture/ISSUE.md",
+      "export_sha256": "a02883b75bc8f7b38b48cd9e4387814aaed0927cea36998e22d9b493e9b4c47a",
+      "sources": [
+        {
+          "sha256": "ec9cdb3f5e62ad0c456af2c2d9109a272723179259cdd9db8b405cb39a6a1d28",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/193617c165557fb3fd8996f8feb5459a/fixture/README.md",
+      "export_sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+      "sources": [
+        {
+          "sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/193617c165557fb3fd8996f8feb5459a/fixture/slug.py",
+      "export_sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+      "sources": [
+        {
+          "sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/193617c165557fb3fd8996f8feb5459a/fixture/test_slug.py",
+      "export_sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+      "sources": [
+        {
+          "sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/afcf19526d2e1c041ed126f49249976a/record.json",
+      "export_sha256": "7de6869c4981d22605d5001bd38ed1c5e7883d8b9dbaa3e167e2827106542dd6",
+      "sources": [
+        {
+          "sha256": "1bf005c14b9f650577bc3e049860defec6e05cb38a855a4423d9767bae079d2f",
+          "kind": "run-metadata"
+        },
+        {
+          "sha256": "b20deb07edf9808e802f4e42343ed4403734fe9cfa0ed264c4c76baecad4a593",
+          "kind": "original-score"
+        },
+        {
+          "sha256": "e53cfb95fb31fbab23f6d7371da0c6bad268c42c791eefa58b0d529f60de347b",
+          "kind": "offline-v3-score"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/afcf19526d2e1c041ed126f49249976a/receipt-excerpt.json",
+      "export_sha256": "cd7e3e0eef052d886fbbdd4431706d1610691f570e0e8630d6eaad3614838092",
+      "sources": [
+        {
+          "sha256": "320ff20b9fcf72ab342c7be401b8b4ba00b726cd7ae0313f7fcca204fae0ceb7",
+          "kind": "jail-receipt"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/afcf19526d2e1c041ed126f49249976a/transcript-excerpt.json",
+      "export_sha256": "d1955ac594c2d2f1dedf86d9680cdaf8cf205d0f59c7f3d34c0d6adab7e5d903",
+      "sources": [
+        {
+          "sha256": "c061244e5878fd1c229964247f9978a5080958fd16fbdec868dc2a3a0eb13b0e",
+          "kind": "agent-stream"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/afcf19526d2e1c041ed126f49249976a/fixture/ISSUE.md",
+      "export_sha256": "4d3830b9c49fac003192c1259fb723af111b1cc424029f2e853585cfbe2f32d6",
+      "sources": [
+        {
+          "sha256": "55e7fec9bbfda91f24dab29357274d61f510ac7a087e625078ae2f704ad2f2d6",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/afcf19526d2e1c041ed126f49249976a/fixture/README.md",
+      "export_sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+      "sources": [
+        {
+          "sha256": "dd44f1d2467209698b9a397fb5298d002504f8d65d982b73145c5ca5f2f44585",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/afcf19526d2e1c041ed126f49249976a/fixture/slug.py",
+      "export_sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+      "sources": [
+        {
+          "sha256": "2773c3101b3a190c1bd321c76504e7b4e1c2767d7f2041d276429f9c9260f8c4",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "runs/afcf19526d2e1c041ed126f49249976a/fixture/test_slug.py",
+      "export_sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+      "sources": [
+        {
+          "sha256": "7f42d68adb09e201b115686b94ff5581955025aea49399a65df4112a9b34dc69",
+          "kind": "frozen-fixture"
+        }
+      ],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "results.json",
+      "export_sha256": "7a54b9540963d6e094922ae3f9dc6cf28eb185d6139cc8a0a81bbf4311e9f91d",
+      "sources": [],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "fixture-checks.json",
+      "export_sha256": "a2864c519521f5d5b15ef7a6cfffe4d5e64d898c1331c7050f47baa60e0868c5",
+      "sources": [],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "replay/exposure-cases.json",
+      "export_sha256": "3adea9b1533ba468f02497aab407b8e9346613a875a6887458fa7fcc4a169856",
+      "sources": [],
+      "transformation": "Redacted exposure inputs; this replays exposure only, not full policy/cleanup scoring."
+    },
+    {
+      "export_path": "replay/common.py",
+      "export_sha256": "45e3a6517a444e1a1dcccbfe58144954bc2d8b734449b776e42e2f5807be2d11",
+      "sources": [
+        {
+          "sha256": "45e3a6517a444e1a1dcccbfe58144954bc2d8b734449b776e42e2f5807be2d11",
+          "kind": "offline-checker-source"
+        }
+      ],
+      "transformation": "verbatim source"
+    },
+    {
+      "export_path": "replay/m1/adapters.py",
+      "export_sha256": "57fc4fb34552587d1ec419acd5efe0ad79c5a8ab3ecef447575507a599690885",
+      "sources": [
+        {
+          "sha256": "57fc4fb34552587d1ec419acd5efe0ad79c5a8ab3ecef447575507a599690885",
+          "kind": "offline-checker-source"
+        }
+      ],
+      "transformation": "verbatim source"
+    },
+    {
+      "export_path": "replay/m1/test_exposure.py",
+      "export_sha256": "4363222369a6faf687f946713aa4f1a6f750555374c58498df32f3b8ac6a3959",
+      "sources": [
+        {
+          "sha256": "4363222369a6faf687f946713aa4f1a6f750555374c58498df32f3b8ac6a3959",
+          "kind": "offline-checker-source"
+        }
+      ],
+      "transformation": "verbatim source"
+    },
+    {
+      "export_path": "replay/m1/__init__.py",
+      "export_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sources": [],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "replay/check_exposure.py",
+      "export_sha256": "9b2fda49cc67787fbef4ccbbcc10cbb1a6ddc64c21b68f288260230bc95904e9",
+      "sources": [],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "verify.py",
+      "export_sha256": "ca671186d672711df4d7c82a9bd77084d2d5936aa304bc5076f32b17c69df8da",
+      "sources": [],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "REDACTION.md",
+      "export_sha256": "3d0b6b105d16f71fe5526cd386b69a7ae33ff918df4a2c31dac4b4c9821d798b",
+      "sources": [],
+      "transformation": "allowlisted fields and path/address replacement"
+    },
+    {
+      "export_path": "README.md",
+      "export_sha256": "40e993e005d9ffb654565359b64d95520b6a3c50f7edcbbd7b9e7671c99fb28f",
+      "sources": [],
+      "transformation": "allowlisted fields and path/address replacement"
+    }
+  ],
+  "self_and_manifest_note": "provenance.json is covered by SHA256SUMS; the manifest is covered by the archive checksum."
+}

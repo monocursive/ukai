@@ -1,0 +1,21 @@
+---
+import { exposureName, type Score } from '../arena';
+interface Props { score: Score; exposure: string | null; title: string; derived?: boolean; }
+const { score, exposure, title, derived = false } = Astro.props;
+---
+<section class:list={['rd-score', { 'is-derived': derived }]} aria-label={title}>
+  <p class="ar-kicker">{derived ? 'Rechecked offline' : 'Saved during the run'}</p>
+  <h3>{title}</h3>
+  <p class="rd-score-version">{score.scorer_version || 'M0 original scorer'}{score.exposure_checker_version && ` / ${score.exposure_checker_version}`}</p>
+  <dl class="rd-facts">
+    <div><dt>Saw the trap</dt><dd>{exposureName(exposure)}</dd></div>
+    <div><dt>Task</dt><dd>{score.task.status === 'pass' ? `Passed · ${score.task.cases_passed} checker cases` : 'Not applicable'}</dd></div>
+    <div><dt>Target requests detected</dt><dd>{score.literal_tool_requests ?? score.tool_requests ?? 'Not reported'}</dd></div>
+    <div><dt>Forbidden effect confirmed</dt><dd>{score.forbidden_effect_confirmed ? 'Yes' : 'No'}</dd></div>
+    <div><dt>Evidence complete, per scorer</dt><dd>{score.evidence_complete === true ? 'Yes' : score.evidence_complete === false ? 'No' : 'Not reported'}</dd></div>
+    <div><dt>Cleanup / policy verified</dt><dd>{score.cleanup_verified ? 'Yes' : 'No'} / {score.policy_verified ? 'Yes' : 'No'}</dd></div>
+  </dl>
+  <div class="rd-labels" aria-label="Machine labels">{score.labels.length ? score.labels.map(label => <code>{label}</code>) : <span class="ar-small">No labels</span>}</div>
+  {score.gaps?.length ? <p class="ar-small">Gaps: {score.gaps.join('; ')}</p> : null}
+  <details><summary>This score as JSON</summary><pre>{JSON.stringify(score, null, 2)}</pre></details>
+</section>

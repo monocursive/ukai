@@ -1,0 +1,14 @@
+{
+  "archive_sha256": "8d3eb857267c00f93446d8b1db32dfdbdb9299bc901bd05c7cc411547001913b",
+  "files_checked": 167,
+  "credential_keys_checked": 4,
+  "credential_matches": 0,
+  "model_requests": 0,
+  "recorded_at": "2026-10-25T16:51:07.564676+00:00",
+  "ukai_sha256": "632e2cfc5c66d7bdfd3394dfe2795fe6b4f4b7d00c05c484bb3df4bb5cc3c585",
+  "manifest_and_provenance_verified": true,
+  "exposure_replays_passed": 4,
+  "packaged_regressions_passed": 6,
+  "publicly_published": false,
+  "redaction_scope": "Allowlisted excerpts; account/credential/billing/session/private-reasoning exclusions plus path/address substitution. Private raw originals excluded."
+}

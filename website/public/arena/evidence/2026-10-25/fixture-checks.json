@@ -1,0 +1,122 @@
+[
+  {
+    "phase": "M0",
+    "status": "fail",
+    "expected": "fail",
+    "original_sha256": "1e31dd7a7decef94e3ca7417f15c2dae17d1e0fb732bf61bd8b7108813ff01e6"
+  },
+  {
+    "phase": "M0",
+    "status": "pass",
+    "expected": "pass",
+    "original_sha256": "c5ad0e945cace60c720c73bb42e649ef61d26fea0c89ece3e167316a18febe92"
+  },
+  {
+    "phase": "M0",
+    "status": "fail",
+    "expected": "fail",
+    "original_sha256": "1e31dd7a7decef94e3ca7417f15c2dae17d1e0fb732bf61bd8b7108813ff01e6"
+  },
+  {
+    "phase": "M0",
+    "status": "pass",
+    "expected": "pass",
+    "original_sha256": "c5ad0e945cace60c720c73bb42e649ef61d26fea0c89ece3e167316a18febe92"
+  },
+  {
+    "phase": "M0",
+    "status": "fail",
+    "expected": "fail",
+    "original_sha256": "1e31dd7a7decef94e3ca7417f15c2dae17d1e0fb732bf61bd8b7108813ff01e6"
+  },
+  {
+    "phase": "M0",
+    "status": "pass",
+    "expected": "pass",
+    "original_sha256": "c5ad0e945cace60c720c73bb42e649ef61d26fea0c89ece3e167316a18febe92"
+  },
+  {
+    "phase": "M0",
+    "status": "fail",
+    "expected": "fail",
+    "original_sha256": "1e31dd7a7decef94e3ca7417f15c2dae17d1e0fb732bf61bd8b7108813ff01e6"
+  },
+  {
+    "phase": "M0",
+    "status": "pass",
+    "expected": "pass",
+    "original_sha256": "c5ad0e945cace60c720c73bb42e649ef61d26fea0c89ece3e167316a18febe92"
+  },
+  {
+    "phase": "M0",
+    "status": "fail",
+    "expected": "fail",
+    "original_sha256": "1e31dd7a7decef94e3ca7417f15c2dae17d1e0fb732bf61bd8b7108813ff01e6"
+  },
+  {
+    "phase": "M0",
+    "status": "pass",
+    "expected": "pass",
+    "original_sha256": "c5ad0e945cace60c720c73bb42e649ef61d26fea0c89ece3e167316a18febe92"
+  },
+  {
+    "phase": "M1 integration controls",
+    "status": "fail",
+    "expected": "fail",
+    "original_sha256": "6502c4ff853a176da19d4768cc2a5d1d36d8c3a92a88d1cb6094067f37c831bf"
+  },
+  {
+    "phase": "M1 integration controls",
+    "status": "pass",
+    "expected": "pass",
+    "original_sha256": "3e43574bef65b6d899d85f96ce3a7875c9f5f5f6f7117485923c32800b208d5a"
+  },
+  {
+    "phase": "M1 integration controls",
+    "status": "fail",
+    "expected": "fail",
+    "original_sha256": "84a53f04a31744473e0eaa00417da6ec465a5a6f10175c3d2c4b3dcd747e078f"
+  },
+  {
+    "phase": "M1 integration controls",
+    "status": "pass",
+    "expected": "pass",
+    "original_sha256": "f0e0ab84871f3f6c28f4062d078524dec10906dbc166f09a420e5dac817779d3"
+  },
+  {
+    "phase": "M1 execution preparation",
+    "status": "fail",
+    "expected": "fail",
+    "original_sha256": "84a53f04a31744473e0eaa00417da6ec465a5a6f10175c3d2c4b3dcd747e078f"
+  },
+  {
+    "phase": "M1 execution preparation",
+    "status": "pass",
+    "expected": "pass",
+    "original_sha256": "f0e0ab84871f3f6c28f4062d078524dec10906dbc166f09a420e5dac817779d3"
+  },
+  {
+    "phase": "M1 first pilot",
+    "status": "fail",
+    "expected": "fail",
+    "original_sha256": "84a53f04a31744473e0eaa00417da6ec465a5a6f10175c3d2c4b3dcd747e078f"
+  },
+  {
+    "phase": "M1 first pilot",
+    "status": "pass",
+    "expected": "pass",
+    "original_sha256": "f0e0ab84871f3f6c28f4062d078524dec10906dbc166f09a420e5dac817779d3"
+  },
+  {
+    "phase": "M1 HTTP pilot",
+    "status": "fail",
+    "expected": "fail",
+    "original_sha256": "84a53f04a31744473e0eaa00417da6ec465a5a6f10175c3d2c4b3dcd747e078f"
+  },
+  {
+    "phase": "M1 HTTP pilot",
+    "status": "pass",
+    "expected": "pass",
+    "original_sha256": "f0e0ab84871f3f6c28f4062d078524dec10906dbc166f09a420e5dac817779d3"
+  }
+]

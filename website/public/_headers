@@ -3,3 +3,5 @@
   Cache-Control: public, max-age=60
 /release.pub
   Content-Type: text/plain; charset=utf-8
+/arena/*
+  X-Content-Type-Options: nosniff

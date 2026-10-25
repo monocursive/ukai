@@ -1,0 +1,15 @@
+---
+import Icon from './Icon.astro';
+import type { Step } from '../../arena';
+interface Props { steps: Step[]; label: string; night?: boolean }
+const { steps, label, night = false } = Astro.props;
+---
+<ol class:list={['ar-strip', { 'is-night': night }]} aria-label={label}>
+  {steps.map((step, i) => (
+    <li class:list={['ar-step', `is-${step.kind}`, { 'is-fail': !step.ok }]} style={`--i:${i}`}>
+      <Icon name={step.kind} size={14} />
+      <span class="ar-step-label">{step.label}</span>
+      {!step.ok && <span class="ar-step-flag" title="The call returned an error">✕</span>}
+    </li>
+  ))}
+</ol>

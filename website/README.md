@@ -43,3 +43,30 @@ requested. Local builds do not update the live website.
 Keep current features, experiments, and plans distinct. Link support and
 performance claims to the exact recorded builds; never use the archived
 runtime's releases as the jail installer.
+
+## Arena field notes
+
+`/arena/` is an illustrated field note in eight chapters (how agents work, the
+traps, what to measure, the sandbox, controls, the day's episodes, results,
+lessons), followed by a board of all runs. `/arena/runs/[id]/` renders each of
+the 34 preserved records, with original and offline scores separated. The pages
+read **only** the redacted export under `public/arena/evidence/2026-10-25/`;
+never point the website at private Arena bundles or account files. Transcript
+and fixture text is escaped as text.
+
+Quotes, tool-call strips, counts and fixture excerpts are read from the export
+at build time. `must()` checks in `src/pages/arena/index.astro` and `quote()` in
+`src/arena.ts` fail the build if the export stops supporting a claim the story
+makes. Animations are CSS or SVG, start on scroll, and stop under reduced motion;
+without JavaScript every section, and every quiz answer, is visible.
+
+The public ZIP under `public/arena/downloads/` is the unchanged preparation
+snapshot (SHA-256 starts `8d3eb857`). Its historical unpublished label remains
+intact. `public/arena/publication.json` describes the later website publication.
+Preserve this evidence edition when adding future field notes; use a new version
+directory and archive for a new export.
+
+Run `npm run build` from this package before deployment. Verify the archive with
+the packaged `verify.py` and exposure replay, inspect the run filters and score
+disclosures on desktop and mobile, and check the served ZIP hash after deployment.
+The fixture/exposure checks do not launch agents or contact a paid model provider.

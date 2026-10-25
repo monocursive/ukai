@@ -1,0 +1,41 @@
+---
+import { batches, runs, agentName, kindName, scenarioName, runUrl, clock, time, isAgent, scoreChanged, outcome } from '../../arena';
+const phaseName = (phase: string) => ({ 'M1 integration': 'M1 setup', 'M1 execution preparation': 'M1 prep', 'M1 first pilot': 'M1 pilot', 'M1 HTTP pilot': 'M1 HTTP' })[phase] || phase;
+const stopName = (stop: string) => stop.includes('--max-turns') ? 'Refused to start' : stop === 'source_exposure_missing' ? 'Stopped · exposure' : 'Stopped · evidence';
+const shortKind = (kind: string) => ({ agent_clean: 'clean', agent_poisoned: 'trap', control_allow: 'allow', control_deny: 'deny' })[kind] || kind;
+const tileName = (run: typeof runs[number]) => `${agentName(run.agent)}, ${kindName(run.kind).toLowerCase()}, ${scenarioName(run.scenario)} v${run.scenario_version}, ${time(run.started_at_utc)} UTC. ${outcome(run)}.`;
+---
+<div class="ar-board-tools" role="group" aria-label="Highlight runs" data-board-filters hidden>
+  <button type="button" data-filter="all" aria-pressed="true">All <span>{runs.length}</span></button>
+  <button type="button" data-filter="agent" aria-pressed="false">Agent runs <span>{runs.filter(isAgent).length}</span></button>
+  <button type="button" data-filter="control" aria-pressed="false">Controls <span>{runs.filter(run => !isAgent(run)).length}</span></button>
+  <button type="button" data-filter="claude" aria-pressed="false">Claude Code <span>{runs.filter(run => run.agent === 'claude').length}</span></button>
+  <button type="button" data-filter="codex" aria-pressed="false">Codex <span>{runs.filter(run => run.agent === 'codex').length}</span></button>
+</div>
+<div class="ar-board" data-board>
+  {batches.map((batch, b) => (
+    <section class="ar-batch" style={`--b:${b}`} aria-label={`Batch at ${clock(batch.start)} UTC, ${batch.phase}`}>
+      <header><time datetime={batch.start}>{clock(batch.start)}</time><span>{phaseName(batch.phase)}</span></header>
+      <ol>
+        {batch.runs.map((run, i) => (
+          <li style={`--i:${i}`}>
+            <a class:list={['ar-tile', `is-${run.kind}`]} href={runUrl(run)} data-tags={`${isAgent(run) ? 'agent' : 'control'} ${run.agent || 'script'}`} aria-label={tileName(run)} title={tileName(run)}>
+              <span>{run.agent === 'claude' ? 'Claude' : run.agent === 'codex' ? 'Codex' : 'script'}</span>
+              <small>{shortKind(run.kind)}</small>
+              {scoreChanged(run) && <i class="ar-tile-mark" title="Rescored offline">↻</i>}
+            </a>
+          </li>
+        ))}
+        {batch.runs.length === 0 && <li class="ar-tile is-empty">no runs</li>}
+      </ol>
+      <footer class:list={{ 'is-stopped': batch.stop }}>{batch.stop ? stopName(batch.stop) : 'Complete'}</footer>
+    </section>
+  ))}
+</div>
+<ul class="ar-legend" aria-label="Legend">
+  <li><i class="ar-swatch is-agent_clean"></i>Clean task</li>
+  <li><i class="ar-swatch is-agent_poisoned"></i>Task with a trap</li>
+  <li><i class="ar-swatch is-control_allow"></i>Allow control</li>
+  <li><i class="ar-swatch is-control_deny"></i>Deny control</li>
+  <li><span class="ar-legend-mark">↻</span>Rescored offline</li>
+</ul>

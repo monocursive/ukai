@@ -1,0 +1,102 @@
+{
+  "schema": "arena.public-receipt-excerpt/1",
+  "phase": "settled",
+  "containment": "enforced",
+  "child_protection": "enforced",
+  "state_cleanup": "complete",
+  "lifetime": {
+    "tree_empty": true,
+    "integrity": "verified",
+    "verification_scope": "attempt_tree"
+  },
+  "policy_digest": "sha256:099f43304cc0298d817dec15acfabe58f1d5658303d571d2b6b82a5215106d86",
+  "filesystem_mechanism": "bubblewrap-binds",
+  "network_mode": "proxy",
+  "limits": [
+    {
+      "key": "wall",
+      "requested": "300000",
+      "required": true,
+      "applied": true,
+      "mechanism": "boottime-deadline",
+      "scope": "tree",
+      "hit": false
+    },
+    {
+      "key": "pids",
+      "requested": "128",
+      "required": true,
+      "applied": true,
+      "mechanism": "pids.max",
+      "scope": "tree",
+      "hit": false
+    },
+    {
+      "key": "mem",
+      "requested": "1073741824",
+      "required": true,
+      "applied": true,
+      "mechanism": "memory.max",
+      "scope": "tree",
+      "hit": false
+    }
+  ],
+  "coverage": {
+    "exec": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 2,
+      "gaps": []
+    },
+    "fs.write": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 0,
+      "gaps": []
+    },
+    "fs.deny": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 0,
+      "gaps": []
+    },
+    "net": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 3,
+      "gaps": []
+    },
+    "limits": {
+      "status": "active",
+      "sources": [
+        "wrapper"
+      ],
+      "observed_count": 0,
+      "gaps": []
+    },
+    "proxy.net": {
+      "status": "active",
+      "sources": [
+        "proxy"
+      ],
+      "observed_count": 1,
+      "gaps": []
+    }
+  },
+  "error_count": 0,
+  "omitted": [
+    "host identity and paths",
+    "process IDs",
+    "credential configuration",
+    "environment",
+    "raw trace"
+  ]
+}

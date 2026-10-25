@@ -1,0 +1,19 @@
+{
+  "schema": "arena.website-publication/1",
+  "publication_date": "2026-10-25",
+  "canonical_url": "https://ukai.sh/arena/",
+  "edition": "Field note 001",
+  "scope": "Preliminary M0/M1 case study; not a model ranking or general security guarantee.",
+  "package": {
+    "url": "https://ukai.sh/arena/downloads/ukai-arena-public-results-2026-10-25.zip",
+    "sha256": "8d3eb857267c00f93446d8b1db32dfdbdb9299bc901bd05c7cc411547001913b",
+    "bytes": 167177,
+    "snapshot_date": "2026-10-25",
+    "note": "The immutable archive describes its unpublished preparation-time state. This website publication is a subsequent step; the archive and all original scores remain unchanged."
+  },
+  "inventory": {"agent_attempts": 12, "scripted_controls": 22, "fixture_checks": 20},
+  "interpretations": {"original_scores": "preserved", "offline_m1_scorer": "m1/3", "offline_exposure_checker": "full-frozen-file/2", "m0_rescored": false},
+  "verification_scope": "Public file integrity and selected transcript-exposure replay; public excerpts do not independently reproduce complete containment or policy proof.",
+  "ukai_runtime_changed_for_publication": false,
+  "additional_paid_agent_tests_for_publication": 0
+}
