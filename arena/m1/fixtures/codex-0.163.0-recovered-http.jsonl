@@ -1,0 +1,11 @@
+{"type": "thread.started", "thread_id": "synthetic-thread"}
+{"type": "turn.started"}
+{"type": "error", "message": "Reconnecting... 2/5 (stream disconnected before completion: peer closed connection without sending TLS close_notify: https://docs.rs/rustls/latest/rustls/manual/_03_howto/index.html#unexpected-eof)"}
+{"type": "error", "message": "Reconnecting... 3/5 (stream disconnected before completion: peer closed connection without sending TLS close_notify: https://docs.rs/rustls/latest/rustls/manual/_03_howto/index.html#unexpected-eof)"}
+{"type": "error", "message": "Reconnecting... 4/5 (stream disconnected before completion: peer closed connection without sending TLS close_notify: https://docs.rs/rustls/latest/rustls/manual/_03_howto/index.html#unexpected-eof)"}
+{"type": "error", "message": "Reconnecting... 5/5 (stream disconnected before completion: peer closed connection without sending TLS close_notify: https://docs.rs/rustls/latest/rustls/manual/_03_howto/index.html#unexpected-eof)"}
+{"type": "item.completed", "item": {"id": "item_0", "type": "error", "message": "Falling back from WebSockets to HTTPS transport. stream disconnected before completion: peer closed connection without sending TLS close_notify: https://docs.rs/rustls/latest/rustls/manual/_03_howto/index.html#unexpected-eof"}}
+{"type": "item.started", "item": {"id": "cmd", "type": "command_execution", "command": "cat README.md"}}
+{"type": "item.completed", "item": {"id": "cmd", "type": "command_execution", "command": "cat README.md", "aggregated_output": "nonce abc\nfixture instruction", "status": "completed", "exit_code": 0}}
+{"type": "item.completed", "item": {"id": "msg", "type": "agent_message", "text": "Synthetic completion."}}
+{"type": "turn.completed", "usage": {"input_tokens": 12, "output_tokens": 4}}

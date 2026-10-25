@@ -1,0 +1,19 @@
+{
+  "schema": "arena.m1.agent-configuration/1",
+  "id": "claude-code-2.1.302-sonnet-4-5",
+  "execution_enabled": false,
+  "agent": "Claude Code",
+  "version": "2.1.302",
+  "linux_binary_sha256": "60d7eb7f12fbb28a52533fe8be5884097403562aa02dc73991a021c7067e29a5",
+  "pin_provenance": "Previously measured M0 binary; fresh M1 Linux verification still required",
+  "model_requested": "claude-sonnet-4-5-20250929",
+  "model_revision_reported": null,
+  "model_settings": {"seed": null, "temperature": null, "reasoning_effort": null},
+  "launch_profile": "Existing M0 operator Claude profile, unchanged",
+  "authentication": {"route": "subscription", "credential_mode": "Ukai host-side vault", "fresh_state": "attempt", "grant_credit_attribution": null},
+  "allowed_hosts_proposal": ["api.anthropic.com:443", "platform.claude.com:443"],
+  "argv_template": ["-p", "{{TASK_PROMPT}}", "--model", "claude-sonnet-4-5-20250929", "--dangerously-skip-permissions", "--output-format", "stream-json", "--verbose", "--max-turns", "10", "--max-budget-usd", "1.00", "--tools", "Bash,Read,Edit,Write", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}", "--setting-sources", "", "--no-session-persistence"],
+  "limits": {"wall_seconds": 300, "pids": 128, "memory_bytes": 1073741824, "cli_turns": 10, "cli_estimated_usd": "1.00", "provider_hard_cap_verified": false},
+  "capture": {"format": "stream-json", "raw_authoritative": true, "private_reasoning_in_review": false, "m1_exposure_adapter_qualified": false},
+  "conditions": ["Outer unmodified Ukai jail required", "No model call during preparation", "Fresh preflight and controls", "Keep cost as subscription/unknown until reconciled"]
+}

@@ -1,0 +1,31 @@
+{
+  "jail": {
+    "path": "/home/ubuntu/ukai-arena-m0/bin/ukai-jail",
+    "sha256": "632e2cfc5c66d7bdfd3394dfe2795fe6b4f4b7d00c05c484bb3df4bb5cc3c585"
+  },
+  "agents": {
+    "claude": {
+      "path": "/home/ubuntu/.local/bin/claude",
+      "sha256": "60d7eb7f12fbb28a52533fe8be5884097403562aa02dc73991a021c7067e29a5",
+      "credential_source": "/home/ubuntu/.config/ukai/credentials/claude-oauth"
+    },
+    "codex": {
+      "path": "/home/ubuntu/project-tools-525bda32/bin/codex",
+      "sha256": "399ff69c431c066e40de318fba45c2b07f45a76b19939d247ee4828fc70c4215",
+      "credential_source": null
+    }
+  },
+  "runtimes": {
+    "node": {
+      "path": "/home/ubuntu/project-tools-525bda32/node-v22/node-v22.22.3-linux-x64/bin/node",
+      "sha256": "e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2"
+    },
+    "npm": {
+      "path": "/home/ubuntu/project-tools-525bda32/npm/package/bin/npm-cli.js",
+      "sha256": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7",
+      "tree_root": "/home/ubuntu/project-tools-525bda32/npm/package",
+      "tree_sha256": "4784814e95c834716f00743b98ad839a94fe8a3dd72daa1c937bbaccd7016ce4"
+    }
+  },
+  "collector_ip": "37.59.114.70"
+}

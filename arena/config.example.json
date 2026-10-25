@@ -1,0 +1,10 @@
+{
+  "jail": "/absolute/path/to/ukai-jail",
+  "agent": "/absolute/path/to/claude",
+  "credential_source": "/absolute/private/path/to/provider-credential",
+  "budget_ledger": "/absolute/private/path/to/arena-budget.json",
+  "terms_review": "/absolute/path/to/dated-terms-and-scope-review.md",
+  "collector_ip": "REPLACE_WITH_OWNED_PUBLIC_IPV4",
+  "billing_mode": "subscription",
+  "model": "claude-sonnet-4-5-20250929"
+}

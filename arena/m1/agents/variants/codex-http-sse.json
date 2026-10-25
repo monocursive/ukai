@@ -1,0 +1,117 @@
+{
+  "schema": "arena.m1.agent-configuration/1",
+  "id": "codex-0.163.0-gpt-6-astra-xhigh-http-sse-v1",
+  "execution_enabled": false,
+  "agent": "Codex CLI",
+  "version": "0.163.0",
+  "linux_binary_sha256": null,
+  "pin_provenance": "Version and flags checked against installed macOS CLI; Linux artifact pin and launch are unqualified",
+  "local_reference": {
+    "platform": "aarch64-apple-darwin",
+    "native_binary_sha256": "8813367285524ac798dd96d1b071aea30d58708c7226fd236cd275cf1cfdee31"
+  },
+  "model_requested": "gpt-6-astra",
+  "model_selection_source": "Existing local Codex selected setting and model cache; API account access is NOT verified",
+  "model_revision_reported": null,
+  "model_settings": {
+    "seed": null,
+    "temperature": null,
+    "reasoning_effort": "xhigh"
+  },
+  "launch_profile_template": "codex-api.toml.in",
+  "authentication": {
+    "route_proposal": "OpenAI API",
+    "credential_mode_proposal": "Ukai host-side vault",
+    "credential_configured": false,
+    "credential_source": null,
+    "fresh_state": "attempt",
+    "copy_auth_json": false,
+    "anthropic_grant_covers_this_route": null
+  },
+  "allowed_hosts_proposal": [
+    "api.openai.com:443"
+  ],
+  "argv_template": [
+    "exec",
+    "--json",
+    "--ephemeral",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "--color",
+    "never",
+    "--model",
+    "gpt-6-astra",
+    "-c",
+    "model_reasoning_effort=\"xhigh\"",
+    "-c",
+    "web_search=\"disabled\"",
+    "-c",
+    "model_provider=\"arena_openai_http\"",
+    "-c",
+    "model_providers.arena_openai_http.name=\"Arena OpenAI HTTPS\"",
+    "-c",
+    "model_providers.arena_openai_http.base_url=\"https://api.openai.com/v1\"",
+    "-c",
+    "model_providers.arena_openai_http.env_key=\"CODEX_API_KEY\"",
+    "-c",
+    "model_providers.arena_openai_http.wire_api=\"responses\"",
+    "-c",
+    "model_providers.arena_openai_http.requires_openai_auth=false",
+    "-c",
+    "model_providers.arena_openai_http.supports_websockets=false",
+    "-c",
+    "model_providers.arena_openai_http.request_max_retries=0",
+    "-c",
+    "model_providers.arena_openai_http.stream_max_retries=0",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "--cd",
+    "{{WORKSPACE}}",
+    "{{TASK_PROMPT}}"
+  ],
+  "limits": {
+    "wall_seconds": 300,
+    "pids": 128,
+    "memory_bytes": 1073741824,
+    "cli_turns": null,
+    "cli_estimated_usd": null,
+    "provider_hard_cap_verified": false
+  },
+  "capture": {
+    "format": "exec-jsonl",
+    "raw_authoritative": true,
+    "command_request": "item.started/command_execution",
+    "command_result": "item.completed/command_execution correlated by item.id; retain exit_code/status/aggregated_output",
+    "message": "item.completed/agent_message",
+    "usage": "turn.completed/usage",
+    "failure": "turn.failed, unknown errors or incomplete stream; only the qualified recovered pre-tool fallback prefix may be a referenced warning",
+    "unknown_variants": "retain raw and mark coverage incomplete",
+    "private_reasoning_in_review": false,
+    "m1_exposure_adapter_qualified": false
+  },
+  "conditions": [
+    "Template is not runnable by the M0 runner",
+    "Outer unmodified Ukai jail required before using bypass flag",
+    "Pin the Linux native binary itself, not only the npm wrapper",
+    "Fresh empty CODEX_HOME; no account cache, skills, MCP servers or project hooks imported",
+    "Resolve model access without substituting a moving default",
+    "Verify vault placeholder/header substitution and process binding on the exact installed build",
+    "No verified CLI turn/cost ceiling: do not claim matched turn budgets with Claude",
+    "Freeze explicitly bounded account funding before any model run",
+    "Explicit HTTP/SSE provider with existing host-vault CODEX_API_KEY placeholder; no personal auth cache",
+    "HTTP request and SSE stream retries disabled; fresh paid qualification still required"
+  ],
+  "documentation": [
+    "https://learn.chatgpt.com/docs/non-interactive-mode",
+    "https://learn.chatgpt.com/docs/developer-commands#codex-exec",
+    "https://learn.chatgpt.com/docs/config-file/config-reference",
+    "https://learn.chatgpt.com/docs/config-file/config-advanced"
+  ],
+  "transport": {
+    "provider_id": "arena_openai_http",
+    "wire_api": "responses",
+    "supports_websockets": false,
+    "request_max_retries": 0,
+    "stream_max_retries": 0,
+    "qualification": "pending_offline_probe; live provider route not yet tested"
+  }
+}

@@ -1,0 +1,19 @@
+# Preparation template only. Do not install until the exact Linux binary,
+# account route and budget are qualified. Never copy auth.json into a fixture.
+name = "codex"
+jail = "agent"
+state_var = "CODEX_HOME"
+home_is_state = true
+state = "attempt"
+credentials_one_of = ["openai-api"]
+
+[credentials.openai-api]
+mode = "vault"
+source = "{{HOST_ONLY_API_KEY_FILE}}"
+env = "CODEX_API_KEY"
+hosts = ["https://api.openai.com"]
+header = { name = "authorization", prefix = "Bearer " }
+binaries = ["@program"]
+
+[network]
+allow = ["api.openai.com"]
