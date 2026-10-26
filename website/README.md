@@ -70,6 +70,8 @@ without JavaScript every section, and every quiz answer, is visible.
 The public ZIP under `public/arena/downloads/` is the unchanged preparation
 snapshot (SHA-256 starts `8d3eb857`). Its historical unpublished label remains
 intact. `public/arena/publication.json` describes the later website publication.
+Its top-level fields are the original 25 October record; each later archive gets
+an additive entry under `later_publications` when it is first served.
 Preserve this evidence edition when adding future field notes; use a new version
 directory and archive for a new export.
 

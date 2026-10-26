@@ -15,5 +15,44 @@
   "interpretations": {"original_scores": "preserved", "offline_m1_scorer": "m1/3", "offline_exposure_checker": "full-frozen-file/2", "m0_rescored": false},
   "verification_scope": "Public file integrity and selected transcript-exposure replay; public excerpts do not independently reproduce complete containment or policy proof.",
   "ukai_runtime_changed_for_publication": false,
-  "additional_paid_agent_tests_for_publication": 0
+  "additional_paid_agent_tests_for_publication": 0,
+  "later_publications_note": "Additive entries, oldest first. The fields above are the original 25 October record and stay as written.",
+  "later_publications": [
+    {
+      "publication_date": "2026-10-26",
+      "canonical_url": "https://ukai.sh/arena/#boundary",
+      "edition": "Field note 001, 26 October update",
+      "scope": "Earlier 26 October boundary-evaluation export: explicitly requested agent boundary probes and scripted controls. Kept unchanged next to the later workflow export, which the page reads; not injection samples, a model ranking, a rate or a general security guarantee.",
+      "package": {
+        "url": "https://ukai.sh/arena/downloads/ukai-arena-boundary-evaluation-2026-10-26.zip",
+        "sha256": "d4cfc244bc99d86a0a0527101dea05367f8e7777b3b8355ec107b6beb7f689bb",
+        "bytes": 69889,
+        "snapshot_date": "2026-10-26",
+        "note": "The immutable archive describes its unpublished preparation-time state. It was first served by the website deployment of commit 9788506c8 on 26 October 2026, and this entry was added afterwards; the archive and all original scores remain unchanged."
+      },
+      "inventory": {"agent_boundary_probes": 2, "agent_workflow_attempts": 0, "scripted_controls": 15},
+      "interpretations": {"original_scores": "preserved", "scorers": ["boundary-probe/1", "boundary-suite/1"], "attribution": "attempt-level; no tool-to-proxy process link"},
+      "verification_scope": "Public file integrity and a narrow consistency replay of curated excerpts (verify.py); public excerpts do not independently reproduce complete containment or policy proof, which needs the private originals.",
+      "ukai_runtime_changed_for_publication": false,
+      "additional_paid_agent_tests_for_publication": 0
+    },
+    {
+      "publication_date": "2026-10-26",
+      "canonical_url": "https://ukai.sh/arena/#boundary",
+      "edition": "Field note 001, 26 October update",
+      "scope": "26 October boundary-enforcement and workflow-containment records: explicitly requested agent boundary probes, Claude Code install workflows and scripted controls. Attempt-level attribution only; not injection samples, a model ranking, a rate or a general security guarantee.",
+      "package": {
+        "url": "https://ukai.sh/arena/downloads/ukai-arena-containment-2026-10-26-v2.zip",
+        "sha256": "260a7c248716f29764fe56bebb4409e681e9e384f4ba698890ff5e29d7964a2c",
+        "bytes": 96853,
+        "snapshot_date": "2026-10-26",
+        "note": "The immutable archive describes its unpublished preparation-time state. It was first served by the website deployment of commit 9788506c8 on 26 October 2026, and this entry was added afterwards; the archive and all original scores remain unchanged."
+      },
+      "inventory": {"agent_boundary_probes": 2, "agent_workflow_attempts": 2, "scripted_controls": 18},
+      "interpretations": {"original_scores": "preserved", "scorers": ["boundary-probe/1", "boundary-suite/1", "install-boundary/2"], "attribution": "attempt-level; no tool-to-proxy process link", "install_boundary_2": "additive offline rescore; reproduces both install-boundary/1 verdicts, which stay preserved"},
+      "verification_scope": "Public file integrity and a narrow consistency replay of curated excerpts (verify.py); public excerpts do not independently reproduce complete containment or policy proof, which needs the private originals.",
+      "ukai_runtime_changed_for_publication": false,
+      "additional_paid_agent_tests_for_publication": 0
+    }
+  ]
 }
