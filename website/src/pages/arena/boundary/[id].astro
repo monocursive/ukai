@@ -1,0 +1,135 @@
+---
+import Site from '../../../layouts/Site.astro';
+import Icon from '../../../components/arena/Icon.astro';
+import '../../../styles/arena.css';
+import { boundaryRuns, boundaryRecord, boundaryTranscript, boundaryTrace, boundaryCollector, boundaryReceipt, boundaryEvidenceBase, boundaryUrl, isProbe, agentLabel, familyName, outcomeName, type BoundaryRun } from '../../../arena_boundary';
+import { time } from '../../../arena';
+export function getStaticPaths() { return boundaryRuns.map(run => ({ params: { id: run.run_id }, props: { run } })); }
+const { run } = Astro.props as { run: BoundaryRun };
+const record = boundaryRecord(run);
+const transcript = boundaryTranscript(run);
+const trace = boundaryTrace(run);
+const collector = boundaryCollector(run);
+const receipt = boundaryReceipt(run);
+const base = `${boundaryEvidenceBase}/runs/${run.run_id}`;
+const index = boundaryRuns.findIndex(item => item.run_id === run.run_id);
+const previous = boundaryRuns[index - 1], next = boundaryRuns[index + 1];
+const probe = isProbe(run);
+const workflow = run.group === 'agent_workflow';
+const agentRun = probe || workflow;
+const denies = trace.proxy_results_for_collector.filter(row => row.decision === 'deny');
+const allows = trace.proxy_results_for_collector.filter(row => row.decision === 'allow');
+const delivered = collector.rows.some(row => row.canary_match === true);
+const uploadCall = transcript?.calls.find(call => typeof call.input.command === 'string' && String(call.input.command).includes(workflow ? 'npm ci ' : 'curl'));
+const wall = receipt.limits.find(limit => limit.key === 'wall');
+const positiveCase = !isProbe(run) && (['allow', 'short', 'clean'].includes(run.variant || '') || (!run.variant && run.kind === 'control_allow'));
+const title = workflow ? `${agentLabel(run.agent)} · ${run.kind === 'agent_workflow_clean' ? 'clean' : 'dependency'} workflow` : probe ? `${agentLabel(run.agent)} · boundary probe` : `${run.suite_label || (run.kind === 'control_allow' ? 'Allow control' : 'Deny control')} · ${familyName(run.family)}`;
+const positive = probe || ['allow', 'short', 'clean'].includes(run.variant || '') || (!run.variant && run.kind === 'control_allow');
+const badge = workflow ? 'workflow' : probe ? 'probe' : (run.variant || (run.kind === 'control_allow' ? 'allow' : 'deny'));
+
+// Four layers, kept apart on purpose: what was asked, what the tool reported, what Ukai decided, what we checked.
+const layers = [
+  { name: 'Agent request', agentRun: true, state: agentRun ? (uploadCall ? 'yes' : 'unknown') : 'none',
+    head: agentRun ? (uploadCall ? (workflow ? '1 install command' : '1 upload command') : 'No recognized request') : 'Fixed script',
+    body: agentRun ? (uploadCall ? `Tool: ${uploadCall.tool}. Original stream line ${uploadCall.request_ref?.line ?? '?'}.` : 'The transcript shows no matching tool request.') : 'No model. The frozen command below ran exactly as pinned.' },
+  { name: 'Reported result', agentRun: true, state: agentRun ? (uploadCall ? (uploadCall.success ? (workflow ? 'yes' : 'unknown') : (workflow ? 'no' : 'yes')) : 'none') : (record.exit_code === 0 ? 'yes' : 'no'),
+    head: agentRun ? (uploadCall ? (uploadCall.success ? 'Reported success' : 'Reported error') : 'None') : `Exit ${record.exit_code ?? 'none'}`,
+    body: agentRun ? (workflow ? 'The npm result shown to the agent. Success here is separate from the task checker and the proxy evidence.' : 'What the agent was shown. A curl error alone proves nothing about the boundary.') : (record.family === 'read' || record.family === 'write' ? 'A failed command is reported evidence, never promoted to a kernel decision.' : 'The child process exit status, recorded by the controller.') },
+  { name: 'Ukai decision', agentRun: true,
+    state: denies.length ? 'yes' : (record.wall_limit_hit ? 'yes' : (allows.length ? 'none' : (record.family === 'read' || record.family === 'write' ? 'unknown' : 'none'))),
+    head: denies.length ? `${denies.length} × host_not_allowed` : record.wall_limit_hit ? 'Wall limit hit' : allows.length ? `${allows.length} × allowed` : record.policy?.status === 'granted' ? 'Grant applied' : record.policy?.status === 'not_granted' ? 'No grant' : 'Not applicable',
+    body: denies.length ? `Proxy result for the collector authority in this attempt (trace line ${denies.map(d => d.line).join(', ')}).` : record.wall_limit_hit ? `Receipt: wall limit applied and hit (${wall?.mechanism}).` : allows.length ? 'The destination was granted on purpose for this allow control.' : record.family === 'read' || record.family === 'write' ? 'Mounts and grants verified from the receipt and policy snapshot; filesystem outcomes have weaker attribution than proxy denials.' : 'No proxy decision was expected for this case.' },
+  { name: 'Checked effect', agentRun: true, state: delivered ? (positiveCase ? 'yes' : 'no') : (record.effect?.status === 'observed' ? (positiveCase ? 'yes' : 'no') : 'yes'),
+    head: delivered ? 'Canary received' : record.effect?.status === 'observed' ? (record.effect.evidence?.[0] || 'Effect observed') : 'No forbidden effect',
+    body: delivered ? `Collector row(s) ${collector.rows.filter(r => r.canary_match).map(r => r.line).join(', ')}: body hash and match flag only.` : record.family === 'write' ? `Controller-side bytes after settlement: ${record.post_state?.protected_changed ? 'changed' : 'unchanged'}.` : record.family === 'read' ? (record.effect?.status === 'observed' ? 'The expected content hash came back.' : 'The expected content hash did not come back.') : 'Nothing matching this run’s unique token reached the owned collector.' },
+];
+---
+<Site title={`${title} — Ukai Arena boundary record`} description={`${record.phase}. ${record.question}`}>
+  <article class="rd container">
+    <a class="rd-back" href="/arena/#boundary">← Boundary evaluation</a>
+    <header class="rd-header">
+      <div>
+        <p class="ar-kicker">{record.phase} · 26 Oct 2026 · <time datetime={run.started_at_utc}>{time(run.started_at_utc)} UTC</time></p>
+        <h1>{agentRun ? agentLabel(run.agent) : (run.suite_label || run.control_label || 'Scripted')}<br /><em>{workflow ? (run.kind === 'agent_workflow_clean' ? 'clean install' : 'dependency install') : probe ? 'boundary probe' : familyName(run.family).toLowerCase() + (run.variant ? ` · ${run.variant}` : run.kind === 'control_allow' ? ' · allow' : ' · deny')}</em></h1>
+        <p class="rd-sub">{workflow ? 'Useful agent work · local dependency · not an injection sample' : probe ? 'Explicitly requested upload · not an injection sample' : 'Fixed scripted control · not a model attempt'}{record.limits_profile && ` · limits: ${record.limits_profile}`}</p>
+        <p class="rd-id">Run {run.run_id}</p>
+      </div>
+      <span class:list={['rd-kind', agentRun ? 'is-agent_clean' : positive ? 'is-control_allow' : 'is-control_deny']} aria-hidden="true">{badge}</span>
+    </header>
+
+    <section class="rd-block" aria-labelledby="frame-title">
+      <h2 id="frame-title">Question, conditions, outcome</h2>
+      <dl class="rd-facts">
+        <div><dt>Question</dt><dd>{record.question}</dd></div>
+        <div><dt>Tested conditions</dt><dd>{record.tested_conditions}</dd></div>
+        <div><dt>Actual outcome</dt><dd>{outcomeName(record.terminal ?? record.labels[0] ?? null)}{record.labels.length > 1 && ` · ${record.labels.slice(1).join(', ')}`}</dd></div>
+        <div><dt>Claim supported</dt><dd>{record.claim_supported}</dd></div>
+        <div><dt>Limitation</dt><dd>{record.limitation}</dd></div>
+      </dl>
+    </section>
+
+    <ul class="rd-gates is-four" aria-label="Four layers of evidence">
+      {layers.map(layer => <li class={`is-${layer.state}`}><span class="rd-gate-q">{layer.name}</span><strong>{layer.state === 'yes' && <Icon name="check" size={20} />}{layer.head}</strong><p>{layer.body}</p></li>)}
+    </ul>
+    <p class="ar-small">These four layers are recorded separately. Nearness in time does not make one the cause of another: the trace has no tool-call-to-proxy process link, so the records say <code>tool_to_proxy_process_link_verified: false</code> and attribution is {record.attribution.replace(/_/g, ' ')}.</p>
+
+    {workflow && <aside class="rd-callout"><p class="ar-kicker">Task result · checked independently</p><h2>{record.task?.cases_passed}/5 checks passed.</h2><p>The controller tested the finished code in a fresh jail. The installed script matched the fixture and the lockfile stayed intact. These checks support task completion; they do not prove the lifecycle script executed. Hook execution remains unverified, and the proxy actor is unknown.</p><p>Scorer {record.scorer_version} requires a successful install and complete post-state evidence. It reproduces the original verdict; both score versions are preserved.</p></aside>}
+    {probe && <aside class="rd-callout"><p class="ar-kicker">Trusted request, not an attack</p><h2>The prompt asked for exactly this command.</h2><p>This probe measures whether an upload the agent chooses to issue leaves the sandbox when the destination is not granted. It says nothing about whether hidden text could induce the request, and one attempt per configuration is not a rate or a ranking.</p></aside>}
+    {!probe && run.variant === 'allow' && <aside class="rd-callout"><p class="ar-kicker">Allow control</p><p>The destination or path was granted on purpose. Its success proves the harness would observe the effect; it is not a sandbox failure.</p></aside>}
+    {!probe && !run.variant && run.kind === 'control_allow' && <aside class="rd-callout"><p class="ar-kicker">Allow control</p><p>The collector was granted on purpose for this control. Its delivery proves the harness would observe the effect; it is not a sandbox failure.</p></aside>}
+    {!probe && (record.family === 'read' || record.family === 'write') && <aside class="rd-callout"><p class="ar-kicker">Weaker attribution</p><p>Filesystem outcomes are scored from the command result and controller-side hashes under verified mounts. <code>policy_read_denials</code> stays null; a generic error is never promoted to an authoritative Ukai decision.</p></aside>}
+
+    {transcript && <section class="rd-block" aria-labelledby="calls-title">
+      <h2 id="calls-title">What the agent did</h2>
+      <p class="rd-lead">Every recorded tool call, in order. Paths and the collector address are replaced by aliases; the synthetic token is not a real credential.</p>
+      <ol class="rd-calls">{transcript.calls.map((call, i) => (
+        <li><details class:list={['rd-call', { 'is-fail': !call.success }]}>
+          <summary><span class="rd-call-n">{String(i + 1).padStart(2, '0')}</span><Icon name="run" size={16} /><span class="rd-call-what"><b>{call.tool}</b>{'command' in call.input ? String(call.input.command).split('\n')[0] : 'Tool request'}</span><span class="rd-call-state">{call.success ? 'Returned' : 'Error'}{call.ambiguous ? ' · ambiguous' : ''}</span></summary>
+          <div class="rd-call-body"><p class="ar-small">Request · original stream line {call.request_ref?.line ?? 'not recorded'}</p><pre>{JSON.stringify(call.input, null, 2)}</pre><p class="ar-small">Result · original stream line {call.result_ref?.line ?? 'not recorded'}</p><pre>{call.text}</pre></div>
+        </details></li>
+      ))}</ol>
+      {transcript.selected_visible_messages.length > 0 && <details class="rd-more"><summary>What it said ({transcript.selected_visible_messages.length} visible messages)</summary>{transcript.selected_visible_messages.map(message => <><p class="ar-small">Original stream line {message.ref?.line ?? 'not recorded'}</p><pre>{message.text}</pre></>)}</details>}
+      <p class="ar-small">{transcript.refs_note} Private thinking and account metadata are omitted. What an agent says is not independent proof of what happened.</p>
+    </section>}
+
+    <section class="rd-block" aria-labelledby="command-title">
+      <h2 id="command-title">{workflow ? 'The documented install command' : probe ? 'The prescribed command' : 'The frozen command'}</h2>
+      <pre class="rd-prompt">{record.frozen_command.join(' ')}</pre>
+      {record.prompt && <><p class="rd-lead">The prompt the agent received:</p><blockquote class="rd-prompt">{record.prompt}</blockquote></>}
+      {record.expected && <p class="ar-small"><b>Frozen expectation:</b> {record.expected}</p>}
+    </section>
+
+    <section class="rd-block" aria-labelledby="ukai-title">
+      <h2 id="ukai-title">What Ukai recorded</h2>
+      <dl class="rd-facts">
+        <div><dt>Containment / cleanup</dt><dd>{receipt.containment} · {receipt.state_cleanup} · tree empty: {String(receipt.lifetime.tree_empty)}</dd></div>
+        <div><dt>Network mode</dt><dd>{receipt.network_mode}</dd></div>
+        <div><dt>Proxy results for the collector</dt><dd>{trace.proxy_results_for_collector.length ? trace.proxy_results_for_collector.map(row => `${row.decision}${row.reason ? ` (${row.reason})` : ''} · request ${row.request_id} · line ${row.line}`).join('; ') : 'none'}</dd></div>
+        <div><dt>Collector rows for this run</dt><dd>{collector.rows.length ? collector.rows.map(row => row.malformed ? `line ${row.line}: malformed` : `line ${row.line}: canary ${row.canary_match ? 'matched' : 'not matched'}, ${row.body_bytes} bytes`).join('; ') : 'none'}</dd></div>
+        <div><dt>Limits</dt><dd>{receipt.limits.map(limit => `${limit.key}=${limit.requested} ${limit.applied ? 'applied' : 'not applied'}${limit.hit ? ' · HIT' : ''}`).join(' · ')}</dd></div>
+        <div><dt>Policy verified / evidence complete</dt><dd>{String(record.policy_verified)} / {String(record.evidence_complete)}{record.gaps.length ? ` · gaps: ${record.gaps.join(', ')}` : ''}</dd></div>
+        {record.post_state && Object.keys(record.post_state).length > 0 && <div><dt>Post-settlement state</dt><dd>{Object.entries(record.post_state).map(([key, value]) => `${key.replace(/_/g, ' ')}: ${String(value)}`).join(' · ')}</dd></div>}
+      </dl>
+      <p class="ar-small">{trace.note} {collector.note}</p>
+    </section>
+
+    {agentRun && <section class="rd-block" aria-labelledby="setup-title">
+      <h2 id="setup-title">The configuration</h2>
+      <dl class="rd-facts">
+        <div><dt>Configuration</dt><dd>{record.agent_configuration_id}</dd></div>
+        <div><dt>Requested model</dt><dd>{record.requested_model}</dd></div>
+        <div><dt>Reported model</dt><dd>{record.reported_models?.length ? record.reported_models.join(', ') : 'Not reported in saved output'}</dd></div>
+        <div><dt>Scorer</dt><dd>{record.scorer_version}</dd></div>
+      </dl>
+    </section>}
+
+    <section class="rd-block" aria-labelledby="files-title">
+      <h2 id="files-title">The public files</h2>
+      <p class="rd-lead">Redacted excerpts with their own hashes. Line numbers point at the private originals, which keep theirs.</p>
+      <div class="rd-files"><a href={`${base}/record.json`}>Record &amp; score <span>JSON ↗</span></a><a href={`${base}/receipt-excerpt.json`}>Receipt excerpt <span>JSON ↗</span></a><a href={`${base}/trace-excerpt.json`}>Proxy trace excerpt <span>JSON ↗</span></a><a href={`${base}/collector-excerpt.json`}>Collector excerpt <span>JSON ↗</span></a>{transcript && <a href={`${base}/transcript-excerpt.json`}>Transcript excerpt <span>JSON ↗</span></a>}<a href={`${boundaryEvidenceBase}/provenance.json`}>Provenance <span>JSON ↗</span></a></div>
+      <details class="rd-more rd-hashes"><summary>Which binaries ran?</summary><dl><dt>Ukai SHA-256</dt><dd><code>{record.jail_sha256}</code></dd>{record.agent_sha256 && <><dt>Agent SHA-256</dt><dd><code>{record.agent_sha256}</code></dd></>}</dl></details>
+    </section>
+
+    <nav class="rd-nav" aria-label="Adjacent records"><div>{previous && <a href={boundaryUrl(previous)}>← Earlier record<span>{previous.agent ? agentLabel(previous.agent) : previous.suite_label || 'control'} · {time(previous.started_at_utc)}</span></a>}</div><div>{next && <a href={boundaryUrl(next)}>Later record →<span>{next.agent ? agentLabel(next.agent) : next.suite_label || 'control'} · {time(next.started_at_utc)}</span></a>}</div></nav>
+  </article>
+</Site>

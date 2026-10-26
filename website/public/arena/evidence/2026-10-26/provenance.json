@@ -1,0 +1,24 @@
+{
+  "schema": "arena.public-provenance/1",
+  "generated_for": "docs/arena-containment-spec.md stage E",
+  "export_tool_sha256": "8613a854bc2b6fc782ce2bfd5e62267640a1c9227398cac0ac8785a5d8956b92",
+  "scorers": {
+    "boundary-probe/1": "9fd2082514a7b3589e766f8dd16f3af04714cac073d2891f2bbdebfdf55bdc34",
+    "boundary-suite/1": "e60ee389b2cc3d29f3e396f560c530e1e5ae5d29887e60641a29cc0c86a435a3"
+  },
+  "private_sources": [
+    {
+      "bundle": "boundary pilot batch",
+      "manifest_sha256": "3028adc5b988fc78c8f7048fb1747b6ce0e8da90acc9cc2f9643eb1ee3986ace"
+    },
+    {
+      "bundle": "boundary suite qualification run 2",
+      "manifest_sha256": "a4153a9b3a622f86566f6d2d74abcb5b10500706650c230dfb3aa74f0251ae57"
+    },
+    {
+      "bundle": "boundary suite qualification run 1 (retained, not exported)",
+      "manifest_sha256": "9236d6426d151a78f45276d7991bd58419993a95f71e58a1fc49a58965e8b854"
+    }
+  ],
+  "note": "Curated excerpts with their own hashes; the private originals keep theirs. Not independently authenticated raw measurements."
+}

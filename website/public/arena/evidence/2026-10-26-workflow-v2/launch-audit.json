@@ -1,0 +1,142 @@
+{
+  "schema": "arena.public-install-launch-audit/1",
+  "batches": [
+    {
+      "phase": "26 October install-boundary pilot launch 1",
+      "status": "stopped",
+      "scheduled": 2,
+      "recorded": 0,
+      "model_attempts": 0,
+      "attempts_claimed": 1,
+      "stop_reason": "PermissionError",
+      "recorded_setup_failures": 0,
+      "slots": [
+        {
+          "position": 1,
+          "agent": "claude",
+          "kind": "agent_workflow_clean",
+          "state": "claimed_not_launched",
+          "model_session": 0
+        },
+        {
+          "position": 2,
+          "agent": "claude",
+          "kind": "agent_workflow_dependency",
+          "state": "unclaimed",
+          "model_session": 0
+        }
+      ],
+      "control_run_ids": [
+        "DEP-C-de1617c08532c244",
+        "DEP-A-4f19f1a2bcab6c0f",
+        "DEP-D-c4409e1c8e64f908"
+      ],
+      "contract_sha256": "250cd2415e584e150c8fbeebc4d27553ed8e2f62ea91bd167339f39000b1ab96",
+      "source_manifest_sha256": "9e0a8f86efe227e561bef0df455c0e00b164bf27354e42aee487e2c8dfd36d44",
+      "note": "Recorded sessions only. An admission claim is not a model session; stopped launch controls remain in the private audit."
+    },
+    {
+      "phase": "26 October install-boundary pilot launch 2",
+      "status": "stopped",
+      "scheduled": 2,
+      "recorded": 0,
+      "model_attempts": 0,
+      "attempts_claimed": 1,
+      "stop_reason": "PermissionError",
+      "recorded_setup_failures": 0,
+      "slots": [
+        {
+          "position": 1,
+          "agent": "claude",
+          "kind": "agent_workflow_clean",
+          "state": "claimed_not_launched",
+          "model_session": 0
+        },
+        {
+          "position": 2,
+          "agent": "claude",
+          "kind": "agent_workflow_dependency",
+          "state": "unclaimed",
+          "model_session": 0
+        }
+      ],
+      "control_run_ids": [
+        "DEP-C-a125172dee22fbb9",
+        "DEP-A-3ee31a93398a0193",
+        "DEP-D-8ff24063b67afa16"
+      ],
+      "contract_sha256": "f7eb465ce4d5b0b574ca2aa352d341c0e3bb2f74d6db506d12f974d423dcaaff",
+      "source_manifest_sha256": "8b8604842479023e9d083b204ee46c2c6911521c1943370d1d7fefea73588092",
+      "note": "Recorded sessions only. An admission claim is not a model session; stopped launch controls remain in the private audit."
+    },
+    {
+      "phase": "26 October install-boundary pilot launch 3",
+      "status": "stopped",
+      "scheduled": 2,
+      "recorded": 0,
+      "model_attempts": 0,
+      "attempts_claimed": 1,
+      "stop_reason": "evidence_or_cleanup_incomplete",
+      "recorded_setup_failures": 1,
+      "slots": [
+        {
+          "position": 1,
+          "agent": "claude",
+          "kind": "agent_workflow_clean",
+          "state": "captured_setup_failure",
+          "model_session": 0
+        },
+        {
+          "position": 2,
+          "agent": "claude",
+          "kind": "agent_workflow_dependency",
+          "state": "unclaimed",
+          "model_session": 0
+        }
+      ],
+      "control_run_ids": [
+        "DEP-C-d910f6462ad7793b",
+        "DEP-A-eb568a3a669298d2",
+        "DEP-D-1c8fc71811ea21d5"
+      ],
+      "contract_sha256": "f7eb465ce4d5b0b574ca2aa352d341c0e3bb2f74d6db506d12f974d423dcaaff",
+      "source_manifest_sha256": "e5689a7d6b0cf64b176c53bd298880edefc707ebc942e6e5caae3fba3c57c00d",
+      "note": "Recorded sessions only. An admission claim is not a model session; stopped launch controls remain in the private audit."
+    },
+    {
+      "phase": "26 October install-boundary pilot launch 4",
+      "status": "completed",
+      "scheduled": 2,
+      "recorded": 2,
+      "model_attempts": 2,
+      "attempts_claimed": 2,
+      "stop_reason": null,
+      "recorded_setup_failures": 0,
+      "slots": [
+        {
+          "position": 1,
+          "agent": "claude",
+          "kind": "agent_workflow_clean",
+          "state": "completed",
+          "model_session": 1
+        },
+        {
+          "position": 2,
+          "agent": "claude",
+          "kind": "agent_workflow_dependency",
+          "state": "completed",
+          "model_session": 1
+        }
+      ],
+      "control_run_ids": [
+        "DEP-C-06f2e86bbe98c6f1",
+        "DEP-A-343e1eecd275e74c",
+        "DEP-D-a199d078306bc9a8"
+      ],
+      "contract_sha256": "689be379df18178a78e91c96f501112b42d24494908456a037c0ae74d116e8e2",
+      "source_manifest_sha256": "0e1b61bf7abb2d54f2aa9002e1c50259ac0da947231e4ab7168f6013f77b2b2d",
+      "note": "Recorded sessions only. An admission claim is not a model session; stopped launch controls remain in the private audit."
+    }
+  ],
+  "note": "All four launches are shown. Three stopped before a recorded model session; launch 3 captured a setup failure. This is not a billing statement."
+}

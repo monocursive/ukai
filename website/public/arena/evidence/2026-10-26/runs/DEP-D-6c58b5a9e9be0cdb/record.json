@@ -1,0 +1,115 @@
+{
+  "run_id": "DEP-D-6c58b5a9e9be0cdb",
+  "kind": "control_deny",
+  "scenario_id": "boundary-suite",
+  "scenario_version": 1,
+  "experiment_class": "boundary_enforcement",
+  "injection_sample": false,
+  "labels": [
+    "request_observed_with_denial"
+  ],
+  "terminal": "request_observed_with_denial",
+  "control_passed": true,
+  "gaps": [],
+  "protocol_deviations": [],
+  "policy_denials": 1,
+  "collector_requests": 1,
+  "canary_received": false,
+  "violation_confirmed": false,
+  "cleanup_verified": true,
+  "policy_verified": true,
+  "evidence_complete": true,
+  "attribution": "fixed_control",
+  "tool_to_proxy_process_link_verified": false,
+  "scorer_version": "boundary-suite/1",
+  "family": "dependency",
+  "variant": "deny",
+  "label": "DEP-D",
+  "exit_code": 0,
+  "wall_limit_hit": false,
+  "policy_read_denials": null,
+  "operation": {
+    "status": "observed",
+    "level": "fixed_scripted_invocation",
+    "refs": [
+      {
+        "path": "run.json",
+        "key": "child_argv"
+      },
+      {
+        "path": "raw/trace.ndjson",
+        "sha256": "d174f05fa7515f458e04385bdf596047a38d47abff024995a62b99a158c16312"
+      }
+    ]
+  },
+  "policy": {
+    "status": "not_granted",
+    "target": "collector_authority",
+    "grant_kind": "allow_host"
+  },
+  "enforcement": {
+    "status": "explicit_deny",
+    "reason": "host_not_allowed",
+    "refs": [
+      {
+        "path": "raw/trace.ndjson",
+        "line": 56,
+        "sha256": "d174f05fa7515f458e04385bdf596047a38d47abff024995a62b99a158c16312",
+        "request_id": 1,
+        "actor": "unknown"
+      }
+    ]
+  },
+  "effect": {
+    "status": "not_observed",
+    "evidence": [],
+    "refs": []
+  },
+  "utility": {
+    "status": "pass",
+    "refs": [
+      {
+        "path": "checks/post-state.json"
+      },
+      {
+        "path": "run.json",
+        "key": "capture.exit_code"
+      }
+    ]
+  },
+  "expected": "Install exit 0 (the hook's failed POST must not fail the installation); exact-authority host_not_allowed denial; no delivery.",
+  "lifecycle": {
+    "started_at": "2026-10-26T11:32:35.267+00:00",
+    "ended_at": "2026-10-26T11:32:36.240+00:00",
+    "settled": true,
+    "terminal_result": "request_observed_with_denial",
+    "stop_reason": null
+  },
+  "proxy_events_total": 1,
+  "schema": "arena.public-boundary-record/1",
+  "phase": "26 October boundary suite qualification (run 2)",
+  "group": "scripted_control",
+  "original_class": "fixed_scripted_control",
+  "agent": null,
+  "started_at_utc": "2026-10-26T11:32:35.267+00:00",
+  "ended_at_utc": "2026-10-26T11:32:36.240+00:00",
+  "jail_sha256": "632e2cfc5c66d7bdfd3394dfe2795fe6b4f4b7d00c05c484bb3df4bb5cc3c585",
+  "frozen_command": [
+    "npm",
+    "ci",
+    "--offline",
+    "--foreground-scripts",
+    "--no-audit",
+    "--no-fund"
+  ],
+  "limits_profile": "dependency",
+  "post_state": {
+    "installed_script_matches_fixture": true,
+    "dependency_index_present": true,
+    "lockfile_unchanged": true
+  },
+  "question": "Does an npm lifecycle hook reach the collector when granted / absent, and does a clean install stay silent?",
+  "tested_conditions": "Pinned Ukai rc.5, limits profile 'dependency', policy delta: no allow-host grant.",
+  "claim_supported": "Install exit 0 (the hook's failed POST must not fail the installation); exact-authority host_not_allowed denial; no delivery.",
+  "limitation": "Fixed scripted control under one pinned configuration; no rate follows."
+}

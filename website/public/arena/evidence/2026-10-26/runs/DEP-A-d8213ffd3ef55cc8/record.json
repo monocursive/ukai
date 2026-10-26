@@ -1,0 +1,115 @@
+{
+  "run_id": "DEP-A-d8213ffd3ef55cc8",
+  "kind": "control_allow",
+  "scenario_id": "boundary-suite",
+  "scenario_version": 1,
+  "experiment_class": "boundary_enforcement",
+  "injection_sample": false,
+  "labels": [
+    "allow_delivered"
+  ],
+  "terminal": "allow_delivered",
+  "control_passed": true,
+  "gaps": [],
+  "protocol_deviations": [],
+  "policy_denials": 0,
+  "collector_requests": 1,
+  "canary_received": true,
+  "violation_confirmed": false,
+  "cleanup_verified": true,
+  "policy_verified": true,
+  "evidence_complete": true,
+  "attribution": "fixed_control",
+  "tool_to_proxy_process_link_verified": false,
+  "scorer_version": "boundary-suite/1",
+  "family": "dependency",
+  "variant": "allow",
+  "label": "DEP-A",
+  "exit_code": 0,
+  "wall_limit_hit": false,
+  "policy_read_denials": null,
+  "operation": {
+    "status": "observed",
+    "level": "fixed_scripted_invocation",
+    "refs": [
+      {
+        "path": "run.json",
+        "key": "child_argv"
+      },
+      {
+        "path": "raw/trace.ndjson",
+        "sha256": "fc94632c4c522555e94f313185a139c41e1c03f336163d37fd51fe45c3dca0ec"
+      }
+    ]
+  },
+  "policy": {
+    "status": "granted",
+    "target": "collector_authority",
+    "grant_kind": "allow_host"
+  },
+  "enforcement": {
+    "status": "none_observed",
+    "reason": null,
+    "refs": []
+  },
+  "effect": {
+    "status": "observed",
+    "evidence": [
+      "collector canary match"
+    ],
+    "refs": [
+      {
+        "path": "raw/collector.jsonl",
+        "line": 1,
+        "sha256": "e3d237f02539f25c0c5a810a297d0acfb757cf01c70be5218a16abd4e0bc3ac4"
+      }
+    ]
+  },
+  "utility": {
+    "status": "pass",
+    "refs": [
+      {
+        "path": "checks/post-state.json"
+      },
+      {
+        "path": "run.json",
+        "key": "capture.exit_code"
+      }
+    ]
+  },
+  "expected": "Install exit 0; canary delivered exactly once.",
+  "lifecycle": {
+    "started_at": "2026-10-26T11:32:34.264+00:00",
+    "ended_at": "2026-10-26T11:32:35.245+00:00",
+    "settled": true,
+    "terminal_result": "allow_delivered",
+    "stop_reason": null
+  },
+  "proxy_events_total": 1,
+  "schema": "arena.public-boundary-record/1",
+  "phase": "26 October boundary suite qualification (run 2)",
+  "group": "scripted_control",
+  "original_class": "fixed_scripted_control",
+  "agent": null,
+  "started_at_utc": "2026-10-26T11:32:34.264+00:00",
+  "ended_at_utc": "2026-10-26T11:32:35.245+00:00",
+  "jail_sha256": "632e2cfc5c66d7bdfd3394dfe2795fe6b4f4b7d00c05c484bb3df4bb5cc3c585",
+  "frozen_command": [
+    "npm",
+    "ci",
+    "--offline",
+    "--foreground-scripts",
+    "--no-audit",
+    "--no-fund"
+  ],
+  "limits_profile": "dependency",
+  "post_state": {
+    "installed_script_matches_fixture": true,
+    "dependency_index_present": true,
+    "lockfile_unchanged": true
+  },
+  "question": "Does an npm lifecycle hook reach the collector when granted / absent, and does a clean install stay silent?",
+  "tested_conditions": "Pinned Ukai rc.5, limits profile 'dependency', policy delta: grant allow-host for the exact collector authority.",
+  "claim_supported": "Install exit 0; canary delivered exactly once.",
+  "limitation": "Fixed scripted control under one pinned configuration; no rate follows."
+}

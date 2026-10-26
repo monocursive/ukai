@@ -1,0 +1,102 @@
+---
+// Ukai at night: the fisher, the fire basket and the birds on their cords. Decorative; the caption
+// beside it carries the meaning. Every motion is CSS, so reduced-motion settings stop all of it.
+const birds = [
+  { x: 470, y: 356, s: 1, flip: false, fish: false, d: 0 },
+  { x: 392, y: 384, s: 1.1, flip: false, fish: true, d: 1.2 },
+  { x: 566, y: 398, s: .95, flip: true, fish: false, d: .6 },
+];
+const hand = { x: 616, y: 240 };
+const dive = { x: 262, y: 348 };
+const ring = (bird: typeof birds[number]) => ({ x: bird.x + (bird.flip ? 25 : -25) * bird.s, y: bird.y - 24 * bird.s });
+const cord = (bird: typeof birds[number]) => {
+  const end = ring(bird);
+  return `M${hand.x} ${hand.y} Q${(hand.x + end.x) / 2 - 10} ${Math.max(hand.y, end.y) + 22} ${end.x} ${end.y}`;
+};
+const stars = [[90, 64, 0], [176, 128, 1.4], [262, 44, .7], [372, 96, 2.1], [702, 52, .3], [788, 132, 1.8], [866, 74, 1], [1150, 46, 2.4], [1172, 182, .5], [640, 156, 1.6]];
+const sparks = Array.from({ length: 10 }, (_, i) => ({ x: 516 + ((i * 7) % 13), dx: ((i * 13) % 31) - 15, d: ((i * .61) % 3).toFixed(2), dur: (2.2 + (i % 4) * .45).toFixed(2) }));
+const glints = Array.from({ length: 10 }, (_, i) => ({ y: 340 + i * 8, w: 30 - i * 2.4 + (i % 2) * 6, d: (i * .37).toFixed(2) }));
+// Dash and gap add up to a divisor of 360, so each ripple loops without a jump.
+const ripples = [[292, 24, 21, 0], [314, 34, 26, 1], [340, 22, 18, 0], [366, 40, 32, 1], [392, 26, 19, 0], [414, 50, 40, 1]];
+---
+<svg class="rv" viewBox="0 0 1200 420" preserveAspectRatio="xMidYMax slice" role="img" aria-labelledby="rv-title" data-live>
+  <title id="rv-title">Cormorant fishing at night: a fisher on a long boat lit by a fire basket holds the cords of three cormorants swimming and diving in the river.</title>
+  <defs>
+    <linearGradient id="rv-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f1211" /><stop offset="1" stop-color="#1c211e" /></linearGradient>
+    <linearGradient id="rv-water" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#161a18" /><stop offset="1" stop-color="#0c0f0e" /></linearGradient>
+    <radialGradient id="rv-glow"><stop offset="0" stop-color="#e79425" stop-opacity=".5" /><stop offset=".45" stop-color="#e79425" stop-opacity=".14" /><stop offset="1" stop-color="#e79425" stop-opacity="0" /></radialGradient>
+  </defs>
+
+  <rect width="1200" height="420" fill="url(#rv-sky)" />
+  {stars.map(([x, y, d]) => <circle class="rv-star" cx={x} cy={y} r="1.5" style={`animation-delay:${d}s`} />)}
+  <circle class="rv-moon-ghost" cx="1040" cy="116" r="68" />
+  <circle class="rv-moon" cx="1040" cy="116" r="68" pathLength="100" transform="rotate(130 1040 116)" />
+
+  <path class="rv-hill is-far" d="M0 250 C90 236 170 244 260 232 C360 218 450 240 560 236 C680 232 760 210 880 220 C990 229 1090 238 1200 230 V276 H0 Z" />
+  <path class="rv-hill" d="M0 262 C120 252 230 262 330 254 C430 246 520 266 640 262 C780 258 860 244 980 252 C1080 258 1140 262 1200 258 V276 H0 Z" />
+  <rect y="272" width="1200" height="148" fill="url(#rv-water)" />
+  {ripples.map(([y, dash, gap, dir], i) => <path class:list={['rv-ripple', { 'is-back': dir }]} d={`M-80 ${y} H1280`} style={`stroke-dasharray:${dash} ${gap};animation-duration:${14 + i * 3}s`} />)}
+
+  <circle class="rv-glow" cx="522" cy="190" r="190" fill="url(#rv-glow)" />
+  <g class="rv-glints">
+    {glints.map(item => <path d={`M${522 - item.w / 2} ${item.y} h${item.w}`} style={`animation-delay:${item.d}s`} />)}
+  </g>
+
+  <g class="rv-fish-deep"><path d="M0 0 C8 -6 20 -6 26 0 C20 6 8 6 0 0 Z M26 0 L33 -5 L32 5 Z" transform="translate(300 400)" /></g>
+  <g transform={`translate(${dive.x} ${dive.y})`}>
+    <ellipse class="rv-splash" rx="22" ry="3.5" />
+    <ellipse class="rv-splash is-late" rx="22" ry="3.5" />
+    {[[-4, 0], [5, .9], [0, 1.7]].map(([x, d]) => <circle class="rv-bubble" cx={x} cy="14" r="2" style={`animation-delay:${d}s`} />)}
+  </g>
+
+  <g class="rv-cords">
+    {birds.map(bird => <path d={cord(bird)} />)}
+    <path d={`M${hand.x} ${hand.y} Q${(hand.x + dive.x) / 2} ${dive.y + 10} ${dive.x} ${dive.y + 2}`} />
+  </g>
+  {birds.map(bird => (
+    <g transform={`translate(${bird.x} ${bird.y}) scale(${bird.flip ? -bird.s : bird.s} ${bird.s})`}>
+      <g class="rv-bird" style={`animation-delay:-${bird.d}s`}>
+        <path class="rv-wake" d="M-40 2 C-20 6 22 6 46 2" />
+        <path class="rv-ink" d="M-30 0 C-28 -9 -10 -13 12 -11 C24 -10 32 -6 36 -1 L47 -7 L43 1 Z" />
+        <path class="rv-neck" d="M-22 -6 C-30 -18 -28 -32 -17 -40" />
+        <ellipse class="rv-ink" cx="-14" cy="-42" rx="8" ry="6" />
+        <path class="rv-beak" d="M-19 -45.5 L-38 -43.5 C-40.5 -42.5 -40.5 -39.5 -38.5 -38.5 L-37 -40 L-19 -39 Z" />
+        <ellipse class="rv-cheek" cx="-19" cy="-38.5" rx="4.2" ry="3" />
+        <path class="rv-rim" d="M-21 -47.5 C-16 -49.5 -9 -48 -7 -43 C-6 -39 -10 -36 -14 -33 C-20 -26 -19 -15 -14 -8 C-4 -11 12 -12 26 -9" />
+        <ellipse class="rv-ring" cx="-25" cy="-23" rx="5.5" ry="2.1" transform="rotate(-24 -25 -23)" />
+        <circle class="rv-eye" cx="-17" cy="-44" r="1.3" />
+        {bird.fish && <path class="rv-catch" d="M-38 -41 C-44 -46 -53 -46 -57 -41 C-53 -36 -44 -36 -38 -41 Z M-57 -41 L-63 -46 L-62 -36 Z" />}
+      </g>
+    </g>
+  ))}
+
+  <g class="rv-boat">
+    <path class="rv-pole" d="M562 304 L526 210" />
+    <path class="rv-basket" d="M510 196 L514 214 L530 214 L534 196 M516 196 L519 214 M522 196 L522 214 M528 196 L525 214 M511 204 H533" />
+    <g class="rv-fire">
+      <path class="rv-flame is-outer" d="M522 198 C506 193 505 177 513 164 C515 174 519 177 520 171 C519 158 526 146 535 139 C531 152 539 162 539 176 C539 190 533 196 522 198 Z" />
+      <path class="rv-flame is-inner" d="M522 198 C513 194 512 184 517 176 C519 182 522 183 522 178 C522 170 526 164 530 160 C529 168 533 174 533 182 C533 192 528 196 522 198 Z" />
+      <path class="rv-flame is-core" d="M522 198 C518 196 517 191 520 186 C521 189 523 189 523 186 C525 189 527 192 526 195 C525 197 524 198 522 198 Z" />
+    </g>
+    {sparks.map(spark => <circle class="rv-spark" cx={spark.x} cy="168" r="1.6" style={`--dx:${spark.dx}px;animation-delay:${spark.d}s;animation-duration:${spark.dur}s`} />)}
+    <path class="rv-ink" d="M496 281 C511 294 540 304 576 304 L1010 304 L1002 318 C990 326 966 328 940 328 L590 328 C548 326 515 310 496 281 Z" />
+    <path class="rv-rim is-gunwale" d="M497 282 C512 294 540 304 576 304 L700 304" />
+    <g transform="translate(650 304)">
+      <path class="rv-ink" d="M-15 -50 L15 -50 L22 -14 L24 -4 L18 -8 L14 -2 L9 -7 L4 -1 L0 -6 L-5 -1 L-9 -7 L-14 -2 L-18 -8 L-24 -4 L-22 -14 Z" />
+      <path class="rv-limb" d="M-7 -6 L-8 0 M7 -6 L8 0" />
+      <path class="rv-ink" d="M-11 -50 C-13 -66 -11 -80 0 -83 C11 -80 13 -66 11 -50 Z" />
+      <circle class="rv-ink" cy="-91" r="7" />
+      <path class="rv-ink" d="M-8 -94 C-6 -104 0 -112 8 -115 C6 -107 8 -101 9 -95 Z" />
+      <path class="rv-limb" d="M-6 -76 C-16 -72 -26 -68 -34 -64 M7 -76 C12 -68 16 -62 18 -56" />
+      <path class="rv-rim" d="M-12 -52 C-14 -66 -11 -78 -3 -83 M-15 -50 L-22 -14 M-7 -97 C-5 -104 -1 -110 5 -113" />
+    </g>
+    <g class="rv-rower" transform="translate(958 304)">
+      <path class="rv-pole" d="M-12 -66 L54 70" />
+      <path class="rv-ink" d="M-10 -48 L10 -48 L15 -4 L-15 -4 Z" />
+      <path class="rv-limb" d="M-5 -4 L-6 0 M5 -4 L6 0 M-6 -70 L-12 -62 M6 -70 L-8 -58" />
+      <path class="rv-ink" d="M-9 -48 C-11 -62 -9 -74 0 -76 C9 -74 11 -62 9 -48 Z" />
+      <circle class="rv-ink" cy="-83" r="6.5" />
+      <path class="rv-ink" d="M-18 -86 L0 -98 L18 -86 Z" />
+    </g>
+  </g>
+</svg>

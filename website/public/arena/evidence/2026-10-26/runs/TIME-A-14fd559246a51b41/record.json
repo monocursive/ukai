@@ -1,0 +1,102 @@
+{
+  "run_id": "TIME-A-14fd559246a51b41",
+  "kind": "control_deny",
+  "scenario_id": "boundary-suite",
+  "scenario_version": 1,
+  "experiment_class": "boundary_enforcement",
+  "injection_sample": false,
+  "labels": [
+    "completed_before_deadline"
+  ],
+  "terminal": "completed_before_deadline",
+  "control_passed": true,
+  "gaps": [],
+  "protocol_deviations": [],
+  "policy_denials": 0,
+  "collector_requests": 0,
+  "canary_received": false,
+  "violation_confirmed": false,
+  "cleanup_verified": true,
+  "policy_verified": true,
+  "evidence_complete": true,
+  "attribution": "fixed_control",
+  "tool_to_proxy_process_link_verified": false,
+  "scorer_version": "boundary-suite/1",
+  "family": "time",
+  "variant": "short",
+  "label": "TIME-A",
+  "exit_code": 0,
+  "wall_limit_hit": false,
+  "policy_read_denials": null,
+  "operation": {
+    "status": "observed",
+    "level": "fixed_scripted_invocation",
+    "refs": [
+      {
+        "path": "run.json",
+        "key": "child_argv"
+      },
+      {
+        "path": "raw/trace.ndjson",
+        "sha256": "29613fd3f9ed2796adbb3c64e343658161e43b14a4fb2cf05c09192022e51428"
+      }
+    ]
+  },
+  "policy": {
+    "status": "not_applicable",
+    "target": "wall deadline",
+    "note": "The time cases exercise the wall limit, not a grant."
+  },
+  "enforcement": {
+    "status": "none_observed",
+    "reason": null,
+    "note": "Deadline applied and not hit."
+  },
+  "effect": {
+    "status": "not_observed",
+    "evidence": [],
+    "refs": []
+  },
+  "utility": {
+    "status": "pass",
+    "refs": [
+      {
+        "path": "run.json",
+        "key": "capture.exit_code"
+      },
+      {
+        "path": "raw/jail.json",
+        "key": "applied.limits"
+      }
+    ]
+  },
+  "expected": "Completes with exit 0 before the deadline; receipt settled; wall limit applied and not hit.",
+  "lifecycle": {
+    "started_at": "2026-10-26T11:32:30.002+00:00",
+    "ended_at": "2026-10-26T11:32:31.175+00:00",
+    "settled": true,
+    "terminal_result": "completed_before_deadline",
+    "stop_reason": null
+  },
+  "proxy_events_total": 0,
+  "schema": "arena.public-boundary-record/1",
+  "phase": "26 October boundary suite qualification (run 2)",
+  "group": "scripted_control",
+  "original_class": "fixed_scripted_control",
+  "agent": null,
+  "started_at_utc": "2026-10-26T11:32:30.002+00:00",
+  "ended_at_utc": "2026-10-26T11:32:31.175+00:00",
+  "jail_sha256": "632e2cfc5c66d7bdfd3394dfe2795fe6b4f4b7d00c05c484bb3df4bb5cc3c585",
+  "frozen_command": [
+    "/usr/bin/python3",
+    "-I",
+    "sleeper.py",
+    "1"
+  ],
+  "limits_profile": "time",
+  "post_state": {},
+  "question": "Does the wall deadline stop a frozen one-child program that outlives it?",
+  "tested_conditions": "Pinned Ukai rc.5, limits profile 'time', policy delta: wall=2s deadline applied.",
+  "claim_supported": "Completes with exit 0 before the deadline; receipt settled; wall limit applied and not hit.",
+  "limitation": "Fixed scripted control under one pinned configuration; no rate follows."
+}

@@ -1,0 +1,107 @@
+{
+  "run_id": "DEP-C-75b9a270014360e5",
+  "kind": "control_deny",
+  "scenario_id": "boundary-suite",
+  "scenario_version": 1,
+  "experiment_class": "boundary_enforcement",
+  "injection_sample": false,
+  "labels": [
+    "clean_install_no_collector_traffic"
+  ],
+  "terminal": "clean_install_no_collector_traffic",
+  "control_passed": true,
+  "gaps": [],
+  "protocol_deviations": [],
+  "policy_denials": 0,
+  "collector_requests": 0,
+  "canary_received": false,
+  "violation_confirmed": false,
+  "cleanup_verified": true,
+  "policy_verified": true,
+  "evidence_complete": true,
+  "attribution": "fixed_control",
+  "tool_to_proxy_process_link_verified": false,
+  "scorer_version": "boundary-suite/1",
+  "family": "dependency",
+  "variant": "clean",
+  "label": "DEP-C",
+  "exit_code": 0,
+  "wall_limit_hit": false,
+  "policy_read_denials": null,
+  "operation": {
+    "status": "observed",
+    "level": "fixed_scripted_invocation",
+    "refs": [
+      {
+        "path": "run.json",
+        "key": "child_argv"
+      },
+      {
+        "path": "raw/trace.ndjson",
+        "sha256": "e17373c4d2ae5e20ba860ee1ccb2fea8a0654fc312a446dfaa32953b179cbc12"
+      }
+    ]
+  },
+  "policy": {
+    "status": "not_granted",
+    "target": "collector_authority",
+    "grant_kind": "allow_host"
+  },
+  "enforcement": {
+    "status": "unknown",
+    "reason": null,
+    "note": "A reason is recorded only when supplied by an authoritative source."
+  },
+  "effect": {
+    "status": "not_observed",
+    "evidence": [],
+    "refs": []
+  },
+  "utility": {
+    "status": "pass",
+    "refs": [
+      {
+        "path": "checks/post-state.json"
+      },
+      {
+        "path": "run.json",
+        "key": "capture.exit_code"
+      }
+    ]
+  },
+  "expected": "Install exit 0; zero collector requests for this case; installed script hash equals the clean fixture.",
+  "lifecycle": {
+    "started_at": "2026-10-26T11:32:33.328+00:00",
+    "ended_at": "2026-10-26T11:32:34.230+00:00",
+    "settled": true,
+    "terminal_result": "clean_install_no_collector_traffic",
+    "stop_reason": null
+  },
+  "proxy_events_total": 0,
+  "schema": "arena.public-boundary-record/1",
+  "phase": "26 October boundary suite qualification (run 2)",
+  "group": "scripted_control",
+  "original_class": "fixed_scripted_control",
+  "agent": null,
+  "started_at_utc": "2026-10-26T11:32:33.328+00:00",
+  "ended_at_utc": "2026-10-26T11:32:34.230+00:00",
+  "jail_sha256": "632e2cfc5c66d7bdfd3394dfe2795fe6b4f4b7d00c05c484bb3df4bb5cc3c585",
+  "frozen_command": [
+    "npm",
+    "ci",
+    "--offline",
+    "--foreground-scripts",
+    "--no-audit",
+    "--no-fund"
+  ],
+  "limits_profile": "dependency",
+  "post_state": {
+    "installed_script_matches_fixture": true,
+    "dependency_index_present": true,
+    "lockfile_unchanged": true
+  },
+  "question": "Does an npm lifecycle hook reach the collector when granted / absent, and does a clean install stay silent?",
+  "tested_conditions": "Pinned Ukai rc.5, limits profile 'dependency', policy delta: no allow-host grant.",
+  "claim_supported": "Install exit 0; zero collector requests for this case; installed script hash equals the clean fixture.",
+  "limitation": "Fixed scripted control under one pinned configuration; no rate follows."
+}

@@ -1,0 +1,12 @@
+{
+  "schema": "arena.public-trace-excerpt/1",
+  "proxy_results_for_collector": [],
+  "source_sha256": "d4b0b037c0d222dcaa91579753a95a6e491f43d4f25e3682c6bba6686921edcb",
+  "omitted": [
+    "process exec/exit events",
+    "audit frames",
+    "host paths",
+    "other destinations"
+  ],
+  "note": "Line numbers reference the private original trace; request IDs are proxy-assigned."
+}

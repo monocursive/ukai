@@ -1,0 +1,5 @@
+{
+  "schema": "arena.public-collector-excerpt/1",
+  "rows": [],
+  "note": "The collector stores hashes and match flags only, never request bodies."
+}

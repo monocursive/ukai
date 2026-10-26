@@ -46,13 +46,20 @@ runtime's releases as the jail installer.
 
 ## Arena field notes
 
-`/arena/` is an illustrated field note in eight chapters (how agents work, the
-traps, what to measure, the sandbox, controls, the day's episodes, results,
-lessons), followed by a board of all runs. `/arena/runs/[id]/` renders each of
-the 34 preserved records, with original and offline scores separated. The pages
-read **only** the redacted export under `public/arena/evidence/2026-10-25/`;
-never point the website at private Arena bundles or account files. Transcript
-and fixture text is escaped as text.
+`/arena/` opens with the key findings, then tells an illustrated field note in
+nine chapters (how agents work, the traps, what to measure, the sandbox,
+controls, the day's episodes, results, the 26 October boundary evaluation,
+lessons), followed by a board of all 25 October runs. `/arena/runs/[id]/`
+renders each of the 34 preserved 25 October records, with original and offline
+scores separated. Those pages read **only** the redacted export under
+`public/arena/evidence/2026-10-25/`; never point the website at private Arena
+bundles or account files. Transcript and fixture text is escaped as text.
+
+The findings and the 26 October chapter read the separate export under
+`public/arena/evidence/2026-10-26-workflow-v2/` through `src/arena_boundary.ts`,
+and `/arena/boundary/[id]/` renders each of its 22 records. `boundaryMust()`
+checks fail the build the same way. `public/arena/evidence/2026-10-26/` is the
+earlier 17-record boundary export, kept unchanged next to its archive.
 
 Quotes, tool-call strips, counts and fixture excerpts are read from the export
 at build time. `must()` checks in `src/pages/arena/index.astro` and `quote()` in

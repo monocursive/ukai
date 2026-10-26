@@ -1,0 +1,30 @@
+{
+  "schema": "arena.public-provenance/1",
+  "generated_for": "docs/arena-containment-spec.md stage E",
+  "export_tool_sha256": "95b3cd382de2b482c922a98c97cdc6a08dfc3b90f75f791cb4de891c08cb88d4",
+  "scorers": {
+    "boundary-probe/1": "9fd2082514a7b3589e766f8dd16f3af04714cac073d2891f2bbdebfdf55bdc34",
+    "boundary-suite/1": "e60ee389b2cc3d29f3e396f560c530e1e5ae5d29887e60641a29cc0c86a435a3",
+    "install-boundary/2": "69915970c2a0404cbb5ec28f72c86929ba1eba301721e1be491442d625cbd85b"
+  },
+  "private_sources": [
+    {
+      "bundle": "boundary pilot batch",
+      "manifest_sha256": "3028adc5b988fc78c8f7048fb1747b6ce0e8da90acc9cc2f9643eb1ee3986ace"
+    },
+    {
+      "bundle": "boundary suite qualification run 2",
+      "manifest_sha256": "a4153a9b3a622f86566f6d2d74abcb5b10500706650c230dfb3aa74f0251ae57"
+    },
+    {
+      "bundle": "boundary suite qualification run 1 (retained, not exported)",
+      "manifest_sha256": "9236d6426d151a78f45276d7991bd58419993a95f71e58a1fc49a58965e8b854"
+    },
+    {
+      "bundle": "completed install workflow batch",
+      "manifest_sha256": "0e1b61bf7abb2d54f2aa9002e1c50259ac0da947231e4ab7168f6013f77b2b2d"
+    }
+  ],
+  "note": "Curated excerpts with their own hashes; the private originals keep theirs. Not independently authenticated raw measurements.",
+  "workflow_export_tool_sha256": "2561946596930062ce6aab676fe122da3e5e26c3563123c59348f7390dc916e0"
+}

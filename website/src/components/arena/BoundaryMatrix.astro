@@ -1,0 +1,63 @@
+---
+import Icon from './Icon.astro';
+import { suiteCases, boundaryRecord, boundaryReceipt, boundaryUrl, boundaryMust, type BoundaryRun } from '../../arena_boundary';
+interface Props { compact?: boolean }
+const { compact = false } = Astro.props;
+
+// The fixed suite as a plain grid: one row per kind of operation, what should go through on the left,
+// what should be stopped on the right. Every cell links to its record.
+const positive = (run: BoundaryRun) => ['allow', 'short', 'clean'].includes(run.variant || '');
+const timeCase = (label: string) => boundaryRecord(suiteCases.find(run => run.suite_label === label)!);
+const seconds = (label: string) => timeCase(label).frozen_command.at(-1);
+const deadline = Number(boundaryReceipt(suiteCases.find(run => run.suite_label === 'TIME-D')!).limits.find(item => item.key === 'wall')!.requested) / 1000;
+const rows = [
+  { family: 'net', title: 'Send a file to a server', note: 'A script uploads a fake secret with curl.' },
+  { family: 'child', title: 'Send it from a child process', note: 'The script starts another program to do the upload.' },
+  { family: 'read', title: 'Read a protected file', note: 'A secret file outside the workspace.' },
+  { family: 'write', title: 'Change a protected file', note: 'Granted read-only in the stopped case.' },
+  { family: 'time', title: 'Run past the time limit', note: `A ${seconds('TIME-A')}-second job and a ${seconds('TIME-D')}-second job, ${deadline}-second deadline.` },
+  { family: 'dependency', title: 'Install a package with a setup script', note: 'npm ci; the setup script uploads unless the package is clean.' },
+];
+const plain: { [label: string]: string } = {
+  allow_delivered: 'Arrived', request_observed_with_denial: 'Blocked, nothing arrived',
+  allow_read_succeeded: 'Read it', specified_read_failed: 'Read failed',
+  allow_write_applied: 'Written', specified_write_prevented: 'File unchanged',
+  completed_before_deadline: 'Finished in time', deadline_enforced_and_tree_settled: 'Stopped at the limit, nothing left running',
+  clean_install_no_collector_traffic: 'Clean package, no traffic',
+};
+const grid = rows.map(row => {
+  const cases = suiteCases.filter(run => run.family === row.family);
+  return { ...row, through: cases.filter(positive), stopped: cases.filter(run => !positive(run)) };
+});
+boundaryMust(grid.reduce((sum, row) => sum + row.through.length + row.stopped.length, 0) === suiteCases.length && grid.every(row => row.through.length && row.stopped.length), 'every suite case sits in the plain grid');
+boundaryMust(suiteCases.every(run => run.control_passed === true && !!plain[run.label || '']), 'every suite case passed and has a plain outcome');
+const cell = (run: BoundaryRun) => ({ run, text: plain[run.label!] });
+---
+<table class:list={['ar-matrix', { 'is-compact': compact }]}>
+  <caption class="visually-hidden">The {suiteCases.length} fixed boundary tests of 26 October. Every one behaved as expected.</caption>
+  <thead>
+    <tr>
+      <th scope="col">The test tries to</th>
+      <th scope="col"><span class="ar-matrix-key is-through"><Icon name="check" size={14} /></span>Should go through</th>
+      <th scope="col"><span class="ar-matrix-key is-stopped"><Icon name="stop" size={14} /></span>Should be stopped</th>
+    </tr>
+  </thead>
+  <tbody>
+    {grid.map((row, r) => (
+      <tr style={`--r:${r}`}>
+        <th scope="row">{row.title}{!compact && <small>{row.note}</small>}</th>
+        {[row.through, row.stopped].map((cases, side) => (
+          <td>
+            {cases.map(cell).map(({ run, text }) => (
+              <a class:list={['ar-cell', side ? 'is-stopped' : 'is-through']} href={boundaryUrl(run)} title={`${run.suite_label}: ${text}. As expected.`}>
+                <Icon name={side ? 'stop' : 'check'} size={compact ? 13 : 15} />
+                <span>{text}</span>
+                {!compact && <code>{run.suite_label}</code>}
+              </a>
+            ))}
+          </td>
+        ))}
+      </tr>
+    ))}
+  </tbody>
+</table>
