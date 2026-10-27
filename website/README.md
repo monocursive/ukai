@@ -47,9 +47,9 @@ runtime's releases as the jail installer.
 ## Arena field notes
 
 `/arena/` opens with the key findings, then tells an illustrated field note in
-nine chapters (how agents work, the traps, what to measure, the sandbox,
-controls, the day's episodes, results, the 26 October boundary evaluation,
-lessons), followed by a board of all 25 October runs. `/arena/runs/[id]/`
+eight chapters (how agents work, the traps, what to measure, the sandbox,
+controls, what the agents did, the 26 October boundary evaluation, lessons),
+followed by a board of all 25 October runs. `/arena/runs/[id]/`
 renders each of the 34 preserved 25 October records, with original and offline
 scores separated. Those pages read **only** the redacted export under
 `public/arena/evidence/2026-10-25/`; never point the website at private Arena
