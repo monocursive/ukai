@@ -1,0 +1,11 @@
+{"name": "deputy-kickstart-supervisor", "outcome": "FAIL"}
+{"name": "deputy-kickstart-guardian", "outcome": "FAIL"}
+{"name": "deputy-load-supervisor", "outcome": "PASS"}
+{"name": "deputy-load-guardian", "outcome": "PASS"}
+{"name": "j17-mutations-strict", "outcome": "PASS", "checks": {"tree_verified": true, "independent_tree_empty": true, "summary_agrees": true, "set": true, "exit_zero": true, "coverage_active": true, "expected_actions": true}}
+{"name": "j17-longpath-best-effort", "outcome": "FAIL", "checks": {"tree_verified": true, "independent_tree_empty": true, "summary_agrees": true, "set": true, "observation_degraded": true, "counts_null": true, "custody_contiguous": false, "best_effort_completed": true}}
+{"name": "j17-longpath-strict", "outcome": "FAIL", "checks": {"tree_verified": true, "independent_tree_empty": true, "summary_agrees": true, "set": true, "observation_degraded": true, "counts_null": true, "custody_contiguous": false, "strict_stopped": true}}
+{"name": "j17-flood-best-effort", "outcome": "FAIL", "checks": {"tree_verified": true, "independent_tree_empty": true, "summary_agrees": true, "set": true, "observation_degraded": true, "counts_null": true, "custody_contiguous": false, "best_effort_completed": true}}
+{"name": "j17-flood-strict", "outcome": "FAIL", "checks": {"tree_verified": true, "independent_tree_empty": true, "summary_agrees": true, "set": true, "observation_degraded": true, "counts_null": true, "custody_contiguous": false, "strict_stopped": true}}
+{"scenario": "k92", "outcome": "PASS", "trials": 25}
+{"scenario": "k93", "outcome": "BLOCKED", "trials": 11}

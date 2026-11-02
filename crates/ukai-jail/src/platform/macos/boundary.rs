@@ -75,7 +75,7 @@ use crate::platform::macos::guardian::frames::{
 };
 use crate::platform::macos::guardian::launch_block::{self, FdAction, LaunchBlock};
 use crate::platform::macos::guardian::record;
-use crate::platform::macos::guardian::rlimit::PROCESS_HEADROOM;
+use crate::platform::macos::guardian::rlimit::{plan_allowance, AppliedAllowance};
 use crate::platform::macos::observe::{ObserveRun, ObserveStartError};
 use crate::platform::macos::relay::TerminalRelay;
 use crate::platform::macos::sandbox::{self as seatbelt, ProfileParams};
@@ -1160,6 +1160,9 @@ pub struct MacosPrepared {
     /// The regular-file and socket stdio relays (jail-v1 §8.3).
     stdio_relays: Vec<StdioRelay>,
     headroom: u64,
+    /// Whether the full 1024 did not fit under the inherited ceiling and
+    /// the ceiling itself is the allowance (amended rule 6, 2026-11-02).
+    headroom_clamped: bool,
     profile_params: ProfileParams,
     handshake_events: Vec<es::EsPoll>,
     /// The outside proxy, the sink that tallies its results, and the
@@ -1375,6 +1378,17 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
         }
         None => (None, None, None),
     };
+    // Amended rule 6 (2026-11-02): plan the process allowance from the
+    // pre-spawn snapshot the guardian will re-verify; a host where even the
+    // snapshot cannot be read refuses here, naming the failure.
+    let planned_allowance: AppliedAllowance = plan_allowance().map_err(|error| {
+        refusal(
+            ErrorCode::BackendUnavailable,
+            ErrorStage::Preparing,
+            Remediation::Retry,
+            format!("process allowance could not be planned: {error}"),
+        )
+    })?;
     Ok(Box::new(MacosPrepared {
         observation,
         client: Some(client),
@@ -1402,7 +1416,11 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
             .and_then(|wall| wall.value.parse::<u64>().ok()),
         relay,
         stdio_relays: built.stdio_relays,
-        headroom: PROCESS_HEADROOM,
+        // Amended rule 6: the receipt records the allowance the guardian
+        // will apply, from the same pre-spawn snapshot domain; the
+        // guardian's own read remains the authoritative gate (§4.1).
+        headroom: planned_allowance.headroom,
+        headroom_clamped: planned_allowance.clamped,
         handshake_events: handshake.events,
         proxy,
         proxy_sink,
@@ -2184,6 +2202,10 @@ impl PreparedExecution for MacosPrepared {
             "process_headroom".to_owned(),
             serde_json::Value::from(self.headroom),
         );
+        details.insert(
+            "process_headroom_clamped".to_owned(),
+            serde_json::Value::from(self.headroom_clamped),
+        );
         BoundaryIdentity {
             boundary: BoundaryKind::NativeTree,
             verification_scope: VerificationScope::AttemptTree,
@@ -2369,6 +2391,14 @@ struct MacosRunning {
     wall_ns: u64,
     wall_expired: bool,
     settled_at_ns: Option<u64>,
+    /// The whole-stop phase marks (NC09/NC11): when the supervisor first
+    /// began the stop, when its machine produced a result, when the
+    /// guardian's record arrived, and (existing) when the receipt settled —
+    /// all on the continuous clock, so an operator's independent oracle can
+    /// be reconciled against the machine's own view.
+    stop_requested_ns: Option<u64>,
+    stop_result_ns: Option<u64>,
+    guardian_record_ns: Option<u64>,
     limits: Vec<AppliedLimit>,
     stop: Option<StopDrive>,
     stop_result: Option<StopResult>,
@@ -2379,6 +2409,7 @@ struct MacosRunning {
     stdio_relays: Vec<StdioRelay>,
     target_was_stopped: bool,
     headroom: u64,
+    headroom_clamped: bool,
     profile_params: ProfileParams,
     handshake_events: Vec<es::EsPoll>,
     /// The outside proxy, its tally, and the loopback relay (§4.10).
@@ -2424,6 +2455,9 @@ impl MacosRunning {
                 .map_or(0, |ms| ms.saturating_mul(1_000_000)),
             wall_expired: false,
             settled_at_ns: None,
+            stop_requested_ns: None,
+            stop_result_ns: None,
+            guardian_record_ns: None,
             limits: prepared.applied.limits,
             stop: None,
             stop_result: None,
@@ -2434,6 +2468,7 @@ impl MacosRunning {
             stdio_relays: prepared.stdio_relays,
             target_was_stopped: false,
             headroom: prepared.headroom,
+            headroom_clamped: prepared.headroom_clamped,
             profile_params: prepared.profile_params,
             handshake_events: prepared.handshake_events,
             proxy: prepared.proxy,
@@ -2556,12 +2591,16 @@ impl MacosRunning {
                     self.guardian_record.is_none() || !self.b_reader.buffer.is_empty();
             }
             Ok(n) if !self.guardian_lost => {
+                let before = self.guardian_record.is_some();
                 if let Err(()) = receive_guardian_record(
                     &mut self.b_reader,
                     &buffer[..n],
                     &mut self.guardian_record,
                 ) {
                     self.guardian_lost = true;
+                }
+                if !before && self.guardian_record.is_some() {
+                    self.guardian_record_ns.get_or_insert_with(es::continuous_time_ns);
                 }
             }
             Ok(_) => {}
@@ -2590,6 +2629,7 @@ impl MacosRunning {
     /// Begins the supervisor's own stop: A closes (end-of-file is the
     /// guardian's stop, §4.3) and the engine's stop machine starts.
     fn begin_stop(&mut self) {
+        self.stop_requested_ns.get_or_insert_with(es::continuous_time_ns);
         if self.a_write >= 0 {
             // SAFETY: a plain close of a descriptor this process owns.
             unsafe { libc::close(self.a_write) };
@@ -2601,6 +2641,7 @@ impl MacosRunning {
     /// Advances the stop one tick; `true` when it has ended (§4.5).
     fn tick_stop(&mut self) -> bool {
         if let Some(result) = self.engine.tick(es::continuous_time_ns(), &mut EsSignaller) {
+            self.stop_result_ns.get_or_insert_with(es::continuous_time_ns);
             self.stop_result = Some(result);
             return true;
         }
@@ -2755,6 +2796,10 @@ impl MacosRunning {
             "process_headroom".to_owned(),
             serde_json::Value::from(self.headroom),
         );
+        details.insert(
+            "process_headroom_clamped".to_owned(),
+            serde_json::Value::from(self.headroom_clamped),
+        );
         let mut custodians = serde_json::Map::new();
         custodians.insert("supervisor".to_owned(), self.custodian_facts());
         custodians.insert("guardian".to_owned(), self.guardian_facts());
@@ -2772,6 +2817,28 @@ impl MacosRunning {
             "elapsed_ns".to_owned(),
             serde_json::Value::from(self.stop_result.map_or(0, |result| result.elapsed_ns())),
         );
+        // The whole-stop phase marks (NC09/NC11): the supervisor's own
+        // machine timings plus the three supervisor-side instants, on the
+        // continuous clock, so an independent oracle can be reconciled
+        // against where the interval actually went. The supervisor's and
+        // the guardian's machines run concurrently; the guardian's own
+        // marks are in its record (`guardian.stop_phases`).
+        let supervisor = self.engine.stop().timing();
+        let mut phases = serde_json::Map::new();
+        for (name, mark) in [
+            ("requested", self.stop_requested_ns),
+            ("freeze_done", supervisor.freeze_done_ns),
+            ("first_kill", supervisor.first_kill_ns),
+            ("result", self.stop_result_ns.or(supervisor.result_ns)),
+            ("guardian_record", self.guardian_record_ns),
+            ("settled", self.settled_at_ns),
+        ] {
+            phases.insert(
+                name.to_owned(),
+                mark.map_or(serde_json::Value::Null, serde_json::Value::from),
+            );
+        }
+        stop.insert("phases".to_owned(), serde_json::Value::from(phases));
         details.insert("stop".to_owned(), serde_json::Value::from(stop));
         if let Some(relay) = &self.relay {
             details.insert(
@@ -4206,7 +4273,10 @@ os.write({}, (','.join(map(str, fds))).encode())
                     .map(|wall| wall.value.parse().unwrap()),
                 relay: None,
                 stdio_relays: Vec::new(),
-                headroom: PROCESS_HEADROOM,
+                headroom: crate::platform::macos::guardian::rlimit::PROCESS_HEADROOM,
+                // A synthetic fixture: the unclamped shape (the receipt
+                // tests do not model a clamped host).
+                headroom_clamped: false,
                 profile_params: params,
                 handshake_events: events,
                 proxy: None,

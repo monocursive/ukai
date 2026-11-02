@@ -1,0 +1,17 @@
+Traceback (most recent call last):
+  File "/Users/admin/ukai-custody-spike-20261101/src/macos_j16_spike_guest.py", line 562, in <module>
+    main()
+  File "/Users/admin/ukai-custody-spike-20261101/src/macos_j16_spike_guest.py", line 488, in main
+    guard()
+  File "/Users/admin/ukai-custody-spike-20261101/src/macos_j16_spike_guest.py", line 82, in guard
+    assert "virtiofs" not in command(["mount"])["stdout"]
+  File "/Users/admin/ukai-custody-spike-20261101/src/macos_j16_spike_guest.py", line 48, in command
+    p = subprocess.run(list(map(str, argv)), capture_output=True, text=True, timeout=timeout, **kw)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/subprocess.py", line 505, in run
+    with Popen(*popenargs, **kwargs) as process:
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/subprocess.py", line 951, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/subprocess.py", line 1821, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: 'mount'
+{"scenario": "smoke-raised-limits", "outcome": "PASS", "trials": 2}

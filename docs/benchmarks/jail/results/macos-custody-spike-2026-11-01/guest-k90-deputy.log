@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/Users/admin/ukai-custody-spike-20261101/src/k90_deputy_check.py", line 74, in <module>
+    results.append(check(root, who, op))
+  File "/Users/admin/ukai-custody-spike-20261101/src/k90_deputy_check.py", line 19, in check
+    assert t.ready(), 'fixture must start'
+AssertionError: fixture must start
+{"name": "deputy-v2-kickstart-supervisor", "outcome": "FAIL"}
+{"name": "deputy-v2-kickstart-guardian", "outcome": "FAIL"}
+{"name": "deputy-v2-load-supervisor", "outcome": "PASS"}
+{"name": "deputy-v2-load-guardian", "outcome": "PASS"}

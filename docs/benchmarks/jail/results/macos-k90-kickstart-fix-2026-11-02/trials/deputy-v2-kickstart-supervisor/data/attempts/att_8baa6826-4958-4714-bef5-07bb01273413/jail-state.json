@@ -1,0 +1,35 @@
+{
+  "arch": "aarch64",
+  "attempt_id": "att_8baa6826-4958-4714-bef5-07bb01273413",
+  "boundary": {
+    "backend": "ukai-jail-macos",
+    "backend_version": "0.1.0",
+    "kind": "native_tree",
+    "process": {
+      "identity": {
+        "kind": "macos_audit_token",
+        "value": {
+          "boot_session": "2D2BB02A-7335-4C7B-939A-4526981FBE42",
+          "pid": 1062,
+          "pidversion": 2714,
+          "token": "000001f5000001f500000014000001f50000001400000426000186a200000a9a"
+        }
+      },
+      "pid": 1062
+    },
+    "verification_scope": "attempt_tree"
+  },
+  "claimed_at": "2026-11-02T08:33:17Z",
+  "component_version": "0.1.0",
+  "execution_cgroup": null,
+  "kernel": "Darwin 27.0.0",
+  "os": "macos",
+  "owner": {
+    "boot_id": "2D2BB02A-7335-4C7B-939A-4526981FBE42",
+    "pid": 915,
+    "start_time_ticks": 1793608397
+  },
+  "schema": "ukai.jail.state/1",
+  "state_cleanup": "not_needed",
+  "vendor_state": null
+}

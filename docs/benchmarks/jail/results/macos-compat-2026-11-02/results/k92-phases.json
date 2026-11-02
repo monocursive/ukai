@@ -1,0 +1,351 @@
+{
+  "rows": [
+    {
+      "name": "k92-parallel-00",
+      "stop_to_snapshot_ms": 2457.3379999999997,
+      "elapsed_ns": 72947375,
+      "phases": {
+        "first_kill": 201681956375,
+        "freeze_done": 201661944125,
+        "guardian_record": 201989120916,
+        "requested": 201661934833,
+        "result": 201734892250,
+        "settled": 201989121666
+      },
+      "deltas_from_requested": {
+        "first_kill_ms": 20.0,
+        "freeze_done_ms": 0.0,
+        "guardian_record_ms": 327.2,
+        "requested_ms": 0.0,
+        "result_ms": 73.0,
+        "settled_ms": 327.2
+      },
+      "drained": "drained"
+    },
+    {
+      "name": "k92-parallel-01",
+      "stop_to_snapshot_ms": 2486.338375000003,
+      "elapsed_ns": 73593917,
+      "phases": {
+        "first_kill": 225057927541,
+        "freeze_done": 225037912708,
+        "guardian_record": 225365546875,
+        "requested": 225037844166,
+        "result": 225111507416,
+        "settled": 225365547583
+      },
+      "deltas_from_requested": {
+        "first_kill_ms": 20.1,
+        "freeze_done_ms": 0.1,
+        "guardian_record_ms": 327.7,
+        "requested_ms": 0.0,
+        "result_ms": 73.7,
+        "settled_ms": 327.7
+      },
+      "drained": "drained"
+    },
+    {
+      "name": "k92-parallel-02",
+      "stop_to_snapshot_ms": 2489.136999999999,
+      "elapsed_ns": 73363834,
+      "phases": {
+        "first_kill": 249004254708,
+        "freeze_done": 248984254583,
+        "guardian_record": 249308316625,
+        "requested": 248984245416,
+        "result": 249057619208,
+        "settled": 249308317083
+      },
+      "deltas_from_requested": {
+        "first_kill_ms": 20.0,
+        "freeze_done_ms": 0.0,
+        "guardian_record_ms": 324.1,
+        "requested_ms": 0.0,
+        "result_ms": 73.4,
+        "settled_ms": 324.1
+      },
+      "drained": "drained"
+    },
+    {
+      "name": "k92-continue-00",
+      "stop_to_snapshot_ms": 2490.4996249999967,
+      "elapsed_ns": 21143792,
+      "phases": {
+        "first_kill": 272975591666,
+        "freeze_done": 272955576250,
+        "guardian_record": 273233590666,
+        "requested": 272955565500,
+        "result": 272976720291,
+        "settled": 273233591291
+      },
+      "deltas_from_requested": {
+        "first_kill_ms": 20.0,
+        "freeze_done_ms": 0.0,
+        "guardian_record_ms": 278.0,
+        "requested_ms": 0.0,
+        "result_ms": 21.2,
+        "settled_ms": 278.0
+      },
+      "drained": "drained"
+    },
+    {
+      "name": "k92-continue-01",
+      "stop_to_snapshot_ms": 2394.402000000013,
+      "elapsed_ns": 21321917,
+      "phases": {
+        "first_kill": 288117717750,
+        "freeze_done": 288097708833,
+        "guardian_record": 288374235166,
+        "requested": 288097698833,
+        "result": 288119030750,
+        "settled": 288374236041
+      },
+      "deltas_from_requested": {
+        "first_kill_ms": 20.0,
+        "freeze_done_ms": 0.0,
+        "guardian_record_ms": 276.5,
+        "requested_ms": 0.0,
+        "result_ms": 21.3,
+        "settled_ms": 276.5
+      },
+      "drained": "drained"
+    },
+    {
+      "name": "k92-continue-02",
+      "stop_to_snapshot_ms": 2410.9368329999925,
+      "elapsed_ns": 21174208,
+      "phases": {
+        "first_kill": 305123163333,
+        "freeze_done": 305103143333,
+        "guardian_record": 305378995916,
+        "requested": 305103134708,
+        "result": 305124317708,
+        "settled": 305378998666
+      },
+      "deltas_from_requested": {
+        "first_kill_ms": 20.0,
+        "freeze_done_ms": 0.0,
+        "guardian_record_ms": 275.9,
+        "requested_ms": 0.0,
+        "result_ms": 21.2,
+        "settled_ms": 275.9
+      },
+      "drained": "drained"
+    },
+    {
+      "name": "k92-orphan-00",
+      "stop_to_snapshot_ms": 2376.5460000000185,
+      "elapsed_ns": 20441083,
+      "phases": {
+        "first_kill": 320111299083,
+        "freeze_done": 320091283041,
+        "guardian_record": 320363760791,
+        "requested": 320091273791,
+        "result": 320111724166,
+        "settled": 320363761333
+      },
+      "deltas_from_requested": {
+        "first_kill_ms": 20.0,
+        "freeze_done_ms": 0.0,
+        "guardian_record_ms": 272.5,
+        "requested_ms": 0.0,
+        "result_ms": 20.5,
+        "settled_ms": 272.5
+      },
+      "drained": "drained"
+    },
+    {
+      "name": "k92-orphan-01",
+      "stop_to_snapshot_ms": 2473.1266249999917,
+      "elapsed_ns": 20422042,
+      "phases": {
+        "first_kill": 333970679166,
+        "freeze_done": 333950678583,
+        "guardian_record": 334225330625,
+        "requested": 333950670625,
+        "result": 333971100750,
+        "settled": 334225331208
+      },
+      "deltas_from_requested": {
+        "first_kill_ms": 20.0,
+        "freeze_done_ms": 0.0,
+        "guardian_record_ms": 274.7,
+        "requested_ms": 0.0,
+        "result_ms": 20.4,
+        "settled_ms": 274.7
+      },
+      "drained": "drained"
+    },
+    {
+      "name": "k92-orphan-02",
+      "stop_to_snapshot_ms": 2369.257333000007,
+      "elapsed_ns": 20475500,
+      "phases": {
+        "first_kill": 347807108875,
+        "freeze_done": 347787084291,
+        "guardian_record": 348066910166,
+        "requested": 347787075208,
+        "result": 347807559958,
+        "settled": 348066911291
+      },
+      "deltas_from_requested": {
+        "first_kill_ms": 20.0,
+        "freeze_done_ms": 0.0,
+        "guardian_record_ms": 279.8,
+        "requested_ms": 0.0,
+        "result_ms": 20.5,
+        "settled_ms": 279.8
+      },
+      "drained": "drained"
+    },
+    {
+      "name": "k92-chain-00",
+      "stop_to_snapshot_ms": 2328.9591669999936,
+      "elapsed_ns": 28634625,
+      "phases": {
+        "first_kill": 362702336375,
+        "freeze_done": 362682327750,
+        "guardian_record": 362716114083,
+        "requested": 362682306791,
+        "result": 362710962458,
+        "settled": 362716114666
+      },
+      "deltas_from_requested": {
+        "first_kill_ms": 20.0,
+        "freeze_done_ms": 0.0,
+        "guardian_record_ms": 33.8,
+        "requested_ms": 0.0,
+        "result_ms": 28.7,
+        "settled_ms": 33.8
+      },
+      "drained": "drained"
+    },
+    {
+      "name": "k92-chain-01",
+      "stop_to_snapshot_ms": 2179.7074170000033,
+      "elapsed_ns": 30107792,
+      "phases": {
+        "first_kill": 379289771833,
+        "freeze_done": 379269748375,
+        "guardian_record": 379306731250,
+        "requested": 379269742041,
+        "result": 379299856291,
+        "settled": 379306731958
+      },
+      "deltas_from_requested": {
+        "first_kill_ms": 20.0,
+        "freeze_done_ms": 0.0,
+        "guardian_record_ms": 37.0,
+        "requested_ms": 0.0,
+        "result_ms": 30.1,
+        "settled_ms": 37.0
+      },
+      "drained": "drained"
+    },
+    {
+      "name": "k92-chain-02",
+      "stop_to_snapshot_ms": 2216.561083000015,
+      "elapsed_ns": 28415959,
+      "phases": {
+        "first_kill": 397208049750,
+        "freeze_done": 397188033208,
+        "guardian_record": 397219634791,
+        "requested": 397188022916,
+        "result": 397216449250,
+        "settled": 397219635208
+      },
+      "deltas_from_requested": {
+        "first_kill_ms": 20.0,
+        "freeze_done_ms": 0.0,
+        "guardian_record_ms": 31.6,
+        "requested_ms": 0.0,
+        "result_ms": 28.4,
+        "settled_ms": 31.6
+      },
+      "drained": "drained"
+    },
+    {
+      "name": "k92-exec-00",
+      "stop_to_snapshot_ms": 3483.5005420000016,
+      "elapsed_ns": 20408000,
+      "phases": {
+        "first_kill": 413384469250,
+        "freeze_done": 413364456000,
+        "guardian_record": 413429137875,
+        "requested": 413364447875,
+        "result": 413384864083,
+        "settled": 413429138500
+      },
+      "deltas_from_requested": {
+        "first_kill_ms": 20.0,
+        "freeze_done_ms": 0.0,
+        "guardian_record_ms": 64.7,
+        "requested_ms": 0.0,
+        "result_ms": 20.4,
+        "settled_ms": 64.7
+      },
+      "drained": "drained"
+    },
+    {
+      "name": "k92-exec-01",
+      "stop_to_snapshot_ms": 3921.569916999999,
+      "elapsed_ns": 20420083,
+      "phases": {
+        "first_kill": 429634839166,
+        "freeze_done": 429614822750,
+        "guardian_record": 429672679666,
+        "requested": 429614816166,
+        "result": 429635242916,
+        "settled": 429672680416
+      },
+      "deltas_from_requested": {
+        "first_kill_ms": 20.0,
+        "freeze_done_ms": 0.0,
+        "guardian_record_ms": 57.9,
+        "requested_ms": 0.0,
+        "result_ms": 20.4,
+        "settled_ms": 57.9
+      },
+      "drained": "drained"
+    },
+    {
+      "name": "k92-exec-02",
+      "stop_to_snapshot_ms": 4213.86912500003,
+      "elapsed_ns": 20389333,
+      "phases": {
+        "first_kill": 447160577458,
+        "freeze_done": 447140548000,
+        "guardian_record": 447206591291,
+        "requested": 447140539625,
+        "result": 447160937416,
+        "settled": 447206591750
+      },
+      "deltas_from_requested": {
+        "first_kill_ms": 20.0,
+        "freeze_done_ms": 0.0,
+        "guardian_record_ms": 66.1,
+        "requested_ms": 0.0,
+        "result_ms": 20.4,
+        "settled_ms": 66.1
+      },
+      "drained": "drained"
+    }
+  ],
+  "oracle_p50_ms": [
+    2179.7074170000033,
+    2216.561083000015,
+    2328.9591669999936,
+    2369.257333000007,
+    2376.5460000000185,
+    2394.402000000013,
+    2410.9368329999925,
+    2457.3379999999997,
+    2473.1266249999917,
+    2486.338375000003,
+    2489.136999999999,
+    2490.4996249999967,
+    3483.5005420000016,
+    3921.569916999999,
+    4213.86912500003
+  ]
+}

@@ -1,0 +1,664 @@
+Timestamp               Ty Process[PID:TID]
+2026-11-01 21:47:16.399 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) sysctl-read security.mac.lockdown_mode_state
+2026-11-01 21:47:16.399 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:47:16.399 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.399 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:47:16.399 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51161) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:47:16.399 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-data /System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld
+2026-11-01 21:47:16.399 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:47:16.399 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51161) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:47:16.399 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.399 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:47:16.399 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/Rosetta
+2026-11-01 21:47:16.400 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-data /dev/dtracehelper
+2026-11-01 21:47:16.400 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:47:16.400 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) sysctl-read kern.iossupportversion
+2026-11-01 21:47:16.400 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:47:16.401 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) sysctl-read kern.osvariant_status
+2026-11-01 21:47:16.402 E  kernel[0:4c63b] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) mach-lookup com.apple.system.notification_center
+2026-11-01 21:47:16.402 E  kernel[0:4c63b] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:47:16.402 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.402 E  kernel[0:4c6d9] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.402 E  kernel[0:4c6d9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:47:16.402 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.405 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.405 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) sysctl-read kern.hostname
+2026-11-01 21:47:16.406 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) process-info-pidinfo same-sandbox [bash(51157)]
+2026-11-01 21:47:16.406 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.406 E  kernel[0:4c6d9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:47:16.406 E  kernel[0:4c6d9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) mach-lookup com.apple.system.logger
+2026-11-01 21:47:16.406 E  kernel[0:4c63b] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:47:16.407 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) system-info vfs.disk-space
+2026-11-01 21:47:16.408 E  kernel[0:4c6d9] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51161) deny(1) system-info vfs.disk-space
+2026-11-01 21:47:16.408 E  kernel[0:4c6d9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) mach-lookup com.apple.logd
+2026-11-01 21:47:16.408 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.408 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.408 E  kernel[0:4c63b] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:47:16.408 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.408 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.408 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.408 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.408 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /private/var/empty
+2026-11-01 21:47:16.408 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.408 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.409 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.409 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.409 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.409 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.409 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.409 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.409 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.409 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.409 E  kernel[0:4c6d9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:47:16.409 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.409 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.409 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.409 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.410 E  kernel[0:4c6fe] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-data /Library/Preferences/.GlobalPreferences.plist
+2026-11-01 21:47:16.410 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) system-info vfs.disk-space
+2026-11-01 21:47:16.411 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.411 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.411 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) system-info vfs.disk-space
+2026-11-01 21:47:16.411 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] 2 duplicate reports for Sandbox: tclsh8.5(51161) deny(1) system-info vfs.disk-space
+2026-11-01 21:47:16.411 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) sysctl-read kern.hostname
+2026-11-01 21:47:16.411 E  kernel[0:4c6d9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:47:16.411 E  kernel[0:4c6fc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.414 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51161) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.414 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) sysctl-read security.mac.lockdown_mode_state
+2026-11-01 21:47:16.414 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:47:16.414 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.414 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:47:16.414 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51155) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:47:16.414 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-data /System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld
+2026-11-01 21:47:16.414 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:47:16.414 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51155) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:47:16.414 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.414 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:47:16.414 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/Rosetta
+2026-11-01 21:47:16.415 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-data /dev/dtracehelper
+2026-11-01 21:47:16.416 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:47:16.416 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) sysctl-read kern.iossupportversion
+2026-11-01 21:47:16.416 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:47:16.416 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) sysctl-read kern.osvariant_status
+2026-11-01 21:47:16.417 E  kernel[0:4c6d9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) mach-lookup com.apple.system.notification_center
+2026-11-01 21:47:16.417 E  kernel[0:4c6d9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:47:16.417 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.417 E  kernel[0:4c63b] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.417 E  kernel[0:4c63b] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:47:16.417 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.417 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.417 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) sysctl-read kern.hostname
+2026-11-01 21:47:16.417 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) process-info-pidinfo same-sandbox [bash(51154)]
+2026-11-01 21:47:16.417 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.417 E  kernel[0:4c63b] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:47:16.418 E  kernel[0:4c63b] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) mach-lookup com.apple.system.logger
+2026-11-01 21:47:16.418 E  kernel[0:4c6d9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) system-info vfs.disk-space
+2026-11-01 21:47:16.418 E  kernel[0:4c63b] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51155) deny(1) system-info vfs.disk-space
+2026-11-01 21:47:16.418 E  kernel[0:4c63b] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) mach-lookup com.apple.logd
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.418 E  kernel[0:4c6d9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /private/var/empty
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.418 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.419 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.419 E  kernel[0:4c63b] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:47:16.419 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.419 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.419 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.419 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.419 E  kernel[0:4c701] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-data /Library/Preferences/.GlobalPreferences.plist
+2026-11-01 21:47:16.419 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) system-info vfs.disk-space
+2026-11-01 21:47:16.419 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:47:16.419 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:47:16.419 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) system-info vfs.disk-space
+2026-11-01 21:47:16.420 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] 2 duplicate reports for Sandbox: tclsh8.5(51155) deny(1) system-info vfs.disk-space
+2026-11-01 21:47:16.420 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) sysctl-read kern.hostname
+2026-11-01 21:47:16.420 E  kernel[0:4c63b] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:47:16.420 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.423 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51155) deny(1) file-read-metadata /etc
+2026-11-01 21:47:16.423 E  kernel[0:4c700] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51155) deny(1) system-info vfs.disk-space
+2026-11-01 21:47:16.428 E  kernel[0:4c706] [com.apple.sandbox.reporting:violation] 2 duplicate reports for Sandbox: tclsh8.5(51155) deny(1) system-info vfs.disk-space
+2026-11-01 21:49:00.416 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) sysctl-read security.mac.lockdown_mode_state
+2026-11-01 21:49:00.416 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:49:00.416 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.416 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:49:00.416 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51214) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:49:00.416 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-data /System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld
+2026-11-01 21:49:00.416 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:49:00.416 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51214) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:49:00.416 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.416 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:49:00.416 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/Rosetta
+2026-11-01 21:49:00.417 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-data /dev/dtracehelper
+2026-11-01 21:49:00.417 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:49:00.417 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) sysctl-read kern.iossupportversion
+2026-11-01 21:49:00.417 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:49:00.421 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) sysctl-read kern.osvariant_status
+2026-11-01 21:49:00.422 E  kernel[0:4c8cf] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) mach-lookup com.apple.system.notification_center
+2026-11-01 21:49:00.422 E  kernel[0:4c8cf] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:49:00.422 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.422 E  kernel[0:4c8cf] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.422 E  kernel[0:4c8cf] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:49:00.422 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.423 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.423 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) sysctl-read kern.hostname
+2026-11-01 21:49:00.423 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) process-info-pidinfo same-sandbox [bash(51210)]
+2026-11-01 21:49:00.423 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.423 E  kernel[0:4c8cf] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:49:00.423 E  kernel[0:4c8cf] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) mach-lookup com.apple.system.logger
+2026-11-01 21:49:00.423 E  kernel[0:4c8cf] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:49:00.424 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) system-info vfs.disk-space
+2026-11-01 21:49:00.424 E  kernel[0:4c926] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51214) deny(1) system-info vfs.disk-space
+2026-11-01 21:49:00.424 E  kernel[0:4c926] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) mach-lookup com.apple.logd
+2026-11-01 21:49:00.425 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.425 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.425 E  kernel[0:4c8cf] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:49:00.425 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.425 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.425 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.425 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.425 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /private/var/empty
+2026-11-01 21:49:00.425 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.425 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.426 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.426 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.426 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.426 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.426 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.426 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.426 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.426 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.426 E  kernel[0:4c8cf] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:49:00.426 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.426 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.426 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.426 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.427 E  kernel[0:4c966] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-data /Library/Preferences/.GlobalPreferences.plist
+2026-11-01 21:49:00.428 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) system-info vfs.disk-space
+2026-11-01 21:49:00.428 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.428 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.428 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) system-info vfs.disk-space
+2026-11-01 21:49:00.429 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] 2 duplicate reports for Sandbox: tclsh8.5(51214) deny(1) system-info vfs.disk-space
+2026-11-01 21:49:00.429 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) sysctl-read kern.hostname
+2026-11-01 21:49:00.429 E  kernel[0:4c8cf] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:49:00.429 E  kernel[0:4c964] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.432 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51214) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.432 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) sysctl-read security.mac.lockdown_mode_state
+2026-11-01 21:49:00.432 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:49:00.432 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.433 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:49:00.433 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51208) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:49:00.433 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-data /System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld
+2026-11-01 21:49:00.433 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:49:00.433 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51208) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:49:00.433 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.433 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:49:00.433 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/Rosetta
+2026-11-01 21:49:00.433 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-data /dev/dtracehelper
+2026-11-01 21:49:00.434 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:49:00.434 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) sysctl-read kern.iossupportversion
+2026-11-01 21:49:00.434 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:49:00.434 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) sysctl-read kern.osvariant_status
+2026-11-01 21:49:00.434 E  kernel[0:4c8cf] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) mach-lookup com.apple.system.notification_center
+2026-11-01 21:49:00.434 E  kernel[0:4c926] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:49:00.435 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.435 E  kernel[0:4c8cf] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.435 E  kernel[0:4c8cf] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:49:00.435 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.435 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.435 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) sysctl-read kern.hostname
+2026-11-01 21:49:00.435 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) process-info-pidinfo same-sandbox [bash(51207)]
+2026-11-01 21:49:00.435 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.435 E  kernel[0:4c926] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:49:00.435 E  kernel[0:4c8cf] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) mach-lookup com.apple.system.logger
+2026-11-01 21:49:00.436 E  kernel[0:4c926] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:49:00.436 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) system-info vfs.disk-space
+2026-11-01 21:49:00.436 E  kernel[0:4c926] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51208) deny(1) system-info vfs.disk-space
+2026-11-01 21:49:00.436 E  kernel[0:4c926] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) mach-lookup com.apple.logd
+2026-11-01 21:49:00.436 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.436 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.436 E  kernel[0:4c8cf] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:49:00.436 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.436 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.436 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.436 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.437 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /private/var/empty
+2026-11-01 21:49:00.437 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.437 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.437 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.437 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.437 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.437 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.437 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.437 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.437 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.437 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.437 E  kernel[0:4c8cf] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:49:00.437 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.437 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.437 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.437 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.437 E  kernel[0:4c968] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-data /Library/Preferences/.GlobalPreferences.plist
+2026-11-01 21:49:00.437 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) system-info vfs.disk-space
+2026-11-01 21:49:00.438 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:49:00.438 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:49:00.438 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) system-info vfs.disk-space
+2026-11-01 21:49:00.438 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] 2 duplicate reports for Sandbox: tclsh8.5(51208) deny(1) system-info vfs.disk-space
+2026-11-01 21:49:00.438 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) sysctl-read kern.hostname
+2026-11-01 21:49:00.438 E  kernel[0:4c926] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:49:00.438 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.441 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51208) deny(1) file-read-metadata /etc
+2026-11-01 21:49:00.441 E  kernel[0:4c967] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51208) deny(1) system-info vfs.disk-space
+2026-11-01 21:49:00.447 E  kernel[0:4c96c] [com.apple.sandbox.reporting:violation] 2 duplicate reports for Sandbox: tclsh8.5(51208) deny(1) system-info vfs.disk-space
+2026-11-01 21:50:28.387 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) sysctl-read security.mac.lockdown_mode_state
+2026-11-01 21:50:28.387 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:50:28.387 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.387 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:50:28.387 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51265) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:50:28.387 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-data /System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld
+2026-11-01 21:50:28.387 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:50:28.387 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51265) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:50:28.387 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.387 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:50:28.387 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/Rosetta
+2026-11-01 21:50:28.387 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-data /dev/dtracehelper
+2026-11-01 21:50:28.388 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:50:28.388 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) sysctl-read kern.iossupportversion
+2026-11-01 21:50:28.388 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:50:28.390 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) sysctl-read kern.osvariant_status
+2026-11-01 21:50:28.390 E  kernel[0:4cb92] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) mach-lookup com.apple.system.notification_center
+2026-11-01 21:50:28.390 E  kernel[0:4cb92] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:50:28.390 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.390 E  kernel[0:4cb8f] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.390 E  kernel[0:4cb8f] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:50:28.390 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.391 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.391 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) sysctl-read kern.hostname
+2026-11-01 21:50:28.391 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) process-info-pidinfo same-sandbox [bash(51261)]
+2026-11-01 21:50:28.391 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.391 E  kernel[0:4cb8f] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:50:28.391 E  kernel[0:4cb92] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) mach-lookup com.apple.system.logger
+2026-11-01 21:50:28.391 E  kernel[0:4cb92] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:50:28.391 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) system-info vfs.disk-space
+2026-11-01 21:50:28.392 E  kernel[0:4cb8f] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51265) deny(1) system-info vfs.disk-space
+2026-11-01 21:50:28.392 E  kernel[0:4cb8f] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) mach-lookup com.apple.logd
+2026-11-01 21:50:28.392 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.392 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.392 E  kernel[0:4cb8f] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:50:28.392 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.392 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.392 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.392 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.392 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /private/var/empty
+2026-11-01 21:50:28.392 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.392 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.392 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.392 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.392 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.392 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.392 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.392 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.393 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.393 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.393 E  kernel[0:4cb92] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:50:28.393 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.393 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.393 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.393 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.394 E  kernel[0:4cbc2] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-data /Library/Preferences/.GlobalPreferences.plist
+2026-11-01 21:50:28.394 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) system-info vfs.disk-space
+2026-11-01 21:50:28.394 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.394 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.394 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) system-info vfs.disk-space
+2026-11-01 21:50:28.395 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] 2 duplicate reports for Sandbox: tclsh8.5(51265) deny(1) system-info vfs.disk-space
+2026-11-01 21:50:28.395 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) sysctl-read kern.hostname
+2026-11-01 21:50:28.395 E  kernel[0:4cb92] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:50:28.395 E  kernel[0:4cbc0] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.398 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51265) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.398 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) sysctl-read security.mac.lockdown_mode_state
+2026-11-01 21:50:28.398 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:50:28.398 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.398 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:50:28.398 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51259) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:50:28.398 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-data /System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld
+2026-11-01 21:50:28.398 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:50:28.398 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51259) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:50:28.398 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.398 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:50:28.398 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/Rosetta
+2026-11-01 21:50:28.398 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-data /dev/dtracehelper
+2026-11-01 21:50:28.399 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:50:28.399 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) sysctl-read kern.iossupportversion
+2026-11-01 21:50:28.399 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:50:28.399 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) sysctl-read kern.osvariant_status
+2026-11-01 21:50:28.399 E  kernel[0:4cb92] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) mach-lookup com.apple.system.notification_center
+2026-11-01 21:50:28.399 E  kernel[0:4cb92] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:50:28.399 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.400 E  kernel[0:4cb8f] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.400 E  kernel[0:4cb8f] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:50:28.400 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.400 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.400 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) sysctl-read kern.hostname
+2026-11-01 21:50:28.400 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) process-info-pidinfo same-sandbox [bash(51258)]
+2026-11-01 21:50:28.400 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.400 E  kernel[0:4cb8f] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:50:28.400 E  kernel[0:4cb92] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) mach-lookup com.apple.system.logger
+2026-11-01 21:50:28.400 E  kernel[0:4cb8f] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:50:28.400 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) system-info vfs.disk-space
+2026-11-01 21:50:28.401 E  kernel[0:4cb92] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51259) deny(1) system-info vfs.disk-space
+2026-11-01 21:50:28.401 E  kernel[0:4cb92] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) mach-lookup com.apple.logd
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.401 E  kernel[0:4cb8f] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /private/var/empty
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.401 E  kernel[0:4cb92] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.401 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.402 E  kernel[0:4cbc4] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-data /Library/Preferences/.GlobalPreferences.plist
+2026-11-01 21:50:28.402 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) system-info vfs.disk-space
+2026-11-01 21:50:28.402 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:50:28.402 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:50:28.402 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) system-info vfs.disk-space
+2026-11-01 21:50:28.402 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] 2 duplicate reports for Sandbox: tclsh8.5(51259) deny(1) system-info vfs.disk-space
+2026-11-01 21:50:28.402 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) sysctl-read kern.hostname
+2026-11-01 21:50:28.402 E  kernel[0:4cb8f] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:50:28.402 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.405 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51259) deny(1) file-read-metadata /etc
+2026-11-01 21:50:28.405 E  kernel[0:4cbc3] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51259) deny(1) system-info vfs.disk-space
+2026-11-01 21:50:28.410 E  kernel[0:4cbc8] [com.apple.sandbox.reporting:violation] 2 duplicate reports for Sandbox: tclsh8.5(51259) deny(1) system-info vfs.disk-space
+2026-11-01 21:51:32.612 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) sysctl-read security.mac.lockdown_mode_state
+2026-11-01 21:51:32.612 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:51:32.613 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.613 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:51:32.613 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51324) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:51:32.613 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-data /System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld
+2026-11-01 21:51:32.613 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:51:32.613 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51324) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:51:32.613 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.613 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:51:32.613 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/Rosetta
+2026-11-01 21:51:32.613 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-data /dev/dtracehelper
+2026-11-01 21:51:32.614 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:51:32.614 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) sysctl-read kern.iossupportversion
+2026-11-01 21:51:32.614 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:51:32.615 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) sysctl-read kern.osvariant_status
+2026-11-01 21:51:32.615 E  kernel[0:4cc01] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) mach-lookup com.apple.system.notification_center
+2026-11-01 21:51:32.616 E  kernel[0:4cc01] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:51:32.616 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.616 E  kernel[0:4ccb5] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.616 E  kernel[0:4ccb5] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:51:32.616 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.616 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.616 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) sysctl-read kern.hostname
+2026-11-01 21:51:32.616 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) process-info-pidinfo same-sandbox [bash(51320)]
+2026-11-01 21:51:32.616 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.616 E  kernel[0:4ccb5] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:51:32.617 E  kernel[0:4ccb5] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) mach-lookup com.apple.system.logger
+2026-11-01 21:51:32.617 E  kernel[0:4cc01] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:51:32.617 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) system-info vfs.disk-space
+2026-11-01 21:51:32.617 E  kernel[0:4ccb5] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51324) deny(1) system-info vfs.disk-space
+2026-11-01 21:51:32.617 E  kernel[0:4ccb5] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) mach-lookup com.apple.logd
+2026-11-01 21:51:32.617 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.617 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.618 E  kernel[0:4cc01] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:51:32.618 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.618 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.618 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.618 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.618 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /private/var/empty
+2026-11-01 21:51:32.618 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.618 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.618 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.618 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.618 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.618 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.618 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.618 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.618 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.618 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.619 E  kernel[0:4cc01] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:51:32.619 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.619 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.619 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.619 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.619 E  kernel[0:4ce1a] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-data /Library/Preferences/.GlobalPreferences.plist
+2026-11-01 21:51:32.619 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) system-info vfs.disk-space
+2026-11-01 21:51:32.620 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.620 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.620 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) system-info vfs.disk-space
+2026-11-01 21:51:32.620 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] 2 duplicate reports for Sandbox: tclsh8.5(51324) deny(1) system-info vfs.disk-space
+2026-11-01 21:51:32.620 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) sysctl-read kern.hostname
+2026-11-01 21:51:32.620 E  kernel[0:4cc01] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:51:32.620 E  kernel[0:4ce19] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.623 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51324) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.623 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) sysctl-read security.mac.lockdown_mode_state
+2026-11-01 21:51:32.623 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:51:32.623 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.623 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:51:32.623 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51318) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:51:32.623 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-data /System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld
+2026-11-01 21:51:32.623 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:51:32.623 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51318) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:51:32.623 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.623 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:51:32.623 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/Rosetta
+2026-11-01 21:51:32.624 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-data /dev/dtracehelper
+2026-11-01 21:51:32.625 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:51:32.625 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) sysctl-read kern.iossupportversion
+2026-11-01 21:51:32.625 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:51:32.625 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) sysctl-read kern.osvariant_status
+2026-11-01 21:51:32.625 E  kernel[0:4cc01] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) mach-lookup com.apple.system.notification_center
+2026-11-01 21:51:32.625 E  kernel[0:4cc01] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:51:32.625 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.625 E  kernel[0:4ccb5] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.625 E  kernel[0:4ccb5] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:51:32.625 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.626 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.626 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) sysctl-read kern.hostname
+2026-11-01 21:51:32.626 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) process-info-pidinfo same-sandbox [bash(51317)]
+2026-11-01 21:51:32.626 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.626 E  kernel[0:4cc01] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:51:32.626 E  kernel[0:4cc01] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) mach-lookup com.apple.system.logger
+2026-11-01 21:51:32.626 E  kernel[0:4ccb5] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:51:32.626 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) system-info vfs.disk-space
+2026-11-01 21:51:32.627 E  kernel[0:4ccb5] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51318) deny(1) system-info vfs.disk-space
+2026-11-01 21:51:32.627 E  kernel[0:4ccb5] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) mach-lookup com.apple.logd
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.627 E  kernel[0:4ccb5] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /private/var/empty
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.627 E  kernel[0:4ccb5] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.627 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.628 E  kernel[0:4ce1e] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-data /Library/Preferences/.GlobalPreferences.plist
+2026-11-01 21:51:32.628 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) system-info vfs.disk-space
+2026-11-01 21:51:32.628 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:51:32.628 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:51:32.628 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) system-info vfs.disk-space
+2026-11-01 21:51:32.628 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] 2 duplicate reports for Sandbox: tclsh8.5(51318) deny(1) system-info vfs.disk-space
+2026-11-01 21:51:32.628 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) sysctl-read kern.hostname
+2026-11-01 21:51:32.628 E  kernel[0:4cc01] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:51:32.628 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.631 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /etc
+2026-11-01 21:51:32.631 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) system-info vfs.disk-space
+2026-11-01 21:51:32.636 E  kernel[0:4ce22] [com.apple.sandbox.reporting:violation] 2 duplicate reports for Sandbox: tclsh8.5(51318) deny(1) system-info vfs.disk-space
+2026-11-01 21:51:33.890 E  kernel[0:4ce1c] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51318) deny(1) file-read-metadata /private/var/tmp
+2026-11-01 21:52:46.544 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) sysctl-read security.mac.lockdown_mode_state
+2026-11-01 21:52:46.544 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:52:46.544 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.544 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:52:46.544 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51470) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:52:46.544 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-data /System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld
+2026-11-01 21:52:46.544 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:52:46.544 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51470) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:52:46.544 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.544 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:52:46.544 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/Rosetta
+2026-11-01 21:52:46.545 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-data /dev/dtracehelper
+2026-11-01 21:52:46.546 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:52:46.546 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) sysctl-read kern.iossupportversion
+2026-11-01 21:52:46.546 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:52:46.547 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) sysctl-read kern.osvariant_status
+2026-11-01 21:52:46.548 E  kernel[0:4d060] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) mach-lookup com.apple.system.notification_center
+2026-11-01 21:52:46.548 E  kernel[0:4d060] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:52:46.548 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.548 E  kernel[0:4d0b9] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.548 E  kernel[0:4d0b9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:52:46.548 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.549 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.549 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) sysctl-read kern.hostname
+2026-11-01 21:52:46.549 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) process-info-pidinfo same-sandbox [bash(51466)]
+2026-11-01 21:52:46.549 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.549 E  kernel[0:4d060] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:52:46.549 E  kernel[0:4d0b9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) mach-lookup com.apple.system.logger
+2026-11-01 21:52:46.549 E  kernel[0:4d060] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:52:46.549 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) system-info vfs.disk-space
+2026-11-01 21:52:46.549 E  kernel[0:4d0b9] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51470) deny(1) system-info vfs.disk-space
+2026-11-01 21:52:46.549 E  kernel[0:4d0b9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) mach-lookup com.apple.logd
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.550 E  kernel[0:4d060] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /private/var/empty
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.550 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.551 E  kernel[0:4d0b9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:52:46.551 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.551 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.551 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.551 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.552 E  kernel[0:4d0d9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-data /Library/Preferences/.GlobalPreferences.plist
+2026-11-01 21:52:46.552 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) system-info vfs.disk-space
+2026-11-01 21:52:46.552 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.552 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.552 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) system-info vfs.disk-space
+2026-11-01 21:52:46.553 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] 2 duplicate reports for Sandbox: tclsh8.5(51470) deny(1) system-info vfs.disk-space
+2026-11-01 21:52:46.553 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) sysctl-read kern.hostname
+2026-11-01 21:52:46.553 E  kernel[0:4d060] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:52:46.553 E  kernel[0:4d0d7] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.556 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51470) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.556 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) sysctl-read security.mac.lockdown_mode_state
+2026-11-01 21:52:46.556 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:52:46.556 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.556 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:52:46.556 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51464) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:52:46.556 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-data /System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld
+2026-11-01 21:52:46.556 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:52:46.556 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51464) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:52:46.556 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.556 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) sysctl-read kern.bootargs
+2026-11-01 21:52:46.556 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/Rosetta
+2026-11-01 21:52:46.556 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-data /dev/dtracehelper
+2026-11-01 21:52:46.557 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:52:46.557 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) sysctl-read kern.iossupportversion
+2026-11-01 21:52:46.557 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) sysctl-read kern.osproductversion
+2026-11-01 21:52:46.557 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) sysctl-read kern.osvariant_status
+2026-11-01 21:52:46.557 E  kernel[0:4d060] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) mach-lookup com.apple.system.notification_center
+2026-11-01 21:52:46.558 E  kernel[0:4d060] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:52:46.558 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.558 E  kernel[0:4d0b9] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.558 E  kernel[0:4d0b9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:52:46.558 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.558 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.558 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) sysctl-read kern.hostname
+2026-11-01 21:52:46.558 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) process-info-pidinfo same-sandbox [bash(51462)]
+2026-11-01 21:52:46.558 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.558 E  kernel[0:4d0b9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:52:46.558 E  kernel[0:4d0b9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) mach-lookup com.apple.system.logger
+2026-11-01 21:52:46.558 E  kernel[0:4d060] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) mach-lookup com.apple.analyticsd.messagetracer
+2026-11-01 21:52:46.558 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) system-info vfs.disk-space
+2026-11-01 21:52:46.559 E  kernel[0:4d0b9] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51464) deny(1) system-info vfs.disk-space
+2026-11-01 21:52:46.559 E  kernel[0:4d0b9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) mach-lookup com.apple.logd
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.559 E  kernel[0:4d060] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /private/var/empty
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.559 E  kernel[0:4d060] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.559 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.560 E  kernel[0:4d0dc] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-data /Library/Preferences/.GlobalPreferences.plist
+2026-11-01 21:52:46.560 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) system-info vfs.disk-space
+2026-11-01 21:52:46.560 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/App
+2026-11-01 21:52:46.560 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /System/Cryptexes/OS
+2026-11-01 21:52:46.560 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) system-info vfs.disk-space
+2026-11-01 21:52:46.560 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] 2 duplicate reports for Sandbox: tclsh8.5(51464) deny(1) system-info vfs.disk-space
+2026-11-01 21:52:46.560 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) sysctl-read kern.hostname
+2026-11-01 21:52:46.560 E  kernel[0:4d0b9] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) mach-lookup com.apple.system.opendirectoryd.libinfo
+2026-11-01 21:52:46.560 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.563 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] 1 duplicate report for Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /etc
+2026-11-01 21:52:46.563 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) system-info vfs.disk-space
+2026-11-01 21:52:46.568 E  kernel[0:4d0df] [com.apple.sandbox.reporting:violation] 2 duplicate reports for Sandbox: tclsh8.5(51464) deny(1) system-info vfs.disk-space
+2026-11-01 21:52:47.867 E  kernel[0:4d0da] [com.apple.sandbox.reporting:violation] Sandbox: tclsh8.5(51464) deny(1) file-read-metadata /private/var/tmp
+2026-11-01 21:53:41.603 Df log[51589:4d29c] [com.apple.log:] log run noninteractively, parent: 460 (tart-guest-agent), args: '/usr/bin/log' 'show' '--last' '10m' '--style' 'compact' '--predicate' 'eventMessage CONTAINS "tclsh" AND eventMessage CONTAINS "deny"'

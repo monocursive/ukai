@@ -1,0 +1,55 @@
+{
+  "recorded_at_utc": "2026-10-24T19:15:31.265639+00:00",
+  "source_commit": "1ef80c36f2308e0d6e4adabf49c0531f52ba366e",
+  "host_binary_sha256": "d136e02596254a32242cd936338fa29fbc9c8eccdf72a051f7f7995db99af202",
+  "host_version": {
+    "argv": [
+      "target/release/ukai-jail",
+      "version",
+      "--json"
+    ],
+    "exit": 0,
+    "stdout": "{\n  \"build\": {\n    \"debug_assertions\": false,\n    \"dirty\": false,\n    \"inputs\": \"sha256:b6ee6687471dc9e37636c0ae4f791bbff7e8ba0b41b5e77321d95ba13d60c5fc\",\n    \"opt_level\": \"3\",\n    \"revision\": \"1ef80c36f2308e0d6e4adabf49c0531f52ba366e\",\n    \"rustc\": \"rustc 1.98.1 (48a229cea 2026-09-01)\",\n    \"target\": \"aarch64-apple-darwin\"\n  },\n  \"component\": \"ukai-jail\",\n  \"frozen\": true,\n  \"observation\": {\n    \"closed_set\": \"macos-closed-v1\"\n  },\n  \"platform\": {\n    \"arch\": \"aarch64\",\n    \"kernel\": \"Darwin 27.0.0\",\n    \"os\": \"macos\"\n  },\n  \"schemas\": {\n    \"control\": \"ukai.jail.control/1\",\n    \"doctor\": \"ukai.jail.doctor/1\",\n    \"event\": \"ukai.event/1\",\n    \"gate\": \"ukai.jail.gate/1\",\n    \"learned_policy\": \"ukai.jail.learned-policy/1\",\n    \"network\": \"ukai.jail.network/1\",\n    \"policy\": \"ukai.jail.policy/1\",\n    \"policy_file\": \"ukai.jail.policy-file/1\",\n    \"policy_snapshot\": \"ukai.jail.policy-snapshot/1\",\n    \"receipt\": \"ukai.jail.receipt/1\",\n    \"summary\": \"ukai.jail.summary/1\"\n  },\n  \"version\": \"0.1.0\"\n}\n",
+    "stderr": ""
+  },
+  "host_sip": {
+    "argv": [
+      "csrutil",
+      "status"
+    ],
+    "exit": 0,
+    "stdout": "System Integrity Protection status: enabled.\n",
+    "stderr": ""
+  },
+  "host_sdk": {
+    "argv": [
+      "xcrun",
+      "--show-sdk-version"
+    ],
+    "exit": 0,
+    "stdout": "27.0\n",
+    "stderr": ""
+  },
+  "tart_version": {
+    "argv": [
+      "tart",
+      "--version"
+    ],
+    "exit": 0,
+    "stdout": "2.38.0\n",
+    "stderr": ""
+  },
+  "guest": {
+    "argv": [
+      "tart",
+      "exec",
+      "ouro-jail-es-dev",
+      "/bin/sh",
+      "-c",
+      "sw_vers; sysctl -n kern.hv_vmm_present; csrutil status; networksetup -getnetworkserviceenabled Ethernet; mount; codesign -dv --entitlements :- /Users/admin/ukai-live-2026-10-24/Ukai.app/Contents/MacOS/ukai-jail; shasum -a 256 /Users/admin/ukai-live-2026-10-24/Ukai.app/Contents/MacOS/ukai-jail"
+    ],
+    "exit": 0,
+    "stdout": "ProductName:\t\tmacOS\nProductVersion:\t\t27.0\nBuildVersion:\t\t26A428\n1\nSystem Integrity Protection status: disabled.\nDisabled\n<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"https://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict><key>com.apple.developer.endpoint-security.client</key><true/></dict></plist>\nd741ff1013eda764a945faeba3384de23052a0dce67140b5003a0320eb9796ed  /Users/admin/ukai-live-2026-10-24/Ukai.app/Contents/MacOS/ukai-jail\n",
+    "stderr": "/bin/sh: mount: command not found\nExecutable=/Users/admin/ukai-live-2026-10-24/Ukai.app/Contents/MacOS/ukai-jail\nIdentifier=ukai-jail-555549444a977ae8e796342993dc589b95923d16\nFormat=Mach-O thin (arm64)\nCodeDirectory v=20400 size=18635 flags=0x2(adhoc) hashes=571+7 location=embedded\nSignature=adhoc\nInfo.plist=not bound\nTeamIdentifier=not set\nSealed Resources=none\nInternal requirements count=0 size=12\nwarning: Specifying ':' in the path is deprecated and will not work in a future release\n"
+  }
+}

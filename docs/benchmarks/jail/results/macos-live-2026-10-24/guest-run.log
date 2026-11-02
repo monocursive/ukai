@@ -1,0 +1,4 @@
+{"scenario": "doctor", "outcome": "PASS", "trials": 0}
+{"scenario": "smoke", "outcome": "PASS", "trials": 2}
+{"scenario": "k90", "outcome": "FAIL", "trials": 2}
+/bin/sh: line 1:  1844 Terminated: 15          /usr/bin/python3 src/macos_j16_spike_guest.py --root "$PWD" --maxproc 1333 --scenario k92 --trials 5

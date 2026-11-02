@@ -1,0 +1,8 @@
+{
+ "checked_at_utc": "2026-11-02T08:38:56+0000",
+ "vm": "ukai-custody-spike-20261101",
+ "tart_list": "local ukai-custody-spike-20261101 50 GB 39 GB 3 minutes ago stopped",
+ "state": "stopped",
+ "retained": true,
+ "host_sip": "System Integrity Protection status: enabled."
+}

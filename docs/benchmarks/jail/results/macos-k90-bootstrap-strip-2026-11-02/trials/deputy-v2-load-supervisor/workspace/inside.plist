@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.ukai.validation.load.supervisor.inside.2007</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/admin/ukai-direct-client-20261102/src/live-attack</string>
+		<string>deputy_cont</string>
+		<string>2317</string>
+		<string>/Users/admin/ukai-direct-client-20261102/trials/deputy-v2-load-supervisor/workspace/inside.marker</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+</dict>
+</plist>

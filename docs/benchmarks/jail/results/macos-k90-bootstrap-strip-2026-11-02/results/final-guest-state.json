@@ -1,0 +1,189 @@
+{
+  "recorded_at": "2026-11-02T10:17:30.210436+00:00",
+  "outcome": "PASS",
+  "remaining_test_owned_processes": [],
+  "remaining_test_owned_jobs": [],
+  "uid": 501,
+  "rlimit_nproc": [
+    1333,
+    2000
+  ],
+  "guest_settings": {
+    "argv": [
+      "/usr/sbin/sysctl",
+      "kern.hv_vmm_present",
+      "kern.maxproc",
+      "kern.maxprocperuid",
+      "hw.model"
+    ],
+    "exit": 0,
+    "stdout": "kern.hv_vmm_present: 1\nkern.maxproc: 2000\nkern.maxprocperuid: 2000\nhw.model: VirtualMac2,1\n",
+    "stderr": "",
+    "elapsed_ms": 2.418375
+  },
+  "guest_sip": {
+    "argv": [
+      "/usr/bin/csrutil",
+      "status"
+    ],
+    "exit": 0,
+    "stdout": "System Integrity Protection status: disabled.\n",
+    "stderr": "",
+    "elapsed_ms": 4.113875000000003
+  },
+  "ethernet": {
+    "argv": [
+      "/usr/sbin/networksetup",
+      "-getnetworkserviceenabled",
+      "Ethernet"
+    ],
+    "exit": 0,
+    "stdout": "Disabled\n",
+    "stderr": "",
+    "elapsed_ms": 14.873250000000004
+  },
+  "en0": {
+    "argv": [
+      "/sbin/ifconfig",
+      "en0"
+    ],
+    "exit": 0,
+    "stdout": "en0: flags=8822<BROADCAST,SMART,SIMPLEX,MULTICAST> mtu 1500\n\toptions=463<RXCSUM,TXCSUM,TSO4,TSO6,CHANNEL_IO>\n\tether e6:25:86:0f:90:4d\n\tmedia: autoselect <full-duplex,flow-control>\n\tstatus: active\n",
+    "stderr": "",
+    "elapsed_ms": 3.435250000000001
+  },
+  "ipv4_routes": {
+    "argv": [
+      "/usr/sbin/netstat",
+      "-rn",
+      "-f",
+      "inet"
+    ],
+    "exit": 0,
+    "stdout": "Routing tables\n\nInternet:\nDestination        Gateway            Flags               Netif Expire\n127                127.0.0.1          UCS                   lo0       \n127.0.0.1          127.0.0.1          UH                    lo0       \n224.0.0            link#1             UmCS                  lo0       \n",
+    "stderr": "",
+    "elapsed_ms": 2.2653340000000077
+  },
+  "ipv6_routes": {
+    "argv": [
+      "/usr/sbin/netstat",
+      "-rn",
+      "-f",
+      "inet6"
+    ],
+    "exit": 0,
+    "stdout": "Routing tables\n\nInternet6:\nDestination                             Gateway                                 Flags               Netif Expire\n::1                                     ::1                                     UHL                   lo0       \nfe80::%lo0/64                           fe80::1%lo0                             UcI                   lo0       \nfe80::1%lo0                             link#1                                  UHLI                  lo0       \nfe80::%utun0/64                         fe80::a428:da96:e726:51be%utun0         UcI                 utun0       \nfe80::a428:da96:e726:51be%utun0         link#7                                  UHLI                  lo0       \nfe80::%utun1/64                         fe80::ae4:fbeb:da89:c79d%utun1          UcI                 utun1       \nfe80::ae4:fbeb:da89:c79d%utun1          link#8                                  UHLI                  lo0       \nfe80::%utun2/64                         fe80::ce81:b1c:bd2c:69e%utun2           UcI                 utun2       \nfe80::ce81:b1c:bd2c:69e%utun2           link#9                                  UHLI                  lo0       \nfe80::%utun3/64                         fe80::540:50d:b1e0:1c1a%utun3           UcI                 utun3       \nfe80::540:50d:b1e0:1c1a%utun3           link#10                                 UHLI                  lo0       \nff00::/8                                ::1                                     UmCI                  lo0       \nff00::/8                                fe80::a428:da96:e726:51be%utun0         UmCI                utun0       \nff00::/8                                fe80::ae4:fbeb:da89:c79d%utun1          UmCI                utun1       \nff00::/8                                fe80::ce81:b1c:bd2c:69e%utun2           UmCI                utun2       \nff00::/8                                fe80::540:50d:b1e0:1c1a%utun3           UmCI                utun3       \nff01::%lo0/32                           ::1                                     UmCI                  lo0       \nff01::%utun0/32                         fe80::a428:da96:e726:51be%utun0         UmCI                utun0       \nff01::%utun1/32                         fe80::ae4:fbeb:da89:c79d%utun1          UmCI                utun1       \nff01::%utun2/32                         fe80::ce81:b1c:bd2c:69e%utun2           UmCI                utun2       \nff01::%utun3/32                         fe80::540:50d:b1e0:1c1a%utun3           UmCI                utun3       \nff02::%lo0/32                           ::1                                     UmCI                  lo0       \nff02::%utun0/32                         fe80::a428:da96:e726:51be%utun0         UmCI                utun0       \nff02::%utun1/32                         fe80::ae4:fbeb:da89:c79d%utun1          UmCI                utun1       \nff02::%utun2/32                         fe80::ce81:b1c:bd2c:69e%utun2           UmCI                utun2       \nff02::%utun3/32                         fe80::540:50d:b1e0:1c1a%utun3           UmCI                utun3       \n",
+    "stderr": "",
+    "elapsed_ms": 2.9949999999999974
+  },
+  "mounts": {
+    "argv": [
+      "/sbin/mount"
+    ],
+    "exit": 0,
+    "stdout": "/dev/disk3s1s1 on / (apfs, sealed, local, read-only, journaled)\ndevfs on /dev (devfs, local, nobrowse)\n/dev/disk3s6 on /System/Volumes/VM (apfs, local, noexec, journaled, noatime, nobrowse)\n/dev/disk3s2 on /System/Volumes/Preboot (apfs, local, journaled, nobrowse)\n/dev/disk3s4 on /System/Volumes/Update (apfs, local, journaled, nobrowse)\n/dev/disk1s2 on /System/Volumes/xarts (apfs, local, noexec, journaled, noatime, nobrowse)\n/dev/disk1s1 on /System/Volumes/iSCPreboot (apfs, local, journaled, nobrowse)\n/dev/disk1s3 on /System/Volumes/Hardware (apfs, local, journaled, nobrowse)\n/dev/disk3s5 on /System/Volumes/Data (apfs, local, journaled, nobrowse, root data)\n/dev/disk5s1 on /System/Library/AssetsV2/com_apple_MobileAsset_PKITrustStore/purpose_auto/6dd55b0d06633a00de6f57ccb910a66a5ba2409a.asset/.AssetData (apfs, sealed, local, read-only, journaled, nobrowse)\nmap auto_home on /System/Volumes/Data/home (autofs, automounted, nobrowse)\n",
+    "stderr": "",
+    "elapsed_ms": 3.8164590000000223
+  },
+  "version": {
+    "argv": [
+      "/Users/admin/ukai-direct-client-20261102/Ukai.app/Contents/MacOS/ukai-jail",
+      "version",
+      "--json"
+    ],
+    "exit": 0,
+    "stdout": "{\n  \"build\": {\n    \"debug_assertions\": false,\n    \"dirty\": null,\n    \"inputs\": \"sha256:ab44c80948ac98add1a5f525a5fce903e2bb6176616e9a100bb90744190f87b4\",\n    \"opt_level\": \"3\",\n    \"revision\": null,\n    \"rustc\": \"rustc 1.98.1 (48a229cea 2026-09-01)\",\n    \"target\": \"aarch64-apple-darwin\"\n  },\n  \"component\": \"ukai-jail\",\n  \"frozen\": true,\n  \"observation\": {\n    \"closed_set\": \"macos-closed-v1\"\n  },\n  \"platform\": {\n    \"arch\": \"aarch64\",\n    \"kernel\": \"Darwin 27.0.0\",\n    \"os\": \"macos\"\n  },\n  \"schemas\": {\n    \"control\": \"ukai.jail.control/1\",\n    \"doctor\": \"ukai.jail.doctor/1\",\n    \"event\": \"ukai.event/1\",\n    \"gate\": \"ukai.jail.gate/1\",\n    \"learned_policy\": \"ukai.jail.learned-policy/1\",\n    \"network\": \"ukai.jail.network/1\",\n    \"policy\": \"ukai.jail.policy/1\",\n    \"policy_file\": \"ukai.jail.policy-file/1\",\n    \"policy_snapshot\": \"ukai.jail.policy-snapshot/1\",\n    \"receipt\": \"ukai.jail.receipt/1\",\n    \"summary\": \"ukai.jail.summary/1\"\n  },\n  \"version\": \"0.1.0\"\n}\n",
+    "stderr": "",
+    "elapsed_ms": 4.7665830000000184
+  },
+  "codesign": {
+    "argv": [
+      "/usr/bin/codesign",
+      "-dv",
+      "--verbose=4",
+      "/Users/admin/ukai-direct-client-20261102/Ukai.app"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "Executable=/Users/admin/ukai-direct-client-20261102/Ukai.app/Contents/MacOS/ukai-jail\nIdentifier=com.monocursive.ukai.k90-rerun\nFormat=app bundle with Mach-O thin (arm64)\nCodeDirectory v=20400 size=18615 flags=0x2(adhoc) hashes=571+7 location=embedded\nVersionPlatform=1\nVersionMin=720896\nVersionSDK=1769472\nHash type=sha256 size=32\nCandidateCDHash sha256=bace845aaaedf641edbd37a0d04e3be1159185ee\nCandidateCDHashFull sha256=bace845aaaedf641edbd37a0d04e3be1159185ee143b70a1879f58d40420eead\nHash choices=sha256\nCMSDigest=bace845aaaedf641edbd37a0d04e3be1159185ee143b70a1879f58d40420eead\nCMSDigestType=2\nExecutable Segment base=0\nExecutable Segment limit=6914048\nExecutable Segment flags=0x1\nPage size=16384\nCDHash=bace845aaaedf641edbd37a0d04e3be1159185ee\nSignature=adhoc\nInfo.plist entries=6\nTeamIdentifier=not set\nSealed Resources version=2 rules=13 files=0\nInternal requirements count=0 size=12\nTotal signatures=1\nChosen signature=1\n",
+    "elapsed_ms": 15.181707999999988
+  },
+  "files": {
+    "src/native-fixture": {
+      "bytes": 36976,
+      "sha256": "09f98624aa227d67b475dd059db81a6c7dec3b8dd7632c649af5acdf578a98f8"
+    },
+    "src/launchd_client.c": {
+      "bytes": 1973,
+      "sha256": "b2168533b953dffa395f50eea6645d2ab048acf797625f8c536389516b7c5554"
+    },
+    "src/record_guest_state.py": {
+      "bytes": 2276,
+      "sha256": "bc4cd4f50629c507a65524a551b3135d2391c57bead6fa5741bc6c1893e672ce"
+    },
+    "src/macos_native.py": {
+      "bytes": 12672,
+      "sha256": "23231f60daee10da065952d99f0f84637bda1c86d238cdec47a8e7263494faeb"
+    },
+    "src/macos_j16_spike_fixture.c": {
+      "bytes": 4369,
+      "sha256": "f9f40f661db3a933ef6cfebc4001c75992a0b711c1a8efda2e269108aed20ccd"
+    },
+    "src/k90_direct_client_check.py": {
+      "bytes": 4090,
+      "sha256": "e876068513bd04ae0781353c8580ef6ffec1a018f83e67f442adb0f48fc19a98"
+    },
+    "src/defense_probe.c": {
+      "bytes": 3733,
+      "sha256": "db759bb2e4283b839a8b3da6d687a64b216a59c3ceda7914cb093aa4fa34d5e6"
+    },
+    "src/live-attack": {
+      "bytes": 35560,
+      "sha256": "a737ab0eff1114e432a9d3dacf8deba494f9e8425974dcc3c8623a1f8d27ab4e"
+    },
+    "src/macos_j16_spike_attack.c": {
+      "bytes": 3815,
+      "sha256": "58d8a7c5183bf5751f6a24e2ae2b48d5941ebf00e3005da16f64e6b615c70703"
+    },
+    "src/macos_j16_spike_guest.py": {
+      "bytes": 30954,
+      "sha256": "190760cedf3aa0ef02891422102d7a0a1e837ce19afd150da1988ed2fbf00591"
+    },
+    "src/launchd-client": {
+      "bytes": 34224,
+      "sha256": "eecdddd9f62d32e94283cf7504e4f29109725ef31b66d21f3ff6a93b72e1237d"
+    },
+    "src/defense-probe": {
+      "bytes": 34720,
+      "sha256": "b87400324a87ac9ae4db5d562bf7dbff5b76c10adc5fb4bc05e0d34d6447ec70"
+    },
+    "src/k90_deputy_check.py": {
+      "bytes": 3839,
+      "sha256": "3e257bd09a43129ed15442983f4d21861bebb50e623f3e339b0b04d6dbe033d5"
+    },
+    "src/spike-fixture": {
+      "bytes": 35024,
+      "sha256": "a53da17cd5d7a79f7742ac61c555c54c387d9980466cc9c3d058d80e82cbeef5"
+    },
+    "src/setup_guest.py": {
+      "bytes": 4125,
+      "sha256": "73509571d87ac2e65c729d615035abf02f1b66a8330aa0d15bc2ef00b3c88ae9"
+    },
+    "src/macos_native.c": {
+      "bytes": 11600,
+      "sha256": "adc081414284414824be45471fd13e805093d9f00c99307d22f14be86b1777d1"
+    },
+    "Ukai.app/Contents/MacOS/ukai-jail": {
+      "bytes": 9368992,
+      "sha256": "1a1428bcdc7c9f0687481d62e55ea7db15448d660ea0a7985cdcf2d51e4eed41"
+    },
+    "Ukai.app/Contents/Info.plist": {
+      "bytes": 519,
+      "sha256": "e3a56cdaae7311be0aa51d62087625b5a7f70531bc04e328b18e24afcf556a51"
+    },
+    "entitlements.plist": {
+      "bytes": 254,
+      "sha256": "594990dd76c66c086d5028b1eb822b29f69bccdcd16fa4a9c95ccf5d5eaabe0a"
+    }
+  }
+}

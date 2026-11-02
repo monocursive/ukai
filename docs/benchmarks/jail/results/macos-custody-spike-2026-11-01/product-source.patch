@@ -1,0 +1,101 @@
+diff --git a/crates/ukai-jail/src/platform/macos/sandbox.rs b/crates/ukai-jail/src/platform/macos/sandbox.rs
+index 13431a469..264cbe30f 100644
+--- a/crates/ukai-jail/src/platform/macos/sandbox.rs
++++ b/crates/ukai-jail/src/platform/macos/sandbox.rs
+@@ -209,6 +209,10 @@ pub const TEMPLATE: &str = r#"; ukai-jail native tier (macOS): defense profile.
+ (deny lsopen)
+ (deny appleevent-send)
+ (deny job-creation)
++; Version 1's default denial and job-creation do not block kickstarting an
++; existing launchd job through the inherited bootstrap port. Explicitly
++; deny that port: otherwise a member can start an unsandboxed deputy.
++(deny mach-bootstrap)
+ (deny mach-lookup)
+ @@MACH_ALLOW_RULE@@
+ (deny network*)
+diff --git a/crates/ukai-jail/tests/macos_defense_matrix.rs b/crates/ukai-jail/tests/macos_defense_matrix.rs
+index 3f2245f4d..3afd009d6 100644
+--- a/crates/ukai-jail/tests/macos_defense_matrix.rs
++++ b/crates/ukai-jail/tests/macos_defense_matrix.rs
+@@ -703,3 +703,81 @@ fn class_2_launchd_and_apple_events_deputies_are_refused() {
+         "recorded (an outside send is a TCC prompt)",
+     );
+ }
++
++/// Creating a job and starting an existing one use different launchd paths.
++/// A fresh, idle test-owned job must never execute on the sandbox's request.
++#[test]
++fn class_2_kickstarting_an_existing_job_is_refused() {
++    struct Job(String);
++    impl Drop for Job {
++        fn drop(&mut self) {
++            let _ = Command::new("/bin/launchctl")
++                .args(["bootout", &self.0])
++                .output();
++        }
++    }
++    let dir = private_tempdir();
++    let profile = dir.path().join("profile.sb");
++    std::fs::write(&profile, base_profile(&[])).unwrap();
++    // SAFETY: getuid has no arguments or memory effects.
++    let domain = format!("gui/{}", unsafe { libc::getuid() });
++    let mut observations = Vec::new();
++    for side in ["inside", "outside"] {
++        let label = format!("com.ukai.k90.kickstart.{}.{side}", std::process::id());
++        let job = Job(format!("{domain}/{label}"));
++        let marker = dir.path().join(format!("{side}.marker"));
++        let plist = dir.path().join(format!("{side}.plist"));
++        std::fs::write(
++            &plist,
++            format!(
++                "<?xml version=\"1.0\"?><plist version=\"1.0\"><dict>\
++             <key>Label</key><string>{label}</string>\
++             <key>RunAtLoad</key><false/>\
++             <key>ProgramArguments</key><array><string>/usr/bin/touch</string>\
++             <string>{}</string></array></dict></plist>",
++                marker.display()
++            ),
++        )
++        .unwrap();
++        let setup = Command::new("/bin/launchctl")
++            .args(["bootstrap", &domain])
++            .arg(&plist)
++            .output()
++            .unwrap();
++        assert!(setup.status.success(), "job setup: {:?}", setup);
++        let idle = Command::new("/bin/launchctl")
++            .args(["print", &job.0])
++            .output()
++            .unwrap();
++        assert!(String::from_utf8_lossy(&idle.stdout).contains("runs = 0"));
++        assert!(!marker.exists(), "setup must not execute the job");
++        let mut cmd = if side == "inside" {
++            let mut cmd = Command::new(SANDBOX_EXEC);
++            cmd.arg("-f").arg(&profile).arg("/bin/launchctl");
++            cmd
++        } else {
++            Command::new("/bin/launchctl")
++        };
++        let output = cmd.args(["kickstart", &job.0]).output().unwrap();
++        let start = std::time::Instant::now();
++        while !marker.exists() && start.elapsed() < std::time::Duration::from_secs(2) {
++            std::thread::sleep(std::time::Duration::from_millis(20));
++        }
++        let executed = marker.exists();
++        observations.push((side, output, executed));
++        drop(job);
++    }
++    assert!(
++        observations[1].2,
++        "outside control must execute: {observations:?}"
++    );
++    assert!(
++        !observations[0].2,
++        "sandbox started an unsandboxed job: {observations:?}"
++    );
++    assert!(
++        !observations[0].1.status.success(),
++        "kickstart must refuse: {observations:?}"
++    );
++    record("2 launchctl kickstart existing job", "DENIED", "RAN");
++}

@@ -1,0 +1,4984 @@
+{
+  "scope": "SIP-disabled isolated development VM; not release qualification",
+  "release_gates_promoted": [],
+  "scenarios": {
+    "k90-deputy-check": {
+      "source": "results/k90-deputy-check.json",
+      "sha256": "4344369ea4869ab7838f8edb62864b8b6b828320e3316955a39f8f4e70f3f89d",
+      "outcome": null,
+      "counts": {
+        "FAIL": 2,
+        "PASS": 2
+      },
+      "trials": [
+        {
+          "name": "deputy-v2-kickstart-supervisor",
+          "outcome": "FAIL",
+          "exit": 0,
+          "elapsed_ms": 13157.548125,
+          "ready_ms": 12075.238374999999,
+          "stop_to_snapshot_ms": null,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": null,
+          "custodian_loss_reported": null,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "exited",
+            "code": 0,
+            "signal": null,
+            "cause": null,
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 18250,
+            "members": 3
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 56
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 58
+            }
+          },
+          "known_identities": 1,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 20,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 39,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "inside_execution_marker": "pid=1470 target=1349 rc=0 errno=0\n",
+          "outside_execution_marker": "pid=1483 target=1349 rc=0 errno=0\n",
+          "positive_control_reached_target": true,
+          "fork_errors": {}
+        },
+        {
+          "name": "deputy-v2-kickstart-guardian",
+          "outcome": "FAIL",
+          "exit": 0,
+          "elapsed_ms": 12245.586083,
+          "ready_ms": 11005.952541,
+          "stop_to_snapshot_ms": null,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": null,
+          "custodian_loss_reported": null,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "exited",
+            "code": 0,
+            "signal": null,
+            "cause": null,
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 19042,
+            "members": 3
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 56
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 58
+            }
+          },
+          "known_identities": 1,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 20,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 39,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "inside_execution_marker": "pid=1606 target=1591 rc=0 errno=0\n",
+          "outside_execution_marker": "pid=1616 target=1591 rc=0 errno=0\n",
+          "positive_control_reached_target": true,
+          "fork_errors": {}
+        },
+        {
+          "name": "deputy-v2-load-supervisor",
+          "outcome": "PASS",
+          "exit": 0,
+          "elapsed_ms": 13610.843833,
+          "ready_ms": 11267.954540999997,
+          "stop_to_snapshot_ms": null,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": null,
+          "custodian_loss_reported": null,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "exited",
+            "code": 0,
+            "signal": null,
+            "cause": null,
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 21166,
+            "members": 3
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 74
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 76
+            }
+          },
+          "known_identities": 1,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 26,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 51,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "inside_execution_marker": null,
+          "outside_execution_marker": "pid=1743 target=1629 rc=0 errno=0\n",
+          "positive_control_reached_target": true,
+          "fork_errors": {}
+        },
+        {
+          "name": "deputy-v2-load-guardian",
+          "outcome": "PASS",
+          "exit": 0,
+          "elapsed_ms": 12395.843874999997,
+          "ready_ms": 9942.248583,
+          "stop_to_snapshot_ms": null,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": null,
+          "custodian_loss_reported": null,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "exited",
+            "code": 0,
+            "signal": null,
+            "cause": null,
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 18708,
+            "members": 3
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 95
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 97
+            }
+          },
+          "known_identities": 1,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 33,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 65,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "inside_execution_marker": null,
+          "outside_execution_marker": "pid=1867 target=1833 rc=0 errno=0\n",
+          "positive_control_reached_target": true,
+          "fork_errors": {}
+        }
+      ]
+    },
+    "k92": {
+      "source": "results/k92.json",
+      "sha256": "39aec8a8bd87b5eb67e93b6248e343ad5150d1c7f2335be62058c30c84148423",
+      "outcome": "PASS",
+      "counts": {
+        "PASS": 25
+      },
+      "trials": [
+        {
+          "name": "k92-parallel-00",
+          "outcome": "PASS",
+          "exit": 1,
+          "elapsed_ms": 14112.087792,
+          "ready_ms": 11246.77525,
+          "stop_to_snapshot_ms": 2418.4855420000004,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [
+            {
+              "code": "evidence_lost",
+              "stage": "reconciling",
+              "message": "coverage was lost by settlement in exec, fs.write (observation_ring_overflowed, observation_client_gap: sequence_discontinuity); the loss reached no run event",
+              "remediation_category": "inspect_state"
+            }
+          ],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 74754083,
+            "members": 1033
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 2069
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 2071
+            }
+          },
+          "known_identities": 1033,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 1887,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {
+            "35": 2
+          }
+        },
+        {
+          "name": "k92-parallel-01",
+          "outcome": "PASS",
+          "exit": 1,
+          "elapsed_ms": 13867.151791999997,
+          "ready_ms": 10927.806,
+          "stop_to_snapshot_ms": 2423.4296660000036,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [
+            {
+              "code": "evidence_lost",
+              "stage": "reconciling",
+              "message": "coverage was lost by settlement in exec, fs.write (observation_ring_overflowed, observation_client_gap: sequence_discontinuity); the loss reached no run event",
+              "remediation_category": "inspect_state"
+            }
+          ],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 69033667,
+            "members": 1033
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 2069
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 2071
+            }
+          },
+          "known_identities": 1033,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 6116,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {
+            "35": 2
+          }
+        },
+        {
+          "name": "k92-parallel-02",
+          "outcome": "PASS",
+          "exit": 1,
+          "elapsed_ms": 15955.527041000003,
+          "ready_ms": 12834.361291000001,
+          "stop_to_snapshot_ms": 2590.388333000001,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [
+            {
+              "code": "evidence_lost",
+              "stage": "reconciling",
+              "message": "coverage was lost by settlement in exec, fs.write (observation_ring_overflowed, observation_client_gap: sequence_discontinuity); the loss reached no run event",
+              "remediation_category": "inspect_state"
+            }
+          ],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 68163000,
+            "members": 1034
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 2071
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 2073
+            }
+          },
+          "known_identities": 1034,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 10350,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {
+            "35": 2
+          }
+        },
+        {
+          "name": "k92-parallel-03",
+          "outcome": "PASS",
+          "exit": 1,
+          "elapsed_ms": 13369.869292000005,
+          "ready_ms": 10240.142542000001,
+          "stop_to_snapshot_ms": 2545.4550829999935,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [
+            {
+              "code": "evidence_lost",
+              "stage": "reconciling",
+              "message": "coverage was lost by settlement in exec, fs.write (observation_ring_overflowed, observation_client_gap: sequence_discontinuity); the loss reached no run event",
+              "remediation_category": "inspect_state"
+            }
+          ],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 76338125,
+            "members": 1033
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 2069
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 2071
+            }
+          },
+          "known_identities": 1033,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 14597,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {
+            "35": 2
+          }
+        },
+        {
+          "name": "k92-parallel-04",
+          "outcome": "PASS",
+          "exit": 1,
+          "elapsed_ms": 15022.904334000003,
+          "ready_ms": 11831.543750000008,
+          "stop_to_snapshot_ms": 2612.0380830000013,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [
+            {
+              "code": "evidence_lost",
+              "stage": "reconciling",
+              "message": "coverage was lost by settlement in exec, fs.write (observation_ring_overflowed, observation_client_gap: sequence_discontinuity); the loss reached no run event",
+              "remediation_category": "inspect_state"
+            }
+          ],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 76305166,
+            "members": 1033
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 2069
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 2071
+            }
+          },
+          "known_identities": 1033,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 18824,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {
+            "35": 2
+          }
+        },
+        {
+          "name": "k92-continue-00",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13673.34237499999,
+          "ready_ms": 10791.622624999987,
+          "stop_to_snapshot_ms": 2426.167458000009,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 21055042,
+            "members": 25
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 53
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 55
+            }
+          },
+          "known_identities": 25,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 23062,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 26,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-continue-01",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13016.710791000009,
+          "ready_ms": 10127.38945800001,
+          "stop_to_snapshot_ms": 2387.524250000013,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 21118375,
+            "members": 25
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 53
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 55
+            }
+          },
+          "known_identities": 25,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 23259,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 26,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-continue-02",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13285.859666999982,
+          "ready_ms": 10342.264749999998,
+          "stop_to_snapshot_ms": 2403.63449999998,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 21333833,
+            "members": 25
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 53
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 55
+            }
+          },
+          "known_identities": 25,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 23450,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 26,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-continue-03",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13284.934917000015,
+          "ready_ms": 10438.670083000005,
+          "stop_to_snapshot_ms": 2424.081125000015,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 21364208,
+            "members": 25
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 53
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 55
+            }
+          },
+          "known_identities": 25,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 23646,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 26,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-continue-04",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 12901.935208000026,
+          "ready_ms": 9962.73366700001,
+          "stop_to_snapshot_ms": 2409.1253329999927,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 21085125,
+            "members": 25
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 53
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 55
+            }
+          },
+          "known_identities": 25,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 23844,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 26,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-orphan-00",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13493.235875000011,
+          "ready_ms": 10509.142249999997,
+          "stop_to_snapshot_ms": 2448.8714170000203,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 20398250,
+            "members": 3
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 9
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 11
+            }
+          },
+          "known_identities": 3,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 24028,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 4,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-orphan-01",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13308.043708000014,
+          "ready_ms": 10277.006749999999,
+          "stop_to_snapshot_ms": 2471.902708000016,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 20410500,
+            "members": 3
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 9
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 11
+            }
+          },
+          "known_identities": 3,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 24133,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 4,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-orphan-02",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13324.445250000024,
+          "ready_ms": 10289.496500000012,
+          "stop_to_snapshot_ms": 2464.1557499999763,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 20452916,
+            "members": 3
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 9
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 11
+            }
+          },
+          "known_identities": 3,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 24242,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 4,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-orphan-03",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 12802.116708999989,
+          "ready_ms": 9868.96462499999,
+          "stop_to_snapshot_ms": 2409.709082999996,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 20398875,
+            "members": 3
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 9
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 11
+            }
+          },
+          "known_identities": 3,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 24335,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 4,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-orphan-04",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 12954.480500000016,
+          "ready_ms": 9938.787415999997,
+          "stop_to_snapshot_ms": 2520.315875000022,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 20380375,
+            "members": 3
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 9
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 11
+            }
+          },
+          "known_identities": 3,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 24430,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 4,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-chain-00",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13998.171291999995,
+          "ready_ms": 11246.208041999978,
+          "stop_to_snapshot_ms": 2246.014374999959,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 31125625,
+            "members": 201
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 405
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 407
+            }
+          },
+          "known_identities": 201,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 24537,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 202,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-chain-01",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13018.81283299997,
+          "ready_ms": 10294.17587499995,
+          "stop_to_snapshot_ms": 2155.9359579999873,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 28013750,
+            "members": 201
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 405
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 407
+            }
+          },
+          "known_identities": 201,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 25454,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 202,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-chain-02",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13853.632749999975,
+          "ready_ms": 11148.826333999978,
+          "stop_to_snapshot_ms": 2166.909957999962,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 28813083,
+            "members": 201
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 405
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 407
+            }
+          },
+          "known_identities": 201,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 26351,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 202,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-chain-03",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13332.614375000048,
+          "ready_ms": 10601.906959000018,
+          "stop_to_snapshot_ms": 2179.221624999969,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 27540791,
+            "members": 201
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 405
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 407
+            }
+          },
+          "known_identities": 201,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 27253,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 202,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-chain-04",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13451.092041999971,
+          "ready_ms": 10896.144791999974,
+          "stop_to_snapshot_ms": 2098.017125000013,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 27704583,
+            "members": 201
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 405
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 407
+            }
+          },
+          "known_identities": 201,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 28154,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 202,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-exec-00",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 14507.783709000023,
+          "ready_ms": 9973.621959000013,
+          "stop_to_snapshot_ms": 4053.9628749999665,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 20369958,
+            "members": 1
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 226
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 228
+            }
+          },
+          "known_identities": 1,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 29056,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 222,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 223,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-exec-01",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 15001.54704199997,
+          "ready_ms": 10174.667499999998,
+          "stop_to_snapshot_ms": 4260.380499999996,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 20335750,
+            "members": 1
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 257
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 259
+            }
+          },
+          "known_identities": 1,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 29146,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 253,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 254,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-exec-02",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 15181.820625,
+          "ready_ms": 10333.146749999969,
+          "stop_to_snapshot_ms": 4386.236207999958,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 20270250,
+            "members": 1
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 237
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 239
+            }
+          },
+          "known_identities": 1,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 29232,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 233,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 234,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-exec-03",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 14581.970499999954,
+          "ready_ms": 10042.484582999976,
+          "stop_to_snapshot_ms": 4043.4345829999656,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 20386959,
+            "members": 1
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 235
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 237
+            }
+          },
+          "known_identities": 1,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 29326,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 231,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 232,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k92-exec-04",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 16129.943291000018,
+          "ready_ms": 10269.972999999993,
+          "stop_to_snapshot_ms": 5273.969542000032,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 20344292,
+            "members": 1
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 222
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 224
+            }
+          },
+          "known_identities": 1,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 29421,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 218,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 219,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        }
+      ],
+      "timing_tail": {
+        "max_stop_to_oracle_start_ms": 5273.969542000032,
+        "confirmed_after_5000ms": [
+          "k92-exec-04"
+        ],
+        "scope": "End-to-end confirmation time; not the receipt's internal drain timer"
+      },
+      "timings": {
+        "definition": "operator stop after readiness to start of independent snapshots",
+        "n": 25,
+        "p50_ms": 2426.167458000009,
+        "p95_ms": 4386.236207999958
+      },
+      "guest_nproc_before": [
+        1333,
+        2000
+      ],
+      "guest_nproc_after": [
+        2000,
+        2000
+      ],
+      "runner_sha256": "190760cedf3aa0ef02891422102d7a0a1e837ce19afd150da1988ed2fbf00591"
+    },
+    "k93-full-repository-direct-compiler": {
+      "source": "results/k93-full-repository-direct-compiler.json",
+      "sha256": "89c42c5181f35775e601873555d9c96ebc3a424b5ea01e8d21fbde6376ba6844",
+      "outcome": "FAIL",
+      "counts": {
+        "FAIL": 1
+      },
+      "trials": [
+        {
+          "name": "k93-sqlite-full-repository-direct-compiler",
+          "outcome": "FAIL",
+          "exit": 1,
+          "elapsed_ms": 12534.370792000002,
+          "ready_ms": null,
+          "stop_to_snapshot_ms": null,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": null,
+          "custodian_loss_reported": null,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": true,
+          "ordinary_build_custody_loss_free": true,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "exited",
+            "code": 1,
+            "signal": null,
+            "cause": null,
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 15458,
+            "members": 6
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 73
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 75
+            }
+          },
+          "known_identities": 1,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 23,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 84,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "build": {
+            "project": "SQLite canonical source tree",
+            "version_define": "3.53.2",
+            "parallel_jobs": 4,
+            "source_lines": null,
+            "source_bytes": 111727666,
+            "source_sha256": "cafff764c03f6d720968f746e2f47a986bbf12bf4c18904f1eb131c0b0b592d3",
+            "source_files": 2202,
+            "source_revision": "d6e03d8c777cfa2d35e3b60d8ec3e0187f3e9f99d8e2ee9cac695fd6fcdf1a24",
+            "outputs": {},
+            "built_version": null
+          },
+          "build_stderr_tail": "Error: Compiler does not work. See config.log\nTry: 'configure --help' for options\n",
+          "fork_errors": {}
+        }
+      ],
+      "timings": null,
+      "guest_nproc_before": null,
+      "guest_nproc_after": null,
+      "runner_sha256": "a125baabce2e7cd13e2c5abfc83477f79684798dc04e48e42784cee12b4e7866"
+    },
+    "k93-full-repository-explicit-path": {
+      "source": "results/k93-full-repository-explicit-path.json",
+      "sha256": "8bef326b59b0f26a90b5343d031ff1bea44605dd891d88ae3fa331f92f341427",
+      "outcome": "FAIL",
+      "counts": {
+        "FAIL": 1
+      },
+      "trials": [
+        {
+          "name": "k93-sqlite-full-repository-explicit-path",
+          "outcome": "FAIL",
+          "exit": 1,
+          "elapsed_ms": 12631.574290999999,
+          "ready_ms": null,
+          "stop_to_snapshot_ms": null,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": null,
+          "custodian_loss_reported": null,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": true,
+          "ordinary_build_custody_loss_free": true,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "exited",
+            "code": 1,
+            "signal": null,
+            "cause": null,
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 18167,
+            "members": 6
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 61
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 63
+            }
+          },
+          "known_identities": 1,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 19,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 66,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "build": {
+            "project": "SQLite canonical source tree",
+            "version_define": "3.53.2",
+            "parallel_jobs": 4,
+            "source_lines": null,
+            "source_bytes": 111727666,
+            "source_sha256": "cafff764c03f6d720968f746e2f47a986bbf12bf4c18904f1eb131c0b0b592d3",
+            "source_files": 2202,
+            "source_revision": "d6e03d8c777cfa2d35e3b60d8ec3e0187f3e9f99d8e2ee9cac695fd6fcdf1a24",
+            "outputs": {},
+            "built_version": null
+          },
+          "build_stderr_tail": "Error: Could not find a C compiler. Tried: /Users/admin/ukai-custody-spike-20261101/trials/k93-sqlite-full-repository-explicit-path/workspace/cc-record\nTry: 'configure --help' for options\n",
+          "fork_errors": {}
+        }
+      ],
+      "timings": null,
+      "guest_nproc_before": null,
+      "guest_nproc_after": null,
+      "runner_sha256": "01ff5b3df07ee6e5eaac696726a4a36826deb7b4b6c1f7a40338d33febcbef7b"
+    },
+    "k93-full-repository-explicit-sdk": {
+      "source": "results/k93-full-repository-explicit-sdk.json",
+      "sha256": "55728038478aa9c7cd92f5f21a66dd7c272884d74f9660a4ca35d1be3ea85a0d",
+      "outcome": "FAIL",
+      "counts": {
+        "FAIL": 1
+      },
+      "trials": [
+        {
+          "name": "k93-sqlite-full-repository-explicit-sdk",
+          "outcome": "FAIL",
+          "exit": 1,
+          "elapsed_ms": 14738.977417000002,
+          "ready_ms": null,
+          "stop_to_snapshot_ms": null,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": null,
+          "custodian_loss_reported": null,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": true,
+          "ordinary_build_custody_loss_free": true,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "exited",
+            "code": 1,
+            "signal": null,
+            "cause": null,
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 20916,
+            "members": 6
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 346
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 348
+            }
+          },
+          "known_identities": 1,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 114,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 535,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "build": {
+            "project": "SQLite canonical source tree",
+            "version_define": "3.53.2",
+            "parallel_jobs": 4,
+            "source_lines": null,
+            "source_bytes": 111727666,
+            "source_sha256": "cafff764c03f6d720968f746e2f47a986bbf12bf4c18904f1eb131c0b0b592d3",
+            "source_files": 2202,
+            "source_revision": "d6e03d8c777cfa2d35e3b60d8ec3e0187f3e9f99d8e2ee9cac695fd6fcdf1a24",
+            "outputs": {},
+            "built_version": null
+          },
+          "build_stderr_tail": "Error: couldn't create error file for command: not owner\n",
+          "fork_errors": {}
+        }
+      ],
+      "timings": null,
+      "guest_nproc_before": null,
+      "guest_nproc_after": null,
+      "runner_sha256": "55b38f1428c15cab80a493fae9362bd0399b1802ccf5e797aeecd873f6fbe2fc"
+    },
+    "k93-full-repository-explicit-temp": {
+      "source": "results/k93-full-repository-explicit-temp.json",
+      "sha256": "0fe21a6e9dd66f936ca5ddace83520da4394b61dfe85b05f3bc50efbe36cbb7c",
+      "outcome": "FAIL",
+      "counts": {
+        "FAIL": 1
+      },
+      "trials": [
+        {
+          "name": "k93-sqlite-full-repository-explicit-temp",
+          "outcome": "FAIL",
+          "exit": 1,
+          "elapsed_ms": 14267.640916,
+          "ready_ms": null,
+          "stop_to_snapshot_ms": null,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": null,
+          "custodian_loss_reported": null,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": true,
+          "ordinary_build_custody_loss_free": true,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "exited",
+            "code": 1,
+            "signal": null,
+            "cause": null,
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 18458,
+            "members": 6
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 346
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 348
+            }
+          },
+          "known_identities": 1,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 114,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 535,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "build": {
+            "project": "SQLite canonical source tree",
+            "version_define": "3.53.2",
+            "parallel_jobs": 4,
+            "source_lines": null,
+            "source_bytes": 111727666,
+            "source_sha256": "cafff764c03f6d720968f746e2f47a986bbf12bf4c18904f1eb131c0b0b592d3",
+            "source_files": 2202,
+            "source_revision": "d6e03d8c777cfa2d35e3b60d8ec3e0187f3e9f99d8e2ee9cac695fd6fcdf1a24",
+            "outputs": {},
+            "built_version": null
+          },
+          "build_stderr_tail": "Error: couldn't create error file for command: not owner\n",
+          "fork_errors": {}
+        }
+      ],
+      "timings": null,
+      "guest_nproc_before": null,
+      "guest_nproc_after": null,
+      "runner_sha256": "4442da4617ea5921357c65849fc5bec75744971680cbdd760c1731de63e58989"
+    },
+    "k93-full-repository": {
+      "source": "results/k93-full-repository.json",
+      "sha256": "df001dbe5569cf3acf369789fb66ccda4940916759654ca53248e3b9d2606c50",
+      "outcome": "FAIL",
+      "counts": {
+        "FAIL": 1
+      },
+      "trials": [
+        {
+          "name": "k93-sqlite-full-repository",
+          "outcome": "FAIL",
+          "exit": 1,
+          "elapsed_ms": 22303.353042,
+          "ready_ms": null,
+          "stop_to_snapshot_ms": null,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": null,
+          "custodian_loss_reported": null,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": true,
+          "ordinary_build_custody_loss_free": true,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "exited",
+            "code": 1,
+            "signal": null,
+            "cause": null,
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 18583,
+            "members": 6
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 61
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 63
+            }
+          },
+          "known_identities": 1,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 19,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 67,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "build": {
+            "project": "SQLite canonical source tree",
+            "version_define": "3.53.2",
+            "parallel_jobs": 4,
+            "source_lines": null,
+            "source_bytes": 111727666,
+            "source_sha256": "cafff764c03f6d720968f746e2f47a986bbf12bf4c18904f1eb131c0b0b592d3",
+            "source_files": 2202,
+            "source_revision": "d6e03d8c777cfa2d35e3b60d8ec3e0187f3e9f99d8e2ee9cac695fd6fcdf1a24",
+            "outputs": {},
+            "built_version": null
+          },
+          "build_stderr_tail": "Error: Could not find a C compiler. Tried: /Users/admin/ukai-custody-spike-20261101/trials/k93-sqlite-full-repository/workspace/cc-record\nTry: 'configure --help' for options\n",
+          "fork_errors": {}
+        }
+      ],
+      "timings": null,
+      "guest_nproc_before": null,
+      "guest_nproc_after": null,
+      "runner_sha256": "40e43516a8fe46713c21f7e1c8fb429ab6e6fd0a63a73edbba39e79d3445bcef"
+    },
+    "k93": {
+      "source": "results/k93.json",
+      "sha256": "0da8dfdcbb7cd8b9c47c2650dd9327b588bb26a6051f5e0d46bc7c1375ea21c0",
+      "outcome": "PASS",
+      "counts": {
+        "PASS": 11
+      },
+      "trials": [
+        {
+          "name": "k93-storm-00",
+          "outcome": "PASS",
+          "exit": 1,
+          "elapsed_ms": 15367.35,
+          "ready_ms": 12427.675458,
+          "stop_to_snapshot_ms": 2388.450290999999,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [
+            {
+              "code": "evidence_lost",
+              "stage": "running",
+              "message": "macos-closed-v1 observation evidence lost; see coverage gaps",
+              "remediation_category": "inspect_state"
+            }
+          ],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 20830959,
+            "members": 9
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 16753
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 16755
+            }
+          },
+          "known_identities": 5583,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 29525,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k93-storm-01",
+          "outcome": "PASS",
+          "exit": 1,
+          "elapsed_ms": 13269.726666000011,
+          "ready_ms": 10241.910375000003,
+          "stop_to_snapshot_ms": 2513.0361250000005,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [
+            {
+              "code": "evidence_lost",
+              "stage": "running",
+              "message": "macos-closed-v1 observation evidence lost; see coverage gaps",
+              "remediation_category": "inspect_state"
+            }
+          ],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 30743292,
+            "members": 9
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 19061
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 19063
+            }
+          },
+          "known_identities": 6353,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 51971,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k93-storm-02",
+          "outcome": "PASS",
+          "exit": 1,
+          "elapsed_ms": 13271.742834000008,
+          "ready_ms": 10458.719709000008,
+          "stop_to_snapshot_ms": 2396.1142089999903,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [
+            {
+              "code": "evidence_lost",
+              "stage": "running",
+              "message": "macos-closed-v1 observation evidence lost; see coverage gaps",
+              "remediation_category": "inspect_state"
+            }
+          ],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 65013250,
+            "members": 9
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 15622
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 15624
+            }
+          },
+          "known_identities": 5206,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 77481,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k93-storm-03",
+          "outcome": "PASS",
+          "exit": 1,
+          "elapsed_ms": 14102.815792000001,
+          "ready_ms": 11242.867625000003,
+          "stop_to_snapshot_ms": 2447.4858330000025,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [
+            {
+              "code": "evidence_lost",
+              "stage": "running",
+              "message": "macos-closed-v1 observation evidence lost; see coverage gaps",
+              "remediation_category": "inspect_state"
+            }
+          ],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 72268958,
+            "members": 9
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 18200
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 18202
+            }
+          },
+          "known_identities": 6066,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 98419,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k93-storm-04",
+          "outcome": "PASS",
+          "exit": 1,
+          "elapsed_ms": 13336.317583000038,
+          "ready_ms": 10492.909291000047,
+          "stop_to_snapshot_ms": 2495.758333000027,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [
+            {
+              "code": "evidence_lost",
+              "stage": "running",
+              "message": "macos-closed-v1 observation evidence lost; see coverage gaps",
+              "remediation_category": "inspect_state"
+            }
+          ],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 23729125,
+            "members": 9
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 19894
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 19896
+            }
+          },
+          "known_identities": 6630,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 23493,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "degraded",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k93-signal-00",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13331.476082999983,
+          "ready_ms": 10396.97858300002,
+          "stop_to_snapshot_ms": 2393.7664169999935,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 21163750,
+            "members": 25
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 53
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 55
+            }
+          },
+          "known_identities": 25,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 50114,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 26,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k93-signal-01",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13706.491416000006,
+          "ready_ms": 10577.754958000014,
+          "stop_to_snapshot_ms": 2651.270541999964,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 21250625,
+            "members": 25
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 53
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 55
+            }
+          },
+          "known_identities": 25,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 50297,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 26,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k93-signal-02",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13534.51337499996,
+          "ready_ms": 10644.294666999996,
+          "stop_to_snapshot_ms": 2439.595707999957,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 21084041,
+            "members": 25
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 53
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 55
+            }
+          },
+          "known_identities": 25,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 50487,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 26,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k93-signal-03",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13367.004208000026,
+          "ready_ms": 10427.073041000029,
+          "stop_to_snapshot_ms": 2389.9747500000212,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 21428541,
+            "members": 25
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 53
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 55
+            }
+          },
+          "known_identities": 25,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 50672,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 26,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k93-signal-04",
+          "outcome": "PASS",
+          "exit": 137,
+          "elapsed_ms": 13485.249833000013,
+          "ready_ms": 10658.521791,
+          "stop_to_snapshot_ms": 2393.2477500000005,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": false,
+          "custodian_loss_reported": false,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9,
+            "cause": "operator_signal",
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 21041000,
+            "members": 25
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 53
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 55
+            }
+          },
+          "known_identities": 25,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [
+            {
+              "pid": 50868,
+              "signal": 15,
+              "sent": true,
+              "signal_result": {
+                "rc": 0,
+                "errno": 0
+              }
+            }
+          ],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 26,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "k93-sqlite-build",
+          "outcome": "PASS",
+          "exit": 0,
+          "elapsed_ms": 29630.805124999995,
+          "ready_ms": null,
+          "stop_to_snapshot_ms": null,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": null,
+          "custodian_loss_reported": null,
+          "observation_checks": null,
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": true,
+          "ordinary_build_custody_loss_free": true,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "exited",
+            "code": 0,
+            "signal": null,
+            "cause": null,
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 18375,
+            "members": 9
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 64
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 66
+            }
+          },
+          "known_identities": 9,
+          "oracle_empty_before_cleanup": true,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": true,
+          "custodians_alive_before_cleanup": [],
+          "signals": [],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 28,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 121,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "build": {
+            "project": "SQLite",
+            "version_define": "#define SQLITE_VERSION        \"3.53.2\"",
+            "parallel_jobs": 4,
+            "source_lines": 269376,
+            "source_bytes": 9507037,
+            "source_sha256": "0a409f1633283fa31a9126b11fbfd64a1991c5d30defad07e5745d4667f5e23d",
+            "source_files": null,
+            "source_revision": null,
+            "outputs": {
+              "libfts5.a": {
+                "bytes": 1834624,
+                "sha256": "51715ce54ef62836d389412aa60761ccfeef1d4dc2ffa4cf2eebaaf5d1a7bcf9"
+              },
+              "libdebug.a": {
+                "bytes": 3342536,
+                "sha256": "5be1e92b054c8e20b8e8a1c4a047fdffb5f384e1112225c5bf13e64109f58675"
+              },
+              "librtree.a": {
+                "bytes": 1579208,
+                "sha256": "ad7d22a5c2a22da0a297d6b968b4b2f0f3850d56d56af948707576cf67350940"
+              },
+              "libbase.a": {
+                "bytes": 1517328,
+                "sha256": "d7e98e00bceec109662fdc73fcd0228c8c4450f41bc922f1add6df6c210690d2"
+              }
+            },
+            "built_version": null
+          },
+          "build_stderr_tail": "",
+          "fork_errors": {}
+        }
+      ],
+      "timing_tail": {
+        "max_stop_to_oracle_start_ms": 2651.270541999964,
+        "confirmed_after_5000ms": [],
+        "scope": "End-to-end confirmation time; not the receipt's internal drain timer"
+      },
+      "timings": {
+        "definition": "operator stop after readiness to start of independent snapshots",
+        "n": 10,
+        "p50_ms": 2417.8549584999737,
+        "p95_ms": 2651.270541999964
+      },
+      "guest_nproc_before": [
+        1333,
+        2000
+      ],
+      "guest_nproc_after": [
+        2000,
+        2000
+      ],
+      "runner_sha256": "190760cedf3aa0ef02891422102d7a0a1e837ce19afd150da1988ed2fbf00591"
+    },
+    "smoke-chmod-change": {
+      "source": "results/smoke-chmod-change.json",
+      "sha256": "1166929b94754a4bfd07dcaeabdc6daede7acb98d97d0c497241f5b16260ad9d",
+      "outcome": "FAIL",
+      "counts": {
+        "FAIL": 2
+      },
+      "trials": [
+        {
+          "name": "smoke-chmod-change-true",
+          "outcome": "FAIL",
+          "exit": 125,
+          "elapsed_ms": 9694.763542,
+          "ready_ms": null,
+          "stop_to_snapshot_ms": null,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": null,
+          "custodian_loss_reported": null,
+          "observation_checks": {
+            "attached": false,
+            "closed_set": false,
+            "exec_active": false,
+            "write_active": false,
+            "exec_count": false,
+            "write_count": false,
+            "deny_unsupported": true,
+            "net_unsupported": true
+          },
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "refused",
+          "tree_empty": null,
+          "integrity": "pending",
+          "receipt_outcome": {
+            "kind": "refused",
+            "code": null,
+            "signal": null,
+            "cause": null,
+            "error": {
+              "code": "backend_unavailable",
+              "stage": "preparing",
+              "message": "the guardian exited during the handshake (exit -1)",
+              "remediation_category": "inspect_state"
+            }
+          },
+          "errors": [
+            {
+              "code": "backend_unavailable",
+              "stage": "preparing",
+              "message": "the guardian exited during the handshake (exit -1)",
+              "remediation_category": "inspect_state"
+            }
+          ],
+          "profile_digest": null,
+          "receipt_stop": null,
+          "custody": {},
+          "known_identities": 0,
+          "oracle_empty_before_cleanup": null,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": null,
+          "custodians_alive_before_cleanup": [],
+          "signals": [],
+          "coverage": {
+            "exec": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "smoke-chmod-change-mutations",
+          "outcome": "FAIL",
+          "exit": 125,
+          "elapsed_ms": 9985.490999999998,
+          "ready_ms": null,
+          "stop_to_snapshot_ms": null,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": null,
+          "custodian_loss_reported": null,
+          "observation_checks": {
+            "attached": false,
+            "closed_set": false,
+            "exec_active": false,
+            "write_active": false,
+            "exec_count": false,
+            "write_count": false,
+            "deny_unsupported": true,
+            "net_unsupported": true
+          },
+          "expected_mutations": {
+            "created": false,
+            "modified": false,
+            "renamed": false,
+            "hard_link_created": false,
+            "metadata_changed": false,
+            "unlinked": false
+          },
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "refused",
+          "tree_empty": null,
+          "integrity": "pending",
+          "receipt_outcome": {
+            "kind": "refused",
+            "code": null,
+            "signal": null,
+            "cause": null,
+            "error": {
+              "code": "backend_unavailable",
+              "stage": "preparing",
+              "message": "the guardian exited during the handshake (exit -1)",
+              "remediation_category": "inspect_state"
+            }
+          },
+          "errors": [
+            {
+              "code": "backend_unavailable",
+              "stage": "preparing",
+              "message": "the guardian exited during the handshake (exit -1)",
+              "remediation_category": "inspect_state"
+            }
+          ],
+          "profile_digest": null,
+          "receipt_stop": null,
+          "custody": {},
+          "known_identities": 0,
+          "oracle_empty_before_cleanup": null,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": null,
+          "custodians_alive_before_cleanup": [],
+          "signals": [],
+          "coverage": {
+            "exec": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        }
+      ],
+      "timings": null,
+      "guest_nproc_before": [
+        1333,
+        2000
+      ],
+      "guest_nproc_after": [
+        1333,
+        1333
+      ],
+      "runner_sha256": "30072e8fe5e727724d3452f372060089ce3e939ac08c71b2e92fb91082fc105f"
+    },
+    "smoke-raised-limits": {
+      "source": "results/smoke-raised-limits.json",
+      "sha256": "2df2b5d406c64a5eda1f13a4dcbbb4149b6e482c3d106f44063d1c0409a57416",
+      "outcome": "PASS",
+      "counts": {
+        "PASS": 2
+      },
+      "trials": [
+        {
+          "name": "smoke-raised-limits-true",
+          "outcome": "PASS",
+          "exit": 0,
+          "elapsed_ms": 12742.644167,
+          "ready_ms": null,
+          "stop_to_snapshot_ms": null,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": null,
+          "custodian_loss_reported": null,
+          "observation_checks": {
+            "attached": true,
+            "closed_set": true,
+            "exec_active": true,
+            "write_active": true,
+            "exec_count": true,
+            "write_count": true,
+            "deny_unsupported": true,
+            "net_unsupported": true
+          },
+          "expected_mutations": null,
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "exited",
+            "code": 0,
+            "signal": null,
+            "cause": null,
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 15875,
+            "members": 1
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 5
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 7
+            }
+          },
+          "known_identities": 0,
+          "oracle_empty_before_cleanup": null,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": null,
+          "custodians_alive_before_cleanup": [],
+          "signals": [],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 1,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        },
+        {
+          "name": "smoke-raised-limits-mutations",
+          "outcome": "PASS",
+          "exit": 0,
+          "elapsed_ms": 12378.680708,
+          "ready_ms": null,
+          "stop_to_snapshot_ms": null,
+          "harness_error": null,
+          "readiness_failure": null,
+          "blocked_reason": null,
+          "false_tree_empty": false,
+          "honest_unknown": null,
+          "custodian_loss_reported": null,
+          "observation_checks": {
+            "attached": true,
+            "closed_set": true,
+            "exec_active": true,
+            "write_active": true,
+            "exec_count": true,
+            "write_count": true,
+            "deny_unsupported": true,
+            "net_unsupported": true
+          },
+          "expected_mutations": {
+            "created": true,
+            "modified": true,
+            "renamed": true,
+            "hard_link_created": true,
+            "metadata_changed": true,
+            "unlinked": true
+          },
+          "ordinary_build_observation_loss_free": null,
+          "ordinary_build_custody_loss_free": null,
+          "phase": "settled",
+          "tree_empty": true,
+          "integrity": "verified",
+          "receipt_outcome": {
+            "kind": "exited",
+            "code": 0,
+            "signal": null,
+            "cause": null,
+            "error": null
+          },
+          "errors": [],
+          "profile_digest": "1c72b38b2059f20dc4f559323a3c0a861823ddf7967a893917d9731ca4789039",
+          "receipt_stop": {
+            "budget_ns": 5000000000,
+            "elapsed_ns": 19291,
+            "members": 2
+          },
+          "custody": {
+            "guardian": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 18
+            },
+            "supervisor": {
+              "stream": "contiguous",
+              "result": "drained",
+              "events": 20
+            }
+          },
+          "known_identities": 0,
+          "oracle_empty_before_cleanup": null,
+          "live_known_members_before_cleanup": 0,
+          "oracle_empty_after_cleanup": null,
+          "custodians_alive_before_cleanup": [],
+          "signals": [],
+          "coverage": {
+            "exec": {
+              "status": "active",
+              "observed_count": 6,
+              "lost_count": null
+            },
+            "fs.write": {
+              "status": "active",
+              "observed_count": 6,
+              "lost_count": null
+            },
+            "fs.deny": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            },
+            "limits": {
+              "status": "active",
+              "observed_count": 0,
+              "lost_count": null
+            },
+            "proxy.net": {
+              "status": "unsupported",
+              "observed_count": null,
+              "lost_count": null
+            }
+          },
+          "fork_errors": {}
+        }
+      ],
+      "timings": null,
+      "guest_nproc_before": [
+        1333,
+        2000
+      ],
+      "guest_nproc_after": [
+        2000,
+        2000
+      ],
+      "runner_sha256": "190760cedf3aa0ef02891422102d7a0a1e837ce19afd150da1988ed2fbf00591"
+    }
+  }
+}

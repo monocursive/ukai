@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "/Users/admin/ukai-custody-spike-20261101/src/macos_j16_spike_guest.py", line 551, in <module>
+    main()
+  File "/Users/admin/ukai-custody-spike-20261101/src/macos_j16_spike_guest.py", line 498, in main
+    append(simple(root, a.scenario + "-true", ["/usr/bin/true"]))
+  File "/Users/admin/ukai-custody-spike-20261101/src/macos_j16_spike_guest.py", line 289, in simple
+    t.cleanup()
+  File "/Users/admin/ukai-custody-spike-20261101/src/macos_j16_spike_guest.py", line 242, in cleanup
+    self.signal(pid, signal.SIGKILL)
+  File "/Users/admin/ukai-custody-spike-20261101/src/macos_j16_spike_guest.py", line 165, in signal
+    current["audit_token"] = list(birth["audit_token"])
+KeyError: 'audit_token'

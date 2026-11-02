@@ -148,6 +148,7 @@
         "custody": "es_descendants",
         "defense": "seatbelt",
         "process_headroom": 1024,
+        "process_headroom_clamped": false,
         "custodians": {
           "supervisor": {
             "result": "drained",

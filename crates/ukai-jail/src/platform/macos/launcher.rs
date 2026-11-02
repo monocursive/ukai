@@ -45,7 +45,9 @@
 //!
 //! Like the Linux launcher: everything that allocates happens before the
 //! blocked report; after it the launcher only calls `read`, `write`,
-//! `sigprocmask`, `signal`, `close`, `execve` and `_exit`.
+//! `sigprocmask`, `signal`, `close`, `execve` and `_exit`, plus the one
+//! scalar Mach trap of [`strip_bootstrap_port`] immediately before the
+//! exec (§4.7 class 2 — see that function).
 
 use std::ffi::{CString, OsString};
 use std::os::unix::ffi::OsStrExt as _;
@@ -326,6 +328,55 @@ fn environ() -> *const *const libc::c_char {
     unsafe { environ }
 }
 
+// The Mach surface the bootstrap strip needs: libSystem's task-special-port
+// calls and the `bootstrap_port` global the C runtime caches. Nothing here
+// allocates; each is one scalar trap or one store.
+unsafe extern "C" {
+    static mut bootstrap_port: libc::natural_t;
+    fn mach_task_self() -> libc::natural_t;
+    fn task_set_special_port(
+        task: libc::natural_t,
+        which: libc::c_int,
+        port: libc::natural_t,
+    ) -> libc::c_int;
+}
+
+/// `TASK_BOOTSTRAP_PORT` (mach/task_special_ports.h): the task special port
+/// a child's `bootstrap_port` global is initialized from at `exec`.
+const TASK_BOOTSTRAP_PORT: libc::c_int = 4;
+
+/// §4.7 class 2, measured 2026-11-02: SBPL `(version 1)` has no filter for
+/// Mach sends to the inherited bootstrap port, and launchd's audit-token
+/// sandbox checks do not cover kickstart, so a member holding that port can
+/// direct launchd to run an unsandboxed deputy — through `launchctl`
+/// (whose exec the profile also denies, for a clean `EPERM`) or through any
+/// hand-rolled MIG/XPC client, whose pipe is built from exactly that port
+/// (measured; see the K90 direct-client row). The launcher therefore
+/// removes the port immediately before the exec: every such client then
+/// fails locally, and the target and all its descendants inherit no
+/// bootstrap at all (measured: exec'd `launchctl` dies client-side without
+/// reaching launchd). Fail closed — without the strip nothing runs.
+///
+/// Async-signal-safe: one trap on the task's own special port, one store to
+/// the cached global, no allocation, no other process touched.
+fn strip_bootstrap_port() -> Result<(), libc::c_int> {
+    // SAFETY: `mach_task_self` is a trap returning the caller's own task
+    // port; setting special port 4 to MACH_PORT_NULL replaces the inherited
+    // bootstrap with no port (permitted unprivileged for one's own task,
+    // measured).
+    let kr = unsafe {
+        task_set_special_port(mach_task_self(), TASK_BOOTSTRAP_PORT, 0)
+    };
+    if kr != libc::KERN_SUCCESS {
+        return Err(kr);
+    }
+    // The C runtime's cached global must not outlive the port it named.
+    // SAFETY: a single word store to libSystem's own global, before any
+    // code that could read it runs again.
+    unsafe { bootstrap_port = 0 };
+    Ok(())
+}
+
 /// The dispatch entry (`main.rs`'s `__launch-macos` arm). Never returns.
 pub fn launch_main(args: &[OsString]) -> ! {
     let parsed = match parse(args) {
@@ -445,6 +496,13 @@ pub fn launch_main(args: &[OsString]) -> ! {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }
 
+    // The last step before the exec (§4.7 class 2): with no bootstrap port
+    // there is no route from this member to the launchd control plane, for
+    // any client. A refusal here reports as internal and nothing runs.
+    if let Err(kr) = strip_bootstrap_port() {
+        report_and_exit(parsed.error_fd, kr, 0, EXIT_INTERNAL);
+    }
+
     // SAFETY: `program` and `argv_ptrs` are a NUL-terminated string and a
     // NULL-terminated pointer array, all live for the call, and `environ` is
     // this process's own. execve only returns on failure.
@@ -464,6 +522,15 @@ pub fn launch_main(args: &[OsString]) -> ! {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn task_bootstrap_port_is_the_special_port_four() {
+        // The value mach/task_special_ports.h defines; measured against the
+        // running task: task_get_special_port(4) returns the cached
+        // `bootstrap_port` global's port. The strip's correctness rests on
+        // this identity, so the constant is pinned here.
+        assert_eq!(TASK_BOOTSTRAP_PORT, 4);
+    }
 
     #[test]
     fn blocked_is_the_eight_zero_bytes_and_nothing_else_is() {

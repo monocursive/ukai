@@ -1,0 +1,111 @@
+{
+  "policy_digest": "sha256:3a6b0294c4269c33a1ac004d2ce5af1c0c2df3d73c0415f1bd3b810a6136212d",
+  "provenance": [
+    {
+      "detail": null,
+      "key": "profile",
+      "origin": "builtin-profile:tool"
+    },
+    {
+      "detail": null,
+      "key": "filesystem.read_only",
+      "origin": "cli"
+    },
+    {
+      "detail": "40s",
+      "key": "limits.wall",
+      "origin": "cli"
+    },
+    {
+      "detail": null,
+      "key": "observation.mode",
+      "origin": "cli"
+    },
+    {
+      "detail": null,
+      "key": "observation.evidence",
+      "origin": "cli"
+    }
+  ],
+  "schema": "ukai.jail.policy-file/1",
+  "snapshot": {
+    "environment": {
+      "bindings": [
+        {
+          "name": "LANG",
+          "value": "en_US.UTF-8"
+        },
+        {
+          "name": "PATH",
+          "value": "/usr/local/bin:/usr/bin:/bin"
+        },
+        {
+          "name": "TMPDIR",
+          "value": {
+            "path": "",
+            "root": "scratch"
+          }
+        }
+      ],
+      "inherit_host": false
+    },
+    "filesystem": {
+      "deny_read": [],
+      "protected_coverage": "existing_and_root",
+      "protected_segments": [
+        ".git",
+        ".ukai"
+      ],
+      "read_only": [
+        {
+          "path": "/Users/admin/ukai-direct-client-20261102/src",
+          "root": "host"
+        }
+      ],
+      "read_write": [
+        {
+          "path": "",
+          "root": "scratch"
+        },
+        {
+          "path": "",
+          "root": "workspace"
+        }
+      ]
+    },
+    "launch": null,
+    "limits": {
+      "cpu": null,
+      "mem": null,
+      "pids": {
+        "required": false,
+        "value": "256"
+      },
+      "wall": {
+        "required": true,
+        "value": "40000"
+      }
+    },
+    "network": {
+      "allow": [],
+      "mode": "none",
+      "ruleset": null,
+      "translation_prefixes": []
+    },
+    "observation": {
+      "evidence": "best-effort",
+      "mode": "on"
+    },
+    "platform": "macos",
+    "profile": "tool",
+    "profile_version": 1,
+    "roots": {
+      "scratch": {
+        "kind": "managed"
+      },
+      "vendor_state": null,
+      "workspace": "/Users/admin/ukai-direct-client-20261102/trials/deputy-v2-kickstart-guardian/workspace"
+    },
+    "schema": "ukai.jail.policy-snapshot/1"
+  }
+}

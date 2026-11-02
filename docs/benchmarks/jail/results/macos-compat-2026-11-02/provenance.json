@@ -1,0 +1,57 @@
+{
+  "recorded_at_utc": "2026-11-02T11:31:09.805986+00:00",
+  "source_commit": "9c8ce2297bcb4da80e5912dc38e9ef23a234c1b5",
+  "phases": [
+    "amended rule 6 (clamp-with-floor) + receipt fields",
+    "stop-path instrumentation (StopTiming marks, receipt stop.phases, guardian stop_phases)",
+    "sqlite unblocked via explicit /var/tmp + workspace-exec grants"
+  ],
+  "template_digest": "b2ae082d8d41f393bdc5f83b3cc3f2e84a017b3a4aff68beeb81325c037dc5e4 (unchanged)",
+  "host_version": {
+    "build": {
+      "debug_assertions": false,
+      "dirty": null,
+      "inputs": "sha256:2aba7db7ef7f75ff86d0bc05568ef2e74bda115b278ac8a4983527e9c9c25cc5",
+      "opt_level": "3",
+      "revision": null,
+      "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+      "target": "aarch64-apple-darwin"
+    },
+    "component": "ukai-jail",
+    "frozen": true,
+    "observation": {
+      "closed_set": "macos-closed-v1"
+    },
+    "platform": {
+      "arch": "aarch64",
+      "kernel": "Darwin 27.0.0",
+      "os": "macos"
+    },
+    "schemas": {
+      "control": "ukai.jail.control/1",
+      "doctor": "ukai.jail.doctor/1",
+      "event": "ukai.event/1",
+      "gate": "ukai.jail.gate/1",
+      "learned_policy": "ukai.jail.learned-policy/1",
+      "network": "ukai.jail.network/1",
+      "policy": "ukai.jail.policy/1",
+      "policy_file": "ukai.jail.policy-file/1",
+      "policy_snapshot": "ukai.jail.policy-snapshot/1",
+      "receipt": "ukai.jail.receipt/1",
+      "summary": "ukai.jail.summary/1"
+    },
+    "version": "0.1.0"
+  },
+  "staged_binary_sha256": "e1a84a425bf6cfdea3dcb920e51f09af66446610c55f843dd2a581902cecd944",
+  "staged_inputs_manifest": "harness/inputs.json",
+  "vm": {
+    "name": "ukai-custody-spike-20261101",
+    "guest_root": "/Users/admin/ukai-compat-20261102",
+    "guest_os": "macOS 27.0 build 26A428",
+    "guest_sip": "disabled",
+    "kern_maxprocperuid": "1333 (default) for the headroom measurements, 2000 for k92/sqlite",
+    "isolation": "guard() at every entry; Ethernet service disabled, en0 addressless, no default routes, no host share"
+  },
+  "approved_entitlement": false,
+  "release_evidence": false
+}

@@ -138,8 +138,20 @@ are development mechanism measurements, not production jail benchmarks.
 
 The [two-tier macOS design](../../specs/jail-macos.md) has work in progress
 in `crates/ukai-jail`; it is not supported or shipped.
-The new custody code has not run with live Endpoint Security. J16 packaging
-and decision 5's measurement spike remain outstanding; J18 lacks network,
+The [2026-11-01 measurement spike](results/macos-custody-spike-2026-11-01/README.md)
+runs current custody with live Endpoint Security in an isolated SIP-disabled
+development VM. It found a `launchctl kickstart` deputy route to both
+custodians despite the candidate `mach-bootstrap` denial; the
+[2026-11-02 kickstart-fix rerun](results/macos-k90-kickstart-fix-2026-11-02/README.md)
+closed that route on the exact shipped template, and the same day's
+[bootstrap-strip closure](results/macos-k90-bootstrap-strip-2026-11-02/README.md)
+— built on a direct launchd-client probe that speaks `launchctl`'s own XPC
+protocol from the inherited bootstrap port — removed that port in the
+launcher, so the class no longer rests on a command name. Kickstart, load
+and the direct client were all denied against both custodians with working
+outside controls. J16 packaging and
+the spike's remaining blockers (process headroom, the full SQLite build,
+stop-path timing instrumentation) remain outstanding; J18 lacks network,
 the `agent` profile, a workspace share and in-guest credentials. Apple's
 entitlement and K104 (every J16 row on a protected Mac) are still required.
 The table describes assertions in the current test sources, not a passing
@@ -151,7 +163,8 @@ Current implementation: native execution is **off by default**. Setting
 `unsupported` and refuse. J17 is wired before release (`J17_OBSERVE=true`):
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
-receipts are tested; no live observed native run is proved. Every
+receipts and development-VM observation smoke runs are tested; full live
+release acceptance remains pending. Every
 `run --vm` refuses before connecting: no qualified VM backend exists yet.
 
 | Lane | Covers |
@@ -159,7 +172,7 @@ receipts are tested; no live observed native run is proved. Every
 | `macos_custody_core` | Synthetic custody-event sequences: membership, root-entry prerequisites, custodian registration, handshake replay, exec-token changes, gap/integrity vetoes, freeze/kill/drain state transitions, budgets and preallocation. Also live unentitled-client refusal, clock reads and the test process audit token. No start/release or receipt integration proof. |
 | `macos_guardian` | Launch-block round trips and malformed-input/size refusals, rlimit arithmetic, guardian grammar and unentitled-client refusal. No live custodian-loss or stall trial (K88/K89). |
 | `macos_sandbox_profile` | Generated profile digest and composition; live sandbox fixtures for filesystem grants, protected names, Mach denial, network ports, signalling, setuid and deputies. These are profile checks, not custody integration. |
-| `macos_defense_matrix` | Classes 1–3 against an operator sleeper and a sibling member, with outside controls. Custodian targets and the full K90 matrix remain untested. |
+| `macos_defense_matrix` | Classes 1–3 against an operator sleeper and a sibling member, with outside controls, plus the fresh-idle-job kickstart row and the direct launchd-client row through the real launcher (bootstrap-port strip). Custodian-target deputy rows passed in the 2026-11-02 development-VM reruns; the full K90 matrix remains untested. |
 | `macos_bridge` | Two loopback ports, secret-bearing URLs/environment, HTTP CONNECT and SOCKS5 authentication over real loopback sockets. No vendor-agent run or credential-binding receipt assertion (K99). |
 | `macos_terminal_relay` | Real ptys and shell fixtures: byte/interrupt relay, window size, raw-mode restore, stop polling, killed-agent handling and relay receipt facts. No complete jailed descriptor-isolation or detached `/dev/tty` acceptance run (K101). |
 | `macos_gc` | Host boot/session and custodian-liveness probes; fabricated attempt roots for abandon, orphan listing and drained-record scanning; a gone-target kill errno path. No live both-custodian-loss recovery proof (K95). |
@@ -168,12 +181,12 @@ receipts are tested; no live observed native run is proved. Every
 | `vm_tier` | Policy key/digest/narrowing, CLI grammar and refusals, transport facts, and attempt/control protocols against a scripted stand-in. No VM boots; warm reuse and K108–K110 remain untested. |
 | Portable extensions | Shared resolution, policy and record assertions where the named suite actually runs on macOS; these do not prove live native custody. Group- and other-writable install roots refuse; no group-membership exception remains. |
 
-**Dev-VM note.** The development VM (`ouro-jail-es-dev`) used for the
-SIP-disabled ES trials has been deleted. The live rows K87–K104 require
-restoring it per [macos-development.md](macos-development.md), or running on
-an entitled Mac for development measurements; K104 specifically requires a
-normally protected, entitled release host. The listed unit, synthetic and
-profile checks do not prove measured live custody.
+**Dev-VM note.** The earlier `ouro-jail-es-dev` VM was deleted. The 2026-11-01
+spike used a fresh pinned clone under [macos-development.md](macos-development.md);
+its raw evidence and limitations are recorded separately from the component
+lanes above. The live acceptance rows remain untested: K104 specifically
+requires a normally protected, entitled release host. No ad-hoc development
+bundle, unit test or synthetic fixture substitutes for that run.
 
 ## Distribution
 

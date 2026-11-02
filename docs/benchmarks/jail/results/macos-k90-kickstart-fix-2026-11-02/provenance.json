@@ -1,0 +1,67 @@
+{
+  "recorded_at_utc": "2026-11-02T08:38:40.041281+00:00",
+  "source_commit": "9c8ce2297bcb4da80e5912dc38e9ef23a234c1b5",
+  "source_status_fix_files": "M crates/ukai-jail/src/platform/macos/sandbox.rs\n M crates/ukai-jail/tests/macos_defense_matrix.rs\n M crates/ukai-jail/tests/macos_sandbox_profile.rs",
+  "product_source_patch": "product-source.patch",
+  "template_digests": {
+    "candidate_2026_11_01": "b6c731c2b6f8c6e967aafa50e5f7f1f63116ec7f3a5574ff69fe38107469e7de",
+    "fixed_this_run": "b2ae082d8d41f393bdc5f83b3cc3f2e84a017b3a4aff68beeb81325c037dc5e4",
+    "receipt_field": "lifetime/native/details/profile_digest",
+    "receipts_all_pin_fixed_digest": true
+  },
+  "host_version": {
+    "build": {
+      "debug_assertions": false,
+      "dirty": null,
+      "inputs": "sha256:f11bafb45f12e2fc8ac8f8cc604d768699eb45ae81e41fe94c2e9664279f6e57",
+      "opt_level": "3",
+      "revision": null,
+      "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+      "target": "aarch64-apple-darwin"
+    },
+    "component": "ukai-jail",
+    "frozen": true,
+    "observation": {
+      "closed_set": "macos-closed-v1"
+    },
+    "platform": {
+      "arch": "aarch64",
+      "kernel": "Darwin 27.0.0",
+      "os": "macos"
+    },
+    "schemas": {
+      "control": "ukai.jail.control/1",
+      "doctor": "ukai.jail.doctor/1",
+      "event": "ukai.event/1",
+      "gate": "ukai.jail.gate/1",
+      "learned_policy": "ukai.jail.learned-policy/1",
+      "network": "ukai.jail.network/1",
+      "policy": "ukai.jail.policy/1",
+      "policy_file": "ukai.jail.policy-file/1",
+      "policy_snapshot": "ukai.jail.policy-snapshot/1",
+      "receipt": "ukai.jail.receipt/1",
+      "summary": "ukai.jail.summary/1"
+    },
+    "version": "0.1.0"
+  },
+  "staged_binary_sha256": "c46a3e733cc39c50d5628f80bcc17aa77db2f351cff1cf13b841e67af3e67d16",
+  "staged_inputs_manifest": "harness/inputs.json",
+  "vm": {
+    "name": "ukai-custody-spike-20261101",
+    "reused_from": "macos-custody-spike-2026-11-01 (retained, stopped)",
+    "guest_root": "/Users/admin/ukai-k90-rerun-20261102",
+    "guest_os": "macOS 27.0 build 26A428 (sw_vers in guest-setup.json)",
+    "guest_sip": "disabled",
+    "guest_uid": 501,
+    "kern_maxprocperuid": "1333 -> 2000 (matching the 2026-11-01 spike); kern.maxproc 2000",
+    "ipv6_tunnel_defaults": "removed again after boot (ifconfig utunN down + route delete -inet6 default -ifscope utunN)",
+    "en0": "Ethernet service Disabled; no inet/inet6 address; Tart emulated link reports active (see harness/ setup_guest.py note)",
+    "host_sip": "System Integrity Protection status: enabled.",
+    "host_shares": "none (no virtiofs in guest mounts)"
+  },
+  "harness_changes_from_2026_11_01": [
+    "setup_guest.py: the en0 isolation assertion now requires no inet/inet6 address on en0 (stronger than the previous link-state 'inactive' wording, which Tart's emulated link no longer reports)"
+  ],
+  "approved_entitlement": false,
+  "release_evidence": false
+}

@@ -6,6 +6,9 @@ exact form text and confirmation. Apple's acknowledgement confirms
 **Case-ID: 22799543**. Apple DTS asked for the question to be posted on the
 Developer Forums and answered it there; the answer, relayed by the operator on
 2026-10-22, is recorded [below](#apples-answer-2026-10-22): no such facility exists.
+The operator relayed a [follow-up exchange](#notification-load-follow-up-relayed-2026-11-01)
+on 2026-11-01: notification overload drops messages rather than terminating a
+notification-only client. This is DTS guidance, not a live acceptance result.
 Related entitlement request: **S9YJTLLH28**, submitted
 2026-09-29 for `com.apple.developer.endpoint-security.client`, Monocursive team
 `64SGQ348QJ`, proposed identifier `com.monocursive.ouroboros.jail`.
@@ -104,3 +107,87 @@ death chain after every custodian is gone. The [two-tier proposal](../../specs/j
 native tier around that, with a disclosed weaker lifetime, and keeps a
 kernel-bound VM tier. Apple did not comment on the Mach exception-port,
 debugger or fatal-port evidence.
+
+## Notification-load follow-up (relayed 2026-11-01)
+
+The operator supplied the follow-up question and Kevin Elliott's reply from
+the same Developer Forums thread on 2026-11-01. The pasted thread labels both
+posts "1w"; the date here is when the exchange was relayed, not an asserted
+publication date. The supplied copy contains no forum URL.
+
+### Our follow-up question
+
+Verbatim from the supplied copy. Its "external-only" wording is qualified in
+the interpretation below and in the macOS spec.
+
+> Thank you, that answers the core question. We will design around simultaneous custodian loss as an external-only residual, with custodians the workload cannot signal or control.
+>
+> One follow-up: our custody clients subscribe only to NOTIFY_FORK, NOTIFY_EXEC and NOTIFY_EXIT on an es_new_descendants_client. If descendants generate events faster than the client drains them, can the system terminate a notification-only client? Or does it only drop messages, observable as gaps in seq_num / global_seq_num? We treat any gap as a failed verification, so drops are acceptable to us, but termination for load would let the monitored workload remove a custodian.
+
+### Apple's reply
+
+Kevin Elliott, DTS Engineer, CoreOS/Hardware. Verbatim; nested quotes are the
+parts of our question quoted in the reply.
+
+> > If descendants generate events faster than the client drains them,
+>
+> I've said this in a few different contexts, but this is an avoidable issue. The reality is that the delivery overhead of an individual ES event is SO much smaller than a syscall that your client should be able to process events FAR faster than your descendants can generate them. That's particularly true for notifications, since delayed delivery means we can batch them and deliver them in chunks. On top of that, the combination of auth events and unlimited deadlines means that you can easily throttle anything you want— just pause the approval of auth events until the volume decreases, then start approving your backlog.
+>
+> Case in point, here:
+>
+> > One follow-up: our custody clients subscribe only to NOTIFY_FORK, NOTIFY_EXEC and NOTIFY_EXIT on an es_new_descendants_client.
+>
+> If you switch to ES_EVENT_TYPE_AUTH_EXEC, then you can pause or slow new process creation anytime you want by simply delaying when you approve the auth request. This has other advantages as well— you're focused on dropped messages, but if you actually test this, I think you'll find that the machine starts to become unusably slow WELL before the message volume becomes a problem.
+>
+> Finally, this isn't difficult to test and then design around— all you need to do is pick the event you’re concerned about, write a test tool that uses lots of threads to ONLY generate that action, then run as many instances of that tool as you want.
+>
+> > Can the system terminate a notification-only client?
+>
+> No. Only auth events can trigger termination. However, when using es_new_descendants_client, even that can be avoided by using es_set_deadline_min_milliseconds to increase the deadline to an arbitrarily long value[1] and using es_set_deadline_miss_mode to change to something other than ES_DEADLINE_MISS_MODE_KILL.
+>
+> > Or does it only drop messages, observable as gaps in seq_num / global_seq_num?
+>
+> Yes, that's what it would do.
+>
+> [1] Max uint32_t milliseconds is ~49 days. If you need to stall an approval for that long, then we may need to have a conversation about your larger product design/goal
+
+### Interpretation and remaining gates
+
+- **Resolved by DTS guidance:** notification-queue overload does not itself
+  terminate a notification-only descendants client. Notifications can be
+  dropped, with gaps in `seq_num` / `global_seq_num`. This closes the macOS
+  spec's pending Apple question; it does not measure our implementation or
+  resolve its separate pre-first-message sequence ambiguity.
+- **Authorization is a separate path:** DTS suggests delaying `AUTH_EXEC`
+  approvals for backpressure and configuring deadlines and a non-kill miss
+  mode. The roughly 49-day maximum is finite. The existing design retains
+  notification-only custody while the workload runs and a separate
+  `FAIL_CLOSED` guard during teardown; this reply does not require a redesign.
+  Apple's [deadline-miss API documentation](https://developer.apple.com/documentation/endpointsecurity/es_set_deadline_miss_mode%28_%3A_%3A%29?language=objc)
+  also specifies that `FAIL_CLOSED` denies AUTH messages dropped when the
+  queue is full.
+- **The residual is not proved external-only:** direct workload signals,
+  suspension, debugging and control through other services must be denied.
+  The queue-overload answer does not establish immunity to client bugs or
+  workload-induced system memory pressure. Loss of both custodians, whatever
+  its cause, can leave descendants running. External kills are one example,
+  not an exhaustive description. The original answer still rules out a
+  supported kernel-owned death chain after all custodians disappear.
+- **Tests and release gates remain:** K92's adversarial drain proof, K93's
+  event storms, gap handling and ordinary heavy-build check, K95's both-lost
+  behavior and K96's workload-induced memory-pressure trials remain required.
+  No trial is marked passed by this reply. Entitlement approval, packaging,
+  K104's SIP-enabled protected-Mac acceptance on the release build, and the
+  other J16–J18 gates in the [macOS spec](../../specs/jail-macos.md) remain in
+  place. The native tier remains development-only pending qualification.
+
+### Implementation evidence after the reply — 2026-11-01
+
+The [isolated development-VM spike](results/macos-custody-spike-2026-11-01/README.md)
+found a concrete reason to retain that qualification: a sandboxed
+`launchctl kickstart` request starts a preloaded unsandboxed job, which can
+signal either custodian. The candidate `mach-bootstrap` denial does not
+close it. Both outside positive controls worked; `load` was denied in the
+corresponding trials. This is our implementation evidence, not an additional
+Apple statement. K90 and NC01 remain open, and the event-load guidance does
+not turn this workload-reachable deputy into an external-only residual.

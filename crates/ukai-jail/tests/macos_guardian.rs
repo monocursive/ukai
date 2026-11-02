@@ -620,6 +620,7 @@ fn guardian_record_reaches_b_even_when_persistent_write_fails() {
             ended_at: 65_000_000_000,
             members_peak: 1,
             guard_armed: false,
+            timing: Default::default(),
         },
         [0; 8],
         [0; 8],
@@ -891,4 +892,57 @@ fn r3_c2_sync_timeout_keeps_draining_a_contiguous_stream() {
                 .any(|(t, sig)| *t == token && *sig == libc::SIGKILL)
         );
     }
+}
+
+#[test]
+fn stop_timing_marks_are_recorded_and_ordered() {
+    // NC09/NC11: the machine's own phase marks must exist and be ordered
+    // across a freeze-kill-drain stop, on the same clock as elapsed_ns, so
+    // an operator's oracle can be reconciled against the machine's view.
+    use ukai_jail::platform::macos::{custody::Custodian, es, guardian::stop::GuardianStop};
+    let mut root = [0u32; 8];
+    root[5] = 100;
+    root[7] = 2; // version 1 makes FakeSignals answer ESRCH; this one stops
+    let now = std::rc::Rc::new(std::cell::Cell::new(0u64));
+    let mut source = FakeCustody {
+        now: now.clone(),
+        events: vec![
+            (0, stop_event(es::EVENT_FORK, 1, 1, root)),
+            (60_000_000, stop_event(es::EVENT_EXIT, 2, 1, root)),
+        ]
+        .into(),
+        syncs: 0,
+        sync_ok: true,
+        gap: false,
+    };
+    let mut custody = Custodian::new(2);
+    custody.expect_root(100);
+    let mut signals = FakeSignals {
+        clock: Some(now.clone()),
+        ..Default::default()
+    };
+    let (out, _) = GuardianStop::new(custody, None).run_with_io(
+        0,
+        &mut source,
+        &mut FakeClock(now),
+        &mut signals,
+    );
+    assert!(out.result.drained(), "{:?}", out.result.elapsed_ns());
+    let timing = out.timing;
+    let (begin, freeze, kill, result) = (
+        timing.begin_ns.expect("begin mark"),
+        timing.freeze_done_ns.expect("freeze mark"),
+        timing.first_kill_ns.expect("kill mark"),
+        timing.result_ns.expect("result mark"),
+    );
+    assert!(begin <= freeze && freeze <= kill && kill <= result);
+    assert_eq!(
+        result - begin,
+        out.result.elapsed_ns(),
+        "the marks and elapsed share the machine clock"
+    );
+    assert!(
+        signals.calls.iter().any(|(_, sig)| *sig == libc::SIGSTOP),
+        "the freeze ran before the kill"
+    );
 }

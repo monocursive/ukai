@@ -1,0 +1,111 @@
+{
+  "policy_digest": "sha256:5af3f9d4ae06703c850ef712a3152cc7b5f9185092b73d5b6e02277495d3b326",
+  "provenance": [
+    {
+      "detail": null,
+      "key": "profile",
+      "origin": "builtin-profile:tool"
+    },
+    {
+      "detail": null,
+      "key": "filesystem.read_only",
+      "origin": "cli"
+    },
+    {
+      "detail": "40s",
+      "key": "limits.wall",
+      "origin": "cli"
+    },
+    {
+      "detail": null,
+      "key": "observation.mode",
+      "origin": "cli"
+    },
+    {
+      "detail": null,
+      "key": "observation.evidence",
+      "origin": "cli"
+    }
+  ],
+  "schema": "ukai.jail.policy-file/1",
+  "snapshot": {
+    "environment": {
+      "bindings": [
+        {
+          "name": "LANG",
+          "value": "en_US.UTF-8"
+        },
+        {
+          "name": "PATH",
+          "value": "/usr/local/bin:/usr/bin:/bin"
+        },
+        {
+          "name": "TMPDIR",
+          "value": {
+            "path": "",
+            "root": "scratch"
+          }
+        }
+      ],
+      "inherit_host": false
+    },
+    "filesystem": {
+      "deny_read": [],
+      "protected_coverage": "existing_and_root",
+      "protected_segments": [
+        ".git",
+        ".ukai"
+      ],
+      "read_only": [
+        {
+          "path": "/Users/admin/ukai-k90-rerun-20261102/src",
+          "root": "host"
+        }
+      ],
+      "read_write": [
+        {
+          "path": "",
+          "root": "scratch"
+        },
+        {
+          "path": "",
+          "root": "workspace"
+        }
+      ]
+    },
+    "launch": null,
+    "limits": {
+      "cpu": null,
+      "mem": null,
+      "pids": {
+        "required": false,
+        "value": "256"
+      },
+      "wall": {
+        "required": true,
+        "value": "40000"
+      }
+    },
+    "network": {
+      "allow": [],
+      "mode": "none",
+      "ruleset": null,
+      "translation_prefixes": []
+    },
+    "observation": {
+      "evidence": "best-effort",
+      "mode": "on"
+    },
+    "platform": "macos",
+    "profile": "tool",
+    "profile_version": 1,
+    "roots": {
+      "scratch": {
+        "kind": "managed"
+      },
+      "vendor_state": null,
+      "workspace": "/Users/admin/ukai-k90-rerun-20261102/trials/deputy-v2-load-supervisor/workspace"
+    },
+    "schema": "ukai.jail.policy-snapshot/1"
+  }
+}

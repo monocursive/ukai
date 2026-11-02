@@ -44,6 +44,28 @@ def record(path):
     return json.loads(read(CONTRACT + path))
 
 
+def rust_test_definition(reference):
+    """Resolve integration and nested library ids as xtask's map checker does.
+
+    Library ids name the test binary (src/lib.rs), not the module file.
+    Prefer the longest module prefix that exists; inline `tests` stays in
+    that file. Use read(), so --base validates that revision's sources too.
+    """
+    source, name = reference.split("::", 1)
+    parts = name.split("::")
+    modules, function = parts[:-1], parts[-1]
+    if source.endswith("/src/lib.rs"):
+        base = source.removesuffix("lib.rs")
+        for count in range(len(modules), 0, -1):
+            prefix = base + "/".join(modules[:count])
+            for candidate in [prefix + ".rs", prefix + "/mod.rs"]:
+                try:
+                    return read("crates/" + candidate), function
+                except (FileNotFoundError, subprocess.CalledProcessError):
+                    pass
+    return read("crates/" + source), function
+
+
 def validator_module():
     name = "phase1_validator"
     if BASE:
@@ -67,13 +89,15 @@ class MacosContract(unittest.TestCase):
         }
         cls.validators = cls.module.build_validators(schemas)
 
-    def test_d1_status_discloses_incomplete_work_and_unrun_spike(self):
+    def test_d1_status_discloses_incomplete_work_and_measured_spike(self):
         for path in ["docs/specs/jail-macos.md", "docs/roadmap.md", "docs/guide.md",
                      "docs/RELEASING.md", "docs/benchmarks/jail/README.md"]:
             with self.subTest(path=path):
                 text = " ".join(read(path).split())
                 self.assertIn("work in progress", text)
                 self.assertIn("measurement spike", text)
+                self.assertIn("macos-custody-spike-2026-11-01/README.md", text)
+                self.assertIn("kickstart", text)
                 self.assertRegex(text, r"(?s)J18.*?lacks.*?network.*?`agent`.*?workspace.*?credentials")
                 self.assertNotRegex(text, r"(?i)(?:are|is now|both|2026-10-22,) code-complete|The code is complete")
         self.assertIn("refusal-only", read("docs/specs/jail-macos.md"))
@@ -103,7 +127,7 @@ class MacosContract(unittest.TestCase):
         }
         for lane, disclosure in scopes.items():
             with self.subTest(lane=lane):
-                self.assertIn(disclosure, rows[lane])
+                self.assertIn(disclosure.lower(), rows[lane].lower())
 
     def ready_mac(self):
         value = record("examples/doctor-macos.json")
@@ -187,8 +211,9 @@ class MacosContract(unittest.TestCase):
             if c["gate"] not in {f"K{i}" for i in range(87, 114)}:
                 continue
             for test in c.get("tests", []):
-                source, name = test.split("::", 1)
-                self.assertRegex(read("crates/" + source), r"(?m)^fn " + re.escape(name) + r"\(")
+                with self.subTest(reference=test):
+                    source, name = rust_test_definition(test)
+                    self.assertRegex(source, r"(?m)^\s*#\[test\]\s*(?:#\[[^\n]+\]\s*)*fn " + re.escape(name) + r"\(")
 
     def test_d8_other_writable_is_never_accepted(self):
         for path in ["docs/specs/jail-launch-and-summary.md", "docs/specs/jail-macos.md"]:
@@ -236,7 +261,7 @@ class MacosContract(unittest.TestCase):
         self.assertNotRegex(text, r"[Tt]wo ES clients")
         self.assertIn("three ES clients (S, G, G′; four with J17)", text)
         self.assertIn("Three ES clients (S, G and G′; four with J17)", text)
-        self.assertIn("A fourth ES client", text)
+        self.assertRegex(text, r"(?i)\ba fourth ES client\b")
 
     def test_l4_boundary_name_does_not_assert_verified_end(self):
         text = read("docs/guide.md")
@@ -247,10 +272,13 @@ class MacosContract(unittest.TestCase):
         text = read("docs/specs/jail-macos.md")
         self.assertRegex(text, r"(?s)One lost guardian.*?not the named residual.*?loss of both\n  custodians")
 
-    def test_l7_deleted_vm_requires_a_reclone(self):
+    def test_l7_fresh_vm_is_not_release_qualification(self):
         text = read("docs/specs/jail-macos.md").split("### 4.12 Packaging", 1)[1].split("## 5.", 1)[0]
         self.assertIn("deleted on 2026-10-22", text)
-        self.assertIn("must be re-cloned", text)
+        self.assertIn("fresh pinned", text)
+        self.assertIn("ukai-custody-spike-20261101", text)
+        self.assertIn("development measurements only", text)
+        self.assertIn("normally protected Mac", text)
         self.assertNotIn("continues in the SIP-disabled VM", text)
 
     def test_phase2_product_shape_illustration(self):
@@ -311,10 +339,13 @@ class MacosContract(unittest.TestCase):
                      "docs/RELEASING.md", "docs/benchmarks/jail/README.md"]:
             with self.subTest(path=path):
                 text = " ".join(read(path).split())
-                for fact in ["UKAI_JAIL_MACOS_NATIVE=dev", "native_execution=dev", "J17_OBSERVE=false",
-                             "ObserveRun", "unwired", "fs.write", "degraded", "before connecting"]:
+                for fact in ["UKAI_JAIL_MACOS_NATIVE=dev", "native_execution=dev", "J17_OBSERVE=true",
+                             "macos-closed-v1", "fs.write", "active", "before connecting"]:
                     self.assertIn(fact, text)
+                self.assertNotIn("J17_OBSERVE=false", text)
+                self.assertNotIn("unwired", text)
                 self.assertRegex(text, r"credential.*vault.*vendor.*unsupported")
+        self.assertRegex(read("crates/ukai-jail/src/profiles.rs"), r"pub const J17_OBSERVE: bool = true;")
         spec = read("docs/specs/jail-macos.md")
         self.assertIn('`sequence_start: "unverified"`', spec)
         self.assertIn("requires the root to have entered the table", " ".join(spec.split()))
@@ -329,8 +360,30 @@ class MacosContract(unittest.TestCase):
         self.assertEqual(set(release), native | {"K22.2", "K23.1", "K24.1", "K26.1", "K29.1"})
         self.assertEqual(len(release), len(set(release)))
         self.assertTrue(all(re.fullmatch(r"[A-Z][0-9]+\.[0-9]+", c) for c in release))
-        self.assertEqual(clauses["K105.2"]["tests"], ["ukai-jail/tests/macos_observe.rs::k105_events_map_to_schema_valid_audit_results_with_honest_coverage"])
-        self.assertIn("degraded", clauses["K105.2"]["clause"])
+        expected = {
+            "ukai-jail/tests/macos_observe.rs::k105_events_map_to_schema_valid_audit_results_with_honest_coverage",
+            "ukai-jail/tests/macos_observe.rs::j17_published_closed_set_equals_the_subscription_rows",
+            "ukai-jail/src/lib.rs::platform::macos::boundary::tests::j17_synthetic_native_producer_receipts_and_strict_refusal",
+            "ukai-jail/src/lib.rs::platform::macos::boundary::tests::j17_requested_attachment_failure_refuses_in_both_modes",
+        }
+        self.assertTrue(expected <= set(clauses["K105.2"]["tests"]))
+        self.assertEqual(clauses["K105.2"]["tag"], "simulated")
+        self.assertIn("loss degrades", clauses["K105.2"]["clause"])
+        self.assertIn("no live ES", clauses["K105.2"]["note"])
+
+    def test_j17_refusal_and_proxy_rows_preserve_live_gates(self):
+        acceptance = tomllib.loads(read(CONTRACT + "acceptance-map.toml"))
+        gates = {g["id"]: g["row"] for g in acceptance["gate"]}
+        clauses = {c["id"]: c for c in acceptance["clause"]}
+        for gate in ["K98", "K99"]:
+            self.assertEqual(clauses[gate + ".1"]["tag"], "untested")
+            self.assertEqual(clauses[gate + ".1"]["clause"], gates[gate])
+        for fact in ["no entitlement", "client limit", "muted", "--profile none", "pids", "mem", "cpu",
+                     "requested observation cannot attach", "both evidence modes"]:
+            self.assertIn(fact, gates["K98"])
+        for fact in ["Claude Code", "OpenCode", "supported proxy protocol", "HTTP CONNECT", "SOCKS5",
+                     "allowed-host", "missing or invalid secret", "ungranted loopback", "binding: attempt"]:
+            self.assertIn(fact, gates["K99"])
 
     def test_phase2_reblessed_artifacts_match_digests(self):
         frozen = tomllib.loads(read(CONTRACT + "frozen-schemas.toml"))
@@ -402,7 +455,7 @@ class MacosContract(unittest.TestCase):
         text = " ".join(read("docs/specs/jail-macos.md").split("## 5.", 1)[1].split("## 6.", 1)[0].split())
         for fact in ["0 or 1", 'sequence_start: "unverified"', "unknown exact loss",
                      "not added together", "F_GETPATH", "created", "metadata changes",
-                     "workspace root", "entry counts"]:
+                     "workspace-root", "entry counts"]:
             self.assertIn(fact, text)
         summary = read("docs/specs/jail-launch-and-summary.md")
         self.assertIn("workspace root content modified", summary)

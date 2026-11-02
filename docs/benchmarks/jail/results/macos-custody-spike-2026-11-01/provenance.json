@@ -1,0 +1,64 @@
+{
+  "recorded_at_utc": "2026-11-01T21:12:15.232482+00:00",
+  "source_commit": "9c8ce2297bcb4da80e5912dc38e9ef23a234c1b5",
+  "source_status": "M arena/m1/adapters.py\n M arena/m1/batch.py\n M arena/m1/runtime.py\n M crates/ukai-jail/src/platform/macos/sandbox.rs\n M crates/ukai-jail/tests/macos_defense_matrix.rs\n M docs/RELEASING.md\n M docs/benchmarks/jail/apple-lifetime-question.md\n M docs/specs/jail-macos.md\n M docs/specs/jail-v1/acceptance-map.toml\n M docs/specs/jail-v1/test_macos_contract.py\n M website/README.md\n D website/src/components/arena/BoundaryMatrix.astro\n D website/src/components/arena/InstallRuns.astro\n D website/src/components/arena/RiverScene.astro\n M website/src/layouts/Site.astro\n M website/src/pages/arena/index.astro\n?? .claude/\n?? arena/CURRENT.md\n?? arena/READER-LAB.md\n?? arena/evaluation-index.json\n?? arena/evaluation_index.py\n?? arena/experiments/\n?? arena/export_containment.py\n?? arena/export_reader_results.py\n?? arena/export_workflows.py\n?? arena/m1/test_claude_progress.py\n?? arena/package_reader_lab.py\n?? arena/reader_lab.py\n?? arena/test_evaluation_index.py\n?? arena/test_export_reader_results.py\n?? arena/test_export_workflows.py\n?? arena/test_reader_lab.py\n?? docs/arena-containment-spec.md\n?? docs/arena-reader-program.md\n?? docs/arena-twin-exposure-spec.md\n?? docs/benchmarks/jail/results/macos-custody-spike-2026-11-01/\n?? docs/benchmarks/jail/results/macos-live-2026-10-24/\n?? website/public/arena/downloads/ukai-arena-reader-evidence-2026-11-01.zip\n?? website/public/arena/downloads/ukai-arena-reader-evidence-2026-11-01.zip.sha256\n?? website/public/arena/downloads/ukai-arena-reader-lab-2026-11-01.zip\n?? website/public/arena/downloads/ukai-arena-reader-lab-2026-11-01.zip.sha256\n?? website/public/arena/evidence/2026-11-01-parser-diagnostic.json\n?? website/public/arena/evidence/2026-11-01-reader/\n?? website/src/arena_november.ts\n?? website/src/arena_readers.ts\n?? website/src/pages/arena/field-notes/\n?? website/src/pages/arena/method.astro\n?? website/src/styles/arena-notes.css",
+  "host_version": {
+    "build": {
+      "debug_assertions": false,
+      "dirty": true,
+      "inputs": "sha256:05b996495fa6949ad9989da4e77ae4b7764e96deea01c5e7422cb18306970abe",
+      "opt_level": "3",
+      "revision": "9c8ce2297bcb4da80e5912dc38e9ef23a234c1b5",
+      "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+      "target": "aarch64-apple-darwin"
+    },
+    "component": "ukai-jail",
+    "frozen": true,
+    "observation": {
+      "closed_set": "macos-closed-v1"
+    },
+    "platform": {
+      "arch": "aarch64",
+      "kernel": "Darwin 27.0.0",
+      "os": "macos"
+    },
+    "schemas": {
+      "control": "ukai.jail.control/1",
+      "doctor": "ukai.jail.doctor/1",
+      "event": "ukai.event/1",
+      "gate": "ukai.jail.gate/1",
+      "learned_policy": "ukai.jail.learned-policy/1",
+      "network": "ukai.jail.network/1",
+      "policy": "ukai.jail.policy/1",
+      "policy_file": "ukai.jail.policy-file/1",
+      "policy_snapshot": "ukai.jail.policy-snapshot/1",
+      "receipt": "ukai.jail.receipt/1",
+      "summary": "ukai.jail.summary/1"
+    },
+    "version": "0.1.0"
+  },
+  "host_sip": "System Integrity Protection status: enabled.",
+  "host_sdk": "27.0",
+  "tart_version": "2.38.0",
+  "vm": "ukai-custody-spike-20261101",
+  "image": "ghcr.io/cirruslabs/macos-golden-gate-base@sha256:9a2f20d179d6418a128dcb76c593588ea85a263dbfa286e757db63f3d949af7c",
+  "inputs": {
+    "entitlements.plist": "594990dd76c66c086d5028b1eb822b29f69bccdcd16fa4a9c95ccf5d5eaabe0a",
+    "src/macos_native.py": "23231f60daee10da065952d99f0f84637bda1c86d238cdec47a8e7263494faeb",
+    "src/sqlite3.c": "0a409f1633283fa31a9126b11fbfd64a1991c5d30defad07e5745d4667f5e23d",
+    "src/macos_j16_spike_fixture.c": "8f85f4c21a84cea3138fc4e3f3e93cb992e52d32fa3892267fafbbdd1f9cf6c9",
+    "src/defense_probe.c": "db759bb2e4283b839a8b3da6d687a64b216a59c3ceda7914cb093aa4fa34d5e6",
+    "src/macos_j16_spike_matrix.py": "e919741a5e3649c24e058bdda688b0a77b837c8270a3d8e7f08d87bf0ed0b106",
+    "src/macos_j16_spike_attack.c": "58d8a7c5183bf5751f6a24e2ae2b48d5941ebf00e3005da16f64e6b615c70703",
+    "src/macos_j16_spike_guest.py": "c09735d5fab8c9eb82d12913099722571e8e1f414bdecc61a0aadfa9fb445a39",
+    "src/sqlite3.h": "9e69a1353a4288450b0d5239ede11fc7f1f4c8e5eb07491fc8317eacb5b7de7e",
+    "src/k90_deputy_check.py": "37b93af9cb4e98f01ae8e70f9cfad81dd23123832a211987a355145f8747312f",
+    "src/setup_guest.py": "fbf5c532fd303c74f88315e3a10219366619a1e03583296c6620fc2fdbd7f304",
+    "src/macos_native.c": "adc081414284414824be45471fd13e805093d9f00c99307d22f14be86b1777d1",
+    "Ukai.app/Contents/Info.plist": "e4a1a9e184bcb8401115b531ff7bd71b7995fc33eac5fb0dbb1efbebf1f82622",
+    "Ukai.app/Contents/MacOS/ukai-jail": "f355b68561566b9fddbd1d8b7b91dad57a2ee47ce07c38f433ff13de660f709d"
+  },
+  "approved_entitlement": false,
+  "release_evidence": false,
+  "input_archive_sha256": "4ec2ba203814562233dbf45ade116b4a6844c9c813ad520be9ffc0e3f0685185"
+}

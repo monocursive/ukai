@@ -1,6 +1,6 @@
-# Jail proposal: macOS in two tiers, native custody and a warm VM (J16–J18)
+# Jail proposal: native-first macOS, defended custody and an optional warm VM (J16–J18)
 
-Status: work in progress on `dev` (merged 2026-10-23), decisions of 2026-10-22 with the 2026-10-23 declared-set amendment;
+Status: work in progress on `dev` (merged 2026-10-23), decisions of 2026-10-22 with the 2026-10-23 declared-set amendment and the 2026-11-01 native-first plan (§13);
 J16–J18 are not supported or released. `dev` at `ae14865f8` was the
 refusal-only baseline before this implementation was merged.
 Current implementation: native execution is **off by default**. Setting
@@ -9,13 +9,18 @@ Current implementation: native execution is **off by default**. Setting
 `unsupported` and refuse. J17 is wired before release (`J17_OBSERVE=true`):
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
-receipts are tested; no live observed native run is proved. Every
+receipts are tested; live development-VM smoke runs also attach and report the
+declared set, without satisfying K105–K107 release qualification. Every
 `run --vm` refuses before connecting: no qualified VM backend exists yet.
-The new custody implementation has not run with live Endpoint Security.
+The [2026-11-01 measurement spike](../benchmarks/jail/results/macos-custody-spike-2026-11-01/README.md)
+runs this implementation with live Endpoint Security in an isolated,
+SIP-disabled development VM. It exposes a K90 class-2 blocker: an existing
+launchd job can be kickstarted from the sandbox and signal either custodian,
+including with the candidate `mach-bootstrap` denial. NC01 is not accepted.
 J16 lacks the bundle, Info.plist, entitlements and `~/Applications` installer;
 J18 lacks network, the `agent` profile, a workspace share and in-guest
-credentials. Decision 5's K92/K93/K90-class-2 measurement spike has not run.
-The development VM was deleted on 2026-10-22 and must be re-cloned (§4.12).
+credentials. The spike records K92/K93 results and process-limit adjustments;
+development measurements do not complete the release rows (§4.12).
 Apple's entitlement and the protected-Mac acceptance run (K104) remain
 release gates, alongside completing and validating the implementation.
 Sections below specify release requirements where they describe behavior
@@ -25,8 +30,16 @@ Decisions were settled on 2026-10-22 (§12). The proposal was written against
 `dev` at `68512e1f1`, after
 Apple Developer Technical Support answered code-level support case `22799543`
 (the [question and answer](../benchmarks/jail/apple-lifetime-question.md)).
+The [DTS follow-up relayed on 2026-11-01](../benchmarks/jail/apple-lifetime-question.md#notification-load-follow-up-relayed-2026-11-01)
+resolves the notification-load question and qualifies the both-lost residual
+below. It supplies guidance, not new live acceptance evidence, and waives no
+stress test or release gate.
 
-- **The direction.** The operator chose two tiers.
+- **The direction.** Native macOS is the everyday path after qualification:
+  familiar local tools, an ordinary terminal session and project-scoped
+  permissions. The Linux VM is an explicit option for stronger lifetime and
+  resource requirements. Complete one Claude workflow before expanding native
+  compatibility (§13); this changes implementation priority, not release gates.
 - **The reviews.** The draft was revised after two independent reviews, an
   adversarial review of the mechanisms and a consistency review against
   jail-v1, jail-v2 and J12–J15, and again after a third review of the
@@ -43,6 +56,7 @@ Each claim says where it comes from:
 
 - **measured**: a run whose evidence is in this repository;
 - **by reading**: Apple documentation, SDK headers or published XNU source, not run;
+- **DTS guidance**: Apple's support replies as relayed in the Q&A record, not run;
 - **inferred**: argued from those, not observed.
 
 Normative words follow jail-v2. **must** is a release gate. **initial** is a
@@ -52,7 +66,7 @@ named measurement passes.
 Apple's answer to "does macOS provide a supported, kernel-owned boundary that
 stops every descendant once every userspace custodian is gone?" was:
 *"No, nothing like this currently exists."* Apple's suggestion was to make the
-custodians impossible for the workload to kill. Each custodian holds an
+custodians defend themselves against workload control. Each custodian holds an
 `es_new_descendants_client`, which *"can defend itself from all child activity.
 External events may still terminate it, but its children cannot."* So native
 macOS cannot meet the Linux lifetime contract, and no amount of further work
@@ -66,7 +80,7 @@ implementation gates above remain in force:
 | Start | per run, three ES clients (S, G, G′; four with J17) and one extra process; the single-client prototype was ready in 40–70 ms p50 (measured, development VM) | warm: the Linux jail's own start; cold: about 22 s (measured, preview) |
 | Containment | Seatbelt (jail-v2 §8.1) | the Linux jail, unchanged, inside the guest |
 | While a custodian lives | the tree ends on stop, verified (§4.5) | the tree ends on stop, verified (jail-v1) |
-| If every Ukai process of the attempt is lost | **the tree may survive**. The workload cannot cause the loss (§4.7). | the guest's own death chain ends it, as on any Linux host (§6) |
+| If every Ukai process of the attempt is lost | **the tree may survive**, whatever the cause. Direct workload control must be denied; client bugs and workload-induced memory pressure are not excluded (§4.7). | the guest's own death chain ends it, as on any Linux host (§6) |
 | Receipt's `lifetime.boundary` | `native_tree` | `pid_namespace` (a Linux receipt) |
 
 The native tier is the intended default after qualification. Today the
@@ -81,7 +95,9 @@ Release targets (not all implemented):
 
 - **J16, the native tier.** Seatbelt containment and two Endpoint Security
   custodians. Covers `tool`, `build` and `agent`, headless and in terminal
-  mode, with J12 launch and J14 persistent vendor state, and observation off.
+  mode, with J12 launch and J14 persistent vendor state. J17 observation is
+  included in the first complete native Claude workflow; observation off
+  remains an explicit policy choice, not its acceptance baseline.
   Includes receipts, `gc`, `doctor`, packaging with the entitlement, and the
   rows of §9.1.
 - **J17, native observation.** Exec and filesystem-mutation evidence from a
@@ -89,6 +105,11 @@ Release targets (not all implemented):
 - **J18, the VM tier.** The released VM preview becomes a warm, shared-workspace
   backend selected with `--vm`. It also adds the policy key that requires a
   kernel-bound lifetime (§6).
+
+The implementation order and additional workflow acceptance criteria are in
+§13. Native remains off by default until qualification. There is no silent
+fallback between native, VM and uncontained execution. A native Claude
+workflow milestone does not remove the other compatibility obligations in §9.
 
 Out of scope, each its own later work:
 
@@ -165,8 +186,20 @@ has: a guardian and a ward, each with its own descendants client. The new
 implementation changes the heartbeat, defense, startup and stop paths; the
 prototype does not validate them. The release requirement is that one
 surviving custodian can stop and verify the registered tree under §4.5's
-conditions. The workload must be unable to take both custodians away. An
-external loss of both leaves the disclosed possibility of survivors.
+conditions. Direct workload control of either custodian, including through
+other services, must be denied. This does not establish immunity to client
+bugs or workload-induced memory pressure. Loss of both custodians leaves the
+disclosed possibility of survivors, whatever its cause; "external-only" is
+not a proven property of the residual.
+
+In the follow-up relayed on 2026-11-01, DTS confirmed that notification
+overload drops messages, observable through sequence gaps, rather than
+terminating a notification-only client. DTS also suggested delaying
+`AUTH_EXEC` approvals for backpressure and configuring authorization deadlines
+and a non-kill deadline-miss mode. That is guidance, not a measured result for
+this implementation. The design retains notification-only custody during
+execution and the separate fail-closed guard during teardown. K93 still
+validates event handling and load; K96 still measures memory-pressure survival.
 
 ### 3.2 Owner loss, read from the boundary
 
@@ -227,8 +260,9 @@ These rules are the design. The rest of §4 applies them.
    - A custody handler reads only the event type, the sequence numbers, the
      audit tokens and the exit status. It never reads a path, argument,
      environment or any other variable-length field that the workload
-     controls, so crafted input cannot crash both custodians through code they
-     share. Apple names client bugs as the main risk.
+     controls. This avoids parsing those fields on the custody path; it does
+     not prove the absence of shared client bugs. Apple names client bugs as
+     the main risk.
    - Exec is in the set because exec replaces the audit token's PID version
      (by reading, `ESMessage.h`). The prototype's reported 900-of-900
      count is observed, not recorded with a reproducible derivation; it is
@@ -249,8 +283,23 @@ These rules are the design. The rest of §4 applies them.
    Preparation refuses if either inherited limit cannot provide that full
    allowance. A successful set is insufficient: kernel read-back must confirm
    both limits at the requested ceiling, or preparation refuses (including
-   kernel clamping below the allowance). The receipt records 1024 only after
-   this check. Every member inherits the limit, and none can raise it without
+   kernel clamping below the allowance). The receipt records the applied
+   allowance only after this check.
+   **Amended 2026-11-02** (measured in the 2026-11-01 spike: a default host's
+   `kern.maxprocperuid` is 1333 and the guardian refused wanting 1376): when
+   the full 1024 does not fit under the inherited ceiling, the allowance is
+   the inherited ceiling itself — never raised, still kernel-bounded, and the
+   membership table is sized for exactly that ceiling — provided the ceiling
+   still clears the operator's snapshot by at least 128 processes; below that
+   there is no room for a tree and preparation refuses, naming the numbers
+   and the remedy (close processes or raise `kern.maxprocperuid`). The
+   clamped path sets nothing and re-reads the limits, refusing if they moved
+   during preparation; the receipt records the applied allowance and a
+   `process_headroom_clamped` flag. On a clamped host a fork storm stops at
+   the kernel's own per-UID ceiling instead of the headroom — the operator's
+   session is already within the headroom of that ceiling, which is the
+   protection the rule offers there. Every member inherits the limit, and
+   none can raise it without
    root. XNU checks the per-user process
    count against the forking process's limit (by reading; candidate, K92). A
    fork storm stops at the headroom instead of exhausting the operator's
@@ -574,16 +623,16 @@ stop, `outcome.cause` is `custodian_lost`.
 
 | Event | Can the workload cause it? | Result |
 | --- | --- | --- |
-| Supervisor dies: crash or `SIGKILL` | No, by §4.7 | The guardian sees end-of-file on A, stops the tree and writes its record. The receipt stays at its last phase, as on Linux after a supervisor crash. `gc` verifies the end from the record (§4.9). |
-| Guardian dies | No | The supervisor sees end-of-file on B and the guardian's exit, and stops the tree from client S, as Linux stops on the watcher's death. `tree_empty=true` stays possible from S's stream alone. Liveness is weaker without the guard step (§4.5). |
-| Supervisor stalls (`SIGSTOP`, a debugger, a stopped terminal job) | No | The guardian ends the tree at the wall deadline plus the grace, with cause `wall`. A stall alone is never taken as a loss. There is no heartbeat, so an operator's `Ctrl-Z` of the whole job does not kill the run. |
-| Guardian stalls | No | At stop, the supervisor drains alone and then ends the guardian. The error is `custodian_stalled`. |
+| Supervisor dies: crash or `SIGKILL` | Direct workload control must be denied (§4.7); client bugs and workload-induced memory pressure are not excluded | The guardian sees end-of-file on A, stops the tree and writes its record. The receipt stays at its last phase, as on Linux after a supervisor crash. `gc` verifies the end from the record (§4.9). |
+| Guardian dies | As for supervisor death | The supervisor sees end-of-file on B and the guardian's exit, and stops the tree from client S, as Linux stops on the watcher's death. `tree_empty=true` stays possible from S's stream alone. Liveness is weaker without the guard step (§4.5). |
+| Supervisor stalls (`SIGSTOP`, a debugger, a stopped terminal job) | Direct workload control must be denied; bugs or resource-induced stalls are not excluded | The guardian ends the tree at the wall deadline plus the grace, with cause `wall`. A stall alone is never taken as a loss. There is no heartbeat, so an operator's `Ctrl-Z` of the whole job does not kill the run. |
+| Guardian stalls | As for supervisor stalls | At stop, the supervisor drains alone and then ends the guardian. The error is `custodian_stalled`. |
 | A custody stream gaps | Yes, with an event storm | Detected. The stop proceeds, and the result is `tree_unknown` unless the other custodian drained. |
 | A member changes user (a setuid program the profile missed) | Only through a gap in the profile | Integrity loss, so `tree_unknown`. K90 hunts for the gap. |
 | A crafted program name or argument | No | Custody handlers never read variable-length fields (§4.1, rule 3). |
 | ES ends the guardian for its stop-time authorization subscription | No (by reading): fail-closed mode denies a missed deadline and never kills the client (`ESTypes.h`) | Were it to happen, as "guardian dies". The supervisor holds no authorization subscription. |
 | `killall ukai-jail` (`SIGTERM`) | No | An orderly stop. The supervisor stops the run, and the guardian ignores the signal. |
-| **Both custodians die**, for example `killall -9 ukai-jail` | **No, and only from outside the workload** | **The named residual.** The tree may keep running. Nothing acts until the next `run`, `doctor` or `gc` (§4.9). |
+| **Both custodians die**, for example `killall -9 ukai-jail` | Direct workload control must be denied; simultaneous loss through client bugs or workload-induced memory pressure is not excluded | **The named residual, whatever its cause.** The tree may keep running. Nothing acts until the next `run`, `doctor` or `gc` (§4.9). |
 | Host sleep | No | The wall deadline counts sleep (§4.3). K97 measures it. |
 | Reboot or kernel panic | No | Every process ended. `gc` sees a new boot session. |
 
@@ -597,9 +646,44 @@ cover it. So the defense is not a separate mechanism. **Every path from the
 sandbox to unsandboxed execution is a containment failure and a custody
 failure at once.**
 
+**Measured blocker, 2026-11-01; closed 2026-11-02:** in the isolated
+development VM, sandboxed `launchctl kickstart` started a fresh preloaded job
+outside the jail. That job successfully sent `SIGCONT` to each live custodian;
+both outside positive controls also succeeded. The candidate
+`(deny mach-bootstrap)` did not stop this route, and `launchctl load` was
+denied in the corresponding controls. The cause: launchd's audit-token
+sandbox checks cover only job creation and service lookup/registration, and
+SBPL `(version 1)` has no filter for Mach sends to the inherited bootstrap
+port, so no denyable operation names the kickstart route. Two layers now
+close the class. First, the template denies executing the `/bin/launchctl`
+client outright, after the exec grants; the rerun on template digest
+`b2ae082d…` denied kickstart and load against both custodians with working
+outside controls ([kickstart-fix
+record](../benchmarks/jail/results/macos-k90-kickstart-fix-2026-11-02/README.md)).
+Second — because a name ban is not a class fix — a direct-client probe
+(measured the same day) showed the launchctl-free route: this build serves
+no MIG job subsystem on the bootstrap port, and `launchctl`'s own client is
+`_xpc_pipe_interface_routine` over a pipe built **from the inherited
+bootstrap port**, reachable by any admitted executable. The launcher
+(`__launch-macos`) therefore strips the inherited bootstrap port
+(`task_set_special_port(TASK_BOOTSTRAP_PORT, MACH_PORT_NULL)`, fail closed)
+immediately before the target exec: members hold no route to the launchd
+control plane at all, for any client. Measured in the same VM against both
+custodians: inside, `port=0`, local lookup failure, no XPC reply; outside,
+the lookup succeeds and launchd answers the interface routine
+([bootstrap-strip
+record](../benchmarks/jail/results/macos-k90-bootstrap-strip-2026-11-02/README.md)).
+Consequence for §4.10: the Mach allowlist is now structurally empty — a
+member has no bootstrap port to look anything up through — so admitting a
+future service requires a brokered design (for example a guardian-side
+proxy), specified and measured before any entry is admitted. This is
+development-VM evidence, not release acceptance; the remaining requirements
+below must still be established on the release profile.
+
 **must:**
 
-- The shipped profile closes every class below.
+- The shipped profile closes classes 1–4 below; classes 5–6 retain their
+  resource and event-load requirements.
 - K90 passes against that exact profile template.
 - The receipt records the template's digest and the generated parameters:
   paths and the setuid list.
@@ -653,14 +737,19 @@ requirement:
    can still lead macOS to kill processes. The custodians are small and the
    workload is large, but no priority is promised. K96 measures custodian
    survival under pressure the workload induces.
-6. **Event load.** A storm can only overflow a notification queue, which shows
-   as a sequence gap (by reading). That a notification-only client is never
-   terminated for load is not documented by Apple. It is K93's measurement and
-   §11's question 1.
+6. **Event load.** Notification-queue overload drops messages, observable as
+   gaps in `seq_num` / `global_seq_num`, rather than terminating a
+   notification-only client (DTS guidance, follow-up relayed 2026-11-01).
+   This answers §11's question 1. It is specific to ES notification overload,
+   not immunity to client bugs or system memory pressure. K93 remains a
+   required implementation test of storms, gap handling, drain reporting and
+   ordinary heavy builds; K96 retains the separate memory-pressure trials.
 
 Same-UID processes outside any jail (the operator's other tools, an agent
-that is not run under Ukai) can end both custodians. That is the "external
-events" Apple names, and it is why the boundary is `native_tree`.
+that is not run under Ukai) can end both custodians. These are examples of
+the "external events" Apple names, not the only possible causes of loss.
+The boundary is `native_tree` because no supported kernel-owned death chain
+remains once both custodians are gone, regardless of how they were lost.
 
 ### 4.8 What the receipt and the summary say
 
@@ -836,8 +925,8 @@ Changes and additions:
   HTTP and SOCKS5, on ephemeral loopback ports. Each requires a per-attempt
   secret, carried in the child's proxy URLs (HTTP proxy authentication, and
   SOCKS5 username and password). The profile allows outbound loopback to
-  those two ports only. This is a candidate, and K99 measures Claude Code and
-  OpenCode through both. A connection is attributed to the attempt as soon
+  those two ports only. This is a candidate. K99 measures each agent through its supported
+  protocol and tests both bridge protocols independently. A connection is attributed to the attempt as soon
   as the secret verifies, even if HTTP Host/framing checks or the SOCKS
   command subsequently refuse, or the client disconnects. Before that proof,
   a refusal cannot safely become a workload event. Accepted connections refused
@@ -854,11 +943,31 @@ Changes and additions:
   and a null count, never a silent complete interval.
 - **DNS.** `com.apple.dnssd.service` is not in the Mach allowlist. A proxied
   child resolves through the proxy, and DNS is not an exfiltration channel.
+- **Local preview, planned.** The complete Claude workflow needs an explicit,
+  per-attempt loopback listener grant (§13.3 step 4). It is not supplied by
+  the current bridge rules. Until its policy, containment and receipt support
+  pass acceptance, local preview remains unsupported; the implementation must
+  not enable general loopback access to make a development server work.
 - **Keychain.** The Security server and the keychain files are denied. A
   sandboxed `security find-generic-password` fails (K100).
-- **The Mach allowlist** is the smallest set under which Node, Git, a shell
-  and the bundled agents work. Each entry is justified in the backend
-  evaluation.
+- **The Mach allowlist is structurally empty** (amended 2026-11-02). The
+  2026-11-02 bootstrap-strip closure of §4.7's class-2 deputy route removes
+  the inherited bootstrap port in the launcher before the target exec, so a
+  member has no port to look any service up through: `(deny mach-lookup)`
+  was already the measured baseline under which Node, Git and a shell run,
+  and the strip makes it structural rather than advisory. The template's
+  `mach_services` parameter and its allow rule are retained but inert.
+  **Admitting a service now requires a brokered design, not an allowlist
+  entry**: the member cannot reach launchd or any system server directly,
+  so the only honest route is a guardian-side proxy — the guardian holds
+  the bootstrap port, exposes an authenticated, named, attempt-scoped
+  channel (for example over the existing attempt bridge), validates every
+  request against a backend-evaluated admission list, and performs the
+  lookup and relay itself. Any such broker needs its own §4.7-class threat
+  review (the deputy argument applies to it in reverse), a receipt record
+  of every admitted name, and a K90 probe row per entry before it ships.
+  Until that design exists and passes, the allowlist stays empty and any
+  request for a Mach service refuses with the named remedy.
 
 ### 4.11 Launch, credentials, terminal and state
 
@@ -930,9 +1039,13 @@ Changes and additions:
   reading), Developer ID, hardened runtime and notarization. No root, no TCC
   approval and no Full Disk Access: the descendants client removes those
   requirements (by reading, SDK).
-- **Development VM:** deleted on 2026-10-22. It must be re-cloned under the
-  existing [runbook](../benchmarks/jail/macos-development.md) before further
-  SIP-disabled live-ES measurements; none were run on the new implementation.
+- **Development VM:** the earlier VM was deleted on 2026-10-22. A fresh pinned
+  clone, `ukai-custody-spike-20261101`, was used on 2026-11-01 under the
+  [runbook](../benchmarks/jail/macos-development.md), without host shares,
+  credentials or guest external networking. Its ad-hoc entitlement and
+  disabled guest SIP permit development measurements only; the
+  [spike record](../benchmarks/jail/results/macos-custody-spike-2026-11-01/README.md)
+  retains provenance, failures, raw records and final VM state.
 - **Release must** repeat every J16 row on a normally protected Mac, with the
   approved profile. **J16 cannot ship before Apple grants the entitlement.**
 
@@ -1171,8 +1284,8 @@ snapshot of every recorded birth identity, taken before any emergency cleanup.
 | K95 | Both custodians `SIGKILL`ed, one by one and with `killall -9 ukai-jail`: the receipt never settles, and the next `run` warns. `gc` kills the target by token and reports `tree_unknown`. The lease stays held until `gc --abandon`. The test lists the survivors it found. |
 | K96 | Memory pressure induced by the workload: whether each custodian survives is recorded over 10 trials. A custodian that dies is handled as K88 or K89. |
 | K97 | Identity and clocks: forced PID reuse never signals a replacement. A wall deadline spanning a host sleep expires on the continuous clock. |
-| K98 | Refusals before any workload process: no entitlement, the client limit reached, a custody event that stays muted after unmuting (injected in a development build), `--profile none`, an explicit `pids`, `mem` or `cpu` ceiling, and `--observe on`. |
-| K99 | Proxy: Claude Code and OpenCode reach an allowed host through the authenticated HTTP and SOCKS5 ports. A connection without the secret, and any other loopback port, fails. The credential entry records `binding: attempt`. |
+| K98 | Refusals before any workload process: no entitlement, the client limit reached, a custody event that stays muted after unmuting (injected in a development build), `--profile none`, an explicit `pids`, `mem` or `cpu` ceiling, and requested observation cannot attach (including `--observe on`) in both evidence modes. |
+| K99 | Proxy: Claude Code and OpenCode each reach an allowed host through their recorded supported proxy protocol. Separate live fixtures exercise authenticated HTTP CONNECT and SOCKS5 with allowed-host enforcement. A missing or invalid secret, a denied destination and any ungranted loopback port fail. The credential entry records `binding: attempt`. |
 | K100 | Keychain, DNS and Apple Events: a sandboxed Keychain read, a direct DNS query and `osascript` to System Events all fail. |
 | K101 | Terminal relay: the operator's terminal is never a member's descriptor. `TIOCSTI`, `setpgid` and `TIOCSPGRP` from members reach only the relay pty. `^C`, `^Z` and window size behave as in J14, raw mode is restored after a killed agent, and the guardian is never signalled. The `SIGTERM` grace, `^C` and a shell `trap` reach the target (the dispositions of §4.2). In a detached run, `/dev/tty` fails. |
 | K102 | jail-v1 §3.3's list: `/var` versus `/private/var`, case-insensitive APFS (`.GIT` against a protected `.git`), symlinks, bundles and dynamic libraries, and nested vendor sandboxes (an agent's own Seatbelt use inside the jail) recorded. Group- or other-writable install directories refuse, including Homebrew's admin-writable prefix, with remediation to an operator- or root-owned directory that is neither group-writable nor other-writable. |
@@ -1236,19 +1349,24 @@ The pass conditions are those of the Linux rows, plus:
 - **The residual.** If both custodians are lost, the tree runs until the
   operator runs `gc`. Even then only the target is killed, and its other
   descendants can survive. The boundary, the summary and `doctor` say so.
+  External kills are one cause; client bugs and workload-induced memory
+  pressure are not excluded. DTS's notification-overload answer does not
+  establish an external-only residual.
   The pre-first-message sequence ambiguity (§4.4) is a separate residual.
   The proposed VM backend is unavailable; only the released preview has its
   own recorded, narrower contract.
 
 ## 11. Open questions
 
-1. **Apple follow-up (to send now, decision 5).** Can a notification-only
-   descendants client be terminated by the system because of load generated
-   by its descendants? Or does it only drop messages, with gaps in `seq_num`
-   as `ESMessage.h` describes? The design is built for "only drops" (§4.7
-   class 6). K93 measures it, and Apple's word would make it contract. The
-   guard client needs no question: `ESTypes.h` says fail-closed mode never
-   kills the client.
+1. **Apple follow-up resolved (relayed 2026-11-01, decision 5).** DTS says
+   notification overload drops messages with sequence gaps and does not
+   terminate a notification-only descendants client. The
+   [recorded exchange](../benchmarks/jail/apple-lifetime-question.md#notification-load-follow-up-relayed-2026-11-01)
+   supports §4.7 class 6. It does not resolve client bugs, system memory
+   pressure or the pre-first-message sequence ambiguity (§4.4). The guard's
+   fail-closed deadline-miss mode remains separate from notification custody.
+   K92, K93, K95 and K96 remain required, as do entitlement, packaging, K104
+   and all other release gates. The reply is not evidence that any test passed.
 2. **Seatbelt's future.** If Apple removes `sandbox-exec` or SBPL, the native
    tier loses its containment and its defense together. The fallback is App
    Sandbox for containment, which is unsuited to arbitrary programs, plus ES
@@ -1260,7 +1378,7 @@ The pass conditions are those of the Linux rows, plus:
 4. **Faster recovery.** A user LaunchAgent that runs `gc` on an orphaned
    attempt would shorten the residual's window. This is deferred, as in §7.
 
-## 12. Decisions (2026-10-22; amendment 2026-10-23)
+## 12. Decisions (2026-10-22; amendments 2026-10-23 and 2026-11-01)
 
 The operator chose two tiers, and then asked for the best and simplest answer
 to each remaining question. These are those answers:
@@ -1291,17 +1409,22 @@ to each remaining question. These are those answers:
    Linux vault receipts omit `binding`; the optional macOS field, when
    present, is only `attempt`. The socket-holder check is dropped because it
    would be racy without a connect-time pin (§7).
-5. **Order.**
+5. **Order, amended 2026-11-01 (§13).**
    - **First, a measurement spike in the development VM**, because these rows
      can still change the design: K92 (drain proof and freeze), K93 (event
      load and the heavy-build gap check), and K90's class 2 (deputies).
-   - **Then J16**, developed against the SIP-disabled VM while the
-     entitlement is pending.
-   - **Then J18**, which has no Apple dependency, so a Mac gets the strong
-     tier even if the entitlement is still pending when J16 is code-complete.
-   - **J17 last.**
-   - **Apple:** §11's question 1 goes to the forum thread now. It is the only
-     remaining question.
+   - **Then the complete native Claude workflow, J16 with J17**, including
+     credentials, persistent state, terminal behavior, project tools, recovery
+     and performance. Development-VM evidence does not replace protected-Mac
+     acceptance with the approved entitlement.
+   - **Then expand native compatibility and complete J18.** J18 may progress
+     independently while entitlement approval is pending, but its availability
+     neither qualifies native execution nor silently substitutes Linux for Mac
+     programs. This supersedes the previous J18-before-J17 implementation order.
+   - **Apple (updated 2026-11-01):** §11's question 1 is answered in the
+     relayed follow-up. Notification overload does not kill a notification-only
+     client. The measurement spike, stress tests and release gates remain;
+     the both-lost residual is not proved external-only.
 6. **Install-directory rule, amended 2026-10-22.** The root+operator group
    exception was withdrawn because directory-service membership cannot be
    proved complete. Homebrew's admin-writable prefix refuses. Remediation:
@@ -1318,3 +1441,297 @@ to each remaining question. These are those answers:
    amendment does not waive live
    K105–K107 acceptance, entitlement, packaging or performance gates, and
    does not change Linux's closed set or behavior.
+
+8. **2026-11-01: native-first developer experience.** Complete the installed,
+   authenticated Claude workflow in §13 before broadening the product claim.
+   The default after qualification is native, with a visible `native_tree`
+   boundary; the VM is explicitly selected for Linux-compatible work requiring
+   a kernel-bound lifetime or hard resource limits. Neither tier is described
+   as supported before its existing gates pass. Total custodian loss remains
+   a disclosed residual regardless of cause.
+
+## 13. Native-first implementation plan: one complete Claude workflow
+
+**Status: planned, not accepted.** This is the operator's 2026-11-01 product
+direction and implementation sequence. Every step and NC acceptance item below
+is pending live qualification. Existing component code, historical prototypes
+and the DTS reply do not count as completed steps. This section adds workflow
+requirements; it does not replace K23–K26, K87–K113 or their acceptance-map
+clauses. Writing this plan authorizes no release and records no new runtime
+result.
+
+### 13.1 Product target and first supported combination
+
+A developer installs Ukai once, configures a credential once, enters a
+repository and runs `ukai-jail claude`. Claude behaves like its normal terminal
+application, keeps that repository's sessions, edits the granted checkout,
+uses explicitly granted tools and destinations, and leaves an understandable
+summary when the developer exits. The workload cannot expand its own grants.
+
+The first qualification record names one Apple Silicon Mac and macOS 27+
+build, one signed Ukai release candidate, one Claude Code native Mach-O
+installer version, one Node/npm version, Git, and Terminal.app with zsh. Pin
+binary and fixture digests; do not infer compatibility with other versions,
+terminals, npm-installed Claude, Intel Macs or earlier macOS releases. Use a
+Claude install directory satisfying §4.11's ownership and mode checks; the
+Homebrew refusal remains. Broader support requires separate records.
+
+Native runs Mac programs with defended custody. The optional VM runs Linux
+programs with the guest's kernel boundary. A policy requiring kernel-owned
+termination or hard resource limits must refuse native execution; it can run
+only on a qualified backend providing those requirements. A Mac-only command
+with those requirements remains unsupported. A backend choice must be visible
+before execution, and neither a missing entitlement nor an unavailable VM
+permits an uncontained fallback.
+
+### 13.2 The reference journey
+
+Create a versioned `macos-claude-workflow-v1` fixture under the jail benchmark
+harness during implementation. It is a small Git checkout with a pinned npm
+lockfile, one deliberately failing unit test, a small web page with hot reload,
+and a documented edit that makes the test pass and changes the page. It also
+has a workspace-local npm cache, a protected fixture path, and separate fake
+secret and sibling-project sentinels outside the grants. No real unrelated
+project or credential is used as an attack fixture.
+
+The intended operator journey, after implementation and qualification:
+
+1. Install the notarized package into `~/Applications`; the installer exposes
+   `ukai-jail` on PATH. `doctor --profile agent` explains any missing capability
+   before a workload starts. No developer environment variable, sudo, root
+   service or SIP change is part of the supported path.
+2. Run `claude setup-token` outside Ukai, then paste the value into
+   `ukai-jail credential set claude-oauth`. Do not put it in a command argument,
+   repository or recorded transcript. This is the chosen subscription flow;
+   an API-key fallback needs its own compatibility record and must never be
+   selected silently because this flow failed. Anthropic documents setup tokens
+   and `CLAUDE_CODE_OAUTH_TOKEN`; interactive placeholder behavior on the pinned
+   Mac build still needs measurement. [Authentication documentation](https://code.claude.com/docs/en/authentication)
+3. Enter the fixture and run `ukai-jail claude`. Complete Claude's first-run
+   onboarding and normal permission prompts. Confirm the selected credential
+   identifier, workspace, backend and grants without exposing secret values.
+4. Ask Claude to inspect `git status`/`git diff`, install the locked dependencies,
+   fix the failing test, run the tests and edit the page. An operator-controlled
+   launch configuration grants the required registry destinations and tool
+   roots. Git inspection does not require granting writes to protected `.git`.
+   Ship a reviewable starter configuration so this needs no manual Seatbelt
+   editing: name the provider endpoints, `registry.npmjs.org:443` for the pinned
+   fixture, read-only tool roots and workspace-local cache. Any extra destination
+   must be justified and approved by the operator outside the workload; an
+   install redirect or repository file cannot approve it.
+5. Start the development server on the explicitly granted loopback port. The
+   operator opens the printed URL in a host browser and observes the page change
+   through hot reload, including its WebSocket connection. The workload does
+   not receive permission to launch the browser through LaunchServices.
+6. Exercise resize, paste and Unicode input; interrupt an operation with Ctrl-C
+   without accidentally killing the guardian; suspend/resume using Ctrl-Z/fg.
+   Exit Claude normally and confirm that its server and other descendants stop.
+7. Run `ukai-jail claude --resume` and continue the same conversation without
+   repeating credential setup or ordinary onboarding. A second checkout gets
+   independent settings/history. Run a short headless counterpart with the same
+   grants and vault. Any Claude permission flag is an explicit test/operator
+   choice, never injected by Ukai.
+8. In separate fault trials, kill or stall one custodian, then exercise the
+   both-lost case. Check verified cleanup where possible and the explicit
+   recovery path where it is not. These trials use the isolated fault harness;
+   their survivors are recorded before emergency cleanup.
+
+### 13.3 Implementation sequence and deliverables
+
+Each step has a concrete exit condition. Build the workflow incrementally
+behind the development opt-in; remove that requirement from a supported
+package only after step 6. No individual successful demo enables native by
+default.
+
+1. **Qualify the custody foundation and align the contract.** Work in
+   `src/platform/macos/{custody,guardian,es,boundary.rs,sandbox.rs}` under
+   `crates/ukai-jail`, with the existing native harness. Re-create the disposable
+   development VM per §4.12; run the K92/K93/K90-class-2 spike before relying on
+   the design. Preserve K95 and K96 fault/pressure coverage. Save identities,
+   sequence gaps, stop budgets and positive controls, and fix failures before
+   adding workflow grants. Keep documentation tests and
+   `jail-v1/acceptance-map.toml` aligned with the declared J17 design. K98 was
+   clarified on 2026-11-01: requested observation that cannot attach refuses
+   before exec in both evidence modes; successful attachment is permitted.
+   The gate, mapping and regression checks preserve every other refusal and
+   retain K98.1 as untested until full live qualification. **Exit:** NC01 plus the spike's required evidence;
+   all other live gates remain pending until exercised on the release candidate.
+**2026-11-01 progress:** the nine documentation failures and K98/K99 mapping
+inconsistencies are repaired. The isolated spike ran, but the preloaded-job
+`launchctl kickstart` escape still reached both custodians; the candidate
+`mach-bootstrap` denial was insufficient. **2026-11-02:** the class is closed
+— the template denies executing the `launchctl` client (digest
+`b2ae082d…`, rerun 4/4 with outside controls), and after a direct-client
+probe showed that `launchctl`'s own XPC client is built from the inherited
+bootstrap port, the launcher strips that port before the exec; the same-VM
+direct-client rows pass against both custodians, and the exact-digest
+defense matrix passes its rows (§4.7). The same day's [compatibility
+measurements](../benchmarks/jail/results/macos-compat-2026-11-02/README.md)
+closed the spike's other three findings: rule 6 is amended (clamp-with-floor,
+§4.1) and measured on a busy default-ceiling host; the whole stop path is
+instrumented (`stop.phases`, §4.5's NC09/NC11 reconciliation: the machine's
+stop is 20–74 ms, the guardian's record ≤330 ms, and the spike's 2.4–5.3 s
+oracle interval is harness-side overhead); and the full SQLite source-tree
+build passes under two explicit receipt-recorded grants (`/private/var/tmp`
+for Apple tclsh8.5's TMPDIR-ignoring error files, and the workspace as an
+exec root — the interim shape of step 4's workspace-helper review, whose
+per-helper digest design remains required). K95/K96, full J17 loss trials,
+credentials, packaging and K104 remain; NC01 stays open.
+   K92's 25 bounded drain checks and K93's ten event-load checks pass in that
+   VM, but default process-headroom compatibility, end-to-end stop timing and
+   the full SQLite repository build remain unresolved. The four-configuration
+   amalgamation build passes; the full source-tree configure fails in Tcl's
+   subprocess error capture even with an explicit SDK and private temporary
+   directory. It does not satisfy K93's ordinary large-repository requirement.
+2. **Make installation and preflight reproducible.** Extend the packaging and
+   installer under `crates/ukai-jail/dist` with §4.12's bundle, entitlements,
+   provisioning, signing and notarization. Connect preflight to
+   `macos/requirements.rs` and program resolution in `launch_profile.rs`.
+   Detect unsupported OS/build, missing entitlement, invalid install roots,
+   missing agent/tools and absent credential sources before workload release.
+   Diagnostics must name the problem and a specific safe remedy. Test clean
+   install, upgrade and removal in a disposable account; upgrades preserve
+   credentials/state and removal does not silently delete them. **Exit:** NC02;
+   no shipping until entitlement approval and K104.
+3. **Connect vault, launch and persistent state.** Implement the native paths
+   across `macos/boundary.rs`, `macos/bridge.rs`, `credentials.rs`,
+   `credential_store.rs`, `launch_profile.rs` and the state/lease modules.
+   Replace staging refusals only for paths whose complete lifecycle is tested;
+   other staging modes remain refused. Adapt the native launch contract without
+   weakening Linux's program-bound vault. The Mac proxy substitutes the token
+   only at its approved provider destination and records `binding: attempt`:
+   members able to use the authenticated proxy can use the credential, even
+   though they never receive its value. Preserve per-workspace state leases,
+   `.credentials.json` discard and contamination quarantine. Qualify both first
+   launch and resume, expiry/revocation and source replacement; do not read the
+   host Keychain or implement an undocumented refresh flow. **Exit:** NC03–NC05
+   and the credential/state portions of the Claude compatibility record.
+4. **Complete the local development loop and terminal.** Integrate
+   `macos/relay.rs`, `stdio.rs`, `launcher.rs`, `sandbox.rs`, `bridge.rs` and
+   `boundary.rs` with the launch profile. Grant only named read-only tool roots,
+   the writable checkout/cache and reviewed network destinations. Keep policy
+   narrowing and protected paths intact. Resolve the measured tool-environment
+   and temporary-file compatibility failures. The current native profile only
+   executes programs from read-only grants: workspace compiler wrappers were
+   denied in the spike. Review how the chosen workflow runs repository-local
+   scripts and generated helpers, with explicit policy, digest, receipt and
+   narrowing semantics plus outside-workspace negative controls; do not
+   silently make every writable path executable or run helpers outside custody.
+   Add the preview listener described
+   below as an explicit new capability, including policy/schema, canonical
+   digest, receipt, documentation and negative-test changes before enabling it.
+   **Exit:** NC06–NC08 and K90/K91/K99–K102 rerun against the resulting profile.
+5. **Integrate observation, recovery and performance.** Use
+   `macos/observe.rs`, `observe/run.rs`, `guardian/record.rs` and the shared
+   summary/gc/state paths. The normal journey uses J17 observation on and strict
+   evidence; requested attachment failure refuses before exec. Keep observation
+   and custody loss distinct. Make the final summary and next-start diagnostic
+   actionable, implement no automatic abandonment, and measure the budgets in
+   §13.5. **Exit:** NC09–NC11, K103 and K105–K107 evidence.
+6. **Qualify the installed release candidate end to end.** Run the complete
+   journey and fault matrix on a SIP-enabled Mac with the approved profile,
+   using the installed signed build without the development opt-in. Rerun every
+   existing applicable release gate, including the OpenCode/K26 obligations;
+   the Claude focus does not waive them. Publish the exact supported combination,
+   evidence and limitations only after NC12 and the existing gates pass. Complete
+   the explicit VM option separately under J18's own gates; do not broaden a
+   native support claim to cover it.
+
+**Preview listener design constraint.** The proposed grant permits a member
+to bind/listen/accept on one operator-selected `127.0.0.1:port` for this attempt.
+It permits responses on accepted connections, including hot-reload WebSockets;
+it does not permit new outbound connections to other host services. No wildcard
+interface, general localhost exemption, arbitrary Unix socket, Mach service or
+inherited operator socket is granted. Other local processes can reach this
+listener; it is not an authenticated private channel. A port conflict fails
+visibly without selecting a different port or weakening policy. Record the
+grant and enforce its absence on subsequent attempts unless selected again.
+The backend evaluation must prove these rules can be separated on the supported
+OS before committing to a policy spelling. If they cannot, this workflow stays
+blocked pending a reviewed broker design; the server may not run outside Ukai
+as an invisible workaround. This is a planned extension to §4.10, not a current
+capability claim.
+
+**Vendor compatibility constraint.** Use HTTP(S) proxying for Claude's provider
+traffic. Anthropic currently documents authenticated HTTP(S) proxies and says
+Claude Code does not support SOCKS. K99 was clarified on 2026-11-01 to separate
+agent/version compatibility from live fixtures for both bridge protocols.
+Allowed-host enforcement, missing/invalid-secret rejection, denied destinations
+and ungranted-loopback rejection remain mandatory. K99.1 remains untested until
+all of that live evidence and the attempt-binding receipt are recorded. Browser hot reload is a separate inbound
+listener test, not evidence that Claude's provider traffic supports SOCKS.
+[Network documentation, checked 2026-11-01](https://code.claude.com/docs/en/network-config)
+
+### 13.4 Workflow acceptance criteria
+
+NC identifiers are additional requirements local to this section. **All are
+pending.** A component test alone cannot satisfy a live row. Record both positive
+and negative controls, exact versions and evidence paths. Missing evidence is
+pending, never pass; a failure blocks the complete native Claude workflow claim.
+
+| ID | Acceptance condition | Existing gates retained |
+| --- | --- | --- |
+| NC01 | The design spike completes without a false `tree_empty`; defense probes have working outside-sandbox positive controls. Known contract/test mismatches have explicit resolutions and the required documentation/schema/acceptance-map checks pass. | K90, K92, K93; all live rows still require release qualification |
+| NC02 | On the named protected Mac, a clean account installs and starts the documented workflow without sudo, SIP changes or development environment variables. Missing entitlement, tools, credential and unsafe install-root controls refuse before release with a specific remedy; upgrade preserves state and credentials. | K94, K98, K102, K104; §4.12 |
+| NC03 | The setup-token flow completes a real interactive request and a headless task using the authenticated bridge. The record names `binding: attempt`; canary secret checks find no token in child-visible files/environment, workspace, retained state, logs, receipts or transcripts. Missing/invalid sources refuse, upstream expiry is actionable, and revocation stops new credential substitution under the existing vault contract. No silent API-key selection, host Keychain access or refresh-token import. | K99, K100; J12 vault requirements |
+| NC04 | After verified normal exit, settings and conversation resume in the same checkout for ten consecutive exit/resume cycles. A second workspace cannot read that history. Parallel sessions cannot acquire the same writable state lease; the existing visible throwaway fallback remains explicit. | J14 state/lease requirements; §4.9 |
+| NC05 | Interrupted preparation, agent failure and uncertain cleanup do not release a held state lease without proof or explicit abandonment. A discarded credential file and a contaminated-state fixture exercise discard/quarantine without printing a secret or changing the host's Claude login. | K88, K89, K95; J14 recovery |
+| NC06 | From a fresh fixture, Claude inspects Git, runs locked dependency installation, makes the specified edit and passes the unit tests. Only the checkout/cache and declared state are writable. Unrelated-project, protected-path and denied-destination canaries remain inaccessible; a repository request to broaden grants fails. Refusals identify the path/destination and operator remedy without an uncontained retry. | K90, K99, K100, K102 |
+| NC07 | The explicitly granted server is reachable from the host browser; an edit visibly hot-reloads. An ungranted port, wildcard/LAN bind, outbound connection to an unrelated host service and Unix-socket deputy attempt fail. Port conflict is actionable. Normal stop and single-custodian fault trials leave no recorded server/worker survivors before harness cleanup. | K87–K92, K99; new listener defense controls |
+| NC08 | Real Claude and deterministic pty controls pass resize, Unicode/bracketed paste, Ctrl-C, Ctrl-Z/fg and hangup. Ctrl-C retains Claude's normal semantics; explicit attempt cancellation ends descendants. Terminal mode is restored when restoration is possible, including agent death, and any hangup exception is recorded. No member has the operator's terminal descriptor and no control sequence signals the guardian. | K91, K101; J14 terminal record |
+| NC09 | Normal exit, explicit stop and wall expiry leave the recorded fixture empty within the existing stop budget. Single-custodian kill/stall cases meet K88/K89. Both-lost cases retain `tree_unknown`, list known survivors before emergency cleanup and show §4.9's exact applicable recovery command, including reboot when identity cannot be established. No automatic `gc --abandon`, guessed PID kill or false success. | K87–K89, K92, K95–K97 |
+| NC10 | Every normal journey receipt names `native_tree`, the effective grants, attempt credential binding and `macos-closed-v1`. Summary recomputation agrees; observed mutation counts are not described as file contents or a complete diff. Forced observation loss degrades observation without inventing custody loss; forced custody gaps cannot produce an unsupported clean-drain claim. Requested attach failure refuses before exec. | K93, K105–K107, K113 |
+| NC11 | The paired startup and terminal measurements meet §13.5's initial budgets; the named ordinary heavy build has no custody gaps. Event storms and memory-pressure faults are also run and reported separately rather than excluded from the record. | K92, K93, K96, K103 |
+| NC12 | Complete ten fresh-workspace journeys, the ten resume cycles, a headless counterpart and a four-hour working-session soak covering two workspaces and sleep/wake. No unexplained state loss, unreported evidence loss or unverified end reported as clean. All existing native release/compatibility gates, including K104 and J17, pass on the installed candidate; all NC rows have reviewable evidence. | K23–K26, K87–K107, K113; §9.4 and release procedure |
+
+The paid model's output is not a deterministic test oracle. Record the requested
+edit, resulting diff and test result; isolate model/provider failures from Ukai
+failures without discarding either. A failed journey is retained and diagnosed;
+ten completed journeys are required, not a claim that ten selectively reported
+attempts all succeeded. Deterministic fixtures establish control behavior even
+when an agent declines a request. Real secret entry is excluded from recordings;
+secret scans use a harness that returns presence/absence without printing values.
+
+### 13.5 Performance budgets and evidence
+
+These are **initial acceptance targets**, not current measurements:
+
+- **Warm native startup:** additional p95 latency below 200 ms across 20 paired
+  direct/native launches on the named Mac. Use the same deterministic local
+  marker program, workspace and tool grants, with custody, J17, proxy/vault and
+  state preparation enabled in the jailed case. Measure invocation to the
+  readiness marker emitted immediately on entry, subtract each paired direct baseline,
+  and publish raw samples plus p50/p95. No provider request is involved. Report
+  real Claude time-to-first-prompt and cold starts separately; do not attribute
+  network/model latency to the jail or use a custody-only microbenchmark as the
+  full-launch result. A synthetic vault fixture contains no real credential.
+- **Terminal responsiveness:** p95 additional local pty round-trip latency at
+  most 20 ms over 200 paired direct/relayed samples, with no lost or duplicated
+  bytes in the deterministic input test. Record the real Claude interaction
+  checks separately; perceived model-response delay is not a pty measurement.
+- **Cleanup:** retain §4.5's initial five-second stop budget and the separately
+  recorded guardian follow-up. A later recovery does not turn a missed initial
+  budget into a timely pass. The intentionally both-lost residual is judged by
+  honest recovery reporting, not an invented cleanup guarantee.
+- **Load:** K93's ordinary-heavy-build no-gap requirement and K96's ten memory
+  pressure trials remain mandatory. Record idle CPU/memory and their change
+  during the soak; do not claim hard native resource ceilings.
+
+A missed budget blocks workflow acceptance until optimized or explicitly
+revised in the spec with the measurements and tradeoff recorded. It cannot be
+waived by removing observation, weakening policy or omitting slow samples.
+
+For each candidate, save a reproducible evidence directory under
+`docs/benchmarks/jail/results/` containing the source revision/dirty-state
+record, package and executable digests, host/OS/SIP/provisioning facts, pinned
+Claude/tool/fixture versions, profile digest and grants, exact commands and
+prompts, redacted terminal captures, test logs, before/after fixture diffs,
+receipts, summary checks, fault identities and raw timing samples. An index maps
+every NC item and existing K/A gate to its evidence and result. This plan creates
+no evidence directory or pass record in advance.
+
+The release checklist must continue to require entitlement approval, packaging
+and notarization, normal-SIP K104 acceptance, all native observation and
+compatibility rows, and the full stress/fault matrix. Update the guide,
+compatibility record and installer claims only from that evidence. J18's gates
+remain required for the optional VM and are not credited by native acceptance.

@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/Users/admin/ukai-custody-spike-20261101/src/setup_guest.py", line 68, in <module>
+    main()
+  File "/Users/admin/ukai-custody-spike-20261101/src/setup_guest.py", line 54, in main
+    record["builds"].append(command("/usr/bin/xcrun", "clang", "-O1", "-Wall", "-Wextra",
+  File "/Users/admin/ukai-custody-spike-20261101/src/setup_guest.py", line 16, in command
+    raise RuntimeError(row)
+RuntimeError: {'argv': ('/usr/bin/xcrun', 'clang', '-O1', '-Wall', '-Wextra', '-Wno-deprecated-declarations', '-fblocks', '-framework', 'EndpointSecurity', '/Users/admin/ukai-custody-spike-20261101/src/macos_native.c', '-o', '/Users/admin/ukai-custody-spike-20261101/src/native-fixture'), 'exit': 1, 'stdout': '', 'stderr': "ld: framework 'EndpointSecurity' not found\nclang: error: linker command failed with exit code 1 (use -v to see invocation)\n"}

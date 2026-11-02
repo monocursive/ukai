@@ -1,0 +1,25 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s
+     Running tests/macos_defense_matrix.rs (target/debug/deps/macos_defense_matrix-ff37e6788640ff7f)
+
+running 18 tests
+test sandbox::tests::sbpl_strings_escape_quotes_and_backslashes ... ok
+test sandbox::tests::template_declares_version_and_default_deny_first ... ok
+test sandbox::tests::empty_parameters_grant_nothing ... ok
+test setuid::tests::individual_file_grants_are_scanned_and_missing_roots_are_holes ... ok
+test sandbox::tests::var_and_tmp_spellings_are_both_granted ... ok
+test sandbox::tests::denials_are_ordered_after_the_grants_they_override ... ok
+test sandbox::tests::the_template_digest_is_sha256_of_the_template ... ok
+test setuid::tests::scan_root_reports_setuid_and_setgid_distinctly ... ok
+test sandbox::tests::generate_keeps_the_invariant_skeleton_and_fills_parameters ... ok
+test setuid::tests::system_enumeration_finds_the_known_set_of_this_build ... ok
+test the_matrix_runs_against_the_pinned_shipped_digest ... ok
+test class_1_shell_signalling_of_an_outside_process_is_denied ... ok
+test class_3_setuid_gains_nothing_from_inside ... ok
+test class_2_launchd_and_apple_events_deputies_are_refused ... ok
+test class_2_deputies_are_unreachable_from_inside ... ok
+test class_1_direct_process_control_is_denied_from_inside ... ok
+test class_2_direct_launchd_client_is_unreachable_through_the_launcher ... ok
+test class_2_kickstarting_an_existing_job_is_refused ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.78s
+

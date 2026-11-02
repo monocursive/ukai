@@ -1,0 +1,13 @@
+{
+  "checked_at": "2026-11-01T21:56:34.457601+00:00",
+  "vm": "ukai-custody-spike-20261101",
+  "tart_list_exit": 0,
+  "matching_rows": [
+    "local  ukai-custody-spike-20261101                                                                                       50 GB 39 GB 10 seconds ago stopped"
+  ],
+  "stderr": "",
+  "host_sip": "System Integrity Protection status: enabled.",
+  "retained": true,
+  "outcome": "PASS",
+  "state": "stopped"
+}

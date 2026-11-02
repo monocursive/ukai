@@ -1,0 +1,209 @@
+   Compiling ukai-jail v0.1.0 (/Users/monocursive/code/ouroboros/crates/ukai-jail)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.10s
+     Running tests/macos_boundary.rs (target/debug/deps/macos_boundary-0424a1216de4eea0)
+
+running 10 tests
+test the_blocked_report_is_the_eight_zero_bytes_and_only_that ... ok
+test the_mapping_confirms_nothing_without_the_exec ... ok
+test the_mapping_carries_exec_exit_and_signal ... ok
+test the_b_frames_decode_and_refuse_like_the_guardian_writes_them ... ok
+test the_launcher_mode_refuses_a_bad_grammar_with_usage ... ok
+test the_launcher_mode_refuses_closed_descriptors_with_usage ... ok
+test the_guardian_mode_refuses_fast_on_an_unreadable_launch_block ... ok
+test k98_tool_refuses_at_the_requirements_before_any_boundary ... ok
+test k98_run_refuses_without_native_development_opt_in ... ok
+test launcher_protocol_fds_survive_sandbox_exec_but_not_target_exec ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+
+     Running tests/macos_custody_core.rs (target/debug/deps/macos_custody_core-f1914202f322c111)
+
+running 32 tests
+test a_setuid_exec_mid_stop_is_an_integrity_veto ... ok
+test a_member_re_reported_running_is_re_frozen_by_the_sweeps ... ok
+test a_gap_from_a_dropped_message_vetoes_the_drain_even_with_an_empty_table ... ok
+test a_clean_stop_freezes_kills_and_drains ... ok
+test a_full_table_is_an_integrity_loss_during_the_stop ... ok
+test effective_uid_change_is_an_integrity_loss_even_when_real_uid_stays ... ok
+test an_exec_token_change_mid_stop_keeps_the_member_signallable ... ok
+test an_exit_that_precedes_its_fork_marks_the_stream_gapped ... ok
+test an_unrelated_member_cannot_substitute_for_root_entry ... ok
+test deep_fork_chains_reuse_their_slots_and_drain ... ok
+test an_esrch_member_is_re_signalled_when_its_exec_arrives ... ok
+test exec_holds_freeze_open_and_clears_stopped_mark_m23_m27 ... ok
+test handshake_replay_preserves_root_exec_exit_and_sequences ... ok
+K98: continuous clock advanced 83 ns across two reads
+test freeze_settles_only_when_no_new_member_arrives_between_sweeps ... ok
+test parallel_fork_interleavings_drain ... ok
+test never_drained_while_a_gap_or_integrity_stands_even_with_an_empty_table ... ok
+test r3_c4_exited_custodian_cannot_exempt_a_reused_pid_on_exec ... ok
+test r3_c4_only_the_exact_current_token_can_remove_a_member ... ok
+test registered_custodian_exit_is_not_a_member_exit_or_gap ... ok
+test regression_c2_begin_twice_does_not_panic ... ok
+test regression_c5_token_layout_matches_libbsm ... ok
+test regression_c6_empty_without_root_never_drains ... ok
+test regression_c8_exec_into_full_table_is_integrity_loss ... ok
+test adversarial_interleavings_never_drain_into_a_false_empty_tree ... ok
+K98 row 1: es_new_descendants_client refused, raw result code 3
+test regression_l1_exited_esrch_entries_do_not_exhaust_retries ... ok
+test regression_l4_noninitial_first_sequence_is_a_gap ... ok
+test stop_configuration_keeps_existing_gap_and_integrity_evidence ... ok
+test the_budget_overrun_names_the_budget ... ok
+test the_continuous_clock_is_monotonic_across_reads ... ok
+test the_engine_documents_and_honors_its_preallocation ... ok
+test this_process_audit_token_reads_pid_and_uid ... ok
+test client_creation_without_the_entitlement_refuses_not_entitled ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/macos_defense_matrix.rs (target/debug/deps/macos_defense_matrix-ff37e6788640ff7f)
+
+running 16 tests
+test sandbox::tests::sbpl_strings_escape_quotes_and_backslashes ... ok
+test sandbox::tests::template_declares_version_and_default_deny_first ... ok
+test sandbox::tests::empty_parameters_grant_nothing ... ok
+test sandbox::tests::var_and_tmp_spellings_are_both_granted ... ok
+test sandbox::tests::denials_are_ordered_after_the_grants_they_override ... ok
+test sandbox::tests::the_template_digest_is_sha256_of_the_template ... ok
+test setuid::tests::individual_file_grants_are_scanned_and_missing_roots_are_holes ... ok
+test sandbox::tests::generate_keeps_the_invariant_skeleton_and_fills_parameters ... ok
+test setuid::tests::scan_root_reports_setuid_and_setgid_distinctly ... ok
+test setuid::tests::system_enumeration_finds_the_known_set_of_this_build ... ok
+test the_matrix_runs_against_the_pinned_shipped_digest ... ok
+ROW 1 kill(2) from sh: inside=DENIED outside=RAN (kill -0 control)
+test class_1_shell_signalling_of_an_outside_process_is_denied ... ok
+ROW 2 launchctl submit: inside=DENIED outside=RAN
+ROW 3 exec /usr/bin/sudo: inside=DENIED outside=RAN
+ROW 3 exec hardlink to sudo: inside=SKIPPED (ln failed) outside=n/a
+test class_3_setuid_gains_nothing_from_inside ... ok
+ROW 2 appleevent-send: inside=DENIED outside=recorded (an outside send is a TCC prompt)
+test class_2_launchd_and_apple_events_deputies_are_refused ... ok
+ROW 1 task_for_pid(operator): inside=DENIED outside="kr=5 errno=0"
+ROW 2 mach-lookup com.apple.system.logger: inside=DENIED outside=RAN
+ROW 2 unix-socket connect: inside=DENIED outside=RAN
+ROW 1 task_name_for_pid(own child): inside=DENIED (kr=5 errno=0) outside=RAN
+ROW 2 loopback TCP (network_none): inside=DENIED outside=RAN
+test class_2_deputies_are_unreachable_from_inside ... ok
+ROW 1 task_for_pid(own child): inside=DENIED (kr=5 errno=0) outside=system-denied (kr=5 errno=0)
+ROW 1 ptrace(PT_ATTACH own child): inside=DENIED outside=system-denied (attach=-1 errno=1 detach=-1)
+ROW 1 pid_suspend/pid_resume(own child): inside=DENIED outside=system-denied (suspend=-1 errno=1 resume=-1)
+ROW 1 memorystatus_control(child): inside=DENIED outside=system-denied (ret=-1 errno=1)
+ROW 1 proc_rlimit_control(child): inside=DENIED (ret=-1 errno=22) outside=system-denied (ret=-1 errno=22)
+ROW 1 kill(-1, …): inside=same-sandbox only; outside survives outside=recorded (outside control is destructive)
+ROW 1 task_name_for_pid(sibling member): inside=DENIED outside=RAN
+test class_1_direct_process_control_is_denied_from_inside ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.03s
+
+     Running tests/macos_guardian.rs (target/debug/deps/macos_guardian-88fcb3f2aeefa8ea)
+
+running 20 tests
+test rlimit_math_saturates ... ok
+test regression_l2_garbled_frame_length_is_an_error ... ok
+test launch_block_refuses_trailing_bytes ... ok
+test release_without_deadline_leaves_watchdog_unarmed ... ok
+test a_gap_keeps_stopping_known_members_without_ever_proving_a_drain ... ok
+test framing_rejects_zero_over_limit_truncation_and_poisoned_streams ... ok
+test r3_c2_sync_timeout_keeps_draining_a_contiguous_stream ... ok
+test launch_block_round_trips_including_empty_argv ... ok
+test launch_block_refuses_truncation ... ok
+test guardian_record_reaches_b_even_when_persistent_write_fails ... ok
+test launch_block_refuses_oversized_profile ... ok
+test launch_block_accepts_profile_at_bound ... ok
+test stop_polls_custody_retries_exec_and_drains_during_tail ... ok
+test stop_tail_expiry_is_not_drained_and_never_rebegins ... ok
+test guardian_refuses_wrong_arity ... ok
+test guardian_refuses_fast_without_entitlement ... ok
+test regression_c3_count_matches_independent_ps ... ok
+test regression_c1_spawn_inherits_only_launcher_descriptors ... ok
+test shim_mapping_and_late_sync_wakes_use_sdk_typed_fakes ... ok
+test darwin_target_build_compiles_shims_with_linux_host_cfg ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.73s
+
+     Running tests/macos_observe.rs (target/debug/deps/macos_observe-28b070bbd0827399)
+
+running 32 tests
+test path_prefixes_are_component_wise ... ok
+test j17_published_closed_set_equals_the_subscription_rows ... ok
+test no_trace_means_no_delivered_frames ... ok
+test j17_declared_set_is_active_without_a_standing_out_of_set_gap ... ok
+test r3_one_based_sequences_are_contiguous ... ok
+
+thread '<unnamed>' (8987787) panicked at crates/ukai-jail/tests/macos_observe.rs:646:9:
+deliberately poison trace
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test first_and_global_sequence_loss_are_detected ... ok
+test refused_and_poisoned_trace_frames_are_not_counted ... ok
+test sequence_buckets_are_real_types_and_include_unmodified_closes ... ok
+test r3_first_sequence_above_one_has_unknown_loss ... ok
+test k106_a_gap_degrades_only_the_observed_classes ... ok
+test relative_and_missing_paths_are_not_claimed_outside ... ok
+test observation_frames_validate_against_the_frozen_jail_event_schema ... ok
+test k105_events_map_to_schema_valid_audit_results_with_honest_coverage ... ok
+test r3_ring_and_sequence_loss_are_not_counted_twice ... ok
+test r3_sequences_accept_zero_or_one_and_disclose_the_start_residual ... ok
+test j17_baseline_and_explicit_observe_on_use_the_declared_set ... ok
+test gap_notes_and_loss_counts_are_coalesced ... ok
+test j17_provider_actions_do_not_claim_workload_content_changes ... ok
+test j17_new_mutation_actions_validate_and_recompute_only_mutated_paths ... ok
+test j17_all_subscribed_mutations_decode_in_the_c_shim ... ok
+test shim_a_late_sync_cannot_complete_the_next_drain ... ok
+test shim_retains_real_types ... ok
+test shim_joins_directory_names_and_keeps_both_paths ... ok
+test shim_rejects_truncated_paths ... ok
+test shim_retains_callback_memory_when_delete_fails ... ok
+test shim_counts_unmodified_closes ... ok
+test shim_excludes_all_helpers_but_not_the_workload_exec ... ok
+test shim_counts_overflow_including_final_drops ... ok
+test shim_marks_missing_paths_unknown ... ok
+test k107_rust_and_python_recompute_real_native_journal_frames ... ok
+test r3_summary_describes_root_changes_without_counting_workspace_entries ... ok
+test an_unsigned_observe_run_refuses_not_entitled ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+
+     Running tests/macos_sandbox_profile.rs (target/debug/deps/macos_sandbox_profile-6ad9e6da7bb2d4d8)
+
+running 37 tests
+test sandbox::tests::sbpl_strings_escape_quotes_and_backslashes ... ok
+test sandbox::tests::template_declares_version_and_default_deny_first ... ok
+test sandbox::tests::empty_parameters_grant_nothing ... ok
+test sandbox::tests::var_and_tmp_spellings_are_both_granted ... ok
+test sandbox::tests::denials_are_ordered_after_the_grants_they_override ... ok
+test sandbox::tests::the_template_digest_is_sha256_of_the_template ... ok
+test sandbox::tests::generate_keeps_the_invariant_skeleton_and_fills_parameters ... ok
+test setuid::tests::individual_file_grants_are_scanned_and_missing_roots_are_holes ... ok
+test setuid::tests::scan_root_reports_setuid_and_setgid_distinctly ... ok
+test setuid::tests::system_enumeration_finds_the_known_set_of_this_build ... ok
+test denials_are_ordered_after_the_grants_they_override ... ok
+test non_utf8_paths_never_grant_their_lossy_spelling ... ok
+test execution_is_not_granted_from_writable_roots ... ok
+test template_marker_paths_never_widen_a_grant ... ok
+test the_generated_profile_keeps_the_invariant_skeleton ... ok
+test a_member_writes_the_workspace_and_reads_the_system ... ok
+test the_setuid_enumeration_matches_the_sealed_volume ... ok
+test the_template_digest_is_the_pinned_release_digest ... ok
+test quoted_mach_and_unix_values_cannot_become_profile_code ... ok
+test an_empty_write_parameter_grants_nothing ... ok
+test launchd_job_submission_is_refused ... ok
+test sibling_names_beyond_the_workspace_boundary_are_refused ... ok
+test signals_stay_confined_to_the_sandbox ... ok
+test the_system_shell_starts_without_a_selection_error ... ok
+RECORD appleevent-send: inside=DENIED outside=recorded (a send is a TCC prompt); osascript cannot reach its scripting component with mach-lookup denied
+test apple_events_are_refused_while_osascript_cannot_reach_its_component ... ok
+test the_developer_tools_follow_the_host_selection_or_refuse ... ok
+test the_bridge_profile_admits_only_the_two_bridge_ports ... ok
+test every_generated_profile_variant_compiles ... ok
+test setuid_execution_is_denied_inside_and_possible_outside ... ok
+test shell_startup_files_and_launch_agents_are_not_writable ... ok
+test var_and_tmp_spellings_resolve_to_the_same_vnode ... ok
+test node_git_and_shell_run_with_mach_lookup_fully_denied ... ok
+test network_none_denies_loopback_and_unix_sockets ... ok
+test protected_segments_and_case_variants_are_denied ... ok
+test the_zero_and_random_devices_are_readable_only ... ok
+test git_extends_an_existing_repository_but_never_reconfigures_it ... ok
+test unix_socket_connects_need_a_named_grant ... ok
+
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.74s
+

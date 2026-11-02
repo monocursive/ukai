@@ -1,0 +1,79 @@
+   Compiling xtask v0.1.0 (/Users/monocursive/code/ouroboros/crates/xtask)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.52s
+     Running unittests src/main.rs (target/debug/deps/xtask-338a288b1736ae60)
+
+running 71 tests
+test gates::tests::a_binary_the_print_order_puts_in_the_wrong_crate_is_untrusted ... ok
+test gates::tests::a_binary_with_two_sections_is_untrusted ... ok
+test gates::tests::a_cited_test_must_be_a_test ... ok
+test gates::tests::a_clause_in_a_lane_that_was_not_evaluated_is_elsewhere_not_passed ... ok
+test gates::tests::a_clause_with_no_evidence_fails_unless_it_is_a_recorded_limit ... ok
+test gates::tests::a_clause_without_an_id_merges_by_its_exact_text_or_is_new ... ok
+test gates::tests::a_clean_run_of_the_mini_map_passes_and_the_credential_gate_is_not_evaluated ... ok
+test gates::tests::a_credential_clause_belongs_only_to_a_credential_gate ... ok
+test gates::tests::a_driver_check_proves_only_the_clauses_it_measures ... ok
+test gates::tests::a_gate_the_map_lacks_fails ... ok
+test gates::tests::a_gates_status_follows_one_precedence ... ok
+test gates::tests::a_limit_must_cite_a_passage_of_an_existing_document_section ... ok
+test gates::tests::a_limit_passage_matches_across_line_breaks ... ok
+test gates::tests::a_log_at_an_explicit_revision_is_held_against_that_commit ... ok
+test gates::tests::a_log_is_clean_only_with_a_summary_per_binary_and_no_anomaly ... ok
+test gates::tests::a_malformed_map_is_refused_with_every_problem ... ok
+test gates::tests::a_map_that_drifts_from_the_spec_is_named ... ok
+test gates::tests::a_mapped_test_that_is_absent_failed_or_ignored_fails_its_gate ... ok
+test gates::tests::a_merge_cannot_raise_a_tag_or_leave_a_limit_without_a_new_test ... ok
+test gates::tests::a_merge_that_cites_a_made_up_record_is_refused ... ok
+test gates::tests::a_merge_that_closes_a_clause_with_a_check_it_cannot_prove_is_refused ... ok
+test gates::tests::a_merge_that_names_nothing_real_or_breaks_the_map_is_refused ... ok
+test gates::tests::a_new_clause_is_numbered_after_its_gate_and_placed_with_it ... ok
+test gates::tests::a_package_is_found_by_its_manifest_not_its_directory_name ... ok
+test gates::tests::a_rendered_map_parses_back_to_the_same_map ... ok
+test gates::tests::a_result_outside_any_binary_is_a_failure ... ok
+test gates::tests::a_result_printed_after_interleaved_output_belongs_to_the_pending_test ... ok
+test gates::tests::a_skip_line_makes_the_log_unclean ... ok
+test gates::tests::a_skip_note_after_a_tests_name_is_counted_and_attributed ... ok
+test gates::tests::a_test_in_a_suite_module_file_is_found_in_that_file ... ok
+test gates::tests::an_id_both_specs_list_is_a_spec_bug ... ok
+test gates::tests::an_unreadable_summary_is_named_as_one ... ok
+test gates::tests::an_untested_clause_fails_whatever_its_lane ... ok
+test gates::tests::bare_test_file_names_are_resolved_to_the_one_crate_that_has_them ... ok
+test gates::tests::checks_count_as_evidence_and_an_absent_check_fails ... ok
+test gates::tests::driver_checks_are_one_vocabulary ... ok
+test gates::tests::every_mapped_test_exists_in_the_source_tree ... ok
+test gates::tests::failed_ignored_duplicated_and_unresolved_results_are_kept_apart ... ok
+test gates::tests::gates_txt_names_its_map_its_lanes_and_each_gates_evidence_level ... ok
+test gates::tests::hostile_h1_a_childs_ok_line_does_not_hide_the_tests_failure ... ok
+test gates::tests::hostile_h2_a_crashed_binary_fails_its_tests_the_suite_and_the_run ... ok
+test gates::tests::hostile_h3_a_phantom_result_makes_its_whole_binary_untrusted ... ok
+test gates::tests::hostile_h4_a_failure_glued_to_child_output_is_still_a_failure ... ok
+test gates::tests::hostile_h5_a_log_with_binary_bytes_is_read_not_refused ... ok
+test gates::tests::hostile_h6_two_ignored_doc_blocks_on_one_item_are_one_pinned_test ... ok
+test gates::tests::hostile_h7_a_helpers_own_libtest_run_does_not_take_the_parents_result ... ok
+test gates::tests::hostile_h8_long_lines_unicode_and_a_late_panic_parse ... ok
+test gates::tests::linux_release_cannot_exclude_a_linux_clause_or_macos_refusal_proof ... ok
+test gates::tests::linux_release_reports_only_the_named_macos_requirements_unsupported ... ok
+test gates::tests::logs_are_judged_together_only_at_one_revision_and_in_conformance_mode ... ok
+test gates::tests::merged_ignored_pins_are_added_once ... ok
+test gates::tests::merging_never_weakens_a_tag_and_a_proved_limit_drops_its_limit ... ok
+test gates::tests::merging_tests_into_an_untested_clause_takes_the_contributors_tag ... ok
+test gates::tests::merging_the_same_new_clause_twice_adds_it_once ... ok
+test gates::tests::shared_macos_acceptance_rows_are_loaded_and_unproved_rows_cannot_pass ... ok
+test gates::tests::shared_macos_parser_checks_all_subtables_and_duplicates ... ok
+test gates::tests::test_ids_are_crate_source_and_name ... ok
+test gates::tests::the_base_run_attributes_every_result_and_fails_only_what_it_could_not_prove ... ok
+test gates::tests::the_checked_in_map_agrees_with_all_sections_or_reports_missing_native_rows ... ok
+test gates::tests::the_checked_in_map_is_in_canonical_form ... ok
+test gates::tests::the_ignored_set_is_pinned_in_both_directions ... ok
+test gates::tests::the_j4_ignored_set_is_the_thirteen_the_j4_report_counts ... ok
+test gates::tests::the_j4_log_attributes_every_result_libtest_counted ... ok
+test gates::tests::the_j4_log_under_the_checked_in_map_fails_only_what_it_could_not_prove ... ok
+test gates::tests::the_log_parser_names_tests_by_crate_source_and_libtest_name ... ok
+test gates::tests::the_logs_gates_reads_are_held_against_the_tree ... ok
+test gates::tests::the_release_scope_comes_from_the_coordinates ... ok
+test gates::tests::the_repository_workspace_names_every_package_the_suite_runs ... ok
+test gates::tests::the_spec_rows_are_read_from_section_fifteen_only ... ok
+test gates::tests::the_suite_markers_are_read_from_the_log ... ok
+test gates::tests::the_v2_rows_are_read_from_section_eleven_only ... ok
+
+test result: ok. 71 passed; 0 failed; 0 ignored; 0 measured; 164 filtered out; finished in 4.63s
+

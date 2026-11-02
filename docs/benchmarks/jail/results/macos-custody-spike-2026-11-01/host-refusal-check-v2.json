@@ -1,0 +1,6 @@
+{
+  "exit": 77,
+  "created_log": false,
+  "compiler_stderr": "",
+  "scope": "VM guard exits before opening a file or forking; no host workload ran"
+}

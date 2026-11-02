@@ -3893,7 +3893,7 @@ gate = "K90"
 clause = "Defense matrix, run against the exact shipped profile digest. Every attack of §4.7 classes 1–4 from inside the sandbox fails, against both custodians, against other members during a stop, and against the operator's other processes. Each attack has a positive control from outside the sandbox. Anything that runs is recorded."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
+note = "Full release acceptance remains untested. The isolated SIP-disabled 2026-11-01 development spike found that launchctl kickstart of a preloaded job reaches both custodians despite the candidate mach-bootstrap denial; the route was closed on 2026-11-02 by denying execution of the launchctl client in the template, and after a direct-client probe showed launchctl's own XPC client is built from the inherited bootstrap port, the launcher strips that port before the exec. Same-VM reruns denied kickstart, load and the direct client against both custodians with working outside controls. That is development evidence on the exact profile digest, not this gate. See docs/benchmarks/jail/results/macos-custody-spike-2026-11-01/README.md, docs/benchmarks/jail/results/macos-k90-kickstart-fix-2026-11-02/README.md and docs/benchmarks/jail/results/macos-k90-bootstrap-strip-2026-11-02/README.md."
 
 [[clause]]
 id = "K90.2"
@@ -3905,8 +3905,10 @@ tests = [
   "ukai-jail/tests/macos_defense_matrix.rs::the_matrix_runs_against_the_pinned_shipped_digest",
   "ukai-jail/tests/macos_defense_matrix.rs::class_1_direct_process_control_is_denied_from_inside",
   "ukai-jail/tests/macos_defense_matrix.rs::class_2_deputies_are_unreachable_from_inside",
+  "ukai-jail/tests/macos_defense_matrix.rs::class_2_kickstarting_an_existing_job_is_refused",
+  "ukai-jail/tests/macos_defense_matrix.rs::class_2_direct_launchd_client_is_unreachable_through_the_launcher",
 ]
-note = "Only the targets and attack subset in this clause; the full K90 row remains untested."
+note = "Only the targets and attack subset in this clause; the full K90 row remains untested. The kickstart row was added with the 2026-11-02 template fix and the direct-client row with the launcher bootstrap-port strip; both passed in the same-VM reruns with working outside controls."
 
 # ------------------------------------------------------------------ K91
 
@@ -3934,7 +3936,7 @@ gate = "K92"
 clause = "Drain proof and freeze, with adversarial fixtures: many threads forking in parallel, members that `SIGCONT` each other, an orphaned process group holding a stopped member, a fork chain, and an exec loop. Each stop settles `tree_empty` with every exit observed, or `tree_unknown`, never a false `tree_empty`. The `RLIMIT_NPROC` headroom holds. The p50 and p95 stop times are reported."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
+note = "Full release acceptance remains untested. The isolated SIP-disabled 2026-11-01 development spike passed 25 bounded drain checks with no false tree_empty; all used a raised guest process ceiling. On 2026-11-02 the whole stop path was instrumented (receipt stop.phases and the guardian record's stop_phases) and a 15-trial rerun reconciled the clocks: the machine's stop is 20-74 ms and the guardian's record arrives within ~330 ms under every adversarial shape, so the spike's 2.4-5.3 s oracle interval is harness-side measurement overhead, not product stop latency. End-to-end timing qualification against a qualified oracle remains open. See docs/benchmarks/jail/results/macos-custody-spike-2026-11-01/README.md and docs/benchmarks/jail/results/macos-compat-2026-11-02/README.md."
 
 [[clause]]
 id = "K92.2"
@@ -3963,7 +3965,7 @@ gate = "K93"
 clause = "Event load: a fork and exec storm, and a signal flood during a stop, either drain or produce a real sequence gap. A gap gives `tree_unknown` unless the other custodian drained, and the guard's load never gaps client G. No custodian is terminated by the system. **And** a parallel build of a large repository (named in the record) does not gap."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
+note = "Full release acceptance remains untested. The isolated SIP-disabled 2026-11-01 development spike passed ten bounded event-load checks and a four-configuration SQLite amalgamation compile with contiguous custody and active J17 coverage; its full SQLite source-tree build failure was closed on 2026-11-02 (Apple tclsh8.5 ignores TMPDIR for its exec error files; the build passes under explicit receipt-recorded /private/var/tmp and workspace-exec grants, custody contiguous, observation active). Development-VM evidence only, not this gate. See docs/benchmarks/jail/results/macos-custody-spike-2026-11-01/README.md and docs/benchmarks/jail/results/macos-compat-2026-11-02/README.md."
 
 # ------------------------------------------------------------------ K94
 
@@ -4036,12 +4038,12 @@ note = "Full acceptance row not run on the J16-J18 implementation. Any component
 
 [[gate]]
 id = "K98"
-row = "Refusals before any workload process: no entitlement, the client limit reached, a custody event that stays muted after unmuting (injected in a development build), `--profile none`, an explicit `pids`, `mem` or `cpu` ceiling, and `--observe on`."
+row = "Refusals before any workload process: no entitlement, the client limit reached, a custody event that stays muted after unmuting (injected in a development build), `--profile none`, an explicit `pids`, `mem` or `cpu` ceiling, and requested observation cannot attach (including `--observe on`) in both evidence modes."
 
 [[clause]]
 id = "K98.1"
 gate = "K98"
-clause = "Refusals before any workload process: no entitlement, the client limit reached, a custody event that stays muted after unmuting (injected in a development build), `--profile none`, an explicit `pids`, `mem` or `cpu` ceiling, and `--observe on`."
+clause = "Refusals before any workload process: no entitlement, the client limit reached, a custody event that stays muted after unmuting (injected in a development build), `--profile none`, an explicit `pids`, `mem` or `cpu` ceiling, and requested observation cannot attach (including `--observe on`) in both evidence modes."
 tag = "untested"
 lane = "macos"
 note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
@@ -4061,12 +4063,12 @@ note = "Other K98 refusal conditions remain in the untested clause."
 
 [[gate]]
 id = "K99"
-row = "Proxy: Claude Code and OpenCode reach an allowed host through the authenticated HTTP and SOCKS5 ports. A connection without the secret, and any other loopback port, fails. The credential entry records `binding: attempt`."
+row = "Proxy: Claude Code and OpenCode each reach an allowed host through their recorded supported proxy protocol. Separate live fixtures exercise authenticated HTTP CONNECT and SOCKS5 with allowed-host enforcement. A missing or invalid secret, a denied destination and any ungranted loopback port fail. The credential entry records `binding: attempt`."
 
 [[clause]]
 id = "K99.1"
 gate = "K99"
-clause = "Proxy: Claude Code and OpenCode reach an allowed host through the authenticated HTTP and SOCKS5 ports. A connection without the secret, and any other loopback port, fails. The credential entry records `binding: attempt`."
+clause = "Proxy: Claude Code and OpenCode each reach an allowed host through their recorded supported proxy protocol. Separate live fixtures exercise authenticated HTTP CONNECT and SOCKS5 with allowed-host enforcement. A missing or invalid secret, a denied destination and any ungranted loopback port fail. The credential entry records `binding: attempt`."
 tag = "untested"
 lane = "macos"
 note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
@@ -4192,7 +4194,7 @@ gate = "K105"
 clause = "The A01 fixture's expected exec and in-set file-mutation events are present with observer.set `macos-closed-v1`; attached loss-free exec and fs.write are `active` with counts, while fs.deny and native net are `unsupported`. Live acceptance remains untested."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
+note = "Full release acceptance remains untested. Two observed native smoke runs in the isolated SIP-disabled 2026-11-01 development spike attached macos-closed-v1 and reported expected mutation actions; this subset does not exercise the entire K105 row or satisfy protected-Mac qualification. See docs/benchmarks/jail/results/macos-custody-spike-2026-11-01/README.md."
 
 [[clause]]
 id = "K105.2"

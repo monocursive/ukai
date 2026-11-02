@@ -19,7 +19,9 @@ pub mod table;
 use crate::platform::macos::es::EsEvent;
 
 pub use seq::{CustodyKind, SeqTracker};
-pub use stop::{SIGKILL, SIGSTOP, Signaller, StopMachine, StopNotDrainedReason, StopResult};
+pub use stop::{
+    SIGKILL, SIGSTOP, Signaller, StopMachine, StopNotDrainedReason, StopResult, StopTiming,
+};
 pub use table::{
     AUDIT_TOKEN_EUID, AUDIT_TOKEN_PID, AUDIT_TOKEN_PIDVERSION, AUDIT_TOKEN_RGID, AUDIT_TOKEN_RUID,
     Entry as MembershipEntry, ExecOutcome, MAX_TABLE_CAPACITY, MembershipError, MembershipTable,

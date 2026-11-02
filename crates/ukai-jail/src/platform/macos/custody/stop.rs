@@ -33,6 +33,21 @@ pub trait Signaller {
     fn signal(&mut self, token: &[u32; 8], sig: i32) -> i32;
 }
 
+/// The continuous-clock marks of one stop (§4.5), recorded by the receipt
+/// and the guardian record so an operator's independent observation can be
+/// reconciled against the machine's own phases (NC09/NC11: the 2026-11-01
+/// spike measured 20 ms of machine drain against an oracle-confirmed
+/// emptiness only after 5 s, with no way to see where the interval went).
+/// `None` until the phase is reached; a stop that never leaves the freeze
+/// records no kill mark, and a not-drained stop still records its result.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
+pub struct StopTiming {
+    pub begin_ns: Option<u64>,
+    pub freeze_done_ns: Option<u64>,
+    pub first_kill_ns: Option<u64>,
+    pub result_ns: Option<u64>,
+}
+
 /// Why a stop did not drain (§4.4, §4.5).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StopNotDrainedReason {
@@ -112,6 +127,7 @@ pub struct StopMachine {
     resume_phase: Phase,
     finished_reason: Option<StopNotDrainedReason>,
     best_effort: bool,
+    timing: StopTiming,
 }
 
 impl StopMachine {
@@ -135,6 +151,7 @@ impl StopMachine {
             resume_phase: Phase::Idle,
             finished_reason: None,
             best_effort: false,
+            timing: StopTiming::default(),
         }
     }
 
@@ -243,6 +260,13 @@ impl StopMachine {
         self.start_ns = Some(now_ns);
         self.next_sweep_ns = now_ns;
         self.phase = Phase::Freezing;
+        self.timing.begin_ns = Some(now_ns);
+    }
+
+    /// The phase marks of this stop, for the receipt and the guardian
+    /// record (see [`StopTiming`]).
+    pub fn timing(&self) -> StopTiming {
+        self.timing
     }
 
     fn elapsed_ns(&self, now_ns: u64) -> u64 {
@@ -390,6 +414,7 @@ impl StopMachine {
                 return Some(self.finish(StopNotDrainedReason::Gap, elapsed));
             }
             self.phase = Phase::Finished;
+            self.timing.result_ns = Some(now_ns);
             return Some(StopResult::Drained {
                 elapsed_ns: elapsed,
                 sweeps: self.sweeps,
@@ -411,13 +436,22 @@ impl StopMachine {
                     self.arrived_since_sweep = false;
                     if settled {
                         self.phase = Phase::Killing;
+                        self.timing.freeze_done_ns = Some(now_ns);
                     }
                     self.next_sweep_ns = now_ns.saturating_add(self.settle_ns);
                 }
             }
             Phase::Killing => {
                 if now_ns >= self.next_sweep_ns {
+                    let signalled_before = self.signalled;
                     self.sweep(table, signaller, SIGKILL);
+                    // The first kill sweep that actually signalled: the
+                    // machine's own boundary between freezing and killing
+                    // work (mid-kill arrivals are folded into the next
+                    // sweep's mark by staying `None` only until one fires).
+                    if self.timing.first_kill_ns.is_none() && self.signalled > signalled_before {
+                        self.timing.first_kill_ns = Some(now_ns);
+                    }
                     self.next_sweep_ns = now_ns.saturating_add(self.settle_ns);
                 }
             }
@@ -427,6 +461,9 @@ impl StopMachine {
     }
 
     fn finish(&mut self, reason: StopNotDrainedReason, elapsed: u64) -> StopResult {
+        if self.timing.result_ns.is_none() {
+            self.timing.result_ns = self.start_ns.map(|start| start.saturating_add(elapsed));
+        }
         self.resume_phase = self.phase;
         self.phase = Phase::Finished;
         self.finished_reason = Some(reason);

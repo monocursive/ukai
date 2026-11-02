@@ -66,6 +66,18 @@
 //! `(deny signal)` + `(allow signal (target same-sandbox))`, under which the
 //! spec reports 800/800 workload attempts returned `EPERM`.
 //!
+//! **`mach-bootstrap` compiles but does not govern kickstart** (measured
+//! 2026-11-01 in the SIP-disabled development VM): `launchctl kickstart` of
+//! a preloaded job ran outside the sandbox under `(deny job-creation)` and
+//! `(deny mach-bootstrap)` alike, because launchd's audit-token sandbox
+//! checks cover only job creation and service lookup/registration, and
+//! version 1 has no filter for Mach sends to the inherited bootstrap port.
+//! The class fix is the launcher's bootstrap-port strip (measured
+//! 2026-11-02 against a hand-rolled MIG/XPC client — this build serves no
+//! MIG job subsystem, and `launchctl`'s XPC pipe is built from exactly
+//! that inherited port); the template's class-2 exec denial of the
+//! `launchctl` client is the second layer. See the note there.
+//!
 //! **Exec of setuid/setgid binaries is denied kernel-side for sandboxed
 //! processes.** Measured: with `(allow process-exec (subpath "/usr/bin"))`,
 //! exec of `/usr/bin/sudo` fails `EPERM` inside the sandbox while the same
@@ -209,6 +221,21 @@ pub const TEMPLATE: &str = r#"; ukai-jail native tier (macOS): defense profile.
 (deny lsopen)
 (deny appleevent-send)
 (deny job-creation)
+; Measured 2026-11-01 (macOS 27.0 build 26A428, SIP-disabled development
+; VM): `(deny job-creation)` stops submit/bootstrap/load, but kickstarting
+; a preloaded job still started it outside the sandbox and the job reached
+; both custodians; `(deny mach-bootstrap)` changed nothing. Launchd consults
+; the caller's sandbox only for job-creation, mach-lookup and mach-register
+; (its audit-token checks), and SBPL v1 has no filter for Mach sends to the
+; inherited bootstrap port, so no denyable operation names the kickstart
+; route. The remaining profile-visible lever is the client binary: members
+; have no legitimate launchctl use, so executing it is denied outright,
+; after the exec grants above (last match wins; exec is confined to the
+; admitted read-only roots, so no other launchctl copy can run).
+(deny process-exec (literal "/bin/launchctl"))
+; mach-bootstrap stays denied as belt and braces for bootstrap-subset
+; operations; on this build it does not govern kickstart (measured above).
+(deny mach-bootstrap)
 (deny mach-lookup)
 @@MACH_ALLOW_RULE@@
 (deny network*)

@@ -1,0 +1,74 @@
+{
+  "scope": "SIP-disabled isolated development VM; direct-client closure of the launchd deputy class; not release qualification",
+  "release_gates_promoted": [],
+  "scenarios": {
+    "k90-direct-client": {
+      "source": "harness/k90_direct_client_check.py",
+      "sha256": "e876068513bd04ae0781353c8580ef6ffec1a018f83e67f442adb0f48fc19a98",
+      "counts": {
+        "PASS": 2
+      },
+      "trials": [
+        {
+          "name": "direct-client-supervisor",
+          "outcome": "PASS",
+          "denied_inside": true,
+          "outside_control_reached_launchd": true,
+          "custodians_alive": true
+        },
+        {
+          "name": "direct-client-guardian",
+          "outcome": "PASS",
+          "denied_inside": true,
+          "outside_control_reached_launchd": true,
+          "custodians_alive": true
+        }
+      ]
+    },
+    "k90-deputy-check-rerun": {
+      "source": "harness/k90_deputy_check.py",
+      "sha256": "3e257bd09a43129ed15442983f4d21861bebb50e623f3e339b0b04d6dbe033d5",
+      "counts": {
+        "PASS": 4
+      },
+      "trials": [
+        {
+          "name": "deputy-v2-kickstart-supervisor",
+          "outcome": "PASS",
+          "positive_control_reached_target": true
+        },
+        {
+          "name": "deputy-v2-kickstart-guardian",
+          "outcome": "PASS",
+          "positive_control_reached_target": true
+        },
+        {
+          "name": "deputy-v2-load-supervisor",
+          "outcome": "PASS",
+          "positive_control_reached_target": true
+        },
+        {
+          "name": "deputy-v2-load-guardian",
+          "outcome": "PASS",
+          "positive_control_reached_target": true
+        }
+      ]
+    },
+    "host-defense-matrix": {
+      "log": "host-defense-matrix.log",
+      "result": "18 passed; 0 failed (now includes the direct-client row)"
+    },
+    "host-sandbox-profile": {
+      "log": "host-sandbox-profile.log",
+      "result": "37 passed; 0 failed"
+    },
+    "host-launcher-tests": {
+      "log": "host-launcher-tests.log",
+      "result": "5 passed; 0 failed"
+    },
+    "final-guest-state": {
+      "source": "results/final-guest-state.json",
+      "outcome": "PASS"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/Users/admin/ukai-live-rerun-2026-10-24/src/k90_deputy_check.py", line 72, in <module>
+    results.append(check(root, who, op))
+  File "/Users/admin/ukai-live-rerun-2026-10-24/src/k90_deputy_check.py", line 19, in check
+    assert t.ready(), 'fixture must start'
+AssertionError: fixture must start

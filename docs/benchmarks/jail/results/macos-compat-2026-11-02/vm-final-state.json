@@ -1,0 +1,7 @@
+{
+ "checked_at_utc": "2026-11-02T11:31:09+0000",
+ "vm": "ukai-custody-spike-20261101",
+ "state": "stopped",
+ "retained": true,
+ "host_sip": "System Integrity Protection status: enabled."
+}

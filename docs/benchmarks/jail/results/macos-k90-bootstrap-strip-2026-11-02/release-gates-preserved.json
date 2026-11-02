@@ -1,0 +1,42 @@
+{
+  "outcome": "PASS",
+  "compared_to": "HEAD",
+  "acceptance_tag_lane_tests_checks_changes": {
+    "K90.2_tests_added": [
+      "ukai-jail/tests/macos_defense_matrix.rs::class_2_direct_launchd_client_is_unreachable_through_the_launcher"
+    ]
+  },
+  "full_live_rows": {
+    "K87.1": "untested",
+    "K88.1": "untested",
+    "K89.1": "untested",
+    "K90.1": "untested",
+    "K91.1": "untested",
+    "K92.1": "untested",
+    "K93.1": "untested",
+    "K94.1": "untested",
+    "K95.1": "untested",
+    "K96.1": "untested",
+    "K97.1": "untested",
+    "K98.1": "untested",
+    "K99.1": "untested",
+    "K100.1": "untested",
+    "K101.1": "untested",
+    "K102.1": "untested",
+    "K103.1": "untested",
+    "K104.1": "untested",
+    "K105.1": "untested",
+    "K106.1": "untested",
+    "K107.1": "untested",
+    "K108.1": "untested",
+    "K109.1": "untested",
+    "K110.1": "untested",
+    "K111.1": "untested",
+    "K112.1": "untested",
+    "K113.1": "untested"
+  },
+  "clauses_added": [],
+  "clauses_removed": [],
+  "protected_mac_release_run": "K104 remains explicitly blocked; no release gate promoted",
+  "final_acceptance_map_sha256": "0af1f595109129b8dc30687071bb5bb611f3f29fe76f7da1558ea1cf5cad3967"
+}

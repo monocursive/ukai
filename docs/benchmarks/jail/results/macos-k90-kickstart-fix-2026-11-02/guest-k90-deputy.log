@@ -1,0 +1,4 @@
+{"name": "deputy-v2-kickstart-supervisor", "outcome": "PASS"}
+{"name": "deputy-v2-kickstart-guardian", "outcome": "PASS"}
+{"name": "deputy-v2-load-supervisor", "outcome": "PASS"}
+{"name": "deputy-v2-load-guardian", "outcome": "PASS"}

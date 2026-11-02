@@ -1,0 +1,31 @@
+{
+  "scope": "SIP-disabled isolated development VM; compatibility measurements only; not release qualification",
+  "release_gates_promoted": [],
+  "scenarios": {
+    "smoke-default-quiet": {
+      "result": "PASS 2/2",
+      "headroom": "1024, unclamped"
+    },
+    "smoke-default-busy": {
+      "result": "PASS 2/2",
+      "headroom": "668, clamped (ceiling 1333, ~665 procs)"
+    },
+    "k92-instrumented": {
+      "outcome": "PASS",
+      "trials": 15,
+      "machine_stop_ms": "20-74",
+      "guardian_record_ms": "<=330",
+      "oracle_ms_range": "2179-4213 (harness-side, see k92-phases.json)"
+    },
+    "k93-full-var-tmp": {
+      "outcome": "PASS",
+      "version": "3.53.2",
+      "custody_loss_free": true,
+      "observation_active": true
+    },
+    "final-guest-state": {
+      "source": "results/final-guest-state.json",
+      "outcome": "PASS"
+    }
+  }
+}

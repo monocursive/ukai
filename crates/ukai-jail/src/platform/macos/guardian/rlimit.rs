@@ -5,6 +5,17 @@
 //! member inherits the limit and cannot raise it without root, so a fork
 //! storm stops at the headroom and a stop has a bounded set to freeze.
 //!
+//! **Amended 2026-11-02 (measured in the 2026-11-01 spike):** a default
+//! host's `kern.maxprocperuid` is 1333, and the spike's guardian refused
+//! during preparation wanting 1376/1378 slots. When the full 1024 does not
+//! fit under the inherited ceiling, the allowance is now the inherited
+//! ceiling itself — never raised, still kernel-bounded, and the membership
+//! table is sized for exactly that ceiling — provided the ceiling still
+//! clears the operator's snapshot by [`MIN_PROCESS_HEADROOM`]; below that
+//! there is no room for a tree at all and preparation refuses with the
+//! remedy named. The receipt records the applied allowance and whether it
+//! was clamped.
+//!
 //! Count actual PID records returned by libproc's real-UID filter. Sizing
 //! calls are allocation estimates, never counts. All allocation occurs
 //! before release; the query retries if the returned array fills up.
@@ -12,6 +23,21 @@
 /// The required headroom over the operator's process-count snapshot.
 /// `apply` refuses unless kernel read-back proves this entire allowance.
 pub const PROCESS_HEADROOM: u64 = 1024;
+
+/// The smallest allowance above the operator's snapshot any attempt may
+/// start with (amended rule 6). Below this even the first workload forks
+/// would fail, so preparation refuses and names the remedy instead.
+pub const MIN_PROCESS_HEADROOM: u64 = 128;
+
+/// What rule 6 applied: the ceiling members inherit, the allowance above
+/// the operator's snapshot, and whether the full
+/// [`PROCESS_HEADROOM`] did not fit and the inherited ceiling stands in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AppliedAllowance {
+    pub limit: u64,
+    pub headroom: u64,
+    pub clamped: bool,
+}
 
 /// Compatibility name for callers using the original 32-bit constant.
 pub const NPROC_HEADROOM: u32 = PROCESS_HEADROOM as u32;
@@ -162,15 +188,78 @@ fn lower_nproc_with(
     Ok(())
 }
 
-/// The rule-6 step whole: count this operator's processes, add the headroom,
-/// lower both limits. Returns the limit applied.
-pub fn apply() -> Result<u64, RlimitError> {
+/// The amended rule-6 decision, pure for tests: the allowance for a given
+/// snapshot and inherited limits. `Ok` with `clamped: false` lowers to
+/// `current + PROCESS_HEADROOM`; `Ok` with `clamped: true` keeps the
+/// inherited ceiling (never raising either limit); `Err` names the floor
+/// and the remedy when even the minimum does not fit.
+pub fn allowance_for(current: u64, soft: u64, hard: u64) -> Result<AppliedAllowance, RlimitError> {
+    let desired = current.saturating_add(PROCESS_HEADROOM).min(i64::MAX as u64);
+    let ceiling = soft.min(hard);
+    if desired <= ceiling {
+        return Ok(AppliedAllowance {
+            limit: desired,
+            headroom: PROCESS_HEADROOM,
+            clamped: false,
+        });
+    }
+    if ceiling >= current.saturating_add(MIN_PROCESS_HEADROOM) {
+        return Ok(AppliedAllowance {
+            limit: ceiling,
+            headroom: ceiling - current,
+            clamped: true,
+        });
+    }
+    Err(RlimitError(
+        "insufficient_headroom",
+        format!(
+            "need at least {MIN_PROCESS_HEADROOM} above the operator's {current} processes, \
+             inherited soft {soft} hard {hard}; close processes or raise kern.maxprocperuid"
+        ),
+    ))
+}
+
+/// The supervisor-side view of the amended rule-6 decision, taken at
+/// prepare time before any member exists (the same snapshot domain the
+/// guardian's authoritative [`apply`] uses moments later): what the
+/// receipt records as the planned allowance. The guardian still gates the
+/// run with its own read and refuses on any disagreement.
+pub fn plan_allowance() -> Result<AppliedAllowance, RlimitError> {
     // SAFETY: plain getuid.
     let uid = unsafe { libc::getuid() };
     let count = current_process_count_for_uid(uid)?;
-    let limit = limit_with_headroom(count, PROCESS_HEADROOM, u64::MAX)?;
-    lower_nproc(limit)?;
-    Ok(limit)
+    let inherited = read_nproc()?;
+    allowance_for(count, inherited.rlim_cur, inherited.rlim_max)
+}
+
+/// The rule-6 step whole: count this operator's processes, decide the
+/// allowance, apply it. The normal path lowers both limits with kernel
+/// read-back; the clamped path leaves the inherited limits untouched
+/// (never raising) and re-reads them once to confirm the ceiling still
+/// clears the floor. Returns what was applied, for the receipt.
+pub fn apply() -> Result<AppliedAllowance, RlimitError> {
+    // SAFETY: plain getuid.
+    let uid = unsafe { libc::getuid() };
+    let count = current_process_count_for_uid(uid)?;
+    let inherited = read_nproc()?;
+    let planned = allowance_for(count, inherited.rlim_cur, inherited.rlim_max)?;
+    if planned.clamped {
+        // Nothing to set: the members inherit the ceiling as it stands. A
+        // re-read confirms no concurrent change moved the ceiling between
+        // decision and use; a moved limit is a refusal, not a race to
+        // re-decide against.
+        let effective = read_nproc()?;
+        let confirmed = allowance_for(count, effective.rlim_cur, effective.rlim_max)?;
+        if confirmed != planned {
+            return Err(RlimitError(
+                "insufficient_headroom",
+                "inherited limits changed during preparation".to_owned(),
+            ));
+        }
+        return Ok(planned);
+    }
+    lower_nproc(planned.limit)?;
+    Ok(planned)
 }
 
 #[cfg(test)]
@@ -212,6 +301,39 @@ mod tests {
         );
         assert_eq!(limit_with_headroom(900, 100, 1000).unwrap(), 1000);
         assert_eq!(limit_with_headroom(100, 100, 1000).unwrap(), 200);
+    }
+
+    // The amended rule-6 decision, on the 2026-11-01 spike's measured
+    // default-host shape: 352 same-UID processes against a 1333 ceiling.
+    #[test]
+    fn a_default_host_ceiling_clamps_instead_of_refusing() {
+        let applied = allowance_for(352, 1333, 1333).expect("clamped allowance");
+        assert_eq!(
+            applied,
+            AppliedAllowance {
+                limit: 1333,
+                headroom: 1333 - 352,
+                clamped: true
+            }
+        );
+        // The unclamped shape is unchanged where the full headroom fits.
+        assert_eq!(
+            allowance_for(300, 2000, 2000).unwrap(),
+            AppliedAllowance {
+                limit: 300 + PROCESS_HEADROOM,
+                headroom: PROCESS_HEADROOM,
+                clamped: false
+            }
+        );
+        // A tight inherited soft limit also clamps to itself, never raises.
+        let clamped = allowance_for(500, 1200, 2000).unwrap();
+        assert_eq!(clamped.limit, 1200);
+        assert!(clamped.clamped);
+        // Below the minimum floor the refusal names numbers and remedy.
+        let refusal = allowance_for(1300, 1333, 1333).unwrap_err().to_string();
+        assert!(refusal.starts_with("insufficient_headroom:"), "{refusal}");
+        assert!(refusal.contains("close processes or raise kern.maxprocperuid"), "{refusal}");
+        assert!(allowance_for(u64::MAX, 2000, 2000).is_err(), "overflow refuses");
     }
 
     #[test]
@@ -293,6 +415,7 @@ mod tests {
                 rlim_max: original.rlim_max,
             };
             assert_eq!(libc::setrlimit(libc::RLIMIT_NPROC, &inherited), 0);
+            let count = current_process_count_for_uid(libc::getuid()).unwrap();
             let result = apply();
             let mut after: libc::rlimit = std::mem::zeroed();
             assert_eq!(libc::getrlimit(libc::RLIMIT_NPROC, &mut after), 0);
@@ -300,12 +423,21 @@ mod tests {
                 after.rlim_cur, inherited.rlim_cur,
                 "operator's soft ceiling changed"
             );
-            assert!(
-                result
-                    .unwrap_err()
-                    .to_string()
-                    .starts_with("insufficient_headroom:")
-            );
+            // Amended rule 6: a soft ceiling below the full headroom no
+            // longer refuses — the ceiling itself is the allowance as long
+            // as it clears the snapshot by the minimum. Both shapes keep
+            // the soft limit untouched; only a floor violation refuses.
+            let floor_fits = inherited.rlim_cur >= count + MIN_PROCESS_HEADROOM;
+            match (result, floor_fits) {
+                (Ok(applied), true) => {
+                    assert!(applied.clamped, "clamped to the inherited soft ceiling");
+                    assert_eq!(applied.limit, inherited.rlim_cur);
+                }
+                (Err(error), false) => {
+                    assert!(error.to_string().starts_with("insufficient_headroom:"));
+                }
+                (result, fits) => panic!("apply() disagreed with the floor: {result:?} fits={fits}"),
+            }
         }
         println!("soft-limit fixture ran");
     }

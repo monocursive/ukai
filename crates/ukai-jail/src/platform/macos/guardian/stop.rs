@@ -2,7 +2,9 @@
 //! polls custody events; arrivals and pending exec retries are signalled
 //! immediately. G′ denies inline and needs no polling or sync allocation.
 
-use crate::platform::macos::custody::{Custodian, Signaller, StopNotDrainedReason, StopResult};
+use crate::platform::macos::custody::{
+    Custodian, Signaller, StopNotDrainedReason, StopResult, StopTiming,
+};
 use crate::platform::macos::custody_io::{self, CustodyClient};
 use crate::platform::macos::es::EsPoll;
 
@@ -51,6 +53,9 @@ pub struct StopOutcome {
     /// Includes events delivered during the stop, not just before it.
     pub counts: [u64; 3],
     pub members_peak: usize,
+    /// The stop machine's own phase marks (NC09/NC11 reconciliation), on
+    /// the same continuous clock as `started_at`/`ended_at`.
+    pub timing: StopTiming,
 }
 
 pub struct GuardianStop {
@@ -176,6 +181,7 @@ impl GuardianStop {
                 guard_denials,
                 counts: self.custody.seq().counts(),
                 members_peak: peak,
+                timing: self.custody.stop().timing(),
             },
             self.guard.take(),
         )

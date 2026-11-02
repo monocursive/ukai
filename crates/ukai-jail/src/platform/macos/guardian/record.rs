@@ -15,7 +15,7 @@
 
 use serde::Serialize;
 
-use crate::platform::macos::custody::StopNotDrainedReason;
+use crate::platform::macos::custody::{StopNotDrainedReason, StopTiming};
 use crate::platform::macos::custody::StopResult;
 use crate::platform::macos::custody_io::Token;
 
@@ -47,6 +47,9 @@ pub struct GuardianRecord {
     /// Whether G′ was armed for the stop; `false` also when the
     /// subscription failed and the stop proceeded unguarded (§4.5 step 1).
     pub guard_armed: bool,
+    /// The guardian's stop-machine phase marks (NC09/NC11), on the same
+    /// continuous clock as `started_at`/`ended_at`.
+    pub stop_phases: StopTiming,
     /// ES documents increments, not a first-value baseline. Drops before
     /// the first delivered message cannot be distinguished within the
     /// accepted 0/1 start convention; disclose this on every record.
@@ -102,6 +105,7 @@ pub struct StopFacts {
     pub ended_at: u64,
     pub members_peak: usize,
     pub guard_armed: bool,
+    pub timing: StopTiming,
 }
 
 /// Build the record from a stop's result and the guardian's tallies.
@@ -142,6 +146,7 @@ pub fn from_stop_result(
         boot_session,
         members_peak: facts.members_peak,
         guard_armed: facts.guard_armed,
+        stop_phases: facts.timing,
         sequence_start: "unverified",
     }
 }
@@ -190,7 +195,7 @@ pub fn boot_session_uuid() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::macos::custody::StopNotDrainedReason;
+    use crate::platform::macos::custody::{StopNotDrainedReason, StopTiming};
 
     fn drained_result() -> StopResult {
         StopResult::Drained {
@@ -217,6 +222,7 @@ mod tests {
                 ended_at: 200,
                 members_peak: 9,
                 guard_armed: true,
+                timing: Default::default(),
             },
             own,
             launcher,
@@ -273,6 +279,7 @@ mod tests {
                     ended_at: 0,
                     members_peak: 0,
                     guard_armed: false,
+                    timing: Default::default(),
                 },
                 [0; 8],
                 [0; 8],

@@ -1,0 +1,49 @@
+{
+  "scope": "SIP-disabled isolated development VM; kickstart-fix rerun only; not release qualification",
+  "release_gates_promoted": [],
+  "scenarios": {
+    "k90-deputy-check": {
+      "source": "harness/k90_deputy_check.py",
+      "sha256": "3e257bd09a43129ed15442983f4d21861bebb50e623f3e339b0b04d6dbe033d5",
+      "counts": {
+        "PASS": 4
+      },
+      "trials": [
+        {
+          "name": "deputy-v2-kickstart-supervisor",
+          "outcome": "PASS",
+          "positive_control_reached_target": true
+        },
+        {
+          "name": "deputy-v2-kickstart-guardian",
+          "outcome": "PASS",
+          "positive_control_reached_target": true
+        },
+        {
+          "name": "deputy-v2-load-supervisor",
+          "outcome": "PASS",
+          "positive_control_reached_target": true
+        },
+        {
+          "name": "deputy-v2-load-guardian",
+          "outcome": "PASS",
+          "positive_control_reached_target": true
+        }
+      ]
+    },
+    "host-defense-matrix": {
+      "where": "host (macOS 27.0.1 build 26A434), pinned template digest b2ae082d8d41f393bdc5f83b3cc3f2e84a017b3a4aff68beeb81325c037dc5e4",
+      "log": "host-defense-matrix.log",
+      "result": "17 passed; 0 failed"
+    },
+    "host-sandbox-profile": {
+      "where": "host (macOS 27.0.1 build 26A434)",
+      "log": "host-sandbox-profile.log",
+      "result": "37 passed; 0 failed"
+    },
+    "final-guest-state": {
+      "source": "results/final-guest-state.json",
+      "outcome": "PASS"
+    }
+  }
+}

@@ -40,7 +40,7 @@ const SANDBOX_EXEC: &str = "/usr/bin/sandbox-exec";
 /// against (§4.7). Same constant as in `macos_sandbox_profile.rs`; a
 /// template change updates both in the same commit and re-runs the matrix.
 const PINNED_TEMPLATE_DIGEST: &str =
-    "ae7214c117927cd24038b855a788d6243778b69424559c85588ea5266539e110";
+    "b2ae082d8d41f393bdc5f83b3cc3f2e84a017b3a4aff68beeb81325c037dc5e4";
 
 // ---------------------------------------------------------------------------
 // The attack probe: one C binary that attempts exactly one attack and
@@ -701,5 +701,297 @@ fn class_2_launchd_and_apple_events_deputies_are_refused() {
         "2 appleevent-send",
         "DENIED",
         "recorded (an outside send is a TCC prompt)",
+    );
+}
+
+/// Creating a job and starting an existing one use different launchd paths.
+/// A fresh, idle test-owned job must never execute on the sandbox's request.
+#[test]
+fn class_2_kickstarting_an_existing_job_is_refused() {
+    struct Job(String);
+    impl Drop for Job {
+        fn drop(&mut self) {
+            let _ = Command::new("/bin/launchctl")
+                .args(["bootout", &self.0])
+                .output();
+        }
+    }
+    let dir = private_tempdir();
+    let profile = dir.path().join("profile.sb");
+    std::fs::write(&profile, base_profile(&[])).unwrap();
+    // SAFETY: getuid has no arguments or memory effects.
+    let domain = format!("gui/{}", unsafe { libc::getuid() });
+    let mut observations = Vec::new();
+    for side in ["inside", "outside"] {
+        let label = format!("com.ukai.k90.kickstart.{}.{side}", std::process::id());
+        let job = Job(format!("{domain}/{label}"));
+        let marker = dir.path().join(format!("{side}.marker"));
+        let plist = dir.path().join(format!("{side}.plist"));
+        std::fs::write(
+            &plist,
+            format!(
+                "<?xml version=\"1.0\"?><plist version=\"1.0\"><dict>\
+             <key>Label</key><string>{label}</string>\
+             <key>RunAtLoad</key><false/>\
+             <key>ProgramArguments</key><array><string>/usr/bin/touch</string>\
+             <string>{}</string></array></dict></plist>",
+                marker.display()
+            ),
+        )
+        .unwrap();
+        let setup = Command::new("/bin/launchctl")
+            .args(["bootstrap", &domain])
+            .arg(&plist)
+            .output()
+            .unwrap();
+        assert!(setup.status.success(), "job setup: {:?}", setup);
+        let idle = Command::new("/bin/launchctl")
+            .args(["print", &job.0])
+            .output()
+            .unwrap();
+        assert!(String::from_utf8_lossy(&idle.stdout).contains("runs = 0"));
+        assert!(!marker.exists(), "setup must not execute the job");
+        let mut cmd = if side == "inside" {
+            let mut cmd = Command::new(SANDBOX_EXEC);
+            cmd.arg("-f").arg(&profile).arg("/bin/launchctl");
+            cmd
+        } else {
+            Command::new("/bin/launchctl")
+        };
+        let output = cmd.args(["kickstart", &job.0]).output().unwrap();
+        let start = std::time::Instant::now();
+        while !marker.exists() && start.elapsed() < std::time::Duration::from_secs(2) {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let executed = marker.exists();
+        observations.push((side, output, executed));
+        drop(job);
+    }
+    assert!(
+        observations[1].2,
+        "outside control must execute: {observations:?}"
+    );
+    assert!(
+        !observations[0].2,
+        "sandbox started an unsandboxed job: {observations:?}"
+    );
+    assert!(
+        !observations[0].1.status.success(),
+        "kickstart must refuse: {observations:?}"
+    );
+    record("2 launchctl kickstart existing job", "DENIED", "RAN");
+}
+
+/// The launchctl-free launchd client: one C binary that speaks to the
+/// launchd control plane through the inherited bootstrap port — the public
+/// lookup call, and the same private XPC interface entry `/bin/launchctl`
+/// itself binds (`xpc_pipe_create_from_port(bootstrap_port, 4)` plus
+/// `_xpc_pipe_interface_routine`). The profile cannot filter Mach sends to
+/// that port, and this build's launchctl no longer even carries the MIG
+/// client (subsystem 400 is not served; the reply right is destroyed, a
+/// send-once notification comes back), so the foundation for this class is
+/// the launcher's bootstrap-port strip: through the real launcher a member
+/// has no port at all, while outside the port reaches launchd.
+const DIRECT_CLIENT_SOURCE: &str = r##"
+#include <bootstrap.h>
+#include <dlfcn.h>
+#include <mach/mach.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <xpc/xpc.h>
+
+typedef int (*interface_routine_t)(void *, uint64_t, xpc_object_t,
+                                   xpc_object_t *, uint64_t);
+typedef xpc_object_t (*create_from_port_t)(mach_port_t, uint64_t);
+
+int main(int argc, char **argv) {
+    int mode = argc > 1 ? argv[1][0] : 'l'; /* l = lookup, p = pipe */
+    printf("port=%u\n", (unsigned)bootstrap_port);
+    if (mode == 'l') {
+        mach_port_t sp = MACH_PORT_NULL;
+        kern_return_t kr =
+            bootstrap_look_up(bootstrap_port, "com.apple.system.logger", &sp);
+        printf("lookup kr=%d\n", kr);
+        if (sp != MACH_PORT_NULL) mach_port_deallocate(mach_task_self(), sp);
+        return kr == KERN_SUCCESS ? 0 : 1;
+    }
+    create_from_port_t create =
+        (create_from_port_t)dlsym(RTLD_DEFAULT, "xpc_pipe_create_from_port");
+    interface_routine_t routine = (interface_routine_t)dlsym(
+        RTLD_DEFAULT, "_xpc_pipe_interface_routine");
+    if (!create || !routine) {
+        printf("dlsym failed\n");
+        return 1;
+    }
+    xpc_object_t pipe = create(bootstrap_port, 4);
+    printf("pipe=%d\n", pipe != NULL);
+    if (!pipe) return 1;
+    xpc_object_t dict = xpc_dictionary_create(NULL, NULL, 0);
+    xpc_dictionary_set_uint64(dict, "type", 8);
+    xpc_dictionary_set_uint64(dict, "handle", (uint64_t)getuid());
+    xpc_dictionary_set_string(dict, "name", "com.ukai.k90.direct-probe");
+    xpc_object_t reply = NULL;
+    int rc = routine(pipe, 0x2be, dict, &reply, 0);
+    printf("interface rc=%d reply=%d", rc, reply != NULL);
+    if (reply) {
+        printf(" error=%lld", xpc_dictionary_get_int64(reply, "error"));
+        xpc_release(reply);
+    }
+    printf("\n");
+    xpc_release(dict);
+    /* A reply — even an error reply — means launchd answered: the client
+     * reached the control plane. */
+    return reply != NULL ? 0 : 1;
+}
+"##;
+
+/// Spawns `argv` under the profile through the production launcher — the
+/// same shape as the guardian's spawn: `sandbox-exec` applies the profile
+/// and execs `ukai-jail __launch-macos`, which reports `blocked` on the
+/// error pipe, waits for the release byte, strips the inherited bootstrap
+/// port and execs the target. Returned: the target's stdout and exit.
+fn run_through_launcher(
+    profile_path: &std::path::Path,
+    launcher: &str,
+    argv: &[&str],
+) -> (String, Option<i32>) {
+    use std::io::Read as _;
+    use std::os::unix::io::FromRawFd as _;
+    use std::os::unix::process::CommandExt as _;
+    let mut fds = [0i32; 2];
+    assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0);
+    let (release_rd, release_wr) = (fds[0], fds[1]);
+    assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0);
+    let (error_rd, error_wr) = (fds[0], fds[1]);
+    let child_pipe_rd = release_rd;
+    let child_pipe_wr = error_wr;
+    let mut command = Command::new(SANDBOX_EXEC);
+    command
+        .arg("-f")
+        .arg(profile_path)
+        .arg(launcher)
+        .args(["__launch-macos", "--release-fd", "90", "--error-fd", "91", "--"])
+        .args(argv)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null());
+    // SAFETY: pre_exec runs dup2/close between fork and exec — async-signal
+    // safe operations only, no allocation.
+    unsafe {
+        command.pre_exec(move || {
+            if libc::dup2(child_pipe_rd, 90) < 0 || libc::dup2(child_pipe_wr, 91) < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+    let mut child = command.spawn().expect("sandbox-exec through launcher");
+    // The child owns these ends now; the parent keeps only its own.
+    // SAFETY: closing descriptors this process owns.
+    unsafe {
+        libc::close(release_rd);
+        libc::close(error_wr);
+    }
+    let mut error_pipe = unsafe { std::fs::File::from_raw_fd(error_rd) };
+    let mut blocked = [0u8; 8];
+    let read = std::io::Read::read_exact(&mut error_pipe, &mut blocked);
+    if read.is_err() {
+        let _ = child.kill();
+        let _ = child.wait();
+        panic!("no blocked report from the launcher: {read:?}");
+    }
+    assert_eq!(blocked, [0u8; 8], "the launcher must report blocked first");
+    // SAFETY: writing one byte to the parent's end of the release pipe.
+    unsafe {
+        assert_eq!(libc::write(release_wr, b"1".as_ptr().cast(), 1), 1);
+        libc::close(release_wr);
+    }
+    let mut stdout = String::new();
+    if let Some(mut out) = child.stdout.take() {
+        out.read_to_string(&mut stdout).expect("probe stdout");
+    }
+    let status = child.wait().expect("launcher child reaped");
+    drop(error_pipe);
+    (stdout, status.code())
+}
+
+/// The direct-client row: no launchctl anywhere. Outside, the client holds
+/// the inherited bootstrap port, its lookup succeeds and launchd answers
+/// the interface routine (an error reply is still an answer — the request
+/// reached the control plane). Through the launcher inside the profile,
+/// the member has no port: the lookup fails locally and no pipe exists.
+#[test]
+fn class_2_direct_launchd_client_is_unreachable_through_the_launcher() {
+    let dir = private_tempdir();
+    let source = dir.path().join("direct-client.c");
+    let binary = dir.path().join("direct-client");
+    std::fs::write(&source, DIRECT_CLIENT_SOURCE).expect("client source");
+    let compiled = Command::new("cc")
+        .args(["-Wno-deprecated-declarations", "-O1"])
+        .arg("-o")
+        .arg(&binary)
+        .arg(&source)
+        .output()
+        .expect("cc spawns");
+    assert!(
+        compiled.status.success(),
+        "the direct client must compile: {:?}",
+        String::from_utf8_lossy(&compiled.stderr)
+    );
+    let launcher = env!("CARGO_BIN_EXE_ukai-jail");
+    let launcher_root = std::path::Path::new(launcher)
+        .parent()
+        .expect("launcher directory")
+        .to_path_buf();
+    let profile = base_profile(&[dir.path().to_path_buf(), launcher_root]);
+    let profile_path = dir.path().join("profile.sb");
+    std::fs::write(&profile_path, &profile).unwrap();
+
+    // Outside controls: the port exists, launchd is reachable both ways.
+    let outside = |mode: &str| {
+        let out = Command::new(&binary)
+            .arg(mode)
+            .output()
+            .expect("outside client run");
+        (
+            String::from_utf8_lossy(&out.stdout).trim().to_owned(),
+            out.status.code(),
+        )
+    };
+    let (lookup_out, lookup_code) = outside("lookup");
+    let (pipe_out, _pipe_code) = outside("pipe");
+    assert!(
+        lookup_out.contains("port=")
+            && !lookup_out.contains("port=0\n")
+            && lookup_code == Some(0)
+            && lookup_out.contains("kr=0"),
+        "outside lookup control must reach launchd: {lookup_out}"
+    );
+    assert!(
+        pipe_out.contains("pipe=1") && pipe_out.contains("reply=1"),
+        "outside interface control must get a launchd reply: {pipe_out}"
+    );
+
+    // Through the real launcher inside the profile: no port, no route.
+    let (inside_lookup, inside_lookup_code) =
+        run_through_launcher(&profile_path, launcher, &[binary.to_str().unwrap(), "lookup"]);
+    let (inside_pipe, _inside_pipe_code) =
+        run_through_launcher(&profile_path, launcher, &[binary.to_str().unwrap(), "pipe"]);
+    assert!(
+        inside_lookup.contains("port=0\n")
+            && !inside_lookup.contains("kr=0")
+            && inside_lookup_code != Some(0),
+        "a member must hold no bootstrap port: {inside_lookup}"
+    );
+    assert!(
+        inside_pipe.contains("port=0\n")
+            && inside_pipe.contains("reply=0")
+            && !inside_pipe.contains("error="),
+        "no launchd reply may reach a member: {inside_pipe}"
+    );
+    record(
+        "2 direct launchd client via launcher",
+        "DENIED",
+        "RAN",
     );
 }

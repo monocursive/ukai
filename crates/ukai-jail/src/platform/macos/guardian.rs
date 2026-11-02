@@ -455,6 +455,7 @@ impl Guardian {
                 ended_at,
                 members_peak: self.members_peak.max(outcome.members_peak),
                 guard_armed: outcome.guard_armed,
+                timing: outcome.timing,
             },
             own,
             self.launcher_token.unwrap_or([0; 8]),

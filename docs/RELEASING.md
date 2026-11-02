@@ -118,8 +118,20 @@ The signed release plan binds this scope and both native Linux targets.
 The Linux-only scope above has a macOS counterpart defined by
 [jail-macos.md](specs/jail-macos.md) §4.12 and §8. J16–J18 are work in
 progress on `dev`, not supported or releasable.
-The new custody implementation has not run with live Endpoint Security;
-decision 5's measurement spike has not run. J16 still needs its bundle,
+The [2026-11-01 measurement spike](benchmarks/jail/results/macos-custody-spike-2026-11-01/README.md)
+ran live Endpoint Security in an isolated SIP-disabled development VM. Its
+preloaded-job `launchctl kickstart` route was closed on 2026-11-02 and
+re-measured in the same VM
+([kickstart-fix record](benchmarks/jail/results/macos-k90-kickstart-fix-2026-11-02/README.md)),
+and after a direct-client probe showed `launchctl`'s own XPC client is built
+from the inherited bootstrap port, the launcher now strips that port before
+the exec ([bootstrap-strip
+record](benchmarks/jail/results/macos-k90-bootstrap-strip-2026-11-02/README.md)).
+K90 and NC01 remain blocked pending full release qualification, and the
+protected-Mac release run (K104) stays explicitly blocked while Apple's
+entitlement request is pending. No release
+gate is promoted by these measurements.
+J16 still needs its bundle,
 Info.plist, entitlements and `~/Applications` installer. J18 still lacks
 network, the `agent` profile, a workspace share and in-guest credentials.
 Apple's Endpoint Security grant (request `S9YJTLLH28`, submitted 2026-09-29)
@@ -129,8 +141,10 @@ below is a release requirement, not an implemented packaging workflow.
 Current implementation: native execution is **off by default**. Setting
 `UKAI_JAIL_MACOS_NATIVE=dev` enables development only; a native receipt records
 `native_execution=dev`. Native credential, vault and vendor staging answer
-`unsupported` and refuse. `J17_OBSERVE=false`: `ObserveRun` exists but is
-unwired; `fs.write` would still be `degraded`/partial even if wired. Every
+`unsupported` and refuse. J17 is wired before release (`J17_OBSERVE=true`):
+`macos-closed-v1` declares the exact ES notification set; loss-free attached
+`exec` and `fs.write` coverage is active only over that set. Synthetic producer
+checks do not establish live acceptance. Every
 `run --vm` refuses before connecting: no qualified VM backend exists yet. The
 released VM preview remains the only Mac deliverable.
 
@@ -155,11 +169,13 @@ the entitlement is granted, prepare a Mac release bundle as follows:
    profile, on the release build (K104). A SIP-disabled development VM run
    does not satisfy this.
 
-The existing live-ES evidence comes from historical prototypes in a
-SIP-disabled development VM, not this implementation. That VM was deleted
-on 2026-10-22 and must be re-cloned using
-[macos-development.md](benchmarks/jail/macos-development.md) for further
-development measurements; release evidence requires the protected Mac.
+Historical prototype evidence and the current implementation's 2026-11-01
+spike are separate records. The earlier VM was deleted on 2026-10-22; the
+spike used a fresh pinned clone under
+[macos-development.md](benchmarks/jail/macos-development.md). Its ad-hoc
+bundle, adjusted guest process ceiling and disabled guest SIP do not prove
+release installation or default-host compatibility. K95/K96 faults and
+pressure tests, Apple's entitlement, packaging and K104 remain required.
 
 ## Prepare and validate
 

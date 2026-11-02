@@ -35,9 +35,18 @@ works. The [compatibility records](https://github.com/monocursive/ukai/blob/dev/
 name the tested combinations. The two-tier macOS implementation is work in
 progress on `dev`: native custody (J16, J17) and a
 warm VM (J18), specified in [jail-macos.md](specs/jail-macos.md). Neither tier
-is supported or shipped. Native custody has not run with live Endpoint
-Security; the measurement spike, packaging and protected-Mac acceptance run
-remain outstanding. J18 still lacks network, the `agent` profile, a workspace
+is supported or shipped. The isolated SIP-disabled development-VM
+[measurement spike](benchmarks/jail/results/macos-custody-spike-2026-11-01/README.md)
+ran on 2026-11-01 and found an open `launchctl kickstart` deputy route to both
+custodians; the route was closed and re-measured on 2026-11-02
+([kickstart-fix record](benchmarks/jail/results/macos-k90-kickstart-fix-2026-11-02/README.md)),
+and after a direct launchd-client probe showed the real client is built from
+the inherited bootstrap port, the launcher now strips that port, closing the
+class itself
+([bootstrap-strip record](benchmarks/jail/results/macos-k90-bootstrap-strip-2026-11-02/README.md)).
+Packaging, protected-Mac acceptance and the spike's other open findings
+remain outstanding; the protected-Mac release run stays blocked while
+Apple's entitlement request is pending. J18 still lacks network, the `agent` profile, a workspace
 share and in-guest credentials. The released VM preview is the only Mac
 deliverable today.
 
@@ -47,7 +56,8 @@ Current implementation: native execution is **off by default**. Setting
 `unsupported` and refuse. J17 is wired before release (`J17_OBSERVE=true`):
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
-receipts are tested; no live observed native run is proved. Every
+receipts and development-VM observation smoke runs are tested; full live
+release acceptance remains pending. Every
 `run --vm` refuses before connecting: no qualified VM backend exists yet.
 
 You can [build the jail and try a small command](https://github.com/monocursive/ukai/blob/dev/docs/guide.md#build-and-check-your-host)
@@ -140,20 +150,24 @@ The design now follows Apple's advice in two tiers
 is supported or shipped:
 
 - **Native custody (J16, J17).** The design requires Seatbelt to defend two
-  Endpoint Security custodians from the workload; the defense matrix has
+  Endpoint Security custodians from the workload; the full defense matrix has
   not run against those custodians. In a 2026-09-30 `macos_es_pair.c`
   prototype (not this code), either surviving custodian emptied a
   seven-process fixture in 40 of 40 single-custodian kill trials. Those
   were 40 of 200 total trials, using a 750 ms heartbeat and an
-  `(allow default)` profile; they do not prove the new design. This
-  implementation has not run with live Endpoint Security. Killing both
+  `(allow default)` profile; they do not prove the new design. The separate
+  2026-11-01 spike runs this implementation with live Endpoint Security and
+  finds that sandboxed `launchctl kickstart` can use a preloaded job to signal
+  either custodian. Killing both
   custodians is the named residual: the tree may survive, and recovery
   cannot verify all descendants dead. J17's fourth-client worker is wired
   before release (custody uses S, G and G′). Its declared `macos-closed-v1`
-  set has synthetic producer/loss/summary proof; K105–K107 remain untested
-  with live ES. Active coverage describes the set, not every mutation.
-  J16 requires Apple's entitlement, completed packaging, the measurement
-  spike and a passing protected-Mac acceptance run before release.
+  set has synthetic producer/loss/summary checks and development-VM smoke
+  evidence; full K105–K107 release acceptance remains untested. Active
+  coverage describes the set, not every mutation. J16 requires the spike's
+  blockers resolved, Apple's entitlement, completed packaging and a passing
+  protected-Mac acceptance run before release. The both-lost residual is
+  not established as external-only while the deputy route remains open.
 - **Warm VM (J18).** The intended backend reuses a warm Linux ARM64 guest
   through `--vm`, with `ukai-jail vm stop` to stop it. Network, the `agent`
   profile, a workspace share and in-guest credentials are still missing;

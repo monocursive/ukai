@@ -1,0 +1,59 @@
+{
+  "recorded_at_utc": "2026-11-02T10:19:07.667200+00:00",
+  "source_commit": "9c8ce2297bcb4da80e5912dc38e9ef23a234c1b5",
+  "phase": "class fix: launcher strips the inherited bootstrap port; the profile's launchctl exec denial becomes the second layer",
+  "product_source_patch": "product-source.patch",
+  "template_digest": "b2ae082d8d41f393bdc5f83b3cc3f2e84a017b3a4aff68beeb81325c037dc5e4 (unchanged from the 2026-11-02 kickstart fix)",
+  "host_version": {
+    "build": {
+      "debug_assertions": false,
+      "dirty": null,
+      "inputs": "sha256:ab44c80948ac98add1a5f525a5fce903e2bb6176616e9a100bb90744190f87b4",
+      "opt_level": "3",
+      "revision": null,
+      "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+      "target": "aarch64-apple-darwin"
+    },
+    "component": "ukai-jail",
+    "frozen": true,
+    "observation": {
+      "closed_set": "macos-closed-v1"
+    },
+    "platform": {
+      "arch": "aarch64",
+      "kernel": "Darwin 27.0.0",
+      "os": "macos"
+    },
+    "schemas": {
+      "control": "ukai.jail.control/1",
+      "doctor": "ukai.jail.doctor/1",
+      "event": "ukai.event/1",
+      "gate": "ukai.jail.gate/1",
+      "learned_policy": "ukai.jail.learned-policy/1",
+      "network": "ukai.jail.network/1",
+      "policy": "ukai.jail.policy/1",
+      "policy_file": "ukai.jail.policy-file/1",
+      "policy_snapshot": "ukai.jail.policy-snapshot/1",
+      "receipt": "ukai.jail.receipt/1",
+      "summary": "ukai.jail.summary/1"
+    },
+    "version": "0.1.0"
+  },
+  "staged_binary_sha256": "60b36202e5efaed61be5eb9da76ab15035c5990b925da90016a71a4a8c522869",
+  "vm": {
+    "name": "ukai-custody-spike-20261101",
+    "guest_root": "/Users/admin/ukai-direct-client-20261102",
+    "guest_os": "macOS 27.0 build 26A428",
+    "guest_sip": "disabled",
+    "guest_uid": 501,
+    "isolation": "guard() on every entry; Ethernet service disabled, en0 addressless, no default routes, no host share",
+    "kern_maxprocperuid": "2000 (as in the spike)"
+  },
+  "probe_findings": {
+    "mig_job_subsystem": "subsystem 400 (src/job.defs) is not served on this build: hand-rolled kickstart requests to the inherited bootstrap port get the reply right destroyed (kernel send-once notification, msgh_id 71); /bin/launchctl imports no vproc_mig symbols",
+    "xpc_client": "/bin/launchctl uses _xpc_pipe_interface_routine over a pipe from xpc_pipe_create_from_port(bootstrap_port, 4); kickstart = routine 0x2be with {type,handle,name}; domain keywords map system=1 user=2 login=3 pid=5 gui=8",
+    "pipe_from_null_port": "xpc_pipe_create_from_port is lazy: it returns an object even from MACH_PORT_NULL; the interface routine then fails rc=32 (EPIPE) with no reply - the member has no route"
+  },
+  "approved_entitlement": false,
+  "release_evidence": false
+}

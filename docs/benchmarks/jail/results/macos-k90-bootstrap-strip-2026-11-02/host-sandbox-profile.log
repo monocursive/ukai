@@ -1,0 +1,44 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.22s
+     Running tests/macos_sandbox_profile.rs (target/debug/deps/macos_sandbox_profile-6ad9e6da7bb2d4d8)
+
+running 37 tests
+test sandbox::tests::sbpl_strings_escape_quotes_and_backslashes ... ok
+test sandbox::tests::template_declares_version_and_default_deny_first ... ok
+test sandbox::tests::empty_parameters_grant_nothing ... ok
+test sandbox::tests::var_and_tmp_spellings_are_both_granted ... ok
+test sandbox::tests::the_template_digest_is_sha256_of_the_template ... ok
+test sandbox::tests::denials_are_ordered_after_the_grants_they_override ... ok
+test sandbox::tests::generate_keeps_the_invariant_skeleton_and_fills_parameters ... ok
+test setuid::tests::individual_file_grants_are_scanned_and_missing_roots_are_holes ... ok
+test setuid::tests::scan_root_reports_setuid_and_setgid_distinctly ... ok
+test setuid::tests::system_enumeration_finds_the_known_set_of_this_build ... ok
+test denials_are_ordered_after_the_grants_they_override ... ok
+test non_utf8_paths_never_grant_their_lossy_spelling ... ok
+test template_marker_paths_never_widen_a_grant ... ok
+test the_generated_profile_keeps_the_invariant_skeleton ... ok
+test execution_is_not_granted_from_writable_roots ... ok
+test the_setuid_enumeration_matches_the_sealed_volume ... ok
+test the_template_digest_is_the_pinned_release_digest ... ok
+test a_member_writes_the_workspace_and_reads_the_system ... ok
+test quoted_mach_and_unix_values_cannot_become_profile_code ... ok
+test launchd_job_submission_is_refused ... ok
+test an_empty_write_parameter_grants_nothing ... ok
+test sibling_names_beyond_the_workspace_boundary_are_refused ... ok
+test signals_stay_confined_to_the_sandbox ... ok
+test the_system_shell_starts_without_a_selection_error ... ok
+test apple_events_are_refused_while_osascript_cannot_reach_its_component ... ok
+test every_generated_profile_variant_compiles ... ok
+test the_developer_tools_follow_the_host_selection_or_refuse ... ok
+test the_bridge_profile_admits_only_the_two_bridge_ports ... ok
+test setuid_execution_is_denied_inside_and_possible_outside ... ok
+test shell_startup_files_and_launch_agents_are_not_writable ... ok
+test network_none_denies_loopback_and_unix_sockets ... ok
+test node_git_and_shell_run_with_mach_lookup_fully_denied ... ok
+test var_and_tmp_spellings_resolve_to_the_same_vnode ... ok
+test git_extends_an_existing_repository_but_never_reconfigures_it ... ok
+test protected_segments_and_case_variants_are_denied ... ok
+test the_zero_and_random_devices_are_readable_only ... ok
+test unix_socket_connects_need_a_named_grant ... ok
+
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.54s
+

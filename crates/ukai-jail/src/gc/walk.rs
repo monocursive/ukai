@@ -1480,6 +1480,7 @@ mod tests {
                 ended_at: 2,
                 members_peak: 2,
                 guard_armed: true,
+                timing: Default::default(),
             },
             own_token,
             [0; 8],

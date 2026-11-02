@@ -1,0 +1,12 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.25s
+     Running unittests src/lib.rs (target/debug/deps/ukai_jail-20556db36a968ee9)
+
+running 5 tests
+test platform::macos::launcher::tests::task_bootstrap_port_is_the_special_port_four ... ok
+test platform::macos::launcher::tests::blocked_is_the_eight_zero_bytes_and_nothing_else_is ... ok
+test platform::macos::launcher::tests::the_grammar_refuses_the_shapes_that_cannot_run ... ok
+test platform::macos::launcher::tests::the_terminal_flag_and_a_hex_mask_are_taken ... ok
+test platform::macos::launcher::tests::the_grammar_takes_its_flags_and_stops_at_the_double_dash ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 714 filtered out; finished in 0.01s
+

@@ -1,0 +1,16 @@
+{
+  "Ukai.app/Contents/Info.plist": "e3a56cdaae7311be0aa51d62087625b5a7f70531bc04e328b18e24afcf556a51",
+  "Ukai.app/Contents/MacOS/ukai-jail": "60b36202e5efaed61be5eb9da76ab15035c5990b925da90016a71a4a8c522869",
+  "entitlements.plist": "594990dd76c66c086d5028b1eb822b29f69bccdcd16fa4a9c95ccf5d5eaabe0a",
+  "src/defense_probe.c": "db759bb2e4283b839a8b3da6d687a64b216a59c3ceda7914cb093aa4fa34d5e6",
+  "src/k90_deputy_check.py": "3e257bd09a43129ed15442983f4d21861bebb50e623f3e339b0b04d6dbe033d5",
+  "src/k90_direct_client_check.py": "e876068513bd04ae0781353c8580ef6ffec1a018f83e67f442adb0f48fc19a98",
+  "src/launchd_client.c": "b2168533b953dffa395f50eea6645d2ab048acf797625f8c536389516b7c5554",
+  "src/macos_j16_spike_attack.c": "58d8a7c5183bf5751f6a24e2ae2b48d5941ebf00e3005da16f64e6b615c70703",
+  "src/macos_j16_spike_fixture.c": "f9f40f661db3a933ef6cfebc4001c75992a0b711c1a8efda2e269108aed20ccd",
+  "src/macos_j16_spike_guest.py": "190760cedf3aa0ef02891422102d7a0a1e837ce19afd150da1988ed2fbf00591",
+  "src/macos_native.c": "adc081414284414824be45471fd13e805093d9f00c99307d22f14be86b1777d1",
+  "src/macos_native.py": "23231f60daee10da065952d99f0f84637bda1c86d238cdec47a8e7263494faeb",
+  "src/record_guest_state.py": "bc4cd4f50629c507a65524a551b3135d2391c57bead6fa5741bc6c1893e672ce",
+  "src/setup_guest.py": "73509571d87ac2e65c729d615035abf02f1b66a8330aa0d15bc2ef00b3c88ae9"
+}

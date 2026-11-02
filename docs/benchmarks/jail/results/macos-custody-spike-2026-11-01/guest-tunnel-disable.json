@@ -1,0 +1,98 @@
+[
+  {
+    "argv": [
+      "/sbin/ifconfig",
+      "utun0",
+      "down"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "/sbin/route",
+      "-n",
+      "delete",
+      "-inet6",
+      "default",
+      "-ifscope",
+      "utun0"
+    ],
+    "exit": 0,
+    "stdout": "delete net default\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "/sbin/ifconfig",
+      "utun1",
+      "down"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "/sbin/route",
+      "-n",
+      "delete",
+      "-inet6",
+      "default",
+      "-ifscope",
+      "utun1"
+    ],
+    "exit": 0,
+    "stdout": "delete net default\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "/sbin/ifconfig",
+      "utun2",
+      "down"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "/sbin/route",
+      "-n",
+      "delete",
+      "-inet6",
+      "default",
+      "-ifscope",
+      "utun2"
+    ],
+    "exit": 0,
+    "stdout": "delete net default\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "/sbin/ifconfig",
+      "utun3",
+      "down"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "/sbin/route",
+      "-n",
+      "delete",
+      "-inet6",
+      "default",
+      "-ifscope",
+      "utun3"
+    ],
+    "exit": 0,
+    "stdout": "delete net default\n",
+    "stderr": ""
+  }
+]

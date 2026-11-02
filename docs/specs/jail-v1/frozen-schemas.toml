@@ -337,7 +337,7 @@ sha256 = "80813b00687e0a131a083df0f98a25dfc2aff2dcdba974a0436d80b54478ba31"
 [[frozen_artifact]]
 file = "examples/receipt-macos-native.json"
 identifiers = ["ukai.jail.receipt/1", "ukai.event/1", "ukai.jail.control/1"]
-sha256 = "870d7a721298575ba850bf055ef6a60ab6506fb01bac1c3d2f2894aa7f5ac9ba"
+sha256 = "ec69dbcb9d32aecd07c289a93ebf5f3f51225be2c133f2115dd49861e1d3d12d"
 
 # an instance the semantic corpus changes
 [[frozen_artifact]]

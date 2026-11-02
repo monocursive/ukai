@@ -1,0 +1,9 @@
+{
+  "before": "kern.maxproc: 2000\nkern.maxprocperuid: 1333\n",
+  "rlimit": [
+    1333,
+    2000
+  ],
+  "change": "kern.maxprocperuid: 1333 -> 2000\n",
+  "after": "kern.maxproc: 2000\nkern.maxprocperuid: 2000\n"
+}

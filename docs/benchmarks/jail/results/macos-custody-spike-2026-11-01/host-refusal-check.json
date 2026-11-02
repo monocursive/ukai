@@ -1,0 +1,6 @@
+{
+  "python_runner_refused_host": true,
+  "fixture_refused_host_exit": 77,
+  "created_workload_log": false,
+  "compiler_stderr": ""
+}
