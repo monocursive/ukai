@@ -1,0 +1,8 @@
+[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n]3008;start=7f17ea1a64a5464aa30e01b56da13f13;user=root;hostname=ukai-linux-preview;machineid=dabed71c2fc94d879f0ab126949bf8fe;bootid=2b1c1d65fec04a85bae6e7219f3a5e14;pid=602;pidfdid=387;comm=(agetty);servicename=serial-getty@hvc0.service;invocationid=aaa56a74dc254e49bfc302548fa37448;type=service\P+q6E616D65\
+Ubuntu 26.04.1 LTS ukai-linux-preview hvc0
+
+Try contacting this VM's SSH server via 'ssh vsock%3' from host.
+
+ukai-linux-preview login: UKAI_STEP apt_update
+UKAI_STEP apt_install
+UKAI_STEP users

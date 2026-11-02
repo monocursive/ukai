@@ -141,3 +141,23 @@ class GuestShareModeTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PinnedManifestTests(unittest.TestCase):
+    """The image manifest's pinned-version parsing, from console text."""
+
+    def test_markers_parse_sorted_and_digest_stably(self):
+        console = ('boot noise\n'
+                   'UKAI_PINNED bubblewrap=0.11.0-1\n'
+                   'UKAI_PINNED dbus-user-session=1.16.2-1\n'
+                   'UKAI_PINNED\n'  # malformed: no row, ignored
+                   'UKAI_BOOTSTRAP_DONE\n')
+        prepare = importlib.util.spec_from_file_location(
+            'prepare', Path(__file__).parent / 'prepare.py')
+        module = importlib.util.module_from_spec(prepare)
+        prepare.loader.exec_module(module)
+        rows = module.pinned_from_console(console)
+        self.assertEqual(rows, ['bubblewrap=0.11.0-1', 'dbus-user-session=1.16.2-1'])
+        digest = module.pinned_digest(rows)
+        self.assertEqual(len(digest), 64)
+        self.assertEqual(digest, module.pinned_digest(list(reversed(rows))))

@@ -57,6 +57,43 @@ undiagnosable); a dropped attempt cgroup no longer kills the next reset
 (a vanished boundary is empty by construction); nested secret ids create
 their directories; the first `ready` handshake gets a boot-scale deadline.
 
+## Pre-release guest capability measurements
+
+The vm README requires every capability measured on the prepared image
+before it may be reported available; [capabilities.json](capabilities.json)
+(harness: `capabilities.py`, same warm boot, live share, NAT attached) is
+that suite:
+
+| Capability | Measured |
+| --- | --- |
+| `wall` | The attempt ends at its 5 s deadline — `never` never printed, exit ≠ 0 |
+| `pids` | The fork storm spawned in batches and was capped (EAGAIN at the limit), not run to the VM's ceiling |
+| `mem` | Unbounded allocation was **OOM-killed at the cgroup limit** (exit 137) — the bound is kernel-enforced, which is the claim |
+| `containment` | Writes to `/etc` and `/usr/local/bin` both refused |
+| `network_none` | Outbound TCP and DNS both refused with the NAT adapter attached |
+| `workspace` | The granted write reached the host with the expected bytes; `.git` untouched |
+
+## Pinned-image manifest
+
+`prepare.py` now builds the hashed manifest the release needs: the setup
+script writes the installed `bubblewrap`/`dbus-user-session` versions to
+the console as `UKAI_PINNED` markers (with `UKAI_STEP` progress markers),
+and `image.json` records `guest_pinned_versions` plus their
+`guest_pinned_digest`; the parsing is unit-tested
+(`test_share.PinnedManifestTests`) and the generated script was verified
+byte-for-byte (the seed dump carries `\n` as two characters — an earlier
+draft carried a literal newline, which broke the shell quote and is the
+entire difference from the working image12 script).
+
+The full rebuild to embed the manifest could not complete tonight:
+[image13-attempts/](image13-attempts/) retains the raw evidence of six
+attempts — the last reaches `apt_update`, `apt_install` and `users`, then
+hangs in the user/systemctl phase until the helper's boot timeout; the
+identical sequence passed in image12 earlier the same day, so this is a
+host-side bootstrap flake, not the manifest change (whose bytes are
+verified above). The measurements in this record all ran on image12; a
+clean rebuild closes the gap.
+
 ## What remains before a release
 
 The warm service is now measured end to end with the share, but the

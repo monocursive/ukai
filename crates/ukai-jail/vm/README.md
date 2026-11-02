@@ -186,11 +186,15 @@ The warm service is measured against a real image with the live share
 ([2026-11-02 record](../../../docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/README.md)):
 twenty attempts over one boot at 12.5 ms release latency (K108's criterion
 met with ~80x margin), the K110 fault matrix and the secret transport
-passing, NAT attached with workload egress still denied. **Every
+passing, NAT attached with workload egress still denied. The pre-release
+guest capability suite has run on the prepared image
+([capabilities.json](../../../docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/capabilities.json)):
+wall, pids (cgroup-capped), memory (OOM-killed at the limit), containment,
+network_none and the live workspace write all measured. **Every
 `ukai-jail run --vm` request still refuses before connecting** until the
 CLI surface, the proxied policy path and the pinned-image builder land;
-pre-release guest capability measurements remain required before any
-capability is reported as available.
+the `macos-vm-development` publication scope in `dist/release.json` names
+the unsupported clauses (K108.1–K113.1) and no capability is claimed.
 
 The specified live workspace share exists as a measured development
 capability (2026-11-02): `run.py --live-workspace --profile tool` attaches

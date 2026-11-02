@@ -63,6 +63,20 @@ def seed(directory, files, commands):
                     '-iso', '-joliet', '-default-volume-name', 'cidata'], check=True)
 
 
+
+
+def pinned_from_console(console):
+    """The UKAI_PINNED markers the setup script writes to the console, as
+    (package=version, ...) rows; the manifest digests exactly these."""
+    return [line.split(None, 1)[1] for line in console.splitlines()
+            if line.startswith('UKAI_PINNED ') and len(line.split(None, 1)) == 2]
+
+
+def pinned_digest(rows):
+    import hashlib
+    return hashlib.sha256('\n'.join(sorted(rows)).encode()).hexdigest()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
@@ -108,8 +122,11 @@ export DEBIAN_FRONTEND=noninteractive
 # snapshot-pinned; the installed set is recorded in the image manifest):
 # `bubblewrap` is the containment backend, `dbus-user-session` the session
 # bus the Linux jail's tooling expects.
+echo UKAI_STEP apt_update >/dev/hvc0
 apt-get update
+echo UKAI_STEP apt_install >/dev/hvc0
 apt-get install -y --no-install-recommends bubblewrap dbus-user-session
+echo UKAI_STEP users >/dev/hvc0
 dpkg-query -W -f='${Package}=${Version}\n' bubblewrap dbus-user-session > /usr/local/share/ukai-vm/pinned-versions.txt
 useradd --create-home --uid 1001 --shell /bin/bash ukai
 loginctl enable-linger ukai
@@ -117,6 +134,10 @@ systemctl start user@1001.service
 systemctl disable ssh.service ssh.socket 2>/dev/null || true
 mkdir -p /usr/local/share/ukai-vm
 dpkg-query -W > /usr/local/share/ukai-vm/packages.txt
+# The console carries the pinned set to the host builder, which records it
+# in image.json: the manifest then names what the guarantees measured
+# against without mounting the disk.
+dpkg-query -W -f='${Package}=${Version}\n' bubblewrap dbus-user-session | while read -r row; do echo "UKAI_PINNED $row" >/dev/hvc0; done
 systemctl enable ukai-vm.service
 sync
 echo UKAI_BOOTSTRAP_DONE > /dev/hvc0
@@ -136,7 +157,7 @@ systemctl poweroff
                                str(root / 'bootstrap.nvram'), str(root / 'bootstrap-console.log'), 'bootstrap'],
                               stdin=subprocess.PIPE, stdout=events, stderr=errors)
         try:
-            code = vm.wait(timeout=600)
+            code = vm.wait(timeout=900)
         finally:
             if vm.poll() is None:
                 vm.terminate()
@@ -145,9 +166,16 @@ systemctl poweroff
                 except subprocess.TimeoutExpired:
                     vm.kill()
                     vm.wait(timeout=10)
-    if code != 0 or 'UKAI_BOOTSTRAP_DONE' not in (root / 'bootstrap-console.log').read_text(errors='replace'):
+    console = (root / 'bootstrap-console.log').read_text(errors='replace')
+    if code != 0 or 'UKAI_BOOTSTRAP_DONE' not in console:
         raise RuntimeError('guest bootstrap failed; see bootstrap logs')
-    metadata.update(status='prepared', disk_sha256=sha(root / 'base.raw'), helper_sha256=sha(root / 'vz'),
+    pinned = pinned_from_console(console)
+    if not pinned:
+        raise RuntimeError('guest bootstrap produced no pinned-version markers')
+    metadata.update(status='prepared',
+                    guest_pinned_versions=sorted(pinned),
+                    guest_pinned_digest=pinned_digest(pinned),
+                    disk_sha256=sha(root / 'base.raw'), helper_sha256=sha(root / 'vz'),
                     custodian_sha256=sha(root / 'custodian'), seed_sha256=sha(root / 'seed.iso'))
     (root / 'image.json').write_text(json.dumps(metadata, indent=2) + '\n')
     print(json.dumps(metadata, indent=2))

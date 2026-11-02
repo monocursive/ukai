@@ -1,0 +1,45 @@
+{
+  "results": {
+    "wall": {
+      "exit": 143,
+      "stdout": "start\n",
+      "verdict": true
+    },
+    "pids": {
+      "exit": 1,
+      "stdout": "spawned=32\n/bin/sh: 0: Cannot fork\nukai-jail: error evidence_lost at reconciling [inspect_state]: coverage was lost by settlement in exec, fs.deny (entry_abandoned); the loss reached no run event\n",
+      "verdict": true
+    },
+    "mem": {
+      "exit": 137,
+      "stdout": "Killed\n",
+      "verdict": true
+    },
+    "containment": {
+      "exit": 0,
+      "stdout": "/bin/sh: 1: cannot create /etc/ukai-cap-probe: Read-only file system\netc_write_refused\nusr_write_refused\n/bin/sh: 1: cannot create /usr/local/bin/ukai-cap-probe: Read-only file system\n",
+      "verdict": true
+    },
+    "network_none": {
+      "exit": 0,
+      "stdout": "net_refused\ndns_refused\n",
+      "verdict": true
+    },
+    "workspace": {
+      "exit": 0,
+      "stdout": "wrote\n",
+      "verdict": true
+    }
+  },
+  "summary": {
+    "wall": true,
+    "pids": true,
+    "mem": true,
+    "containment": true,
+    "network_none": true,
+    "workspace": true,
+    "git_config_untouched": true,
+    "outcome": "PASS"
+  },
+  "service_exit": 0
+}
