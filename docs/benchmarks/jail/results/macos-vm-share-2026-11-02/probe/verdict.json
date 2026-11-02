@@ -1,0 +1,35 @@
+{
+  "vm_exit": 0,
+  "elapsed_s": 123.3,
+  "console": "\u001b[!p\u001b]104\u001b\\\u001b[0m\u001b[?7h\u001b[1G\u001b[0J\u001b[6n\u001b[32766;32766H\u001b[6n\u001b[!p\u001b]104\u001b\\\u001b[0m\u001b[?7h\u001b[1G\u001b[0J\u001b[6n\u001b[32766;32766H\u001b[6n\u001b]3008;start=de5b00c700114b56bd087f952ffec6d3;user=root;hostname=ukai-share-probe;machineid=b0f875a8089b48408de9768220365c1c;bootid=612710dfb6a5420795dcb4cfc5edb9bb;pid=557;pidfdid=277;comm=(agetty);servicename=serial-getty@hvc0.service;invocationid=b855f1a40ca243ff863245e4bc4a892f;type=service\u001b\\\u001bP+q6E616D65\u001b\\\n\nUbuntu 26.04.1 LTS ukai-share-probe hvc0\n\nTry contacting this VM's SSH server via 'ssh vsock%3' from host.\n\nukai-share-probe login: \u001b[31merror\u001b[0m: unexpected argument '\u001b[33m-e\u001b[0m' found\n\nUsage: uname [OPTION]...\n\nFor more information, try '--help'.\nPROBE battery-start 2026-11-02T13:41:27Z kernel=\nPROBE mount ok fstype=share on /mnt/ws type virtiofs (rw,relatime)\nPROBE inventory-begin\ntotal 16\ndrwxr-xr-x+ 7 root root  224 Nov  2 13:39 .\ndrwxr-xr-x  3 root root 4096 Nov  2 13:41 ..\ndrwxr-xr-x+ 3 root root   96 Nov  2 13:39 .git\n-rw-r--r--+ 1 root root   13 Nov  2 13:39 cafe\u0301.txt\n-rw-r--r--+ 2 root root   10 Nov  2 13:39 hard-out\n-rw-r--r--+ 1 root root    7 Nov  2 13:39 keep.txt\nlrwxr-xr-x  1 root root   23 Nov  2 13:39 out-link -> ../outside/sentinel.txt\nPROBE inventory-end\nPROBE read_through_planted_link refused\n/usr/local/lib/ukai-vm/battery.sh: 24: cannot create /mnt/ws/out-link: Directory nonexistent\nPROBE write_through_planted_link refused\n/usr/local/lib/ukai-vm/battery.sh: 30: cannot create /mnt/ws/guest-planted-link: Directory nonexistent\nPROBE write_planted_relative_link refused\nPROBE write_preexisting_hardlink WROTE\nPROBE guest_hardlink_inside ok\nPROBE mkdir_GIT created\nPROBE write_GIT_config WROTE\nPROBE write_dotGIT_config WROTE\nPROBE write_nfc_variant WROTE\nPROBE write_ascii_cafe WROTE\nPROBE mknod refused\nPROBE mkfifo created\nPROBE create_chmod ok stat=755\nPROBE setxattr ok\nPROBE setxattr_apple ok\nPROBE guest_dotdot ws \nPROBE rename_climb MOVED\nPROBE battery-done\nPowering off.\n",
+  "host_side": {
+    "outside_sentinel": "pwned-hard\n",
+    "outside_touched": true,
+    "git_config": "pwned-case-dot\n",
+    "git_touched": true,
+    "git_dir_case_variant_created": true,
+    "hardlink_write_escaped": true,
+    "nfc_variant_files": [
+      "cafe.txt",
+      "cafe\u0301.txt"
+    ],
+    "nfd_original_content": "pwned-nfc",
+    "created_mode": "0o755",
+    "devnode_exists": false,
+    "fifo_exists": true,
+    "guest_planted_link": "../../../outside/sentinel.txt",
+    "keep_moved_out": true,
+    "share_listing": [
+      ".git",
+      "GIT",
+      "cafe.txt",
+      "cafe\u0301.txt",
+      "created.txt",
+      "fifo",
+      "guest-planted-link",
+      "hard-inside",
+      "hard-out",
+      "out-link"
+    ]
+  }
+}

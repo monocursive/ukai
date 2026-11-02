@@ -1215,6 +1215,35 @@ The following are future backend requirements, not current behavior:
   running VM's share is by reading and a candidate. K109 measures it. Mac-built
   native dependencies, such as `node_modules` add-ons, do not run in the
   guest, and the guide says so.
+  **Share containment review (measured 2026-11-02, Virtualization.framework
+  virtio-fs on macOS 27.0.1 against an Ubuntu 26.04 guest, probe evidence
+  under `docs/benchmarks/jail/results/`):**
+  - *Safe by construction, and measured:* symlinks resolve client-side in
+    the guest's own VFS — host-planted and guest-planted links, reads and
+    writes, all refuse to touch anything outside the share; guest `..`
+    traversal stays in the guest; `mknod` is refused by the server; rename
+    "climbs" land in the guest's parent directories, not the host's;
+    modes map faithfully (a guest `0755` is a host `0755`).
+  - *Escapes the preflight refuses:* a **pre-existing hardlink** inside the
+    workspace writes through to whatever host file it names (measured: the
+    sentinel outside the share changed), and a **case-folding volume** maps
+    a guest's `.GIT/config` onto the denied `.git/config`, bypassing every
+    guest-side policy denial (measured). The launcher therefore refuses,
+    before any VM boots, a live workspace containing symlinks or any file
+    with more than one hard link, or on a case-folding volume (probed in
+    place); the refusal names the remedy — a case-sensitive volume. These
+    are host-side facts, so only the host can check them. Unicode
+    normalization folding (measured even on case-sensitive APFS) only
+    collides names that differ in decomposition — the protected segments
+    are pure ASCII, so no denial can be bypassed through it; it is recorded
+    as a disclosure, and a future policy naming a decomposable protected
+    path must refuse on it.
+  - *Disclosed, not blocked:* the server authorizes every guest uid as the
+    host user, so guest-side DAC is advisory inside the share — the guest
+    jail's policy is the only write gate, which is the design; `uid=`/`gid=`
+    remaps do not exist for virtio-fs (measured refusal); fifos can be
+    created and xattrs — including `com.apple.*` names — pass through to
+    the host files, all equivalent to what the host user could do anyway.
 - **Network and credentials.** The guest has a NAT adapter, and the guest
   jail's proxy enforces the policy, as on any Linux host. Credentials go from
   the host's vault files to the guest supervisor over vsock, once per attempt,

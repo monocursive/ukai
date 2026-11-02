@@ -1,0 +1,43 @@
+[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n]3008;start=de5b00c700114b56bd087f952ffec6d3;user=root;hostname=ukai-share-probe;machineid=b0f875a8089b48408de9768220365c1c;bootid=612710dfb6a5420795dcb4cfc5edb9bb;pid=557;pidfdid=277;comm=(agetty);servicename=serial-getty@hvc0.service;invocationid=b855f1a40ca243ff863245e4bc4a892f;type=service\P+q6E616D65\
+Ubuntu 26.04.1 LTS ukai-share-probe hvc0
+
+Try contacting this VM's SSH server via 'ssh vsock%3' from host.
+
+ukai-share-probe login: [31merror[0m: unexpected argument '[33m-e[0m' found
+
+Usage: uname [OPTION]...
+
+For more information, try '--help'.
+PROBE battery-start 2026-11-02T13:41:27Z kernel=
+PROBE mount ok fstype=share on /mnt/ws type virtiofs (rw,relatime)
+PROBE inventory-begin
+total 16
+drwxr-xr-x+ 7 root root  224 Nov  2 13:39 .
+drwxr-xr-x  3 root root 4096 Nov  2 13:41 ..
+drwxr-xr-x+ 3 root root   96 Nov  2 13:39 .git
+-rw-r--r--+ 1 root root   13 Nov  2 13:39 café.txt
+-rw-r--r--+ 2 root root   10 Nov  2 13:39 hard-out
+-rw-r--r--+ 1 root root    7 Nov  2 13:39 keep.txt
+lrwxr-xr-x  1 root root   23 Nov  2 13:39 out-link -> ../outside/sentinel.txt
+PROBE inventory-end
+PROBE read_through_planted_link refused
+/usr/local/lib/ukai-vm/battery.sh: 24: cannot create /mnt/ws/out-link: Directory nonexistent
+PROBE write_through_planted_link refused
+/usr/local/lib/ukai-vm/battery.sh: 30: cannot create /mnt/ws/guest-planted-link: Directory nonexistent
+PROBE write_planted_relative_link refused
+PROBE write_preexisting_hardlink WROTE
+PROBE guest_hardlink_inside ok
+PROBE mkdir_GIT created
+PROBE write_GIT_config WROTE
+PROBE write_dotGIT_config WROTE
+PROBE write_nfc_variant WROTE
+PROBE write_ascii_cafe WROTE
+PROBE mknod refused
+PROBE mkfifo created
+PROBE create_chmod ok stat=755
+PROBE setxattr ok
+PROBE setxattr_apple ok
+PROBE guest_dotdot ws 
+PROBE rename_climb MOVED
+PROBE battery-done
+Powering off.

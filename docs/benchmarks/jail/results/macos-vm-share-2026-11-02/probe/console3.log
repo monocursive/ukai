@@ -1,0 +1,27 @@
+[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n]3008;start=55d42e5c775d48cbafae974ebe3aae03;user=root;hostname=probe3;machineid=b0f875a8089b48408de9768220365c1c;bootid=a6ad59573f0e49168280ab6f21a3535a;pid=503;pidfdid=4360;comm=(agetty);servicename=serial-getty@hvc0.service;invocationid=dbfbb17c55324513bbdc039abd9dbd33;type=service\P+q6E616D65\
+Ubuntu 26.04.1 LTS probe3 hvc0
+
+Try contacting this VM's SSH server via 'ssh vsock%3' from host.
+
+probe3 login: PROBE3 start
+mkdir: /mnt/ws: File exists
+mkdir: created directory '/mnt/mapped'
+drwxr-xr-x 4 root root 4096 Nov  2 13:49 /mnt
+drwxr-xr-x 2 root root 4096 Nov  2 13:49 /mnt/mapped
+drwxr-xr-x 2 root root 4096 Nov  2 13:41 /mnt/ws
+3
+PROBE3 mount_uid_gid refused: mount: /mnt/mapped: wrong fs type, bad option, bad superblock on share, missing codepage or helper program, or other error.
+       dmesg(1) may have more information after failed mount system call.
+PROBE3 plain mount ok
+total 24
+drwxr-xr-x+ 12 0 0  384 Nov  2 13:41 .
+drwxr-xr-x   4 0 0 4096 Nov  2 13:49 ..
+drwxr-xr-x+  3 0 0   96 Nov  2 13:39 .git
+drwxr-xr-x   3 0 0   96 Nov  2 13:41 GIT
+PROBE3 uid1500_plain_write WROTE
+PROBE3 uid1500_mapped_write refused: sh: 1: cannot create /mnt/mapped/user-write.txt: Permission denied
+[    1.051585] virtiofs virtio3: discovered new tag: share
+[    1.053929] virtiofs virtio3: virtio_fs_setup_dax: No cache capability
+[  125.936441] virtiofs: Unknown parameter 'uid'
+PROBE3 done
+Powering off.

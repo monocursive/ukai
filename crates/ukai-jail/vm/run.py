@@ -100,6 +100,68 @@ def output_path(root, group, name):
     return root.joinpath(group, *parts)
 
 
+def share_preflight(workspace):
+    """The live-share containment preflight (J18 §6, K109), from the measured
+    2026-11-02 probe: symlinks resolve client-side and cannot escape, but a
+    pre-existing hardlink inside the workspace writes through to any host
+    file it names, and a case- or normalization-folding host volume maps a
+    guest's `.GIT/config` or NFC variant onto the denied `.git/config` —
+    both bypass every guest-side policy denial. Both are host-side facts,
+    so both are refused here, before any VM boots. Returns the facts the
+    attempt record keeps."""
+    hardlinks = []
+    for directory, dirs, files, fd in os.fwalk(workspace, follow_symlinks=False):
+        for name in dirs + files:
+            info = os.stat(name, dir_fd=fd, follow_symlinks=False)
+            if stat.S_ISLNK(info.st_mode):
+                raise ValueError(
+                    'live workspace may not contain symlinks (measured: they stay '
+                    'guest-side, but the preview refuses them uniformly): ' + name)
+            # Only regular files: a directory's own link count counts its
+            # `.` and `..` entries and is not a write-through escape.
+            if stat.S_ISREG(info.st_mode) and info.st_nlink > 1:
+                hardlinks.append(str((Path(directory) / name).relative_to(workspace)))
+    if hardlinks:
+        raise ValueError(
+            'live workspace contains files with more than one hard link (measured '
+            'write-through escape to the link target): ' + ', '.join(sorted(hardlinks)[:8]))
+    # Folding probes, inside the workspace, under dot-prefixed probe names.
+    marker = f'.ukai-fold-probe-{os.getpid():x}'
+    case_fold = False
+    normalization_fold = False
+    low = nfd = nfc = None
+    try:
+        low = workspace / (marker + '-case')
+        low.write_text('low')
+        if (workspace / (marker.upper() + '-CASE')).exists():
+            case_fold = True
+        nfd = workspace / (marker + '-nfd-café')
+        nfd.write_text('nfd')
+        nfc = workspace / (marker + '-nfd-café')
+        nfc.write_text('nfc')
+        if nfd.read_text() == 'nfc':
+            normalization_fold = True
+    finally:
+        for probe in (low, nfd, nfc):
+            if probe is not None:
+                probe.unlink(missing_ok=True)
+        (workspace / (marker.upper() + '-CASE')).unlink(missing_ok=True)
+    if case_fold:
+        raise ValueError(
+            'the workspace volume folds case in file names, which bypasses every '
+            'guest-side policy denial (measured: a guest write to .GIT/config '
+            'lands in .git/config); move the workspace to a case-sensitive '
+            'volume or use the staged (non-live) mode')
+    # Normalization folding (measured even on case-sensitive APFS) only
+    # collides names that differ in Unicode decomposition: the protected
+    # segments are pure ASCII, so no denial can be sidestepped through it.
+    # It stays a recorded disclosure — two workspace names the host user
+    # considers distinct can collide — and a future policy naming a
+    # decomposable protected path must refuse on it.
+    return {'case_fold': case_fold, 'normalization_fold': normalization_fold,
+            'symlinks': 0, 'multi_link_files': 0}
+
+
 def parse_message(line, events, source, unknown_allowed):
     """Decode one protocol line into an object with a string event and typed fields.
 
@@ -404,18 +466,20 @@ class Attempt:
     with a status in TERMINAL, whatever raised and wherever.
     """
 
-    def __init__(self, args, image, workspace, output, entries, metadata):
+    def __init__(self, args, image, workspace, output, entries, metadata, share_facts=None):
         self.args = args
         self.image = image
         self.output = output
         self.entries = entries
+        self.share_facts = share_facts
         self.started = time.monotonic()
         self.report = {'schema': 'ukai.vm.attempt/1', 'status': 'starting', 'host': list(os.uname()),
                        'guest_os': 'linux', 'native_macos_execution': False, 'network': False,
                        'shared_directories': [], 'workspace': str(workspace), 'profile': args.profile,
                        'argv_base64': [base64.b64encode(os.fsencode(a)).decode() for a in args.command],
                        'wall_seconds': args.wall, 'image_sha256': metadata['disk_sha256'],
-                       'input_files': len(entries), 'excluded_names': sorted(EXCLUDED)}
+                       'input_files': len(entries), 'excluded_names': sorted(EXCLUDED),
+                       'live_workspace_share': share_facts}
         self.helper = None
         self.custody_write = None
         self.custody_ack_read = None
@@ -458,11 +522,17 @@ class Attempt:
         self.custody_ack_read, custody_ack_write = os.pipe()
         os.set_blocking(self.custody_ack_read, False)
         image, output = self.image, self.output
+        helper_argv = [
+            str(image / 'custodian'), str(custody_read), str(custody_ack_write), str(image / 'vz'),
+            str(output / 'guest.raw'), str(image / 'seed.iso'), str(output / 'guest.nvram'),
+            str(output / 'console.log'), 'run']
+        if self.share_facts is not None:
+            # The live workspace share (J18 §6): the preflight passed, so the
+            # host directory crosses as one writable virtio-fs device.
+            helper_argv.append(str(Path(self.report['workspace']).resolve()))
         try:
             self.helper = subprocess.Popen(
-                [str(image / 'custodian'), str(custody_read), str(custody_ack_write), str(image / 'vz'),
-                 str(output / 'guest.raw'), str(image / 'seed.iso'), str(output / 'guest.nvram'),
-                 str(output / 'console.log'), 'run'],
+                helper_argv,
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=errors,
                 pass_fds=(custody_read, custody_ack_write))
         finally:
@@ -534,6 +604,11 @@ class Attempt:
 
 def execute(args):
     os.umask(0o077)
+    if getattr(args, 'live_workspace', False) and args.profile == 'build':
+        raise ValueError(
+            'the build profile treats the workspace as a disposable copy with no '
+            'protected segments; a live share is the operator\'s real directory, '
+            'so run it with --profile tool or without --live-workspace')
     image = args.image.resolve()
     workspace = args.workspace.resolve(strict=True)
     if not workspace.is_dir():
@@ -541,10 +616,15 @@ def execute(args):
     output = args.out.resolve()
     if output == workspace or output.is_relative_to(workspace) or workspace.is_relative_to(output):
         raise ValueError('output must be outside the input workspace')
-    entries = snapshot(workspace)
+    share_facts = None
+    if getattr(args, 'live_workspace', False):
+        share_facts = share_preflight(workspace)
+        entries = []  # The workspace crosses as the live share; nothing is staged.
+    else:
+        entries = snapshot(workspace)
     metadata = load_image(image)
     output.mkdir(parents=True, exist_ok=False)
-    return Attempt(args, image, workspace, output, entries, metadata).run()
+    return Attempt(args, image, workspace, output, entries, metadata, share_facts).run()
 
 
 def main():
@@ -554,6 +634,10 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--profile', choices=['tool', 'build'], default='tool')
     parser.add_argument('--wall', type=int, default=30)
+    parser.add_argument('--live-workspace', action='store_true',
+                        help='share the workspace live over virtio-fs instead of staging a copy '
+                             '(J18; refused for workspaces with symlinks, multi-link files, or on '
+                             'case/normalization-folding volumes)')
     parser.add_argument('--keep-disk', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args()

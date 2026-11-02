@@ -184,9 +184,21 @@ Apple references: [Virtualization](https://developer.apple.com/documentation/vir
 
 The warm service is under development. **Every `ukai-jail run --vm` request
 currently refuses before connecting, staging files or starting a workload.**
-Pre-release guest capability measurements and the specified live workspace
-share are missing. Reporting guest capabilities as available without measuring
-them would certify guarantees the host has not established.
+Pre-release guest capability measurements are missing. Reporting guest
+capabilities as available without measuring them would certify guarantees
+the host has not established.
+
+The specified live workspace share exists as a measured development
+capability (2026-11-02): `run.py --live-workspace --profile tool` attaches
+one writable virtio-fs share of exactly the workspace, the guest controller
+mounts it as the attempt workspace, and jailed writes appear on the host
+with `.git` and every out-of-grant write denied. Its containment review —
+symlinks safe client-side; pre-existing hardlinks and case folding refused
+by the host preflight; guest-side DAC advisory inside the share — is
+measured in
+[docs/benchmarks/jail/results/macos-vm-share-2026-11-02/](../../../docs/benchmarks/jail/results/macos-vm-share-2026-11-02/README.md)
+and specified in jail-macos §6. The `build` profile refuses a live share:
+its disposable-copy grant has no protected segments.
 
 The refusal also identifies unsupported `none`/`agent` profiles, network/proxy
 policy, launch profiles, vault credentials and deny-read staging. Resource,

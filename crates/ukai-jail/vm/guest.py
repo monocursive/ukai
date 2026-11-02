@@ -96,6 +96,40 @@ def poweroff(reason):
     raise RuntimeError('poweroff returned: ' + reason)
 
 
+# ---------------------------------------------------------------------------
+# The live workspace share (J18 §6, K109)
+#
+# When the host attaches a virtio-fs share of the workspace (tag below), the
+# attempt workspace is that live share instead of the staged tmpfs: files are
+# the host's files, writes appear on the host, and the guest jail's policy is
+# the only write gate. Measured on this transport (2026-11-02 probe): the
+# server authorizes every guest uid as the host user, so guest-side DAC is
+# advisory inside the share; symlinks resolve client-side (guest VFS) and
+# cannot escape; mknod is refused; pre-existing host hardlinks and APFS
+# case/normalization folding DO escape policy denials, so the host preflight
+# refuses them before boot. Staging (put) and workspace export do not apply
+# in live mode.
+# ---------------------------------------------------------------------------
+
+SHARE_TAG = 'workspace'
+SHARE_MOUNT = Path('/mnt/workspace')
+
+
+def mount_share():
+    """Mounts the live workspace share once at boot. Returns True when the
+    share is live; a guest booted without the device keeps the preview's
+    staged-tmpfs behavior unchanged."""
+    if os.path.ismount(SHARE_MOUNT):
+        return True
+    try:
+        SHARE_MOUNT.mkdir(parents=True, exist_ok=True)
+        subprocess.run(['mount', '-t', 'virtiofs', SHARE_TAG, str(SHARE_MOUNT)],
+                       check=True, capture_output=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return os.path.ismount(SHARE_MOUNT)
+
+
 def relative(name):
     # Same verdict as run.output_path: PurePosixPath would silently collapse
     # empty components ('a//b', 'a/'), so the raw components are checked.
@@ -117,11 +151,17 @@ def relative(name):
 # service ends.
 # ---------------------------------------------------------------------------
 
-def reset_attempt(account, workspace=WORKSPACE, evidence=EVIDENCE):
+def reset_attempt(account, workspace=None, evidence=None):
     """Empties both attempt directories for the next attempt, as the host's
     reset op asks. The directories, their modes and their owner come back
-    exactly as boot made them."""
-    for path in (Path(workspace), Path(evidence)):
+    exactly as boot made them. The live share is never wiped: it is the
+    host's directory, and its contents are the host's business. Paths
+    resolve at CALL time so the live-share switch is honored."""
+    workspace = WORKSPACE if workspace is None else Path(workspace)
+    evidence = EVIDENCE if evidence is None else Path(evidence)
+    if workspace == SHARE_MOUNT and os.path.ismount(SHARE_MOUNT):
+        workspace = None  # the evidence tree below still resets per attempt
+    for path in [Path(p) for p in (workspace, evidence) if p is not None]:
         parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         try:
             try:
@@ -166,10 +206,14 @@ def clear_secrets(secrets=None):
     shutil.rmtree(secrets_root() if secrets is None else Path(secrets), ignore_errors=True)
 
 
-def run_command(profile, argv, wall, workspace=WORKSPACE, evidence=EVIDENCE):
+def run_command(profile, argv, wall, workspace=None, evidence=None):
     """The jail command one attempt runs, in either mode. The single-run
     `run` op builds exactly this list, and `run2` shares it, so the warm
-    design changes nothing about what the jail is asked to do."""
+    design changes nothing about what the jail is asked to do. The paths
+    resolve at CALL time: a live share must become the jail's workspace,
+    and a definition-time default would still name the staged tmpfs."""
+    workspace = WORKSPACE if workspace is None else Path(workspace)
+    evidence = EVIDENCE if evidence is None else Path(evidence)
     command = [b'/usr/local/bin/ukai-jail', b'run', b'--profile', profile.encode(),
                b'--workspace', os.fsencode(workspace), b'--receipt', os.fsencode(Path(evidence) / 'jail.json'),
                b'--limit', f'wall={wall}s'.encode(), b'--limit', b'mem=512MiB',
@@ -209,7 +253,13 @@ def receipt_binding(request, receipt, guest_boot_id):
 
 
 def main():
+    global WORKSPACE
     account = pwd.getpwnam('ukai')
+    if mount_share():
+        # The live share is the workspace (J18 §6): everything downstream —
+        # the jail's cwd, the put and export paths — flows from this switch.
+        WORKSPACE = SHARE_MOUNT
+        audit('live_share_mounted', mount=str(SHARE_MOUNT))
     reset_attempt(account)
     server = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
     server.bind((socket.VMADDR_CID_ANY, PORT))
@@ -314,6 +364,10 @@ def main():
                     last_ping = clock()
                     send({'event': 'pong', 'sequence': sequence})
                 elif op == 'put' and process is None:
+                    if WORKSPACE == SHARE_MOUNT:
+                        # Live share: staging is the host's side of the mount;
+                        # a put would write through to the host workspace.
+                        poweroff('live_share_no_staging')
                     parts = relative(request['path'])
                     path = WORKSPACE.joinpath(*parts)
                     payload = base64.b64decode(request['data'], validate=True)
@@ -335,6 +389,12 @@ def main():
                     wall = request['wall_seconds']
                     if profile not in ('tool', 'build') or type(wall) is not int or not 1 <= wall <= 300:
                         poweroff('invalid_policy')
+                    if profile == 'build' and WORKSPACE == SHARE_MOUNT:
+                        # The build profile's disposable-copy grant has no
+                        # protected segments; on a live share that would
+                        # expose the operator's real .git (measured, run 2
+                        # of the 2026-11-02 K109 evidence).
+                        poweroff('live_share_requires_protected_profile')
                     argv = [base64.b64decode(value, validate=True) for value in request['argv']]
                     if not argv or any(b'\0' in value for value in argv):
                         poweroff('invalid_argv')
@@ -409,7 +469,11 @@ def main():
             count = 0
             total = 0
             binding = None
-            for root, label in [(WORKSPACE, 'workspace'), (EVIDENCE, 'evidence')]:
+            # The live share's files are already on the host; only the
+            # evidence tree travels back.
+            groups = ([(EVIDENCE, 'evidence')] if WORKSPACE == SHARE_MOUNT
+                      else [(WORKSPACE, 'workspace'), (EVIDENCE, 'evidence')])
+            for root, label in groups:
                 for directory, dirs, names in os.walk(root, followlinks=False):
                     dirs[:] = [d for d in dirs if not (Path(directory) / d).is_symlink()]
                     for name in names:

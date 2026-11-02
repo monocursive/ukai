@@ -1,0 +1,60 @@
+{
+  "schema": "ukai.vm.attempt/1",
+  "status": "completed",
+  "host": [
+    "Darwin",
+    "monocursives-macbook-pro.home",
+    "27.0.0",
+    "Darwin Kernel Version 27.0.0: Tue Aug 11 21:06:40 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T6050",
+    "arm64"
+  ],
+  "guest_os": "linux",
+  "native_macos_execution": false,
+  "network": false,
+  "shared_directories": [],
+  "workspace": "/Volumes/UKAI-K109/ws",
+  "profile": "tool",
+  "argv_base64": [
+    "L2Jpbi9zaA==",
+    "LWM=",
+    "ZWNobyBndWVzdC13cml0ZSA+IGZyb20tZ3Vlc3QudHh0OyBlY2hvIGFwcGVuZGVkID4+IGtlZXAudHh0OyBpZiBlY2hvIHB3bmVkID4gLmdpdC9jb25maWcgMj4vZGV2L251bGw7IHRoZW4gZWNobyBHSVRfV1JJVEVfQUxMT1dFRDsgZWxzZSBlY2hvIGdpdF93cml0ZV9kZW5pZWQ7IGZpOyBta2RpciAtcCBuZXdkaXIgJiYgZWNobyBuZXN0ZWQgPiBuZXdkaXIvaW5uZXIudHh0OyBlY2hvIFdPUktMT0FEX0RPTkU="
+  ],
+  "wall_seconds": 60,
+  "image_sha256": "0c6767f579c4c05d558c584fcaa380aab8bdc77f51a408055e517b0afb07e456",
+  "input_files": 0,
+  "excluded_names": [
+    ".DS_Store",
+    ".git",
+    ".venv",
+    "__pycache__",
+    "node_modules",
+    "target"
+  ],
+  "live_workspace_share": {
+    "case_fold": false,
+    "normalization_fold": true,
+    "symlinks": 0,
+    "multi_link_files": 0
+  },
+  "launcher_pid": 92510,
+  "custodian_pid": 92539,
+  "helper_pid": 92540,
+  "owner_audit_token": [
+    501,
+    501,
+    20,
+    501,
+    20,
+    92540,
+    100020,
+    9704009
+  ],
+  "guest_kernel": "7.0.0-38-generic",
+  "boot_seconds": 30.60219004098326,
+  "supervisor_pid": 643,
+  "guest_exit_code": 0,
+  "helper_exit_code": 0,
+  "vm_stop_acknowledged": true,
+  "guest_receipt_sha256": "af7017f18c5e434e7206961c64522c42a663ec64545ea41dcf9adb5d15af5a18",
+  "elapsed_seconds": 30.93177983292844
+}

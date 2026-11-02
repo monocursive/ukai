@@ -1,0 +1,42 @@
+{
+  "recorded_at_utc": "2026-11-02T14:12:45.902092+00:00",
+  "source_commit": "2a400481ebdafd4420da6109331d28e8c14ece80",
+  "host": "macOS 27.0.1 arm64 (26A434), Virtualization.framework, ordinary virtualization entitlement only",
+  "guest": "Ubuntu 26.04 minimal cloud image (sha 4e86a7819b4cc7b4a9c2e719dec3e0a723c4a2788dc3f23f17641cba7f5ca216), virtio-fs tag 'workspace'",
+  "k109_workspace_volume": "case-sensitive APFS (hdiutil), required by the measured case-fold refusal",
+  "files": {
+    "vzshare.swift": {
+      "sha256": "c11fd9ff713088afe5b25d514bcafd7caa5928f058ec625b895e0e46b40f89a8"
+    },
+    "console.log": {
+      "sha256": "d206c0d7cdbe624ed57246307a47f31d9df176204be9ba02f684a09be8d3e8cc"
+    },
+    "verdict.json": {
+      "sha256": "a3e5eee1da7ccaed307ee863cc495cca15835134bd166d7a1358ab00f39f0350"
+    },
+    "console3.log": {
+      "sha256": "b31cf96be9b9a4d0ecda88353901ccc2c533196b2ebdeb572655d5c9273c3bcf"
+    },
+    "battery3.sh": {
+      "sha256": "f2fa2d8dab21b1b76fa9c11ef1812462d1948e05e79823fb06cd0e53b874b21b"
+    },
+    "battery.sh": {
+      "sha256": "ce596ff16e7aa2291f98dce8915cadde649210396978eda64082eaf609866c73"
+    },
+    "drive.py": {
+      "sha256": "c5b78c8123165847cfde94966b41ad3dc417dc9b7399a02b73b1d1dd82dfc307"
+    }
+  },
+  "runs": {
+    "run-3": {
+      "attempt_sha256": "c99c7b93a99b18415adee150c114764db6dc63567be3d79f5c1ee588d1e5af8a"
+    },
+    "run-2": {
+      "attempt_sha256": "6ffd9aa8dd3fc603fa55b15c41c3e67e425d67f9b0f6369705995b247d1d9276"
+    },
+    "run-1": {
+      "attempt_sha256": "3bf8a7f02005ce76625dc90dcc7a9a26d58aa7d9d0451fcd20be8a7545a690ab"
+    }
+  },
+  "release_evidence": false
+}

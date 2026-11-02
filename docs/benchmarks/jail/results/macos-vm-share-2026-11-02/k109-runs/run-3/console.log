@@ -1,0 +1,4 @@
+UKAI_VM {"event": "live_share_mounted", "mount": "/mnt/workspace"}
+UKAI_VM {"event": "ready", "kernel": "7.0.0-38-generic"}
+UKAI_VM {"event": "running", "supervisor_pid": 643}
+UKAI_VM {"event": "done", "exit_code": 0}

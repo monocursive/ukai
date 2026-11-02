@@ -22,8 +22,17 @@ final class Runner: NSObject, VZVirtualMachineDelegate {
     let bootstrap: Bool
 
     init(arguments: [String]) throws {
-        guard arguments.count == 6 || (arguments.count == 5 && arguments[4] == "bootstrap") else {
-            throw NSError(domain: "Usage: vz DISK SEED NVRAM CONSOLE bootstrap|run [CUSTODY_FD]", code: 2)
+        // The optional final argument attaches the live workspace share
+        // (J18 §6, K109): one writable virtio-fs directory device tagged so
+        // the guest controller mounts it as the attempt workspace. Never
+        // attached during bootstrap.
+        let shareDir: String?
+        if arguments.count == 7 && arguments[4] == "run" {
+            shareDir = arguments[6]
+        } else if arguments.count == 6 || (arguments.count == 5 && arguments[4] == "bootstrap") {
+            shareDir = nil
+        } else {
+            throw NSError(domain: "Usage: vz DISK SEED NVRAM CONSOLE bootstrap|run [CUSTODY_FD] [SHARE_DIR]", code: 2)
         }
         bootstrap = arguments[4] == "bootstrap"
         super.init()
@@ -52,10 +61,16 @@ final class Runner: NSObject, VZVirtualMachineDelegate {
             network.attachment = VZNATNetworkDeviceAttachment()
             config.networkDevices = [network]
         }
+        if let share = shareDir {
+            let directory = VZVirtioFileSystemDeviceConfiguration(tag: "workspace")
+            directory.share = VZSingleDirectoryShare(
+                directory: VZSharedDirectory(url: URL(fileURLWithPath: share), readOnly: false))
+            config.directorySharingDevices = [directory]
+        }
         try config.validate()
         vm = VZVirtualMachine(configuration: config)
         vm.delegate = self
-        if arguments.count == 6 {
+        if arguments.count >= 6 && arguments[4] == "run" {
             guard let fd = Int32(arguments[5]), fd >= 3, fcntl(fd, F_GETFD) >= 0 else { throw POSIXError(.EBADF) }
             custodySource = DispatchSource.makeReadSource(fileDescriptor: fd, queue: .main)
             custodySource!.setEventHandler { self.stop("custodian_lost") }

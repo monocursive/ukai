@@ -22,8 +22,8 @@ static double now(void) {
 }
 
 int main(int argc, char **argv) {
-    /* custodian LEASE_FD ACK_FD VZ DISK SEED NVRAM CONSOLE run */
-    if (argc != 9) return 125;
+    /* custodian LEASE_FD ACK_FD VZ DISK SEED NVRAM CONSOLE run [SHARE_DIR] */
+    if (argc != 9 && argc != 10) return 125;
     char *end;
     long parsed = strtol(argv[1], &end, 10);
     if (*end || parsed < 3 || parsed > 1024) return 125;
@@ -51,7 +51,10 @@ int main(int argc, char **argv) {
         posix_spawn_file_actions_adddup2(&files, life[0], 3) ||
         posix_spawn_file_actions_addclose(&files, life[1])) return 125;
     if (life[0] != 3 && posix_spawn_file_actions_addclose(&files, life[0])) return 125;
-    char *child_argv[] = {argv[3], argv[4], argv[5], argv[6], argv[7], argv[8], "3", NULL};
+    /* The optional trailing argument is the live workspace share (J18 §6):
+     * forwarded verbatim; its absence keeps the preview's argv unchanged. */
+    char *child_argv[] = {argv[3], argv[4], argv[5], argv[6], argv[7], argv[8], "3",
+                          argc == 10 ? argv[9] : NULL, NULL};
     pid_t child;
     int error = posix_spawn(&child, argv[3], &files, NULL, child_argv, environ);
     posix_spawn_file_actions_destroy(&files);
