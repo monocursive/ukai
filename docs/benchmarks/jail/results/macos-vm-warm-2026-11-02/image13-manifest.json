@@ -1,0 +1,23 @@
+{
+  "schema": "ukai.vm.image-build/1",
+  "status": "prepared",
+  "image_url": "https://cloud-images.ubuntu.com/minimal/releases/resolute/release-20261009/ubuntu-26.04-minimal-cloudimg-arm64.img",
+  "image_sha256": "4e86a7819b4cc7b4a9c2e719dec3e0a723c4a2788dc3f23f17641cba7f5ca216",
+  "jail_url": "https://github.com/monocursive/ukai/releases/download/ukai-jail-v0.1.0-rc.5/ukai-jail-0.1.0-rc.5-aarch64-unknown-linux-gnu.tar.gz",
+  "jail_archive_sha256": "2af9d2ef48ec12c4072822b6b6dca3cb867ee8fb0054c9e142d4e86a0221a752",
+  "source_sha256": {
+    "guest.py": "a21de4755d5c87293e9f6ec55831f968d4c607461651b37ad598ff3b482b0716",
+    "vz.swift": "42aac802fa8bf3e7d83f627e1a100f8ee472ae633f6ffa8568223e251c31fe18",
+    "custodian.c": "dbc580291adb05601fbf443d3b84b808f2213894aa0cb37e20abe8d10437a287",
+    "prepare.py": "3397d195244250b6656b37f21a808d79e9661f4ea0e3d0d2f9ba9d2b9572e024"
+  },
+  "guest_pinned_versions": [
+    "bubblewrap=0.11.1-1ubuntu0.3",
+    "dbus-user-session=1.16.2-2ubuntu4"
+  ],
+  "guest_pinned_digest": "26faa9a3062fc7b1eb983b97fa4630043c551d50e21ee78904d55a13231bf038",
+  "disk_sha256": "8d6535853d7d8a64d7470e2a6cf5975d8feb83ec8157934126c4909a83e02b58",
+  "helper_sha256": "f5b459c8b032b1bf504aa597a811f8221e251b3fb37f64b97c6fddb56fbfc68a",
+  "custodian_sha256": "04524705d15b69523e5024ee348f834bac3ec138e0fc377906a03ac1157f7359",
+  "seed_sha256": "6ad16539427e5da8304906baa147235a2e4d7f914ab2c6d2df9640f38e47a100"
+}

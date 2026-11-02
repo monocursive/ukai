@@ -1,0 +1,90 @@
+[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n]3008;start=f07955648a1647389a518af2053e8573;user=root;hostname=ukai-linux-preview;machineid=3f2d30bd6dfa4cf88439ee751cee8d11;bootid=4fad53ef25d945bcbbeba424bd8c2b2a;pid=603;pidfdid=370;comm=(agetty);servicename=serial-getty@hvc0.service;invocationid=4f224a7008d94a8ba7e83f9590679c02;type=service\P+q6E616D65\
+Ubuntu 26.04.1 LTS ukai-linux-preview hvc0
+
+Try contacting this VM's SSH server via 'ssh vsock%3' from host.
+
+ukai-linux-preview login: + set -eu
++ export DEBIAN_FRONTEND=noninteractive
++ echo UKAI_STEP apt_update
+UKAI_STEP apt_update
++ apt-get update
+0% [Working]            Get:1 http://archive.ubuntu.com/ubuntu resolute InRelease [136 kB]
+0% [1 InRelease 14.2 kB/136 kB 10%] [Waiting for headers]                                                         Get:2 http://security.ubuntu.com/ubuntu resolute-security InRelease [137 kB]
+0% [1 InRelease 14.2 kB/136 kB 10%] [2 InRelease 14.2 kB/137 kB 10%]                                                                    0% [2 InRelease 110 kB/137 kB 80%]0% [Waiting for headers] [2 InRelease 136 kB/137 kB 99%]                                                        0% [Waiting for headers]0% [Waiting for headers]                        Get:3 http://archive.ubuntu.com/ubuntu resolute-updates InRelease [137 kB]
+0% [3 InRelease 25.8 kB/137 kB 19%] [Waiting for headers]                                                         Get:4 http://security.ubuntu.com/ubuntu resolute-security/main arm64 Packages [679 kB]
+0% [3 InRelease 136 kB/137 kB 99%] [4 Packages 17.1 kB/679 kB 3%]                                                                 0% [4 Packages 86.6 kB/679 kB 13%]0% [Waiting for headers] [4 Packages 116 kB/679 kB 17%]                                                       Get:5 http://archive.ubuntu.com/ubuntu resolute-backports InRelease [137 kB]
+0% [5 InRelease 31.5 kB/137 kB 23%] [4 Packages 224 kB/679 kB 33%]                                                                  0% [4 Packages 297 kB/679 kB 44%]12% [Waiting for headers] [4 Packages 366 kB/679 kB 54%]                                                        Get:6 http://archive.ubuntu.com/ubuntu resolute/main arm64 Packages [1468 kB]
+13% [6 Packages 24.4 kB/1468 kB 2%] [4 Packages 679 kB/679 kB 100%]                                                                   14% [6 Packages 104 kB/1468 kB 7%]14% [4 Packages store 0 B] [6 Packages 104 kB/1468 kB 7%] [Waiting for headers]                                                                               Get:7 http://security.ubuntu.com/ubuntu resolute-security/main Translation-en [146 kB]
+15% [4 Packages store 0 B] [6 Packages 446 kB/1468 kB 30%] [7 Translation-en 14                                                                               15% [4 Packages store 0 B] [6 Packages 462 kB/1468 kB 31%]                                                          Get:8 http://security.ubuntu.com/ubuntu resolute-security/universe arm64 Packages [202 kB]
+15% [4 Packages store 0 B] [6 Packages 511 kB/1468 kB 35%] [8 Packages 151 kB/2                                                                               16% [4 Packages store 0 B] [6 Packages 511 kB/1468 kB 35%]                                                          Get:9 http://security.ubuntu.com/ubuntu resolute-security/universe Translation-en [67.9 kB]
+16% [4 Packages store 0 B] [6 Packages 511 kB/1468 kB 35%] [9 Translation-en 19                                                                               Get:10 http://security.ubuntu.com/ubuntu resolute-security/restricted arm64 Packages [715 kB]
+16% [4 Packages store 0 B] [6 Packages 638 kB/1468 kB 43%] [10 Packages 56.2 kB                                                                               17% [6 Packages 660 kB/1468 kB 45%] [10 Packages 285 kB/715 kB 40%]17% [7 Translation-en store 0 B] [6 Packages 660 kB/1468 kB 45%] [10 Packages 2                                                                               Get:11 http://security.ubuntu.com/ubuntu resolute-security/restricted Translation-en [108 kB]
+                                                                               20% [6 Packages 1184 kB/1468 kB 81%] [11 Translation-en 3133 B/108 kB 3%]20% [8 Packages store 0 B] [6 Packages 1184 kB/1468 kB 81%] [11 Translation-en                                                                                21% [6 Packages 1184 kB/1468 kB 81%] [11 Translation-en 3133 B/108 kB 3%]21% [9 Translation-en store 0 B] [6 Packages 1184 kB/1468 kB 81%] [11 Translati                                                                               21% [6 Packages 1184 kB/1468 kB 81%] [11 Translation-en 3133 B/108 kB 3%]21% [10 Packages store 0 B] [6 Packages 1184 kB/1468 kB 81%] [11 Translation-en                                                                               21% [6 Packages 1184 kB/1468 kB 81%] [11 Translation-en 3133 B/108 kB 3%]                                                                         22% [6 Packages 1303 kB/1468 kB 89%] [Waiting for headers]                                                          Get:12 http://security.ubuntu.com/ubuntu resolute-security/multiverse arm64 Packages [20.0 kB]
+22% [6 Packages 1303 kB/1468 kB 89%] [12 Packages 14.1 kB/20.0 kB 70%]22% [11 Translation-en store 0 B] [6 Packages 1303 kB/1468 kB 89%] [12 Packages                                                                               22% [11 Translation-en store 0 B] [6 Packages 1442 kB/1468 kB 98%]22% [11 Translation-en store 0 B] [Waiting for headers] [Waiting for headers]                                                                             Get:13 http://archive.ubuntu.com/ubuntu resolute/main Translation-en [524 kB]
+23% [11 Translation-en store 0 B] [13 Translation-en 49.0 kB/524 kB 9%] [Waitin                                                                               Get:14 http://security.ubuntu.com/ubuntu resolute-security/multiverse Translation-en [3728 B]
+23% [11 Translation-en store 0 B] [13 Translation-en 288 kB/524 kB 55%] [14 Tra                                                                               23% [11 Translation-en store 0 B] [13 Translation-en 288 kB/524 kB 55%]                                                                       Get:15 http://archive.ubuntu.com/ubuntu resolute/universe arm64 Packages [16.2 MB]
+                                                                       24% [11 Translation-en store 0 B] [15 Packages 27.3 kB/16.2 MB 0%]                                                                  24% [15 Packages 27.3 kB/16.2 MB 0%]24% [12 Packages store 0 B] [15 Packages 27.3 kB/16.2 MB 0%]                                                            25% [15 Packages 27.3 kB/16.2 MB 0%]25% [6 Packages store 0 B] [15 Packages 27.3 kB/16.2 MB 0%]                                                           44% [15 Packages 7218 kB/16.2 MB 45%]44% [14 Translation-en store 0 B] [15 Packages 7218 kB/16.2 MB 45%]                                                                   45% [15 Packages 7218 kB/16.2 MB 45%]45% [13 Translation-en store 0 B] [15 Packages 7218 kB/16.2 MB 45%]                                                                   51% [15 Packages 9322 kB/16.2 MB 58%]                                     69% [Waiting for headers]                         Get:16 http://archive.ubuntu.com/ubuntu resolute/universe Translation-en [6329 kB]
+69% [16 Translation-en 125 kB/6329 kB 2%]69% [15 Packages store 0 B] [16 Translation-en 125 kB/6329 kB 2%]                                                                 86% [15 Packages store 0 B] [Waiting for headers]                                                 Get:17 http://archive.ubuntu.com/ubuntu resolute/restricted arm64 Packages [187 kB]
+86% [15 Packages store 0 B] [17 Packages 165 kB/187 kB 88%]                                                           86% [15 Packages store 0 B]                           Get:18 http://archive.ubuntu.com/ubuntu resolute/restricted Translation-en [25.8 kB]
+86% [15 Packages store 0 B] [18 Translation-en 0 B/25.8 kB 0%]                                                              86% [15 Packages store 0 B]                           Get:19 http://archive.ubuntu.com/ubuntu resolute/multiverse arm64 Packages [245 kB]
+87% [15 Packages store 0 B] [19 Packages 245 kB/245 kB 100%]                                                            Get:20 http://archive.ubuntu.com/ubuntu resolute/multiverse Translation-en [127 kB]
+87% [15 Packages store 0 B] [20 Translation-en 51.4 kB/127 kB 41%]                                                                  87% [15 Packages store 0 B]                           Get:21 http://archive.ubuntu.com/ubuntu resolute-updates/main arm64 Packages [837 kB]
+87% [15 Packages store 0 B] [21 Packages 0 B/837 kB 0%]                                                       90% [15 Packages store 0 B]                           Get:22 http://archive.ubuntu.com/ubuntu resolute-updates/main Translation-en [184 kB]
+90% [15 Packages store 0 B] [22 Translation-en 0 B/184 kB 0%]                                                             90% [15 Packages store 0 B]                           Get:23 http://archive.ubuntu.com/ubuntu resolute-updates/universe arm64 Packages [367 kB]
+90% [15 Packages store 0 B] [23 Packages 0 B/367 kB 0%]                                                       91% [15 Packages store 0 B]                           Get:24 http://archive.ubuntu.com/ubuntu resolute-updates/universe Translation-en [118 kB]
+                           Get:25 http://archive.ubuntu.com/ubuntu resolute-updates/restricted arm64 Packages [748 kB]
+92% [15 Packages store 0 B] [25 Packages 366 kB/748 kB 49%]                                                           93% [15 Packages store 0 B]                           Get:26 http://archive.ubuntu.com/ubuntu resolute-updates/restricted Translation-en [112 kB]
+93% [15 Packages store 0 B] [26 Translation-en 0 B/112 kB 0%]                                                             94% [15 Packages store 0 B]                           Get:27 http://archive.ubuntu.com/ubuntu resolute-updates/multiverse arm64 Packages [21.3 kB]
+94% [15 Packages store 0 B] [27 Packages 0 B/21.3 kB 0%]                                                        94% [15 Packages store 0 B]                           Get:28 http://archive.ubuntu.com/ubuntu resolute-updates/multiverse Translation-en [4168 B]
+94% [15 Packages store 0 B] [28 Translation-en 0 B/4168 B 0%]                                                             94% [15 Packages store 0 B]                           Get:29 http://archive.ubuntu.com/ubuntu resolute-backports/universe arm64 Packages [3136 B]
+94% [15 Packages store 0 B] [29 Packages 0 B/3136 B 0%]                                                       94% [15 Packages store 0 B]                           Get:30 http://archive.ubuntu.com/ubuntu resolute-backports/universe Translation-en [7988 B]
+94% [15 Packages store 0 B] [30 Translation-en 0 B/7988 B 0%]                                                             94% [15 Packages store 0 B]94% [15 Packages store 0 B]                           94% [Working]94% [16 Translation-en store 0 B]                                 95% [Working]95% [17 Packages store 0 B]                           95% [Working]95% [18 Translation-en store 0 B]                                 95% [Working]95% [19 Packages store 0 B]                           96% [Working]96% [20 Translation-en store 0 B]                                 96% [Working]96% [21 Packages store 0 B]                           97% [Working]97% [22 Translation-en store 0 B]                                 97% [Working]97% [23 Packages store 0 B]                           97% [Working]97% [24 Translation-en store 0 B]                                 98% [Working]98% [25 Packages store 0 B]                           98% [Working]98% [26 Translation-en store 0 B]                                 98% [Working]98% [27 Packages store 0 B]                           99% [Working]99% [28 Translation-en store 0 B]                                 99% [Working]99% [29 Packages store 0 B]                           100% [Working]100% [30 Translation-en store 0 B]                                  100% [Working]              Fetched 30.0 MB in 2s (17.1 MB/s)
+Reading package lists... 0%Reading package lists... 0%Reading package lists... 0%Reading package lists... 4%Reading package lists... 4%Reading package lists... 7%Reading package lists... 7%Reading package lists... 56%Reading package lists... 56%Reading package lists... 78%Reading package lists... 78%Reading package lists... 79%Reading package lists... 79%Reading package lists... 79%Reading package lists... 79%Reading package lists... 80%Reading package lists... 80%Reading package lists... 80%Reading package lists... 80%Reading package lists... 83%Reading package lists... 83%Reading package lists... 85%Reading package lists... 85%Reading package lists... 86%Reading package lists... 86%Reading package lists... 86%Reading package lists... 86%Reading package lists... 89%Reading package lists... 89%Reading package lists... 91%Reading package lists... 91%Reading package lists... 91%Reading package lists... 91%Reading package lists... 91%Reading package lists... 91%Reading package lists... 91%Reading package lists... 91%Reading package lists... 91%Reading package lists... 91%Reading package lists... 93%Reading package lists... 93%Reading package lists... 94%Reading package lists... 94%Reading package lists... 95%Reading package lists... 95%Reading package lists... 95%Reading package lists... 95%Reading package lists... 98%Reading package lists... 98%Reading package lists... 99%Reading package lists... 99%Reading package lists... 99%Reading package lists... 99%Reading package lists... 99%Reading package lists... 99%Reading package lists... Done
++ echo UKAI_STEP apt_install
+UKAI_STEP apt_install
++ apt-get install -y --no-install-recommends bubblewrap dbus-user-session
+Reading package lists... 0%Reading package lists... 100%Reading package lists... Done
+Building dependency tree... 0%Building dependency tree... 0%Building dependency tree... 50%Building dependency tree... 50%Building dependency tree... Done
+Reading state information... 0% Reading state information... 0%Reading state information... Done
+dbus-user-session is already the newest version (1.16.2-2ubuntu4).
+dbus-user-session set to manually installed.
+Solving dependencies... 0%Solving dependencies... 10%Solving dependencies... Done
+The following NEW packages will be installed:
+  bubblewrap
+0 upgraded, 1 newly installed, 0 to remove and 29 not upgraded.
+Need to get 50.7 kB of archives.
+After this operation, 189 kB of additional disk space will be used.
+0% [Working]            Get:1 http://security.ubuntu.com/ubuntu resolute-security/main arm64 bubblewrap arm64 0.11.1-1ubuntu0.3 [50.7 kB]
+4% [1 bubblewrap 2606 B/50.7 kB 5%]                                   100% [Working]              Fetched 50.7 kB in 0s (267 kB/s)
+Selecting previously unselected package bubblewrap.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 29941 files and directories currently installed.)
+Preparing to unpack .../bubblewrap_0.11.1-1ubuntu0.3_arm64.deb ...
+Unpacking bubblewrap (0.11.1-1ubuntu0.3) ...
+Setting up bubblewrap (0.11.1-1ubuntu0.3) ...
++ echo UKAI_STEP users
+UKAI_STEP users
++ mkdir -p /usr/local/share/ukai-vm
++ dpkg-query -W -f=${Package}=${Version}
+ bubblewrap dbus-user-session
++ useradd --create-home --uid 1001 --shell /bin/bash ukai
++ loginctl enable-linger ukai
++ systemctl start user@1001.service
++ systemctl disable ssh.service ssh.socket
++ mkdir -p /usr/local/share/ukai-vm
++ dpkg-query -W
++ + dpkg-queryread -W -f=${Package}=${Version}
+ -r bubblewrap dbus-user-session row
+
++ echo UKAI_PINNED bubblewrap=0.11.1-1ubuntu0.3
+UKAI_PINNED bubblewrap=0.11.1-1ubuntu0.3
++ read -r row
++ echo UKAI_PINNED dbus-user-session=1.16.2-2ubuntu4
+UKAI_PINNED dbus-user-session=1.16.2-2ubuntu4
++ read -r row
++ systemctl enable ukai-vm.service
+Created symlink '/etc/systemd/system/multi-user.target.wants/ukai-vm.service' → '/etc/systemd/system/ukai-vm.service'.
++ sync
++ echo UKAI_BOOTSTRAP_DONE
+UKAI_BOOTSTRAP_DONE
++ systemctl poweroff
+[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n]3008;end=f07955648a1647389a518af2053e8573\

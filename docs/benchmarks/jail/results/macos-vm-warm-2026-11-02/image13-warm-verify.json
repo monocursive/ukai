@@ -1,0 +1,71 @@
+{
+  "attempts": [
+    {
+      "index": 0,
+      "boot_id": "vm-c27944af-f484-4776-a126-17351e1cbb17",
+      "exit_code": 0,
+      "release_latency_ms": 12.4,
+      "end_to_end_ms": 26.7,
+      "stdout": "net_denied\nGIT_ALLOWED\nout-0\n",
+      "attempt_id": "warm-0",
+      "network_denied": true,
+      "protected_write_absorbed": true,
+      "receipt_sha256": "1185f5e4b822404a49b0d9965baaf4d84f70a48cbeac074184062ae9d300c876"
+    },
+    {
+      "index": 1,
+      "boot_id": "vm-c27944af-f484-4776-a126-17351e1cbb17",
+      "exit_code": 0,
+      "release_latency_ms": 14.0,
+      "end_to_end_ms": 24.8,
+      "stdout": "net_denied\nGIT_ALLOWED\nout-1\n",
+      "attempt_id": "warm-1",
+      "network_denied": true,
+      "protected_write_absorbed": true,
+      "receipt_sha256": "d971f58e8622075f43ed00642df30e032b85bc2bd3d01aed346a842ce48d08c9"
+    },
+    {
+      "index": 2,
+      "boot_id": "vm-c27944af-f484-4776-a126-17351e1cbb17",
+      "exit_code": 0,
+      "release_latency_ms": 11.2,
+      "end_to_end_ms": 26.4,
+      "stdout": "net_denied\nGIT_ALLOWED\nout-2\n",
+      "attempt_id": "warm-2",
+      "network_denied": true,
+      "protected_write_absorbed": true,
+      "receipt_sha256": "8e277ef974b0bc06c59827aebc5d40d0e6a4584621172dd939588659e6a76b9e"
+    }
+  ],
+  "service_exit": 0,
+  "service_stderr": "",
+  "status": {
+    "event": "status",
+    "schema": "ukai.jail.vm-control/1",
+    "boot_id": "vm-c27944af-f484-4776-a126-17351e1cbb17",
+    "warm": true,
+    "attempt_live": false,
+    "kernel": null,
+    "disk_sha256": "8d6535853d7d8a64d7470e2a6cf5975d8feb83ec8157934126c4909a83e02b58",
+    "helper_sha256": "f5b459c8b032b1bf504aa597a811f8221e251b3fb37f64b97c6fddb56fbfc68a",
+    "custodian_sha256": "04524705d15b69523e5024ee348f834bac3ec138e0fc377906a03ac1157f7359",
+    "seed_sha256": "6ad16539427e5da8304906baa147235a2e4d7f914ab2c6d2df9640f38e47a100",
+    "vsock_port": 1024,
+    "idle_seconds": 0,
+    "live_workspace": "/Volumes/UKAI-WARM/ws",
+    "live_workspace_facts": {
+      "case_fold": false,
+      "normalization_fold": false
+    }
+  },
+  "warm_reuse_one_boot": true,
+  "every_granted_write_reached_host": true,
+  "git_config_untouched": true,
+  "protected_git_never_reached": true,
+  "every_exit_zero": true,
+  "every_attempt_network_denied": true,
+  "k108_initial_release_ms": 12.4,
+  "k108_max_release_ms": 14.0,
+  "k108_every_attempt_within_initial_plus_1s": true,
+  "outcome": "PASS"
+}

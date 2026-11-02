@@ -73,26 +73,29 @@ that suite:
 | `network_none` | Outbound TCP and DNS both refused with the NAT adapter attached |
 | `workspace` | The granted write reached the host with the expected bytes; `.git` untouched |
 
-## Pinned-image manifest
+## Pinned-image manifest (built and verified)
 
-`prepare.py` now builds the hashed manifest the release needs: the setup
-script writes the installed `bubblewrap`/`dbus-user-session` versions to
-the console as `UKAI_PINNED` markers (with `UKAI_STEP` progress markers),
-and `image.json` records `guest_pinned_versions` plus their
-`guest_pinned_digest`; the parsing is unit-tested
-(`test_share.PinnedManifestTests`) and the generated script was verified
-byte-for-byte (the seed dump carries `\n` as two characters — an earlier
-draft carried a literal newline, which broke the shell quote and is the
-entire difference from the working image12 script).
+`prepare.py` builds the hashed manifest: the setup script writes the
+installed `bubblewrap`/`dbus-user-session` versions in-image and to the
+console as `UKAI_PINNED` markers (with `UKAI_STEP` progress markers and a
+full `sh -x` trace), and `image.json` records `guest_pinned_versions` plus
+their `guest_pinned_digest`
+([image13-manifest.json](image13-manifest.json)):
+`bubblewrap=0.11.1-1ubuntu0.3`, `dbus-user-session=1.16.2-2ubuntu4`,
+digest `26faa9a3…`. The parsing is unit-tested and the built image was
+verified end to end against the warm service: three attempts over one
+boot, every granted write on the host, `.git` protected, release latency
+12.4–14.0 ms ([image13-warm-verify.json](image13-warm-verify.json)), and
+the capability suite passes on it
+([image13-capabilities.json](image13-capabilities.json)).
 
-The full rebuild to embed the manifest could not complete tonight:
-[image13-attempts/](image13-attempts/) retains the raw evidence of six
-attempts — the last reaches `apt_update`, `apt_install` and `users`, then
-hangs in the user/systemctl phase until the helper's boot timeout; the
-identical sequence passed in image12 earlier the same day, so this is a
-host-side bootstrap flake, not the manifest change (whose bytes are
-verified above). The measurements in this record all ran on image12; a
-clean rebuild closes the gap.
+The earlier "bootstrap flake" was not a flake: the trace wrapper revealed
+`cannot create /usr/local/share/ukai-vm/pinned-versions.txt: Directory
+nonexistent` — the manifest edit had placed that write before the
+`mkdir`, and `set -e` aborted the script silently. The seven failed
+attempts' raw evidence is retained in
+[image13-attempts/](image13-attempts/) (including the successful build's
+console), and the ordering is fixed.
 
 ## What remains before a release
 

@@ -127,6 +127,7 @@ apt-get update
 echo UKAI_STEP apt_install >/dev/hvc0
 apt-get install -y --no-install-recommends bubblewrap dbus-user-session
 echo UKAI_STEP users >/dev/hvc0
+mkdir -p /usr/local/share/ukai-vm
 dpkg-query -W -f='${Package}=${Version}\n' bubblewrap dbus-user-session > /usr/local/share/ukai-vm/pinned-versions.txt
 useradd --create-home --uid 1001 --shell /bin/bash ukai
 loginctl enable-linger ukai
@@ -143,11 +144,18 @@ sync
 echo UKAI_BOOTSTRAP_DONE > /dev/hvc0
 systemctl poweroff
 '''
+    trace = b'''#!/bin/sh
+# The setup trace lands on the console the host captures: a silently
+# aborted step (set -e) is otherwise indistinguishable from a hang.
+exec >/dev/hvc0 2>&1
+sh -x /usr/local/lib/ukai-vm/setup.sh
+'''
     seed(root / 'seed', [('/usr/local/bin/ukai-jail', binary, '0755'),
                         ('/usr/local/lib/ukai-vm/guest.py', (SOURCE / 'guest.py').read_bytes(), '0644'),
                         ('/etc/systemd/system/ukai-vm.service', service, '0644'),
-                        ('/usr/local/lib/ukai-vm/setup.sh', setup, '0700')],
-         [['/bin/sh', '/usr/local/lib/ukai-vm/setup.sh']])
+                        ('/usr/local/lib/ukai-vm/setup.sh', setup, '0700'),
+                        ('/usr/local/lib/ukai-vm/trace.sh', trace, '0700')],
+         [['/bin/sh', '/usr/local/lib/ukai-vm/trace.sh']])
     metadata = {'schema': 'ukai.vm.image-build/1', 'status': 'preparing', 'image_url': IMAGE_URL,
                 'image_sha256': IMAGE_SHA256, 'jail_url': JAIL_URL, 'jail_archive_sha256': JAIL_SHA256,
                 'source_sha256': {name: sha(SOURCE / name) for name in ['guest.py', 'vz.swift', 'custodian.c', 'prepare.py']}}
