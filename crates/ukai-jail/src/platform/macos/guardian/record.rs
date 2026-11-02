@@ -195,7 +195,7 @@ pub fn boot_session_uuid() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::macos::custody::{StopNotDrainedReason, StopTiming};
+    use crate::platform::macos::custody::StopNotDrainedReason;
 
     fn drained_result() -> StopResult {
         StopResult::Drained {

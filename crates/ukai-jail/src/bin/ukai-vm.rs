@@ -59,6 +59,9 @@ mod protocol;
 // takes).
 #[allow(dead_code)]
 mod record;
+#[path = "../platform/macos/vm/share.rs"]
+// The live-workspace preflight, shared with the supervisor's vm module.
+mod share;
 
 /// The idle budget: no live attempt for this long ends the warm guest
 /// (jail-macos.md §6: "initial 10 min").
@@ -111,6 +114,13 @@ enum GuestOp {
     Reset,
     /// Stage one ephemeral credential in the guest's tmpfs.
 
+    /// Stage one ephemeral credential in the guest's tmpfs (J18 §6):
+    /// the value crosses once per attempt and is never on the guest disk.
+    /// The jail-side vault binding remains refused below.
+    Secret {
+        id: String,
+        data: String,
+    },
     /// One workspace file, the preview's frame.
     Put {
         path: String,
@@ -252,6 +262,10 @@ struct Service {
     boot_id: String,
     install: image::Install,
     sockets: (PathBuf, PathBuf),
+    /// The live workspace share (J18 §6): the host directory crossing as
+    /// one writable virtio-fs device, with its preflight facts. `None` is
+    /// the preview's staged mode.
+    live_share: Option<(PathBuf, share::ShareFacts)>,
 }
 
 /// One guest frame as the reader thread delivered it, or the transport's end.
@@ -378,9 +392,21 @@ fn maintain_lease(
     nonblocking(&lease_write)?;
     nonblocking(&ack_read)?;
     let mut acknowledged = continuous_ns();
+    let mut last_wake = continuous_ns();
     let mut sent = 0;
     while !shared.stop_requested() {
         let now = continuous_ns();
+        // A suspension (Ctrl-Z of the foreground group) freezes this thread
+        // while the continuous clock keeps counting; an expiry can only be
+        // decided by code that is running, so an unexplained wake gap resets
+        // the acknowledgement baseline instead of failing the lease
+        // (jail-macos §6/K110: suspending the operator's job must not end
+        // the attempt; measured 2026-11-02: the 1.5s budget saw the 2s stop
+        // as a lost acknowledgement).
+        if now.saturating_sub(last_wake) > 500_000_000 {
+            acknowledged = now;
+        }
+        last_wake = now;
         if sent == 0 || now.saturating_sub(sent) >= LEASE_REFRESH.as_nanos() {
             // SAFETY: one byte from a live buffer to our lease descriptor.
             if unsafe { libc::write(lease_write.as_raw_fd(), b".".as_ptr().cast(), 1) } != 1 {
@@ -424,6 +450,16 @@ fn serve(args: ServeArgs) -> Result<(), String> {
     install_signal_handlers();
     let install = image::Install::discover().map_err(|e| e.0)?;
     install.verify().map_err(|e| e.0)?;
+    // The live share's containment preflight runs before anything boots:
+    // its refusals (symlinks, multi-link files, case-folding volumes) are
+    // host-side facts no guest policy can enforce (§6, measured 2026-11-02).
+    let live_share = match &args.live_workspace {
+        Some(path) => {
+            let facts = share::preflight(path)?;
+            Some((path.canonicalize().map_err(|e| e.to_string())?, facts))
+        }
+        None => None,
+    };
     let runtime = data_dir()?.join("vm");
     std::fs::create_dir_all(&runtime).map_err(|e| e.to_string())?;
     private_dir(&runtime)?;
@@ -455,6 +491,8 @@ fn serve(args: ServeArgs) -> Result<(), String> {
         &console,
         &lease_read,
         &ack_write,
+        live_share.as_ref().map(|(path, _)| path.as_path()),
+        args.guest_nat,
     )?);
     drop(lease_read);
     drop(ack_write);
@@ -497,6 +535,7 @@ fn serve(args: ServeArgs) -> Result<(), String> {
         boot_id,
         install,
         sockets: (runtime.join("control.sock"), runtime.join("attempt.sock")),
+        live_share,
     });
     let control_service = Arc::clone(&service);
     let control_thread = std::thread::spawn(move || {
@@ -504,7 +543,7 @@ fn serve(args: ServeArgs) -> Result<(), String> {
     });
     // Exactly one session handshake per boot, including the first kernel reply.
     let result = (|| {
-        expect_guest(&guest_frames, "ready")?;
+        expect_guest_within(&guest_frames, "ready", Duration::from_secs(150))?;
         guest_line(&service, &GuestOp::Session)?;
         let session = expect_guest(&guest_frames, "session")?;
         *SHARED_GUEST_KERNEL.lock().map_err(|e| e.to_string())? =
@@ -535,10 +574,14 @@ fn serve(args: ServeArgs) -> Result<(), String> {
     for socket in [&service.sockets.0, &service.sockets.1] {
         let _ = std::fs::remove_file(socket);
     }
-    std::fs::remove_dir_all(&boot).map_err(|e| e.to_string())?;
     if service.shared.failed.load(AtomicOrdering::SeqCst) {
+        // Keep the boot directory (guest console, copied image, nvram) as
+        // failure evidence under its boot id; deleting it is exactly how a
+        // custody failure becomes undiagnosable (measured 2026-11-02).
+        eprintln!("ukai-vm: evidence retained at {}", boot.display());
         return Err("VM custody or transport failed".to_owned());
     }
+    std::fs::remove_dir_all(&boot).map_err(|e| e.to_string())?;
     if stop_requested { Ok(()) } else { result }
 }
 
@@ -575,6 +618,16 @@ fn serve_control(service: &Service, listener: &UnixListener, idle_seconds: u64) 
                 seed_sha256: manifest.seed_sha256.clone(),
                 vsock_port: GUEST_PORT,
                 idle_seconds,
+                live_workspace: service
+                    .live_share
+                    .as_ref()
+                    .map(|(path, _)| path.display().to_string()),
+                live_workspace_facts: service.live_share.as_ref().map(|(_, facts)| {
+                    protocol::LiveShareFacts {
+                        case_fold: facts.case_fold,
+                        normalization_fold: facts.normalization_fold,
+                    }
+                }),
             },
             protocol::ToControl::Stop => {
                 service.shared.stopping.store(true, AtomicOrdering::SeqCst);
@@ -693,6 +746,18 @@ fn run_attempt(
                     protocol::GUEST_PROFILES.join(", ")
                 ));
             }
+            if service.live_share.is_some() && profile == "build" {
+                // The build profile's disposable-copy grant has no protected
+                // segments; on a live share it would expose the operator's
+                // real .git (measured, run 2 of the 2026-11-02 K109
+                // evidence). The guest refuses it too.
+                return Err(
+                    "the build profile treats the workspace as a disposable copy with no \
+                     protected segments; a live share is the operator's real directory, so \
+                     run it with profile `tool`"
+                        .to_owned(),
+                );
+            }
             if !(1..=protocol::WALL_MAX).contains(&wall_seconds) {
                 return Err(format!(
                     "the attempt names a wall of {wall_seconds}s, past the guest grammar"
@@ -722,12 +787,42 @@ fn run_attempt(
         }
     }?;
     let (attempt_id, profile, wall_seconds, argv, secrets) = prepared;
-    if !secrets.is_empty() {
-        return Err("--vm: vault credentials are not wired into the guest jail".to_owned());
+    {
+        // Duplicate ids would collide in the guest's staging tree; the
+        // refusal is the client's, before anything is sent to the guest.
+        let mut ids: Vec<&str> = secrets.iter().map(|s| s.id.as_str()).collect();
+        ids.sort_unstable();
+        if ids.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(
+                "the attempt stages the same credential id twice; ids must be unique"
+                    .to_owned(),
+            );
+        }
     }
-
     guest_line(service, &GuestOp::Reset)?;
     expect_guest(frames, "reset")?;
+    let mut staged_secrets: Vec<(String, String)> = Vec::new();
+    for secret in &secrets {
+        // The transport stages each value in the guest's tmpfs for this
+        // attempt; the jail-side vault binding is still refused, so a
+        // secret staged without a consuming jail feature is a client error
+        // the guest still stages-and-clears deterministically.
+        guest_line(
+            service,
+            &GuestOp::Secret {
+                id: secret.id.clone(),
+                data: secret.data.clone(),
+            },
+        )?;
+        let staged = expect_guest(frames, "secret")?;
+        if staged.id.as_deref() != Some(secret.id.as_str()) {
+            return Err(format!("the guest acknowledged the wrong secret: {:?}", staged.id));
+        }
+        staged_secrets.push((
+            secret.id.clone(),
+            staged.path.clone().unwrap_or_default(),
+        ));
+    }
     let kernel = SHARED_GUEST_KERNEL
         .lock()
         .map_err(|e| e.to_string())?
@@ -737,6 +832,7 @@ fn run_attempt(
         &mut stream,
         &protocol::FromVm::Prepared {
             kernel: kernel.clone(),
+            staged_secrets,
         },
     )?;
 
@@ -745,6 +841,17 @@ fn run_attempt(
     loop {
         match read_request(&mut stream)? {
             protocol::ToVm::Put(put) => {
+                if service.live_share.is_some() {
+                    // A live share's staging is the host's side of the mount;
+                    // forwarding the put would write through to the host
+                    // workspace, and the guest ends its VM on one. The files
+                    // are already in place through the share.
+                    return Err(format!(
+                        "a live-workspace service does not stage files; `{}` is already \
+                         shared from the host",
+                        put.path
+                    ));
+                }
                 guest_line(
                     service,
                     &GuestOp::Put {
@@ -968,7 +1075,18 @@ fn expect_guest(
     frames: &std::sync::mpsc::Receiver<GuestLine>,
     event: &str,
 ) -> Result<GuestEvent, String> {
-    let deadline = continuous_ns() + 30 * 1_000_000_000;
+    expect_guest_within(frames, event, Duration::from_secs(30))
+}
+
+fn expect_guest_within(
+    frames: &std::sync::mpsc::Receiver<GuestLine>,
+    event: &str,
+    budget: Duration,
+) -> Result<GuestEvent, String> {
+    // The guest's own boot (EFI, kernel, cloud-init, controller) takes up
+    // to a minute on the measured image; every later exchange is warm and
+    // stays on the short deadline.
+    let deadline = continuous_ns() + budget.as_nanos();
     loop {
         if STOP.load(AtomicOrdering::SeqCst) || continuous_ns() > deadline {
             return Err(format!("the guest did not answer `{event}`"));
@@ -1061,6 +1179,8 @@ fn spawn_custodian(
     console: &Path,
     lease_read: &std::os::fd::OwnedFd,
     ack_write: &std::os::fd::OwnedFd,
+    share_dir: Option<&Path>,
+    guest_nat: bool,
 ) -> Result<std::process::Child, String> {
     use std::os::fd::AsRawFd as _;
     use std::process::Stdio;
@@ -1072,7 +1192,18 @@ fn spawn_custodian(
         .arg(seed)
         .arg(nvram)
         .arg(console)
-        .arg("run")
+        .arg("run");
+    // The optional trailing argument is the live workspace share (J18 §6):
+    // the custodian forwards it to the VZ client, which attaches one
+    // writable virtio-fs device; the guest controller mounts it as the
+    // attempt workspace.
+    if let Some(share) = share_dir {
+        command.arg(share);
+    }
+    if guest_nat {
+        command.env("UKAI_VM_GUEST_NAT", "1");
+    }
+    command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
@@ -1150,6 +1281,16 @@ struct ServeArgs {
     /// The idle budget in seconds; 0 never idles out.
     #[arg(long, default_value_t = IDLE_SECONDS)]
     idle_seconds: u64,
+    /// Share this workspace live over virtio-fs instead of staging per
+    /// attempt (J18 §6). Refused for workspaces with symlinks or
+    /// multi-link files, or on case-folding volumes.
+    #[arg(long, value_name = "DIR")]
+    live_workspace: Option<PathBuf>,
+    /// Attach the guest's NAT adapter during attempts too (J18 §6). The
+    /// guest jail remains the policy gate: without a proxied policy the
+    /// workload has no egress, adapter or not.
+    #[arg(long)]
+    guest_nat: bool,
 }
 
 fn main() -> std::process::ExitCode {

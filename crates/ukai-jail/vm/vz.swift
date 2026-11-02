@@ -56,7 +56,12 @@ final class Runner: NSObject, VZVirtualMachineDelegate {
             fileHandleForReading: nil,
             fileHandleForWriting: FileHandle(fileDescriptor: output, closeOnDealloc: true))
         config.serialPorts = [console]
-        if bootstrap {
+        if bootstrap || ProcessInfo.processInfo.environment["UKAI_VM_GUEST_NAT"] == "1" {
+            // Bootstrap needs apt; run mode attaches NAT only when the
+            // operator asked (J18 §6: the guest jail's proxy is the policy
+            // gate — the adapter alone grants the workload nothing, which
+            // the network measurements keep proving). The environment
+            // crosses the custodian's posix_spawn unchanged.
             let network = VZVirtioNetworkDeviceConfiguration()
             network.attachment = VZNATNetworkDeviceAttachment()
             config.networkDevices = [network]

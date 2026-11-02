@@ -34,6 +34,7 @@ pub mod control;
 pub mod image;
 pub mod protocol;
 pub mod record;
+pub mod share;
 
 /// How long starting `ukai-vm serve` may take before the run refuses.
 pub const SERVE_TIMEOUT: Duration = Duration::from_secs(20);
@@ -540,7 +541,7 @@ fn expect_ready(connection: &mut control::AttemptConnection) -> Result<ReadyFram
 
 fn expect_prepared(connection: &mut control::AttemptConnection) -> Result<String, JailError> {
     match connection.next_frame().map_err(transport)? {
-        Some(protocol::FromVm::Prepared { kernel }) => Ok(kernel),
+        Some(protocol::FromVm::Prepared { kernel, .. }) => Ok(kernel),
         Some(protocol::FromVm::Error { message }) => Err(refused(format!("--vm: {message}"))),
         Some(other) => Err(refused(format!(
             "--vm: the guest answered staging with {other:?}, not `prepared`"

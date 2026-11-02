@@ -53,33 +53,125 @@ def notify():
             sock.sendall(b'READY=1\nWATCHDOG=1')
 
 
-def kill_workload():
-    """cgroup.kill of the workload boundary, verified empty: the facts the
+def kill_workload(boundary='/sys/fs/cgroup/user.slice'):
+    """cgroup.kill of a workload boundary, verified empty: the facts the
     audit records stand on their own, so a warm session's cancel can share
-    them with the poweroff path."""
-    boundary = Path('/sys/fs/cgroup/user.slice')
-    with (boundary / 'cgroup.events').open() as events:
+    them with the poweroff path. The per-attempt boundary is the attempts
+    slice below; `user.slice` stays the last-resort boundary at poweroff,
+    because it also holds the lingered user manager whose delegation the
+    jail needs — killing it mid-session is exactly the warm-reuse bug this
+    signature exists to prevent (measured 2026-11-02: the first warm reset
+    killed user@1001.service and the next jail refused with
+    `limit:pids (cgroup_unavailable)`)."""
+    root = Path(boundary)
+    with (root / 'cgroup.events').open() as events:
         inode = os.fstat(events.fileno()).st_ino
-        (boundary / 'cgroup.kill').write_text('1')
+        (root / 'cgroup.kill').write_text('1')
         deadline = clock() + 1
         while True:
             events.seek(0)
             state = dict(line.split() for line in events.read().splitlines())
             if state.get('populated') == '0':
-                audit('workload_tree_empty', boundary='user.slice', events_inode=inode)
+                audit('workload_tree_empty', boundary=root.name, events_inode=inode)
                 return
             if clock() >= deadline:
                 raise TimeoutError('cgroup did not empty')
             time.sleep(.01)
 
 
-def stop_attempt_tree():
+# ---------------------------------------------------------------------------
+# The per-attempt cgroup: a delegated child of a dedicated attempts slice.
+# The jail (as uid 1001) can create its own cgroups beneath it, and the
+# attempt's kill never touches user.slice's lingered user manager.
+# ---------------------------------------------------------------------------
+
+ATTEMPTS_SLICE = Path('/sys/fs/cgroup/ukai-attempts.slice')
+attempt_counter = 0
+
+
+def prepare_attempt_cgroup(account):
+    """Creates this attempt's delegated cgroup and returns its path. The
+    controller (root) owns the slice; each attempt's child is chowned to
+    the workload user, so the jail's own cgroup setup works as it does on
+    any delegated Linux host. The slice enables the controllers the jail's
+    limits need (pids, memory) in its subtree_control — a freshly created
+    cgroup has none, and the jail measures that as `cgroup_unavailable`
+    (measured 2026-11-02)."""
+    global attempt_counter
+    attempt_counter += 1
+    child = ATTEMPTS_SLICE / f'attempt-{attempt_counter}'
+    child.mkdir(parents=True, exist_ok=False)
+    with (ATTEMPTS_SLICE / 'cgroup.controllers').open() as available:
+        present = set(available.read().split())
+    enabled = {name for name in ('pids', 'memory', 'cpu') if name in present}
+    if enabled:
+        with (ATTEMPTS_SLICE / 'cgroup.subtree_control').open('w') as control:
+            control.write(' '.join(f'+{name}' for name in sorted(enabled)))
+    for path in (child, *(descendant for descendant in child.iterdir())):
+        os.chown(path, account.pw_uid, account.pw_gid)
+        os.chmod(path, 0o755)
+    return child
+
+
+
+
+# The join wrapper runs as the workload user, before the jail execs: a
+# failure names the cgroup and errno on stderr (relayed to the host by the
+# controller) instead of dying inside preexec_fn where the reason is lost.
+# The wrapper waits until its own pid appears in the attempt cgroup's
+# cgroup.procs; the controller (root) performs the move, because moving a
+# process out of the root-owned service cgroup needs the source-side
+# permission only root has (measured: uid 1001 writing cgroup.procs gets
+# EIO). Waiting (not writing) keeps the join race-free: the jail execs
+# only after the move, and a controller death times out loudly.
+_JOIN_CGROUP_WRAPPER = [
+    '/bin/sh', '-c',
+    'i=0; while ! grep -qx "$$" "$1/cgroup.procs" 2>/dev/null; do '
+    'i=$((i+1)); [ "$i" -gt 500 ] && { echo "CGROUP_JOIN_TIMEOUT:$1" >&2; exit 124; }; '
+    'sleep 0.02; done; shift; exec "$@"', 'join-cgroup',
+]
+
+
+def _join_attempt_cgroup(child):
+    """The argv prefix whose process waits for its move into the attempt's
+    delegated cgroup; the controller completes it with
+    [`move_into_attempt_cgroup`] before the jail execs."""
+    return [*_JOIN_CGROUP_WRAPPER, str(child)]
+
+
+def move_into_attempt_cgroup(child, pid):
+    """Root performs the move the delegated user cannot: one write of the
+    spawned pid into the attempt cgroup's cgroup.procs."""
+    with (child / 'cgroup.procs').open('w') as procs:
+        procs.write(str(pid))
+def drop_attempt_cgroup(child):
+    """Removes one attempt's cgroup after its verified-empty kill."""
+    try:
+        child.rmdir()
+    except OSError:
+        pass  # A leftover is recorded by the next attempt's fresh name.
+
+
+def stop_attempt_tree(boundary=None):
     """Ends one attempt's tree without ending the session. A boundary that
     cannot be verified empty is recorded and the session carries on: the
     attempt's outcome is already unknown to the host."""
     # A warm reset must never run alongside surviving workload processes.
-    # Failure propagates to the controller's poweroff path.
-    kill_workload()
+    # Failure propagates to the controller's poweroff path. The boundary is
+    # this attempt's delegated cgroup — never user.slice, whose lingered
+    # user manager provides the delegation the next jail needs.
+    target = Path(boundary) if boundary is not None \
+        else ATTEMPTS_SLICE / f'attempt-{attempt_counter}'
+    if not target.exists():
+        # A boundary that does not exist holds no processes: empty by
+        # construction. This is the normal state after a cancel dropped the
+        # attempt's cgroup and before the next attempt creates its own
+        # (measured 2026-11-02: the reset after a cancel re-killed the
+        # dropped boundary and powered the guest off). An EXPLICIT boundary
+        # that vanished mid-attempt is the caller's anomaly to handle.
+        audit('workload_tree_empty', boundary=target.name, events_inode=0)
+        return
+    kill_workload(str(target))
 
 
 def poweroff(reason):
@@ -193,7 +285,9 @@ def stage_secret(secret_id, payload, secrets=None):
     secrets = secrets_root() if secrets is None else Path(secrets)
     parts = relative(secret_id)
     path = secrets.joinpath(*parts)
-    secrets.mkdir(mode=0o700, parents=True, exist_ok=True)
+    # The id may nest (api/token): create every level private, not just the
+    # root (measured: open('xb') on a nested id raised ENOENT).
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     with path.open('xb') as output:
         output.write(payload)
     os.chmod(path, 0o600)
@@ -400,9 +494,12 @@ def main():
                         poweroff('invalid_argv')
                     command = run_command(profile, argv, wall)
                     env = attempt_environment(account)
-                    process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                    attempt_cgroup = prepare_attempt_cgroup(account)
+                    joined = [os.fsencode(part) for part in _join_attempt_cgroup(attempt_cgroup)]
+                    process = subprocess.Popen([*joined, *command], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                                stderr=subprocess.PIPE, cwd=WORKSPACE, env=env,
                                                user=account.pw_uid, group=account.pw_gid, extra_groups=[])
+                    move_into_attempt_cgroup(attempt_cgroup, process.pid)
                     for stream, name in [(process.stdout, 'stdout'), (process.stderr, 'stderr')]:
                         selector.register(stream, selectors.EVENT_READ, name)
                     stream_count = 2
@@ -425,9 +522,12 @@ def main():
                         poweroff('invalid_argv')
                     command = run_command(profile, argv, wall)
                     env = attempt_environment(account)
-                    process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                    attempt_cgroup = prepare_attempt_cgroup(account)
+                    joined = [os.fsencode(part) for part in _join_attempt_cgroup(attempt_cgroup)]
+                    process = subprocess.Popen([*joined, *command], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                                stderr=subprocess.PIPE, cwd=WORKSPACE, env=env,
                                                user=account.pw_uid, group=account.pw_gid, extra_groups=[])
+                    move_into_attempt_cgroup(attempt_cgroup, process.pid)
                     for stream, name in [(process.stdout, 'stdout'), (process.stderr, 'stderr')]:
                         selector.register(stream, selectors.EVENT_READ, name)
                     stream_count = 2
@@ -443,16 +543,27 @@ def main():
                     send({'event': 'session', 'kernel': os.uname().release})
                 elif op == 'reset' and process is None and in_session:
                     stop_attempt_tree()
+                    if attempt_counter:
+                        drop_attempt_cgroup(ATTEMPTS_SLICE / f'attempt-{attempt_counter}')
                     reset_attempt(account)
                     uploaded = files = output_bytes = 0
                     send({'event': 'reset'})
                 elif op == 'secret' and process is None and in_session:
-                    poweroff('vault_credentials_unsupported')
+                    # J18 §6 transport: the value crosses the vsock once and
+                    # lands in tmpfs for this attempt only (never the guest
+                    # disk). The jail-side vault binding stays refused until
+                    # the guest jail's credential staging is wired; the
+                    # transport, its privacy and its clearing are what the
+                    # warm measurements verify.
+                    path = stage_secret(request['id'], base64.b64decode(request['data'], validate=True))
+                    send({'event': 'secret', 'id': request['id'], 'path': str(path)})
                 elif op == 'cancel2' and in_session:
                     # The attempt lease's end-of-file reached the host's
                     # ukai-vm, which passes the cancellation on. The session
                     # and the VM stay up; no timer was involved.
                     stop_attempt_tree()
+                    if attempt_counter:
+                        drop_attempt_cgroup(ATTEMPTS_SLICE / f'attempt-{attempt_counter}')
                     clear_secrets()
                     reset_attempt(account)
                     discard_attempt()
@@ -464,7 +575,7 @@ def main():
                     poweroff('invalid_operation')
         if process is not None and process.poll() is not None and stream_count == 0:
             if in_session:
-                stop_attempt_tree()
+                stop_attempt_tree(attempt_cgroup)
             # Only regular files are transported. Never dereference guest links.
             count = 0
             total = 0
@@ -513,4 +624,11 @@ if __name__ == '__main__':
     try:
         main()
     except BaseException as error:
+        # The traceback reaches the console (and so the host's evidence)
+        # before the poweroff audit names the class: a warm-session crash
+        # on a real guest is otherwise undiagnosable.
+        import traceback
+        with open('/dev/hvc0', 'w') as console:
+            console.write('UKAI_VM_CONTROLLER_TRACEBACK\n')
+            traceback.print_exc(file=console)
         poweroff('controller_error:' + type(error).__name__)

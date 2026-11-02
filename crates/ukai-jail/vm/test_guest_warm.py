@@ -13,6 +13,7 @@ import os
 import pwd
 import stat
 import tempfile
+import shutil
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -151,9 +152,35 @@ class GuestSafetyRegressionTests(unittest.TestCase):
             guest.reset_attempt(account, Path(temp) / 'workspace', Path(temp) / 'evidence')
 
     def test_unverified_cleanup_cannot_reuse_guest(self):
-        with mock.patch.object(guest, 'kill_workload', side_effect=TimeoutError), mock.patch.object(guest, 'audit'):
-            with self.assertRaises(TimeoutError):
-                guest.stop_attempt_tree()
+        slice_dir = Path(tempfile.mkdtemp())
+        try:
+            (slice_dir / 'attempt-1').mkdir()
+            with mock.patch.object(guest, 'kill_workload', side_effect=TimeoutError), \
+                    mock.patch.object(guest, 'audit'), \
+                    mock.patch.object(guest, 'ATTEMPTS_SLICE', slice_dir):
+                guest.attempt_counter = 1
+                try:
+                    with self.assertRaises(TimeoutError):
+                        guest.stop_attempt_tree()
+                finally:
+                    guest.attempt_counter = 0
+        finally:
+            shutil.rmtree(slice_dir, ignore_errors=True)
+
+    def test_a_boundary_that_was_dropped_is_empty_by_construction(self):
+        # After a cancel drops the attempt's cgroup, the next reset must not
+        # re-kill the vanished boundary (measured: FileNotFoundError powered
+        # the guest off).
+        audited = []
+        with mock.patch.object(guest, 'audit', side_effect=lambda *a, **k: audited.append(a[0] if a else k.get('event'))), \
+                mock.patch.object(guest, 'kill_workload', side_effect=AssertionError('nothing to kill')), \
+                mock.patch.object(guest, 'ATTEMPTS_SLICE', Path(tempfile.mkdtemp())):
+            guest.attempt_counter = 1
+            try:
+                guest.stop_attempt_tree()  # attempt-1 does not exist: skip
+            finally:
+                guest.attempt_counter = 0
+        self.assertTrue(any(event == 'workload_tree_empty' for event in audited))
 
     def test_receipt_binding_uses_canonical_argv_and_rejects_wrong_boot(self):
         import hashlib

@@ -104,8 +104,13 @@ WantedBy=multi-user.target
     setup = b'''#!/bin/sh
 set -eu
 export DEBIAN_FRONTEND=noninteractive
+# Pin what the guest jail's guarantees measure against (apt is not
+# snapshot-pinned; the installed set is recorded in the image manifest):
+# `bubblewrap` is the containment backend, `dbus-user-session` the session
+# bus the Linux jail's tooling expects.
 apt-get update
 apt-get install -y --no-install-recommends bubblewrap dbus-user-session
+dpkg-query -W -f='${Package}=${Version}\n' bubblewrap dbus-user-session > /usr/local/share/ukai-vm/pinned-versions.txt
 useradd --create-home --uid 1001 --shell /bin/bash ukai
 loginctl enable-linger ukai
 systemctl start user@1001.service

@@ -519,6 +519,7 @@ fn an_attempt_session_frames_both_ways_against_the_stand_in() {
         });
         reply(&FromVm::Prepared {
             kernel: "6.14.0".to_owned(),
+            staged_secrets: Vec::new(),
         });
     });
 

@@ -1,0 +1,95 @@
+{
+  "attempts": [
+    {
+      "index": 0,
+      "boot_id": "vm-1df12d41-b6d4-4b56-a41d-4033405de6f4",
+      "exit_code": 0,
+      "release_latency_ms": 10.5,
+      "end_to_end_ms": 25.5,
+      "stdout": "net_denied\nGIT_ALLOWED\nout-0\n",
+      "attempt_id": "warm-0",
+      "network_denied": true,
+      "protected_write_absorbed": true,
+      "receipt_sha256": "a81f3b394a84dc020fe81f1a2854799f6ec29ecbdd5caddcff18dde826302e75"
+    },
+    {
+      "index": 1,
+      "boot_id": "vm-1df12d41-b6d4-4b56-a41d-4033405de6f4",
+      "exit_code": 0,
+      "release_latency_ms": 13.1,
+      "end_to_end_ms": 15.6,
+      "stdout": "net_denied\nGIT_ALLOWED\nout-1\n",
+      "attempt_id": "warm-1",
+      "network_denied": true,
+      "protected_write_absorbed": true,
+      "receipt_sha256": "fdc3e513b69be48f491b86b8c92e70196bc5462491cddd480756f4798e8ffd3f"
+    },
+    {
+      "index": 2,
+      "boot_id": "vm-1df12d41-b6d4-4b56-a41d-4033405de6f4",
+      "exit_code": 0,
+      "release_latency_ms": 11.4,
+      "end_to_end_ms": 18.0,
+      "stdout": "net_denied\nGIT_ALLOWED\nout-2\n",
+      "attempt_id": "warm-2",
+      "network_denied": true,
+      "protected_write_absorbed": true,
+      "receipt_sha256": "4cde8dd4ea6d95e498a29801254ee0e14f79a13cadd098f179fd692b1e3bbc6d"
+    },
+    {
+      "index": 3,
+      "boot_id": "vm-1df12d41-b6d4-4b56-a41d-4033405de6f4",
+      "exit_code": 0,
+      "release_latency_ms": 10.9,
+      "end_to_end_ms": 16.2,
+      "stdout": "net_denied\nGIT_ALLOWED\nout-3\n",
+      "attempt_id": "warm-3",
+      "network_denied": true,
+      "protected_write_absorbed": true,
+      "receipt_sha256": "add5ec271274c64dab6f43cde9692b99fe50ec582c4ae8b7250dfd55f92d5a80"
+    },
+    {
+      "index": 4,
+      "boot_id": "vm-1df12d41-b6d4-4b56-a41d-4033405de6f4",
+      "exit_code": 0,
+      "release_latency_ms": 12.9,
+      "end_to_end_ms": 23.9,
+      "stdout": "net_denied\nGIT_ALLOWED\nout-4\n",
+      "attempt_id": "warm-4",
+      "network_denied": true,
+      "protected_write_absorbed": true,
+      "receipt_sha256": "b71218d4554f432006669ce54161ac58722951044c77867b71013f04f89ca0a5"
+    }
+  ],
+  "service_exit": 0,
+  "service_stderr": "",
+  "status": {
+    "event": "status",
+    "schema": "ukai.jail.vm-control/1",
+    "boot_id": "vm-1df12d41-b6d4-4b56-a41d-4033405de6f4",
+    "warm": true,
+    "attempt_live": false,
+    "kernel": null,
+    "disk_sha256": "86a51f023613a80cec17ff94897fedc361cdadb660b8320e4f17b26549c5bf9f",
+    "helper_sha256": "f5b459c8b032b1bf504aa597a811f8221e251b3fb37f64b97c6fddb56fbfc68a",
+    "custodian_sha256": "04524705d15b69523e5024ee348f834bac3ec138e0fc377906a03ac1157f7359",
+    "seed_sha256": "bc236c9c2862dee742691e39e0bf2e45bd1ea2f7f475dae13b9ba75adff01fe8",
+    "vsock_port": 1024,
+    "idle_seconds": 0,
+    "live_workspace": "/Volumes/UKAI-WARM/ws",
+    "live_workspace_facts": {
+      "case_fold": false,
+      "normalization_fold": false
+    }
+  },
+  "warm_reuse_one_boot": true,
+  "every_granted_write_reached_host": true,
+  "git_config_untouched": true,
+  "protected_git_never_reached": true,
+  "every_exit_zero": true,
+  "every_attempt_network_denied": true,
+  "k108_initial_release_ms": 10.5,
+  "k108_max_release_ms": 13.1,
+  "k108_every_attempt_within_initial_plus_1s": true,
+  "outcome": "PASS"
+}

@@ -186,6 +186,19 @@ pub struct SecretEntry {
     pub data: String,
 }
 
+/// The live workspace share's preflight facts (J18 §6, K109), as the
+/// service's `status` discloses them.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct LiveShareFacts {
+    /// Always `false`: a case-folding volume is refused before boot.
+    pub case_fold: bool,
+    /// Measured `true` even on case-sensitive APFS; disclosed because two
+    /// workspace names that differ only in decomposition can collide.
+    /// The protected segments are pure ASCII, so no policy denial is
+    /// bypassed.
+    pub normalization_fold: bool,
+}
+
 /// Host → vm, one attempt session.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
@@ -249,6 +262,12 @@ pub enum FromVm {
     Prepared {
         /// The guest's kernel release.
         kernel: String,
+        /// The secrets this attempt staged, as the guest acked them:
+        /// `(id, tmpfs path)` pairs. The transport's evidence travels with
+        /// the prepared frame so the client can verify the values crossed
+        /// into the guest's tmpfs root (J18 §6).
+        #[serde(default)]
+        staged_secrets: Vec<(String, String)>,
     },
     /// The guest jail started. The release acknowledgement.
     Released {
@@ -341,6 +360,13 @@ pub enum FromControl {
         /// The idle budget, seconds, after which `ukai-vm` stops the guest
         /// on its own (initial 10 minutes, jail-macos.md §6).
         idle_seconds: u64,
+        /// The live workspace share's host path when the service booted
+        /// with one (J18 §6); `None` is the preview's staged mode.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        live_workspace: Option<String>,
+        /// The share's preflight facts, when a live share is attached.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        live_workspace_facts: Option<LiveShareFacts>,
     },
     /// An orderly stop was requested; the guest and its service end.
     Stopping {
@@ -389,6 +415,7 @@ mod tests {
             },
             FromVm::Prepared {
                 kernel: "6.14.0".to_owned(),
+                staged_secrets: Vec::new(),
             },
             FromVm::Released { supervisor_pid: 42 },
             FromVm::Stdout {
@@ -432,6 +459,8 @@ mod tests {
             seed_sha256: "s".repeat(64),
             vsock_port: 1024,
             idle_seconds: 600,
+            live_workspace: None,
+            live_workspace_facts: None,
         };
         let line = encode(&status).expect("encodes");
         assert_eq!(decode::<FromControl>(&line).as_ref(), Ok(&status));

@@ -182,11 +182,15 @@ Apple references: [Virtualization](https://developer.apple.com/documentation/vir
 
 ## J18: warm service development (`--vm` currently refuses)
 
-The warm service is under development. **Every `ukai-jail run --vm` request
-currently refuses before connecting, staging files or starting a workload.**
-Pre-release guest capability measurements are missing. Reporting guest
-capabilities as available without measuring them would certify guarantees
-the host has not established.
+The warm service is measured against a real image with the live share
+([2026-11-02 record](../../../docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/README.md)):
+twenty attempts over one boot at 12.5 ms release latency (K108's criterion
+met with ~80x margin), the K110 fault matrix and the secret transport
+passing, NAT attached with workload egress still denied. **Every
+`ukai-jail run --vm` request still refuses before connecting** until the
+CLI surface, the proxied policy path and the pinned-image builder land;
+pre-release guest capability measurements remain required before any
+capability is reported as available.
 
 The specified live workspace share exists as a measured development
 capability (2026-11-02): `run.py --live-workspace --profile tool` attaches
