@@ -14,7 +14,10 @@
 //! The service stays a foreground process that operator tooling starts and
 //! stops: no launchd job, no detached double fork, no root. After
 //! [`IDLE_SECONDS`] with no live attempt, on the continuous clock, it stops
-//! the guest and exits. The wire frames are [`protocol`]; the guest
+//! the guest and exits. A boot that fails or is refused keeps its
+//! directory (console, copied image, nvram) under `vm/<boot id>` as
+//! evidence; the newest [`KEPT_BOOT_DIRS`] are kept, older ones removed.
+//! The wire frames are [`protocol`]; the guest
 //! controller's own vsock frames are this file's `guest` module, the warm
 //! successors of the preview's (`session`, `reset`, `secret`, `run2`,
 //! `cancel2` join `ready`, `put` and `run`, which keep their meaning).
@@ -77,6 +80,22 @@ const LEASE_ACK: Duration = Duration::from_millis(1500);
 /// The guest controller's vsock port, the preview's.
 const GUEST_PORT: u32 = 1024;
 
+/// The package version this build reports (D8): the packager sets
+/// `UKAI_VM_PACKAGE_VERSION` from release.json's `vm.candidate_version` when
+/// it builds `ukai-vm`; any other build says it is a development build of
+/// the crate version.
+const PACKAGE_VERSION: &str = match option_env!("UKAI_VM_PACKAGE_VERSION") {
+    Some(version) => version,
+    None => concat!(env!("CARGO_PKG_VERSION"), "-dev"),
+};
+
+/// How many boot directories (guest console, copied image, nvram) of
+/// failed or refused boots the service keeps as evidence. Older ones are
+/// removed when a service starts and whenever it keeps a new one: each
+/// holds a clone of the guest disk, so an unbounded history is unbounded
+/// disk.
+const KEPT_BOOT_DIRS: usize = 3;
+
 // ---------------------------------------------------------------------------
 // The helper (custodian → VZ client) and guest protocols
 // ---------------------------------------------------------------------------
@@ -113,11 +132,10 @@ enum GuestOp {
     Session,
     /// Empty the attempt directories for the next attempt.
     Reset,
-    /// Stage one ephemeral credential in the guest's tmpfs.
-
-    /// Stage one ephemeral credential in the guest's tmpfs (J18 §6):
-    /// the value crosses once per attempt and is never on the guest disk.
-    /// The jail-side vault binding remains refused below.
+    /// Stage one ephemeral credential in the guest's tmpfs (J18 §6): the
+    /// value crosses once per attempt and is never on the guest disk; the
+    /// launch profile's sources name these paths, the guest jail's vault
+    /// reads them, and the guest removes them when the attempt ends.
     Secret { id: String, data: String },
     /// Receive the vaulted launch profile's TOML for this attempt (the
     /// guest controller writes it under its config dir and runs the jail
@@ -180,6 +198,10 @@ struct GuestEvent {
     message: Option<String>,
     #[serde(default)]
     binding: Option<protocol::ReceiptBinding>,
+    /// D7: whether the guest mounted the live workspace share (`ready` and
+    /// `session` state it).
+    #[serde(default)]
+    live_share: Option<bool>,
 }
 
 // ---------------------------------------------------------------------------
@@ -411,7 +433,11 @@ fn maintain_lease(
         // the acknowledgement baseline instead of failing the lease
         // (jail-macos §6/K110: suspending the operator's job must not end
         // the attempt; measured 2026-11-02: the 1.5s budget saw the 2s stop
-        // as a lost acknowledgement).
+        // as a lost acknowledgement). The custodian applies the same rule
+        // on its side (custodian.c), so a stop of the whole group longer
+        // than its three-second lease no longer ends the VM either; a
+        // service that stays stopped still loses the VM three seconds
+        // after the custodian runs again.
         if now.saturating_sub(last_wake) > 500_000_000 {
             acknowledged = now;
         }
@@ -475,6 +501,10 @@ fn serve(args: ServeArgs) -> Result<(), String> {
     let _lock = lock_runtime(&runtime)?;
     for stale in ["control.sock", "attempt.sock"] {
         let _ = std::fs::remove_file(runtime.join(stale));
+    }
+    // Every boot directory here is an earlier service's (the lock is ours).
+    if let Err(error) = prune_boot_dirs(&runtime, KEPT_BOOT_DIRS, None) {
+        eprintln!("ukai-vm: earlier boot evidence could not be pruned: {error}");
     }
     let boot_id = format!("vm-{}", uuid::Uuid::new_v4());
     // Copy first, then hash the private copies that are actually executed.
@@ -556,8 +586,9 @@ fn serve(args: ServeArgs) -> Result<(), String> {
         expect_guest_within(&guest_frames, "ready", Duration::from_secs(150))?;
         guest_line(&service, &GuestOp::Session)?;
         let session = expect_guest(&guest_frames, "session")?;
-        *SHARED_GUEST_KERNEL.lock().map_err(|e| e.to_string())? =
-            Some(session.kernel.ok_or("session omitted kernel")?);
+        let kernel = session.kernel.ok_or("session omitted kernel")?;
+        check_live_share(service.live_share.is_some(), session.live_share)?;
+        *SHARED_GUEST_KERNEL.lock().map_err(|e| e.to_string())? = Some(kernel);
         drive_attempts(
             &service,
             &guest_frames,
@@ -584,14 +615,32 @@ fn serve(args: ServeArgs) -> Result<(), String> {
     for socket in [&service.sockets.0, &service.sockets.1] {
         let _ = std::fs::remove_file(socket);
     }
-    if service.shared.failed.load(AtomicOrdering::SeqCst) {
+    let failed = service.shared.failed.load(AtomicOrdering::SeqCst);
+    // A guest that ended itself names why on its console (a share that did
+    // not mount, an attempt stop it could not verify).
+    let powered_off = guest_poweroff_reason(&console);
+    if failed || (!stop_requested && result.is_err()) {
         // Keep the boot directory (guest console, copied image, nvram) as
-        // failure evidence under its boot id; deleting it is exactly how a
-        // custody failure becomes undiagnosable (measured 2026-11-02).
+        // evidence under its boot id; deleting it is exactly how a custody
+        // failure becomes undiagnosable (measured 2026-11-02). The newest
+        // [`KEPT_BOOT_DIRS`] are kept.
         eprintln!("ukai-vm: evidence retained at {}", boot.display());
-        return Err("VM custody or transport failed".to_owned());
+        if let Err(error) = prune_boot_dirs(&runtime, KEPT_BOOT_DIRS.saturating_sub(1), Some(&boot))
+        {
+            eprintln!("ukai-vm: earlier boot evidence could not be pruned: {error}");
+        }
+        if let Some(reason) = &powered_off {
+            eprintln!("ukai-vm: the guest powered itself off: {reason}");
+        }
+    } else {
+        std::fs::remove_dir_all(&boot).map_err(|e| e.to_string())?;
     }
-    std::fs::remove_dir_all(&boot).map_err(|e| e.to_string())?;
+    if failed {
+        return Err(match powered_off {
+            Some(reason) => format!("VM custody or transport failed (guest poweroff: {reason})"),
+            None => "VM custody or transport failed".to_owned(),
+        });
+    }
     if stop_requested { Ok(()) } else { result }
 }
 
@@ -808,17 +857,7 @@ fn run_attempt(
         }
     }?;
     let (attempt_id, profile, wall_seconds, argv, secrets, allow_hosts, launch) = prepared;
-    {
-        // Duplicate ids would collide in the guest's staging tree; the
-        // refusal is the client's, before anything is sent to the guest.
-        let mut ids: Vec<&str> = secrets.iter().map(|s| s.id.as_str()).collect();
-        ids.sort_unstable();
-        if ids.windows(2).any(|pair| pair[0] == pair[1]) {
-            return Err(
-                "the attempt stages the same credential id twice; ids must be unique".to_owned(),
-            );
-        }
-    }
+    check_secret_ids(secrets.iter().map(|s| s.id.as_str()))?;
     guest_line(service, &GuestOp::Reset)?;
     expect_guest(frames, "reset")?;
     if let Some(launch) = &launch {
@@ -836,9 +875,9 @@ fn run_attempt(
     let mut staged_secrets: Vec<(String, String)> = Vec::new();
     for secret in &secrets {
         // The transport stages each value in the guest's tmpfs for this
-        // attempt; the jail-side vault binding is still refused, so a
-        // secret staged without a consuming jail feature is a client error
-        // the guest still stages-and-clears deterministically.
+        // attempt, where the launch profile's sources name it; the guest
+        // removes every value when the attempt ends, and a value it refuses
+        // is this attempt's error (the caller cancels it).
         guest_line(
             service,
             &GuestOp::Secret {
@@ -1221,25 +1260,16 @@ fn spawn_custodian(
 ) -> Result<std::process::Child, String> {
     use std::os::fd::AsRawFd as _;
     use std::process::Stdio;
-    let mut command = std::process::Command::new(install.custodian());
-    command
-        .args(["3", "4"])
-        .arg(install.helper())
-        .arg(disk)
-        .arg(seed)
-        .arg(nvram)
-        .arg(console)
-        .arg("run");
-    // The optional trailing argument is the live workspace share (J18 §6):
-    // the custodian forwards it to the VZ client, which attaches one
-    // writable virtio-fs device; the guest controller mounts it as the
-    // attempt workspace.
-    if let Some(share) = share_dir {
-        command.arg(share);
-    }
-    if guest_nat {
-        command.env("UKAI_VM_GUEST_NAT", "1");
-    }
+    let mut command = custodian_command(
+        &install.custodian(),
+        &install.helper(),
+        disk,
+        seed,
+        nvram,
+        console,
+        share_dir,
+        guest_nat,
+    );
     command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -1275,6 +1305,149 @@ fn spawn_custodian(
     command
         .spawn()
         .map_err(|error| format!("{} cannot start: {error}", install.custodian().display()))
+}
+
+/// The custodian's command line and environment, before its descriptors.
+/// The optional trailing argument is the live workspace share (J18 §6):
+/// the custodian forwards it to the VZ client, which attaches one writable
+/// virtio-fs device; the guest controller mounts it as the attempt
+/// workspace. The NAT adapter is the `--guest-nat` flag's alone: an
+/// inherited `UKAI_VM_GUEST_NAT` is removed, so `status` (which reports the
+/// flag) can never say `false` for a guest that has the adapter.
+#[allow(clippy::too_many_arguments)]
+fn custodian_command(
+    custodian: &Path,
+    helper: &Path,
+    disk: &Path,
+    seed: &Path,
+    nvram: &Path,
+    console: &Path,
+    share_dir: Option<&Path>,
+    guest_nat: bool,
+) -> std::process::Command {
+    let mut command = std::process::Command::new(custodian);
+    command
+        .args(["3", "4"])
+        .arg(helper)
+        .arg(disk)
+        .arg(seed)
+        .arg(nvram)
+        .arg(console)
+        .arg("run");
+    if let Some(share) = share_dir {
+        command.arg(share);
+    }
+    command.env_remove("UKAI_VM_GUEST_NAT");
+    if guest_nat {
+        command.env("UKAI_VM_GUEST_NAT", "1");
+    }
+    command
+}
+
+/// D7: the guest's own statement of whether it mounted the live share must
+/// be what this service attached. A guest that fell back to its staged
+/// workspace would run every attempt outside the operator's directory
+/// while the host records a live share; a guest that predates the
+/// statement is refused rather than trusted.
+fn check_live_share(attached: bool, stated: Option<bool>) -> Result<(), String> {
+    match stated {
+        Some(stated) if stated == attached => Ok(()),
+        Some(true) => {
+            Err("the guest reports a live workspace share this service did not attach".to_owned())
+        }
+        Some(false) => Err(
+            "the guest did not mount the live workspace share this service attached; it never \
+             falls back to the staged workspace"
+                .to_owned(),
+        ),
+        None => Err(
+            "the guest's session does not state whether it mounted a live share; its \
+             controller predates this service"
+                .to_owned(),
+        ),
+    }
+}
+
+/// Refuses credential ids that would collide in the guest's staging tree,
+/// before any guest traffic: the same id twice, or one id that is a
+/// directory of another (`a` and `a/b`). The guest refuses both too.
+fn check_secret_ids<'a>(ids: impl Iterator<Item = &'a str>) -> Result<(), String> {
+    let mut ids: Vec<&str> = ids.collect();
+    ids.sort_unstable();
+    for (index, id) in ids.iter().enumerate() {
+        for other in &ids[index + 1..] {
+            if other == id {
+                return Err(
+                    "the attempt stages the same credential id twice; ids must be unique"
+                        .to_owned(),
+                );
+            }
+            if other
+                .strip_prefix(id)
+                .is_some_and(|rest| rest.starts_with('/'))
+            {
+                return Err(format!(
+                    "credential id `{id}` is a directory of `{other}` in the staging tree; ids \
+                     must not nest inside each other"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Removes boot directories (`vm-*`) of earlier boots beyond the newest
+/// `keep`, by modification time; `current` is never counted or removed.
+/// Only directories are touched; a link is never followed out of the
+/// runtime directory.
+fn prune_boot_dirs(
+    runtime: &Path,
+    keep: usize,
+    current: Option<&Path>,
+) -> Result<Vec<PathBuf>, String> {
+    let mut boots = Vec::new();
+    for entry in std::fs::read_dir(runtime).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if !entry.file_name().to_string_lossy().starts_with("vm-")
+            || current.is_some_and(|current| current == path)
+        {
+            continue;
+        }
+        let metadata = std::fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+        if !metadata.is_dir() {
+            continue;
+        }
+        let modified = metadata.modified().unwrap_or(std::time::UNIX_EPOCH);
+        boots.push((modified, path));
+    }
+    boots.sort();
+    let excess = boots.len().saturating_sub(keep);
+    let removed: Vec<PathBuf> = boots.into_iter().take(excess).map(|(_, p)| p).collect();
+    for path in &removed {
+        std::fs::remove_dir_all(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    }
+    Ok(removed)
+}
+
+/// The reason of the guest controller's last `poweroff` audit on its
+/// console (`UKAI_VM {"event": "poweroff", "reason": ...}`), when the guest
+/// ended itself. Reads at most the console's last MiB.
+fn guest_poweroff_reason(console: &Path) -> Option<String> {
+    let bytes = std::fs::read(console).ok()?;
+    let tail = &bytes[bytes.len().saturating_sub(1 << 20)..];
+    String::from_utf8_lossy(tail)
+        .lines()
+        .rev()
+        .find_map(|line| {
+            let start = line.find("UKAI_VM {")?;
+            let value: Value =
+                serde_json::from_str(line[start + "UKAI_VM ".len()..].trim()).ok()?;
+            if value.get("event")?.as_str()? != "poweroff" {
+                return None;
+            }
+            value.get("reason")?.as_str().map(str::to_owned)
+        })
 }
 
 fn read_nonblocking(fd: &std::os::fd::OwnedFd, buffer: &mut [u8]) -> std::io::Result<usize> {
@@ -1322,12 +1495,13 @@ struct ServeArgs {
     idle_seconds: u64,
     /// Share this workspace live over virtio-fs instead of staging per
     /// attempt (J18 §6). Refused for workspaces with symlinks or
-    /// multi-link files, or on case-folding volumes.
+    /// multi-link files, or on case-folding volumes. A guest that does not
+    /// mount the share is refused; it never falls back to a staged copy.
     #[arg(long, value_name = "DIR")]
     live_workspace: Option<PathBuf>,
     /// Attach the guest's NAT adapter during attempts too (J18 §6). The
-    /// guest jail remains the policy gate: without a proxied policy the
-    /// workload has no egress, adapter or not.
+    /// guest jail's network policy, not the adapter, decides what the
+    /// workload can reach. Only this flag attaches it.
     #[arg(long)]
     guest_nat: bool,
 }
@@ -1340,7 +1514,7 @@ fn main() -> std::process::ExitCode {
                 "{}",
                 serde_json::json!({
                     "component": "ukai-vm",
-                    "version": env!("CARGO_PKG_VERSION"),
+                    "version": PACKAGE_VERSION,
                     "execution": "linux-vm-warm",
                     "native_macos_execution": false,
                     "attempt": protocol::SCHEMA_ATTEMPT,
@@ -1446,6 +1620,7 @@ fn doctor() -> Result<(), String> {
     let ready = checks.values().all(|value| value.as_bool() == Some(true));
     let report = serde_json::json!({
         "schema": "ukai.vm.install-check/1",
+        "version": PACKAGE_VERSION,
         "ready": ready,
         "checks": serde_json::Value::Object(checks),
         "scope": "package and host prerequisites; a real run still verifies the guest jail",
@@ -1549,6 +1724,136 @@ mod service_regressions {
         assert!(start.elapsed() < Duration::from_millis(150));
         drop(reader);
         writer.join().unwrap();
+    }
+
+    #[test]
+    fn the_package_version_is_the_packagers_or_says_dev() {
+        match option_env!("UKAI_VM_PACKAGE_VERSION") {
+            Some(version) => assert_eq!(PACKAGE_VERSION, version),
+            None => assert_eq!(
+                PACKAGE_VERSION,
+                format!("{}-dev", env!("CARGO_PKG_VERSION"))
+            ),
+        }
+    }
+
+    #[test]
+    fn the_session_must_state_the_share_this_service_attached() {
+        assert!(check_live_share(true, Some(true)).is_ok());
+        assert!(check_live_share(false, Some(false)).is_ok());
+        let missing = check_live_share(true, Some(false)).unwrap_err();
+        assert!(missing.contains("did not mount"), "{missing}");
+        assert!(check_live_share(false, Some(true)).is_err());
+        assert!(check_live_share(false, None).is_err());
+        assert!(check_live_share(true, None).is_err());
+    }
+
+    #[test]
+    fn credential_ids_may_neither_repeat_nor_nest() {
+        for ids in [
+            &["a", "a"][..],
+            &["a", "a/b"],
+            &["x", "a/b", "a"],
+            &["a/b", "a/b/c"],
+        ] {
+            assert!(check_secret_ids(ids.iter().copied()).is_err(), "{ids:?}");
+        }
+        for ids in [
+            &["a", "ab"][..],
+            &["a/b", "ab"],
+            &["a/b", "a/bc"],
+            &["api/token", "api/key"],
+            &[],
+        ] {
+            assert!(check_secret_ids(ids.iter().copied()).is_ok(), "{ids:?}");
+        }
+    }
+
+    #[test]
+    fn boot_evidence_keeps_the_newest_and_touches_only_boot_directories() {
+        let dir = tempfile::tempdir().unwrap();
+        let runtime = dir.path();
+        let base = std::time::SystemTime::now() - Duration::from_secs(3600);
+        let mut boots = Vec::new();
+        for index in 0..5u64 {
+            let boot = runtime.join(format!("vm-{index}"));
+            std::fs::create_dir(&boot).unwrap();
+            std::fs::write(boot.join("console.log"), b"x").unwrap();
+            std::fs::File::open(&boot)
+                .unwrap()
+                .set_modified(base + Duration::from_secs(index * 60))
+                .unwrap();
+            boots.push(boot);
+        }
+        std::fs::write(runtime.join("vm-file"), b"not a boot").unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(outside.path(), runtime.join("vm-link")).unwrap();
+        std::fs::write(runtime.join("serve.lock"), b"").unwrap();
+        // The current boot is the oldest here, and still never removed.
+        std::fs::File::open(&boots[0])
+            .unwrap()
+            .set_modified(base - Duration::from_secs(60))
+            .unwrap();
+        let removed = prune_boot_dirs(runtime, 2, Some(&boots[0])).unwrap();
+        assert_eq!(removed, vec![boots[1].clone(), boots[2].clone()]);
+        for kept in [&boots[0], &boots[3], &boots[4]] {
+            assert!(kept.is_dir(), "{}", kept.display());
+        }
+        assert!(runtime.join("vm-file").is_file());
+        assert!(runtime.join("vm-link").is_symlink());
+        assert!(runtime.join("serve.lock").exists());
+        assert!(outside.path().is_dir());
+        assert_eq!(prune_boot_dirs(runtime, 3, None).unwrap().len(), 0);
+        assert_eq!(prune_boot_dirs(runtime, 1, None).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn the_guests_last_poweroff_reason_is_read_from_its_console() {
+        let dir = tempfile::tempdir().unwrap();
+        let console = dir.path().join("console.log");
+        assert_eq!(guest_poweroff_reason(&console), None);
+        std::fs::write(
+            &console,
+            "[    1.0] boot noise\r\nUKAI_VM {\"event\": \"ready\", \"kernel\": \"7.0\"}\n\
+             [    2.0] UKAI_VM {\"event\": \"poweroff\", \"reason\": \"first\"}\r\n\
+             UKAI_VM {\"event\": \"poweroff\", \"reason\": \"live_share_mount_failed\"}\r\n\
+             UKAI_VM {not json\n",
+        )
+        .unwrap();
+        assert_eq!(
+            guest_poweroff_reason(&console).as_deref(),
+            Some("live_share_mount_failed")
+        );
+        std::fs::write(
+            &console,
+            "UKAI_VM {\"event\": \"done\", \"exit_code\": 0}\n",
+        )
+        .unwrap();
+        assert_eq!(guest_poweroff_reason(&console), None);
+    }
+
+    #[test]
+    fn the_nat_adapter_is_the_flags_alone() {
+        let path = Path::new("/x");
+        for (flag, expected) in [(false, None), (true, Some(std::ffi::OsStr::new("1")))] {
+            let command = custodian_command(path, path, path, path, path, path, None, flag);
+            let nat: Vec<_> = command
+                .get_envs()
+                .filter(|(key, _)| *key == "UKAI_VM_GUEST_NAT")
+                .collect();
+            // `env_remove` is recorded as an explicit unset, so an inherited
+            // value cannot reach the custodian.
+            assert_eq!(nat.len(), 1, "{nat:?}");
+            assert_eq!(nat[0].1, expected);
+        }
+        let share = Path::new("/workspace");
+        let command = custodian_command(path, path, path, path, path, path, Some(share), false);
+        let args: Vec<_> = command.get_args().collect();
+        assert_eq!(args.last(), Some(&share.as_os_str()));
+        assert_eq!(
+            args[..2],
+            [std::ffi::OsStr::new("3"), std::ffi::OsStr::new("4")]
+        );
     }
 
     #[test]
