@@ -67,6 +67,31 @@ as written except that the two links to `run-vm-cli/` are now plain text
    used the Python protocol client or a client built from the repository;
    no macOS `ukai-jail` client ships. "What remains before a release" below
    is the 2026-11-02 list; the acceptance map's notes are current.
+9. **Fix 1 below moved the kill to a cgroup the jail leaves.** The guest
+   controller starts each jail in `ukai-attempts.slice/attempt-N`, but the
+   guest jail then moves its supervisor to a scope under
+   `user@1001.service/app.slice` and puts its execution leaf directly under
+   `user@1001.service`: the K111 and K113 guest receipts of 2026-11-03 show
+   both paths (the records here do not retain them). By the controller's
+   code at the time, the per-attempt kill therefore reached an empty
+   cgroup, and cancel and the outer-wall backstop did not reach the jail.
+   Case C recorded only that the guest stayed warm and the next attempt
+   ran; it did not check that the cancelled workload stopped. Fixed in
+   `bfcf1f9d4` (decision D6): one stop kills every attempt cgroup and every
+   cgroup under the workload account's user manager except its
+   infrastructure, then verifies them empty, or powers the guest off with
+   `attempt_tree_unverified`. That is covered by unit and model tests only;
+   it has not run on a booted guest.
+10. **Case B stayed inside the custodian's lease.** The 2 s stop of the
+    whole group is shorter than the custodian's three-second lease, so the
+    case did not test a longer stop, and fix 2 below is the serve's half
+    only. By the custodian's code at the time (it judged the lease on the
+    continuous clock before reading the heartbeats waiting in its pipe), a
+    stop of the whole group longer than 3 s would have ended the VM on
+    resume; that was not measured. Fixed in `7af4af5c1`: the custodian reads
+    pending heartbeats before it judges the lease and restarts its window
+    after a wake gap longer than 0.5 s. `test_custodian.py` covers it
+    against a stand-in VZ client; it has not run on a booted guest.
 
 ## K108 warm reuse (20 attempts, one session)
 

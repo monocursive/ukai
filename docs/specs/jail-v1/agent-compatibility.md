@@ -78,6 +78,15 @@ is kept as written, except where errata 1 and 3 correct it inline (and the
    shown: the harness's check searched `tail`'s output together with the
    run's own terminal output, so it passes from the run's output alone (the
    record README's erratum 4).
+7. "`api.anthropic.com:443` the only allowed host" was not TLS-only in the
+   guest. The launch profile's portless rule is TLS-only on the host, but
+   `run --vm` sent it as `api.anthropic.com:443`, an explicit port the
+   guest jail reads as also admitting plaintext HTTP; the guest receipt has
+   no `tls_only` (the record README's erratum 7). Fixed in `7b1f6d875`, not
+   yet run on a booted guest. The receipt and summary contradictions of
+   errata 2 and 3 have a fix in code since the same commit (decision D5),
+   tested against this record's guest receipt and not yet shown on a new
+   run.
 
 As first written: this is the J18 §9.4
 record (jail-macos.md): the VM tier's compatibility claim. It marks one
