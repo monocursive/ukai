@@ -56,16 +56,22 @@ def load_guest():
 
 class Clock:
     """Virtual CLOCK_BOOTTIME: it moves only when the controller sleeps or a
-    test advances it, so bounded waits are measured without waiting."""
+    test advances it, so bounded waits are measured without waiting. A wait
+    that sleeps past `RUNAWAY` virtual seconds is an unbounded one: it fails
+    the test at once instead of hanging the suite."""
+
+    RUNAWAY = 600
 
     def __init__(self):
-        self.now = 1000.0
+        self.start = self.now = 1000.0
 
     def clock(self):
         return self.now
 
     def sleep(self, seconds):
         self.now += max(float(seconds), 0.001)
+        if self.now - self.start > self.RUNAWAY:
+            raise AssertionError('a controller wait ran past every budget (virtual clock runaway)')
 
     def advance(self, seconds):
         self.now += seconds
