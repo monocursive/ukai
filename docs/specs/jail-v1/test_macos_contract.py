@@ -146,7 +146,17 @@ class MacosContract(unittest.TestCase):
                 self.assertIn("measurement spike", text)
                 self.assertIn("macos-custody-spike-2026-11-01/README.md", text)
                 self.assertIn("kickstart", text)
-                self.assertRegex(text, r"(?s)J18.*?lacks.*?network.*?`agent`.*?workspace.*?credentials")
+                # J18 status per fix wave 1103 (D1, D2, D11): the rows are
+                # untested, unmeasured requirements and uncarried policy
+                # refuse by name before any connection or boot, and no
+                # macOS client ships.
+                self.assertRegex(text, r"K108–K113 (?:are|remain|stay) `?untested`?")
+                for fact in ["`vm:not-measured:<requirement>`", "`vm:not-carried:<field>`",
+                             "before any connection or boot", "built from source"]:
+                    self.assertIn(fact, text)
+                for stale in ["lacks network", "no qualified VM backend exists yet",
+                              "refuses before connecting", "K108–K112 pass"]:
+                    self.assertNotIn(stale, text)
                 self.assertNotRegex(text, r"(?i)(?:are|is now|both|2026-10-22,) code-complete|The code is complete")
         self.assertIn("refusal-only", read("docs/specs/jail-macos.md"))
 
@@ -420,7 +430,8 @@ class MacosContract(unittest.TestCase):
             with self.subTest(path=path):
                 text = " ".join(read(path).split())
                 for fact in ["UKAI_JAIL_MACOS_NATIVE=dev", "native_execution=dev", "J17_OBSERVE=true",
-                             "macos-closed-v1", "fs.write", "active", "before connecting"]:
+                             "macos-closed-v1", "fs.write", "active", "refuses at probing",
+                             "before any connection or boot"]:
                     self.assertIn(fact, text)
                 self.assertNotIn("J17_OBSERVE=false", text)
                 self.assertNotIn("unwired", text)

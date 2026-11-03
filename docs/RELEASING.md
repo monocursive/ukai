@@ -47,6 +47,18 @@ unpublished state; publication does not modify the tested artifact.
 The [publication record](benchmarks/jail/macos-vm-publication-2026-10-11.md)
 adds verified public installation, live website delivery and quickstart proof.
 
+[release.json](../crates/ukai-jail/dist/release.json) keeps two VM versions:
+`vm.version` is the public preview the installer pins (`0.1.0-preview.1`),
+and `vm.candidate_version` is what `package.py` builds and what the DMG's
+`PREVIEW.txt` and `cli.VERSION` name (`0.1.0-preview.2`, the warm-service
+candidate). A candidate is published only after it is notarized and stapled,
+the full K108–K113 rows rerun and pass on that stapled DMG with a shipped
+client (an install check alone is not enough), and the clauses leave both
+unsupported lists. Publication then tags `ukai-vm-v<candidate_version>`
+(`tag_prefix` plus the version), renders the installer pin with
+`render_vm_pin`, sets `vm.version` and `published_tag`, and updates the
+guide's quickstart.
+
 The Bash entry point adapts `legacy:install.sh`: explicit versions, HTTPS,
 architecture detection, no sudo or compiler, and installation to `~/.local/bin`.
 It embeds the SHA-256 hash for each Linux archive, verifies the selected archive
@@ -107,8 +119,12 @@ scope reports the explicit `jail.unsupported_clauses` in
 [`release.json`](../crates/ukai-jail/dist/release.json) as **unsupported**:
 K22.2, K23.1, K24.1, K26.1, K29.1, L02.12, M01.4 and each `.1` clause
 from K87.1 through K113.1, individually listed in that file. These are the
-untested native or proposed Mac VM acceptance claims; no prefix exemption
-is used. Tested component clauses remain required. The full verdict without
+untested native and Mac VM acceptance claims; no prefix exemption
+is used. K108.1–K113.1 are also the VM scope's `vm.unsupported_clauses`:
+their 2026-11-02/03 development measurements do not meet the clauses (the
+acceptance map's notes say why). The xtask scope test requires every named
+clause to fail the full verdict as untested, so a clause promoted while
+still named here is caught. Tested component clauses remain required. The full verdict without
 the flag continues to fail those untested clauses. Every Linux clause, shared test and macOS
 execution-refusal test remains required; no failing Linux test is waived.
 The signed release plan binds this scope and both native Linux targets.
@@ -132,8 +148,11 @@ protected-Mac release run (K104) stays explicitly blocked while Apple's
 entitlement request is pending. No release
 gate is promoted by these measurements.
 J16 still needs its bundle,
-Info.plist, entitlements and `~/Applications` installer. J18 still lacks
-network, the `agent` profile, a workspace share and in-guest credentials.
+Info.plist, entitlements and `~/Applications` installer. J18's K108–K113 are
+`untested`, a policy element the guest jail does not carry refuses with
+`vm:not-carried:<field>`, and no macOS `ukai-jail` client ships: the VM
+candidate package carries only `ukai-vm` and `ukai-vm-install`, and the
+client is built from source.
 Apple's Endpoint Security grant (request `S9YJTLLH28`, submitted 2026-09-29)
 is necessary, but does not by itself make the release run ready. The procedure
 below is a release requirement, not an implemented packaging workflow.
@@ -144,8 +163,9 @@ Current implementation: native execution is **off by default**. Setting
 `unsupported` and refuse. J17 is wired before release (`J17_OBSERVE=true`):
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
-checks do not establish live acceptance. Every
-`run --vm` refuses before connecting: no qualified VM backend exists yet. The
+checks do not establish live acceptance. Every `run --vm` refuses at
+probing, before any connection or boot, until a live phase re-measures the
+guest: unmeasured requirements answer `vm:not-measured:<requirement>`. The
 released VM preview remains the only Mac deliverable.
 
 After implementation, packaging and the measurement spike are complete and

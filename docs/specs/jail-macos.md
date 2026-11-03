@@ -10,17 +10,25 @@ Current implementation: native execution is **off by default**. Setting
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
 receipts are tested; live development-VM smoke runs also attach and report the
-declared set, without satisfying K105–K107 release qualification. Every
-`run --vm` refuses before connecting: no qualified VM backend exists yet.
+declared set, without satisfying K105–K107 release qualification.
+`ukai-jail run --vm` is wired to the warm `ukai-vm` service, but every
+attempt refuses at probing, before any connection or boot, until a live
+phase re-measures the guest: the probe answers Available only for a
+requirement a measured guest record backs, and every other requirement
+answers `vm:not-measured:<requirement>` (§6).
 The [2026-11-01 measurement spike](../benchmarks/jail/results/macos-custody-spike-2026-11-01/README.md)
 runs this implementation with live Endpoint Security in an isolated,
 SIP-disabled development VM. It exposes a K90 class-2 blocker: an existing
 launchd job can be kickstarted from the sandbox and signal either custodian,
 including with the candidate `mach-bootstrap` denial. NC01 is not accepted.
-J16 lacks the bundle, Info.plist, entitlements and `~/Applications` installer;
-J18 lacks network, the `agent` profile, a workspace share and in-guest
-credentials. The spike records K92/K93 results and process-limit adjustments;
-development measurements do not complete the release rows (§4.12).
+J16 lacks the bundle, Info.plist, entitlements and `~/Applications` installer.
+J18's K108–K113 are `untested`: the 2026-11-02/03 development measurements
+on the dev Mac do not meet their clauses (§6). A policy element the guest
+jail does not carry refuses with `vm:not-carried:<field>`, and no macOS
+`ukai-jail` client ships: the VM package carries only `ukai-vm` and
+`ukai-vm-install`, so the client is built from source. The spike records
+K92/K93 results and process-limit adjustments; development measurements do
+not complete the release rows (§4.12).
 Apple's entitlement and the protected-Mac acceptance run (K104) remain
 release gates, alongside completing and validating the implementation.
 Sections below specify release requirements where they describe behavior
@@ -87,7 +95,7 @@ The native tier is the intended default after qualification. Today the
 default refuses; the development opt-in does not make it supported. A run
 that needs a kernel-bound lifetime must use a supported Linux deployment or
 the separate released VM preview within its documented limits. `run --vm`
-in this tree refuses.
+in this tree refuses at probing until the guest is re-measured (§6).
 
 ## 1. Scope
 
@@ -230,8 +238,8 @@ everyday use:
 
 For the interactive laptop case that the adoption ranking puts first, the
 native tier is what people will use. So the native tier must be honest about
-what it is. The proposed VM backend is not yet available; the current
-`run --vm` path refuses before connecting.
+what it is. The VM backend is wired but unqualified; the current
+`run --vm` path refuses at probing, before any connection or boot (§6).
 
 ## 4. Native tier: defended custody (J16)
 
@@ -283,8 +291,9 @@ These rules are the design. The rest of §4 applies them.
    Preparation refuses if either inherited limit cannot provide that full
    allowance. A successful set is insufficient: kernel read-back must confirm
    both limits at the requested ceiling, or preparation refuses (including
-   kernel clamping below the allowance). The receipt records the applied
-   allowance only after this check.
+   kernel clamping below the allowance). Only after this check does the
+   guardian report the allowance it applied, and the receipt records the
+   guardian's reported value.
    **Amended 2026-11-02** (measured in the 2026-11-01 spike: a default host's
    `kern.maxprocperuid` is 1333 and the guardian refused wanting 1376): when
    the full 1024 does not fit under the inherited ceiling, the allowance is
@@ -293,9 +302,16 @@ These rules are the design. The rest of §4 applies them.
    still clears the operator's snapshot by at least 128 processes; below that
    there is no room for a tree and preparation refuses, naming the numbers
    and the remedy (close processes or raise `kern.maxprocperuid`). The
-   clamped path sets nothing and re-reads the limits, refusing if they moved
-   during preparation; the receipt records the applied allowance and a
-   `process_headroom_clamped` flag. On a clamped host a fork storm stops at
+   inherited ceiling is the lower of the inherited soft and hard limits. The
+   clamped path lowers both limits to it (soft = hard = ceiling, so a member
+   cannot raise its soft limit back up to a higher hard limit; neither is
+   ever raised) and confirms both by kernel read-back, refusing on any
+   mismatch or if the limits moved during preparation. **Corrected
+   2026-11-03:** the clamped path first shipped setting nothing, which left a
+   soft limit below the hard one raisable by any member. The guardian reports
+   the allowance it actually applied, and the receipt records that reported
+   value, not the supervisor's plan, with a `process_headroom_clamped` flag.
+   On a clamped host a fork storm stops at
    the kernel's own per-UID ceiling instead of the headroom — the operator's
    session is already within the headroom of that ceiling, which is the
    protection the rule offers there. Every member inherits the limit, and
@@ -1154,21 +1170,67 @@ proof, not live acceptance or full-filesystem coverage.
 
 ## 6. VM tier: a warm guest (J18)
 
-The [VM preview](../../crates/ukai-jail/vm/README.md) cold-boots a disposable
-Ubuntu guest for every command. It copies inputs in and outputs out, and it is
-offline. Current J18 CLI execution is unavailable: **every `run --vm`
-refuses before connecting**, without contacting the control or attempt
-socket or staging credentials. There is no qualified backend. The helper
-and protocol tests do not prove a guest preflight, full policy translation,
-workspace sharing, network, agent or credential support. A missing or invalid
-VM installation is a host prerequisite refusal: exit 125, `backend_unavailable`
-at `probing`, remediation `host_setup`, including `--profile none`. Once
-installation discovery succeeds, VM-policy requirements refuse with
-`unsupported`: enforcement is unavailable in this build. With native
-development enabled, `--lifetime kernel-bound` also refuses with
-`unsupported`, explaining that
-native macOS cannot provide it and VM policy enforcement is unavailable in
-this build; adding `--vm` is not offered as a working remedy.
+The released [VM preview](../../crates/ukai-jail/vm/README.md)
+(`0.1.0-preview.1`, the public package) cold-boots a disposable Ubuntu guest
+for every command. It copies inputs in and outputs out, and it is offline.
+The J18 code on `dev` replaces it with a warm service, `ukai-vm serve`, that
+`ukai-jail run --vm` starts and reuses. Its candidate package
+(`0.1.0-preview.2`) is Developer-ID-signed but not notarized and not
+published, and it carries only `ukai-vm` and `ukai-vm-install`: no macOS
+`ukai-jail` client ships, so the client is built from source.
+
+**Current behavior (fix wave of 2026-11-03).**
+
+- **Probe.** The VM platform answers Available only for a requirement backed
+  by a record that actually measured it in the guest; the
+  requirement-to-record table is one constant, and `measured_at` comes from
+  that record. Every other requirement answers Unavailable with
+  `vm:not-measured:<requirement>`. `network_none` answers Unavailable for
+  now: the TCP half of its 2026-11-02 measurement was vacuous (`/dev/tcp`
+  under the guest's `dash`). **Every `run --vm` therefore refuses at probing,
+  before any connection or boot,** until a live phase re-measures the guest.
+- **What `--vm` carries.** The guest jail receives exactly the profile
+  (`tool` or `agent`), the wall (whole seconds, 1–300), the argv, the network
+  shape (`tool`: none; `agent`: the proxy with the canonical allow set) and
+  vault-mode credentials. Every other element of the policy snapshot that
+  differs from what the guest jail will apply refuses before any connection
+  or boot, for every profile including `agent`, with
+  `vm:not-carried:<field>`: deny-read, extra or narrowed filesystem grants
+  (`--ro`/`--rw`), protected coverage, environment bindings, observation
+  choices, command rules, required ceilings and ceilings the guest's fixed
+  shape does not honor, storage/cpu/inodes ceilings, staged credential modes,
+  an attached terminal and the kernel-bound lifetime key. After a run, the
+  guest receipt must also agree with the request (profile, network mode,
+  allow set, limits); that check is a second wall, never the gate.
+- **Vault.** Values come from the supervisor's validated launch secrets, and
+  the guest's launch declaration is generated from the snapshot's launch
+  section, never by re-reading or re-parsing the operator's files. Every
+  vault refusal happens before any boot or connection.
+- **Receipt and summary.** No host receipt field may contradict the verified
+  guest receipt: the host's network and observer fields either carry the
+  guest's applied facts or are marked guest-carried and point to the guest
+  receipt (`evidence/jail.json`). The run summary and `tail --summary` print
+  the guest's applied network and observer classes from the verified guest
+  receipt, plus the transport line.
+- **Install errors.** A missing or invalid VM installation is a host
+  prerequisite refusal: exit 125, `backend_unavailable` at `probing`,
+  remediation `host_setup`, including `--profile none`. With native
+  development enabled, `--lifetime kernel-bound` also refuses with
+  `unsupported`, explaining that native macOS cannot provide it and VM policy
+  enforcement of it is unavailable in this build; adding `--vm` is not
+  offered as a working remedy.
+
+**Evidence status.** K108–K113 are `untested` (§9.3, §9.4). The 2026-11-02/03
+development measurements on the dev Mac
+([warm record](../benchmarks/jail/results/macos-vm-warm-2026-11-02/README.md),
+[installed-package rows](../benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md),
+[Claude Code guest record](../benchmarks/jail/results/macos-vm-claude-2026-11-03/README.md))
+do not meet their clauses: their network probes were vacuous, K110 ran half
+its matrix, K111's stored receipt contradicted the guest receipt (network
+`pending` and observer not attached, against the guest's applied network and
+attached observer), K113 is one attempt against §9.4's Linux-row conditions,
+and the "installed package" rows ran a client built from the repository.
+The acceptance map's notes give each row's reason and what a real row needs.
 
 The lifetime key is implemented in top-level profile files and operator and
 project `[jail]` tables as `lifetime_boundary = "kernel-bound"`. It has the
@@ -1180,7 +1242,8 @@ preparation or running and removes its service socket; a previously recorded
 custody/transport failure still exits 125. Synthetic helper tests establish
 that distinction without booting a VM or qualifying `run --vm`.
 
-The following are future backend requirements, not current behavior:
+The following are the backend's requirements; none is claimed until its
+K108–K113 row passes:
 
 - **Selection.** `--vm` on macOS.
 - **The requirement.** J18 also adds a policy key that requires a
@@ -1206,12 +1269,25 @@ The following are future backend requirements, not current behavior:
     wall deadline still ends the attempt.
   - **`ukai-vm` dies.** The VM service ends, and every guest process with it.
     The preview measured each of its kill cases once, and K110 repeats them.
-- **The receipt** is the guest's Linux receipt. It is verified on the host and
-  stored in the host's attempt directory beside a transport record naming the
-  VM and the host-side facts. The summary prints the guest summary plus one
-  transport line from that record, as the J15 action adds its host-setup line.
+  - **Per attempt**, the guest controller's stop kills and verifies empty
+    every cgroup the workload account's attempt can occupy: the attempt
+    cgroup and every unit under `user@<uid>.service` except `init.scope`
+    (the guest jail moves itself into
+    `user@<uid>.service/app.slice/ukai-jail-*.scope`). Its waits are
+    bounded; a watchdog poweroff during a cancel is a defect.
+- **The receipt** is the guest's Linux receipt. It is verified on the host by
+  digest and stored as `evidence/jail.json` beside a transport record naming
+  the VM and the host-side facts. The host's own attempt receipt never
+  contradicts it: its network and observer fields carry the guest's applied
+  facts or are marked guest-carried with a pointer to the guest receipt. The
+  summary prints the guest's applied facts plus one transport line from the
+  transport record, as the J15 action adds its host-setup line.
 - **Workspace.** A per-attempt virtio file-system share of exactly the
-  workspace. The guest jail then applies the policy's grants. Changing a
+  workspace. Once a share is requested it is mandatory: a guest whose share
+  fails to mount refuses (powers off with a named reason) and never falls
+  back to the staged workspace, and the guest's ready reply states
+  `live_share`, which the service compares with its own `--live-workspace`.
+  The guest jail then applies the policy's grants. Changing a
   running VM's share is by reading and a candidate. K109 measures it. Mac-built
   native dependencies, such as `node_modules` add-ons, do not run in the
   guest, and the guide says so.
@@ -1244,10 +1320,12 @@ The following are future backend requirements, not current behavior:
     remaps do not exist for virtio-fs (measured refusal); fifos can be
     created and xattrs — including `com.apple.*` names — pass through to
     the host files, all equivalent to what the host user could do anyway.
-- **Network and credentials.** The guest has a NAT adapter, and the guest
-  jail's proxy enforces the policy, as on any Linux host. Credentials go from
-  the host's vault files to the guest supervisor over vsock, once per attempt,
-  and are never written to the guest disk.
+- **Network and credentials.** An `agent` policy's guest has a NAT adapter,
+  and the guest jail's own proxy enforces the canonical allow set, as on any
+  Linux host; a `tool` policy's network is none. Vault-mode credentials go
+  from the supervisor's validated secrets to the guest supervisor over vsock,
+  once per attempt, and are never written to the guest disk. Staged
+  credential modes refuse with `vm:not-carried:<field>`.
 - **Image.** The preview's pinned Ubuntu image first. A minimal kernel and
   init are a later optimisation. By reading, Apple's Containerization
   framework reports sub-second VM starts that way.
@@ -1287,7 +1365,7 @@ entitlement that the preview already uses.
 | [jail-interactive-sessions](jail-interactive-sessions.md) §3 (J14) | macOS terminal mode is the pty relay (decision 3). X05 does not hold for macOS terminal runs. | Amendment |
 | jail-v1 §6.1, §6.3 (J18) | `--vm`, `vm stop`, and the kernel-bound lifetime key with its narrowing row and requirement name (§6). | Addition |
 | `crates/ukai-jail` | Default native refusal; development-gated preparation, guardian and launcher modes, and the ES shim. Credential/vendor staging refuses. J17 attaches the declared observer before release; strict startup failure refuses. | Implementation |
-| `crates/ukai-jail/vm` | Helper and transport components exist; every `run --vm` refuses pending a qualified backend. | Implementation |
+| `crates/ukai-jail/vm` | The warm service, guest controller, package builder and measurement harnesses exist; every `run --vm` refuses at probing until a live phase re-measures the guest, and K108–K113 stay `untested` (§6). | Implementation |
 | Installer, [RELEASING](../RELEASING.md) | The Mac bundle, provisioning profile and notarization, and the protected-Mac release run. | Procedure |
 | [roadmap](../roadmap.md), [guide](../guide.md) | Record Apple's answer and the two tiers, and explain the native boundary and `--vm`. | Guide |
 
@@ -1342,6 +1420,10 @@ are J16 rows, and K104 includes them.
 | K111 | The stored receipt is the guest's Linux receipt, verified by digest, and the summary's transport line comes from the transport record. |
 | K112 | The kernel-bound key derives `owner_loss_termination`: native macOS and this build's installed `--vm` backend refuse with `unsupported`; Linux `none` refuses. A qualified VM backend must provide a kernel-bound lifetime before accepting it. |
 
+All five are `untested` (§6, evidence status). A real row needs an installed
+and shipped client, real network probes with a positive control, the full
+K110 matrix and the K111 receipt fix.
+
 ### 9.4 Compatibility records (A-rows)
 
 Each tier is supported for an agent only after its own record:
@@ -1355,6 +1437,12 @@ The pass conditions are those of the Linux rows, plus:
 | Row | Claim |
 | --- | --- |
 | K113 | Each compatibility record's summary names its custody (native) or its transport (VM). |
+
+K113 is `untested`. The 2026-11-03 Claude Code guest run was one attempt; a
+J18 record must meet the Linux rows' conditions above (the A01 fixture, ten
+repetitions, the no-source refusal, revocation mid-stream, observation on
+with strict evidence and the summary's credential use count) on an installed
+and shipped client, after the K111 receipt fix.
 
 ## 10. Costs
 
@@ -1382,8 +1470,8 @@ The pass conditions are those of the Linux rows, plus:
   pressure are not excluded. DTS's notification-overload answer does not
   establish an external-only residual.
   The pre-first-message sequence ambiguity (§4.4) is a separate residual.
-  The proposed VM backend is unavailable; only the released preview has its
-  own recorded, narrower contract.
+  The VM backend refuses at probing until the guest is re-measured (§6);
+  only the released preview has its own recorded, narrower contract.
 
 ## 11. Open questions
 

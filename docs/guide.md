@@ -82,23 +82,34 @@ ouro-vm doctor
 
 ### The warm service (development, not shipped)
 
-A warmer backend with a **live workspace share** is under development on
-`dev` and is not part of the download. The 2026-11-02 measurements
+A warm backend with a **live workspace share** is under development on
+`dev` and is not part of the download. Its candidate package,
+0.1.0-preview.2, is signed but neither notarized nor published, and it
+carries only `ukai-vm` and `ukai-vm-install`: no macOS `ukai-jail` client
+ships, so `ukai-jail run --vm` needs a client built from source. Even then,
+every `run --vm` currently refuses at probing, before any connection or
+boot. The probe answers Available only for a requirement a measured guest
+record backs; every other requirement answers
+`vm:not-measured:<requirement>`, and `network_none` is unmeasured because
+the 2026-11-02 TCP probe was vacuous (`/dev/tcp` under the guest's `dash`).
+The guest carries only the profile (`tool` or `agent`), the wall, the argv,
+the network shape and vault-mode credentials; any other policy element that
+differs (deny-read, `--ro`/`--rw` grants, environment or observation
+choices, custom ceilings, staged credentials and the rest) refuses with
+`vm:not-carried:<field>`.
+
+The 2026-11-02/03 measurements on the development Mac
 ([warm record](benchmarks/jail/results/macos-vm-warm-2026-11-02/README.md),
-[share record](benchmarks/jail/results/macos-vm-share-2026-11-02/README.md))
-qualify it in a development VM only: twenty attempts over one boot at
-12.5 ms release latency, jailed writes appearing on the host with the
-protected `.git` untouched, workload network denied with the NAT adapter
-attached, and the fault matrix (service kill, Ctrl-Z, attempt EOF)
-passing. On a `dev` build, `ukai-jail run --vm --profile tool --limit
-wall=<seconds>s --workspace <case-sensitive directory> -- <command>` runs
-the warm service with the live share today, and
-`--profile agent --allow-host <host>` runs proxied policies through the
-guest's own Linux proxy (allowed hosts only; everything else refuses). The `macos-vm-development`
-publication scope in
-[`dist/release.json`](../crates/ukai-jail/dist/release.json) names the
-acceptance clauses (K108.1–K113.1) that stay unsupported until the full
-live rows run on an installed package.
+[share record](benchmarks/jail/results/macos-vm-share-2026-11-02/README.md),
+[installed-package rows](benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md))
+are development evidence only. Twenty attempts reused one boot at
+12.5–15.0 ms host-observed release latency, and jailed writes appeared on
+the host with the protected `.git` untouched. Their network probes were
+vacuous, the fault matrix ran half of K110, and the rows ran a client built
+from the repository. K108–K113 are `untested`, and the
+`macos-vm-development` publication scope in
+[`dist/release.json`](../crates/ukai-jail/dist/release.json) lists
+K108.1–K113.1 as unsupported.
 
 The installer checks an embedded SHA-256 pin before mounting the 512 MiB DMG.
 It installs the bundled runtime and guest image under
@@ -161,9 +172,11 @@ implementation is work in progress on `dev`, and
 **neither is supported or shipped**. The isolated SIP-disabled development-VM
 [measurement spike](benchmarks/jail/results/macos-custody-spike-2026-11-01/README.md)
 ran on 2026-11-01 and found an open `launchctl kickstart` deputy route to both
-custodians. J16 still needs that defense repaired, packaging,
-Apple's entitlement and the protected-Mac acceptance run. J18 still lacks
-network, the `agent` profile, a workspace share and in-guest credentials.
+custodians; the route was closed and re-measured in the same VM on 2026-11-02
+([kickstart-fix record](benchmarks/jail/results/macos-k90-kickstart-fix-2026-11-02/README.md)),
+and K90 and NC01 remain blocked pending full release qualification. J16 still
+needs packaging, Apple's entitlement and the protected-Mac acceptance run.
+J18's K108–K113 are `untested`, and its `run --vm` refuses at probing (below).
 The following describes the intended contract.
 
 Current implementation: native execution is **off by default**. Setting
@@ -173,12 +186,12 @@ Current implementation: native execution is **off by default**. Setting
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
 receipts and development-VM observation smoke runs are tested; full live
-release acceptance remains pending. Every
-`run --vm` refuses before connecting: no qualified VM backend exists yet.
-A missing VM installation is exit 125 with `host_setup`; an installed but
-unavailable VM-policy backend uses `unsupported`. With native development
-enabled, a kernel-bound request explains that the VM tier is unavailable in
-this build; `--vm` is not a working remedy.
+release acceptance remains pending. Every `run --vm` refuses at probing,
+before any connection or boot, until a live phase re-measures the guest:
+unmeasured requirements answer `vm:not-measured:<requirement>`.
+A missing VM installation is exit 125 with `host_setup`. With native
+development enabled, a kernel-bound request explains that the VM tier is
+unavailable in this build; `--vm` is not a working remedy.
 
 **Native tier (J16), the intended default once released.** The design
 requires Seatbelt containment and two custodians defended from the workload;
@@ -207,12 +220,14 @@ limits; this tree's `run --vm` refuses.
 **VM tier (J18), intended behavior: `--vm`.** A run executes in a warm Linux guest
 whose own jail provides the kernel-bound lifetime (`pid_namespace`,
 requirement `owner_loss_termination`). Native macOS refuses that
-requirement with `unsupported`; this build's VM-policy backend is unavailable
-too. Linux `none` refuses it. In the intended qualified backend, the guest is
-started on first use, kept warm between runs, and stopped after an idle
-period or with `ukai-jail vm stop`. This tier is the Linux VM preview above
-made into a backend, and the preview's limits — Linux ARM64 programs only,
-no Mac-built native add-ons such as compiled `node_modules` — carry over.
+requirement with `unsupported`; this build's VM tier refuses it too, before
+any boot. Linux `none` refuses it. In the intended qualified backend, the
+guest is started on first use, kept warm between runs, and stopped after an
+idle period or with `ukai-jail vm stop`; the stored receipt is the guest's
+verified Linux receipt, and the summary prints the guest's applied network
+and observer facts from it. This tier is the Linux VM preview above made into
+a backend, and the preview's limits — Linux ARM64 programs only, no Mac-built
+native add-ons such as compiled `node_modules` — carry over.
 
 ## Build and check your host
 
