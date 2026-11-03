@@ -13,6 +13,13 @@ import urllib.request
 
 SOURCE = Path(__file__).resolve().parent
 
+# An immutable Ubuntu archive snapshot (https://snapshot.ubuntu.com): the
+# builder resolves packages against exactly this archive state, so two
+# builds see the same versions. The manifest records the pin; a build
+# against a different snapshot is a different image.
+SNAPSHOT = '20261020T000000Z'
+SNAPSHOT_URL = 'https://snapshot.ubuntu.com/ubuntu/' + SNAPSHOT
+
 
 def load_coordinates():
     """dist/coordinates.py, loaded by path: dist/ also holds a package.py
@@ -115,9 +122,13 @@ Restart=no
 [Install]
 WantedBy=multi-user.target
 '''
-    setup = b'''#!/bin/sh
+    setup = f'''#!/bin/sh
 set -eu
 export DEBIAN_FRONTEND=noninteractive
+# Immutable archive pin: every apt operation resolves against the snapshot
+# recorded in image.json, never the moving live archive.
+printf 'Types: deb\\nURIs: {SNAPSHOT_URL}\\nSuites: resolute resolute-updates resolute-security\\nComponents: main universe\\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\\n' > /etc/apt/sources.list.d/ukai-snapshot.sources
+rm -f /etc/apt/sources.list.d/ubuntu.sources
 # Pin what the guest jail's guarantees measure against (apt is not
 # snapshot-pinned; the installed set is recorded in the image manifest):
 # `bubblewrap` is the containment backend, `dbus-user-session` the session
@@ -128,7 +139,7 @@ echo UKAI_STEP apt_install >/dev/hvc0
 apt-get install -y --no-install-recommends bubblewrap dbus-user-session
 echo UKAI_STEP users >/dev/hvc0
 mkdir -p /usr/local/share/ukai-vm
-dpkg-query -W -f='${Package}=${Version}\n' bubblewrap dbus-user-session > /usr/local/share/ukai-vm/pinned-versions.txt
+dpkg-query -W -f='${{Package}}=${{Version}}\n' bubblewrap dbus-user-session > /usr/local/share/ukai-vm/pinned-versions.txt
 useradd --create-home --uid 1001 --shell /bin/bash ukai
 loginctl enable-linger ukai
 systemctl start user@1001.service
@@ -138,7 +149,7 @@ dpkg-query -W > /usr/local/share/ukai-vm/packages.txt
 # The console carries the pinned set to the host builder, which records it
 # in image.json: the manifest then names what the guarantees measured
 # against without mounting the disk.
-dpkg-query -W -f='${Package}=${Version}\n' bubblewrap dbus-user-session | while read -r row; do echo "UKAI_PINNED $row" >/dev/hvc0; done
+dpkg-query -W -f='${{Package}}=${{Version}}\n' bubblewrap dbus-user-session | while read -r row; do echo "UKAI_PINNED $row" >/dev/hvc0; done
 systemctl enable ukai-vm.service
 sync
 echo UKAI_BOOTSTRAP_DONE > /dev/hvc0
@@ -153,11 +164,12 @@ sh -x /usr/local/lib/ukai-vm/setup.sh
     seed(root / 'seed', [('/usr/local/bin/ukai-jail', binary, '0755'),
                         ('/usr/local/lib/ukai-vm/guest.py', (SOURCE / 'guest.py').read_bytes(), '0644'),
                         ('/etc/systemd/system/ukai-vm.service', service, '0644'),
-                        ('/usr/local/lib/ukai-vm/setup.sh', setup, '0700'),
+                        ('/usr/local/lib/ukai-vm/setup.sh', setup.encode(), '0700'),
                         ('/usr/local/lib/ukai-vm/trace.sh', trace, '0700')],
          [['/bin/sh', '/usr/local/lib/ukai-vm/trace.sh']])
     metadata = {'schema': 'ukai.vm.image-build/1', 'status': 'preparing', 'image_url': IMAGE_URL,
                 'image_sha256': IMAGE_SHA256, 'jail_url': JAIL_URL, 'jail_archive_sha256': JAIL_SHA256,
+                'apt_snapshot': SNAPSHOT, 'apt_snapshot_url': SNAPSHOT_URL,
                 'source_sha256': {name: sha(SOURCE / name) for name in ['guest.py', 'vz.swift', 'custodian.c', 'prepare.py']}}
     (root / 'image.json').write_text(json.dumps(metadata, indent=2) + '\n')
     with (root / 'bootstrap-events.ndjson').open('wb') as events, (root / 'bootstrap-stderr.log').open('wb') as errors:
