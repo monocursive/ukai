@@ -15,8 +15,8 @@
 
 use serde::Serialize;
 
-use crate::platform::macos::custody::{StopNotDrainedReason, StopTiming};
 use crate::platform::macos::custody::StopResult;
+use crate::platform::macos::custody::{StopNotDrainedReason, StopTiming};
 use crate::platform::macos::custody_io::Token;
 
 pub const SCHEMA: &str = "ukai.jail.guardian-record/1";

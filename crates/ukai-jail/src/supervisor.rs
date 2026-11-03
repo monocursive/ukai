@@ -2016,6 +2016,19 @@ fn run_with(
     }
 }
 
+/// The §8.2 preparation budget for one run. The VM tier's first run pays a
+/// cold guest boot inside it (measured 30-90s on the qualified image), so a
+/// `--vm` run adds the boot-scale budget the platform names; every other run,
+/// and every non-macOS build (which has no `--vm`), keeps the 30 seconds.
+fn prepare_budget(args: &RunArgs) -> Duration {
+    #[cfg(target_os = "macos")]
+    if args.vm {
+        return crate::platform::macos::vm::SERVE_TIMEOUT + PREPARE_BUDGET;
+    }
+    let _ = args;
+    PREPARE_BUDGET
+}
+
 fn run_inner(
     ctx: &Context,
     args: &RunArgs,
@@ -2120,11 +2133,7 @@ fn run_inner(
     // run pays a cold guest boot inside the same budget (measured 30-90s on
     // the qualified image), so its budget is the boot-scale one the platform
     // already names; warm attempts answer in milliseconds either way.
-    let budget = Budget::new(if args.vm {
-        crate::platform::macos::vm::SERVE_TIMEOUT + PREPARE_BUDGET
-    } else {
-        PREPARE_BUDGET
-    });
+    let budget = Budget::new(prepare_budget(args));
     // Step 1: allocate and lock private state before anything else exists.
     let attempt_id = supplied_attempt_id.unwrap_or_else(AttemptId::generate);
     let quiet = plan.quiet;

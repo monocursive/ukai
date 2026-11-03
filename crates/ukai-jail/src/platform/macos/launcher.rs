@@ -364,9 +364,7 @@ fn strip_bootstrap_port() -> Result<(), libc::c_int> {
     // port; setting special port 4 to MACH_PORT_NULL replaces the inherited
     // bootstrap with no port (permitted unprivileged for one's own task,
     // measured).
-    let kr = unsafe {
-        task_set_special_port(mach_task_self(), TASK_BOOTSTRAP_PORT, 0)
-    };
+    let kr = unsafe { task_set_special_port(mach_task_self(), TASK_BOOTSTRAP_PORT, 0) };
     if kr != libc::KERN_SUCCESS {
         return Err(kr);
     }

@@ -75,7 +75,7 @@ use crate::platform::macos::guardian::frames::{
 };
 use crate::platform::macos::guardian::launch_block::{self, FdAction, LaunchBlock};
 use crate::platform::macos::guardian::record;
-use crate::platform::macos::guardian::rlimit::{plan_allowance, AppliedAllowance};
+use crate::platform::macos::guardian::rlimit::{AppliedAllowance, plan_allowance};
 use crate::platform::macos::observe::{ObserveRun, ObserveStartError};
 use crate::platform::macos::relay::TerminalRelay;
 use crate::platform::macos::sandbox::{self as seatbelt, ProfileParams};
@@ -2600,7 +2600,8 @@ impl MacosRunning {
                     self.guardian_lost = true;
                 }
                 if !before && self.guardian_record.is_some() {
-                    self.guardian_record_ns.get_or_insert_with(es::continuous_time_ns);
+                    self.guardian_record_ns
+                        .get_or_insert_with(es::continuous_time_ns);
                 }
             }
             Ok(_) => {}
@@ -2629,7 +2630,8 @@ impl MacosRunning {
     /// Begins the supervisor's own stop: A closes (end-of-file is the
     /// guardian's stop, §4.3) and the engine's stop machine starts.
     fn begin_stop(&mut self) {
-        self.stop_requested_ns.get_or_insert_with(es::continuous_time_ns);
+        self.stop_requested_ns
+            .get_or_insert_with(es::continuous_time_ns);
         if self.a_write >= 0 {
             // SAFETY: a plain close of a descriptor this process owns.
             unsafe { libc::close(self.a_write) };
@@ -2641,7 +2643,8 @@ impl MacosRunning {
     /// Advances the stop one tick; `true` when it has ended (§4.5).
     fn tick_stop(&mut self) -> bool {
         if let Some(result) = self.engine.tick(es::continuous_time_ns(), &mut EsSignaller) {
-            self.stop_result_ns.get_or_insert_with(es::continuous_time_ns);
+            self.stop_result_ns
+                .get_or_insert_with(es::continuous_time_ns);
             self.stop_result = Some(result);
             return true;
         }

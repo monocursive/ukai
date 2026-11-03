@@ -463,8 +463,10 @@ fn macos_owner_identity_and_unmeasured_capability_refusal_are_explicit() {
         requirements: agent.requirements,
     };
     let capabilities = platform.probe(&plan);
-    assert!(capabilities
-        .iter()
-        .all(|row| !row.satisfies() && row.measured_at.is_none()));
+    assert!(
+        capabilities
+            .iter()
+            .all(|row| !row.satisfies() && row.measured_at.is_none())
+    );
     assert!(validate_policy(&plan.snapshot).is_err());
 }

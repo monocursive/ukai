@@ -529,6 +529,7 @@ pub(super) mod tests {
                 prepare_deadline: ContinuousDeadline::after(Duration::ZERO),
                 workspace,
                 config_dir: root.join("config"),
+                launch_name: None,
                 launch: None,
                 proxy: None,
                 pinned_roots: Vec::new(),

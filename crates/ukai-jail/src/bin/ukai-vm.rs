@@ -118,16 +118,11 @@ enum GuestOp {
     /// Stage one ephemeral credential in the guest's tmpfs (J18 §6):
     /// the value crosses once per attempt and is never on the guest disk.
     /// The jail-side vault binding remains refused below.
-    Secret {
-        id: String,
-        data: String,
-    },
+    Secret { id: String, data: String },
     /// Receive the vaulted launch profile's TOML for this attempt (the
     /// guest controller writes it under its config dir and runs the jail
     /// with `--launch NAME`).
-    LaunchToml {
-        toml: String,
-    },
+    LaunchToml { toml: String },
     /// One workspace file, the preview's frame.
     Put {
         path: String,
@@ -798,7 +793,15 @@ fn run_attempt(
                     );
                 }
             }
-            Ok((attempt_id, profile, wall_seconds, argv, secrets, allow_hosts, launch))
+            Ok((
+                attempt_id,
+                profile,
+                wall_seconds,
+                argv,
+                secrets,
+                allow_hosts,
+                launch,
+            ))
         }
         protocol::ToVm::Put(_) | protocol::ToVm::Run => {
             Err("the attempt opened with staging frames instead of `prepare`".to_owned())
@@ -812,8 +815,7 @@ fn run_attempt(
         ids.sort_unstable();
         if ids.windows(2).any(|pair| pair[0] == pair[1]) {
             return Err(
-                "the attempt stages the same credential id twice; ids must be unique"
-                    .to_owned(),
+                "the attempt stages the same credential id twice; ids must be unique".to_owned(),
             );
         }
     }
@@ -846,12 +848,12 @@ fn run_attempt(
         )?;
         let staged = expect_guest(frames, "secret")?;
         if staged.id.as_deref() != Some(secret.id.as_str()) {
-            return Err(format!("the guest acknowledged the wrong secret: {:?}", staged.id));
+            return Err(format!(
+                "the guest acknowledged the wrong secret: {:?}",
+                staged.id
+            ));
         }
-        staged_secrets.push((
-            secret.id.clone(),
-            staged.path.clone().unwrap_or_default(),
-        ));
+        staged_secrets.push((secret.id.clone(), staged.path.clone().unwrap_or_default()));
     }
     let kernel = SHARED_GUEST_KERNEL
         .lock()
@@ -1203,6 +1205,9 @@ fn fd_pipe() -> Result<(std::os::fd::OwnedFd, std::os::fd::OwnedFd), String> {
     })
 }
 
+// One argument per object the custodian inherits; a struct would only
+// rename them.
+#[allow(clippy::too_many_arguments)]
 fn spawn_custodian(
     install: &image::Install,
     disk: &Path,
@@ -1420,9 +1425,7 @@ fn doctor() -> Result<(), String> {
         .arg("-n")
         .arg("kern.hv_support")
         .output()
-        .map(|out| {
-            out.status.success() && String::from_utf8_lossy(&out.stdout).trim() == "1"
-        })
+        .map(|out| out.status.success() && String::from_utf8_lossy(&out.stdout).trim() == "1")
         .unwrap_or(false);
     checks.insert(
         "virtualization_supported".to_owned(),

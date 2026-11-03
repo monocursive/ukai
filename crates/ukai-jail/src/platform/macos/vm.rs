@@ -190,11 +190,11 @@ impl VmPlatform {
                 ));
             }
             let live = live.ok_or_else(|| {
-                    refused(
-                        "--vm: the running guest serves staged attempts, not a live \
+                refused(
+                    "--vm: the running guest serves staged attempts, not a live \
                          workspace; stop it with `ukai-vm stop` before a --vm run",
-                    )
-                })?;
+                )
+            })?;
             let running = std::fs::canonicalize(live)
                 .map(|path| path.display().to_string())
                 .unwrap_or_else(|_| live.to_owned());
@@ -223,10 +223,7 @@ impl VmPlatform {
             ))
         })?;
         let mut command = std::process::Command::new(&program);
-        command
-            .arg("serve")
-            .arg("--live-workspace")
-            .arg(workspace);
+        command.arg("serve").arg("--live-workspace").arg(workspace);
         if guest_nat {
             command.arg("--guest-nat");
         }
@@ -329,9 +326,7 @@ impl Platform for VmPlatform {
                     status: CapabilityStatus::Unavailable,
                     scope: Self::scope_for(requirement),
                     mechanism: None,
-                    reason_code: Some(
-                        crate::capability::REASON_OWNER_LOSS_REQUIRES_VM.to_owned(),
-                    ),
+                    reason_code: Some(crate::capability::REASON_OWNER_LOSS_REQUIRES_VM.to_owned()),
                     measured_at: None,
                     evidence_ref: None,
                 },
@@ -406,8 +401,7 @@ impl VmExecution {
         // denial), so it refuses before connecting or staging anything.
         validate_policy(&plan.request.snapshot)?;
         let share_facts = share::preflight(&plan.workspace).map_err(refused)?;
-        let proxied = plan.request.snapshot.network.mode
-            == crate::network::NetworkMode::Proxy;
+        let proxied = plan.request.snapshot.network.mode == crate::network::NetworkMode::Proxy;
         platform.ensure_serving(&plan.workspace, proxied)?;
         let socket = control::attempt_socket(&platform.data_dir);
         let mut connection = control::AttemptConnection::connect(&socket).map_err(transport)?;
@@ -440,7 +434,7 @@ impl VmExecution {
         // Live share: the workspace crosses as the virtio-fs device the
         // service attached; staging puts are refused by both ends, so none
         // are sent. The share's facts travel in the transport record below.
-        debug_assert_eq!(share_facts.case_fold, false);
+        debug_assert!(!share_facts.case_fold);
         for group in ["workspace", "evidence"] {
             std::fs::create_dir(plan.attempt_dir.join(group)).map_err(transport)?;
         }
@@ -504,9 +498,7 @@ fn guest_wall(snapshot: &crate::policy::PolicySnapshot) -> Result<u32, JailError
 /// The canonical allow rules a proxy policy carries to the guest: the
 /// snapshot's allow set, spelled as the CLI canonicalized it. The guest
 /// jail re-parses each with its own `--allow-host` grammar.
-fn proxy_allow_hosts(
-    snapshot: &crate::policy::PolicySnapshot,
-) -> Result<Vec<String>, JailError> {
+fn proxy_allow_hosts(snapshot: &crate::policy::PolicySnapshot) -> Result<Vec<String>, JailError> {
     Ok(snapshot.network.allow.clone())
 }
 
@@ -519,7 +511,13 @@ fn proxy_allow_hosts(
 /// anything is sent.
 fn vault_launch(
     plan: &PreparedPlan,
-) -> Result<(Option<protocol::LaunchDeclaration>, Vec<protocol::SecretEntry>), JailError> {
+) -> Result<
+    (
+        Option<protocol::LaunchDeclaration>,
+        Vec<protocol::SecretEntry>,
+    ),
+    JailError,
+> {
     use crate::policy::CredentialMode;
     let Some(launch) = &plan.request.snapshot.launch else {
         return Ok((None, Vec::new()));
@@ -527,17 +525,15 @@ fn vault_launch(
     if launch.credentials.is_empty() {
         return Ok((None, Vec::new()));
     }
-    let name = plan
-        .launch_name
-        .clone()
-        .ok_or_else(|| {
-            invalid("--vm: the policy declares credentials without a launch profile name")
-        })?;
+    let name = plan.launch_name.clone().ok_or_else(|| {
+        invalid("--vm: the policy declares credentials without a launch profile name")
+    })?;
     let config_dir = std::env::var_os("UKAI_CONFIG_DIR")
         .map(PathBuf::from)
-        .ok_or_else(|| invalid("--vm: a vaulted policy needs UKAI_CONFIG_DIR for its launch profile"))?;
-    let path = crate::launch_profile::launch_directory(&config_dir)
-        .join(format!("{name}.toml"));
+        .ok_or_else(|| {
+            invalid("--vm: a vaulted policy needs UKAI_CONFIG_DIR for its launch profile")
+        })?;
+    let path = crate::launch_profile::launch_directory(&config_dir).join(format!("{name}.toml"));
     let metadata = std::fs::symlink_metadata(&path).map_err(|error| {
         invalid(format!(
             "--vm: the launch profile {} cannot be read: {error}",
@@ -547,6 +543,7 @@ fn vault_launch(
     use std::os::unix::fs::MetadataExt as _;
     use std::os::unix::fs::PermissionsExt as _;
     if !metadata.is_file()
+        // SAFETY: geteuid has no preconditions and cannot fail.
         || metadata.uid() != unsafe { libc::geteuid() }
         || metadata.nlink() != 1
         || metadata.permissions().mode() & 0o177 != 0
@@ -558,8 +555,7 @@ fn vault_launch(
             path.display()
         )));
     }
-    let text =
-        std::fs::read_to_string(&path).map_err(|error| invalid(format!("{error}")))?;
+    let text = std::fs::read_to_string(&path).map_err(|error| invalid(format!("{error}")))?;
     let mut rewritten = String::with_capacity(text.len());
     let mut section: Option<String> = None;
     let mut sources = std::collections::BTreeMap::<String, String>::new();
@@ -622,7 +618,13 @@ fn vault_launch(
             data: protocol::encode_data(&value),
         });
     }
-    Ok((Some(protocol::LaunchDeclaration { name, toml: rewritten }), secrets))
+    Ok((
+        Some(protocol::LaunchDeclaration {
+            name,
+            toml: rewritten,
+        }),
+        secrets,
+    ))
 }
 
 /// Reads one credential source under the vault transport's rules: a
@@ -639,6 +641,7 @@ fn read_credential_source(path: &Path) -> Result<Vec<u8>, JailError> {
         ))
     })?;
     if !metadata.is_file()
+        // SAFETY: geteuid has no preconditions and cannot fail.
         || metadata.uid() != unsafe { libc::geteuid() }
         || metadata.nlink() != 1
         || metadata.permissions().mode() & 0o177 != 0
@@ -698,9 +701,10 @@ fn policy_refusal(snapshot: &crate::policy::PolicySnapshot) -> Option<(&'static 
         // into admitted requests (J18 §6). Staged modes would write the
         // value into the guest's on-disk vendor state, which the VM tier
         // has not qualified.
-        let staged_mode = launch.credentials.iter().find(|credential| {
-            credential.mode != crate::policy::CredentialMode::Vault
-        });
+        let staged_mode = launch
+            .credentials
+            .iter()
+            .find(|credential| credential.mode != crate::policy::CredentialMode::Vault);
         if let Some(credential) = staged_mode {
             return Some((
                 "vm:staged-credential-modes-not-wired",
@@ -749,9 +753,9 @@ fn policy_refusal(snapshot: &crate::policy::PolicySnapshot) -> Option<(&'static 
     for (name, ceiling, guest) in fixed {
         let Some(ceiling) = ceiling else { continue };
         let requested = parse_size(&ceiling.value);
-        let honored = guest.zip(requested).map_or(false, |(guest, requested)| {
-            guest <= requested
-        });
+        let honored = guest
+            .zip(requested)
+            .is_some_and(|(guest, requested)| guest <= requested);
         if ceiling.required || !honored {
             return Some((
                 "vm:guest-applies-its-measured-fixed-limits",
@@ -761,7 +765,11 @@ fn policy_refusal(snapshot: &crate::policy::PolicySnapshot) -> Option<(&'static 
                      loosen or unset it, or wait for per-attempt ceilings with the \
                      proxied-policy work",
                     ceiling.value,
-                    if ceiling.required { "required" } else { "below the guest's floor" },
+                    if ceiling.required {
+                        "required"
+                    } else {
+                        "below the guest's floor"
+                    },
                 ),
             ));
         }
@@ -858,7 +866,8 @@ fn verify_applied_limits(
         let row = &matching[0];
         if required {
             let same = row.requested == value
-                || parse_size(&row.requested).zip(parse_size(value))
+                || parse_size(&row.requested)
+                    .zip(parse_size(value))
                     .is_some_and(|(a, b)| a == b);
             if !same {
                 return Err(format!(
@@ -886,7 +895,10 @@ fn expect_ready(connection: &mut control::AttemptConnection) -> Result<ReadyFram
     // the first frame can legally wait out a cold boot (measured 30-90s on
     // the qualified image); every later exchange stays on the short
     // handshake budget.
-    match connection.next_frame_within(SERVE_TIMEOUT).map_err(transport)? {
+    match connection
+        .next_frame_within(SERVE_TIMEOUT)
+        .map_err(transport)?
+    {
         control::Within::Frame(protocol::FromVm::Ready {
             schema,
             boot_id,
@@ -920,9 +932,7 @@ fn expect_ready(connection: &mut control::AttemptConnection) -> Result<ReadyFram
         control::Within::Idle => Err(refused(
             "--vm: the guest did not finish booting before the budget; try again",
         )),
-        control::Within::End => {
-            Err(refused("--vm: the attempt socket closed before `ready`"))
-        }
+        control::Within::End => Err(refused("--vm: the attempt socket closed before `ready`")),
     }
 }
 

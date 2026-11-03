@@ -31,7 +31,12 @@ fn probe_names() -> (String, String, String, String) {
     let marker = format!(".ukai-fold-probe-{:x}", std::process::id());
     let nfd: String = format!("{}-nfd-cafe\u{301}", marker);
     let nfc: String = format!("{}-nfd-cafe\u{e9}", marker);
-    (format!("{marker}-case"), format!("{}-CASE", marker.to_uppercase()), nfd, nfc)
+    (
+        format!("{marker}-case"),
+        format!("{}-CASE", marker.to_uppercase()),
+        nfd,
+        nfc,
+    )
 }
 
 /// Walk the workspace refusing symlinks and regular files with more than
@@ -56,8 +61,8 @@ fn scan(workspace: &Path) -> Result<(), String> {
                 pending.push(entry.path());
                 continue;
             }
-            let metadata = std::fs::symlink_metadata(entry.path())
-                .map_err(|error| error.to_string())?;
+            let metadata =
+                std::fs::symlink_metadata(entry.path()).map_err(|error| error.to_string())?;
             if metadata.is_file() && metadata.nlink() > 1 {
                 return Err(format!(
                     "live workspace contains files with more than one hard link (measured \
@@ -86,7 +91,10 @@ pub fn preflight(workspace: &Path) -> Result<ShareFacts, String> {
     let upper = workspace.join(upper);
     let nfd = workspace.join(nfd_name);
     let nfc = workspace.join(nfc_name);
-    let mut facts = ShareFacts { case_fold: false, normalization_fold: false };
+    let mut facts = ShareFacts {
+        case_fold: false,
+        normalization_fold: false,
+    };
     let result = (|| -> Result<(), String> {
         std::fs::write(&low, "low").map_err(|e| e.to_string())?;
         if upper.try_exists().map_err(|e| e.to_string())? {
@@ -148,7 +156,10 @@ mod tests {
         std::fs::hard_link(&inside, root.path().join("second.txt")).unwrap();
         let error = preflight(root.path()).unwrap_err();
         assert!(error.contains("hard link"), "{error}");
-        assert!(error.contains("shared.txt") || error.contains("second.txt"), "{error}");
+        assert!(
+            error.contains("shared.txt") || error.contains("second.txt"),
+            "{error}"
+        );
     }
 
     #[test]

@@ -692,9 +692,23 @@ fn vm_none_and_unimplemented_policy_requests_refuse_before_connecting() {
     for args in [
         vec!["--profile", "none", "--lifetime", "kernel-bound"],
         vec!["--profile", "agent", "--limit", "wall=5s"],
-        vec!["--profile", "build", "--limit", "wall=5s", "--limit", "mem=1GiB"],
+        vec![
+            "--profile",
+            "build",
+            "--limit",
+            "wall=5s",
+            "--limit",
+            "mem=1GiB",
+        ],
         vec!["--profile", "tool", "--deny-read", "private"],
-        vec!["--profile", "tool", "--limit", "mem=256MiB", "--limit", "wall=5s"],
+        vec![
+            "--profile",
+            "tool",
+            "--limit",
+            "mem=256MiB",
+            "--limit",
+            "wall=5s",
+        ],
         vec!["--profile", "tool"],
         // The share preflight is a host-side fact: this harness's workspace
         // sits on the Mac's default (case-folding) volume, so a policy that

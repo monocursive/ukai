@@ -363,7 +363,7 @@ pub fn verify_guest_receipt(receipt: &serde_json::Value, profile: &str) -> Resul
     match string("/applied/network/mode")? {
         "none" | "proxy" => {}
         other => {
-            return Err(refusal(&format!(
+            return Err(refusal(format!(
                 "guest receipt network mode is `{other}`, not none or proxy"
             )));
         }

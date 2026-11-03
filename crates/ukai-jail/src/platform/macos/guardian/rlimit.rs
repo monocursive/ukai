@@ -194,7 +194,9 @@ fn lower_nproc_with(
 /// inherited ceiling (never raising either limit); `Err` names the floor
 /// and the remedy when even the minimum does not fit.
 pub fn allowance_for(current: u64, soft: u64, hard: u64) -> Result<AppliedAllowance, RlimitError> {
-    let desired = current.saturating_add(PROCESS_HEADROOM).min(i64::MAX as u64);
+    let desired = current
+        .saturating_add(PROCESS_HEADROOM)
+        .min(i64::MAX as u64);
     let ceiling = soft.min(hard);
     if desired <= ceiling {
         return Ok(AppliedAllowance {
@@ -332,8 +334,14 @@ mod tests {
         // Below the minimum floor the refusal names numbers and remedy.
         let refusal = allowance_for(1300, 1333, 1333).unwrap_err().to_string();
         assert!(refusal.starts_with("insufficient_headroom:"), "{refusal}");
-        assert!(refusal.contains("close processes or raise kern.maxprocperuid"), "{refusal}");
-        assert!(allowance_for(u64::MAX, 2000, 2000).is_err(), "overflow refuses");
+        assert!(
+            refusal.contains("close processes or raise kern.maxprocperuid"),
+            "{refusal}"
+        );
+        assert!(
+            allowance_for(u64::MAX, 2000, 2000).is_err(),
+            "overflow refuses"
+        );
     }
 
     #[test]
@@ -436,7 +444,9 @@ mod tests {
                 (Err(error), false) => {
                     assert!(error.to_string().starts_with("insufficient_headroom:"));
                 }
-                (result, fits) => panic!("apply() disagreed with the floor: {result:?} fits={fits}"),
+                (result, fits) => {
+                    panic!("apply() disagreed with the floor: {result:?} fits={fits}")
+                }
             }
         }
         println!("soft-limit fixture ran");

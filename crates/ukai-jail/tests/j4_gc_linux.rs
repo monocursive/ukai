@@ -1009,6 +1009,7 @@ fn j4_n7_a_failed_leaf_registration_refuses_and_leaves_no_leaf() {
             argv: vec![b"/bin/true".to_vec()],
             workspace,
             config_dir: attempt.parent().unwrap().parent().unwrap().join("config"),
+            launch_name: None,
             launch: None,
             proxy: None,
             pinned_roots: Vec::new(),
