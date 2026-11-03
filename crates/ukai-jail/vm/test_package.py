@@ -1,6 +1,8 @@
 import hashlib
+import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tarfile
@@ -68,6 +70,86 @@ class CommittedSourceTests(unittest.TestCase):
                 package.committed_sources(self.vm)
 
 
+    def test_require_clean_covers_untracked_and_modified_inputs(self):
+        package.require_clean(self.repo, ['crates/vm'])
+        (self.repo / 'crates' / 'vm' / 'new.rs').write_text('mod planted;\n')
+        with self.assertRaisesRegex(package.SourceError, 'new.rs'):
+            package.require_clean(self.repo, ['crates/vm'])
+        (self.repo / 'crates' / 'vm' / 'new.rs').unlink()
+        (self.repo / 'outside.txt').write_text('changed outside the inputs\n')
+        package.require_clean(self.repo, ['crates/vm'])
+        with self.assertRaisesRegex(package.SourceError, 'outside.txt'):
+            package.require_clean(self.repo, ['crates/vm', 'outside.txt'])
+
+    def test_tree_sources_and_the_revision(self):
+        sources = package.tree_sources(self.repo, ['crates/vm'])
+        self.assertEqual(sorted(sources), ['crates/vm/guest.py', 'crates/vm/run.py', 'crates/vm/sub/notes.txt'])
+        self.assertEqual(sources['crates/vm/run.py'], sha256(b'run.py\n'))
+        self.assertRegex(package.head_revision(self.repo), '^[0-9a-f]{40}$')
+
+
+class ReleaseCoordinateTests(unittest.TestCase):
+    def release(self, vm):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = Path(directory.name) / 'release.json'
+        path.write_text(json.dumps({'vm': vm}))
+        return path
+
+    def test_the_package_version_is_the_candidate_never_the_published_version(self):
+        path = self.release({'version': '0.1.0-preview.1', 'candidate_version': '0.1.0-preview.2'})
+        self.assertEqual(package.candidate_version(path), '0.1.0-preview.2')
+
+    def test_an_absent_or_malformed_candidate_refuses(self):
+        for vm in ({'version': '0.1.0-preview.1'}, {'candidate_version': ''}, {'candidate_version': 'latest'},
+                   {'candidate_version': 2}):
+            with self.subTest(vm=vm), self.assertRaisesRegex(package.SourceError, 'candidate_version'):
+                package.candidate_version(self.release(vm))
+
+
+class BuildTests(unittest.TestCase):
+    def test_ukai_vm_builds_locked_into_the_named_target_with_provenance(self):
+        calls = []
+        with mock.patch.dict(os.environ, {'CARGO_TARGET_DIR': '/elsewhere/stale'}):
+            built, record = package.build_ukai_vm(Path('/tmp/pkg/cargo-target'), 'a' * 40, '9.9.9-x',
+                                                  run=lambda *args, env=None: calls.append((args, env)))
+        (args, env), = calls
+        words = [str(word) for word in args]
+        self.assertIn('--locked', words)
+        self.assertEqual(words[words.index('--target-dir') + 1], '/tmp/pkg/cargo-target')
+        self.assertEqual(built, Path('/tmp/pkg/cargo-target/release/ukai-vm'))
+        self.assertEqual((env['UKAI_BUILD_REVISION'], env['UKAI_BUILD_DIRTY'], env['UKAI_VM_PACKAGE_VERSION']),
+                         ('a' * 40, 'false', '9.9.9-x'))
+        self.assertNotIn('CARGO_TARGET_DIR', env)
+        self.assertTrue(record['locked'])
+
+    def test_the_build_inputs_are_build_provenance_rs_list(self):
+        inputs = package.build_inputs()
+        self.assertEqual(inputs[0], 'crates/ukai-jail/src')
+        self.assertEqual(len(inputs), 41)
+        for name in ('Cargo.lock', 'Cargo.toml', 'rust-toolchain.toml', 'crates/ukai-jail/build.rs',
+                     'docs/specs/jail-v1/network-addresses.json'):
+            self.assertIn(name, inputs)
+
+
+@unittest.skipUnless(shutil.which('git'), 'git is required to list committed sources')
+class SourceArchiveCoverageTests(unittest.TestCase):
+    """preview-source.tar.gz holds what builds every binary the DMG ships."""
+
+    def test_the_archived_paths_build_every_shipped_binary(self):
+        listed = set(package.listed_sources(package.REPO, package.archive_paths()))
+        members = re.findall(r'"([^"]+)"', re.search(r'members = \[([^\]]*)\]',
+                                                     (package.REPO / 'Cargo.toml').read_text()).group(1))
+        needed = {'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', '.cargo/config.toml', 'LICENSE',
+                  'crates/ukai-jail/src/bin/ukai-vm.rs', 'crates/ukai-jail/build.rs',
+                  'crates/ukai-jail/vm/vz.swift', 'crates/ukai-jail/vm/custodian.c',
+                  'crates/ukai-jail/vm/entitlements.plist', 'crates/ukai-jail/vm/cli.py',
+                  'crates/ukai-jail/vm/run.py', 'crates/ukai-jail/vm/guest.py',
+                  *(member + '/Cargo.toml' for member in members), *package.build_inputs()[1:]}
+        self.assertEqual(sorted(needed - listed), [])
+        self.assertTrue(any(name.startswith('crates/ukai-jail/src/') for name in listed))
+
+
 class PreparedSourceTests(unittest.TestCase):
     current = {'guest.py': 'g', 'vz.swift': 'v', 'custodian.c': 'c', 'prepare.py': 'p', 'run.py': 'r'}
 
@@ -117,6 +199,13 @@ class SourceArchiveTests(unittest.TestCase):
         (self.source / 'run.py').write_bytes(b'print(2)\n')
         with self.assertRaisesRegex(package.SourceError, 'changed while packaging: run.py'):
             package.write_source_archive(self.root / 'out.tar.gz', self.source, self.sources)
+
+    def test_archives_under_the_named_prefix(self):
+        archive_path = self.root / 'source.tar.gz'
+        package.write_source_archive(archive_path, self.source, self.sources, prefix='ukai-vm-1.0-source/')
+        with tarfile.open(archive_path) as archive:
+            self.assertEqual([m.name for m in archive.getmembers()],
+                             ['ukai-vm-1.0-source/' + name for name in sorted(self.files)])
 
     def test_refuses_a_symlink(self):
         (self.source / 'link').symlink_to('run.py')
