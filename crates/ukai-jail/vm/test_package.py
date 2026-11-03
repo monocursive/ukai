@@ -1,5 +1,4 @@
 import hashlib
-import json
 import os
 from pathlib import Path
 import re
@@ -82,6 +81,45 @@ class CommittedSourceTests(unittest.TestCase):
         with self.assertRaisesRegex(package.SourceError, 'outside.txt'):
             package.require_clean(self.repo, ['crates/vm', 'outside.txt'])
 
+    def test_require_clean_refuses_an_ignored_input_but_not_bytecode(self):
+        # Reviewer F-16: an ignored file under the inputs is one a build could read.
+        (self.repo / '.gitignore').write_text('*.local\n__pycache__/\n')
+        self.git('add', '.gitignore')
+        self.git('-c', 'user.name=test', '-c', 'user.email=test@example.invalid', 'commit', '-q', '-m', 'ignore')
+        (self.vm / '__pycache__').mkdir()
+        (self.vm / '__pycache__' / 'run.cpython-315.pyc').write_bytes(b'bytecode')
+        package.require_clean(self.repo, ['crates/vm'])
+        (self.vm / 'override.local').write_text('read by the build\n')
+        with self.assertRaisesRegex(package.SourceError, 'override.local'):
+            package.require_clean(self.repo, ['crates/vm'])
+
+    def test_require_clean_sees_through_assume_unchanged_and_skip_worktree(self):
+        for flag in ('--assume-unchanged', '--skip-worktree'):
+            with self.subTest(flag):
+                self.git('update-index', flag, 'crates/vm/run.py')
+                (self.vm / 'run.py').write_text('edited behind the index\n')
+                with self.assertRaisesRegex(package.SourceError, 'run.py'):
+                    package.require_clean(self.repo, ['crates/vm'])
+                self.git('update-index', flag.replace('--', '--no-'), 'crates/vm/run.py')
+                self.git('checkout', '--', 'crates/vm/run.py')
+                package.require_clean(self.repo, ['crates/vm'])
+
+    def test_require_clean_compares_the_bytes_with_heads_blobs(self):
+        # Even with every mark cleared and status quiet, the bytes are HEAD's.
+        with mock.patch.object(package, 'git_lines', wraps=package.git_lines) as lines:
+            package.require_clean(self.repo, ['crates/vm'])
+        self.assertIn('ls-tree', [call.args[1] for call in lines.call_args_list])
+        real = package.git_lines
+
+        def quiet(repo, *args):
+            if args[0] in ('status', 'ls-files'):
+                return b'' if args[0] == 'status' else real(repo, *args)
+            return real(repo, *args)
+        (self.vm / 'run.py').write_text('edited\n')
+        with mock.patch.object(package, 'git_lines', quiet):
+            with self.assertRaisesRegex(package.SourceError, 'differ from HEAD: crates/vm/run.py'):
+                package.require_clean(self.repo, ['crates/vm'])
+
     def test_tree_sources_and_the_revision(self):
         sources = package.tree_sources(self.repo, ['crates/vm'])
         self.assertEqual(sorted(sources), ['crates/vm/guest.py', 'crates/vm/run.py', 'crates/vm/sub/notes.txt'])
@@ -106,21 +144,135 @@ class ReleaseCoordinateTests(unittest.TestCase):
                          (package.REPO / 'crates/ukai-jail/dist/coordinates.py').resolve())
 
 
+def pinned_versions(pin):
+    return {'rustc_vV': f'rustc {pin} (abc 2026-10-01)\nbinary: rustc\nhost: aarch64-apple-darwin\nrelease: {pin}\n',
+            'cargo_V': f'cargo {pin} (def 2026-10-01)'}
+
+
 class BuildTests(unittest.TestCase):
+    OVERRIDES = {'CARGO_TARGET_DIR': '/elsewhere/stale', 'RUSTUP_TOOLCHAIN': 'stable', 'RUSTFLAGS': '-C opt-level=0',
+                 'RUSTC_WRAPPER': '/x/sccache', 'CARGO_BUILD_TARGET': 'x86_64-apple-darwin',
+                 'CARGO_PROFILE_RELEASE_DEBUG': 'true'}
+
     def test_ukai_vm_builds_locked_into_the_named_target_with_provenance(self):
-        calls = []
-        with mock.patch.dict(os.environ, {'CARGO_TARGET_DIR': '/elsewhere/stale'}):
+        calls, probed = [], []
+        pin = package.toolchain_pin()
+
+        def versions(environment, repo):
+            probed.append((dict(environment), repo))
+            return pinned_versions(pin)
+        with mock.patch.dict(os.environ, self.OVERRIDES):
             built, record = package.build_ukai_vm(Path('/tmp/pkg/cargo-target'), 'a' * 40, '9.9.9-x',
-                                                  run=lambda *args, env=None: calls.append((args, env)))
-        (args, env), = calls
+                                                  run=lambda *args, env=None, cwd=None: calls.append((args, env, cwd)),
+                                                  versions=versions)
+        (args, env, cwd), = calls
         words = [str(word) for word in args]
         self.assertIn('--locked', words)
         self.assertEqual(words[words.index('--target-dir') + 1], '/tmp/pkg/cargo-target')
         self.assertEqual(built, Path('/tmp/pkg/cargo-target/release/ukai-vm'))
         self.assertEqual((env['UKAI_BUILD_REVISION'], env['UKAI_BUILD_DIRTY'], env['UKAI_VM_PACKAGE_VERSION']),
                          ('a' * 40, 'false', '9.9.9-x'))
-        self.assertNotIn('CARGO_TARGET_DIR', env)
+        # Reviewer F-4 / FX8: no override reaches cargo or the version probe,
+        # and the build runs where rustup reads rust-toolchain.toml.
+        for environment in (env, probed[0][0]):
+            self.assertEqual(sorted(set(self.OVERRIDES) & set(environment)), [])
+            self.assertLessEqual(set(environment) - {'UKAI_BUILD_REVISION', 'UKAI_BUILD_DIRTY', 'UKAI_VM_PACKAGE_VERSION'},
+                                 set(package.BUILD_ENVIRONMENT))
+        self.assertEqual(cwd, package.REPO)
+        self.assertEqual(probed[0][1], package.REPO)
         self.assertTrue(record['locked'])
+        self.assertEqual((record['toolchain_pin'], record['rustc_vV'], record['cargo_V']),
+                         (pin, pinned_versions(pin)['rustc_vV'], pinned_versions(pin)['cargo_V']))
+        self.assertEqual(record['environment_names'], sorted(env))
+
+    def test_a_toolchain_that_is_not_the_pin_refuses_before_cargo(self):
+        pin = package.toolchain_pin()
+        for name, found, message in [
+                ('another rustc', dict(pinned_versions(pin), rustc_vV='rustc 1.96.0 (x)\nrelease: 1.96.0\n'), 'rustc is 1.96.0'),
+                ('no release line', dict(pinned_versions(pin), rustc_vV='rustc ?'), 'rustc is unknown'),
+                ('another cargo', dict(pinned_versions(pin), cargo_V='cargo 1.96.0 (x)'), 'cargo is'),
+                ('a cargo whose version only starts with the pin', dict(pinned_versions(pin), cargo_V=f'cargo {pin}9 (x)'), 'cargo is')]:
+            with self.subTest(name):
+                calls = []
+                with self.assertRaisesRegex(package.SourceError, message):
+                    package.build_ukai_vm(Path('/tmp/t'), 'a' * 40, 'v', run=lambda *a, **k: calls.append(a),
+                                          versions=lambda environment, repo: found)
+                self.assertEqual(calls, [])
+
+    def test_the_build_environment_keeps_only_its_names(self):
+        base = dict(self.OVERRIDES, PATH='/usr/bin', HOME='/Users/x', RUSTUP_HOME='/r', LANG='fr_FR.UTF-8')
+        self.assertEqual(package.build_environment(base), {'PATH': '/usr/bin', 'HOME': '/Users/x', 'RUSTUP_HOME': '/r'})
+
+    def test_the_pin_is_an_exact_release(self):
+        self.assertRegex(package.toolchain_pin(), r'^\d+\.\d+\.\d+$')
+        with tempfile.TemporaryDirectory() as temporary:
+            for channel, ok in (('"1.98.1"', True), ('"stable"', False), ('"1.98"', False), ('"nightly-2026-10-01"', False)):
+                with self.subTest(channel=channel):
+                    (Path(temporary) / 'rust-toolchain.toml').write_text(f'[toolchain]\nchannel = {channel}\n')
+                    if ok:
+                        self.assertEqual(package.toolchain_pin(temporary), '1.98.1')
+                    else:
+                        with self.assertRaisesRegex(package.SourceError, 'pins no exact release'):
+                            package.toolchain_pin(temporary)
+
+    def test_the_versions_are_probed_in_the_build_environment(self):
+        seen = []
+
+        def run(*args, env=None, cwd=None):
+            seen.append((args, env, cwd))
+            return f'{args[0]} out\n'
+        found = package.toolchain_versions({'PATH': '/usr/bin'}, Path('/repo'), run=run)
+        self.assertEqual(found, {'rustc_vV': 'rustc out', 'cargo_V': 'cargo out'})
+        self.assertEqual([call[0] for call in seen], [('rustc', '-vV'), ('cargo', '-V')])
+        self.assertTrue(all(call[1] == {'PATH': '/usr/bin'} and call[2] == Path('/repo') for call in seen))
+
+    @unittest.skipUnless(shutil.which('rustup') and shutil.which('rustc'), 'rustup is not installed')
+    def test_this_hosts_scrubbed_build_sees_the_pin(self):
+        # FX8 on this host: a shell RUSTUP_TOOLCHAIN (stable) never reaches the build.
+        pin = package.toolchain_pin()
+        listed = subprocess.run(['rustup', 'toolchain', 'list'], capture_output=True, text=True).stdout
+        if not any(line.startswith(pin + '-') for line in listed.splitlines()):
+            self.skipTest(f'the pinned {pin} toolchain is not installed (rustup would download it)')
+        with mock.patch.dict(os.environ, {'RUSTUP_TOOLCHAIN': 'stable'}):
+            found = package.toolchain_versions(package.build_environment())
+        package.require_pinned_toolchain(found, pin)
+
+    def test_check_built_needs_the_version_the_revision_and_a_clean_tree(self):
+        # Reviewer PK7, PK8: each post-build check on its own.
+        with mock.patch.object(package, 'head_revision', return_value='a' * 40), \
+                mock.patch.object(package, 'require_clean') as clean:
+            self.assertEqual(package.check_built(Path('/b'), 'v1', 'a' * 40, reported=lambda b: 'v1'), 'v1')
+            clean.assert_called_once_with(package.REPO, package.build_inputs())
+            with self.assertRaisesRegex(package.SourceError, "reports version 'v0', not v1"):
+                package.check_built(Path('/b'), 'v1', 'a' * 40, reported=lambda b: 'v0')
+            with self.assertRaisesRegex(package.SourceError, 'HEAD moved during the build'):
+                package.check_built(Path('/b'), 'v1', 'b' * 40, reported=lambda b: 'v1')
+            clean.side_effect = package.SourceError('build inputs differ from HEAD: x')
+            with self.assertRaisesRegex(package.SourceError, 'differ from HEAD'):
+                package.check_built(Path('/b'), 'v1', 'a' * 40, reported=lambda b: 'v1')
+
+    def test_check_version_needs_the_cli_version(self):
+        # Reviewer PK9.
+        package.check_version('0.1.0-preview.2', '0.1.0-preview.2')
+        with self.assertRaisesRegex(package.SourceError, 'cli.VERSION is 0.1.0-preview.2'):
+            package.check_version('0.1.0-preview.3', '0.1.0-preview.2')
+        self.assertEqual(package.check_version.__defaults__, (None,))
+
+    def test_head_revision_is_a_full_commit(self):
+        # Reviewer PK12.
+        for output, ok in ((b'a' * 40 + b'\n', True), (b'abc\n', False), (b'HEAD\n', False), (b'b' * 64 + b'\n', False)):
+            with self.subTest(output=output), mock.patch.object(package, 'git_lines', return_value=output):
+                if ok:
+                    self.assertEqual(package.head_revision(), 'a' * 40)
+                else:
+                    with self.assertRaisesRegex(package.SourceError, 'not a full commit'):
+                        package.head_revision()
+
+    def test_the_archived_tree_check_covers_every_build_input(self):
+        # main() checks the tree once, under archive_paths(): every build
+        # input build.rs checks is one of its pathspecs.
+        self.assertLessEqual(set(package.build_inputs()), set(package.archive_paths()))
+        self.assertLessEqual(set(package.SOURCE_PATHS), set(package.archive_paths()))
 
     def test_the_build_inputs_are_build_provenance_rs_list(self):
         inputs = package.build_inputs()

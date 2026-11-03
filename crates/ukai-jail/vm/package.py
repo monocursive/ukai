@@ -5,16 +5,23 @@ Run in a venv installed with --require-hashes from requirements-build.txt.
 Notarization is a separate explicit command so its result is retained.
 
 What ships is built from one committed revision, recorded as
-`source_revision`: the build refuses when HEAD's tree differs from the
-committed state anywhere under the jail's build inputs (build_provenance.rs's
-INPUT_DIR and profiles/inputs.rs) or the archived source paths, builds
-`ukai-vm` with `--locked` into an explicit `--target-dir` (copied from there,
-never from a default target/), with UKAI_BUILD_REVISION=<HEAD>,
-UKAI_BUILD_DIRTY=false (build.rs re-checks the tree) and
-UKAI_VM_PACKAGE_VERSION=<release.json vm.candidate_version> (D8/D11), and
-refuses a binary whose `version` reports anything else. preview-source.tar.gz
-holds the workspace at that revision: enough to rebuild ukai-vm, the VZ
-client, the custodian and the installer helper.
+`source_revision`: the build refuses when the working tree differs from HEAD
+anywhere under the jail's build inputs (build_provenance.rs's INPUT_DIR and
+profiles/inputs.rs) or the archived source paths — a change staged or not,
+an untracked or ignored file (bytecode caches excepted), an index entry
+marked assume-unchanged or skip-worktree, or any file whose bytes are not
+HEAD's blob. It builds `ukai-vm` with `--locked` into an explicit
+`--target-dir` (copied from there, never from a default target/), from the
+repository root (so rustup honours rust-toolchain.toml) in a scrubbed
+environment (no RUSTUP_TOOLCHAIN, RUSTFLAGS, RUSTC* or CARGO_* but
+CARGO_HOME), with UKAI_BUILD_REVISION=<HEAD>, UKAI_BUILD_DIRTY=false
+(build.rs re-checks the tree) and
+UKAI_VM_PACKAGE_VERSION=<release.json vm.candidate_version> (D8/D11). It
+refuses a toolchain whose `rustc -vV` / `cargo -V` is not the pinned
+release (both recorded in package.json), and a binary whose `version`
+reports anything but the candidate. preview-source.tar.gz holds the
+workspace at that revision: enough to rebuild ukai-vm, the VZ client, the
+custodian and the installer helper.
 """
 import argparse
 import ast
@@ -48,14 +55,25 @@ INPUTS_LIST = REPO / 'crates' / 'ukai-jail' / 'profiles' / 'inputs.rs'
 # binary: ukai-vm (cargo), vz (swiftc), custodian (clang), ukai-vm-install
 # (PyInstaller over vm/cli.py).
 SOURCE_PATHS = ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'LICENSE', '.cargo/config.toml', 'crates')
+# The cargo build's whole environment: what finds the tools and the user's
+# rustup and cargo installation, nothing that selects a toolchain or
+# changes how it compiles (RUSTUP_TOOLCHAIN overrides rust-toolchain.toml;
+# RUSTFLAGS, RUSTC_WRAPPER, CARGO_BUILD_*, CARGO_PROFILE_*, CARGO_TARGET_DIR
+# and the like change the build).
+BUILD_ENVIRONMENT = ('HOME', 'PATH', 'USER', 'LOGNAME', 'TMPDIR', 'RUSTUP_HOME', 'CARGO_HOME')
 
 
 class SourceError(ValueError):
     pass
 
 
-def command(*args, env=None):
-    subprocess.run([str(arg) for arg in args], check=True, env=env)
+def command(*args, env=None, cwd=None):
+    subprocess.run([str(arg) for arg in args], check=True, env=env, cwd=cwd)
+
+
+def capture(*args, env=None, cwd=None):
+    return subprocess.run([str(arg) for arg in args], check=True, env=env, cwd=cwd,
+                          capture_output=True, text=True).stdout
 
 
 def release_coordinates():
@@ -107,12 +125,51 @@ def head_revision(repo=REPO):
     return revision
 
 
+def ignorable(name):
+    """An ignored path no build reads: Python bytecode (the archive lists only committed files)."""
+    return '__pycache__' in Path(name).parts or name.endswith('.pyc')
+
+
 def require_clean(repo, paths):
-    """Refuse any change, staged or not, tracked or untracked, under `paths`."""
-    changes = git_lines(repo, 'status', '--porcelain=v1', '-z', '--untracked-files=all', '--', *paths)
-    if changes:
-        listed = sorted({entry[3:].decode(errors='replace') for entry in changes.split(b'\0') if len(entry) > 3})
-        raise SourceError('build inputs have uncommitted changes: ' + ', '.join(listed[:20]))
+    """Refuse any difference from HEAD under `paths`.
+
+    `git status` catches a change staged or not, tracked or untracked, and
+    (with --ignored) an ignored file a build could read; `ls-files -v`
+    catches the assume-unchanged and skip-worktree marks that make `git
+    status` look away from an edited file; and every committed file's bytes
+    must hash to HEAD's blob, whatever the index says.
+    """
+    changes = git_lines(repo, 'status', '--porcelain=v1', '-z', '--untracked-files=all', '--ignored=matching',
+                        '--', *paths)
+    listed = set()
+    for entry in changes.split(b'\0'):
+        if len(entry) <= 3:
+            continue
+        name = entry[3:].decode(errors='replace')
+        if entry[:2] == b'!!' and ignorable(name):
+            continue
+        listed.add(name)
+    if listed:
+        raise SourceError('build inputs have uncommitted changes: ' + ', '.join(sorted(listed)[:20]))
+    marked = sorted(os.fsdecode(entry[2:]) for entry in git_lines(repo, 'ls-files', '-v', '-z', '--', *paths).split(b'\0')
+                    if entry and not entry.startswith(b'H '))
+    if marked:
+        raise SourceError('build inputs are marked assume-unchanged or skip-worktree: ' + ', '.join(marked[:20]))
+    committed = {}
+    for entry in git_lines(repo, 'ls-tree', '-r', '-z', 'HEAD', '--', *paths).split(b'\0'):
+        if entry:
+            meta, _, name = entry.partition(b'\t')
+            committed[os.fsdecode(name)] = meta.split()[2].decode()
+    if committed:
+        names = sorted(committed)
+        hashed = subprocess.run(['git', '--no-optional-locks', '-C', str(repo), 'hash-object', '--stdin-paths'],
+                                input='\n'.join(names) + '\n', capture_output=True, text=True)
+        blobs = hashed.stdout.split()
+        if hashed.returncode != 0 or len(blobs) != len(names):
+            raise SourceError('git hash-object failed: ' + hashed.stderr.strip()[-200:])
+        differ = [name for name, blob in zip(names, blobs) if committed[name] != blob]
+        if differ:
+            raise SourceError('build inputs differ from HEAD: ' + ', '.join(differ[:20]))
 
 
 def archive_paths():
@@ -203,23 +260,77 @@ def built_version(binary):
     return json.loads(output).get('version')
 
 
-def build_ukai_vm(target_dir, revision, version, run=command):
+def build_environment(base=None):
+    """BUILD_ENVIRONMENT's names from `base` (default: this process), nothing else."""
+    base = os.environ if base is None else base
+    return {name: base[name] for name in BUILD_ENVIRONMENT if name in base}
+
+
+def toolchain_pin(repo=REPO):
+    """rust-toolchain.toml's channel: an exact release, never a moving name."""
+    import tomllib
+    channel = tomllib.loads((Path(repo) / 'rust-toolchain.toml').read_text()).get('toolchain', {}).get('channel')
+    if not isinstance(channel, str) or not re.fullmatch(r'\d+\.\d+\.\d+', channel):
+        raise SourceError(f'rust-toolchain.toml pins no exact release: {channel!r}')
+    return channel
+
+
+def toolchain_versions(environment, repo=REPO, run=capture):
+    """`rustc -vV` and `cargo -V` exactly as the build will see them."""
+    return {'rustc_vV': run('rustc', '-vV', env=environment, cwd=repo).strip(),
+            'cargo_V': run('cargo', '-V', env=environment, cwd=repo).strip()}
+
+
+def require_pinned_toolchain(versions, pin):
+    release = re.search(r'^release: (\S+)$', versions.get('rustc_vV', ''), re.MULTILINE)
+    if not release or release.group(1) != pin:
+        raise SourceError(f'rustc is {release.group(1) if release else "unknown"}, not the pinned {pin}: '
+                          'rust-toolchain.toml is not in effect (a RUSTUP_TOOLCHAIN override?)')
+    if not re.match(rf'cargo {re.escape(pin)}(?: |$)', versions.get('cargo_V', '')):
+        raise SourceError(f'cargo is {versions.get("cargo_V")!r}, not the pinned {pin}')
+
+
+def build_ukai_vm(target_dir, revision, version, run=command, versions=toolchain_versions, repo=REPO):
     """cargo build --locked into an explicit target dir; returns the built binary.
 
-    UKAI_BUILD_REVISION/UKAI_BUILD_DIRTY=false make build.rs check the tree
-    against HEAD itself; UKAI_VM_PACKAGE_VERSION is what `ukai-vm version`
-    prints. CARGO_TARGET_DIR is dropped so only `--target-dir` decides where
-    the binary comes from.
+    From the repository root (rustup reads rust-toolchain.toml there) in a
+    scrubbed environment; the toolchain must be the pinned release, and its
+    exact `rustc -vV` and `cargo -V` are recorded. UKAI_BUILD_REVISION and
+    UKAI_BUILD_DIRTY=false make build.rs check the tree against HEAD itself;
+    UKAI_VM_PACKAGE_VERSION is what `ukai-vm version` prints. Only
+    `--target-dir` decides where the binary comes from.
     """
-    environment = {key: value for key, value in os.environ.items() if key != 'CARGO_TARGET_DIR'}
+    environment = build_environment()
+    pin = toolchain_pin(repo)
+    found = versions(environment, repo)
+    require_pinned_toolchain(found, pin)
     environment.update(UKAI_BUILD_REVISION=revision, UKAI_BUILD_DIRTY='false',
                        UKAI_VM_PACKAGE_VERSION=version)
     run('cargo', 'build', '--release', '--locked', '--package', 'ukai-jail', '--bin', 'ukai-vm',
-        '--manifest-path', REPO / 'Cargo.toml', '--target-dir', target_dir, env=environment)
+        '--manifest-path', Path(repo) / 'Cargo.toml', '--target-dir', target_dir, env=environment, cwd=repo)
     return Path(target_dir) / 'release' / 'ukai-vm', {
-        'cargo_target_dir': str(target_dir), 'locked': True,
+        'cargo_target_dir': str(target_dir), 'locked': True, 'toolchain_pin': pin, **found,
+        'environment_names': sorted(environment),
         'environment': {'UKAI_BUILD_REVISION': revision, 'UKAI_BUILD_DIRTY': 'false',
                         'UKAI_VM_PACKAGE_VERSION': version}}
+
+
+def check_version(version, cli_version=None):
+    """cli.VERSION (what the installer and image.json name) is the candidate."""
+    cli_version = VERSION if cli_version is None else cli_version
+    if version != cli_version:
+        raise SourceError(f'cli.VERSION is {cli_version} but release.json vm.candidate_version is {version}')
+
+
+def check_built(binary, version, revision, repo=REPO, reported=None):
+    """After the build: the binary reports the candidate, HEAD did not move, the tree is still clean."""
+    reported = built_version(binary) if reported is None else reported(binary)
+    if reported != version:
+        raise SourceError(f'the built ukai-vm reports version {reported!r}, not {version}')
+    if head_revision(repo) != revision:
+        raise SourceError('HEAD moved during the build')
+    require_clean(repo, build_inputs())
+    return reported
 
 
 def main():
@@ -235,15 +346,14 @@ def main():
     metadata = json.loads((prepared / 'image.json').read_text())
     try:
         version = candidate_version()
-        if version != VERSION:
-            raise SourceError(f'cli.VERSION is {VERSION} but release.json vm.candidate_version is {version}')
+        check_version(version)
         revision = head_revision()
         sources = {name: digest(SOURCE / name) for name in committed_sources(SOURCE)}
         verify_prepared_sources(metadata.get('source_sha256'), sources)
         # Every binary the package ships is built from the committed tree:
-        # the jail's build inputs (what build.rs checks) and the archived
-        # source paths must all match HEAD.
-        require_clean(REPO, build_inputs())
+        # archive_paths() holds the jail's build inputs (what build.rs
+        # checks) and every archived source path, and tree_sources refuses
+        # any difference from HEAD under all of them.
         archived = tree_sources(REPO, archive_paths())
     except SourceError as error:
         parser.error(str(error))
@@ -269,14 +379,9 @@ def main():
     # `ukai-jail run --vm` starts), built from the committed Rust sources at
     # `revision` into an explicit target dir, and copied from exactly there.
     target_dir = (args.target_dir or out / 'cargo-target').resolve()
-    built, build = build_ukai_vm(target_dir, revision, version)
-    reported = built_version(built)
-    if reported != version:
-        parser.error(f'the built ukai-vm reports version {reported!r}, not {version}')
     try:
-        if head_revision() != revision:
-            raise SourceError('HEAD moved during the build')
-        require_clean(REPO, build_inputs())
+        built, build = build_ukai_vm(target_dir, revision, version)
+        reported = check_built(built, version, revision)
     except SourceError as error:
         parser.error(str(error))
     shutil.copy2(built, binaries / 'ukai-vm')
