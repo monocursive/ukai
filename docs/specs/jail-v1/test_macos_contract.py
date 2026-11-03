@@ -125,6 +125,37 @@ def live_promotion_problems(acceptance, exists):
     return problems
 
 
+# A J18 row claimed as passing, in any spelling: a K108-K113 range (hyphen,
+# en or em dash, "to", "through") or a list of those ids, then pass/passes/passed.
+VM_ROW = r"K1(?:0[89]|1[0-3])(?:\.1)?"
+PASSING_VM_ROWS = re.compile(
+    rf"\b{VM_ROW}\s*(?:[-–—]|to|through)\s*{VM_ROW}\s+(?:all\s+|now\s+)?pass(?:es|ed)?\b"
+    rf"|\b{VM_ROW}(?:,?\s+(?:and\s+)?{VM_ROW})+,?\s+(?:all\s+|now\s+)?pass(?:es|ed)?\b"
+    rf"|\b{VM_ROW}\s+(?:now\s+)?pass(?:es|ed)?\b")
+
+
+def passing_vm_row_claims(text):
+    return [match.group(0) for match in PASSING_VM_ROWS.finditer(text)]
+
+
+def candidate_tag_problems(readme, tag_prefix, candidate):
+    """The preview.2 README names the candidate's tag correctly outside its errata.
+
+    Erratum 1 quotes the wrong tag on purpose; everywhere else the candidate
+    may be tagged only with `tag_prefix`, and the publication steps must name
+    that tag.
+    """
+    start = readme.index("**Errata (2026-11-03, fix wave 1103).**")
+    end = readme.index("This build (", start)
+    outside = readme[:start] + readme[end:]
+    problems = [f"`{match.group(1)}{candidate}` outside the erratum"
+                for match in re.finditer(r"([A-Za-z0-9_.-]*-v)" + re.escape(candidate), outside)
+                if match.group(1) != tag_prefix]
+    if f"`{tag_prefix}{candidate}`" not in outside:
+        problems.append(f"the publication steps do not name `{tag_prefix}{candidate}`")
+    return problems
+
+
 def validator_module():
     name = "phase1_validator"
     if BASE:
@@ -166,8 +197,9 @@ class MacosContract(unittest.TestCase):
                              "before any connection or boot", "built from source"]:
                     self.assertIn(fact, text)
                 for stale in ["lacks network", "no qualified VM backend exists yet",
-                              "refuses before connecting", "K108–K112 pass"]:
+                              "refuses before connecting"]:
                     self.assertNotIn(stale, text)
+                self.assertEqual([], passing_vm_row_claims(text))
                 self.assertNotRegex(text, r"(?i)(?:are|is now|both|2026-10-22,) code-complete|The code is complete")
         self.assertIn("refusal-only", read("docs/specs/jail-macos.md"))
 
@@ -315,6 +347,16 @@ class MacosContract(unittest.TestCase):
         next(c for c in value["clause"] if c["id"] == "K108.1")["note"] = "See docs/benchmarks/jail/results/gone/."
         self.assertEqual(live_promotion_problems(value, exists),
                          ["K108.1 cites docs/benchmarks/jail/results/gone/, which does not exist"])
+        # An untested clause lists no evidence: a test or a check on it is
+        # the one problem, whichever it names.
+        for field in ["tests", "checks"]:
+            with self.subTest(untested_lists=field):
+                value = copy.deepcopy(acceptance)
+                clause = next(c for c in value["clause"] if c["id"] == "K111.1")
+                self.assertEqual(clause["tag"], "untested")
+                clause[field] = [test]
+                self.assertEqual(live_promotion_problems(value, exists),
+                                 ["K111.1 is untested but lists evidence"])
 
     def test_d11_vm_docs_imply_no_shipped_client_and_no_passing_row(self):
         def flat(path):
@@ -328,10 +370,20 @@ class MacosContract(unittest.TestCase):
                 self.assertIn("ukai-jail run --vm", text)
                 self.assertIn("built from source", text)
                 self.assertRegex(text, r"(?i)no macOS ukai-jail client ships")
+        # No current VM page claims a J18 row passes, in any spelling.
+        for path in ["crates/ukai-jail/vm/PREVIEW.txt", "crates/ukai-jail/vm/README.md",
+                     CONTRACT + "agent-compatibility.md", "crates/ukai-jail/dist/release.json"]:
+            with self.subTest(path=path, check="no passing row"):
+                self.assertEqual([], passing_vm_row_claims(flat(path)))
         vm_row = next(line for line in read(CONTRACT + "agent-compatibility.md").splitlines()
                       if line.startswith("| Claude Code | 2.1.311"))
         self.assertNotIn("Supported", vm_row)
         self.assertIn("K113 `untested`", vm_row)
+        platform = vm_row.split(" | ")[3]
+        self.assertNotIn("installed ukai-vm 0.1.0-preview.1", platform)
+        for fact in ["development package labeled 0.1.0-preview.1, not the public preview (erratum 5)",
+                     "built from the repository"]:
+            self.assertIn(fact, platform)
         # The cited receipt digest matched no file; the guest receipt is
         # 53837b58. The wrong one may appear only in its erratum.
         for path in [CONTRACT + "agent-compatibility.md",
@@ -345,8 +397,9 @@ class MacosContract(unittest.TestCase):
                          flat("docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md"))
         vm = json.loads(read("crates/ukai-jail/dist/release.json"))["vm"]
         self.assertNotEqual(vm["version"], vm["candidate_version"])
-        self.assertIn(f"`{vm['tag_prefix']}{vm['candidate_version']}`",
-                      read("docs/benchmarks/jail/results/macos-vm-preview2-2026-11-03/README.md"))
+        self.assertEqual([], candidate_tag_problems(
+            read("docs/benchmarks/jail/results/macos-vm-preview2-2026-11-03/README.md"),
+            vm["tag_prefix"], vm["candidate_version"]))
         self.assertTrue(read("crates/ukai-jail/vm/PREVIEW.txt").startswith(
             f"Ukai VM {vm['candidate_version']} "))
 
@@ -358,15 +411,18 @@ class MacosContract(unittest.TestCase):
                      "`allowance ` + limit (u64) + headroom (u64) + clamped (one byte, 0 or 1)",
                      "`process_limit`", "`process_headroom`", "`process_headroom_clamped`",
                      "`process_allowance`", "`stop.phases`", "the supervisor plans nothing",
-                     "min(hard, `kern.maxprocperuid`)"]:
+                     "min(hard, `kern.maxprocperuid`)",
+                     "preparation refuses if either has moved below the decided limit",
+                     "a limit that rose after the decision is not refused"]:
             self.assertIn(fact, native)
         for stale in ["The clamped path sets nothing", "the process headroom (rule 6) and pending",
                       "any member could raise its soft limit up to the hard limit",
-                      "reports `ready` on B. If"]:
+                      "reports `ready` on B. If", "if the limits moved during preparation"]:
             self.assertNotIn(stale, native)
         compat = " ".join(read("docs/benchmarks/jail/results/macos-compat-2026-11-02/README.md").split())
         for fact in ["## Errata (2026-11-03, fix wave 1103)", "the supervisor's figure",
-                     "The clamped row ran with the hard limit unlowered", "`60f7eb7b6`"]:
+                     "The clamped row ran with the hard limit unlowered", "`60f7eb7b6`",
+                     "the hard limit of 2000 is from that later state, not the clamped row"]:
             self.assertIn(fact, compat)
         self.assertTrue(exists("docs/benchmarks/jail/results/macos-nproc-raise-2026-11-03/output.txt"))
 
@@ -394,6 +450,15 @@ class MacosContract(unittest.TestCase):
         for fact in ["None is silently dropped", "`KEPT_BOOT_DIRS`", "`UKAI_VM_PACKAGE_VERSION`",
                      "`<crate version>-dev`", "wake gap"]:
             self.assertIn(fact, readme)
+        # Each guest-side paragraph carries its own hedge (F2): the share's,
+        # the serve check's and the attempt stop's.
+        paragraphs = [" ".join(p.split()) for p in read("crates/ukai-jail/vm/README.md").split("\n\n")]
+        for marker, hedge in [("powers off with `live_share_mount_failed`. The guest's", "unit and model tests only"),
+                              ("in `<data>/vm/serve.stderr`", "not against a real serve"),
+                              ("**The attempt stop (decision D6).**", "has not been confirmed on a booted guest")]:
+            with self.subTest(paragraph=marker):
+                paragraph = next(p for p in paragraphs if marker in p)
+                self.assertIn(hedge, paragraph)
         # The errata name what each record got wrong and point at the fix.
         results = "docs/benchmarks/jail/results/"
         for path, facts in [
