@@ -319,30 +319,47 @@ impl Platform for VmPlatform {
         let refusal = policy_refusal(&plan.snapshot).map(|(reason, _)| reason);
         plan.requirements
             .iter()
-            .map(|&requirement| match refusal {
-                Some(reason) => Capability {
+            .map(|&requirement| match requirement {
+                // No kernel-bound lifetime exists inside this VM either: the
+                // guest's wall is a deadline, not an owner-loss bound. K112:
+                // a qualified VM backend must provide one before accepting
+                // the key, so it refuses here, before any boot.
+                Requirement::OwnerLossTermination => Capability {
                     name: requirement.to_string(),
                     status: CapabilityStatus::Unavailable,
                     scope: Self::scope_for(requirement),
                     mechanism: None,
-                    reason_code: Some(reason.to_owned()),
+                    reason_code: Some(
+                        crate::capability::REASON_OWNER_LOSS_REQUIRES_VM.to_owned(),
+                    ),
                     measured_at: None,
                     evidence_ref: None,
                 },
-                None => Capability {
-                    name: requirement.to_string(),
-                    status: CapabilityStatus::Available,
-                    scope: Self::scope_for(requirement),
-                    mechanism: Some("linux-bwrap-in-vm".to_owned()),
-                    reason_code: None,
-                    measured_at: Some("2026-11-02T00:00:00Z".to_owned()),
-                    evidence_ref: Some(
-                        "docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/\
-                         capabilities.json"
-                            .replace("\n                         ", "")
-                            .trim()
-                            .to_owned(),
-                    ),
+                _ => match refusal {
+                    Some(reason) => Capability {
+                        name: requirement.to_string(),
+                        status: CapabilityStatus::Unavailable,
+                        scope: Self::scope_for(requirement),
+                        mechanism: None,
+                        reason_code: Some(reason.to_owned()),
+                        measured_at: None,
+                        evidence_ref: None,
+                    },
+                    None => Capability {
+                        name: requirement.to_string(),
+                        status: CapabilityStatus::Available,
+                        scope: Self::scope_for(requirement),
+                        mechanism: Some("linux-bwrap-in-vm".to_owned()),
+                        reason_code: None,
+                        measured_at: Some("2026-11-02T00:00:00Z".to_owned()),
+                        evidence_ref: Some(
+                            "docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/\
+                             capabilities.json"
+                                .replace("\n                         ", "")
+                                .trim()
+                                .to_owned(),
+                        ),
+                    },
                 },
             })
             .collect()

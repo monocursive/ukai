@@ -1911,15 +1911,16 @@ fn first_unsatisfied(
                 "the uncontained profile cannot apply `{requirement}`; a contained profile can"
             ),
         ),
-        // The native tier cannot answer owner loss, and this build's VM
-        // policy enforcement is unavailable too. No actionable VM fallback
-        // exists merely by adding the flag.
+        // Neither tier answers owner loss: native macOS has no kernel-owned
+        // tree end, and the VM tier's guest wall is a deadline, not an
+        // owner-loss bound. No actionable VM fallback exists merely by
+        // adding the flag.
         crate::capability::REASON_OWNER_LOSS_REQUIRES_VM => (
             ErrorCode::MissingCapability,
             Remediation::Unsupported,
             format!(
                 "`{requirement}` needs a kernel-bound lifetime, which native macOS does not \
-                 provide; VM policy enforcement is unavailable in this build"
+                 provide; kernel-bound enforcement in the VM tier is unavailable in this build"
             ),
         ),
         crate::capability::REASON_ES_SDK_ABSENT => (

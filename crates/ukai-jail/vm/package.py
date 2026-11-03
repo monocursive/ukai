@@ -105,6 +105,11 @@ def main():
     try:
         sources = {name: digest(SOURCE / name) for name in committed_sources(SOURCE)}
         verify_prepared_sources(metadata.get('source_sha256'), sources)
+        # The warm-service binary the package ships is built from the
+        # committed Rust sources, so uncommitted changes to them stop the
+        # build for the same reason an edited vm/ file does.
+        rust = REPO / 'crates' / 'ukai-jail' / 'src'
+        committed_sources(rust)
     except SourceError as error:
         parser.error(str(error))
     if (metadata['status'] != 'prepared' or digest(prepared / 'base.raw') != metadata['disk_sha256']
@@ -116,18 +121,30 @@ def main():
     volume = out / 'volume'
     payload = volume / 'payload'
     image = payload / 'image'
+    binaries = payload / 'bin'
     image.mkdir(parents=True)
+    binaries.mkdir()
     command('xcrun', 'swiftc', '-warnings-as-errors', '-O', SOURCE / 'vz.swift', '-o', image / 'vz')
     command('xcrun', 'clang', '-Wall', '-Wextra', '-Werror', '-O2', SOURCE / 'custodian.c', '-o', image / 'custodian')
     for name in ('vz', 'custodian'):
         flags = ['--entitlements', SOURCE / 'entitlements.plist'] if name == 'vz' else []
         command('codesign', '--force', '--options', 'runtime', '--timestamp', '--sign', args.identity, *flags, image / name)
         command('codesign', '--verify', '--strict', image / name)
+    # The operator surface is the warm service (`ukai-vm serve`, the program
+    # `ukai-jail run --vm` starts), built from the committed Rust sources.
+    command('cargo', 'build', '--release', '--package', 'ukai-jail', '--bin', 'ukai-vm',
+            '--manifest-path', REPO / 'Cargo.toml')
+    command('codesign', '--force', '--options', 'runtime', '--timestamp',
+            '--sign', args.identity, REPO / 'target/release/ukai-vm')
+    command('codesign', '--verify', '--strict', REPO / 'target/release/ukai-vm')
+    shutil.copy2(REPO / 'target/release/ukai-vm', binaries / 'ukai-vm')
+    # The installer helper keeps the preview's install-time verbs
+    # (`expand-image`, `doctor`, `version`); only install.sh calls it.
     command(sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir', '--console',
-            '--name', 'ukai-vm', '--codesign-identity', args.identity,
+            '--name', 'ukai-vm-install', '--codesign-identity', args.identity,
             '--distpath', out / 'dist', '--workpath', out / 'work', '--specpath', out,
             SOURCE / 'cli.py')
-    shutil.move(out / 'dist' / 'ukai-vm', payload / 'bin')
+    shutil.move(out / 'dist' / 'ukai-vm-install', binaries / 'ukai-vm-install')
     shutil.copy2(prepared / 'seed.iso', image / 'seed.iso')
     print('Compressing verified guest image', flush=True)
     with (prepared / 'base.raw').open('rb') as source, (image / 'base.raw.gz').open('wb') as output:
@@ -135,6 +152,7 @@ def main():
             shutil.copyfileobj(source, compressed, 1024 * 1024)
     metadata = package_metadata(metadata, sources, helper_sha256=digest(image / 'vz'),
                                 custodian_sha256=digest(image / 'custodian'),
+                                ukai_vm_sha256=digest(binaries / 'ukai-vm'),
                                 compressed_disk_sha256=digest(image / 'base.raw.gz'))
     (image / 'image.json').write_text(json.dumps(metadata, indent=2) + '\n')
     notices = payload / 'licenses'

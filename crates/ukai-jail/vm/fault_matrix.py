@@ -25,7 +25,8 @@ import tempfile
 import time
 from pathlib import Path
 
-BINARY = Path(__file__).resolve().parents[3] / 'target/release/ukai-vm'
+BINARY = Path(os.environ.get('UKAI_VM_BINARY',
+                             Path(__file__).resolve().parents[3] / 'target/release/ukai-vm'))
 
 
 class Service:

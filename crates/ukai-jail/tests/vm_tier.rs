@@ -259,8 +259,8 @@ fn a_lifetime_value_other_than_kernel_bound_is_a_usage_error() {
 fn the_native_platform_answers_the_kernel_bound_requirement_with_the_vm_reason() {
     // The refusal's words come from the reason code the platform answers
     // with. Native macOS cannot probe a kernel-owned tree end; its answer
-    // for `owner_loss_termination` is the one `--vm` provides (§6), and the
-    // supervisor's match on that reason is what names `--vm` to the
+    // for `owner_loss_termination` is the one `--vm` provides (§6), and
+    // the supervisor's match on that reason is what names `--vm` to the
     // operator.
     use ukai_jail::capability::Requirement;
     use ukai_jail::platform::Platform as _;
@@ -276,6 +276,88 @@ fn the_native_platform_answers_the_kernel_bound_requirement_with_the_vm_reason()
         row.reason_code.as_deref(),
         Some(ukai_jail::capability::REASON_OWNER_LOSS_REQUIRES_VM),
         "{row:?}"
+    );
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn a_kernel_bound_vm_run_refuses_at_probing_before_any_boot() {
+    // K112: the installed `--vm` backend refuses the kernel-bound key with
+    // `unsupported` too — the guest's wall is a deadline, not an owner-loss
+    // bound, and a qualified VM backend must provide one before accepting
+    // it. The refusal is at probing, before any service boot: a fabricated
+    // install (tiny artifacts with true digests) makes discovery succeed
+    // without a real image, and nothing may appear under the VM runtime.
+    let harness = Harness::new();
+    let image = harness
+        .temp
+        .path()
+        .join(".local/share/ukai-vm/0.0.0-probe/image");
+    std::fs::create_dir_all(&image).expect("the fake image directory");
+    let mut manifest = serde_json::Map::new();
+    manifest.insert("status".to_owned(), serde_json::json!("prepared"));
+    for (name, key) in [
+        ("base.raw", "disk_sha256"),
+        ("vz", "helper_sha256"),
+        ("custodian", "custodian_sha256"),
+        ("seed.iso", "seed_sha256"),
+    ] {
+        std::fs::write(image.join(name), name.as_bytes()).expect("the artifact");
+        let digest = image::digest(&image.join(name)).expect("the digest");
+        manifest.insert(key.to_owned(), serde_json::json!(digest));
+    }
+    std::fs::write(
+        image.join("image.json"),
+        serde_json::Value::Object(manifest).to_string(),
+    )
+    .expect("the manifest");
+
+    let workspace = harness.work.to_str().expect("a printable workspace");
+    let output = harness
+        .command(&[
+            "run",
+            "--vm",
+            "--lifetime",
+            "kernel-bound",
+            "--terminal",
+            "detach",
+            "--workspace",
+            workspace,
+            "--",
+            "/bin/sh",
+            "-c",
+            "touch workload-ran",
+        ])
+        .output()
+        .expect("the binary runs");
+    assert_eq!(output.status.code(), Some(125), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("kernel-bound lifetime") && stderr.contains("[unsupported]"),
+        "{stderr}"
+    );
+    assert!(!harness.work.join("workload-ran").exists());
+    assert!(
+        !harness.data.join("vm").exists(),
+        "no service boot was attempted: {stderr}"
+    );
+    let attempt = std::fs::read_dir(harness.data.join("attempts"))
+        .expect("the attempt directory")
+        .next()
+        .expect("one attempt")
+        .unwrap()
+        .path();
+    let policy: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(attempt.join("policy.json")).unwrap()).unwrap();
+    assert_eq!(policy["snapshot"]["lifetime_boundary"], "kernel-bound");
+    let receipt: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(attempt.join("jail.json")).unwrap()).unwrap();
+    assert_eq!(receipt["phase"], "refused");
+    assert!(
+        receipt["policy"]["requirements"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("owner_loss_termination"))
     );
 }
 

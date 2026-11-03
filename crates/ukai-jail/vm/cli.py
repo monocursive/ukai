@@ -1,4 +1,6 @@
-"""Packaged entry point; all runtime dependencies are bundled."""
+"""The installer's helper (`ukai-vm-install`): the preview's install-time
+verbs (expand-image, doctor, version). The operator surface is the Rust
+`ukai-vm` warm service that `ukai-jail run --vm` starts."""
 import argparse
 import gzip
 import hashlib

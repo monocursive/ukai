@@ -65,7 +65,7 @@ def main():
         link = installed / 'bin' / 'ukai-vm'
 
         def version_runs():
-            version = subprocess.run([str(link), 'version', '--json'], env=environment, capture_output=True, text=True)
+            version = subprocess.run([str(link), 'version'], env=environment, capture_output=True, text=True)
             (root / 'version.json').write_text(version.stdout)
             return version.returncode == 0
 

@@ -31,7 +31,7 @@ mkdir -p "$prefix/share/ukai-vm" "$prefix/bin"
 stage=$(mktemp -d "$prefix/share/ukai-vm/.install.XXXXXXXX")
 trap 'rm -rf -- "$stage"' EXIT
 ditto "$source_dir/payload" "$stage"
-"$stage/bin/ukai-vm" expand-image
+"$stage/bin/ukai-vm-install" expand-image
 rm "$stage/image/base.raw.gz"
 "$stage/bin/ukai-vm" version
 # The prerequisite report can be false inside a Mac VM without nested support.

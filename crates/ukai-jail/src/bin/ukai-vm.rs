@@ -31,6 +31,7 @@ use std::time::Duration;
 use base64::Engine as _;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::Digest as _;
 use std::os::fd::{AsRawFd as _, FromRawFd as _};
 use std::os::unix::process::CommandExt as _;
@@ -1303,6 +1304,8 @@ enum Command {
     Stop,
     /// Report the warm guest's state.
     Status,
+    /// Report the installed image's package and host prerequisites.
+    Doctor,
     /// Print the version and the schema identifiers this build announces.
     Version,
 }
@@ -1342,6 +1345,7 @@ fn main() -> std::process::ExitCode {
             );
             Ok(())
         }
+        Command::Doctor => doctor(),
         Command::Status => control_round_trip(protocol::ToControl::Status).and_then(|reply| {
             if let Some(reply) = reply {
                 println!(
@@ -1386,6 +1390,72 @@ fn control_socket() -> PathBuf {
     data_dir()
         .map(|dir| dir.join("vm").join("control.sock"))
         .unwrap_or_else(|_| PathBuf::from("/nonexistent/vm/control.sock"))
+}
+
+/// The installer's readiness report, in the preview's schema: the image
+/// directory beside this executable (the staged installer runs the check
+/// before the install reaches its final location), otherwise the
+/// discovered installation. A real run still verifies the guest jail.
+fn doctor() -> Result<(), String> {
+    let image_dir = std::env::current_exe()
+        .ok()
+        .and_then(|exe| {
+            exe.parent()
+                .and_then(|bin| bin.parent())
+                .map(|root| root.join("image"))
+        })
+        .filter(|dir| dir.join("image.json").is_file())
+        .or_else(|| {
+            image::Install::discover()
+                .ok()
+                .map(|install| install.root.join("image"))
+        })
+        .ok_or_else(|| "no installed ukai-vm image found".to_owned())?;
+    let manifest: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(image_dir.join("image.json")).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+    let mut checks = serde_json::Map::new();
+    let virtualization_supported = std::process::Command::new("/usr/sbin/sysctl")
+        .arg("-n")
+        .arg("kern.hv_support")
+        .output()
+        .map(|out| {
+            out.status.success() && String::from_utf8_lossy(&out.stdout).trim() == "1"
+        })
+        .unwrap_or(false);
+    checks.insert(
+        "virtualization_supported".to_owned(),
+        serde_json::Value::Bool(virtualization_supported),
+    );
+    for (name, key) in [
+        ("base.raw", "disk_sha256"),
+        ("seed.iso", "seed_sha256"),
+        ("vz", "helper_sha256"),
+        ("custodian", "custodian_sha256"),
+    ] {
+        let recorded = manifest.get(key).and_then(Value::as_str).unwrap_or("");
+        let matches = image::digest(&image_dir.join(name))
+            .map(|actual| actual == recorded)
+            .unwrap_or(false);
+        checks.insert(name.to_owned(), serde_json::Value::Bool(matches));
+    }
+    let ready = checks.values().all(|value| value.as_bool() == Some(true));
+    let report = serde_json::json!({
+        "schema": "ukai.vm.install-check/1",
+        "ready": ready,
+        "checks": serde_json::Value::Object(checks),
+        "scope": "package and host prerequisites; a real run still verifies the guest jail",
+    });
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?
+    );
+    if ready {
+        Ok(())
+    } else {
+        Err("install check is not ready".to_owned())
+    }
 }
 
 /// The host the preview is qualified for: Apple Silicon, macOS 27 or later.
