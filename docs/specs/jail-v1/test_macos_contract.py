@@ -74,6 +74,17 @@ def exists(path):
     return (ROOT / path).exists()
 
 
+def seatbelt_template_digest():
+    """`sandbox::template_digest()`: SHA-256 of the raw `TEMPLATE` literal.
+
+    The K90 pins in tests/macos_sandbox_profile.rs and
+    tests/macos_defense_matrix.rs assert the Rust side equals the same value.
+    """
+    source = read("crates/ukai-jail/src/platform/macos/sandbox.rs")
+    match = re.search(r'pub const TEMPLATE: &str = r#"(.*?)"#;', source, re.S)
+    return hashlib.sha256(match.group(1).encode()).hexdigest()
+
+
 CITED_PATH = re.compile(r"(?:docs|crates)/[A-Za-z0-9_./-]+")
 NATIVE_GATES = ["L02", "M01"] + [f"K{i}" for i in range(87, 114)]
 
@@ -560,8 +571,16 @@ class MacosContract(unittest.TestCase):
         value = record("examples/receipt-macos-native.json")
         self.assertNotIn("target_process", value["lifetime"]["native"]["details"])
         self.assertEqual(value["observer"]["sources"]["wrapper"], "supported")
+        # The one real value in the illustration (frozen-schemas.toml,
+        # 2026-10-23: "the template digest matches the integrated Seatbelt
+        # template"): computed from the template's source, never pinned as a
+        # literal, so a template change cannot leave the example stale.
         self.assertEqual(value["lifetime"]["native"]["details"]["profile_digest"],
-                         "23917ae508660fdd58f330ee90d70271a0547b43584c9265f7fad76176b5f11e")
+                         seatbelt_template_digest())
+        for pin in ["crates/ukai-jail/tests/macos_sandbox_profile.rs",
+                    "crates/ukai-jail/tests/macos_defense_matrix.rs"]:
+            self.assertRegex(" ".join(read(pin).split()),
+                             'const PINNED_TEMPLATE_DIGEST: &str = "' + seatbelt_template_digest() + '";')
         self.assertEqual(value["policy"]["requirements"], [
             "tree_termination", "filesystem_containment", "syscall_filter", "network_none",
             "protected_coverage:existing_and_root", "limit:wall"])
