@@ -520,11 +520,19 @@ class WarmServiceTests(unittest.TestCase):
     def test_a_suspended_service_keeps_its_custody_lease(self):
         child = self.launch()
         self.assertTrue(self.control('status')['warm'])
-        # Shorter than the stand-in custodian's own 3 s lease, longer than
-        # the 1.5 s acknowledgement budget: only the wake-gap reset saves it.
+        custodian = int(subprocess.run(['pgrep', '-P', str(child.pid)], capture_output=True,
+                                       text=True, check=True).stdout.split()[0])
+        # A Ctrl-Z of the group stops the custodian too, and nothing orders
+        # who runs first after the resume: here the service does, so its
+        # first look finds no acknowledgement. Shorter than the stand-in
+        # custodian's own 3 s lease, longer than the service's 1.5 s
+        # acknowledgement budget: only the wake-gap reset saves it.
+        os.kill(custodian, signal.SIGSTOP)
         child.send_signal(signal.SIGSTOP)
         time.sleep(2.2)
         child.send_signal(signal.SIGCONT)
+        time.sleep(.1)
+        os.kill(custodian, signal.SIGCONT)
         time.sleep(.5)
         self.assertIsNone(child.poll(), child.stderr.read1().decode() if child.poll() is not None else '')
         self.assertTrue(self.control('status')['warm'])
