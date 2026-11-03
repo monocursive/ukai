@@ -339,6 +339,26 @@ class MacosContract(unittest.TestCase):
         self.assertTrue(read("crates/ukai-jail/vm/PREVIEW.txt").startswith(
             f"Ukai VM {vm['candidate_version']} "))
 
+    def test_d13_rule6_receipts_carry_the_guardians_report(self):
+        """D13: both limits lowered when clamped; the guardian reports on B."""
+        native = " ".join(read("docs/specs/jail-macos.md").split("## 4.", 1)[1].split("## 5.", 1)[0].split())
+        for fact in ["min(soft, hard)", "`allowance` frame on B immediately before `ready`",
+                     "A handshake without exactly one `allowance` before `ready` refuses",
+                     "`allowance ` + limit (u64) + headroom (u64) + clamped (one byte, 0 or 1)",
+                     "`process_limit`", "`process_headroom`", "`process_headroom_clamped`",
+                     "`process_allowance`", "`stop.phases`", "the supervisor plans nothing",
+                     "min(hard, `kern.maxprocperuid`)"]:
+            self.assertIn(fact, native)
+        for stale in ["The clamped path sets nothing", "the process headroom (rule 6) and pending",
+                      "any member could raise its soft limit up to the hard limit",
+                      "reports `ready` on B. If"]:
+            self.assertNotIn(stale, native)
+        compat = " ".join(read("docs/benchmarks/jail/results/macos-compat-2026-11-02/README.md").split())
+        for fact in ["## Errata (2026-11-03, fix wave 1103)", "the supervisor's figure",
+                     "The clamped row ran with the hard limit unlowered", "`60f7eb7b6`"]:
+            self.assertIn(fact, compat)
+        self.assertTrue(exists("docs/benchmarks/jail/results/macos-nproc-raise-2026-11-03/output.txt"))
+
     def test_d8_other_writable_is_never_accepted(self):
         for path in ["docs/specs/jail-launch-and-summary.md", "docs/specs/jail-macos.md"]:
             text = read(path)

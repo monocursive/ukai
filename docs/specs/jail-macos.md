@@ -292,8 +292,10 @@ These rules are the design. The rest of §4 applies them.
    allowance. A successful set is insufficient: kernel read-back must confirm
    both limits at the requested ceiling, or preparation refuses (including
    kernel clamping below the allowance). Only after this check does the
-   guardian report the allowance it applied, and the receipt records the
-   guardian's reported value.
+   guardian report the allowance it applied, in one `allowance` frame on B
+   immediately before `ready` (§4.3 step 3). Every receipt from `prepared`
+   on records that report (§4.8), never a value the supervisor computes
+   itself, and the guardian record repeats it (§4.4).
    **Amended 2026-11-02** (measured in the 2026-11-01 spike: a default host's
    `kern.maxprocperuid` is 1333 and the guardian refused wanting 1376): when
    the full 1024 does not fit under the inherited ceiling, the allowance is
@@ -301,16 +303,27 @@ These rules are the design. The rest of §4 applies them.
    membership table is sized for exactly that ceiling — provided the ceiling
    still clears the operator's snapshot by at least 128 processes; below that
    there is no room for a tree and preparation refuses, naming the numbers
-   and the remedy (close processes or raise `kern.maxprocperuid`). The
-   inherited ceiling is the lower of the inherited soft and hard limits. The
+   and the remedy (close processes or raise `kern.maxprocperuid`); that
+   refusal comes before any `setrlimit`. The inherited ceiling is
+   min(soft, hard), the lower of the inherited soft and hard limits. The
    clamped path lowers both limits to it (soft = hard = ceiling, so a member
    cannot raise its soft limit back up to a higher hard limit; neither is
-   ever raised) and confirms both by kernel read-back, refusing on any
-   mismatch or if the limits moved during preparation. **Corrected
-   2026-11-03:** the clamped path first shipped setting nothing, which left a
-   soft limit below the hard one raisable by any member. The guardian reports
-   the allowance it actually applied, and the receipt records that reported
-   value, not the supervisor's plan, with a `process_headroom_clamped` flag.
+   ever raised) and confirms both by the same kernel read-back as the full
+   allowance, refusing on any mismatch or if the limits moved during
+   preparation. **Corrected 2026-11-03 (fix wave 1103, D13):** the clamped
+   path first shipped setting nothing and only re-reading the limits, so a
+   member could raise its soft limit as far as the kernel lets a non-root
+   process: min(hard, `kern.maxprocperuid`), measured on the development
+   Mac ([record](../benchmarks/jail/results/macos-nproc-raise-2026-11-03/README.md)).
+   Where the inherited soft limit already equals `kern.maxprocperuid` (that
+   Mac's default: soft 10666 = `kern.maxprocperuid`, hard 16000) that gains
+   nothing; where an operator's soft limit sits below it, a member could
+   climb back past the reported ceiling. And the receipt recorded the
+   supervisor's own plan, a separate process-count snapshot taken after the
+   guardian's, not what the guardian applied. Both paths now lower both
+   limits, the supervisor plans nothing, and the receipt records the
+   guardian's `allowance` report as `process_limit`, `process_headroom` and
+   `process_headroom_clamped`.
    On a clamped host a fork storm stops at
    the kernel's own per-UID ceiling instead of the headroom — the operator's
    session is already within the headroom of that ceiling, which is the
@@ -421,9 +434,13 @@ final boundary before `prepared`.
    - it unmutes it, and mutes the guardian's own process (`es_mute_process`);
    - it subscribes nothing until a stop (§4.5).
 
-   The guardian then lowers `RLIMIT_NPROC` (rule 6) and reports `ready` on B.
-   If any of this fails, it exits naming the failure, and the supervisor
-   refuses.
+   The guardian then lowers `RLIMIT_NPROC` (rule 6), sends `allowance` (the
+   limit, headroom and clamp flag the kernel read-back confirmed), then
+   `ready` on B. A handshake without exactly one `allowance` before `ready`
+   refuses: `ready` without it, a second `allowance`, one that does not
+   decode or carries values rule 6 cannot produce, or any other frame in
+   their place. If any of this fails, it exits naming the failure, and the
+   supervisor refuses.
 4. **Launch.** The guardian calls `posix_spawn` once for `sandbox-exec`. It
    interprets nothing in the launch block: it turns the block into
    `posix_spawn` arguments and nothing else. It then closes its copies of R,
@@ -466,6 +483,15 @@ supervisor run the same guardian path.
 - **A and B.** Only the two custodians hold them. Each frame is a little-endian
   u32 length followed by at most 4096 bytes. Oversize or malformed frames are
   protocol loss; the guardian stops and the supervisor records guardian loss.
+  Integers in a payload are little-endian.
+  - **A** (supervisor → guardian): `launcher-token ` + the launcher's audit
+    token (eight u32, step 5), and `release-deadline ` + the wall deadline
+    (u64, an instant in continuous-clock nanoseconds; `u64::MAX` releases
+    with no wall watchdog, step 6).
+  - **B** (guardian → supervisor), in this order: `allowance ` + limit
+    (u64) + headroom (u64) + clamped (one byte, 0 or 1), then `ready` (step
+    3); `token-seen` (step 5); and at the stop `record ` + the guardian
+    record's JSON (§4.4).
 - **R and E.** The supervisor and the launcher hold them. The guardian holds
   them only until its spawn returns.
 - **Close-on-exec.** Every pipe descriptor is close-on-exec, except the
@@ -519,6 +545,12 @@ when its stop ends, and sends the same result on B:
 - counts and timestamps;
 - its own token and the launcher's first token;
 - the boot session (`kern.bootsessionuuid`);
+- `process_allowance` (`limit`, `headroom`, `clamped`): rule 6 as the
+  kernel confirmed it, the same values the guardian sent in its `allowance`
+  frame before `ready` (§4.3 step 3). The supervisor rejects a record that
+  omits it or disagrees with the frame, as it rejects a malformed one: one
+  guardian applied one allowance, and the attempt then has no accepted
+  guardian record;
 - `sequence_start: "unverified"` on every record, disclosing the
   pre-first-message residual even when `drained` is true.
 
@@ -781,13 +813,25 @@ remains once both custodians are gone, regardless of how they were lost.
     denials and scan holes, the kernel setuid backstop,
     Mach services, Unix sockets, terminal slave and bridge ports. These are
     public parameters, never environment values or proxy secrets;
-  - the process headroom (rule 6) and pending handshake-event count;
+  - rule 6 as the guardian reported it in its `allowance` frame (§4.3
+    step 3), in every receipt from `prepared` on: `process_limit` (the
+    `RLIMIT_NPROC` soft and hard limit every member inherits),
+    `process_headroom` (the allowance above the guardian's process-count
+    snapshot) and `process_headroom_clamped` (true when the inherited
+    ceiling stood in for the full 1024). The supervisor computes none of
+    them itself;
+  - `handshake_events_pending`, the pending handshake-event count;
   - per custodian (`supervisor`, `guardian`), one `result`: `drained`,
     `not_drained`, `lost` or `stalled`, plus `stream` (`contiguous`,
     `gapped` or `unknown`). `events` is an integer, not a per-event object;
     without a guardian record it is null and the guardian stream is
     `unknown`. An absent record never asserts continuity;
-  - the stop's member count, budget and elapsed time.
+  - `stop`: the member count (`members`), budget (`budget_ns`), elapsed
+    time (`elapsed_ns`) and `stop.phases`, the whole stop's six marks on
+    the continuous clock in stop order (`requested`, `freeze_done`,
+    `first_kill`, `result`, `guardian_record`, `settled`), each null where
+    the mark did not occur. The guardian's own machine marks are in its
+    record (`stop_phases`).
 - `applied.syscalls` is null: the backend does not emit a separate syscall
   filter record. `applied.filesystem.protected_coverage` is
   `existing_and_root`; `all_descendants` is unsupported.
