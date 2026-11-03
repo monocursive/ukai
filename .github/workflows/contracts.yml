@@ -24,6 +24,10 @@ jobs:
       # Third-party toolchain installer, so pinned to a commit like the rest.
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
       - run: uv run docs/specs/jail-v1/validate_contract.py
+      # The macOS/J18 claim guards (K108–K113 untested, the D7 promotion
+      # rule, the status prose). No `--offline`: a fresh runner's uv cache
+      # is empty, so the pinned dependencies must download as above.
+      - run: uv run docs/specs/jail-v1/test_macos_contract.py
       - run: uv run docs/specs/ledger-v1/validate_contract.py
       - run: python3 -m unittest discover -s docs/specs/ledger-v1 -p test_freeze.py
       - run: uv run docs/specs/managed-teams-v1/validate_policy.py
