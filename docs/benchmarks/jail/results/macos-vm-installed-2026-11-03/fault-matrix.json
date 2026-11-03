@@ -1,0 +1,41 @@
+{
+  "secrets": {
+    "acked": [
+      [
+        "api/token",
+        "/run/ukai-vm/credentials/api/token"
+      ],
+      [
+        "nested/id/two",
+        "/run/ukai-vm/credentials/nested/id/two"
+      ]
+    ],
+    "paths_in_tmpfs_root": true,
+    "nested_id_staged": true,
+    "second_attempt_same_boot": true,
+    "second_attempt_error": null,
+    "outcome": "PASS"
+  },
+  "a": {
+    "attempt_socket_unanswered": true,
+    "no_vz_left": true,
+    "workspace_survived": true,
+    "outcome": "PASS"
+  },
+  "b": {
+    "attempt_completed_after_resume": true,
+    "guest_survived_suspend": true,
+    "attempt_error": null,
+    "service_exit": null,
+    "service_stderr": null,
+    "outcome": "PASS"
+  },
+  "c": {
+    "guest_stayed_warm_and_next_attempt_ran": true,
+    "second_attempt_error": null,
+    "service_exit": null,
+    "service_stderr": "ukai-vm: attempt failed: the attempt connection failed: Broken pipe (os error 32)\n",
+    "outcome": "PASS"
+  },
+  "outcome": "PASS"
+}

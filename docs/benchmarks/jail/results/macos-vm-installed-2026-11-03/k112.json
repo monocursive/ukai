@@ -1,0 +1,37 @@
+{
+  "native_shipped": {
+    "exit": 125,
+    "elapsed_s": 0.3,
+    "stderr": "ukai-jail: error unsupported_platform at probing [unsupported]: native macOS execution is disabled; UKAI_JAIL_MACOS_NATIVE=dev explicitly enables the unshipped development tier",
+    "phase": "refused",
+    "requirements_name_owner_loss": true,
+    "lifetime_boundary": "kernel-bound",
+    "workload_ran": false,
+    "boot_attempted": false
+  },
+  "native_dev": {
+    "exit": 125,
+    "elapsed_s": 0.1,
+    "stderr": "ukai-jail: error missing_capability at probing [unsupported]: `owner_loss_termination` needs a kernel-bound lifetime, which native macOS does not provide; kernel-bound enforcement in the VM tier is unavailable in this build",
+    "phase": "refused",
+    "requirements_name_owner_loss": true,
+    "lifetime_boundary": "kernel-bound",
+    "workload_ran": false,
+    "boot_attempted": false
+  },
+  "vm_installed": {
+    "exit": 125,
+    "elapsed_s": 11.7,
+    "stderr": "ukai-jail: error missing_capability at probing [unsupported]: `owner_loss_termination` needs a kernel-bound lifetime, which native macOS does not provide; kernel-bound enforcement in the VM tier is unavailable in this build",
+    "phase": "refused",
+    "requirements_name_owner_loss": true,
+    "lifetime_boundary": "kernel-bound",
+    "workload_ran": false,
+    "boot_attempted": false
+  },
+  "native_shipped_refused": true,
+  "native_dev_refused": true,
+  "vm_refused": true,
+  "linux_none_refusal": "ukai-jail/tests/vm_tier.rs::the_kernel_bound_key_is_a_narrowing_none_refuses (portable)",
+  "outcome": "PASS"
+}

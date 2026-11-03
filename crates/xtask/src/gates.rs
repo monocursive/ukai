@@ -3010,7 +3010,14 @@ mod tests {
                     .unwrap()
                     .status
             };
-            assert_eq!(find(&full), ClauseStatus::Fail);
+            // A named requirement may not be passing in the full verdict.
+            // Since the K108-K112 rows became live-cli (2026-11-03), a
+            // logless evaluation reads them as Elsewhere — provable, not
+            // proved here — instead of Fail; both stay far from Pass.
+            assert!(
+                !matches!(find(&full), ClauseStatus::Pass | ClauseStatus::Limit),
+                "{id} is named unsupported but passes in the full verdict"
+            );
             assert_eq!(find(&linux), ClauseStatus::Unsupported);
         }
         for clause in map

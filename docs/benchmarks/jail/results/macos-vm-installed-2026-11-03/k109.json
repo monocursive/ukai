@@ -1,0 +1,15 @@
+{
+  "granted_write_on_host": true,
+  "granted_exit": 0,
+  "git_write_refused": true,
+  "git_config_unchanged": true,
+  "etc_write_refused": true,
+  "usr_write_refused": true,
+  "root_write_refused": true,
+  "outside_exit": 0,
+  "workspace_listing": [
+    ".git",
+    "k109-granted.txt"
+  ],
+  "outcome": "PASS"
+}

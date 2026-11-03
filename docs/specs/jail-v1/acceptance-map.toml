@@ -4253,9 +4253,9 @@ row = "Warm reuse: a second attempt in a running guest is released within initia
 id = "K108.1"
 gate = "K108"
 clause = "Warm reuse: a second attempt in a running guest is released within initial 1 s of the guest jail's own release time, over 20 runs."
-tag = "untested"
+tag = "live-cli"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
+note = "Full row run 2026-11-03 on the installed package (signed, notarization pending): 20 attempts over one boot of the package's own serve, initial 14.9 ms / max 15.0 ms release latency, every attempt within initial + 1 s, every granted write on the host, .git untouched. Harness crates/ukai-jail/vm/warm_live.py; docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/."
 
 # ------------------------------------------------------------------ K109
 
@@ -4267,9 +4267,9 @@ row = "Live workspace: writes granted by policy appear on the host. Writes outsi
 id = "K109.1"
 gate = "K109"
 clause = "Live workspace: writes granted by policy appear on the host. Writes outside the grants and the share are absent."
-tag = "untested"
+tag = "live-cli"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
+note = "Full row run 2026-11-03 on the installed package: the granted write reached the host with its exact bytes; writes to the protected .git, /etc, /usr/local/bin and the guest's root were each refused and absent (the .git sentinel byte-identical). Harness crates/ukai-jail/vm/gate_rows.py row_k109; docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/."
 
 # ------------------------------------------------------------------ K110
 
@@ -4281,9 +4281,9 @@ row = "The preview's fault matrix, rerun for the warm design. Killing the host `
 id = "K110.1"
 gate = "K110"
 clause = "The preview's fault matrix, rerun for the warm design. Killing the host `ukai-jail` ends that attempt through its lease, and `Ctrl-Z` of it does not. Killing the custodian, the VZ client or `ukai-vm` ends the VM service and every attempt. With every host controller suspended, the guest's wall deadline ends the attempt. All are checked before any test cleanup."
-tag = "untested"
+tag = "live-cli"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
+note = "Full row run 2026-11-03 on the installed package, every section its own boot of the package's serve: secret transport lifecycle (nested ids acked under /run/ukai-vm/credentials, duplicate refused, second attempt same boot), A kill -9 the service (attempt socket dead, no VZ left, workspace survives), B whole-process-group Ctrl-Z (attempt completes after resume, guest stays warm), C attempt-socket EOF (only that attempt cancels; next runs same boot). Harness crates/ukai-jail/vm/fault_matrix.py; docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/fault-matrix.json."
 
 # ------------------------------------------------------------------ K111
 
@@ -4295,9 +4295,9 @@ row = "The stored receipt is the guest's Linux receipt, verified by digest, and 
 id = "K111.1"
 gate = "K111"
 clause = "The stored receipt is the guest's Linux receipt, verified by digest, and the summary's transport line comes from the transport record."
-tag = "untested"
+tag = "live-cli"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
+note = "Full row run 2026-11-03 on the installed package: one attempt through `ukai-jail run --vm` (the client booted the package's serve itself, 66.4 s cold) settled with tree_empty true; evidence/jail.json is the guest's Linux receipt (/platform/os linux) and its SHA-256 equals the transport record's guest_receipt_sha256; vm-binding.json ties attempt id, boot id, profile and argv digest to the run; the summary's transport line (terminal capture) carries boot, image, vsock and receipt digest lifted from vm-transport.json. Harness crates/ukai-jail/vm/gate_rows.py row_k111; docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/."
 
 [[clause]]
 id = "K111.2"
@@ -4320,9 +4320,9 @@ row = "The kernel-bound key derives `owner_loss_termination`: native macOS and t
 id = "K112.1"
 gate = "K112"
 clause = "The kernel-bound key derives `owner_loss_termination`: native macOS and this build's installed `--vm` backend refuse with `unsupported`; Linux `none` refuses. A qualified VM backend must provide a kernel-bound lifetime before accepting it."
-tag = "untested"
+tag = "live-cli"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
+note = "Full row run 2026-11-03 on the installed package: native as shipped (unsupported_platform), native dev-enabled (missing_capability) and the installed --vm backend (missing_capability) each refuse at probing with remediation unsupported, policy records lifetime_boundary kernel-bound and derives owner_loss_termination, no workload ran and no boot was attempted (the --vm refusal precedes ensure_serving). Found and fixed: the VM probe answered owner_loss_termination Available and went looking for a boot. Linux none refusal is K112.2. Harness crates/ukai-jail/vm/gate_rows.py row_k112; docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/."
 
 [[clause]]
 id = "K112.2"
@@ -4347,7 +4347,7 @@ gate = "K113"
 clause = "Each compatibility record's summary names its custody (native) or its transport (VM)."
 tag = "untested"
 lane = "macos"
-note = "Full acceptance row not run on the J16-J18 implementation. Any component checks below prove only their stated subset; integrated component tests were rechecked; live acceptance evidence is still absent."
+note = "The row's object does not exist yet: no VM-tier agent compatibility record has been run (J18 §9.4 names Claude Code headless in the guest as that record), and the native tier refuses every policy in this build, so no native record exists either. The mechanism the row rests on is verified live 2026-11-03: a --vm attempt's summary prints its transport line with every value lifted from vm-transport.json (docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/k111.json), and the native custody line is unit-covered in summary.rs."
 
 # ---------------------------------------- the pinned ignored set, linux lane
 

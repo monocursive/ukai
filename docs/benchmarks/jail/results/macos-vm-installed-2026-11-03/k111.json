@@ -1,0 +1,18 @@
+{
+  "run_exit": 0,
+  "elapsed_s": 66.4,
+  "phase": "settled",
+  "exit": 0,
+  "tree_empty": true,
+  "granted_write_on_host": true,
+  "guest_receipt_is_linux": true,
+  "digest_matches_record": true,
+  "binding_attempt": "att_79cc1d62-db0d-4cdb-ba7e-8366a0266950",
+  "attempt_id": "att_79cc1d62-db0d-4cdb-ba7e-8366a0266950",
+  "binding_matches_attempt": true,
+  "binding_profile": "tool",
+  "transport_schema": "ukai.jail.vm-transport/1",
+  "guest_boot_bound": true,
+  "transport_line_values_from_record": true,
+  "outcome": "PASS"
+}

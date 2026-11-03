@@ -1,0 +1,18 @@
+{
+  "schema": "ukai.vm.row-provenance/1",
+  "date": "2026-11-03",
+  "dmg": "ukai-vm-0.1.0-preview.1-macos-arm64.dmg",
+  "dmg_sha256_before_notarization": "de86fb7146d33e390c7f1333c8e72188768738f74b2a08df8c3155d7c870aa84",
+  "notarization": "pending",
+  "notarization_note": "no notarytool credentials on this Mac (no App Store Connect key, no keychain profile, no stored Apple ID password) \u2014 recorded honestly as pending",
+  "identity": "Developer ID Application: Monocursive (64SGQ348QJ), timestamped",
+  "ukai_vm_sha256": "ad0a9486445783d9c4595612850552c66a31a8457b9744d5a58506165dda5765",
+  "apt_snapshot": "20261020T000000Z",
+  "guest_pinned_versions": [
+    "bubblewrap=0.11.1-1ubuntu0.3",
+    "dbus-user-session=1.16.2-2ubuntu4"
+  ],
+  "installed_prefix": "/tmp/ukai-installed2 (fresh; install.sh verified SHA256SUMS, expanded the image, install checks ready)",
+  "ukai_jail": "target/release/ukai-jail rebuilt at d0bfd0c7b (the K112 probe fix), copied to /tmp/rows-bin",
+  "host": "macOS 27.0.1, Apple Silicon"
+}

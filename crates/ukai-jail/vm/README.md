@@ -120,18 +120,25 @@ clauses and the public Linux release gates remain unchanged.
 
 ## Packaged preview
 
-`ukai-vm` bundles Python; consumers do not need Python, Swift, Rust or Homebrew.
-The signed DMG contains an offline installer with a pinned SHA-256 manifest,
-the signed VZ client/custodian, compressed pinned guest image, licenses and this
-source. The installer uses a per-user version directory and never needs sudo.
-Read [PREVIEW.txt](PREVIEW.txt) for installation, command examples and limits.
-Apple Silicon / macOS 27+ is the package's minimum; measured execution is on
-macOS 27.0.1. Intel Macs and native macOS workloads are not included.
+The DMG's operator surface is the **Rust `ukai-vm`** (`serve`, `stop`,
+`status`, `version`, `doctor`) — the same binary `ukai-jail run --vm`
+starts. `ukai-vm-install` is the installer's helper (the preview's
+`expand-image`/`doctor`/`version` verbs); only `install.sh` calls it.
+Consumers do not need Python, Swift, Rust or Homebrew. The signed DMG
+contains an offline installer with a pinned SHA-256 manifest, the signed
+VZ client/custodian, the compressed snapshot-pinned guest image, licenses
+and this source. The installer uses a per-user version directory and never
+needs sudo. Read [PREVIEW.txt](PREVIEW.txt) for installation, command
+examples and limits. Apple Silicon / macOS 27+ is the package's minimum;
+measured execution is on macOS 27.0.1. Intel Macs and native macOS
+workloads are not included.
 
 Build from a trusted prepared image whose seed hash and every source hash
 recorded by `prepare.py` match the committed `vm/` tree. Uncommitted changes
-there stop the build, and only committed files are archived as the preview
-source. A Developer ID Application identity must be available in Keychain:
+there stop the build — as do uncommitted changes under
+`crates/ukai-jail/src`, whose committed sources build the packaged
+`ukai-vm`. Only committed files are archived as the preview source. A
+Developer ID Application identity must be available in Keychain:
 
 ```sh
 uv venv --python 3.13 evidence/vm-build-env
@@ -146,18 +153,23 @@ evidence/vm-build-env/bin/python crates/ukai-jail/vm/package.py \
 `package.py` signs all Mach-O runtime files with hardened runtime, and grants
 only the VZ client `com.apple.security.virtualization`. Submit the resulting
 DMG with `xcrun notarytool submit --keychain-profile <profile> --wait`, retain the
-result, then `xcrun stapler staple` and `xcrun stapler validate` the accepted DMG.
-Verify `spctl --assess --type open --context context:primary-signature <dmg>`;
+result, then `xcrun stapler staple` and `xcrun stapler validate` the accepted
+DMG. Verify `spctl --assess --type open --context context:primary-signature <dmg>`;
 compute the final DMG SHA-256 only after stapling. A package build alone does
-not establish notarization, installation or execution proof.
+not establish notarization, installation or execution proof — the 2026-11-03
+build is recorded notarization-pending (no notarytool credentials on the build
+host), and its gate rows are in
+[docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/](../../../docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md).
 
-Run the fault matrix against the installed frozen executable:
+Run the warm harnesses against the installed package (the binary the
+package ships, not a repository build):
 
 ```sh
-python3 crates/ukai-jail/vm/check.py \
-  --image ~/.local/share/ukai-vm/0.1.0-preview.1/image \
-  --executable ~/.local/bin/ukai-vm \
-  --out evidence/vm-packaged-faults --repeat 1
+UKAI_VM_BINARY=~/.local/bin/ukai-vm python3 crates/ukai-jail/vm/warm_live.py \
+  --image ~/.local/share/ukai-vm/0.1.0-preview.1 \
+  --workspace <case-sensitive volume> --attempts 20 --out evidence/vm-warm
+UKAI_VM_BINARY=~/.local/bin/ukai-vm python3 crates/ukai-jail/vm/fault_matrix.py \
+  ~/.local/share/ukai-vm/0.1.0-preview.1 <case-sensitive volume> evidence/vm-faults
 ```
 
 ## Preview transport contract
@@ -180,23 +192,27 @@ Apple references: [Virtualization](https://developer.apple.com/documentation/vir
 [virtualization entitlement](https://developer.apple.com/documentation/virtualization/adding-the-virtualization-entitlement-to-your-project),
 [unconditional stop](https://developer.apple.com/documentation/virtualization/vzvirtualmachine/stop(completionhandler:)).
 
-## J18: warm service development (`--vm` currently refuses)
+## J18: the warm service (`run --vm` is the macOS release path)
 
-The warm service is measured against a real image with the live share
-([2026-11-02 record](../../../docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/README.md)):
-twenty attempts over one boot at 12.5 ms release latency (K108's criterion
-met with ~80x margin), the K110 fault matrix and the secret transport
-passing, NAT attached with workload egress still denied. The pre-release
-guest capability suite has run on the prepared image
-([capabilities.json](../../../docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/capabilities.json)):
-wall, pids (cgroup-capped), memory (OOM-killed at the limit), containment,
-network_none and the live workspace write all measured. **The CLI surface is live** (`run --vm --profile tool` drives the warm
-service with the live share, and `--profile agent` runs proxied policies
-through the guest's own Linux proxy), **vault-mode credentials are measured live** (placeholder substituted in
-flight; see the warm record's vault-consumption section), **but** staged
-credential modes and the snapshot-pinned image builder still gate a
-release claim;
-the `macos-vm-development` publication scope in `dist/release.json` names
+The K108–K113 rows ran their full live evidence on an **installed package**
+on 2026-11-03
+([record](../../../docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md)):
+warm reuse (20 attempts over one boot, 14.9–15.0 ms release latency), live
+workspace grants and denials, the K110 fault matrix, the guest Linux
+receipt verified by digest with the summary's transport line lifted from
+the transport record, and the kernel-bound key refusing in every lane
+before any boot. K113 did not run: no VM-tier agent compatibility record
+exists yet. The package is Developer-ID-signed and snapshot-pinned
+(`apt_snapshot` in `image.json`) but **not notarized** — no notarytool
+credentials on the build host — and not published; those remain what a
+release claim still needs, with the K113 record and staged credential
+modes. The earlier development measurements (one boot at 12.5 ms, the
+guest capability suite — wall, pids, memory, containment, network_none,
+workspace — NAT with egress denied, proxied agent policies, vault-mode
+substitution) are in the
+[2026-11-02 record](../../../docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/README.md).
+The `macos-vm-development` publication scope in `dist/release.json` names
+what stays unsupported (K113.1) and no capability is claimed beyond it.
 the unsupported clauses (K108.1–K113.1) and no capability is claimed.
 
 The specified live workspace share exists as a measured development
@@ -211,12 +227,15 @@ measured in
 and specified in jail-macos §6. The `build` profile refuses a live share:
 its disposable-copy grant has no protected segments.
 
-The refusal also identifies unsupported `none`/`agent` profiles, network/proxy
-policy, launch profiles, vault credentials and deny-read staging. Resource,
-environment, filesystem and observation policies are not silently dropped:
-there is no permitted CLI release path until all requested elements can be
-applied and measured. `--lifetime kernel-bound` is preserved in the snapshot
-and requirements, but this tier does not currently satisfy it.
+The refusals that remain are named: the `build` profile on a live share,
+staged credential modes (`copy_rw`/`bind_ro`), deny-read staging, walls
+outside the guest grammar, custom limit ceilings below the guest's measured
+floor, case-folding workspaces, and `--lifetime kernel-bound` — preserved in
+the snapshot and requirements, derived as `owner_loss_termination`, and
+refused by this tier (the guest's wall is a deadline, not an owner-loss
+bound) before any boot. Resource, environment, filesystem and observation
+policies are not silently dropped: there is no permitted CLI release path
+until all requested elements can be applied and measured.
 
 The low-level `ukai-vm serve` protocol is a development interface to the offline
 preview's fixed `tool`/`build` command, with copied inputs and exported outputs.

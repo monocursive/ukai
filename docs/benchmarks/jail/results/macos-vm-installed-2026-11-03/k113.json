@@ -1,0 +1,7 @@
+{
+  "mechanism_transport_line_verified": true,
+  "native_custody_line": "summary.rs renders \"verified \u00b7 native custody, not kernel-bound\" for native receipts (unit-covered); the native tier refuses every policy in this build, so no native record exists either",
+  "vm_compatibility_record_exists": false,
+  "note": "No VM-tier agent compatibility record exists (J18 \u00a79.4 names Claude Code headless in the guest as the record that would carry it), so the K113 row cannot pass; this row records only that the summary mechanism it will rest on is verified live: the transport line carries values lifted from vm-transport.json.",
+  "outcome": "NOT_RUN_NO_COMPATIBILITY_RECORD"
+}

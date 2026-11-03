@@ -1,0 +1,18 @@
+{
+  "schema": "ukai.jail.vm-transport/1",
+  "attempt_id": "att_79cc1d62-db0d-4cdb-ba7e-8366a0266950",
+  "boot_id": "vm-2a08c216-75ab-4b2e-a408-0cf7f9d0f8d0",
+  "guest_kernel": "7.0.0-38-generic",
+  "image": {
+    "disk_sha256": "310cee86ccca5b5d13ede5fbc69829a65940db67996efecb5374f23339cbe5c3",
+    "helper_sha256": "44683e3e196eabf30c01283f14750488c2e9a46c8ae83df14d2a92024cbaf261",
+    "custodian_sha256": "e4d5901a507778ad30eb7b93af47398cee0d0833a4f65074eba7f9b519780ac5",
+    "seed_sha256": "41a4344354da8f8db8f0e417cb1621a3e44ddbe3cc112befd675e79af9333fdc"
+  },
+  "vsock_port": 1024,
+  "control_socket": "/var/folders/lx/bqwnzxj968s7839wdjlld36h0000gn/T/row-k111-499ommbp/vm/control.sock",
+  "attempt_socket": "/var/folders/lx/bqwnzxj968s7839wdjlld36h0000gn/T/row-k111-499ommbp/vm/attempt.sock",
+  "host_wall_started": "2026-11-03T15:02:18Z",
+  "elapsed_seconds": 0.410313208,
+  "guest_receipt_sha256": "6f7d67b3fc0a35d8d30b7003807e516a0990cfc8738d63731e4ed16aaa0d4476"
+}

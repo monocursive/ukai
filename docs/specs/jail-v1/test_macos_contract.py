@@ -205,8 +205,17 @@ class MacosContract(unittest.TestCase):
         for gate in ["L02", "M01"] + [f"K{i}" for i in range(87, 114)]:
             with self.subTest(gate=gate):
                 pending = [c for c in acceptance["clause"] if c["gate"] == gate and c.get("lane") == "macos" and c["tag"] == "untested"]
-                self.assertTrue(pending, "live native claim needs an explicit failing clause")
-                self.assertTrue(all(not c.get("tests") and not c.get("checks") for c in pending))
+                measured = [c for c in acceptance["clause"] if c["gate"] == gate and c.get("lane") == "macos" and c["tag"] in ("live-cli", "live-lib")]
+                if pending:
+                    self.assertTrue(all(not c.get("tests") and not c.get("checks") for c in pending))
+                else:
+                    # A gate with no untested clause left (K108-K112,
+                    # 2026-11-03) must have been promoted by live rows whose
+                    # notes cite their evidence record; component tests alone
+                    # still cannot promote a gate.
+                    self.assertTrue(measured, "live native claim needs an explicit failing clause")
+                    self.assertTrue(all("docs/benchmarks/" in (c.get("note") or "") for c in measured),
+                                    "a measured live claim cites its evidence record")
         for c in acceptance["clause"]:
             if c["gate"] not in {f"K{i}" for i in range(87, 114)}:
                 continue
