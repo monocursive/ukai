@@ -680,6 +680,18 @@ mod tests {
             |r: &mut serde_json::Value| r["errors"] = serde_json::json!(["boom"]),
             |r: &mut serde_json::Value| r["policy"]["name"] = "build".into(),
             |r: &mut serde_json::Value| r["applied"]["limits"] = "wall".into(),
+            // The guest jail must have protected its child and observed the
+            // exec: the host mirrors this receipt's facts as the attempt's.
+            |r: &mut serde_json::Value| r["child_protection"] = "unprotected".into(),
+            |r: &mut serde_json::Value| r["exec_observed"] = false.into(),
+            |r: &mut serde_json::Value| r["exec_observed"] = "true".into(),
+            // An offline receipt still states its (empty) allow set.
+            |r: &mut serde_json::Value| {
+                r["applied"]["network"]
+                    .as_object_mut()
+                    .expect("object")
+                    .remove("allowed_hosts");
+            },
         ] {
             let mut receipt = receipt.clone();
             mutate(&mut receipt);
