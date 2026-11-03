@@ -15,7 +15,7 @@ import run
 
 # The packaged binary cannot read dist/release.json; test_coordinates.py keeps
 # this equal to its vm.version.
-VERSION = '0.1.0-preview.1'
+VERSION = '0.1.0-preview.2'
 
 
 def installed_image():

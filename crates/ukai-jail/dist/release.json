@@ -41,7 +41,7 @@
         }
     },
     "vm": {
-        "version": "0.1.0-preview.1",
+        "version": "0.1.0-preview.2",
         "tag_prefix": "ukai-vm-v",
         "published_tag": "ouro-vm-v0.1.0-preview.1",
         "target": "macos-arm64",

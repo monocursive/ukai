@@ -1,4 +1,4 @@
-Ukai VM 0.1.0-preview.1 for Apple Silicon / macOS 27+
+Ukai VM 0.1.0-preview.2 for Apple Silicon / macOS 27+
 
 This developer preview serves an offline, disposable Linux ARM64 guest that
 the ukai-jail command drives as its macOS VM backend (J18). It does not run
@@ -54,7 +54,7 @@ native macOS process-tree containment or production readiness. The
 measured fault model is in the source README.
 
 UNINSTALL
-Remove ~/.local/bin/ukai-vm and ~/.local/share/ukai-vm/0.1.0-preview.1.
+Remove ~/.local/bin/ukai-vm and ~/.local/share/ukai-vm/0.1.0-preview.2.
 
 LICENSES AND PROVENANCE
 Ukai and bundled runtime licenses are in payload/licenses. The guest
