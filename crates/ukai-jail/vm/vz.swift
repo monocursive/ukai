@@ -1,5 +1,8 @@
-// Experimental Linux VM transport. No host directories or IP network are
-// attached during runs. The guest lease is driven by the calling process.
+// Experimental Linux VM transport. A run attaches no host directory unless
+// the caller names the live workspace share (one writable virtio-fs device,
+// the final argument), and no IP network unless UKAI_VM_GUEST_NAT=1 (the
+// serve's --guest-nat). Bootstrap attaches NAT and never a share. The guest
+// lease is driven by the calling process.
 import Foundation
 import Virtualization
 import Darwin
@@ -58,10 +61,11 @@ final class Runner: NSObject, VZVirtualMachineDelegate {
         config.serialPorts = [console]
         if bootstrap || ProcessInfo.processInfo.environment["UKAI_VM_GUEST_NAT"] == "1" {
             // Bootstrap needs apt; run mode attaches NAT only when the
-            // operator asked (J18 §6: the guest jail's proxy is the policy
-            // gate — the adapter alone grants the workload nothing, which
-            // the network measurements keep proving). The environment
-            // crosses the custodian's posix_spawn unchanged.
+            // operator asked (J18 §6: the guest jail's network policy is
+            // the gate, not the adapter). The egress measurements meant to
+            // show that are being redone: the 2026-11-03 review found their
+            // probe vacuous (C2). The environment crosses the custodian's
+            // posix_spawn unchanged; the serve sets it from its flag only.
             let network = VZVirtioNetworkDeviceConfiguration()
             network.attachment = VZNATNetworkDeviceAttachment()
             config.networkDevices = [network]

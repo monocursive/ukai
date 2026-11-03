@@ -1,5 +1,6 @@
 /* Own one VZ client as an unreaped child. No PID discovery, privileges, or
- * detached daemon. A stalled caller cannot renew the three-second lease. */
+ * detached daemon. A stalled caller cannot renew the three-second lease;
+ * a stalled custodian restarts it when it runs again (see the loop). */
 #include <errno.h>
 #include <fcntl.h>
 #include <mach/mach_time.h>
@@ -60,13 +61,24 @@ int main(int argc, char **argv) {
     posix_spawn_file_actions_destroy(&files);
     close(life[0]);
     if (error) { close(life[1]); return 125; }
+    /* The lease is judged only after the pending heartbeat bytes are read,
+     * and only by a custodian that was running: on the continuous clock a
+     * suspension of the custodian itself (SIGSTOP, a host sleep) counts as
+     * time, so the first check after the wake would otherwise see a gap
+     * the caller may already have covered with bytes now in the pipe, and
+     * kill the VM. A wake gap (a loop turn taking far longer than its 50 ms
+     * poll) restarts the three-second window instead; a caller that is
+     * really gone still ends the VM within it, or at once on EOF. This is
+     * the custodian half of the serve's own wake-gap rule (ukai-vm.rs
+     * `maintain_lease`). */
     double refreshed = now();
+    double awake = refreshed;
     int status;
     for (;;) {
         pid_t found = waitpid(child, &status, WNOHANG);
         if (found == child) { close(life[1]); return WIFEXITED(status) ? WEXITSTATUS(status) : 125; }
         if (found < 0 && errno != EINTR) break;
-        if (stopping || now() - refreshed > 3) break;
+        if (stopping) break;
         struct pollfd input = {.fd = lease, .events = POLLIN};
         int ready = poll(&input, 1, 50);
         if (ready < 0 && errno != EINTR) break;
@@ -79,6 +91,10 @@ int main(int argc, char **argv) {
             refreshed = now();
             if (write(ack, ".", 1) != 1) break;
         }
+        double turn = now();
+        if (turn - awake > 0.5) refreshed = turn;
+        awake = turn;
+        if (stopping || turn - refreshed > 3) break;
     }
     /* The child has not been reaped, so its PID cannot be reused here. */
     kill(child, SIGKILL);
