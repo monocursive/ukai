@@ -121,6 +121,12 @@ enum GuestOp {
         id: String,
         data: String,
     },
+    /// Receive the vaulted launch profile's TOML for this attempt (the
+    /// guest controller writes it under its config dir and runs the jail
+    /// with `--launch NAME`).
+    LaunchToml {
+        toml: String,
+    },
     /// One workspace file, the preview's frame.
     Put {
         path: String,
@@ -135,6 +141,10 @@ enum GuestOp {
         wall_seconds: u32,
         argv: Vec<String>,
         allow_hosts: Vec<String>,
+        /// The vaulted launch profile (J18 §6): the name for the guest
+        /// jail's `--launch` grammar. The guest synthesizes the TOML with
+        /// credential sources at the tmpfs staging root.
+        launch: Option<String>,
     },
     /// Cancel one attempt; the session stays up.
     Cancel2,
@@ -745,6 +755,7 @@ fn run_attempt(
             argv,
             secrets,
             allow_hosts,
+            launch,
         } => {
             if !protocol::GUEST_PROFILES.contains(&profile.as_str()) {
                 return Err(format!(
@@ -786,13 +797,13 @@ fn run_attempt(
                     );
                 }
             }
-            Ok((attempt_id, profile, wall_seconds, argv, secrets, allow_hosts))
+            Ok((attempt_id, profile, wall_seconds, argv, secrets, allow_hosts, launch))
         }
         protocol::ToVm::Put(_) | protocol::ToVm::Run => {
             Err("the attempt opened with staging frames instead of `prepare`".to_owned())
         }
     }?;
-    let (attempt_id, profile, wall_seconds, argv, secrets, allow_hosts) = prepared;
+    let (attempt_id, profile, wall_seconds, argv, secrets, allow_hosts, launch) = prepared;
     {
         // Duplicate ids would collide in the guest's staging tree; the
         // refusal is the client's, before anything is sent to the guest.
@@ -807,6 +818,18 @@ fn run_attempt(
     }
     guest_line(service, &GuestOp::Reset)?;
     expect_guest(frames, "reset")?;
+    if let Some(launch) = &launch {
+        // The launch TOML crossed in Prepare as part of the declaration;
+        // the guest controller keeps it for `--launch` (it holds no value:
+        // sources point at the tmpfs staging root).
+        guest_line(
+            service,
+            &GuestOp::LaunchToml {
+                toml: launch.toml.clone(),
+            },
+        )?;
+        expect_guest(frames, "launch_toml")?;
+    }
     let mut staged_secrets: Vec<(String, String)> = Vec::new();
     for secret in &secrets {
         // The transport stages each value in the guest's tmpfs for this
@@ -883,6 +906,7 @@ fn run_attempt(
             wall_seconds,
             argv,
             allow_hosts: allow_hosts.clone(),
+            launch: launch.as_ref().map(|decl| decl.name.clone()),
         },
     )?;
     let running = expect_guest(frames, "running")?;

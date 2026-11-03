@@ -404,6 +404,7 @@ impl VmExecution {
                 "--vm: the live share takes profile `tool` or `agent`, not `{profile}`"
             )));
         }
+        let (launch, vault_secrets) = vault_launch(&plan)?;
         let staged = protocol::ToVm::Prepare {
             attempt_id: plan.attempt_id.clone(),
             profile: profile.clone(),
@@ -413,8 +414,9 @@ impl VmExecution {
                 .iter()
                 .map(|argument| protocol::encode_data(argument))
                 .collect(),
-            secrets: Vec::new(),
+            secrets: vault_secrets,
             allow_hosts: proxy_allow_hosts(&plan.request.snapshot)?,
+            launch,
         };
         connection.send(&staged).map_err(transport)?;
         let guest_kernel = expect_prepared(&mut connection)?;
@@ -491,8 +493,158 @@ fn proxy_allow_hosts(
     Ok(snapshot.network.allow.clone())
 }
 
+/// The vaulted launch of one `--vm` attempt: the operator's launch TOML
+/// with every credential `source` rewritten to the guest's tmpfs staging
+/// path, plus the values as secret entries. The Mac's own launch file is
+/// read under the same privacy expectations the guest's loader enforces
+/// (regular file, this operator, single link, mode 0600, no trailing
+/// newline in the value); a source outside those rules refuses before
+/// anything is sent.
+fn vault_launch(
+    plan: &PreparedPlan,
+) -> Result<(Option<protocol::LaunchDeclaration>, Vec<protocol::SecretEntry>), JailError> {
+    use crate::policy::CredentialMode;
+    let Some(launch) = &plan.request.snapshot.launch else {
+        return Ok((None, Vec::new()));
+    };
+    if launch.credentials.is_empty() {
+        return Ok((None, Vec::new()));
+    }
+    let name = plan
+        .launch_name
+        .clone()
+        .ok_or_else(|| {
+            invalid("--vm: the policy declares credentials without a launch profile name")
+        })?;
+    let config_dir = std::env::var_os("UKAI_CONFIG_DIR")
+        .map(PathBuf::from)
+        .ok_or_else(|| invalid("--vm: a vaulted policy needs UKAI_CONFIG_DIR for its launch profile"))?;
+    let path = crate::launch_profile::launch_directory(&config_dir)
+        .join(format!("{name}.toml"));
+    let metadata = std::fs::symlink_metadata(&path).map_err(|error| {
+        invalid(format!(
+            "--vm: the launch profile {} cannot be read: {error}",
+            path.display()
+        ))
+    })?;
+    use std::os::unix::fs::MetadataExt as _;
+    use std::os::unix::fs::PermissionsExt as _;
+    if !metadata.is_file()
+        || metadata.uid() != unsafe { libc::geteuid() }
+        || metadata.nlink() != 1
+        || metadata.permissions().mode() & 0o177 != 0
+        || metadata.len() > 64 * 1024
+    {
+        return Err(invalid(format!(
+            "--vm: the launch profile {} is not an operator-owned private \
+             single-link regular file",
+            path.display()
+        )));
+    }
+    let text =
+        std::fs::read_to_string(&path).map_err(|error| invalid(format!("{error}")))?;
+    let mut rewritten = String::with_capacity(text.len());
+    let mut section: Option<String> = None;
+    let mut sources = std::collections::BTreeMap::<String, String>::new();
+    for line in text.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with('[') {
+            section = trimmed
+                .strip_prefix("[credentials.")
+                .and_then(|rest| rest.strip_suffix(']'))
+                .map(str::to_owned);
+        } else if let (Some(id), Some(value)) = (
+            section.as_deref(),
+            trimmed
+                .strip_prefix("source")
+                .map(str::trim_start)
+                .and_then(|rest| rest.strip_prefix('='))
+                .map(str::trim)
+                // The profile grammar's quoted spelling; both quotes or none.
+                .and_then(|value| {
+                    value
+                        .strip_prefix('"')
+                        .and_then(|inner| inner.strip_suffix('"'))
+                        .or(Some(value))
+                }),
+        ) {
+            let staged = format!("/run/ukai-vm/credentials/{id}");
+            sources.insert(id.to_owned(), value.to_owned());
+            rewritten.push_str(&line[..line.len() - trimmed.len()]);
+            rewritten.push_str("source = \"");
+            rewritten.push_str(&staged);
+            rewritten.push_str("\"\n");
+            continue;
+        }
+        rewritten.push_str(line);
+        rewritten.push('\n');
+    }
+    let _ = &mut rewritten;
+    // Every declared credential must have found a source line to rewrite.
+    for credential in &launch.credentials {
+        if !sources.contains_key(&credential.id) {
+            return Err(invalid(format!(
+                "--vm: the launch profile names no source for credential `{}`",
+                credential.id
+            )));
+        }
+    }
+    let mut secrets = Vec::new();
+    for credential in &launch.credentials {
+        if credential.mode != CredentialMode::Vault {
+            continue;
+        }
+        let source = PathBuf::from(
+            sources
+                .get(&credential.id)
+                .ok_or_else(|| invalid(format!("no source for {}", credential.id)))?,
+        );
+        let value = read_credential_source(&source)?;
+        secrets.push(protocol::SecretEntry {
+            id: credential.id.clone(),
+            data: protocol::encode_data(&value),
+        });
+    }
+    Ok((Some(protocol::LaunchDeclaration { name, toml: rewritten }), secrets))
+}
+
+/// Reads one credential source under the vault transport's rules: a
+/// regular file this operator owns, single link, mode 0600, at most 64
+/// KiB, and no trailing newline (the guest's loader enforces the same on
+/// the staged copy; the transport refuses earlier, on the Mac).
+fn read_credential_source(path: &Path) -> Result<Vec<u8>, JailError> {
+    use std::os::unix::fs::MetadataExt as _;
+    use std::os::unix::fs::PermissionsExt as _;
+    let metadata = std::fs::symlink_metadata(path).map_err(|error| {
+        invalid(format!(
+            "--vm: the credential source {} cannot be read: {error}",
+            path.display()
+        ))
+    })?;
+    if !metadata.is_file()
+        || metadata.uid() != unsafe { libc::geteuid() }
+        || metadata.nlink() != 1
+        || metadata.permissions().mode() & 0o177 != 0
+        || metadata.len() > 64 * 1024
+    {
+        return Err(invalid(format!(
+            "--vm: the credential source {} is not an operator-owned private \
+             single-link regular file",
+            path.display()
+        )));
+    }
+    let value = std::fs::read(path).map_err(|error| invalid(format!("{error}")))?;
+    if value.last() == Some(&b'\n') || value.contains(&0) {
+        return Err(invalid(format!(
+            "--vm: the credential source {} has a trailing newline or NUL; the \
+             vault transport carries exact bytes",
+            path.display()
+        )));
+    }
+    Ok(value)
+}
+
 fn policy_refusal(snapshot: &crate::policy::PolicySnapshot) -> Option<(&'static str, String)> {
-    use crate::policy::ProfileName;
     use crate::policy::ProfileName::{Agent, Build, Tool};
     if snapshot.profile == Agent {
         if snapshot.network.mode != crate::network::NetworkMode::Proxy {
@@ -523,12 +675,28 @@ fn policy_refusal(snapshot: &crate::policy::PolicySnapshot) -> Option<(&'static 
             ),
         });
     }
-    if snapshot.launch.is_some() {
-        return Some((
-            "vm:launch-and-vault-credentials-not-implemented",
-            "--vm: launch profiles and vault credentials are not wired into the guest jail"
-                .to_owned(),
-        ));
+    if let Some(launch) = &snapshot.launch {
+        // The one wired path is vault mode: the value crosses over vsock
+        // once, lands in the guest's tmpfs and the guest proxy injects it
+        // into admitted requests (J18 §6). Staged modes would write the
+        // value into the guest's on-disk vendor state, which the VM tier
+        // has not qualified.
+        let staged_mode = launch.credentials.iter().find(|credential| {
+            credential.mode != crate::policy::CredentialMode::Vault
+        });
+        if let Some(credential) = staged_mode {
+            return Some((
+                "vm:staged-credential-modes-not-wired",
+                format!(
+                    "--vm: credential `{}` uses staged mode `{}`, which would write \
+                     the value into the guest's vendor state; only vault mode is \
+                     wired through the VM (the guest proxy injects the value, and \
+                     nothing is staged)",
+                    credential.id,
+                    credential.mode.as_str()
+                ),
+            ));
+        }
     }
     if snapshot.profile == Tool && snapshot.network.mode != crate::network::NetworkMode::None {
         return Some((

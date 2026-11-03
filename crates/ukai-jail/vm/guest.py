@@ -22,6 +22,7 @@ MAX_LINE = 2 * 1024 * 1024
 MAX_BYTES = 32 * 1024 * 1024
 MAX_FILE = 512 * 1024
 MAX_FILES = 5000
+CONFIG_DIR = Path(os.environ.get('UKAI_VM_CONFIG_DIR', '/var/lib/ukai-vm/config'))
 WORKSPACE = Path('/home/ukai/workspace')
 EVIDENCE = Path('/home/ukai/evidence')
 # J18 (jail-macos.md §6): where an attempt's ephemeral credentials stage.
@@ -87,6 +88,10 @@ def kill_workload(boundary='/sys/fs/cgroup/user.slice'):
 
 ATTEMPTS_SLICE = Path('/sys/fs/cgroup/ukai-attempts.slice')
 attempt_counter = 0
+# The vaulted launch profile's TOML for the attempt in flight (staged by
+# the launch_toml op; consumed when the run writes it under its config
+# directory). One per attempt: the reset/cancel paths clear it.
+launch_toml = None
 
 
 def prepare_attempt_cgroup(account):
@@ -243,6 +248,41 @@ def relative(name):
 # service ends.
 # ---------------------------------------------------------------------------
 
+def _stage_launch_profile(name):
+    """Writes the staged launch TOML as `<config>/launch/<name>.toml`, mode
+    0600 root-owned, single link: the exact shape the guest jail's loader
+    accepts (jail-v1 §6.2). No credential value is inside — the transport
+    staged those under /run (tmpfs)."""
+    text = globals()['launch_toml']
+    if text is None:
+        raise ValueError('launch profile named without staged TOML: ' + name)
+    import re as _re
+    if not _re.fullmatch(r'[a-z][a-z0-9_-]{0,63}', name):
+        raise ValueError('invalid launch profile name: ' + name)
+    # The attempt's config dir is the controller's own per-attempt layout
+    # (the same UKAI_CONFIG_DIR the run passes its child): launch.
+    directory = CONFIG_DIR / 'launch'
+    directory.mkdir(mode=0o755, parents=True, exist_ok=True)
+    # The jail runs as the workload user and its loader requires the file
+    # owned by root or that user, mode 0600, single link: root-owned 0600
+    # is exactly that shape, but the user must be able to READ it, so the
+    # file is chowned to the workload account (the loader's walk requires
+    # every directory owned by root or the operator and not group/other
+    # writable — 0755 dirs, 0600 file owned by the account, satisfies it).
+    import pwd as _pwd
+    try:
+        account = _pwd.getpwnam('ukai')
+        uid, gid = account.pw_uid, account.pw_gid
+    except KeyError:
+        uid, gid = os.getuid(), os.getgid()
+    fd = os.open(path := (directory / (name + '.toml')),
+                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, 'w') as output:
+        output.write(text)
+    os.chown(path, uid, gid)
+    globals()['launch_toml'] = None
+
+
 def reset_attempt(account, workspace=None, evidence=None):
     """Empties both attempt directories for the next attempt, as the host's
     reset op asks. The directories, their modes and their owner come back
@@ -286,11 +326,25 @@ def stage_secret(secret_id, payload, secrets=None):
     parts = relative(secret_id)
     path = secrets.joinpath(*parts)
     # The id may nest (api/token): create every level private, not just the
-    # root (measured: open('xb') on a nested id raised ENOENT).
+    # root (measured: open('xb') on a nested id raised ENOENT). The guest
+    # jail reads the source as the workload user, so every level is owned
+    # by that user, mode 0700 (its loader requires root-or-operator, not
+    # group/other writable, and the file itself 0600 single-link).
+    # The workload account exists on the guest; unit-test hosts fall back to
+    # the current ids (the chown is then a no-op on their own files).
+    import pwd as _pwd
+    try:
+        account = _pwd.getpwnam('ukai')
+        uid, gid = account.pw_uid, account.pw_gid
+    except KeyError:
+        uid, gid = os.getuid(), os.getgid()
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    for level in (secrets, *(path.parents[:len(parts) - 1] if len(parts) > 1 else [])):
+        os.chown(level, uid, gid)
     with path.open('xb') as output:
         output.write(payload)
     os.chmod(path, 0o600)
+    os.chown(path, uid, gid)
     return path
 
 
@@ -300,7 +354,7 @@ def clear_secrets(secrets=None):
     shutil.rmtree(secrets_root() if secrets is None else Path(secrets), ignore_errors=True)
 
 
-def run_command(profile, argv, wall, workspace=None, evidence=None, allow_hosts=()):
+def run_command(profile, argv, wall, workspace=None, evidence=None, allow_hosts=(), launch=None):
     """The jail command one attempt runs, in either mode. The single-run
     `run` op builds exactly this list, and `run2` shares it, so the warm
     design changes nothing about what the jail is asked to do. The paths
@@ -321,6 +375,12 @@ def run_command(profile, argv, wall, workspace=None, evidence=None, allow_hosts=
     # invalid spelling refuses inside the guest before any workload runs.
     for rule in allow_hosts:
         command += [b'--allow-host', os.fsencode(rule)]
+    # The vaulted launch profile (J18 §6): the controller wrote its TOML
+    # (credential sources at the tmpfs staging root) under the attempt's
+    # config directory; the jail resolves `--launch` from there and its
+    # vault proxy injects the staged values into admitted requests.
+    if launch is not None:
+        command += [b'--launch', os.fsencode(launch)]
     command += [b'--', *argv]
     return command
 
@@ -329,7 +389,10 @@ def attempt_environment(account):
     """The environment one guest jail runs under, in either mode."""
     return {'HOME': account.pw_dir, 'USER': 'ukai', 'LOGNAME': 'ukai',
             'PATH': '/usr/local/bin:/usr/bin:/bin', 'LANG': 'C.UTF-8',
-            'XDG_RUNTIME_DIR': f'/run/user/{account.pw_uid}'}
+            'XDG_RUNTIME_DIR': f'/run/user/{account.pw_uid}',
+            # The controller stages the vaulted launch profile (if any) under
+            # this directory; the jail resolves `--launch` from it.
+            'UKAI_CONFIG_DIR': str(CONFIG_DIR)}
 
 
 def receipt_binding(request, receipt, guest_boot_id):
@@ -462,6 +525,18 @@ def main():
                     last_sequence = sequence
                     last_ping = clock()
                     send({'event': 'pong', 'sequence': sequence})
+                elif op == 'launch_toml' and process is None and in_session:
+                    # The vaulted launch profile's TOML: it carries no value
+                    # (sources point at /run/ukai-vm/credentials), so writing
+                    # it under the attempt config dir keeps the guest disk
+                    # value-free. Mode 0600, owned by root: the guest jail's
+                    # loader accepts root-or-operator private single-link
+                    # files.
+                    text = request['toml']
+                    if type(text) is not str or not text or '\0' in text or len(text) > 65536:
+                        poweroff('invalid_launch_toml')
+                    globals()['launch_toml'] = text
+                    send({'event': 'launch_toml'})
                 elif op == 'put' and process is None:
                     if WORKSPACE == SHARE_MOUNT:
                         # Live share: staging is the host's side of the mount;
@@ -488,6 +563,11 @@ def main():
                     wall = request['wall_seconds']
                     if profile not in ('tool', 'agent', 'build') or type(wall) is not int or not 1 <= wall <= 300:
                         poweroff('invalid_policy')
+                    launch = request.get('launch')
+                    if launch is not None and (type(launch) is not str
+                                               or not launch or '\0' in launch
+                                               or '/' in launch or profile != 'agent'):
+                        poweroff('invalid_launch')
                     allow_hosts = request.get('allow_hosts') or []
                     if (allow_hosts and profile != 'agent') or any(
                             type(rule) is not str or not rule or '\0' in rule or ' ' in rule
@@ -502,8 +582,10 @@ def main():
                     argv = [base64.b64decode(value, validate=True) for value in request['argv']]
                     if not argv or any(b'\0' in value for value in argv):
                         poweroff('invalid_argv')
-                    command = run_command(profile, argv, wall, allow_hosts=allow_hosts)
+                    command = run_command(profile, argv, wall, allow_hosts=allow_hosts, launch=launch)
                     env = attempt_environment(account)
+                    if launch is not None:
+                        _stage_launch_profile(launch)
                     attempt_cgroup = prepare_attempt_cgroup(account)
                     joined = [os.fsencode(part) for part in _join_attempt_cgroup(attempt_cgroup)]
                     process = subprocess.Popen([*joined, *command], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
@@ -527,6 +609,11 @@ def main():
                     wall = request['wall_seconds']
                     if profile not in ('tool', 'agent', 'build') or type(wall) is not int or not 1 <= wall <= 300:
                         poweroff('invalid_policy')
+                    launch = request.get('launch')
+                    if launch is not None and (type(launch) is not str
+                                               or not launch or '\0' in launch
+                                               or '/' in launch or profile != 'agent'):
+                        poweroff('invalid_launch')
                     allow_hosts = request.get('allow_hosts') or []
                     if (allow_hosts and profile != 'agent') or any(
                             type(rule) is not str or not rule or '\0' in rule or ' ' in rule
@@ -535,8 +622,10 @@ def main():
                     argv = [base64.b64decode(value, validate=True) for value in request['argv']]
                     if not argv or any(b'\0' in value for value in argv):
                         poweroff('invalid_argv')
-                    command = run_command(profile, argv, wall, allow_hosts=allow_hosts)
+                    command = run_command(profile, argv, wall, allow_hosts=allow_hosts, launch=launch)
                     env = attempt_environment(account)
+                    if launch is not None:
+                        _stage_launch_profile(launch)
                     attempt_cgroup = prepare_attempt_cgroup(account)
                     joined = [os.fsencode(part) for part in _join_attempt_cgroup(attempt_cgroup)]
                     process = subprocess.Popen([*joined, *command], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
@@ -557,6 +646,7 @@ def main():
                     audit('session_opened')
                     send({'event': 'session', 'kernel': os.uname().release})
                 elif op == 'reset' and process is None and in_session:
+                    globals()['launch_toml'] = None
                     stop_attempt_tree()
                     if attempt_counter:
                         drop_attempt_cgroup(ATTEMPTS_SLICE / f'attempt-{attempt_counter}')

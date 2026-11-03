@@ -496,6 +496,7 @@ fn an_attempt_session_frames_both_ways_against_the_stand_in() {
             argv,
             secrets,
             allow_hosts: _,
+            launch: _,
         } = staged
         else {
             panic!("the host opened with {staged:?}");
@@ -536,6 +537,7 @@ fn an_attempt_session_frames_both_ways_against_the_stand_in() {
                 data: protocol::encode_data(b"s3cret"),
             }],
             allow_hosts: Vec::new(),
+            launch: None,
         })
         .expect("sends");
     let ready = connection.next_frame().expect("reads").expect("a frame");

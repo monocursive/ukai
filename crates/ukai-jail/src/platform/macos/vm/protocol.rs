@@ -167,6 +167,20 @@ impl LineSplitter {
     }
 }
 
+/// One vaulted launch profile crossing to the guest: the name the guest
+/// jail's `--launch` grammar takes, and the profile's TOML text with the
+/// credential sources already rewritten to `/run/ukai-vm/credentials/<id>`
+/// (the transport stages the values there, in tmpfs). The guest's own
+/// loader re-parses the text under its strict file rules, so a malformed
+/// rewrite refuses before any workload starts.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct LaunchDeclaration {
+    /// The launch profile name, `[a-z][a-z0-9_-]{0,63}`.
+    pub name: String,
+    /// The profile TOML, sources rewritten.
+    pub toml: String,
+}
+
 /// A workspace file the host stages, one `put` frame.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct Put {
@@ -227,6 +241,14 @@ pub enum ToVm {
         /// workload starts.
         #[serde(default)]
         allow_hosts: Vec<String>,
+        /// The launch profile a vaulted policy runs (J18 §6: credentials
+        /// cross over vsock once per attempt and are never on the guest
+        /// disk): the profile's name, its TOML with every credential
+        /// `source` rewritten to the guest's tmpfs staging path, and the
+        /// credential values themselves as secret entries. `None` runs
+        /// without a launch profile.
+        #[serde(default)]
+        launch: Option<LaunchDeclaration>,
     },
     /// One workspace file.
     Put(Put),
@@ -407,6 +429,7 @@ mod tests {
                     data: encode_data(b"s3cret"),
                 }],
                 allow_hosts: vec!["api.example.com:443".to_owned()],
+                launch: None,
             },
             ToVm::Put(Put {
                 path: "dir/input.txt".to_owned(),

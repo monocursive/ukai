@@ -284,6 +284,7 @@ mod tests {
                 ),
                 workspace: std::path::PathBuf::from("/work"),
                 config_dir: std::path::PathBuf::from("/nonexistent"),
+                launch_name: None,
                 launch: None,
                 proxy: None,
                 pinned_roots: Vec::new(),

@@ -154,6 +154,11 @@ pub struct PreparedPlan {
     /// here): trusted input the stdio screening must treat like the state
     /// root (audit 2026-10-08 H1).
     pub config_dir: PathBuf,
+    /// The `--launch NAME` the operator named, when a launch profile is in
+    /// play: the one spelling of the profile the platform may re-read from
+    /// `<config_dir>/launch/` (the VM tier transports its TOML to the
+    /// guest with the credential sources rewritten to tmpfs staging).
+    pub launch_name: Option<String>,
     /// The vendor-state directory and `bind_ro` sources, when a launch
     /// profile needs them; `None` otherwise. Staged by the supervisor and
     /// bound by descriptor (§9.1, §12), so the platform receives the exact

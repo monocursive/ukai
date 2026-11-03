@@ -375,6 +375,7 @@ impl<'a> Attempt<'a> {
                 prepare_deadline: self.budget.deadline,
                 workspace: self.plan.workspace.clone(),
                 config_dir: self.plan.config_dir.clone(),
+                launch_name: self.args.policy.selection.launch.clone(),
                 // The staged objects, bound by descriptor.
                 launch,
                 proxy: proxy.clone(),
