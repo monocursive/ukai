@@ -2794,3 +2794,34 @@ fn a_secret_crosses_with_its_one_staged_value() {
         );
     }
 }
+
+/// The limits wall refuses a receipt that applied no limit at all, whatever
+/// the requested set: an empty list is never "nothing to compare" (review
+/// survivor R7; the image rules also require the four rows, so this pins
+/// the attempt-side wall on its own).
+#[test]
+fn a_receipt_with_no_applied_limits_is_refused() {
+    let nothing_requested = crate::policy::LimitsSnapshot::default();
+    let error = verify_applied_limits(
+        &serde_json::json!({"applied": {"limits": []}}),
+        &nothing_requested,
+    )
+    .unwrap_err();
+    assert!(error.contains("no applied limits"), "{error}");
+}
+
+/// A run that failed writes no transport record, even with a stored receipt
+/// and the guest's `done` read: the record is the host's claim that the
+/// attempt verified (review survivor R12; today's callers check `failed`
+/// first, so this pins `settle_record` on its own).
+#[test]
+fn a_failed_run_writes_no_transport_record() {
+    let (mut run, _peer, dir) = running();
+    let (hash, data) = encoded(&receipt());
+    run.store_receipt(&hash, &data, &binding()).unwrap();
+    run.finished = true;
+    run.failed = true;
+    let error = run.settle_record().unwrap_err();
+    assert!(!error.is_empty());
+    assert!(!dir.path().join(record::TRANSPORT_FILE).exists());
+}
