@@ -1161,8 +1161,8 @@ class GateRowTables(unittest.TestCase):
         attempt = self.k111_attempt()
         host = json.loads((attempt / 'jail.json').read_text())
         guest = json.loads((attempt / 'evidence/jail.json').read_text())
-        host['applied']['network'] = guest['applied']['network']
-        host['observer'] = {'carried_by': 'guest'}
+        for key in ('platform', 'exec_observed', 'applied', 'observer', 'coverage', 'outcome'):
+            host[key] = guest.get(key)  # S1's mirroring (GuestFacts::CARRIED)
         (attempt / 'jail.json').write_text(json.dumps(host))
         return attempt
 
@@ -1388,8 +1388,7 @@ class ClaudeRowTests(unittest.TestCase):
                 attempt = Path(env['UKAI_DATA_DIR']) / 'attempts' / 'att_1'
                 (attempt / 'evidence').mkdir(parents=True)
                 (attempt / 'jail.json').write_text(json.dumps({
-                    'phase': 'settled', 'outcome': {'code': 0}, 'lifetime': {'tree_empty': True},
-                    'applied': {'network': {'mode': 'proxy'}}, 'observer': {'carried_by': 'guest'}}))
+                    **guest, 'phase': 'settled', 'outcome': {'code': 0}, 'lifetime': {'tree_empty': True}}))
                 (attempt / 'vm-transport.json').write_text(json.dumps(transport))
                 (attempt / 'evidence/jail.json').write_bytes(guest_bytes)
                 (self.workspace / 'k113-marker.txt').write_text('contained\n')

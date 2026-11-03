@@ -653,24 +653,21 @@ def _pointer(value, path):
     return value
 
 
-def guest_carried(value):
-    """A host field that defers to the guest receipt instead of stating a value."""
-    return isinstance(value, dict) and (value.get('guest_carried') is True or value.get('carried_by') == 'guest')
-
-
-# (field, path in each receipt). D5: no host-receipt field may contradict the
-# verified guest receipt; a host field either mirrors the guest's value or is
-# marked guest-carried.
-MIRRORED = (('network.mode', ('applied', 'network', 'mode'), ('applied', 'network')),
-            ('observer.attached', ('observer', 'attached'), ('observer',)),
-            ('outcome.code', ('outcome', 'code'), ('outcome',)))
+# D5: no host-receipt field may contradict the verified guest receipt. The
+# host mirrors the guest's values for these (S1's GuestFacts::CARRIED, named
+# in lifetime.native.details.guest_carried; the host keeps only its own
+# applied.terminal), and the outcome must agree: each is compared for
+# equality, with no marker that excuses a difference.
+MIRRORED = (('platform.kernel', ('platform', 'kernel')), ('platform.arch', ('platform', 'arch')),
+            ('exec_observed', ('exec_observed',)), ('applied.network', ('applied', 'network')),
+            ('applied.syscalls', ('applied', 'syscalls')), ('applied.filesystem', ('applied', 'filesystem')),
+            ('applied.limits', ('applied', 'limits')), ('observer', ('observer',)),
+            ('coverage', ('coverage',)), ('outcome.code', ('outcome', 'code')))
 
 
 def receipt_contradictions(host, guest):
     found = []
-    for name, path, container in MIRRORED:
-        if guest_carried(_pointer(host, container)) or guest_carried(_pointer(host, path)):
-            continue
+    for name, path in MIRRORED:
         host_value, guest_value = _pointer(host, path), _pointer(guest, path)
         if host_value != guest_value:
             found.append({'field': name, 'host': host_value, 'guest': guest_value})

@@ -453,11 +453,15 @@ class ReceiptRecordTests(unittest.TestCase):
         host = json.loads((attempt / 'jail.json').read_text())
         guest = json.loads((attempt / 'evidence/jail.json').read_text())
         fields = {entry['field'] for entry in harness.receipt_contradictions(host, guest)}
-        self.assertEqual(fields, {'network.mode', 'observer.attached'})
+        self.assertTrue({'applied.network', 'observer', 'coverage', 'platform.kernel'} <= fields, fields)
         mirrored = json.loads(json.dumps(host))
-        mirrored['applied']['network'] = guest['applied']['network']
-        mirrored['observer'] = {'carried_by': 'guest', 'receipt': 'evidence/jail.json'}
+        for key in ('platform', 'exec_observed', 'observer', 'coverage', 'outcome'):
+            mirrored[key] = guest.get(key)
+        mirrored['applied'] = dict(guest['applied'], terminal='host-own')  # the host keeps its terminal
         self.assertEqual(harness.receipt_contradictions(mirrored, guest), [])
+        # A marker never excuses a difference.
+        mirrored['observer'] = {'carried_by': 'guest', 'guest_carried': True}
+        self.assertEqual([entry['field'] for entry in harness.receipt_contradictions(mirrored, guest)], ['observer'])
 
     def test_the_k113_run_summary_states_no_guest_fact(self):
         attempt = EVIDENCE / 'macos-vm-claude-2026-11-03/k113-attempt'
