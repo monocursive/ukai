@@ -125,27 +125,7 @@ def share_preflight(workspace):
         raise ValueError(
             'live workspace contains files with more than one hard link (measured '
             'write-through escape to the link target): ' + ', '.join(sorted(hardlinks)[:8]))
-    # Folding probes, inside the workspace, under dot-prefixed probe names.
-    marker = f'.ukai-fold-probe-{os.getpid():x}'
-    case_fold = False
-    normalization_fold = False
-    low = nfd = nfc = None
-    try:
-        low = workspace / (marker + '-case')
-        low.write_text('low')
-        if (workspace / (marker.upper() + '-CASE')).exists():
-            case_fold = True
-        nfd = workspace / (marker + '-nfd-café')
-        nfd.write_text('nfd')
-        nfc = workspace / (marker + '-nfd-café')
-        nfc.write_text('nfc')
-        if nfd.read_text() == 'nfc':
-            normalization_fold = True
-    finally:
-        for probe in (low, nfd, nfc):
-            if probe is not None:
-                probe.unlink(missing_ok=True)
-        (workspace / (marker.upper() + '-CASE')).unlink(missing_ok=True)
+    case_fold, normalization_fold = fold_probes(workspace)
     if case_fold:
         raise ValueError(
             'the workspace volume folds case in file names, which bypasses every '
@@ -160,6 +140,34 @@ def share_preflight(workspace):
     # decomposable protected path must refuse on it.
     return {'case_fold': case_fold, 'normalization_fold': normalization_fold,
             'symlinks': 0, 'multi_link_files': 0}
+
+
+def fold_probe_names(marker):
+    """The folding probes' names, as share.rs spells them: a lower-case name
+    and its upper-case spelling, then `cafe` + U+0301 COMBINING ACUTE (NFD)
+    and the precomposed `caf` + U+00E9 (NFC). The NFD and NFC names are
+    distinct strings, so only a normalization-folding volume maps them onto
+    one file (the 2026-11-03 review found both probes spelled NFC, which
+    reported a fold on every volume)."""
+    return (marker + '-case', marker.upper() + '-CASE',
+            marker + '-nfd-cafe\u0301', marker + '-nfd-caf\u00e9')
+
+
+def fold_probes(workspace):
+    """(case_fold, normalization_fold) of the workspace's volume, probed in
+    place under dot-prefixed names that are removed afterwards."""
+    low, upper, nfd_name, nfc_name = fold_probe_names(f'.ukai-fold-probe-{os.getpid():x}')
+    probes = [workspace / name for name in (low, upper, nfd_name, nfc_name)]
+    try:
+        probes[0].write_text('low')
+        case_fold = probes[1].exists()
+        probes[2].write_text('nfd')
+        probes[3].write_text('nfc')
+        normalization_fold = probes[2].read_text() == 'nfc'
+    finally:
+        for probe in probes:
+            probe.unlink(missing_ok=True)
+    return case_fold, normalization_fold
 
 
 def parse_message(line, events, source, unknown_allowed):
@@ -395,6 +403,13 @@ class Transport:
         kind = response['event']
         report = self.attempt.report
         if kind == 'ready':
+            # D7: the guest states whether it mounted the live share. A share
+            # the host attached but the guest did not mount (or the reverse)
+            # would run the workload somewhere else than the operator asked.
+            live = self.attempt.share_facts is not None
+            if response.get('live_share', False) is not live:
+                raise ValueError('the guest did not mount the live workspace share' if live
+                                 else 'the guest reports a live share the host did not attach')
             self.guest_ready = True
             report.update(status='ready', guest_kernel=response['kernel'],
                           boot_seconds=time.monotonic() - self.attempt.started)
@@ -603,7 +618,16 @@ class Attempt:
 
 
 def execute(args):
-    os.umask(0o077)
+    # The attempt's evidence is private; the caller's umask comes back when
+    # the attempt ends, so a library caller (or a test) keeps its own.
+    previous = os.umask(0o077)
+    try:
+        return _execute(args)
+    finally:
+        os.umask(previous)
+
+
+def _execute(args):
     if getattr(args, 'live_workspace', False) and args.profile == 'build':
         raise ValueError(
             'the build profile treats the workspace as a disposable copy with no '
@@ -636,8 +660,9 @@ def main():
     parser.add_argument('--wall', type=int, default=30)
     parser.add_argument('--live-workspace', action='store_true',
                         help='share the workspace live over virtio-fs instead of staging a copy '
-                             '(J18; refused for workspaces with symlinks, multi-link files, or on '
-                             'case/normalization-folding volumes)')
+                             '(J18; refused for workspaces with symlinks or multi-link files, or on '
+                             'case-folding volumes; a normalization-folding volume is recorded, '
+                             'not refused)')
     parser.add_argument('--keep-disk', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args()
