@@ -2732,6 +2732,48 @@ fn f5_the_platform_is_handed_the_pins_resolution_recorded() {
     assert_eq!(argv[0], program.as_os_str().as_bytes());
 }
 
+/// macOS §4.7 class 2: a launcher whose bootstrap strip failed after the
+/// release ran nothing. That is not a target exec failure (§13.2): the
+/// attempt is `refused` with `backend_unavailable` and `inspect_state`, exit
+/// 125, and the Mach result is named in the message, never as an errno.
+#[test]
+fn a_failed_containment_step_is_a_refusal_not_an_exec_error() {
+    use ukai_jail::platform::{ExecFailureDetail, RunEvent};
+    let fixture = Fixture::new();
+    fixture.credential("first", b"token-value");
+    let platform = platform().events([RunEvent::ExecError {
+        errno: "bootstrap_strip:KERN_NO_ACCESS".into(),
+        detail: Some(ExecFailureDetail::ContainmentStepFailed),
+    }]);
+    let report = fixture.run(platform, &fixture.repo, &["agent", "-p", "x"]);
+    let error = report.error.as_ref().expect("a refusal");
+    assert_eq!(report.exit_code, 125, "{error}");
+    assert_eq!(error.code, ErrorCode::BackendUnavailable, "{error}");
+    assert_eq!(
+        error.remediation,
+        ukai_jail::records::Remediation::InspectState,
+        "{error}"
+    );
+    assert!(error.message.contains("the target never ran"), "{error}");
+    assert!(
+        error.message.contains("bootstrap_strip:KERN_NO_ACCESS"),
+        "{error}"
+    );
+    let receipt = receipt(&report);
+    let outcome = &receipt["outcome"];
+    assert_eq!(receipt["phase"], "refused", "{receipt:#}");
+    assert_eq!(outcome["kind"], "refused", "{outcome:#}");
+    assert_eq!(outcome["cause"], serde_json::Value::Null, "{outcome:#}");
+    assert_eq!(
+        outcome["error"]["code"], "backend_unavailable",
+        "{outcome:#}"
+    );
+    assert_eq!(
+        outcome["error"]["remediation_category"], "inspect_state",
+        "{outcome:#}"
+    );
+}
+
 /// A launcher that refused a changed program (`ESTALE` with its detail) is
 /// a `policy_widening` refusal at `--from-path`, exit 125; the same errno
 /// without the detail is the ordinary exec failure, at no key.

@@ -37,10 +37,13 @@
 //! 3. Create guard client G′: descendants scope, unmute, mute the
 //!    guardian's own process, set/read back fail-closed; no subscription until stop.
 //! 4. Lower `RLIMIT_NPROC` soft and hard to this operator's process count
-//!    plus the headroom (§4.1 rule 6); any failure exits naming it.
-//! 5. Spawn `sandbox-exec` once from the launch block, then close the
+//!    plus the headroom, or to the inherited ceiling when that is lower
+//!    (§4.1 rule 6, amended); any failure exits naming it.
+//! 5. Write `allowance` (what the kernel confirmed in step 4,
+//!    [`rlimit::AppliedAllowance::encode_frame`]) and then `ready` on B.
+//! 6. Spawn `sandbox-exec` once from the launch block, then close the
 //!    guardian's copies of R, E, the stdio sources and the pty slave.
-//! 6. Write `ready` on B. Read A: `launcher-token` → apply events from G
+//!    Read A: `launcher-token` → apply events from G
 //!    until the table holds that token, answer `token-seen`;
 //!    `release-deadline` → arm the wall watchdog (deadline + grace on the
 //!    continuous clock). End-of-file on A runs the stop.
@@ -202,8 +205,10 @@ fn run(
         create_custody_client().map_err(|result| refuse("guard client", es_result(&result)))?;
     custody_io::setup_guard(&guard_client).map_err(|error| refuse("guard setup", error))?;
 
-    // Rule 6: the per-UID process ceiling, before anything forks.
-    rlimit::apply().map_err(|error| refuse("RLIMIT_NPROC", error))?;
+    // Rule 6: the per-UID process ceiling, before anything forks. What the
+    // kernel confirmed is reported on B before `ready` and again in the
+    // record; the receipt records the report, never a separate plan.
+    let allowance = rlimit::apply().map_err(|error| refuse("RLIMIT_NPROC", error))?;
 
     // Read the launch block once, from its inherited descriptor.
     let block = read_launch_block(launch_block_fd)?;
@@ -229,11 +234,18 @@ fn run(
     let boot_session = record::boot_session_uuid();
 
     // Step 3 ends with `ready` (§4.3): the supervisor may proceed as soon
-    // as it arrives; the spawn is step 4.
+    // as it arrives; the spawn is step 4. The supervisor's handshake tests
+    // read these exact frames ([`announcement`]); this call site itself
+    // runs only in a guardian with the ES entitlement, so that it writes
+    // them is verified by reading (fix wave 1103, N14).
     // SAFETY: B's write end is the guardian's for its whole life.
     let mut b = unsafe { std::fs::File::from_raw_fd(b_write) };
-    write_frame(&mut b, &frames::encode_ready())
-        .map_err(|error| refuse("write ready on B", error))?;
+    for (frame, step) in announcement(&allowance)
+        .iter()
+        .zip(["write allowance on B", "write ready on B"])
+    {
+        write_frame(&mut b, frame).map_err(|error| refuse(step, error))?;
+    }
 
     // Step 4: the one spawn, then the EOF-semantics closes (the block's R/E
     // numbers are the inherited launcher ends passed in argv; this closes
@@ -264,6 +276,7 @@ fn run(
         token_wait_until: None,
         members_peak: 0,
         stop_started: false,
+        allowance,
     };
     guardian.event_loop(a_read, own);
     Ok(())
@@ -291,6 +304,8 @@ struct Guardian {
     token_wait_until: Option<u64>,
     members_peak: usize,
     stop_started: bool,
+    /// Rule 6's applied allowance, for the record.
+    allowance: rlimit::AppliedAllowance,
 }
 
 /// What one pass over A produced.
@@ -446,6 +461,13 @@ impl Guardian {
         self.guard = guard;
         let ended_at = continuous_time_ns();
 
+        // Rule 6's allowance joins the record here. This runs only in a
+        // guardian with the ES entitlement and no test reaches it: that the
+        // record carries the allowance `apply` returned is verified by
+        // reading (fix wave 1103, N15). The supervisor rejects a record
+        // without it, or with another, and counts the guardian lost
+        // (§4.6), so a regression here shows as a lost guardian in every
+        // receipt, never as a wrong allowance.
         let record = record::from_stop_result(
             &outcome.result,
             record::StopFacts {
@@ -460,15 +482,23 @@ impl Guardian {
             own,
             self.launcher_token.unwrap_or([0; 8]),
             std::mem::take(&mut self.boot_session),
-        );
+        )
+        .with_allowance(self.allowance);
         if let Err(error) = record::deliver(&record, &mut self.record_file, &mut self.b) {
             self.diagnose("guardian record delivery", &error.to_string());
         }
     }
 }
 
+/// Step 3's frames on B, in order (§4.3, D13): rule 6's `allowance` as the
+/// kernel confirmed it, then `ready`. The supervisor refuses a `ready`
+/// without exactly one allowance before it.
+pub(super) fn announcement(allowance: &rlimit::AppliedAllowance) -> [Vec<u8>; 2] {
+    [allowance.encode_frame(), frames::encode_ready()]
+}
+
 /// One length-prefixed frame, flushed in full.
-fn write_frame(b: &mut std::fs::File, frame: &[u8]) -> Result<(), String> {
+pub(super) fn write_frame(b: &mut std::fs::File, frame: &[u8]) -> Result<(), String> {
     if frame.is_empty() || frame.len() > frames::MAX_FRAME_BYTES {
         return Err("invalid frame length".to_owned());
     }

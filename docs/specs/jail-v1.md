@@ -737,15 +737,19 @@ ukai-jail version [--json]
 ```
 
 J18 adds the `--vm` (macOS only) and `ukai-jail vm stop` interfaces for a
-proposed warm Linux guest. Every current `run --vm` refuses before connecting
-because no qualified VM backend exists. `--lifetime kernel-bound` requires `owner_loss_termination`;
-it narrows authority rather than selecting a backend. With native development
-enabled, macOS refuses that requirement with `unsupported`: VM policy
-enforcement is unavailable in this build, so `--vm` is not a working remedy. Linux `none` refuses it too.
-A missing or invalid VM installation instead refuses with exit 125,
-`backend_unavailable` at `probing` and `host_setup`, including `--profile none`;
-once installation discovery succeeds, the unavailable VM-policy backend
-refuses with `unsupported` before connecting.
+proposed warm Linux guest. Every current `run --vm` refuses at probing, before any connection or boot,
+with exit 125: no requirement has a measured guest record yet
+(`GUEST_MEASUREMENTS` is empty), so each answers `vm:not-measured:<requirement>`
+(`missing_capability`, `unsupported`); a policy element `--vm` does not carry
+answers `vm:not-carried:<field>` (`configuration`); `--lifetime kernel-bound`
+requires `owner_loss_termination`, which narrows authority rather than
+selecting a backend, and the VM tier refuses it with
+`vm:owner-loss-not-provided` (`unsupported`). With native development enabled,
+macOS refuses it with `unsupported` too: owner-loss termination is unavailable
+in this build on either macOS tier, so `--vm` is not a working remedy. Linux
+`none` refuses it. A missing or invalid VM installation instead refuses
+with exit 125, `backend_unavailable` at `probing` and `host_setup`, including
+`--profile none`.
 These flags are working-tree interfaces, not a supported Mac release; see
 [jail-macos.md](jail-macos.md) §6 for the intended behavior and missing pieces.
 

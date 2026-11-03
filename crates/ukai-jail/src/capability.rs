@@ -270,6 +270,21 @@ pub const REASON_NOT_APPLIED_BY_NONE: &str = "uncontained_profile";
 /// refuses it. VM policy enforcement is unavailable in this build.
 pub const REASON_OWNER_LOSS_REQUIRES_VM: &str = "kernel_bound_requires_vm";
 
+/// The reason code of `owner_loss_termination` in the VM tier (J18,
+/// jail-macos.md §6, K112): the guest's wall is a deadline, not an
+/// owner-loss bound, so `--vm` refuses the kernel-bound key too. A separate
+/// code, so the refusal names the tier that refused it.
+pub const REASON_VM_OWNER_LOSS_NOT_PROVIDED: &str = "vm:owner-loss-not-provided";
+
+/// The prefix of a VM-tier refusal whose policy element `--vm` does not
+/// carry to the guest jail (decision D1): `vm:not-carried:<field>`, the
+/// field spelled as the snapshot's key path, lower case.
+pub const REASON_VM_NOT_CARRIED: &str = "vm:not-carried:";
+
+/// The prefix of a VM-tier capability no measured guest record backs
+/// (decision D2): `vm:not-measured:<requirement>`.
+pub const REASON_VM_NOT_MEASURED: &str = "vm:not-measured:";
+
 /// The binary was built without the required Endpoint Security SDK APIs.
 pub const REASON_ES_SDK_ABSENT: &str = "es_sdk_absent";
 /// The executable lacks the Endpoint Security entitlement.

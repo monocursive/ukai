@@ -147,6 +147,7 @@
       "details": {
         "custody": "es_descendants",
         "defense": "seatbelt",
+        "process_limit": 1336,
         "process_headroom": 1024,
         "process_headroom_clamped": false,
         "custodians": {
@@ -164,10 +165,18 @@
         "stop": {
           "members": 4,
           "budget_ns": 5000000000,
-          "elapsed_ns": 1200000000
+          "elapsed_ns": 1200000000,
+          "phases": {
+            "requested": 86400000000000,
+            "freeze_done": 86400020000000,
+            "first_kill": 86400021000000,
+            "result": 86401200000000,
+            "guardian_record": null,
+            "settled": 86401210000000
+          }
         },
         "native_execution": "dev",
-        "profile_digest": "23917ae508660fdd58f330ee90d70271a0547b43584c9265f7fad76176b5f11e",
+        "profile_digest": "b2ae082d8d41f393bdc5f83b3cc3f2e84a017b3a4aff68beeb81325c037dc5e4",
         "profile_parameters": {
           "read_write": [
             "/work"

@@ -4,8 +4,12 @@ facts recorded."""
 import importlib.util
 import os
 from pathlib import Path
+import sys
 import tempfile
+import types
+import unicodedata
 import unittest
+import uuid
 
 spec = importlib.util.spec_from_file_location('run', Path(__file__).parent / 'run.py')
 run = importlib.util.module_from_spec(spec)
@@ -23,15 +27,19 @@ class SharePreflightTests(unittest.TestCase):
     def tearDown(self):
         self.root.cleanup()
 
+    @unittest.skipUnless(sys.platform == 'darwin', 'hdiutil and APFS are macOS-only')
     def test_a_clean_workspace_passes_with_facts(self):
         """On a case-sensitive volume the preflight passes and records its
         facts; the probe creates a small one because the Mac's default
         volume folds names (which the sibling test asserts)."""
         import subprocess
-        image = Path(self.root.name).parent / 'ukai-case-sensitive-test.dmg'
-        volume = '/Volumes/UKAI-CASE-TEST'
+        # A unique volume name: concurrent runs (two checkouts, CI shards)
+        # must never attach at one mount point.
+        name = 'UKAI-CASE-' + uuid.uuid4().hex[:12].upper()
+        image = Path(self.root.name) / 'ukai-case-sensitive-test.dmg'
+        volume = '/Volumes/' + name
         subprocess.run(['hdiutil', 'create', '-size', '16m', '-fs', 'Case-sensitive APFS',
-                        '-volname', 'UKAI-CASE-TEST', str(image)],
+                        '-volname', name, str(image)],
                        check=True, capture_output=True)
         try:
             subprocess.run(['hdiutil', 'attach', '-nobrowse', '-mountpoint', volume, str(image)],
@@ -46,9 +54,10 @@ class SharePreflightTests(unittest.TestCase):
                 facts = run.share_preflight(workspace)
                 self.assertFalse(facts['case_fold'])
                 # Normalization folding is disclosed, not refused: APFS folds
-                # it even case-sensitively (measured), and the protected
-                # segments are pure ASCII, so no denial can be bypassed.
-                self.assertIn('normalization_fold', facts)
+                # it even case-sensitively (measured 2026-11-03 with distinct
+                # NFD/NFC probe names), and the protected segments are pure
+                # ASCII, so no denial can be bypassed.
+                self.assertIs(facts['normalization_fold'], True)
                 self.assertEqual((facts['symlinks'], facts['multi_link_files']), (0, 0))
                 self.assertEqual(sorted(p.name for p in workspace.iterdir()),
                                  ['file.txt', 'sub'])
@@ -57,6 +66,18 @@ class SharePreflightTests(unittest.TestCase):
         finally:
             image.unlink(missing_ok=True)
 
+    def test_the_normalization_probe_names_differ_only_by_normalization(self):
+        _, _, nfd, nfc = run.fold_probe_names('.m')
+        self.assertNotEqual(nfd, nfc)
+        self.assertEqual(unicodedata.normalize('NFC', nfd), nfc)
+        self.assertEqual(unicodedata.normalize('NFD', nfc), nfd)
+
+    @unittest.skipIf(sys.platform == 'darwin', 'the Mac volumes fold normalization')
+    def test_a_non_folding_volume_reports_no_folds(self):
+        self.assertEqual(run.fold_probes(self.workspace), (False, False))
+        self.assertEqual(list(self.workspace.iterdir()), [])
+
+    @unittest.skipUnless(sys.platform == 'darwin', "the Mac's default volume is the folding one")
     def test_a_folding_volume_refuses_with_the_remedy(self):
         """The Mac's default volume folds case: the preflight must refuse
         and name the remedy, whatever else is in the workspace."""
@@ -108,39 +129,43 @@ class SharePreflightTests(unittest.TestCase):
 
 
 class GuestShareModeTests(unittest.TestCase):
-    """The guest controller's live-share switch, on the host: no virtio-fs
-    device here, so mount_share declines and every staged behavior stays."""
+    """The guest controller's live-share switch, on the host: the device
+    and the mount are faked (test_guest_warm.ShareMountTests and
+    test_guest_main.py drive the switch itself)."""
 
-    @classmethod
-    def setUpClass(cls):
-        guest_spec = importlib.util.spec_from_file_location('guest', Path(__file__).parent / 'guest.py')
-        cls.guest = importlib.util.module_from_spec(guest_spec)
-        guest_spec.loader.exec_module(cls.guest)
+    def setUp(self):
+        guest_spec = importlib.util.spec_from_file_location('guest_share_mode', Path(__file__).parent / 'guest.py')
+        self.guest = importlib.util.module_from_spec(guest_spec)
+        guest_spec.loader.exec_module(self.guest)
+        self.root = tempfile.TemporaryDirectory()
+        self.addCleanup(self.root.cleanup)
+        self.guest.VIRTIO_DEVICES = Path(self.root.name) / 'no-virtio-bus'
+        self.guest.SHARE_MOUNT = Path(self.root.name) / 'mnt/workspace'
 
     def test_without_a_device_the_share_is_not_live(self):
+        self.guest.subprocess = types.SimpleNamespace(
+            run=self.fail_mount, SubprocessError=__import__('subprocess').SubprocessError)
+        self.guest.share_mounted = lambda: False
         self.assertFalse(self.guest.mount_share())
         self.assertNotEqual(self.guest.WORKSPACE, self.guest.SHARE_MOUNT)
+
+    @staticmethod
+    def fail_mount(argv, **kwargs):
+        import subprocess
+        raise subprocess.CalledProcessError(32, argv)
 
     def test_reset_never_wipes_a_live_share(self):
         import pwd
         account = pwd.getpwuid(os.getuid())
-        with tempfile.TemporaryDirectory() as root:
-            live = Path(root) / 'live'
-            live.mkdir()
-            (live / 'precious.txt').write_text('keep')
-            self.guest.SHARE_MOUNT = live
-            original = os.path.ismount
-            try:
-                os.path.ismount = lambda path: Path(path) == live
-                self.guest.reset_attempt(account, workspace=live, evidence=Path(root) / 'evidence')
-            finally:
-                os.path.ismount = original
-            # The host's live workspace survived; the evidence tree reset.
-            self.assertEqual((live / 'precious.txt').read_text(), 'keep')
-
-
-if __name__ == '__main__':
-    unittest.main()
+        live = Path(self.root.name) / 'live'
+        live.mkdir()
+        (live / 'precious.txt').write_text('keep')
+        self.guest.SHARE_MOUNT = live
+        self.guest.share_mounted = lambda: True
+        self.guest.reset_attempt(account, workspace=live, evidence=Path(self.root.name) / 'evidence')
+        # The host's live workspace survived; the evidence tree reset.
+        self.assertEqual((live / 'precious.txt').read_text(), 'keep')
+        self.assertTrue((Path(self.root.name) / 'evidence').is_dir())
 
 
 class PinnedManifestTests(unittest.TestCase):
@@ -161,3 +186,7 @@ class PinnedManifestTests(unittest.TestCase):
         digest = module.pinned_digest(rows)
         self.assertEqual(len(digest), 64)
         self.assertEqual(digest, module.pinned_digest(list(reversed(rows))))
+
+
+if __name__ == '__main__':
+    unittest.main()

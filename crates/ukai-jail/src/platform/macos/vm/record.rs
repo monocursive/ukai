@@ -4,7 +4,9 @@
 //! A transport record is a Mac orchestration record, the warm successor of
 //! the preview's `ukai.vm.attempt/1`. It never claims native macOS
 //! enforcement, and it is never a substitute for the guest's
-//! `ukai.jail.receipt/1`, which it names by digest.
+//! `ukai.jail.receipt/1`, which it names by digest. The summary's transport
+//! line is rendered from it by `crate::summary::vm_transport_line`, which
+//! reads the record as JSON on every platform.
 //!
 //! The module is standalone (`serde`, `serde_json` only): the `ukai-vm`
 //! binary and the stand-in tests include it by path.
@@ -116,45 +118,6 @@ impl TransportRecord {
     }
 }
 
-/// The summary's transport line (§6: "the summary prints the guest summary
-/// plus one transport line from that record").
-///
-/// The existing caller passes a host receipt. That parameter is retained for
-/// compatibility and deliberately ignored: its fields cannot certify guest facts.
-/// This line names the guest evidence separately and escapes transport values.
-#[must_use]
-pub fn transport_line(_receipt: &serde_json::Value, record: &TransportRecord) -> String {
-    // The current caller passes the HOST receipt. Do not turn its fields
-    // into guest facts. The separately stored guest evidence is authoritative.
-    format!(
-        "vm: guest-reported facts in evidence/jail.json · boot {} · image {} · vsock {} · receipt sha256:{}",
-        escape_control(&record.boot_id),
-        short(&record.image.disk_sha256),
-        record.vsock_port,
-        short(&record.guest_receipt_sha256),
-    )
-}
-
-/// The first 16 hex of a digest, enough to compare two records side by side;
-/// the whole digest is in the record and in the receipt file's name.
-fn short(digest: &str) -> &str {
-    digest.get(..16).unwrap_or(digest)
-}
-
-/// One line, whatever the bytes: control characters render as `U+XXXX`, so
-/// no transport fact can forge a second summary line.
-fn escape_control(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for character in text.chars() {
-        if character.is_control() {
-            out.push_str(&format!("U+{:04X}", character as u32));
-        } else {
-            out.push(character);
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,15 +142,6 @@ mod tests {
         )
     }
 
-    fn receipt() -> serde_json::Value {
-        serde_json::json!({
-            "schema": "ukai.jail.receipt/1",
-            "platform": {"os": "linux"},
-            "policy": {"name": "tool"},
-            "lifetime": {"boundary": "pid_namespace"},
-        })
-    }
-
     #[test]
     fn the_record_round_trips_through_its_file() {
         let dir = tempfile::tempdir().expect("temp dir");
@@ -195,36 +149,5 @@ mod tests {
         written.write_in(dir.path()).expect("writes");
         let read = TransportRecord::read_in(dir.path()).expect("reads");
         assert_eq!(read, written);
-    }
-
-    #[test]
-    fn the_transport_line_names_the_recorded_facts_and_stays_one_line() {
-        let mut facts = record();
-        facts.boot_id = "boot-with\nnewline".to_owned();
-        let line = transport_line(&receipt(), &facts);
-        assert!(
-            line.starts_with("vm: guest-reported facts in evidence/jail.json"),
-            "{line}"
-        );
-        assert!(
-            line.contains("U+000A"),
-            "the escape is the records' rule: {line}"
-        );
-        assert!(line.contains("image dddddddddddddddd"), "{line}");
-        assert!(line.contains("vsock 1024"), "{line}");
-        assert!(line.contains("receipt sha256:aaaaaaaaaaaaaaaa"), "{line}");
-        assert_eq!(line.lines().count(), 1);
-    }
-
-    #[test]
-    fn a_receipt_without_the_expected_groups_never_panics_the_line() {
-        for receipt in [
-            serde_json::Value::Null,
-            serde_json::json!({}),
-            serde_json::json!(7),
-        ] {
-            let line = transport_line(&receipt, &record());
-            assert!(line.contains("guest-reported"), "{line}");
-        }
     }
 }

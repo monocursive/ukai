@@ -29,6 +29,9 @@ UNSUPPORTED_CLAUSES = list(_RELEASE['jail']['unsupported_clauses'])
 ELF_MACHINE = dict(_RELEASE['jail']['elf_machine_by_target'])
 LINUX_TARGETS = tuple(ELF_MACHINE)
 VM_VERSION = _RELEASE['vm']['version']
+# The VM package the tree builds next: built and smoke-verified, not published.
+# VM_VERSION stays the published preview until a release moves it.
+VM_CANDIDATE_VERSION = _RELEASE['vm']['candidate_version']
 VM_TAG_PREFIX = _RELEASE['vm']['tag_prefix']
 VM_TARGET = _RELEASE['vm']['target']
 
