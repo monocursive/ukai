@@ -97,6 +97,23 @@ attempts' raw evidence is retained in
 [image13-attempts/](image13-attempts/) (including the successful build's
 console), and the ordering is fixed.
 
+## `ukai-jail run --vm` drives the warm service (2026-11-03)
+
+The CLI surface is live: `ukai-jail run --vm --profile tool --limit
+wall=<seconds>s --workspace <case-sensitive dir> -- <command>` boots the
+warm service with the live share (or reuses a running one sharing exactly
+that workspace), runs the attempt, and settles through the verified-receipt
+path. The recorded run ([run-vm-cli/](run-vm-cli/), against the pinned
+image13): workload output relayed, the granted write on the host, the
+protected `.git` denied (`Read-only file system`), **phase settled, exit 0,
+`tree_empty: true`**, the guest Linux receipt bound
+([vm-binding.json](run-vm-cli/vm-binding.json)) and the transport record
+written with `workspace_share: live-virtio-fs`. Refusals keep their named
+remedies: the build profile on the live share, custom limit ceilings below
+the guest's measured floor, case-folding workspaces, a running guest
+sharing a different workspace, walls outside the guest grammar, deny-read,
+and any network mode until the proxied policy path lands.
+
 ## What remains before a release
 
 The warm service is now measured end to end with the share, but the

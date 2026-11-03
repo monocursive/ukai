@@ -190,9 +190,10 @@ passing, NAT attached with workload egress still denied. The pre-release
 guest capability suite has run on the prepared image
 ([capabilities.json](../../../docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/capabilities.json)):
 wall, pids (cgroup-capped), memory (OOM-killed at the limit), containment,
-network_none and the live workspace write all measured. **Every
-`ukai-jail run --vm` request still refuses before connecting** until the
-CLI surface, the proxied policy path and the pinned-image builder land;
+network_none and the live workspace write all measured. **The CLI surface is live**
+(`run --vm --profile tool` drives the warm service with the live share;
+see the warm record's run-vm section), **but** the proxied policy path and
+the snapshot-pinned image builder still gate a release claim;
 the `macos-vm-development` publication scope in `dist/release.json` names
 the unsupported clauses (K108.1–K113.1) and no capability is claimed.
 

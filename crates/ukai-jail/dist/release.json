@@ -60,6 +60,6 @@
             "K112.1",
             "K113.1"
         ],
-        "scope_note": "The warm ukai-vm service with the live workspace share is development evidence only (docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/README.md); ukai-jail run --vm refuses until the CLI surface, the proxied policy path and the pinned-image builder land. No K108-K113 live row is claimed."
+        "scope_note": "ukai-jail run --vm now drives the warm service with the live workspace share (development evidence: docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/README.md); the supported shape is the offline tool profile with the guest grammar wall and the guest measured fixed limits. K108-K113 live rows remain untested on an installed package, so no release gate is claimed."
     }
 }

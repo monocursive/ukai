@@ -36,8 +36,10 @@ pub mod protocol;
 pub mod record;
 pub mod share;
 
-/// How long starting `ukai-vm serve` may take before the run refuses.
-pub const SERVE_TIMEOUT: Duration = Duration::from_secs(20);
+/// How long starting `ukai-vm serve` may take before the run refuses: the
+/// cold guest boot (EFI, kernel, cloud-init, controller handshake) measured
+/// 30-90s on the qualified image; the warm path answers immediately.
+pub const SERVE_TIMEOUT: Duration = Duration::from_secs(180);
 
 /// One bounded wait step inside the run loop: long enough not to spin,
 /// short enough for the wall deadline to fire between frames.
@@ -164,9 +166,41 @@ impl VmPlatform {
     ///
     /// # Errors
     /// The refusal when no server answers after [`SERVE_TIMEOUT`].
-    pub fn ensure_serving(&self) -> Result<(), JailError> {
+    pub fn ensure_serving(&self, workspace: &Path) -> Result<(), JailError> {
         let socket = self.control_socket();
         if control::is_listening(&socket) {
+            // A guest is already up: it must be sharing exactly this
+            // workspace. A different share is the operator's to stop
+            // (`ukai-vm stop`), never silently reused for another tree.
+            let status = control::control_round_trip(&socket, protocol::ToControl::Status)
+                .map_err(transport)?;
+            let live = match &status {
+                protocol::FromControl::Status { live_workspace, .. } => live_workspace.as_deref(),
+                _ => None,
+            };
+            let live = live.ok_or_else(|| {
+                    refused(
+                        "--vm: the running guest serves staged attempts, not a live \
+                         workspace; stop it with `ukai-vm stop` before a --vm run",
+                    )
+                })?;
+            let running = std::fs::canonicalize(live)
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|_| live.to_owned());
+            let wanted = std::fs::canonicalize(workspace)
+                .map(|path| path.display().to_string())
+                .map_err(|error| {
+                    invalid(format!(
+                        "--vm: {} cannot be resolved: {error}",
+                        workspace.display()
+                    ))
+                })?;
+            if running != wanted {
+                return Err(refused(format!(
+                    "--vm: the running guest shares {running}, not {wanted}; stop it with \
+                     `ukai-vm stop` or run against that workspace"
+                )));
+            }
             return Ok(());
         }
         let program = self.serve_binary()?;
@@ -179,6 +213,8 @@ impl VmPlatform {
         })?;
         std::process::Command::new(&program)
             .arg("serve")
+            .arg("--live-workspace")
+            .arg(workspace)
             .env("UKAI_VM_HOME", &self.install.root)
             .env("UKAI_DATA_DIR", &self.data_dir)
             .stdin(std::process::Stdio::null())
@@ -259,17 +295,39 @@ impl Platform for VmPlatform {
     }
 
     fn probe(&self, plan: &PlanRequest) -> Vec<Capability> {
-        let reason = policy_refusal(&plan.snapshot).0;
+        // The measured shape (2026-11-02, capabilities.json): the guest
+        // jail's wall, pids, memory, containment and network_none were each
+        // measured on the prepared image through the warm service. The
+        // capability rows stay per-requirement; an unsupported policy keeps
+        // the specific refusal as its reason.
+        let refusal = policy_refusal(&plan.snapshot).map(|(reason, _)| reason);
         plan.requirements
             .iter()
-            .map(|&requirement| Capability {
-                name: requirement.to_string(),
-                status: CapabilityStatus::Unavailable,
-                scope: Self::scope_for(requirement),
-                mechanism: None,
-                reason_code: Some(reason.to_owned()),
-                measured_at: None,
-                evidence_ref: None,
+            .map(|&requirement| match refusal {
+                Some(reason) => Capability {
+                    name: requirement.to_string(),
+                    status: CapabilityStatus::Unavailable,
+                    scope: Self::scope_for(requirement),
+                    mechanism: None,
+                    reason_code: Some(reason.to_owned()),
+                    measured_at: None,
+                    evidence_ref: None,
+                },
+                None => Capability {
+                    name: requirement.to_string(),
+                    status: CapabilityStatus::Available,
+                    scope: Self::scope_for(requirement),
+                    mechanism: Some("linux-bwrap-in-vm".to_owned()),
+                    reason_code: None,
+                    measured_at: Some("2026-11-02T00:00:00Z".to_owned()),
+                    evidence_ref: Some(
+                        "docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/\
+                         capabilities.json"
+                            .replace("\n                         ", "")
+                            .trim()
+                            .to_owned(),
+                    ),
+                },
             })
             .collect()
     }
@@ -309,10 +367,13 @@ impl VmExecution {
         plan: PreparedPlan,
         _sinks: Sinks,
     ) -> Result<Self, JailError> {
-        // The missing share/measurement applies to every current VM policy.
-        // Refuse before connecting, staging files, or moving any credentials.
+        // The share's containment preflight is a host-side fact (measured
+        // 2026-11-02: symlinks stay guest-side, but a pre-existing hardlink
+        // writes through and a case-folding volume bypasses every guest
+        // denial), so it refuses before connecting or staging anything.
         validate_policy(&plan.request.snapshot)?;
-        platform.ensure_serving()?;
+        let share_facts = share::preflight(&plan.workspace).map_err(refused)?;
+        platform.ensure_serving(&plan.workspace)?;
         let socket = control::attempt_socket(&platform.data_dir);
         let mut connection = control::AttemptConnection::connect(&socket).map_err(transport)?;
         let ready = expect_ready(&mut connection)?;
@@ -320,14 +381,11 @@ impl VmExecution {
         let snapshot = &plan.request.snapshot;
         let wall = guest_wall(snapshot)?;
         let profile = snapshot.profile.as_str().to_owned();
-        if !protocol::GUEST_PROFILES.contains(&profile.as_str()) {
+        if profile != "tool" {
             return Err(invalid(format!(
-                "--vm: the guest jail takes one of {}, not `{profile}`",
-                protocol::GUEST_PROFILES.join(", ")
+                "--vm: the live share takes profile `tool`, not `{profile}`"
             )));
         }
-        let entries = image::snapshot_workspace(&plan.workspace)
-            .map_err(|error| invalid(format!("--vm: {}", error.0)))?;
         let staged = protocol::ToVm::Prepare {
             attempt_id: plan.attempt_id.clone(),
             profile: profile.clone(),
@@ -341,15 +399,10 @@ impl VmExecution {
         };
         connection.send(&staged).map_err(transport)?;
         let guest_kernel = expect_prepared(&mut connection)?;
-        for entry in &entries {
-            connection
-                .send(&protocol::ToVm::Put(protocol::Put {
-                    path: entry.path.clone(),
-                    executable: entry.executable,
-                    data: protocol::encode_data(&entry.data),
-                }))
-                .map_err(transport)?;
-        }
+        // Live share: the workspace crosses as the virtio-fs device the
+        // service attached; staging puts are refused by both ends, so none
+        // are sent. The share's facts travel in the transport record below.
+        debug_assert_eq!(share_facts.case_fold, false);
         for group in ["workspace", "evidence"] {
             std::fs::create_dir(plan.attempt_dir.join(group)).map_err(transport)?;
         }
@@ -393,60 +446,133 @@ fn guest_wall(snapshot: &crate::policy::PolicySnapshot) -> Result<u32, JailError
         .as_ref()
         .and_then(|wall| wall.value.parse().ok())
         .ok_or_else(|| {
-            invalid(
+            refused(
                 "--vm: the policy sets no wall ceiling; the guest grammar needs one \
                  (`--limit wall=<seconds>s`)",
             )
         })?;
     let seconds = wall_ms / 1000;
     if !wall_ms.is_multiple_of(1000) || seconds == 0 || seconds > u64::from(protocol::WALL_MAX) {
-        return Err(invalid(format!(
+        return Err(refused(format!(
             "--vm: the guest grammar takes a wall of 1..={} whole seconds, the policy asks \
-             for {wall_ms}ms",
+             for {wall_ms}ms; set an explicit whole-second ceiling \
+             (`--limit wall=<seconds>s`)",
             protocol::WALL_MAX
         )));
     }
     Ok(u32::try_from(seconds).unwrap_or(protocol::WALL_MAX))
 }
 
-fn policy_refusal(snapshot: &crate::policy::PolicySnapshot) -> (&'static str, String) {
+fn policy_refusal(snapshot: &crate::policy::PolicySnapshot) -> Option<(&'static str, String)> {
     use crate::policy::ProfileName;
-    if !matches!(snapshot.profile, ProfileName::Tool | ProfileName::Build) {
-        return (
-            "vm:profile-unsupported:offline-tool-and-build-only",
-            format!(
-                "--vm: profile {} is unsupported; only offline tool/build previews exist",
-                snapshot.profile.as_str()
+    if snapshot.profile != ProfileName::Tool {
+        return Some(match snapshot.profile {
+            ProfileName::Build => (
+                "vm:build-profile-refuses-the-live-share",
+                "--vm: the build profile treats the workspace as a disposable copy with no \
+                 protected segments, and a live share is the operator's real directory \
+                 (measured: the operator's .git was writable through it); use --profile tool"
+                    .to_owned(),
             ),
-        );
+            other => (
+                "vm:profile-unsupported:offline-tool-only",
+                format!(
+                    "--vm: profile {} is unsupported; the guest jail takes `tool`",
+                    other.as_str()
+                ),
+            ),
+        });
     }
     if snapshot.launch.is_some() {
-        return (
+        return Some((
             "vm:launch-and-vault-credentials-not-implemented",
             "--vm: launch profiles and vault credentials are not wired into the guest jail"
                 .to_owned(),
-        );
+        ));
     }
     if snapshot.network.mode != crate::network::NetworkMode::None {
-        return (
-            "vm:network-unavailable:no-guest-nat-or-proxy",
-            "--vm: network and proxy policy are unavailable; the guest has no run-mode NAT"
+        return Some((
+            "vm:network-unavailable:no-proxied-policy",
+            "--vm: network and proxy policy are unavailable until the guest's proxied \
+             policy path is wired; the guest has no egress without it, adapter or not"
                 .to_owned(),
-        );
+        ));
     }
     if !snapshot.filesystem.deny_read.is_empty() {
-        return (
-            "vm:deny-read-not-supported-by-workspace-copy",
-            "--vm: deny-read policy cannot be honored by workspace copying; no files were staged"
+        return Some((
+            "vm:deny-read-not-supported-by-the-live-share",
+            "--vm: deny-read policy cannot be honored by the live share; no files were \
+             staged and no workload started"
                 .to_owned(),
-        );
+        ));
     }
-    ("vm:policy-unavailable:live-workspace-share-and-guest-measurements-not-implemented",
-        "--vm: policy enforcement is unavailable: a live workspace share and pre-release guest capability measurements are not implemented; no workload was started".to_owned())
+    // The guest applies its measured fixed shape (wall from the request,
+    // mem=512MiB, swap=0, pids=64). A REQUIRED ceiling the shape cannot
+    // match refuses; a PREFERRED ceiling is honored when the guest's value
+    // is at least as strict (the tool baseline's preferred pids=256 against
+    // the guest's 64 — macOS's build-mem precedent: a preferred ceiling may
+    // be satisfied by stricter enforcement).
+    let limits = &snapshot.limits;
+    let fixed: [(&str, &Option<crate::policy::LimitCeiling>, Option<u64>); 6] = [
+        ("pids", &limits.pids, Some(64)),
+        ("mem", &limits.mem, Some(512 * 1024 * 1024)),
+        ("swap", &limits.swap, Some(0)),
+        ("storage", &limits.storage, None),
+        ("inodes", &limits.inodes, None),
+        ("cpu", &limits.cpu, None),
+    ];
+    for (name, ceiling, guest) in fixed {
+        let Some(ceiling) = ceiling else { continue };
+        let requested = parse_size(&ceiling.value);
+        let honored = guest.zip(requested).map_or(false, |(guest, requested)| {
+            guest <= requested
+        });
+        if ceiling.required || !honored {
+            return Some((
+                "vm:guest-applies-its-measured-fixed-limits",
+                format!(
+                    "--vm: the guest jail applies its measured fixed shape (mem=512MiB, \
+                     swap=0, pids=64) and cannot honor the {name} ceiling `{}` ({}); \
+                     loosen or unset it, or wait for per-attempt ceilings with the \
+                     proxied-policy work",
+                    ceiling.value,
+                    if ceiling.required { "required" } else { "below the guest's floor" },
+                ),
+            ));
+        }
+    }
+    None
 }
 
+/// Parses a size or count ceiling ("64", "256", "512MiB", "1g", "0") to its
+/// plain number; `None` when the spelling is not one.
+fn parse_size(value: &str) -> Option<u64> {
+    let text = value.trim();
+    let split = text
+        .find(|c: char| c.is_ascii_alphabetic())
+        .unwrap_or(text.len());
+    let (number, unit) = text.split_at(split);
+    let number: u64 = number.trim().parse().ok()?;
+    let multiplier = match unit.trim().to_ascii_lowercase().as_str() {
+        "" | "b" => 1,
+        "k" | "kb" | "kib" => 1024,
+        "m" | "mb" | "mib" => 1024 * 1024,
+        "g" | "gb" | "gib" => 1024 * 1024 * 1024,
+        _ => return None,
+    };
+    number.checked_mul(multiplier)
+}
+
+/// Validates the policy against the guest's measured shape. `Ok` is the
+/// offline tool run the 2026-11-02 records qualified: live workspace share,
+/// measured capabilities (wall, pids, memory, containment, network_none,
+/// workspace), bound Linux receipt verified on the host.
 fn validate_policy(snapshot: &crate::policy::PolicySnapshot) -> Result<(), JailError> {
-    Err(refused(policy_refusal(snapshot).1))
+    if let Some((_, message)) = policy_refusal(snapshot) {
+        return Err(refused(message));
+    }
+    guest_wall(snapshot)?;
+    Ok(())
 }
 
 fn duplicate_output(fd: libc::c_int) -> Result<std::fs::File, JailError> {
@@ -488,26 +614,55 @@ fn verify_applied_limits(
     .map_err(|e| e.to_string())?;
     let expected = serde_json::to_value(expected).map_err(|e| e.to_string())?;
     let expected = expected.as_object().ok_or("invalid expected limits")?;
-    let count = expected.values().filter(|v| !v.is_null()).count();
-    if rows.len() != count {
-        return Err("guest applied limits differ from requested limits".to_owned());
+    if rows.is_empty() {
+        return Err("the guest receipt reports no applied limits".to_owned());
     }
+    // Subset with preferred semantics: a REQUIRED ceiling must be applied
+    // with the requested value (wall). A PREFERRED ceiling is satisfied by
+    // a guest row at least as strict (the tool baseline's pids=256 against
+    // the guest's applied 64), matching how macOS records a preferred
+    // ceiling the platform cannot apply exactly. The guest's additional
+    // fixed limits are more enforcement, never less.
     for (key, ceiling) in expected.iter().filter(|(_, v)| !v.is_null()) {
+        let required = ceiling["required"].as_bool().unwrap_or(false);
+        let value = ceiling["value"].as_str().unwrap_or_default();
         let matching: Vec<_> = rows.iter().filter(|row| &row.key == key).collect();
-        if matching.len() != 1
-            || !matching[0].applied
-            || Some(matching[0].requested.as_str()) != ceiling["value"].as_str()
-            || Some(matching[0].required) != ceiling["required"].as_bool()
-        {
-            return Err(format!("guest did not apply requested {key} ceiling"));
+        if matching.len() != 1 || !matching[0].applied {
+            return Err(format!("guest did not apply the requested {key} ceiling"));
+        }
+        let row = &matching[0];
+        if required {
+            let same = row.requested == value
+                || parse_size(&row.requested).zip(parse_size(value))
+                    .is_some_and(|(a, b)| a == b);
+            if !same {
+                return Err(format!(
+                    "guest applied {key}={}; the required ceiling is {value}",
+                    row.requested
+                ));
+            }
+        } else {
+            let stricter = parse_size(&row.requested)
+                .zip(parse_size(value))
+                .is_some_and(|(applied, requested)| applied <= requested);
+            if !stricter {
+                return Err(format!(
+                    "guest applied {key}={}, looser than the preferred {value}",
+                    row.requested
+                ));
+            }
         }
     }
     Ok(())
 }
 
 fn expect_ready(connection: &mut control::AttemptConnection) -> Result<ReadyFrame, JailError> {
-    match connection.next_frame().map_err(transport)? {
-        Some(protocol::FromVm::Ready {
+    // The service binds its sockets before the guest finishes booting, so
+    // the first frame can legally wait out a cold boot (measured 30-90s on
+    // the qualified image); every later exchange stays on the short
+    // handshake budget.
+    match connection.next_frame_within(SERVE_TIMEOUT).map_err(transport)? {
+        control::Within::Frame(protocol::FromVm::Ready {
             schema,
             boot_id,
             disk_sha256,
@@ -531,11 +686,18 @@ fn expect_ready(connection: &mut control::AttemptConnection) -> Result<ReadyFram
                 vsock_port,
             })
         }
-        Some(protocol::FromVm::Error { message }) => Err(refused(format!("--vm: {message}"))),
-        Some(other) => Err(refused(format!(
+        control::Within::Frame(protocol::FromVm::Error { message }) => {
+            Err(refused(format!("--vm: {message}")))
+        }
+        control::Within::Frame(other) => Err(refused(format!(
             "--vm: the attempt socket opened with {other:?}, not `ready`"
         ))),
-        None => Err(refused("--vm: the attempt socket closed before `ready`")),
+        control::Within::Idle => Err(refused(
+            "--vm: the guest did not finish booting before the budget; try again",
+        )),
+        control::Within::End => {
+            Err(refused("--vm: the attempt socket closed before `ready`"))
+        }
     }
 }
 
@@ -555,9 +717,11 @@ fn expect_prepared(connection: &mut control::AttemptConnection) -> Result<String
 impl PreparedExecution for VmExecution {
     fn boundary(&self) -> BoundaryIdentity {
         // Requested guest mechanism, not a host-kernel observation. The
-        // current capability/policy gate prevents any CLI run from reaching
-        // this provisional boundary. Enabling it requires a measured guest
-        // preflight; a post-run consistency check is not a substitute.
+        // guest's capability preflight is measured (2026-11-02,
+        // capabilities.json: wall, pids, memory, containment, network_none,
+        // workspace), and the receipt below is the guest's own Linux
+        // receipt, digest- and binding-verified on the host; the boundary
+        // still says what it is: guest-reported, host-verified consistency.
         BoundaryIdentity {
             boundary: BoundaryKind::PidNamespace,
             verification_scope: VerificationScope::AttemptTree,
@@ -578,6 +742,17 @@ impl PreparedExecution for VmExecution {
                     details.insert(
                         "transport".to_owned(),
                         Value::String(record::SCHEMA_TRANSPORT.to_owned()),
+                    );
+                    details.insert(
+                        "workspace_share".to_owned(),
+                        Value::String("live-virtio-fs".to_owned()),
+                    );
+                    details.insert(
+                        "share_measurements".to_owned(),
+                        Value::String(
+                            "docs/benchmarks/jail/results/macos-vm-share-2026-11-02/README.md"
+                                .to_owned(),
+                        ),
                     );
                     details
                 },

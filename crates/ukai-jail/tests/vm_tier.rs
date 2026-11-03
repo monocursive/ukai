@@ -606,9 +606,14 @@ fn vm_none_and_unimplemented_policy_requests_refuse_before_connecting() {
     for args in [
         vec!["--profile", "none", "--lifetime", "kernel-bound"],
         vec!["--profile", "agent"],
+        vec!["--profile", "build", "--limit", "wall=5s", "--limit", "mem=1GiB"],
         vec!["--profile", "tool", "--deny-read", "private"],
-        vec!["--profile", "tool", "--limit", "mem=256MiB"],
+        vec!["--profile", "tool", "--limit", "mem=256MiB", "--limit", "wall=5s"],
         vec!["--profile", "tool"],
+        // The share preflight is a host-side fact: this harness's workspace
+        // sits on the Mac's default (case-folding) volume, so a policy that
+        // passes every other gate still refuses before any VM dir exists.
+        vec!["--profile", "tool", "--limit", "wall=5s"],
     ] {
         let harness = Harness::new();
         harness.install_stand_in();
@@ -629,10 +634,30 @@ fn vm_none_and_unimplemented_policy_requests_refuse_before_connecting() {
             assert!(stderr.contains("--vm refuses --profile none"), "{stderr}");
         }
         if args == vec!["--profile", "tool"] {
+            // The tool baseline's default 30m wall exceeds the guest's 300s
+            // grammar: a refusal with the remedy, before any connection.
             assert!(
-                stderr.contains("unavailable") || stderr.contains("missing_capability"),
+                stderr.contains("guest grammar") && stderr.contains("--limit wall"),
                 "{stderr}"
             );
+        }
+        if args.contains(&"build") {
+            // The probing gate carries the reason code; the prepare-time
+            // refusal spells the full remedy.
+            assert!(
+                stderr.contains("vm:build-profile-refuses-the-live-share"),
+                "{stderr}"
+            );
+        }
+        if args.contains(&"mem=256MiB") {
+            assert!(
+                stderr.contains("vm:guest-applies-its-measured-fixed-limits"),
+                "{stderr}"
+            );
+        }
+        if args == vec!["--profile", "tool", "--limit", "wall=5s"] {
+            assert!(stderr.contains("folds case"), "{stderr}");
+            assert!(stderr.contains("case-sensitive"), "{stderr}");
         }
     }
 }

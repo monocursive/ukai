@@ -21,9 +21,9 @@ fn receipt() -> Value {
         "lifetime":{"boundary":"pid_namespace","tree_empty":true,"integrity":"verified"},
         "applied":{"network":{"mode":"none"},"limits": [
             {"key":"wall","requested":"30000","required":true,"applied":true,"mechanism":"timer","scope":"tree","hit":null},
-            {"key":"pids","requested":"64","required":true,"applied":true,"mechanism":"cgroup","scope":"tree","hit":null},
-            {"key":"mem","requested":"536870912","required":true,"applied":true,"mechanism":"cgroup","scope":"tree","hit":null},
-            {"key":"swap","requested":"0","required":true,"applied":true,"mechanism":"cgroup","scope":"tree","hit":null}
+            {"key":"pids","requested":"64","required":false,"applied":true,"mechanism":"cgroup","scope":"tree","hit":null},
+            {"key":"mem","requested":"536870912","required":false,"applied":true,"mechanism":"cgroup","scope":"tree","hit":null},
+            {"key":"swap","requested":"0","required":false,"applied":true,"mechanism":"cgroup","scope":"tree","hit":null}
         ]}
     })
 }
@@ -56,8 +56,8 @@ fn running() -> (VmRunning, UnixStream, tempfile::TempDir) {
         profile: "tool".into(),
         argv_digest: "sha256:argv".into(),
         limits: serde_json::from_value(serde_json::json!({
-            "wall":{"value":"30000","required":true},"mem":{"value":"536870912","required":true},
-            "pids":{"value":"64","required":true},"swap":{"value":"0","required":true},"cpu":null
+            "wall":{"value":"30000","required":true},
+            "pids":{"value":"256","required":false},"cpu":null
         }))
         .unwrap(),
         stdout: std::fs::File::create(dir.path().join("stdout")).unwrap(),
@@ -303,18 +303,18 @@ fn guest_limits_must_match_every_requested_value_and_requirement() {
     for (pointer, reason) in [
         (
             "/applied/limits/0/requested",
-            "guest did not apply requested wall ceiling",
+            "guest applied wall=wrong; the required ceiling is 30000",
         ),
         (
-            "/applied/limits/1/required",
-            "guest did not apply requested pids ceiling",
+            "/applied/limits/1/applied",
+            "guest did not apply every required limit",
         ),
         (
-            "/applied/limits/2/requested",
-            "guest did not apply requested mem ceiling",
+            "/applied/limits/1/requested",
+            "guest applied pids=wrong, looser than the preferred 256",
         ),
         (
-            "/applied/limits/3/applied",
+            "/applied/limits/0/applied",
             "guest did not apply every required limit",
         ),
     ] {
@@ -338,24 +338,36 @@ fn guest_limits_must_match_every_requested_value_and_requirement() {
 }
 
 #[test]
-fn unrequested_guest_limit_rows_are_rejected_before_export() {
-    // All requested rows remain correct. Only the additional unrequested
-    // ceiling distinguishes this receipt from one the host can accept.
-    for key in ["cpu", "unknown"] {
-        let (mut run, _peer, dir) = running();
+fn extra_guest_limit_rows_are_more_enforcement_not_mismatches() {
+    // The guest applies its measured fixed shape on top of the requested
+    // ceilings: an extra row is stricter enforcement, accepted; removing
+    // the required wall row still refuses.
+    for key in ["mem", "cpu", "unknown"] {
+        let (mut run, _peer, _dir) = running();
         let mut changed = receipt();
         let rows = changed["applied"]["limits"].as_array_mut().unwrap();
         let mut extra = rows[1].clone();
         extra["key"] = key.into();
         rows.push(extra);
         let (hash, data) = encoded(&changed);
+        run.store_receipt(&hash, &data, &binding())
+            .unwrap_or_else(|error| panic!("{key}: {error}"));
+        assert!(run.receipt.is_some());
+        drop(run);
+        let (mut run, _peer, _dir) = running();
+        let mut changed = receipt();
+        changed["applied"]["limits"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|row| row["key"] != "wall");
+        let (hash, data) = encoded(&changed);
+        // The receipt-level rule fires first: the guest must carry its
+        // measured fixed set, all applied.
         assert_eq!(
             run.store_receipt(&hash, &data, &binding()).unwrap_err(),
-            "guest applied limits differ from requested limits",
-            "{key}"
+            "guest did not apply every required limit"
         );
         assert!(run.receipt.is_none());
-        assert!(!dir.path().join("evidence/jail.json").exists());
         let (hash, data) = encoded(&receipt());
         run.store_receipt(&hash, &data, &binding()).unwrap();
         assert_eq!(
@@ -403,10 +415,56 @@ fn macos_owner_identity_and_unmeasured_capability_refusal_are_explicit() {
     assert_eq!(owner.pid, std::process::id());
     let capabilities = platform.probe(&plan);
     assert!(!capabilities.is_empty());
-    assert!(
-        capabilities
-            .iter()
-            .all(|row| !row.satisfies() && row.measured_at.is_none())
-    );
+    // The offline tool shape is the measured one (2026-11-02): every row
+    // answers available, names the mechanism and carries the measurement
+    // record. An unsupported shape's rows stay unavailable with the reason.
+    assert!(capabilities.iter().all(|row| {
+        row.satisfies()
+            && row.mechanism.as_deref() == Some("linux-bwrap-in-vm")
+            && row.evidence_ref.is_some()
+            && row.measured_at.is_some()
+    }));
+    // The baseline's 30m wall exceeds the guest grammar; layer an explicit
+    // in-grammar ceiling so the policy shape itself is the tested variable.
+    let mut shaped = inputs.clone();
+    shaped.layers.push(crate::policy::Layer {
+        origin: crate::policy::LayerOrigin::Environment,
+        base_dir: None,
+        delta: crate::policy::PolicyDelta {
+            limits: crate::policy::Ceilings {
+                wall: Some(crate::policy::Ceiling {
+                    value: 60_000,
+                    requested: "60000".into(),
+                    required: true,
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    });
+    let shaped = crate::policy::resolve(&shaped).unwrap();
+    let plan = PlanRequest {
+        snapshot: shaped.snapshot.clone(),
+        requirements: shaped.requirements,
+    };
+    let capabilities = platform.probe(&plan);
+    assert!(capabilities.iter().all(|row| {
+        row.satisfies()
+            && row.mechanism.as_deref() == Some("linux-bwrap-in-vm")
+            && row.evidence_ref.is_some()
+            && row.measured_at.is_some()
+    }));
+    assert!(validate_policy(&plan.snapshot).is_ok());
+    let mut agent = inputs;
+    agent.base_profile = crate::policy::ProfileName::Agent;
+    let agent = crate::policy::resolve(&agent).unwrap();
+    let plan = PlanRequest {
+        snapshot: agent.snapshot,
+        requirements: agent.requirements,
+    };
+    let capabilities = platform.probe(&plan);
+    assert!(capabilities
+        .iter()
+        .all(|row| !row.satisfies() && row.measured_at.is_none()));
     assert!(validate_policy(&plan.snapshot).is_err());
 }

@@ -1,0 +1,141 @@
+{
+  "schema": "ukai.jail.receipt/1",
+  "attempt_id": "att_ac2bf10a-0e3d-4d38-9413-e4836d162af7",
+  "revision": 2,
+  "phase": "settled",
+  "platform": {
+    "os": "linux",
+    "arch": "aarch64",
+    "kernel": "unknown: the guest reports its kernel at prepare"
+  },
+  "jail": {
+    "component": "ukai-jail",
+    "version": "0.1.0",
+    "backend": "ukai-vm",
+    "backend_version": null
+  },
+  "policy": {
+    "name": "tool",
+    "digest": "sha256:5b19442b77e14c5680c856c23496494674acc6f08578c90d993479b5a5036d24",
+    "observe": "on",
+    "evidence": "strict",
+    "requirements": [
+      "tree_termination",
+      "closed_set_observation",
+      "filesystem_containment",
+      "syscall_filter",
+      "network_none",
+      "protected_coverage:existing_and_root",
+      "limit:wall"
+    ],
+    "grants": []
+  },
+  "containment": "enforced",
+  "child_protection": "enforced",
+  "exec_observed": false,
+  "argv_digest": "sha256:6099dcd7f712b742d26dd49dbb79e46bd3e155b89b680c91ab63dea6b99ff0e1",
+  "applied": {
+    "filesystem": null,
+    "network": {
+      "mode": "pending",
+      "mechanism": null,
+      "allowed_hosts": []
+    },
+    "syscalls": null,
+    "limits": [
+      {
+        "key": "wall",
+        "requested": "15000",
+        "required": true,
+        "applied": true,
+        "mechanism": "boottime-deadline",
+        "scope": "tree",
+        "hit": false
+      }
+    ],
+    "environment_names": [],
+    "removed_environment_names": []
+  },
+  "observer": {
+    "backend": null,
+    "set": null,
+    "attached": false,
+    "sources": {
+      "wrapper": "supported",
+      "audit": "unsupported",
+      "proxy": "unsupported"
+    },
+    "gaps": []
+  },
+  "coverage": {
+    "exec": {
+      "status": "unsupported",
+      "sources": [],
+      "observed_count": null,
+      "gaps": []
+    },
+    "fs.write": {
+      "status": "unsupported",
+      "sources": [],
+      "observed_count": null,
+      "gaps": []
+    },
+    "fs.deny": {
+      "status": "unsupported",
+      "sources": [],
+      "observed_count": null,
+      "gaps": []
+    },
+    "net": {
+      "status": "unsupported",
+      "sources": [],
+      "observed_count": null,
+      "gaps": []
+    },
+    "limits": {
+      "status": "unsupported",
+      "sources": [],
+      "observed_count": null,
+      "gaps": []
+    },
+    "proxy.net": {
+      "status": "unsupported",
+      "sources": [],
+      "observed_count": null,
+      "gaps": []
+    }
+  },
+  "process": null,
+  "lifetime": {
+    "boundary": "pid_namespace",
+    "native": {
+      "os": "linux",
+      "details": {
+        "disk_sha256": "8d6535853d7d8a64d7470e2a6cf5975d8feb83ec8157934126c4909a83e02b58",
+        "evidence_origin": "guest_reported; host verifies consistency only",
+        "share_measurements": "docs/benchmarks/jail/results/macos-vm-share-2026-11-02/README.md",
+        "transport": "ukai.jail.vm-transport/1",
+        "vm_boot_id": "vm-71e58e0e-a08a-4230-b4c9-77d278bf6c30",
+        "vsock_port": 1024,
+        "workspace_share": "live-virtio-fs"
+      }
+    },
+    "tree_empty": true,
+    "verified_at": null,
+    "verification_scope": "attempt_tree",
+    "integrity": "verified"
+  },
+  "outcome": {
+    "kind": "exited",
+    "code": 0,
+    "signal": null,
+    "cause": null,
+    "error": null
+  },
+  "state_cleanup": "not_needed",
+  "cleanup_error": null,
+  "created_at": "2026-11-03T09:29:38Z",
+  "updated_at": "2026-11-03T09:30:31Z",
+  "errors": [],
+  "credentials": []
+}
