@@ -1573,6 +1573,24 @@ fn fake_control(
     })
 }
 
+/// Joins a [`fake_control`] stand-in. If the code under test never sent its
+/// `status` (it refused before the status read, or a mutant skipped it),
+/// the stand-in is first released with a request of its own, so the test
+/// fails on its assertions rather than hanging in the join.
+fn join_control(server: std::thread::JoinHandle<()>, socket: &Path) {
+    let until = Instant::now() + Duration::from_secs(5);
+    while !server.is_finished() && Instant::now() < until {
+        let _ = control::control_round_trip_within(
+            socket,
+            protocol::ToControl::Status,
+            Duration::from_millis(200),
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(server.is_finished(), "the stand-in serve never stopped");
+    server.join().unwrap();
+}
+
 /// A stand-in `ukai-vm` program: a shell script with `body`.
 fn serve_script(dir: &Path, body: &str) -> PathBuf {
     let path = dir.join("ukai-vm");
@@ -1639,7 +1657,7 @@ fn a_spawned_serve_gets_the_status_checks_of_a_reused_one() {
                     "the checked serve's boot"
                 ),
             }
-            server.join().unwrap();
+            join_control(server, &socket);
         }
     }
 }
@@ -2241,7 +2259,7 @@ fn prepare_against(
     });
     let result = receiver.recv_timeout(wait).ok();
     if result.is_some() {
-        server.join().unwrap();
+        join_control(server, &control_socket);
     }
     drop(data);
     result
