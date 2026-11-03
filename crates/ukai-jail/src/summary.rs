@@ -9,6 +9,11 @@
 //! `ukai.jail.summary/1` object `tail --summary --json` prints are renderings
 //! of the one [`Summary`] it returns, never separate computations.
 //!
+//! A `--vm` attempt (J18) is summarized from its verified guest receipt
+//! instead, read beside the host receipt and checked against the transport
+//! record's digest, with no journal to count from; its terminal form adds the
+//! transport line ([`summarize_attempt`]).
+//!
 //! Every line keeps the honesty invariant: a number is printed only where
 //! the evidence supports it. A class's numbers are exact only when the class
 //! is active and its complete journal agrees with the receipt's count
@@ -68,6 +73,10 @@ pub enum Journal<'a> {
     Absent,
     /// A local journal exists and could not be read.
     Unreadable,
+    /// J18 (jail-macos.md §6): the attempt ran in the guest jail of a `--vm`
+    /// run, whose journal stays in the guest. The host's own journal holds
+    /// none of the guest's events, so it counts nothing.
+    Guest,
 }
 
 /// What the journal established, as the summary reports it.
@@ -85,6 +94,9 @@ pub enum JournalState {
     Absent,
     /// A local journal that could not be read.
     Unreadable,
+    /// The guest journal of a `--vm` attempt, which is not exported; its
+    /// `journal` value is `absent`.
+    Guest,
 }
 
 impl JournalState {
@@ -95,7 +107,7 @@ impl JournalState {
             JournalState::Complete => "complete",
             JournalState::Incomplete => "incomplete",
             JournalState::NotScanned(_) => "not_scanned",
-            JournalState::Absent => "absent",
+            JournalState::Absent | JournalState::Guest => "absent",
             JournalState::Unreadable => "unreadable",
         }
     }
@@ -113,6 +125,7 @@ impl JournalState {
             // must print the same words, so neither says more.
             JournalState::Absent => Some("no local journal".to_owned()),
             JournalState::Unreadable => Some("journal unreadable".to_owned()),
+            JournalState::Guest => Some("the guest's journal is not exported".to_owned()),
         }
     }
 }
@@ -143,6 +156,10 @@ pub struct Summary {
     pub journal: JournalState,
     /// The lines, in print order.
     pub lines: Vec<Line>,
+    /// J18 (jail-macos.md §6): the transport line of a `--vm` attempt,
+    /// printed after the lines and before the receipt line. It is not one
+    /// of the `ukai.jail.summary/1` lines.
+    pub transport: Option<String>,
 }
 
 impl Summary {
@@ -155,6 +172,9 @@ impl Summary {
             .iter()
             .map(|line| format!("{PREFIX}{}", line.text))
             .collect();
+        if let Some(transport) = &self.transport {
+            lines.push(format!("{PREFIX}{transport}"));
+        }
         lines.push(format!(
             "{PREFIX}receipt {}",
             escape_control(&receipt_path.display().to_string())
@@ -951,6 +971,7 @@ pub fn summary(receipt: &Value, journal: Journal<'_>) -> Summary {
         Journal::NotScanned(size) => (None, JournalState::NotScanned(size)),
         Journal::Absent => (None, JournalState::Absent),
         Journal::Unreadable => (None, JournalState::Unreadable),
+        Journal::Guest => (None, JournalState::Guest),
     };
     // An intact journal whose last note names a receipt other than this one:
     // the receipt was rewritten after the journal ended without a note of
@@ -980,6 +1001,7 @@ pub fn summary(receipt: &Value, journal: Journal<'_>) -> Summary {
         receipt_digest,
         journal: state,
         lines,
+        transport: None,
     }
 }
 
@@ -2008,8 +2030,14 @@ pub fn receipt_path(attempt: &Path) -> std::path::PathBuf {
 
 /// Reads an attempt's canonical receipt and journal and summarizes them.
 ///
+/// A `--vm` attempt ([`vm_attempt`]) is summarized from what its verified
+/// guest receipt reports the guest jail applied, without a journal to count
+/// from (the guest's stays in the guest), plus the transport line.
+///
 /// # Errors
-/// The receipt cannot be read, is too large, or is not JSON.
+/// The receipt cannot be read, is too large, or is not JSON; or a `--vm`
+/// attempt's guest receipt is missing or does not match its transport
+/// record.
 pub fn summarize_attempt(attempt: &Path) -> Result<Summary, String> {
     use crate::journal::{Bounded, read_bounded};
     let receipt_bytes = match read_bounded(
@@ -2026,10 +2054,284 @@ pub fn summarize_attempt(attempt: &Path) -> Result<Summary, String> {
     };
     let receipt: Value = serde_json::from_slice(&receipt_bytes)
         .map_err(|error| format!("{}: {error}", receipt_path(attempt).display()))?;
+    if let Some(summary) = vm_attempt(attempt, &receipt)? {
+        return Ok(summary);
+    }
     Ok(match read_bounded(attempt, "trace.ndjson", SCAN_CAP) {
         Bounded::Bytes(bytes) => summary(&receipt, Journal::Bytes(&bytes)),
         Bounded::TooLarge(size) => summary(&receipt, Journal::NotScanned(size)),
         Bounded::Absent => summary(&receipt, Journal::Absent),
         Bounded::Unreadable(_) => summary(&receipt, Journal::Unreadable),
     })
+}
+
+// ---------------------------------------------------------------------------
+// The `--vm` attempt (J18, jail-macos.md §6, K111)
+// ---------------------------------------------------------------------------
+
+/// The transport record's file in a `--vm` attempt directory (the macOS
+/// `platform::macos::vm::record::TRANSPORT_FILE`, spelled here so the
+/// summary reads it on every platform).
+pub const VM_TRANSPORT_FILE: &str = "vm-transport.json";
+
+/// The transport record's schema, as the host receipt's
+/// `lifetime.native.details.transport` names it.
+pub const VM_TRANSPORT_SCHEMA: &str = "ukai.jail.vm-transport/1";
+
+/// The guest receipt's place beneath a `--vm` attempt directory.
+const VM_GUEST_DIR: &str = "evidence";
+
+/// The host receipt groups the summary takes from the guest receipt: what
+/// the guest jail applied, its observer and coverage, its exec observation
+/// and platform (decision D5; the host receipt mirrors the same groups).
+const VM_GUEST_GROUPS: [&str; 5] = [
+    "applied",
+    "observer",
+    "coverage",
+    "exec_observed",
+    "platform",
+];
+
+/// The summary of a `--vm` attempt, or `None` for any other attempt.
+///
+/// An attempt is a `--vm` one when its host receipt names the transport and
+/// its directory holds the transport record. Its network and evidence lines
+/// then come from the guest receipt (`evidence/jail.json`), which must hash
+/// to the transport record's `guest_receipt_sha256`; the host's own terminal
+/// record is kept. Nothing is counted: the host journal holds none of the
+/// guest's events ([`Journal::Guest`]). The receipt digest is the host
+/// receipt's.
+fn vm_attempt(attempt: &Path, receipt: &Value) -> Result<Option<Summary>, String> {
+    use crate::journal::{Bounded, read_bounded};
+    if text(receipt, "/lifetime/native/details/transport") != Some(VM_TRANSPORT_SCHEMA) {
+        return Ok(None);
+    }
+    let record = match read_bounded(attempt, VM_TRANSPORT_FILE, crate::cleanup::RECEIPT_MAX) {
+        Bounded::Bytes(bytes) => serde_json::from_slice::<Value>(&bytes)
+            .map_err(|error| format!("{VM_TRANSPORT_FILE}: {error}"))?,
+        // No verified guest receipt was stored: the host receipt is all
+        // there is, and it claims nothing of the guest.
+        Bounded::Absent => return Ok(None),
+        Bounded::TooLarge(_) => return Err(format!("{VM_TRANSPORT_FILE} exceeds its size bound")),
+        Bounded::Unreadable(error) => return Err(error),
+    };
+    let guest_bytes = match read_bounded(
+        &attempt.join(VM_GUEST_DIR),
+        crate::state::RECEIPT_NAME,
+        crate::cleanup::RECEIPT_MAX,
+    ) {
+        Bounded::Bytes(bytes) => bytes,
+        Bounded::Absent => {
+            return Err(format!(
+                "{VM_TRANSPORT_FILE} names a guest receipt, and {VM_GUEST_DIR}/{} is absent",
+                crate::state::RECEIPT_NAME
+            ));
+        }
+        Bounded::TooLarge(_) => return Err("the guest receipt exceeds its size bound".to_owned()),
+        Bounded::Unreadable(error) => return Err(error),
+    };
+    let digest = sha256_hex(&guest_bytes);
+    if text(&record, "/guest_receipt_sha256") != Some(digest.as_str()) {
+        return Err(format!(
+            "{VM_GUEST_DIR}/{} does not hash to the guest receipt {VM_TRANSPORT_FILE} names",
+            crate::state::RECEIPT_NAME
+        ));
+    }
+    let guest: Value = serde_json::from_slice(&guest_bytes)
+        .map_err(|error| format!("the guest receipt: {error}"))?;
+    let mut view = receipt.clone();
+    for group in VM_GUEST_GROUPS {
+        let Some(value) = guest.get(group) else {
+            return Err(format!("the guest receipt has no `{group}`"));
+        };
+        let terminal = (group == "applied")
+            .then(|| receipt.pointer("/applied/terminal").cloned())
+            .flatten();
+        view[group] = value.clone();
+        if let Some(terminal) = terminal {
+            view["applied"]["terminal"] = terminal;
+        }
+    }
+    let mut lines = summary(&view, Journal::Guest);
+    lines.receipt_digest = crate::canonical::to_jcs(receipt)
+        .ok()
+        .map(|bytes| crate::canonical::sha256_prefixed(&bytes));
+    lines.transport = Some(vm_transport_line(&record));
+    Ok(Some(lines))
+}
+
+/// The transport line (§6: "the summary prints the guest summary plus one
+/// transport line from that record"): the record's boot, image, vsock port
+/// and guest receipt digest, every value escaped, so no transport fact can
+/// forge a second line.
+#[must_use]
+pub fn vm_transport_line(record: &Value) -> String {
+    let short = |pointer: &str| {
+        let value = text(record, pointer).unwrap_or("?");
+        shown(value.get(..16).unwrap_or(value))
+    };
+    format!(
+        "vm: guest-reported facts in {VM_GUEST_DIR}/{} · boot {} · image {} · vsock {} · \
+         receipt sha256:{}",
+        crate::state::RECEIPT_NAME,
+        shown(text(record, "/boot_id").unwrap_or("?")),
+        short("/image/disk_sha256"),
+        record
+            .get("vsock_port")
+            .and_then(Value::as_u64)
+            .map_or_else(|| "?".to_owned(), |port| port.to_string()),
+        short("/guest_receipt_sha256"),
+    )
+}
+
+/// Lowercase hex SHA-256 of `bytes`.
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::Digest as _;
+    sha2::Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+#[cfg(test)]
+mod vm_tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt as _;
+
+    /// The K113 record (2026-11-03): a proxied, observed `--vm` attempt
+    /// whose host receipt still said `pending` and `attached: false`.
+    const K113: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/k113-attempt"
+    );
+
+    const FILES: [&str; 5] = [
+        "jail.json",
+        "trace.ndjson",
+        "vm-transport.json",
+        "evidence/jail.json",
+        "evidence/vm-binding.json",
+    ];
+
+    /// A private copy of the K113 attempt directory.
+    fn k113() -> (tempfile::TempDir, std::path::PathBuf) {
+        let temp = tempfile::Builder::new()
+            .permissions(std::fs::Permissions::from_mode(0o700))
+            .tempdir()
+            .unwrap();
+        let attempt = temp.path().join("att_ff3c80a0-0645-4e1d-b6b3-ef633fdd057d");
+        for dir in [attempt.clone(), attempt.join("evidence")] {
+            std::fs::create_dir(&dir).unwrap();
+            std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        for file in FILES {
+            std::fs::copy(Path::new(K113).join(file), attempt.join(file)).unwrap();
+        }
+        (temp, attempt)
+    }
+
+    fn line<'a>(summary: &'a Summary, name: &str) -> &'a str {
+        &summary
+            .lines
+            .iter()
+            .find(|line| line.line == name)
+            .unwrap_or_else(|| panic!("no {name} line"))
+            .text
+    }
+
+    /// D5 (K111): the summary of a `--vm` attempt prints what the verified
+    /// guest receipt reports the guest jail applied, never the host's
+    /// `pending`, and the transport line, which `tail --summary` prints too
+    /// because it is the summary's.
+    #[test]
+    fn a_vm_attempt_summarizes_its_guest_receipt_with_the_transport_line() {
+        let (_temp, attempt) = k113();
+        let host: Value =
+            serde_json::from_slice(&std::fs::read(attempt.join("jail.json")).unwrap()).unwrap();
+        // What the record printed before: the host receipt alone.
+        let before = summary(
+            &host,
+            Journal::Bytes(&std::fs::read(attempt.join("trace.ndjson")).unwrap()),
+        );
+        assert_eq!(line(&before, "network"), "network: not applied");
+        assert!(line(&before, "evidence").contains("0/6 classes active"));
+
+        let summary = summarize_attempt(&attempt).expect("the attempt summarizes");
+        let network = line(&summary, "network");
+        assert!(network.starts_with("network: proxy"), "{network}");
+        assert!(
+            network.contains("the guest's journal is not exported"),
+            "{network}"
+        );
+        let evidence = line(&summary, "evidence");
+        assert!(evidence.contains("6/6 classes active"), "{evidence}");
+        assert!(!evidence.contains("observer not attached"), "{evidence}");
+        assert_eq!(summary.journal, JournalState::Guest);
+        assert_eq!(
+            summary.receipt_digest,
+            crate::canonical::to_jcs(&host)
+                .ok()
+                .map(|bytes| crate::canonical::sha256_prefixed(&bytes)),
+            "the digest names the host receipt"
+        );
+        let terminal = summary.terminal(&attempt.join("jail.json"));
+        let transport = &terminal[terminal.len() - 2];
+        assert_eq!(
+            transport,
+            "ukai-jail: vm: guest-reported facts in evidence/jail.json · boot \
+             vm-9e2e72b1-db86-4b87-8ced-8c64706b1598 · image 310cee86ccca5b5d · vsock 1024 · \
+             receipt sha256:53837b58636d54bd"
+        );
+        assert!(terminal.last().unwrap().starts_with("ukai-jail: receipt "));
+        assert!(terminal.len() <= MAX_TERMINAL_LINES, "{terminal:#?}");
+        // The JSON form keeps its frozen shape: the transport line is not one
+        // of its lines, and the journal reads `absent`.
+        let json = summary.to_json();
+        assert_eq!(json["journal"], "absent");
+        assert_eq!(json["lines"].as_array().unwrap().len(), summary.lines.len());
+        assert!(json.get("transport").is_none());
+    }
+
+    /// The guest receipt the summary reads is the one the transport record
+    /// names by digest; anything else is an error, never a quiet fallback.
+    #[test]
+    fn a_guest_receipt_its_transport_record_does_not_name_is_refused() {
+        let (_temp, attempt) = k113();
+        let guest = attempt.join("evidence/jail.json");
+        let mut bytes = std::fs::read(&guest).unwrap();
+        bytes.push(b' ');
+        std::fs::write(&guest, &bytes).unwrap();
+        let error = summarize_attempt(&attempt).unwrap_err();
+        assert!(error.contains("does not hash"), "{error}");
+        std::fs::remove_file(&guest).unwrap();
+        let error = summarize_attempt(&attempt).unwrap_err();
+        assert!(error.contains("is absent"), "{error}");
+        // No transport record: no verified guest receipt was stored, and the
+        // host receipt is summarized as it is.
+        std::fs::remove_file(attempt.join(VM_TRANSPORT_FILE)).unwrap();
+        let summary = summarize_attempt(&attempt).unwrap();
+        assert_eq!(summary.transport, None);
+        assert_eq!(line(&summary, "network"), "network: not applied");
+    }
+
+    /// Only an attempt whose host receipt names the transport is a `--vm`
+    /// one: a stray `vm-transport.json` beside a native receipt is ignored.
+    #[test]
+    fn a_transport_record_beside_a_native_receipt_is_not_read() {
+        let (_temp, attempt) = k113();
+        let mut host: Value =
+            serde_json::from_slice(&std::fs::read(attempt.join("jail.json")).unwrap()).unwrap();
+        host["lifetime"]["native"]["details"]
+            .as_object_mut()
+            .unwrap()
+            .remove("transport");
+        std::fs::write(
+            attempt.join("jail.json"),
+            serde_json::to_vec(&host).unwrap(),
+        )
+        .unwrap();
+        let summary = summarize_attempt(&attempt).unwrap();
+        assert_eq!(summary.transport, None);
+        assert_ne!(summary.journal, JournalState::Guest);
+    }
 }

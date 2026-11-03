@@ -1690,26 +1690,9 @@ fn run(context: &Context, args: &RunArgs, channels: supervisor::OperatorChannels
         // being made. J13: the summary is computed from the final receipt and
         // journal on disk alone, as `tail --summary` computes it, so the two
         // print the same lines; the receipt line stays last. The exit code
-        // never depends on it.
-        // J18 (jail-macos.md §6): a `--vm` attempt prints one transport
-        // line from its `vm-transport.json` beside the guest summary; the
-        // receipt line still stays last. No record, no line.
-        #[cfg(target_os = "macos")]
-        if let Some(dir) = path.parent() {
-            let record_path = dir.join(ukai_jail::platform::macos::vm::record::TRANSPORT_FILE);
-            if let Ok(text) = std::fs::read_to_string(&record_path)
-                && let Ok(record) = serde_json::from_str::<
-                    ukai_jail::platform::macos::vm::record::TransportRecord,
-                >(&text)
-                && let Ok(bytes) = std::fs::read(path)
-                && let Ok(receipt) = serde_json::from_slice::<serde_json::Value>(&bytes)
-            {
-                ukai_jail::diag!(
-                    "{}",
-                    ukai_jail::platform::macos::vm::record::transport_line(&receipt, &record)
-                );
-            }
-        }
+        // never depends on it. J18 (jail-macos.md §6): a `--vm` attempt's
+        // summary carries its guest facts and its transport line itself, so
+        // `tail --summary` prints the same lines.
         print_summary(path);
     }
     exit(report.exit_code)

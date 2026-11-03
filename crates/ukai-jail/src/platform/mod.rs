@@ -155,9 +155,10 @@ pub struct PreparedPlan {
     /// root (audit 2026-10-08 H1).
     pub config_dir: PathBuf,
     /// The `--launch NAME` the operator named, when a launch profile is in
-    /// play: the one spelling of the profile the platform may re-read from
-    /// `<config_dir>/launch/` (the VM tier transports its TOML to the
-    /// guest with the credential sources rewritten to tmpfs staging).
+    /// play. Only its name is used: the VM tier names the guest's launch
+    /// declaration with it, and generates that declaration from the
+    /// snapshot's `launch` group (decision D3). No platform re-reads the
+    /// operator's file.
     pub launch_name: Option<String>,
     /// The vendor-state directory and `bind_ro` sources, when a launch
     /// profile needs them; `None` otherwise. Staged by the supervisor and
@@ -602,6 +603,43 @@ pub trait PreparedExecution {
     fn abort(self: Box<Self>) -> Result<Teardown, JailError>;
 }
 
+/// J18 (jail-macos.md §6, K111, decision D5): what a guest jail applied, as
+/// its verified receipt reports it, in the host receipt's own types. The
+/// settled host receipt of a `--vm` attempt takes these groups from it, so
+/// the host receipt never contradicts the guest's, and
+/// `lifetime.native.details` names the guest receipt they came from and the
+/// fields they replaced ([`GuestFacts::CARRIED`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct GuestFacts {
+    /// The guest kernel, as the guest receipt's `platform.kernel` names it.
+    pub kernel: String,
+    /// The guest architecture, `platform.arch`.
+    pub arch: String,
+    /// Whether the guest jail observed the target's exec.
+    pub exec_observed: bool,
+    /// What the guest jail applied; the host keeps its own `terminal`.
+    pub applied: crate::records::Applied,
+    /// The guest jail's observer.
+    pub observer: crate::records::ObserverRecord,
+    /// The guest jail's coverage classes.
+    pub coverage: crate::records::Coverage,
+    /// `lifetime.native.details` entries naming the guest receipt.
+    pub details: serde_json::Map<String, serde_json::Value>,
+}
+
+impl GuestFacts {
+    /// The host receipt fields the guest facts replace, as
+    /// `lifetime.native.details.guest_carried` lists them.
+    pub const CARRIED: [&'static str; 6] = [
+        "platform.kernel",
+        "platform.arch",
+        "exec_observed",
+        "applied",
+        "observer",
+        "coverage",
+    ];
+}
+
 /// Why a release failed, and what the teardown it ran established.
 #[derive(Debug)]
 pub struct ReleaseFailure {
@@ -667,6 +705,15 @@ pub trait RunningExecution {
 
     /// Drains the observer and returns its summary, when one ran.
     fn observer_summary(&mut self) -> Option<crate::observer::CoverageSummary>;
+
+    /// J18 (jail-macos.md §6, decision D5): what the guest jail applied,
+    /// when this platform ran the attempt inside one and verified its
+    /// receipt; the settled host receipt mirrors it, so that no host field
+    /// contradicts the guest's. The default, every native platform, has
+    /// none.
+    fn guest_facts(&self) -> Option<GuestFacts> {
+        None
+    }
 
     // J14 terminal mode (jail-interactive-sessions.md §3.4)
     /// The signal that stopped the target's process group, reported once per
