@@ -1830,6 +1830,24 @@ mod service_regressions {
         )
         .unwrap();
         assert_eq!(guest_poweroff_reason(&console), None);
+        // Other audits carry a `reason` too; only a poweroff's is the
+        // guest's own ending, however late the other line comes.
+        std::fs::write(
+            &console,
+            "UKAI_VM {\"event\": \"poweroff\", \"reason\": \"attempt_tree_unverified\"}\n\
+             UKAI_VM {\"event\": \"attempt_stop_failed\", \"reason\": \"not_a_poweroff\"}\n",
+        )
+        .unwrap();
+        assert_eq!(
+            guest_poweroff_reason(&console).as_deref(),
+            Some("attempt_tree_unverified")
+        );
+        std::fs::write(
+            &console,
+            "UKAI_VM {\"event\": \"infrastructure_unknown\", \"reason\": \"not_a_poweroff\"}\n",
+        )
+        .unwrap();
+        assert_eq!(guest_poweroff_reason(&console), None);
     }
 
     #[test]
