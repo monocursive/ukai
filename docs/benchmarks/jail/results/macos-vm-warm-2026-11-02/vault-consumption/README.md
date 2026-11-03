@@ -1,10 +1,17 @@
-# Vault-value consumption through the VM — wiring complete, injection open
+# Vault-value consumption through the VM — MEASURED PASS (2026-11-03)
 
-**Development evidence only. The live measurement FAILED on its final
-assertion and is recorded verbatim
-([vault-consumption.json](../vault-consumption.json)); this is not a
-passing claim.** (Recorded 2026-11-03; harness:
-[vault_measurement.py](vault_measurement.py), image19.)
+**The live measurement passes**
+([vault-consumption-PASS.json](vault-consumption-PASS.json); harness
+[vault_measurement.py](vault_measurement.py), image19): the child held
+only the **placeholder** (`UKAI_VAULT_TEST` = `vault:<attempt>:test`, 51
+bytes — never the secret), placed it in the header, and the guest proxy
+**substituted the secret in flight** — the echo server received
+`x-test-token: <the secret>`. The attempt settled (exit 0,
+`tree_empty: true`), the guest receipt records the credential in vault
+mode never staged, and the secret value appears in **no exported file**.
+The earlier failed run is retained below verbatim: its probe sent no
+placeholder, and `inject_bound` substitutes a placeholder — it never adds
+a header from nothing. The machinery was correct; the probe was wrong.
 
 ## What is wired and verified live
 

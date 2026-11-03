@@ -60,6 +60,6 @@
             "K112.1",
             "K113.1"
         ],
-        "scope_note": "ukai-jail run --vm drives the warm service with the live workspace share and proxied agent policies (measured 2026-11-03). Vault-value consumption is wired end to end (values cross to guest tmpfs, the guest jail resolves the launch profile and records the credential in vault mode) but header injection is NOT yet observed live \u2014 the echo measurement failed on that assertion (docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/vault-consumption/). K108-K113 live rows on an installed package remain; no release gate is claimed."
+        "scope_note": "ukai-jail run --vm drives the warm service with the live workspace share, proxied agent policies and vault-mode credentials (all measured live 2026-11-03: allowed host fetched through the guest proxy; vault value substituted in flight with the child holding only the placeholder and the value in no export \u2014 docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/vault-consumption/). Staged credential modes (copy_rw/bind_ro) and K108-K113 live rows on an installed package remain; no release gate is claimed."
     }
 }

@@ -1,0 +1,41 @@
+{
+  "run": {
+    "exit": 0,
+    "elapsed": 65.3,
+    "stdout": "PLACEHOLDER_SEEN vault:att_f1 51\nECHO 200 echo\n",
+    "stderr": ""
+  },
+  "echo_requests": 1,
+  "injected_header": "ukai-vault-measurement-token-773f",
+  "received_headers": {
+    "host": "192.168.1.6:50763",
+    "accept-encoding": "identity",
+    "user-agent": "Python-urllib/3.14",
+    "x-test-token": "ukai-vault-measurement-token-773f",
+    "connection": "close"
+  },
+  "value_leaked_to_exports": [],
+  "records": {
+    "phase": "settled",
+    "exit": 0,
+    "tree_empty": true,
+    "guest_credentials": [
+      {
+        "never_staged": true,
+        "id": "test",
+        "mode": "vault",
+        "digest": null,
+        "digest_unavailable_reason": "never_staged"
+      }
+    ],
+    "guest_network": {
+      "mode": "proxy",
+      "mechanism": "network-namespace+outside-http-proxy+loopback-bridge+unix-peer-mediation",
+      "allowed_hosts": [
+        "192.168.1.6:50763",
+        "192.168.1.6:50763"
+      ]
+    }
+  },
+  "outcome": "PASS"
+}

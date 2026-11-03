@@ -85,8 +85,11 @@ allow = ["{address}:{port}"]
     os.chmod(config / 'launch' / 'vault-test.toml', 0o600)
 
     fetch = ("python3 -c \"import os, urllib.request; "
-             "print('PROXYENV', {k: v for k, v in os.environ.items() if 'proxy' in k.lower()}); "
-             "r=urllib.request.urlopen('http://%s:%d/echo', timeout=20); "
+             "token = os.environ.get('UKAI_VAULT_TEST', ''); "
+             "print('PLACEHOLDER_SEEN', token[:12], len(token)); "
+             "req = urllib.request.Request('http://%s:%d/echo', "
+             "headers={'x-test-token': token}); "
+             "r = urllib.request.urlopen(req, timeout=20); "
              "print('ECHO', r.status, r.read().decode())\"" % (address, port))
 
     data = Path(tempfile.mkdtemp(prefix='vault-run-'))
