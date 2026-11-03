@@ -23,14 +23,48 @@ if [[ -e "$link" || -L "$link" ]]; then
     echo "Refusing to replace an existing unrelated command: $link" >&2; exit 2;
   }
 fi
-cd "$source_dir"
+# The work directory sits under the prefix so the final move is a rename on
+# one volume; directories this run creates are removed again unless it
+# installs, so a refused package leaves the prefix as it found it.
+created=()
+for directory in "$prefix" "$prefix/share" "$prefix/share/ukai-vm" "$prefix/bin"; do
+  [[ -d "$directory" ]] || created+=("$directory")
+done
+installed=0
+work=
+cleanup() {
+  [[ -z "$work" ]] || rm -rf -- "$work"
+  if [[ $installed != 1 ]]; then
+    for ((i=${#created[@]}-1; i>=0; i--)); do rmdir -- "${created[i]}" 2>/dev/null || true; done
+  fi
+}
+trap cleanup EXIT
+mkdir -p "$prefix/share/ukai-vm" "$prefix/bin"
+work=$(mktemp -d "$prefix/share/ukai-vm/.install.XXXXXXXX")
+# The source is read once: the manifest and the payload are copied first, and
+# every check below reads the copy, which is exactly what gets installed.
+cp "$source_dir/SHA256SUMS" "$work/SHA256SUMS"
+ditto "$source_dir/payload" "$work/payload"
+cd "$work"
 actual=$(shasum -a 256 SHA256SUMS | cut -d' ' -f1)
 [[ "$actual" == '@MANIFEST_SHA256@' ]] || { echo 'Package manifest checksum mismatch.' >&2; exit 1; }
-shasum -a 256 --check --status SHA256SUMS || { echo 'Package checksum mismatch.' >&2; exit 1; }
-mkdir -p "$prefix/share/ukai-vm" "$prefix/bin"
-stage=$(mktemp -d "$prefix/share/ukai-vm/.install.XXXXXXXX")
-trap 'rm -rf -- "$stage"' EXIT
-ditto "$source_dir/payload" "$stage"
+# Every payload entry must be a regular file the manifest lists: shasum
+# --check alone ignores extra files, which the copy would then install.
+[[ -z "$(find payload ! -type d ! -type f)" ]] || { echo 'Package payload holds a non-regular file.' >&2; exit 1; }
+listed=$({ sed -n 's/^[0-9a-f]\{64\}  \(payload\/.*\)$/\1/p' SHA256SUMS || true; } | LC_ALL=C sort)
+present=$(find payload -type f | LC_ALL=C sort)
+[[ -n "$listed" && "$listed" == "$present" ]] || { echo 'Package payload holds files the manifest does not list.' >&2; exit 1; }
+{ grep '^[0-9a-f]\{64\}  payload/' SHA256SUMS || true; } | shasum -a 256 --check --status || {
+  echo 'Package checksum mismatch.' >&2; exit 1;
+}
+# The rest of the volume is not installed; it is still verified, in place.
+rest=$({ grep -v '^[0-9a-f]\{64\}  payload/' SHA256SUMS || true; })
+if [[ -n "$rest" ]]; then
+  ( cd "$source_dir" && printf '%s\n' "$rest" | shasum -a 256 --check --status ) || {
+    echo 'Package checksum mismatch.' >&2; exit 1;
+  }
+fi
+stage="$work/payload"
 "$stage/bin/ukai-vm-install" expand-image
 rm "$stage/image/base.raw.gz"
 "$stage/bin/ukai-vm" version
@@ -38,5 +72,6 @@ rm "$stage/image/base.raw.gz"
 # Installing remains useful there; only execution requires virtualization.
 "$stage/bin/ukai-vm" doctor || [[ $? == 125 ]]
 mv "$stage" "$destination"
+installed=1
 ln -sfn "$destination/bin/ukai-vm" "$link"
 printf '\nInstalled %s\nAdd %s/bin to PATH, then run ukai-vm doctor.\n' "$link" "$prefix"
