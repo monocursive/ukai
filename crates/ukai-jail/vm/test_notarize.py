@@ -23,12 +23,21 @@ class FakeApple:
     """subprocess.run for xcrun/spctl: scripted answers, every argv kept."""
 
     def __init__(self, status='Accepted', submit_exit=0, submit_timeout=False, staple_changes_dmg=True,
-                 validate_ok=True, dmg=None):
+                 validate_ok=True, dmg=None, echo=''):
         self.calls = []
+        self.echo = echo
         self.status, self.submit_exit, self.submit_timeout = status, submit_exit, submit_timeout
         self.staple_changes_dmg, self.validate_ok, self.dmg = staple_changes_dmg, validate_ok, dmg
 
     def __call__(self, argv, capture_output=True, text=True, timeout=None):
+        done = self.answer(argv, timeout)
+        if self.echo:
+            # A tool that echoes what it was given (its own error text, a debug line).
+            done = subprocess.CompletedProcess(done.args, done.returncode, (done.stdout or '') + self.echo,
+                                               (done.stderr or '') + self.echo)
+        return done
+
+    def answer(self, argv, timeout):
         self.calls.append(list(argv))
         if argv[:3] == ['xcrun', 'notarytool', 'submit']:
             if self.submit_timeout:
@@ -65,10 +74,12 @@ class PackageFixture:
         self.key = self.root / key_name
         self.key.write_bytes(b'private key bytes')
 
-    def run(self, apple):
+    def run(self, apple, profile=None):
         apple.dmg = self.dmg
         argv = ['notarize.py', '--package', str(self.root), '--key', str(self.key),
                 '--key-id', 'KEYID-SECRET-1', '--issuer', 'ISSUER-SECRET-2']
+        if profile is not None:
+            argv = ['notarize.py', '--package', str(self.root), '--profile', profile]
         with mock.patch.object(sys, 'argv', argv), mock.patch.object(notarize.subprocess, 'run', apple), \
                 mock.patch('builtins.print'):
             return notarize.main()
@@ -109,6 +120,26 @@ class NotarizationTests(unittest.TestCase):
         # The fake really received them: the scrub, not the fake, keeps them out.
         self.assertIn(str(package.key), ' '.join(apple.calls[0]))
         self.assertIn('<redacted>', text)
+
+    def test_a_tool_echoing_the_credentials_never_puts_them_in_the_record(self):
+        # Reviewer N4, N9: stdout and stderr are scrubbed by value, for every
+        # credential given (the key path, its resolved path, key id, issuer).
+        package = self.fixture()
+        apple = FakeApple(echo=f'\nusing {package.key} ({package.key.resolve()}) id KEYID-SECRET-1 '
+                               'issuer ISSUER-SECRET-2\n')
+        self.assertEqual(package.run(apple), 0)
+        text = (package.root / 'notarization.json').read_text()
+        for secret in (str(package.key), str(package.key.resolve()), 'KEYID-SECRET-1', 'ISSUER-SECRET-2'):
+            self.assertNotIn(secret, text)
+        record = package.record()
+        self.assertTrue(all('<redacted>' in step['stdout'] and '<redacted>' in step['stderr'] for step in record['steps']))
+
+    def test_a_keychain_profile_name_never_reaches_the_record(self):
+        package = self.fixture()
+        apple = FakeApple(echo='\nprofile PROFILE-SECRET-3 not found in keychain\n')
+        package.run(apple, profile='PROFILE-SECRET-3')
+        self.assertIn('PROFILE-SECRET-3', ' '.join(apple.calls[0]))
+        self.assertNotIn('PROFILE-SECRET-3', (package.root / 'notarization.json').read_text())
 
     def test_the_scrub_redacts_every_credential_flag_and_spelling(self):
         argv = ['xcrun', 'notarytool', 'submit', 'x.dmg', '--key', '/k/AuthKey.p8', '--key-id=ABC',
@@ -155,6 +186,16 @@ class NotarizationTests(unittest.TestCase):
         self.assertEqual(package.record('notarization.2.json')['outcome'], 'notarized')
         self.assertEqual(json.loads((package.root / 'package.json').read_text())['notarization_record'],
                          'notarization.2.json')
+
+    def test_the_record_is_created_never_overwritten(self):
+        # Reviewer N6: even a record path that already exists (a racing
+        # writer) is never replaced: the record is opened exclusively.
+        package = self.fixture()
+        (package.root / 'notarization.json').write_text('an earlier record\n')
+        with mock.patch.object(notarize, 'record_path', lambda root: root / 'notarization.json'), \
+                self.assertRaises(FileExistsError):
+            package.run(FakeApple())
+        self.assertEqual((package.root / 'notarization.json').read_text(), 'an earlier record\n')
 
     def test_a_stapled_dmg_is_never_resubmitted(self):
         package = self.fixture()
