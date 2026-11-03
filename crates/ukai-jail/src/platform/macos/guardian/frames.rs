@@ -10,9 +10,10 @@
 //! - `release-deadline ` + 8 bytes: the wall deadline in continuous-clock
 //!   nanoseconds from release (§4.3 step 6).
 //!
-//! On **B** (guardian → supervisor): `ready` (§4.3 step 3), `token-seen`
-//! (step 5), and the final `record ` + JSON bytes holding exactly the
-//! guardian record written to disk (§4.4).
+//! On **B** (guardian → supervisor): `allowance ` + rule 6's applied
+//! `RLIMIT_NPROC` allowance (see [`super::rlimit::ALLOWANCE_FRAME`]), then
+//! `ready` (§4.3 step 3), `token-seen` (step 5), and the final `record ` +
+//! JSON bytes holding exactly the guardian record written to disk (§4.4).
 //!
 //! End-of-file on A means stop, whatever frames are pending (§4.3).
 
