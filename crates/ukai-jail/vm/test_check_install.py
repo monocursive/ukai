@@ -140,7 +140,9 @@ class InstalledTreeTests(unittest.TestCase):
                              ('group-writable directory', lambda: (self.installed / 'bin').chmod(0o775)),
                              ('private directory', lambda: (self.installed / 'image').chmod(0o700)),
                              ('executable bit the volume never had', lambda: (self.installed / 'image' / 'vz').chmod(0o755)),
-                             ('a link', lambda: (self.installed / 'bin' / 'alias').symlink_to('ukai-vm'))]:
+                             ('a link', lambda: (self.installed / 'bin' / 'alias').symlink_to('ukai-vm')),
+                             ('the service replaced by a link', lambda: ((self.installed / 'bin' / 'ukai-vm').unlink(),
+                                                                         (self.installed / 'bin' / 'ukai-vm').symlink_to('/bin/sh')))]:
             with self.subTest(name):
                 change()
                 self.assertFalse(check_install.installed_modes_normal(self.volume, self.installed))
