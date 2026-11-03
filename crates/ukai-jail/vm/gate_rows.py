@@ -16,7 +16,12 @@ covers the rows that need the CLI or the row's own probes:
         digest of exactly the argv this harness passed (as does the guest
         receipt's own argv_digest); no host-receipt field contradicts the
         guest receipt (D5); and both the run's summary and `tail --summary`
-        carry a transport line whose values are the transport record's;
+        carry a transport line whose values are the transport record's, a
+        network line stating the guest receipt's applied mode, and an
+        evidence line counting the guest's active classes and its observer
+        attachment (every fact summary_facts computes is gated); the
+        workload writes this run's nonce, so an earlier run's file cannot
+        count;
   K112  the kernel-bound key refuses in every lane: native (as shipped and
         dev-enabled) and this build's installed --vm backend, all with
         `unsupported`, all before any process or boot (the workload would
@@ -43,7 +48,10 @@ import capabilities  # noqa: E402
 import harness  # noqa: E402
 
 SENTINEL = '[core]\n'
-K111_SCRIPT = 'printf "row-k111\\n" > k111.txt; echo row-k111-done'
+
+
+def k111_script(tag):
+    return f'printf "row-k111-{tag}\\n" > k111.txt; echo row-k111-done'
 
 
 def row_k109(binary, home, workspace):
@@ -70,6 +78,7 @@ def judge_k109(tag, granted, refused, outside, workspace, git_config, service_ex
     row = {
         'granted_write_on_host': on_host.is_file() and on_host.read_text() == f'granted-{tag}\n',
         'granted_exit_zero': granted.get('exit_code') == 0 and not granted.get('error'),
+        'granted_receipt_bound': harness.receipt_bound(granted),
         'git_write_tried_and_refused': (f'git_write_refused-{tag}' in granted['stdout']
                                         and f'GIT_WRITE_ALLOWED-{tag}' not in granted['stdout']),
         'git_config_unchanged': git_config.read_text() == SENTINEL,
@@ -96,7 +105,7 @@ def read_json(path):
     return json.loads(Path(path).read_text()) if Path(path).is_file() else {}
 
 
-def judge_k111(attempt, workspace, run_exit, terminal, tail_summary, argv):
+def judge_k111(attempt, workspace, run_exit, terminal, tail_summary, argv, tag):
     guest_path = attempt / 'evidence/jail.json'
     guest = read_json(guest_path)
     binding = read_json(attempt / 'evidence/vm-binding.json')
@@ -110,7 +119,7 @@ def judge_k111(attempt, workspace, run_exit, terminal, tail_summary, argv):
         'exit_zero': (stored.get('outcome') or {}).get('code') == 0,
         'tree_empty': (stored.get('lifetime') or {}).get('tree_empty') is True,
         'granted_write_on_host': (Path(workspace) / 'k111.txt').is_file()
-        and (Path(workspace) / 'k111.txt').read_text() == 'row-k111\n',
+        and (Path(workspace) / 'k111.txt').read_text() == f'row-k111-{tag}\n',
         'guest_receipt_is_linux': (guest.get('platform') or {}).get('os') == 'linux',
         'digest_matches_record': bool(transport.get('guest_receipt_sha256')) and guest_digest == transport['guest_receipt_sha256'],
         'binding_matches_attempt': binding.get('attempt_id') == attempt.name,
@@ -122,8 +131,11 @@ def judge_k111(attempt, workspace, run_exit, terminal, tail_summary, argv):
     }
     run_summary = harness.summary_facts(terminal, guest, transport)
     stored_summary = harness.summary_facts(tail_summary, guest, transport)
-    row['run_summary_transport_line_from_record'] = run_summary['transport_line_from_record']
-    row['tail_summary_transport_line_from_record'] = stored_summary['transport_line_from_record']
+    # Every fact the record computes is a gate (F-1): the transport line, the
+    # guest's network line, its class count and its observer attachment.
+    for prefix, facts in (('run_summary', run_summary), ('tail_summary', stored_summary)):
+        for name, value in facts.items():
+            row[f'{prefix}_{name}'] = value is True
     detail = {'expected_argv_digest': expected_argv, 'binding': binding,
               'contradictions': harness.receipt_contradictions(stored, guest),
               'run_summary_facts': run_summary, 'tail_summary_facts': stored_summary,
@@ -139,7 +151,8 @@ def row_k111(home, workspace, jail, out):
     config = Path(tempfile.mkdtemp(prefix='row-k111-cfg-'))
     os.chmod(config, 0o700)
     environment = cli_environment(home, data, config)
-    argv = ['/bin/sh', '-c', K111_SCRIPT]
+    tag = harness.nonce()
+    argv = ['/bin/sh', '-c', k111_script(tag)]
     started = time.monotonic()
     # script(1) gives the supervisor a real terminal, the only condition
     # under which the summary and its transport line print.
@@ -165,7 +178,7 @@ def row_k111(home, workspace, jail, out):
         return {'outcome': 'REFUSED' if refusals else 'FAIL', 'refusals': refusals,
                 'run_exit': run_exit, 'elapsed_s': elapsed, 'terminal_tail': terminal[-800:]}
     shutil.copytree(attempts[-1], out / 'k111-attempt')
-    row, detail = judge_k111(attempts[-1], workspace, run_exit, terminal, tail, argv)
+    row, detail = judge_k111(attempts[-1], workspace, run_exit, terminal, tail, argv, tag)
     (out / 'k111-tail-summary.txt').write_text(tail)
     if refusals:
         # A refusal (vm:not-measured until the live phase fills the host's

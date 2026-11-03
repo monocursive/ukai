@@ -65,6 +65,17 @@ class ProbeVerdictTests(unittest.TestCase):
         # printed net_refused for every outcome under dash; no such text counts here.
         self.assertFalse(harness.probe_verdict('net_refused\nnet_denied\n', 'x')['denied'])
 
+    def test_only_the_jails_own_errno_is_a_denial(self):
+        # Reviewer FX9: a timeout, ECONNREFUSED (a peer answered: the packet
+        # left), EHOSTUNREACH and unknown errnos all counted as denials.
+        self.assertEqual(harness.DENIAL_ERRNOS, ('ENETUNREACH',))
+        for egress in ('timeout', 'ECONNREFUSED', 'EHOSTUNREACH', 'errno-999', 'EPERM', '', None):
+            with self.subTest(egress=egress):
+                verdict = harness.probe_verdict(probe_line('t', egress=egress), 't')
+                self.assertEqual(verdict['verdict'], 'inconclusive')
+                self.assertFalse(verdict['denied'])
+        self.assertTrue(harness.probe_verdict(probe_line('t', egress='ENETUNREACH'), 't')['denied'])
+
 
 class ProbeSourceTests(unittest.TestCase):
     """The probe's real source, against loopback targets only (no external network)."""
@@ -90,8 +101,10 @@ class ProbeSourceTests(unittest.TestCase):
         closed_port = closed.getsockname()[1]
         closed.close()
         verdict = self.run_probe(closed_port)
-        self.assertEqual(verdict['verdict'], 'egress_denied')
+        # A refusal is a peer answering, not the jail: never a denial.
+        self.assertEqual(verdict['verdict'], 'inconclusive')
         self.assertEqual(verdict['egress'], 'ECONNREFUSED')
+        self.assertFalse(verdict['denied'])
 
     def test_the_shell_form_quotes_the_source(self):
         tag = harness.nonce()
@@ -108,6 +121,224 @@ class ProbeSourceTests(unittest.TestCase):
             listener.close()
         self.assertEqual(harness.probe_verdict(done.stdout, tag)['verdict'], 'egress_allowed')
         self.assertNotIn('/dev/tcp', command)
+
+
+class FakeConnectProxy:
+    """A loopback stand-in for the guest jail's proxy: answers CONNECT with `status`
+    for `allowed` targets, 403 for any other; connects nowhere."""
+
+    def __init__(self, allowed, status='200 Connection established'):
+        self.listener = socket.socket()
+        self.listener.bind(('127.0.0.1', 0))
+        self.listener.listen(4)
+        self.allowed, self.status, self.requests = set(allowed), status, []
+        threading.Thread(target=self.serve, daemon=True).start()
+
+    @property
+    def url(self):
+        return 'http://127.0.0.1:%d' % self.listener.getsockname()[1]
+
+    def serve(self):
+        while True:
+            try:
+                stream, _ = self.listener.accept()
+            except OSError:
+                return
+            with stream:
+                head = b''
+                while b'\r\n\r\n' not in head:
+                    chunk = stream.recv(4096)
+                    if not chunk:
+                        break
+                    head += chunk
+                line = head.split(b'\r\n', 1)[0].decode()
+                self.requests.append(line)
+                target = line.split()[1] if line.startswith('CONNECT ') else None
+                status = self.status if target in self.allowed else '403 Forbidden'
+                stream.sendall(f'HTTP/1.1 {status}\r\n\r\n'.encode())
+
+    def close(self):
+        self.listener.close()
+
+
+class RouteControlTests(unittest.TestCase):
+    """The same-boot route control (F-2): its real source against a loopback proxy."""
+
+    TARGET = ('127.0.0.1', 9)
+
+    def run_control(self, proxy_url, target=TARGET):
+        tag = harness.nonce()
+        argv = harness.route_argv(tag, target=target, timeout=3.0)
+        argv[0] = sys.executable
+        environment = {key: value for key, value in os.environ.items() if 'proxy' not in key.lower()}
+        if proxy_url is not None:
+            environment['HTTPS_PROXY'] = proxy_url
+        done = subprocess.run(argv, capture_output=True, text=True, timeout=30, env=environment)
+        return harness.route_verdict(done.stdout, tag, target), done
+
+    def test_reached_only_when_the_proxy_tunnels_to_this_target(self):
+        proxy = FakeConnectProxy({'127.0.0.1:9'})
+        self.addCleanup(proxy.close)
+        verdict, done = self.run_control(proxy.url)
+        self.assertEqual(verdict['verdict'], 'reached', done.stderr)
+        self.assertEqual(proxy.requests, ['CONNECT 127.0.0.1:9 HTTP/1.1'])
+        self.assertEqual(harness.route_rule(self.TARGET), '127.0.0.1:9')
+
+    def test_every_other_answer_is_not_reached(self):
+        refusing = FakeConnectProxy({'127.0.0.1:9'}, status='502 Bad Gateway')
+        self.addCleanup(refusing.close)
+        self.assertFalse(self.run_control(refusing.url)[0]['reached'])
+        other = FakeConnectProxy({'127.0.0.1:10'})
+        self.addCleanup(other.close)
+        self.assertFalse(self.run_control(other.url)[0]['reached'])
+        verdict, _ = self.run_control(None)
+        self.assertEqual(verdict['verdict'], 'not_reached')
+        self.assertIn('HTTPS_PROXY', verdict['error'])
+
+    def test_the_verdict_reads_one_line_for_this_target(self):
+        def line(tag, status='HTTP/1.1 200 Connection established', target=('1.1.1.1', 443)):
+            return 'UKAI_ROUTE_CONTROL ' + json.dumps({'nonce': tag, 'target': list(target), 'status_line': status})
+        with mock.patch.object(harness, 'PROBE_TARGET', ('1.1.1.1', 443)):
+            self.assertTrue(harness.route_verdict(line('r'), 'r')['reached'])
+            for name, stdout, verdict in [
+                    ('no line', 'proxy said yes\n', 'no_control'),
+                    ('another run', line('other'), 'no_control'),
+                    ('two lines', line('r') + '\n' + line('r'), 'ambiguous'),
+                    ('another target', line('r', target=('8.8.8.8', 443)), 'not_reached'),
+                    ('a refusal', line('r', status='HTTP/1.1 403 Forbidden'), 'not_reached'),
+                    ('a 2000 is not a 200', line('r', status='HTTP/1.1 2000 x'), 'not_reached'),
+                    ('no status', line('r', status=None), 'not_reached')]:
+                with self.subTest(name):
+                    result = harness.route_verdict(stdout, 'r')
+                    self.assertEqual(result['verdict'], verdict)
+                    self.assertFalse(result['reached'])
+            self.assertEqual(harness.route_rule(), '1.1.1.1:443')
+
+
+class NetworkDenialTests(unittest.TestCase):
+    """Reviewer FX4: a denial with no route at all (`unshare -rn`) is not the jail's."""
+
+    def facts(self, **changes):
+        values = dict(probe={'denied': True}, route={'reached': True}, guest_nat=True,
+                      probe_guest_boot='g-1', route_guest_boot='g-1', route_bound=True)
+        values.update(changes)
+        return harness.network_denial(**values)
+
+    def test_the_jails_denial_needs_every_fact(self):
+        self.assertTrue(all(self.facts().values()))
+        for name, changes, fact in [
+                ('no NAT: no route for anyone', {'guest_nat': False}, 'guest_nat_attached'),
+                ('NAT unknown', {'guest_nat': None}, 'guest_nat_attached'),
+                ('the route control never reached the target', {'route': {'reached': False}}, 'route_control_reached_the_target'),
+                ('no route control', {'route': None}, 'route_control_reached_the_target'),
+                ('the route control ran on another boot', {'route_guest_boot': 'g-2'}, 'route_control_on_the_same_guest_boot'),
+                ('no guest boot measured', {'probe_guest_boot': None, 'route_guest_boot': None}, 'route_control_on_the_same_guest_boot'),
+                ('the route control receipt is another attempt\'s', {'route_bound': False}, 'route_control_receipt_bound'),
+                ('the probe connected', {'probe': {'denied': False}}, 'probe_saw_the_jails_denial')]:
+            with self.subTest(name):
+                facts = self.facts(**changes)
+                self.assertFalse(facts[fact])
+                self.assertEqual([key for key, value in facts.items() if value is not True], [fact])
+
+
+class ReceiptBindingTests(unittest.TestCase):
+    """F-5 / reviewer FX10: only a verified receipt bound to this attempt backs a verdict."""
+
+    ARGV = ['/bin/sh', '-c', 'echo x']
+
+    def good(self):
+        digest = harness.argv_digest(self.ARGV)
+        return {'attempt_id': 'a-1', 'profile': 'tool', 'argv_digest': digest, 'boot_id': 'vm-1',
+                'receipt_digest_ok': True, 'receipt': {'argv_digest': digest},
+                'binding': {'attempt_id': 'a-1', 'profile': 'tool', 'argv_digest': digest, 'boot_id': 'vm-1',
+                            'guest_boot_id': 'g-1', 'guest_attempt_id': 'att_1'}}
+
+    def test_each_mismatch_unbinds(self):
+        self.assertTrue(harness.receipt_bound(self.good()))
+        other = harness.argv_digest(['/bin/sh', '-c', 'other'])
+        for name, change in [
+                ('digest mismatch', lambda r: r.update(receipt_digest_ok=False)),
+                ('bound to another attempt', lambda r: r['binding'].update(attempt_id='a-2')),
+                ('another argv in the binding', lambda r: r['binding'].update(argv_digest=other)),
+                ('another argv in the receipt', lambda r: r['receipt'].update(argv_digest=other)),
+                ('another profile', lambda r: r['binding'].update(profile='agent')),
+                ('another serve boot', lambda r: r['binding'].update(boot_id='vm-2')),
+                ('no serve boot', lambda r: r.update(boot_id=None)),
+                ('no guest boot', lambda r: r['binding'].pop('guest_boot_id')),
+                ('no binding', lambda r: r.pop('binding')),
+                ('no receipt', lambda r: r.pop('receipt'))]:
+            with self.subTest(name):
+                record = self.good()
+                change(record)
+                self.assertFalse(harness.receipt_bound(record))
+
+    def test_run_attempt_records_the_argv_digest(self):
+        server = FakeAttemptServer(completing())
+        self.addCleanup(server.close)
+        record = harness.run_attempt(server.connect, 'a1', self.ARGV)
+        self.assertEqual(record['argv_digest'], harness.argv_digest(self.ARGV))
+        bound = FakeAttemptServer(completing(bound=True))
+        self.addCleanup(bound.close)
+        self.assertTrue(harness.receipt_bound(harness.run_attempt(bound.connect, 'a2', self.ARGV)))
+        self.assertFalse(harness.receipt_bound(record), 'the default fake binding names no attempt')
+
+    def attempt_dir(self):
+        root = Path(tempfile.mkdtemp(prefix='harness-attdir-'))
+        self.addCleanup(shutil.rmtree, root, True)
+        attempt = root / 'att_42'
+        (attempt / 'evidence').mkdir(parents=True)
+        digest = harness.argv_digest(self.ARGV)
+        guest = json.dumps({'argv_digest': digest}).encode()
+        (attempt / 'evidence' / 'jail.json').write_bytes(guest)
+        (attempt / 'vm-transport.json').write_text(json.dumps({'boot_id': 'vm-1',
+                                                               'guest_receipt_sha256': hashlib.sha256(guest).hexdigest()}))
+        (attempt / 'evidence' / 'vm-binding.json').write_text(json.dumps({
+            'attempt_id': 'att_42', 'argv_digest': digest, 'boot_id': 'vm-1', 'guest_boot_id': 'g-1'}))
+        return attempt
+
+    def test_an_attempt_directory_binds_the_same_way(self):
+        attempt = self.attempt_dir()
+        self.assertTrue(harness.attempt_dir_bound(attempt, self.ARGV))
+        self.assertFalse(harness.attempt_dir_bound(attempt, ['/bin/sh', '-c', 'other']))
+        for name, path, change in [
+                ('another attempt', 'evidence/vm-binding.json', {'attempt_id': 'att_41'}),
+                ('another serve boot', 'evidence/vm-binding.json', {'boot_id': 'vm-2'}),
+                ('no guest boot', 'evidence/vm-binding.json', {'guest_boot_id': None}),
+                ('a receipt digest that is not this receipt', 'vm-transport.json', {'guest_receipt_sha256': '0' * 64})]:
+            with self.subTest(name):
+                attempt = self.attempt_dir()
+                value = json.loads((attempt / path).read_text())
+                value.update(change)
+                (attempt / path).write_text(json.dumps(value))
+                self.assertFalse(harness.attempt_dir_bound(attempt, self.ARGV))
+        attempt = self.attempt_dir()
+        (attempt / 'evidence' / 'jail.json').write_bytes(b'{"argv_digest": "sha256:other"}')
+        self.assertFalse(harness.attempt_dir_bound(attempt, self.ARGV))
+
+
+class PortableRecordTests(unittest.TestCase):
+    """F-10 / reviewer FX5: no absolute home, repository or temp path in a record."""
+
+    def test_fingerprints_and_records_carry_relative_paths(self):
+        here = harness.REPOSITORY / 'crates' / 'ukai-jail' / 'vm' / 'harness.py'
+        self.assertEqual(harness.fingerprint(here)['path'], 'crates/ukai-jail/vm/harness.py')
+        home = str(Path.home())
+        self.assertEqual(harness.relative_path(Path.home() / 'ukai-ws' / 'w'), '~/ukai-ws/w')
+        self.assertEqual(harness.relative_path('/usr/bin/python3'), '/usr/bin/python3')
+        root = Path(tempfile.mkdtemp(prefix='harness-portable-'))
+        self.addCleanup(shutil.rmtree, root, True)
+        record = {'status': {'live_workspace': f'{home}/ukai-ws/w'},
+                  'stderr': f'opened {harness.REPOSITORY}/crates/x and {root}/data/vm.sock',
+                  'list': [str(harness.REPOSITORY), str(Path.home())], 'n': 3}
+        harness.write_json(root / 'r.json', record)
+        text = (root / 'r.json').read_text()
+        self.assertNotIn(home, text)
+        self.assertNotIn(str(Path(tempfile.gettempdir()).resolve()), text)
+        written = json.loads(text)
+        self.assertEqual(written['status']['live_workspace'], '~/ukai-ws/w')
+        self.assertEqual(written['stderr'], f'opened crates/x and $TMPDIR/{root.name}/data/vm.sock')
+        self.assertEqual(written['list'], ['.', '~'])
+        self.assertEqual(written['n'], 3)
 
 
 class VmClientRuleTests(unittest.TestCase):
@@ -180,6 +411,48 @@ class WorkspaceGuardTests(unittest.TestCase):
         with self.assertRaisesRegex(harness.HarnessError, 'not empty'):
             harness.mark_workspace(self.workspace)
 
+    def test_a_marked_directory_holding_the_cwd_refuses(self):
+        # Reviewer H8 and FX7: the cwd (and home, the repository) or any of
+        # their ancestors never qualify, marker or not.
+        harness.mark_workspace(self.workspace)
+        inside = self.workspace / 'project'
+        inside.mkdir()
+        cwd = os.getcwd()
+        self.addCleanup(os.chdir, cwd)
+        for here in (inside, self.workspace):
+            with self.subTest(cwd=here):
+                os.chdir(here)
+                with self.assertRaisesRegex(harness.HarnessError, 'is or contains'):
+                    harness.guarded_workspace(self.workspace)
+        os.chdir(cwd)
+        self.assertEqual(harness.guarded_workspace(self.workspace), self.workspace)
+
+    def test_a_marked_directory_inside_the_repository_refuses(self):
+        # Reviewer H10: with REPOSITORY pointed at a scratch tree.
+        repo = self.root / 'repo'
+        inside = repo / 'crates' / 'ws'
+        inside.mkdir(parents=True)
+        harness.mark_workspace(inside)
+        with mock.patch.object(harness, 'REPOSITORY', repo):
+            with self.assertRaisesRegex(harness.HarnessError, 'inside the repository'):
+                harness.guarded_workspace(inside)
+
+    def test_reviewer_fx7_guard_cases(self):
+        harness.mark_workspace(self.workspace)
+        (self.root / 'link-home').symlink_to(Path.home())
+        (self.root / 'link-ws').symlink_to(self.workspace)
+        for path in (str(self.root / 'link-home'), str(self.root / 'link-home') + '/', str(self.root / 'link-ws'),
+                     'ws', str(harness.REPOSITORY), str(Path.home()), str(harness.REPOSITORY / 'crates/ukai-jail/vm')):
+            with self.subTest(path=path), self.assertRaises((harness.HarnessError, OSError)):
+                harness.guarded_workspace(path)
+        moved = self.root / 'ws.moved'
+        self.workspace.rename(moved)
+        precious = self.root / 'precious'
+        precious.mkdir()
+        self.workspace.symlink_to(precious)
+        with self.assertRaises(harness.HarnessError):
+            harness.guarded_workspace(self.workspace)
+
     def test_protected_places_refuse_even_when_marked(self):
         for path in ('relative/dir', '/', str(Path.home()), str(harness.REPOSITORY),
                      str(harness.REPOSITORY / 'crates'), str(Path.home().parent)):
@@ -211,6 +484,19 @@ class OutputTests(unittest.TestCase):
             with self.assertRaisesRegex(harness.HarnessError, 'no default'):
                 harness.required_binary('UKAI_VM_BINARY')
         self.assertEqual(harness.required_binary('X', sys.executable), Path(sys.executable).resolve())
+
+    def test_a_binary_must_be_an_executable_file(self):
+        # Reviewer H15.
+        root = Path(tempfile.mkdtemp(prefix='harness-bin-'))
+        self.addCleanup(shutil.rmtree, root, True)
+        plain = root / 'plain'
+        plain.write_text('#!/bin/sh\n')
+        plain.chmod(0o644)
+        for path in (plain, root):
+            with self.subTest(path=path), self.assertRaisesRegex(harness.HarnessError, 'not an executable file'):
+                harness.required_binary('X', str(path))
+        with self.assertRaises(FileNotFoundError):
+            harness.required_binary('X', str(root / 'absent'))
 
 
 class FakeAttemptServer:
@@ -266,13 +552,25 @@ def receipt_frame(receipt, binding=None, corrupt=False):
             'binding': binding or {'guest_boot_id': 'guest-boot-1', 'argv_digest': 'sha256:x'}}
 
 
-def completing(stdout=b'hello\n', exit_code=0, corrupt=False):
+def bound_frame(request, receipt=None, boot_id='vm-fake', guest_boot='guest-boot-1', corrupt=False):
+    """A bound_receipt frame as guest.py builds it for this prepare `request`."""
+    words = [base64.b64decode(word) for word in request['argv']]
+    digest = harness.argv_digest(words)
+    receipt = dict(receipt or {}, argv_digest=digest)
+    return receipt_frame(receipt, corrupt=corrupt, binding={
+        'attempt_id': request['attempt_id'], 'boot_id': boot_id, 'guest_attempt_id': 'att_' + request['attempt_id'],
+        'guest_boot_id': guest_boot, 'profile': request['profile'], 'argv_digest': digest})
+
+
+def completing(stdout=b'hello\n', exit_code=0, corrupt=False, bound=False):
     def script(index, request, send, channel):
         send(event='prepared', kernel='k', staged_secrets=[])
         assert channel.frame()['op'] == 'run'
         send(event='released', supervisor_pid=7)
         send(event='stdout', data=base64.b64encode(stdout).decode())
-        send(**receipt_frame({'outcome': {'code': exit_code}}, corrupt=corrupt))
+        receipt = {'outcome': {'code': exit_code}}
+        send(**(bound_frame(request, receipt, corrupt=corrupt) if bound
+                else receipt_frame(receipt, corrupt=corrupt)))
         send(event='done', exit_code=exit_code)
     return script
 
@@ -386,6 +684,27 @@ class HeartbeatTests(unittest.TestCase):
         self.assertTrue(quiet)
         self.assertLess(last - killed_at, 1.0)
 
+    def test_first_sight_is_not_a_beat_and_changes_are_dated(self):
+        # Reviewer H28 and H30, on a fake clock: a file seen once has not
+        # beaten, and changed_since() counts only changes after its moment.
+        now = [100.0]
+        watch = harness.BeatWatch(self.workspace, 'm3', children=0, clock=lambda: now[0], sleep=lambda _: None)
+        beat = self.workspace / 'hb-m3-0'
+        beat.write_text('1')
+        watch.poll()
+        self.assertFalse(watch.all_beating())
+        self.assertEqual(watch.changed_since(0.0), [])
+        now[0] = 101.0
+        watch.poll()
+        self.assertEqual(watch.changed_since(0.0), [], 'unchanged bytes are no beat')
+        now[0] = 102.0
+        beat.write_text('2')
+        watch.poll()
+        self.assertTrue(watch.all_beating())
+        self.assertEqual(watch.changed_since(101.5), ['hb-m3-0'])
+        self.assertEqual(watch.changed_since(102.0), [])
+        self.assertEqual(watch.changed_since(103.0), [])
+
 
 class ClientProcessTests(unittest.TestCase):
     def test_a_killed_client_ends_the_attempt_by_eof(self):
@@ -438,6 +757,90 @@ class ClientProcessTests(unittest.TestCase):
         with self.assertRaisesRegex(harness.HarnessError, 'not signalled'):
             harness.signal_checked(os.getpid(), 'Mon Jan  1 00:00:00 1990 not-this', signal.SIGTERM)
 
+    def test_wait_gone_sees_a_live_process_and_its_death(self):
+        # Reviewer H26: every "gone" fact rests on wait_gone telling alive from gone.
+        process = subprocess.Popen(['sleep', '30'])
+        self.addCleanup(lambda: (process.poll() is None and process.kill(), process.wait()))
+        ident = harness.identity(process.pid)
+        self.assertIsNotNone(ident)
+        self.assertIsNone(harness.wait_gone([(process.pid, ident)], 0.3))
+        process.kill()
+        process.wait()
+        self.assertIsNotNone(harness.wait_gone([(process.pid, ident)], 5))
+
+    def test_the_client_records_when_its_stream_ended_and_its_receipt(self):
+        go = threading.Event()
+
+        def finish(index, request, send, channel):
+            send(event='prepared', kernel='k')
+            channel.frame()
+            send(event='released', supervisor_pid=1)
+            go.wait(10)
+            send(**bound_frame(request, boot_id='vm-fake'))
+            send(event='done', exit_code=0)
+        server = FakeAttemptServer(finish)
+        self.addCleanup(server.close)
+        client = harness.ClientProcess(server.path, 'c3', ['true'], 60)
+        self.assertIsNotNone(client.wait_event('released', 10))
+        self.assertIsNone(client.wait_exit(0.2), 'wait_exit never kills')
+        self.assertIsNone(client.process.poll())
+        go.set()
+        self.assertEqual(client.wait_exit(10), 0)
+        client.finish()
+        self.assertTrue(client.receipt_bound())
+        self.assertIsNone(client.ended_at())
+
+        def drop(index, request, send, channel):
+            send(event='prepared', kernel='k')
+            channel.frame()
+            send(event='released', supervisor_pid=1)
+        server = FakeAttemptServer(drop)
+        self.addCleanup(server.close)
+        before = time.monotonic()
+        client = harness.ClientProcess(server.path, 'c4', ['true'], 60)
+        client.finish()
+        self.assertGreaterEqual(client.ended_at(), before)
+        self.assertFalse(client.receipt_bound())
+
+    def test_the_client_refuses_a_receipt_bound_elsewhere(self):
+        def other(index, request, send, channel):
+            send(event='prepared', kernel='k')
+            channel.frame()
+            send(event='released', supervisor_pid=1)
+            send(**bound_frame(dict(request, attempt_id='someone-else')))
+            send(event='done', exit_code=0)
+        server = FakeAttemptServer(other)
+        self.addCleanup(server.close)
+        client = harness.ClientProcess(server.path, 'c5', ['true'], 60)
+        client.finish()
+        self.assertFalse(client.receipt_bound())
+
+        def corrupt(index, request, send, channel):
+            send(event='prepared', kernel='k')
+            channel.frame()
+            send(event='released', supervisor_pid=1)
+            send(**bound_frame(request, corrupt=True))
+            send(event='done', exit_code=0)
+        server = FakeAttemptServer(corrupt)
+        self.addCleanup(server.close)
+        client = harness.ClientProcess(server.path, 'c6', ['true'], 60)
+        client.finish()
+        self.assertFalse(client.receipt_bound())
+
+
+class ProcessTableTests(unittest.TestCase):
+    def test_only_this_boots_image_binaries_are_its_controllers(self):
+        # Reviewer H27: a command that merely mentions vz or custodian, or
+        # runs another boot's copy, is not this boot's.
+        boot = Path('/d/vm/vm-1')
+        table = [{'pid': 10, 'command': '/d/vm/vm-1/image/custodian --lease 3'},
+                 {'pid': 11, 'command': '/d/vm/vm-1/image/vz'},
+                 {'pid': 12, 'command': '/d/vm/vm-2/image/vz'},
+                 {'pid': 13, 'command': '/usr/bin/vzdump /d/vm/vm-1/image/vz'},
+                 {'pid': 14, 'command': '/d/vm/vm-1/image/vz-helper'},
+                 {'pid': 15, 'command': 'python3 custodian.py'}]
+        self.assertEqual(harness.boot_processes(boot, table), {'custodian': [10], 'vz': [11]})
+
 
 class ReceiptRecordTests(unittest.TestCase):
     """Checked against the committed 2026-11-03 evidence the review judged."""
@@ -479,6 +882,38 @@ class ReceiptRecordTests(unittest.TestCase):
         self.assertFalse(harness.summary_facts('', guest, transport)['transport_line_present'])
         forged = text.replace(transport['boot_id'], 'vm-forged')
         self.assertFalse(harness.summary_facts(forged, guest, transport)['transport_line_from_record'])
+
+
+class SummaryNetworkLineTests(unittest.TestCase):
+    """The network line states the guest's applied mode (summary.rs's spellings)."""
+
+    def facts(self, line, mode, proxy_active=True):
+        guest = {'applied': {'network': {'mode': mode}}, 'observer': {'attached': True},
+                 'coverage': {'proxy.net': {'status': 'active' if proxy_active else 'inactive'}}}
+        return harness.summary_facts(f'network: {line}\nevidence: 1/6 classes active\n', guest, {})
+
+    def test_none_is_exactly_none(self):
+        # Reviewer H20.
+        self.assertTrue(self.facts('none', 'none')['network_line_is_the_guests'])
+        for line in ('not applied', 'proxy, no connections', 'host, not observed', 'none recorded'):
+            with self.subTest(line=line):
+                self.assertFalse(self.facts(line, 'none')['network_line_is_the_guests'])
+
+    def test_proxy_lines(self):
+        # Reviewer FX6: a disagreement is never the guest's line.
+        for line in ('allowed api.anthropic.com (4)', 'denied example.com (1)',
+                     'allowed a.test (2) · denied b.test (1)', 'proxy, no connections',
+                     'proxy, none recorded (a lower bound)',
+                     'allowed a.test (2) · 1 refused for resolver capacity, not policy'):
+            with self.subTest(line=line):
+                self.assertTrue(self.facts(line, 'proxy')['network_line_is_the_guests'])
+        for line in ('proxy, journal and receipt disagree on proxy.net', 'not applied', 'none',
+                     'host, not observed', 'proxy, not observed', 'proxy, journal missing',
+                     'allowed a.test (2) · journal and receipt disagree on proxy.net'):
+            with self.subTest(line=line):
+                self.assertFalse(self.facts(line, 'proxy')['network_line_is_the_guests'])
+        self.assertTrue(self.facts('proxy, not observed', 'proxy', proxy_active=False)['network_line_is_the_guests'])
+        self.assertFalse(self.facts('allowed a.test (2)', 'proxy', proxy_active=False)['network_line_is_the_guests'])
 
 
 if __name__ == '__main__':

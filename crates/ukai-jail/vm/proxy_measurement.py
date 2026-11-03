@@ -5,15 +5,19 @@ Three `ukai-jail run --vm` attempts sharing ONE data directory and
 workspace, so the second and third reuse the warm guest the first booted
 (with its NAT adapter, as a proxied policy requires):
 
-  1. agent, allow api.github.com: the guest jail starts its own qualified
-     Linux proxy; the allowed host answers through it, example.com refuses;
+  1. agent, allow api.github.com and the D9 probe target: the guest jail
+     starts its own qualified Linux proxy; the allowed host answers through
+     it, example.com refuses, and the route control's CONNECT to the probe
+     target succeeds (the guest itself has a route to it);
   2. agent, allow example.com instead: the proxy re-arms with the new allow
      set on the same boot (example.com now answers, api.github.com refuses);
   3. tool, offline, on the same guest with NAT still attached: the egress
-     probe (harness.py, D9) is denied after its loopback positive control.
+     probe (harness.py, D9) fails with the jail's denial errno after its
+     loopback positive control, against the target attempt 1 reached.
 
 "Same boot" is measured, not assumed: every attempt's transport record names
-one serve boot id and every guest binding one guest kernel boot id.
+one serve boot id and every guest binding one guest kernel boot id. Each
+attempt directory's receipt is bound to its own argv (harness.attempt_dir_bound).
 
 Usage: proxy_measurement.py <home> <workspace> <out> [--ukai-jail PATH]
        (or UKAI_JAIL_BINARY=...)
@@ -60,10 +64,15 @@ def run_vm(jail, environment, workspace, profile, allow, argv, wall=40):
     return result
 
 
-def attempt_records(data):
-    """Every attempt in run order, with its receipt, transport and binding facts."""
+def attempt_records(data, argvs=()):
+    """Every attempt in run order, with its receipt, transport and binding facts.
+
+    `argvs` are the runs' argvs in run order: each record says whether its
+    receipt is bound to that argv.
+    """
     records = []
-    for jail in sorted((Path(data) / 'attempts').glob('att_*/jail.json'), key=lambda p: p.stat().st_mtime):
+    for index, jail in enumerate(sorted((Path(data) / 'attempts').glob('att_*/jail.json'),
+                                        key=lambda p: p.stat().st_mtime)):
         attempt = jail.parent
 
         def read(name):
@@ -77,7 +86,8 @@ def attempt_records(data):
                         'policy': (stored.get('policy') or {}).get('name'),
                         'guest_network': ((guest.get('applied') or {}).get('network') or {}),
                         'serve_boot': transport.get('boot_id'),
-                        'guest_boot': binding.get('guest_boot_id')})
+                        'guest_boot': binding.get('guest_boot_id'),
+                        'bound': index < len(argvs) and harness.attempt_dir_bound(attempt, argvs[index])})
     return records
 
 
@@ -86,24 +96,27 @@ def settled(record):
 
 
 def judge(runs, records, probe_tag):
+    """Every fact is computed whatever was recorded: an absent attempt fails its facts."""
     first, second, offline = runs
+    three = len(records) == 3
+    serve = {r['serve_boot'] for r in records}
+    guest = {r['guest_boot'] for r in records}
     facts = {
-        'three_attempts_recorded': len(records) == 3,
+        'three_attempts_recorded': three,
         'first_allowed_answers': 'GITHUB_ANSWERED 200' in first['stdout'],
         'first_denied_refused': 'EXAMPLE_REFUSED' in first['stdout'] and 'EXAMPLE_ANSWERED' not in first['stdout'],
+        'route_control_reached_the_target': harness.route_verdict(first['stdout'], f'{probe_tag}-route')['reached'],
         'rearmed_allowed_answers': 'EXAMPLE_ANSWERED' in second['stdout'],
         'rearmed_old_host_refused': 'GITHUB_REFUSED' in second['stdout'] and 'GITHUB_ANSWERED' not in second['stdout'],
         'offline_probe_denied': harness.probe_verdict(offline['stdout'], probe_tag)['denied'],
+        'agent_attempts_proxy': three and all(r['guest_network'].get('mode') == 'proxy' for r in records[:2]),
+        'offline_attempt_none': three and records[2]['guest_network'].get('mode') == 'none',
+        'every_attempt_settled': three and all(settled(r) for r in records),
+        'every_receipt_bound': three and all(r.get('bound') is True for r in records),
+        'same_serve_boot': three and len(serve) == 1 and None not in serve,
+        'same_guest_boot': three and len(guest) == 1 and None not in guest,
     }
-    if len(records) == 3:
-        facts['agent_attempts_proxy'] = all(r['guest_network'].get('mode') == 'proxy' for r in records[:2])
-        facts['offline_attempt_none'] = records[2]['guest_network'].get('mode') == 'none'
-        facts['every_attempt_settled'] = all(settled(r) for r in records)
-        serve = {r['serve_boot'] for r in records}
-        guest = {r['guest_boot'] for r in records}
-        facts['same_serve_boot'] = len(serve) == 1 and None not in serve
-        facts['same_guest_boot'] = len(guest) == 1 and None not in guest
-    return facts, 'PASS' if all(facts.values()) and len(facts) == 11 else 'FAIL'
+    return facts, 'PASS' if all(value is True for value in facts.values()) else 'FAIL'
 
 
 def main(argv=None):
@@ -124,18 +137,20 @@ def main(argv=None):
     environment = harness.vm_client_environment(UKAI_VM_HOME=home, UKAI_DATA_DIR=data, UKAI_CONFIG_DIR=config)
     tag = harness.nonce()
     reachability = harness.host_reachability()
+    argvs = [['/bin/sh', '-c', fetch('GITHUB', GITHUB) + ' ; ' + fetch('EXAMPLE', EXAMPLE)
+              + ' ; ' + harness.route_shell(f'{tag}-route')],
+             ['/bin/sh', '-c', fetch('EXAMPLE', EXAMPLE) + ' ; ' + fetch('GITHUB', GITHUB)],
+             harness.probe_argv(tag)]
     try:
         runs = [
-            run_vm(jail, environment, workspace, 'agent', ['api.github.com'],
-                   ['/bin/sh', '-c', fetch('GITHUB', GITHUB) + ' ; ' + fetch('EXAMPLE', EXAMPLE)]),
-            run_vm(jail, environment, workspace, 'agent', ['example.com'],
-                   ['/bin/sh', '-c', fetch('EXAMPLE', EXAMPLE) + ' ; ' + fetch('GITHUB', GITHUB)]),
-            run_vm(jail, environment, workspace, 'tool', [], harness.probe_argv(tag), wall=20),
+            run_vm(jail, environment, workspace, 'agent', ['api.github.com', harness.route_rule()], argvs[0]),
+            run_vm(jail, environment, workspace, 'agent', ['example.com'], argvs[1]),
+            run_vm(jail, environment, workspace, 'tool', [], argvs[2], wall=20),
         ]
     finally:
         stop = subprocess.run([str(home / 'bin' / 'ukai-vm'), 'stop'], env=environment,
                               capture_output=True, text=True, timeout=60)
-    records = attempt_records(data)
+    records = attempt_records(data, argvs)
     facts, outcome = judge(runs, records, tag)
     facts['probe_target_answers_from_host'] = reachability['answers']
     if not reachability['answers']:
@@ -146,6 +161,7 @@ def main(argv=None):
     verdict = {'schema': 'ukai.vm.proxy-policy/2', 'binary': harness.fingerprint(jail),
                'runs': [{**run, 'stdout': run['stdout'][-600:]} for run in runs],
                'records': records, 'probe': harness.probe_verdict(runs[2]['stdout'], tag),
+               'route_control': harness.route_verdict(runs[0]['stdout'], f'{tag}-route'),
                'reachability': reachability, 'stop_exit': stop.returncode, 'refusals': refusals,
                'facts': facts, 'outcome': outcome}
     harness.write_json(out / 'proxy-policy.json', verdict)

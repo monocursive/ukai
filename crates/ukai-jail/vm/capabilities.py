@@ -10,6 +10,8 @@ as such, never assumed.
 Every verdict reads facts, not shell exit statuses: the guest jail's own
 receipt (limit hits, outcome cause, applied network), a probe's tagged JSON
 line printed by python3 inside the attempt, or the host's view of the share.
+A receipt backs a verdict only when its digest verified and its binding
+names that very attempt, argv, profile and serve boot (harness.receipt_bound).
 
 Each capability is measured alone, by its own attempt, and recorded under
 the requirement it backs (`measurements[<requirement>]`: verdict, the
@@ -25,11 +27,14 @@ Capabilities measured (the limits guest.py's run_command applies):
                   backstop kill cannot pass for the jail's deadline)
   pids            limit:pids. A fork storm stops at the pids limit with EAGAIN, not
                   before (the count of successful forks is within PIDS_SLACK
-                  of the limit), and the attempt settles without a jail error
+                  of the limit), the receipt says the jail applied pids=64
+                  through pids.max and records the hit (and the cgroup's own
+                  pids.max, where the probe can read it, is 64), and the
+                  attempt settles without a jail error
   mem             limit:mem. An allocation beyond the mem limit is OOM-killed near the
-                  limit: SIGKILL (137), the receipt's mem hit or memory_oom,
-                  and the last reported allocation between half the limit and
-                  the limit
+                  limit: SIGKILL (137), the receipt's mem limit applied at
+                  512 MiB with its hit or memory_oom, and the last reported
+                  allocation between half the limit and the limit
   containment     filesystem_containment. Writes to /etc, /usr/local/bin and
                   the guest's root refuse with a filesystem errno and leave
                   nothing behind; reads of guest paths outside the grants
@@ -38,10 +43,14 @@ Capabilities measured (the limits guest.py's run_command applies):
                   refuse; and, as the probe's positive control, a granted
                   runtime file and a workspace file read
   network_none    network_none. With the NAT adapter attached (control status guest_nat),
-                  the egress probe (harness.py, D9) is denied after its
-                  loopback positive control connected, DNS does not resolve,
-                  the receipt's applied network is `none`, and the probe
-                  target answers from the host
+                  the egress probe (harness.py, D9) fails with the jail's
+                  own denial errno after its loopback positive control
+                  connected, DNS does not resolve, the receipt's applied
+                  network is `none`; the same target answers from the host
+                  AND, on the same guest boot, through the route control (an
+                  agent attempt whose proxy, outside the jail's namespace,
+                  reached it), so the denial is the jail's, not a guest
+                  without a route (harness.network_denial)
   workspace       (K109, no probe requirement) a granted write reaches the
                   host with this run's bytes
 
@@ -141,15 +150,7 @@ def fs_probe_argv(tag, write=(), read=(), control=()):
 
 def tagged(stdout, name, tag):
     """The one `name {json}` line whose tag is `tag`, or None (none or several)."""
-    found = []
-    for line in stdout.splitlines():
-        if line.startswith(name + ' '):
-            try:
-                record = json.loads(line[len(name) + 1:])
-            except ValueError:
-                continue
-            if isinstance(record, dict) and record.get('tag') == tag:
-                found.append(record)
+    found = harness.tagged_records(stdout, name, 'tag', tag)
     return found[0] if len(found) == 1 else None
 
 
@@ -161,6 +162,7 @@ def judge_wall(record, tag, wall):
     limit = harness.receipt_limit(record.get('receipt'), 'wall') or {}
     elapsed = record['timings_ms'].get('released_to_done')
     facts = {
+        'receipt_bound_to_this_attempt': harness.receipt_bound(record),
         'later_output_absent': f'never-{tag}' not in record['stdout'] and f'start-{tag}' in record['stdout'],
         'nonzero_exit': record.get('exit_code') not in (0, None),
         'receipt_records_the_wall_hit': limit.get('hit') is True,
@@ -171,14 +173,26 @@ def judge_wall(record, tag, wall):
     return facts
 
 
+def applied_limit(record, key, value):
+    """The receipt applied this limit at exactly `value`, through its cgroup control."""
+    entry = harness.receipt_limit(record.get('receipt'), key) or {}
+    return (entry.get('requested') == str(value) and entry.get('applied') is True
+            and entry.get('mechanism') == {'pids': 'pids.max', 'mem': 'memory.max'}[key])
+
+
 def judge_pids(record, tag):
     probe = tagged(record['stdout'], 'UKAI_PIDS_PROBE', tag) or {}
     forked = probe.get('forked')
     limit = harness.GUEST_PIDS_LIMIT
     expected_max = probe.get('pids.max')
     facts = {
+        'receipt_bound_to_this_attempt': harness.receipt_bound(record),
         'fork_failed_with_eagain': probe.get('fork_error') == 'EAGAIN',
         'stopped_at_the_limit_not_before': isinstance(forked, int) and limit - PIDS_SLACK <= forked < limit,
+        # The fork failure is tied to the 64 limit by the receipt (pids=64
+        # applied through pids.max, and hit) whether or not the probe can read
+        # its cgroup; where it can, the cgroup's own pids.max must be 64.
+        'receipt_applied_the_guest_limit': applied_limit(record, 'pids', limit),
         'cgroup_limit_is_the_guest_limit': expected_max in (None, str(limit)),
         'attempt_settled_without_jail_error': (record.get('exit_code') == 0 and not record.get('error')
                                                and not harness.jail_error_lines(record['stdout'] + record['stderr'])
@@ -197,6 +211,8 @@ def judge_mem(record, tag):
     last = reported[-1] if reported else None
     limit = harness.GUEST_MEM_LIMIT_MIB
     facts = {
+        'receipt_bound_to_this_attempt': harness.receipt_bound(record),
+        'receipt_applied_the_guest_limit': applied_limit(record, 'mem', limit * 1024 * 1024),
         'sigkilled': record.get('exit_code') == 137,
         'never_unbounded': f'UKAI_MEM_UNBOUNDED {tag}' not in record['stdout'],
         'receipt_records_the_oom': ((harness.receipt_limit(record.get('receipt'), 'mem') or {}).get('hit') is True
@@ -210,7 +226,8 @@ def judge_containment(record, tag, paths, read=(), control=()):
     probe = tagged(record['stdout'], 'UKAI_FS_PROBE', tag) or {}
     results = probe.get('paths') or {}
     reads = probe.get('reads') or {}
-    facts = {'every_path_probed': sorted(results) == sorted(paths)
+    facts = {'receipt_bound_to_this_attempt': harness.receipt_bound(record),
+             'every_path_probed': sorted(results) == sorted(paths)
              and sorted(reads) == sorted(set(read) | set(control))}
     for path in paths:
         entry = results.get(path) or {}
@@ -222,12 +239,21 @@ def judge_containment(record, tag, paths, read=(), control=()):
     return facts
 
 
-def judge_network(record, tag, status, reachability):
+def judge_network(record, tag, status, reachability, route):
+    """network_none: the probe attempt, and the route control attempt on the same boot."""
     probe = harness.probe_verdict(record['stdout'], tag)
     network = (((record.get('receipt') or {}).get('applied') or {}).get('network') or {})
+    route = route or {'stdout': ''}
+    denial = harness.network_denial(probe, harness.route_verdict(route['stdout'], route_tag(tag)),
+                                    (status or {}).get('guest_nat'), harness.guest_boot(record),
+                                    harness.guest_boot(route), harness.receipt_bound(route))
     return {
-        'nat_attached': (status or {}).get('guest_nat') is True,
-        'probe_denied_after_positive_control': probe['denied'],
+        'receipt_bound_to_this_attempt': harness.receipt_bound(record),
+        'nat_attached': denial['guest_nat_attached'],
+        'probe_denied_after_positive_control': denial['probe_saw_the_jails_denial'],
+        'route_control_reached_the_target': denial['route_control_reached_the_target'],
+        'route_control_on_the_same_guest_boot': denial['route_control_on_the_same_guest_boot'],
+        'route_control_receipt_bound': denial['route_control_receipt_bound'],
         'dns_unresolved': probe.get('dns') not in (None, 'resolved'),
         'receipt_network_none': network.get('mode') == 'none',
         'target_answers_from_host': (reachability or {}).get('answers') is True,
@@ -235,8 +261,13 @@ def judge_network(record, tag, status, reachability):
 
 
 def judge_workspace(record, tag, host_text):
-    return {'wrote': f'wrote-{tag}' in record['stdout'],
+    return {'receipt_bound_to_this_attempt': harness.receipt_bound(record),
+            'wrote': f'wrote-{tag}' in record['stdout'],
             'host_has_this_runs_bytes': host_text == f'live-{tag}\n'}
+
+
+def route_tag(tag):
+    return f'{tag}-route'
 
 
 def read_controls(tag):
@@ -244,15 +275,21 @@ def read_controls(tag):
 
 
 def plan(tag):
-    """(name, wall, argv) per capability; argv is plain text, encoded later."""
+    """(name, wall, argv, options) per attempt; argv is plain text, encoded later.
+
+    `route_control` is not a capability: it is network_none's same-boot
+    route control (an agent attempt allowed exactly the probe target).
+    """
     fs_paths = [f'/etc/ukai-cap-{tag}', f'/usr/local/bin/ukai-cap-{tag}', f'/ukai-cap-{tag}']
     return fs_paths, [
-        ('wall', 5, harness.sh(f'echo start-{tag}; sleep 30; echo never-{tag}')),
-        ('pids', 30, [harness.PYTHON, '-I', '-c', PIDS_PROBE, tag]),
-        ('mem', 60, [harness.PYTHON, '-I', '-c', MEM_PROBE, tag, str(harness.GUEST_MEM_LIMIT_MIB)]),
-        ('containment', 30, fs_probe_argv(tag, fs_paths, READ_OUTSIDE, read_controls(tag))),
-        ('network_none', 30, harness.probe_argv(tag, dns='example.com')),
-        ('workspace', 30, harness.sh(f'printf "live-{tag}\\n" > capability-{tag}.txt; echo wrote-{tag}')),
+        ('wall', 5, harness.sh(f'echo start-{tag}; sleep 30; echo never-{tag}'), {}),
+        ('pids', 30, [harness.PYTHON, '-I', '-c', PIDS_PROBE, tag], {}),
+        ('mem', 60, [harness.PYTHON, '-I', '-c', MEM_PROBE, tag, str(harness.GUEST_MEM_LIMIT_MIB)], {}),
+        ('containment', 30, fs_probe_argv(tag, fs_paths, READ_OUTSIDE, read_controls(tag)), {}),
+        ('network_none', 30, harness.probe_argv(tag, dns='example.com'), {}),
+        ('route_control', 30, harness.route_argv(route_tag(tag)),
+         {'profile': 'agent', 'allow_hosts': [harness.route_rule()]}),
+        ('workspace', 30, harness.sh(f'printf "live-{tag}\\n" > capability-{tag}.txt; echo wrote-{tag}'), {}),
     ]
 
 
@@ -262,8 +299,8 @@ def measure(service, workspace, tag, reachability):
     # The read control's workspace file: the probe must be able to read it.
     (Path(workspace) / f'capability-read-{tag}.txt').write_text(f'readable-{tag}\n')
     results = {}
-    for name, wall, argv in attempts:
-        results[name] = harness.run_attempt(service.connect, f'cap-{name}-{tag}', argv, wall=wall)
+    for name, wall, argv, options in attempts:
+        results[name] = harness.run_attempt(service.connect, f'cap-{name}-{tag}', argv, wall=wall, **options)
     host_file = Path(workspace) / f'capability-{tag}.txt'
     return {'tag': tag, 'fs_paths': fs_paths, 'results': results,
             'host_workspace_file': host_file.read_text() if host_file.is_file() else None,
@@ -272,14 +309,15 @@ def measure(service, workspace, tag, reachability):
 
 def judge(measured, status, git_config_untouched, service_exit):
     tag, results = measured['tag'], measured['results']
-    walls = dict((name, wall) for name, wall, _ in plan(tag)[1])
+    walls = dict((name, wall) for name, wall, _, _ in plan(tag)[1])
     facts = {
         'wall': judge_wall(results['wall'], tag, walls['wall']),
         'pids': judge_pids(results['pids'], tag),
         'mem': judge_mem(results['mem'], tag),
         'containment': judge_containment(results['containment'], tag, measured['fs_paths'],
                                          READ_OUTSIDE, read_controls(tag)),
-        'network_none': judge_network(results['network_none'], tag, status, measured['reachability']),
+        'network_none': judge_network(results['network_none'], tag, status, measured['reachability'],
+                                      results.get('route_control')),
         'workspace': judge_workspace(results['workspace'], tag, measured['host_workspace_file']),
     }
     summary = {name: all(value is True for value in checks.values()) for name, checks in facts.items()}
@@ -296,11 +334,14 @@ def measurements(measured, summary):
     measured under (the protected .git untouched, the serve's clean stop).
     """
     shared = summary['git_config_untouched'] and summary['service_stopped_cleanly']
-    return {requirement: {'verdict': summary[name] is True and shared,
-                          'measured_at': measured['results'][name]['started_at'],
-                          'attempt_id': measured['results'][name]['attempt_id'],
-                          'capability': name}
-            for name, requirement in REQUIREMENTS.items()}
+    entries = {requirement: {'verdict': summary[name] is True and shared,
+                             'measured_at': measured['results'][name]['started_at'],
+                             'attempt_id': measured['results'][name]['attempt_id'],
+                             'capability': name}
+               for name, requirement in REQUIREMENTS.items()}
+    route = measured['results'].get('route_control')
+    entries['network_none']['control_attempt_id'] = route.get('attempt_id') if route else None
+    return entries
 
 
 def main(argv=None):

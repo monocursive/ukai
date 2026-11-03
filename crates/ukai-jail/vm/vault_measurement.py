@@ -7,9 +7,12 @@ crosses over vsock once, lands in the guest's tmpfs, the guest jail's
 request. The echo server (this Mac, reached through the guest NAT) records
 the header, which proves injection end to end. PASS also needs:
 
-- the child saw a placeholder, not the value (it prints the SHA-256 and
-  length of its environment variable; the hash must differ from the
-  value's, and the variable must be non-empty);
+- the child saw the placeholder, not the value: its environment variable
+  is exactly `vault:<the guest jail's attempt id>:test` (vault.rs's
+  format), so it holds no part of the value in any encoding; the child
+  prints the variable only when it has that shape (otherwise only its
+  SHA-256 and length), and the host also checks that neither the value nor
+  its base64 or hex spelling occurs in what was printed;
 - the guest receipt records the credential `test` as mode `vault`,
   `never_staged` (the jail never wrote it into the attempt);
 - no exported byte holds the value: every regular file under the run's data
@@ -17,8 +20,13 @@ the header, which proves injection end to end. PASS also needs:
   records, console logs), the workspace, and the client's own stdout and
   stderr, with no size cap;
 - the value never reached the guest's disk: after a `sync` attempt on the
-  same boot, the boot's raw disk image is scanned for the value's bytes
-  (the only staging place left is the guest tmpfs, which is not on it).
+  same boot (its transport record names the vault attempt's serve boot,
+  and its binding the same guest kernel boot), THAT boot's raw disk image,
+  `vm/<boot id>/image/base.raw`, is scanned for the value's bytes (the
+  only staging place left is the guest tmpfs, which is not on it).
+
+The value's source file is deleted before `ukai-vm stop` runs, so a stop
+that fails or hangs never leaves it behind.
 
 The Mac's LAN address the echo server needs is redacted in the record.
 
@@ -97,21 +105,50 @@ def leak_scan(roots, needle, skip=()):
     return sorted(hits), scanned
 
 
+CREDENTIAL_ID = 'test'
+PLACEHOLDER_SHAPE = 'vault:[A-Za-z0-9_.-]+:' + CREDENTIAL_ID  # re.fullmatch: no anchors to quote
+
+
 def fetch_script(address, port):
-    return ("python3 -c \"import hashlib, os, urllib.request; "
+    return ("python3 -c \"import hashlib, os, re, urllib.request; "
             "token = os.environ.get('UKAI_VAULT_TEST', ''); "
-            "print('PLACEHOLDER', hashlib.sha256(token.encode()).hexdigest(), len(token)); "
+            "shown = token if re.fullmatch('%s', token) else '-'; "
+            "print('PLACEHOLDER', hashlib.sha256(token.encode()).hexdigest(), len(token), shown); "
             "req = urllib.request.Request('http://%s:%d/echo', headers={'x-test-token': token}); "
             "r = urllib.request.urlopen(req, timeout=20); "
-            "print('ECHO', r.status, r.read().decode())\"" % (address, port))
+            "print('ECHO', r.status, r.read().decode())\"" % (PLACEHOLDER_SHAPE, address, port))
 
 
 def placeholder(stdout):
     for line in stdout.splitlines():
         parts = line.split()
-        if len(parts) == 3 and parts[0] == 'PLACEHOLDER' and parts[2].isdigit():
-            return {'sha256': parts[1], 'length': int(parts[2])}
+        if len(parts) == 4 and parts[0] == 'PLACEHOLDER' and parts[2].isdigit():
+            return {'sha256': parts[1], 'length': int(parts[2]),
+                    'value': None if parts[3] == '-' else parts[3]}
     return None
+
+
+def value_spellings(secret=None):
+    """The value as bytes, base64 and hex: none may occur in what the child saw."""
+    import base64
+    secret = SECRET if secret is None else secret
+    return {secret.decode(), base64.b64encode(secret).decode(), secret.hex()}
+
+
+def placeholder_facts(seen, guest_attempt_id):
+    """The child's variable is exactly vault.rs's placeholder for this attempt."""
+    seen = seen or {}
+    value = seen.get('value')
+    expected = f'vault:{guest_attempt_id}:{CREDENTIAL_ID}' if guest_attempt_id else None
+    return (isinstance(value, str) and expected is not None and value == expected
+            and seen.get('length') == len(value)
+            and seen.get('sha256') == hashlib.sha256(value.encode()).hexdigest()
+            and not any(spelling in value for spelling in value_spellings()))
+
+
+def redact(text, address):
+    """The Mac's LAN address out of a record (it says where this Mac sits)."""
+    return str(text).replace(address, '<mac-address>') if address else str(text)
 
 
 def judge(observed):
@@ -121,29 +158,54 @@ def judge(observed):
     facts = {
         'run_exit_zero': observed.get('run_exit') == 0,
         'header_injected': observed.get('header') == SECRET.decode(),
-        'child_saw_a_placeholder': bool(seen) and seen.get('length', 0) > 0
-        and seen.get('sha256') != hashlib.sha256(SECRET).hexdigest(),
+        'child_saw_a_placeholder': placeholder_facts(seen, observed.get('guest_attempt_id')),
         'guest_credential_vault_never_staged': entry.get('mode') == 'vault' and entry.get('never_staged') is True,
+        'receipt_bound_to_this_attempt': observed.get('receipt_bound') is True,
         'guest_network_proxy': observed.get('guest_network_mode') == 'proxy',
         'settled_exit_zero_tree_empty': (observed.get('phase') == 'settled' and observed.get('exit') == 0
                                          and observed.get('tree_empty') is True),
         'no_value_in_any_export': observed.get('leaks') == [] and observed.get('files_scanned', 0) > 0,
         'no_value_in_client_output': observed.get('client_output_leak') is False,
         'guest_disk_scanned_clean': observed.get('disk_scan') == 'clean' and observed.get('sync_exit') == 0,
+        'sync_on_the_vault_attempts_boot': observed.get('same_boot') is True,
     }
     return facts, 'PASS' if all(facts.values()) else 'FAIL'
 
 
-def agent_attempt(data):
-    """The vaulted (agent) attempt; the sync attempt on the same boot is `tool`."""
+def agent_attempt(data, profile='agent'):
+    """The first attempt of `profile`: the vaulted one is `agent`, the sync on the same boot `tool`."""
     for attempt in sorted((Path(data) / 'attempts').glob('att_*'), key=lambda p: p.stat().st_mtime):
         try:
             record = json.loads((attempt / 'jail.json').read_text())
         except (OSError, ValueError):
             continue
-        if (record.get('policy') or {}).get('name') == 'agent':
+        if (record.get('policy') or {}).get('name') == profile:
             return attempt, record
     return None, None
+
+
+def read_json(path):
+    try:
+        return json.loads(Path(path).read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def boot_disk(data):
+    """The vault attempt's own boot disk, when the sync attempt ran on that boot.
+
+    (disk path or None, same_boot): both attempts' transport records name
+    one serve boot and both bindings one guest kernel boot.
+    """
+    vault, _ = agent_attempt(data, 'agent')
+    sync, _ = agent_attempt(data, 'tool')
+    if vault is None or sync is None:
+        return None, False
+    serve = [read_json(path / 'vm-transport.json').get('boot_id') for path in (vault, sync)]
+    guest = [read_json(path / 'evidence' / 'vm-binding.json').get('guest_boot_id') for path in (vault, sync)]
+    same = bool(serve[0]) and serve[0] == serve[1] and bool(guest[0]) and guest[0] == guest[1]
+    disk = Path(data) / 'vm' / str(serve[0]) / 'image' / 'base.raw'
+    return (disk if same and disk.is_file() else None), same
 
 
 def main(argv=None):
@@ -211,46 +273,54 @@ allow = ["{address}:{port}"]
                               env=env, capture_output=True, text=True, timeout=300)
         observed['sync_exit'] = sync.returncode
         observed['sync_stderr'] = sync.stderr[-600:]
-        disks = sorted((data / 'vm').glob('vm-*/image/base.raw'))
-        if len(disks) == 1:
-            observed['disk_scan'] = 'value-present' if file_holds(disks[0], SECRET) else 'clean'
+        disk, observed['same_boot'] = boot_disk(data)
+        if disk is not None:
+            observed['disk_scan'] = 'value-present' if file_holds(disk, SECRET) else 'clean'
+            observed['disk_scanned'] = str(disk.relative_to(data))
         else:
-            observed['disk_scan'] = f'not-checked: {len(disks)} boot disks found'
-        disk_paths = disks
+            observed['disk_scan'] = 'not-checked: no disk of the vault attempt\'s boot'
+        disk_paths = sorted((data / 'vm').glob('vm-*/image/base.raw'))
     finally:
-        stop = subprocess.run([str(home / 'bin' / 'ukai-vm'), 'stop'], env=env,
-                              capture_output=True, text=True, timeout=60)
-        observed['stop_exit'] = stop.returncode
-        source.unlink(missing_ok=True)
-        source_dir.rmdir()
+        # The value's source goes first: a stop that raises or hangs must
+        # never leave it behind.
+        try:
+            source.unlink(missing_ok=True)
+            source_dir.rmdir()
+        finally:
+            try:
+                stop = subprocess.run([str(home / 'bin' / 'ukai-vm'), 'stop'], env=env,
+                                      capture_output=True, text=True, timeout=60)
+                observed['stop_exit'] = stop.returncode
+            except (OSError, subprocess.SubprocessError) as error:
+                observed['stop_exit'] = None
+                observed['stop_error'] = f'{type(error).__name__}: {error}'
     vault_attempt, record = agent_attempt(data)
     if vault_attempt is not None:
+        observed['receipt_bound'] = harness.attempt_dir_bound(vault_attempt,
+                                                              ['/bin/sh', '-c', fetch_script(address, port)])
         guest_path = vault_attempt / 'evidence/jail.json'
         guest = json.loads(guest_path.read_text()) if guest_path.exists() else {}
         observed.update(phase=record.get('phase'), exit=(record.get('outcome') or {}).get('code'),
                         tree_empty=(record.get('lifetime') or {}).get('tree_empty'),
-                        guest_credentials=guest.get('credentials'),
+                        guest_credentials=guest.get('credentials'), guest_attempt_id=guest.get('attempt_id'),
                         guest_network_mode=((guest.get('applied') or {}).get('network') or {}).get('mode'))
     observed['leaks'], observed['files_scanned'] = leak_scan([data, workspace], SECRET, skip=disk_paths)
-    observed['client_output_leak'] = SECRET.decode() in (observed.get('stdout', '') + observed.get('stderr', ''))
+    output = observed.get('stdout', '') + observed.get('stderr', '')
+    observed['client_output_leak'] = any(spelling in output for spelling in value_spellings())
     observed['placeholder'] = placeholder(observed.get('stdout', ''))
     observed['header'] = Echo.received[0].get('x-test-token') if Echo.received else None
     facts, outcome = judge(observed)
     observed['refusals'] = harness.vm_refusals(observed.get('stderr', '') + '\n' + observed.get('sync_stderr', ''))
     if observed['refusals']:
         outcome = 'REFUSED'  # recorded as what it is, never a pass
-
-    def redact(text):
-        return str(text).replace(address, '<mac-address>')
-
     verdict = {'schema': 'ukai.vm.vault-consumption/2', 'binary': harness.fingerprint(jail),
                'echo_requests': len(Echo.received),
                'received_header_names': sorted(Echo.received[0]) if Echo.received else [],
                'facts': facts, 'outcome': outcome,
-               'observed': {key: (redact(value) if key in ('stdout', 'stderr') else value)
+               'observed': {key: (redact(value, address) if key in ('stdout', 'stderr') else value)
                             for key, value in observed.items() if key != 'header'},
                'header_matches_value': facts['header_injected']}
-    harness.write_json(out / 'vault-consumption.json', json.loads(redact(json.dumps(verdict))))
+    harness.write_json(out / 'vault-consumption.json', json.loads(redact(json.dumps(verdict), address)))
     print(json.dumps({'facts': facts, 'outcome': outcome}))
     return 0 if outcome == 'PASS' else 1
 
