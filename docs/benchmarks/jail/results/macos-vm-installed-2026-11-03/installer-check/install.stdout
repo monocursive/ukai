@@ -1,0 +1,16 @@
+{"attempt":"ukai.jail.vm-attempt/1","component":"ukai-vm","control":"ukai.jail.vm-control/1","execution":"linux-vm-warm","native_macos_execution":false,"transport":"ukai.jail.vm-transport/1","version":"0.1.0"}
+{
+  "checks": {
+    "base.raw": true,
+    "custodian": true,
+    "seed.iso": true,
+    "virtualization_supported": true,
+    "vz": true
+  },
+  "ready": true,
+  "schema": "ukai.vm.install-check/1",
+  "scope": "package and host prerequisites; a real run still verifies the guest jail"
+}
+
+Installed /private/tmp/installer-check/prefix with spaces/bin/ukai-vm
+Add /private/tmp/installer-check/prefix with spaces/bin to PATH, then run ukai-vm doctor.

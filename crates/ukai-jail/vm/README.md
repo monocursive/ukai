@@ -151,14 +151,27 @@ evidence/vm-build-env/bin/python crates/ukai-jail/vm/package.py \
 ```
 
 `package.py` signs all Mach-O runtime files with hardened runtime, and grants
-only the VZ client `com.apple.security.virtualization`. Submit the resulting
-DMG with `xcrun notarytool submit --keychain-profile <profile> --wait`, retain the
-result, then `xcrun stapler staple` and `xcrun stapler validate` the accepted
-DMG. Verify `spctl --assess --type open --context context:primary-signature <dmg>`;
-compute the final DMG SHA-256 only after stapling. A package build alone does
-not establish notarization, installation or execution proof — the 2026-11-03
-build is recorded notarization-pending (no notarytool credentials on the build
-host), and its gate rows are in
+only the VZ client `com.apple.security.virtualization`. Notarization is the
+one step that needs the operator's Apple credentials, so it is its own
+script — `notarize.py` submits and waits, staples, validates the staple,
+runs `spctl --assess`, records every step's raw output in
+`notarization.json`, and only after all checks pass writes the submission
+id into `package.json` (a rejected or failed submission keeps
+`notarization: pending` and exits non-zero; the script refuses to run
+twice). Credentials arrive only as arguments and never enter the record:
+
+```sh
+python3 crates/ukai-jail/vm/notarize.py --package evidence/my-vm-package \
+  --key ~/private_keys/AuthKey_<ID>.p8 --key-id <ID> --issuer <ISSUER>
+  # or: --profile <keychain-profile from `xcrun notarytool store-credentials`>
+```
+
+A package build alone does not establish notarization, installation or
+execution proof — the 2026-11-03 build is recorded notarization-pending
+(no notarytool credentials on the build host), its installer contract
+passed all five check_install cases against the shipped DMG
+([installer-check/](../../../docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/installer-check/summary.json)),
+and its gate rows are in
 [docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/](../../../docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md).
 
 Run the warm harnesses against the installed package (the binary the
