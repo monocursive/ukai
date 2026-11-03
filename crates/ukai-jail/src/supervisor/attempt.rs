@@ -1335,6 +1335,11 @@ impl<'a> Attempt<'a> {
                 run.outcome_error.get_or_insert(error);
             }
         }
+        // J18 (decision D5): a `--vm` attempt's settled receipt takes what
+        // the verified guest receipt reports the guest jail applied.
+        if let Some(guest) = running.guest_facts() {
+            mirror_guest_facts(&mut self.record, guest);
+        }
         // What the helpers did, known now that they stopped.
         #[cfg(target_os = "macos")]
         update_native_facts(&mut self.record, running.final_native_details());
@@ -1918,6 +1923,50 @@ fn update_native_facts(
     }
 }
 
+/// J18 (jail-macos.md §6, K111, decision D5): the host receipt of a `--vm`
+/// attempt takes the guest kernel, the exec observation, the applied groups,
+/// the observer and the coverage from the verified guest receipt, so none of
+/// its fields contradicts that receipt (`pending`, `attached: false` and an
+/// unknown kernel did), and `lifetime.native.details` names the guest
+/// receipt and the fields taken from it. The host keeps its own terminal
+/// record, and a limit hit the host itself observed (its wall deadline)
+/// stays a hit. `process` stays the host's: a guest pid is nothing the host
+/// may signal.
+fn mirror_guest_facts(record: &mut AttemptRecord, guest: crate::platform::GuestFacts) {
+    let crate::platform::GuestFacts {
+        kernel,
+        arch,
+        exec_observed,
+        applied,
+        observer,
+        coverage,
+        details,
+    } = guest;
+    if let Some(native) = record.lifetime.native.as_mut() {
+        native.details.extend(details);
+    }
+    record.platform.kernel = kernel;
+    record.platform.arch = arch;
+    record.exec_observed = exec_observed;
+    let terminal = record.applied.terminal.take();
+    let host_hits: Vec<String> = record
+        .applied
+        .limits
+        .iter()
+        .filter(|limit| limit.hit == Some(true))
+        .map(|limit| limit.key.clone())
+        .collect();
+    record.applied = applied;
+    record.applied.terminal = terminal;
+    for limit in &mut record.applied.limits {
+        if host_hits.contains(&limit.key) {
+            limit.hit = Some(true);
+        }
+    }
+    record.observer = observer;
+    record.coverage = coverage;
+}
+
 /// The error an unverified tree end records (§9.3): a detected integrity
 /// loss is not a budget overrun.
 fn tree_unknown(record: &AttemptRecord) -> JailError {
@@ -2000,5 +2049,151 @@ mod native_refusal_tests {
             assert_eq!(error.stage, ErrorStage::Probing);
             assert_eq!(error.remediation, remediation, "{reason}");
         }
+    }
+}
+
+#[cfg(test)]
+mod guest_mirror_tests {
+    use super::*;
+
+    /// The K113 guest receipt (2026-11-03): a proxied, observed attempt.
+    /// Read at test time, so the evidence is no build input.
+    fn guest_receipt() -> serde_json::Value {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/k113-attempt/evidence/jail.json"
+        );
+        serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+    }
+
+    fn guest_facts(guest: &serde_json::Value) -> crate::platform::GuestFacts {
+        let group = |pointer: &str| guest.pointer(pointer).cloned().unwrap();
+        crate::platform::GuestFacts {
+            kernel: serde_json::from_value(group("/platform/kernel")).unwrap(),
+            arch: serde_json::from_value(group("/platform/arch")).unwrap(),
+            exec_observed: serde_json::from_value(group("/exec_observed")).unwrap(),
+            applied: serde_json::from_value(group("/applied")).unwrap(),
+            observer: serde_json::from_value(group("/observer")).unwrap(),
+            coverage: serde_json::from_value(group("/coverage")).unwrap(),
+            details: serde_json::Map::new(),
+        }
+    }
+
+    /// The host record as the K113 run left it before settlement: the VM's
+    /// stated unknown kernel, `pending` network, an unattached observer,
+    /// and the host's own wall row, which its wall deadline hit.
+    fn host_record() -> AttemptRecord {
+        let now = SystemTime::now();
+        AttemptRecord {
+            attempt_id: "att_ff3c80a0-0645-4e1d-b6b3-ef633fdd057d".into(),
+            revision: 3,
+            platform: crate::records::PlatformRecord {
+                os: crate::records::Os::Linux,
+                arch: "aarch64".into(),
+                kernel: "unknown: the guest reports its kernel at prepare".into(),
+            },
+            jail: JailRecord {
+                component: "ukai-jail".into(),
+                version: "0.1.0".into(),
+                backend: Some("ukai-vm".into()),
+                backend_version: None,
+            },
+            policy: PolicyRecord {
+                name: "agent".into(),
+                digest: "sha256:host".into(),
+                observe: crate::records::ObserveMode::On,
+                evidence: EvidenceMode::Strict,
+                requirements: Vec::new(),
+                grants: Vec::new(),
+            },
+            containment: Containment::Enforced,
+            exec_observed: false,
+            argv_digest: Some("sha256:argv".into()),
+            applied: crate::records::Applied {
+                filesystem: None,
+                network: crate::records::AppliedNetwork {
+                    mode: "pending".into(),
+                    mechanism: None,
+                    allowed_hosts: Vec::new(),
+                    tls_only: Vec::new(),
+                },
+                syscalls: None,
+                limits: vec![crate::records::AppliedLimit {
+                    key: "wall".into(),
+                    requested: "240000".into(),
+                    required: true,
+                    applied: true,
+                    mechanism: Some("boottime-deadline".into()),
+                    scope: Some("tree".into()),
+                    hit: Some(true),
+                }],
+                environment_names: Vec::new(),
+                removed_environment_names: Vec::new(),
+                terminal: None,
+            },
+            observer: CoverageSummary::unobserved().to_observer_record(),
+            coverage: CoverageSummary::unobserved().to_coverage(),
+            process: None,
+            lifetime: Lifetime::pending(),
+            outcome: Outcome::pending(),
+            state_cleanup: cleanup::not_needed(),
+            cleanup_error: None,
+            vendor_state: None,
+            created_at: now,
+            updated_at: now,
+            errors: Vec::new(),
+            credentials: Vec::new(),
+        }
+    }
+
+    /// D5 (K111): after the mirror no host field the guest receipt also
+    /// carries contradicts it, the host's own wall hit stays a hit, and the
+    /// host's process stays its own.
+    #[test]
+    fn the_settled_host_record_agrees_with_the_guest_receipt() {
+        let guest = guest_receipt();
+        let mut record = host_record();
+        mirror_guest_facts(&mut record, guest_facts(&guest));
+        let host = serde_json::to_value(record.receipt(Phase::Settled)).unwrap();
+        for pointer in [
+            "/platform/kernel",
+            "/platform/arch",
+            "/exec_observed",
+            "/applied/network",
+            "/applied/filesystem",
+            "/applied/syscalls",
+            "/applied/environment_names",
+            "/observer",
+            "/coverage",
+        ] {
+            assert_eq!(host.pointer(pointer), guest.pointer(pointer), "{pointer}");
+        }
+        assert_eq!(host["applied"]["network"]["mode"], "proxy");
+        assert_eq!(host["observer"]["attached"], true);
+        assert_eq!(host["platform"]["kernel"], "Linux 7.0.0-38-generic");
+        let limits = host["applied"]["limits"].as_array().unwrap();
+        assert_eq!(
+            limits.len(),
+            guest["applied"]["limits"].as_array().unwrap().len()
+        );
+        let wall = limits.iter().find(|row| row["key"] == "wall").unwrap();
+        assert_eq!(wall["hit"], true, "the host observed its own wall hit");
+        assert!(host["process"].is_null(), "a guest pid is never the host's");
+    }
+
+    #[test]
+    fn the_host_terminal_record_survives_the_mirror() {
+        let guest = guest_receipt();
+        let mut record = host_record();
+        let terminal = crate::records::AppliedTerminal {
+            device: "pty".into(),
+            session: "caller".into(),
+            process_group: "own".into(),
+            stops: 1,
+            restored: None,
+        };
+        record.applied.terminal = Some(terminal.clone());
+        mirror_guest_facts(&mut record, guest_facts(&guest));
+        assert_eq!(record.applied.terminal, Some(terminal));
     }
 }
