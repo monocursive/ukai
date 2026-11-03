@@ -222,10 +222,28 @@ def vm_wall(seconds):
     return ['--limit', f'wall={seconds}s']
 
 
+# S1's F11d: the guest jail's standard input is /dev/null, so `run --vm`
+# refuses, before any contact, a standard input that is not a terminal,
+# /dev/null or closed. Every harness client runs with stdin=DEVNULL; a
+# refusal that still appears is recorded in the host's own words.
+STDIN_REFUSED = '--vm: standard input is '
+STDIN_REFUSAL = re.compile(re.escape(STDIN_REFUSED)
+                           + r"([^,\n]+), and the guest jail's standard input is /dev/null")
+
+
 def vm_refusals(text):
-    """The host's VM-tier refusal codes in a client's output: a recorded
-    outcome, never a pass."""
-    return sorted(set(VM_REFUSAL.findall(text or '')))
+    """The host's VM-tier refusals in a client's output: a recorded
+    outcome, never a pass. The vm: codes, and the standard-input refusal
+    as the host words it ('--vm: standard input is a pipe')."""
+    text = text or ''
+    found = set(VM_REFUSAL.findall(text))
+    found.update(STDIN_REFUSED + kind for kind in STDIN_REFUSAL.findall(text))
+    return sorted(found)
+
+
+def stdin_refused(refusals):
+    """Whether vm_refusals() found the standard-input refusal."""
+    return any(code.startswith(STDIN_REFUSED) for code in refusals or ())
 
 
 # ---------------------------------------------------------------------------

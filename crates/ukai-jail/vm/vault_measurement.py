@@ -260,7 +260,8 @@ allow = ["{address}:{port}"]
                                   '--launch', 'vault-test', *harness.vm_wall(40),
                                   '--workspace', str(workspace), '--', '/bin/sh', '-c',
                                   fetch_script(address, port)],
-                                 env=env, capture_output=True, text=True, timeout=900)
+                                 env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                                 timeout=900)
             observed.update(run_exit=run.returncode, stdout=run.stdout, stderr=run.stderr)
         except subprocess.TimeoutExpired as error:
             observed.update(run_exit=None, stdout=str(error.stdout or ''), stderr='timeout')
@@ -270,7 +271,7 @@ allow = ["{address}:{port}"]
         # The same boot: flush the guest's caches, then read its disk image.
         sync = subprocess.run([str(jail), 'run', '--vm', '--terminal', 'detach', '--profile', 'tool',
                                *harness.vm_wall(20), '--workspace', str(workspace), '--', '/bin/sync'],
-                              env=env, capture_output=True, text=True, timeout=300)
+                              env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=300)
         observed['sync_exit'] = sync.returncode
         observed['sync_stderr'] = sync.stderr[-600:]
         disk, observed['same_boot'] = boot_disk(data)

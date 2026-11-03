@@ -620,8 +620,9 @@ def real_client(jail):
         process = subprocess.Popen([str(jail), 'run', '--vm', '--terminal', 'detach', '--profile', 'tool',
                                     *harness.vm_wall(wall), '--workspace', str(run.context['workspace']),
                                     '--', '/bin/sh', '-c', script],
-                                   env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                   text=True, process_group=0)  # a job of this session: Ctrl-Z stops it
+                                   env=environment, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, text=True,
+                                   process_group=0)  # a job of this session: Ctrl-Z stops it
         run.processes.append(process)
         return process
     return launch

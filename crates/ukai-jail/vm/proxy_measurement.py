@@ -56,7 +56,8 @@ def run_vm(jail, environment, workspace, profile, allow, argv, wall=40):
     command += ['--', *argv]
     started = time.monotonic()
     try:
-        done = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=600)
+        done = subprocess.run(command, env=environment, stdin=subprocess.DEVNULL, capture_output=True,
+                              text=True, timeout=600)
         result = {'exit': done.returncode, 'stdout': done.stdout, 'stderr': done.stderr[-600:]}
     except subprocess.TimeoutExpired as error:
         result = {'exit': None, 'stdout': str(error.stdout or ''), 'stderr': 'timeout'}
