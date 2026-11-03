@@ -18,9 +18,15 @@
 //! **D13 (2026-11-03):** the clamped path lowers both limits too: soft and
 //! hard become the inherited ceiling `min(soft, hard)`, with the same kernel
 //! read-back as the normal path. Before, it set nothing, so where the
-//! inherited soft limit sat below the hard limit (this Mac's default is
-//! soft 10666, hard 16000) a member could raise its soft limit back up to
-//! the hard limit. The guardian reports the allowance the kernel confirmed
+//! inherited soft limit sat below the hard limit a member could raise its
+//! soft limit back up to `min(hard, kern.maxprocperuid)`: Darwin caps every
+//! non-root `RLIMIT_NPROC` at `kern.maxprocperuid` (measured on this Mac,
+//! non-root: a soft 12000 request succeeds but reads back 10666, soft 16000
+//! fails with `EINVAL`, and `(5000, 16000)` reads back `(5000, 10666)`). On
+//! a default host the soft limit already sits at `kern.maxprocperuid`
+//! (soft 10666, hard 16000 here), so that gained nothing; it mattered only
+//! where the operator's soft limit was lower. The guardian reports the
+//! allowance the kernel confirmed
 //! twice: in the `allowance` frame on B, right before `ready`
 //! ([`AppliedAllowance::encode_frame`]), which every receipt from
 //! `prepared` on records, and in its record (`process_allowance`), which the
@@ -294,8 +300,9 @@ pub fn allowance_for(current: u64, soft: u64, hard: u64) -> Result<AppliedAllowa
 /// allowance, and lower soft **and** hard to its limit with kernel
 /// read-back — on both paths. Clamped, the limit is the inherited ceiling
 /// `min(soft, hard)`: the lower of the two stays where it is and the other
-/// comes down to it, so no member can raise its soft limit toward the
-/// inherited hard limit. Neither limit is ever raised, and a kernel that
+/// comes down to it, so no member can raise its soft limit above it (left
+/// unset, it could, up to `min(hard, kern.maxprocperuid)`). Neither limit is
+/// ever raised, and a kernel that
 /// applies anything but the exact limit refuses ([`lower_nproc`]). Returns
 /// what the kernel confirmed: the guardian reports it on B and in its
 /// record, and the receipt records that report (§4.1 rule 6).
@@ -503,9 +510,10 @@ mod tests {
 
     // In-process, in an isolated child: a soft ceiling below the full
     // headroom and below the hard limit (the shape where the old clamped
-    // path set nothing and left the hard limit raisable-to). Amended rule 6
-    // clamps to that soft ceiling; D13: the hard limit comes down to it, and
-    // no later raise of either limit succeeds.
+    // path set nothing, so a member could raise its soft limit up to
+    // min(hard, kern.maxprocperuid)). Amended rule 6 clamps to that soft
+    // ceiling; D13: the hard limit comes down to it, and no later raise of
+    // either limit succeeds.
     #[test]
     fn r3_c1_apply_never_raises_the_inherited_soft_limit() {
         const CHILD: &str = "UKAI_TEST_NPROC_SOFT_CHILD";
@@ -548,8 +556,10 @@ mod tests {
                 assert!(applied.clamped, "clamped to the inherited soft ceiling");
                 assert!(applied.is_consistent(), "{applied:?}");
                 assert_eq!(applied.limit, before.rlim_cur);
-                // D13: the hard limit is the ceiling now, not the inherited
-                // hard limit a member could have raised its soft limit to.
+                // D13: the hard limit is the ceiling now. Before, a member
+                // could raise its soft limit up to min(hard,
+                // kern.maxprocperuid), which is `before.rlim_max` here: the
+                // kernel already capped the fixture's hard limit on set.
                 assert_eq!(after.rlim_max, applied.limit, "hard limit not lowered");
                 let limit = applied.limit;
                 for (cur, max) in [

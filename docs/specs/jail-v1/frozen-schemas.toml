@@ -236,6 +236,7 @@
 #   example has no guardian record). Values remain illustrative, not live
 #   evidence. No schema or identifier changes: native details are an open
 #   object, and every previously accepted record stays valid.
+# - 2026-11-03: the example's profile_digest is now the current template's (K90 pin b2ae082d…).
 schema = "ukai.jail.frozen-schemas/1"
 milestone = "milestone-1"
 
@@ -348,7 +349,7 @@ sha256 = "80813b00687e0a131a083df0f98a25dfc2aff2dcdba974a0436d80b54478ba31"
 [[frozen_artifact]]
 file = "examples/receipt-macos-native.json"
 identifiers = ["ukai.jail.receipt/1", "ukai.event/1", "ukai.jail.control/1"]
-sha256 = "64c59a96ac6e7e9ee34d58f0901da46fec443aa7130f1e574bfaa9201020755f"
+sha256 = "a5383d1205abc71a00df83959a99195f818d476cc750c465f1e2b44ee1400a77"
 
 # an instance the semantic corpus changes
 [[frozen_artifact]]
