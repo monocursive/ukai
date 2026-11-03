@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Single-attempt guest controller. Installed root-owned outside the jail."""
 import base64
+import collections
 import json
 import hashlib
 import struct
@@ -10,6 +11,7 @@ import pwd
 import re
 import selectors
 import shutil
+import signal
 import socket
 import stat
 import subprocess
@@ -56,6 +58,11 @@ class Refusal(Exception):
 
 class AttemptTreeUnverified(RuntimeError):
     """The attempt's processes could not be shown gone within the budget."""
+
+
+class InfrastructureUnknown(RuntimeError):
+    """The user manager's own processes could not be established from
+    systemd's state at session open."""
 
 
 def secrets_root():
@@ -158,38 +165,59 @@ def kill_workload(boundary='/sys/fs/cgroup/user.slice'):
 # the attempt cgroup alone is empty within the first second, and killing it
 # alone kills nothing (review 2026-11-03 H1).
 #
-# The stop therefore kills every attempt cgroup AND every cgroup under the
-# user manager except the manager's own infrastructure, verifies each one
-# empty, and then verifies that no process of the workload account remains
-# outside that infrastructure anywhere in the guest. The jail's scope logic
-# is shared with Linux hosts and is not changed here.
+# The stop therefore kills every attempt cgroup and every cgroup under the
+# user manager except the manager's own infrastructure units, and then
+# requires that no process of the workload account survives anywhere in
+# the guest except the infrastructure's own processes, killing each other
+# one by pid. The jail's scope logic is shared with Linux hosts and is not
+# changed here.
+#
+# The infrastructure is what the next attempt's jail needs to get its
+# scope, and nothing else. prepare.py's image leaves exactly three
+# processes of the account running (measured on systemd 259, review
+# 2026-11-03 cgroup-exp baseline; re-measured on ouro-dev the same day):
+#
+# * the user manager, `systemd --user` in `user@<uid>.service/init.scope`
+#   (`loginctl enable-linger ukai` keeps it up): the system manager's
+#   MainPID for `user@<uid>.service`;
+# * its `(sd-pam)` helper, in the same scope: forked by the manager's
+#   executor before it became `systemd --user`, so its parent is that
+#   MainPID (measured: PPid = MainPID);
+# * the session bus `dbus-user-session` installs (dbus-daemon, the jail's
+#   `busctl --user` talks to it): the user manager's MainPID for
+#   `dbus.service`, in that unit's ControlGroup as the manager reports it
+#   (`session.slice/dbus.service` on the image; no spelling is assumed).
+#
+# They are learned once, at session open (`learn_infrastructure`): before
+# any attempt of this boot has run, so no workload process exists yet to
+# answer for systemd or to stand in for one of them. Each is pinned by pid
+# AND start time, so a reused pid is not mistaken for it. Nothing a
+# process says about itself (exe, comm, cmdline, the cgroup it sits in)
+# makes it infrastructure.
+#
+# What this covers: a process of the account placed INSIDE init.scope or
+# dbus.service (by a direct `cgroup.procs` write, the route the review
+# measured), or into a sub-cgroup of either, or anywhere outside the user
+# manager, is killed and shown gone, or the stop fails. A bus that died
+# and was socket-activated again during an attempt is not the learned one:
+# the stop kills it too, and the next attempt's `busctl` activates it
+# again. Today's jail gives the workload no cgroupfs (`--unshare-cgroup`,
+# no /sys) and no user bus, so this is the defence behind the jail's own.
 # ---------------------------------------------------------------------------
 
-# The user manager's own infrastructure under user@<uid>.service: the units
-# the next attempt's jail needs to create its scope, and nothing else. They
-# come from what prepare.py installs on the minimal cloud image:
-#
-# * `init.scope` — systemd --user itself (`loginctl enable-linger ukai`
-#   keeps it up) and its `(sd-pam)` helper. Its delegation is what the jail's
-#   cgroup setup needs; killing it is the 2026-11-02 warm-reuse bug.
-# * the `dbus.service` user unit — the session bus `dbus-user-session`
-#   installs (dbus-daemon, socket-activated through `dbus.socket` by the
-#   jail's first `busctl --user` call). The jail asks for its scope over it.
-#   Its slice comes from the unit file (`session.slice` in current dbus
-#   packaging; `app.slice` for a unit without `Slice=`); both spellings name
-#   the same unit, which the workload account cannot create twice.
-#
-# `bubblewrap`, the other package prepare.py installs, has no user units.
-# Every other cgroup under the manager — the jail's scope, its leaves, any
-# unit started on the account's behalf — is the attempt's and is killed.
-# Coverage: a process placed INSIDE one of these two units is not examined
-# further; the workload has no route to the user bus (its jail view has no
-# /run/user/<uid>), and the live phase confirms the unit set on the image.
-INFRASTRUCTURE_UNITS = ('init.scope', 'session.slice/dbus.service', 'app.slice/dbus.service')
+Infrastructure = collections.namedtuple('Infrastructure', 'pids units')
+Infrastructure.__doc__ = """The user manager's own processes and units, learned at session open:
+`pids` maps each pid to its start time; `units` are cgroup paths relative
+to `user@<uid>.service`."""
+
+ProcessFacts = collections.namedtuple('ProcessFacts', 'uids ppid starttime live cgroup')
 # The stop's whole budget for kill and verification, and the separate bound
 # on reaping the jail supervisor afterwards. Both waits feed the watchdog.
 STOP_BUDGET = 2.5
 REAP_BUDGET = 1.0
+# One systemctl call at session open; the watchdog is fed on either side.
+SYSTEMCTL = '/usr/bin/systemctl'
+SYSTEMCTL_TIMEOUT = 2.0
 attempt_counter = 0
 # The vaulted launch profile's TOML for the attempt in flight (staged by
 # the launch_toml op; consumed when the run writes it under its config
@@ -205,6 +233,11 @@ def delegated_root(uid):
     return CGROUP_ROOT / 'user.slice' / f'user-{uid}.slice' / f'user@{uid}.service'
 
 
+def cgroup_name(path):
+    """A cgroupfs directory as /proc/<pid>/cgroup and systemd spell it."""
+    return '/' + Path(path).relative_to(CGROUP_ROOT).as_posix()
+
+
 def child_cgroups(path):
     """A cgroup's child cgroups (its subdirectories; control files are not)."""
     try:
@@ -215,79 +248,241 @@ def child_cgroups(path):
         return []
 
 
-def attempt_boundaries(uid):
-    """Every cgroup the workload account's attempt can occupy: each attempt
-    cgroup, and every cgroup under the user manager that is not one of
-    [`INFRASTRUCTURE_UNITS`] (a slice's units one level down; any other
-    child of the manager, such as the jail's execution leaf, whole)."""
-    targets = child_cgroups(attempts_slice())
-    for child in child_cgroups(delegated_root(uid)):
-        if child.name in INFRASTRUCTURE_UNITS:
-            continue
-        if child.name.endswith('.slice'):
-            targets += [unit for unit in child_cgroups(child)
-                        if f'{child.name}/{unit.name}' not in INFRASTRUCTURE_UNITS]
-        else:
-            targets.append(child)
-    return targets
+def systemctl(*args, account=None):
+    """One bounded systemctl call and its standard output. With `account`,
+    `systemctl --user` as that account, through its manager's private
+    socket: root's own systemctl refuses that socket (its peer is not root;
+    measured on systemd 259), and `-M <user>@` would go through a transient
+    system unit and the session bus. Raises InfrastructureUnknown."""
+    argv = [SYSTEMCTL, *(('--user',) if account is not None else ()), *args]
+    options = {}
+    if account is not None:
+        options = dict(user=account.pw_uid, group=account.pw_gid, extra_groups=[],
+                       env={'XDG_RUNTIME_DIR': f'/run/user/{account.pw_uid}', 'LANG': 'C.UTF-8',
+                            'PATH': '/usr/bin:/bin'})
+    notify()
+    try:
+        result = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, cwd='/',
+                                timeout=SYSTEMCTL_TIMEOUT, check=False, **options)
+    except (OSError, subprocess.SubprocessError) as error:
+        raise InfrastructureUnknown(f'{" ".join(argv[1:])}: {type(error).__name__}') from None
+    finally:
+        notify()
+    if result.returncode != 0:
+        raise InfrastructureUnknown(f'{" ".join(argv[1:])} exited {result.returncode}')
+    return result.stdout
 
 
-def stray_processes(uid):
-    """The live processes of `uid` (any of its real, effective, saved or
-    filesystem ids) outside the user manager's infrastructure units, as
-    (pid, cgroup) pairs. A zombie runs nothing and is no longer a member of
-    any cgroup, so it is not a stray."""
-    root = '/' + str(delegated_root(uid).relative_to(CGROUP_ROOT))
-    allowed = {f'{root}/{unit}' for unit in INFRASTRUCTURE_UNITS}
-    strays = []
+def unit_properties(text):
+    """`systemctl show -p` output (KEY=VALUE lines) as a dict."""
+    properties = {}
+    for line in text.splitlines():
+        key, separator, value = line.partition('=')
+        if separator:
+            properties[key] = value
+    return properties
+
+
+def _stat_fields(text):
+    # Fields after the parenthesized comm (which may hold spaces and
+    # parentheses): index 0 is field 3 (state), 1 is ppid, 19 is starttime.
+    return text.rpartition(')')[2].split()
+
+
+def process_facts(pid):
+    """One process as /proc shows it, or None once it is gone. `live` is
+    whether any of its threads still runs: a thread-group leader that
+    exited while a sibling thread lives reads as a zombie but is not one."""
+    directory = PROC_ROOT / str(pid)
+    try:
+        status = (directory / 'status').read_text()
+        fields = _stat_fields((directory / 'stat').read_text())
+        membership = (directory / 'cgroup').read_text()
+        tids = os.listdir(directory / 'task')
+    except (FileNotFoundError, ProcessLookupError):
+        return None  # it ended while it was read
+    states = []
+    for tid in tids:
+        try:
+            states.append(_stat_fields((directory / 'task' / tid / 'stat').read_text())[0])
+        except (FileNotFoundError, ProcessLookupError):
+            continue  # that thread ended while it was read
+    uids = next((line.split()[1:] for line in status.splitlines() if line.startswith('Uid:')), [])
+    cgroup = next((line[3:] for line in membership.splitlines() if line.startswith('0::')), None)
+    return ProcessFacts(uids=uids, ppid=int(fields[1]), starttime=int(fields[19]),
+                        live=any(state not in ('Z', 'X') for state in states), cgroup=cgroup)
+
+
+def account_processes(uid):
+    """(pid, facts) of every process of `uid` (any of its real, effective,
+    saved or filesystem ids)."""
+    found = []
     for name in sorted(os.listdir(PROC_ROOT)):
         if not name.isdigit():
             continue
-        try:
-            status = (PROC_ROOT / name / 'status').read_text()
-            membership = (PROC_ROOT / name / 'cgroup').read_text()
-        except (FileNotFoundError, ProcessLookupError):
-            continue  # it ended while it was read
-        fields = {}
-        for line in status.splitlines():
-            key, _, value = line.partition(':')
-            fields[key] = value.split()
-        if str(uid) not in fields.get('Uid', []):
-            continue
-        if fields.get('State', ['?'])[0] in ('Z', 'X'):
-            continue
-        cgroup = next((line[3:] for line in membership.splitlines() if line.startswith('0::')), None)
-        if cgroup not in allowed:
-            strays.append((int(name), cgroup))
+        facts = process_facts(int(name))
+        if facts is not None and str(uid) in facts.uids:
+            found.append((int(name), facts))
+    return found
+
+
+def learn_infrastructure(account):
+    """The user manager's own processes and units, from systemd's state, at
+    session open (see the section comment): the manager is the system
+    manager's MainPID for user@<uid>.service, its helper the one process
+    that manager forked into init.scope, the bus the user manager's MainPID
+    for dbus.service (started first, as the jail's first `busctl` would
+    socket-activate it) in that unit's ControlGroup. Every fact is checked
+    against /proc. Raises InfrastructureUnknown."""
+    uid = account.pw_uid
+    root = cgroup_name(delegated_root(uid))
+    manager_scope = root + '/init.scope'
+
+    def require(condition, why):
+        if not condition:
+            raise InfrastructureUnknown(why)
+
+    def main_pid(properties):
+        value = properties.get('MainPID', '')
+        return int(value) if value.isdigit() else 0
+
+    manager = main_pid(unit_properties(systemctl('show', f'user@{uid}.service', '-p', 'MainPID')))
+    require(manager > 0, f'user@{uid}.service has no main process')
+    systemctl('start', 'dbus.service', account=account)
+    unit = unit_properties(systemctl('show', 'dbus.service', '-p', 'MainPID', '-p', 'ControlGroup',
+                                     account=account))
+    bus, bus_cgroup = main_pid(unit), unit.get('ControlGroup', '')
+    require(bus > 0, 'dbus.service has no main process')
+    require(bus_cgroup.startswith(root + '/') and not within_cgroup(bus_cgroup, manager_scope),
+            f'dbus.service is not a unit of the user manager: {bus_cgroup!r}')
+    pids = {}
+    for pid, cgroup, what in ((manager, manager_scope, 'user manager'), (bus, bus_cgroup, 'session bus')):
+        facts = process_facts(pid)
+        require(facts is not None and facts.live and facts.uids and all(value == str(uid) for value in facts.uids)
+                and facts.cgroup == cgroup, f'the {what} (pid {pid}) is not a live process of {uid} in {cgroup}')
+        pids[pid] = facts.starttime
+    helpers = [(pid, facts) for pid, facts in account_processes(uid)
+               if facts.live and facts.ppid == manager and facts.cgroup == manager_scope]
+    require(len(helpers) <= 1, f'{len(helpers)} processes beside the user manager in init.scope')
+    for pid, facts in helpers:
+        pids[pid] = facts.starttime
+    units = ('init.scope', bus_cgroup[len(root) + 1:])
+    audit('infrastructure_learned', manager=manager, helper=[pid for pid, _ in helpers], bus=bus,
+          bus_unit=units[1])
+    return Infrastructure(pids=pids, units=units)
+
+
+def within_cgroup(member, boundary):
+    return member == boundary or member.startswith(boundary + '/')
+
+
+def attempt_boundaries(uid, units):
+    """Every cgroup the attempt can occupy, each killed whole: each attempt
+    cgroup, and every cgroup under the user manager that neither is one of
+    the infrastructure `units` nor holds one. Those are walked into
+    instead: a unit's own sub-cgroups and a slice's other units are
+    boundaries."""
+    root = delegated_root(uid)
+    targets = child_cgroups(attempts_slice())
+    pending = child_cgroups(root)
+    while pending:
+        cgroup = pending.pop()
+        name = cgroup.relative_to(root).as_posix()
+        if any(within_cgroup(unit, name) for unit in units):
+            pending += child_cgroups(cgroup)
+        else:
+            targets.append(cgroup)
+    return sorted(targets)
+
+
+def stray_processes(uid, infrastructure_pids):
+    """The live processes of `uid` that are not the infrastructure's own
+    (pid and start time), wherever they sit, as (pid, starttime, cgroup).
+
+    A zombie runs nothing and is not a stray. A zombie thread-group leader
+    whose sibling thread still runs IS live: cgroup.kill does not end such a
+    group, and its cgroup reads `populated 1` for as long as it lives
+    (measured 2026-11-03: past 9.5 s in the review's experiment, past 5 s
+    on 7.2.12), while a SIGKILL to the process ends it (measured: within
+    0.25 s, by kill or pidfd), so the stop kills it here."""
+    strays = []
+    for pid, facts in account_processes(uid):
+        if facts.live and infrastructure_pids.get(pid) != facts.starttime:
+            strays.append((pid, facts.starttime, facts.cgroup))
     return strays
 
 
-def stop_attempt(account, budget=STOP_BUDGET):
+def kill_process(pid, starttime):
+    """SIGKILL to one process through a pidfd, sent only if the pid still
+    names the process the scan saw (its start time, read after the pidfd
+    pins it): a pid reused since the scan is never signalled."""
+    try:
+        descriptor = os.pidfd_open(pid)
+    except ProcessLookupError:
+        return
+    try:
+        facts = process_facts(pid)
+        if facts is not None and facts.starttime == starttime:
+            signal.pidfd_send_signal(descriptor, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    finally:
+        os.close(descriptor)
+
+
+def boundary_members(boundaries):
+    """For the failure audit: the processes /proc places in each populated
+    boundary (any account), as [pid, uid, thread states]. A boundary still
+    populated with no member of the workload account names a root-owned
+    survivor or a kernel that has not yet emptied the cgroup."""
+    names = {cgroup_name(boundary): [] for boundary in boundaries}
+    for entry in sorted(os.listdir(PROC_ROOT)):
+        if not entry.isdigit():
+            continue
+        facts = process_facts(int(entry))
+        if facts is None or facts.cgroup is None:
+            continue
+        for name, members in names.items():
+            if within_cgroup(facts.cgroup, name) and len(members) < 16:
+                members.append([int(entry), (facts.uids or ['?'])[0], 'live' if facts.live else 'zombie'])
+    return names
+
+
+def stop_attempt(account, infrastructure, budget=STOP_BUDGET):
     """Ends one attempt's tree without ending the session: kill every
-    boundary the attempt can occupy, then verify each empty and no stray
-    process of the account left, re-killing until both hold or the budget
-    is spent. Re-enumerating each round catches a unit the manager started
-    while the first kill landed. Raises [`AttemptTreeUnverified`] past the
-    budget: a warm reset must never run alongside surviving workload
-    processes, and the caller powers the guest off."""
+    boundary the attempt can occupy and every stray process of the account,
+    then verify each boundary empty and no stray left, re-killing until
+    both hold or the budget is spent. Re-enumerating each round catches a
+    unit the manager started while the first kill landed. Raises
+    [`AttemptTreeUnverified`] past the budget: a warm reset must never run
+    alongside surviving workload processes, and the caller powers the guest
+    off."""
+    if infrastructure is None:
+        raise AttemptTreeUnverified('no infrastructure was learned for this session')
     uid = account.pw_uid
     deadline = clock() + budget
+    killed = {}
     while True:
         notify()
-        targets = attempt_boundaries(uid)
+        targets = attempt_boundaries(uid, infrastructure.units)
         for target in targets:
             try:
                 cgroup_kill(target)
             except FileNotFoundError:
                 pass  # removed since it was listed: empty by construction
+        strays = stray_processes(uid, infrastructure.pids)
+        for pid, starttime, cgroup in strays:
+            kill_process(pid, starttime)
+            killed.setdefault(pid, cgroup)
         populated = [target for target in targets if cgroup_populated(target)]
-        strays = stray_processes(uid)
         if not populated and not strays:
             audit('workload_tree_empty', boundaries=[str(target.relative_to(CGROUP_ROOT)) for target in targets],
-                  strays=0)
+                  strays_killed=sorted([pid, cgroup] for pid, cgroup in killed.items()))
             return targets
         if clock() >= deadline:
-            detail = {'populated': [str(target) for target in populated], 'strays': strays}
+            detail = {'populated': [str(target) for target in populated],
+                      'strays': [[pid, cgroup] for pid, _, cgroup in strays],
+                      'members': boundary_members(populated)}
             audit('attempt_tree_unverified', **detail)
             raise AttemptTreeUnverified(json.dumps(detail))
         time.sleep(.02)
@@ -838,6 +1033,9 @@ def main():
     # end-of-file, not a timer. The vsock end closing still powers off, as
     # does the outer wall backstop for a live attempt.
     in_session = False
+    # The user manager's own processes, learned at session open (D6, F1):
+    # the stop spares these and nothing else of the account.
+    infrastructure = None
     run_request = None
     guest_boot_id = (PROC_ROOT / 'sys/kernel/random/boot_id').read_text().strip()
 
@@ -848,7 +1046,7 @@ def main():
         each bounded, each failure a named poweroff rather than a starved
         watchdog."""
         try:
-            stop_attempt(account)
+            stop_attempt(account, infrastructure)
             drop_attempt_cgroups(account.pw_uid)
             reap(process)
         except (AttemptTreeUnverified, OSError, ValueError) as error:
@@ -993,8 +1191,14 @@ def main():
                         # ping lease no longer applies: the attempt's lease
                         # is this connection's end-of-file (§6), not a timer.
                         # `live_share` is what the serve compares with what it
-                        # attached (D7).
+                        # attached (D7). No attempt has run yet, so this is
+                        # when the user manager's own processes are learned.
                         in_session = True
+                        try:
+                            infrastructure = learn_infrastructure(account)
+                        except InfrastructureUnknown as error:
+                            audit('infrastructure_unknown', error=str(error))
+                            poweroff('infrastructure_unknown')
                         audit('session_opened', live_share=live_share)
                         send({'event': 'session', 'kernel': os.uname().release, 'live_share': live_share})
                     elif op == 'reset' and process is None and in_session:

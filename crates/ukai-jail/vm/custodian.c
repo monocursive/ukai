@@ -70,7 +70,16 @@ int main(int argc, char **argv) {
      * poll) restarts the three-second window instead; a caller that is
      * really gone still ends the VM within it, or at once on EOF. This is
      * the custodian half of the serve's own wake-gap rule (ukai-vm.rs
-     * `maintain_lease`). */
+     * `maintain_lease`).
+     *
+     * Untested on purpose, and not testable from outside: that the one
+     * judgement comes after the read. A judgement added before the poll
+     * differs from this one only when the custodian is suspended between
+     * the end of one turn and the start of the next, and the loop spends
+     * its time blocked in poll(), where a SIGSTOP lands and from which it
+     * resumes reading. Otherwise the two are microseconds apart, the same
+     * clock reading, the same verdict. test_custodian.py pins the wake-gap
+     * reset and the 3 s expiry; this ordering rests on review. */
     double refreshed = now();
     double awake = refreshed;
     int status;

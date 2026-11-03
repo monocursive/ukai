@@ -14,13 +14,15 @@ import os
 import stat
 import tempfile
 import shutil
+import sys
+import time
 import types
 import unittest
 from pathlib import Path
 from unittest import mock
 
 import guest
-from guest_harness import Clock, Kernel, load_guest
+from guest_harness import Clock, Kernel, install_kernel, load_guest
 
 
 def account(uid=None, gid=None, home='/home/ukai'):
@@ -309,70 +311,244 @@ class StopModelTests(unittest.TestCase):
         self.kernel = Kernel(self.root, 1001)
         self.clock = Clock()
         g = self.guest = load_guest()
-        g.CGROUP_ROOT, g.PROC_ROOT = self.kernel.cgroups, self.kernel.proc
-        g.make_cgroup, g.cgroup_kill, g.remove_cgroup = self.kernel.make_cgroup, self.kernel.kill, self.kernel.remove
+        install_kernel(g, self.kernel)
         g.clock = self.clock.clock
         g.time = types.SimpleNamespace(sleep=self.clock.sleep)
         self.audits = []
-        g.audit = lambda event, **fields: self.audits.append(event)
+        self.fields = {}
+        g.audit = lambda event, **fields: (self.audits.append(event), self.fields.__setitem__(event, fields))
         self.notifies = []
         g.notify = lambda: self.notifies.append(self.clock.now)
         self.account = account(uid=1001, gid=1001)
         self.delegated = self.kernel.delegated
+
+    def learned(self):
+        return self.guest.learn_infrastructure(self.account)
+
+    def assert_infrastructure_alive(self):
+        for process in (self.kernel.manager, self.kernel.sd_pam, self.kernel.bus):
+            self.assertTrue(process.alive, f'{process.exe} in {process.cgroup} was killed')
+
+    def stop(self):
+        return self.guest.stop_attempt(self.account, self.learned())
+
+    # -- learning the infrastructure (F1) ------------------------------------
+
+    def test_the_infrastructure_is_systemds_manager_its_helper_and_the_bus(self):
+        infrastructure = self.learned()
+        kernel = self.kernel
+        self.assertEqual(infrastructure.pids, {kernel.manager.pid: kernel.manager.starttime,
+                                               kernel.sd_pam.pid: kernel.sd_pam.starttime,
+                                               kernel.bus.pid: kernel.bus.starttime})
+        self.assertEqual(infrastructure.units, ('init.scope', 'session.slice/dbus.service'))
+        # The bus is started (as the jail's first busctl would activate it)
+        # before it is read; both --user calls are the account's.
+        self.assertEqual(kernel.systemctl_calls, [
+            (('show', 'user@1001.service', '-p', 'MainPID'), False),
+            (('start', 'dbus.service'), True),
+            (('show', 'dbus.service', '-p', 'MainPID', '-p', 'ControlGroup'), True)])
+
+    def test_a_bus_not_yet_running_is_started_then_learned(self):
+        self.kernel.exit(self.kernel.bus)
+        infrastructure = self.learned()
+        self.assertTrue(self.kernel.bus.alive)
+        self.assertIn(self.kernel.bus.pid, infrastructure.pids)
+
+    def test_the_bus_unit_is_where_systemd_says_not_a_fixed_spelling(self):
+        self.kernel.move(self.kernel.bus, f'{self.delegated}/app.slice/dbus.service')
+        self.assertEqual(self.learned().units, ('init.scope', 'app.slice/dbus.service'))
+
+    def test_disagreements_with_proc_refuse_the_session(self):
+        kernel = self.kernel
+        bystander = kernel.spawn(1001, f'{self.delegated}/app.slice/run-u1.service', 'sh')
+        cases = {
+            'no manager': dict(manager=0),
+            'manager outside init.scope': dict(manager=bystander.pid),
+            'bus pid elsewhere': dict(bus=bystander.pid),
+            'bus unit outside the manager': dict(bus_cgroup=f'/system.slice/dbus.service'),
+            'bus unit is init.scope': dict(bus_cgroup=f'/{self.delegated}/init.scope'),
+            'bus unit spelled differently from /proc': dict(bus_cgroup=f'/{self.delegated}/app.slice/dbus.service'),
+            'no bus': dict(bus=0),
+        }
+        for name, reported in cases.items():
+            with self.subTest(name):
+                kernel.reported = {'manager': None, 'bus': None, 'bus_cgroup': None, **reported}
+                with self.assertRaises(self.guest.InfrastructureUnknown):
+                    self.learned()
+        kernel.reported = {'manager': None, 'bus': None, 'bus_cgroup': None}
+        root_bus = kernel.spawn(0, f'{self.delegated}/session.slice/dbus.service', 'dbus-daemon')
+        kernel.reported['bus'] = root_bus.pid
+        with self.assertRaises(self.guest.InfrastructureUnknown):
+            self.learned()
+
+    def test_a_bus_that_systemd_and_proc_agree_is_misplaced_refuses_the_session(self):
+        # Agreement is not enough: the bus must be a unit of the user
+        # manager, and not inside the manager's own scope.
+        for cgroup in ('system.slice/dbus.service', f'{self.delegated}/init.scope/x'):
+            with self.subTest(cgroup):
+                self.kernel.move(self.kernel.bus, cgroup)
+                with self.assertRaises(self.guest.InfrastructureUnknown):
+                    self.learned()
+
+    def test_a_failed_systemctl_refuses_the_session(self):
+        for verb in ('show', 'start'):
+            with self.subTest(verb):
+                self.kernel.systemctl_failures = {verb}
+                with self.assertRaises(self.guest.InfrastructureUnknown):
+                    self.learned()
+
+    def test_a_second_manager_child_in_init_scope_refuses_the_session(self):
+        self.kernel.spawn(1001, f'{self.delegated}/init.scope', 'sh', ppid=self.kernel.manager.pid)
+        with self.assertRaises(self.guest.InfrastructureUnknown):
+            self.learned()
+
+    def test_only_the_managers_own_child_is_its_helper(self):
+        # A process of the account in init.scope that the manager did not
+        # fork is not infrastructure, whatever it is called.
+        impostor = self.kernel.spawn(1001, f'{self.delegated}/init.scope', '(sd-pam)')
+        self.assertNotIn(impostor.pid, self.learned().pids)
+
+    # -- the stop -------------------------------------------------------------
 
     def test_the_boundaries_are_the_attempt_and_everything_but_the_infrastructure(self):
         g = self.guest
         g.attempt_counter = 0
         self.kernel.ensure('ukai-attempts.slice/attempt-3')
         for cgroup in ('app.slice/ukai-jail-9-abc.scope', 'app.slice/run-u1.service', 'ukai-att_x.leaf',
-                       'background.slice/thing.service', 'session.slice/other.service'):
+                       'background.slice/thing.service', 'session.slice/other.service',
+                       'init.scope/x', 'session.slice/dbus.service/y/z'):
             self.kernel.ensure(f'{self.delegated}/{cgroup}')
-        names = sorted(self.kernel.relative(path) for path in g.attempt_boundaries(1001))
+        units = ('init.scope', 'session.slice/dbus.service')
+        names = sorted(self.kernel.relative(path) for path in g.attempt_boundaries(1001, units))
         self.assertEqual(names, sorted([
             'ukai-attempts.slice/attempt-3',
-            f'{self.delegated}/app.slice/ukai-jail-9-abc.scope',
-            f'{self.delegated}/app.slice/run-u1.service',
+            f'{self.delegated}/app.slice',
             f'{self.delegated}/ukai-att_x.leaf',
-            f'{self.delegated}/background.slice/thing.service',
-            f'{self.delegated}/session.slice/other.service']))
+            f'{self.delegated}/background.slice',
+            f'{self.delegated}/session.slice/other.service',
+            f'{self.delegated}/init.scope/x',
+            f'{self.delegated}/session.slice/dbus.service/y']))
+        # The same tree with the bus where a unit without Slice= lands.
+        self.kernel.ensure(f'{self.delegated}/app.slice/dbus.service')
+        names = sorted(self.kernel.relative(path)
+                       for path in g.attempt_boundaries(1001, ('init.scope', 'app.slice/dbus.service')))
+        self.assertIn(f'{self.delegated}/app.slice/ukai-jail-9-abc.scope', names)
+        self.assertIn(f'{self.delegated}/session.slice', names)
+        self.assertNotIn(f'{self.delegated}/app.slice', names)
+        self.assertNotIn(f'{self.delegated}/app.slice/dbus.service', names)
 
     def test_the_stop_kills_the_scope_and_leaf_and_spares_the_manager_and_bus(self):
         supervisor = self.kernel.spawn(1001, f'{self.delegated}/app.slice/ukai-jail-9-abc.scope', 'ukai-jail')
         workload = self.kernel.spawn(1001, f'{self.delegated}/ukai-att_9.leaf', 'sleep')
-        self.guest.stop_attempt(self.account)
+        self.stop()
         self.guest.drop_attempt_cgroups(1001)
         self.assertFalse(supervisor.alive)
         self.assertFalse(workload.alive)
-        for process in (self.kernel.manager, self.kernel.sd_pam, self.kernel.bus):
-            self.assertTrue(process.alive, process.cgroup)
+        self.assert_infrastructure_alive()
         self.assertFalse((self.kernel.cgroups / self.delegated / 'ukai-att_9.leaf').exists())
+        self.assertIn('workload_tree_empty', self.audits)
+
+    def test_intruders_inside_the_infrastructure_units_are_killed_and_it_survives(self):
+        # The review's measured route (cgroup-exp): a direct cgroup.procs
+        # write into init.scope or the bus's unit, or a sub-cgroup of one.
+        infrastructure = self.learned()
+        intruders = [self.kernel.spawn(1001, f'{self.delegated}/{cgroup}', 'python3')
+                     for cgroup in ('init.scope', 'session.slice/dbus.service', 'init.scope/x',
+                                    'app.slice/dbus.service')]
+        self.guest.stop_attempt(self.account, infrastructure)
+        for intruder in intruders:
+            self.assertFalse(intruder.alive, f'an intruder in {intruder.cgroup} survived the stop')
+        self.assert_infrastructure_alive()
+        killed = {pid for pid, _ in self.fields['workload_tree_empty']['strays_killed']}
+        self.assertTrue({intruders[0].pid, intruders[1].pid} <= killed)
+
+    def test_an_intruder_that_cannot_be_killed_fails_the_stop(self):
+        infrastructure = self.learned()
+        self.kernel.spawn(1001, f'{self.delegated}/init.scope', 'python3', unkillable=True)
+        with self.assertRaises(self.guest.AttemptTreeUnverified):
+            self.guest.stop_attempt(self.account, infrastructure)
+        self.assert_infrastructure_alive()
+
+    def test_a_reused_infrastructure_pid_is_not_infrastructure(self):
+        infrastructure = self.learned()
+        bus = self.kernel.bus
+        self.kernel.exit(bus)
+        impostor = self.kernel.spawn(1001, bus.cgroup, '/usr/bin/dbus-daemon', pid=bus.pid, ppid=bus.ppid)
+        self.guest.stop_attempt(self.account, infrastructure)
+        self.assertFalse(impostor.alive, 'a process on the learned bus pid passed for the bus')
+        self.assertTrue(self.kernel.manager.alive and self.kernel.sd_pam.alive)
+
+    def test_a_restarted_bus_is_killed_and_the_manager_survives(self):
+        infrastructure = self.learned()
+        self.kernel.exit(self.kernel.bus)
+        restarted = self.kernel.spawn(1001, f'{self.delegated}/session.slice/dbus.service', 'dbus-daemon',
+                                      ppid=self.kernel.manager.pid)
+        self.guest.stop_attempt(self.account, infrastructure)
+        self.assertFalse(restarted.alive)
+        self.assertTrue(self.kernel.manager.alive and self.kernel.sd_pam.alive)
+
+    def test_a_zombie_leader_with_a_live_thread_is_killed_by_pid(self):
+        # F2: cgroup.kill leaves such a group and its leaf stays populated
+        # (measured); the stray scan sees its live thread and kills it.
+        group = self.kernel.spawn(1001, f'{self.delegated}/ukai-att_9.leaf', 'python3', zombie_leader=True)
+        self.stop()
+        self.assertFalse(group.alive)
+        self.assertIn(group.pid, self.kernel.signals)
         self.assertIn('workload_tree_empty', self.audits)
 
     def test_a_populated_boundary_without_a_workload_uid_still_fails_the_stop(self):
         # An unkillable root-owned process in the jail's scope: no uid stray,
-        # but the boundary never empties — the populated check decides.
-        self.kernel.spawn(0, f'{self.delegated}/app.slice/ukai-jail-9-abc.scope', 'helper', unkillable=True)
+        # but the boundary never empties — the populated check decides, and
+        # the audit names what holds it.
+        helper = self.kernel.spawn(0, f'{self.delegated}/app.slice/ukai-jail-9-abc.scope', 'helper',
+                                   unkillable=True)
         with self.assertRaises(self.guest.AttemptTreeUnverified):
-            self.guest.stop_attempt(self.account)
+            self.stop()
         self.assertLessEqual(max(b - a for a, b in zip(self.notifies, self.notifies[1:])), .1)
+        detail = self.fields['attempt_tree_unverified']
+        self.assertEqual(detail['strays'], [])
+        self.assertEqual(detail['members'], {f'/{self.delegated}/app.slice': [[helper.pid, '0', 'live']]})
 
-    def test_a_stray_anywhere_else_fails_the_stop_after_the_budget(self):
-        self.kernel.spawn(1001, 'user.slice/user-1001.slice/session-1.scope', 'sh')
+    def test_a_stray_anywhere_else_is_killed(self):
+        stray = self.kernel.spawn(1001, 'user.slice/user-1001.slice/session-1.scope', 'sh')
+        self.stop()
+        self.assertFalse(stray.alive)
+        self.assertEqual(self.fields['workload_tree_empty']['strays_killed'],
+                         [[stray.pid, '/user.slice/user-1001.slice/session-1.scope']])
+
+    def test_an_unkillable_stray_anywhere_else_fails_the_stop_after_the_budget(self):
+        stray = self.kernel.spawn(1001, 'user.slice/user-1001.slice/session-1.scope', 'sh', unkillable=True)
+        infrastructure = self.learned()
         start = self.clock.now
         with self.assertRaises(self.guest.AttemptTreeUnverified):
-            self.guest.stop_attempt(self.account)
+            self.guest.stop_attempt(self.account, infrastructure)
         self.assertGreaterEqual(self.clock.now - start, self.guest.STOP_BUDGET)
         self.assertLess(self.clock.now - start, self.guest.STOP_BUDGET + .1)
         self.assertIn('attempt_tree_unverified', self.audits)
+        self.assertEqual(self.fields['attempt_tree_unverified']['strays'],
+                         [[stray.pid, '/user.slice/user-1001.slice/session-1.scope']])
+
+    def test_a_stop_without_learned_infrastructure_fails(self):
+        with self.assertRaises(self.guest.AttemptTreeUnverified):
+            self.guest.stop_attempt(self.account, None)
 
     def test_other_accounts_and_zombies_are_not_strays(self):
         self.kernel.spawn(0, 'system.slice/cron.service', 'cron')
         zombie = self.kernel.spawn(1001, 'system.slice/ukai-vm.service', 'sh')
-        status = self.kernel.proc / str(zombie.pid) / 'status'
-        status.write_text(status.read_text().replace('S (sleeping)', 'Z (zombie)'))
-        self.assertEqual(self.guest.stray_processes(1001), [])
-        status.write_text(status.read_text().replace('Z (zombie)', 'R (running)'))
-        self.assertEqual(self.guest.stray_processes(1001), [(zombie.pid, '/system.slice/ukai-vm.service')])
+        infrastructure = self.learned()
+        self.kernel.set_state(zombie, 'Z')
+        self.assertEqual(self.guest.stray_processes(1001, infrastructure.pids), [])
+        self.kernel.set_state(zombie, 'R')
+        self.assertEqual(self.guest.stray_processes(1001, infrastructure.pids),
+                         [(zombie.pid, zombie.starttime, '/system.slice/ukai-vm.service')])
+
+    def test_process_facts_read_past_a_hostile_comm(self):
+        # The comm field may hold spaces and parentheses; the fields after
+        # its last ')' are the kernel's.
+        process = self.kernel.spawn(1001, f'{self.delegated}/ukai-att_9.leaf', 'evil) S 1 (x')
+        facts = self.guest.process_facts(process.pid)
+        self.assertEqual((facts.ppid, facts.starttime, facts.live), (1, process.starttime, True))
+        self.assertIsNone(self.guest.process_facts(999999))
 
     def test_a_vanished_cgroup_is_empty_and_an_unreadable_one_is_not(self):
         g = self.guest
@@ -404,6 +580,113 @@ class StopModelTests(unittest.TestCase):
         with self.assertRaises(TimeoutError):
             g.kill_workload(str(boundary))
         self.assertGreater(len(self.notifies), 10)
+
+
+class SystemctlTests(unittest.TestCase):
+    """The one systemctl call `learn_infrastructure` makes, as it reaches
+    subprocess (the harness answers for systemd above this seam)."""
+
+    def setUp(self):
+        g = self.guest = load_guest()
+        self.calls = []
+        self.answer = guest.subprocess.CompletedProcess([], 0, stdout='MainPID=7\n', stderr='')
+        self.notifies = []
+        g.notify = lambda: self.notifies.append(len(self.calls))
+
+        def run(argv, **options):
+            self.calls.append((argv, options))
+            if isinstance(self.answer, BaseException):
+                raise self.answer
+            return self.answer
+        g.subprocess = types.SimpleNamespace(run=run, DEVNULL=guest.subprocess.DEVNULL,
+                                             SubprocessError=guest.subprocess.SubprocessError)
+
+    def test_the_system_call_is_roots_and_the_user_call_is_the_accounts(self):
+        g = self.guest
+        self.assertEqual(g.systemctl('show', 'user@1001.service', '-p', 'MainPID'), 'MainPID=7\n')
+        g.systemctl('show', 'dbus.service', account=account(uid=1001, gid=1001))
+        (system, system_options), (user, user_options) = self.calls
+        self.assertEqual(system, ['/usr/bin/systemctl', 'show', 'user@1001.service', '-p', 'MainPID'])
+        self.assertNotIn('user', system_options)
+        self.assertEqual(user, ['/usr/bin/systemctl', '--user', 'show', 'dbus.service'])
+        self.assertEqual((user_options['user'], user_options['group'], user_options['extra_groups']),
+                         (1001, 1001, []))
+        self.assertEqual(user_options['env']['XDG_RUNTIME_DIR'], '/run/user/1001')
+        for options in (system_options, user_options):
+            self.assertLessEqual(options['timeout'], 2.0)
+            self.assertIs(options['stdin'], guest.subprocess.DEVNULL)
+        self.assertEqual(self.notifies, [0, 1, 1, 2], 'the watchdog is fed on both sides of each call')
+
+    def test_a_failed_or_hung_call_is_infrastructure_unknown(self):
+        g = self.guest
+        self.answer = guest.subprocess.CompletedProcess([], 1, stdout='', stderr='')
+        with self.assertRaises(g.InfrastructureUnknown):
+            g.systemctl('show', 'x')
+        self.answer = guest.subprocess.TimeoutExpired(['systemctl'], 2.0)
+        with self.assertRaises(g.InfrastructureUnknown):
+            g.systemctl('show', 'x')
+        self.answer = FileNotFoundError('systemctl')
+        with self.assertRaises(g.InfrastructureUnknown):
+            g.systemctl('show', 'x')
+
+    def test_unit_properties_parse_systemds_order(self):
+        self.assertEqual(self.guest.unit_properties('ControlGroup=/a/b=c\nMainPID=12\nnoise\n'),
+                         {'ControlGroup': '/a/b=c', 'MainPID': '12'})
+
+
+ZOMBIE_LEADER = r'''
+import ctypes, os, sys, threading, time
+if os.fork():
+    os._exit(0)
+thread = threading.Thread(target=lambda: time.sleep(30), daemon=False)
+thread.start()
+print(os.getpid(), flush=True)
+ctypes.CDLL(None).syscall(93 if os.uname().machine == 'aarch64' else 60, 0)
+'''
+
+
+@unittest.skipUnless(hasattr(os, 'pidfd_open') and Path('/proc/self/task').is_dir(),
+                     'pidfd and /proc are Linux')
+class RealProcTests(unittest.TestCase):
+    """The stray scan's /proc reading and its pidfd kill on the running
+    kernel: the two facts F2 rests on (measured 2026-11-03 on 7.2.12)."""
+
+    def setUp(self):
+        self.guest = load_guest()
+
+    def test_a_zombie_leader_with_a_live_thread_reads_live_and_its_pidfd_kill_ends_it(self):
+        g = self.guest
+        spawner = guest.subprocess.Popen([sys.executable, '-c', ZOMBIE_LEADER], stdout=guest.subprocess.PIPE,
+                                         text=True)
+        pid = int(spawner.stdout.readline())  # the group keeps the pipe open
+        spawner.stdout.close()
+        spawner.wait(timeout=5)
+        self.addCleanup(lambda: os.path.exists(f'/proc/{pid}') and os.kill(pid, 9))
+        deadline = time.monotonic() + 5
+        while 'Z' not in (Path(f'/proc/{pid}/status').read_text().split('State:')[1].split()[0]):
+            self.assertLess(time.monotonic(), deadline, 'the leader never exited')
+            time.sleep(.02)
+        facts = g.process_facts(pid)
+        self.assertTrue(facts.live, 'a zombie leader whose thread runs read as dead')
+        self.assertIn(pid, [found for found, _, _ in g.stray_processes(os.getuid(), {})])
+        g.kill_process(pid, facts.starttime)
+        deadline = time.monotonic() + 5
+        while (facts := g.process_facts(pid)) is not None and facts.live:
+            self.assertLess(time.monotonic(), deadline, 'the pidfd SIGKILL did not end the group')
+            time.sleep(.02)
+
+    def test_a_stale_start_time_is_never_signalled(self):
+        g = self.guest
+        sleeper = guest.subprocess.Popen(['sleep', '30'])
+        self.addCleanup(sleeper.wait)
+        self.addCleanup(sleeper.kill)
+        starttime = g.process_facts(sleeper.pid).starttime
+        g.kill_process(sleeper.pid, starttime + 1)
+        time.sleep(.2)
+        self.assertIsNone(sleeper.poll(), 'a pid whose start time differs was signalled')
+        g.kill_process(sleeper.pid, starttime)
+        self.assertEqual(sleeper.wait(timeout=5), -9)
+        g.kill_process(sleeper.pid, starttime)  # gone: quiet
 
 
 class ShareMountTests(unittest.TestCase):

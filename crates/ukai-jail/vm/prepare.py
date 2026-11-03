@@ -133,7 +133,9 @@ rm -f /etc/apt/sources.list.d/ubuntu.sources
 # the snapshot above; the installed versions are also recorded in the image
 # manifest: `bubblewrap` is the containment backend, `dbus-user-session`
 # the session bus the jail's scope request (busctl --user) talks to.
-# guest.py's INFRASTRUCTURE_UNITS names the user units these leave running.
+# These leave exactly the user manager, its (sd-pam) helper and the bus
+# running as the account; guest.py learns those three from systemd at
+# session open (learn_infrastructure) and the attempt stop spares only them.
 echo UKAI_STEP apt_update >/dev/hvc0
 apt-get update
 echo UKAI_STEP apt_install >/dev/hvc0

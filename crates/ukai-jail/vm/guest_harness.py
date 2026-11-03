@@ -3,10 +3,14 @@ model of the kernel's cgroup and /proc interfaces, a scripted stand-in for
 the Linux jail, and a virtual clock.
 
 The model keeps the facts the controller reads in files, in the kernel's
-own formats (`cgroup.events`, `/proc/<pid>/status`, `/proc/<pid>/cgroup`),
-so the controller's parsing and decisions run unchanged; only the four
-acting hooks (`make_cgroup`, `cgroup_kill`, `remove_cgroup`, and
-`subprocess`) are the model's. The stand-in jail behaves like the measured
+own formats (`cgroup.events`, `/proc/<pid>/status`, `/proc/<pid>/stat`,
+`/proc/<pid>/task/<tid>/stat`, `/proc/<pid>/cgroup`), so the controller's
+parsing and decisions run unchanged; only the acting hooks (`make_cgroup`,
+`cgroup_kill`, `remove_cgroup`, `kill_process`, `systemctl` and
+`subprocess`) are the model's. Two kernel behaviours are modelled as
+measured on 2026-11-03: cgroup.kill does not end a thread group whose
+leader has exited while a sibling thread lives, and a SIGKILL to that
+process does. The stand-in jail behaves like the measured
 Linux jail (K111/K113 guest receipts): once the controller has moved it
 into the attempt cgroup it moves itself into
 `user@<uid>.service/app.slice/ukai-jail-<pid>-<hex>.scope` and runs its
@@ -60,7 +64,10 @@ class Clock:
     that sleeps past `RUNAWAY` virtual seconds is an unbounded one: it fails
     the test at once instead of hanging the suite."""
 
-    RUNAWAY = 600
+    # Above every test's own virtual time (the longest advances 41 s) and
+    # every budget; low enough that a mutant's endless /proc rounds end in
+    # seconds of real time.
+    RUNAWAY = 120
 
     def __init__(self):
         self.start = self.now = 1000.0
@@ -78,9 +85,12 @@ class Clock:
 
 
 class Process:
-    def __init__(self, pid, uid, cgroup, exe, unkillable=False):
+    def __init__(self, pid, uid, cgroup, exe, unkillable=False, ppid=1, starttime=0, zombie_leader=None):
         self.pid, self.uid, self.cgroup, self.exe = pid, uid, cgroup, exe
         self.unkillable = unkillable
+        self.ppid, self.starttime = ppid, starttime
+        # The tid of the sibling thread that outlives an exited leader.
+        self.zombie_leader = zombie_leader
         self.alive = True
         self.killed = False
 
@@ -99,7 +109,14 @@ class Kernel:
         self.uid = uid
         self.processes = {}
         self.pids = itertools.count(200)
+        self.ticks = itertools.count(5000, 7)
         self.kills = []
+        self.signals = []
+        # What systemd reports (`systemctl show`): None is the truth; a test
+        # sets a value to make systemd's state disagree with /proc.
+        self.reported = {'manager': None, 'bus': None, 'bus_cgroup': None}
+        self.systemctl_failures = set()
+        self.systemctl_calls = []
         self.lock = threading.RLock()
         self.cgroups.mkdir(parents=True)
         (self.proc / 'sys/kernel/random').mkdir(parents=True)
@@ -110,9 +127,13 @@ class Kernel:
             self.make_cgroup(self.cgroups / path)
         # The user manager's own processes (prepare.py's lingering account):
         # they must survive every attempt's stop.
+        # (sd-pam) is forked by the manager's executor before it becomes
+        # `systemd --user`, the bus by the manager for dbus.service.
         self.manager = self.spawn(uid, f'{self.delegated}/init.scope', '/usr/lib/systemd/systemd')
-        self.sd_pam = self.spawn(uid, f'{self.delegated}/init.scope', '/usr/lib/systemd/systemd-executor')
-        self.bus = self.spawn(uid, f'{self.delegated}/session.slice/dbus.service', '/usr/bin/dbus-daemon')
+        self.sd_pam = self.spawn(uid, f'{self.delegated}/init.scope', '/usr/lib/systemd/systemd-executor',
+                                 ppid=self.manager.pid)
+        self.bus = self.spawn(uid, f'{self.delegated}/session.slice/dbus.service', '/usr/bin/dbus-daemon',
+                              ppid=self.manager.pid)
 
     @property
     def delegated(self):
@@ -139,10 +160,44 @@ class Kernel:
                 raise FileNotFoundError(str(path))
             self.kills.append(boundary)
             for process in list(self.processes.values()):
-                if process.alive and within(process.cgroup, boundary) and not process.unkillable:
+                if (process.alive and within(process.cgroup, boundary) and not process.unkillable
+                        and process.zombie_leader is None):  # measured: cgroup.kill leaves it
                     process.killed = True
                     self.exit(process)
             self.refresh()
+
+    def kill_process(self, pid, starttime):
+        with self.lock:
+            self.signals.append(pid)
+            process = self.processes.get(pid)
+            if (process is not None and process.alive and process.starttime == starttime
+                    and not process.unkillable):
+                process.killed = True
+                self.exit(process)
+
+    def systemctl(self, args, user):
+        """systemd's answers, from the model: None is a failed call."""
+        with self.lock:
+            self.systemctl_calls.append((tuple(args), user))
+            if args[0] in self.systemctl_failures:
+                return None
+            if args == ('show', f'user@{self.uid}.service', '-p', 'MainPID') and not user:
+                manager = self.reported['manager']
+                return f'MainPID={self.manager.pid if manager is None else manager}\n'
+            if args == ('start', 'dbus.service') and user:
+                if self.bus is None or not self.bus.alive:
+                    self.bus = self.spawn(self.uid, f'{self.delegated}/session.slice/dbus.service',
+                                          '/usr/bin/dbus-daemon', ppid=self.manager.pid)
+                return ''
+            if args[:2] == ('show', 'dbus.service') and user:
+                bus = self.reported['bus']
+                cgroup = self.reported['bus_cgroup']
+                values = {'MainPID': self.bus.pid if bus is None else bus,
+                          'ControlGroup': '/' + self.bus.cgroup if cgroup is None else cgroup}
+                # systemd prints the properties in its own order.
+                return ''.join(f'{key}={values[key]}\n' for key in ('ControlGroup', 'MainPID')
+                               if key in args)
+            raise AssertionError(f'unmodelled systemctl call: {args} user={user}')
 
     def remove(self, path):
         with self.lock:
@@ -161,10 +216,15 @@ class Kernel:
             if path.is_relative_to(self.cgroups) and path != self.cgroups and not path.exists():
                 self.make_cgroup(path)
 
-    def spawn(self, uid, cgroup, exe, unkillable=False):
+    def spawn(self, uid, cgroup, exe, unkillable=False, ppid=1, zombie_leader=False, pid=None):
+        """A process; `zombie_leader` makes it a thread group whose leader
+        has exited while a sibling thread runs on. `pid` reuses a number
+        (a later start time tells the two apart)."""
         with self.lock:
             self.ensure(cgroup)
-            process = Process(next(self.pids), uid, cgroup, exe, unkillable)
+            pid = next(self.pids) if pid is None else pid
+            sibling = next(self.pids) if zombie_leader else None
+            process = Process(pid, uid, cgroup, exe, unkillable, ppid, next(self.ticks), sibling)
             self.processes[process.pid] = process
             self.write_proc(process)
             self.refresh()
@@ -180,17 +240,39 @@ class Kernel:
     def exit(self, process):
         with self.lock:
             process.alive = False
-            shutil.rmtree(self.proc / str(process.pid), ignore_errors=True)
+            if self.processes.get(process.pid) is process:
+                shutil.rmtree(self.proc / str(process.pid), ignore_errors=True)
             self.refresh()
 
-    def write_proc(self, process):
+    def write_proc(self, process, state=None):
         directory = self.proc / str(process.pid)
-        directory.mkdir(exist_ok=True)
+        shutil.rmtree(directory, ignore_errors=True)
+        (directory / 'task').mkdir(parents=True)
         uid = process.uid
+        leader = state or ('Z' if process.zombie_leader is not None else 'S')
+        comm = Path(process.exe).name
         (directory / 'status').write_text(
-            f'Name:\t{Path(process.exe).name}\nState:\tS (sleeping)\n'
+            f'Name:\t{comm}\nState:\t{leader} (state)\nPPid:\t{process.ppid}\n'
             f'Uid:\t{uid}\t{uid}\t{uid}\t{uid}\nGid:\t{uid}\t{uid}\t{uid}\t{uid}\n')
+        tasks = {process.pid: leader}
+        if process.zombie_leader is not None:
+            tasks[process.zombie_leader] = 'S'
+
+        def stat_line(tid, task_state):
+            # A comm with a space and a parenthesis, as a hostile one may be.
+            fields = [task_state, str(process.ppid), *['0'] * 17, str(process.starttime), '0', '0']
+            return f'{tid} ({comm} (x)) ' + ' '.join(fields) + '\n'
+
+        (directory / 'stat').write_text(stat_line(process.pid, leader))
+        for tid, task_state in tasks.items():
+            (directory / 'task' / str(tid)).mkdir()
+            (directory / 'task' / str(tid) / 'stat').write_text(stat_line(tid, task_state))
         (directory / 'cgroup').write_text(f'0::/{process.cgroup}\n')
+
+    def set_state(self, process, state):
+        """Rewrites a process's (leader's) state, as the kernel would show it."""
+        with self.lock:
+            self.write_proc(process, state)
 
     def refresh(self):
         live = [p.cgroup for p in self.processes.values() if p.alive]
@@ -201,6 +283,24 @@ class Kernel:
 
     def alive_in(self, cgroup_prefix):
         return [p for p in self.processes.values() if p.alive and within(p.cgroup, cgroup_prefix)]
+
+
+def install_kernel(g, kernel):
+    """Points a loaded guest module's acting hooks at the model."""
+    g.CGROUP_ROOT = kernel.cgroups
+    g.PROC_ROOT = kernel.proc
+    g.make_cgroup = kernel.make_cgroup
+    g.cgroup_kill = kernel.kill
+    g.remove_cgroup = kernel.remove
+    g.kill_process = kernel.kill_process
+
+    def systemctl(*args, account=None):
+        answer = kernel.systemctl(args, account is not None)
+        if answer is None:
+            raise g.InfrastructureUnknown(f'systemctl {" ".join(args)} failed (model)')
+        return answer
+
+    g.systemctl = systemctl
 
 
 def argv_digest(argv):
@@ -405,16 +505,12 @@ class GuestHarness:
         self.reason = None
         self.error = None
         g = self.guest = load_guest()
-        g.CGROUP_ROOT = self.kernel.cgroups
-        g.PROC_ROOT = self.kernel.proc
         g.VIRTIO_DEVICES = virtio
         g.WORKSPACE = self.home / 'workspace'
         g.EVIDENCE = self.home / 'evidence'
         g.CONFIG_DIR = self.root / 'config'
         g.SHARE_MOUNT = self.root / 'mnt/workspace'
-        g.make_cgroup = self.kernel.make_cgroup
-        g.cgroup_kill = self.kernel.kill
-        g.remove_cgroup = self.kernel.remove
+        install_kernel(g, self.kernel)
         g.subprocess = self.subprocess = FakeSubprocess(self)
         g.pwd = types.SimpleNamespace(getpwnam=lambda name: self.account)
         g.clock = self.clock.clock

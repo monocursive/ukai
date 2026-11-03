@@ -10,9 +10,16 @@ show is the live phase's to measure on a booted guest:
 * that cgroup.kill of the jail's user scope and leaf ends the real tree,
   that the user manager collects the killed scope, and that the next
   attempt's jail still gets its scope (the manager and the bus survive);
-* that INFRASTRUCTURE_UNITS is the image's real set (dbus.service's slice);
+* that `learn_infrastructure` finds exactly the manager, its (sd-pam)
+  helper and the bus on the image, through the real systemctl calls (the
+  model answers for systemd), and that killing processes beside them in
+  init.scope or dbus.service leaves the manager and the bus working;
 * that a real cancel of a running workload finishes inside WatchdogSec=4
   with no watchdog poweroff;
+* that the guest kernel (7.0) behaves as the model's two measured facts
+  say (measured on 7.2.12): cgroup.kill leaves a zombie-leader thread
+  group, and a pidfd SIGKILL ends it (test_guest_warm.RealProcTests runs
+  the second on any Linux host);
 * the virtio-fs detection and the mount options on the real kernel;
 * the staged files' real owners (root levels, workload-owned file) as the
   guest jail's loaders read them.
@@ -23,7 +30,7 @@ from pathlib import Path
 import stat
 import unittest
 
-from guest_harness import GuestHarness, complete, hold
+from guest_harness import GuestHarness, complete, hold, within
 
 
 def b64(data):
@@ -213,8 +220,9 @@ class AttemptStopTests(unittest.TestCase):
         guest.expect('cancelled')
         self.assertFalse(jail.process.alive, 'the supervisor in its user scope survived the cancel')
         self.assertFalse(jail.children[0].alive, 'the workload in its leaf survived the cancel')
-        self.assertTrue(any(k.endswith('.scope') and 'ukai-jail-' in k for k in guest.kernel.kills))
-        self.assertTrue(any(k.endswith('.leaf') for k in guest.kernel.kills))
+        # Both died by a cgroup.kill of a boundary that holds them.
+        for member in (jail.process, jail.children[0]):
+            self.assertTrue(any(within(member.cgroup, kill) for kill in guest.kernel.kills), member.cgroup)
         self.assert_infrastructure_alive(guest)
         # The leaf and the attempt cgroups are gone; the session goes on.
         self.assertEqual(list(guest.kernel.cgroups.glob(f'{guest.kernel.delegated}/ukai-*.leaf')), [])
@@ -256,13 +264,79 @@ class AttemptStopTests(unittest.TestCase):
         self.assertFalse(stray.alive)
         self.assert_infrastructure_alive(guest)
 
-    def test_a_stray_outside_the_user_manager_refuses_the_reset(self):
+    def test_a_stray_outside_the_user_manager_is_killed_by_pid(self):
         guest = GuestHarness(self)
         guest.session()
         session_scope = f'user.slice/user-{guest.uid}.slice/session-1.scope'
-        guest.kernel.spawn(guest.uid, session_scope, '/bin/sh')
+        stray = guest.kernel.spawn(guest.uid, session_scope, '/bin/sh')
+        guest.send(op='reset')
+        guest.expect('reset')
+        self.assertFalse(stray.alive)
+        self.assert_infrastructure_alive(guest)
+
+    def test_an_unkillable_stray_outside_the_user_manager_refuses_the_reset(self):
+        guest = GuestHarness(self)
+        guest.session()
+        session_scope = f'user.slice/user-{guest.uid}.slice/session-1.scope'
+        guest.kernel.spawn(guest.uid, session_scope, '/bin/sh', unkillable=True)
         guest.send(op='reset')
         self.assertEqual(guest.ended(), 'attempt_tree_unverified')
+
+    def test_intruders_in_init_scope_and_the_bus_unit_die_and_the_infrastructure_lives(self):
+        # F1, as the review measured it on systemd 259: workload-uid
+        # processes written into the manager's and the bus's own units.
+        guest = GuestHarness(self, scenarios=[hold(), complete()])
+        guest.session()
+        guest.run2()
+        guest.expect('running')
+        delegated = guest.kernel.delegated
+        intruders = [guest.kernel.spawn(guest.uid, f'{delegated}/{unit}', '/usr/bin/python3')
+                     for unit in ('init.scope', 'session.slice/dbus.service', 'init.scope/x')]
+        guest.send(op='cancel2')
+        guest.expect('cancelled')
+        for intruder in intruders:
+            self.assertFalse(intruder.alive, f'an intruder in {intruder.cgroup} outlived the stop')
+        self.assert_infrastructure_alive(guest)
+        # The next attempt still runs: nothing it needs was killed.
+        guest.send(op='reset')
+        guest.expect('reset')
+        guest.run2()
+        guest.expect('done')
+
+    def test_a_zombie_leader_workload_is_ended_and_the_session_goes_on(self):
+        # F2: a workload whose thread-group leader exited while a thread
+        # runs on keeps its leaf populated through cgroup.kill (measured);
+        # the stop kills it by pid instead of exhausting its budget.
+        def scenario(jail):
+            jail.children.append(jail.kernel.spawn(jail.process.uid, f'{jail.kernel.delegated}/ukai-att_{jail.pid}.leaf',
+                                                   '/usr/bin/python3', zombie_leader=True))
+        guest = GuestHarness(self, scenarios=[scenario])
+        guest.session()
+        guest.run2()
+        guest.expect('running')
+        jail = guest.started_jail()
+        guest.send(op='cancel2')
+        guest.expect('cancelled')
+        self.assertFalse(jail.children[0].alive)
+        self.assertIn(jail.children[0].pid, guest.kernel.signals)
+
+    def test_the_session_learns_the_infrastructure_before_any_attempt(self):
+        guest = GuestHarness(self)
+        guest.session()
+        learned = [fields for event, fields in guest.audits if event == 'infrastructure_learned']
+        kernel = guest.kernel
+        self.assertEqual(learned, [{'manager': kernel.manager.pid, 'helper': [kernel.sd_pam.pid],
+                                    'bus': kernel.bus.pid, 'bus_unit': 'session.slice/dbus.service'}])
+        self.assertEqual(guest.subprocess.jails, [], 'an attempt ran before the infrastructure was learned')
+
+    def test_an_unlearnable_infrastructure_powers_off_before_the_session(self):
+        guest = GuestHarness(self, start=False)
+        guest.kernel.reported['manager'] = 0
+        guest.thread.start()
+        guest.expect('ready')
+        guest.send(op='session')
+        self.assertEqual(guest.ended(), 'infrastructure_unknown')
+        self.assertNotIn('session_opened', [event for event, _ in guest.audits])
 
     def test_the_outer_wall_ends_the_attempt_not_the_session(self):
         guest = GuestHarness(self, scenarios=[hold(), complete()])
