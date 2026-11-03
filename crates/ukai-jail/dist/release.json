@@ -33,8 +33,7 @@
             "K104.1",
             "K105.1",
             "K106.1",
-            "K107.1",
-            "K113.1"
+            "K107.1"
         ],
         "elf_machine_by_target": {
             "x86_64-unknown-linux-gnu": 62,
@@ -47,9 +46,7 @@
         "published_tag": "ouro-vm-v0.1.0-preview.1",
         "target": "macos-arm64",
         "publication_scope": "macos-vm-development",
-        "unsupported_clauses": [
-            "K113.1"
-        ],
-        "scope_note": "ukai-jail run --vm drives the warm service with the live workspace share, proxied agent policies and vault-mode credentials (measured live 2026-11-03: allowed host fetched through the guest proxy; vault value substituted in flight with the child holding only the placeholder \u2014 docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/vault-consumption/). K108-K112 ran their full live rows on an installed package on 2026-11-03 (docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/): the package ships the Rust ukai-vm warm service, is Developer-ID-signed and snapshot-pinned, but NOT notarized (no notarytool credentials on the build host; recorded pending) and not published. K113 stays unsupported until a VM-tier agent compatibility record exists; staged credential modes (copy_rw/bind_ro) remain refused with a remedy."
+        "unsupported_clauses": [],
+        "scope_note": "ukai-jail run --vm drives the warm service with the live workspace share, proxied agent policies and vault-mode credentials. All J18 clauses ran their full live evidence on an installed package (2026-11-03): K108-K112 in docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/ and K113 through the Claude Code 2.1.311 headless compatibility record in docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/ (the OAuth token through the vault, substituted in flight by the guest proxy; the token is in no exported byte). The package ships the Rust ukai-vm warm service, is Developer-ID-signed and snapshot-pinned (apt_snapshot 20261020T000000Z), but NOT notarized (no notarytool credentials on the build host; recorded pending) and not published \u2014 those, with a notarized-build rerun of the rows, are what a release claim still needs. Staged credential modes (copy_rw/bind_ro) remain refused with a remedy."
     }
 }

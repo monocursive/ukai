@@ -201,12 +201,16 @@ warm reuse (20 attempts over one boot, 14.9–15.0 ms release latency), live
 workspace grants and denials, the K110 fault matrix, the guest Linux
 receipt verified by digest with the summary's transport line lifted from
 the transport record, and the kernel-bound key refusing in every lane
-before any boot. K113 did not run: no VM-tier agent compatibility record
-exists yet. The package is Developer-ID-signed and snapshot-pinned
-(`apt_snapshot` in `image.json`) but **not notarized** — no notarytool
-credentials on the build host — and not published; those remain what a
-release claim still needs, with the K113 record and staged credential
-modes. The earlier development measurements (one boot at 12.5 ms, the
+before any boot. K113 ran through the tier's compatibility record: Claude
+Code 2.1.311 headless in the guest, the operator's OAuth token through
+the vault (substituted in flight by the guest proxy, in no exported byte),
+its task's file landing on the host through the share
+([record](../../../docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/README.md);
+harness `vm/claude_vm_row.py`). The package is Developer-ID-signed and
+snapshot-pinned (`apt_snapshot` in `image.json`) but **not notarized** —
+no notarytool credentials on the build host — and not published; those,
+with a notarized-build rerun of the rows, remain what a release claim
+still needs, with staged credential modes. The earlier development measurements (one boot at 12.5 ms, the
 guest capability suite — wall, pids, memory, containment, network_none,
 workspace — NAT with egress denied, proxied agent policies, vault-mode
 substitution) are in the

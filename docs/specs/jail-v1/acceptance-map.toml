@@ -4345,9 +4345,9 @@ row = "Each compatibility record's summary names its custody (native) or its tra
 id = "K113.1"
 gate = "K113"
 clause = "Each compatibility record's summary names its custody (native) or its transport (VM)."
-tag = "untested"
+tag = "live-cli"
 lane = "macos"
-note = "The row's object does not exist yet: no VM-tier agent compatibility record has been run (J18 §9.4 names Claude Code headless in the guest as that record), and the native tier refuses every policy in this build, so no native record exists either. The mechanism the row rests on is verified live 2026-11-03: a --vm attempt's summary prints its transport line with every value lifted from vm-transport.json (docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/k111.json), and the native custody line is unit-covered in summary.rs."
+note = "The VM-tier compatibility record exists and its summary names its transport: Claude Code 2.1.311 headless in the warm guest on the installed package (2026-11-03, the record's run at docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/) settled, and its summary carries the transport line with every value lifted from vm-transport.json (verified against the record), reproduced by `ukai-jail tail --summary`. The record itself is docs/specs/jail-v1/agent-compatibility.md's 2026-11-03 J18 row; the native custody line stays unit-covered in summary.rs (the native tier refuses every policy in this build, so no native record exists)."
 
 # ---------------------------------------- the pinned ignored set, linux lane
 

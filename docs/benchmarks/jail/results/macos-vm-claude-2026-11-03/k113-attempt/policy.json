@@ -1,0 +1,190 @@
+{
+  "policy_digest": "sha256:f2df8611e652a14d357a0d6035f36834c5c7fd11ca18c849c1f899127b68a037",
+  "provenance": [
+    {
+      "detail": null,
+      "key": "profile",
+      "origin": "builtin-profile:agent"
+    },
+    {
+      "detail": null,
+      "key": "launch.network.allow",
+      "origin": "launch-profile:claude-vm"
+    },
+    {
+      "detail": "240s",
+      "key": "limits.wall",
+      "origin": "cli"
+    },
+    {
+      "detail": "operator file",
+      "key": "launch.resolution",
+      "origin": "launch-profile:claude-vm"
+    },
+    {
+      "detail": "vault",
+      "key": "launch.credentials.claude",
+      "origin": "launch-profile:claude-vm"
+    },
+    {
+      "detail": "claude-vm",
+      "key": "launch",
+      "origin": "launch-profile:claude-vm"
+    }
+  ],
+  "schema": "ukai.jail.policy-file/1",
+  "snapshot": {
+    "environment": {
+      "bindings": [
+        {
+          "name": "LANG",
+          "value": "C.UTF-8"
+        },
+        {
+          "name": "PATH",
+          "value": "/usr/local/bin:/usr/bin:/bin"
+        },
+        {
+          "name": "TERM",
+          "value": "dumb"
+        },
+        {
+          "name": "TMPDIR",
+          "value": {
+            "path": "",
+            "root": "scratch"
+          }
+        }
+      ],
+      "inherit_host": false
+    },
+    "filesystem": {
+      "deny_read": [],
+      "protected_coverage": "existing_and_root",
+      "protected_segments": [
+        ".git/config",
+        ".git/hooks"
+      ],
+      "read_only": [
+        {
+          "path": "/bin",
+          "root": "host"
+        },
+        {
+          "path": "/etc/group",
+          "root": "host"
+        },
+        {
+          "path": "/etc/hosts",
+          "root": "host"
+        },
+        {
+          "path": "/etc/localtime",
+          "root": "host"
+        },
+        {
+          "path": "/etc/passwd",
+          "root": "host"
+        },
+        {
+          "path": "/etc/resolv.conf",
+          "root": "host"
+        },
+        {
+          "path": "/etc/ssl",
+          "root": "host"
+        },
+        {
+          "path": "/lib",
+          "root": "host"
+        },
+        {
+          "path": "/lib64",
+          "root": "host"
+        },
+        {
+          "path": "/usr",
+          "root": "host"
+        }
+      ],
+      "read_write": [
+        {
+          "path": "",
+          "root": "scratch"
+        },
+        {
+          "path": "",
+          "root": "vendor_state"
+        },
+        {
+          "path": "",
+          "root": "workspace"
+        }
+      ]
+    },
+    "launch": {
+      "credentials": [
+        {
+          "dest": ".vault-claude",
+          "id": "claude",
+          "mode": "vault",
+          "source": "/private/var/folders/lx/bqwnzxj968s7839wdjlld36h0000gn/T/k113-vault-s_2b9vsk/token",
+          "vault": {
+            "allow_plaintext": false,
+            "env": "CLAUDE_CODE_OAUTH_TOKEN",
+            "header": {
+              "name": "authorization",
+              "prefix": "Bearer "
+            },
+            "hosts": [
+              "https://api.anthropic.com"
+            ]
+          }
+        }
+      ],
+      "home_is_state": false,
+      "state_subdirs": [],
+      "state_var": null
+    },
+    "limits": {
+      "cpu": null,
+      "mem": null,
+      "pids": {
+        "required": false,
+        "value": "512"
+      },
+      "wall": {
+        "required": true,
+        "value": "240000"
+      }
+    },
+    "network": {
+      "allow": [
+        "api.anthropic.com:443"
+      ],
+      "mode": "proxy",
+      "ruleset": "ukai.jail.network/1",
+      "tls_only": [
+        "api.anthropic.com:443"
+      ],
+      "translation_prefixes": []
+    },
+    "observation": {
+      "evidence": "strict",
+      "mode": "on"
+    },
+    "platform": "linux",
+    "profile": "agent",
+    "profile_version": 1,
+    "roots": {
+      "scratch": {
+        "kind": "managed"
+      },
+      "vendor_state": {
+        "kind": "managed"
+      },
+      "workspace": "/Volumes/UKAI-ROWS"
+    },
+    "schema": "ukai.jail.policy-snapshot/1"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "claude_version": "2.1.311",
+  "claude_sha256": "2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3",
+  "token_shape": {
+    "bytes": 108,
+    "sha256": "138558ba6ac69e01dc8f712256e95a9f99ac9ee40c6bf47ee25a1e6dc28974eb",
+    "kind": "claudeAiOauth.accessToken",
+    "expires_at": "2026-11-03T23:30:24Z"
+  },
+  "run_exit": 0,
+  "elapsed_s": 73.3,
+  "attempt_id": "att_ff3c80a0-0645-4e1d-b6b3-ef633fdd057d",
+  "stdout_tail": "earch_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"global\",\"iterations\":[],\"speed\":\"standard\",\"fallback_credit\":null},\"modelUsage\":{\"claude-sonnet-5-5\":{\"inputTokens\":4,\"outputTokens\":90,\"cacheReadInputTokens\":32813,\"cacheCreationInputTokens\":0,\"webSearchRequests\":0,\"costUSD\":0.0041893,\"contextWindow\":1000000,\"maxOutputTokens\":128000,\"thinkingTokens\":0,\"cacheCreationEphemeral5mInputTokens\":0,\"cacheCreationEphemeral1hInputTokens\":0,\"canonicalModel\":\"claude-sonnet-5-5\",\"provider\":\"firstParty\",\"costBasis\":\"list\"}},\"permission_denials\":[],\"terminal_reason\":\"completed\",\"fast_mode_state\":\"off\",\"fast_mode_disabled_reason\":\"sdk_opt_in_required\",\"subagent_stats\":{\"spawned\":0,\"requested\":{\"background\":0,\"foreground\":0,\"unset\":0},\"started_in_background\":0,\"max_depth\":0,\"spawned_by_subagents\":0,\"completed\":0,\"failed\":0,\"killed\":{\"parent\":0,\"user\":0,\"system\":0},\"refused\":{\"depth_limit\":0,\"concurrency_limit\":0,\"budget\":0},\"by_type\":{}},\"safety_stops\":0,\"is_error\":false,\"num_turns\":2,\"subtype\":\"success\",\"api_error_status\":null,\"result\":\"done\",\"ttft_ms\":2618,\"type\":\"result\",\"duration_ms\":3478,\"uuid\":\"a2d02146-47c1-4008-9a1e-5057ce6b3693\",\"ttft_stream_ms\":2300,\"time_to_request_ms\":50,\"first_content_frame_ms\":2300,\"queued_turn_count\":0,\"result_index\":0}\nvm: guest-reported facts in evidence/jail.json \u00b7 boot vm-9e2e72b1-db86-4b87-8ced-8c64706b1598 \u00b7 image 310cee86ccca5b5d \u00b7 vsock 1024 \u00b7 receipt sha256:53837b58636d54bd\nukai-jail: settled \u00b7 exited 0 \u00b7 survivors: none (verified)\nukai-jail: workspace: not observed\nukai-jail: network: not applied\nukai-jail: credential claude: vault, never staged \u00b7 uses not observed\nukai-jail: evidence: observer not attached \u00b7 0/6 classes active \u00b7 exec, fs.write, fs.deny, net, proxy.net, limits not observed\nukai-jail: receipt /var/folders/lx/bqwnzxj968s7839wdjlld36h0000gn/T/k113-wlf_ehkk/attempts/att_ff3c80a0-0645-4e1d-b6b3-ef633fdd057d/jail.json\n",
+  "stderr_tail": "",
+  "phase": "settled",
+  "exit": 0,
+  "tree_empty": true,
+  "agent_result": {
+    "subtype": "success",
+    "is_error": false,
+    "num_turns": 2,
+    "model": "claude-sonnet-5-5",
+    "total_cost_usd": 0.0041893,
+    "result_text": "done"
+  },
+  "marker_on_host": true,
+  "marker_content": "contained\n",
+  "guest_receipt_linux": true,
+  "transport_schema": "ukai.jail.vm-transport/1",
+  "transport_line_in_terminal": true,
+  "transport_line_matches_record": true,
+  "token_in_exports": [],
+  "summary_exit": 0,
+  "summary_names_transport": true,
+  "outcome": "PASS"
+}

@@ -1,0 +1,18 @@
+{
+  "schema": "ukai.jail.vm-transport/1",
+  "attempt_id": "att_ff3c80a0-0645-4e1d-b6b3-ef633fdd057d",
+  "boot_id": "vm-9e2e72b1-db86-4b87-8ced-8c64706b1598",
+  "guest_kernel": "7.0.0-38-generic",
+  "image": {
+    "disk_sha256": "310cee86ccca5b5d13ede5fbc69829a65940db67996efecb5374f23339cbe5c3",
+    "helper_sha256": "44683e3e196eabf30c01283f14750488c2e9a46c8ae83df14d2a92024cbaf261",
+    "custodian_sha256": "e4d5901a507778ad30eb7b93af47398cee0d0833a4f65074eba7f9b519780ac5",
+    "seed_sha256": "41a4344354da8f8db8f0e417cb1621a3e44ddbe3cc112befd675e79af9333fdc"
+  },
+  "vsock_port": 1024,
+  "control_socket": "/var/folders/lx/bqwnzxj968s7839wdjlld36h0000gn/T/k113-wlf_ehkk/vm/control.sock",
+  "attempt_socket": "/var/folders/lx/bqwnzxj968s7839wdjlld36h0000gn/T/k113-wlf_ehkk/vm/attempt.sock",
+  "host_wall_started": "2026-11-03T15:45:43Z",
+  "elapsed_seconds": 4.660729208,
+  "guest_receipt_sha256": "53837b58636d54bde7942950eb10fbe6d519741a54534b08ee46e17510212c64"
+}

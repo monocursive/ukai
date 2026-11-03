@@ -64,6 +64,9 @@ workspace, and a binary outside `/private/tmp`.
   (or at minimum the install check) before any publication claim.
 - `published: false`. The package is not distributed; the DMG's digest
   before notarization is in [provenance.json](provenance.json).
-- K113 stays open until the VM-tier compatibility record exists; the
-  protected-Mac native release (K104) stays blocked pending Apple's
-  entitlement decision.
+- K113 stayed open when this record was written (2026-11-03, earlier the
+  same day): no VM-tier agent compatibility record existed. It exists now
+  — Claude Code 2.1.311 headless in the guest on this same installed
+  package ([that record](../macos-vm-claude-2026-11-03/README.md)) — and
+  K113.1 is measured there; the protected-Mac native release (K104) stays
+  blocked pending Apple's entitlement decision.
