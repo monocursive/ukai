@@ -7,144 +7,328 @@ through the warm service, with the live share attached. This suite runs one
 boot and one attempt per capability; an unmeasured capability is recorded
 as such, never assumed.
 
+Every verdict reads facts, not shell exit statuses: the guest jail's own
+receipt (limit hits, outcome cause, applied network), a probe's tagged JSON
+line printed by python3 inside the attempt, or the host's view of the share.
+
+Each capability is measured alone, by its own attempt, and recorded under
+the requirement it backs (`measurements[<requirement>]`: verdict, the
+attempt's RFC 3339 start time, the attempt id), so a later entry in the
+host's GUEST_MEASUREMENTS table can point at exactly one verdict.
+
 Capabilities measured (the limits guest.py's run_command applies):
-  wall            the guest jail ends an attempt at its wall deadline
-  pids            a fork storm stops at the pids limit (EAGAIN), not before
-  mem             an allocation beyond the mem limit is refused
-  containment     a write outside the workspace grants is refused
-  network_none    outbound TCP refuses with the NAT adapter attached
-  workspace       a granted write reaches the host (K109's live claim)
+  wall            limit:wall. The guest jail ends an attempt at its own wall
+                  deadline: the receipt records the wall hit AND the
+                  wall_expiry cause, the workload's later output never
+                  appears, and released->done ends before wall + 5 s (the
+                  guest controller's own backstop fires at wall + 10 s, so a
+                  backstop kill cannot pass for the jail's deadline)
+  pids            limit:pids. A fork storm stops at the pids limit with EAGAIN, not
+                  before (the count of successful forks is within PIDS_SLACK
+                  of the limit), and the attempt settles without a jail error
+  mem             limit:mem. An allocation beyond the mem limit is OOM-killed near the
+                  limit: SIGKILL (137), the receipt's mem hit or memory_oom,
+                  and the last reported allocation between half the limit and
+                  the limit
+  containment     filesystem_containment. Writes to /etc, /usr/local/bin and
+                  the guest's root refuse with a filesystem errno and leave
+                  nothing behind; reads of guest paths outside the grants
+                  (/etc/shadow, the controller's /var/lib/ukai-vm, the
+                  account home, the /run/ukai-vm credential root, /root)
+                  refuse; and, as the probe's positive control, a granted
+                  runtime file and a workspace file read
+  network_none    network_none. With the NAT adapter attached (control status guest_nat),
+                  the egress probe (harness.py, D9) is denied after its
+                  loopback positive control connected, DNS does not resolve,
+                  the receipt's applied network is `none`, and the probe
+                  target answers from the host
+  workspace       (K109, no probe requirement) a granted write reaches the
+                  host with this run's bytes
+
+Usage: UKAI_VM_BINARY=<ukai-vm under test> capabilities.py <home> <workspace> <out>
 """
-import base64
 import json
-import os
-from pathlib import Path
-import socket
-import subprocess
 import sys
 import tempfile
-import time
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from fault_matrix import Service, frame, send, drain_until_done  # noqa: E402
+import harness  # noqa: E402
 
-WS_SENTINEL = '[core]\n'
+PIDS_SLACK = 8
+MEM_FLOOR_FRACTION = 0.5
+BACKSTOP_MARGIN_SECONDS = 5      # guest.py's controller backstop is wall + 10 s
+FS_REFUSALS = {'EROFS', 'EACCES', 'EPERM', 'ENOENT'}
+READ_REFUSALS = {'EACCES', 'EPERM', 'ENOENT'}
+# The requirement each capability's verdict backs (the receipt's names).
+REQUIREMENTS = {'wall': 'limit:wall', 'pids': 'limit:pids', 'mem': 'limit:mem',
+                'containment': 'filesystem_containment', 'network_none': 'network_none'}
+READ_OUTSIDE = ('/etc/shadow', '/var/lib/ukai-vm', '/home/ukai', '/run/ukai-vm', '/root')
 
-
-def sh(script):
-    return [base64.b64encode(b'/bin/sh').decode(),
-            base64.b64encode(b'-c').decode(),
-            base64.b64encode(script.encode()).decode()]
-
-
-def run_capability(service, name, script, wall=30, expect_stdout=None):
-    """One attempt; returns {exit, stdout, verdict}."""
-    s = service.sock()
-    ready = frame(s)
-    assert ready['event'] == 'ready', ready
-    send(s, op='prepare', attempt_id=f'cap-{name}', profile='tool',
-         wall_seconds=wall, argv=sh(script), secrets=[])
-    assert frame(s)['event'] == 'prepared'
-    send(s, op='run')
-    stdout = []
-    exit_code = None
-    while True:
-        message = frame(s)
-        if message['event'] == 'stdout':
-            stdout.append(base64.b64decode(message['data']).decode())
-        elif message['event'] == 'stderr':
-            stdout.append(base64.b64decode(message['data']).decode())
-        elif message['event'] == 'done':
-            exit_code = message['exit_code']
-            break
-        elif message['event'] == 'error':
-            exit_code = None
-            stdout.append(f"guest error: {message.get('message')}")
-            break
-    s.close()
-    text = ''.join(stdout)
-    verdict = expect_stdout(text, exit_code) if expect_stdout else None
-    return {'exit': exit_code, 'stdout': text[-400:], 'verdict': verdict}
-
-
-def main():
-    home = sys.argv[1]
-    workspace = Path(sys.argv[2])
-    out = Path(sys.argv[3])
-    out.mkdir(parents=True, exist_ok=True)
-    git_config = workspace / '.git' / 'config'
-    git_config.parent.mkdir(exist_ok=True)
-    git_config.write_text(WS_SENTINEL)
-
-    data = tempfile.mkdtemp(prefix='cap-')
-    service = Service(home, workspace, data, extra=('--guest-nat',))
-    service.__enter__()
-    results = {}
+PIDS_PROBE = r'''
+import errno, json, os, signal, sys, time
+record = {'tag': sys.argv[1]}
+for name in ('pids.max', 'pids.current'):
     try:
-        results['wall'] = run_capability(
-            service, 'wall',
-            'echo start; sleep 30; echo never',
-            wall=5,
-            expect_stdout=lambda text, code: (
-                'never' not in text and code not in (0, None)))
-        results['pids'] = run_capability(
-            service, 'pids',
-            'i=0; while :; do /bin/sleep 10 & i=$((i+1)); '
-            '[ $((i % 32)) -eq 0 ] && echo spawned=$i; done',
-            wall=20,
-            expect_stdout=lambda text, code: 'spawned=' in text)
-        # The mem limit is cgroup-enforced: exceeding it OOM-kills the
-        # workload (SIGKILL, exit 137) — a MemoryError is only catchable
-        # when malloc itself fails. Either outcome proves the bound; the
-        # attempt surviving with unbounded allocations would disprove it.
-        results['mem'] = run_capability(
-            service, 'mem',
-            'python3 -c "blocks=[]\n'
-            'while True: blocks.append(bytearray(64*1024*1024))\n'
-            'print(\'unbounded\', len(blocks))"',
-            wall=40,
-            expect_stdout=lambda text, code: (
-                code == 137 or 'Killed' in text or 'mem_refused' in text))
-        results['containment'] = run_capability(
-            service, 'containment',
-            'if echo x > /etc/ukai-cap-probe 2>/dev/null; then echo ETC_WRITE_ALLOWED; '
-            'else echo etc_write_refused; fi; '
-            'if echo x > /usr/local/bin/ukai-cap-probe 2>/dev/null; then echo BIN_WRITE_ALLOWED; '
-            'else echo usr_write_refused; fi',
-            expect_stdout=lambda text, code: (
-                'etc_write_refused' in text and 'usr_write_refused' in text))
-        results['network_none'] = run_capability(
-            service, 'network_none',
-            '(echo > /dev/tcp/93.184.216.34/443) 2>/dev/null && echo NET_ALLOWED '
-            '|| echo net_refused; '
-            'getent hosts example.com >/dev/null 2>&1 && echo DNS_ALLOWED || echo dns_refused',
-            expect_stdout=lambda text, code: (
-                'net_refused' in text and 'dns_refused' in text))
-        results['workspace'] = run_capability(
-            service, 'workspace',
-            'echo live > capability-write.txt && echo wrote',
-            expect_stdout=lambda text, code: (
-                'wrote' in text
-                and (workspace / 'capability-write.txt').read_text() == 'live\n'))
-    finally:
-        if service.child.poll() is None:
-            service.child.terminate()
-            try:
-                service.child.wait(timeout=20)
-            except subprocess.TimeoutExpired:
-                service.child.kill()
-                service.child.wait()
+        with open('/sys/fs/cgroup/' + name) as source:
+            record[name] = source.read().strip()
+    except OSError:
+        record[name] = None
+children, failure = [], None
+while len(children) < 4096:
+    try:
+        pid = os.fork()
+    except OSError as error:
+        failure = errno.errorcode.get(error.errno, str(error.errno))
+        break
+    if pid == 0:
+        time.sleep(120)
+        os._exit(0)
+    children.append(pid)
+record['forked'] = len(children)
+record['fork_error'] = failure
+for pid in children:
+    os.kill(pid, signal.SIGKILL)
+for pid in children:
+    os.waitpid(pid, 0)
+print('UKAI_PIDS_PROBE ' + json.dumps(record, sort_keys=True), flush=True)
+'''
 
-    summary = {}
-    for name, result in results.items():
-        summary[name] = result['verdict'] is True
-    summary['git_config_untouched'] = git_config.read_text() == WS_SENTINEL
-    summary['outcome'] = 'PASS' if all(
-        value is True for name, value in summary.items()
-        if name != 'outcome') else 'FAIL'
-    record = {'results': results, 'summary': summary,
-              'service_exit': service.child.returncode}
-    (out / 'capabilities.json').write_text(json.dumps(record, indent=2) + '\n')
+MEM_PROBE = r'''
+import sys
+tag, limit = sys.argv[1], int(sys.argv[2])
+chunk, blocks = 16 * 1024 * 1024, []
+while len(blocks) * 16 < 2 * limit:
+    block = bytearray(chunk)
+    for offset in range(0, chunk, 4096):
+        block[offset] = 1
+    blocks.append(block)
+    print('UKAI_MEM_PROBE %s %d' % (tag, len(blocks) * 16), flush=True)
+print('UKAI_MEM_UNBOUNDED %s %d' % (tag, len(blocks) * 16), flush=True)
+'''
+
+FS_PROBE = r'''
+import errno, json, os, sys
+spec = json.loads(sys.argv[2])
+record = {'tag': sys.argv[1], 'paths': {}, 'reads': {}}
+def name(error):
+    return errno.errorcode.get(error.errno, str(error.errno))
+for path in spec.get('write', []):
+    try:
+        os.close(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600))
+        result = 'created'
+    except OSError as error:
+        result = name(error)
+    record['paths'][path] = {'open': result, 'exists_after': os.path.lexists(path)}
+for path in spec.get('read', []) + spec.get('control', []):
+    try:
+        if os.path.isdir(path):
+            os.listdir(path)
+        else:
+            with open(path, 'rb') as source:
+                source.read(1)
+        record['reads'][path] = 'read'
+    except OSError as error:
+        record['reads'][path] = name(error)
+print('UKAI_FS_PROBE ' + json.dumps(record, sort_keys=True), flush=True)
+'''
+
+
+def fs_probe_argv(tag, write=(), read=(), control=()):
+    spec = json.dumps({'write': list(write), 'read': list(read), 'control': list(control)})
+    return [harness.PYTHON, '-I', '-c', FS_PROBE, tag, spec]
+
+
+def tagged(stdout, name, tag):
+    """The one `name {json}` line whose tag is `tag`, or None (none or several)."""
+    found = []
+    for line in stdout.splitlines():
+        if line.startswith(name + ' '):
+            try:
+                record = json.loads(line[len(name) + 1:])
+            except ValueError:
+                continue
+            if isinstance(record, dict) and record.get('tag') == tag:
+                found.append(record)
+    return found[0] if len(found) == 1 else None
+
+
+def outcome(record):
+    return ((record.get('receipt') or {}).get('outcome')) or {}
+
+
+def judge_wall(record, tag, wall):
+    limit = harness.receipt_limit(record.get('receipt'), 'wall') or {}
+    elapsed = record['timings_ms'].get('released_to_done')
+    facts = {
+        'later_output_absent': f'never-{tag}' not in record['stdout'] and f'start-{tag}' in record['stdout'],
+        'nonzero_exit': record.get('exit_code') not in (0, None),
+        'receipt_records_the_wall_hit': limit.get('hit') is True,
+        'receipt_cause_is_wall_expiry': outcome(record).get('cause') == 'wall_expiry',
+        'ended_by_the_jail_not_the_backstop': elapsed is not None
+        and (wall - 1) * 1000 <= elapsed < (wall + BACKSTOP_MARGIN_SECONDS) * 1000,
+    }
+    return facts
+
+
+def judge_pids(record, tag):
+    probe = tagged(record['stdout'], 'UKAI_PIDS_PROBE', tag) or {}
+    forked = probe.get('forked')
+    limit = harness.GUEST_PIDS_LIMIT
+    expected_max = probe.get('pids.max')
+    facts = {
+        'fork_failed_with_eagain': probe.get('fork_error') == 'EAGAIN',
+        'stopped_at_the_limit_not_before': isinstance(forked, int) and limit - PIDS_SLACK <= forked < limit,
+        'cgroup_limit_is_the_guest_limit': expected_max in (None, str(limit)),
+        'attempt_settled_without_jail_error': (record.get('exit_code') == 0 and not record.get('error')
+                                               and not harness.jail_error_lines(record['stdout'] + record['stderr'])
+                                               and not (record.get('receipt') or {}).get('errors')),
+        'receipt_records_the_pids_hit': (harness.receipt_limit(record.get('receipt'), 'pids') or {}).get('hit') is True,
+    }
+    if isinstance(forked, int) and probe.get('pids.current') and str(probe.get('pids.current')).isdigit():
+        # Where the probe can read its own cgroup, the forks fill it exactly.
+        facts['forks_fill_the_cgroup'] = abs(forked + int(probe['pids.current']) - limit) <= 1
+    return facts
+
+
+def judge_mem(record, tag):
+    reported = [int(line.split()[2]) for line in record['stdout'].splitlines()
+                if line.startswith(f'UKAI_MEM_PROBE {tag} ') and line.split()[2].isdigit()]
+    last = reported[-1] if reported else None
+    limit = harness.GUEST_MEM_LIMIT_MIB
+    facts = {
+        'sigkilled': record.get('exit_code') == 137,
+        'never_unbounded': f'UKAI_MEM_UNBOUNDED {tag}' not in record['stdout'],
+        'receipt_records_the_oom': ((harness.receipt_limit(record.get('receipt'), 'mem') or {}).get('hit') is True
+                                    or outcome(record).get('cause') == 'memory_oom'),
+        'killed_near_the_limit': last is not None and limit * MEM_FLOOR_FRACTION <= last < limit,
+    }
+    return facts
+
+
+def judge_containment(record, tag, paths, read=(), control=()):
+    probe = tagged(record['stdout'], 'UKAI_FS_PROBE', tag) or {}
+    results = probe.get('paths') or {}
+    reads = probe.get('reads') or {}
+    facts = {'every_path_probed': sorted(results) == sorted(paths)
+             and sorted(reads) == sorted(set(read) | set(control))}
+    for path in paths:
+        entry = results.get(path) or {}
+        facts[f'write_refused:{path}'] = entry.get('open') in FS_REFUSALS and entry.get('exists_after') is False
+    for path in read:
+        facts[f'read_refused:{path}'] = reads.get(path) in READ_REFUSALS
+    for path in control:
+        facts[f'control_read:{path}'] = reads.get(path) == 'read'
+    return facts
+
+
+def judge_network(record, tag, status, reachability):
+    probe = harness.probe_verdict(record['stdout'], tag)
+    network = (((record.get('receipt') or {}).get('applied') or {}).get('network') or {})
+    return {
+        'nat_attached': (status or {}).get('guest_nat') is True,
+        'probe_denied_after_positive_control': probe['denied'],
+        'dns_unresolved': probe.get('dns') not in (None, 'resolved'),
+        'receipt_network_none': network.get('mode') == 'none',
+        'target_answers_from_host': (reachability or {}).get('answers') is True,
+    }
+
+
+def judge_workspace(record, tag, host_text):
+    return {'wrote': f'wrote-{tag}' in record['stdout'],
+            'host_has_this_runs_bytes': host_text == f'live-{tag}\n'}
+
+
+def read_controls(tag):
+    return [harness.PYTHON, f'capability-read-{tag}.txt']
+
+
+def plan(tag):
+    """(name, wall, argv) per capability; argv is plain text, encoded later."""
+    fs_paths = [f'/etc/ukai-cap-{tag}', f'/usr/local/bin/ukai-cap-{tag}', f'/ukai-cap-{tag}']
+    return fs_paths, [
+        ('wall', 5, harness.sh(f'echo start-{tag}; sleep 30; echo never-{tag}')),
+        ('pids', 30, [harness.PYTHON, '-I', '-c', PIDS_PROBE, tag]),
+        ('mem', 60, [harness.PYTHON, '-I', '-c', MEM_PROBE, tag, str(harness.GUEST_MEM_LIMIT_MIB)]),
+        ('containment', 30, fs_probe_argv(tag, fs_paths, READ_OUTSIDE, read_controls(tag))),
+        ('network_none', 30, harness.probe_argv(tag, dns='example.com')),
+        ('workspace', 30, harness.sh(f'printf "live-{tag}\\n" > capability-{tag}.txt; echo wrote-{tag}')),
+    ]
+
+
+def measure(service, workspace, tag, reachability):
+    """Run every capability attempt on one warm boot; nothing judged here."""
+    fs_paths, attempts = plan(tag)
+    # The read control's workspace file: the probe must be able to read it.
+    (Path(workspace) / f'capability-read-{tag}.txt').write_text(f'readable-{tag}\n')
+    results = {}
+    for name, wall, argv in attempts:
+        results[name] = harness.run_attempt(service.connect, f'cap-{name}-{tag}', argv, wall=wall)
+    host_file = Path(workspace) / f'capability-{tag}.txt'
+    return {'tag': tag, 'fs_paths': fs_paths, 'results': results,
+            'host_workspace_file': host_file.read_text() if host_file.is_file() else None,
+            'reachability': reachability}
+
+
+def judge(measured, status, git_config_untouched, service_exit):
+    tag, results = measured['tag'], measured['results']
+    walls = dict((name, wall) for name, wall, _ in plan(tag)[1])
+    facts = {
+        'wall': judge_wall(results['wall'], tag, walls['wall']),
+        'pids': judge_pids(results['pids'], tag),
+        'mem': judge_mem(results['mem'], tag),
+        'containment': judge_containment(results['containment'], tag, measured['fs_paths'],
+                                         READ_OUTSIDE, read_controls(tag)),
+        'network_none': judge_network(results['network_none'], tag, status, measured['reachability']),
+        'workspace': judge_workspace(results['workspace'], tag, measured['host_workspace_file']),
+    }
+    summary = {name: all(value is True for value in checks.values()) for name, checks in facts.items()}
+    summary['git_config_untouched'] = git_config_untouched is True
+    summary['service_stopped_cleanly'] = service_exit == 0
+    summary['outcome'] = 'PASS' if all(summary.values()) else 'FAIL'
+    return facts, summary
+
+
+def measurements(measured, summary):
+    """{requirement: verdict, time, attempt}: one measured requirement per entry.
+
+    A requirement's verdict also needs the run-wide conditions it was
+    measured under (the protected .git untouched, the serve's clean stop).
+    """
+    shared = summary['git_config_untouched'] and summary['service_stopped_cleanly']
+    return {requirement: {'verdict': summary[name] is True and shared,
+                          'measured_at': measured['results'][name]['started_at'],
+                          'attempt_id': measured['results'][name]['attempt_id'],
+                          'capability': name}
+            for name, requirement in REQUIREMENTS.items()}
+
+
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if len(argv) != 3:
+        print(__doc__, file=sys.stderr)
+        return 2
+    home = Path(argv[0]).resolve(strict=True)
+    workspace = harness.guarded_workspace(argv[1])
+    binary = harness.required_binary('UKAI_VM_BINARY')
+    out = harness.fresh_out_dir(argv[2])
+    removed = harness.clean_workspace(workspace)
+    git_config = harness.protected_sentinel(workspace)
+    tag = harness.nonce()
+    reachability = harness.host_reachability()
+    data = tempfile.mkdtemp(prefix='cap-')
+    with harness.Service(binary, home, workspace, data, extra=('--guest-nat',)) as service:
+        status = service.warm_status
+        measured = measure(service, workspace, tag, reachability)
+    git_untouched = git_config.read_text() == '[core]\n'
+    facts, summary = judge(measured, status, git_untouched, service.child.returncode)
+    record = {'schema': 'ukai.vm.capabilities/2', 'binary': harness.fingerprint(binary),
+              'measured_at': measured['results']['wall']['started_at'],
+              'measurements': measurements(measured, summary),
+              'status': status, 'workspace_cleaned': removed, 'facts': facts,
+              'summary': summary, 'service_exit': service.child.returncode,
+              'service_stderr': service.stderr_text()[-2000:], **measured}
+    harness.write_json(out / 'capabilities.json', record)
     print(json.dumps(summary))
     return 0 if summary['outcome'] == 'PASS' else 1
 

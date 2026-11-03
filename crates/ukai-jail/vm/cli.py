@@ -14,7 +14,8 @@ import sys
 import run
 
 # The packaged binary cannot read dist/release.json; test_coordinates.py keeps
-# this equal to its vm.version.
+# this equal to its vm.candidate_version (the version package.py builds; D11),
+# not vm.version (what the public installer pins).
 VERSION = '0.1.0-preview.2'
 
 
