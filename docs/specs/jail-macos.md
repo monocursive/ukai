@@ -309,8 +309,12 @@ These rules are the design. The rest of §4 applies them.
    clamped path lowers both limits to it (soft = hard = ceiling, so a member
    cannot raise its soft limit back up to a higher hard limit; neither is
    ever raised) and confirms both by the same kernel read-back as the full
-   allowance, refusing on any mismatch or if the limits moved during
-   preparation. **Corrected 2026-11-03 (fix wave 1103, D13):** the clamped
+   allowance. On both paths the limits are read again just before
+   `setrlimit`, and preparation refuses if either has moved below the
+   decided limit; a limit that rose after the decision is not refused, and
+   both are still lowered to the decided limit. After `setrlimit` the
+   kernel read-back must show soft and hard both exactly at the decided
+   limit, or preparation refuses. **Corrected 2026-11-03 (fix wave 1103, D13):** the clamped
    path first shipped setting nothing and only re-reading the limits, so a
    member could raise its soft limit as far as the kernel lets a non-root
    process: min(hard, `kern.maxprocperuid`), measured on the development
@@ -1492,9 +1496,9 @@ K108–K113 row passes:
     created and xattrs — including `com.apple.*` names — pass through to
     the host files, all equivalent to what the host user could do anyway.
 - **Network and credentials.** An `agent` policy's guest has a NAT adapter,
-  and the guest jail's own proxy enforces the canonical allow set, as on any
-  Linux host; a `tool` policy's network is none. A TLS-only rule (one every
-  grant of which omitted its port) crosses without its `:443`, so the guest
+  and the guest jail's own proxy enforces the allow set, as on any Linux
+  host; a `tool` policy's network is none. A TLS-only rule (one every grant
+  of which omitted its port) crosses without its `:443`, so the guest
   applies it TLS-only. Vault-mode credentials go
   from the supervisor's validated secrets to the guest supervisor over vsock,
   once per attempt, and are never written to the guest disk. Staged
