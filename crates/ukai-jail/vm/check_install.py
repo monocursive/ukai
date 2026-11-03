@@ -7,8 +7,11 @@ when the installed command runs and reports exactly the package version the
 installer names (D8: never a `-dev` build) AND the installed tree is exactly
 the manifest's payload: every file with its listed digest, `image/base.raw.gz`
 replaced by `image/base.raw` with image.json's `disk_sha256`, nothing extra
-and no symlink. The tamper cases include an unlisted payload file, which the
-installer must refuse rather than install.
+and no symlink — AND every installed mode is normalized (directories 0755,
+files 0644, or 0755 where the volume's file is executable; never a
+world-writable or setuid bit, which the manifest does not cover). The tamper
+cases include an unlisted payload file, which the installer must refuse
+rather than install.
 """
 import argparse
 import hashlib
@@ -85,6 +88,31 @@ def installed_tree_matches(volume, destination):
     return bool(expected) and installed == expected
 
 
+def installed_modes_normal(volume, destination):
+    """Every installed mode is the normalized one install.sh sets, whatever the volume's."""
+    import stat
+    destination = Path(destination)
+    payload = Path(volume) / 'payload'
+    found = False
+    for path in [destination, *destination.rglob('*')]:
+        mode = stat.S_IMODE(path.lstat().st_mode)
+        if path.is_symlink():
+            return False
+        if path.is_dir():
+            if mode != 0o755:
+                return False
+            continue
+        relative = path.relative_to(destination)
+        source = payload / relative
+        if str(relative) == 'image/base.raw':
+            source = payload / 'image' / 'base.raw.gz'
+        executable = source.is_file() and bool(stat.S_IMODE(source.stat().st_mode) & 0o111)
+        if mode != (0o755 if executable else 0o644):
+            return False
+        found = True
+    return found
+
+
 def package_version(volume):
     """The version the rendered installer names (`version='…'`, package.py's @VERSION@)."""
     for line in (Path(volume) / 'install.sh').read_text().splitlines():
@@ -151,7 +179,8 @@ def main(argv=None):
 
         invoke('install', source, installed, 0, 'Installed ',
                [('installed-command-runs', version_runs),
-                ('installed-tree-is-the-manifest', lambda: installed_tree_matches(source, installed_destination(link)))])
+                ('installed-tree-is-the-manifest', lambda: installed_tree_matches(source, installed_destination(link))),
+                ('installed-modes-normalized', lambda: installed_modes_normal(source, installed_destination(link)))])
         invoke('repeat-refused', source, installed, 2, 'Already installed:')
         unrelated = root / 'unrelated'
         (unrelated / 'bin').mkdir(parents=True)

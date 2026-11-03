@@ -114,6 +114,43 @@ class InstalledTreeTests(unittest.TestCase):
                 self.assertFalse(check_install.installed_tree_matches(self.volume, self.installed))
                 self.setUp()
 
+    def test_a_link_that_hashes_nothing_still_fails(self):
+        # Reviewer CI4: a dangling link, or one to a directory, adds no file
+        # to the hashed tree; the link itself must still fail the check.
+        for name, make in [('dangling', lambda: (self.installed / 'bin' / 'gone').symlink_to('/nonexistent/ukai')),
+                           ('to a directory', lambda: (self.installed / 'bin' / 'up').symlink_to('..'))]:
+            with self.subTest(name):
+                make()
+                self.assertFalse(check_install.installed_tree_matches(self.volume, self.installed))
+                self.setUp()
+
+    def normalize(self):
+        for path in [self.installed, *self.installed.rglob('*')]:
+            path.chmod(0o755 if path.is_dir() or path.name == 'ukai-vm' else 0o644)
+        for path in (self.volume / 'payload').rglob('*'):
+            if path.is_file():
+                path.chmod(0o755 if path.name == 'ukai-vm' else 0o644)
+
+    def test_installed_modes_are_the_normalized_ones(self):
+        # Reviewer F-11: modes are not in the manifest; install.sh sets them.
+        self.normalize()
+        self.assertTrue(check_install.installed_modes_normal(self.volume, self.installed))
+        for name, change in [('world-writable file', lambda: (self.installed / 'image' / 'vz').chmod(0o666)),
+                             ('setuid service', lambda: (self.installed / 'bin' / 'ukai-vm').chmod(0o4755)),
+                             ('group-writable directory', lambda: (self.installed / 'bin').chmod(0o775)),
+                             ('private directory', lambda: (self.installed / 'image').chmod(0o700)),
+                             ('executable bit the volume never had', lambda: (self.installed / 'image' / 'vz').chmod(0o755)),
+                             ('a link', lambda: (self.installed / 'bin' / 'alias').symlink_to('ukai-vm'))]:
+            with self.subTest(name):
+                change()
+                self.assertFalse(check_install.installed_modes_normal(self.volume, self.installed))
+                self.setUp()
+                self.normalize()
+        empty = self.installed.parent / 'empty'
+        empty.mkdir(mode=0o755)
+        empty.chmod(0o755)
+        self.assertFalse(check_install.installed_modes_normal(self.volume, empty))
+
     def test_the_expanded_disk_is_checked_against_image_json(self):
         import gzip
         (self.volume / 'payload' / 'image' / 'base.raw.gz').write_bytes(gzip.compress(b'disk'))
@@ -160,6 +197,23 @@ cp -R "$here/payload/." "$destination/"
 ln -s "$destination/bin/ukai-vm" "$link"
 printf '\nInstalled %s\n' "$link"
 '''
+
+
+class InstallerTextTests(unittest.TestCase):
+    def test_the_source_payload_is_read_once_before_every_check(self):
+        # Reviewer I6: what is checked is what installs. The volume's payload
+        # is copied once into the work directory; nothing after that reads
+        # the source volume's payload again.
+        text = (HERE / 'install.sh.in').read_text()
+        lines = [line.strip() for line in text.splitlines() if '$source_dir' in line]
+        self.assertEqual(lines, ['cp "$source_dir/SHA256SUMS" "$work/SHA256SUMS"',
+                                 'ditto "$source_dir/payload" "$work/payload"',
+                                 "( cd \"$source_dir\" && printf '%s\\n' \"$rest\" | shasum -a 256 --check --status ) || {"])
+        copy, check = text.index('ditto "$source_dir/payload"'), text.index('shasum -a 256 --check')
+        self.assertLess(copy, check)
+        self.assertEqual(text.count('stage="$work/payload"'), 1)
+        self.assertEqual([line for line in text.splitlines() if 'ditto' in line or 'cp ' in line],
+                         ['cp "$source_dir/SHA256SUMS" "$work/SHA256SUMS"', 'ditto "$source_dir/payload" "$work/payload"'])
 
 
 @unittest.skipUnless(sys.platform == 'darwin', 'the installer check clones volumes with macOS cp -c')
@@ -289,6 +343,41 @@ class RealInstallerTests(unittest.TestCase):
                                     env=ENVIRONMENT, capture_output=True, text=True)
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn('manifest does not list', result.stderr)
+            self.assertFalse(prefix.exists(), 'a refused install must leave the prefix as it found it')
+
+    def test_volume_modes_never_install(self):
+        # Reviewer F-11 (fx_install): a world-writable helper and a setuid,
+        # world-writable service on the volume install as 0644 and 0755.
+        import stat
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            volume = self.volume(root)
+            os.chmod(volume / 'payload' / 'image' / 'vz', 0o666)
+            os.chmod(volume / 'payload' / 'bin' / 'ukai-vm', 0o4777)
+            os.chmod(volume / 'payload' / 'image', 0o777)
+            prefix = root / 'prefix'
+            result = subprocess.run(['/bin/bash', str(volume / 'install.sh'), '--prefix', str(prefix)],
+                                    env=ENVIRONMENT, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            installed = prefix / 'share/ukai-vm/0.0.0-test'
+            modes = {str(path.relative_to(installed)): stat.S_IMODE(path.lstat().st_mode)
+                     for path in [installed, *installed.rglob('*')]}
+            self.assertEqual(modes, {'.': 0o755, 'bin': 0o755, 'image': 0o755, 'bin/ukai-vm': 0o755,
+                                     'bin/ukai-vm-install': 0o755, 'image/vz': 0o644, 'image/base.raw': 0o644,
+                                     'image/image.json': 0o644})
+            self.assertTrue(check_install.installed_modes_normal(volume, installed))
+
+    def test_a_changed_file_outside_the_payload_is_refused(self):
+        # Reviewer I7: the volume files that are not installed are still verified.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            volume = self.volume(root)
+            (volume / 'READ-ME.txt').write_text('read me, edited\n')
+            prefix = root / 'prefix'
+            result = subprocess.run(['/bin/bash', str(volume / 'install.sh'), '--prefix', str(prefix)],
+                                    env=ENVIRONMENT, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn('Package checksum mismatch', result.stderr)
             self.assertFalse(prefix.exists(), 'a refused install must leave the prefix as it found it')
 
     def test_a_symlink_in_the_payload_is_refused(self):

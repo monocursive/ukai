@@ -39,6 +39,14 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+# Modes are not in the manifest, so none crosses from the volume as it is:
+# every directory 0755, every file 0644, or 0755 where the volume's file was
+# executable. A world-writable, setuid, setgid or sticky bit never installs.
+normalize_modes() {
+  find "$1" -type d -exec chmod 0755 {} +
+  find "$1" -type f -perm +0111 -exec chmod 0755 {} +
+  find "$1" -type f ! -perm +0111 -exec chmod 0644 {} +
+}
 mkdir -p "$prefix/share/ukai-vm" "$prefix/bin"
 work=$(mktemp -d "$prefix/share/ukai-vm/.install.XXXXXXXX")
 # The source is read once: the manifest and the payload are copied first, and
@@ -64,9 +72,11 @@ if [[ -n "$rest" ]]; then
     echo 'Package checksum mismatch.' >&2; exit 1;
   }
 fi
+normalize_modes payload
 stage="$work/payload"
 "$stage/bin/ukai-vm-install" expand-image
 rm "$stage/image/base.raw.gz"
+normalize_modes "$stage"
 "$stage/bin/ukai-vm" version
 # The prerequisite report can be false inside a Mac VM without nested support.
 # Installing remains useful there; only execution requires virtualization.
