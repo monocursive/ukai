@@ -89,9 +89,11 @@ digest); its dated upstream image and Linux Jail archive URLs/hashes are
 recorded there too. A package built by the current packaging script
 records its commit as source_revision in payload/image/image.json, and its
 preview-source.tar.gz holds the source of every shipped binary at that
-commit; `cargo build --release --locked -p ukai-jail --bin ukai-vm` builds
-the service (crates.io dependencies per Cargo.lock). An image.json without
-source_revision comes from the earlier script, which built the published
-0.1.0-preview.1 and the first 0.1.0-preview.2 candidate (2026-11-03): its
-preview-source.tar.gz holds only the VM tooling (crates/ukai-jail/vm).
-This candidate has not been published publicly.
+commit. It is meant to rebuild the service with `cargo build --release
+--locked -p ukai-jail --bin ukai-vm` under the toolchain its
+rust-toolchain.toml pins (crates.io dependencies per Cargo.lock); a
+rebuild with that pinned toolchain has not been verified. An image.json
+without source_revision comes from the earlier script, which built the
+earlier published preview and this version's first candidate
+(2026-11-03): its preview-source.tar.gz holds only the VM tooling
+(crates/ukai-jail/vm). This candidate has not been published publicly.

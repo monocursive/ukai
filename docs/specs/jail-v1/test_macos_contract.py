@@ -425,6 +425,22 @@ class MacosContract(unittest.TestCase):
                      "the hard limit of 2000 is from that later state, not the clamped row"]:
             self.assertIn(fact, compat)
         self.assertTrue(exists("docs/benchmarks/jail/results/macos-nproc-raise-2026-11-03/output.txt"))
+        # Rule 6's evidence: what tests drive, what only reading verifies.
+        for fact in ["`guardian::announcement`", "`MacosPrepared::assemble`",
+                     "are verified by reading only", "The corrected rule has not run under ES"]:
+            self.assertIn(fact, native)
+
+    def test_failed_bootstrap_strip_is_a_refusal_not_an_exec_error(self):
+        """288c00933: nothing executed, so the attempt is refused, never exec_error."""
+        native = " ".join(read("docs/specs/jail-macos.md").split("## 4.", 1)[1].split("## 5.", 1)[0].split())
+        for fact in ["`bootstrap_strip:KERN_…`", "exits 126 without the exec",
+                     "outcome `refused`, error `backend_unavailable`, remediation `inspect_state`, exit 125",
+                     "never as `exec_error`", "`a_failed_containment_step_is_a_refusal_not_an_exec_error`",
+                     "no strip failure has been observed live",
+                     # The residual is named, not claimed fixed.
+                     "`ProgramChanged` and `TerminalUnavailable`, are still recorded as `exec_error`",
+                     "A failed bootstrap strip (§4.7, class 2) also arrives on E"]:
+            self.assertIn(fact, native)
 
     def test_vm_fix_wave_docs_describe_the_carry_rule_stop_and_share(self):
         """D1-D8: the VM docs describe the fix wave's code and its test limits."""
@@ -443,10 +459,26 @@ class MacosContract(unittest.TestCase):
                              "`nosuid,nodev`", "`init.scope`", "`test_guest_main.py`",
                              "`guest_harness.py`", "`test_custodian.py`",
                              "covered by unit and model tests only",
-                             "been confirmed on a booted guest"]:
+                             "been confirmed on a booted guest",
+                             # Round 4: the learned stop, the serve binding,
+                             # standard input, exit, policy digest, summary.
+                             "`infrastructure_unknown`", "`strays_killed`", "`members`",
+                             "`(sd-pam)`", "pinned by pid and start time", "`6c1f11852`",
+                             "`<data>/vm/serve-failed.stderr`", "another serve replaced it; rerun",
+                             "and the guest jail's standard input is /dev/null: nothing written "
+                             "to it would reach the target; run with `</dev/null`, or without --vm",
+                             "128 + s", "`outcome.cause`", "`/mnt/workspace`", "staged_secrets",
+                             "pinned in `image.json`, and it is not", "is summarized as itself",
+                             "`vm-transport.json` is absent"]:
                     self.assertIn(fact, text)
                 self.assertNotIn("kernel_bound_requires_vm", text)
                 self.assertNotIn("measured floor", text)
+                # The stop no longer spares a fixed set of units.
+                for stale in ["INFRASTRUCTURE_UNITS",
+                              "`session.slice/dbus.service` or `app.slice/dbus.service`",
+                              "comes from what `prepare.py` installs",
+                              "digest-checked against `vm-transport.json`"]:
+                    self.assertNotIn(stale, text)
         for fact in ["None is silently dropped", "`KEPT_BOOT_DIRS`", "`UKAI_VM_PACKAGE_VERSION`",
                      "`<crate version>-dev`", "wake gap"]:
             self.assertIn(fact, readme)
@@ -454,8 +486,10 @@ class MacosContract(unittest.TestCase):
         # the serve check's and the attempt stop's.
         paragraphs = [" ".join(p.split()) for p in read("crates/ukai-jail/vm/README.md").split("\n\n")]
         for marker, hedge in [("powers off with `live_share_mount_failed`. The guest's", "unit and model tests only"),
-                              ("in `<data>/vm/serve.stderr`", "not against a real serve"),
-                              ("**The attempt stop (decision D6).**", "has not been confirmed on a booted guest")]:
+                              ("`<data>/vm/serve-failed.stderr`", "not against a real serve"),
+                              ("**The attempt stop (decision D6).**", "has not been confirmed on a booted guest"),
+                              ("gives 128 + s", "none has run against a booted guest"),
+                              ("is summarized as itself", "not yet on a new run")]:
             with self.subTest(paragraph=marker):
                 paragraph = next(p for p in paragraphs if marker in p)
                 self.assertIn(hedge, paragraph)
@@ -474,7 +508,8 @@ class MacosContract(unittest.TestCase):
               "case-sensitive APFS volume folds normalization only", "the disclosure below stands"]),
             ("macos-vm-warm-2026-11-02/README.md",
              ["moved the kill to a cgroup the jail leaves", "Case B stayed inside the custodian's lease",
-              "`bfcf1f9d4`", "`7af4af5c1`", "it has not run on a booted guest"]),
+              "`bfcf1f9d4`", "`7af4af5c1`", "it has not run on a booted guest",
+              "Revised in `6c1f11852`", "kills by pidfd every other live process"]),
         ]:
             with self.subTest(path=path):
                 text = flat(results + path)
@@ -499,15 +534,35 @@ class MacosContract(unittest.TestCase):
                      "under `not_measured`", "none of it has run against a booted guest",
                      "`cargo build --release --locked`", "`source_revision`",
                      "No package has been built with the current script yet", "`notarization.2.json`",
-                     "`payload-extra`", "It has not been run against a package yet"]:
+                     "`payload-extra`", "It has not been run against a package yet",
+                     # Round 4 (S3): the denial needs a route, receipts are
+                     # bound, installed modes, the scrubbed pinned build.
+                     "`ENETUNREACH`", "`1.1.1.1:443`", "the proxy answered 200",
+                     "never a PASS", "no `--guest-nat` flag",
+                     "The live phase therefore needs outbound access to `1.1.1.1:443`",
+                     "argv digest (in the binding and in the receipt), profile, serve boot and guest boot",
+                     "`row-k111-<nonce>`", "`installed-modes-normalized`",
+                     "directories 0755, files 0755", "`/dev/null` as standard input",
+                     "assume-unchanged or skip-worktree", "`rustc -vV`", "`cargo -V`",
+                     "K112 is `REFUSED` when a lane was refused for its standard input",
+                     "its live acceptance is pending",
+                     "refuses unless both report that file's exact release",
+                     "never an absolute host path",
+                     "No rebuild from such an archive under the pinned toolchain has been verified"]:
             self.assertIn(fact, readme)
         self.assertNotIn("the script refuses to run twice", readme)
+        self.assertNotIn("`CARGO_TARGET_DIR` is dropped", readme)
+        self.assertNotIn("`crates/`, enough to rebuild", readme)
         preview = " ".join(read("crates/ukai-jail/vm/PREVIEW.txt").split())
         for fact in ["source_revision in payload/image/image.json",
                      "cargo build --release --locked -p ukai-jail --bin ukai-vm",
-                     "holds only the VM tooling (crates/ukai-jail/vm)"]:
+                     "holds only the VM tooling (crates/ukai-jail/vm)",
+                     "a rebuild with that pinned toolchain has not been verified",
+                     "the earlier published preview and this version's first candidate"]:
             self.assertIn(fact, preview)
         self.assertNotIn("The VM tooling's source (crates/ukai-jail/vm) is included", preview)
+        # test_coordinates: PREVIEW names only the candidate version.
+        self.assertNotIn("0.1.0-preview.1", preview)
 
     def test_d8_other_writable_is_never_accepted(self):
         for path in ["docs/specs/jail-launch-and-summary.md", "docs/specs/jail-macos.md"]:

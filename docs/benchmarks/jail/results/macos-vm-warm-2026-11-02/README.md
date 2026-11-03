@@ -80,8 +80,13 @@ as written except that the two links to `run-vm-cli/` are now plain text
    `bfcf1f9d4` (decision D6): one stop kills every attempt cgroup and every
    cgroup under the workload account's user manager except its
    infrastructure, then verifies them empty, or powers the guest off with
-   `attempt_tree_unverified`. That is covered by unit and model tests only;
-   it has not run on a booted guest.
+   `attempt_tree_unverified`. Revised in `6c1f11852` (fix wave 1103): the
+   infrastructure is three processes learned at session open (the user
+   manager, its `(sd-pam)` helper and the session bus, pinned by pid and
+   start time), and the stop also kills by pidfd every other live process
+   of the account. That is covered by unit and model tests, and by
+   real-`/proc` tests of the pidfd kill on a Linux host, only; it has not
+   run on a booted guest.
 10. **Case B stayed inside the custodian's lease.** The 2 s stop of the
     whole group is shorter than the custodian's three-second lease, so the
     case did not test a longer stop, and fix 2 below is the serve's half
