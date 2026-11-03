@@ -179,10 +179,10 @@ package ships, not a repository build):
 
 ```sh
 UKAI_VM_BINARY=~/.local/bin/ukai-vm python3 crates/ukai-jail/vm/warm_live.py \
-  --image ~/.local/share/ukai-vm/0.1.0-preview.1 \
+  --image ~/.local/share/ukai-vm/0.1.0-preview.2 \
   --workspace <case-sensitive volume> --attempts 20 --out evidence/vm-warm
 UKAI_VM_BINARY=~/.local/bin/ukai-vm python3 crates/ukai-jail/vm/fault_matrix.py \
-  ~/.local/share/ukai-vm/0.1.0-preview.1 <case-sensitive volume> evidence/vm-faults
+  ~/.local/share/ukai-vm/0.1.0-preview.2 <case-sensitive volume> evidence/vm-faults
 ```
 
 ## Preview transport contract

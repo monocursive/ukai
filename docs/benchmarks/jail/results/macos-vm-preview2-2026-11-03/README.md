@@ -14,7 +14,10 @@ This build ([provenance.json](provenance.json)):
 `sha256:3e066cea…` **before notarization**, Developer-ID-signed
 (`64SGQ348QJ`, timestamped), the snapshot-pinned image
 (`apt_snapshot 20261020T000000Z`, disk `310cee86…`), the Rust `ukai-vm`
-warm service as the operator surface.
+warm service as the operator surface. The qualified artifact is preserved
+at `~/ukai-artifacts/ukai-vm-0.1.0-preview.2/` (DMG + `package.json`) —
+`/tmp` is wiped on reboot, and a rebuild's signing timestamp would change
+the digest this record names.
 
 Verified on the built artifact:
 
