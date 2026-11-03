@@ -37,10 +37,13 @@
 //! 3. Create guard client G′: descendants scope, unmute, mute the
 //!    guardian's own process, set/read back fail-closed; no subscription until stop.
 //! 4. Lower `RLIMIT_NPROC` soft and hard to this operator's process count
-//!    plus the headroom (§4.1 rule 6); any failure exits naming it.
-//! 5. Spawn `sandbox-exec` once from the launch block, then close the
+//!    plus the headroom, or to the inherited ceiling when that is lower
+//!    (§4.1 rule 6, amended); any failure exits naming it.
+//! 5. Write `allowance` (what the kernel confirmed in step 4,
+//!    [`rlimit::AppliedAllowance::encode_frame`]) and then `ready` on B.
+//! 6. Spawn `sandbox-exec` once from the launch block, then close the
 //!    guardian's copies of R, E, the stdio sources and the pty slave.
-//! 6. Write `ready` on B. Read A: `launcher-token` → apply events from G
+//!    Read A: `launcher-token` → apply events from G
 //!    until the table holds that token, answer `token-seen`;
 //!    `release-deadline` → arm the wall watchdog (deadline + grace on the
 //!    continuous clock). End-of-file on A runs the stop.
@@ -202,8 +205,10 @@ fn run(
         create_custody_client().map_err(|result| refuse("guard client", es_result(&result)))?;
     custody_io::setup_guard(&guard_client).map_err(|error| refuse("guard setup", error))?;
 
-    // Rule 6: the per-UID process ceiling, before anything forks.
-    rlimit::apply().map_err(|error| refuse("RLIMIT_NPROC", error))?;
+    // Rule 6: the per-UID process ceiling, before anything forks. What the
+    // kernel confirmed is reported on B before `ready` and again in the
+    // record; the receipt records the report, never a separate plan.
+    let allowance = rlimit::apply().map_err(|error| refuse("RLIMIT_NPROC", error))?;
 
     // Read the launch block once, from its inherited descriptor.
     let block = read_launch_block(launch_block_fd)?;
@@ -232,6 +237,8 @@ fn run(
     // as it arrives; the spawn is step 4.
     // SAFETY: B's write end is the guardian's for its whole life.
     let mut b = unsafe { std::fs::File::from_raw_fd(b_write) };
+    write_frame(&mut b, &allowance.encode_frame())
+        .map_err(|error| refuse("write allowance on B", error))?;
     write_frame(&mut b, &frames::encode_ready())
         .map_err(|error| refuse("write ready on B", error))?;
 
@@ -264,6 +271,7 @@ fn run(
         token_wait_until: None,
         members_peak: 0,
         stop_started: false,
+        allowance,
     };
     guardian.event_loop(a_read, own);
     Ok(())
@@ -291,6 +299,8 @@ struct Guardian {
     token_wait_until: Option<u64>,
     members_peak: usize,
     stop_started: bool,
+    /// Rule 6's applied allowance, for the record.
+    allowance: rlimit::AppliedAllowance,
 }
 
 /// What one pass over A produced.
@@ -460,7 +470,8 @@ impl Guardian {
             own,
             self.launcher_token.unwrap_or([0; 8]),
             std::mem::take(&mut self.boot_session),
-        );
+        )
+        .with_allowance(self.allowance);
         if let Err(error) = record::deliver(&record, &mut self.record_file, &mut self.b) {
             self.diagnose("guardian record delivery", &error.to_string());
         }

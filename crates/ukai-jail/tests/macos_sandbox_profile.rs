@@ -159,9 +159,18 @@ fn denied_by_sandbox(output: &Output) -> bool {
     String::from_utf8_lossy(&output.stderr).contains("Operation not permitted")
 }
 
-/// The host's `node`, or `None` on a Mac without one (the empty-allowlist
-/// row needs a runtime worth measuring; git and sh always exist).
+/// The host's `node` by its real path, or `None` on a Mac without one (the
+/// empty-allowlist row needs a runtime worth measuring; git and sh always
+/// exist). The real path, because the rows grant node's install root as
+/// Seatbelt resolves it ([`node_install_root`]) and an exec through a
+/// version-manager alias would first have to traverse the alias itself,
+/// which no grant names.
 fn node() -> Option<PathBuf> {
+    let spelled = node_as_spelled()?;
+    Some(spelled.canonicalize().unwrap_or(spelled))
+}
+
+fn node_as_spelled() -> Option<PathBuf> {
     if let Some(path) = std::env::var_os("UKAI_JAIL_TEST_NODE") {
         return Some(PathBuf::from(path));
     }
@@ -180,6 +189,16 @@ fn node() -> Option<PathBuf> {
     }
     let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
     (!path.is_empty()).then(|| PathBuf::from(path))
+}
+
+/// The install root that holds a node binary and its dylibs: two levels
+/// above the binary's **real** path. Seatbelt matches the resolved vnode
+/// path, so a version-manager alias (mise's `node/lts -> ./24.16.0`) must be
+/// resolved before it is granted, or the grant names a path the kernel never
+/// checks and node is refused.
+fn node_install_root(binary: &Path) -> Option<PathBuf> {
+    let real = binary.canonicalize().ok()?;
+    real.ancestors().nth(2).map(Path::to_path_buf)
 }
 
 /// The git binary the operator's shell would use, preferring Homebrew's.
@@ -419,11 +438,9 @@ fn execution_is_not_granted_from_writable_roots() {
 fn node_git_and_shell_run_with_mach_lookup_fully_denied() {
     let fixture = Fixture::new();
     let node = node();
-    let node_root = node.as_ref().and_then(|binary| {
-        // A version manager layout: admit the install root that holds the
-        // binary and its dylibs.
-        binary.ancestors().nth(2).map(Path::to_path_buf)
-    });
+    // A version manager layout: admit the install root that holds the
+    // binary and its dylibs, resolved as Seatbelt resolves it.
+    let node_root = node.as_deref().and_then(node_install_root);
     let profile = generated(&fixture, node_root.as_deref());
     // The launcher points git's configuration into the attempt's private
     // tree (jail-v2 §8.1 in-child paths); here /dev/null stands in for it,
@@ -797,7 +814,7 @@ fn unix_socket_connects_need_a_named_grant() {
     let stranger_listener = UnixListener::bind(&stranger).expect("stranger listener");
 
     let node = node().expect("the unix-socket grant row drives node");
-    let node_root = node.ancestors().nth(2).map(Path::to_path_buf);
+    let node_root = node_install_root(&node);
     let mut params = fixture.params(node_root.as_deref());
     params.unix_socket_paths = vec![granted.clone()];
     let profile = sandbox::generate(&params);
