@@ -2325,6 +2325,22 @@ mod vm_tests {
         let error = summarize_attempt(&attempt).unwrap_err();
         assert!(error.contains("is absent"), "{error}");
 
+        // The transport record alone disagrees: the receipt and the guest
+        // receipt still match each other.
+        let (_temp, attempt) = mirrored();
+        let mut record = read(&attempt.join(VM_TRANSPORT_FILE));
+        record["guest_receipt_sha256"] = "0".repeat(64).into();
+        std::fs::write(
+            attempt.join(VM_TRANSPORT_FILE),
+            serde_json::to_vec(&record).unwrap(),
+        )
+        .unwrap();
+        let error = summarize_attempt(&attempt).unwrap_err();
+        assert!(
+            error.contains(&format!("the guest receipt {VM_TRANSPORT_FILE} names")),
+            "{error}"
+        );
+
         let (_temp, attempt) = mirrored();
         assert!(summarize_attempt(&attempt).is_ok());
         std::fs::remove_file(attempt.join(VM_TRANSPORT_FILE)).unwrap();
