@@ -2081,37 +2081,37 @@ pub const VM_TRANSPORT_SCHEMA: &str = "ukai.jail.vm-transport/1";
 /// The guest receipt's place beneath a `--vm` attempt directory.
 const VM_GUEST_DIR: &str = "evidence";
 
-/// The host receipt groups the summary takes from the guest receipt: what
-/// the guest jail applied, its observer and coverage, its exec observation
-/// and platform (decision D5; the host receipt mirrors the same groups).
-const VM_GUEST_GROUPS: [&str; 5] = [
-    "applied",
-    "observer",
-    "coverage",
-    "exec_observed",
-    "platform",
-];
-
 /// The summary of a `--vm` attempt, or `None` for any other attempt.
 ///
-/// An attempt is a `--vm` one when its host receipt names the transport and
-/// its directory holds the transport record. Its network and evidence lines
-/// then come from the guest receipt (`evidence/jail.json`), which must hash
-/// to the transport record's `guest_receipt_sha256`; the host's own terminal
-/// record is kept. Nothing is counted: the host journal holds none of the
-/// guest's events ([`Journal::Guest`]). The receipt digest is the host
-/// receipt's.
+/// A settled `--vm` host receipt mirrors what its verified guest receipt
+/// reports the guest jail applied (decision D5) and names that receipt by
+/// digest (`lifetime.native.details.guest_receipt_sha256`). The summary
+/// prints that host receipt, with the transport line, once the chain it
+/// names holds: the transport record is present, the guest receipt
+/// (`evidence/jail.json`) is present and hashes to the digest both the host
+/// receipt and the record name. A broken link is an error, never a quiet
+/// fallback to the mirrored claims. A host receipt that names no guest
+/// receipt mirrored nothing (its guest receipt never verified, or it
+/// predates D5) and is summarized as itself: it claims nothing of the
+/// guest. Nothing is counted: the host journal holds none of the guest's
+/// events ([`Journal::Guest`]).
 fn vm_attempt(attempt: &Path, receipt: &Value) -> Result<Option<Summary>, String> {
     use crate::journal::{Bounded, read_bounded};
     if text(receipt, "/lifetime/native/details/transport") != Some(VM_TRANSPORT_SCHEMA) {
         return Ok(None);
     }
+    let Some(named) = text(receipt, "/lifetime/native/details/guest_receipt_sha256") else {
+        return Ok(None);
+    };
     let record = match read_bounded(attempt, VM_TRANSPORT_FILE, crate::cleanup::RECEIPT_MAX) {
         Bounded::Bytes(bytes) => serde_json::from_slice::<Value>(&bytes)
             .map_err(|error| format!("{VM_TRANSPORT_FILE}: {error}"))?,
-        // No verified guest receipt was stored: the host receipt is all
-        // there is, and it claims nothing of the guest.
-        Bounded::Absent => return Ok(None),
+        Bounded::Absent => {
+            return Err(format!(
+                "the receipt names the guest receipt {}, and {VM_TRANSPORT_FILE} is absent",
+                shown(named)
+            ));
+        }
         Bounded::TooLarge(_) => return Err(format!("{VM_TRANSPORT_FILE} exceeds its size bound")),
         Bounded::Unreadable(error) => return Err(error),
     };
@@ -2123,7 +2123,7 @@ fn vm_attempt(attempt: &Path, receipt: &Value) -> Result<Option<Summary>, String
         Bounded::Bytes(bytes) => bytes,
         Bounded::Absent => {
             return Err(format!(
-                "{VM_TRANSPORT_FILE} names a guest receipt, and {VM_GUEST_DIR}/{} is absent",
+                "the receipt names a guest receipt, and {VM_GUEST_DIR}/{} is absent",
                 crate::state::RECEIPT_NAME
             ));
         }
@@ -2137,25 +2137,14 @@ fn vm_attempt(attempt: &Path, receipt: &Value) -> Result<Option<Summary>, String
             crate::state::RECEIPT_NAME
         ));
     }
-    let guest: Value = serde_json::from_slice(&guest_bytes)
-        .map_err(|error| format!("the guest receipt: {error}"))?;
-    let mut view = receipt.clone();
-    for group in VM_GUEST_GROUPS {
-        let Some(value) = guest.get(group) else {
-            return Err(format!("the guest receipt has no `{group}`"));
-        };
-        let terminal = (group == "applied")
-            .then(|| receipt.pointer("/applied/terminal").cloned())
-            .flatten();
-        view[group] = value.clone();
-        if let Some(terminal) = terminal {
-            view["applied"]["terminal"] = terminal;
-        }
+    if named != format!("sha256:{digest}") {
+        return Err(format!(
+            "{VM_GUEST_DIR}/{} does not hash to the guest receipt the receipt names ({})",
+            crate::state::RECEIPT_NAME,
+            shown(named)
+        ));
     }
-    let mut lines = summary(&view, Journal::Guest);
-    lines.receipt_digest = crate::canonical::to_jcs(receipt)
-        .ok()
-        .map(|bytes| crate::canonical::sha256_prefixed(&bytes));
+    let mut lines = summary(receipt, Journal::Guest);
     lines.transport = Some(vm_transport_line(&record));
     Ok(Some(lines))
 }
@@ -2199,7 +2188,8 @@ mod vm_tests {
     use std::os::unix::fs::PermissionsExt as _;
 
     /// The K113 record (2026-11-03): a proxied, observed `--vm` attempt
-    /// whose host receipt still said `pending` and `attached: false`.
+    /// whose host receipt still said `pending` and `attached: false` (it
+    /// predates decision D5).
     const K113: &str = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/k113-attempt"
@@ -2213,7 +2203,7 @@ mod vm_tests {
         "evidence/vm-binding.json",
     ];
 
-    /// A private copy of the K113 attempt directory.
+    /// A private copy of the K113 attempt directory, as recorded.
     fn k113() -> (tempfile::TempDir, std::path::PathBuf) {
         let temp = tempfile::Builder::new()
             .permissions(std::fs::Permissions::from_mode(0o700))
@@ -2230,6 +2220,35 @@ mod vm_tests {
         (temp, attempt)
     }
 
+    fn read(path: &Path) -> Value {
+        serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+    }
+
+    /// The K113 attempt as a D5 supervisor settles it: the host receipt
+    /// mirrors the guest receipt's groups (keeping its own terminal and a
+    /// wall hit it saw itself) and names the guest receipt by digest.
+    fn mirrored() -> (tempfile::TempDir, std::path::PathBuf) {
+        let (temp, attempt) = k113();
+        let guest_bytes = std::fs::read(attempt.join("evidence/jail.json")).unwrap();
+        let guest: Value = serde_json::from_slice(&guest_bytes).unwrap();
+        let mut host = read(&attempt.join("jail.json"));
+        for group in ["applied", "observer", "coverage", "exec_observed"] {
+            host[group] = guest[group].clone();
+        }
+        host["platform"]["kernel"] = guest["platform"]["kernel"].clone();
+        host["platform"]["arch"] = guest["platform"]["arch"].clone();
+        host["applied"]["limits"][0]["hit"] = true.into();
+        let details = &mut host["lifetime"]["native"]["details"];
+        details["guest_receipt"] = "evidence/jail.json".into();
+        details["guest_receipt_sha256"] = format!("sha256:{}", sha256_hex(&guest_bytes)).into();
+        std::fs::write(
+            attempt.join("jail.json"),
+            serde_json::to_vec(&host).unwrap(),
+        )
+        .unwrap();
+        (temp, attempt)
+    }
+
     fn line<'a>(summary: &'a Summary, name: &str) -> &'a str {
         &summary
             .lines
@@ -2239,23 +2258,19 @@ mod vm_tests {
             .text
     }
 
-    /// D5 (K111): the summary of a `--vm` attempt prints what the verified
-    /// guest receipt reports the guest jail applied, never the host's
-    /// `pending`, and the transport line, which `tail --summary` prints too
-    /// because it is the summary's.
+    /// D5 (K111): the summary of a `--vm` attempt prints its settled host
+    /// receipt, which mirrors the verified guest receipt (never `pending`),
+    /// and the transport line, which `tail --summary` prints too because it
+    /// is the summary's.
     #[test]
-    fn a_vm_attempt_summarizes_its_guest_receipt_with_the_transport_line() {
-        let (_temp, attempt) = k113();
-        let host: Value =
-            serde_json::from_slice(&std::fs::read(attempt.join("jail.json")).unwrap()).unwrap();
-        // What the record printed before: the host receipt alone.
-        let before = summary(
-            &host,
-            Journal::Bytes(&std::fs::read(attempt.join("trace.ndjson")).unwrap()),
-        );
+    fn a_vm_attempt_summarizes_its_mirrored_receipt_with_the_transport_line() {
+        let (_temp, legacy) = k113();
+        let before = summarize_attempt(&legacy).unwrap();
         assert_eq!(line(&before, "network"), "network: not applied");
         assert!(line(&before, "evidence").contains("0/6 classes active"));
 
+        let (_temp, attempt) = mirrored();
+        let host = read(&attempt.join("jail.json"));
         let summary = summarize_attempt(&attempt).expect("the attempt summarizes");
         let network = line(&summary, "network");
         assert!(network.starts_with("network: proxy"), "{network}");
@@ -2292,11 +2307,14 @@ mod vm_tests {
         assert!(json.get("transport").is_none());
     }
 
-    /// The guest receipt the summary reads is the one the transport record
-    /// names by digest; anything else is an error, never a quiet fallback.
+    /// The chain the host receipt names must hold: the guest receipt hashes
+    /// to the digest the transport record names, the record is there, and
+    /// the host receipt names that same guest receipt. Each broken link is
+    /// an error, never a quiet fallback to the mirrored claims (review
+    /// X4: no record; X5: the guest receipt and the record swapped together).
     #[test]
-    fn a_guest_receipt_its_transport_record_does_not_name_is_refused() {
-        let (_temp, attempt) = k113();
+    fn every_link_the_receipt_names_must_hold() {
+        let (_temp, attempt) = mirrored();
         let guest = attempt.join("evidence/jail.json");
         let mut bytes = std::fs::read(&guest).unwrap();
         bytes.push(b' ');
@@ -2306,11 +2324,39 @@ mod vm_tests {
         std::fs::remove_file(&guest).unwrap();
         let error = summarize_attempt(&attempt).unwrap_err();
         assert!(error.contains("is absent"), "{error}");
-        // No transport record: no verified guest receipt was stored, and the
-        // host receipt is summarized as it is.
+
+        let (_temp, attempt) = mirrored();
+        assert!(summarize_attempt(&attempt).is_ok());
         std::fs::remove_file(attempt.join(VM_TRANSPORT_FILE)).unwrap();
+        let error = summarize_attempt(&attempt).unwrap_err();
+        assert!(error.contains(VM_TRANSPORT_FILE), "{error}");
+        assert!(error.contains("is absent"), "{error}");
+
+        let (_temp, attempt) = mirrored();
+        let mut forged = read(&attempt.join("evidence/jail.json"));
+        forged["applied"]["network"]["allowed_hosts"] = serde_json::json!(["evil.example:443"]);
+        let forged = serde_json::to_vec(&forged).unwrap();
+        std::fs::write(attempt.join("evidence/jail.json"), &forged).unwrap();
+        let mut record = read(&attempt.join(VM_TRANSPORT_FILE));
+        record["guest_receipt_sha256"] = sha256_hex(&forged).into();
+        std::fs::write(
+            attempt.join(VM_TRANSPORT_FILE),
+            serde_json::to_vec(&record).unwrap(),
+        )
+        .unwrap();
+        let error = summarize_attempt(&attempt).unwrap_err();
+        assert!(error.contains("the receipt names"), "{error}");
+    }
+
+    /// A `--vm` host receipt that names no guest receipt mirrored nothing
+    /// (here: one that predates D5), and is summarized as itself, with no
+    /// transport line: it claims nothing of the guest.
+    #[test]
+    fn a_receipt_that_names_no_guest_receipt_is_summarized_as_itself() {
+        let (_temp, attempt) = k113();
         let summary = summarize_attempt(&attempt).unwrap();
         assert_eq!(summary.transport, None);
+        assert_ne!(summary.journal, JournalState::Guest);
         assert_eq!(line(&summary, "network"), "network: not applied");
     }
 
@@ -2318,9 +2364,8 @@ mod vm_tests {
     /// one: a stray `vm-transport.json` beside a native receipt is ignored.
     #[test]
     fn a_transport_record_beside_a_native_receipt_is_not_read() {
-        let (_temp, attempt) = k113();
-        let mut host: Value =
-            serde_json::from_slice(&std::fs::read(attempt.join("jail.json")).unwrap()).unwrap();
+        let (_temp, attempt) = mirrored();
+        let mut host = read(&attempt.join("jail.json"));
         host["lifetime"]["native"]["details"]
             .as_object_mut()
             .unwrap()
