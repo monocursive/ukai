@@ -439,8 +439,20 @@ class MacosContract(unittest.TestCase):
                      "no strip failure has been observed live",
                      # The residual is named, not claimed fixed.
                      "`ProgramChanged` and `TerminalUnavailable`, are still recorded as `exec_error`",
-                     "A failed bootstrap strip (§4.7, class 2) also arrives on E"]:
+                     "A failed bootstrap strip (§4.7, class 2) also arrives on E",
+                     # §4 step 7 says the same as §4.7 class 2.
+                     "it is outcome `refused` with `backend_unavailable`, never `exec_error`"]:
             self.assertIn(fact, native)
+        # A pin only proves a sentence is present; no other sentence of §4 may
+        # give a strip (or anything else) the exec_error outcome.
+        self.assertNotIn("outcome `exec_error`", native)
+        # jail-v1 §13.2 names the residual instead of claiming every pre-exec
+        # refusal is refused.
+        core = " ".join(read("docs/specs/jail-v1.md").split())
+        for fact in ["Known deviation, not yet reclassified: two launcher refusals after the "
+                     "release record `exec_error` although the launcher did not exec",
+                     "A failed macOS bootstrap strip is `refused` (jail-macos §4.7 class 2)."]:
+            self.assertIn(fact, core)
 
     def test_vm_fix_wave_docs_describe_the_carry_rule_stop_and_share(self):
         """D1-D8: the VM docs describe the fix wave's code and its test limits."""
