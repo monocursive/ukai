@@ -411,8 +411,9 @@ class WarmServiceTests(unittest.TestCase):
         child = self.launch(RECORD=str(self.root / 'record.ndjson'))
         launch = dict(name='claude', toml='[credentials.api]\nsource = "/run/ukai-vm/credentials/api/token"\n')
         secrets = [dict(id='api/token', data=base64.b64encode(b'value').decode())]
-        stream, _ = self.attempt(profile='agent', allow_hosts=['api.anthropic.com:443'], launch=launch,
-                                 secrets=secrets)
+        # TLS-only grants arrive without their port (S1's snapshot shape).
+        stream, _ = self.attempt(profile='agent', allow_hosts=['api.anthropic.com', 'example.org:8443'],
+                                 launch=launch, secrets=secrets)
         while self.frame(stream)['event'] != 'done':
             pass
         ops = [frame for frame in self.recorded() if 'op' in frame]
@@ -424,7 +425,7 @@ class WarmServiceTests(unittest.TestCase):
         self.assertEqual(ops[names.index('secret')]['id'], 'api/token')
         run2 = ops[names.index('run2')]
         self.assertEqual((run2['profile'], run2['allow_hosts'], run2['launch']),
-                         ('agent', ['api.anthropic.com:443'], 'claude'))
+                         ('agent', ['api.anthropic.com', 'example.org:8443'], 'claude'))
         self.control('stop')
         child.wait(timeout=6)
 

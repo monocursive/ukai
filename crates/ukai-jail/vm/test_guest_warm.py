@@ -99,6 +99,17 @@ class ValidateRunTests(unittest.TestCase):
         self.assertEqual((profile, wall, argv, hosts, launch),
                          ('agent', 30, [b'/bin/true'], ['api.example.com:443'], 'my-tool_2'))
 
+    def test_a_portless_tls_only_rule_passes_verbatim(self):
+        # The host sends a TLS-only grant without its port (the snapshot's
+        # tls_only shape); the guest jail's `--allow-host HOST[:PORT]` reads
+        # the omitted port as TLS-only, so the controller must not add one.
+        rules = ['api.anthropic.com', '*.example.com', 'example.org:8443']
+        hosts = guest.validate_run(self.request(profile='agent', allow_hosts=rules), False)[3]
+        self.assertEqual(hosts, rules)
+        command = guest.run_command('agent', [b'/bin/true'], 30, allow_hosts=hosts)
+        self.assertEqual([command[i + 1] for i, part in enumerate(command) if part == b'--allow-host'],
+                         [b'api.anthropic.com', b'*.example.com', b'example.org:8443'])
+
     def test_the_launch_name_grammar_is_the_jails(self):
         for name in ('claude', 'a', 'a' * 64, 'x1-_'):
             self.assertTrue(guest.valid_launch_name(name), name)

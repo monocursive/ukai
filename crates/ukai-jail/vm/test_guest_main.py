@@ -180,10 +180,12 @@ class RunValidationTests(unittest.TestCase):
         guest.expect('reset')
         guest.send(op='launch_toml', toml=LAUNCH)
         guest.expect('launch_toml')
-        guest.run2(profile='agent', allow_hosts=['api.example.com:443'], launch='claude')
+        guest.run2(profile='agent', allow_hosts=['api.anthropic.com', 'api.example.com:443'], launch='claude')
         guest.expect('done')
         command = guest.subprocess.jails[0].command()
-        self.assertEqual(command[command.index(b'--allow-host') + 1], b'api.example.com:443')
+        # A portless (TLS-only) rule crosses as the host spelled it.
+        self.assertEqual([command[i + 1] for i, part in enumerate(command) if part == b'--allow-host'],
+                         [b'api.anthropic.com', b'api.example.com:443'])
         self.assertEqual(command[command.index(b'--launch') + 1], b'claude')
         self.assertLess(command.index(b'--launch'), command.index(b'--'))
 
