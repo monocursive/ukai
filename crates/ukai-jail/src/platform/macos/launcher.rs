@@ -426,6 +426,25 @@ fn strip_bootstrap_port() -> Result<(), libc::c_int> {
     Ok(())
 }
 
+/// §4.7 class 2's last step before the exec: `strip` the bootstrap port,
+/// or report its Mach result on `error_fd` as the first word with
+/// [`DETAIL_BOOTSTRAP_STRIP`] beside it, and exit [`EXIT_INTERNAL`] —
+/// nothing runs. Returns only when the strip succeeded. Async-signal-safe
+/// when `strip` is.
+///
+/// The supervisor receives this report after the release, on the same pipe
+/// and through the same decoder as a failed target exec
+/// ([`exec_failure_parts`] names it `bootstrap_strip:KERN_…`), and the run
+/// records it the way it records a failed exec (`exec_error`). It is the
+/// launcher's own containment step failing before the target ran; giving it
+/// a containment classification instead is a supervisor change (the
+/// run-event and attempt mapping), not one this report can make.
+fn require_bootstrap_strip(error_fd: i32, strip: impl FnOnce() -> Result<(), libc::c_int>) {
+    if let Err(kr) = strip() {
+        report_and_exit(error_fd, kr, DETAIL_BOOTSTRAP_STRIP, EXIT_INTERNAL);
+    }
+}
+
 /// The dispatch entry (`main.rs`'s `__launch-macos` arm). Never returns.
 pub fn launch_main(args: &[OsString]) -> ! {
     let parsed = match parse(args) {
@@ -549,9 +568,7 @@ pub fn launch_main(args: &[OsString]) -> ! {
     // there is no route from this member to the launchd control plane, for
     // any client. A refusal here reports as internal and nothing runs; the
     // Mach result travels with its own detail code, never as an errno.
-    if let Err(kr) = strip_bootstrap_port() {
-        report_and_exit(parsed.error_fd, kr, DETAIL_BOOTSTRAP_STRIP, EXIT_INTERNAL);
-    }
+    require_bootstrap_strip(parsed.error_fd, strip_bootstrap_port);
 
     // SAFETY: `program` and `argv_ptrs` are a NUL-terminated string and a
     // NULL-terminated pointer array, all live for the call, and `environ` is
@@ -629,6 +646,67 @@ mod tests {
                 Some(ExecFailureDetail::InterpreterMissing)
             )
         );
+    }
+
+    /// Runs `step` in a forked child that is handed the write end of a
+    /// fresh error pipe, as the launcher's E; the child `_exit(0)`s if the
+    /// step returns. Returns everything the child wrote and its exit code.
+    /// The child calls only async-signal-safe code, as the launcher does.
+    fn on_the_error_pipe(step: impl FnOnce(i32)) -> (Vec<u8>, i32) {
+        let mut fds = [0i32; 2];
+        // SAFETY: `fds` is a valid out array for `pipe`.
+        assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0);
+        // SAFETY: the child runs only `step` (a write and `_exit`) and
+        // `_exit`; the parent waits for it below.
+        let pid = unsafe { libc::fork() };
+        assert!(pid >= 0, "fork");
+        if pid == 0 {
+            // SAFETY: closing the child's copy of the read end.
+            unsafe { libc::close(fds[0]) };
+            step(fds[1]);
+            // SAFETY: _exit takes a scalar and never returns.
+            unsafe { libc::_exit(0) };
+        }
+        // SAFETY: closing the parent's copy of the write end.
+        unsafe { libc::close(fds[1]) };
+        // SAFETY: the read end is this process's own, owned by the File.
+        let mut error = unsafe { <std::fs::File as std::os::fd::FromRawFd>::from_raw_fd(fds[0]) };
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut error, &mut bytes).unwrap();
+        let mut status = 0;
+        // SAFETY: waiting for the child forked above, into a live int.
+        assert_eq!(unsafe { libc::waitpid(pid, &raw mut status, 0) }, pid);
+        assert!(libc::WIFEXITED(status), "status {status:#x}");
+        (bytes, libc::WEXITSTATUS(status))
+    }
+
+    // Review F5 (N16): the report the launcher actually sends when the
+    // strip fails — written by the sending path itself, in a child that
+    // exits as the launcher would — carries the strip's detail, so the
+    // supervisor's decoder names the Mach result rather than the errno that
+    // shares its number. A strip that succeeds writes nothing.
+    #[test]
+    fn a_failed_strip_sends_its_kern_return_with_the_strip_detail_and_exits_internal() {
+        for (kr, name) in [
+            (8, "bootstrap_strip:KERN_NO_ACCESS"),
+            (2, "bootstrap_strip:KERN_PROTECTION_FAILURE"),
+            (5, "bootstrap_strip:KERN_FAILURE"),
+            (12345, "bootstrap_strip:kern_return_t(12345)"),
+        ] {
+            let (report, code) = on_the_error_pipe(|fd| require_bootstrap_strip(fd, || Err(kr)));
+            assert_eq!(code, EXIT_INTERNAL, "nothing runs after a failed strip");
+            assert_eq!(report.len(), 8, "{report:?}");
+            assert_eq!(report[4..], DETAIL_BOOTSTRAP_STRIP.to_le_bytes());
+            assert!(!is_blocked_report(&report));
+            assert_eq!(exec_failure_parts(&report), (name.to_owned(), None));
+        }
+        let (report, code) = on_the_error_pipe(|fd| require_bootstrap_strip(fd, || Ok(())));
+        assert_eq!((report, code), (Vec::new(), 0));
+        // The production strip, on the child's own task: it succeeds
+        // unprivileged and reports nothing.
+        let (report, code) =
+            on_the_error_pipe(|fd| require_bootstrap_strip(fd, strip_bootstrap_port));
+        assert_eq!((report, code), (Vec::new(), 0));
     }
 
     #[test]
