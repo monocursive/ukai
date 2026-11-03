@@ -305,6 +305,40 @@ class MacosContract(unittest.TestCase):
         self.assertEqual(live_promotion_problems(value, exists),
                          ["K108.1 cites docs/benchmarks/jail/results/gone/, which does not exist"])
 
+    def test_d11_vm_docs_imply_no_shipped_client_and_no_passing_row(self):
+        def flat(path):
+            return " ".join(read(path).split())
+        # No macOS ukai-jail client ships (the DMG carries ukai-vm and
+        # ukai-vm-install): every doc that shows `ukai-jail run --vm` says so.
+        for path in ["crates/ukai-jail/vm/PREVIEW.txt", "crates/ukai-jail/vm/README.md",
+                     "docs/guide.md", "docs/specs/jail-macos.md"]:
+            with self.subTest(path=path):
+                text = flat(path).replace("`", "")
+                self.assertIn("ukai-jail run --vm", text)
+                self.assertIn("built from source", text)
+                self.assertRegex(text, r"(?i)no macOS ukai-jail client ships")
+        vm_row = next(line for line in read(CONTRACT + "agent-compatibility.md").splitlines()
+                      if line.startswith("| Claude Code | 2.1.311"))
+        self.assertNotIn("Supported", vm_row)
+        self.assertIn("K113 `untested`", vm_row)
+        # The cited receipt digest matched no file; the guest receipt is
+        # 53837b58. The wrong one may appear only in its erratum.
+        for path in [CONTRACT + "agent-compatibility.md",
+                     "docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/README.md"]:
+            with self.subTest(path=path):
+                text = flat(path)
+                self.assertIn("sha256:53837b58", text)
+                for match in re.finditer("10c3c58f", text):
+                    self.assertIn("matches no file", text[max(0, match.start() - 200):match.end() + 200])
+        self.assertNotIn("or at minimum the install check",
+                         flat("docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md"))
+        vm = json.loads(read("crates/ukai-jail/dist/release.json"))["vm"]
+        self.assertNotEqual(vm["version"], vm["candidate_version"])
+        self.assertIn(f"`{vm['tag_prefix']}{vm['candidate_version']}`",
+                      read("docs/benchmarks/jail/results/macos-vm-preview2-2026-11-03/README.md"))
+        self.assertTrue(read("crates/ukai-jail/vm/PREVIEW.txt").startswith(
+            f"Ukai VM {vm['candidate_version']} "))
+
     def test_d8_other_writable_is_never_accepted(self):
         for path in ["docs/specs/jail-launch-and-summary.md", "docs/specs/jail-macos.md"]:
             text = read(path)
