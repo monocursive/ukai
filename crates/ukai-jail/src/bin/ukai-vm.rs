@@ -341,8 +341,25 @@ fn guest_line(service: &Service, frame: &GuestOp) -> Result<(), String> {
     )
 }
 
+/// The runtime's `flock`, held for the service's life. Its Drop unlocks
+/// before the descriptor closes: a lock belongs to the open file
+/// description, and a child that any thread forks holds a duplicate of
+/// every descriptor until it execs (close-on-exec acts only then), so a
+/// close alone leaves the runtime locked for as long as that child sits
+/// between fork and exec (measured 2026-11-04 on macOS and Linux; the
+/// test below holds such a child). `LOCK_UN` releases the description for
+/// every duplicate.
+struct RuntimeLock(std::fs::File);
+
+impl Drop for RuntimeLock {
+    fn drop(&mut self) {
+        // SAFETY: flock only operates on the owned open file description.
+        unsafe { libc::flock(self.0.as_raw_fd(), libc::LOCK_UN) };
+    }
+}
+
 /// The lock precedes every unlink and remains owned until all children end.
-fn lock_runtime(runtime: &Path) -> Result<std::fs::File, String> {
+fn lock_runtime(runtime: &Path) -> Result<RuntimeLock, String> {
     use std::os::unix::fs::OpenOptionsExt as _;
     let lock = std::fs::OpenOptions::new()
         .read(true)
@@ -357,7 +374,7 @@ fn lock_runtime(runtime: &Path) -> Result<std::fs::File, String> {
     if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
         return Err("a ukai-vm service already owns this runtime".to_owned());
     }
-    Ok(lock)
+    Ok(RuntimeLock(lock))
 }
 
 fn nonblocking(fd: &impl std::os::fd::AsRawFd) -> Result<(), String> {
@@ -1881,5 +1898,46 @@ mod service_regressions {
         assert!(lock_runtime(dir.path()).is_err());
         drop(lock);
         lock_runtime(dir.path()).unwrap();
+    }
+
+    #[test]
+    fn runtime_lock_is_released_while_a_forked_child_still_holds_its_descriptor() {
+        // Another test's spawn forks the whole descriptor table, the lock's
+        // descriptor included; the child keeps it until it execs (the
+        // close-on-exec flag acts only then). This child is held in
+        // pre_exec, between the fork and the exec, while the owner drops
+        // the lock and the runtime is locked again.
+        use std::io::{Read as _, Write as _};
+        let dir = tempfile::tempdir().unwrap();
+        let lock = lock_runtime(dir.path()).unwrap();
+        let (mut ready_read, ready_write) = std::io::pipe().unwrap();
+        let (gate_read, mut gate_write) = std::io::pipe().unwrap();
+        let (ready_fd, gate_fd) = (ready_write.as_raw_fd(), gate_read.as_raw_fd());
+        let spawner = std::thread::spawn(move || {
+            let mut command = std::process::Command::new("/usr/bin/true");
+            // SAFETY: the closure runs in the forked child and calls only
+            // async-signal-safe functions (write, read, _exit).
+            unsafe {
+                command.pre_exec(move || {
+                    let mut byte = 0u8;
+                    if libc::write(ready_fd, b"r".as_ptr().cast(), 1) != 1
+                        || libc::read(gate_fd, (&raw mut byte).cast(), 1) != 1
+                    {
+                        libc::_exit(125);
+                    }
+                    Ok(())
+                });
+            }
+            let status = command.status();
+            drop((ready_write, gate_read));
+            status
+        });
+        let mut byte = [0u8];
+        ready_read.read_exact(&mut byte).unwrap();
+        drop(lock);
+        let again = lock_runtime(dir.path());
+        gate_write.write_all(b"g").unwrap();
+        assert!(spawner.join().unwrap().unwrap().success());
+        again.expect("the runtime lock outlived its owner in a forked child");
     }
 }
