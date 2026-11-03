@@ -137,7 +137,10 @@ needs sudo. The current `install.sh.in` copies the manifest and payload
 first and checks the copy it installs: the manifest's own digest, no
 non-regular payload entry, a payload file list equal to the manifest's, and
 every listed digest, so an unlisted file refuses; a refused install removes
-the directories it created. Read [PREVIEW.txt](PREVIEW.txt) for installation, command
+the directories it created. The manifest carries no modes, so the
+installer sets them: directories 0755, files 0755 where the volume's file
+is executable and 0644 otherwise; no world-writable, setuid, setgid or
+sticky bit installs. Read [PREVIEW.txt](PREVIEW.txt) for installation, command
 examples and limits. Apple Silicon / macOS 27+ is the package's minimum;
 measured execution is on macOS 27.0.1. Intel Macs and native macOS
 workloads are not included.
@@ -146,18 +149,30 @@ Build from a trusted prepared image whose seed hash and every source hash
 recorded by `prepare.py` match the committed `vm/` tree. The current
 `package.py` builds what one committed revision holds: it refuses when the
 tree differs from HEAD anywhere under the jail's build inputs (the ones
-`build_provenance.rs` names) or the archived source paths, tracked or
-untracked, and checks again after the build. It builds `ukai-vm` with
-`cargo build --release --locked` into an explicit `--target-dir` (a fresh one
-under `--out` by default; `CARGO_TARGET_DIR` is dropped) with
-`UKAI_BUILD_REVISION` set to HEAD, `UKAI_BUILD_DIRTY=false` and
-`UKAI_VM_PACKAGE_VERSION` set to the candidate version, and refuses a binary
-whose `version` reports anything else. It records the revision as
+`build_provenance.rs` names) or the archived source paths: a change staged
+or not, an untracked or ignored file (Python bytecode excepted), an index
+entry marked assume-unchanged or skip-worktree, or a file whose bytes are
+not HEAD's blob. It checks again after the build. It builds `ukai-vm` with
+`cargo build --release --locked` from the repository root into an explicit
+`--target-dir` (a fresh one under `--out` by default), in a scrubbed
+environment: only `HOME`, `PATH`, `USER`, `LOGNAME`, `TMPDIR`,
+`RUSTUP_HOME`, `CARGO_HOME` and the three `UKAI_*` variables below reach
+cargo, so a shell's `RUSTUP_TOOLCHAIN`, `RUSTFLAGS` or other `CARGO_*`
+setting never does, and rustup takes the toolchain from
+`rust-toolchain.toml`. Before building it records `rustc -vV` and
+`cargo -V` in `package.json` and refuses unless both report that file's
+exact release. It sets `UKAI_BUILD_REVISION` to HEAD,
+`UKAI_BUILD_DIRTY=false` and `UKAI_VM_PACKAGE_VERSION` to the candidate
+version, and refuses a binary whose `version` reports anything else. It
+records the revision as
 `source_revision` in `package.json` and `image.json`, and
 `preview-source.tar.gz` holds the workspace at that revision: the Cargo
 files, the toolchain pin, every crate and the build inputs outside
-`crates/`, enough to rebuild `ukai-vm`, the VZ client, the custodian and
-the installer helper. The `0.1.0-preview.2` candidate built on 2026-11-03
+`crates/`, meant to be enough to rebuild `ukai-vm`, the VZ client, the
+custodian and the installer helper. No rebuild from such an archive under
+the pinned toolchain has been verified: the fix wave's one rebuild check
+of an archive probably ran under rustc 1.96.0, not the pin. The
+`0.1.0-preview.2` candidate built on 2026-11-03
 and the published `0.1.0-preview.1` were built by the earlier script: no
 `source_revision`, and a source archive of `crates/ukai-jail/vm` only. No
 package has been built with the current script yet. A Developer ID
@@ -207,8 +222,10 @@ The current `check_install.py` (schema `ukai.vm.installer-check/2`) has a
 sixth case, `payload-extra`, which plants an unlisted payload file and
 requires a refusal with nothing installed. Its `install` case passes only
 when the installed `ukai-vm version` reports exactly the version the
-installer names, never a `-dev` build, and the installed tree is exactly
-the manifest's payload. `summary.json` binds the manifest and installer
+installer names, never a `-dev` build, the installed tree is exactly the
+manifest's payload, and every installed mode is the normalized one
+(`installed-modes-normalized`). `summary.json` binds the manifest and
+installer
 digests, and the DMG's with `--dmg`. It has not been run against a package
 yet.
 
@@ -241,21 +258,45 @@ below comes from them):
   `UKAI_VM_BINARY` (`warm_live.py` also from `--ukai-vm`) and refuse without
   it; `gate_rows.py` and `claude_vm_row.py` take the installed root and the
   `ukai-jail` client as arguments. Every record names each binary with its
-  SHA-256. `--ukai-jail <client>` adds the real `ukai-jail run --vm` to
+  SHA-256, and its machine-read fields hold repository-, `$TMPDIR`- or
+  `~`-relative paths, never an absolute host path. `--ukai-jail <client>`
+  adds the real `ukai-jail run --vm` to
   `warm_live.py` (timed from exec to its workload's first write on the
   host) and to `fault_matrix.py`'s client cases.
 - **The egress probe** (decision D9) is a python3 socket connect to an IP
-  literal with a short timeout, after a positive control in the same
-  attempt that must connect to a loopback listener and be accepted. Its
-  verdict is one tagged JSON line the host parses; a missing line, a failed
-  control, a connection or two lines is never a denial. No probe uses
-  `/dev/tcp`.
+  literal (`1.1.1.1:443`) with a short timeout, after a positive control in
+  the same attempt that must connect to a loopback listener and be
+  accepted. Its verdict is one tagged JSON line the host parses; a missing
+  line, a failed control, a connection or two lines is never a denial. No
+  probe uses `/dev/tcp`. A denial counts only if all of these hold: the
+  probe's connect failed with `ENETUNREACH`, the jail's own errno (a
+  timeout, `ECONNREFUSED`, `EHOSTUNREACH` or any other errno is
+  inconclusive); the guest NAT adapter was attached; and on the same guest
+  boot a route control succeeded, through a receipt bound to its own
+  attempt: an `agent` attempt allowed exactly `1.1.1.1:443` asks its proxy,
+  outside the jail's network namespace, for a CONNECT tunnel there, and the
+  proxy answered 200, which it does only after reaching the target.
+  Otherwise the result is inconclusive, never a PASS: an empty namespace
+  with no route at all gives the same errno. `warm_live.py` always attaches
+  the NAT adapter (it has no `--guest-nat` flag), and `capabilities.py`
+  and `proxy_measurement.py` also record whether `1.1.1.1:443` answers from
+  the host. The live phase therefore needs outbound access to
+  `1.1.1.1:443`.
+- **Receipts are bound.** A receipt backs a verdict only when its digest
+  verified and it is bound to that attempt: attempt id, argv digest (in the
+  binding and in the receipt), profile, serve boot and guest boot. K111
+  gates every summary fact, and its workload writes a nonce marker
+  (`row-k111-<nonce>`) that must reach the host exactly.
 - **Refusals are outcomes.** Every harness `run --vm` runs with
-  `LANG=C.UTF-8` (no `TERM`, `TZ` or `LC_*`), `--terminal detach` and one
-  whole-second wall in 1–300. A `vm:not-measured`, `vm:not-carried` or
+  `LANG=C.UTF-8` (no `TERM`, `TZ` or `LC_*`), `--terminal detach`, one
+  whole-second wall in 1–300 and `/dev/null` as standard input (commit
+  `36592d114`; K111 and K113 run the client under `script(1)`, which gives
+  it a pty and relays nothing from `/dev/null`). A `vm:not-measured`,
+  `vm:not-carried` or
   `vm:owner-loss-not-provided` answer is parsed from the client's output and
-  recorded as `REFUSED`, never `PASS`. Until `GUEST_MEASUREMENTS` has rows,
-  every real-client case refuses that way.
+  recorded as `REFUSED`, never `PASS`, and so is the client's standard-input
+  refusal. Until `GUEST_MEASUREMENTS` has rows, every real-client case
+  refuses that way.
 - **`fault_matrix.py`** has nine cases, each on its own boot: `secrets`,
   `client-kill`, `client-ctrl-z`, `serve-kill`, `custodian-kill`,
   `vz-kill`, `all-suspended`, `eof` and `serve-group-stop` (a 5 s stop,
@@ -411,8 +452,17 @@ owned by the workload account; credential ids that nest (`a` and `a/b`)
 refuse before any guest traffic. The values come from the secrets the
 supervisor staged and validated, and the guest's launch declaration is
 generated from the snapshot and parsed back with the same loader: nothing
-re-reads the operator's files or `UKAI_CONFIG_DIR`. Interactive stdin is
-absent. The mandatory share, the `live_share` comparison, the mount
+re-reads the operator's files or `UKAI_CONFIG_DIR`. The guest jail's
+standard input is `/dev/null`, so `run --vm` refuses a standard input that
+is a pipe, a file, a socket or a character device other than `/dev/null`,
+before any contact with the VM (`invalid_config` at `preparing`,
+remediation `configuration`):
+"--vm: standard input is a pipe, and the guest jail's standard input is
+/dev/null: nothing written to it would reach the target; run with
+`</dev/null`, or without --vm". A terminal, `/dev/null` and a closed
+descriptor pass (unit tests); the check runs after probing, so no run
+reaches it while `GUEST_MEASUREMENTS` is empty. The mandatory share, the
+`live_share` comparison, the mount
 options, the secret staging and the nested-id refusal in this paragraph are
 covered by unit and model tests only (stand-in guests and the guest
 controller's model); none of it has run on a booted guest, and live
@@ -420,36 +470,62 @@ verification is pending.
 
 Whether `run --vm` reuses a serving `ukai-vm` or spawns one, it checks the
 serve's status the same way: a live share of exactly this workspace and, for
-a proxied policy, the NAT adapter. A spawned serve runs in its own process
-group with its standard error in `<data>/vm/serve.stderr`; one that exits
-before it answers is refused with that text. The serve, ready and prepared
-waits are bounded by the attempt's preparation budget. This is covered by
-unit tests against a stand-in serve script, not against a real serve.
+a proxied policy, the NAT adapter. It keeps the boot id that status
+reported, and the attempt socket's `ready` must carry the same one, or the
+run refuses: another serve replaced it; rerun. A spawned serve runs in its
+own process group, and its standard error goes to a private file of its
+own, created exclusively, then renamed `<data>/vm/serve.stderr` when the
+serve answers or `<data>/vm/serve-failed.stderr` when it exits first; a
+refusal quotes only its own serve's text (at most 2048 bytes), even when
+two runs spawn at once. The serve, ready and prepared waits, the status
+read and the `Prepare` write are bounded by the attempt's preparation
+budget, and the serve's wait also by 180 s. This is covered by unit tests
+against a stand-in serve script, not against a real serve.
 
 **The attempt stop (decision D6).** One stop serves the guest's done,
-cancel2, reset and the outer-wall backstop. It kills every
-`ukai-attempts.slice/attempt-*` cgroup, plus every cgroup under the workload
-account's user manager except the infrastructure set (`init.scope`, and
-`session.slice/dbus.service` or `app.slice/dbus.service`). Killing the
-attempt cgroup alone is not enough: the guest jail moves itself into
+cancel2, reset and the outer-wall backstop. The workload account's
+infrastructure is three processes, learned at session open, before any
+attempt of the boot runs: the user manager (the system manager's `MainPID`
+for `user@<uid>.service`), its `(sd-pam)` helper (the account's one live
+process in the manager's `init.scope` whose parent is the manager; a
+manager without one is accepted, two fail the learning) and the session
+bus (the user manager's `MainPID` for `dbus.service`, which the learning
+starts, in that unit's reported `ControlGroup`). Each is checked against
+`/proc` and pinned by pid and start time; if the learning fails, the guest
+powers off with `infrastructure_unknown`. The stop kills every
+`ukai-attempts.slice/attempt-*` cgroup and every cgroup under the user
+manager that neither is nor holds `init.scope` or the bus's unit (walking
+into their sub-cgroups), and kills by pidfd every other live process of
+the account wherever it sits, after re-checking its start time. Killing
+the attempt cgroup alone is not enough: the guest jail moves itself into
 `user@<uid>.service/app.slice/ukai-jail-*.scope` and runs its workload in a
 leaf directly under `user@<uid>.service` (the paths in the K111 and K113
 guest receipts), so the earlier per-attempt kill reached an empty cgroup.
-The stop then requires those cgroups empty and no live workload-uid process
-outside the infrastructure, re-killing within a 2.5 s budget, and bounds
-the supervisor reap at 1 s; every wait feeds the guest watchdog. On
-failure the guest powers off with `attempt_tree_unverified`. **The infrastructure set has not been confirmed
-on a booted guest**: it comes from what `prepare.py` installs. The
-attempt's staged values and launch profile are removed at every stop and
-poweroff. The named poweroffs new in this wave are
-`attempt_tree_unverified`, `attempt_files_not_cleared`,
+A zombie thread-group leader with a live sibling thread counts as live,
+and its group is killed by pidfd. A bus that restarted during an attempt
+is not the learned one, so the stop kills it; the next `busctl` activates
+it again. The stop then requires those cgroups empty and no such process
+left, re-killing within a 2.5 s budget: a stray it kills no longer fails
+the stop (the audit lists it in `strays_killed`), and one that survives
+the budget does, as does a cgroup that stays populated (the audit lists
+its `members`). It bounds the supervisor reap at 1 s; every wait feeds the
+guest watchdog. On failure the guest powers off with
+`attempt_tree_unverified`. **The learned set has not been confirmed on a
+booted guest**: on a Linux development host running systemd 259 the
+learning found exactly `systemd --user`, `(sd-pam)` and `dbus-daemon`
+(commit `6c1f11852`; no evidence file is retained). The attempt's staged
+values and launch profile are removed at every stop and poweroff. The
+named poweroffs new in this wave are `attempt_tree_unverified`,
+`attempt_files_not_cleared`, `infrastructure_unknown`,
 `live_share_mount_failed`, `launch_profile_unstageable` (a launch profile
 name already present, a link included, or an unwritable directory: never
 written through) and `launch_without_toml`; the serve names a guest that
 powered itself off from its console (`guest poweroff: <reason>`).
 
 None of the attempt stop or the named poweroffs above has run on a booted
-guest yet. They are covered by unit and model tests only, and live
+guest yet. They are covered by unit and model tests, plus real-`/proc`
+tests of the pidfd kill and the zombie-leader read on a Linux host
+(`test_guest_warm.RealProcTests`, skipped elsewhere), and live
 verification is pending.
 
 The service holds an exclusive runtime lock before removing stale sockets. It
@@ -480,15 +556,40 @@ not independent host attestation of the guest kernel. The transport summary
 labels that provenance and does not reuse the host receipt's boundary as a
 guest measurement. Record-write failures cannot produce a successful outcome.
 
-Once the guest receipt is verified and the guest is done, the settled host
-receipt takes `platform.kernel`, `platform.arch`, `exec_observed`, `applied`
-(except its `terminal`), `observer` and `coverage` from it, and
-`lifetime.native.details` names it: `guest_receipt` (`evidence/jail.json`),
-`guest_receipt_sha256` and `guest_carried` (decision D5). The summary of a
-`--vm` attempt reads the guest receipt, digest-checked against
-`vm-transport.json`, counts nothing from the host journal, and prints the
-transport line itself, so `run` and `tail --summary` print the same lines.
-This is tested against the recorded K113 attempt, not yet on a new run.
+The guest's `done` exit status must equal what the verified guest
+receipt's outcome means (`exited` with code c gives c, `signaled` with
+signal s gives 128 + s), or the attempt's run event is unknown and no
+transport record is written; a signaled outcome is relayed as signaled.
+`Prepared.staged_secrets` must list exactly the credential ids sent, each
+at `/run/ukai-vm/credentials/<id>`. After the run the host derives the
+policy snapshot the guest jail resolves for this attempt (the share mount
+`/mnt/workspace` as workspace, the fixed guest limits and the wall, the
+crossing allow rules, the generated launch declaration, `LANG` only) and
+refuses a guest receipt whose `policy.digest` differs. Nothing checks the
+guest jail's version before the run: that would need it pinned in
+`image.json`, and it is not, so a guest jail of another version still runs
+the attempt and only its receipt is refused. These checks are covered by
+unit tests against stand-in guest replies (the policy prediction against
+the real supervisor's plan for `tool`, `agent` and `agent` with a vault
+credential); none has run against a booted guest.
+
+Once the guest receipt is verified and the guest's `done` agrees with it,
+the settled host receipt takes `platform.kernel`, `platform.arch`,
+`exec_observed`, `applied` (except its `terminal`), `observer` and
+`coverage` from it, and `outcome.cause` when the host recorded no cause of
+its own; `lifetime.native.details` names it: `guest_receipt`
+(`evidence/jail.json`), `guest_receipt_sha256` and `guest_carried` (those
+seven fields; decision D5). The summary of a `--vm` attempt is the host
+receipt's own summary plus the transport line, once the chain the host
+receipt names holds: the guest receipt in `evidence/jail.json` hashes to
+both the digest `vm-transport.json` records and the host receipt's
+`guest_receipt_sha256`. A broken link is an error; so is a host receipt
+that names a guest receipt while `vm-transport.json` is absent. A host
+receipt that names no guest receipt (the K113 record predates D5) is
+summarized as itself. The summary counts nothing from the host journal,
+and `run` and `tail --summary` print the same lines. This is tested in
+unit tests on the recorded K113 attempt and receipts derived from it, not
+yet on a new run.
 
 From the repository root, build and run the stand-in tests without a VM:
 
@@ -514,9 +615,12 @@ Linux jail, a virtual clock, and a model of the kernel's cgroup and `/proc`
 files taken from the K111/K113 guest receipts. Its docstring lists what the
 model cannot show, which is the live phase's to measure: where the real
 jail's scope and leaf land, that `cgroup.kill` ends the real tree and the
-next attempt still gets its scope, the image's real infrastructure set, a
-real cancel inside `WatchdogSec=4`, the virtio-fs detection and mount
-options on a real kernel, and the staged files' real owners.
+next attempt still gets its scope, that the learning finds exactly the
+manager, its helper and the bus on the image through the real `systemctl`
+calls, a real cancel inside `WatchdogSec=4`, the guest kernel's
+zombie-leader behavior (the model's two facts were measured on kernel
+7.2.12), the virtio-fs detection and mount options on a real kernel, and
+the staged files' real owners.
 `test_custodian.py` compiles `custodian.c` and suspends it past its lease
 against a stand-in VZ client; it never boots a VM.
 
@@ -531,7 +635,7 @@ every host controller suspended) with long-running workloads and compared
 boot ids; the K111 receipt fix (decision D5, now in the code) shown on a
 live run, with every host field compared with the guest receipt; the
 attempt stop and the mandatory share (D6, D7) run on a booted guest, the
-infrastructure set confirmed on the image; a VM-tier compatibility record
+learned infrastructure confirmed on the image; a VM-tier compatibility record
 that meets J18 §9.4's Linux-row conditions (K113); a package built by the
 current `package.py` and checked by the current `check_install.py`; and
 notarization, followed by the full row rerun on the stapled DMG before

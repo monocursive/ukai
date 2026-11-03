@@ -228,9 +228,11 @@ requirement with `unsupported`; this build's VM tier refuses it too, before
 any boot. Linux `none` refuses it. In the intended qualified backend, the
 guest is started on first use, kept warm between runs, and stopped after an
 idle period or with `ukai-jail vm stop`; the guest's Linux receipt is
-verified and stored beside the host's (`evidence/jail.json`), the host
-receipt takes the guest's applied facts from it, and the summary prints the
-guest's applied network and observer facts from it. This tier is the Linux VM preview above made into
+verified and stored beside the host's (`evidence/jail.json`), and the host
+receipt takes the guest's applied facts from it, so its summary states the
+guest's applied network and observer facts. The guest jail's standard input
+is `/dev/null`, so `run --vm` refuses a standard input that is a pipe, a
+file or a socket; run it from a terminal or with `</dev/null`. This tier is the Linux VM preview above made into
 a backend, and the preview's limits — Linux ARM64 programs only, no Mac-built
 native add-ons such as compiled `node_modules` — carry over.
 
