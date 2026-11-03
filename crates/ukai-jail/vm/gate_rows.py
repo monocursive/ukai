@@ -155,12 +155,15 @@ def row_k111(home, workspace, jail, out):
     argv = ['/bin/sh', '-c', k111_script(tag)]
     started = time.monotonic()
     # script(1) gives the supervisor a real terminal, the only condition
-    # under which the summary and its transport line print.
+    # under which the summary and its transport line print. Its own
+    # standard input is /dev/null, so it relays nothing of the harness's
+    # into that terminal (it echoes one ^D, which no parser reads).
     try:
         run = subprocess.run(['script', '-q', '/dev/null', str(jail), 'run', '--vm',
                               '--terminal', 'detach', '--profile', 'tool', *harness.vm_wall(20),
                               '--workspace', str(workspace), '--', *argv],
-                             env=environment, capture_output=True, text=True, timeout=420)
+                             env=environment, stdin=subprocess.DEVNULL, capture_output=True,
+                             text=True, timeout=420)
         run_exit, terminal = run.returncode, run.stdout + '\n' + run.stderr
     except subprocess.TimeoutExpired as error:
         run_exit, terminal = None, f'timeout: {error}'
@@ -202,7 +205,8 @@ def kernel_bound_run(jail, environment, workspace, lane):
                '--workspace', str(workspace), '--',
                '/bin/sh', '-c', f'touch {marker}; touch {shlex.quote(str(Path(workspace) / marker))}-abs 2>/dev/null; true']
     started = time.monotonic()
-    run = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=300)
+    run = subprocess.run(command, env=environment, stdin=subprocess.DEVNULL, capture_output=True,
+                         text=True, timeout=300)
     receipt, lifetime = None, None
     for jail_json in sorted((data / 'attempts').glob('att_*/jail.json'),
                             key=lambda p: p.stat().st_mtime, reverse=True):
@@ -237,6 +241,10 @@ def judge_k112(shipped, dev, vm):
     row = {'native_shipped_refused': refused(shipped), 'native_dev_refused': refused(dev),
            'vm_refused_before_boot': refused(vm) and not vm['boot_attempted']}
     row['outcome'] = 'PASS' if all(row.values()) else 'FAIL'
+    if any(harness.stdin_refused(lane.get('refusals')) for lane in (shipped, dev, vm)):
+        # Refused for its standard input, the lane never reached the
+        # kernel-bound check: recorded as what it is, never a pass.
+        row['outcome'] = 'REFUSED'
     return row
 
 
