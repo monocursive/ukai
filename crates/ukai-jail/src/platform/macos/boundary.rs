@@ -1390,68 +1390,120 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
             return Err(error);
         }
     };
-    let process = ProcessRecord {
-        pid: handshake.launcher_token[AUDIT_TOKEN_PID],
-        identity: ProcessIdentity {
-            kind: "macos_audit_token".to_owned(),
-            value: audit_token_value(handshake.launcher_token),
-        },
-    };
     // The outside proxy on the attempt's private socket, and the loopback
     // relay to it (§4.10): policy and secret are enforced at the proxy.
     // Vault requests refuse before reaching this raw transport.
-    let (proxy, proxy_sink, serving) = match bridge_bound {
-        Some(bound) => {
-            let started = start_proxy(&plan, &sinks, &bound);
-            match started {
-                Ok(started) => (Some(started.0), Some(started.1), Some(started.2)),
-                Err(error) => {
-                    built.pipe_r_write.close();
-                    abort_guardian(&mut built.guardian, built.pipe_a_write.take_fd());
-                    deliver_before_refusal(&mut built.stdio_relays);
-                    let _ = client.delete();
-                    return Err(error);
-                }
+    let proxy = match bridge_bound {
+        Some(bound) => match start_proxy(&plan, &sinks, &bound) {
+            Ok(started) => Some(started),
+            Err(error) => {
+                built.pipe_r_write.close();
+                abort_guardian(&mut built.guardian, built.pipe_a_write.take_fd());
+                deliver_before_refusal(&mut built.stdio_relays);
+                let _ = client.delete();
+                return Err(error);
             }
-        }
-        None => (None, None, None),
+        },
+        None => None,
     };
-    Ok(Box::new(MacosPrepared {
-        observation,
-        client: Some(client),
-        engine,
-        a_write: built.pipe_a_write.take_fd(),
-        r_write: built.pipe_r_write,
-        b_read: built.b_read,
-        e_read: built.e_read,
-        guardian: built.guardian,
-        launcher_token: handshake.launcher_token,
-        process,
-        applied: build_applied(
-            &plan,
-            &built.profile_params,
-            bridge_config.as_ref(),
-            relay.is_some(),
-        ),
-        profile_params: built.profile_params,
-        wall_ms: plan
-            .request
-            .snapshot
-            .limits
-            .wall
-            .as_ref()
-            .and_then(|wall| wall.value.parse::<u64>().ok()),
-        relay,
-        stdio_relays: built.stdio_relays,
-        // Rule 6 (§4.1, D13): the receipt records the allowance the
-        // guardian applied and reported before `ready`, never a plan of
-        // the supervisor's own.
-        allowance: handshake.allowance,
-        handshake_events: handshake.events,
-        proxy,
-        proxy_sink,
-        serving,
-    }))
+    Ok(Box::new(MacosPrepared::assemble(
+        &plan,
+        handshake,
+        PreparedParts {
+            client: Some(client),
+            engine,
+            observation,
+            spawned: built,
+            relay,
+            bridge: bridge_config,
+            proxy,
+        },
+    )))
+}
+
+/// What preparation built around the handshake (§4.3 steps 1–5), for
+/// [`MacosPrepared::assemble`].
+struct PreparedParts {
+    client: Option<CustodyClient>,
+    engine: Custodian,
+    observation: NativeObservation,
+    spawned: Spawned,
+    relay: Option<TerminalRelay>,
+    bridge: Option<BridgeConfig>,
+    proxy: Option<StartedProxy>,
+}
+
+/// The outside proxy, the sink that tallies its results, and the loopback
+/// relay to it ([`start_proxy`]).
+type StartedProxy = (
+    crate::proxy::ProxyHandle,
+    std::sync::Arc<crate::proxy::coverage::TraceSink>,
+    bridge::Serving,
+);
+
+impl MacosPrepared {
+    /// The prepared boundary: the handshake's facts — the launcher's
+    /// identity, the custody events still to replay and rule 6 as the
+    /// guardian reported it before `ready` — joined with what preparation
+    /// built. The receipt tests assemble their boundary here too, so what
+    /// reaches their receipts is what production carries.
+    fn assemble(plan: &PreparedPlan, handshake: Handshake, parts: PreparedParts) -> Self {
+        let PreparedParts {
+            client,
+            engine,
+            observation,
+            mut spawned,
+            relay,
+            bridge,
+            proxy,
+        } = parts;
+        let (proxy, proxy_sink, serving) = match proxy {
+            Some((proxy, sink, serving)) => (Some(proxy), Some(sink), Some(serving)),
+            None => (None, None, None),
+        };
+        MacosPrepared {
+            observation,
+            client,
+            engine,
+            a_write: spawned.pipe_a_write.take_fd(),
+            r_write: spawned.pipe_r_write,
+            b_read: spawned.b_read,
+            e_read: spawned.e_read,
+            guardian: spawned.guardian,
+            launcher_token: handshake.launcher_token,
+            process: ProcessRecord {
+                pid: handshake.launcher_token[AUDIT_TOKEN_PID],
+                identity: ProcessIdentity {
+                    kind: "macos_audit_token".to_owned(),
+                    value: audit_token_value(handshake.launcher_token),
+                },
+            },
+            applied: build_applied(
+                plan,
+                &spawned.profile_params,
+                bridge.as_ref(),
+                relay.is_some(),
+            ),
+            profile_params: spawned.profile_params,
+            wall_ms: plan
+                .request
+                .snapshot
+                .limits
+                .wall
+                .as_ref()
+                .and_then(|wall| wall.value.parse::<u64>().ok()),
+            relay,
+            stdio_relays: spawned.stdio_relays,
+            // Rule 6 (§4.1, D13): the receipt records the allowance the
+            // guardian applied and reported before `ready`, never a plan of
+            // the supervisor's own.
+            allowance: handshake.allowance,
+            handshake_events: handshake.events,
+            proxy,
+            proxy_sink,
+            serving,
+        }
+    }
 }
 
 /// Starts the outside proxy on the attempt's private socket and the
@@ -1462,14 +1514,7 @@ fn start_proxy(
     plan: &PreparedPlan,
     sinks: &Sinks,
     bound: &bridge::Bound,
-) -> Result<
-    (
-        crate::proxy::ProxyHandle,
-        std::sync::Arc<crate::proxy::coverage::TraceSink>,
-        bridge::Serving,
-    ),
-    JailError,
-> {
+) -> Result<StartedProxy, JailError> {
     let Some(handoff) = &plan.proxy else {
         return Err(refusal(
             ErrorCode::InternalError,
@@ -1863,9 +1908,34 @@ fn abort_guardian(guardian: &mut GuardianProcess, pipe_a_write: RawFd) {
     guardian.end();
 }
 
+/// What the handshake reads from client S (§4.3 steps 3–5): the custody
+/// stream and its synchronization. Production passes S itself; the tests
+/// drive the same handshake from a scripted stream beside a fake guardian
+/// writing the guardian's own B frames, which needs no ES entitlement.
+trait HandshakeStream {
+    /// One bounded synchronization of the stream; `true` once synchronized.
+    fn drain(&self, timeout_ms: u32) -> bool;
+    /// The next custody event, if one waits.
+    fn poll_full(&self) -> Option<es::EsPoll>;
+    /// Whether the stream dropped messages.
+    fn ring_overflowed(&self) -> bool;
+}
+
+impl HandshakeStream for CustodyClient {
+    fn drain(&self, timeout_ms: u32) -> bool {
+        CustodyClient::drain(self, timeout_ms)
+    }
+    fn poll_full(&self) -> Option<es::EsPoll> {
+        CustodyClient::poll_full(self)
+    }
+    fn ring_overflowed(&self) -> bool {
+        CustodyClient::ring_overflowed(self)
+    }
+}
+
 /// The handshake of §4.3 steps 3–5, within the preparation budget.
 fn handshake(
-    client: &CustodyClient,
+    client: &impl HandshakeStream,
     b_read: &mut Fd,
     e_read: &mut Fd,
     pipe_a_write: RawFd,
@@ -1934,17 +2004,20 @@ fn handshake(
             synced_after_block = true;
         }
         if let (Some(token), true) = (launcher_token, blocked_seen && synced_after_block) {
-            // Step 5: the launcher's current token goes on A.
+            // Step 5: the launcher's current token goes on A. The guardian's
+            // next frame is `token-seen`; anything else (a second
+            // `allowance` included) is out of the grammar and refuses.
             write_frame(pipe_a_write, &encode_launcher_token(&token))?;
             loop {
-                for frame in read_b(&mut reader, b_read, guardian)? {
-                    if matches!(frame, BFrame::TokenSeen) {
-                        return Ok(Handshake {
-                            launcher_token: token,
-                            events,
-                            allowance: allowance.expect("`ready` required the allowance"),
-                        });
+                if let Some(frame) = read_b(&mut reader, b_read, guardian)?.into_iter().next() {
+                    if !matches!(frame, BFrame::TokenSeen) {
+                        return Err(out_of_order(&frame));
                     }
+                    return Ok(Handshake {
+                        launcher_token: token,
+                        events,
+                        allowance: allowance.expect("`ready` required the allowance"),
+                    });
                 }
                 if Instant::now() >= deadline {
                     return Err(handshake_timeout());
@@ -4322,56 +4395,134 @@ os.write({}, (','.join(map(str, fds))).encode())
         engine: Custodian,
         observation: NativeObservation,
     ) -> (MacosPrepared, [Fd; 2]) {
-        let params = profile_params(plan, None).unwrap();
-        let Handshake {
-            launcher_token: launcher,
-            events,
-            allowance,
-        } = handshake;
         let mut a = Pipe::new().unwrap();
         let mut r = Pipe::new().unwrap();
         let peers = [Fd(a.take_read()), Fd(r.take_read())];
-        (
-            MacosPrepared {
-                observation,
+        // Production's own assembly: the fixture supplies only what the
+        // missing client, guardian and launcher would have.
+        let prepared = MacosPrepared::assemble(
+            plan,
+            handshake,
+            PreparedParts {
                 client: None,
                 engine,
-                a_write: a.take_write(),
-                r_write: Fd(r.take_write()),
-                b_read: Fd(-1),
-                e_read: Fd(-1),
-                guardian: GuardianProcess {
-                    pid: None,
-                    status: Some(0),
-                },
-                launcher_token: launcher,
-                process: ProcessRecord {
-                    pid: launcher[AUDIT_TOKEN_PID],
-                    identity: ProcessIdentity {
-                        kind: "macos_audit_token".to_owned(),
-                        value: audit_token_value(launcher),
+                observation,
+                spawned: Spawned {
+                    b_read: Fd(-1),
+                    e_read: Fd(-1),
+                    pipe_a_write: Fd(a.take_write()),
+                    pipe_r_write: Fd(r.take_write()),
+                    profile_params: profile_params(plan, None).unwrap(),
+                    guardian: GuardianProcess {
+                        pid: None,
+                        status: Some(0),
                     },
+                    stdio_relays: Vec::new(),
                 },
-                applied: build_applied(plan, &params, None, false),
-                wall_ms: plan
-                    .request
-                    .snapshot
-                    .limits
-                    .wall
-                    .as_ref()
-                    .map(|wall| wall.value.parse().unwrap()),
                 relay: None,
-                stdio_relays: Vec::new(),
-                // The handshake's rule-6 report, as production carries it.
-                allowance,
-                profile_params: params,
-                handshake_events: events,
+                bridge: None,
                 proxy: None,
-                proxy_sink: None,
-                serving: None,
             },
-            peers,
+        );
+        (prepared, peers)
+    }
+
+    /// Client S's custody stream for the handshake, scripted: the retained
+    /// launch events in delivery order, then every drain synchronized.
+    struct ScriptedStream(std::cell::RefCell<std::collections::VecDeque<es::EsPoll>>);
+
+    impl HandshakeStream for ScriptedStream {
+        fn drain(&self, _: u32) -> bool {
+            std::thread::sleep(Duration::from_millis(1));
+            true
+        }
+        fn poll_full(&self) -> Option<es::EsPoll> {
+            self.0.borrow_mut().pop_front()
+        }
+        fn ring_overflowed(&self) -> bool {
+            false
+        }
+    }
+
+    /// The supervisor's real handshake (§4.3 steps 3–5) on real pipes, with
+    /// no ES client: a fake guardian writes `frames` on B with the
+    /// guardian's own frame writer, waits for the launcher token on A and
+    /// answers `token-seen`; the launcher's `blocked` waits on E; the custody
+    /// stream replays [`retained_handshake`]. Returns what the handshake
+    /// returned and the token the fake guardian received on A (`None` when
+    /// the handshake refused before step 5).
+    fn scripted_handshake(frames: Vec<Vec<u8>>) -> (Result<Handshake, JailError>, Option<Token>) {
+        scripted_handshake_answering(
+            frames,
+            vec![crate::platform::macos::guardian::frames::encode_token_seen()],
         )
+    }
+
+    /// [`scripted_handshake`], with `answer` written on B once the launcher
+    /// token arrives on A in place of the guardian's `token-seen`.
+    fn scripted_handshake_answering(
+        frames: Vec<Vec<u8>>,
+        answer: Vec<Vec<u8>>,
+    ) -> (Result<Handshake, JailError>, Option<Token>) {
+        use crate::platform::macos::guardian::{self, frames as wire};
+        use std::io::{Read as _, Write as _};
+        use std::os::fd::FromRawFd as _;
+        let mut b = Pipe::new().unwrap();
+        let mut a = Pipe::new().unwrap();
+        let mut e = Pipe::new().unwrap();
+        let mut b_read = Fd::nonblocking(b.take_read()).unwrap();
+        let mut e_read = Fd::nonblocking(e.take_read()).unwrap();
+        let a_write = Fd(a.take_write());
+        // SAFETY: each end is taken from its pipe once; the File owns it.
+        let (mut b_write, mut a_read, mut e_write) = unsafe {
+            (
+                std::fs::File::from_raw_fd(b.take_write()),
+                std::fs::File::from_raw_fd(a.take_read()),
+                std::fs::File::from_raw_fd(e.take_write()),
+            )
+        };
+        // The launcher's `blocked` report: eight zero bytes.
+        let blocked = [0u8; 8];
+        assert!(crate::platform::macos::launcher::is_blocked_report(
+            &blocked
+        ));
+        e_write.write_all(&blocked).unwrap();
+        let guardian_side = std::thread::spawn(move || {
+            for frame in &frames {
+                guardian::write_frame(&mut b_write, frame).unwrap();
+            }
+            let mut length = [0u8; 4];
+            // End-of-file on A: the supervisor refused before step 5.
+            a_read.read_exact(&mut length).ok()?;
+            let mut payload = vec![0u8; u32::from_le_bytes(length) as usize];
+            a_read.read_exact(&mut payload).unwrap();
+            let Ok(Some(wire::Frame::LauncherToken(token))) = wire::decode_frame(&payload) else {
+                panic!("step 5 sends the launcher token on A: {payload:?}");
+            };
+            for frame in &answer {
+                guardian::write_frame(&mut b_write, frame).unwrap();
+            }
+            Some(token)
+        });
+        let (events, _, _) = retained_handshake();
+        let stream = ScriptedStream(std::cell::RefCell::new(events.into()));
+        // The pid the retained stream's guardian fork carries; nothing here
+        // waits for or signals it (B never reaches end-of-file first).
+        let mut guardian = GuardianProcess {
+            pid: Some(1001),
+            status: None,
+        };
+        let result = handshake(
+            &stream,
+            &mut b_read,
+            &mut e_read,
+            a_write.0,
+            &mut guardian,
+            &ContinuousDeadline::after(Duration::from_secs(10)),
+        );
+        drop(a_write);
+        let seen = guardian_side.join().unwrap();
+        (result, seen)
     }
 
     impl crate::platform::Platform for ReceiptPlatform {
@@ -4403,12 +4554,14 @@ os.write({}, (','.join(map(str, fds))).encode())
             plan: PreparedPlan,
             sinks: Sinks,
         ) -> Result<Box<dyn PreparedExecution>, JailError> {
-            let (events, launcher_token, guardian_token) = retained_handshake();
-            let mut handshake = Handshake {
-                launcher_token,
-                events,
-                allowance: self.allowance,
-            };
+            // The real handshake against a fake guardian that announces
+            // this fixture's allowance with the guardian's own frames.
+            let (_, launcher_token, guardian_token) = retained_handshake();
+            let (handshake, _) = scripted_handshake(
+                crate::platform::macos::guardian::announcement(&self.allowance).to_vec(),
+            );
+            let mut handshake = handshake.expect("the scripted handshake completes");
+            assert_eq!(handshake.launcher_token, launcher_token);
             let (send, receive) = std::sync::mpsc::channel();
             let dropped = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
             let source = ReceiptSource {
@@ -6636,5 +6789,86 @@ int main(int argc, char **argv) {
             assert!(ready_step(early.clone(), &mut None).is_err());
             assert!(ready_step(early, &mut Some(UNCLAMPED)).is_err());
         }
+    }
+
+    /// Distinctive rule-6 reports no other fixture uses: what arrives must
+    /// be what the guardian sent, not a default or another fixture's value.
+    const DISTINCT_CLAMPED: AppliedAllowance = AppliedAllowance {
+        limit: 2741,
+        headroom: 593,
+        clamped: true,
+    };
+    const DISTINCT_UNCLAMPED: AppliedAllowance = AppliedAllowance {
+        limit: 4321 + crate::platform::macos::guardian::rlimit::PROCESS_HEADROOM,
+        headroom: crate::platform::macos::guardian::rlimit::PROCESS_HEADROOM,
+        clamped: false,
+    };
+
+    // Review F3 (N12): the supervisor's handshake, driven end to end from
+    // the guardian's own step-3 frames on a real B pipe, returns the
+    // allowance the guardian announced, beside the launcher token it sent
+    // on A. The receipt tests take their handshake from the same path
+    // (`ReceiptPlatform::prepare`), so the value reaches the receipt
+    // through `MacosPrepared::assemble` (N10). The guardian's own call
+    // sites run only with ES; see guardian.rs (N14, N15).
+    #[test]
+    fn f3_the_handshake_returns_the_allowance_the_guardian_announced() {
+        let (_, launcher, _) = retained_handshake();
+        for allowance in [DISTINCT_CLAMPED, DISTINCT_UNCLAMPED] {
+            assert!(allowance.is_consistent());
+            let (result, seen) = scripted_handshake(
+                crate::platform::macos::guardian::announcement(&allowance).to_vec(),
+            );
+            let handshake = result.expect("the handshake completes");
+            assert_eq!(handshake.allowance, allowance);
+            assert_eq!(handshake.launcher_token, launcher);
+            assert_eq!(seen, Some(launcher), "step 5 sent the launcher's token");
+            assert_eq!(handshake.events.len(), 4, "every launch event retained");
+        }
+    }
+
+    // Review F3: the same driven handshake refuses every step-3 shape but
+    // exactly one `allowance` then `ready`, and refuses a frame other than
+    // `token-seen` after the token, before anything reaches a receipt.
+    #[test]
+    fn f3_the_driven_handshake_refuses_any_other_announcement() {
+        use crate::platform::macos::guardian::frames::{encode_ready, encode_token_seen};
+        let allowance = DISTINCT_CLAMPED.encode_frame();
+        for (frames, expected) in [
+            (
+                vec![encode_ready()],
+                "without reporting its applied process allowance",
+            ),
+            (
+                vec![encode_ready(), allowance.clone()],
+                "without reporting its applied process allowance",
+            ),
+            (
+                vec![allowance.clone(), allowance.clone(), encode_ready()],
+                "out of order",
+            ),
+            (vec![encode_token_seen()], "out of order"),
+        ] {
+            let (result, seen) = scripted_handshake(frames.clone());
+            let Err(error) = result else {
+                panic!("{frames:?} completed the handshake");
+            };
+            assert_eq!(error.code, ErrorCode::BackendUnavailable, "{frames:?}");
+            assert!(
+                error.message.contains(expected),
+                "{frames:?}: {}",
+                error.message
+            );
+            assert_eq!(seen, None, "{frames:?}: refused before step 5");
+        }
+        // After the token, a second `allowance` in place of `token-seen`.
+        let (result, seen) = scripted_handshake_answering(
+            crate::platform::macos::guardian::announcement(&DISTINCT_CLAMPED).to_vec(),
+            vec![DISTINCT_UNCLAMPED.encode_frame(), encode_token_seen()],
+        );
+        let (_, launcher, _) = retained_handshake();
+        assert_eq!(seen, Some(launcher));
+        let error = result.err().expect("a second allowance refuses");
+        assert!(error.message.contains("out of order"), "{}", error.message);
     }
 }

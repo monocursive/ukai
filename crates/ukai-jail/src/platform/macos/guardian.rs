@@ -234,13 +234,18 @@ fn run(
     let boot_session = record::boot_session_uuid();
 
     // Step 3 ends with `ready` (§4.3): the supervisor may proceed as soon
-    // as it arrives; the spawn is step 4.
+    // as it arrives; the spawn is step 4. The supervisor's handshake tests
+    // read these exact frames ([`announcement`]); this call site itself
+    // runs only in a guardian with the ES entitlement, so that it writes
+    // them is verified by reading (fix wave 1103, N14).
     // SAFETY: B's write end is the guardian's for its whole life.
     let mut b = unsafe { std::fs::File::from_raw_fd(b_write) };
-    write_frame(&mut b, &allowance.encode_frame())
-        .map_err(|error| refuse("write allowance on B", error))?;
-    write_frame(&mut b, &frames::encode_ready())
-        .map_err(|error| refuse("write ready on B", error))?;
+    for (frame, step) in announcement(&allowance)
+        .iter()
+        .zip(["write allowance on B", "write ready on B"])
+    {
+        write_frame(&mut b, frame).map_err(|error| refuse(step, error))?;
+    }
 
     // Step 4: the one spawn, then the EOF-semantics closes (the block's R/E
     // numbers are the inherited launcher ends passed in argv; this closes
@@ -456,6 +461,13 @@ impl Guardian {
         self.guard = guard;
         let ended_at = continuous_time_ns();
 
+        // Rule 6's allowance joins the record here. This runs only in a
+        // guardian with the ES entitlement and no test reaches it: that the
+        // record carries the allowance `apply` returned is verified by
+        // reading (fix wave 1103, N15). The supervisor rejects a record
+        // without it, or with another, and counts the guardian lost
+        // (§4.6), so a regression here shows as a lost guardian in every
+        // receipt, never as a wrong allowance.
         let record = record::from_stop_result(
             &outcome.result,
             record::StopFacts {
@@ -478,8 +490,15 @@ impl Guardian {
     }
 }
 
+/// Step 3's frames on B, in order (§4.3, D13): rule 6's `allowance` as the
+/// kernel confirmed it, then `ready`. The supervisor refuses a `ready`
+/// without exactly one allowance before it.
+pub(super) fn announcement(allowance: &rlimit::AppliedAllowance) -> [Vec<u8>; 2] {
+    [allowance.encode_frame(), frames::encode_ready()]
+}
+
 /// One length-prefixed frame, flushed in full.
-fn write_frame(b: &mut std::fs::File, frame: &[u8]) -> Result<(), String> {
+pub(super) fn write_frame(b: &mut std::fs::File, frame: &[u8]) -> Result<(), String> {
     if frame.is_empty() || frame.len() > frames::MAX_FRAME_BYTES {
         return Err("invalid frame length".to_owned());
     }
