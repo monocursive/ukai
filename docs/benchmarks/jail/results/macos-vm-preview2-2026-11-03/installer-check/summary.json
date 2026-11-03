@@ -1,0 +1,36 @@
+{
+  "schema": "ukai.vm.installer-check/1",
+  "results": [
+    {
+      "case": "install",
+      "exit_code": 0,
+      "passed": true,
+      "failed_checks": []
+    },
+    {
+      "case": "repeat-refused",
+      "exit_code": 2,
+      "passed": true,
+      "failed_checks": []
+    },
+    {
+      "case": "unrelated-refused",
+      "exit_code": 2,
+      "passed": true,
+      "failed_checks": []
+    },
+    {
+      "case": "manifest-tamper",
+      "exit_code": 1,
+      "passed": true,
+      "failed_checks": []
+    },
+    {
+      "case": "payload-tamper",
+      "exit_code": 1,
+      "passed": true,
+      "failed_checks": []
+    }
+  ],
+  "passed": true
+}

@@ -1,0 +1,17 @@
+{
+  "schema": "ukai.vm.row-provenance/1",
+  "date": "2026-11-03",
+  "version": "0.1.0-preview.2",
+  "why": "ouro-vm-v0.1.0-preview.1 is already public with the cold-boot DMG (2026-10-11, sha256 f3a85e14\u2026); the warm redesign is a different artifact and takes the next coordinate",
+  "dmg": "ukai-vm-0.1.0-preview.2-macos-arm64.dmg",
+  "dmg_sha256_before_notarization": "3e066cea5d131348aba1066e7db9aff65cfb23cbecd67c4767ad911dfa852424",
+  "notarization": "pending",
+  "identity": "Developer ID Application: Monocursive (64SGQ348QJ), timestamped",
+  "ukai_vm_sha256": "1fcb5cd6a5d95dbf918b30d23d37dc1953a5e0ef35faaa9d580aedb0caaa71a6",
+  "apt_snapshot": "20261020T000000Z",
+  "image_disk_sha256": "310cee86ccca5b5d13ede5fbc69829a65940db67996efecb5374f23339cbe5c3",
+  "installed_prefix": "/tmp/ukai-installed3 (fresh; install checks ready)",
+  "smoke": "3 warm attempts over one boot, 11.8/12.5 ms release latency, all warm claims held (warm-smoke.json)",
+  "installer_contract": "check_install 5/5 against this DMG (installer-check/summary.json)",
+  "full_rows": "the K108-K113 rows were measured on the preview.1-labeled build of the same sources (macos-vm-installed-2026-11-03, macos-vm-claude-2026-11-03); the preview.2 artifact differs only in version labeling \u2014 the rows rerun on the stapled, notarized preview.2 DMG before any publication claim"
+}
