@@ -176,7 +176,7 @@ pub fn exec_failure_parts(bytes: &[u8]) -> (String, Option<ExecFailureDetail>) {
     match decode_exec_failure(bytes) {
         Some(failure) if failure.bootstrap_strip => (
             format!("bootstrap_strip:{}", kern_return_name(failure.errno)),
-            None,
+            Some(ExecFailureDetail::ContainmentStepFailed),
         ),
         Some(failure) => {
             let detail = if failure.interpreter_missing {
@@ -433,12 +433,11 @@ fn strip_bootstrap_port() -> Result<(), libc::c_int> {
 /// when `strip` is.
 ///
 /// The supervisor receives this report after the release, on the same pipe
-/// and through the same decoder as a failed target exec
-/// ([`exec_failure_parts`] names it `bootstrap_strip:KERN_…`), and the run
-/// records it the way it records a failed exec (`exec_error`). It is the
-/// launcher's own containment step failing before the target ran; giving it
-/// a containment classification instead is a supervisor change (the
-/// run-event and attempt mapping), not one this report can make.
+/// and through the same decoder as a failed target exec:
+/// [`exec_failure_parts`] names it `bootstrap_strip:KERN_…` with
+/// [`ExecFailureDetail::ContainmentStepFailed`], and the run is refused
+/// (`backend_unavailable`, `inspect_state`), never an `exec_error`: the
+/// target never ran (jail-v1 §13.2).
 fn require_bootstrap_strip(error_fd: i32, strip: impl FnOnce() -> Result<(), libc::c_int>) {
     if let Err(kr) = strip() {
         report_and_exit(error_fd, kr, DETAIL_BOOTSTRAP_STRIP, EXIT_INTERNAL);
@@ -629,7 +628,13 @@ mod tests {
             let failure = decode_exec_failure(report).expect("decodes");
             assert!(failure.bootstrap_strip);
             assert!(!failure.interpreter_missing && !failure.terminal);
-            assert_eq!(exec_failure_parts(report), (name.to_owned(), None));
+            assert_eq!(
+                exec_failure_parts(report),
+                (
+                    name.to_owned(),
+                    Some(ExecFailureDetail::ContainmentStepFailed)
+                )
+            );
         }
         // The errno slot keeps its meaning for real errnos.
         let (bytes, length) = report_bytes(libc::ENOEXEC, 0);
@@ -698,7 +703,13 @@ mod tests {
             assert_eq!(report.len(), 8, "{report:?}");
             assert_eq!(report[4..], DETAIL_BOOTSTRAP_STRIP.to_le_bytes());
             assert!(!is_blocked_report(&report));
-            assert_eq!(exec_failure_parts(&report), (name.to_owned(), None));
+            assert_eq!(
+                exec_failure_parts(&report),
+                (
+                    name.to_owned(),
+                    Some(ExecFailureDetail::ContainmentStepFailed)
+                )
+            );
         }
         let (report, code) = on_the_error_pipe(|fd| require_bootstrap_strip(fd, || Ok(())));
         assert_eq!((report, code), (Vec::new(), 0));

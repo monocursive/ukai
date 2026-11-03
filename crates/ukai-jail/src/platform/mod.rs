@@ -444,6 +444,12 @@ pub enum ExecFailureDetail {
     /// J14: the launcher could not give the target a process group of its
     /// own as the terminal's foreground group; nothing was executed.
     TerminalUnavailable,
+    /// macOS (jail-macos §4.7 class 2): the launcher's own containment step
+    /// after the release, the bootstrap strip, failed; nothing was
+    /// executed. Not a target exec failure: the attempt is refused
+    /// (jail-v1 §13.2, "`refused` is the outcome kind of every other
+    /// pre-exec refusal").
+    ContainmentStepFailed,
 }
 
 impl ExecFailureDetail {
@@ -458,7 +464,32 @@ impl ExecFailureDetail {
             // way (§8 item 8).
             ExecFailureDetail::ProgramChanged => crate::records::ErrorCode::PolicyWidening,
             ExecFailureDetail::TerminalUnavailable => crate::records::ErrorCode::ExecFailed,
+            // The boundary could not be completed for this launch.
+            ExecFailureDetail::ContainmentStepFailed => {
+                crate::records::ErrorCode::BackendUnavailable
+            }
         }
+    }
+
+    /// The refusal's remediation: the operator's configuration, except for
+    /// a containment step the launcher could not complete, which nothing
+    /// in the configuration explains.
+    #[must_use]
+    pub fn remediation(self) -> crate::records::Remediation {
+        match self {
+            ExecFailureDetail::ContainmentStepFailed => crate::records::Remediation::InspectState,
+            ExecFailureDetail::InterpreterMissing
+            | ExecFailureDetail::ProgramChanged
+            | ExecFailureDetail::TerminalUnavailable => crate::records::Remediation::Configuration,
+        }
+    }
+
+    /// Whether the target's own `exec` is what failed (§13.2 `exec_error`).
+    /// A containment step the launcher could not complete is not: nothing
+    /// was executed, and the attempt is `refused`.
+    #[must_use]
+    pub fn is_target_exec(self) -> bool {
+        !matches!(self, ExecFailureDetail::ContainmentStepFailed)
     }
 
     /// The explanation appended to the refusal's message.
@@ -475,6 +506,10 @@ impl ExecFailureDetail {
             ExecFailureDetail::TerminalUnavailable => {
                 "the terminal could not be given to the command's own process group; nothing \
                  was run (pass --terminal detach to run without it)"
+            }
+            ExecFailureDetail::ContainmentStepFailed => {
+                "the launcher could not complete its containment step (the bootstrap strip) \
+                 after the release; the target never ran"
             }
         }
     }

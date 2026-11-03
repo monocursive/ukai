@@ -1080,7 +1080,12 @@ impl<'a> Attempt<'a> {
         errno: &str,
         detail: Option<crate::platform::ExecFailureDetail>,
     ) -> JailError {
-        self.record.outcome = Outcome::exec_error(errno);
+        // §13.2: `exec_error` is a proved target exec failure. A containment
+        // step the launcher could not complete before the exec is not one;
+        // the outcome stays unset and `refuse` records `refused`.
+        if detail.is_none_or(crate::platform::ExecFailureDetail::is_target_exec) {
+            self.record.outcome = Outcome::exec_error(errno);
+        }
         // §13.2 row 4, "true / timestamp only after teardown verification":
         // every contained attempt verifies the teardown of a failed exec, so
         // the refused receipt says what it established and vendor state can
@@ -1098,8 +1103,14 @@ impl<'a> Attempt<'a> {
                 crate::platform::ExecFailureDetail::error_code,
             ),
             ErrorStage::Released,
-            Remediation::Configuration,
+            detail.map_or(
+                Remediation::Configuration,
+                crate::platform::ExecFailureDetail::remediation,
+            ),
             match detail {
+                Some(detail) if !detail.is_target_exec() => {
+                    format!("{}: {errno}", detail.explanation())
+                }
                 Some(detail) => format!(
                     "the target exec failed with {errno}: {}",
                     detail.explanation()
