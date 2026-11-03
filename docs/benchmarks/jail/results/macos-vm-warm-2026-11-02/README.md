@@ -114,6 +114,26 @@ the guest's measured floor, case-folding workspaces, a running guest
 sharing a different workspace, walls outside the guest grammar, deny-read,
 and any network mode until the proxied policy path lands.
 
+## Proxied network policy, live through the CLI (2026-11-03)
+
+The J18 §6 network design is measured end to end
+([proxy-policy/](proxy-policy/), harness `proxy_measurement.py`):
+`ukai-jail run --vm --profile agent --allow-host api.github.com …` boots
+the guest with NAT, the guest jail starts **its own qualified Linux
+proxy**, the workload's environment carries the bridge, and:
+
+- the allowed host answers through the proxy (`ALLOWED 200`),
+- the denied host (`example.com`) refuses,
+- the offline `tool` profile on the same guest still has no egress,
+
+with the attempt settling (`tree_empty: true`, exit 0, transport record
+written). The wire carries the canonical allow rules (`Prepare.allow_hosts`
+→ guest `--allow-host`; the guest re-parses each with its own grammar and
+refuses invalid spellings before any workload runs); a proxied policy
+requires a NAT-attached guest — the service boots with the adapter and a
+running guest without it refuses with the `ukai-vm stop` remedy; the
+receipt rule accepts `proxy` alongside `none` (anything else refuses).
+
 ## What remains before a release
 
 The warm service is now measured end to end with the share, but the

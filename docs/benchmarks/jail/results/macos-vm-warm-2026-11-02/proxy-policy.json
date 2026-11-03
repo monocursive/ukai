@@ -1,0 +1,71 @@
+{
+  "agent_run": {
+    "exit": 0,
+    "elapsed": 63.8,
+    "stdout": "ALLOWED 200\nDENIED URLError\n",
+    "stderr": "",
+    "records": {
+      "phase": "settled",
+      "exit": 0,
+      "tree_empty": true,
+      "network": {
+        "mode": "pending",
+        "mechanism": null,
+        "allowed_hosts": []
+      },
+      "transport": {
+        "schema": "ukai.jail.vm-transport/1",
+        "attempt_id": "att_de4a8d76-0b04-4e77-89fe-2b7fd0f9a96c",
+        "boot_id": "vm-574c66b2-df90-4ee2-bd39-972b87e1aaf4",
+        "guest_kernel": "7.0.0-38-generic",
+        "image": {
+          "disk_sha256": "4d44c4a4141167e7a59b3e7b4f6b1e29a812df9027fb37659fbc8b7ea7f22313",
+          "helper_sha256": "f5b459c8b032b1bf504aa597a811f8221e251b3fb37f64b97c6fddb56fbfc68a",
+          "custodian_sha256": "04524705d15b69523e5024ee348f834bac3ec138e0fc377906a03ac1157f7359",
+          "seed_sha256": "d237487d44b2e3a8800ab2a38d2f77cfde121c6459c7e7a5323989952b383575"
+        },
+        "vsock_port": 1024,
+        "control_socket": "/var/folders/lx/bqwnzxj968s7839wdjlld36h0000gn/T/proxy-vm-vpbqvit5/vm/control.sock",
+        "attempt_socket": "/var/folders/lx/bqwnzxj968s7839wdjlld36h0000gn/T/proxy-vm-vpbqvit5/vm/attempt.sock",
+        "host_wall_started": "2026-11-03T10:34:19Z",
+        "elapsed_seconds": 0.56404025,
+        "guest_receipt_sha256": "00af6b8766f804a32d6bf9e38c58e7920ae21bc71d74e929cfe5148d700c5a0b"
+      }
+    },
+    "allowed_through_proxy": true,
+    "denied_refused": true
+  },
+  "tool_offline": {
+    "exit": 0,
+    "net_refused": true,
+    "records": {
+      "phase": "settled",
+      "exit": 0,
+      "tree_empty": true,
+      "network": {
+        "mode": "pending",
+        "mechanism": null,
+        "allowed_hosts": []
+      },
+      "transport": {
+        "schema": "ukai.jail.vm-transport/1",
+        "attempt_id": "att_d4d38ca8-87b2-49da-bd18-bc045ea4eefe",
+        "boot_id": "vm-b22ef488-c57d-40c7-968d-a0808defe183",
+        "guest_kernel": "7.0.0-38-generic",
+        "image": {
+          "disk_sha256": "4d44c4a4141167e7a59b3e7b4f6b1e29a812df9027fb37659fbc8b7ea7f22313",
+          "helper_sha256": "f5b459c8b032b1bf504aa597a811f8221e251b3fb37f64b97c6fddb56fbfc68a",
+          "custodian_sha256": "04524705d15b69523e5024ee348f834bac3ec138e0fc377906a03ac1157f7359",
+          "seed_sha256": "d237487d44b2e3a8800ab2a38d2f77cfde121c6459c7e7a5323989952b383575"
+        },
+        "vsock_port": 1024,
+        "control_socket": "/var/folders/lx/bqwnzxj968s7839wdjlld36h0000gn/T/proxy-vm-47550y42/vm/control.sock",
+        "attempt_socket": "/var/folders/lx/bqwnzxj968s7839wdjlld36h0000gn/T/proxy-vm-47550y42/vm/attempt.sock",
+        "host_wall_started": "2026-11-03T10:35:27Z",
+        "elapsed_seconds": 0.420844458,
+        "guest_receipt_sha256": "301c6c45d01146e07807593d7710efe0cb7c42fbe1d1478de5284abe0e5d85fa"
+      }
+    }
+  },
+  "outcome": "PASS"
+}

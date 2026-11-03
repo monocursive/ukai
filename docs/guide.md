@@ -80,6 +80,26 @@ ouro-vm version
 ouro-vm doctor
 ```
 
+### The warm service (development, not shipped)
+
+A warmer backend with a **live workspace share** is under development on
+`dev` and is not part of the download. The 2026-11-02 measurements
+([warm record](benchmarks/jail/results/macos-vm-warm-2026-11-02/README.md),
+[share record](benchmarks/jail/results/macos-vm-share-2026-11-02/README.md))
+qualify it in a development VM only: twenty attempts over one boot at
+12.5 ms release latency, jailed writes appearing on the host with the
+protected `.git` untouched, workload network denied with the NAT adapter
+attached, and the fault matrix (service kill, Ctrl-Z, attempt EOF)
+passing. On a `dev` build, `ukai-jail run --vm --profile tool --limit
+wall=<seconds>s --workspace <case-sensitive directory> -- <command>` runs
+the warm service with the live share today, and
+`--profile agent --allow-host <host>` runs proxied policies through the
+guest's own Linux proxy (allowed hosts only; everything else refuses). The `macos-vm-development`
+publication scope in
+[`dist/release.json`](../crates/ukai-jail/dist/release.json) names the
+acceptance clauses (K108.1–K113.1) that stay unsupported until the full
+live rows run on an installed package.
+
 The installer checks an embedded SHA-256 pin before mounting the 512 MiB DMG.
 It installs the bundled runtime and guest image under
 `~/.local/share/ouro-vm/0.1.0-preview.1`, with a command in `~/.local/bin`.
@@ -138,8 +158,10 @@ needed. A crashed launcher can leave a disk there; never boot or reuse it.
 
 The macOS design has two tiers ([jail-macos.md](specs/jail-macos.md)); their
 implementation is work in progress on `dev`, and
-**neither is supported or shipped**. The new custody code has not run with
-live Endpoint Security. J16 still needs packaging, the measurement spike,
+**neither is supported or shipped**. The isolated SIP-disabled development-VM
+[measurement spike](benchmarks/jail/results/macos-custody-spike-2026-11-01/README.md)
+ran on 2026-11-01 and found an open `launchctl kickstart` deputy route to both
+custodians. J16 still needs that defense repaired, packaging,
 Apple's entitlement and the protected-Mac acceptance run. J18 still lacks
 network, the `agent` profile, a workspace share and in-guest credentials.
 The following describes the intended contract.
@@ -150,7 +172,8 @@ Current implementation: native execution is **off by default**. Setting
 `unsupported` and refuse. J17 is wired before release (`J17_OBSERVE=true`):
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
-receipts are tested; no live observed native run is proved. Every
+receipts and development-VM observation smoke runs are tested; full live
+release acceptance remains pending. Every
 `run --vm` refuses before connecting: no qualified VM backend exists yet.
 A missing VM installation is exit 125 with `host_setup`; an installed but
 unavailable VM-policy backend uses `unsupported`. With native development
