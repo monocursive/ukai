@@ -188,15 +188,14 @@ allow = ["{address}:{port}"]
     os.chmod(config / 'launch' / 'vault-test.toml', 0o600)
 
     data = Path(tempfile.mkdtemp(prefix='vault-run-'))
-    env = dict(os.environ, UKAI_VM_HOME=str(home), UKAI_DATA_DIR=str(data), UKAI_CONFIG_DIR=str(config))
-    env.pop('UKAI_VM_GUEST_NAT', None)
+    env = harness.vm_client_environment(UKAI_VM_HOME=home, UKAI_DATA_DIR=data, UKAI_CONFIG_DIR=config)
     observed = {}
     disk_paths = []
     started = time.monotonic()
     try:
         try:
             run = subprocess.run([str(jail), 'run', '--vm', '--terminal', 'detach', '--profile', 'agent',
-                                  '--launch', 'vault-test', '--limit', 'wall=40s',
+                                  '--launch', 'vault-test', *harness.vm_wall(40),
                                   '--workspace', str(workspace), '--', '/bin/sh', '-c',
                                   fetch_script(address, port)],
                                  env=env, capture_output=True, text=True, timeout=900)
@@ -205,11 +204,13 @@ allow = ["{address}:{port}"]
             observed.update(run_exit=None, stdout=str(error.stdout or ''), stderr='timeout')
         observed['elapsed_s'] = round(time.monotonic() - started, 1)
         server.shutdown()
+        server.server_close()
         # The same boot: flush the guest's caches, then read its disk image.
         sync = subprocess.run([str(jail), 'run', '--vm', '--terminal', 'detach', '--profile', 'tool',
-                               '--limit', 'wall=20s', '--workspace', str(workspace), '--', '/bin/sync'],
+                               *harness.vm_wall(20), '--workspace', str(workspace), '--', '/bin/sync'],
                               env=env, capture_output=True, text=True, timeout=300)
         observed['sync_exit'] = sync.returncode
+        observed['sync_stderr'] = sync.stderr[-600:]
         disks = sorted((data / 'vm').glob('vm-*/image/base.raw'))
         if len(disks) == 1:
             observed['disk_scan'] = 'value-present' if file_holds(disks[0], SECRET) else 'clean'
@@ -235,6 +236,9 @@ allow = ["{address}:{port}"]
     observed['placeholder'] = placeholder(observed.get('stdout', ''))
     observed['header'] = Echo.received[0].get('x-test-token') if Echo.received else None
     facts, outcome = judge(observed)
+    observed['refusals'] = harness.vm_refusals(observed.get('stderr', '') + '\n' + observed.get('sync_stderr', ''))
+    if observed['refusals']:
+        outcome = 'REFUSED'  # recorded as what it is, never a pass
 
     def redact(text):
         return str(text).replace(address, '<mac-address>')

@@ -171,9 +171,10 @@ def main(argv=None, now=time.time, candidates=credential_candidates, run=subproc
     source = source_dir / 'token'
     config = Path(tempfile.mkdtemp(prefix='k113-cfg-'))
     data = Path(tempfile.mkdtemp(prefix='k113-'))
-    environment = dict(os.environ, PATH=f'{home}/bin:/usr/bin:/bin', UKAI_VM_HOME=str(home),
-                       UKAI_DATA_DIR=str(data), UKAI_CONFIG_DIR=str(config))
-    environment.pop('UKAI_VM_GUEST_NAT', None)
+    # LANG=C.UTF-8 and no TERM/TZ: the guest jail admits nothing else, so the
+    # host refuses any other environment (vm:not-carried:environment).
+    environment = harness.vm_client_environment(PATH=f'{home}/bin:/usr/bin:/bin', UKAI_VM_HOME=home,
+                                                UKAI_DATA_DIR=data, UKAI_CONFIG_DIR=config)
     row = {'claude_version': CLAUDE_VERSION, 'claude_sha256': CLAUDE_SHA256,
            'binary': harness.fingerprint(jail), 'not_measured': NOT_MEASURED}
     token = b''
@@ -190,7 +191,7 @@ def main(argv=None, now=time.time, candidates=credential_candidates, run=subproc
         started = time.monotonic()
         try:
             done = run(['script', '-q', '/dev/null', str(jail), 'run', '--vm', '--terminal', 'detach',
-                        '--profile', 'agent', '--launch', 'claude-vm', '--limit', 'wall=240s',
+                        '--profile', 'agent', '--launch', 'claude-vm', *harness.vm_wall(240),
                         '--workspace', str(workspace), '--', '/bin/sh', '-c', script],
                        env=environment, capture_output=True, text=True, timeout=RUN_TIMEOUT_SECONDS)
             row['run_exit'], stdout, stderr = done.returncode, done.stdout, done.stderr
@@ -252,6 +253,9 @@ def main(argv=None, now=time.time, candidates=credential_candidates, run=subproc
     if token:
         row['token_in_exports'], row['files_scanned'] = vault_measurement.leak_scan([data, out, workspace], token)
     facts, outcome = judge(row)
+    row['refusals'] = harness.vm_refusals(stdout + '\n' + stderr)
+    if row['refusals']:
+        outcome = 'REFUSED'  # recorded as what it is, never a pass
     row.update({'facts': facts, 'outcome': outcome})
     harness.write_json(out / 'k113-claude.json', row)
     print(json.dumps({'facts': facts, 'outcome': outcome}))

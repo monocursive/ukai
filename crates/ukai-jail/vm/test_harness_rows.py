@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -32,6 +33,55 @@ import warm_live
 from test_harness import EVIDENCE, FakeAttemptServer, probe_line, receipt_frame
 
 T = 'tag01'
+_GUARDS = []
+_CREATED = []
+_REAL_MKDTEMP = tempfile.mkdtemp
+
+
+def _tracked_mkdtemp(*args, **kwargs):
+    path = _REAL_MKDTEMP(*args, **kwargs)
+    _CREATED.append(path)
+    return path
+
+
+def setUpModule():
+    """No test here may reach past loopback: every probe aims at a closed loopback
+    port, and the host reachability control is a fake. The harnesses' own
+    mkdtemp()s stay in the system temp dir (a unix socket path has 104 bytes
+    on macOS), so each one this process makes is recorded and removed after
+    the module: exactly those, never anything else in a shared temp dir."""
+    closed = __import__('socket').socket()
+    closed.bind(('127.0.0.1', 0))
+    port = closed.getsockname()[1]
+    closed.close()
+    for patcher in (mock.patch.object(tempfile, 'mkdtemp', _tracked_mkdtemp),
+                    mock.patch.object(harness, 'PROBE_TARGET', ('127.0.0.1', port)),
+                    mock.patch.object(harness, 'host_reachability',
+                                      lambda *a, **k: {'answers': True, 'result': 'connected', 'fake': True})):
+        patcher.start()
+        _GUARDS.append(patcher)
+
+
+def tearDownModule():
+    while _GUARDS:
+        _GUARDS.pop().stop()
+    while _CREATED:
+        shutil.rmtree(_CREATED.pop(), ignore_errors=True)
+
+
+def assert_vm_client(case, argv, environment):
+    """Every harness `ukai-jail run --vm`: S1's carried shape, or the host refuses."""
+    if 'run' not in argv or '--vm' not in argv:
+        return
+    case.assertEqual(environment.get('LANG'), 'C.UTF-8')
+    for name in ('TERM', 'TZ', 'UKAI_VM_GUEST_NAT'):
+        case.assertNotIn(name, environment)
+    case.assertFalse([name for name in environment if name.startswith('LC_')])
+    case.assertEqual(argv[argv.index('--terminal') + 1], 'detach')
+    walls = [argv[i + 1] for i, word in enumerate(argv) if word == '--limit']
+    case.assertEqual(len(walls), 1, argv)
+    case.assertRegex(walls[0], r'^wall=([1-9]\d?|[12]\d\d|300)s$')
+    case.assertFalse({'--ro', '--rw'} & set(argv[:argv.index('--')]))
 
 
 def record(stdout='', exit_code=0, receipt=None, timings=None, **extra):
@@ -53,7 +103,9 @@ class CapabilityTables(unittest.TestCase):
     FS = [f'/etc/ukai-cap-{T}', f'/usr/local/bin/ukai-cap-{T}', f'/ukai-cap-{T}']
 
     def good(self):
-        fs = {'tag': T, 'paths': {path: {'open': 'EROFS', 'exists_after': False} for path in self.FS}}
+        fs = {'tag': T, 'paths': {path: {'open': 'EROFS', 'exists_after': False} for path in self.FS},
+              'reads': {**{path: 'ENOENT' for path in capabilities.READ_OUTSIDE},
+                        **{path: 'read' for path in capabilities.read_controls(T)}}}
         mem = ''.join(f'UKAI_MEM_PROBE {T} {n}\n' for n in range(16, 481, 16))
         return {
             'wall': record(f'start-{T}\n', 143, {**limits(wall=True), 'outcome': {'cause': 'wall_expiry'}},
@@ -98,6 +150,10 @@ class CapabilityTables(unittest.TestCase):
             ('mem', 'unbounded', mutated(good['mem'], stdout=good['mem']['stdout'] + f'UKAI_MEM_UNBOUNDED {T} 1024\n')),
             ('containment', 'a write was created', mutated(good['containment'], stdout=good['containment']['stdout'].replace('"EROFS", "exists_after": false}', '"created", "exists_after": true}', 1))),
             ('containment', 'a path not probed', mutated(good['containment'], stdout='')),
+            ('containment', 'a read outside the grants succeeded (writes-only, as 2026-11-02)', mutated(good['containment'], stdout=good['containment']['stdout'].replace('"/var/lib/ukai-vm": "ENOENT"', '"/var/lib/ukai-vm": "read"'))),
+            ('containment', 'the read control failed (the probe could not read at all)', mutated(good['containment'], stdout=good['containment']['stdout'].replace('"/usr/bin/python3": "read"', '"/usr/bin/python3": "ENOENT"'))),
+            ('wall', 'the controller backstop at wall + 10 s', mutated(good['wall'], timings_ms={'released_to_done': 15200.0})),
+            ('wall', 'a hit without the wall_expiry cause', mutated(good['wall'], receipt=limits(wall=True))),
             ('network_none', 'egress connected', mutated(good['network_none'], stdout=probe_line(T, egress='connected', dns='unresolved--3'))),
             ('network_none', 'the /dev/tcp text of 2026-11-02', mutated(good['network_none'], stdout='net_refused\ndns_refused\n')),
             ('network_none', 'positive control failed', mutated(good['network_none'], stdout=probe_line(T, control='ECONNREFUSED', dns='unresolved--3'))),
@@ -155,6 +211,51 @@ class CapabilityTables(unittest.TestCase):
         pids_argv = None
         self.assertEqual(capabilities.plan(T)[1][1][2][0], harness.PYTHON)
         del pids_argv
+
+
+class ProbeSourceRuns(unittest.TestCase):
+    """The capability probes' real sources, run on this host under safe bounds."""
+
+    def run_probe(self, argv, **kwargs):
+        argv = [sys.executable if word == harness.PYTHON else word for word in argv]
+        return subprocess.run(argv, capture_output=True, text=True, timeout=60, **kwargs)
+
+    def test_the_fs_probe_tells_refusals_from_reads(self):
+        root = Path(tempfile.mkdtemp(prefix='fsprobe-'))
+        self.addCleanup(lambda: (root.joinpath('locked').chmod(0o755), shutil.rmtree(root, True)))
+        (root / 'locked').mkdir()
+        (root / 'locked').chmod(0o555)
+        (root / 'readable').write_text('x')
+        write = [str(root / 'locked' / 'w')]
+        read = [str(root / 'absent')]
+        control = [str(root / 'readable'), str(root)]
+        done = self.run_probe(capabilities.fs_probe_argv(T, write, read, control))
+        facts = capabilities.judge_containment(record(done.stdout), T, write, read, control)
+        self.assertTrue(all(facts.values()), (facts, done.stderr))
+        flipped = capabilities.judge_containment(record(done.stdout), T, write, control, read)
+        self.assertFalse(flipped[f'read_refused:{root / "readable"}'])
+
+    def test_the_mem_probe_reports_and_flags_an_unbounded_run(self):
+        done = self.run_probe([harness.PYTHON, '-I', '-c', capabilities.MEM_PROBE, T, '32'])
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn(f'UKAI_MEM_PROBE {T} 64', done.stdout)
+        facts = capabilities.judge_mem(record(done.stdout, 0), T)
+        self.assertFalse(facts['never_unbounded'])
+        self.assertFalse(facts['sigkilled'])
+
+    def test_the_pids_probe_counts_forks_until_eagain(self):
+        import resource
+        users = subprocess.run(['ps', '-U', str(os.getuid()), '-o', 'pid='], capture_output=True, text=True)
+        cap = len(users.stdout.split()) + 12
+
+        def limit():  # in the probe's child only: its own forks fail past the cap
+            resource.setrlimit(resource.RLIMIT_NPROC, (cap, cap))
+        done = self.run_probe([harness.PYTHON, '-I', '-c', capabilities.PIDS_PROBE, T], preexec_fn=limit)
+        probe = capabilities.tagged(done.stdout, 'UKAI_PIDS_PROBE', T)
+        self.assertIsNotNone(probe, done.stderr)
+        self.assertEqual(probe['fork_error'], 'EAGAIN')
+        self.assertGreater(probe['forked'], 0)
+        self.assertLess(probe['forked'], 64)
 
 
 class WarmLiveTables(unittest.TestCase):
@@ -423,6 +524,420 @@ class FakeServeFlows(unittest.TestCase):
                     pass
 
 
+FAKE_GUEST_SERVE = r"""
+import base64, hashlib, json, os, re, select, signal, socket, subprocess, sys, threading, time, uuid
+from pathlib import Path
+args = sys.argv[1:]
+workspace = Path(args[args.index('--live-workspace') + 1])
+runtime = Path(os.environ['UKAI_DATA_DIR']) / 'vm'
+runtime.mkdir(parents=True, exist_ok=True)
+boot = 'vm-' + str(uuid.uuid4())
+guest_boot = str(uuid.uuid4())
+(runtime.parent / 'boot_id').write_text(guest_boot + '\n')
+shim = runtime.parent / 'shim'
+shim.mkdir()
+(shim / 'date').write_text('#!/bin/sh\nexec %s -c "import time; print(time.time_ns())"\n' % sys.executable)
+(shim / 'date').chmod(0o755)
+state = {'live': False}
+
+def listen(name):
+    server = socket.socket(socket.AF_UNIX)
+    server.bind(str(runtime / (name + '.sock')))
+    server.listen(8)
+    return server
+
+def frames(stream):
+    buffer = b''
+    while True:
+        while b'\n' not in buffer:
+            chunk = stream.recv(65536)
+            if not chunk:
+                return
+            buffer += chunk
+        line, buffer = buffer.split(b'\n', 1)
+        yield json.loads(line)
+
+def send(stream, **value):
+    stream.sendall((json.dumps(value) + '\n').encode())
+
+def control(server):
+    while True:
+        stream, _ = server.accept()
+        request = next(frames(stream))
+        if request['op'] == 'status':
+            send(stream, event='status', boot_id=boot, warm=True, attempt_live=state['live'],
+                 guest_nat='--guest-nat' in args)
+            stream.close()
+        else:
+            send(stream, event='stopping')
+            stream.close()
+            os._exit(0)
+
+def attempt(stream):
+    send(stream, event='ready', boot_id=boot)
+    reader = frames(stream)
+    prepare = next(reader)
+    ids = [secret['id'] for secret in prepare['secrets']]
+    if len(set(ids)) != len(ids):
+        stream.close()
+        return
+    send(stream, event='prepared', kernel='fake',
+         staged_secrets=[[i, '/run/ukai-vm/credentials/' + i] for i in ids])
+    next(reader)
+    argv = [base64.b64decode(word).decode() for word in prepare['argv']]
+    argv = [word.replace('/proc/sys/kernel/random/boot_id', str(runtime.parent / 'boot_id')) for word in argv]
+    argv = [sys.executable if word == '/usr/bin/python3' else word for word in argv]
+    # This fake runs workloads on the test host: no probe may leave it.
+    if any(re.search(r'\b(?!127\.)\d+\.\d+\.\d+\.\d+\b', word) for word in argv):
+        sys.stderr.write('fake guest: refusing an argv with a non-loopback address\n')
+        os._exit(3)
+    process = subprocess.Popen(argv, cwd=workspace, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                               env=dict(os.environ, PATH=f'{shim}:/usr/bin:/bin'), start_new_session=True)
+    state['live'] = True
+    send(stream, event='released', supervisor_pid=process.pid)
+    deadline = time.monotonic() + prepare['wall_seconds']
+    out = b''
+    while process.poll() is None:
+        ready, _, _ = select.select([stream, process.stdout], [], [], 0.05)
+        if stream in ready and not stream.recv(1, socket.MSG_PEEK):
+            os.killpg(process.pid, signal.SIGKILL)   # the lease: EOF cancels the attempt
+            process.wait()
+            state['live'] = False
+            return
+        if process.stdout in ready:
+            out += os.read(process.stdout.fileno(), 65536)
+        if time.monotonic() > deadline:
+            os.killpg(process.pid, signal.SIGKILL)
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    out += process.stdout.read()
+    send(stream, event='stdout', data=base64.b64encode(out).decode())
+    receipt = json.dumps({'applied': {'network': {'mode': 'none'}}}).encode()
+    send(stream, event='bound_receipt', sha256=hashlib.sha256(receipt).hexdigest(),
+         data=base64.b64encode(receipt).decode(), binding={'guest_boot_id': guest_boot})
+    send(stream, event='done', exit_code=process.returncode)
+    state['live'] = False
+    stream.close()
+
+def attempts(server):
+    while True:
+        stream, _ = server.accept()
+        try:
+            attempt(stream)
+        except (OSError, StopIteration):
+            state['live'] = False
+
+threading.Thread(target=attempts, args=(listen('attempt'),), daemon=True).start()
+control(listen('control'))
+"""
+
+
+class FaultMatrixMechanics(unittest.TestCase):
+    """The real case code against a fake serve whose 'guest' runs the workload locally."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix='fm-')).resolve()
+        self.addCleanup(shutil.rmtree, self.root, True)
+        binary = self.root / 'ukai-vm'
+        binary.write_text(f'#!{sys.executable}\n' + FAKE_GUEST_SERVE)
+        binary.chmod(0o755)
+        workspace = self.root / 'ws'
+        workspace.mkdir()
+        harness.mark_workspace(workspace)
+        self.context = {'home': self.root, 'workspace': workspace, 'binary': binary}
+        before = set(Path(tempfile.gettempdir()).glob('fault-*'))
+        self.addCleanup(lambda: [shutil.rmtree(path, True) for path in
+                                 set(Path(tempfile.gettempdir()).glob('fault-*')) - before])
+
+    def run_case(self, case):
+        closed = socket.socket()
+        closed.bind(('127.0.0.1', 0))
+        port = closed.getsockname()[1]
+        closed.close()
+        with mock.patch.object(fault_matrix, 'SUSPEND_SECONDS', 1.5), \
+                mock.patch.object(fault_matrix, 'END_BOUND_SECONDS', 5.0), \
+                mock.patch.object(harness, 'PROBE_TARGET', ('127.0.0.1', port)):
+            return fault_matrix.run_case(self.context, case)
+
+    def assert_passes(self, case):
+        result = self.run_case(case)
+        self.assertEqual(result['outcome'], 'PASS', (result.get('error'), result.get('failed'),
+                                                     result.get('observations')))
+        self.assertTrue(result['checked_before_cleanup'])
+        self.assertEqual(result['cleanup']['service_exit'], 0)
+        return result
+
+    def test_eof_cancels_only_that_attempt(self):
+        self.assert_passes('eof')
+
+    def test_a_killed_client_ends_its_attempt(self):
+        self.assert_passes('client-kill')
+
+    def test_a_ctrl_z_does_not(self):
+        result = self.assert_passes('client-ctrl-z')
+        self.assertTrue(result['observations']['client_state_while_stopped'].startswith('T'))
+
+    def test_a_brief_serve_group_stop_does_not(self):
+        self.assert_passes('serve-group-stop')
+
+    def test_secrets_then_a_duplicate_then_the_same_boot(self):
+        result = self.assert_passes('secrets')
+        self.assertEqual(result['observations']['probe']['egress'], 'ECONNREFUSED')
+
+
+class MainFlows(unittest.TestCase):
+    """Each remaining main() end to end, with its live dependencies faked."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix='mains-')).resolve()
+        self.addCleanup(shutil.rmtree, self.root, True)
+        self.home = self.root / 'home'
+        (self.home / 'bin').mkdir(parents=True)
+        for name in ('ukai-vm', 'ukai-jail'):
+            (self.home / 'bin' / name).write_text('#!/bin/sh\n')
+            (self.home / 'bin' / name).chmod(0o755)
+        self.workspace = self.root / 'ws'
+        self.workspace.mkdir()
+        harness.mark_workspace(self.workspace)
+        (self.workspace / 'stale').write_text('old')
+
+    def test_capabilities_main_records_a_judged_run(self):
+        workspace = self.workspace
+
+        def script(index, request, send, channel):
+            argv = [base64.b64decode(word).decode() for word in request['argv']]
+            send(event='prepared', kernel='k')
+            channel.frame()
+            send(event='released', supervisor_pid=1)
+            if argv[0] == '/bin/sh' and 'capability-' in argv[2]:
+                tag = argv[2].split('capability-')[1].split('.txt')[0]
+                (workspace / f'capability-{tag}.txt').write_text(f'live-{tag}\n')
+                send(event='stdout', data=base64.b64encode(f'wrote-{tag}\n'.encode()).decode())
+            send(event='done', exit_code=0)
+        server = FakeAttemptServer(script)
+        self.addCleanup(server.close)
+
+        class FakeService:
+            def __init__(self, binary, home, ws, data, extra=()):
+                self.extra = extra
+                self.warm_status = {'warm': True, 'boot_id': 'vm-c', 'guest_nat': '--guest-nat' in extra}
+                self.child = mock.Mock(returncode=0)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                pass
+
+            connect = staticmethod(server.connect)
+
+            def stderr_text(self):
+                return ''
+        with mock.patch.object(harness, 'Service', FakeService), mock.patch('builtins.print'), \
+                mock.patch.dict(os.environ, {'UKAI_VM_BINARY': str(self.home / 'bin/ukai-vm')}):
+            code = capabilities.main([str(self.home), str(self.workspace), str(self.root / 'out')])
+        record = json.loads((self.root / 'out' / 'capabilities.json').read_text())
+        self.assertEqual(code, 1)  # the fake answers nothing a capability needs
+        self.assertEqual(record['summary']['outcome'], 'FAIL')
+        self.assertTrue(record['summary']['workspace'])
+        self.assertFalse(record['summary']['pids'])
+        self.assertEqual(record['workspace_cleaned'], ['stale'])
+        self.assertTrue(record['reachability']['fake'])
+        import re as regex
+        self.assertEqual(sorted(record['measurements']), sorted(capabilities.REQUIREMENTS.values()))
+        for requirement, entry in record['measurements'].items():
+            self.assertRegex(entry['measured_at'], r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$')
+            self.assertIs(entry['verdict'], record['summary'][entry['capability']])
+        self.assertTrue(regex.match(r'^\d{4}-', record['measured_at']))
+
+    def fake_cli(self, boots=('vm-1', 'vm-1', 'vm-1'), echo=None, secret=None, refuse=False):
+        runs = []
+
+        def run(argv, env=None, **kwargs):
+            runs.append(list(argv))
+            assert_vm_client(self, list(argv), env)
+            if argv[-1] == 'stop':
+                return subprocess.CompletedProcess(argv, 0, '', '')
+            if refuse:
+                return subprocess.CompletedProcess(argv, 125, '', 'ukai-jail: refused: vm:not-measured:network_none')
+            data = Path(env['UKAI_DATA_DIR'])
+            index = len(list((data / 'attempts').glob('att_*'))) if (data / 'attempts').exists() else 0
+            attempt = data / 'attempts' / f'att_{index}'
+            (attempt / 'evidence').mkdir(parents=True)
+            profile = argv[argv.index('--profile') + 1]
+            mode = 'proxy' if profile == 'agent' else 'none'
+            guest = {'applied': {'network': {'mode': mode}},
+                     'credentials': [{'id': 'test', 'mode': 'vault', 'never_staged': True}]}
+            (attempt / 'jail.json').write_text(json.dumps({'phase': 'settled', 'outcome': {'code': 0},
+                                                           'lifetime': {'tree_empty': True},
+                                                           'policy': {'name': profile}}))
+            (attempt / 'evidence/jail.json').write_text(json.dumps(guest))
+            (attempt / 'vm-transport.json').write_text(json.dumps({'boot_id': boots[min(index, len(boots) - 1)]}))
+            (attempt / 'evidence/vm-binding.json').write_text(json.dumps({'guest_boot_id': 'g-1'}))
+            (data / 'vm' / 'vm-1' / 'image').mkdir(parents=True, exist_ok=True)
+            (data / 'vm' / 'vm-1' / 'image' / 'base.raw').write_bytes(b'\0' * 4096)
+            script = argv[-1]
+            stdout = ''
+            if 'GITHUB' in script or 'EXAMPLE' in script:
+                allowed = argv[argv.index('--allow-host') + 1]
+                first, second = ('GITHUB', 'EXAMPLE') if allowed == 'api.github.com' else ('EXAMPLE', 'GITHUB')
+                stdout = f'{first}_ANSWERED 200\n{second}_REFUSED URLError\n'
+            elif argv[-6:-5] == [harness.PYTHON] or harness.PYTHON in argv:
+                tag = argv[argv.index(harness.PYTHON) + 4]
+                stdout = probe_line(tag, egress='ECONNREFUSED') + '\n'
+            elif 'PLACEHOLDER' in script:
+                import urllib.request
+                request = urllib.request.Request(echo, headers={'x-test-token': secret.decode()})
+                urllib.request.urlopen(request, timeout=5).read()
+                stdout = f'PLACEHOLDER {"e" * 64} 41\nECHO 200 echo\n'
+            return subprocess.CompletedProcess(argv, 0, stdout, '')
+        return run, runs
+
+    def test_proxy_main_measures_the_same_boot(self):
+        for boots, outcome in ((('vm-1', 'vm-1', 'vm-1'), 'PASS'), (('vm-1', 'vm-1', 'vm-2'), 'FAIL')):
+            with self.subTest(boots=boots):
+                run, _ = self.fake_cli(boots)
+                out = self.root / f'proxy-{outcome}'
+                with mock.patch.object(proxy_measurement.subprocess, 'run', run), mock.patch('builtins.print'):
+                    code = proxy_measurement.main([str(self.home), str(self.workspace), str(out),
+                                                   '--ukai-jail', str(self.home / 'bin/ukai-jail')])
+                record = json.loads((out / 'proxy-policy.json').read_text())
+                self.assertEqual(record['outcome'], outcome, record['facts'])
+                self.assertEqual(code, 0 if outcome == 'PASS' else 1)
+
+    def test_proxy_main_records_a_refusal_never_a_pass(self):
+        run, _ = self.fake_cli(refuse=True)
+        with mock.patch.object(proxy_measurement.subprocess, 'run', run), mock.patch('builtins.print'):
+            code = proxy_measurement.main([str(self.home), str(self.workspace), str(self.root / 'refused'),
+                                           '--ukai-jail', str(self.home / 'bin/ukai-jail')])
+        record = json.loads((self.root / 'refused' / 'proxy-policy.json').read_text())
+        self.assertEqual((code, record['outcome'], record['refusals']), (1, 'REFUSED', ['vm:not-measured:network_none']))
+
+    def test_vault_main_judges_injection_and_never_records_the_value(self):
+        port_holder = {}
+        real_server = vault_measurement.http.server.HTTPServer
+
+        def loopback_server(address, handler):
+            server = real_server(('127.0.0.1', 0), handler)
+            port_holder['port'] = server.server_address[1]
+            return server
+        vault_measurement.Echo.received.clear()
+
+        def run(argv, env=None, **kwargs):
+            inner, _ = self.fake_cli(echo=f"http://127.0.0.1:{port_holder['port']}/echo",
+                                     secret=vault_measurement.SECRET)
+            return inner(argv, env=env, **kwargs)
+        with mock.patch.object(vault_measurement, 'mac_address', lambda: '127.0.0.1'), \
+                mock.patch.object(vault_measurement.http.server, 'HTTPServer', loopback_server), \
+                mock.patch.object(vault_measurement.subprocess, 'run', run), mock.patch('builtins.print'):
+            code = vault_measurement.main([str(self.home), str(self.workspace), str(self.root / 'vault'),
+                                           '--ukai-jail', str(self.home / 'bin/ukai-jail')])
+        text = (self.root / 'vault' / 'vault-consumption.json').read_text()
+        record = json.loads(text)
+        self.assertEqual(record['outcome'], 'PASS', record['facts'])
+        self.assertEqual(code, 0)
+        self.assertNotIn(vault_measurement.SECRET.decode(), text)
+        self.assertNotIn('127.0.0.1', text)
+        self.assertEqual(record['observed']['disk_scan'], 'clean')
+
+
+class GateRowFlows(unittest.TestCase):
+    """row_k109/row_k111/row_k112 end to end with the CLI and the serve faked."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix='rowflow-')).resolve()
+        self.addCleanup(shutil.rmtree, self.root, True)
+        self.workspace = self.root / 'ws'
+        self.workspace.mkdir()
+        harness.mark_workspace(self.workspace)
+        self.home = self.root / 'home'
+        (self.home / 'bin').mkdir(parents=True)
+
+    def test_row_k109_with_a_refusing_guest(self):
+        workspace = self.workspace
+
+        def script(index, request, send, channel):
+            argv = [base64.b64decode(word).decode() for word in request['argv']]
+            send(event='prepared', kernel='k')
+            channel.frame()
+            send(event='released', supervisor_pid=1)
+            if argv[0] == '/bin/sh':
+                tag = argv[2].split('granted-')[1].split('\\')[0]
+                (workspace / 'k109-granted.txt').write_text(f'granted-{tag}\n')
+                text = f'wrote-{tag}\ngit_write_refused-{tag}\n'
+            else:
+                tag, paths = argv[4], json.loads(argv[5])['write']
+                text = 'UKAI_FS_PROBE ' + json.dumps({'tag': tag, 'reads': {}, 'paths': {
+                    path: {'open': 'EROFS', 'exists_after': False} for path in paths}}) + '\n'
+            send(event='stdout', data=base64.b64encode(text.encode()).decode())
+            send(event='done', exit_code=0)
+        server = FakeAttemptServer(script)
+        self.addCleanup(server.close)
+        service = mock.MagicMock(connect=server.connect, child=mock.Mock(returncode=0))
+        service.__enter__.return_value = service
+        with mock.patch.object(harness, 'Service', return_value=service):
+            row = gate_rows.row_k109(Path('/x/ukai-vm'), self.home, self.workspace)
+        self.assertEqual(row['outcome'], 'PASS', row)
+
+    def test_row_k111_and_k112_through_the_cli(self):
+        attempt_source = EVIDENCE / 'macos-vm-installed-2026-11-03/k111-attempt'
+        binding = json.loads((attempt_source / 'evidence/vm-binding.json').read_text())
+        transport = json.loads((attempt_source / 'vm-transport.json').read_text())
+        line = (f"vm: guest-reported facts in evidence/jail.json · boot {transport['boot_id']} "
+                f"· image {transport['image']['disk_sha256'][:16]} · vsock {transport['vsock_port']} "
+                f"· receipt sha256:{transport['guest_receipt_sha256'][:16]}\nukai-jail: network: none\n")
+        calls = []
+
+        def run(argv, env=None, **kwargs):
+            calls.append(list(argv))
+            if 'script' not in argv:
+                assert_vm_client(self, list(argv), env)
+            else:
+                assert_vm_client(self, list(argv[3:]), env)
+            data = Path(env['UKAI_DATA_DIR'])
+            if 'kernel-bound' in argv:
+                attempt = data / 'attempts' / 'att_k112'
+                attempt.mkdir(parents=True)
+                (attempt / 'jail.json').write_text(json.dumps({'phase': 'refused',
+                                                               'policy': {'requirements': ['owner_loss_termination']}}))
+                (attempt / 'policy.json').write_text(json.dumps({'snapshot': {'lifetime_boundary': 'kernel-bound'}}))
+                return subprocess.CompletedProcess(argv, 125, '', 'ukai-jail: refused [unsupported]')
+            if 'run' in argv and '--vm' in argv:
+                shutil.copytree(attempt_source, data / 'attempts' / binding['attempt_id'])
+                (self.workspace / 'k111.txt').write_text('row-k111\n')
+                return subprocess.CompletedProcess(argv, 0, line, '')
+            if 'tail' in argv:
+                return subprocess.CompletedProcess(argv, 0, line, '')
+            return subprocess.CompletedProcess(argv, 0, '', '')
+        out = self.root / 'out'
+        out.mkdir()
+        with mock.patch.object(gate_rows.subprocess, 'run', run):
+            k111 = gate_rows.row_k111(self.home, self.workspace, Path('/x/ukai-jail'), out)
+            k112 = gate_rows.row_k112(self.home, Path('/x/ukai-jail'), self.workspace)
+        # The committed host receipt says network `pending` / observer not attached: D5 fails it.
+        self.assertEqual(k111['outcome'], 'FAIL')
+        self.assertEqual([key for key, value in k111.items() if value is False], ['host_receipt_never_contradicts_guest'])
+        self.assertTrue((out / 'k111-tail-summary.txt').read_text().startswith('vm: guest-reported'))
+        self.assertTrue(any(call[-1] == 'stop' for call in calls))
+        self.assertEqual(k112['outcome'], 'PASS', k112)
+        markers = [call[-1] for call in calls if 'kernel-bound' in call]
+        self.assertEqual(len(markers), 3)
+        self.assertTrue(all('k112-ran-' in marker for marker in markers))
+
+    def test_row_k111_records_a_not_measured_refusal(self):
+        def run(argv, env=None, **kwargs):
+            if 'run' in argv:
+                return subprocess.CompletedProcess(argv, 125, 'ukai-jail: refused: vm:not-measured:limit:wall\n', '')
+            return subprocess.CompletedProcess(argv, 0, '', '')
+        out = self.root / 'out-refused'
+        out.mkdir()
+        with mock.patch.object(gate_rows.subprocess, 'run', run):
+            row = gate_rows.row_k111(self.home, self.workspace, Path('/x/ukai-jail'), out)
+        self.assertEqual((row['outcome'], row['refusals']), ('REFUSED', ['vm:not-measured:limit:wall']))
+
+
 def same_boot(**extra):
     return {'serve_boot': 'vm-1', 'guest_boot': 'g-1', 'next_exit': 0, 'next_serve_boot': 'vm-1',
             'next_guest_boot': 'g-1', **extra}
@@ -447,7 +962,7 @@ FAULT_GOOD = {
     'eof': same_boot(released=True, beating=True, eof_at=10.0, beats_quiet=True, last_beat_at=10.5,
                      status_after={'warm': True}),
     'serve-group-stop': same_boot(released=True, beating=True, beats_during_stop=True, done_exit=0,
-                                  workload_finished=True),
+                                  workload_finished=True, status_boot_after='vm-1'),
 }
 FAULT_GOOD['custodian-kill'] = FAULT_GOOD['serve-kill']
 FAULT_GOOD['vz-kill'] = FAULT_GOOD['serve-kill']
@@ -501,6 +1016,7 @@ FAULT_MUTATIONS = {
         ('session went down', {'status_after': {'warm': False}}, 'service_still_warm')],
     'serve-group-stop': BOOT_MUTATIONS + [
         ('no workload spanned the stop (old B)', {'beats_during_stop': False}, 'workload_spanned_the_stop'),
+        ('the serve rebooted across the stop', {'status_boot_after': 'vm-2'}, 'serve_boot_unchanged_after_resume'),
         ('attempt lost', {'done_exit': None}, 'attempt_completed_after_resume')],
 }
 FAULT_MUTATIONS['custodian-kill'] = FAULT_MUTATIONS['serve-kill']
@@ -843,7 +1359,7 @@ class ClaudeRowTests(unittest.TestCase):
         self.token = 'sk-ant-oat01-' + 'Q' * 40
         self.calls = []
 
-    def fake_run(self, tail_has_line=True, run_raises=None):
+    def fake_run(self, tail_has_line=True, run_raises=None, refused=False):
         guest = {'platform': {'os': 'linux'}, 'applied': {'network': {'mode': 'proxy'}},
                  'observer': {'attached': True},
                  'coverage': {name: {'status': 'active'} for name in harness.SUMMARY_CLASSES}}
@@ -857,8 +1373,11 @@ class ClaudeRowTests(unittest.TestCase):
 
         def run(argv, env=None, **kwargs):
             self.calls.append(list(argv))
+            assert_vm_client(self, list(argv), env)
             for word in argv:
                 self.assertNotIn(self.token, str(word))
+            if refused and 'run' in argv and '--vm' in argv:
+                return subprocess.CompletedProcess(argv, 125, '', 'ukai-jail: refused [unsupported]: vm:not-measured:limit:wall')
             if 'run' in argv and '--vm' in argv:
                 source = Path((Path(env['UKAI_CONFIG_DIR']) / 'launch/claude-vm.toml').read_text()
                               .split('source = "', 1)[1].split('"', 1)[0])
@@ -922,6 +1441,13 @@ class ClaudeRowTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.main(run_raises=RuntimeError('client crashed'))
         self.assertTrue(any(call[-1] == 'stop' for call in self.calls))
+        self.assertEqual(self.token_files(), [])
+
+    def test_a_not_measured_refusal_is_recorded_never_passed(self):
+        self.assertEqual(self.main(refused=True), 1)
+        row = json.loads((self.root / 'out' / 'k113-claude.json').read_text())
+        self.assertEqual(row['outcome'], 'REFUSED')
+        self.assertEqual(row['refusals'], ['vm:not-measured:limit:wall'])
         self.assertEqual(self.token_files(), [])
 
     def test_a_previous_output_directory_is_never_reused(self):

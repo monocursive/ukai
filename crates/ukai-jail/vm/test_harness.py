@@ -110,6 +110,30 @@ class ProbeSourceTests(unittest.TestCase):
         self.assertNotIn('/dev/tcp', command)
 
 
+class VmClientRuleTests(unittest.TestCase):
+    """S1's carry rule, as every harness `ukai-jail run --vm` must meet it."""
+
+    def test_the_environment_admits_lang_only(self):
+        base = {'TERM': 'dumb', 'TZ': 'UTC', 'LC_CTYPE': 'UTF-8', 'LC_ALL': 'C', 'LANG': 'fr_FR.UTF-8',
+                'UKAI_VM_GUEST_NAT': '1', 'PATH': '/bin', 'HOME': '/h'}
+        environment = harness.vm_client_environment(base, UKAI_DATA_DIR=Path('/d'))
+        self.assertEqual(environment, {'LANG': 'C.UTF-8', 'PATH': '/bin', 'HOME': '/h', 'UKAI_DATA_DIR': '/d'})
+        self.assertEqual(base['TERM'], 'dumb', 'the caller\'s mapping is not modified')
+
+    def test_the_wall_is_whole_seconds_up_to_300(self):
+        self.assertEqual(harness.vm_wall(300), ['--limit', 'wall=300s'])
+        for bad in (0, 301, 2.5, '20', None):
+            with self.subTest(bad=bad), self.assertRaises(harness.HarnessError):
+                harness.vm_wall(bad)
+
+    def test_refusal_codes_are_found_and_named(self):
+        text = ('ukai-jail: refused at probing [unsupported]: vm:not-measured:limit:wall, '
+                'vm:not-measured:network_none; vm:not-carried:environment.TERM\n')
+        self.assertEqual(harness.vm_refusals(text), ['vm:not-carried:environment.TERM',
+                                                     'vm:not-measured:limit:wall', 'vm:not-measured:network_none'])
+        self.assertEqual(harness.vm_refusals('settled · exited 0'), [])
+
+
 class WorkspaceGuardTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp(prefix='harness-guard-')).resolve()

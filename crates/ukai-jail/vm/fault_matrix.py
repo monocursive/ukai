@@ -45,9 +45,11 @@ Also measured:
                     `prepared`; the next attempt runs on the same boot
   eof               an attempt-socket EOF mid-run cancels only that attempt
                     (beats stop; the next attempt runs on the same boot)
-  serve-group-stop  the serve's process group SIGSTOPped for 2 s (inside the
-                    custodian's 3 s lease) across a running workload; the
-                    attempt completes after resume on the same boot
+  serve-group-stop  the serve's process group (serve, custodian, VZ client)
+                    SIGSTOPped for SUSPEND_SECONDS across a running workload,
+                    past the custodian's 3 s lease window (which restarts
+                    after a wake gap); the attempt completes after resume and
+                    the serve and guest boot ids are the same before and after
 
 Usage: UKAI_VM_BINARY=<ukai-vm> fault_matrix.py <home> <workspace> <out>
            [case,case,...] [--ukai-jail PATH]
@@ -164,6 +166,8 @@ def verdict_eof(obs):
 def verdict_serve_group_stop(obs):
     return {'released': obs.get('released') is True,
             'workload_beating_before_stop': obs.get('beating') is True,
+            'serve_boot_unchanged_after_resume': bool(obs.get('serve_boot'))
+            and obs.get('status_boot_after') == obs.get('serve_boot'),
             'workload_spanned_the_stop': obs.get('beats_during_stop') is True,
             'attempt_completed_after_resume': obs.get('done_exit') == 0 and obs.get('workload_finished') is True,
             **_same_boot(obs)}
@@ -300,13 +304,21 @@ def started(run, obs, client, watch, timeout=180):
     client.capture_identity()
 
 
+class Refused(harness.HarnessError):
+    """The real client refused before its workload ran (a recorded outcome)."""
+
+    def __init__(self, message, refusals):
+        super().__init__(message)
+        self.refusals = refusals
+
+
 def real_started(watch, process, timeout=180):
     """The real client released its workload (every beat seen), or it refused."""
     beating = watch.wait_beating(timeout, give_up=lambda: process.poll() is not None)
     if not beating and process.poll() is not None:
         _, stderr = process.communicate(timeout=10)
-        raise harness.HarnessError(f'ukai-jail run --vm exited {process.returncode} before its workload ran: '
-                                   f'{(stderr or "")[-600:]}')
+        raise Refused(f'ukai-jail run --vm exited {process.returncode} before its workload ran: '
+                      f'{(stderr or "")[-600:]}', harness.vm_refusals(stderr))
     return beating
 
 
@@ -506,12 +518,13 @@ def case_serve_group_stop(run, obs):
     obs['serve_boot'] = status.get('boot_id')
     marker = 'gs' + harness.nonce()
     watch = harness.BeatWatch(run.context['workspace'], marker)
-    client = run.client(marker, wall=60, beats=40)
+    client = run.client(marker, wall=90, beats=int((SUSPEND_SECONDS + 6) / 0.2))
     started(run, obs, client, watch)
     group = os.getpgid(run.service.pid)
     obs['stopped_at'] = time.monotonic()
+    obs['stopped_seconds'] = SUSPEND_SECONDS
     run.stop_group(group)
-    deadline = obs['stopped_at'] + 2.0
+    deadline = obs['stopped_at'] + SUSPEND_SECONDS
     while time.monotonic() < deadline:
         watch.poll()
         time.sleep(0.05)
@@ -522,6 +535,7 @@ def case_serve_group_stop(run, obs):
     client.finish(timeout=30)
     obs['done_exit'] = done.get('exit_code') if done else None
     obs['workload_finished'] = f'hb-{marker}-done' in ''.join(e.get('text', '') for e in client.seen('stdout'))
+    obs['status_boot_after'] = wait_status(run.service, lambda s: s.get('attempt_live') is False).get('boot_id')
     run.follow_up(obs)
 
 
@@ -530,10 +544,10 @@ def real_client(jail):
     def launch(run, marker, script, wall):
         config = Path(tempfile.mkdtemp(prefix='fault-cfg-'))
         os.chmod(config, 0o700)
-        environment = dict(os.environ, UKAI_VM_HOME=str(run.context['home']),
-                           UKAI_DATA_DIR=str(run.data), UKAI_CONFIG_DIR=str(config))
+        environment = harness.vm_client_environment(UKAI_VM_HOME=run.context['home'],
+                                                    UKAI_DATA_DIR=run.data, UKAI_CONFIG_DIR=config)
         process = subprocess.Popen([str(jail), 'run', '--vm', '--terminal', 'detach', '--profile', 'tool',
-                                    '--limit', f'wall={wall}s', '--workspace', str(run.context['workspace']),
+                                    *harness.vm_wall(wall), '--workspace', str(run.context['workspace']),
                                     '--', '/bin/sh', '-c', script],
                                    env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                    text=True, process_group=0)  # a job of this session: Ctrl-Z stops it
@@ -564,6 +578,8 @@ def run_case(context, case, variant=None):
         else:
             raise harness.HarnessError(f'unknown case {case}')
         result.update(judge(case, obs))
+    except Refused as refusal:  # vm:not-measured until the live phase: recorded, never a pass
+        result.update({'outcome': 'REFUSED', 'refusals': refusal.refusals, 'error': str(refusal)})
     except Exception as error:  # a case failure is a result, not the end of the matrix
         result.update({'outcome': 'ERROR', 'error': f'{type(error).__name__}: {error}'})
     result['checked_at'] = time.monotonic()

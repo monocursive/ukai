@@ -125,6 +125,51 @@ def nonce():
     return _secrets.token_hex(8)
 
 
+def rfc3339_now():
+    """UTC now, RFC 3339 (a record that backs a requirement states when it ran)."""
+    return time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+
+
+# ---------------------------------------------------------------------------
+# The `ukai-jail run --vm` client (S1's carry rule)
+# ---------------------------------------------------------------------------
+
+# The host refuses, before any boot, a `run --vm` whose policy differs from
+# what the guest jail applies (vm:not-carried:<field>); until the live phase
+# fills GUEST_MEASUREMENTS it also refuses at probing (vm:not-measured:<req>).
+VM_REFUSAL = re.compile(r'vm:(?:not-measured|not-carried|owner-loss-not-provided)(?::[A-Za-z0-9_.:/-]+)?')
+VM_WALL_MAX = 300
+
+
+def vm_client_environment(base=None, **values):
+    """The environment every harness `ukai-jail run --vm` runs under.
+
+    The guest jail's environment admits LANG=C.UTF-8 only: TERM and TZ (and
+    any LC_*) are dropped and LANG set, or the host refuses with
+    vm:not-carried:environment. UKAI_VM_GUEST_NAT never leaks in.
+    """
+    environment = dict(os.environ if base is None else base)
+    for name in list(environment):
+        if name in ('TERM', 'TZ', 'UKAI_VM_GUEST_NAT') or name.startswith('LC_'):
+            del environment[name]
+    environment['LANG'] = 'C.UTF-8'
+    environment.update({key: str(value) for key, value in values.items()})
+    return environment
+
+
+def vm_wall(seconds):
+    """`--limit wall=Ns`: the one limit a --vm run carries, whole seconds, 1..300."""
+    if not isinstance(seconds, int) or not 1 <= seconds <= VM_WALL_MAX:
+        raise HarnessError(f'a --vm wall is whole seconds in 1..{VM_WALL_MAX}, not {seconds!r}')
+    return ['--limit', f'wall={seconds}s']
+
+
+def vm_refusals(text):
+    """The host's VM-tier refusal codes in a client's output: a recorded
+    outcome, never a pass."""
+    return sorted(set(VM_REFUSAL.findall(text or '')))
+
+
 # ---------------------------------------------------------------------------
 # Workspace guard
 # ---------------------------------------------------------------------------
@@ -249,13 +294,17 @@ print('UKAI_NET_PROBE ' + json.dumps(record, sort_keys=True), flush=True)
 '''
 
 
-def probe_argv(tag, target=PROBE_TARGET, timeout=PROBE_TIMEOUT, dns=None):
-    """The probe as a literal argv (python3 at its absolute guest path)."""
-    host, port = target
+def probe_argv(tag, target=None, timeout=PROBE_TIMEOUT, dns=None):
+    """The probe as a literal argv (python3 at its absolute guest path).
+
+    `target` defaults to PROBE_TARGET read at call time, so a test can point
+    every probe at loopback.
+    """
+    host, port = target or PROBE_TARGET
     return [PYTHON, '-I', '-c', PROBE_SOURCE, tag, host, str(port), str(timeout), dns or '-']
 
 
-def probe_shell(tag, target=PROBE_TARGET, timeout=PROBE_TIMEOUT, dns=None):
+def probe_shell(tag, target=None, timeout=PROBE_TIMEOUT, dns=None):
     """The probe as one shell command, every word quoted; its exit status is unused."""
     return ' '.join(shlex.quote(word) for word in probe_argv(tag, target, timeout, dns))
 
@@ -296,12 +345,13 @@ def probe_verdict(stdout, tag):
             'egress': record.get('egress'), 'target': record.get('target'), 'dns': record.get('dns')}
 
 
-def host_reachability(target=PROBE_TARGET, timeout=PROBE_TIMEOUT):
+def host_reachability(target=None, timeout=PROBE_TIMEOUT):
     """Whether the probe target answers from this host (outside every jail).
 
     A denial measured against an address that answers nobody proves nothing;
     the live harnesses record this and gate on it.
     """
+    target = target or PROBE_TARGET
     started = time.monotonic()
     try:
         with socket.create_connection(target, timeout=timeout):
@@ -483,8 +533,8 @@ def run_attempt(connect, attempt_id, argv, profile='tool', wall=30, secrets=(),
     so a harness judges a failed attempt rather than losing it.
     """
     record = {'attempt_id': attempt_id, 'profile': profile, 'wall_seconds': wall,
-              'stdout': '', 'stderr': '', 'exit_code': None, 'error': None,
-              'events': []}
+              'started_at': rfc3339_now(), 'stdout': '', 'stderr': '', 'exit_code': None,
+              'error': None, 'events': []}
     marks = {}
     stdout, stderr = [], []
     channel = None

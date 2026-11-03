@@ -60,8 +60,7 @@ def row_k109(binary, home, workspace):
                        f'if printf forged > .git/config 2>/dev/null; then echo GIT_WRITE_ALLOWED-{tag}; '
                        f'else echo git_write_refused-{tag}; fi'))
         refused = harness.run_attempt(
-            service.connect, f'row-outside-{tag}',
-            [harness.PYTHON, '-I', '-c', capabilities.FS_PROBE, tag, *outside])
+            service.connect, f'row-outside-{tag}', capabilities.fs_probe_argv(tag, outside))
     return judge_k109(tag, granted, refused, outside, workspace, git_config, service.child.returncode)
 
 
@@ -86,14 +85,11 @@ def judge_k109(tag, granted, refused, outside, workspace, git_config, service_ex
 
 
 def cli_environment(home, data, config=None):
-    environment = dict(os.environ)
-    environment['PATH'] = f'{home}/bin:/usr/bin:/bin'
-    environment['UKAI_VM_HOME'] = str(home)
-    environment['UKAI_DATA_DIR'] = str(data)
-    environment.pop('UKAI_VM_GUEST_NAT', None)
+    """A `run --vm` client's environment (harness.vm_client_environment: LANG=C.UTF-8, no TERM/TZ)."""
+    values = {'PATH': f'{home}/bin:/usr/bin:/bin', 'UKAI_VM_HOME': home, 'UKAI_DATA_DIR': data}
     if config is not None:
-        environment['UKAI_CONFIG_DIR'] = str(config)
-    return environment
+        values['UKAI_CONFIG_DIR'] = config
+    return harness.vm_client_environment(**values)
 
 
 def read_json(path):
@@ -149,10 +145,10 @@ def row_k111(home, workspace, jail, out):
     # under which the summary and its transport line print.
     try:
         run = subprocess.run(['script', '-q', '/dev/null', str(jail), 'run', '--vm',
-                              '--terminal', 'detach', '--profile', 'tool', '--limit', 'wall=20s',
+                              '--terminal', 'detach', '--profile', 'tool', *harness.vm_wall(20),
                               '--workspace', str(workspace), '--', *argv],
                              env=environment, capture_output=True, text=True, timeout=420)
-        run_exit, terminal = run.returncode, run.stdout + run.stderr
+        run_exit, terminal = run.returncode, run.stdout + '\n' + run.stderr
     except subprocess.TimeoutExpired as error:
         run_exit, terminal = None, f'timeout: {error}'
     elapsed = round(time.monotonic() - started, 1)
@@ -164,14 +160,19 @@ def row_k111(home, workspace, jail, out):
         tail = summary.stdout + summary.stderr
     stop = subprocess.run([str(Path(home) / 'bin/ukai-vm'), 'stop'], env=environment,
                           capture_output=True, text=True, timeout=60)
+    refusals = harness.vm_refusals(terminal)
     if not attempts:
-        return {'outcome': 'FAIL', 'run_exit': run_exit, 'elapsed_s': elapsed,
-                'terminal_tail': terminal[-800:]}
+        return {'outcome': 'REFUSED' if refusals else 'FAIL', 'refusals': refusals,
+                'run_exit': run_exit, 'elapsed_s': elapsed, 'terminal_tail': terminal[-800:]}
     shutil.copytree(attempts[-1], out / 'k111-attempt')
     row, detail = judge_k111(attempts[-1], workspace, run_exit, terminal, tail, argv)
     (out / 'k111-tail-summary.txt').write_text(tail)
-    return {**row, 'elapsed_s': elapsed, 'stop_exit': stop.returncode, 'detail': detail,
-            'terminal_tail': terminal[-1200:]}
+    if refusals:
+        # A refusal (vm:not-measured until the live phase fills the host's
+        # table) is recorded as what it is, never as a pass.
+        row['outcome'] = 'REFUSED'
+    return {**row, 'refusals': refusals, 'elapsed_s': elapsed, 'stop_exit': stop.returncode,
+            'detail': detail, 'terminal_tail': terminal[-1200:]}
 
 
 def kernel_bound_run(jail, environment, workspace, lane):
@@ -184,7 +185,8 @@ def kernel_bound_run(jail, environment, workspace, lane):
                        UKAI_DATA_DIR=str(data), UKAI_CONFIG_DIR=str(config))
     marker = f'k112-ran-{lane}-{harness.nonce()}'
     command = [str(jail), 'run', *(['--vm'] if lane == 'vm' else []), '--lifetime', 'kernel-bound',
-               '--terminal', 'detach', '--workspace', str(workspace), '--',
+               '--terminal', 'detach', '--profile', 'tool', *harness.vm_wall(20),
+               '--workspace', str(workspace), '--',
                '/bin/sh', '-c', f'touch {marker}; touch {shlex.quote(str(Path(workspace) / marker))}-abs 2>/dev/null; true']
     started = time.monotonic()
     run = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=300)
@@ -205,6 +207,7 @@ def kernel_bound_run(jail, environment, workspace, lane):
         'workload_marker': marker,
         'workload_ran': workload_ran(workspace, marker),
         'boot_attempted': (data / 'vm').exists(),
+        'refusals': harness.vm_refusals(run.stderr),
     }
 
 

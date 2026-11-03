@@ -79,7 +79,7 @@ def real_client_attempts(jail, environment, workspace, count, tag, poll=0.002, c
     for index in range(count):
         marker = Path(workspace) / f'released-{tag}-{index}'
         argv = [str(jail), 'run', '--vm', '--terminal', 'detach', '--profile', 'tool',
-                '--limit', 'wall=20s', '--workspace', str(workspace), '--',
+                *harness.vm_wall(20), '--workspace', str(workspace), '--',
                 '/bin/sh', '-c', f'printf x > released-{tag}-{index}']
         started = clock()
         child = subprocess.Popen(argv, env=environment, stdout=subprocess.PIPE,
@@ -99,6 +99,7 @@ def real_client_attempts(jail, environment, workspace, count, tag, poll=0.002, c
             stdout, stderr = child.communicate()
         runs.append({'index': index, 'exit': child.returncode,
                      'exec_to_first_write_ms': None if seen is None else round((seen - started) * 1000, 1),
+                     'refusals': harness.vm_refusals(stderr),
                      'stderr_tail': stderr[-600:], 'stdout_tail': stdout[-300:]})
     return runs
 
@@ -148,6 +149,7 @@ def judge(results, tag, budget_ms, status, service_exit, git_config_text, real_c
             'runs': real_client,
             'every_run_exit_zero': all(run['exit'] == 0 for run in real_client),
             'every_run_within_budget': bool(times) and all(t is not None and t <= budget_ms for t in times),
+            'refusals': sorted({code for run in real_client for code in run.get('refusals', [])}),
         }
     else:
         verdict['k108_real_client'] = 'not_run: pass --ukai-jail to time the real client'
@@ -192,8 +194,8 @@ def main(argv=None):
         if jail is not None:
             config = Path(tempfile.mkdtemp(prefix='ukai-warm-live-cfg-'))
             os.chmod(config, 0o700)
-            environment = dict(os.environ, UKAI_VM_HOME=str(args.image.resolve()),
-                               UKAI_DATA_DIR=str(data), UKAI_CONFIG_DIR=str(config))
+            environment = harness.vm_client_environment(UKAI_VM_HOME=args.image.resolve(),
+                                                        UKAI_DATA_DIR=data, UKAI_CONFIG_DIR=config)
             real = real_client_attempts(jail, environment, workspace, args.real_attempts, tag)
     per_attempt, verdict = judge(results, tag, args.budget_ms, status, service.child.returncode,
                                  git_config.read_text(), real, requested_nat=args.guest_nat)

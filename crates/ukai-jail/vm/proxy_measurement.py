@@ -46,7 +46,7 @@ EXAMPLE = 'https://example.com/'
 
 def run_vm(jail, environment, workspace, profile, allow, argv, wall=40):
     command = [str(jail), 'run', '--vm', '--terminal', 'detach', '--profile', profile,
-               '--limit', f'wall={wall}s', '--workspace', str(workspace)]
+               *harness.vm_wall(wall), '--workspace', str(workspace)]
     for host in allow:
         command += ['--allow-host', host]
     command += ['--', *argv]
@@ -121,8 +121,7 @@ def main(argv=None):
     data = Path(tempfile.mkdtemp(prefix='proxy-vm-'))
     config = Path(tempfile.mkdtemp(prefix='proxy-cfg-'))
     os.chmod(config, 0o700)
-    environment = dict(os.environ, UKAI_VM_HOME=str(home), UKAI_DATA_DIR=str(data), UKAI_CONFIG_DIR=str(config))
-    environment.pop('UKAI_VM_GUEST_NAT', None)
+    environment = harness.vm_client_environment(UKAI_VM_HOME=home, UKAI_DATA_DIR=data, UKAI_CONFIG_DIR=config)
     tag = harness.nonce()
     reachability = harness.host_reachability()
     try:
@@ -141,10 +140,13 @@ def main(argv=None):
     facts['probe_target_answers_from_host'] = reachability['answers']
     if not reachability['answers']:
         outcome = 'FAIL'
+    refusals = harness.vm_refusals('\n'.join(run['stderr'] for run in runs))
+    if refusals:
+        outcome = 'REFUSED'  # recorded as what it is, never a pass
     verdict = {'schema': 'ukai.vm.proxy-policy/2', 'binary': harness.fingerprint(jail),
                'runs': [{**run, 'stdout': run['stdout'][-600:]} for run in runs],
                'records': records, 'probe': harness.probe_verdict(runs[2]['stdout'], tag),
-               'reachability': reachability, 'stop_exit': stop.returncode,
+               'reachability': reachability, 'stop_exit': stop.returncode, 'refusals': refusals,
                'facts': facts, 'outcome': outcome}
     harness.write_json(out / 'proxy-policy.json', verdict)
     print(json.dumps({'facts': facts, 'outcome': outcome}))
