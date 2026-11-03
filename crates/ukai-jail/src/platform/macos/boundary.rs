@@ -6871,4 +6871,81 @@ int main(int argc, char **argv) {
         let error = result.err().expect("a second allowance refuses");
         assert!(error.message.contains("out of order"), "{}", error.message);
     }
+
+    // Review F4 (N21, N22): each of the six whole-stop marks comes from its
+    // own source, distinct and in stop order: the supervisor's request, the
+    // stop machine's freeze, first kill and result (the supervisor's own
+    // result mark wins when it has one), the guardian record's arrival and
+    // settlement. The machine is driven at chosen instants through a real
+    // freeze and kill of a live member.
+    #[test]
+    fn f4_stop_phases_come_from_their_own_sources_in_stop_order() {
+        let (_dir, plan) = policy_plan(crate::policy::ProfileName::Tool);
+        let (prepared, _peers) = receipt_prepared(&plan);
+        let mut running = prepared.release_inner().unwrap();
+        let mut target = running.launcher_token;
+        target[AUDIT_TOKEN_PIDVERSION] += 1;
+        running.apply_event(&poll(EsEvent::Exec { token: target }, 5, 3, es::EVENT_EXEC));
+        assert_eq!(running.engine.live_count(), 1, "a live member to stop");
+
+        const REQUESTED: u64 = 500;
+        const BEGIN: u64 = 1_000;
+        const FREEZE: u64 = 2_000;
+        const KILL: u64 = FREEZE + SETTLE_NS + 1_000;
+        const RESULT: u64 = KILL + 3_000;
+        const RECORD: u64 = RESULT + 2_000;
+        const SETTLED: u64 = RESULT + 4_000;
+        let mut signals = RecordedSignals::default();
+        running.engine.begin_stop(BEGIN);
+        assert!(running.engine.tick(FREEZE, &mut signals).is_none());
+        assert_eq!(signals.0, [(target, libc::SIGSTOP)]);
+        assert!(running.engine.tick(KILL, &mut signals).is_none());
+        assert_eq!(signals.0.last(), Some(&(target, libc::SIGKILL)));
+        apply_supervisor_event(
+            &mut running.engine,
+            &poll(
+                EsEvent::Exit {
+                    token: target,
+                    status: libc::SIGKILL,
+                },
+                6,
+                1,
+                es::EVENT_EXIT,
+            ),
+            &mut signals,
+        );
+        assert!(running.engine.tick(RESULT, &mut signals).unwrap().drained());
+        running.stop_requested_ns = Some(REQUESTED);
+        running.guardian_record_ns = Some(RECORD);
+        running.settled_at_ns = Some(SETTLED);
+
+        let phases = |running: &MacosRunning| running.native_details()["stop"]["phases"].clone();
+        assert_eq!(
+            phases(&running),
+            serde_json::json!({
+                "requested": REQUESTED,
+                "freeze_done": FREEZE,
+                "first_kill": KILL,
+                "result": RESULT,
+                "guardian_record": RECORD,
+                "settled": SETTLED,
+            })
+        );
+        // The supervisor's own result mark, when it has one, is the result.
+        running.stop_result_ns = Some(RESULT + 1_000);
+        let phases = phases(&running);
+        assert_eq!(phases["result"], RESULT + 1_000);
+        let marks: Vec<u64> = [
+            "requested",
+            "freeze_done",
+            "first_kill",
+            "result",
+            "guardian_record",
+            "settled",
+        ]
+        .iter()
+        .map(|name| phases[*name].as_u64().unwrap())
+        .collect();
+        assert!(marks.windows(2).all(|pair| pair[0] < pair[1]), "{phases:?}");
+    }
 }
