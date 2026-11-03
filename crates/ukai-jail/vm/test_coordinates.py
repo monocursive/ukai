@@ -1,9 +1,10 @@
 """The VM tooling names the same releases as dist/release.json.
 
-release.json splits the VM version (D11): `vm.version` is what the public
-installer pins; `vm.candidate_version` is what package.py builds, what
-cli.VERSION reports, and what the DMG's READ-ME names. A missing candidate
-fails here, loudly: the package version is never guessed.
+release.json splits the VM version (D11): `vm.version` (VM_VERSION) is what
+the public installer pins; `vm.candidate_version` (VM_CANDIDATE_VERSION) is
+what package.py builds, what cli.VERSION reports, and what the DMG's READ-ME
+names. A missing candidate fails here, loudly: the package version is never
+guessed.
 """
 from pathlib import Path
 import re
@@ -18,7 +19,8 @@ coordinates = prepare.coordinates
 
 class Coordinates(unittest.TestCase):
     def test_packaged_version_is_the_vm_candidate(self):
-        self.assertEqual(cli.VERSION, package.candidate_version())
+        self.assertEqual(cli.VERSION, coordinates.VM_CANDIDATE_VERSION)
+        self.assertEqual(package.candidate_version(), coordinates.VM_CANDIDATE_VERSION)
 
     def test_package_reads_the_same_release_file_as_the_coordinates(self):
         self.assertEqual(package.RELEASE.resolve(), (Path(prepare.SOURCE).parent / 'dist' / 'release.json').resolve())
@@ -26,7 +28,7 @@ class Coordinates(unittest.TestCase):
     def test_preview_readme_names_the_vm_candidate(self):
         # The DMG carries PREVIEW.txt as its READ-ME.txt, which names the version in its
         # title and in the installed directory it tells users to remove.
-        candidate = package.candidate_version()
+        candidate = coordinates.VM_CANDIDATE_VERSION
         text = Path(__file__).with_name('PREVIEW.txt').read_text()
         named = re.findall(r'\b\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?', text)
         self.assertTrue(text.startswith(f'Ukai VM {candidate} '))

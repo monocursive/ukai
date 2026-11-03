@@ -7,6 +7,7 @@ record. No network, no Apple credentials, no keychain.
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -77,8 +78,13 @@ class PackageFixture:
 
 
 class NotarizationTests(unittest.TestCase):
+    def fixture(self, **kwargs):
+        package = PackageFixture(**kwargs)
+        self.addCleanup(shutil.rmtree, package.root, True)
+        return package
+
     def test_a_full_pass_records_every_step_and_the_new_digest(self):
-        package = PackageFixture()
+        package = self.fixture()
         apple = FakeApple()
         self.assertEqual(package.run(apple), 0)
         record = package.record()
@@ -94,7 +100,7 @@ class NotarizationTests(unittest.TestCase):
         self.assertNotEqual(record['dmg_sha256_after_stapling'], record['dmg_sha256_before'])
 
     def test_no_credential_value_appears_in_the_record(self):
-        package = PackageFixture()
+        package = self.fixture()
         apple = FakeApple()
         package.run(apple)
         text = (package.root / 'notarization.json').read_text()
@@ -115,7 +121,7 @@ class NotarizationTests(unittest.TestCase):
                          'error reading <redacted>')
 
     def test_a_rejected_submission_records_its_log_and_changes_nothing(self):
-        package = PackageFixture()
+        package = self.fixture()
         apple = FakeApple(status='Invalid')
         self.assertEqual(package.run(apple), 1)
         record = package.record()
@@ -125,13 +131,13 @@ class NotarizationTests(unittest.TestCase):
         self.assertEqual(json.loads((package.root / 'package.json').read_text())['notarization'], 'pending')
 
     def test_a_failed_submit_keeps_pending(self):
-        package = PackageFixture()
+        package = self.fixture()
         self.assertEqual(package.run(FakeApple(submit_exit=69)), 1)
         self.assertEqual(package.record()['outcome'], 'submit-failed')
         self.assertEqual(json.loads((package.root / 'package.json').read_text())['notarization'], 'pending')
 
     def test_a_timeout_is_recorded_with_the_submission_it_left_running(self):
-        package = PackageFixture()
+        package = self.fixture()
         self.assertEqual(package.run(FakeApple(submit_timeout=True)), 1)
         record = package.record()
         self.assertEqual(record['outcome'], 'submit-timeout')
@@ -141,7 +147,7 @@ class NotarizationTests(unittest.TestCase):
         self.assertEqual(record['steps'][1]['step'], 'log')
 
     def test_a_rerun_never_replaces_an_earlier_record(self):
-        package = PackageFixture()
+        package = self.fixture()
         package.run(FakeApple(submit_exit=69))
         first = (package.root / 'notarization.json').read_text()
         self.assertEqual(package.run(FakeApple()), 0)
@@ -151,7 +157,7 @@ class NotarizationTests(unittest.TestCase):
                          'notarization.2.json')
 
     def test_a_stapled_dmg_is_never_resubmitted(self):
-        package = PackageFixture()
+        package = self.fixture()
         self.assertEqual(package.run(FakeApple(validate_ok=False)), 1)
         self.assertTrue(package.record()['outcome'].startswith('incomplete'))
         self.assertTrue(package.record()['dmg_changed'])
@@ -162,7 +168,7 @@ class NotarizationTests(unittest.TestCase):
         self.assertEqual(apple.calls, [])
 
     def test_a_dmg_that_is_not_the_packaged_one_is_refused(self):
-        package = PackageFixture()
+        package = self.fixture()
         package.dmg.write_bytes(b'another image\n')
         apple = FakeApple()
         with self.assertRaises(SystemExit), mock.patch('sys.stderr'):
@@ -171,7 +177,7 @@ class NotarizationTests(unittest.TestCase):
         self.assertFalse((package.root / 'notarization.json').exists())
 
     def test_the_step_is_not_idempotent(self):
-        package = PackageFixture(notarization='abcd-1234')
+        package = self.fixture(notarization='abcd-1234')
         apple = FakeApple()
         with mock.patch('sys.stderr') as quiet, self.assertRaises(SystemExit) as caught:
             package.run(apple)

@@ -3,8 +3,9 @@
 
 `summary.json` names the artifact it judged: the volume's manifest and
 installer digests (and the DMG's, with --dmg). The `install` case passes only
-when the installed command runs AND the installed tree is exactly the
-manifest's payload: every file with its listed digest, `image/base.raw.gz`
+when the installed command runs and reports exactly the package version the
+installer names (D8: never a `-dev` build) AND the installed tree is exactly
+the manifest's payload: every file with its listed digest, `image/base.raw.gz`
 replaced by `image/base.raw` with image.json's `disk_sha256`, nothing extra
 and no symlink. The tamper cases include an unlisted payload file, which the
 installer must refuse rather than install.
@@ -84,6 +85,20 @@ def installed_tree_matches(volume, destination):
     return bool(expected) and installed == expected
 
 
+def package_version(volume):
+    """The version the rendered installer names (`version='…'`, package.py's @VERSION@)."""
+    for line in (Path(volume) / 'install.sh').read_text().splitlines():
+        if line.startswith("version='") and line.endswith("'"):
+            return line[len("version='"):-1]
+    raise ValueError('install.sh names no version')
+
+
+def version_is_the_package(output, expected):
+    """`ukai-vm version` prints JSON whose version is exactly the package's."""
+    reported = json.loads(output).get('version')
+    return isinstance(reported, str) and reported == expected and not reported.endswith('-dev')
+
+
 def installed_destination(link):
     """The installed version directory the command link names."""
     target = Path(os.readlink(link))
@@ -99,7 +114,7 @@ def summary(results, artifact=None):
 
 
 def artifact_identity(volume, dmg=None):
-    identity = {'volume': str(volume),
+    identity = {'volume': str(volume), 'version': package_version(volume),
                 'manifest_sha256': sha256(volume / 'SHA256SUMS'),
                 'installer_sha256': sha256(volume / 'install.sh')}
     if dmg is not None:
@@ -132,7 +147,7 @@ def main(argv=None):
         def version_runs():
             version = subprocess.run([str(link), 'version'], env=environment, capture_output=True, text=True)
             (root / 'version.json').write_text(version.stdout)
-            return version.returncode == 0
+            return version.returncode == 0 and version_is_the_package(version.stdout, package_version(source))
 
         invoke('install', source, installed, 0, 'Installed ',
                [('installed-command-runs', version_runs),

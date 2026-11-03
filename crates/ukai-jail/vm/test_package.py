@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import types
 import unittest
 from unittest import mock
 
@@ -89,22 +90,20 @@ class CommittedSourceTests(unittest.TestCase):
 
 
 class ReleaseCoordinateTests(unittest.TestCase):
-    def release(self, vm):
-        directory = tempfile.TemporaryDirectory()
-        self.addCleanup(directory.cleanup)
-        path = Path(directory.name) / 'release.json'
-        path.write_text(json.dumps({'vm': vm}))
-        return path
-
     def test_the_package_version_is_the_candidate_never_the_published_version(self):
-        path = self.release({'version': '0.1.0-preview.1', 'candidate_version': '0.1.0-preview.2'})
-        self.assertEqual(package.candidate_version(path), '0.1.0-preview.2')
+        coordinates = types.SimpleNamespace(VM_VERSION='0.1.0-preview.1', VM_CANDIDATE_VERSION='0.1.0-preview.2')
+        self.assertEqual(package.candidate_version(coordinates), '0.1.0-preview.2')
 
     def test_an_absent_or_malformed_candidate_refuses(self):
-        for vm in ({'version': '0.1.0-preview.1'}, {'candidate_version': ''}, {'candidate_version': 'latest'},
-                   {'candidate_version': 2}):
-            with self.subTest(vm=vm), self.assertRaisesRegex(package.SourceError, 'candidate_version'):
-                package.candidate_version(self.release(vm))
+        for values in ({'VM_VERSION': '0.1.0-preview.1'}, {'VM_CANDIDATE_VERSION': ''},
+                       {'VM_CANDIDATE_VERSION': 'latest'}, {'VM_CANDIDATE_VERSION': 2}):
+            with self.subTest(values=values), self.assertRaisesRegex(package.SourceError, 'VM_CANDIDATE_VERSION'):
+                package.candidate_version(types.SimpleNamespace(**values))
+
+    def test_the_coordinates_are_the_dist_module(self):
+        module = package.release_coordinates()
+        self.assertEqual(Path(module.__file__).resolve(),
+                         (package.REPO / 'crates/ukai-jail/dist/coordinates.py').resolve())
 
 
 class BuildTests(unittest.TestCase):

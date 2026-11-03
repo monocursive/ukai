@@ -58,15 +58,29 @@ def command(*args, env=None):
     subprocess.run([str(arg) for arg in args], check=True, env=env)
 
 
-def candidate_version(release=RELEASE):
-    """The version this package builds: release.json's vm.candidate_version (D11).
+def release_coordinates():
+    """dist/coordinates.py, loaded by path as prepare.py does (dist/ also holds a package.py)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('ukai_release_coordinates_for_package',
+                                                  RELEASE.with_name('coordinates.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
-    `vm.version` is what the public installer pins; the candidate is what is
-    packaged. Absent, the build refuses rather than guess.
+
+def candidate_version(coordinates=None):
+    """The version this package builds: VM_CANDIDATE_VERSION, release.json's
+    vm.candidate_version (D11).
+
+    `VM_VERSION` (vm.version) is what the public installer pins; the candidate
+    is what is packaged. Absent or malformed, the build refuses rather than
+    guess, and never falls back to the published version.
     """
-    value = (json.loads(Path(release).read_text()).get('vm') or {}).get('candidate_version')
+    coordinates = release_coordinates() if coordinates is None else coordinates
+    value = getattr(coordinates, 'VM_CANDIDATE_VERSION', None)
     if not isinstance(value, str) or not re.fullmatch(r'\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?', value):
-        raise SourceError(f'{release} names no vm.candidate_version; the package version is never guessed')
+        raise SourceError('dist/coordinates.py names no VM_CANDIDATE_VERSION (release.json '
+                          'vm.candidate_version); the package version is never guessed')
     return value
 
 

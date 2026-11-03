@@ -79,11 +79,12 @@ class CaseRecordingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             volume = Path(temporary)
             (volume / 'SHA256SUMS').write_text('x\n')
-            (volume / 'install.sh').write_text('y\n')
+            (volume / 'install.sh').write_text("version='1.2.3'\n")
             dmg = volume / 'u.dmg'
             dmg.write_bytes(b'dmg')
             identity = check_install.artifact_identity(volume, dmg)
         self.assertEqual(identity['manifest_sha256'], hashlib.sha256(b'x\n').hexdigest())
+        self.assertEqual(identity['version'], '1.2.3')
         self.assertEqual(identity['dmg_sha256'], hashlib.sha256(b'dmg').hexdigest())
 
 
@@ -143,6 +144,7 @@ def write_manifest(volume):
 
 FAKE_INSTALLER = r'''#!/bin/bash
 set -eu
+version='0.0.0-test'
 prefix="$2"
 here="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 destination="$prefix/share/ukai-vm/test"
@@ -162,13 +164,14 @@ printf '\nInstalled %s\n' "$link"
 
 @unittest.skipUnless(sys.platform == 'darwin', 'the installer check clones volumes with macOS cp -c')
 class InstallerCheckTests(unittest.TestCase):
-    def check(self, unrelated=':;', payload=':;', extra=':;', installed=':'):
+    def check(self, unrelated=':;', payload=':;', extra=':;', installed=':', reported='0.0.0-test'):
         with tempfile.TemporaryDirectory() as temporary:
             volume = Path(temporary) / 'volume'
             (volume / 'payload' / 'image').mkdir(parents=True)
             (volume / 'payload' / 'bin').mkdir()
             (volume / 'payload' / 'image' / 'vz').write_text('helper\n')
-            (volume / 'payload' / 'bin' / 'ukai-vm').write_text('#!/bin/sh\necho \'{"component":"ukai-vm"}\'\n')
+            (volume / 'payload' / 'bin' / 'ukai-vm').write_text(
+                '#!/bin/sh\necho \'{"component":"ukai-vm","version":"@REPORTED@"}\'\n'.replace('@REPORTED@', reported))
             (volume / 'payload' / 'bin' / 'ukai-vm').chmod(0o755)
             write_manifest(volume)
             (volume / 'install.sh').write_text(FAKE_INSTALLER.replace('@UNRELATED@', unrelated)
@@ -208,11 +211,19 @@ class InstallerCheckTests(unittest.TestCase):
         self.assertEqual(summary['results'][-1]['case'], 'payload-extra')
         self.assertEqual(summary['results'][-1]['failed_checks'], ['nothing-installed'])
 
+    def test_a_dev_or_other_version_fails_the_install_case(self):
+        for reported in ('0.0.0-test-dev', '0.1.0', ''):
+            with self.subTest(reported=reported):
+                code, summary = self.check(reported=reported)
+                self.assertNotEqual(code, 0)
+                self.assertEqual(summary['results'][0]['failed_checks'], ['installed-command-runs'])
+
     def test_the_summary_names_the_volume_it_judged(self):
         code, summary = self.check()
         self.assertEqual(code, 0)
         self.assertRegex(summary['artifact']['manifest_sha256'], '^[0-9a-f]{64}$')
         self.assertRegex(summary['artifact']['installer_sha256'], '^[0-9a-f]{64}$')
+        self.assertEqual(summary['artifact']['version'], '0.0.0-test')
 
 
 def macos_27_arm64():
@@ -229,7 +240,7 @@ here=$(cd "$(dirname "$0")/.." && pwd -P)
 exit 0
 """
 STUB_SERVICE = """#!/bin/sh
-echo '{"component":"ukai-vm","version":"test"}'
+echo '{"component":"ukai-vm","version":"0.0.0-test"}'
 """
 
 
