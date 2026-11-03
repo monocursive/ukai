@@ -51,7 +51,11 @@ pub const MAX_STAGED: u64 = 32 * 1024 * 1024;
 pub const WALL_MAX: u32 = 300;
 
 /// The profiles the guest jail accepts, the preview's two.
-pub const GUEST_PROFILES: [&str; 2] = ["tool", "build"];
+/// The guest jail's profiles, as the wire names them. `agent` runs the
+/// guest's own qualified Linux proxy (J18 §6: the guest jail's proxy
+/// enforces the policy, as on any Linux host); `build` stays refused by the
+/// live-share surface at the host side.
+pub const GUEST_PROFILES: [&str; 3] = ["tool", "agent", "build"];
 
 /// Why a frame (or a stream of them) did not decode.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -217,6 +221,12 @@ pub enum ToVm {
         /// The ephemeral credentials, if the policy declares any.
         #[serde(default)]
         secrets: Vec<SecretEntry>,
+        /// The canonical allow-host rules of a proxy policy (the `agent`
+        /// profile): the guest jail parses each with its own `--allow-host`
+        /// grammar, so an invalid rule refuses inside the guest, before any
+        /// workload starts.
+        #[serde(default)]
+        allow_hosts: Vec<String>,
     },
     /// One workspace file.
     Put(Put),
@@ -367,6 +377,11 @@ pub enum FromControl {
         /// The share's preflight facts, when a live share is attached.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         live_workspace_facts: Option<LiveShareFacts>,
+        /// Whether the guest was booted with its NAT adapter attached: a
+        /// proxied policy's guest proxy needs guest egress; without the
+        /// adapter every proxied connection would refuse at the dial.
+        #[serde(default)]
+        guest_nat: bool,
     },
     /// An orderly stop was requested; the guest and its service end.
     Stopping {
@@ -391,6 +406,7 @@ mod tests {
                     id: "token".to_owned(),
                     data: encode_data(b"s3cret"),
                 }],
+                allow_hosts: vec!["api.example.com:443".to_owned()],
             },
             ToVm::Put(Put {
                 path: "dir/input.txt".to_owned(),
@@ -461,6 +477,7 @@ mod tests {
             idle_seconds: 600,
             live_workspace: None,
             live_workspace_facts: None,
+            guest_nat: false,
         };
         let line = encode(&status).expect("encodes");
         assert_eq!(decode::<FromControl>(&line).as_ref(), Ok(&status));

@@ -334,7 +334,7 @@ class WarmServiceTests(unittest.TestCase):
         reply = dict(event='status', schema='ukai.jail.vm-control/1', boot_id='actual-boot',
                      warm=False, attempt_live=False, kernel=None, disk_sha256='d'*64,
                      helper_sha256='h'*64, custodian_sha256='c'*64, seed_sha256='s'*64,
-                     vsock_port=1024, idle_seconds=600)
+                     vsock_port=1024, idle_seconds=600, guest_nat=False)
         def answer():
             with listener:
                 stream, _ = listener.accept()

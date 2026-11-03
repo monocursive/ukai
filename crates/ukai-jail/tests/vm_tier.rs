@@ -495,6 +495,7 @@ fn an_attempt_session_frames_both_ways_against_the_stand_in() {
             wall_seconds,
             argv,
             secrets,
+            allow_hosts: _,
         } = staged
         else {
             panic!("the host opened with {staged:?}");
@@ -534,6 +535,7 @@ fn an_attempt_session_frames_both_ways_against_the_stand_in() {
                 id: "token".to_owned(),
                 data: protocol::encode_data(b"s3cret"),
             }],
+            allow_hosts: Vec::new(),
         })
         .expect("sends");
     let ready = connection.next_frame().expect("reads").expect("a frame");
@@ -605,7 +607,7 @@ impl Harness {
 fn vm_none_and_unimplemented_policy_requests_refuse_before_connecting() {
     for args in [
         vec!["--profile", "none", "--lifetime", "kernel-bound"],
-        vec!["--profile", "agent"],
+        vec!["--profile", "agent", "--limit", "wall=5s"],
         vec!["--profile", "build", "--limit", "wall=5s", "--limit", "mem=1GiB"],
         vec!["--profile", "tool", "--deny-read", "private"],
         vec!["--profile", "tool", "--limit", "mem=256MiB", "--limit", "wall=5s"],

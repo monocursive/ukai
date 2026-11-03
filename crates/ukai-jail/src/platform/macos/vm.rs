@@ -166,7 +166,7 @@ impl VmPlatform {
     ///
     /// # Errors
     /// The refusal when no server answers after [`SERVE_TIMEOUT`].
-    pub fn ensure_serving(&self, workspace: &Path) -> Result<(), JailError> {
+    pub fn ensure_serving(&self, workspace: &Path, guest_nat: bool) -> Result<(), JailError> {
         let socket = self.control_socket();
         if control::is_listening(&socket) {
             // A guest is already up: it must be sharing exactly this
@@ -174,10 +174,21 @@ impl VmPlatform {
             // (`ukai-vm stop`), never silently reused for another tree.
             let status = control::control_round_trip(&socket, protocol::ToControl::Status)
                 .map_err(transport)?;
-            let live = match &status {
-                protocol::FromControl::Status { live_workspace, .. } => live_workspace.as_deref(),
-                _ => None,
+            let (live, nat) = match &status {
+                protocol::FromControl::Status {
+                    live_workspace,
+                    guest_nat,
+                    ..
+                } => (live_workspace.as_deref(), *guest_nat),
+                _ => (None, false),
             };
+            if guest_nat && !nat {
+                return Err(refused(
+                    "--vm: the running guest was booted without its NAT adapter, so a \
+                     proxied policy cannot reach the network; stop it with `ukai-vm stop` \
+                     and rerun",
+                ));
+            }
             let live = live.ok_or_else(|| {
                     refused(
                         "--vm: the running guest serves staged attempts, not a live \
@@ -211,10 +222,15 @@ impl VmPlatform {
                 runtime.display()
             ))
         })?;
-        std::process::Command::new(&program)
+        let mut command = std::process::Command::new(&program);
+        command
             .arg("serve")
             .arg("--live-workspace")
-            .arg(workspace)
+            .arg(workspace);
+        if guest_nat {
+            command.arg("--guest-nat");
+        }
+        command
             .env("UKAI_VM_HOME", &self.install.root)
             .env("UKAI_DATA_DIR", &self.data_dir)
             .stdin(std::process::Stdio::null())
@@ -373,7 +389,9 @@ impl VmExecution {
         // denial), so it refuses before connecting or staging anything.
         validate_policy(&plan.request.snapshot)?;
         let share_facts = share::preflight(&plan.workspace).map_err(refused)?;
-        platform.ensure_serving(&plan.workspace)?;
+        let proxied = plan.request.snapshot.network.mode
+            == crate::network::NetworkMode::Proxy;
+        platform.ensure_serving(&plan.workspace, proxied)?;
         let socket = control::attempt_socket(&platform.data_dir);
         let mut connection = control::AttemptConnection::connect(&socket).map_err(transport)?;
         let ready = expect_ready(&mut connection)?;
@@ -381,9 +399,9 @@ impl VmExecution {
         let snapshot = &plan.request.snapshot;
         let wall = guest_wall(snapshot)?;
         let profile = snapshot.profile.as_str().to_owned();
-        if profile != "tool" {
+        if profile != "tool" && profile != "agent" {
             return Err(invalid(format!(
-                "--vm: the live share takes profile `tool`, not `{profile}`"
+                "--vm: the live share takes profile `tool` or `agent`, not `{profile}`"
             )));
         }
         let staged = protocol::ToVm::Prepare {
@@ -396,6 +414,7 @@ impl VmExecution {
                 .map(|argument| protocol::encode_data(argument))
                 .collect(),
             secrets: Vec::new(),
+            allow_hosts: proxy_allow_hosts(&plan.request.snapshot)?,
         };
         connection.send(&staged).map_err(transport)?;
         let guest_kernel = expect_prepared(&mut connection)?;
@@ -463,11 +482,32 @@ fn guest_wall(snapshot: &crate::policy::PolicySnapshot) -> Result<u32, JailError
     Ok(u32::try_from(seconds).unwrap_or(protocol::WALL_MAX))
 }
 
+/// The canonical allow rules a proxy policy carries to the guest: the
+/// snapshot's allow set, spelled as the CLI canonicalized it. The guest
+/// jail re-parses each with its own `--allow-host` grammar.
+fn proxy_allow_hosts(
+    snapshot: &crate::policy::PolicySnapshot,
+) -> Result<Vec<String>, JailError> {
+    Ok(snapshot.network.allow.clone())
+}
+
 fn policy_refusal(snapshot: &crate::policy::PolicySnapshot) -> Option<(&'static str, String)> {
     use crate::policy::ProfileName;
-    if snapshot.profile != ProfileName::Tool {
+    use crate::policy::ProfileName::{Agent, Build, Tool};
+    if snapshot.profile == Agent {
+        if snapshot.network.mode != crate::network::NetworkMode::Proxy {
+            return Some((
+                "vm:agent-policy-needs-proxy-mode",
+                "--vm: the agent profile needs its proxy mode; a non-proxy \
+                 network mode cannot carry host grants through the guest"
+                    .to_owned(),
+            ));
+        }
+        return None;
+    }
+    if snapshot.profile != Tool {
         return Some(match snapshot.profile {
-            ProfileName::Build => (
+            Build => (
                 "vm:build-profile-refuses-the-live-share",
                 "--vm: the build profile treats the workspace as a disposable copy with no \
                  protected segments, and a live share is the operator's real directory \
@@ -490,11 +530,11 @@ fn policy_refusal(snapshot: &crate::policy::PolicySnapshot) -> Option<(&'static 
                 .to_owned(),
         ));
     }
-    if snapshot.network.mode != crate::network::NetworkMode::None {
+    if snapshot.profile == Tool && snapshot.network.mode != crate::network::NetworkMode::None {
         return Some((
-            "vm:network-unavailable:no-proxied-policy",
-            "--vm: network and proxy policy are unavailable until the guest's proxied \
-             policy path is wired; the guest has no egress without it, adapter or not"
+            "vm:tool-policy-is-offline",
+            "--vm: the tool profile is offline; use `--profile agent` for a proxied \
+             policy, whose host grants the guest's own proxy enforces"
                 .to_owned(),
         ));
     }

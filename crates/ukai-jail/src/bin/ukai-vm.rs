@@ -134,6 +134,7 @@ enum GuestOp {
         profile: String,
         wall_seconds: u32,
         argv: Vec<String>,
+        allow_hosts: Vec<String>,
     },
     /// Cancel one attempt; the session stays up.
     Cancel2,
@@ -266,6 +267,8 @@ struct Service {
     /// one writable virtio-fs device, with its preflight facts. `None` is
     /// the preview's staged mode.
     live_share: Option<(PathBuf, share::ShareFacts)>,
+    /// Whether this guest booted with its NAT adapter.
+    guest_nat: bool,
 }
 
 /// One guest frame as the reader thread delivered it, or the transport's end.
@@ -536,6 +539,7 @@ fn serve(args: ServeArgs) -> Result<(), String> {
         install,
         sockets: (runtime.join("control.sock"), runtime.join("attempt.sock")),
         live_share,
+        guest_nat: args.guest_nat,
     });
     let control_service = Arc::clone(&service);
     let control_thread = std::thread::spawn(move || {
@@ -628,6 +632,7 @@ fn serve_control(service: &Service, listener: &UnixListener, idle_seconds: u64) 
                         normalization_fold: facts.normalization_fold,
                     }
                 }),
+                guest_nat: service.guest_nat,
             },
             protocol::ToControl::Stop => {
                 service.shared.stopping.store(true, AtomicOrdering::SeqCst);
@@ -739,6 +744,7 @@ fn run_attempt(
             wall_seconds,
             argv,
             secrets,
+            allow_hosts,
         } => {
             if !protocol::GUEST_PROFILES.contains(&profile.as_str()) {
                 return Err(format!(
@@ -780,13 +786,13 @@ fn run_attempt(
                     );
                 }
             }
-            Ok((attempt_id, profile, wall_seconds, argv, secrets))
+            Ok((attempt_id, profile, wall_seconds, argv, secrets, allow_hosts))
         }
         protocol::ToVm::Put(_) | protocol::ToVm::Run => {
             Err("the attempt opened with staging frames instead of `prepare`".to_owned())
         }
     }?;
-    let (attempt_id, profile, wall_seconds, argv, secrets) = prepared;
+    let (attempt_id, profile, wall_seconds, argv, secrets, allow_hosts) = prepared;
     {
         // Duplicate ids would collide in the guest's staging tree; the
         // refusal is the client's, before anything is sent to the guest.
@@ -876,6 +882,7 @@ fn run_attempt(
             profile,
             wall_seconds,
             argv,
+            allow_hosts: allow_hosts.clone(),
         },
     )?;
     let running = expect_guest(frames, "running")?;

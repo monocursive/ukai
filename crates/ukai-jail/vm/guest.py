@@ -300,7 +300,7 @@ def clear_secrets(secrets=None):
     shutil.rmtree(secrets_root() if secrets is None else Path(secrets), ignore_errors=True)
 
 
-def run_command(profile, argv, wall, workspace=None, evidence=None):
+def run_command(profile, argv, wall, workspace=None, evidence=None, allow_hosts=()):
     """The jail command one attempt runs, in either mode. The single-run
     `run` op builds exactly this list, and `run2` shares it, so the warm
     design changes nothing about what the jail is asked to do. The paths
@@ -316,6 +316,11 @@ def run_command(profile, argv, wall, workspace=None, evidence=None):
     # this disposable copy, never the Mac's input directory.
     if profile == 'build':
         command += [b'--rw', os.fsencode(workspace)]
+    # The agent profile's proxied policy (J18 §6): the guest jail starts
+    # its own qualified Linux proxy and enforces each host rule; an
+    # invalid spelling refuses inside the guest before any workload runs.
+    for rule in allow_hosts:
+        command += [b'--allow-host', os.fsencode(rule)]
     command += [b'--', *argv]
     return command
 
@@ -481,8 +486,13 @@ def main():
                 elif op == 'run' and process is None:
                     profile = request['profile']
                     wall = request['wall_seconds']
-                    if profile not in ('tool', 'build') or type(wall) is not int or not 1 <= wall <= 300:
+                    if profile not in ('tool', 'agent', 'build') or type(wall) is not int or not 1 <= wall <= 300:
                         poweroff('invalid_policy')
+                    allow_hosts = request.get('allow_hosts') or []
+                    if (allow_hosts and profile != 'agent') or any(
+                            type(rule) is not str or not rule or '\0' in rule or ' ' in rule
+                            for rule in allow_hosts):
+                        poweroff('invalid_proxy_policy')
                     if profile == 'build' and WORKSPACE == SHARE_MOUNT:
                         # The build profile's disposable-copy grant has no
                         # protected segments; on a live share that would
@@ -492,7 +502,7 @@ def main():
                     argv = [base64.b64decode(value, validate=True) for value in request['argv']]
                     if not argv or any(b'\0' in value for value in argv):
                         poweroff('invalid_argv')
-                    command = run_command(profile, argv, wall)
+                    command = run_command(profile, argv, wall, allow_hosts=allow_hosts)
                     env = attempt_environment(account)
                     attempt_cgroup = prepare_attempt_cgroup(account)
                     joined = [os.fsencode(part) for part in _join_attempt_cgroup(attempt_cgroup)]
@@ -515,12 +525,17 @@ def main():
                         poweroff("missing_attempt_binding")
                     profile = request['profile']
                     wall = request['wall_seconds']
-                    if profile not in ('tool', 'build') or type(wall) is not int or not 1 <= wall <= 300:
+                    if profile not in ('tool', 'agent', 'build') or type(wall) is not int or not 1 <= wall <= 300:
                         poweroff('invalid_policy')
+                    allow_hosts = request.get('allow_hosts') or []
+                    if (allow_hosts and profile != 'agent') or any(
+                            type(rule) is not str or not rule or '\0' in rule or ' ' in rule
+                            for rule in allow_hosts):
+                        poweroff('invalid_proxy_policy')
                     argv = [base64.b64decode(value, validate=True) for value in request['argv']]
                     if not argv or any(b'\0' in value for value in argv):
                         poweroff('invalid_argv')
-                    command = run_command(profile, argv, wall)
+                    command = run_command(profile, argv, wall, allow_hosts=allow_hosts)
                     env = attempt_environment(account)
                     attempt_cgroup = prepare_attempt_cgroup(account)
                     joined = [os.fsencode(part) for part in _join_attempt_cgroup(attempt_cgroup)]

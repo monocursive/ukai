@@ -357,8 +357,16 @@ pub fn verify_guest_receipt(receipt: &serde_json::Value, profile: &str) -> Resul
     if !errors_empty {
         return Err(refusal("guest evidence or cleanup failed"));
     }
-    if string("/applied/network/mode")? != "none" {
-        return Err(refusal("guest receipt did not enforce offline execution"));
+    // The offline shape records `none`; a proxied policy records `proxy`
+    // (J18 §6: the guest jail's own proxy enforces it). Anything else —
+    // `host`, a missing mode — is a boundary the guest never established.
+    match string("/applied/network/mode")? {
+        "none" | "proxy" => {}
+        other => {
+            return Err(refusal(&format!(
+                "guest receipt network mode is `{other}`, not none or proxy"
+            )));
+        }
     }
     let limits = receipt
         .pointer("/applied/limits")
