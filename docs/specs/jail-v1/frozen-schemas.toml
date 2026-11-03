@@ -225,6 +225,17 @@
 #   paths, counts, times and policy/argv digests remain illustrative. The
 #   sample and this example are not live acceptance evidence. No schema or
 #   identifier changes, and every previously accepted record stays valid.
+# - 2026-11-03 (fix wave 1103, decision D13) re-blessed
+#   examples/receipt-macos-native.json in place: the hand-written
+#   illustration now carries the native details the development producer
+#   emits — `process_limit` (rule 6's RLIMIT_NPROC soft and hard limit, as
+#   the guardian reported it on B before `ready`) beside `process_headroom`
+#   and `process_headroom_clamped`, and `stop.phases` (the six whole-stop
+#   continuous-clock marks requested, freeze_done, first_kill, result,
+#   guardian_record and settled, null where a mark did not occur; this
+#   example has no guardian record). Values remain illustrative, not live
+#   evidence. No schema or identifier changes: native details are an open
+#   object, and every previously accepted record stays valid.
 schema = "ukai.jail.frozen-schemas/1"
 milestone = "milestone-1"
 
@@ -337,7 +348,7 @@ sha256 = "80813b00687e0a131a083df0f98a25dfc2aff2dcdba974a0436d80b54478ba31"
 [[frozen_artifact]]
 file = "examples/receipt-macos-native.json"
 identifiers = ["ukai.jail.receipt/1", "ukai.event/1", "ukai.jail.control/1"]
-sha256 = "ec69dbcb9d32aecd07c289a93ebf5f3f51225be2c133f2115dd49861e1d3d12d"
+sha256 = "64c59a96ac6e7e9ee34d58f0901da46fec443aa7130f1e574bfaa9201020755f"
 
 # an instance the semantic corpus changes
 [[frozen_artifact]]

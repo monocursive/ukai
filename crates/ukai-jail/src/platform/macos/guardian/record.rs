@@ -18,6 +18,7 @@ use serde::Serialize;
 use crate::platform::macos::custody::StopResult;
 use crate::platform::macos::custody::{StopNotDrainedReason, StopTiming};
 use crate::platform::macos::custody_io::Token;
+use crate::platform::macos::guardian::rlimit::AppliedAllowance;
 
 pub const SCHEMA: &str = "ukai.jail.guardian-record/1";
 
@@ -50,6 +51,15 @@ pub struct GuardianRecord {
     /// The guardian's stop-machine phase marks (NC09/NC11), on the same
     /// continuous clock as `started_at`/`ended_at`.
     pub stop_phases: StopTiming,
+    /// Rule 6 as the kernel confirmed it before the launcher existed
+    /// (§4.1): the `RLIMIT_NPROC` soft and hard limit every member
+    /// inherited, the headroom above the guardian's process-count
+    /// snapshot, and whether the inherited ceiling stood in for the full
+    /// headroom. The same values went to the supervisor on B before
+    /// `ready`; a record that disagrees with them, or omits them, is not
+    /// accepted. The guardian always sets it ([`GuardianRecord::with_allowance`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub process_allowance: Option<AppliedAllowance>,
     /// ES documents increments, not a first-value baseline. Drops before
     /// the first delivered message cannot be distinguished within the
     /// accepted 0/1 start convention; disclose this on every record.
@@ -108,6 +118,16 @@ pub struct StopFacts {
     pub timing: StopTiming,
 }
 
+impl GuardianRecord {
+    /// The record with rule 6's applied allowance, what
+    /// [`crate::platform::macos::guardian::rlimit::apply`] returned.
+    #[must_use]
+    pub fn with_allowance(mut self, allowance: AppliedAllowance) -> Self {
+        self.process_allowance = Some(allowance);
+        self
+    }
+}
+
 /// Build the record from a stop's result and the guardian's tallies.
 pub fn from_stop_result(
     result: &StopResult,
@@ -147,6 +167,7 @@ pub fn from_stop_result(
         members_peak: facts.members_peak,
         guard_armed: facts.guard_armed,
         stop_phases: facts.timing,
+        process_allowance: None,
         sequence_start: "unverified",
     }
 }
@@ -227,7 +248,12 @@ mod tests {
             own,
             launcher,
             "boot-uuid".to_owned(),
-        );
+        )
+        .with_allowance(AppliedAllowance {
+            limit: 1333,
+            headroom: 668,
+            clamped: true,
+        });
         let json = render(&record);
         let value: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         assert_eq!(value["schema"], "ukai.jail.guardian-record/1");
@@ -253,7 +279,34 @@ mod tests {
         assert_eq!(value["boot_session"], "boot-uuid");
         assert_eq!(value["members_peak"], 9);
         assert_eq!(value["guard_armed"], true);
+        assert_eq!(
+            value["process_allowance"],
+            serde_json::json!({"limit": 1333, "headroom": 668, "clamped": true})
+        );
         assert!(json.ends_with('\n'));
+    }
+
+    // Without `with_allowance` the key is absent, never a guessed value: the
+    // supervisor refuses such a record (boundary.rs, D13).
+    #[test]
+    fn a_record_without_the_allowance_omits_the_key() {
+        let json = render(&from_stop_result(
+            &drained_result(),
+            StopFacts {
+                counts: [0; 3],
+                guard_denials: 0,
+                started_at: 0,
+                ended_at: 0,
+                members_peak: 0,
+                guard_armed: false,
+                timing: Default::default(),
+            },
+            [0; 8],
+            [0; 8],
+            String::new(),
+        ));
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert!(value.get("process_allowance").is_none(), "{value}");
     }
 
     // A stop that did not drain names exactly one of the three reasons.

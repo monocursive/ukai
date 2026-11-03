@@ -13,8 +13,18 @@
 //! table is sized for exactly that ceiling — provided the ceiling still
 //! clears the operator's snapshot by [`MIN_PROCESS_HEADROOM`]; below that
 //! there is no room for a tree at all and preparation refuses with the
-//! remedy named. The receipt records the applied allowance and whether it
-//! was clamped.
+//! remedy named.
+//!
+//! **D13 (2026-11-03):** the clamped path lowers both limits too: soft and
+//! hard become the inherited ceiling `min(soft, hard)`, with the same kernel
+//! read-back as the normal path. Before, it set nothing, so where the
+//! inherited soft limit sat below the hard limit (this Mac's default is
+//! soft 10666, hard 16000) a member could raise its soft limit back up to
+//! the hard limit. The guardian reports the allowance the kernel confirmed
+//! twice: in the `allowance` frame on B, right before `ready`
+//! ([`AppliedAllowance::encode_frame`]), which every receipt from
+//! `prepared` on records, and in its record (`process_allowance`), which the
+//! supervisor checks against the frame.
 //!
 //! Count actual PID records returned by libproc's real-UID filter. Sizing
 //! calls are allocation estimates, never counts. All allocation occurs
@@ -32,11 +42,76 @@ pub const MIN_PROCESS_HEADROOM: u64 = 128;
 /// What rule 6 applied: the ceiling members inherit, the allowance above
 /// the operator's snapshot, and whether the full
 /// [`PROCESS_HEADROOM`] did not fit and the inherited ceiling stands in.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct AppliedAllowance {
     pub limit: u64,
     pub headroom: u64,
     pub clamped: bool,
+}
+
+/// The B frame's prefix (guardian → supervisor, jail-macos §4.3 step 3):
+/// `allowance ` + limit (`u64` LE) + headroom (`u64` LE) + clamped (one
+/// byte, 0 or 1). The guardian sends it exactly once, after kernel
+/// read-back confirmed both limits and immediately before `ready`.
+pub const ALLOWANCE_FRAME: &[u8] = b"allowance ";
+
+/// The frame's body length after the prefix.
+const ALLOWANCE_BODY_BYTES: usize = 8 + 8 + 1;
+
+impl AppliedAllowance {
+    /// Whether the three values are a shape [`allowance_for`] can produce:
+    /// the headroom fits under the limit, an unclamped allowance carries
+    /// the full [`PROCESS_HEADROOM`], and a clamped one at least
+    /// [`MIN_PROCESS_HEADROOM`] and less than the full headroom.
+    #[must_use]
+    pub fn is_consistent(&self) -> bool {
+        self.limit <= i64::MAX as u64
+            && self.headroom <= self.limit
+            && if self.clamped {
+                (MIN_PROCESS_HEADROOM..PROCESS_HEADROOM).contains(&self.headroom)
+            } else {
+                self.headroom == PROCESS_HEADROOM
+            }
+    }
+
+    /// The `allowance` frame payload (without the length prefix).
+    #[must_use]
+    pub fn encode_frame(&self) -> Vec<u8> {
+        let mut frame = Vec::with_capacity(ALLOWANCE_FRAME.len() + ALLOWANCE_BODY_BYTES);
+        frame.extend_from_slice(ALLOWANCE_FRAME);
+        frame.extend_from_slice(&self.limit.to_le_bytes());
+        frame.extend_from_slice(&self.headroom.to_le_bytes());
+        frame.push(u8::from(self.clamped));
+        frame
+    }
+
+    /// Decode a frame body (the bytes after [`ALLOWANCE_FRAME`]). A wrong
+    /// length, a clamp byte other than 0 or 1, or a shape rule 6 cannot
+    /// produce is an error: the supervisor refuses rather than record it.
+    pub fn decode_frame_body(body: &[u8]) -> Result<Self, &'static str> {
+        let Ok(body) = <[u8; ALLOWANCE_BODY_BYTES]>::try_from(body) else {
+            return Err("allowance frame: bad length");
+        };
+        let word = |range: std::ops::Range<usize>| {
+            let mut bytes = [0u8; 8];
+            bytes.copy_from_slice(&body[range]);
+            u64::from_le_bytes(bytes)
+        };
+        let clamped = match body[16] {
+            0 => false,
+            1 => true,
+            _ => return Err("allowance frame: clamp flag is neither 0 nor 1"),
+        };
+        let allowance = Self {
+            limit: word(0..8),
+            headroom: word(8..16),
+            clamped,
+        };
+        if !allowance.is_consistent() {
+            return Err("allowance frame: a shape rule 6 cannot apply");
+        }
+        Ok(allowance)
+    }
 }
 
 /// Compatibility name for callers using the original 32-bit constant.
@@ -127,14 +202,7 @@ pub fn limit_with_headroom(current: u64, headroom: u64, hard: u64) -> Result<u64
 /// Lower `RLIMIT_NPROC` soft and hard to `limit`. The caller runs before
 /// release; a failure refuses the attempt (§4.3 step 3).
 pub fn lower_nproc(limit: u64) -> Result<(), RlimitError> {
-    lower_nproc_with(limit, read_nproc, |lowered| {
-        // SAFETY: a process-local syscall with a valid rlimit value.
-        if unsafe { libc::setrlimit(libc::RLIMIT_NPROC, lowered) } != 0 {
-            Err(os_error("RLIMIT_NPROC: setrlimit"))
-        } else {
-            Ok(())
-        }
-    })
+    lower_nproc_with(limit, read_nproc, set_nproc)
 }
 
 fn read_nproc() -> Result<libc::rlimit, RlimitError> {
@@ -190,9 +258,10 @@ fn lower_nproc_with(
 
 /// The amended rule-6 decision, pure for tests: the allowance for a given
 /// snapshot and inherited limits. `Ok` with `clamped: false` lowers to
-/// `current + PROCESS_HEADROOM`; `Ok` with `clamped: true` keeps the
-/// inherited ceiling (never raising either limit); `Err` names the floor
-/// and the remedy when even the minimum does not fit.
+/// `current + PROCESS_HEADROOM`; `Ok` with `clamped: true` lowers both
+/// limits to the inherited ceiling `min(soft, hard)` (never raising
+/// either); `Err` names the floor and the remedy when even the minimum
+/// does not fit.
 pub fn allowance_for(current: u64, soft: u64, hard: u64) -> Result<AppliedAllowance, RlimitError> {
     let desired = current
         .saturating_add(PROCESS_HEADROOM)
@@ -221,47 +290,43 @@ pub fn allowance_for(current: u64, soft: u64, hard: u64) -> Result<AppliedAllowa
     ))
 }
 
-/// The supervisor-side view of the amended rule-6 decision, taken at
-/// prepare time before any member exists (the same snapshot domain the
-/// guardian's authoritative [`apply`] uses moments later): what the
-/// receipt records as the planned allowance. The guardian still gates the
-/// run with its own read and refuses on any disagreement.
-pub fn plan_allowance() -> Result<AppliedAllowance, RlimitError> {
-    // SAFETY: plain getuid.
-    let uid = unsafe { libc::getuid() };
-    let count = current_process_count_for_uid(uid)?;
-    let inherited = read_nproc()?;
-    allowance_for(count, inherited.rlim_cur, inherited.rlim_max)
-}
-
 /// The rule-6 step whole: count this operator's processes, decide the
-/// allowance, apply it. The normal path lowers both limits with kernel
-/// read-back; the clamped path leaves the inherited limits untouched
-/// (never raising) and re-reads them once to confirm the ceiling still
-/// clears the floor. Returns what was applied, for the receipt.
+/// allowance, and lower soft **and** hard to its limit with kernel
+/// read-back — on both paths. Clamped, the limit is the inherited ceiling
+/// `min(soft, hard)`: the lower of the two stays where it is and the other
+/// comes down to it, so no member can raise its soft limit toward the
+/// inherited hard limit. Neither limit is ever raised, and a kernel that
+/// applies anything but the exact limit refuses ([`lower_nproc`]). Returns
+/// what the kernel confirmed: the guardian reports it on B and in its
+/// record, and the receipt records that report (§4.1 rule 6).
 pub fn apply() -> Result<AppliedAllowance, RlimitError> {
     // SAFETY: plain getuid.
     let uid = unsafe { libc::getuid() };
     let count = current_process_count_for_uid(uid)?;
-    let inherited = read_nproc()?;
-    let planned = allowance_for(count, inherited.rlim_cur, inherited.rlim_max)?;
-    if planned.clamped {
-        // Nothing to set: the members inherit the ceiling as it stands. A
-        // re-read confirms no concurrent change moved the ceiling between
-        // decision and use; a moved limit is a refusal, not a race to
-        // re-decide against.
-        let effective = read_nproc()?;
-        let confirmed = allowance_for(count, effective.rlim_cur, effective.rlim_max)?;
-        if confirmed != planned {
-            return Err(RlimitError(
-                "insufficient_headroom",
-                "inherited limits changed during preparation".to_owned(),
-            ));
-        }
-        return Ok(planned);
+    apply_with(count, read_nproc, set_nproc)
+}
+
+fn set_nproc(lowered: &libc::rlimit) -> Result<(), RlimitError> {
+    // SAFETY: a process-local syscall with a valid rlimit value.
+    if unsafe { libc::setrlimit(libc::RLIMIT_NPROC, lowered) } != 0 {
+        Err(os_error("RLIMIT_NPROC: setrlimit"))
+    } else {
+        Ok(())
     }
-    lower_nproc(planned.limit)?;
-    Ok(planned)
+}
+
+/// [`apply`] over injected limit calls, for tests: decide from the first
+/// read, then lower through [`lower_nproc_with`] (which re-reads, refuses
+/// any raise, sets both, and reads back).
+fn apply_with(
+    count: u64,
+    mut get: impl FnMut() -> Result<libc::rlimit, RlimitError>,
+    set: impl FnMut(&libc::rlimit) -> Result<(), RlimitError>,
+) -> Result<AppliedAllowance, RlimitError> {
+    let inherited = get()?;
+    let allowance = allowance_for(count, inherited.rlim_cur, inherited.rlim_max)?;
+    lower_nproc_with(allowance.limit, get, set)?;
+    Ok(allowance)
 }
 
 #[cfg(test)]
@@ -395,61 +460,307 @@ mod tests {
         }
     }
 
+    /// Run one named test of this module in a child test process with
+    /// `marker` set, so its irreversible limit changes never reach the
+    /// harness running the suite; returns the child's stdout.
+    fn run_isolated(name: &str, marker: &str) -> String {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                &format!("platform::macos::guardian::rlimit::tests::{name}"),
+                "--nocapture",
+            ])
+            .env(marker, "1")
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        assert!(stdout.contains("test result: ok. 1 passed"), "{stdout}");
+        stdout
+    }
+
+    fn nproc() -> libc::rlimit {
+        // SAFETY: getrlimit fills a valid stack value.
+        unsafe {
+            let mut value: libc::rlimit = std::mem::zeroed();
+            assert_eq!(libc::getrlimit(libc::RLIMIT_NPROC, &mut value), 0);
+            value
+        }
+    }
+
+    fn set(cur: u64, max: u64) -> libc::c_int {
+        // SAFETY: a process-local setrlimit in an isolated child.
+        unsafe {
+            libc::setrlimit(
+                libc::RLIMIT_NPROC,
+                &libc::rlimit {
+                    rlim_cur: cur,
+                    rlim_max: max,
+                },
+            )
+        }
+    }
+
+    // In-process, in an isolated child: a soft ceiling below the full
+    // headroom and below the hard limit (the shape where the old clamped
+    // path set nothing and left the hard limit raisable-to). Amended rule 6
+    // clamps to that soft ceiling; D13: the hard limit comes down to it, and
+    // no later raise of either limit succeeds.
     #[test]
     fn r3_c1_apply_never_raises_the_inherited_soft_limit() {
         const CHILD: &str = "UKAI_TEST_NPROC_SOFT_CHILD";
         if std::env::var_os(CHILD).is_none() {
-            let output = std::process::Command::new(std::env::current_exe().unwrap())
-                .args([
-                    "--exact",
-                    "platform::macos::guardian::rlimit::tests::r3_c1_apply_never_raises_the_inherited_soft_limit",
-                    "--nocapture",
-                ])
-                .env(CHILD, "1")
-                .output()
-                .unwrap();
-            assert!(output.status.success(), "{output:?}");
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            assert!(stdout.contains("test result: ok. 1 passed"), "{stdout}");
+            let stdout = run_isolated("r3_c1_apply_never_raises_the_inherited_soft_limit", CHILD);
             assert!(stdout.contains("soft-limit fixture ran"), "{stdout}");
+            assert!(
+                stdout.contains("branch=clamped") || stdout.contains("branch=floor"),
+                "{stdout}"
+            );
             return;
         }
-        // SAFETY: all limit changes are confined to this child process.
-        unsafe {
-            let mut original: libc::rlimit = std::mem::zeroed();
-            assert_eq!(libc::getrlimit(libc::RLIMIT_NPROC, &mut original), 0);
-            let inherited = libc::rlimit {
-                rlim_cur: original.rlim_cur.min(u64::from(NPROC_HEADROOM) - 1),
-                rlim_max: original.rlim_max,
-            };
-            assert_eq!(libc::setrlimit(libc::RLIMIT_NPROC, &inherited), 0);
-            let count = current_process_count_for_uid(libc::getuid()).unwrap();
-            let result = apply();
-            let mut after: libc::rlimit = std::mem::zeroed();
-            assert_eq!(libc::getrlimit(libc::RLIMIT_NPROC, &mut after), 0);
-            assert_eq!(
-                after.rlim_cur, inherited.rlim_cur,
-                "operator's soft ceiling changed"
-            );
-            // Amended rule 6: a soft ceiling below the full headroom no
-            // longer refuses — the ceiling itself is the allowance as long
-            // as it clears the snapshot by the minimum. Both shapes keep
-            // the soft limit untouched; only a floor violation refuses.
-            let floor_fits = inherited.rlim_cur >= count + MIN_PROCESS_HEADROOM;
-            match (result, floor_fits) {
-                (Ok(applied), true) => {
-                    assert!(applied.clamped, "clamped to the inherited soft ceiling");
-                    assert_eq!(applied.limit, inherited.rlim_cur);
+        let original = nproc();
+        // SAFETY: plain getuid.
+        let count = current_process_count_for_uid(unsafe { libc::getuid() }).unwrap();
+        // Below the hard limit by construction (soft <= hard always), so the
+        // hard limit is strictly above the ceiling before apply().
+        let soft = (count + PROCESS_HEADROOM / 2).min(original.rlim_cur.saturating_sub(1));
+        assert_eq!(set(soft, original.rlim_max), 0);
+        // The kernel may clamp the hard limit to kern.maxprocperuid; what
+        // apply() inherits is what reads back now.
+        let before = nproc();
+        assert_eq!(before.rlim_cur, soft);
+        assert!(
+            before.rlim_max > before.rlim_cur,
+            "fixture: hard above soft"
+        );
+        let result = apply();
+        let after = nproc();
+        assert!(
+            after.rlim_cur <= before.rlim_cur && after.rlim_max <= before.rlim_max,
+            "apply() raised a limit: {before:?} -> {after:?}"
+        );
+        assert_eq!(
+            after.rlim_cur, before.rlim_cur,
+            "operator's soft ceiling changed"
+        );
+        match result {
+            Ok(applied) => {
+                assert!(applied.clamped, "clamped to the inherited soft ceiling");
+                assert!(applied.is_consistent(), "{applied:?}");
+                assert_eq!(applied.limit, before.rlim_cur);
+                // D13: the hard limit is the ceiling now, not the inherited
+                // hard limit a member could have raised its soft limit to.
+                assert_eq!(after.rlim_max, applied.limit, "hard limit not lowered");
+                let limit = applied.limit;
+                for (cur, max) in [
+                    (limit + 1, limit),
+                    (limit + 1, limit + 1),
+                    (limit + 1, before.rlim_max),
+                    (limit, before.rlim_max),
+                ] {
+                    assert_ne!(set(cur, max), 0, "raise to ({cur}, {max}) succeeded");
                 }
-                (Err(error), false) => {
-                    assert!(error.to_string().starts_with("insufficient_headroom:"));
-                }
-                (result, fits) => {
-                    panic!("apply() disagreed with the floor: {result:?} fits={fits}")
-                }
+                let still = nproc();
+                assert_eq!((still.rlim_cur, still.rlim_max), (limit, limit));
+                println!("branch=clamped");
+            }
+            Err(error) => {
+                // Only a floor violation refuses, and it touches neither.
+                assert!(
+                    before.rlim_cur < count + MIN_PROCESS_HEADROOM + 64,
+                    "refused with room: {error}"
+                );
+                assert!(error.to_string().starts_with("insufficient_headroom:"));
+                assert_eq!(
+                    (after.rlim_cur, after.rlim_max),
+                    (before.rlim_cur, before.rlim_max)
+                );
+                println!("branch=floor");
             }
         }
         println!("soft-limit fixture ran");
+    }
+
+    // In-process, in an isolated child: below the floor the refusal comes
+    // from the decision, before any setrlimit, so neither limit moves.
+    #[test]
+    fn d13_apply_below_the_floor_touches_neither_limit() {
+        const CHILD: &str = "UKAI_TEST_NPROC_FLOOR_CHILD";
+        if std::env::var_os(CHILD).is_none() {
+            let stdout = run_isolated("d13_apply_below_the_floor_touches_neither_limit", CHILD);
+            assert!(stdout.contains("floor fixture ran"), "{stdout}");
+            return;
+        }
+        let original = nproc();
+        // SAFETY: plain getuid.
+        let count = current_process_count_for_uid(unsafe { libc::getuid() }).unwrap();
+        let soft = (count + 16).min(original.rlim_cur);
+        assert_eq!(set(soft, original.rlim_max), 0);
+        let before = nproc();
+        let error = apply().unwrap_err().to_string();
+        assert!(error.starts_with("insufficient_headroom:"), "{error}");
+        assert!(
+            error.contains("close processes or raise kern.maxprocperuid"),
+            "{error}"
+        );
+        let after = nproc();
+        assert_eq!(
+            (after.rlim_cur, after.rlim_max),
+            (before.rlim_cur, before.rlim_max)
+        );
+        println!("floor fixture ran");
+    }
+
+    /// What one [`apply_on`] run left: the result, the final `(soft, hard)`
+    /// and every `(soft, hard)` set request.
+    struct FakeRun {
+        result: Result<AppliedAllowance, RlimitError>,
+        end: (u64, u64),
+        calls: Vec<(u64, u64)>,
+    }
+
+    /// [`apply_with`] over a fake kernel cell: `set` stores exactly what it
+    /// is asked and, like an unprivileged caller, refuses any hard-limit
+    /// raise or a soft limit above the hard one.
+    fn apply_on(count: u64, start: (u64, u64)) -> FakeRun {
+        let cell = std::cell::Cell::new(start);
+        let mut calls = Vec::new();
+        let result = apply_with(
+            count,
+            || {
+                let (rlim_cur, rlim_max) = cell.get();
+                Ok(libc::rlimit { rlim_cur, rlim_max })
+            },
+            |requested| {
+                calls.push((requested.rlim_cur, requested.rlim_max));
+                if requested.rlim_max > cell.get().1 || requested.rlim_cur > requested.rlim_max {
+                    return Err(RlimitError("RLIMIT_NPROC: setrlimit", "EPERM".to_owned()));
+                }
+                cell.set((requested.rlim_cur, requested.rlim_max));
+                Ok(())
+            },
+        );
+        FakeRun {
+            result,
+            end: cell.get(),
+            calls,
+        }
+    }
+
+    // D13 on the decision-plus-set path, with a fake kernel: every shape
+    // that runs ends with soft == hard == the allowance's limit, and no
+    // requested value is above what was inherited.
+    #[test]
+    fn d13_every_applied_shape_lowers_soft_and_hard_to_the_limit() {
+        for (count, start, clamped) in [
+            // This Mac's default shape: soft 10666 under hard 16000.
+            (300, (10666, 16000), false),
+            (10_000, (10666, 16000), true),
+            // A tight soft limit under a loose hard limit.
+            (500, (1200, 2000), true),
+            // The 2026-11-01 spike's default-host shape, soft == hard.
+            (352, (1333, 1333), true),
+            (300, (2000, 2000), false),
+        ] {
+            let FakeRun { result, end, calls } = apply_on(count, start);
+            let applied = result.unwrap_or_else(|e| panic!("{count} {start:?}: {e}"));
+            assert_eq!(applied.clamped, clamped, "{count} {start:?}");
+            assert!(applied.is_consistent(), "{applied:?}");
+            assert_eq!(
+                calls,
+                vec![(applied.limit, applied.limit)],
+                "{count} {start:?}"
+            );
+            assert_eq!(end, (applied.limit, applied.limit), "{count} {start:?}");
+            assert!(
+                end.0 <= start.0 && end.1 <= start.1,
+                "raised: {start:?} -> {end:?}"
+            );
+            if clamped {
+                assert_eq!(applied.limit, start.0.min(start.1));
+            } else {
+                assert_eq!(applied.limit, count + PROCESS_HEADROOM);
+            }
+        }
+        // Below the floor nothing is set at all.
+        let FakeRun { result, end, calls } = apply_on(1300, (1333, 2000));
+        assert!(result.is_err());
+        assert!(calls.is_empty());
+        assert_eq!(end, (1333, 2000));
+    }
+
+    // A kernel that reports success but leaves the hard limit where it was
+    // (what the old clamped path amounted to) is refused, not recorded.
+    #[test]
+    fn d13_clamped_read_back_must_show_the_hard_limit_lowered() {
+        let reads = std::cell::Cell::new(0);
+        let error = apply_with(
+            500,
+            || {
+                reads.set(reads.get() + 1);
+                Ok(libc::rlimit {
+                    rlim_cur: 1200,
+                    rlim_max: 2000,
+                })
+            },
+            |_| Ok(()),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.starts_with("RLIMIT_NPROC: read-back:"), "{error}");
+        assert_eq!(reads.get(), 3, "decide, re-read, read back");
+    }
+
+    #[test]
+    fn d13_the_allowance_frame_round_trips_and_refuses_impossible_shapes() {
+        for allowance in [
+            AppliedAllowance {
+                limit: 1336,
+                headroom: PROCESS_HEADROOM,
+                clamped: false,
+            },
+            AppliedAllowance {
+                limit: 1333,
+                headroom: 668,
+                clamped: true,
+            },
+        ] {
+            let frame = allowance.encode_frame();
+            let body = frame.strip_prefix(ALLOWANCE_FRAME).expect("prefix");
+            assert_eq!(AppliedAllowance::decode_frame_body(body), Ok(allowance));
+        }
+        let good = AppliedAllowance {
+            limit: 1333,
+            headroom: 668,
+            clamped: true,
+        }
+        .encode_frame();
+        let body = &good[ALLOWANCE_FRAME.len()..];
+        assert!(AppliedAllowance::decode_frame_body(&body[..16]).is_err());
+        let mut long = body.to_vec();
+        long.push(0);
+        assert!(AppliedAllowance::decode_frame_body(&long).is_err());
+        let mut flag = body.to_vec();
+        flag[16] = 2;
+        assert!(AppliedAllowance::decode_frame_body(&flag).is_err());
+        for (limit, headroom, clamped) in [
+            (100, 1024, false),      // headroom above the limit
+            (2000, 900, false),      // unclamped without the full headroom
+            (2000, 1024, true),      // clamped with the full headroom
+            (1000, 64, true),        // clamped below the floor
+            (u64::MAX, 1024, false), // beyond rlimit_t
+        ] {
+            let frame = AppliedAllowance {
+                limit,
+                headroom,
+                clamped,
+            }
+            .encode_frame();
+            assert!(
+                AppliedAllowance::decode_frame_body(&frame[ALLOWANCE_FRAME.len()..]).is_err(),
+                "{limit} {headroom} {clamped}"
+            );
+        }
     }
 
     #[test]
