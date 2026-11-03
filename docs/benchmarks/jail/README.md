@@ -171,7 +171,8 @@ Current implementation: native execution is **off by default**. Setting
 receipts and development-VM observation smoke runs are tested; full live
 release acceptance remains pending. Every `run --vm` refuses at probing,
 before any connection or boot, until a live phase re-measures the guest:
-unmeasured requirements answer `vm:not-measured:<requirement>`.
+no requirement has a measured guest record yet, so every one answers
+`vm:not-measured:<requirement>`.
 
 | Lane | Covers |
 | --- | --- |

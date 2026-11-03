@@ -89,14 +89,17 @@ carries only `ukai-vm` and `ukai-vm-install`: no macOS `ukai-jail` client
 ships, so `ukai-jail run --vm` needs a client built from source. Even then,
 every `run --vm` currently refuses at probing, before any connection or
 boot. The probe answers Available only for a requirement a measured guest
-record backs; every other requirement answers
-`vm:not-measured:<requirement>`, and `network_none` is unmeasured because
-the 2026-11-02 TCP probe was vacuous (`/dev/tcp` under the guest's `dash`).
-The guest carries only the profile (`tool` or `agent`), the wall, the argv,
-the network shape and vault-mode credentials; any other policy element that
-differs (deny-read, `--ro`/`--rw` grants, environment or observation
-choices, custom ceilings, staged credentials and the rest) refuses with
-`vm:not-carried:<field>`.
+record backs, and no requirement has one yet: every requirement answers
+`vm:not-measured:<requirement>` (`network_none`'s 2026-11-02 TCP probe, for
+one, was vacuous: `/dev/tcp` under the guest's `dash`). The guest carries
+only the profile (`tool` or `agent`), the wall (whole seconds, 1–300), the
+argv, the network shape and vault-mode credentials; any other policy
+element that differs (deny-read, `--ro`/`--rw` grants, observation choices,
+ceilings other than the guest's pids=64, mem=512MiB and swap=0, staged
+credentials, an attached terminal, and the rest) refuses with
+`vm:not-carried:<field>`. That includes the environment: the guest's is
+`LANG=C.UTF-8` with no `TERM` or `TZ`, so a terminal that sets `TERM`
+refuses as `environment.bindings` unless the run unsets it.
 
 The 2026-11-02/03 measurements on the development Mac
 ([warm record](benchmarks/jail/results/macos-vm-warm-2026-11-02/README.md),
@@ -188,7 +191,8 @@ Current implementation: native execution is **off by default**. Setting
 receipts and development-VM observation smoke runs are tested; full live
 release acceptance remains pending. Every `run --vm` refuses at probing,
 before any connection or boot, until a live phase re-measures the guest:
-unmeasured requirements answer `vm:not-measured:<requirement>`.
+no requirement has a measured guest record yet, so every one answers
+`vm:not-measured:<requirement>`.
 A missing VM installation is exit 125 with `host_setup`. With native
 development enabled, a kernel-bound request explains that the VM tier is
 unavailable in this build; `--vm` is not a working remedy.
@@ -223,9 +227,10 @@ requirement `owner_loss_termination`). Native macOS refuses that
 requirement with `unsupported`; this build's VM tier refuses it too, before
 any boot. Linux `none` refuses it. In the intended qualified backend, the
 guest is started on first use, kept warm between runs, and stopped after an
-idle period or with `ukai-jail vm stop`; the stored receipt is the guest's
-verified Linux receipt, and the summary prints the guest's applied network
-and observer facts from it. This tier is the Linux VM preview above made into
+idle period or with `ukai-jail vm stop`; the guest's Linux receipt is
+verified and stored beside the host's (`evidence/jail.json`), the host
+receipt takes the guest's applied facts from it, and the summary prints the
+guest's applied network and observer facts from it. This tier is the Linux VM preview above made into
 a backend, and the preview's limits — Linux ARM64 programs only, no Mac-built
 native add-ons such as compiled `node_modules` — carry over.
 

@@ -165,8 +165,9 @@ Current implementation: native execution is **off by default**. Setting
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
 checks do not establish live acceptance. Every `run --vm` refuses at
 probing, before any connection or boot, until a live phase re-measures the
-guest: unmeasured requirements answer `vm:not-measured:<requirement>`. The
-released VM preview remains the only Mac deliverable.
+guest: no requirement has a measured guest record yet, so every one
+answers `vm:not-measured:<requirement>`. The released VM preview remains
+the only Mac deliverable.
 
 After implementation, packaging and the measurement spike are complete and
 the entitlement is granted, prepare a Mac release bundle as follows:
