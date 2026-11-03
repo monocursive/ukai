@@ -11,12 +11,23 @@ kept in one place so each judgement is written once and unit-tested once:
 - the egress probe (jail-macos §6, fix-wave decision D9) is a python3 socket
   connect to an IP literal with a short timeout, preceded by a positive
   control on loopback inside the same attempt; its verdict is a JSON line the
-  host parses, so no shell `&&`/`||` precedence can produce it;
+  host parses, so no shell `&&`/`||` precedence can produce it. A denial is
+  only the jail's own errno (DENIAL_ERRNOS), and it proves the JAIL denied
+  only with the guest NAT attached and a same-boot route control (an agent
+  attempt whose proxy, outside the jail's network namespace, reached the
+  same target) — `network_denial` below; an empty netns with no route at all
+  gives the same errno, so the errno alone proves nothing;
 - a workspace is cleaned only when it is a dedicated, marked harness
   directory (`mark` below creates the marker in an empty directory);
 - output directories are never reused: a second run into the same `--out`
   refuses instead of overwriting the first run's evidence;
-- each attempt stream has its own frame buffer.
+- each attempt stream has its own frame buffer;
+- a receipt backs a verdict only when its digest verified AND its binding
+  names this attempt, this argv, this profile and this serve boot
+  (`receipt_bound`);
+- machine-read record fields carry no absolute host path
+  (docs/benchmarks/README.md rule 5): `write_json` rewrites the repository,
+  temp and home prefixes (`portable`).
 
     python3 harness.py mark <empty directory on a case-sensitive volume>
 """
@@ -29,7 +40,6 @@ from pathlib import Path
 import re
 import secrets as _secrets
 import shlex
-import signal
 import socket
 import subprocess
 import sys
@@ -53,6 +63,15 @@ PROBE_TARGET = ('1.1.1.1', 443)
 PROBE_TIMEOUT = 3.0
 PROBE_TAG = 'UKAI_NET_PROBE'
 PYTHON = '/usr/bin/python3'
+# The errno the guest jail's own denial gives a direct connect: a `tool` or
+# `agent` jail runs in a network namespace with only loopback, so a connect
+# to a public address finds no route (measured: ENETUNREACH under tool,
+# agent and the dash shell form in a real Linux ukai-jail, 2026-11-03).
+# Any other result (a timeout, ECONNREFUSED — a peer answered, so a packet
+# left —, EHOSTUNREACH, an unknown errno) is inconclusive, never a denial.
+DENIAL_ERRNOS = ('ENETUNREACH',)
+ROUTE_TAG = 'UKAI_ROUTE_CONTROL'
+ROUTE_TIMEOUT = 10.0
 
 
 class HarnessError(RuntimeError):
@@ -87,10 +106,49 @@ def sha256_file(path):
     return digest.hexdigest()
 
 
+def _prefixes():
+    """(absolute prefix, replacement), longest first: repository-relative,
+    then $TMPDIR, then ~ (docs/benchmarks/README.md rule 5)."""
+    pairs = []
+    for root, token in ((REPOSITORY, ''), (Path(tempfile.gettempdir()), '$TMPDIR/'), (Path.home(), '~/')):
+        for spelling in {str(root), str(Path(root).resolve())}:
+            spelling = spelling.rstrip('/')
+            if spelling and spelling != '/':
+                pairs.append((spelling, token))
+    return sorted(pairs, key=lambda pair: len(pair[0]), reverse=True)
+
+
+def relative_path(path):
+    """`path` relative to the repository, else under $TMPDIR/ or ~/, else as given."""
+    text = str(path)
+    for prefix, token in _prefixes():
+        if text == prefix:
+            return token.rstrip('/') or '.'
+        if text.startswith(prefix + '/'):
+            return token + text[len(prefix) + 1:]
+    return text
+
+
+def portable(value):
+    """A record with every absolute repository, temp or home path made relative,
+    in every string (field values and quoted text alike)."""
+    if isinstance(value, dict):
+        return {key: portable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [portable(item) for item in value]
+    if isinstance(value, str):
+        for prefix, token in _prefixes():
+            value = value.replace(prefix + '/', token)
+            if value == prefix:
+                value = token.rstrip('/') or '.'
+        return value
+    return value
+
+
 def fingerprint(path):
-    """What a record says about a binary it ran: where, and which bytes."""
+    """What a record says about a binary it ran: where (relative), and which bytes."""
     path = Path(path)
-    return {'path': str(path), 'sha256': sha256_file(path)}
+    return {'path': relative_path(path), 'sha256': sha256_file(path)}
 
 
 def fresh_out_dir(path):
@@ -105,9 +163,9 @@ def fresh_out_dir(path):
 
 
 def write_json(path, value):
-    """Write a record once; an existing file is never replaced."""
+    """Write a record once, host paths made relative; an existing file is never replaced."""
     with open(path, 'x') as output:
-        output.write(json.dumps(value, indent=2, sort_keys=False) + '\n')
+        output.write(json.dumps(portable(value), indent=2, sort_keys=False) + '\n')
 
 
 def b64(value):
@@ -146,7 +204,7 @@ def vm_client_environment(base=None, **values):
 
     The guest jail's environment admits LANG=C.UTF-8 only: TERM and TZ (and
     any LC_*) are dropped and LANG set, or the host refuses with
-    vm:not-carried:environment. UKAI_VM_GUEST_NAT never leaks in.
+    vm:not-carried:environment.bindings. UKAI_VM_GUEST_NAT never leaks in.
     """
     environment = dict(os.environ if base is None else base)
     for name in list(environment):
@@ -309,25 +367,35 @@ def probe_shell(tag, target=None, timeout=PROBE_TIMEOUT, dns=None):
     return ' '.join(shlex.quote(word) for word in probe_argv(tag, target, timeout, dns))
 
 
+def tagged_records(stdout, name, key, value):
+    """Every `name {json}` line of `stdout` whose `key` is `value`."""
+    records = []
+    for line in (stdout or '').splitlines():
+        if not line.startswith(name + ' '):
+            continue
+        try:
+            record = json.loads(line[len(name) + 1:])
+        except ValueError:
+            continue
+        if isinstance(record, dict) and record.get(key) == value:
+            records.append(record)
+    return records
+
+
 def probe_verdict(stdout, tag):
     """The egress verdict from an attempt's stdout, for exactly this probe.
 
     `egress_denied` needs exactly one probe line with this tag, a positive
     control that connected AND was accepted on loopback (so the probe could
-    have seen a connection), and an egress attempt that did not connect.
-    Anything else is `egress_allowed`, `inconclusive`, `no_probe` or
-    `ambiguous` — never a denial.
+    have seen a connection), and an egress connect that failed with the
+    jail's own denial errno (DENIAL_ERRNOS). `egress_allowed` is a connect;
+    every other result — a timeout, ECONNREFUSED, EHOSTUNREACH, any other
+    errno, a failed control, no line, two lines — is `inconclusive`,
+    `no_probe` or `ambiguous`, never a denial. Even `egress_denied` says only
+    that this attempt found no route: `network_denial` decides whether the
+    JAIL removed one.
     """
-    records = []
-    for line in stdout.splitlines():
-        if not line.startswith(PROBE_TAG + ' '):
-            continue
-        try:
-            record = json.loads(line[len(PROBE_TAG) + 1:])
-        except ValueError:
-            continue
-        if isinstance(record, dict) and record.get('nonce') == tag:
-            records.append(record)
+    records = tagged_records(stdout, PROBE_TAG, 'nonce', tag)
     if not records:
         return {'verdict': 'no_probe', 'denied': False}
     if len(records) > 1:
@@ -338,11 +406,99 @@ def probe_verdict(stdout, tag):
         verdict = 'inconclusive'
     elif record.get('egress') == 'connected':
         verdict = 'egress_allowed'
-    else:
+    elif record.get('egress') in DENIAL_ERRNOS:
         verdict = 'egress_denied'
+    else:
+        verdict = 'inconclusive'
     return {'verdict': verdict, 'denied': verdict == 'egress_denied',
             'control': record.get('control'), 'control_accepted': record.get('control_accepted'),
             'egress': record.get('egress'), 'target': record.get('target'), 'dns': record.get('dns')}
+
+
+# The route control (F-2): the same target, reached on the same guest boot
+# from OUTSIDE the jail's network namespace. An `agent` attempt allowed
+# exactly the probe target asks its proxy (the jail's own, which runs in the
+# guest's namespace, behind the NAT adapter) for a CONNECT tunnel to it; for
+# an address destination the proxy connects upstream BEFORE it answers, so
+# `200` means the guest reached the target. Without that, a probe's
+# ENETUNREACH could be a guest with no route at all rather than the jail.
+ROUTE_SOURCE = r'''
+import json, os, socket, sys
+nonce, host, port, timeout = sys.argv[1], sys.argv[2], int(sys.argv[3]), float(sys.argv[4])
+record = {'nonce': nonce, 'target': [host, port]}
+proxy = os.environ.get('HTTPS_PROXY', '')
+record['proxy'] = proxy
+try:
+    scheme, _, rest = proxy.partition('://')
+    address, _, proxy_port = rest.rstrip('/').rpartition(':')
+    if scheme != 'http' or not address or not proxy_port.isdigit():
+        raise ValueError('HTTPS_PROXY names no http proxy')
+    stream = socket.create_connection((address, int(proxy_port)), timeout=timeout)
+    try:
+        stream.sendall(('CONNECT %s:%d HTTP/1.1\r\nHost: %s:%d\r\n\r\n' % (host, port, host, port)).encode())
+        reply = b''
+        while b'\r\n' not in reply and len(reply) < 4096:
+            chunk = stream.recv(4096)
+            if not chunk:
+                break
+            reply += chunk
+    finally:
+        stream.close()
+    record['status_line'] = reply.split(b'\r\n', 1)[0].decode('latin-1')[:200]
+except Exception as error:
+    record['error'] = type(error).__name__ + ': ' + str(error)[:200]
+print('UKAI_ROUTE_CONTROL ' + json.dumps(record, sort_keys=True), flush=True)
+'''
+ROUTE_REACHED = re.compile(r'HTTP/1\.[01] 200(?: |$)')
+
+
+def route_rule(target=None):
+    """The one `--allow-host` rule the route control needs: the probe target, port explicit."""
+    host, port = target or PROBE_TARGET
+    return f'{host}:{port}'
+
+
+def route_argv(tag, target=None, timeout=ROUTE_TIMEOUT):
+    host, port = target or PROBE_TARGET
+    return [PYTHON, '-I', '-c', ROUTE_SOURCE, tag, host, str(port), str(timeout)]
+
+
+def route_shell(tag, target=None, timeout=ROUTE_TIMEOUT):
+    return ' '.join(shlex.quote(word) for word in route_argv(tag, target, timeout))
+
+
+def route_verdict(stdout, tag, target=None):
+    """`reached` only for exactly one control line with this tag, for this
+    target, whose proxy answered `200` to the CONNECT."""
+    target = list(target or PROBE_TARGET)
+    records = tagged_records(stdout, ROUTE_TAG, 'nonce', tag)
+    if not records:
+        return {'verdict': 'no_control', 'reached': False}
+    if len(records) > 1:
+        return {'verdict': 'ambiguous', 'reached': False}
+    record = records[0]
+    reached = (record.get('target') == target and isinstance(record.get('status_line'), str)
+               and bool(ROUTE_REACHED.match(record['status_line'])))
+    return {'verdict': 'reached' if reached else 'not_reached', 'reached': reached,
+            'status_line': record.get('status_line'), 'error': record.get('error'),
+            'target': record.get('target')}
+
+
+def network_denial(probe, route, guest_nat, probe_guest_boot, route_guest_boot, route_bound):
+    """Whether the JAIL denied egress, fact by fact (all must hold).
+
+    The probe saw the jail's denial errno after its loopback control; the
+    guest had the NAT adapter attached; and on the same guest kernel boot a
+    route control, through a receipt bound to its own attempt, reached the
+    same target from outside the jail's namespace.
+    """
+    return {
+        'probe_saw_the_jails_denial': (probe or {}).get('denied') is True,
+        'guest_nat_attached': guest_nat is True,
+        'route_control_reached_the_target': (route or {}).get('reached') is True,
+        'route_control_on_the_same_guest_boot': bool(probe_guest_boot) and probe_guest_boot == route_guest_boot,
+        'route_control_receipt_bound': route_bound is True,
+    }
 
 
 def host_reachability(target=None, timeout=PROBE_TIMEOUT):
@@ -533,8 +689,8 @@ def run_attempt(connect, attempt_id, argv, profile='tool', wall=30, secrets=(),
     so a harness judges a failed attempt rather than losing it.
     """
     record = {'attempt_id': attempt_id, 'profile': profile, 'wall_seconds': wall,
-              'started_at': rfc3339_now(), 'stdout': '', 'stderr': '', 'exit_code': None,
-              'error': None, 'events': []}
+              'argv_digest': argv_digest(argv), 'started_at': rfc3339_now(), 'stdout': '',
+              'stderr': '', 'exit_code': None, 'error': None, 'events': []}
     marks = {}
     stdout, stderr = [], []
     channel = None
@@ -614,10 +770,55 @@ def timings(marks):
             'released_to_done': span('released', 'done')}
 
 
+def attempt_dir_bound(attempt, argv):
+    """receipt_bound()'s checks for a `ukai-jail run --vm` attempt directory.
+
+    evidence/jail.json hashes to the transport record's guest receipt digest;
+    vm-binding.json names this attempt directory, this argv's digest (as the
+    guest receipt's own argv_digest does), the transport's serve boot and a
+    guest kernel boot.
+    """
+    attempt = Path(attempt)
+
+    def read(name):
+        try:
+            return json.loads((attempt / name).read_text())
+        except (OSError, ValueError):
+            return {}
+    guest_path = attempt / 'evidence' / 'jail.json'
+    binding, transport, guest = read('evidence/vm-binding.json'), read('vm-transport.json'), read('evidence/jail.json')
+    digest = argv_digest(argv)
+    return (guest_path.is_file() and bool(transport.get('guest_receipt_sha256'))
+            and sha256_file(guest_path) == transport['guest_receipt_sha256']
+            and binding.get('attempt_id') == attempt.name and binding.get('argv_digest') == digest
+            and guest.get('argv_digest') == digest and bool(binding.get('boot_id'))
+            and binding.get('boot_id') == transport.get('boot_id') and bool(binding.get('guest_boot_id')))
+
+
 def guest_boot(record):
     """The guest kernel's boot id, as the bound receipt binding carries it."""
     binding = record.get('binding') or {}
     return binding.get('guest_boot_id')
+
+
+def receipt_bound(record):
+    """Whether an attempt record's receipt may back a verdict (F-5).
+
+    Its digest verified against the frame's SHA-256, and its binding (and the
+    receipt's own argv digest) name exactly this attempt: the attempt id the
+    harness sent, the argv it sent, its profile, the serve boot that answered
+    `ready`, and a guest kernel boot. A receipt from another attempt, or one
+    whose bytes do not match their digest, backs nothing.
+    """
+    binding = record.get('binding') or {}
+    receipt = record.get('receipt') or {}
+    digest = record.get('argv_digest')
+    return (record.get('receipt_digest_ok') is True
+            and bool(record.get('attempt_id')) and binding.get('attempt_id') == record.get('attempt_id')
+            and bool(digest) and binding.get('argv_digest') == digest and receipt.get('argv_digest') == digest
+            and bool(record.get('profile')) and binding.get('profile') == record.get('profile')
+            and bool(record.get('boot_id')) and binding.get('boot_id') == record.get('boot_id')
+            and bool(binding.get('guest_boot_id')))
 
 
 def receipt_limit(receipt, key):
@@ -684,6 +885,26 @@ def _line_after(text, label):
     return lines[-1].strip() if lines else None
 
 
+PROXY_COUNTED = re.compile(r'^(?:allowed |denied |proxy, no connections(?: · |$)|'
+                           r'proxy, none recorded \(a lower bound\)(?: · |$))')
+
+
+def proxy_line_is_the_guests(network, guest):
+    """A proxied network line that states the guest's facts (summary.rs `network`).
+
+    Never a disagreement between journal and receipt, never another mode's
+    line; with the guest's proxy.net class active it is a counted form
+    (`allowed …`, `denied …`, `proxy, no connections`, `proxy, none recorded`),
+    and with it inactive exactly `proxy, not observed`.
+    """
+    if not isinstance(network, str) or 'disagree' in network:
+        return False
+    active = (((guest or {}).get('coverage') or {}).get('proxy.net') or {}).get('status') == 'active'
+    if active:
+        return bool(PROXY_COUNTED.match(network))
+    return network == 'proxy, not observed'
+
+
 def summary_facts(text, guest, transport):
     """What a run summary (or `tail --summary`) says, against the verified records.
 
@@ -705,8 +926,7 @@ def summary_facts(text, guest, transport):
     if mode == 'none':
         facts['network_line_is_the_guests'] = network == 'none'
     elif mode == 'proxy':
-        facts['network_line_is_the_guests'] = (network is not None and network not in ('not applied', 'none')
-                                               and not network.startswith('host'))
+        facts['network_line_is_the_guests'] = proxy_line_is_the_guests(network, guest)
     else:
         facts['network_line_is_the_guests'] = False
     evidence = _line_after(text, 'evidence: ') or ''
@@ -913,10 +1133,14 @@ class ClientProcess:
     stdout, read here by a thread.
     """
 
-    def __init__(self, socket_path, attempt_id, argv, wall, profile='tool'):
+    def __init__(self, socket_path, attempt_id, argv, wall, profile='tool', clock=time.monotonic):
         payload = json.dumps({'socket': str(socket_path), 'attempt_id': attempt_id,
                               'argv': [b64(word) for word in argv], 'wall': wall,
                               'profile': profile})
+        self.attempt_id = attempt_id
+        self.argv_digest = argv_digest(argv)
+        self.profile = profile
+        self.clock = clock
         self.process = subprocess.Popen([sys.executable, '-I', str(Path(__file__).resolve()), 'client'],
                                         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         stderr=subprocess.PIPE, process_group=0)
@@ -935,8 +1159,33 @@ class ClientProcess:
                 event = json.loads(line)
             except ValueError:
                 continue
+            if isinstance(event, dict):
+                event['seen_at'] = self.clock()  # when this host read it, for ordering against a kill
             with self._lock:
                 self.events.append(event)
+
+    def ended_at(self):
+        """When the stream ended or errored (host clock), or None."""
+        ends = [event['seen_at'] for event in self.seen('ended') + self.seen('error')]
+        return min(ends) if ends else None
+
+    def wait_exit(self, timeout):
+        """The exit status within `timeout`, or None; never kills (cf. finish)."""
+        try:
+            return self.process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return None
+
+    def receipt_bound(self):
+        """receipt_bound() for the receipt this client received, if any."""
+        receipts, ready = self.seen('bound_receipt'), self.seen('ready')
+        if len(receipts) != 1 or not ready:
+            return False
+        frame = receipts[0]
+        return receipt_bound({'attempt_id': self.attempt_id, 'argv_digest': self.argv_digest,
+                              'profile': self.profile, 'boot_id': ready[0].get('boot_id'),
+                              'binding': frame.get('binding'), 'receipt_digest_ok': frame.get('digest_ok'),
+                              'receipt': {'argv_digest': frame.get('receipt_argv_digest')}})
 
     def seen(self, name):
         with self._lock:
@@ -1000,7 +1249,14 @@ def client_main():
             if event in ('stdout', 'stderr'):
                 emit(event=event, text=base64.b64decode(message['data']).decode(errors='replace'))
             elif event == 'bound_receipt':
-                emit(event=event, binding=message.get('binding'))
+                raw = base64.b64decode(message['data'])
+                try:
+                    receipt_digest = (json.loads(raw) or {}).get('argv_digest')
+                except (ValueError, AttributeError):
+                    receipt_digest = None
+                emit(event=event, binding=message.get('binding'),
+                     digest_ok=hashlib.sha256(raw).hexdigest() == message.get('sha256'),
+                     receipt_argv_digest=receipt_digest)
             elif event == 'done':
                 emit(event='done', exit_code=message.get('exit_code'))
                 return 0

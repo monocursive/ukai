@@ -17,13 +17,15 @@ lines must state the verified guest receipt's applied facts (D5).
 The token is read at run time from the operator's Claude Code credentials
 (refreshed by running `claude` once beforehand) with at least
 EXPIRY_MARGIN_SECONDS of life left, written to a 0600 single-use source
-outside the repository and deleted on every path out of this script, and
-never printed or passed in an argv: the record carries its shape and byte
-length, and the leak scan proves the value appears in no exported file (the
-attempt directory, this run's output copy, the workspace, the run's own
+outside the repository and deleted on every path out of this script —
+FIRST, before `ukai-vm stop`, so a stop that raises or hangs never leaves it
+— and never printed or passed in an argv: the record carries its shape and
+byte length, and the leak scan proves the value appears in no exported file
+(the attempt directory, this run's output copy, the workspace, the run's own
 stdout/stderr and the tail summary), with no size cap. `ukai-vm stop` runs
 on every path, a timeout included. A previous run's output directory is
-never reused.
+never reused. No field of the host receipt may contradict the verified
+guest receipt (D5), as K111 judges it.
 
 Not measured here (J18 §9.4's Linux-row conditions, which a supported row
 also needs): the A01 fixture, ten repetitions, the no-source refusal,
@@ -138,9 +140,11 @@ def judge(row):
         and row['agent_result'].get('is_error') is False,
         'marker_on_host': (row.get('marker_content') or '') == 'contained\n',
         'guest_receipt_linux': row.get('guest_receipt_linux') is True,
+        'receipt_bound_to_this_attempt': row.get('receipt_bound') is True,
         'token_in_no_export': row.get('token_in_exports') == [] and row.get('files_scanned', 0) > 0,
         'token_in_no_output': row.get('token_in_outputs') == [],
         'tail_summary_ran': row.get('tail_summary_exit') == 0,
+        'host_receipt_never_contradicts_guest': row.get('host_receipt_contradictions') == [],
     }
     facts.update({f'tail_summary_{name}': value is True
                   for name, value in (row.get('tail_summary_facts') or {'transport_line_from_record': False}).items()})
@@ -188,6 +192,7 @@ def main(argv=None, now=time.time, candidates=credential_candidates, run=subproc
         script = ('CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 '
                   f'./{CLAUDE_BINARY} -p {json.dumps(PROMPT)} '
                   '--dangerously-skip-permissions --output-format json')
+        row['argv_digest'] = harness.argv_digest(['/bin/sh', '-c', script])
         started = time.monotonic()
         try:
             done = run(['script', '-q', '/dev/null', str(jail), 'run', '--vm', '--terminal', 'detach',
@@ -209,11 +214,19 @@ def main(argv=None, now=time.time, candidates=credential_candidates, run=subproc
             tail = summary.stdout + summary.stderr
             row['tail_summary_exit'] = summary.returncode
     finally:
-        stop = run([str(home / 'bin/ukai-vm'), 'stop'], env=environment, capture_output=True,
-                   text=True, timeout=60)
-        row['stop_exit'] = stop.returncode
-        source.unlink(missing_ok=True)
-        shutil.rmtree(source_dir, ignore_errors=True)
+        # The token goes first: `ukai-vm stop` may raise or time out, and
+        # nothing after a raise would run.
+        try:
+            source.unlink(missing_ok=True)
+            shutil.rmtree(source_dir, ignore_errors=True)
+        finally:
+            try:
+                stop = run([str(home / 'bin/ukai-vm'), 'stop'], env=environment, capture_output=True,
+                           text=True, timeout=60)
+                row['stop_exit'] = stop.returncode
+            except (OSError, subprocess.SubprocessError) as error:
+                row['stop_exit'] = None
+                row['stop_error'] = type(error).__name__
     row['token_source_removed'] = not source.exists()
 
     attempts = sorted((data / 'attempts').glob('att_*'), key=lambda p: p.stat().st_mtime)
@@ -238,6 +251,7 @@ def main(argv=None, now=time.time, candidates=credential_candidates, run=subproc
                 'result_text': (result.get('result') or '')[:200]},
             'marker_content': marker.read_text() if marker.is_file() else None,
             'guest_receipt_linux': (guest.get('platform') or {}).get('os') == 'linux',
+            'receipt_bound': harness.attempt_dir_bound(attempt, ['/bin/sh', '-c', script]),
             'transport_schema': transport.get('schema'),
             'tail_summary_facts': harness.summary_facts(tail, guest, transport),
             'run_summary_facts': harness.summary_facts(stdout + stderr, guest, transport),
