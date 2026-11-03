@@ -292,11 +292,14 @@ below comes from them):
   whole-second wall in 1–300 and `/dev/null` as standard input (commit
   `36592d114`; K111 and K113 run the client under `script(1)`, which gives
   it a pty and relays nothing from `/dev/null`). A `vm:not-measured`,
-  `vm:not-carried` or
-  `vm:owner-loss-not-provided` answer is parsed from the client's output and
-  recorded as `REFUSED`, never `PASS`, and so is the client's standard-input
-  refusal. Until `GUEST_MEASUREMENTS` has rows, every real-client case
-  refuses that way.
+  `vm:not-carried` or `vm:owner-loss-not-provided` answer is parsed from
+  the client's output and recorded as `REFUSED`, never `PASS`, and so is
+  the client's standard-input refusal: `warm_live.py`'s verdict is
+  `REFUSED` when the real client refused and every warm gate held, and
+  K112 is `REFUSED` when a lane was refused for its standard input. Until
+  `GUEST_MEASUREMENTS` has rows, every real-client case refuses that way.
+  The real client's standard input under these harnesses is covered by
+  the harness's own tests only; its live acceptance is pending.
 - **`fault_matrix.py`** has nine cases, each on its own boot: `secrets`,
   `client-kill`, `client-ctrl-z`, `serve-kill`, `custodian-kill`,
   `vz-kill`, `all-suspended`, `eof` and `serve-group-stop` (a 5 s stop,

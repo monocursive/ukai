@@ -544,6 +544,8 @@ class MacosContract(unittest.TestCase):
                      "`row-k111-<nonce>`", "`installed-modes-normalized`",
                      "directories 0755, files 0755", "`/dev/null` as standard input",
                      "assume-unchanged or skip-worktree", "`rustc -vV`", "`cargo -V`",
+                     "K112 is `REFUSED` when a lane was refused for its standard input",
+                     "its live acceptance is pending",
                      "refuses unless both report that file's exact release",
                      "never an absolute host path",
                      "No rebuild from such an archive under the pinned toolchain has been verified"]:
