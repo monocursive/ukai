@@ -2798,7 +2798,12 @@ executable, a missing interpreter and a permission error are therefore
 distinct in machine fields: (`ENOENT`, `exec_failed`), (`ENOENT`,
 `exec_interpreter_missing`) and (`EACCES`, `exec_failed`); a child exiting 125
 is `exited` with code 125. `refused` is the outcome kind of every other
-pre-exec refusal. Both keep the `refused` phase. `enforced` is the lifecycle phase
+pre-exec refusal. Both keep the `refused` phase. Known deviation, not yet
+reclassified: two launcher refusals after the release record `exec_error`
+although the launcher did not exec, namely a `--from-path` program that
+changed before its exec (`policy_widening`) and a terminal that could not be
+given to the command's process group (`exec_failed`). A failed macOS
+bootstrap strip is `refused` (jail-macos §4.7 class 2). `enforced` is the lifecycle phase
 after target exec, including for a `none`
 run; its `containment` still says none. `settled` requires verified tree death,
 but can preserve unknown execution outcome if evidence was lost. If tree
