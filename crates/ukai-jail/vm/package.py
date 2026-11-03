@@ -139,8 +139,10 @@ def main():
     command('codesign', '--verify', '--strict', REPO / 'target/release/ukai-vm')
     shutil.copy2(REPO / 'target/release/ukai-vm', binaries / 'ukai-vm')
     # The installer helper keeps the preview's install-time verbs
-    # (`expand-image`, `doctor`, `version`); only install.sh calls it.
-    command(sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir', '--console',
+    # (`expand-image`, `doctor`, `version`); only install.sh calls it. A
+    # onefile build keeps `bin/` free of a second `_internal` tree beside
+    # the service binary.
+    command(sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onefile', '--console',
             '--name', 'ukai-vm-install', '--codesign-identity', args.identity,
             '--distpath', out / 'dist', '--workpath', out / 'work', '--specpath', out,
             SOURCE / 'cli.py')
