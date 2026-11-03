@@ -311,63 +311,64 @@ pub(crate) fn probe_leftovers(workspace: &Path) -> Vec<std::path::PathBuf> {
         .unwrap_or_default()
 }
 
+/// A volume of its own for one test, attached beneath a private temporary
+/// directory (never a fixed `/Volumes` name) and detached when dropped:
+/// `fs` is `hdiutil`'s file system name ("Case-sensitive APFS", "APFS").
+/// `None` where `hdiutil` cannot make one.
+#[cfg(all(test, target_os = "macos"))]
+pub(super) struct TestVolume {
+    pub(super) mount: std::path::PathBuf,
+    _dir: tempfile::TempDir,
+}
+
+#[cfg(all(test, target_os = "macos"))]
+impl TestVolume {
+    pub(super) fn attach(fs: &str) -> Option<Self> {
+        let dir = tempfile::tempdir().ok()?;
+        let image = dir.path().join("share.sparseimage");
+        let mount = dir.path().join("mount");
+        std::fs::create_dir(&mount).ok()?;
+        let created = std::process::Command::new("/usr/bin/hdiutil")
+            .args(["create", "-quiet", "-size", "16m", "-type", "SPARSE", "-fs"])
+            .arg(fs)
+            .args(["-volname", "ukai-share-test"])
+            .arg(&image)
+            .status()
+            .ok()?;
+        if !created.success() {
+            return None;
+        }
+        let attached = std::process::Command::new("/usr/bin/hdiutil")
+            .args([
+                "attach",
+                "-quiet",
+                "-nobrowse",
+                "-noautoopen",
+                "-mountpoint",
+            ])
+            .arg(&mount)
+            .arg(&image)
+            .status()
+            .ok()?;
+        attached
+            .success()
+            .then_some(TestVolume { mount, _dir: dir })
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+impl Drop for TestVolume {
+    fn drop(&mut self) {
+        let _ = std::process::Command::new("/usr/bin/hdiutil")
+            .args(["detach", "-quiet", "-force"])
+            .arg(&self.mount)
+            .status();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// A case-sensitive APFS volume, attached for one test beneath a private
-    /// temporary directory (never a fixed `/Volumes` name) and detached when
-    /// dropped. `None` where `hdiutil` cannot make one.
-    #[cfg(target_os = "macos")]
-    struct CaseSensitiveVolume {
-        mount: std::path::PathBuf,
-        _dir: tempfile::TempDir,
-    }
-
-    #[cfg(target_os = "macos")]
-    impl CaseSensitiveVolume {
-        fn attach() -> Option<Self> {
-            let dir = tempfile::tempdir().ok()?;
-            let image = dir.path().join("share.sparseimage");
-            let mount = dir.path().join("mount");
-            std::fs::create_dir(&mount).ok()?;
-            let created = std::process::Command::new("/usr/bin/hdiutil")
-                .args(["create", "-quiet", "-size", "16m", "-type", "SPARSE", "-fs"])
-                .arg("Case-sensitive APFS")
-                .args(["-volname", "ukai-share-test"])
-                .arg(&image)
-                .status()
-                .ok()?;
-            if !created.success() {
-                return None;
-            }
-            let attached = std::process::Command::new("/usr/bin/hdiutil")
-                .args([
-                    "attach",
-                    "-quiet",
-                    "-nobrowse",
-                    "-noautoopen",
-                    "-mountpoint",
-                ])
-                .arg(&mount)
-                .arg(&image)
-                .status()
-                .ok()?;
-            attached
-                .success()
-                .then_some(CaseSensitiveVolume { mount, _dir: dir })
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    impl Drop for CaseSensitiveVolume {
-        fn drop(&mut self) {
-            let _ = std::process::Command::new("/usr/bin/hdiutil")
-                .args(["detach", "-quiet", "-force"])
-                .arg(&self.mount)
-                .status();
-        }
-    }
 
     /// A workspace the folding probes accept: a directory on a fresh
     /// case-sensitive volume, or on the temporary volume when that already
@@ -380,7 +381,7 @@ mod tests {
             return Some((path, Box::new(temp)));
         }
         #[cfg(target_os = "macos")]
-        if let Some(volume) = CaseSensitiveVolume::attach() {
+        if let Some(volume) = TestVolume::attach("Case-sensitive APFS") {
             let path = volume.mount.join("work");
             std::fs::create_dir(&path).ok()?;
             return Some((path, Box::new(volume)));
@@ -443,7 +444,7 @@ mod tests {
         #[cfg(target_os = "macos")]
         {
             // A real one: a volume attached inside the workspace.
-            let Some(volume) = CaseSensitiveVolume::attach() else {
+            let Some(volume) = TestVolume::attach("Case-sensitive APFS") else {
                 eprintln!("no hdiutil volume: the real nested mount is not exercised");
                 return;
             };
@@ -453,20 +454,70 @@ mod tests {
         }
     }
 
+    /// Whether the volume beneath `directory` folds case, measured apart
+    /// from the preflight: a lower-case file, then a look-up of its
+    /// upper-case twin.
+    fn folds_case(directory: &Path) -> bool {
+        std::fs::write(directory.join("x"), "x").unwrap();
+        let folds = std::fs::symlink_metadata(directory.join("X")).is_ok();
+        std::fs::remove_file(directory.join("x")).unwrap();
+        folds
+    }
+
+    /// K109 (the measured escape: a guest write to `.GIT/config` lands in
+    /// `.git/config`): where the temporary volume folds case, as the Mac's
+    /// default does, the preflight refuses with the remedy; where it does
+    /// not, it passes and says so. The two are told apart independently.
     #[test]
     fn the_default_volume_folds_case_and_is_refused_with_the_remedy() {
-        // The Mac's default volume folds case; a clean workspace there must
-        // refuse. A host with a case-sensitive default volume passes.
         let root = tempfile::tempdir().unwrap();
         std::fs::write(root.path().join("file.txt"), "x").unwrap();
+        let folds = folds_case(root.path());
         match preflight(root.path()) {
             Err(error) => {
+                assert!(folds, "refused on a volume that does not fold: {error}");
                 assert!(error.contains("folds case"), "{error}");
                 assert!(error.contains("case-sensitive"), "{error}");
             }
-            Ok(facts) => assert!(!facts.case_fold),
+            Ok(facts) => {
+                assert!(!folds, "a case-folding volume passed the preflight");
+                assert!(!facts.case_fold);
+            }
         }
         assert!(probe_leftovers(root.path()).is_empty());
+    }
+
+    /// The same refusal on a case-insensitive volume made for the test, so
+    /// it runs on every Mac, whatever its default volume.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_case_insensitive_volume_is_refused() {
+        let volume = TestVolume::attach("APFS").expect("a case-insensitive hdiutil volume");
+        let work = volume.mount.join("work");
+        std::fs::create_dir(&work).unwrap();
+        assert!(folds_case(&work), "APFS folds case");
+        let error = preflight(&work).unwrap_err();
+        assert!(error.contains("folds case"), "{error}");
+        assert!(probe_leftovers(&work).is_empty());
+    }
+
+    /// The probe directory is private (0700) and its name random: two
+    /// probes of one workspace, the first not yet removed, never share one.
+    #[test]
+    fn the_probe_directory_is_private_and_fresh_per_probe() {
+        let root = tempfile::tempdir().unwrap();
+        let workspace = open_directory(root.path()).unwrap();
+        let (first, directory) = probe_directory(&workspace).unwrap();
+        // SAFETY: an all-zero `stat` is a valid out-buffer for `fstat`.
+        let mut status: libc::stat = unsafe { std::mem::zeroed() };
+        // SAFETY: `fstat` on the owned descriptor with a valid out-buffer.
+        let read = unsafe { libc::fstat(directory.as_raw_fd(), &mut status) };
+        assert_eq!(read, 0);
+        assert_eq!(status.st_mode & 0o7777, 0o700);
+        let (second, _other) = probe_directory(&workspace).unwrap();
+        assert_ne!(first, second);
+        assert!(first.starts_with(PROBE_PREFIX) && second.starts_with(PROBE_PREFIX));
+        assert_eq!(probe_leftovers(root.path()).len(), 2);
     }
 
     /// The pass path, on a case-sensitive volume: no case fold, the
