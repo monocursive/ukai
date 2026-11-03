@@ -23,6 +23,9 @@ fn binding() -> protocol::ReceiptBinding {
     }
 }
 
+/// The policy digest the stand-in attempts derive for their guest jail.
+const GUEST_POLICY: &str = "sha256:guest-policy";
+
 /// A complete offline guest receipt: every group the host verifies and
 /// mirrors, in the guest jail's own shape.
 fn receipt() -> Value {
@@ -30,8 +33,9 @@ fn receipt() -> Value {
     serde_json::json!({
         "schema": "ukai.jail.receipt/1", "attempt_id": "guest-attempt",
         "platform": {"os": "linux", "arch": "aarch64", "kernel": "Linux 7.0.0-38-generic"},
-        "policy": {"name":"tool"}, "argv_digest":"sha256:argv", "containment":"enforced",
+        "policy": {"name": "tool", "digest": GUEST_POLICY}, "argv_digest":"sha256:argv", "containment":"enforced",
         "child_protection":"enforced", "exec_observed":true, "state_cleanup":"complete", "errors":[],
+        "outcome": {"kind": "exited", "code": 0, "signal": null, "cause": null, "error": null},
         "process":{"identity":{"value":{"boot_id":"guest-boot"}}},
         "lifetime":{"boundary":"pid_namespace","tree_empty":true,"integrity":"verified"},
         "applied":{
@@ -93,6 +97,7 @@ fn running_with(network: image::GuestNetwork) -> (VmRunning, UnixStream, tempfil
         }))
         .unwrap(),
         network,
+        guest_policy_digest: GUEST_POLICY.into(),
         stdout: std::fs::File::create(dir.path().join("stdout")).unwrap(),
         stderr: std::fs::File::create(dir.path().join("stderr")).unwrap(),
     };
@@ -327,14 +332,18 @@ fn digest_mismatch_and_duplicate_receipt_refuse() {
             .contains("digest")
     );
     run.store_receipt(&hash, &data, &binding()).unwrap();
-    assert!(run.store_receipt(&hash, &data, &binding()).is_err());
+    assert_eq!(
+        run.store_receipt(&hash, &data, &binding()).unwrap_err(),
+        "duplicate guest receipt",
+        "refused as a duplicate, not by the export's exclusive create"
+    );
     assert_eq!(
         std::fs::read(dir.path().join("evidence/jail.json")).unwrap(),
         serde_json::to_vec(&receipt()).unwrap()
     );
-    assert_eq!(
-        serde_json::to_value(run.final_limits()).unwrap(),
-        receipt()["applied"]["limits"]
+    assert!(
+        run.final_limits().is_empty(),
+        "no guest row reaches the host before the attempt verified"
     );
 }
 
@@ -568,10 +577,7 @@ fn extra_guest_limit_rows_are_more_enforcement_not_mismatches() {
         assert!(run.receipt.is_none());
         let (hash, data) = encoded(&receipt());
         run.store_receipt(&hash, &data, &binding()).unwrap();
-        assert_eq!(
-            serde_json::to_value(run.final_limits()).unwrap(),
-            receipt()["applied"]["limits"]
-        );
+        assert!(run.receipt.is_some());
     }
 }
 
@@ -607,6 +613,7 @@ fn guest_facts_are_the_verified_receipts_and_only_after_done() {
     };
     run.store_receipt(&hash, &data, &bind).unwrap();
     assert_eq!(run.guest_facts(), None, "no facts before `done`");
+    assert!(run.final_limits().is_empty(), "no rows before `done`");
     peer.write_all(&protocol::encode(&protocol::FromVm::Done { exit_code: 0 }).unwrap())
         .unwrap();
     assert!(matches!(
@@ -640,6 +647,10 @@ fn guest_facts_are_the_verified_receipts_and_only_after_done() {
         serde_json::json!(GuestFacts::CARRIED)
     );
     assert!(dir.path().join(record::TRANSPORT_FILE).is_file());
+    assert_eq!(
+        serde_json::to_value(run.final_limits()).unwrap(),
+        guest["applied"]["limits"]
+    );
     assert_eq!(run.wait_tree(Duration::ZERO).tree_empty, Some(true));
 }
 
@@ -1375,8 +1386,12 @@ fn the_vault_hand_off_is_the_staged_secret_and_the_snapshot() {
     assert!(!Path::new("/secrets/api-token").exists());
     let secret = staged_secret(&snapshot, b"s3cret-value");
     let plan = prepared_plan(snapshot.clone(), Some("svc"), vec![secret]);
-    let (launch, secrets) = vault_launch(&plan).expect("the hand-off");
-    let launch = launch.expect("a declaration");
+    let VaultLaunch {
+        declaration,
+        parsed: loaded,
+        secrets,
+    } = vault_launch(&plan).expect("the hand-off");
+    let launch = declaration.expect("a declaration");
     assert_eq!(launch.name, "svc");
     assert_eq!(
         secrets,
@@ -1401,11 +1416,12 @@ fn the_vault_hand_off_is_the_staged_secret_and_the_snapshot() {
         }]
     );
     assert_eq!(parsed.jail, ProfileName::Agent);
+    assert_eq!(loaded.as_ref(), Some(&parsed), "the loader's own reading");
     assert!(!launch.toml.contains("/secrets/api-token"));
     assert!(!launch.toml.contains("s3cret"));
     // No credentials: no declaration, nothing staged.
     let plan = prepared_plan(agent(), Some("svc"), Vec::new());
-    assert_eq!(vault_launch(&plan).unwrap(), (None, Vec::new()));
+    assert_eq!(vault_launch(&plan).unwrap(), VaultLaunch::default());
 }
 
 /// Every vault refusal: no staged value, a value the policy does not
@@ -1497,7 +1513,7 @@ fn prepare_refuses_policy_and_vault_before_any_contact() {
             workspace: workspace.path().to_path_buf(),
             ..plan
         };
-        let Err(error) = VmExecution::prepare(&platform, plan, Sinks { trace: None }) else {
+        let Err(error) = VmExecution::prepare(&platform, plan, Sinks { trace: None }, None) else {
             panic!("{expected}: prepared");
         };
         assert!(error.message.contains(expected), "{error}");
@@ -1617,7 +1633,11 @@ fn a_spawned_serve_gets_the_status_checks_of_a_reused_one() {
                         "{text} (spawned {spawned}): {error}"
                     );
                 }
-                None => result.unwrap_or_else(|error| panic!("spawned {spawned}: {error}")),
+                None => assert_eq!(
+                    result.unwrap_or_else(|error| panic!("spawned {spawned}: {error}")),
+                    "vm-test",
+                    "the checked serve's boot"
+                ),
             }
             server.join().unwrap();
         }
@@ -1647,7 +1667,7 @@ fn a_serve_that_exits_first_is_refused_with_its_stderr() {
         started.elapsed() < Duration::from_secs(10),
         "noticed, not waited out"
     );
-    let stderr = vm_runtime_dir(data.path()).join(SERVE_STDERR);
+    let stderr = vm_runtime_dir(data.path()).join(SERVE_STDERR_FAILED);
     assert_eq!(
         std::fs::read_to_string(&stderr).unwrap(),
         "ukai-vm: the image is gone\n"
@@ -1918,7 +1938,7 @@ fn every_declared_credential_needs_its_own_staged_value() {
         )
         .unwrap(),
     );
-    let (_, secrets) =
+    let VaultLaunch { secrets, .. } =
         vault_launch(&prepared_plan(snapshot, Some("svc"), vec![second, first])).unwrap();
     assert_eq!(
         secrets,
@@ -1933,4 +1953,844 @@ fn every_declared_credential_needs_its_own_staged_value() {
             },
         ]
     );
+}
+
+// ---------------------------------------------------------------------------
+// Review round 2 (fix-1103/rev-vmhost): the outcome, the wall hit, the serve
+// binding, the deadline, the staged secrets, standard input, the guest's
+// policy, and the receipt checks the first round left untested.
+// ---------------------------------------------------------------------------
+
+/// Sends `receipt` bound and `done` with `exit_code` to a fresh attempt,
+/// and returns what the host relays and whether it mirrors the guest.
+fn finish(receipt: &Value, exit_code: i32) -> (RunEvent, Option<GuestFacts>) {
+    let (mut run, mut peer, _dir) = running();
+    let (sha256, data) = encoded(receipt);
+    peer.write_all(
+        &protocol::encode(&protocol::FromVm::BoundReceipt {
+            sha256,
+            data,
+            binding: binding(),
+        })
+        .unwrap(),
+    )
+    .unwrap();
+    peer.write_all(&protocol::encode(&protocol::FromVm::Done { exit_code }).unwrap())
+        .unwrap();
+    let event = run.wait(soon());
+    (event, run.guest_facts())
+}
+
+fn with_outcome(kind: &str, code: Option<u8>, signal: Option<u32>) -> Value {
+    let mut changed = receipt();
+    changed["outcome"] = serde_json::json!({
+        "kind": kind, "code": code, "signal": signal, "cause": null, "error": null
+    });
+    changed
+}
+
+/// Review X1 (decision D5): the host relays the verified receipt's outcome,
+/// and a `done` whose status disagrees with it is refused, so no host
+/// receipt records an exit the guest receipt it mirrors contradicts.
+#[test]
+fn the_relayed_outcome_is_the_verified_receipts() {
+    let (event, facts) = finish(&with_outcome("exited", Some(1), None), 0);
+    assert!(
+        matches!(&event, RunEvent::Unknown { reason } if reason.contains("exit status 0")),
+        "{event:?}"
+    );
+    assert!(facts.is_none(), "nothing mirrored");
+    let (event, facts) = finish(&with_outcome("exited", Some(3), None), 3);
+    assert!(
+        matches!(event, RunEvent::TargetExited { code: 3 }),
+        "{event:?}"
+    );
+    assert!(facts.is_some());
+    let (event, facts) = finish(&with_outcome("signaled", None, Some(9)), 137);
+    assert!(
+        matches!(event, RunEvent::TargetSignaled { signal: 9 }),
+        "{event:?}"
+    );
+    assert_eq!(facts.unwrap().outcome.signal, Some(9));
+    // The same outcome read by the tree's verification after a stop.
+    let (mut run, mut peer, _dir) = running();
+    let (sha256, data) = encoded(&with_outcome("signaled", None, Some(9)));
+    for frame in [
+        protocol::FromVm::BoundReceipt {
+            sha256,
+            data,
+            binding: binding(),
+        },
+        protocol::FromVm::Done { exit_code: 137 },
+    ] {
+        peer.write_all(&protocol::encode(&frame).unwrap()).unwrap();
+    }
+    assert_eq!(run.wait_tree(Duration::from_secs(1)).tree_empty, Some(true));
+    assert!(run.guest_facts().is_some());
+    for (receipt, status) in [
+        (with_outcome("signaled", None, Some(9)), 9),
+        (with_outcome("exited", Some(137), None), 9),
+        (with_outcome("exec_error", None, None), 1),
+        (with_outcome("exited", None, None), 0),
+    ] {
+        let (event, facts) = finish(&receipt, status);
+        assert!(
+            matches!(event, RunEvent::Unknown { .. }),
+            "{}: {event:?}",
+            receipt["outcome"]
+        );
+        assert!(facts.is_none());
+    }
+}
+
+/// Review X2 (decision D5): "a limit hit the host itself observed (its wall
+/// deadline) stays a hit". The settle reads the host's hits before any
+/// platform row replaces the host's, so the guest's row (hit false) cannot
+/// erase the host's own expiry from the settled receipt.
+struct WallSim;
+struct WallPrepared;
+struct WallRunning {
+    waits: u32,
+}
+
+impl Platform for WallSim {
+    fn identity(&self) -> PlatformIdentity {
+        GuestSim.identity()
+    }
+    fn state_identity(&self) -> PlatformIdentity {
+        GuestSim.state_identity()
+    }
+    fn owner_identity(&self) -> Option<crate::platform::OwnerIdentity> {
+        GuestSim.owner_identity()
+    }
+    fn probe(&self, plan: &PlanRequest) -> Vec<Capability> {
+        GuestSim.probe(plan)
+    }
+    fn prepare(&self, _: PreparedPlan, _: Sinks) -> Result<Box<dyn PreparedExecution>, JailError> {
+        Ok(Box::new(WallPrepared))
+    }
+}
+
+impl PreparedExecution for WallPrepared {
+    fn boundary(&self) -> BoundaryIdentity {
+        GuestPrepared.boundary()
+    }
+    fn release(self: Box<Self>) -> Result<Box<dyn RunningExecution>, Box<ReleaseFailure>> {
+        Ok(Box::new(WallRunning { waits: 0 }))
+    }
+    fn abort(self: Box<Self>) -> Result<Teardown, JailError> {
+        Ok(Teardown { tree: None })
+    }
+}
+
+impl RunningExecution for WallRunning {
+    // A platform whose final rows are the guest's (hit false): the order of
+    // the settle, not this platform, must keep the host's hit.
+    fn final_limits(&self) -> Vec<AppliedLimit> {
+        serde_json::from_value(k113_guest()["applied"]["limits"].clone()).unwrap()
+    }
+    fn wait(&mut self, _: Deadline) -> RunEvent {
+        self.waits += 1;
+        if self.waits == 1 {
+            RunEvent::WallExpired
+        } else {
+            RunEvent::TargetExited { code: 137 }
+        }
+    }
+    fn request_stop(&mut self, _: StopReason) {}
+    fn wait_tree(&mut self, _: Duration) -> TreeObservation {
+        TreeObservation {
+            tree_empty: Some(true),
+            verified_at: None,
+            verification_scope: VerificationScope::AttemptTree,
+            integrity: Integrity::Verified,
+        }
+    }
+    fn observer_summary(&mut self) -> Option<crate::observer::CoverageSummary> {
+        None
+    }
+    fn guest_facts(&self) -> Option<GuestFacts> {
+        guest_facts(&k113_guest(), &"5".repeat(64)).ok()
+    }
+}
+
+#[test]
+fn the_host_wall_hit_survives_settlement() {
+    use clap::Parser as _;
+    let temp = common_temp();
+    let root = temp.path().canonicalize().unwrap();
+    let workspace = root.join("workspace");
+    std::fs::create_dir(&workspace).unwrap();
+    let crate::cli::Command::Run(args) = crate::cli::Cli::parse_from([
+        "ukai-jail",
+        "run",
+        "--profile",
+        "agent",
+        "--terminal",
+        "detach",
+        "--limit",
+        "wall=60s",
+        "--workspace",
+        workspace.to_str().unwrap(),
+        "--",
+        "/bin/true",
+    ])
+    .command
+    else {
+        unreachable!()
+    };
+    let context = crate::supervisor::Context {
+        platform: Box::new(WallSim),
+        env_settings: crate::config::EnvSettings {
+            config_dir: Some(root.join("config")),
+            data_dir: Some(root.join("data")),
+            ..Default::default()
+        },
+        cwd: workspace.clone(),
+        home: None,
+        env_lookup: Box::new(|_| None),
+    };
+    let report = crate::supervisor::run(&context, &args);
+    let receipt_path = report.receipt_path.expect("a receipt");
+    let host: Value = serde_json::from_slice(&std::fs::read(&receipt_path).unwrap()).unwrap();
+    assert_eq!(host["outcome"]["cause"], "wall_expiry");
+    let wall = host["applied"]["limits"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["key"] == "wall")
+        .unwrap()
+        .clone();
+    assert_eq!(
+        wall["hit"], true,
+        "the host's wall expired (outcome {}), yet the settled wall row says {wall}",
+        host["outcome"]
+    );
+}
+
+/// A workspace on a case-sensitive volume of its own, which the share
+/// preflight accepts (the Mac's default volume folds case).
+fn shareable_workspace() -> (share::TestVolume, PathBuf) {
+    let volume = share::TestVolume::attach("Case-sensitive APFS")
+        .expect("a case-sensitive hdiutil volume for the live share");
+    let workspace = volume.mount.join("work");
+    std::fs::create_dir(&workspace).unwrap();
+    let workspace = workspace.canonicalize().unwrap();
+    (volume, workspace)
+}
+
+fn ready(boot_id: &str) -> protocol::FromVm {
+    protocol::FromVm::Ready {
+        schema: protocol::SCHEMA_ATTEMPT.into(),
+        boot_id: boot_id.into(),
+        disk_sha256: "d".repeat(64),
+        helper_sha256: "h".repeat(64),
+        custodian_sha256: "c".repeat(64),
+        seed_sha256: "s".repeat(64),
+        vsock_port: 1024,
+    }
+}
+
+/// Reads one line from `stream`, or what arrived before its end.
+fn read_line(stream: &mut UnixStream) -> Vec<u8> {
+    let mut line = Vec::new();
+    let mut byte = [0u8; 1];
+    while stream.read(&mut byte).unwrap_or(0) == 1 && byte[0] != b'\n' {
+        line.push(byte[0]);
+    }
+    line
+}
+
+/// A stand-in serve for `VmExecution::prepare` beneath a fresh data
+/// directory: its control socket answers `status` with `status`, and its
+/// attempt socket's one connection is handed to `guest`. `prepare` runs on
+/// its own thread and its result is returned (the prepared attempt's
+/// derived guest policy digest), or `None` when it did not return within
+/// `wait` (a wait the deadline does not bound).
+fn prepare_against(
+    plan: PreparedPlan,
+    status: protocol::FromControl,
+    guest: impl FnOnce(UnixStream) + Send + 'static,
+    wait: Duration,
+) -> Option<Result<String, String>> {
+    let data = tempfile::tempdir().unwrap();
+    let platform = platform(data.path());
+    let control_socket = platform.control_socket();
+    let server = fake_control(control_socket.clone(), Duration::ZERO, status);
+    while !control::is_listening(&control_socket) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let listener = UnixListener::bind(control::attempt_socket(data.path())).unwrap();
+    std::thread::spawn(move || {
+        if let Ok((stream, _)) = listener.accept() {
+            guest(stream);
+        }
+    });
+    let attempt_dir = data.path().join("attempt");
+    std::fs::create_dir(&attempt_dir).unwrap();
+    let plan = PreparedPlan {
+        attempt_dir,
+        ..plan
+    };
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let result = VmExecution::prepare(&platform, plan, Sinks { trace: None }, None)
+            .map(|execution| execution.guest_policy_digest)
+            .map_err(|error| error.message);
+        let _ = sender.send(result);
+    });
+    let result = receiver.recv_timeout(wait).ok();
+    if result.is_some() {
+        server.join().unwrap();
+    }
+    drop(data);
+    result
+}
+
+/// A guest that answers `ready` from `boot_id`, then `prepared` with
+/// `staged`, holding the connection a moment.
+fn answering(
+    boot_id: &'static str,
+    staged: Vec<(String, String)>,
+) -> impl FnOnce(UnixStream) + Send + 'static {
+    move |mut stream| {
+        let _ = stream.write_all(&protocol::encode(&ready(boot_id)).unwrap());
+        let _ = read_line(&mut stream);
+        let _ = stream.write_all(
+            &protocol::encode(&protocol::FromVm::Prepared {
+                kernel: "guest-kernel".into(),
+                staged_secrets: staged,
+            })
+            .unwrap(),
+        );
+        std::thread::sleep(Duration::from_millis(300));
+    }
+}
+
+/// Review X3 (decision D4): the attempt connection must come from the very
+/// serve whose status was checked. A `ready` from another boot (the checked
+/// serve exited and another run's serve, for another tree, took the
+/// sockets) is refused before anything is staged.
+#[test]
+fn the_attempt_connection_must_come_from_the_checked_serve() {
+    let (_volume, workspace) = shareable_workspace();
+    let plan = || PreparedPlan {
+        workspace: workspace.clone(),
+        ..prepared_plan(tool(), None, Vec::new())
+    };
+    let wait = Duration::from_secs(20);
+    let error = prepare_against(
+        plan(),
+        status(Some(&workspace), false),
+        answering("vm-another-boot", Vec::new()),
+        wait,
+    )
+    .expect("prepare returned")
+    .unwrap_err();
+    assert!(error.contains("boot vm-another-boot"), "{error}");
+    assert!(error.contains("boot vm-test"), "{error}");
+    let digest = prepare_against(
+        plan(),
+        status(Some(&workspace), false),
+        answering("vm-test", Vec::new()),
+        wait,
+    )
+    .expect("prepare returned")
+    .expect("the checked serve's own boot prepares");
+    // The policy the receipt is held to is the guest jail's, at the share's
+    // mount, not the host workspace's.
+    assert_eq!(
+        digest,
+        guest_snapshot(&tool(), 60, None, GUEST_SHARE_MOUNT.as_bytes())
+            .unwrap()
+            .digest()
+            .unwrap()
+    );
+    // A serve running another image than the verified installation.
+    let mut other = status(Some(&workspace), false);
+    if let protocol::FromControl::Status { disk_sha256, .. } = &mut other {
+        *disk_sha256 = "e".repeat(64);
+    }
+    let error = prepare_against(plan(), other, answering("vm-test", Vec::new()), wait)
+        .expect("prepare returned")
+        .unwrap_err();
+    assert!(error.contains("another image"), "{error}");
+}
+
+/// Review F11c (decision D3): the guest must acknowledge exactly the
+/// secrets sent, each staged where the generated declaration names its
+/// source; a missing, misplaced or extra one is refused before the release.
+#[test]
+fn the_guest_must_acknowledge_exactly_the_secrets_sent() {
+    let (_volume, workspace) = shareable_workspace();
+    let snapshot = agent_with_launch(VAULT_LAUNCH);
+    let secret = staged_secret(&snapshot, b"s3cret-value");
+    let plan = || PreparedPlan {
+        workspace: workspace.clone(),
+        ..prepared_plan(snapshot.clone(), Some("svc"), vec![secret.clone()])
+    };
+    let staged = |id: &str, path: &str| (id.to_owned(), path.to_owned());
+    let right = format!("{GUEST_CREDENTIAL_ROOT}/api.token");
+    for (acknowledged, accepted) in [
+        (Vec::new(), false),
+        (vec![staged("api.token", "/tmp/api.token")], false),
+        (
+            vec![staged("api.token", &right), staged("other", "/run/other")],
+            false,
+        ),
+        (vec![staged("api.token", &right)], true),
+    ] {
+        let shown = format!("{acknowledged:?}");
+        let result = prepare_against(
+            plan(),
+            status(Some(&workspace), true),
+            answering("vm-test", acknowledged),
+            Duration::from_secs(20),
+        )
+        .expect("prepare returned");
+        match (result, accepted) {
+            (Ok(_), true) => {}
+            (Err(error), false) => {
+                assert!(error.contains("acknowledged the staged secrets"), "{error}");
+            }
+            (other, _) => panic!("{shown}: {other:?}"),
+        }
+    }
+}
+
+/// Review F9 (decision D4): every wait of the preparation is bounded by its
+/// deadline: the serve's status, the first frame, the staging's write and
+/// the guest's acceptance. Each stand-in stalls one of them; `prepare`
+/// returns within a few seconds of a one-second budget, where the fixed
+/// bounds would take 5 s, 180 s, 30 s and 30 s.
+#[test]
+fn the_preparation_deadline_bounds_every_handshake_wait() {
+    let (_volume, workspace) = shareable_workspace();
+    let budget = Duration::from_secs(1);
+    let plan = |argv: Vec<u8>| PreparedPlan {
+        workspace: workspace.clone(),
+        argv: vec![argv],
+        prepare_deadline: ContinuousDeadline::after(budget),
+        ..prepared_plan(tool(), None, Vec::new())
+    };
+    let silent = |mut stream: UnixStream| {
+        let _ = read_line(&mut stream);
+        std::thread::sleep(Duration::from_secs(40));
+    };
+    let ready_then = |reads: bool| {
+        move |mut stream: UnixStream| {
+            let _ = stream.write_all(&protocol::encode(&ready("vm-test")).unwrap());
+            if reads {
+                let _ = read_line(&mut stream);
+            }
+            std::thread::sleep(Duration::from_secs(40));
+        }
+    };
+    type Guest = Box<dyn FnOnce(UnixStream) + Send>;
+    let cases: Vec<(&str, Vec<u8>, Guest, &str)> = vec![
+        (
+            "ready",
+            b"/bin/true".to_vec(),
+            Box::new(silent),
+            "did not finish booting",
+        ),
+        (
+            "prepared",
+            b"/bin/true".to_vec(),
+            Box::new(ready_then(true)),
+            "did not accept the staging",
+        ),
+        (
+            "write",
+            vec![b'a'; 1024 * 1024],
+            Box::new(ready_then(false)),
+            "failed to write within",
+        ),
+    ];
+    for (what, argv, guest, expected) in cases {
+        let started = Instant::now();
+        let error = prepare_against(
+            plan(argv),
+            status(Some(&workspace), false),
+            guest,
+            Duration::from_secs(10),
+        )
+        .unwrap_or_else(|| panic!("{what}: the wait outlived the deadline"))
+        .unwrap_err();
+        assert!(error.contains(expected), "{what}: {error}");
+        assert!(started.elapsed() < Duration::from_secs(5), "{what}");
+    }
+}
+
+/// The serve's status, too, is read within the deadline: a control socket
+/// that accepts and never answers holds `ensure_serving` for what is left
+/// of the budget, not the fixed five seconds.
+#[test]
+fn the_status_read_is_bounded_by_the_deadline() {
+    let data = tempfile::tempdir().unwrap();
+    let platform = platform(data.path());
+    let socket = platform.control_socket();
+    std::fs::create_dir_all(socket.parent().unwrap()).unwrap();
+    let listener = UnixListener::bind(&socket).unwrap();
+    std::thread::spawn(move || {
+        let mut held = Vec::new();
+        for stream in listener.incoming() {
+            held.push(stream);
+        }
+    });
+    let started = Instant::now();
+    let error = platform
+        .serve_with(
+            data.path(),
+            false,
+            ContinuousDeadline::after(Duration::from_millis(300)),
+            || panic!("a serve answers"),
+        )
+        .unwrap_err();
+    assert!(error.message.contains("timed out"), "{error}");
+    assert!(
+        started.elapsed() < Duration::from_secs(3),
+        "{:?}",
+        started.elapsed()
+    );
+    let error = platform
+        .serve_with(
+            data.path(),
+            false,
+            ContinuousDeadline::after(Duration::ZERO),
+            || panic!("a serve answers"),
+        )
+        .unwrap_err();
+    assert!(error.message.contains("budget was spent"), "{error}");
+}
+
+/// Review F11e (decision D4): two serves spawned at once each write their
+/// own private file, so a refusal quotes only what its own serve said.
+#[test]
+fn concurrent_spawns_quote_only_their_own_stderr() {
+    let temp = common_temp();
+    let data = tempfile::tempdir().unwrap();
+    let slow = serve_script(temp.path(), "echo 'alpha said this' >&2; sleep 1; exit 3");
+    let fast_dir = temp.path().join("fast");
+    std::fs::create_dir(&fast_dir).unwrap();
+    let fast = serve_script(&fast_dir, "echo 'bravo' >&2; exit 4");
+    let first = {
+        let platform = platform(data.path());
+        let workspace = temp.path().to_path_buf();
+        std::thread::spawn(move || {
+            platform
+                .serve_with(
+                    &workspace,
+                    false,
+                    ContinuousDeadline::after(Duration::from_secs(20)),
+                    || Ok(slow),
+                )
+                .unwrap_err()
+                .message
+        })
+    };
+    std::thread::sleep(Duration::from_millis(300));
+    let second = platform(data.path())
+        .serve_with(
+            temp.path(),
+            false,
+            ContinuousDeadline::after(Duration::from_secs(20)),
+            || Ok(fast),
+        )
+        .unwrap_err()
+        .message;
+    let first = first.join().unwrap();
+    assert!(first.contains("alpha said this"), "{first}");
+    assert!(!first.contains("bravo"), "{first}");
+    assert!(second.contains("bravo"), "{second}");
+    assert!(!second.contains("alpha"), "{second}");
+    let runtime = vm_runtime_dir(data.path());
+    let left: Vec<_> = std::fs::read_dir(&runtime)
+        .unwrap()
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with("serve-") && name != SERVE_STDERR_FAILED)
+        .collect();
+    assert!(left.is_empty(), "per-spawn files are renamed: {left:?}");
+}
+
+/// Review F11d: the guest jail's standard input is /dev/null, so a pipe, a
+/// file or a socket on the operator's would be dropped in silence; those
+/// are refused, a terminal, /dev/null and a closed descriptor are not.
+#[test]
+fn standard_input_the_guest_never_reads_is_named() {
+    use std::os::fd::AsRawFd as _;
+    let (reader, _writer) = std::io::pipe().unwrap();
+    assert_eq!(undelivered_stdin(reader.as_raw_fd()), Some("a pipe"));
+    let file = tempfile::tempfile().unwrap();
+    assert_eq!(undelivered_stdin(file.as_raw_fd()), Some("a file"));
+    let (socket, _peer) = UnixStream::pair().unwrap();
+    assert_eq!(undelivered_stdin(socket.as_raw_fd()), Some("a socket"));
+    let null = std::fs::File::open("/dev/null").unwrap();
+    assert_eq!(undelivered_stdin(null.as_raw_fd()), None);
+    let zero = std::fs::File::open("/dev/zero").unwrap();
+    assert_eq!(
+        undelivered_stdin(zero.as_raw_fd()),
+        Some("a character device other than /dev/null")
+    );
+    let (mut primary, mut secondary) = (0, 0);
+    // SAFETY: `openpty` writes two descriptors; the name and settings are
+    // optional and left null.
+    let opened = unsafe {
+        libc::openpty(
+            &mut primary,
+            &mut secondary,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+        )
+    };
+    assert_eq!(opened, 0, "a pseudo-terminal");
+    assert_eq!(undelivered_stdin(secondary), None);
+    // SAFETY: both descriptors were opened above and are closed once.
+    unsafe {
+        libc::close(primary);
+        libc::close(secondary);
+    }
+    // A descriptor number far past any this process opened: closed.
+    assert_eq!(undelivered_stdin(1_000_000), None);
+}
+
+/// The refusal comes before any contact, after the policy's own.
+#[test]
+fn piped_standard_input_refuses_before_any_contact() {
+    let data = tempfile::tempdir().unwrap();
+    let platform = platform(data.path());
+    let workspace = tempfile::tempdir().unwrap();
+    let plan = PreparedPlan {
+        workspace: workspace.path().to_path_buf(),
+        ..prepared_plan(tool(), None, Vec::new())
+    };
+    let Err(error) = VmExecution::prepare(&platform, plan, Sinks { trace: None }, Some("a pipe"))
+    else {
+        panic!("prepared with a pipe on standard input");
+    };
+    assert!(
+        error.message.contains("standard input is a pipe"),
+        "{error}"
+    );
+    assert_eq!(error.remediation, Remediation::Configuration);
+    assert!(!vm_runtime_dir(data.path()).exists());
+}
+
+/// Review F4: the guest receipt must report the policy this host derives
+/// for the guest jail; a guest jail of another version, whose policy digest
+/// differs, is refused, never mirrored.
+#[test]
+fn a_receipt_of_another_policy_is_refused() {
+    let (mut run, _peer, dir) = running();
+    let mut changed = receipt();
+    changed["policy"]["digest"] = "sha256:another-version".into();
+    let (hash, data) = encoded(&changed);
+    let error = run.store_receipt(&hash, &data, &binding()).unwrap_err();
+    assert!(error.contains("policy digest"), "{error}");
+    assert!(error.contains("sha256:another-version"), "{error}");
+    assert!(run.guest.is_none());
+    assert!(!dir.path().join("evidence/jail.json").exists());
+    let mut absent = receipt();
+    absent["policy"].as_object_mut().unwrap().remove("digest");
+    let (hash, data) = encoded(&absent);
+    assert!(
+        run.store_receipt(&hash, &data, &binding())
+            .unwrap_err()
+            .contains("absent")
+    );
+}
+
+/// The guest controller's fixed limit arguments are the guest's fixed
+/// limits, as the guest jail's own grammar reads them.
+#[test]
+fn the_guest_limit_arguments_are_the_fixed_limits() {
+    let arguments: Vec<String> = GUEST_LIMIT_ARGUMENTS
+        .iter()
+        .map(|argument| (*argument).to_owned())
+        .collect();
+    let ceilings = crate::config::ceilings_from_cli(&arguments).unwrap();
+    for (key, value) in GUEST_FIXED_LIMITS {
+        let ceiling = match key {
+            LimitKey::Pids => ceilings.pids.as_ref(),
+            LimitKey::Mem => ceilings.mem.as_ref(),
+            LimitKey::Swap => ceilings.swap.as_ref(),
+            other => panic!("{other:?} is no fixed guest limit"),
+        };
+        assert_eq!(ceiling.map(|ceiling| ceiling.value), Some(value), "{key:?}");
+        assert!(ceiling.unwrap().required);
+    }
+}
+
+/// Review F4: the policy the host derives for the guest jail is the one the
+/// guest jail's own resolution produces from the guest controller's
+/// command line, environment and generated declaration: this binary's
+/// `resolve_plan`, run as the guest runs it (a Linux identity, the share
+/// as workspace and working directory, the declaration in its config
+/// directory), gives the same digest.
+#[test]
+fn the_predicted_guest_policy_is_the_guest_jails_own() {
+    use clap::Parser as _;
+    use std::os::unix::fs::PermissionsExt as _;
+    for (snapshot, launch) in [
+        (tool(), None),
+        (agent(), None),
+        (agent_with_launch(VAULT_LAUNCH), Some("svc")),
+    ] {
+        let profile = snapshot.profile.as_str().to_owned();
+        let temp = common_temp();
+        let root = temp.path().canonicalize().unwrap();
+        let (workspace, config, home) =
+            (root.join("share"), root.join("config"), root.join("home"));
+        for dir in [&workspace, &config, &home] {
+            std::fs::create_dir(dir).unwrap();
+        }
+        let vault = match launch {
+            Some(name) => {
+                let secret = staged_secret(&snapshot, b"s3cret-value");
+                vault_launch(&prepared_plan(snapshot.clone(), Some(name), vec![secret])).unwrap()
+            }
+            None => VaultLaunch::default(),
+        };
+        if let Some(declaration) = &vault.declaration {
+            let directory = config.join("launch");
+            std::fs::create_dir(&directory).unwrap();
+            std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700)).unwrap();
+            let file = directory.join(format!("{}.toml", declaration.name));
+            std::fs::write(&file, &declaration.toml).unwrap();
+            std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
+        }
+        // `guest.py` `run_command`, as the guest controller spells it.
+        let mut argv: Vec<String> = [
+            "ukai-jail",
+            "run",
+            "--profile",
+            &profile,
+            "--workspace",
+            workspace.to_str().unwrap(),
+            "--receipt",
+            root.join("evidence/jail.json").to_str().unwrap(),
+            "--limit",
+            "wall=60s",
+        ]
+        .iter()
+        .map(|argument| (*argument).to_owned())
+        .collect();
+        for argument in GUEST_LIMIT_ARGUMENTS {
+            argv.extend(["--limit".to_owned(), argument.to_owned()]);
+        }
+        for rule in guest_allow_hosts(&snapshot.network) {
+            argv.extend(["--allow-host".to_owned(), rule]);
+        }
+        if let Some(name) = launch {
+            argv.extend(["--launch".to_owned(), name.to_owned()]);
+        }
+        argv.extend(["--".to_owned(), "/bin/true".to_owned()]);
+        let crate::cli::Command::Run(args) = crate::cli::Cli::parse_from(&argv).command else {
+            unreachable!()
+        };
+        // `guest.py` `attempt_environment`.
+        let environment: BTreeMap<&str, String> = [
+            ("HOME", home.display().to_string()),
+            ("USER", "ukai".to_owned()),
+            ("LOGNAME", "ukai".to_owned()),
+            ("PATH", "/usr/local/bin:/usr/bin:/bin".to_owned()),
+            ("LANG", "C.UTF-8".to_owned()),
+            ("XDG_RUNTIME_DIR", "/run/user/1000".to_owned()),
+            ("UKAI_CONFIG_DIR", config.display().to_string()),
+        ]
+        .into_iter()
+        .collect();
+        let context = crate::supervisor::Context {
+            platform: Box::new(GuestSim),
+            env_settings: crate::config::EnvSettings {
+                config_dir: Some(config.clone()),
+                data_dir: Some(home.join(".local/share/ukai")),
+                ..Default::default()
+            },
+            cwd: workspace.clone(),
+            home: Some(home.clone()),
+            env_lookup: Box::new(move |name| {
+                environment.get(name).map(|value| value.as_bytes().to_vec())
+            }),
+        };
+        let plan = crate::supervisor::resolve_plan(&context, &args.policy)
+            .unwrap_or_else(|error| panic!("{profile}: the guest's resolution: {error}"));
+        let predicted = guest_snapshot(
+            &snapshot,
+            60,
+            vault.parsed.as_ref(),
+            workspace.as_os_str().as_encoded_bytes(),
+        )
+        .unwrap();
+        assert_eq!(
+            predicted, plan.resolved.snapshot,
+            "{profile}: the predicted guest snapshot"
+        );
+        assert_eq!(
+            predicted.digest().unwrap(),
+            plan.resolved.digest,
+            "{profile}"
+        );
+    }
+}
+
+/// The receipt's limit rows: one row per requested ceiling, applied. A
+/// duplicate row, or a requested ceiling the guest did not apply, refuses.
+#[test]
+fn every_requested_ceiling_has_one_applied_row() {
+    let (mut run, _peer, _dir) = running();
+    let mut duplicated = receipt();
+    let rows = duplicated["applied"]["limits"].as_array_mut().unwrap();
+    let mut second = rows[0].clone();
+    second["requested"] = "60000".into();
+    rows.push(second);
+    let (hash, data) = encoded(&duplicated);
+    assert_eq!(
+        run.store_receipt(&hash, &data, &binding()).unwrap_err(),
+        "guest did not apply the requested wall ceiling"
+    );
+    let (mut run, _peer, _dir) = running();
+    run.inner.limits = serde_json::from_value(serde_json::json!({
+        "wall": {"value": "30000", "required": true},
+        "inodes": {"value": "1000", "required": false}
+    }))
+    .unwrap();
+    let mut unapplied = receipt();
+    unapplied["applied"]["limits"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({
+            "key": "inodes", "requested": "1000", "required": false, "applied": false,
+            "mechanism": null, "scope": "tree", "hit": null
+        }));
+    let (hash, data) = encoded(&unapplied);
+    assert_eq!(
+        run.store_receipt(&hash, &data, &binding()).unwrap_err(),
+        "guest did not apply the requested inodes ceiling"
+    );
+}
+
+/// A secret crosses with the one value it was staged with: a second loaded
+/// value (a source that changed and was read again) or a forgotten one
+/// refuses.
+#[test]
+fn a_secret_crosses_with_its_one_staged_value() {
+    let value = |text: &str| zeroize::Zeroizing::new(text.as_bytes().to_vec());
+    assert_eq!(
+        the_staged_value("api", &[value("one")], true).unwrap(),
+        b"one"
+    );
+    for (values, complete) in [
+        (vec![value("one"), value("two")], true),
+        (vec![value("one")], false),
+        (Vec::new(), true),
+    ] {
+        let error = the_staged_value("api", &values, complete).unwrap_err();
+        assert!(
+            error.message.contains("exactly the one staged value"),
+            "{error}"
+        );
+    }
 }

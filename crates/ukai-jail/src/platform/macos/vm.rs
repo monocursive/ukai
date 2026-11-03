@@ -64,10 +64,17 @@ pub const SERVE_TIMEOUT: Duration = Duration::from_secs(180);
 /// short enough for the wall deadline to fire between frames.
 const POLL_STEP: Duration = Duration::from_secs(1);
 
-/// The file a spawned `ukai-vm serve` writes its standard error to, beneath
-/// the VM runtime directory: a serve that exits before it answers is refused
-/// with what it said (decision D4).
+/// Where the standard error of the last spawned `ukai-vm serve` that
+/// answered stays, beneath the VM runtime directory. Each spawn writes its
+/// own private file first (`serve-<random>.stderr`, created exclusively), so
+/// a refusal quotes only what its own serve said even when two runs spawn
+/// at once (decision D4); the file is renamed here, or to
+/// [`SERVE_STDERR_FAILED`], once the wait ends.
 pub const SERVE_STDERR: &str = "serve.stderr";
+
+/// Where the standard error of the last spawned serve that did not answer
+/// stays, for the operator to read past the refusal's quote.
+pub const SERVE_STDERR_FAILED: &str = "serve-failed.stderr";
 
 /// The most bytes of a dead serve's standard error a refusal quotes.
 const SERVE_STDERR_QUOTED: u64 = 2048;
@@ -199,22 +206,28 @@ impl VmPlatform {
     ///
     /// The binary is this package's `ukai-vm`, found beside this executable
     /// or on `PATH`. The child is detached: its own process group, standard
-    /// input and output closed, standard error to [`SERVE_STDERR`] beneath
-    /// the VM runtime directory, so an operator interrupt of the run is not
-    /// its exit and a serve that dies first is refused with what it said.
+    /// input and output closed, standard error to a private file of its own
+    /// beneath the VM runtime directory ([`SERVE_STDERR`]), so an operator
+    /// interrupt of the run is not its exit and a serve that dies first is
+    /// refused with what it said.
     /// Every wait is bounded by [`SERVE_TIMEOUT`] and by `deadline`, the
     /// attempt's preparation budget.
     ///
+    /// Returns the checked serve's boot identifier: the attempt connection
+    /// must come from that same serve ([`VmExecution::prepare`] compares it
+    /// with `ready`), or another serve, for another tree, could have
+    /// replaced the checked one in between.
+    ///
     /// # Errors
     /// The refusal when no serve answers in time, the spawned one exited, or
-    /// the serving instance shares another workspace or lacks the NAT
-    /// adapter a proxied policy needs.
+    /// the serving instance runs another image, shares another workspace or
+    /// lacks the NAT adapter a proxied policy needs.
     pub fn ensure_serving(
         &self,
         workspace: &Path,
         guest_nat: bool,
         deadline: ContinuousDeadline,
-    ) -> Result<(), JailError> {
+    ) -> Result<String, JailError> {
         self.serve_with(workspace, guest_nat, deadline, || self.serve_binary())
     }
 
@@ -226,12 +239,18 @@ impl VmPlatform {
         guest_nat: bool,
         deadline: ContinuousDeadline,
         program: impl FnOnce() -> Result<PathBuf, JailError>,
-    ) -> Result<(), JailError> {
+    ) -> Result<String, JailError> {
         let socket = self.control_socket();
         if !control::is_listening(&socket) {
             self.spawn_serve(&program()?, workspace, guest_nat, deadline)?;
         }
-        check_serving(&socket, workspace, guest_nat)
+        check_serving(
+            &socket,
+            &self.install.manifest,
+            workspace,
+            guest_nat,
+            deadline,
+        )
     }
 
     /// Spawns `program serve` for `workspace` and waits until its control
@@ -250,21 +269,7 @@ impl VmPlatform {
                 runtime.display()
             ))
         })?;
-        let stderr_path = runtime.join(SERVE_STDERR);
-        let stderr = std::fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .mode(0o600)
-            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-            .open(&stderr_path)
-            .map_err(|error| {
-                refused(format!(
-                    "--vm: {} cannot be opened: {error}",
-                    stderr_path.display()
-                ))
-            })?;
+        let (stderr_path, stderr) = private_stderr(&runtime)?;
         let mut command = std::process::Command::new(program);
         command.arg("serve").arg("--live-workspace").arg(workspace);
         if guest_nat {
@@ -281,12 +286,22 @@ impl VmPlatform {
             .map_err(|error| {
                 refused(format!("--vm: {} cannot start: {error}", program.display()))
             })?;
-        wait_serving(
+        let waited = wait_serving(
             &self.control_socket(),
             &mut child,
             stderr,
             SERVE_TIMEOUT.min(deadline.remaining()),
-        )
+        );
+        // The quote, if any, was read from this spawn's own file; where its
+        // whole text stays is a convenience, so a failed rename costs only
+        // that.
+        let kept = if waited.is_ok() {
+            SERVE_STDERR
+        } else {
+            SERVE_STDERR_FAILED
+        };
+        let _ = std::fs::rename(&stderr_path, runtime.join(kept));
+        waited
     }
 
     fn serve_binary(&self) -> Result<PathBuf, JailError> {
@@ -320,13 +335,34 @@ fn scope_for(requirement: Requirement) -> CapabilityScope {
     }
 }
 
-/// The serving instance's status must be this run's (decision D4): a live
-/// share of exactly `workspace`, and the NAT adapter when the policy is
-/// proxied. The same checks for a reused serve and a freshly spawned one.
-fn check_serving(socket: &Path, workspace: &Path, guest_nat: bool) -> Result<(), JailError> {
-    let status =
-        control::control_round_trip(socket, protocol::ToControl::Status).map_err(transport)?;
+/// The serving instance's status must be this run's (decision D4): the
+/// host-verified image, a live share of exactly `workspace`, and the NAT
+/// adapter when the policy is proxied. The same checks for a reused serve
+/// and a freshly spawned one, within what is left of `deadline`. Returns the
+/// serve's boot identifier, which binds the attempt connection to it.
+fn check_serving(
+    socket: &Path,
+    manifest: &image::ImageManifest,
+    workspace: &Path,
+    guest_nat: bool,
+    deadline: ContinuousDeadline,
+) -> Result<String, JailError> {
+    let budget = control::CONTROL_TIMEOUT.min(deadline.remaining());
+    if budget.is_zero() {
+        return Err(refused(
+            "--vm: the attempt's preparation budget was spent before the serve's status \
+             could be read",
+        ));
+    }
+    let status = control::control_round_trip_within(socket, protocol::ToControl::Status, budget)
+        .map_err(transport)?;
     let protocol::FromControl::Status {
+        boot_id,
+        disk_sha256,
+        helper_sha256,
+        custodian_sha256,
+        seed_sha256,
+        vsock_port,
         live_workspace,
         guest_nat: nat,
         ..
@@ -336,6 +372,18 @@ fn check_serving(socket: &Path, workspace: &Path, guest_nat: bool) -> Result<(),
             "--vm: the serving ukai-vm answered `status` with {status:?}"
         )));
     };
+    if boot_id.is_empty()
+        || *disk_sha256 != manifest.disk_sha256
+        || *helper_sha256 != manifest.helper_sha256
+        || *custodian_sha256 != manifest.custodian_sha256
+        || *seed_sha256 != manifest.seed_sha256
+        || *vsock_port != 1024
+    {
+        return Err(refused(
+            "--vm: the serving ukai-vm runs another image than the host-verified \
+             installation; stop it with `ukai-vm stop` and rerun",
+        ));
+    }
     if guest_nat && !nat {
         return Err(refused(
             "--vm: the running guest was booted without its NAT adapter, so a proxied \
@@ -365,7 +413,44 @@ fn check_serving(socket: &Path, workspace: &Path, guest_nat: bool) -> Result<(),
              `ukai-vm stop` or run against that workspace"
         )));
     }
-    Ok(())
+    Ok(boot_id.clone())
+}
+
+/// A new private file for one spawn's standard error beneath `runtime`:
+/// a random name, created exclusively, never through a link, mode 0600.
+fn private_stderr(runtime: &Path) -> Result<(PathBuf, std::fs::File), JailError> {
+    use std::hash::{BuildHasher as _, Hasher as _};
+    let mut last = None;
+    for attempt in 0..8_u32 {
+        let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+        hasher.write_u32(std::process::id());
+        hasher.write_u32(attempt);
+        let path = runtime.join(format!("serve-{:016x}.stderr", hasher.finish()));
+        match std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(&path)
+        {
+            Ok(file) => return Ok((path, file)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                last = Some(error);
+            }
+            Err(error) => {
+                return Err(refused(format!(
+                    "--vm: {} cannot be created: {error}",
+                    path.display()
+                )));
+            }
+        }
+    }
+    Err(refused(format!(
+        "--vm: no private serve log could be created beneath {}: {}",
+        runtime.display(),
+        last.map(|error| error.to_string()).unwrap_or_default()
+    )))
 }
 
 /// Waits, within `budget`, until `socket` has a listener. A child that
@@ -448,7 +533,8 @@ impl Platform for VmPlatform {
         plan: PreparedPlan,
         sinks: Sinks,
     ) -> Result<Box<dyn PreparedExecution>, JailError> {
-        VmExecution::prepare(self, plan, sinks).map(|execution| Box::new(execution) as _)
+        VmExecution::prepare(self, plan, sinks, undelivered_stdin(libc::STDIN_FILENO))
+            .map(|execution| Box::new(execution) as _)
     }
 }
 
@@ -547,27 +633,59 @@ struct VmExecution {
     argv_digest: String,
     limits: LimitsSnapshot,
     network: image::GuestNetwork,
+    /// The digest of the policy the guest jail must have resolved
+    /// ([`guest_snapshot`]); the guest receipt's `policy.digest` is
+    /// compared with it after the run.
+    guest_policy_digest: String,
     stdout: std::fs::File,
     stderr: std::fs::File,
 }
 
 impl VmExecution {
+    /// `stdin` is what [`undelivered_stdin`] measured of the operator's
+    /// standard input.
     fn prepare(
         platform: &VmPlatform,
         plan: PreparedPlan,
         _sinks: Sinks,
+        stdin: Option<&'static str>,
     ) -> Result<Self, JailError> {
         // Everything that can refuse without the guest refuses first, before
         // any connection or boot (decisions D1, D3): the carry rule, the
-        // vault hand-off, then the share's containment preflight, which is
-        // a host-side fact (measured 2026-11-02: symlinks stay guest-side,
-        // but a pre-existing hardlink writes through and a case-folding
-        // volume bypasses every guest denial).
+        // standard input no guest reads, the vault hand-off, the policy the
+        // guest jail must resolve, then the share's containment preflight,
+        // which is a host-side fact (measured 2026-11-02: symlinks stay
+        // guest-side, but a pre-existing hardlink writes through and a
+        // case-folding volume bypasses every guest denial).
         let snapshot = &plan.request.snapshot;
         validate_policy(snapshot)?;
+        if let Some(kind) = stdin {
+            return Err(JailError::new(
+                ErrorCode::InvalidConfig,
+                ErrorStage::Preparing,
+                Remediation::Configuration,
+                format!(
+                    "--vm: standard input is {kind}, and the guest jail's standard input is \
+                     /dev/null: nothing written to it would reach the target; run with \
+                     `</dev/null`, or without --vm"
+                ),
+            ));
+        }
         let wall = guest_wall(snapshot)?;
         let profile = snapshot.profile.as_str().to_owned();
-        let (launch, vault_secrets) = vault_launch(&plan)?;
+        let vault = vault_launch(&plan)?;
+        let guest_policy_digest = guest_snapshot(
+            snapshot,
+            wall,
+            vault.parsed.as_ref(),
+            GUEST_SHARE_MOUNT.as_bytes(),
+        )
+        .and_then(|guest| guest.digest().map_err(|error| error.message))
+        .map_err(|error| {
+            refused(format!(
+                "--vm: the policy the guest jail resolves cannot be derived: {error}"
+            ))
+        })?;
         let allow_hosts = guest_allow_hosts(&snapshot.network);
         let network = image::GuestNetwork::requested(
             snapshot.network.mode.as_str(),
@@ -576,11 +694,27 @@ impl VmExecution {
         );
         let share_facts = share::preflight(&plan.workspace).map_err(refused)?;
         let proxied = snapshot.network.mode == crate::network::NetworkMode::Proxy;
-        platform.ensure_serving(&plan.workspace, proxied, plan.prepare_deadline)?;
+        let serving = platform.ensure_serving(&plan.workspace, proxied, plan.prepare_deadline)?;
         let socket = control::attempt_socket(&platform.data_dir);
         let mut connection = control::AttemptConnection::connect(&socket).map_err(transport)?;
         let ready = expect_ready(&mut connection, plan.prepare_deadline)?;
         verify_ready(&ready, &platform.install.manifest)?;
+        // Decision D4: the attempt connection must come from the serve whose
+        // status was checked (its live share, its NAT): a serve replaced in
+        // between (idle exit, stop, another run's spawn for another tree)
+        // answers with another boot.
+        if ready.boot_id != serving {
+            return Err(refused(format!(
+                "--vm: the attempt socket answered from boot {}, not boot {serving}, whose \
+                 status this run checked: another serve replaced it; rerun",
+                crate::records::escape_control(&ready.boot_id)
+            )));
+        }
+        let sent: Vec<String> = vault
+            .secrets
+            .iter()
+            .map(|secret| secret.id.clone())
+            .collect();
         let staged = protocol::ToVm::Prepare {
             attempt_id: plan.attempt_id.clone(),
             profile: profile.clone(),
@@ -590,12 +724,14 @@ impl VmExecution {
                 .iter()
                 .map(|argument| protocol::encode_data(argument))
                 .collect(),
-            secrets: vault_secrets,
+            secrets: vault.secrets,
             allow_hosts,
-            launch,
+            launch: vault.declaration,
         };
-        connection.send(&staged).map_err(transport)?;
-        let guest_kernel = expect_prepared(&mut connection, plan.prepare_deadline)?;
+        connection
+            .send_within(&staged, plan.prepare_deadline.remaining())
+            .map_err(transport)?;
+        let guest_kernel = expect_prepared(&mut connection, plan.prepare_deadline, &sent)?;
         // Live share: the workspace crosses as the virtio-fs device the
         // service attached; staging puts are refused by both ends, so none
         // are sent. The share's facts travel in the transport record below.
@@ -628,9 +764,49 @@ impl VmExecution {
             argv_digest: crate::canonical::argv_digest(&plan.argv),
             limits: snapshot.limits.clone(),
             network,
+            guest_policy_digest,
             stdout,
             stderr,
         })
+    }
+}
+
+/// What the operator's standard input would lose under `--vm`, or `None`
+/// (finding F11d): the guest jail's standard input is `/dev/null`
+/// (`guest.py` runs it so), so bytes on a pipe, file or socket would never
+/// reach the target, and that is refused rather than dropped in silence. A
+/// terminal (nothing was piped), `/dev/null` and a closed descriptor lose
+/// nothing.
+fn undelivered_stdin(fd: libc::c_int) -> Option<&'static str> {
+    use std::os::unix::fs::MetadataExt as _;
+    // SAFETY: an all-zero `stat` is a valid out-buffer for `fstat`.
+    let mut stat: libc::stat = unsafe { std::mem::zeroed() };
+    // SAFETY: `fstat` writes one `stat` record for the descriptor into the
+    // valid out-buffer; an invalid descriptor is an error, not a fault.
+    let status = unsafe { libc::fstat(fd, &mut stat) };
+    if status != 0 {
+        return match std::io::Error::last_os_error().raw_os_error() {
+            Some(libc::EBADF) => None,
+            _ => Some("a descriptor that cannot be inspected"),
+        };
+    }
+    match stat.st_mode & libc::S_IFMT {
+        libc::S_IFIFO => Some("a pipe"),
+        libc::S_IFREG => Some("a file"),
+        libc::S_IFSOCK => Some("a socket"),
+        libc::S_IFCHR => {
+            // SAFETY: `isatty` reads the descriptor's state only.
+            if unsafe { libc::isatty(fd) } == 1 {
+                return None;
+            }
+            let null = std::fs::metadata("/dev/null").map(|null| null.rdev());
+            if null.is_ok_and(|rdev| rdev == u64::try_from(stat.st_rdev).unwrap_or(u64::MAX)) {
+                None
+            } else {
+                Some("a character device other than /dev/null")
+            }
+        }
+        _ => Some("neither a terminal nor /dev/null"),
     }
 }
 
@@ -791,8 +967,66 @@ pub fn not_carried(snapshot: &PolicySnapshot) -> Option<NotCarried> {
 /// guest's environment, the workspace the share mounts, the allow set as it
 /// is spelled on the wire, and the generated declaration of the vault
 /// credentials. Limits are compared separately ([`carried_limits`]), with
-/// the guest's fixed shape.
+/// the guest's fixed shape. Paths are the host's (its workspace, its
+/// credential sources), so the result compares field by field with the
+/// host snapshot; [`guest_snapshot`] is the same resolution as the guest
+/// jail itself performs it.
 fn carried_shape(snapshot: &PolicySnapshot) -> Result<PolicySnapshot, String> {
+    let launch = guest_launch_profile(snapshot);
+    resolve_side(
+        snapshot,
+        &Side::Host,
+        snapshot.roots.workspace.as_bytes(),
+        launch.as_ref(),
+    )
+}
+
+/// Where the guest controller mounts the live share: the guest jail's
+/// `--workspace` and working directory (`guest.py` `SHARE_MOUNT`).
+pub const GUEST_SHARE_MOUNT: &str = "/mnt/workspace";
+
+/// The `--limit` arguments the guest controller adds to every guest jail
+/// run besides the wall (`guest.py` `run_command`), as it spells them:
+/// [`GUEST_FIXED_LIMITS`] in the guest jail's grammar.
+pub const GUEST_LIMIT_ARGUMENTS: [&str; 3] = ["mem=512MiB", "swap=0", "pids=64"];
+
+/// The snapshot the guest jail resolves for an attempt of `snapshot` with
+/// `wall` seconds (finding F4), as it resolves it: the guest controller's
+/// command line (`guest.py` `run_command`: the share mount as workspace,
+/// the wall and fixed limits, one `--allow-host` per crossing rule,
+/// `--launch` of the generated declaration, which `launch` is as its loader
+/// reads it) and the guest's environment. Its digest is what the guest
+/// receipt's `policy.digest` must say: the host checks it after the run,
+/// so a guest jail whose baselines or digest differ from this binary's
+/// (another version in the image) is refused, never mirrored.
+fn guest_snapshot(
+    snapshot: &PolicySnapshot,
+    wall: u32,
+    launch: Option<&crate::launch_profile::LaunchProfile>,
+    workspace: &[u8],
+) -> Result<PolicySnapshot, String> {
+    resolve_side(snapshot, &Side::Guest { wall }, workspace, launch)
+}
+
+/// Which resolution of the carried inputs [`resolve_side`] performs.
+enum Side {
+    /// The host's comparison shape: no limits (compared on their own).
+    Host,
+    /// The guest jail's own resolution, with the controller's limits.
+    Guest {
+        /// The wall the attempt crosses with, in seconds.
+        wall: u32,
+    },
+}
+
+/// Resolves what `--vm` carries of `snapshot` on the guest platform, with
+/// the guest's environment, `workspace` as the root and `launch` applied.
+fn resolve_side(
+    snapshot: &PolicySnapshot,
+    side: &Side,
+    workspace: &[u8],
+    launch: Option<&crate::launch_profile::LaunchProfile>,
+) -> Result<PolicySnapshot, String> {
     use crate::policy::{Layer, LayerOrigin, PolicyDelta, ResolveInputs, ScratchRoot};
     let lookup = |name: &str| {
         GUEST_ADMITTED_ENVIRONMENT
@@ -801,25 +1035,48 @@ fn carried_shape(snapshot: &PolicySnapshot) -> Result<PolicySnapshot, String> {
             .map(|(_, value)| value.as_bytes().to_vec())
     };
     let baseline = crate::profiles::baseline(snapshot.profile, snapshot.platform, &lookup);
-    let allow = guest_allow_hosts(&snapshot.network);
-    let layers = if allow.is_empty() {
-        Vec::new()
-    } else {
-        vec![Layer {
-            origin: LayerOrigin::CommandLine,
-            base_dir: None,
-            delta: PolicyDelta {
-                network_allow: allow,
-                ..PolicyDelta::default()
-            },
-        }]
+    let limits = match side {
+        Side::Host => crate::policy::Ceilings::default(),
+        Side::Guest { wall } => {
+            let mut arguments = vec![format!("wall={wall}s")];
+            arguments.extend(
+                GUEST_LIMIT_ARGUMENTS
+                    .iter()
+                    .map(|argument| (*argument).to_owned()),
+            );
+            crate::config::ceilings_from_cli(&arguments).map_err(|error| error.message)?
+        }
     };
+    let delta = PolicyDelta {
+        network_allow: guest_allow_hosts(&snapshot.network),
+        limits,
+        ..PolicyDelta::default()
+    };
+    // The guest jail's §6.2 order: the launch profile's own grants, then
+    // the command line.
+    let mut layers: Vec<Layer> = match side {
+        Side::Host => Vec::new(),
+        Side::Guest { .. } => launch
+            .and_then(crate::launch_profile::network_layer)
+            .into_iter()
+            .collect(),
+    };
+    if !delta.network_allow.is_empty() || delta.limits != crate::policy::Ceilings::default() {
+        layers.push(Layer {
+            origin: LayerOrigin::CommandLine,
+            base_dir: match side {
+                Side::Host => None,
+                Side::Guest { .. } => Some(workspace.to_vec()),
+            },
+            delta,
+        });
+    }
     let inputs = ResolveInputs {
         platform: snapshot.platform,
         base_profile: snapshot.profile,
         policy_name: snapshot.profile.as_str().to_owned(),
         baseline,
-        workspace: snapshot.roots.workspace.as_bytes().to_vec(),
+        workspace: workspace.to_vec(),
         scratch: ScratchRoot::Managed,
         vendor_state: None,
         operator_home: None,
@@ -827,9 +1084,8 @@ fn carried_shape(snapshot: &PolicySnapshot) -> Result<PolicySnapshot, String> {
         layers,
     };
     let mut resolved = crate::policy::resolve(&inputs).map_err(|error| error.message)?;
-    if let Some(launch) = guest_launch_profile(snapshot) {
-        resolved =
-            crate::launch_profile::apply(resolved, &launch).map_err(|error| error.message)?;
+    if let Some(launch) = launch {
+        resolved = crate::launch_profile::apply(resolved, launch).map_err(|error| error.message)?;
     }
     Ok(resolved.snapshot)
 }
@@ -1269,15 +1525,7 @@ fn validate_policy(snapshot: &PolicySnapshot) -> Result<(), JailError> {
 /// staged and validated for it (`PreparedPlan::launch`: a private,
 /// no-follow source outside every child-writable grant). Nothing is read
 /// from disk here, and every refusal comes before any connection or boot.
-fn vault_launch(
-    plan: &PreparedPlan,
-) -> Result<
-    (
-        Option<protocol::LaunchDeclaration>,
-        Vec<protocol::SecretEntry>,
-    ),
-    JailError,
-> {
+fn vault_launch(plan: &PreparedPlan) -> Result<VaultLaunch, JailError> {
     let staged: &[std::sync::Arc<crate::vault::Secret>] = plan
         .launch
         .as_ref()
@@ -1305,7 +1553,7 @@ fn vault_launch(
                 secret.id
             )));
         }
-        return Ok((None, Vec::new()));
+        return Ok(VaultLaunch::default());
     };
     let name = plan
         .launch_name
@@ -1314,7 +1562,7 @@ fn vault_launch(
         .ok_or_else(|| {
             invalid("--vm: the policy declares credentials without a valid launch profile name")
         })?;
-    let toml = guest_launch_toml(name, plan.request.snapshot.profile, launch)?;
+    let (toml, parsed) = guest_launch_toml(name, plan.request.snapshot.profile, launch)?;
     let mut secrets = Vec::with_capacity(launch.credentials.len());
     for credential in &launch.credentials {
         let secret = staged
@@ -1328,17 +1576,9 @@ fn vault_launch(
                 ))
             })?;
         let (values, complete) = secret.loaded_values();
-        let ([value], true) = (values.as_slice(), complete) else {
-            return Err(refused(format!(
-                "--vm: vault credential `{}` holds {} loaded values; exactly the one staged \
-                 value crosses",
-                credential.id,
-                values.len()
-            )));
-        };
         secrets.push(protocol::SecretEntry {
             id: credential.id.clone(),
-            data: protocol::encode_data(value),
+            data: protocol::encode_data(the_staged_value(&credential.id, &values, complete)?),
         });
     }
     if let Some(extra) = staged.iter().find(|secret| {
@@ -1352,13 +1592,45 @@ fn vault_launch(
             extra.id
         )));
     }
-    Ok((
-        Some(protocol::LaunchDeclaration {
+    Ok(VaultLaunch {
+        declaration: Some(protocol::LaunchDeclaration {
             name: name.to_owned(),
             toml,
         }),
+        parsed: Some(parsed),
         secrets,
-    ))
+    })
+}
+
+/// What [`vault_launch`] hands the guest.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct VaultLaunch {
+    /// The generated declaration; `None` without credentials.
+    declaration: Option<protocol::LaunchDeclaration>,
+    /// The declaration as the guest jail's loader reads it.
+    parsed: Option<crate::launch_profile::LaunchProfile>,
+    /// One staged value per declared credential, in declaration order.
+    secrets: Vec<protocol::SecretEntry>,
+}
+
+/// The one value a staged secret crossed with: exactly one loaded value,
+/// and the record of loaded values complete. A secret that re-read a
+/// changed source, or forgot what it loaded, has no single value the
+/// attempt was staged with.
+fn the_staged_value<'a>(
+    id: &str,
+    values: &'a [zeroize::Zeroizing<Vec<u8>>],
+    complete: bool,
+) -> Result<&'a [u8], JailError> {
+    match (values, complete) {
+        ([value], true) => Ok(value.as_slice()),
+        _ => Err(refused(format!(
+            "--vm: vault credential `{id}` holds {} loaded values{}; exactly the one staged \
+             value crosses",
+            values.len(),
+            if complete { "" } else { " and forgot some" }
+        ))),
+    }
 }
 
 /// The guest's launch declaration for `launch` (decision D3): `name`, the
@@ -1371,7 +1643,7 @@ fn guest_launch_toml(
     name: &str,
     profile: ProfileName,
     launch: &LaunchSnapshot,
-) -> Result<String, JailError> {
+) -> Result<(String, crate::launch_profile::LaunchProfile), JailError> {
     #[derive(serde::Serialize)]
     struct File<'a> {
         name: &'a str,
@@ -1488,7 +1760,7 @@ fn guest_launch_toml(
                 .to_owned(),
         ));
     }
-    Ok(text)
+    Ok((text, parsed))
 }
 
 /// Parses a size or count ceiling ("64", "256", "512MiB", "1g", "0") to its
@@ -1625,6 +1897,7 @@ fn guest_facts(receipt: &Value, sha256: &str) -> Result<GuestFacts, String> {
         applied: group(receipt, "/applied")?,
         observer: group(receipt, "/observer")?,
         coverage: group(receipt, "/coverage")?,
+        outcome: group(receipt, "/outcome")?,
         details,
     })
 }
@@ -1679,15 +1952,43 @@ fn expect_ready(
     }
 }
 
+/// The guest's acceptance of the staging: its kernel, once it acknowledged
+/// exactly the secrets `sent`, each staged where the generated declaration
+/// names its source ([`GUEST_CREDENTIAL_ROOT`]); a missing, extra or
+/// misplaced one is refused before the release.
 fn expect_prepared(
     connection: &mut control::AttemptConnection,
     deadline: ContinuousDeadline,
+    sent: &[String],
 ) -> Result<String, JailError> {
     match connection
         .next_frame_within(control::HANDSHAKE_TIMEOUT.min(deadline.remaining()))
         .map_err(transport)?
     {
-        control::Within::Frame(protocol::FromVm::Prepared { kernel, .. }) => Ok(kernel),
+        control::Within::Frame(protocol::FromVm::Prepared {
+            kernel,
+            staged_secrets,
+        }) => {
+            let mut acknowledged = staged_secrets;
+            acknowledged.sort();
+            let mut expected: Vec<(String, String)> = sent
+                .iter()
+                .map(|id| (id.clone(), format!("{GUEST_CREDENTIAL_ROOT}/{id}")))
+                .collect();
+            expected.sort();
+            if acknowledged != expected {
+                return Err(refused(format!(
+                    "--vm: the guest acknowledged the staged secrets {:?}, not the {} sent \
+                     at the declaration's sources",
+                    acknowledged
+                        .iter()
+                        .map(|(id, path)| format!("{id} at {path}"))
+                        .collect::<Vec<_>>(),
+                    sent.len()
+                )));
+            }
+            Ok(kernel)
+        }
         control::Within::Frame(protocol::FromVm::Error { message }) => {
             Err(refused(format!("--vm: {message}")))
         }
@@ -1984,6 +2285,19 @@ impl VmRunning {
             },
         )
         .map_err(|e| e.to_string())?;
+        // Finding F4: the guest jail resolved the policy this host derives
+        // for it, or its baselines are another version's and nothing it
+        // reports is this policy's.
+        let claimed = receipt.pointer("/policy/digest").and_then(Value::as_str);
+        if claimed != Some(self.inner.guest_policy_digest.as_str()) {
+            return Err(format!(
+                "the guest receipt's policy digest is {}, not {}, the policy this host derives \
+                 for the guest jail: the guest's ukai-jail resolved another policy (another \
+                 version in the image?), so nothing it reports is mirrored",
+                claimed.map_or_else(|| "absent".to_owned(), crate::records::escape_control),
+                self.inner.guest_policy_digest
+            ));
+        }
         verify_applied_limits(&receipt, &self.inner.limits)?;
         let guest = guest_facts(&receipt, &digest)?;
         self.export("evidence", "jail.json", false, &bytes)
@@ -1994,6 +2308,51 @@ impl VmRunning {
         self.receipt = Some(receipt);
         self.guest = Some(guest);
         Ok(())
+    }
+
+    /// The host event for the guest's `done` (decision D5): the verified
+    /// receipt's outcome, never the `done` frame's number alone. The guest
+    /// jail exits with its target's code, or 128 plus its signal, when its
+    /// receipt verifies (no errors, `settled_exit_code`), so a `done` that
+    /// disagrees with the receipt is refused: the host receipt would record
+    /// an outcome the guest receipt it mirrors contradicts.
+    fn relayed_outcome(&self, exit_code: i32) -> Result<RunEvent, String> {
+        use crate::records::{Outcome, OutcomeKind};
+        let receipt = self
+            .receipt
+            .as_ref()
+            .ok_or("the guest reported `done` without a verified receipt")?;
+        let outcome: Outcome = serde_json::from_value(
+            receipt
+                .pointer("/outcome")
+                .cloned()
+                .ok_or("the verified guest receipt has no outcome")?,
+        )
+        .map_err(|error| format!("the verified guest receipt's outcome does not read: {error}"))?;
+        let (event, status) = match (outcome.kind, outcome.code, outcome.signal) {
+            (OutcomeKind::Exited, Some(code), None) => {
+                (RunEvent::TargetExited { code }, i32::from(code))
+            }
+            (OutcomeKind::Signaled, None, Some(signal)) if (1..128).contains(&signal) => (
+                RunEvent::TargetSignaled { signal },
+                128 + i32::try_from(signal).unwrap_or(0),
+            ),
+            _ => {
+                return Err(format!(
+                    "the verified guest receipt's outcome ({}) is not one the host relays: \
+                     an exit code or a signal",
+                    serde_json::to_string(&outcome).unwrap_or_default()
+                ));
+            }
+        };
+        if exit_code != status {
+            return Err(format!(
+                "the guest's `done` reports exit status {exit_code}, but its verified receipt's \
+                 outcome means {status}; the host never records an outcome the guest receipt \
+                 contradicts"
+            ));
+        }
+        Ok(event)
     }
 
     /// Whether the attempt ended with a verified guest receipt, its `done`
@@ -2139,12 +2498,18 @@ impl VmRunning {
                 }
                 protocol::FromVm::Done { exit_code } => {
                     self.finished = true;
+                    let event = match self.relayed_outcome(exit_code) {
+                        Ok(event) => event,
+                        Err(reason) => {
+                            self.failed = true;
+                            return RunEvent::Unknown { reason };
+                        }
+                    };
                     if let Err(reason) = self.settle_record() {
                         self.failed = true;
                         return RunEvent::Unknown { reason };
                     }
-                    let code = u8::try_from(exit_code).unwrap_or(125);
-                    return RunEvent::TargetExited { code };
+                    return event;
                 }
             }
         }
@@ -2152,7 +2517,13 @@ impl VmRunning {
 }
 
 impl RunningExecution for VmRunning {
+    /// The verified guest receipt's rows, and nothing before the attempt
+    /// verified: a refused receipt's claims never reach the host receipt
+    /// (decision D5; the mirror then replaces `applied` wholesale).
     fn final_limits(&self) -> Vec<AppliedLimit> {
+        if !self.verified() {
+            return Vec::new();
+        }
         self.receipt
             .as_ref()
             .and_then(|receipt| receipt.pointer("/applied/limits"))
@@ -2214,7 +2585,10 @@ impl RunningExecution for VmRunning {
             let event = self.wait(Deadline {
                 at: Some(Instant::now() + budget),
             });
-            if !matches!(event, RunEvent::TargetExited { .. }) {
+            if !matches!(
+                event,
+                RunEvent::TargetExited { .. } | RunEvent::TargetSignaled { .. }
+            ) {
                 self.failed = true;
             }
         }

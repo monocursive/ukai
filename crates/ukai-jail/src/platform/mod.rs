@@ -623,20 +623,26 @@ pub struct GuestFacts {
     pub observer: crate::records::ObserverRecord,
     /// The guest jail's coverage classes.
     pub coverage: crate::records::Coverage,
+    /// The guest jail's outcome. Its kind, code and signal are the host's
+    /// already (the platform relays exactly this outcome as its event); its
+    /// cause becomes the host's when the host stopped nothing itself.
+    pub outcome: crate::records::Outcome,
     /// `lifetime.native.details` entries naming the guest receipt.
     pub details: serde_json::Map<String, serde_json::Value>,
 }
 
 impl GuestFacts {
     /// The host receipt fields the guest facts replace, as
-    /// `lifetime.native.details.guest_carried` lists them.
-    pub const CARRIED: [&'static str; 6] = [
+    /// `lifetime.native.details.guest_carried` lists them. `outcome.cause`
+    /// only when the host recorded no cause of its own.
+    pub const CARRIED: [&'static str; 7] = [
         "platform.kernel",
         "platform.arch",
         "exec_observed",
         "applied",
         "observer",
         "coverage",
+        "outcome.cause",
     ];
 }
 
