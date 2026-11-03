@@ -928,8 +928,11 @@ def attempt(stream):
     out += process.stdout.read()
     send(stream, event='stdout', data=base64.b64encode(out).decode())
     mode = 'proxy' if prepare['profile'] == 'agent' else 'none'
-    stream.sendall((json.dumps(bound_receipt(prepare, boot, guest_boot, {'applied': {'network': {'mode': mode}}}))
-                    + '\n').encode())
+    receipt = bound_receipt(prepare, boot, guest_boot, {'applied': {'network': {'mode': mode}}})
+    state['receipts'] = state.get('receipts', 0) + 1
+    if os.environ.get('FAKE_UNBOUND_FIRST') and state['receipts'] == 1:
+        receipt['binding']['attempt_id'] = 'another-attempt'   # the first receipt names some other attempt
+    stream.sendall((json.dumps(receipt) + '\n').encode())
     send(stream, event='done', exit_code=process.returncode)
     state['live'] = False
     stream.close()
@@ -993,6 +996,27 @@ class FaultMatrixMechanics(unittest.TestCase):
 
     def test_a_killed_client_ends_its_attempt(self):
         self.assert_passes('client-kill')
+
+    def test_a_client_dead_before_the_kill_is_recorded_as_dead(self):
+        # Mutation R21: 'alive at the kill' is read from the process, never assumed.
+        original = fault_matrix.started
+
+        def started_then_died(run, obs, client, watch, *rest):
+            original(run, obs, client, watch, *rest)
+            client.process.kill()
+            client.process.wait()
+        result = self.run_case('client-kill', started=started_then_died)
+        self.assertNotEqual(result['outcome'], 'PASS')
+        self.assertIs(result['observations']['client_alive_at_kill'], False)
+
+    def test_a_resumed_attempt_with_an_unbound_receipt_fails(self):
+        # Mutation R22 (and its serve-group-stop twin): the stand-in client's own
+        # receipt must name its attempt; the follow-up attempt's stays bound.
+        for case in ('client-ctrl-z', 'serve-group-stop'):
+            with self.subTest(case), mock.patch.dict(os.environ, {'FAKE_UNBOUND_FIRST': '1'}):
+                result = self.run_case(case)
+                self.assertEqual(result['outcome'], 'FAIL', result.get('error'))
+                self.assertEqual(result['failed'], ['resumed_attempt_receipt_bound'])
 
     def test_a_ctrl_z_does_not(self):
         result = self.assert_passes('client-ctrl-z')

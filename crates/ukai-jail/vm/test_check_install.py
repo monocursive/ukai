@@ -261,6 +261,12 @@ class InstallerCheckTests(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertEqual(summary['results'][0]['failed_checks'], ['installed-tree-is-the-manifest'])
 
+    def test_an_installer_that_leaves_a_writable_file_fails_the_install_case(self):
+        # Reviewer F-11 (mutation R48): the mode check is one of the install case's checks.
+        code, summary = self.check(installed='chmod 0666 "$destination/image/vz"')
+        self.assertNotEqual(code, 0)
+        self.assertEqual(summary['results'][0]['failed_checks'], ['installed-modes-normalized'])
+
     def test_an_installer_that_installs_an_unlisted_payload_file_fails(self):
         code, summary = self.check(extra='mkdir -p "$prefix";')
         self.assertNotEqual(code, 0)

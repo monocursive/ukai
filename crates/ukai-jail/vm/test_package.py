@@ -104,6 +104,18 @@ class CommittedSourceTests(unittest.TestCase):
                 self.git('checkout', '--', 'crates/vm/run.py')
                 package.require_clean(self.repo, ['crates/vm'])
 
+    def test_require_clean_refuses_the_marks_themselves(self):
+        # Mutation R40: a mark is refused before any edit, and named as a mark,
+        # so the operator clears it instead of hunting for a change.
+        for flag in ('--assume-unchanged', '--skip-worktree'):
+            with self.subTest(flag):
+                self.git('update-index', flag, 'crates/vm/run.py')
+                with self.assertRaisesRegex(package.SourceError,
+                                            'assume-unchanged or skip-worktree: crates/vm/run.py'):
+                    package.require_clean(self.repo, ['crates/vm'])
+                self.git('update-index', flag.replace('--', '--no-'), 'crates/vm/run.py')
+        package.require_clean(self.repo, ['crates/vm'])
+
     def test_require_clean_compares_the_bytes_with_heads_blobs(self):
         # Even with every mark cleared and status quiet, the bytes are HEAD's.
         with mock.patch.object(package, 'git_lines', wraps=package.git_lines) as lines:
