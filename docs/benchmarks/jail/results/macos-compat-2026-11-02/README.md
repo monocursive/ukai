@@ -30,15 +30,22 @@ D13; jail-macos §4.1 rule 6).
 2. **The clamped row ran with the hard limit unlowered.** This build's
    clamped path set no limit at all; it only re-read them. So the
    `clamped=true` row's members inherited the guardian's limits unchanged.
-   The run did not record them at that point; its final guest state
+   The run did not record those limits during the headroom measurements,
+   when `kern.maxprocperuid` was the default 1333
+   ([provenance.json](provenance.json): 1333 for the headroom
+   measurements, 2000 for K92 and the SQLite build). The only recorded
+   limits come from a later state: the final guest state
    ([final-guest-state.json](results/final-guest-state.json), recorded after
-   the measurements) shows `rlimit_nproc` soft 1333 and hard 2000, a hard
-   limit above the 1333 ceiling the row reports. On the development Mac a
-   non-root process cannot raise its soft limit past `kern.maxprocperuid`
-   ([measured 2026-11-03](../macos-nproc-raise-2026-11-03/README.md)), so
-   with soft = `kern.maxprocperuid` = 1333 a member here probably gained
-   nothing; no member tried, and the VM was not measured. Both paths now
-   lower soft and hard to the allowance's limit, with kernel read-back.
+   every measurement) shows `rlimit_nproc` soft 1333 and hard 2000, and in
+   that same state `kern.maxprocperuid` and `kern.maxproc` read 2000. So
+   the hard limit of 2000 is from that later state, not the clamped row,
+   whose hard limit is unrecorded. On the development Mac a non-root
+   process cannot raise its soft limit past `kern.maxprocperuid`
+   ([measured 2026-11-03](../macos-nproc-raise-2026-11-03/README.md)); if
+   the row's members held soft 1333 with `kern.maxprocperuid` at 1333, a
+   member probably gained nothing, but no member tried, and the VM was not
+   measured. Both paths now lower soft and hard to the allowance's limit,
+   with kernel read-back.
 
 ## 1. Process headroom (amended rule 6, jail-macos §4.1)
 

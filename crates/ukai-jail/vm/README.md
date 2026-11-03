@@ -412,14 +412,19 @@ refuse before any guest traffic. The values come from the secrets the
 supervisor staged and validated, and the guest's launch declaration is
 generated from the snapshot and parsed back with the same loader: nothing
 re-reads the operator's files or `UKAI_CONFIG_DIR`. Interactive stdin is
-absent.
+absent. The mandatory share, the `live_share` comparison, the mount
+options, the secret staging and the nested-id refusal in this paragraph are
+covered by unit and model tests only (stand-in guests and the guest
+controller's model); none of it has run on a booted guest, and live
+verification is pending.
 
 Whether `run --vm` reuses a serving `ukai-vm` or spawns one, it checks the
 serve's status the same way: a live share of exactly this workspace and, for
 a proxied policy, the NAT adapter. A spawned serve runs in its own process
 group with its standard error in `<data>/vm/serve.stderr`; one that exits
 before it answers is refused with that text. The serve, ready and prepared
-waits are bounded by the attempt's preparation budget.
+waits are bounded by the attempt's preparation budget. This is covered by
+unit tests against a stand-in serve script, not against a real serve.
 
 **The attempt stop (decision D6).** One stop serves the guest's done,
 cancel2, reset and the outer-wall backstop. It kills every
@@ -432,8 +437,8 @@ leaf directly under `user@<uid>.service` (the paths in the K111 and K113
 guest receipts), so the earlier per-attempt kill reached an empty cgroup.
 The stop then requires those cgroups empty and no live workload-uid process
 outside the infrastructure, re-killing within a 2.5 s budget, and bounds
-the supervisor reap at 1 s; every wait feeds the guest watchdog. On failure the guest powers off with
-`attempt_tree_unverified`. **The infrastructure set has not been confirmed
+the supervisor reap at 1 s; every wait feeds the guest watchdog. On
+failure the guest powers off with `attempt_tree_unverified`. **The infrastructure set has not been confirmed
 on a booted guest**: it comes from what `prepare.py` installs. The
 attempt's staged values and launch profile are removed at every stop and
 poweroff. The named poweroffs new in this wave are
@@ -443,8 +448,8 @@ name already present, a link included, or an unwritable directory: never
 written through) and `launch_without_toml`; the serve names a guest that
 powered itself off from its console (`guest poweroff: <reason>`).
 
-None of the guest-side behavior in the two paragraphs above has run on a
-booted guest yet. It is covered by unit and model tests only, and live
+None of the attempt stop or the named poweroffs above has run on a booted
+guest yet. They are covered by unit and model tests only, and live
 verification is pending.
 
 The service holds an exclusive runtime lock before removing stale sockets. It
