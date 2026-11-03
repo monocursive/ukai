@@ -14,21 +14,23 @@ The released DMG is the exact signed, notarized, stapled package from the
 Its embedded source and readme retain the pre-publication candidate wording;
 current availability is recorded in the public release notes.
 
-The first scope is offline `tool` and `build` commands. Each attempt gets two
-virtual CPUs, 2 GiB VM memory, a private 6 GiB sparse disk, and the Linux jail's
-required 512 MiB memory, zero swap, 64-process and explicit wall-time limits.
-There is no VM network adapter during an attempt, host directory sharing,
-credential forwarding, interactive stdin or agent/provider integration.
+The released cold-boot preview (`run.py`) runs offline `tool` and `build`
+commands. Each attempt gets two virtual CPUs, 2 GiB VM memory, a private 6 GiB
+sparse disk, and the Linux jail's required 512 MiB memory, zero swap,
+64-process and explicit wall-time limits. That preview has no VM network
+adapter during an attempt, host directory sharing, credential forwarding,
+interactive stdin or agent/provider integration; the warm service below is
+a separate, unreleased design.
 The `build` profile explicitly grants the disposable workspace copy read/write;
 this grant is recorded in the Linux policy and receipt.
 
 `prepare.py` downloads a dated Ubuntu 26.04 ARM64 image and the current public
-Linux archive named in `dist/release.json` (`0.1.0-rc.2`; the published
+Linux archive named by `jail.version` in `dist/release.json` (the published
 `0.1.0-preview.1` DMG carries `0.1.0-rc.1`), checks embedded SHA-256 pins, and
 prepares the guest.
-Only that setup VM has NAT networking, for Ubuntu package installation. Package
-versions are recorded inside the guest; apt repositories are not snapshot-pinned,
-so this is not a reproducible release-image builder. It requires Python 3.11+,
+The setup VM has NAT networking for Ubuntu package installation from an
+immutable archive snapshot (`apt_snapshot` in `image.json`); the resolved
+package versions and their digest are recorded in the image. It requires Python 3.11+,
 Xcode command-line tools and `qemu-img` (only for image conversion). No host sudo,
 SIP change, Endpoint Security permission or production signing key is used.
 The helper is locally ad-hoc signed with Apple's ordinary virtualization
@@ -171,7 +173,8 @@ execution proof — the 2026-11-03 build is recorded notarization-pending
 (no notarytool credentials on the build host), its installer contract
 passed all five check_install cases against the shipped DMG
 ([installer-check/](../../../docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/installer-check/summary.json)),
-and its gate rows are in
+and its development gate measurements, which leave K108–K113 `untested`,
+are in
 [docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/](../../../docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md).
 
 Run the warm harnesses against the installed package (the binary the
@@ -205,32 +208,35 @@ Apple references: [Virtualization](https://developer.apple.com/documentation/vir
 [virtualization entitlement](https://developer.apple.com/documentation/virtualization/adding-the-virtualization-entitlement-to-your-project),
 [unconditional stop](https://developer.apple.com/documentation/virtualization/vzvirtualmachine/stop(completionhandler:)).
 
-## J18: the warm service (`run --vm` is the macOS release path)
+## J18: the warm service (development; no row passes)
 
-The K108–K113 rows ran their full live evidence on an **installed package**
-on 2026-11-03
-([record](../../../docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md)):
-warm reuse (20 attempts over one boot, 14.9–15.0 ms release latency), live
-workspace grants and denials, the K110 fault matrix, the guest Linux
-receipt verified by digest with the summary's transport line lifted from
-the transport record, and the kernel-bound key refusing in every lane
-before any boot. K113 ran through the tier's compatibility record: Claude
-Code 2.1.311 headless in the guest, the operator's OAuth token through
-the vault (substituted in flight by the guest proxy, in no exported byte),
-its task's file landing on the host through the share
-([record](../../../docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/README.md);
-harness `vm/claude_vm_row.py`). The package is Developer-ID-signed and
-snapshot-pinned (`apt_snapshot` in `image.json`) but **not notarized** —
-no notarytool credentials on the build host — and not published; those,
-with a notarized-build rerun of the rows, remain what a release claim
-still needs, with staged credential modes. The earlier development measurements (one boot at 12.5 ms, the
-guest capability suite — wall, pids, memory, containment, network_none,
-workspace — NAT with egress denied, proxied agent policies, vault-mode
-substitution) are in the
-[2026-11-02 record](../../../docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/README.md).
-The `macos-vm-development` publication scope in `dist/release.json` names
-what stays unsupported (K113.1) and no capability is claimed beyond it.
-the unsupported clauses (K108.1–K113.1) and no capability is claimed.
+`ukai-jail run --vm` is wired to the warm `ukai-vm serve`, but **no macOS
+`ukai-jail` client ships**: the DMG carries only `ukai-vm` and
+`ukai-vm-install`, so the client is built from source. Every `run --vm`
+refuses at probing, before any connection or boot, until a live phase
+re-measures the guest: the probe answers Available only for a requirement a
+measured guest record backs (one table in the VM platform, with
+`measured_at` from that record), and every other requirement answers
+`vm:not-measured:<requirement>`. `network_none` is Unavailable for now: the
+TCP half of its 2026-11-02 measurement was vacuous (`/dev/tcp` under the
+guest's `dash`).
+
+K108–K113 are `untested`. The 2026-11-02/03 measurements on the dev Mac
+([installed-package rows](../../../docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md),
+[Claude Code guest record](../../../docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/README.md),
+[2026-11-02 record](../../../docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/README.md))
+are development evidence: 20 attempts over one boot at 14.9–15.0 ms
+host-observed release latency, live-workspace writes on the host with
+`.git` untouched, four fault-matrix sections, one guest receipt verified by
+digest, the kernel-bound refusal, and one Claude Code headless attempt. They
+do not meet their clauses: the network probes were vacuous, K110 ran half
+its matrix, K111's stored receipt contradicted the guest receipt, K113 is
+one attempt against J18 §9.4's Linux-row conditions, and the rows ran a
+client built from the repository. The acceptance map's notes say what each
+real row needs. The package is Developer-ID-signed and snapshot-pinned
+(`apt_snapshot` in `image.json`) but **not notarized** and not published.
+The `macos-vm-development` publication scope in `dist/release.json` lists
+K108.1–K113.1 as unsupported, and no capability is claimed beyond that.
 
 The specified live workspace share exists as a measured development
 capability (2026-11-02): `run.py --live-workspace --profile tool` attaches
@@ -250,16 +256,29 @@ outside the guest grammar, custom limit ceilings below the guest's measured
 floor, case-folding workspaces, and `--lifetime kernel-bound` — preserved in
 the snapshot and requirements, derived as `owner_loss_termination`, and
 refused by this tier (the guest's wall is a deadline, not an owner-loss
-bound) before any boot. Resource, environment, filesystem and observation
-policies are not silently dropped: there is no permitted CLI release path
-until all requested elements can be applied and measured.
+bound) before any boot. What `--vm` carries is fixed: the profile (`tool`
+or `agent`), the wall (whole seconds, 1–300), the argv, the network shape
+(`tool`: none; `agent`: the proxy with the canonical allow set) and
+vault-mode credentials. Every other policy element that differs from what
+the guest jail applies (deny-read, extra or narrowed grants, protected
+coverage, environment bindings, observation choices, command rules, required
+or unhonored ceilings, storage/cpu/inodes, staged credential modes, an
+attached terminal) refuses before any connection or boot with
+`vm:not-carried:<field>`, for every profile. None is silently dropped. After
+the run, the guest receipt must also agree with the request (profile,
+network mode, allow set, limits); that check is a second wall, not the
+gate. The 2026-11-03 build silently dropped several of these elements; this
+is the corrected contract.
 
-The low-level `ukai-vm serve` protocol is a development interface to the offline
-preview's fixed `tool`/`build` command, with copied inputs and exported outputs.
-It is not a full-policy execution interface. It never updates the input
-workspace in place. Run-mode NAT, agent/provider integration, credential
-injection and interactive stdin are absent. Vault values are refused by both
-the service and guest controller; they are not transported or staged.
+The low-level `ukai-vm serve` protocol is a development interface, not a
+full-policy execution interface. With `--live-workspace` it shares exactly
+the workspace over virtio-fs; once requested, the share is mandatory, and a
+guest whose share fails to mount refuses rather than falling back to a
+staged copy. NAT is attached for proxied `agent` policies, whose allow set
+the guest jail's own proxy enforces. Vault-mode values cross over vsock once
+per attempt into the guest's tmpfs; the values come from the supervisor's
+validated secrets, never from re-reading the operator's files. Interactive
+stdin is absent.
 
 The service holds an exclusive runtime lock before removing stale sockets. It
 copies the installed artifacts to a private boot directory and verifies the
@@ -299,7 +318,17 @@ status output. `UKAI_VM_TEST_BINARY` can select an older binary for regression
 replay. Rust tests cover the receipt gate, output sinks, export traversal,
 frame bounds, record failures, policy refusal and CLI lifetime persistence.
 
-Still unmeasured against a real VM: K108 latency, K109 live workspace behavior,
-K110's full kill/suspend matrix, guest capability probes, policy translation,
-real guest receipts and kernel guarantees. These checks do not establish a
-release, signed-package qualification or production readiness.
+## What remains
+
+Before any J18 row can pass: a shipped and installed macOS `ukai-jail`
+client; a live phase that re-measures every guest requirement with real
+network probes (a socket connect to an IP literal, with a positive control);
+the full K110 matrix (custodian, VZ-client and host-client kills, `Ctrl-Z`
+of the client, every host controller suspended) with long-running workloads
+and compared boot ids; the K111 receipt fix (no host receipt field
+contradicting the verified guest receipt, and a summary printed from the
+guest's applied facts); a VM-tier compatibility record that meets J18
+§9.4's Linux-row conditions (K113); and notarization, followed by the full
+row rerun on the stapled DMG before publication. These stand-in checks do
+not establish a release, signed-package qualification or production
+readiness.

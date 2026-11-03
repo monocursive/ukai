@@ -151,8 +151,13 @@ launcher, so the class no longer rests on a command name. Kickstart, load
 and the direct client were all denied against both custodians with working
 outside controls. J16 packaging and
 the spike's remaining blockers (process headroom, the full SQLite build,
-stop-path timing instrumentation) remain outstanding; J18 lacks network,
-the `agent` profile, a workspace share and in-guest credentials. Apple's
+stop-path timing instrumentation) remain outstanding. J18's K108–K113 are
+`untested`: the 2026-11-02/03 development measurements on the dev Mac
+(vacuous network probes, half the K110 matrix, a stored receipt that
+contradicted the guest's, one Claude Code attempt, a client built from the
+repository) do not meet their clauses; a policy element the guest jail does
+not carry refuses with `vm:not-carried:<field>`, and no macOS `ukai-jail`
+client ships, so the client is built from source. Apple's
 entitlement and K104 (every J16 row on a protected Mac) are still required.
 The table describes assertions in the current test sources, not a passing
 live acceptance record; every mapped native test was rechecked after integration.
@@ -164,8 +169,9 @@ Current implementation: native execution is **off by default**. Setting
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
 receipts and development-VM observation smoke runs are tested; full live
-release acceptance remains pending. Every
-`run --vm` refuses before connecting: no qualified VM backend exists yet.
+release acceptance remains pending. Every `run --vm` refuses at probing,
+before any connection or boot, until a live phase re-measures the guest:
+unmeasured requirements answer `vm:not-measured:<requirement>`.
 
 | Lane | Covers |
 | --- | --- |
@@ -178,7 +184,7 @@ release acceptance remains pending. Every
 | `macos_gc` | Host boot/session and custodian-liveness probes; fabricated attempt roots for abandon, orphan listing and drained-record scanning; a gone-target kill errno path. No live both-custodian-loss recovery proof (K95). |
 | `macos_boundary` | Default refusal without the native development opt-in (including a `none` marker test), requirements refusal, launcher/guardian grammar, blocked report, B-frame codec and synthetic RunEvent mapping. No live entitled execution or per-ceiling/observation acceptance proof. |
 | `macos_observe` | Synthetic events cover the published 18-notification `macos-closed-v1` table; loss-free exec/fs.write counts, gaps and summary recomputation are checked. The native boundary producer fixture also checks shared handshake token selection and attachment, startup refusal in both modes, strict runtime stop and best-effort runtime degradation. J17 is wired; no observed live attempt (K105–K107), and no live performance result. |
-| `vm_tier` | Policy key/digest/narrowing, CLI grammar and refusals, transport facts, and attempt/control protocols against a scripted stand-in. No VM boots; warm reuse and K108–K110 remain untested. |
+| `vm_tier` | Policy key/digest/narrowing, CLI grammar and refusals, transport facts, and attempt/control protocols against a scripted stand-in. No VM boots; K108–K113 remain untested, and the development records under `results/macos-vm-*` do not meet their clauses. |
 | Portable extensions | Shared resolution, policy and record assertions where the named suite actually runs on macOS; these do not prove live native custody. Group- and other-writable install roots refuse; no group-membership exception remains. |
 
 **Dev-VM note.** The earlier `ouro-jail-es-dev` VM was deleted. The 2026-11-01

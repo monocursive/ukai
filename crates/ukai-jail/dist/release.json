@@ -33,7 +33,13 @@
             "K104.1",
             "K105.1",
             "K106.1",
-            "K107.1"
+            "K107.1",
+            "K108.1",
+            "K109.1",
+            "K110.1",
+            "K111.1",
+            "K112.1",
+            "K113.1"
         ],
         "elf_machine_by_target": {
             "x86_64-unknown-linux-gnu": 62,
@@ -41,12 +47,20 @@
         }
     },
     "vm": {
-        "version": "0.1.0-preview.2",
+        "version": "0.1.0-preview.1",
+        "candidate_version": "0.1.0-preview.2",
         "tag_prefix": "ukai-vm-v",
         "published_tag": "ouro-vm-v0.1.0-preview.1",
         "target": "macos-arm64",
         "publication_scope": "macos-vm-development",
-        "unsupported_clauses": [],
-        "scope_note": "ukai-jail run --vm drives the warm service with the live workspace share, proxied agent policies and vault-mode credentials. All J18 clauses ran their full live evidence on an installed package (2026-11-03): K108-K112 in docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/ and K113 through the Claude Code 2.1.311 headless compatibility record in docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/ (the OAuth token through the vault, substituted in flight by the guest proxy; the token is in no exported byte). The package ships the Rust ukai-vm warm service, is Developer-ID-signed and snapshot-pinned (apt_snapshot 20261020T000000Z), but NOT notarized (no notarytool credentials on the build host; recorded pending) and not published \u2014 those, with a notarized-build rerun of the rows, are what a release claim still needs. Staged credential modes (copy_rw/bind_ro) remain refused with a remedy."
+        "unsupported_clauses": [
+            "K108.1",
+            "K109.1",
+            "K110.1",
+            "K111.1",
+            "K112.1",
+            "K113.1"
+        ],
+        "scope_note": "Development scope; no J18 clause is supported. ukai-jail run --vm, built from source (no macOS ukai-jail client ships; the DMG carries only ukai-vm and ukai-vm-install), is wired to the warm ukai-vm service but refuses at probing until a live phase re-measures the guest: the probe answers Available only for a requirement a measured guest record backs, and every other requirement answers vm:not-measured:<requirement>, network_none included (its 2026-11-02 TCP probe was vacuous). The guest jail carries only the profile (tool or agent), the wall (1-300 s), the argv, the network shape (tool none; agent proxy with the canonical allow set) and vault-mode credentials; any other policy element that differs refuses with vm:not-carried:<field> before any connection or boot, staged credential modes (copy_rw/bind_ro) included. K108.1-K113.1 stay unsupported: the 2026-11-02/03 development measurements on the dev Mac (docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/ and macos-vm-claude-2026-11-03/) used a repository-built client, vacuous network probes, half the K110 matrix, a stored receipt that contradicted the guest receipt (K111) and one Claude Code attempt against J18 section 9.4's Linux-row conditions (K113). version is the public cold-boot preview the installer pins; candidate_version is the warm-service package that package.py builds, Developer-ID-signed and snapshot-pinned but not notarized and not published. A release claim needs a shipped client, the live re-measurement, and the full K108-K113 rows rerun on the notarized candidate."
     }
 }

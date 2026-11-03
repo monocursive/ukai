@@ -325,6 +325,21 @@ impl Map {
             if matches!(c.tag, Tag::Untested | Tag::Credential) && evidence {
                 p.push(format!("{} is {} but lists evidence", c.id, c.tag.as_str()));
             }
+            // A proving tag needs something a gate evaluates. Without it a
+            // logless run reads the clause as Elsewhere and a run with its
+            // lane's log as NoEvidence: never a pass, but a claim no gate can
+            // check (K108.1-K113.1 were promoted to live-cli this way).
+            if matches!(
+                c.tag,
+                Tag::LiveCli | Tag::LiveLib | Tag::Portable | Tag::Simulated
+            ) && !evidence
+            {
+                p.push(format!(
+                    "{} is {} but names no test or check a gate evaluates",
+                    c.id,
+                    c.tag.as_str()
+                ));
+            }
             let mut seen = BTreeSet::new();
             for t in &c.tests {
                 if !is_test_id(t) {
@@ -3010,13 +3025,21 @@ mod tests {
                     .unwrap()
                     .status
             };
-            // A named requirement may not be passing in the full verdict.
-            // Since the K108-K112 rows became live-cli (2026-11-03), a
-            // logless evaluation reads them as Elsewhere — provable, not
-            // proved here — instead of Fail; both stay far from Pass.
-            assert!(
-                !matches!(find(&full), ClauseStatus::Pass | ClauseStatus::Limit),
-                "{id} is named unsupported but passes in the full verdict"
+            // A named requirement fails the full verdict, and fails because
+            // it is untested. "Not passing" was too weak: a logless
+            // evaluation reads any promoted clause as Elsewhere, so a clause
+            // promoted while still named here (K108-K113, 2026-11-03) went
+            // unnoticed.
+            let full_clause = full
+                .gates
+                .iter()
+                .flat_map(|g| &g.clauses)
+                .find(|c| &c.id == id)
+                .unwrap();
+            assert_eq!(
+                (full_clause.status, full_clause.reasons.as_slice()),
+                (ClauseStatus::Fail, [ClauseReason::Untested].as_slice()),
+                "{id} is named unsupported, so the full verdict must fail it as untested"
             );
             assert_eq!(find(&linux), ClauseStatus::Unsupported);
         }
@@ -3544,6 +3567,40 @@ reason = ""
             Map::parse("schema = \"ukai.jail.acceptance-map/1\"\nsurprise = 1\n").is_err(),
             "unknown keys are refused, not ignored"
         );
+    }
+
+    /// Fix wave 1103: K108.1-K113.1 were tagged live-cli with notes and no
+    /// test or check; the map parsed, and no gate could ever evaluate them.
+    #[test]
+    fn a_proving_tag_without_a_test_or_check_is_a_map_problem() {
+        let tests = "tests = [\"ukai-jail/tests/conformance_j1.rs::x01_literal_argv\"]\n";
+        for tag in ["live-cli", "live-lib", "portable", "simulated"] {
+            let tagged = MINI_MAP.replace("tag = \"live-cli\"\n", &format!("tag = \"{tag}\"\n"));
+            assert!(Map::parse(&tagged).is_ok(), "{tag} with a test parses");
+            let bare = tagged.replace(tests, "note = \"Measured live; see the record.\"\n");
+            assert_ne!(bare, tagged);
+            let err = Map::parse(&bare).unwrap_err();
+            assert!(
+                err.contains(&format!(
+                    "X01.1 is {tag} but names no test or check a gate evaluates"
+                )),
+                "{err}"
+            );
+            let checked = tagged.replace(tests, "checks = [\"suite_clean\"]\n");
+            assert!(
+                !Map::parse(&checked)
+                    .err()
+                    .unwrap_or_default()
+                    .contains("names no test or check"),
+                "a driver check is evidence too"
+            );
+        }
+        let untested = MINI_MAP
+            .replace("tag = \"live-cli\"\n", "tag = \"untested\"\n")
+            .replace(tests, "");
+        assert!(Map::parse(&untested).is_ok());
+        let real = Map::parse(MAP).unwrap();
+        assert!(!real.clause.is_empty());
     }
 
     #[test]
