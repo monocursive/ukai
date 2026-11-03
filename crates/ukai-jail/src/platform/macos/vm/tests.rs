@@ -2825,3 +2825,24 @@ fn a_failed_run_writes_no_transport_record() {
     assert!(!error.is_empty());
     assert!(!dir.path().join(record::TRANSPORT_FILE).exists());
 }
+
+/// A ceiling whose value is not a number is never taken as the guest's
+/// fixed one. The policy layer validates sizes, so a resolved snapshot never
+/// carries one; this pins the carry rule's own wall (review survivor W4).
+#[test]
+fn a_ceiling_that_is_not_a_number_is_not_carried() {
+    for key in ["pids", "mem", "swap"] {
+        let limits: crate::policy::LimitsSnapshot = serde_json::from_value(serde_json::json!({
+            "wall": {"value": "30000", "required": true},
+            key: {"value": "lots", "required": false},
+        }))
+        .unwrap();
+        let refusal = carried_limits(&limits).unwrap_err();
+        assert_eq!(refusal.field, format!("limits.{key}"));
+        assert!(
+            refusal.detail.contains("is not a number"),
+            "{}",
+            refusal.detail
+        );
+    }
+}
