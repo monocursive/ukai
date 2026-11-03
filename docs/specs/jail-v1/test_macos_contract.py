@@ -66,6 +66,54 @@ def rust_test_definition(reference):
     return read("crates/" + source), function
 
 
+def exists(path):
+    """Whether `path` (a file or directory) is in the tree being validated."""
+    if BASE:
+        return subprocess.run(["git", "cat-file", "-e", f"{BASE}:{path.rstrip('/')}"],
+                              cwd=ROOT, capture_output=True).returncode == 0
+    return (ROOT / path).exists()
+
+
+CITED_PATH = re.compile(r"(?:docs|crates)/[A-Za-z0-9_./-]+")
+NATIVE_GATES = ["L02", "M01"] + [f"K{i}" for i in range(87, 114)]
+
+
+def cited_paths(note):
+    return [path.rstrip(".,;:") for path in CITED_PATH.findall(note or "")]
+
+
+def live_promotion_problems(acceptance, exists):
+    """Why the map breaks the D7 rule; [] when it holds.
+
+    An untested native clause lists no evidence. A native gate left with no
+    untested clause was promoted, and component tests alone cannot promote
+    it: it needs a live clause that names a test or check a gate evaluates
+    and cites an evidence record under docs/benchmarks/ that exists. Every
+    path any note cites must exist (a substring is not a record).
+    """
+    problems = []
+    for gate in NATIVE_GATES:
+        clauses = [c for c in acceptance["clause"] if c["gate"] == gate and c.get("lane") == "macos"]
+        pending = [c for c in clauses if c["tag"] == "untested"]
+        measured = [c for c in clauses if c["tag"] in ("live-cli", "live-lib")]
+        problems += [f"{c['id']} is untested but lists evidence" for c in pending
+                     if c.get("tests") or c.get("checks")]
+        if pending:
+            continue
+        if not measured:
+            problems.append(f"{gate} has no untested clause and no live clause: "
+                            "component tests alone cannot promote a gate")
+        for c in measured:
+            if not c.get("tests") and not c.get("checks"):
+                problems.append(f"{c['id']} is {c['tag']} but names no test or check a gate evaluates")
+            if not any(p.startswith("docs/benchmarks/") for p in cited_paths(c.get("note"))):
+                problems.append(f"{c['id']} cites no docs/benchmarks/ evidence record")
+    for c in acceptance["clause"]:
+        problems += [f"{c['id']} cites {p}, which does not exist"
+                     for p in cited_paths(c.get("note")) if not exists(p)]
+    return problems
+
+
 def validator_module():
     name = "phase1_validator"
     if BASE:
@@ -202,20 +250,13 @@ class MacosContract(unittest.TestCase):
             with self.subTest(gate=gate):
                 self.assertIn(gate, gates)
                 self.assertEqual(gates[gate]["row"], rows[gate])
-        for gate in ["L02", "M01"] + [f"K{i}" for i in range(87, 114)]:
+        self.assertEqual([], live_promotion_problems(acceptance, exists))
+        # K108-K113 were promoted on 2026-11-03 with notes that named no
+        # test and records that did not meet their clauses; they are
+        # untested again (fix wave 1103, D11).
+        for gate in [f"K{i}" for i in range(108, 114)]:
             with self.subTest(gate=gate):
-                pending = [c for c in acceptance["clause"] if c["gate"] == gate and c.get("lane") == "macos" and c["tag"] == "untested"]
-                measured = [c for c in acceptance["clause"] if c["gate"] == gate and c.get("lane") == "macos" and c["tag"] in ("live-cli", "live-lib")]
-                if pending:
-                    self.assertTrue(all(not c.get("tests") and not c.get("checks") for c in pending))
-                else:
-                    # A gate with no untested clause left (K108-K112,
-                    # 2026-11-03) must have been promoted by live rows whose
-                    # notes cite their evidence record; component tests alone
-                    # still cannot promote a gate.
-                    self.assertTrue(measured, "live native claim needs an explicit failing clause")
-                    self.assertTrue(all("docs/benchmarks/" in (c.get("note") or "") for c in measured),
-                                    "a measured live claim cites its evidence record")
+                self.assertEqual(next(c for c in acceptance["clause"] if c["id"] == gate + ".1")["tag"], "untested")
         for c in acceptance["clause"]:
             if c["gate"] not in {f"K{i}" for i in range(87, 114)}:
                 continue
@@ -223,6 +264,36 @@ class MacosContract(unittest.TestCase):
                 with self.subTest(reference=test):
                     source, name = rust_test_definition(test)
                     self.assertRegex(source, r"(?m)^\s*#\[test\]\s*(?:#\[[^\n]+\]\s*)*fn " + re.escape(name) + r"\(")
+
+    def test_d7_guard_refuses_a_promotion_without_evaluated_tests_or_an_existing_record(self):
+        # Every native gate has an untested clause today, so the guard's
+        # promotion branch runs only on these synthetic maps.
+        acceptance = tomllib.loads(read(CONTRACT + "acceptance-map.toml"))
+        test = "ukai-jail/tests/vm_tier.rs::the_transport_record_carries_the_recorded_facts"
+        record = "docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md"
+        self.assertTrue(exists(record))
+
+        def promote(tag="live-cli", **fields):
+            value = copy.deepcopy(acceptance)
+            next(c for c in value["clause"] if c["id"] == "K111.1").update(tag=tag, **fields)
+            return live_promotion_problems(value, exists)
+
+        # A promotion that holds: a live clause a gate evaluates, citing a real record.
+        self.assertEqual([], promote(tests=[test], note=f"Live row; evidence {record}."))
+        for name, problems in {
+            "a cited record that does not exist":
+                promote(tests=[test], note="Live row; evidence docs/benchmarks/jail/results/no-such-run/README.md."),
+            "no test or check a gate evaluates": promote(note=f"Live row; evidence {record}."),
+            "no evidence record": promote(tests=[test], note="Live row, measured on the dev Mac."),
+            "component tests alone": promote(tag="portable", tests=[test], note=f"Evidence {record}."),
+        }.items():
+            with self.subTest(defect=name):
+                self.assertTrue(problems)
+        # An untested clause's cited path must exist too.
+        value = copy.deepcopy(acceptance)
+        next(c for c in value["clause"] if c["id"] == "K108.1")["note"] = "See docs/benchmarks/jail/results/gone/."
+        self.assertEqual(live_promotion_problems(value, exists),
+                         ["K108.1 cites docs/benchmarks/jail/results/gone/, which does not exist"])
 
     def test_d8_other_writable_is_never_accepted(self):
         for path in ["docs/specs/jail-launch-and-summary.md", "docs/specs/jail-macos.md"]:
@@ -365,10 +436,19 @@ class MacosContract(unittest.TestCase):
         clauses = {c["id"]: c for c in acceptance["clause"]}
         native = {c["id"] for c in clauses.values() if c["tag"] == "untested" and
                   (c["gate"] in {f"K{i}" for i in range(87, 114)} or c["id"] in {"L02.12", "M01.4"})}
-        release = json.loads(read("crates/ukai-jail/dist/release.json"))["jail"]["unsupported_clauses"]
+        coordinates = json.loads(read("crates/ukai-jail/dist/release.json"))
+        release = coordinates["jail"]["unsupported_clauses"]
         self.assertEqual(set(release), native | {"K22.2", "K23.1", "K24.1", "K26.1", "K29.1"})
         self.assertEqual(len(release), len(set(release)))
         self.assertTrue(all(re.fullmatch(r"[A-Z][0-9]+\.[0-9]+", c) for c in release))
+        # The VM scope names exactly the untested J18 clauses, each also
+        # excluded from the Linux release; nothing else reads this list.
+        vm = coordinates["vm"]["unsupported_clauses"]
+        j18 = {c["id"] for c in clauses.values() if c["tag"] == "untested"
+               and c["gate"] in {f"K{i}" for i in range(108, 114)}}
+        self.assertEqual(j18, {f"K{i}.1" for i in range(108, 114)})
+        self.assertEqual(vm, sorted(j18, key=lambda c: int(c[1:].split(".")[0])))
+        self.assertTrue(set(vm) <= set(release))
         expected = {
             "ukai-jail/tests/macos_observe.rs::k105_events_map_to_schema_valid_audit_results_with_honest_coverage",
             "ukai-jail/tests/macos_observe.rs::j17_published_closed_set_equals_the_subscription_rows",

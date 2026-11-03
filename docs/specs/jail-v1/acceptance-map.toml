@@ -4253,9 +4253,9 @@ row = "Warm reuse: a second attempt in a running guest is released within initia
 id = "K108.1"
 gate = "K108"
 clause = "Warm reuse: a second attempt in a running guest is released within initial 1 s of the guest jail's own release time, over 20 runs."
-tag = "live-cli"
+tag = "untested"
 lane = "macos"
-note = "Full row run 2026-11-03 on the installed package (signed, notarization pending): 20 attempts over one boot of the package's own serve, initial 14.9 ms / max 15.0 ms release latency, every attempt within initial + 1 s, every granted write on the host, .git untouched. Harness crates/ukai-jail/vm/warm_live.py; docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/."
+note = "Untested (returned from live-cli on 2026-11-03, fix wave 1103). Measured on the development Mac (macOS 27.0.1, Apple Silicon) on 2026-11-03: 20 attempts over one boot of a signed, unnotarized development package's serve, driven by the Python protocol client crates/ukai-jail/vm/warm_live.py, host-observed prepared-to-released latency 14.9 ms initial / 15.0 ms max, every granted write on the host and .git/config byte-identical (docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/k108-warm-live.json). It does not meet the clause: the latency was never compared with the guest jail's own release time (the record read 'initial 1 s' as 'the first attempt's latency + 1 s', but initial marks a tunable default); no installed and shipped ukai-jail client drove the attempts (the DMG ships only ukai-vm and ukai-vm-install); each attempt's network probe was vacuous (/dev/tcp under dash) and its GIT_ALLOWED line is a shell-precedence artifact. A real row needs an installed and shipped client, 20 attempts timed against the guest jail's own release time, and real network probes with a positive control."
 
 # ------------------------------------------------------------------ K109
 
@@ -4267,9 +4267,9 @@ row = "Live workspace: writes granted by policy appear on the host. Writes outsi
 id = "K109.1"
 gate = "K109"
 clause = "Live workspace: writes granted by policy appear on the host. Writes outside the grants and the share are absent."
-tag = "live-cli"
+tag = "untested"
 lane = "macos"
-note = "Full row run 2026-11-03 on the installed package: the granted write reached the host with its exact bytes; writes to the protected .git, /etc, /usr/local/bin and the guest's root were each refused and absent (the .git sentinel byte-identical). Harness crates/ukai-jail/vm/gate_rows.py row_k109; docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/."
+note = "Untested (returned from live-cli on 2026-11-03, fix wave 1103). Measured on the development Mac on 2026-11-03 through the Python protocol client (crates/ukai-jail/vm/gate_rows.py, row_k109) against a signed, unnotarized development package: the granted write reached the host with its exact bytes, and writes to the protected .git, /etc, /usr/local/bin and the guest's root were refused and absent (docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/k109.json). It does not meet the clause: the grants were the guest's fixed tool shape, not a host policy's (the run --vm path of that build dropped host --ro/--rw narrowing silently instead of refusing it), and no installed and shipped ukai-jail client ran. A real row needs an installed and shipped client, host policies whose extra or narrowed grants the guest either applies or refuses with vm:not-carried:<field> before any boot, and the absent-write checks for each."
 
 # ------------------------------------------------------------------ K110
 
@@ -4281,9 +4281,9 @@ row = "The preview's fault matrix, rerun for the warm design. Killing the host `
 id = "K110.1"
 gate = "K110"
 clause = "The preview's fault matrix, rerun for the warm design. Killing the host `ukai-jail` ends that attempt through its lease, and `Ctrl-Z` of it does not. Killing the custodian, the VZ client or `ukai-vm` ends the VM service and every attempt. With every host controller suspended, the guest's wall deadline ends the attempt. All are checked before any test cleanup."
-tag = "live-cli"
+tag = "untested"
 lane = "macos"
-note = "Full row run 2026-11-03 on the installed package, every section its own boot of the package's serve: secret transport lifecycle (nested ids acked under /run/ukai-vm/credentials, duplicate refused, second attempt same boot), A kill -9 the service (attempt socket dead, no VZ left, workspace survives), B whole-process-group Ctrl-Z (attempt completes after resume, guest stays warm), C attempt-socket EOF (only that attempt cancels; next runs same boot). Harness crates/ukai-jail/vm/fault_matrix.py; docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/fault-matrix.json."
+note = "Untested (returned from live-cli on 2026-11-03, fix wave 1103). Measured on the development Mac on 2026-11-03 with the Python harness crates/ukai-jail/vm/fault_matrix.py against a signed, unnotarized development package, each section on its own boot: the secret transport lifecycle, A kill -9 of the service, B Ctrl-Z of the service's whole process group, C attempt-socket EOF (docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/fault-matrix.json). It does not meet the clause, of which it ran half: no custodian kill, no VZ-client kill, no kill or Ctrl-Z of a host ukai-jail client and no case with every host controller suspended; A's workload finished before the kill and C's before the EOF; 'same boot' was asserted without comparing boot ids; the matrix's network probe was vacuous (/dev/tcp under dash). A real row needs the full K110 matrix on an installed and shipped client: every case with a long-running workload that has descendants, the host-client cases through a real ukai-jail run --vm, boot ids compared, and every result checked before any cleanup."
 
 # ------------------------------------------------------------------ K111
 
@@ -4295,9 +4295,9 @@ row = "The stored receipt is the guest's Linux receipt, verified by digest, and 
 id = "K111.1"
 gate = "K111"
 clause = "The stored receipt is the guest's Linux receipt, verified by digest, and the summary's transport line comes from the transport record."
-tag = "live-cli"
+tag = "untested"
 lane = "macos"
-note = "Full row run 2026-11-03 on the installed package: one attempt through `ukai-jail run --vm` (the client booted the package's serve itself, 66.4 s cold) settled with tree_empty true; evidence/jail.json is the guest's Linux receipt (/platform/os linux) and its SHA-256 equals the transport record's guest_receipt_sha256; vm-binding.json ties attempt id, boot id, profile and argv digest to the run; the summary's transport line (terminal capture) carries boot, image, vsock and receipt digest lifted from vm-transport.json. Harness crates/ukai-jail/vm/gate_rows.py row_k111; docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/."
+note = "Untested (returned from live-cli on 2026-11-03, fix wave 1103). Measured on the development Mac on 2026-11-03: one ukai-jail run --vm attempt (a client built from the repository, target/release at d0bfd0c7b; the DMG ships none) settled; evidence/jail.json is a Linux receipt whose SHA-256 equals the transport record's guest_receipt_sha256, and the summary's transport line carries values lifted from vm-transport.json (docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/k111-attempt/). It does not meet the clause: the stored receipt, attempts/<id>/jail.json, is the host's own receipt, not the guest's, and it contradicts the verified guest receipt (network pending against the guest's applied none, observer not attached against the guest's attached ptrace observer, kernel unknown), and the summary printed those host facts. A real row needs the K111 receipt fix (no host receipt field contradicts the verified guest receipt, and the summary prints the guest's applied network and observer facts), an installed and shipped client, and a harness that compares every host field with the guest receipt."
 
 [[clause]]
 id = "K111.2"
@@ -4320,9 +4320,9 @@ row = "The kernel-bound key derives `owner_loss_termination`: native macOS and t
 id = "K112.1"
 gate = "K112"
 clause = "The kernel-bound key derives `owner_loss_termination`: native macOS and this build's installed `--vm` backend refuse with `unsupported`; Linux `none` refuses. A qualified VM backend must provide a kernel-bound lifetime before accepting it."
-tag = "live-cli"
+tag = "untested"
 lane = "macos"
-note = "Full row run 2026-11-03 on the installed package: native as shipped (unsupported_platform), native dev-enabled (missing_capability) and the installed --vm backend (missing_capability) each refuse at probing with remediation unsupported, policy records lifetime_boundary kernel-bound and derives owner_loss_termination, no workload ran and no boot was attempted (the --vm refusal precedes ensure_serving). Found and fixed: the VM probe answered owner_loss_termination Available and went looking for a boot. Linux none refusal is K112.2. Harness crates/ukai-jail/vm/gate_rows.py row_k112; docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/."
+note = "Untested (returned from live-cli on 2026-11-03, fix wave 1103). Measured on the development Mac on 2026-11-03 with a client built from the repository (target/release at d0bfd0c7b) and a signed, unnotarized development package: native as shipped, native dev-enabled and --vm each refused at probing with [unsupported], the policy recorded lifetime_boundary kernel-bound and derived owner_loss_termination, and no boot directory appeared (docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/k112.json). It does not meet the clause: the harness's no-workload check looked for /tmp/k112-workload-ran while the workload would create k112-workload-ran in the workspace, so that check could not fail; the harness exits 0 whatever its verdict; and no installed and shipped client ran. The Linux none refusal is K112.2. A real row needs an installed and shipped client, a workload check with a positive control, and a harness whose exit status is its verdict."
 
 [[clause]]
 id = "K112.2"
@@ -4345,9 +4345,9 @@ row = "Each compatibility record's summary names its custody (native) or its tra
 id = "K113.1"
 gate = "K113"
 clause = "Each compatibility record's summary names its custody (native) or its transport (VM)."
-tag = "live-cli"
+tag = "untested"
 lane = "macos"
-note = "The VM-tier compatibility record exists and its summary names its transport: Claude Code 2.1.311 headless in the warm guest on the installed package (2026-11-03, the record's run at docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/) settled, and its summary carries the transport line with every value lifted from vm-transport.json (verified against the record), reproduced by `ukai-jail tail --summary`. The record itself is docs/specs/jail-v1/agent-compatibility.md's 2026-11-03 J18 row; the native custody line stays unit-covered in summary.rs (the native tier refuses every policy in this build, so no native record exists)."
+note = "Untested (returned from live-cli on 2026-11-03, fix wave 1103). Measured on the development Mac on 2026-11-03: one Claude Code 2.1.311 headless attempt through ukai-jail run --vm --profile agent --launch claude-vm (a client built from the repository at f25ffca8d; the DMG ships none) settled with exit 0, and its summary carried the transport line lifted from vm-transport.json, receipt sha256:53837b58 (the record first cited sha256:10c3c58f, which matches no file) (docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/). It does not meet the clause: K113's pass conditions are J18 section 9.4's, those of the Linux A-rows (the A01 fixture, ten repetitions, the no-source refusal, revocation mid-stream, observation on with strict evidence, and the summary's credential use count), and one attempt meets none of them; the summary's other lines came from the host receipt that contradicts the guest receipt (network not applied and 0/6 classes against the guest's proxy network and six active classes); the harness's summary check was satisfied by the run's own output. A real row needs a VM-tier compatibility record that meets section 9.4's Linux-row conditions on an installed and shipped client, after the K111 receipt fix."
 
 # ---------------------------------------- the pinned ignored set, linux lane
 
