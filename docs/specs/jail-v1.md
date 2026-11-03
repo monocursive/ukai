@@ -745,8 +745,9 @@ answers `vm:not-carried:<field>` (`configuration`); `--lifetime kernel-bound`
 requires `owner_loss_termination`, which narrows authority rather than
 selecting a backend, and the VM tier refuses it with
 `vm:owner-loss-not-provided` (`unsupported`). With native development enabled,
-macOS refuses it with `unsupported` too, so `--vm` is not a working remedy;
-Linux `none` refuses it. A missing or invalid VM installation instead refuses
+macOS refuses it with `unsupported` too: owner-loss termination is unavailable
+in this build on either macOS tier, so `--vm` is not a working remedy. Linux
+`none` refuses it. A missing or invalid VM installation instead refuses
 with exit 125, `backend_unavailable` at `probing` and `host_setup`, including
 `--profile none`.
 These flags are working-tree interfaces, not a supported Mac release; see
