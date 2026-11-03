@@ -55,6 +55,11 @@ as written, except the publication sentence that erratum 8 corrects.
    `k111-attempt/evidence/jail.json` (`sha256:6f7d67b3…`, the digest the
    transport record carries): network `pending` and observer not attached,
    against the guest's applied `none` network and attached ptrace observer.
+   Since `7b1f6d875` (decision D5) the settled host receipt takes
+   `platform.kernel`, `platform.arch`, `exec_observed`, `applied` (except
+   its `terminal`), `observer` and `coverage` from the verified guest
+   receipt, and the `--vm` summary reads the guest receipt, checked
+   against this digest. No live run has produced such a receipt yet.
 7. **K112's harness could not fail its no-workload check:** it looks for
    `/tmp/k112-workload-ran`, while the workload would create
    `k112-workload-ran` in the workspace. `gate_rows.py` also exits 0
@@ -64,6 +69,18 @@ as written, except the publication sentence that erratum 8 corrects.
    under "What this does and does not claim" said otherwise and is corrected
    inline. K113 was not "measured there": the Claude Code record is one
    development attempt and K113 stays `untested`.
+9. **K112's `--vm` refusal named native macOS.** The installed `--vm`
+   lane refused with the native reason `kernel_bound_requires_vm`, the one
+   "Two real bugs" item 2 below names, and its message
+   ([k112.json](k112.json) `vm_installed.stderr`) is the native one, word
+   for word: "native macOS does not provide" a kernel-bound lifetime. The
+   refusal was at probing, before any boot, as recorded, but it named the
+   wrong tier. Since `7b1f6d875` the VM tier answers
+   `owner_loss_termination` with its own reason,
+   `vm:owner-loss-not-provided`, and a message naming the VM tier: the
+   guest's wall is a deadline, not an owner-loss bound. That is tested at
+   the CLI with a fabricated installation, not rerun on an installed
+   package.
 
 | Row | Verdict | Evidence |
 | --- | --- | --- |

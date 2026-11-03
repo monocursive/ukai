@@ -44,6 +44,31 @@ evidence, the summary's credential use count).
    public preview.
 6. **The first run's `401`** is recorded only in this prose; its attempt
    directory was overwritten by the later runs.
+7. **The TLS-only grant did not cross as TLS-only.** The harness's launch
+   profile allows `api.anthropic.com` with no port, which the host policy
+   records as a TLS-only rule. `run --vm` sent it to the guest in its
+   canonical form, `api.anthropic.com:443`, and the guest jail's rule
+   grammar reads an explicit port as one that also admits plaintext HTTP.
+   The guest receipt shows the result: `applied.network.allowed_hosts` is
+   `["api.anthropic.com:443", "api.anthropic.com:443"]` (the rule twice),
+   the policy grants list the same rule twice, and there is no `tls_only`
+   field. So the guest's policy admitted plaintext HTTP to that host and
+   port, against the host policy. This record does not test a plaintext
+   request. Fixed in `7b1f6d875`: a TLS-only rule now crosses without its
+   `:443`, and the host refuses a guest receipt whose `tls_only` set
+   differs from the policy's; `407b18b05` pins the portless spelling in
+   the guest controller's tests. Neither has run on a booted guest.
+
+Since `7b1f6d875` (decision D5), errata 2 and 3 have a fix in code, not yet
+shown on a live run: when the guest receipt verifies and the guest
+finishes, the settled host receipt takes `platform.kernel`,
+`platform.arch`, `exec_observed`, `applied` (except its `terminal`),
+`observer` and `coverage` from it, and names it in
+`lifetime.native.details` (`guest_receipt`, `guest_receipt_sha256`,
+`guest_carried`). The summary of a `--vm` attempt reads the guest receipt,
+checked against the transport record's digest, for the same groups. Both
+changes are tested against this record's guest receipt and attempt
+directory; neither has produced a receipt or a summary from a new run.
 
 ## What the one attempt proved
 

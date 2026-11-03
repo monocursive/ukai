@@ -370,6 +370,80 @@ class MacosContract(unittest.TestCase):
             self.assertIn(fact, compat)
         self.assertTrue(exists("docs/benchmarks/jail/results/macos-nproc-raise-2026-11-03/output.txt"))
 
+    def test_vm_fix_wave_docs_describe_the_carry_rule_stop_and_share(self):
+        """D1-D8: the VM docs describe the fix wave's code and its test limits."""
+        def flat(path):
+            return " ".join(read(path).split())
+        vm_tier = flat("docs/specs/jail-macos.md").split("## 6.", 1)[1].split("## 7.", 1)[0]
+        readme = flat("crates/ukai-jail/vm/README.md")
+        for path, text in [("jail-macos.md section 6", vm_tier), ("vm/README.md", readme)]:
+            with self.subTest(path=path):
+                for fact in ["`vm:owner-loss-not-provided`", "`GUEST_MEASUREMENTS`",
+                             "`vm:not-measured:<requirement>`", "`vm:not-carried:<field>`",
+                             "`environment.bindings`", "`guest_carried`", "`guest_receipt_sha256`",
+                             "`<data>/vm/serve.stderr`", "`attempt_tree_unverified`",
+                             "`attempt_files_not_cleared`", "`live_share_mount_failed`",
+                             "`launch_profile_unstageable`", "`launch_without_toml`",
+                             "`nosuid,nodev`", "`init.scope`", "`test_guest_main.py`",
+                             "`guest_harness.py`", "`test_custodian.py`",
+                             "covered by unit and model tests only",
+                             "been confirmed on a booted guest"]:
+                    self.assertIn(fact, text)
+                self.assertNotIn("kernel_bound_requires_vm", text)
+                self.assertNotIn("measured floor", text)
+        for fact in ["None is silently dropped", "`KEPT_BOOT_DIRS`", "`UKAI_VM_PACKAGE_VERSION`",
+                     "`<crate version>-dev`", "wake gap"]:
+            self.assertIn(fact, readme)
+        # The errata name what each record got wrong and point at the fix.
+        results = "docs/benchmarks/jail/results/"
+        for path, facts in [
+            ("macos-vm-installed-2026-11-03/README.md",
+             ["K112's `--vm` refusal named native macOS", "`kernel_bound_requires_vm`",
+              "`vm:owner-loss-not-provided`", "Since `7b1f6d875` (decision D5)"]),
+            ("macos-vm-claude-2026-11-03/README.md",
+             ["The TLS-only grant did not cross as TLS-only",
+              '`["api.anthropic.com:443", "api.anthropic.com:443"]`', "there is no `tls_only` field",
+              "This record does not test a plaintext request", "`407b18b05`"]),
+            ("macos-vm-share-2026-11-02/README.md",
+             ["## Errata (2026-11-03, fix wave 1103)", "The preflight's normalization probe could not fail",
+              "case-sensitive APFS volume folds normalization only", "the disclosure below stands"]),
+            ("macos-vm-warm-2026-11-02/README.md",
+             ["moved the kill to a cgroup the jail leaves", "Case B stayed inside the custodian's lease",
+              "`bfcf1f9d4`", "`7af4af5c1`", "it has not run on a booted guest"]),
+        ]:
+            with self.subTest(path=path):
+                text = flat(results + path)
+                for fact in facts:
+                    self.assertIn(fact, text)
+        # The raw K113 guest receipt still shows the defect the erratum names.
+        guest = json.loads(read(results + "macos-vm-claude-2026-11-03/k113-attempt/evidence/jail.json"))
+        network = guest["applied"]["network"]
+        self.assertNotIn("tls_only", network)
+        self.assertEqual(["api.anthropic.com:443"] * 2, network["allowed_hosts"])
+        k112 = json.loads(read(results + "macos-vm-installed-2026-11-03/k112.json"))
+        self.assertIn("native macOS does not provide", k112["vm_installed"]["stderr"])
+
+    def test_vm_harness_and_packaging_docs_describe_code_not_measurements(self):
+        """D9-D11 (harnesses, packaging): what the scripts do, and that none ran live."""
+        readme = " ".join(read("crates/ukai-jail/vm/README.md").split())
+        for fact in ["`harness.py mark`", "`UKAI_VM_BINARY`", "`--budget-ms`", "`--ukai-jail <client>`",
+                     "Every output directory must be new", "No probe uses `/dev/tcp`",
+                     "recorded as `REFUSED`, never `PASS`", "`fault_matrix.py`** has nine cases",
+                     "`measurements[<requirement>]`",
+                     "an upper bound on the overhead the clause limits, not the guest jail's own release time",
+                     "under `not_measured`", "none of it has run against a booted guest",
+                     "`cargo build --release --locked`", "`source_revision`",
+                     "No package has been built with the current script yet", "`notarization.2.json`",
+                     "`payload-extra`", "It has not been run against a package yet"]:
+            self.assertIn(fact, readme)
+        self.assertNotIn("the script refuses to run twice", readme)
+        preview = " ".join(read("crates/ukai-jail/vm/PREVIEW.txt").split())
+        for fact in ["source_revision in payload/image/image.json",
+                     "cargo build --release --locked -p ukai-jail --bin ukai-vm",
+                     "holds only the VM tooling (crates/ukai-jail/vm)"]:
+            self.assertIn(fact, preview)
+        self.assertNotIn("The VM tooling's source (crates/ukai-jail/vm) is included", preview)
+
     def test_d8_other_writable_is_never_accepted(self):
         for path in ["docs/specs/jail-launch-and-summary.md", "docs/specs/jail-macos.md"]:
             text = read(path)
