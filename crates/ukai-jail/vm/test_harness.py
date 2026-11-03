@@ -364,6 +364,24 @@ class VmClientRuleTests(unittest.TestCase):
                                                      'vm:not-measured:limit:wall', 'vm:not-measured:network_none'])
         self.assertEqual(harness.vm_refusals('settled · exited 0'), [])
 
+    def test_the_standard_input_refusal_is_a_recorded_refusal(self):
+        # S1's F11d text (platform/macos/vm.rs), one per kind it names.
+        for kind in ('a pipe', 'a file', 'a socket', 'a character device other than /dev/null',
+                     'a descriptor that cannot be inspected', 'neither a terminal nor /dev/null'):
+            with self.subTest(kind):
+                text = (f'ukai-jail: refused at preparing [invalid_config]: --vm: standard input is {kind}, '
+                        "and the guest jail's standard input is /dev/null: nothing written to it would "
+                        'reach the target; run with `</dev/null`, or without --vm\n')
+                self.assertEqual(harness.vm_refusals(text), [f'--vm: standard input is {kind}'])
+                self.assertTrue(harness.stdin_refused(harness.vm_refusals(text)))
+        both = harness.vm_refusals('vm:not-measured:limit:wall\n--vm: standard input is a pipe, and the '
+                                   "guest jail's standard input is /dev/null: ...")
+        self.assertEqual(both, ['--vm: standard input is a pipe', 'vm:not-measured:limit:wall'])
+        self.assertFalse(harness.stdin_refused(['vm:not-measured:limit:wall']))
+        self.assertFalse(harness.stdin_refused(None))
+        # The guest's own words about its standard input are no refusal.
+        self.assertEqual(harness.vm_refusals('the standard input is /dev/null'), [])
+
 
 class WorkspaceGuardTests(unittest.TestCase):
     def setUp(self):

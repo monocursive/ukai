@@ -198,7 +198,8 @@ def main(argv=None, now=time.time, candidates=credential_candidates, run=subproc
             done = run(['script', '-q', '/dev/null', str(jail), 'run', '--vm', '--terminal', 'detach',
                         '--profile', 'agent', '--launch', 'claude-vm', *harness.vm_wall(240),
                         '--workspace', str(workspace), '--', '/bin/sh', '-c', script],
-                       env=environment, capture_output=True, text=True, timeout=RUN_TIMEOUT_SECONDS)
+                       env=environment, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                       timeout=RUN_TIMEOUT_SECONDS)
             row['run_exit'], stdout, stderr = done.returncode, done.stdout, done.stderr
         except subprocess.TimeoutExpired as error:
             row['run_exit'] = None

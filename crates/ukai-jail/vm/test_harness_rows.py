@@ -7,6 +7,7 @@ observation is replayed and must now fail. No VM boots; services are fakes.
 
     python3 -s -E -m unittest test_harness_rows
 """
+import ast
 import base64
 import contextlib
 import copy
@@ -34,7 +35,7 @@ import harness
 import proxy_measurement
 import vault_measurement
 import warm_live
-from test_harness import EVIDENCE, FakeAttemptServer, bound_frame, probe_line
+from test_harness import EVIDENCE, HERE, FakeAttemptServer, bound_frame, probe_line
 
 T = 'tag01'
 _GUARDS = []
@@ -489,6 +490,16 @@ class WarmLiveTables(unittest.TestCase):
                 self.assertEqual(verdict['outcome'], 'FAIL')
                 self.assertIn(gate, verdict['failed'])
                 self.assertIn('every_attempt_network_denied', verdict['failed'])
+
+    def test_a_refused_real_client_is_refused_never_a_pass(self):
+        # S1's F11d: a real client refused for its standard input (or any
+        # vm: refusal) makes the row REFUSED, unless a warm gate failed.
+        runs = [{'index': i, 'exit': 0, 'exec_to_first_write_ms': 400.0, 'refusals': []} for i in range(20)]
+        runs[0].update(exit=125, exec_to_first_write_ms=None, refusals=['--vm: standard input is a pipe'])
+        verdict = self.judge(self.good(), real_client=runs)
+        self.assertEqual(verdict['outcome'], 'REFUSED')
+        self.assertEqual(verdict['k108_real_client']['refusals'], ['--vm: standard input is a pipe'])
+        self.assertEqual(self.judge(self.good(), real_client=runs, service_exit=125)['outcome'], 'FAIL')
 
     def test_context_and_real_client_mutations(self):
         self.assertIn('protected_git_never_reached', self.judge(self.good(), git_config_text='x')['failed'])
@@ -948,6 +959,135 @@ def attempts(server):
 threading.Thread(target=attempts, args=(listen('attempt'),), daemon=True).start()
 control(listen('control'))
 """
+
+
+class VmClientStandardInput(unittest.TestCase):
+    """S1's F11d: `ukai-jail run --vm` refuses, before any contact, a
+    standard input that is not a terminal, /dev/null or closed; every
+    harness `--vm` client runs with stdin=subprocess.DEVNULL."""
+
+    SPAWNERS = {'run', 'Popen', 'call', 'check_call', 'check_output'}
+
+    def spawns(self, source):
+        """(each process spawn whose argv holds a '--vm' constant, every
+        '--vm' constant in the module, the constants those argvs hold)."""
+        tree = ast.parse(source)
+        constants = [node for node in ast.walk(tree)
+                     if isinstance(node, ast.Constant) and node.value == '--vm']
+        spawns, covered = {}, set()
+        for function in ast.walk(tree):
+            if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            assigned = {}
+            for node in ast.walk(function):
+                targets = node.targets if isinstance(node, ast.Assign) else (
+                    [node.target] if isinstance(node, (ast.AugAssign, ast.AnnAssign)) else [])
+                for target in targets:
+                    if isinstance(target, ast.Name) and node.value is not None:
+                        assigned.setdefault(target.id, []).append(node.value)
+            for call in ast.walk(function):
+                if not isinstance(call, ast.Call):
+                    continue
+                func = call.func
+                name = func.id if isinstance(func, ast.Name) else (
+                    func.attr if isinstance(func, ast.Attribute) else None)
+                if name not in self.SPAWNERS:
+                    continue
+                command = call.args[0] if call.args else next(
+                    (k.value for k in call.keywords if k.arg == 'args'), None)
+                if command is None:
+                    continue
+                parts = [command] + (assigned.get(command.id, []) if isinstance(command, ast.Name) else [])
+                held = {id(node) for part in parts for node in ast.walk(part)
+                        if isinstance(node, ast.Constant) and node.value == '--vm'}
+                if held:
+                    stdin = next((k.value for k in call.keywords if k.arg == 'stdin'), None)
+                    spawns[id(call)] = (call.lineno, stdin is not None and ast.unparse(stdin))
+                    covered |= held
+        return list(spawns.values()), constants, covered
+
+    def test_every_vm_invocation_passes_devnull(self):
+        sites = 0
+        # Every module here but the tests: a new --vm client is checked too.
+        for path in sorted(p for p in HERE.glob('*.py') if not p.name.startswith('test_')):
+            module = path.stem
+            with self.subTest(module):
+                source = path.read_text()
+                spawns, constants, covered = self.spawns(source)
+                # A '--vm' constant no spawn's argv holds is an invocation this
+                # check cannot see (built elsewhere): refuse it outright.
+                self.assertEqual([c.lineno for c in constants if id(c) not in covered], [])
+                for line, stdin in spawns:
+                    self.assertEqual(stdin, 'subprocess.DEVNULL', f'{module}.py:{line}')
+                sites += len(spawns)
+        # fault_matrix 1, proxy_measurement 1, vault_measurement 2, warm_live 1,
+        # gate_rows 2 (K111 under script(1), K112 both lanes), claude_vm_row 1.
+        self.assertEqual(sites, 8)
+
+    def test_the_check_sees_a_missing_or_other_stdin(self):
+        for text, expected in [
+                ("def f(j):\n    subprocess.run([j, 'run', '--vm'], env={})\n", [(2, False)]),
+                ("def f(j):\n    c = [j, 'run', *(['--vm'] if x else [])]\n    subprocess.Popen(c, stdin=sys.stdin)\n",
+                 [(3, 'sys.stdin')]),
+                ("def f(j, run):\n    run(['script', '-q', '/dev/null', j, 'run', '--vm'], stdin=subprocess.DEVNULL)\n",
+                 [(2, 'subprocess.DEVNULL')])]:
+            with self.subTest(text):
+                spawns, constants, covered = self.spawns(text)
+                self.assertEqual(spawns, expected)
+                self.assertEqual(len(covered), len(constants))
+        _, constants, covered = self.spawns("ARGV = ['run', '--vm']\ndef f():\n    subprocess.run(ARGV)\n")
+        self.assertEqual(len(constants), 1)
+        self.assertEqual(covered, set())
+
+    def test_two_clients_run_with_a_pipe_as_the_harness_stdin(self):
+        root = Path(tempfile.mkdtemp(prefix='stdin-')).resolve()
+        self.addCleanup(shutil.rmtree, root, True)
+        jail = root / 'ukai-jail'
+        jail.write_text(f'#!{sys.executable}\n' + FAKE_STDIN_JAIL)
+        jail.chmod(0o755)
+        workspace = root / 'ws'
+        workspace.mkdir()
+        environment = {'PATH': '/usr/bin:/bin'}
+        read, write = os.pipe()
+        saved = os.dup(0)
+        os.dup2(read, 0)
+        try:
+            refused = subprocess.run([str(jail), 'run', '--vm', '--workspace', str(workspace), '--', '/usr/bin/true'],
+                                     env=environment, capture_output=True, text=True)
+            ran = proxy_measurement.run_vm(jail, environment, workspace, 'tool', [], ['/bin/sh', '-c', 'echo ran'])
+            timed = warm_live.real_client_attempts(jail, environment, workspace, 1, 'stdin')
+        finally:
+            os.dup2(saved, 0)
+            os.close(saved)
+            os.close(read)
+            os.close(write)
+        # The fake refuses an inherited pipe as S1's client does ...
+        self.assertEqual(refused.returncode, 125)
+        self.assertEqual(harness.vm_refusals(refused.stderr), ['--vm: standard input is a pipe'])
+        # ... and the harness clients never hand it one.
+        self.assertEqual((ran['exit'], ran['stdout']), (0, 'ran\n'), ran['stderr'])
+        self.assertEqual((timed[0]['exit'], timed[0]['refusals']), (0, []), timed[0]['stderr_tail'])
+        self.assertIsNotNone(timed[0]['exec_to_first_write_ms'])
+
+
+FAKE_STDIN_JAIL = r'''
+import os, stat, subprocess, sys
+args = sys.argv[1:]
+# S1's F11d, faked: standard input must be a terminal, /dev/null or closed.
+try:
+    status = os.fstat(0)
+except OSError:
+    status = None
+if status is not None and not os.isatty(0) and not (
+        stat.S_ISCHR(status.st_mode) and status.st_rdev == os.stat('/dev/null').st_rdev):
+    kind = 'a pipe' if stat.S_ISFIFO(status.st_mode) else 'neither a terminal nor /dev/null'
+    sys.stderr.write("ukai-jail: refused at preparing [invalid_config]: --vm: standard input is %s, "
+                     "and the guest jail's standard input is /dev/null: nothing written to it would "
+                     "reach the target; run with `</dev/null`, or without --vm\n" % kind)
+    sys.exit(125)
+workspace = args[args.index('--workspace') + 1]
+sys.exit(subprocess.run(args[args.index('--') + 1:], cwd=workspace, stdin=subprocess.DEVNULL).returncode)
+'''
 
 
 class FaultMatrixMechanics(unittest.TestCase):
@@ -1906,6 +2046,13 @@ class GateRowTables(unittest.TestCase):
                 row = gate_rows.judge_k112(lanes['shipped'], lanes['dev'], lanes['vm'])
                 self.assertFalse(row[key])
                 self.assertEqual(row['outcome'], 'FAIL')
+        # S1's F11d: a lane refused for its standard input never reached the
+        # kernel-bound check; the row records that, never a pass or a fail.
+        stdin = mutated(lane, stderr='refused [invalid_config]: --vm: standard input is a pipe, ...',
+                        lifetime_boundary=None, refusals=['--vm: standard input is a pipe'])
+        row = gate_rows.judge_k112(lane, lane, stdin)
+        self.assertFalse(row['vm_refused_before_boot'])
+        self.assertEqual(row['outcome'], 'REFUSED')
 
     def test_main_exits_nonzero_when_a_row_fails(self):
         root = Path(tempfile.mkdtemp(prefix='rows-main-'))

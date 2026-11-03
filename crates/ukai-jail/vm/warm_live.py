@@ -101,8 +101,8 @@ def real_client_attempts(jail, environment, workspace, count, tag, poll=0.002, c
                 *harness.vm_wall(20), '--workspace', str(workspace), '--',
                 '/bin/sh', '-c', f'printf x > released-{tag}-{index}']
         started = clock()
-        child = subprocess.Popen(argv, env=environment, stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE, text=True)
+        child = subprocess.Popen(argv, env=environment, stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         seen = None
         while child.poll() is None and seen is None:
             if marker.exists():
@@ -193,6 +193,9 @@ def judge(results, tag, budget_ms, status, service_exit, git_config_text, route,
                   and verdict['k108_real_client']['every_run_within_budget'])
     verdict['failed'] = [key for key in GATES if verdict[key] is not True]
     verdict['outcome'] = 'PASS' if passed else 'FAIL'
+    if (not verdict['failed'] and isinstance(verdict['k108_real_client'], dict)
+            and verdict['k108_real_client']['refusals']):
+        verdict['outcome'] = 'REFUSED'  # the real client refused: recorded as what it is, never a pass
     return per_attempt, verdict
 
 
