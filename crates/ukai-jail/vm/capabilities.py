@@ -89,25 +89,29 @@ Capabilities measured (the limits guest.py's run_command applies):
                   namespace refuses. Facts: observer attached (ptrace) with
                   set linux-closed-v1 and no gaps, classes exec, fs.write,
                   fs.deny and net active without gaps and counting at least
-                  the fixture's operations (PER_ROUND each round), the
-                  forwarded evidence trace (record['files']) holding exactly
-                  the audit results the receipt counts, no receipt error and
-                  exit 0; and, between the two runs, each class's count
-                  grows by exactly the two extra rounds' operations (so the
-                  counts follow the workload, not a constant). A third
-                  attempt leaves a descendant writing at settlement: the
-                  host saw it start and its loss is never silent (each class
-                  complete, or degraded with a null count and gaps naming
-                  it, and then the receipt names evidence_lost); a complete
-                  fs.write counts every beat the host saw, and every
-                  complete class matches the trace.
-  syscall_filter  syscall_filter. A python3 ctypes probe (aarch64 numbers;
-                  it refuses to call anything on another machine) calls
-                  rc.5 DENY_EPERM syscalls, clone3, and the argument rules
-                  (clone flags, TIOCSTI, a seccomp listener, socket
-                  families) with arguments an unfiltered kernel answers
-                  with another, known result (EINVAL, EFAULT, EBADF, ESRCH,
-                  EOPNOTSUPP, success), and gets the filter's EPERM (ENOSYS,
+                  the fixture's operations (PER_ROUND each round), no
+                  receipt error and exit 0; and, between the two runs, each
+                  class's count grows by exactly the two extra rounds'
+                  operations (so the counts follow the workload, not a
+                  constant). A third attempt leaves a descendant writing at
+                  settlement: the host saw it start and its loss is never
+                  silent (each class complete, or degraded with a null count
+                  and gaps naming it, and then the receipt names
+                  evidence_lost); a complete fs.write counts at least every
+                  beat the host saw plus the run's other mutating opens
+                  (BACKGROUND_WRITE_OPENS). These are counts only: the trace
+                  that names each counted operation stays in the guest (rc.5
+                  writes it into its attempt directory; the guest forwards
+                  only /home/ukai/evidence, which holds jail.json), so the
+                  identity of each counted operation is NOT measured
+                  (NOT_MEASURED).
+  syscall_filter  syscall_filter. A python3 ctypes probe (aarch64 numbers)
+                  calls 28 of rc.5's 56 DENY_EPERM syscalls
+                  (SYSCALL_DENIED), clone3, and the argument rules (clone
+                  flags, TIOCSTI, a seccomp listener, socket families) with
+                  arguments an unfiltered kernel answers with another, known
+                  result (EINVAL, EFAULT, EBADF, ESRCH, EOPNOTSUPP,
+                  success), and gets the filter's EPERM (ENOSYS,
                   EAFNOSUPPORT); its positive controls are allowed calls
                   shaped the same way, which get the kernel's own answer.
                   The probe also reads /proc/self/status: Seccomp 2,
@@ -199,7 +203,9 @@ NOT_MEASURED = {'tree_termination': {
     'cancel': 'harness.run_attempt has no mid-run cancel; the only cancel the harnesses have is the '
               'attempt-socket EOF (fault_matrix eof), which ends the attempt through the guest '
               "controller's own stop (cancel2), never through the guest jail, and returns no receipt "
-              'and no done frame, so it cannot back the guest jail\'s tree_termination'}}
+              'and no done frame, so it cannot back the guest jail\'s tree_termination'},
+    'closed_set_observation': {
+        'operation_identity': 'the identity of each counted operation (the trace stays in the guest)'}}
 GUEST_STOP_LISTS = ('boundaries', 'populated_before_kill', 'live_before_kill', 'strays_killed')
 ATTEMPT_CGROUP_PREFIX = 'ukai-attempts.slice/attempt-'
 
@@ -214,10 +220,15 @@ AUDIT_CLASSES = ('exec', 'fs.write', 'fs.deny', 'net')
 # would move a connect to fs.deny).
 PER_ROUND = {'exec': 2 * len(OBSERVE_EXECS), 'fs.write': 1, 'fs.deny': 1, 'net': 1}
 DENIED_WRITE_ERRNOS = ('EROFS', 'EACCES', 'EPERM')
-# The audit trace's result operations, by the coverage class rc.5 counts
-# them under (observer.rs ClosedOperation::coverage_class).
-TRACE_CLASSES = {'proc.exec': 'exec', 'proc.exit': 'exec', 'fs.create': 'fs.write', 'fs.write': 'fs.write',
-                 'fs.rename': 'fs.write', 'fs.unlink': 'fs.write', 'fs.deny': 'fs.deny', 'net.connect': 'net'}
+# The background run's fs.write floor besides its beats. rc.5 counts every
+# open that is not read-only as fs.write, and the run makes exactly these
+# besides one per beat (OBSERVE_PROBE): the round's granted write
+# (os.open O_WRONLY|O_CREAT|O_EXCL), the descendant's /dev/null (os.open
+# O_RDWR, for its stdio) and its marker (open(marker, 'w')). Each beat is
+# one more (os.open O_WRONLY|O_APPEND|O_CREAT) before its line reaches the
+# host, so a complete count is at least beats + 3. The refused /etc write
+# counts as fs.deny, and the execs and the connect open nothing.
+BACKGROUND_WRITE_OPENS = 3
 
 # syscall_filter: (label, aarch64 number, arguments, the filter's answer,
 # the answer of the same call on an unfiltered aarch64 kernel). Each kernel
@@ -1128,27 +1139,6 @@ def judge_tree_paths(results, tag, watches):
     return facts
 
 
-def trace_counts(record):
-    """Per audit class, the audit results in the forwarded evidence trace
-    (record['files']), or None when there is not exactly one readable trace."""
-    traces = [entry for entry in (record or {}).get('files') or []
-              if entry.get('group') == 'evidence' and Path(entry.get('path') or '').name == 'trace.ndjson']
-    if len(traces) != 1 or not isinstance(traces[0].get('text'), str):
-        return None
-    counts = dict((name, 0) for name in AUDIT_CLASSES)
-    for line in traces[0]['text'].splitlines():
-        if not line.strip():
-            continue
-        try:
-            event = json.loads(line)
-        except ValueError:
-            return None
-        operation = event.get('operation') if isinstance(event, dict) else None
-        if event.get('source') == 'audit' and event.get('stage') == 'result' and operation in TRACE_CLASSES:
-            counts[TRACE_CLASSES[operation]] += 1
-    return counts
-
-
 def class_count(record, name):
     entry = (receipt_of(record).get('coverage') or {}).get(name) or {}
     count = entry.get('observed_count')
@@ -1164,7 +1154,7 @@ def observer_facts(record):
 
 def judge_observe_run(record, tag, name, host):
     """One closed_set_observation fixture run: what it did, and what the
-    receipt (and the trace behind it) counted of it."""
+    receipt counted of it."""
     record = record or {}
     label, rounds = observe_label(tag, name), OBSERVE_ROUNDS[name][1]
     probe = tagged(record.get('stdout'), 'UKAI_OBSERVE_PROBE', label) or {}
@@ -1172,7 +1162,6 @@ def judge_observe_run(record, tag, name, host):
     expected_execs = [{'argv': argv, 'returncode': code} for _ in range(rounds) for argv, code in OBSERVE_EXECS]
     denied = probe.get('denied_writes') or []
     writes = (host or {}).get('writes') or {}
-    trace = trace_counts(record)
     facts = {
         'receipt_bound_to_this_attempt': harness.receipt_bound(record),
         'policy_requires_closed_set_observation': policy_requires(record, 'closed_set_observation'),
@@ -1184,8 +1173,6 @@ def judge_observe_run(record, tag, name, host):
         'connects_refused_by_the_namespace': probe.get('connects') == [harness.DENIAL_ERRNOS[0]] * rounds,
         'host_has_the_granted_writes': writes == dict(
             (f'obs-{label}-{index}.txt', f'observed-{label}-{index}\n') for index in range(rounds)),
-        'trace_counts_match_the_receipt': trace is not None and all(
-            trace[cls] == (coverage.get(cls) or {}).get('observed_count') for cls in AUDIT_CLASSES),
         'settled_without_error': settled_clean(record),
     }
     for cls in AUDIT_CLASSES:
@@ -1208,7 +1195,6 @@ def judge_observe_background(record, tag, host):
     beats = host.get('beats')
     degraded = [cls for cls in AUDIT_CLASSES if (coverage.get(cls) or {}).get('status') == 'degraded']
     error_codes = [error.get('code') for error in receipt.get('errors') or [] if isinstance(error, dict)]
-    trace = trace_counts(record)
     write = coverage.get('fs.write') or {}
     facts = {
         'receipt_bound_to_this_attempt': harness.receipt_bound(record),
@@ -1218,13 +1204,11 @@ def judge_observe_background(record, tag, host):
                                and marker_pid(host.get('marker')) is not None and isinstance(beats, int) and beats >= 1),
         'loss_named_in_the_receipt_errors': not degraded or 'evidence_lost' in error_codes,
         # A class that stayed complete must account for every beat the host
-        # saw: each was a mutating open (plus the round's write and the marker).
+        # saw: each was a mutating open, besides BACKGROUND_WRITE_OPENS others.
         'fs_write_accounts_for_every_beat': (
             'fs.write' in degraded
             or (isinstance(write.get('observed_count'), int) and isinstance(beats, int)
-                and write['observed_count'] >= 2 + beats)),
-        'trace_counts_match_every_complete_class': trace is not None and all(
-            trace[cls] == class_count(record, cls) for cls in AUDIT_CLASSES if cls not in degraded),
+                and write['observed_count'] >= BACKGROUND_WRITE_OPENS + beats)),
     }
     for cls in AUDIT_CLASSES:
         entry = coverage.get(cls) or {}
@@ -1622,7 +1606,8 @@ def measurements(measured, summary):
     A requirement's verdict also needs the run-wide conditions it was
     measured under (the protected .git untouched, the serve's clean stop).
     Each entry lists every attempt its verdict read (`attempt_ids`, its own
-    first); tree_termination's also records what was not measured.
+    first); one NOT_MEASURED names also records what its verdict does not
+    measure (`not_measured`).
     """
     shared = summary['git_config_untouched'] and summary['service_stopped_cleanly']
     results = measured['results']

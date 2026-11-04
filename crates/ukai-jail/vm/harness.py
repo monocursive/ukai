@@ -755,8 +755,12 @@ def run_attempt(connect, attempt_id, argv, profile='tool', wall=30, secrets=(),
             elif event == 'stderr':
                 stderr.append(base64.b64decode(message['data']))
             elif event == 'file':
-                # The guest's evidence the serve forwards (trace, policy,
-                # state); jail.json itself arrives as bound_receipt.
+                # A file the guest forwards: everything under its evidence
+                # directory (/home/ukai/evidence, which holds the jail's
+                # receipt, jail.json) and, without the live share, the
+                # workspace. The jail's trace stays in its attempt
+                # directory and never arrives. jail.json also arrives as
+                # bound_receipt.
                 raw = base64.b64decode(message.get('data') or '')
                 record['files'].append({
                     'group': message.get('group'), 'path': message.get('path'),

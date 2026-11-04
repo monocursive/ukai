@@ -234,18 +234,16 @@ def observe_record(name):
     if name == 'observe_background':
         probe['background_started'] = True
         # exec and fs.deny lost at settlement (as stop-audit-2); fs.write
-        # complete: the round's write, the marker and five beats, plus one.
+        # complete: the round's write, /dev/null, the marker and five beats.
         counts = {'exec': None, 'fs.write': 8, 'fs.deny': None, 'net': 1}
         receipt = {**POLICY, 'observer': OBSERVER, 'coverage': coverage(counts, ('exec', 'fs.deny')),
                    'errors': [{'code': 'evidence_lost'}]}
-        return record(tagged_line('UKAI_OBSERVE_PROBE', probe), 1, receipt,
-                      files=[trace_file({'exec': 3, 'fs.write': 8, 'fs.deny': 0, 'net': 1})], guest_stop=GOOD_STOP)
+        return record(tagged_line('UKAI_OBSERVE_PROBE', probe), 1, receipt, files=[], guest_stop=GOOD_STOP)
     # python3's own exec and exit, then each round's operations.
     counts = {cls: (2 if cls == 'exec' else 0) + rounds * capabilities.PER_ROUND[cls]
               for cls in capabilities.AUDIT_CLASSES}
     receipt = {**POLICY, 'observer': OBSERVER, 'coverage': coverage(counts), 'errors': []}
-    return record(tagged_line('UKAI_OBSERVE_PROBE', probe), 0, receipt, files=[trace_file(counts)],
-                  guest_stop=GOOD_STOP)
+    return record(tagged_line('UKAI_OBSERVE_PROBE', probe), 0, receipt, files=[], guest_stop=GOOD_STOP)
 
 
 def observe_host(name):
@@ -757,12 +755,14 @@ class GuestMeasurementMutations(unittest.TestCase):
                  lambda r, v, name=name, label=label: v['observe_host'][name]['writes'].update(
                      {f'obs-{label}-0.txt': 'observed-OLD-0\n'}),
                  fact('host_has_the_granted_writes')),
-                ('no trace forwarded', lambda r, v, name=name: r[name].update(files=[]),
-                 fact('trace_counts_match_the_receipt')),
-                ('a trace that counts fewer than the receipt',
-                 lambda r, v, name=name, rounds=rounds: r[name].update(files=[trace_file(
-                     {'exec': 2, 'fs.write': rounds, 'fs.deny': rounds, 'net': rounds})]),
-                 fact('trace_counts_match_the_receipt')),
+                ('a denied write refused with ENOENT',
+                 probe(lambda p: p['denied_writes'].__setitem__(0, {'open': 'ENOENT', 'exists_after': False})),
+                 fact('denied_writes_refused')),
+                ('a refused denied write that exists after',
+                 probe(lambda p: p['denied_writes'].__setitem__(0, {'open': 'EROFS', 'exists_after': True})),
+                 fact('denied_writes_refused')),
+                ('another observer backend', receipt(lambda x: x.update(observer={**OBSERVER, 'backend': 'ebpf'})),
+                 fact('observer_attached')),
                 ('the attempt failed', lambda r, v, name=name: r[name].update(exit_code=1),
                  fact('settled_without_error')),
                 ('receipt errors', receipt(lambda x: x.update(errors=[{'code': 'evidence_lost'}])),
@@ -779,11 +779,19 @@ class GuestMeasurementMutations(unittest.TestCase):
                 result = results['observe_3']
                 result['receipt']['coverage'][cls] = dict(result['receipt']['coverage'][cls])
                 result['receipt']['coverage'][cls]['observed_count'] += 1
-                result['files'] = [trace_file({name: entry['observed_count']
-                                               for name, entry in result['receipt']['coverage'].items()})]
             return change
         for cls in capabilities.AUDIT_CLASSES:
             table.append((f'{cls} grew by one more than the extra rounds did', grown(cls), f'count_growth:{cls}'))
+
+        def net_counts(low, high):
+            def change(results, views):
+                for name, count in (('closed_set_observation', low), ('observe_3', high)):
+                    results[name]['receipt']['coverage']['net'] = {
+                        'status': 'active', 'sources': ['audit'], 'observed_count': count, 'gaps': []}
+            return change
+        # Growth right, yet each run counted fewer connects than it made.
+        table.append(('net counted below the fixture in both runs', net_counts(0, 2),
+                      ['r1:class_counted:net', 'r3:class_counted:net']))
 
         def background(change):
             return lambda r, v: change(r['observe_background']['receipt'])
@@ -804,14 +812,17 @@ class GuestMeasurementMutations(unittest.TestCase):
              'bg:descendant_started'),
             ('bg: a loss the errors do not name', background(lambda x: x.update(errors=[])),
              'bg:loss_named_in_the_receipt_errors'),
-            ('bg: a complete fs.write that misses beats',
-             lambda r, v: (r['observe_background']['receipt']['coverage'].__setitem__(
-                 'fs.write', {'status': 'active', 'sources': ['audit'], 'observed_count': 3, 'gaps': []}),
-                 r['observe_background'].update(files=[trace_file({'exec': 3, 'fs.write': 3, 'fs.deny': 0, 'net': 1})])),
+            ('bg: the probe never saw its descendant start',
+             lambda r, v: reprobe(r['observe_background'], 'UKAI_OBSERVE_PROBE', capabilities.observe_label(
+                 T, 'observe_background'), lambda p: p.update(background_started=False)),
+             'bg:descendant_started'),
+            ('bg: a complete fs.write that misses beats', background(lambda x: x['coverage'].__setitem__(
+                'fs.write', {'status': 'active', 'sources': ['audit'], 'observed_count': 3, 'gaps': []})),
              'bg:fs_write_accounts_for_every_beat'),
-            ('bg: a trace that disagrees with a complete class',
-             lambda r, v: r['observe_background'].update(files=[trace_file({'exec': 3, 'fs.write': 8, 'net': 2})]),
-             'bg:trace_counts_match_every_complete_class'),
+            # beats + 2: one of the beats' (or the other opens') counts lost.
+            ('bg: a complete fs.write one short of beats + 3', background(lambda x: x['coverage'].__setitem__(
+                'fs.write', {'status': 'active', 'sources': ['audit'], 'observed_count': 7, 'gaps': []})),
+             'bg:fs_write_accounts_for_every_beat'),
         ]
         for cls in ('exec', 'fs.deny'):
             table.append((f'bg: {cls} degraded without naming its gap',
@@ -824,6 +835,10 @@ class GuestMeasurementMutations(unittest.TestCase):
                           f'bg:no_silent_loss:{cls}'))
         table.append(('bg: a degraded class that kept a count',
                       background(lambda x: x['coverage'].__setitem__('exec', {**x['coverage']['exec'], 'observed_count': 3})),
+                      'bg:no_silent_loss:exec'))
+        table.append(('bg: a degraded class whose gap names another class',
+                      background(lambda x: x['coverage'].__setitem__('exec', {**x['coverage']['exec'], 'gaps': [
+                          {'classes': ['net'], 'source': 'audit', 'reason': 'entry_abandoned'}]})),
                       'bg:no_silent_loss:exec'))
         self.assert_table('closed_set_observation', table)
 
@@ -1027,6 +1042,8 @@ class GuestMeasurementMutations(unittest.TestCase):
             self.assertEqual(entry['attempt_id'], results[capability]['attempt_id'])
         tree = entries['tree_termination']
         self.assertEqual(tree['not_measured'], capabilities.NOT_MEASURED['tree_termination'])
+        self.assertEqual(entries['closed_set_observation']['not_measured'], {
+            'operation_identity': 'the identity of each counted operation (the trace stays in the guest)'})
         # The exit path's evidence_lost and exit 1 are recorded, never required.
         self.assertTrue(tree['verdict'])
         self.assertEqual(tree['notes']['tree_termination']['exit_code'], 1)
