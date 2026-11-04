@@ -1,0 +1,62 @@
+---
+import Site from '../../../layouts/Site.astro';
+import '../../../styles/arena-notes.css';
+import '../../../arena_readers';
+import '../../../arena_november';
+---
+<Site title="Ukai Arena — Field notes on agent permissions" description="Small, inspectable experiments about useful agent work, unwanted side effects, and the permissions between them.">
+  <div class="container notes">
+    <header class="note-hero">
+      <p class="eyebrow">Ukai Arena · Field notes</p>
+      <h1>Useful work.<br /><em>Limited permissions.</em></h1>
+      <p class="lead">What can an agent finish inside a boundary? What can still go wrong? We test small development tasks, follow their side effects, and publish the evidence behind each lesson.</p>
+      <div class="actions"><a class="button" href="/arena/field-notes/twin-exposure/">Read the new comparison →</a><a href="/arena/method/">How to read the evidence</a></div>
+    </header>
+    <div class="note-grid">
+      <article class="note-card featured">
+        <p class="eyebrow">003 · Exposure contrast · Measured 1 Nov 2026</p>
+        <h2>Same task.<br />Different boundary.</h2>
+        <p>The task passed in both lanes. Without the boundary, the dependency delivered its synthetic token. With Ukai, its destination was denied and no token arrived.</p>
+        <span class="status">Measured · one complete pair</span>
+        <a href="/arena/field-notes/twin-exposure/">Read field note 003 →</a>
+      </article>
+      <article class="note-card">
+        <p class="eyebrow">004 · Incident adaptation · Stopped 1 Nov 2026</p>
+        <h2>A useful stop.<br />An unfinished replay.</h2>
+        <p>The s1ngularity adaptation exposed a parser gap and an incomplete nested log. Two tasks passed; the bare lane never ran. Here is what we can learn without claiming a pair.</p>
+        <span class="status">Incomplete · no paired result</span>
+        <a href="/arena/field-notes/incident-replay/">Read field note 004 →</a>
+      </article>
+      <article class="note-card">
+        <p class="eyebrow">002 · Workflow containment · Measured 26 Oct 2026</p>
+        <h2>The task finished.<br />The request was denied.</h2>
+        <p>Two dependency-install workflows, two passing tasks, one denied outbound request. Follow the observations and see what they mean for your own permission choices.</p>
+        <span class="status">Measured · one configuration</span>
+        <a href="/arena/field-notes/dependency-install/">Read field note 002 →</a>
+      </article>
+      <article class="note-card">
+        <p class="eyebrow">001 · Prompt injection · Measured 25 Oct 2026</p>
+        <h2>We hid a trap<br />in a README.</h2>
+        <p>What the agents read, what they requested, and the mistakes we caught in our own test. The original illustrated field note and run records remain available.</p>
+        <span class="status">Measured · exposure matters</span>
+        <a href="/arena/">Read field note 001 →</a>
+      </article>
+    </div>
+    <section class="note-section" style="margin-top: 48px">
+      <p class="eyebrow">Try it yourself</p>
+      <h2>A permission lab.<br />No model account needed.</h2>
+      <p>Run thirteen fixed controls on your own Linux worker. Compare a granted destination with a denied one, readable files with ungranted files, writable files with read-only files, and a completed process with a deadline hit.</p>
+      <div class="actions"><a class="button" href="/arena/downloads/ukai-arena-reader-lab-2026-11-01.zip" download>Download the reader lab</a><a href="/arena/method/#reproduce">Requirements and verification →</a></div>
+    </section>
+    <section class="note-section reading">
+      <p class="eyebrow">Next questions · Proposed work</p>
+      <h2>Each study should settle<br />a different uncertainty.</h2>
+      <ol class="decision-list">
+        <li><strong>Can the nested workflow be observed completely?</strong><p>Qualify nested startup, timeouts and terminal capture before repeating the stopped incident adaptation. Keep the original outcome visible.</p></li>
+        <li><strong>Which permission makes the difference?</strong><p>The lab shows why a granted destination passes data. The next workflow protocol examines file access and service credential scope alongside useful task completion.</p></li>
+        <li><strong>Can we connect an operation to its process?</strong><p>A future runtime observation contract must distinguish parent, child and sibling requests, and preserve unknown attribution when the evidence cannot support a link.</p></li>
+      </ol>
+      <p class="small">An experiment can end in a denial, a delivery, an incomplete task, or an evidence gap. We retain each outcome. Scripted controls, model sessions, and offline rescores are counted separately.</p>
+    </section>
+  </div>
+</Site>

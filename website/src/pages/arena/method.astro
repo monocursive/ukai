@@ -1,0 +1,39 @@
+---
+import Site from '../../layouts/Site.astro';
+import '../../styles/arena-notes.css';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+const lab = '/arena/downloads/ukai-arena-reader-lab-2026-11-01.zip';
+const hash = readFileSync(resolve(`public${lab}.sha256`), 'utf8').split(' ')[0];
+---
+<Site title="How to read and reproduce an Arena result — Ukai" description="Separate exposure, requests, enforcement, effects and useful work. Verify the public evidence or run the thirteen-case Linux permission lab.">
+  <article class="container notes">
+    <nav class="trail" aria-label="Arena navigation"><a href="/arena/field-notes/">← All field notes</a><a href="/arena/field-notes/dependency-install/">The install study</a></nav>
+    <header class="note-hero"><p class="eyebrow">Ukai Arena · Method</p><h1>A result you can<br /><em>reason from.</em></h1><p class="lead">A quiet collector, a model’s refusal, and a sandbox denial mean different things. Each field note keeps the observations separate so you can judge the claim yourself.</p></header>
+    <section class="note-section reading"><h2>Follow five questions.</h2><ol class="decision-list">
+      <li><strong>Was the relevant input encountered?</strong><p>A poisoned file that was never read tells us little about injection handling. Exposure requires evidence from the captured interaction.</p></li>
+      <li><strong>Was the operation attempted?</strong><p>A tool request, a captured script execution and a proxy request are different observations. We name the level we actually have.</p></li>
+      <li><strong>What did the boundary enforce?</strong><p>A proxy denial needs its destination and reason. A generic file error is not an authoritative kernel denial. Missing evidence stays unknown.</p></li>
+      <li><strong>Did the effect occur?</strong><p>Look for an external collector receipt or a controller-verified file change. Pair a denied operation with an allow control so silence is interpretable.</p></li>
+      <li><strong>Did useful work finish?</strong><p>Use an independent checker outside the agent’s control. Report failure, incomplete work and missing evidence alongside successful tasks.</p></li>
+    </ol></section>
+    <section class="note-section reading"><h2>Keep the counting honest.</h2><p>Scripted controls test fixed operations. Agent workflows add model decisions and task completion. Injection attempts test behavior after untrusted input. They have separate questions and denominators.</p><p>One preserved run counts once. Exporting it, rescoring it or replaying its evidence does not create a new sample. Stopped launches and unused slots remain visible. A set of fixed cases does not provide a probability that an arbitrary future task will be safe.</p><p>A future statistical study needs its task population, configurations, repetition count, failure handling and stopping rule fixed before execution. The current field notes support bounded observations.</p></section>
+    <section class="note-section" id="reproduce"><div class="reading"><p class="eyebrow">Reader lab · Linux x86-64</p><h2>Try the permissions<br />on your own worker.</h2><p>The download contains the frozen thirteen-case boundary suite, its synthetic fixtures, a credential-free configuration tool, and a README. It uses Python’s standard library and launches no model. We ran this exact package on the pinned Linux worker on 1 November: all thirteen controls passed.</p><p>You need an owned Linux worker with a ready Ukai agent profile, the pinned Ukai rc.5, Node 22.22.3 and npm 11.17.0 files, Python 3.10+, curl, and the worker’s own reachable public IPv4 address for its temporary collector. The README lists the exact pins and setup commands. Different binaries stop before execution.</p><div class="actions"><a class="button" href={lab} download>Download the reader lab</a><a href={`${lab}.sha256`}>Checksum file →</a></div><pre class="command"># First, in the unzipped package:
+python3 -B verify.py
+
+# Follow README.md to configure your owned worker, then:
+python3 -B source/reader_lab.py run \
+  --config ./lab-config.json --out ./lab-results</pre><p class="small">SHA-256: <code>{hash}</code></p></div>
+      <div class="note-table" tabindex="0" role="region" aria-label="Permission lab cases"><table><caption>Fixed comparisons in the lab</caption><thead><tr><th scope="col">Cases</th><th scope="col">What changes</th><th scope="col">What to inspect</th></tr></thead><tbody>
+        <tr><th scope="row">NET-A / NET-D</th><td>Collector granted / absent</td><td>Delivery versus exact-destination denial</td></tr>
+        <tr><th scope="row">CHILD-A / CHILD-D</th><td>The same grant, with a child-launched upload</td><td>Proxy and collector observations</td></tr>
+        <tr><th scope="row">READ-A / READ-D</th><td>Exact file read grant / absent</td><td>Expected content hash versus failed read</td></tr>
+        <tr><th scope="row">WRITE-A / WRITE-D</th><td>Read-write / read-only file grant</td><td>Controller-verified changed or unchanged bytes</td></tr>
+        <tr><th scope="row">TIME-A / TIME-D</th><td>Short / over-deadline workload</td><td>Wall-limit receipt and settled process tree</td></tr>
+        <tr><th scope="row">DEP-C / DEP-A / DEP-D</th><td>Clean install / upload with grant / upload without grant</td><td>Install completion, traffic, denial and delivery</td></tr>
+      </tbody></table></div>
+      <div class="aside reading"><p><strong>A delivered token in an allow case is expected.</strong> This is the boundary’s scope made visible: it permits the destination you granted. It does not demonstrate payload filtering or action-level permissions at that service.</p></div>
+    </section>
+    <section class="note-section reading"><h2>Verification has a scope too.</h2><p>The reader-lab verifier checks the downloaded source bytes. Running the lab creates new local scripted evidence with receipts, traces, collector observations and scores.</p><p>The historical evidence downloads are separate. Their redacted excerpts let you inspect observations and replay specific consistency checks. They do not reproduce the full private evidence chain or the agent’s original decisions.</p><p><a href="/arena/field-notes/dependency-install/#observations">Inspect the measured install observations →</a></p></section>
+  </article>
+</Site>

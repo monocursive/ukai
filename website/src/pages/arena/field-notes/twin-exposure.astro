@@ -1,0 +1,54 @@
+---
+import Site from '../../../layouts/Site.astro';
+import '../../../styles/arena-notes.css';
+import { twinRuns, twinPair, novemberRoot, novemberArchive, novemberArchiveSha, runLink } from '../../../arena_november';
+const [clean, contained, bare] = twinRuns;
+---
+<Site title="Same task, different boundary — Ukai Arena" description="One measured dependency-install comparison: both tasks passed, the bare fixture delivered its synthetic token, and the contained attempt denied its destination.">
+  <div class="container notes">
+    <nav class="trail" aria-label="Arena navigation"><a href="/arena/field-notes/">← All field notes</a><a href="/arena/method/">Method & reader lab</a></nav>
+    <header class="note-hero reading">
+      <p class="eyebrow">003 · Exposure contrast · Measured 1 Nov 2026</p>
+      <h1>Same task.<br /><em>Different boundary.</em></h1>
+      <p class="lead">The dependency’s synthetic token arrived when we ran without Ukai. Inside Ukai, the destination was denied and no token arrived. The useful task passed in both lanes.</p>
+      <p class="small">One matched pair, one pinned Claude configuration, one small task. The dependency hook is a fixed fixture; this result is not evidence that a model was fooled.</p>
+    </header>
+    <section class="note-section reading">
+      <h2>The missing comparison.</h2>
+      <p>The <a href="/arena/field-notes/dependency-install/">October install study</a> showed a completed task alongside a denied request. We added the other side: run the same task and modified dependency without a sandbox or destination policy, then observe whether the token actually reaches the collector.</p>
+      <p>The task still asks the agent to install a local package, repair a slug function and pass five independently checked cases. The modified package attempts an upload from its install hook. The contained lane grants the model service but leaves the collector ungranted.</p>
+    </section>
+    <section class="note-section">
+      <h2>Work completed.<br />The side effect changed.</h2>
+      <div class="note-table" role="region" aria-label="Three measured workflow outcomes" tabindex="0">
+        <table><caption>Three scheduled outer slots, all completed; no retry</caption><thead><tr><th scope="col">Lane</th><th scope="col">Trusted task</th><th scope="col">Collector denial</th><th scope="col">Token delivered</th><th scope="col">Evidence</th></tr></thead><tbody>
+          {[[clean, 'Clean · Ukai'], [contained, 'Modified dependency · Ukai'], [bare, 'Modified dependency · bare']].map(([r, label]: any) => <tr><th scope="row">{label}</th><td>{r.task.cases_passed}/5</td><td>{r.policy_denials === 0 ? 'None' : `${r.policy_denials} · host_not_allowed`}</td><td>{r.canary_received ? 'Yes' : 'No'}</td><td><a href={runLink(r)}>Run record ↗</a></td></tr>)}
+        </tbody></table>
+      </div>
+      <div class="receipt-grid">
+        <article class="receipt"><p class="eyebrow">Without the boundary</p><h3>The collector received it.</h3><p>The owned collector matched the bare run’s synthetic token at <time datetime={twinPair.left.received_at[0]}>{twinPair.left.received_at[0].replace('T', ' ').replace('+00:00', ' UTC')}</time>.</p><a href={runLink(bare, 'collector-excerpt.json')}>Inspect the receipt ↗</a></article>
+        <article class="receipt"><p class="eyebrow">With the boundary</p><h3>The destination was denied.</h3><p>The trace records {contained.policy_denials} denial for the exact collector authority. The collector received no matching token, and the independent task checker passed.</p><a href={runLink(contained, 'trace-excerpt.json')}>Inspect the denial ↗</a></article>
+      </div>
+    </section>
+    <section class="note-section reading">
+      <h2>What makes this a pair?</h2>
+      <p>The agent binary, requested model, task prompt and dependency builder are pinned. A structural check accounts for the per-run token, collector route, IDs and the package integrity values those differences force. It found no other meaningful fixture difference.</p>
+      <p>The bare lane removes the boundary and launches the same pinned agent template directly. The model’s individual decisions can still differ between runs. This is one observed contrast, not a controlled estimate of a success rate.</p>
+      <p><a href={`${novemberRoot}/twin-pair.json`}>Inspect the pairing and declared differences ↗</a></p>
+      <aside class="aside"><strong>The process attribution limit remains.</strong> The contained trace does not connect the install tool call, hook process and proxy request. Hook execution stays unverified and the proxy actor stays unknown. The comparison establishes delivery and denial at the attempt level.</aside>
+    </section>
+    <section class="note-section reading">
+      <h2>The permission lesson.</h2>
+      <p>A useful install task did not require access to this collector. Leaving that destination outside the grant changed the observed effect while preserving task completion in this pair.</p>
+      <p>That lesson depends on the destination being ungranted. Each batch first ran three fresh scripted controls: clean install, granted upload and ungranted upload. The granted upload delivered. A destination grant permits traffic to that service; it does not decide which API action or payload is appropriate.</p>
+      <p><a href="/arena/method/#reproduce">Try these permission differences in the unpaid reader lab →</a></p>
+    </section>
+    <section class="note-section reading">
+      <h2>Inspect the evidence.</h2>
+      <p>The downloadable November package contains this pair, the incident adaptation, their fresh controls and the thirteen-case reader-lab run. Its verifier checks the public derivative’s hashes and included observations. It does not recreate the model sessions or establish process attribution.</p>
+      <div class="actions"><a class="button" href={novemberArchive} download>Download November evidence</a><a href={`${novemberRoot}/results.json`}>Browse records ↗</a></div>
+      <p class="hash">SHA-256: <code>{novemberArchiveSha}</code></p>
+      <p><a href="/arena/field-notes/incident-replay/">Next: what changes when a dependency invokes an agent? →</a></p>
+    </section>
+  </div>
+</Site>

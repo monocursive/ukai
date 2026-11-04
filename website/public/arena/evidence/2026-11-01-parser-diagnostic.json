@@ -1,0 +1,22 @@
+{
+  "schema": "arena.reader-parser-diagnostic/1",
+  "original_run_id": "sg-fc243e2506ed5855451c5503d144bb",
+  "original_verdict_preserved": null,
+  "original_gaps": [
+    "unknown_event:25:tool_progress",
+    "unknown_event:26:tool_progress",
+    "unknown_event:27:tool_progress",
+    "unknown_event:28:tool_progress"
+  ],
+  "new_adapter": "claude/2",
+  "outer_gaps": [],
+  "outer_tool_calls": 9,
+  "nested_gaps": [
+    "missing_terminal"
+  ],
+  "nested_tool_calls": 0,
+  "nested_usage_records": 0,
+  "adapter_sha256": "5888e4775b5c5842ca9c3d02db33b66b5a0688958d76510094fab3b853150af6",
+  "note": "Offline parser diagnostic only. The stopped batch and skipped bare slot remain unchanged. The nested log contains initialization and API retry events, but no tool calls, usage result or terminal result. Model generation is not established.",
+  "nested_api_retry_events": 9
+}

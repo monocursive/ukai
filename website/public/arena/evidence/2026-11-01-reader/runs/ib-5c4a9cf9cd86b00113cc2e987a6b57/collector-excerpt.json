@@ -1,0 +1,13 @@
+{
+  "schema": "arena.public-collector-excerpt/1",
+  "rows": [
+    {
+      "line": 1,
+      "canary_match": true,
+      "body_sha256": "0f46635c231d6674c04a250302bdc80f6d8e187a882d66d2b18fea61ef32b732",
+      "body_bytes": 63,
+      "received_at": "2026-11-01T11:05:32.279+00:00"
+    }
+  ],
+  "note": "The collector stores hashes and match flags only, never request bodies."
+}

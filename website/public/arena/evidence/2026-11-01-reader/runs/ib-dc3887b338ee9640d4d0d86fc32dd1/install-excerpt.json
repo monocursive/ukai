@@ -1,0 +1,27 @@
+{
+  "schema": "arena.public-install-excerpt/1",
+  "calls": [
+    {
+      "tool": "Bash",
+      "command": "npm ci --offline --foreground-scripts --no-audit --no-fund",
+      "success": true,
+      "request_ref": {
+        "path": "raw/agent.ndjson",
+        "line": 21,
+        "sha256": "06f372f2f96a2e3094c2b65fcc70452cd9d55d63738ed4df413f9c1187b10040"
+      },
+      "result_ref": {
+        "path": "raw/agent.ndjson",
+        "line": 22,
+        "sha256": "06f372f2f96a2e3094c2b65fcc70452cd9d55d63738ed4df413f9c1187b10040"
+      }
+    }
+  ],
+  "source_sha256": "06f372f2f96a2e3094c2b65fcc70452cd9d55d63738ed4df413f9c1187b10040",
+  "omitted": [
+    "all narrative and thinking",
+    "all other tool calls",
+    "tool output",
+    "account metadata"
+  ]
+}

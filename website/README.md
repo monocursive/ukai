@@ -46,20 +46,40 @@ runtime's releases as the jail installer.
 
 ## Arena field notes
 
-`/arena/` opens with the key findings, then tells an illustrated field note in
-eight chapters (how agents work, the traps, what to measure, the sandbox,
-controls, what the agents did, the 26 October boundary evaluation, lessons),
-followed by a board of all 25 October runs. `/arena/runs/[id]/`
-renders each of the 34 preserved 25 October records, with original and offline
-scores separated. Those pages read **only** the redacted export under
-`public/arena/evidence/2026-10-25/`; never point the website at private Arena
-bundles or account files. Transcript and fixture text is escaped as text.
+The Arena navigation now opens `/arena/field-notes/`, a reader index.
+`/arena/field-notes/dependency-install/` presents the measured 26 October
+workflows with separate task/effect observations and practical permission
+lessons. `src/arena_readers.ts` checks those statements against the preserved
+public export at build time. `/arena/method/` explains evidence levels and
+links the credential-free reader lab. The reader program and next study
+protocol are in `../docs/arena-reader-program.md`.
 
-The findings and the 26 October chapter read the separate export under
-`public/arena/evidence/2026-10-26-workflow-v2/` through `src/arena_boundary.ts`,
-and `/arena/boundary/[id]/` renders each of its 22 records. `boundaryMust()`
-checks fail the build the same way. `public/arena/evidence/2026-10-26/` is the
-earlier 17-record boundary export, kept unchanged next to its archive.
+Field note 003 (`/arena/field-notes/twin-exposure/`) presents the complete
+1 November pair. Field note 004 (`/arena/field-notes/incident-replay/`) preserves
+the stopped adaptation and its unclaimed bare slot. `src/arena_november.ts`
+checks their claims against the new public derivative. Its 24 records are
+19 new scripted controls and five outer agent sessions. The nested log has no
+terminal result; its nine API retry events are described separately.
+
+`arena/export_reader_results.py --frozen-arena <original-arena-source>` verifies
+the saved source against both original contracts before replaying their scores.
+This keeps a later parser repair from rewriting the stopped result. The
+separate parser diagnostic records the repair's limited effect.
+
+Build the lab archive with `python3 -B arena/package_reader_lab.py --out
+website/public/arena/downloads/ukai-arena-reader-lab-2026-11-01.zip` from the
+repository root. The packager refuses to overwrite an archive; publish a new
+edition for source changes after release. Its explicit source allowlist never
+packages private evidence or account configuration. The README inside describes
+the pinned Linux dependencies and the thirteen-case unpaid run.
+
+`/arena/` is an illustrated field note in eight chapters (how agents work, the
+traps, what to measure, the sandbox, controls, the day's episodes, results,
+lessons), followed by a board of all runs. `/arena/runs/[id]/` renders each of
+the 34 preserved records, with original and offline scores separated. The pages
+read **only** the redacted export under `public/arena/evidence/2026-10-25/`;
+never point the website at private Arena bundles or account files. Transcript
+and fixture text is escaped as text.
 
 Quotes, tool-call strips, counts and fixture excerpts are read from the export
 at build time. `must()` checks in `src/pages/arena/index.astro` and `quote()` in
@@ -70,8 +90,6 @@ without JavaScript every section, and every quiz answer, is visible.
 The public ZIP under `public/arena/downloads/` is the unchanged preparation
 snapshot (SHA-256 starts `8d3eb857`). Its historical unpublished label remains
 intact. `public/arena/publication.json` describes the later website publication.
-Its top-level fields are the original 25 October record; each later archive gets
-an additive entry under `later_publications` when it is first served.
 Preserve this evidence edition when adding future field notes; use a new version
 directory and archive for a new export.
 

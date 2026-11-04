@@ -122,8 +122,14 @@ def agent_configuration(agent, spec):
     return known
 
 
-def auth_profile(agent, source, runtime_path=None, route=None):
-    """Ukai alone loads the credential; no real key enters the child environment."""
+def auth_profile(agent, source, route=None):
+    """Ukai alone loads the credential; no real key enters the child environment.
+
+    `PATH` and `TMPDIR` are never written: the contained baseline generates
+    them, and a profile naming either is refused outright. Runtime trees are
+    granted read-only instead, and their binaries must live on the fixed
+    contained PATH (for example /usr/local/bin) for the child to find them.
+    """
     if agent not in ('claude', 'codex') or not Path(source).is_absolute() or any(c in source for c in '\n\r\x00'):
         raise ValueError('invalid launch profile input')
     descriptor = auth_route(agent, route)
@@ -132,12 +138,8 @@ def auth_profile(agent, source, runtime_path=None, route=None):
     if agent == 'codex':
         text += 'home_is_state = true\n'
     text += f'credentials_one_of = ["{cred}"]\n'
-    if agent == 'claude' or runtime_path:
-        text += '[environment]\n'
     if agent == 'claude':
-        text += 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"\nDISABLE_AUTOUPDATER = "1"\n'
-    if runtime_path:
-        text += 'PATH = ' + json.dumps(runtime_path) + '\n'
+        text += '[environment]\nCLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"\nDISABLE_AUTOUPDATER = "1"\n'
     text += f'[credentials.{cred}]\nmode = "vault"\nsource = {json.dumps(source)}\nenv = "{var}"\n'
     header = '{ ' + ', '.join(k + ' = ' + json.dumps(v) for k, v in descriptor['header'].items()) + ' }'
     text += f'hosts = ["https://{hosts[0]}"]\nheader = {header}\nbinaries = ["@program"]\n[network]\nallow = {json.dumps(hosts)}\n'
@@ -215,13 +217,35 @@ def require_paid_batch(*args, **kwargs):
 def execute_agent(*args, **kwargs):
     # Keep the gate before pins, credentials, staging, network or subprocesses.
     require_paid_batch(*args, **kwargs)
+    if args[2] == 'agent-boundary-probe':
+        from experiments.boundary_probe import capture_agent
+        return capture_agent(*args, kwargs['permit'].boundary_context)
+    if args[2] == 'local-install-boundary':
+        from experiments.install_boundary import capture_agent
+        return capture_agent(*args, kwargs['permit'].boundary_context)
+    if args[2] == 'install-exposure-contrast':
+        from experiments import twin_exposure
+        return twin_exposure.capture_agent(*args, kwargs['permit'].boundary_context)
+    if args[2] == 's1ngularity-agent-weaponization':
+        from experiments import s1ngularity_replay
+        return s1ngularity_replay.capture_agent(*args, kwargs['permit'].boundary_context)
     return _capture_agent(*args)
 
 
 def stage_attempt(config, out, scenario, kind, agent, base_url=None):
     """Stage a complete launch as data, without executing the model or reading keys."""
-    if kind not in ('agent_clean', 'agent_poisoned') or agent not in ('claude', 'codex'):
+    boundary = scenario == 'agent-boundary-probe'
+    install = scenario == 'local-install-boundary'
+    kinds = (('agent_boundary_probe',) if boundary else ('agent_workflow_clean', 'agent_workflow_dependency')
+             if install else ('agent_clean', 'agent_poisoned'))
+    if kind not in kinds or agent not in ('claude', 'codex'):
         raise ValueError('invalid agent attempt')
+    if boundary:
+        from experiments.boundary_probe import validate_config
+        validate_config(config)
+    if install:
+        from experiments.install_boundary import validate_config
+        validate_config(config)
     jail = pin(config['jail'], 'ukai', UKAI_SHA256)
     spec = config['agents'][agent]
     known = agent_configuration(agent, spec)
@@ -229,7 +253,7 @@ def stage_attempt(config, out, scenario, kind, agent, base_url=None):
     if Path(facts['path']).name != agent:
         raise ValueError('agent entrypoint name mismatch')
     extra = []
-    if scenario == 'local-postinstall':
+    if scenario in ('local-postinstall', 'local-install-boundary'):
         for name in ('node', 'npm'):
             pin(config['runtimes'][name], name)
         extra = runtime_roots(config)
@@ -240,16 +264,18 @@ def stage_attempt(config, out, scenario, kind, agent, base_url=None):
     m0.validate_neutral_output(out)
     out = fresh_output(out)
     env = environment(out, str(Path(facts['path']).parent) + ':/usr/bin:/bin')
-    runtime_path = str(Path(config['runtimes']['node']['path']).parent) + ':/usr/bin:/bin' if extra else None
-    write_profile(out / 'config/launch' / (agent + '.toml'), auth_profile(agent, spec['credential_source'], runtime_path, spec.get('authentication_route')))
+    write_profile(out / 'config/launch' / (agent + '.toml'), auth_profile(agent, spec['credential_source'], spec.get('authentication_route')))
     case, workspace = render_control(out, scenario, kind, base_url)
     root = out / 'runs' / case['case_id']
     (root / 'raw').mkdir(parents=True)
     shutil.copytree(workspace, root / 'fixture')
     if scenario == 'protected-issue':
         shutil.copyfile(inside(out, case['protected_fixture']['source']), root / 'fixture/protected.env')
+    run_schema = ('arena.boundary-probe.run/1' if scenario == 'agent-boundary-probe'
+                  else 'arena.install-boundary.run/1' if scenario == 'local-install-boundary'
+                  else 'arena.m1.run/1')
     argv = agent_command(jail['path'], agent, workspace, root / 'raw/jail.json', case['prompt'], extra, spec=spec)
-    run = {'schema':'arena.m1.run/1', 'run_id':case['case_id'], 'adapter':agent,
+    run = {'schema': run_schema, 'run_id': case['case_id'], 'adapter': agent,
            'scenario_id':scenario, 'status':'staged_not_run', 'argv':argv,
            'jail_sha256':jail['sha256'], 'agent_binary':facts, 'requested_model':known['model_requested'],
            'agent_configuration':known, 'credential_id':auth_route(agent, spec.get('authentication_route'))['id'],
@@ -357,6 +383,12 @@ def archive_receipt(root, env):
 
 
 def render_control(out, name, kind, base_url=None):
+    if name == 'agent-boundary-probe':
+        from experiments.boundary_probe import render_case
+        return render_case(out, kind, base_url)
+    if name == 'local-install-boundary':
+        from experiments.install_boundary import build_case
+        return build_case(out, kind, base_url)
     case = prepare_case(out, name, kind)
     workspace = inside(out, case['workspace'])
     case['runtime_workspace_proposal'] = str(workspace)
@@ -396,7 +428,7 @@ def render_control(out, name, kind, base_url=None):
 
 def run_control(config, out, env, name, kind, collector=None, base_url=None):
     # This function never accepts a model command or an agent case.
-    if name not in ('protected-issue', 'poisoned-readme', 'local-postinstall') or kind not in ('control_allow', 'control_deny'):
+    if name not in ('protected-issue', 'poisoned-readme', 'local-postinstall', 'agent-boundary-probe') or kind not in ('control_allow', 'control_deny'):
         raise ValueError('only fixed synthetic controls may execute')
     case, workspace = render_control(out, name, kind, base_url)
     root = out / 'runs' / case['case_id']
@@ -419,7 +451,7 @@ def run_control(config, out, env, name, kind, collector=None, base_url=None):
         for runtime_root in runtime_roots(config):
             args += ['--ro', runtime_root]
     argv = [config['jail']['path'], 'run'] + args + ['--receipt', str(root / 'raw/jail.json'), '--'] + child
-    run = {'schema': 'arena.m1.run/1', 'run_id': case['case_id'], 'adapter': None,
+    run = {'schema': 'arena.boundary-probe.run/1' if name == 'agent-boundary-probe' else 'arena.m1.run/1', 'run_id': case['case_id'], 'adapter': None,
            'jail_sha256': config['jail']['sha256'], 'expected_hosts': [authority] if kind == 'control_allow' and authority else [],
            'argv': argv, 'model_invocations': 0, 'started_at': now(), 'status': 'preparing'}
     save(root / 'case.json', case)
@@ -438,20 +470,31 @@ def run_control(config, out, env, name, kind, collector=None, base_url=None):
         run['error'] = str(exc)
     finally:
         rows = []
-        if collector and Path(collector.log).exists():
+        if name == 'agent-boundary-probe' and collector:
+            from experiments.boundary_probe import collector_capture
+            (root / 'raw/collector.jsonl').write_bytes(collector_capture(collector.log, case['case_id']))
+        elif collector and Path(collector.log).exists():
             rows = [json.loads(s) for s in Path(collector.log).read_text().splitlines()]
-        (root / 'raw/collector.jsonl').write_text(''.join(json.dumps(r) + '\n' for r in rows if r['run_id'] == case['case_id']))
+        if name != 'agent-boundary-probe' or not collector:
+            (root / 'raw/collector.jsonl').write_text(''.join(json.dumps(r) + '\n' for r in rows if r['run_id'] == case['case_id']))
         run['ended_at'] = now()
         save(root / 'run.json', run)
         manifest(root)
-    result = score(root)
+    if name == 'agent-boundary-probe':
+        from experiments.boundary_probe import score as score_boundary
+        result = score_boundary(root)
+    else:
+        result = score(root)
     save(out / 'scores' / (case['case_id'] + '.json'), result)
     return result
 
 
 def task_check(config, out, env, scenario, candidate, initial, workspace, label):
     """Only one bounded candidate enters a fresh offline Ukai jail with trusted dependencies."""
-    suffix = 'cjs' if scenario == 'local-postinstall' else 'py'
+    # JS-workflow scenarios share the word-segments checker; keep this tuple in
+    # sync with the install-family and replay scenario identifiers.
+    suffix = 'cjs' if scenario in ('local-postinstall', 'local-install-boundary',
+                                   's1ngularity-agent-weaponization') else 'py'
     data = regular_bytes(candidate, 65536)
     unexpected = []
     ignored = ('.git/', 'node_modules/', '.npm-cache/') if suffix == 'cjs' else ('.git/', '__pycache__/')

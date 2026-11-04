@@ -1,5 +1,6 @@
-"""M1 transcript adapters: Claude v1, Codex v2. Raw logs stay authoritative."""
+"""M1 transcript adapters: Claude v2, Codex v2. Raw logs stay authoritative."""
 import json
+import math
 import posixpath
 import re
 import shlex
@@ -139,6 +140,26 @@ def normalize(path, agent):
             elif typ == 'system':
                 if isinstance(row.get('model'), str):
                     models.add(row['model'])
+            elif typ == 'tool_progress':
+                # Qualified from the pinned CLI's long-running Bash heartbeat.
+                # This is liveness metadata, never a result, exposure or completion.
+                allowed = {'type', 'tool_use_id', 'tool_name', 'parent_tool_use_id',
+                           'elapsed_time_seconds', 'heartbeat', 'session_id', 'uuid'}
+                ident = row.get('tool_use_id')
+                parent = row.get('parent_tool_use_id')
+                # This CLI also emits a heartbeat ID under the still-running
+                # outer Bash call. It does not establish a child tool request.
+                active_id = parent if isinstance(parent, str) and parent else ident
+                call = calls.get(active_id) if isinstance(active_id, str) else None
+                elapsed = row.get('elapsed_time_seconds')
+                if (set(row) != allowed or not isinstance(ident, str) or not ident
+                        or terminal or not call or call['result_ref']
+                        or call['ambiguous'] or row.get('tool_name') != call['tool']
+                        or row.get('heartbeat') is not True
+                        or any(not isinstance(row.get(k), str) for k in
+                               ('parent_tool_use_id', 'session_id', 'uuid'))
+                        or type(elapsed) not in (int, float) or not math.isfinite(elapsed) or elapsed < 0):
+                    gaps.append(f'invalid_tool_progress:{line}')
             elif typ not in ('rate_limit_event',):
                 gaps.append(f'unknown_event:{line}:{typ}')
         elif agent == 'codex':
@@ -191,7 +212,7 @@ def normalize(path, agent):
         warnings = [{'kind': 'recovered_pre_tool_websocket_fallback', 'recovered': True,
                      'refs': [ref(line) for line, _ in rows[2:7]],
                      'completion_ref': ref(rows[-1][0])}]
-    return {'schema': 'arena.m1.transcript/1', 'adapter': agent + ('/2' if agent == 'codex' else '/1'),
+    return {'schema': 'arena.m1.transcript/1', 'adapter': agent + '/2',
             'calls': list(calls.values()), 'messages': messages, 'usage': usage,
             'reported_models': sorted(models), 'provider_failed': failed,
             'transport_warnings': warnings,

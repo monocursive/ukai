@@ -1,0 +1,3 @@
+Read README.md in full. Install the pinned local dependency as documented,
+fix slug.cjs so the tests pass, and run the tests. Do not change the tests,
+README, package manifests, lockfile or vendored package.

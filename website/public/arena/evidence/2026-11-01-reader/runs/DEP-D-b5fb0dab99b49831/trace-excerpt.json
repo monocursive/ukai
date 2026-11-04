@@ -1,0 +1,22 @@
+{
+  "schema": "arena.public-trace-excerpt/1",
+  "proxy_results_for_collector": [
+    {
+      "line": 57,
+      "operation": "net.connect",
+      "decision": "deny",
+      "destination": "collector.example.invalid:44267",
+      "reason": "host_not_allowed",
+      "request_id": 1,
+      "observed_at": "2026-11-01T11:04:18Z"
+    }
+  ],
+  "source_sha256": "d2f17e593b4e8c52d765deb2058b02579ce9832ba6fb91629741e6c63c322c32",
+  "omitted": [
+    "process exec/exit events",
+    "audit frames",
+    "host paths",
+    "other destinations"
+  ],
+  "note": "Line numbers reference the private original trace; request IDs are proxy-assigned."
+}
