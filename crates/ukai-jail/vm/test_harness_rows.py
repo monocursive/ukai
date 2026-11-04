@@ -151,9 +151,11 @@ def rebound(base, **binding):
 
 POLICY = {'policy': {'requirements': sorted(capabilities.REQUIREMENTS.values())}}
 TREE_ROOT = {'pid': 2, 'pgrp': 2, 'session': 1}
-GOOD_STOP = {'boundaries': ['ukai-attempts.slice/attempt-3', 'app.slice/ukai-jail-9.scope'],
+# A clean live stop's shape: the attempt cgroup and the user manager's
+# app.slice (the jail had already removed its own scope and leaf).
+GOOD_STOP = {'boundaries': ['ukai-attempts.slice/attempt-3', 'user.slice/user-1001.slice/user@1001.service/app.slice'],
              'populated_before_kill': [], 'live_before_kill': [], 'strays_killed': []}
-TRACE_OPERATION = {'exec': 'proc.exec', 'fs.write': 'fs.create', 'fs.deny': 'fs.deny', 'net': 'net.connect'}
+USER_MANAGER = '/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service'
 
 
 def tagged_line(name, value):
@@ -174,7 +176,8 @@ def tree_members():
 def tree_record(path):
     probe = {'tag': T, 'path': path, 'root': TREE_ROOT, 'members': tree_members()}
     lifetime = {'boundary': 'pid_namespace', 'tree_empty': True, 'verification_scope': 'attempt_tree',
-                'integrity': 'verified'}
+                'integrity': 'verified',
+                'native': {'details': {'execution_cgroup': {'path': f'{USER_MANAGER}/ukai-att_{path}.leaf'}}}}
     if path == 'exit':
         # A left-behind tree settles as evidence_lost with exit 1 (stop-audit-2):
         # recorded in notes, never required.
@@ -192,23 +195,14 @@ def tree_record(path):
 def tree_watch():
     kinds = capabilities.TREE_KINDS
     return {'markers': {kind: f'{member["pid"]}\n' for kind, member in tree_members().items()},
-            'during': [{kind: 1 for kind in kinds}, {kind: 2 for kind in kinds},
+            # The stopped member was frozen at its second beat before the
+            # host's first sample.
+            'during': [{kind: 2 if kind == 'stopped' else 1 for kind in kinds}, {kind: 2 for kind in kinds},
                        {kind: 2 if kind == 'stopped' else 4 for kind in kinds}],
             'at_done': {kind: 2 if kind == 'stopped' else 5 for kind in kinds},
             'settled_from': {kind: 2 if kind == 'stopped' else 5 for kind in kinds},
-            'settled_to': {kind: 2 if kind == 'stopped' else 5 for kind in kinds}}
-
-
-def trace_file(counts, extra=()):
-    """An evidence trace with `counts[class]` audit results, plus events no
-    class counts (a wrapper note, a proxy result)."""
-    lines = [{'source': 'wrapper', 'stage': 'result', 'operation': 'note'},
-             {'source': 'proxy', 'stage': 'result', 'operation': 'net.connect'}, *extra]
-    for cls, count in counts.items():
-        lines += [{'source': 'audit', 'stage': 'result', 'operation': TRACE_OPERATION[cls]}] * (count or 0)
-    text = ''.join(json.dumps(line) + '\n' for line in lines)
-    return {'group': 'evidence', 'path': 'trace.ndjson', 'executable': False,
-            'sha256': hashlib.sha256(text.encode()).hexdigest(), 'text': text}
+            'settled_to': {kind: 2 if kind == 'stopped' else 5 for kind in kinds},
+            'window': {'done_at': 100.0, 'opened_at': 101.0, 'closed_at': 104.0}}
 
 
 def coverage(counts, degraded=()):
@@ -656,7 +650,7 @@ class GuestMeasurementMutations(unittest.TestCase):
                  probe(lambda p, path=path: p.update(path='wall' if path == 'exit' else 'exit')),
                  fact('probe_reported_this_path')),
                 ('no probe line at all', lambda r, v, name=name: r[name].update(stdout=''),
-                 [fact('probe_reported_this_path'), fact('every_marker_seen'),
+                 [fact('probe_reported_this_path'), fact('every_marker_seen'), fact('stopped_member_froze'),
                   *[fact(f'kind_confirmed:{kind}') for kind in capabilities.TREE_KINDS]]),
                 ('the host never saw a marker', watch(lambda w: w['markers'].update(daemon=None)), fact('every_marker_seen')),
                 ('a marker naming another process', watch(lambda w: w['markers'].update(normal='99\n')),
@@ -667,13 +661,30 @@ class GuestMeasurementMutations(unittest.TestCase):
                  fact('growth_seen_during_the_attempt')),
                 ('one member never grew', watch(lambda w: [sample.update(sigterm_ignored=3) for sample in w['during']]),
                  fact('growth_seen_during_the_attempt')),
+                ('the stopped member beat while the attempt ran',
+                 watch(lambda w: w['during'][-1].update(stopped=3)), fact('stopped_member_froze')),
+                ('the probe read fewer beats than the host saw at the end',
+                 probe(lambda p: p['members']['stopped'].update(beats=1)), fact('stopped_member_froze')),
+                ('the stopped member\'s beats never reached the host after done',
+                 watch(lambda w: w['at_done'].update(stopped=None)),
+                 [fact('stopped_member_froze'), fact('every_member_beat')]),
                 ('a SIGTERM-ignoring member beat after settlement',
                  watch(lambda w: w['settled_to'].update(sigterm_ignored=w['settled_to']['sigterm_ignored'] + 2)),
-                 fact('no_beat_after_settlement')),
+                 fact('tree_dead_after_the_jail_and_the_guest_stop')),
                 ('the daemon beat after settlement', watch(lambda w: w['settled_to'].update(daemon=9)),
-                 fact('no_beat_after_settlement')),
+                 fact('tree_dead_after_the_jail_and_the_guest_stop')),
                 ('no settle sample', watch(lambda w: w.update(settled_from={}, settled_to={})),
-                 fact('no_beat_after_settlement')),
+                 [fact('tree_dead_after_the_jail_and_the_guest_stop'), fact('stopped_member_froze')]),
+                ('a settle window that opened inside the share grace',
+                 watch(lambda w: w['window'].update(opened_at=100.5)), fact('settle_window_opened_after_the_share_grace')),
+                ('a settle window opened before done', watch(lambda w: w['window'].update(done_at=101.0)),
+                 fact('settle_window_opened_after_the_share_grace')),
+                ('a settle window shorter than the settle time', watch(lambda w: w['window'].update(closed_at=102.0)),
+                 fact('settle_window_lasted_the_settle_time')),
+                ('no window bounds recorded', watch(lambda w: w.pop('window')),
+                 [fact('settle_window_opened_after_the_share_grace'), fact('settle_window_lasted_the_settle_time')]),
+                ('a clock that is not a number', watch(lambda w: w['window'].update(opened_at=True)),
+                 [fact('settle_window_opened_after_the_share_grace'), fact('settle_window_lasted_the_settle_time')]),
                 ('the receipt says the tree was not empty', receipt(lambda x: x['lifetime'].update(tree_empty=False)),
                  fact('receipt_tree_empty')),
                 ('integrity not verified', receipt(lambda x: x['lifetime'].update(integrity='unverified')),
@@ -683,13 +694,31 @@ class GuestMeasurementMutations(unittest.TestCase):
                 ('another verification scope', receipt(lambda x: x['lifetime'].update(verification_scope='target_only')),
                  fact('receipt_scope_attempt_tree')),
                 ('no guest stop report', lambda r, v, name=name: r[name].update(guest_stop=None),
-                 [fact('guest_stop_reported'), fact('guest_stop_covered_the_attempt_cgroup'),
+                 [fact('guest_stop_reported'),
                   fact('guest_stop_found_no_populated_boundary'), fact('guest_stop_found_no_live_process'),
                   fact('guest_stop_killed_no_stray')]),
                 ('a malformed stop report', stop(lambda s: s['boundaries'].append(7)), fact('guest_stop_reported')),
-                ('a stop that never looked at the attempt cgroup',
-                 stop(lambda s: s.update(boundaries=['app.slice/ukai-jail-9.scope'])),
-                 fact('guest_stop_covered_the_attempt_cgroup')),
+                ('a stray that is not a (pid, cgroup) pair', stop(lambda s: s.update(strays_killed=[['812', None]])),
+                 [fact('guest_stop_reported'), fact('guest_stop_killed_no_stray')]),
+                ('a live process that is not a pair', stop(lambda s: s.update(live_before_kill=[[812]])),
+                 [fact('guest_stop_reported'), fact('guest_stop_found_no_live_process')]),
+                ('the receipt names no execution cgroup',
+                 receipt(lambda x: x['lifetime'].pop('native')), fact('execution_cgroup_under_the_walked_user_manager')),
+                ('an execution cgroup outside the user manager', receipt(lambda x: x['lifetime']['native']['details'][
+                    'execution_cgroup'].update(path='/sys/fs/cgroup/ukai-attempts.slice/attempt-3/x.leaf')),
+                 fact('execution_cgroup_under_the_walked_user_manager')),
+                ('another account\'s user manager', receipt(lambda x: x['lifetime']['native']['details'][
+                    'execution_cgroup'].update(path='/sys/fs/cgroup/user.slice/user-1002.slice/user@1002.service/a.leaf')),
+                 fact('execution_cgroup_under_the_walked_user_manager')),
+                ('a slice and manager of two uids', receipt(lambda x: x['lifetime']['native']['details'][
+                    'execution_cgroup'].update(path='/sys/fs/cgroup/user.slice/user-1002.slice/user@1001.service/a.leaf')),
+                 fact('execution_cgroup_under_the_walked_user_manager')),
+                ('the user manager itself, no leaf', receipt(lambda x: x['lifetime']['native']['details'][
+                    'execution_cgroup'].update(path=USER_MANAGER + '/')),
+                 fact('execution_cgroup_under_the_walked_user_manager')),
+                ('a path that climbs out of the manager', receipt(lambda x: x['lifetime']['native']['details'][
+                    'execution_cgroup'].update(path=USER_MANAGER + '/../../user-1002.slice/a.leaf')),
+                 fact('execution_cgroup_under_the_walked_user_manager')),
                 ('the attempt cgroup still held a process',
                  stop(lambda s: s.update(populated_before_kill=['ukai-attempts.slice/attempt-3'])),
                  fact('guest_stop_found_no_populated_boundary')),
@@ -703,6 +732,19 @@ class GuestMeasurementMutations(unittest.TestCase):
                 table.append((f'/proc does not confirm {kind}',
                               probe(lambda p, kind=kind, changes=changes: p['members'][kind]['proc'].update(changes)),
                               fact(f'kind_confirmed:{kind}')))
+            # Each kind's other conditions, one at a time.
+            for kind, changes, why in (
+                    ('daemon', {'ppid': 2}, 'still the root\'s child'),
+                    ('normal', {'session': 12}, 'in another session'),
+                    ('setsid', {'pgrp': 2}, 'leading its session but not its group'),
+                    ('own_pgid', {'session': 16}, 'in its own session too'),
+                    ('sigterm_ignored', {'ppid': 1}, 'not the root\'s child')):
+                table.append((f'{kind} {why}',
+                              probe(lambda p, kind=kind, changes=changes: p['members'][kind]['proc'].update(changes)),
+                              fact(f'kind_confirmed:{kind}')))
+            table.append(('a member kind nobody asked for',
+                          probe(lambda p: p['members'].update(extra={'pid': 30, 'beats': 2, 'proc': None})),
+                          fact('probe_reported_this_path')))
             if path == 'exit':
                 table.append(('the target did not exit 0 by itself',
                               receipt(lambda x: x.update(outcome={'kind': 'exited', 'code': 1, 'cause': None})),
@@ -1050,7 +1092,7 @@ class GuestMeasurementMutations(unittest.TestCase):
         self.assertEqual(tree['notes']['tree_termination']['receipt_errors'], ['evidence_lost'])
         self.assertEqual(entries['syscall_filter']['attempt_ids'], [results['syscall_filter']['attempt_id']])
 
-    def test_this_worktrees_attempt_record_fails_the_tree(self):
+    def test_a_record_without_the_guest_stop_fails_the_tree(self):
         # A record without the guest's stop report (no `stop` in done) backs
         # no tree_termination, whatever else holds.
         results = good_results()
@@ -1067,28 +1109,67 @@ class GuestMeasurementMutations(unittest.TestCase):
         for kind, (marker, _) in files.items():
             (workspace / marker).write_text('5\n')
 
+        def beat(kind):
+            with open(workspace / files[kind][1], 'a') as output:
+                output.write('beat\n')
+
         def run():
-            for beat in range(3):
-                for _, path in files.values():
-                    with open(workspace / path, 'a') as output:
-                        output.write('beat\n')
+            for _ in range(3):
+                for kind in files:
+                    beat(kind)
                 time.sleep(0.25)
             return {'attempt_id': 'x', 'started_at': 'now'}
+        clock = [100.0]
         sleeps = []
-        with mock.patch.object(capabilities, 'TREE_SETTLE_SECONDS', 0.0), \
-                mock.patch.object(capabilities, 'TREE_SHARE_GRACE', 0.0):
-            result, watch = capabilities.watch_tree(run, workspace, T, 'exit', sleeps.append)
+
+        def sleep(seconds, during_window=()):
+            # The host's sleeps: a beat in the share grace is the share's
+            # delay; `during_window` beats land inside the settle window.
+            sleeps.append(seconds)
+            for kind in (('normal',) if len(sleeps) % 2 else during_window):
+                beat(kind)
+            clock[0] += seconds
+        result, watch = capabilities.watch_tree(run, workspace, T, 'exit', sleep, lambda: clock[0])
         self.assertEqual(result['attempt_id'], 'x')
-        self.assertEqual(sleeps, [0.0, 0.0])
+        self.assertEqual(sleeps, [capabilities.TREE_SHARE_GRACE, capabilities.TREE_SETTLE_SECONDS])
         self.assertGreaterEqual(len({sample['normal'] for sample in watch['during']}), 2)
         self.assertEqual(watch['at_done'], {kind: 3 for kind in capabilities.TREE_KINDS})
+        # The grace beat is before the window opens: the window saw none.
+        self.assertEqual(watch['settled_from'], {**watch['at_done'], 'normal': 4})
         self.assertEqual(watch['settled_from'], watch['settled_to'])
+        self.assertEqual(watch['window'], {'done_at': 100.0, 'opened_at': 100.0 + capabilities.TREE_SHARE_GRACE,
+                                           'closed_at': 100.0 + capabilities.TREE_SHARE_GRACE
+                                           + capabilities.TREE_SETTLE_SECONDS})
         self.assertEqual(watch['markers']['daemon'], '5\n')
+        record = bind(tree_record('exit'), f'cap-tree_termination-{T}')
+        facts = capabilities.judge_tree(record, T, 'exit', watch)
+        for key in ('tree_dead_after_the_jail_and_the_guest_stop', 'settle_window_opened_after_the_share_grace',
+                    'settle_window_lasted_the_settle_time'):
+            self.assertIs(facts[key], True, key)
+
+        # A beat inside the window: the window sees it, and the tree fails.
+        sleeps.clear()
+        _, inside = capabilities.watch_tree(run, workspace, T, 'exit',
+                                            lambda seconds: sleep(seconds, ('daemon',)), lambda: clock[0])
+        self.assertEqual(inside['settled_to']['daemon'], inside['settled_from']['daemon'] + 1)
+        self.assertIs(capabilities.judge_tree(record, T, 'exit', inside)[
+            'tree_dead_after_the_jail_and_the_guest_stop'], False)
 
         def broken():
             raise RuntimeError('connect failed')
         with self.assertRaises(RuntimeError):
             capabilities.watch_tree(broken, workspace, T, 'exit', sleeps.append)
+
+    def test_the_real_clock_window_meets_its_bounds(self):
+        # time.sleep and time.monotonic together, at small bounds.
+        workspace = Path(tempfile.mkdtemp(prefix='tree-clock-'))
+        self.addCleanup(shutil.rmtree, workspace, True)
+        with mock.patch.object(capabilities, 'TREE_SHARE_GRACE', 0.2), \
+                mock.patch.object(capabilities, 'TREE_SETTLE_SECONDS', 0.3):
+            _, watch = capabilities.watch_tree(lambda: {}, workspace, T, 'wall')
+            facts = capabilities.judge_tree({}, T, 'wall', watch)
+        self.assertIs(facts['settle_window_opened_after_the_share_grace'], True, watch['window'])
+        self.assertIs(facts['settle_window_lasted_the_settle_time'], True, watch['window'])
 
     def test_the_host_snapshot_reads_kind_mode_bytes_and_listing(self):
         root = Path(tempfile.mkdtemp(prefix='host-entry-'))

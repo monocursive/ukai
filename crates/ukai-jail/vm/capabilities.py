@@ -66,21 +66,32 @@ Capabilities measured (the limits guest.py's run_command applies):
                   marker (naming the pid the probe reports) and at least two
                   beats of each; while the attempt ran, the host saw each
                   running member's beats GROW through the share (the settle
-                  window's positive control); no beat file grows in the
-                  TREE_SETTLE_SECONDS window that opens TREE_SHARE_GRACE
-                  after `done`; the receipt says tree_empty, integrity
-                  verified, boundary pid_namespace, scope attempt_tree, and
-                  the end path's own cause (the target's exit 0, or the wall
-                  hit with wall_expiry); and the guest controller's own stop
-                  (`guest_stop`: outside the jail, after the jail exited)
-                  covered the attempt's cgroup yet found no populated
+                  window's positive control), and never saw the stopped
+                  member's beats pass the count the probe read once /proc
+                  showed it stopped, ending at exactly that count (it froze:
+                  a /proc `t` from a passing ptrace stop does not); and the
+                  tree is dead after the jail and the guest stop: no beat
+                  file grows in a settle window the host records opening at
+                  least TREE_SHARE_GRACE after `done` and lasting at least
+                  TREE_SETTLE_SECONDS. The guest stop runs before `done`, so
+                  that window cannot tell the jail's kill from the stop's.
+                  The jail's own lifetime boundary is judged by the receipt
+                  (tree_empty, integrity verified, boundary pid_namespace,
+                  scope attempt_tree, and the end path's own cause: the
+                  target's exit 0, or the wall hit with wall_expiry) and by
+                  the guest controller's own stop (`guest_stop`: outside the
+                  jail, after the jail exited), which found no populated
                   boundary and no live workload process before it signalled
-                  anything, and killed no stray. The stopped member never
-                  beats again, so its survival is the stop's alone to
-                  witness. The jail's exit status and receipt errors are
-                  recorded in `notes`, not required (a left-behind
-                  descendant settles as evidence_lost). A mid-run cancel is
-                  NOT measured (NOT_MEASURED says why).
+                  anything, and killed no stray. The receipt's execution
+                  cgroup is under the user manager that stop walks (the path
+                  is under user.slice/user-1001.slice/user@1001.service/),
+                  so the stop's walk would have reached it had it survived.
+                  The stopped member cannot beat, so the window says nothing
+                  of it: its survival is the stop's alone to witness. The
+                  jail's exit status and receipt errors are recorded in
+                  `notes`, not required (a left-behind descendant settles as
+                  evidence_lost). A mid-run cancel is NOT measured
+                  (NOT_MEASURED says why).
   closed_set_observation
                   closed_set_observation. One fixture, run with one round
                   and with three: per round it execs /usr/bin/true and
@@ -199,15 +210,16 @@ TREE_MIN_BEATS = 2
 TREE_HOLD_SECONDS = 2.0     # the exit path's root lives this long after every member beat
 TREE_SHARE_GRACE = 1.0      # the share's own delay before the settle window opens
 TREE_POLL = 0.1
-NOT_MEASURED = {'tree_termination': {
-    'cancel': 'harness.run_attempt has no mid-run cancel; the only cancel the harnesses have is the '
-              'attempt-socket EOF (fault_matrix eof), which ends the attempt through the guest '
-              "controller's own stop (cancel2), never through the guest jail, and returns no receipt "
-              'and no done frame, so it cannot back the guest jail\'s tree_termination'},
-    'closed_set_observation': {
-        'operation_identity': 'the identity of each counted operation (the trace stays in the guest)'}}
+# The settle window's bounds are host clock readings around sleep(); a
+# sleep may end a scheduler tick short of the monotonic clock's span.
+TREE_WINDOW_SLACK = 0.05
 GUEST_STOP_LISTS = ('boundaries', 'populated_before_kill', 'live_before_kill', 'strays_killed')
-ATTEMPT_CGROUP_PREFIX = 'ukai-attempts.slice/attempt-'
+# The user manager guest.py's stop walks (delegated_root): the workload
+# account's, uid 1001 on the prepared image (prepare.py `useradd --uid 1001
+# ukai`). The stop kills every cgroup under it but the manager's own units.
+GUEST_ACCOUNT_UID = 1001
+USER_MANAGER_CGROUP = (f'/sys/fs/cgroup/user.slice/user-{GUEST_ACCOUNT_UID}.slice/'
+                       f'user@{GUEST_ACCOUNT_UID}.service/')
 
 # closed_set_observation
 OBSERVE_EXECS = ((['/usr/bin/true'], 0), (['/bin/sh', '-c', 'exit 7'], 7))
@@ -295,6 +307,16 @@ SYSCALL_CONTROLS = (
     ('seccomp_bad_flag', 277, (SECCOMP_SET_MODE_FILTER, 0x80000000, 0), 'EINVAL'),
     ('socket_inet', 198, (2, 1, 0), 'ok'),
 )
+
+NOT_MEASURED = {
+    'tree_termination': {
+        'cancel': 'harness.run_attempt has no mid-run cancel; the only cancel the harnesses have is the '
+                  'attempt-socket EOF (fault_matrix eof), which ends the attempt through the guest '
+                  "controller's own stop (cancel2), never through the guest jail, and returns no receipt "
+                  'and no done frame, so it cannot back the guest jail\'s tree_termination'},
+    'closed_set_observation': {
+        'operation_identity': 'the identity of each counted operation (the trace stays in the guest)'},
+}
 
 # protected_coverage:existing_and_root
 SENTINEL_TEXT = '[core]\n'   # harness.protected_sentinel's text, which main() seeds
@@ -1066,9 +1088,26 @@ def guest_stop_reported(stop):
             and all(isinstance(pair, list) and len(pair) == 2 and isinstance(pair[0], int) for pair in pairs))
 
 
+def under_user_manager(path):
+    """The cgroup path lies below the user manager guest.py's stop walks."""
+    if not isinstance(path, str) or not path.startswith(USER_MANAGER_CGROUP):
+        return False
+    return all(part not in ('', '.', '..') for part in path[len(USER_MANAGER_CGROUP):].split('/'))
+
+
+def number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def judge_tree(record, tag, path, watch):
-    """tree_termination on one end path: `exit` (the root returns 0 at once)
-    or `wall` (the root outlives the wall)."""
+    """tree_termination on one end path: `exit` (the root returns 0 after
+    its hold) or `wall` (the root outlives the wall).
+
+    `tree_dead_after_the_jail_and_the_guest_stop` is the host's settle
+    window: the guest stop runs before `done`, so it cannot tell whose kill
+    ended the tree. The jail's own lifetime boundary is judged by the
+    receipt's tree_empty with the stop's pre-kill witness
+    (populated_before_kill, live_before_kill)."""
     record = record or {}
     watch = watch or {}
     probe = tagged(record.get('stdout'), 'UKAI_TREE_PROBE', tag) or {}
@@ -1079,8 +1118,15 @@ def judge_tree(record, tag, path, watch):
     at_done = watch.get('at_done') or {}
     during = watch.get('during') or []
     settled_from, settled_to = watch.get('settled_from') or {}, watch.get('settled_to') or {}
+    window = watch.get('window') or {}
+    done_at, opened_at, closed_at = (window.get(key) for key in ('done_at', 'opened_at', 'closed_at'))
     stop = record.get('guest_stop')
     stop = stop if isinstance(stop, dict) else {}
+    execution = (lifetime_details(record).get('execution_cgroup') or {}).get('path')
+    # The beats the probe read once /proc showed the member stopped.
+    frozen_at = (members.get('stopped') or {}).get('beats')
+    stopped_seen = [sample.get('stopped') for sample in during if sample.get('stopped') is not None]
+    stopped_seen += [at_done.get('stopped'), settled_from.get('stopped')]
     if path == 'exit':
         ended = outcome(record).get('kind') == 'exited' and outcome(record).get('code') == 0
     else:
@@ -1099,23 +1145,33 @@ def judge_tree(record, tag, path, watch):
                                  for kind in TREE_KINDS),
         # The positive control of the settle window: through the share, the
         # host saw each running member's beats GROW while the attempt ran.
-        # (The stopped member stops at its second beat: its survival is the
-        # guest stop's to witness.)
         'growth_seen_during_the_attempt': all(
             len({sample.get(kind) for sample in during if isinstance(sample.get(kind), int)}) >= 2
             for kind in TREE_KINDS if kind != 'stopped'),
-        'no_beat_after_settlement': (all(isinstance(settled_from.get(kind), int) for kind in TREE_KINDS)
-                                     and all(settled_to.get(kind) == settled_from.get(kind) for kind in TREE_KINDS)),
+        # The stopped member's own control: no host sample passes the count
+        # the probe read after /proc showed it stopped, and the last is that
+        # count (a member that kept beating was not frozen).
+        'stopped_member_froze': (isinstance(frozen_at, int) and settled_to.get('stopped') == frozen_at
+                                 and all(isinstance(seen, int) and seen <= frozen_at for seen in stopped_seen)),
+        # No beat inside the settle window. The guest stop runs before
+        # `done`, so this holds the jail and the stop together.
+        'tree_dead_after_the_jail_and_the_guest_stop': (
+            all(isinstance(settled_from.get(kind), int) for kind in TREE_KINDS)
+            and all(settled_to.get(kind) == settled_from.get(kind) for kind in TREE_KINDS)),
+        'settle_window_opened_after_the_share_grace': (
+            number(done_at) and number(opened_at) and opened_at - done_at >= TREE_SHARE_GRACE - TREE_WINDOW_SLACK),
+        'settle_window_lasted_the_settle_time': (
+            number(opened_at) and number(closed_at)
+            and closed_at - opened_at >= TREE_SETTLE_SECONDS - TREE_WINDOW_SLACK),
         'receipt_tree_empty': lifetime.get('tree_empty') is True,
         'receipt_integrity_verified': lifetime.get('integrity') == 'verified',
         'receipt_boundary_pid_namespace': lifetime.get('boundary') == 'pid_namespace',
         'receipt_scope_attempt_tree': lifetime.get('verification_scope') == 'attempt_tree',
         f'ended_by_{"target_exit" if path == "exit" else "wall_expiry"}': ended,
+        # The workload's own cgroup is under the user manager the guest stop
+        # walks, so the walk would have reached it had it survived.
+        'execution_cgroup_under_the_walked_user_manager': under_user_manager(execution),
         'guest_stop_reported': guest_stop_reported(record.get('guest_stop')),
-        # The stop's witness is non-vacuous only if it looked at this
-        # attempt's own cgroup.
-        'guest_stop_covered_the_attempt_cgroup': isinstance(stop.get('boundaries'), list) and any(
-            isinstance(name, str) and name.startswith(ATTEMPT_CGROUP_PREFIX) for name in stop['boundaries']),
         'guest_stop_found_no_populated_boundary': stop.get('populated_before_kill') == [],
         'guest_stop_found_no_live_process': stop.get('live_before_kill') == [],
         'guest_stop_killed_no_stray': stop.get('strays_killed') == [],
@@ -1495,14 +1551,16 @@ def beat_counts(workspace, files):
     return counts
 
 
-def watch_tree(run, workspace, tag, path, sleep=time.sleep):
+def watch_tree(run, workspace, tag, path, sleep=time.sleep, clock=time.monotonic):
     """Run one tree attempt on a worker thread while the host samples the
     members' beats through the share; then the settle window after `done`.
 
     Returns (record, watch): `during` holds each distinct sample taken while
     the attempt ran, `at_done` the first after it, and `settled_from` /
     `settled_to` open and close the TREE_SETTLE_SECONDS window that starts
-    TREE_SHARE_GRACE after `done`.
+    TREE_SHARE_GRACE after `done`. `window` holds the host clock read with
+    each of those three samples (done_at, opened_at, closed_at), so the
+    judge checks the window's bounds, not only its counts.
     """
     files = dict((kind, tree_files(tag, path, kind)) for kind in TREE_KINDS)
     box = {}
@@ -1522,14 +1580,15 @@ def watch_tree(run, workspace, tag, path, sleep=time.sleep):
         worker.join(TREE_POLL)
     if 'error' in box:
         raise box['error']
-    at_done = beat_counts(workspace, files)
+    at_done, done_at = beat_counts(workspace, files), clock()
     sleep(TREE_SHARE_GRACE)
-    settled_from = beat_counts(workspace, files)
+    settled_from, opened_at = beat_counts(workspace, files), clock()
     sleep(TREE_SETTLE_SECONDS)
-    settled_to = beat_counts(workspace, files)
+    settled_to, closed_at = beat_counts(workspace, files), clock()
     markers = dict((kind, read_text(Path(workspace) / marker)) for kind, (marker, _) in files.items())
     return box['record'], {'markers': markers, 'during': during, 'at_done': at_done,
-                           'settled_from': settled_from, 'settled_to': settled_to}
+                           'settled_from': settled_from, 'settled_to': settled_to,
+                           'window': {'done_at': done_at, 'opened_at': opened_at, 'closed_at': closed_at}}
 
 
 def observe_view(workspace, tag, name):
