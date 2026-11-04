@@ -1,0 +1,1714 @@
+{
+  "schema": "ukai.vm.warm-live/2",
+  "binary": {
+    "path": "target/release/ukai-vm",
+    "sha256": "dec046e2cc7d1cb0a86a4f0ec4b47ff45031d87c9ad3f7c5f3830d19e5f2db30"
+  },
+  "real_client_binary": {
+    "path": "target/release/ukai-jail",
+    "sha256": "9c2a0a52a11a6b2a8e3d8e6e97e4657ca772a18b921c1206a98fbe33ea534497"
+  },
+  "status": {
+    "event": "status",
+    "schema": "ukai.jail.vm-control/1",
+    "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+    "warm": true,
+    "attempt_live": false,
+    "kernel": null,
+    "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+    "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+    "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+    "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+    "vsock_port": 1024,
+    "idle_seconds": 0,
+    "live_workspace": "/Volumes/ukai-cs/ws/warm2",
+    "live_workspace_facts": {
+      "case_fold": false,
+      "normalization_fold": true
+    },
+    "guest_nat": true
+  },
+  "workspace_cleaned": [],
+  "attempts": [
+    {
+      "attempt_id": "warm-0-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:454a38719e2d78793392af29591aa6fe0a0665149463a2b2a6894a3e413d9cad",
+      "started_at": "2026-11-04T13:16:10Z",
+      "stdout": "git_write_refused-0\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-0\", \"target\": [\"1.1.1.1\", 443]}\nout-0\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 639,
+      "receipt_sha256": "fc9076c4c5e0193ed623c4e3f2e4f1fb8f1fd161adf2786e0604d0a507a794ca",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-0-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_657c5e0b-67b2-4c87-9c43-dedebbd888e8",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:454a38719e2d78793392af29591aa6fe0a0665149463a2b2a6894a3e413d9cad"
+      },
+      "timings_ms": {
+        "connect_to_ready": 39986.0,
+        "prepare_to_prepared": 9.9,
+        "run_to_released": 10.9,
+        "prepare_to_released": 20.9,
+        "connect_to_released": 40006.9,
+        "released_to_done": 287.7
+      },
+      "index": 0,
+      "host_write": "warm-0-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-1-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:fd056bc11890fd5ebd5d95e6c5b8bf2f32acfd7651f5ba6ead0160855b865fcf",
+      "started_at": "2026-11-04T13:16:51Z",
+      "stdout": "git_write_refused-1\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-1\", \"target\": [\"1.1.1.1\", 443]}\nout-1\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 664,
+      "receipt_sha256": "b891b2bff279de73a5753c3cba5913db7b26d785172e30333d36ac6c371a79f9",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-1-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_408fe96e-25e6-4ace-9fde-ce00ea1622c8",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:fd056bc11890fd5ebd5d95e6c5b8bf2f32acfd7651f5ba6ead0160855b865fcf"
+      },
+      "timings_ms": {
+        "connect_to_ready": 58.6,
+        "prepare_to_prepared": 25.3,
+        "run_to_released": 13.0,
+        "prepare_to_released": 38.3,
+        "connect_to_released": 96.9,
+        "released_to_done": 289.2
+      },
+      "index": 1,
+      "host_write": "warm-1-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-2-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:b6a23c61754b80c8e8b11173b1f92cdedc246f550471721fee24d8fd7dededf9",
+      "started_at": "2026-11-04T13:16:51Z",
+      "stdout": "git_write_refused-2\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-2\", \"target\": [\"1.1.1.1\", 443]}\nout-2\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 689,
+      "receipt_sha256": "46d8a203debb43f910aa3036038c03f4c828b21df9880cb10f8da3312f59b1f8",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-2-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_22c98e84-197b-4f36-a356-31b2010a8cce",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:b6a23c61754b80c8e8b11173b1f92cdedc246f550471721fee24d8fd7dededf9"
+      },
+      "timings_ms": {
+        "connect_to_ready": 51.9,
+        "prepare_to_prepared": 24.4,
+        "run_to_released": 10.0,
+        "prepare_to_released": 34.4,
+        "connect_to_released": 86.3,
+        "released_to_done": 296.4
+      },
+      "index": 2,
+      "host_write": "warm-2-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-3-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:57df75d70bca36b0d7564b93b27bbcb15207e2140037ac40b4f8f567c8a4d725",
+      "started_at": "2026-11-04T13:16:51Z",
+      "stdout": "git_write_refused-3\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-3\", \"target\": [\"1.1.1.1\", 443]}\nout-3\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 714,
+      "receipt_sha256": "de6e484e0a3c22a266384c4987dd50c1c5753d5155061fa74001f7bce9936b06",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-3-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_ec5e675f-27fb-4f7d-ba7c-253ccb4a8496",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:57df75d70bca36b0d7564b93b27bbcb15207e2140037ac40b4f8f567c8a4d725"
+      },
+      "timings_ms": {
+        "connect_to_ready": 55.5,
+        "prepare_to_prepared": 29.7,
+        "run_to_released": 10.9,
+        "prepare_to_released": 40.6,
+        "connect_to_released": 96.1,
+        "released_to_done": 313.3
+      },
+      "index": 3,
+      "host_write": "warm-3-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-4-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:3fd7b3bfcfa112b1bf3c470ae8c9233ae75c0747e3d35d5eaefe7f50eb2dfae8",
+      "started_at": "2026-11-04T13:16:52Z",
+      "stdout": "git_write_refused-4\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-4\", \"target\": [\"1.1.1.1\", 443]}\nout-4\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 739,
+      "receipt_sha256": "2bbf4758aa8b0d0cff9d97d910baefb3b31edd82c816047ef9973bc10f068b1c",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-4-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_2c25a984-41b4-4a05-bd36-a54caeff60ca",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:3fd7b3bfcfa112b1bf3c470ae8c9233ae75c0747e3d35d5eaefe7f50eb2dfae8"
+      },
+      "timings_ms": {
+        "connect_to_ready": 54.4,
+        "prepare_to_prepared": 27.6,
+        "run_to_released": 11.0,
+        "prepare_to_released": 38.6,
+        "connect_to_released": 93.0,
+        "released_to_done": 290.5
+      },
+      "index": 4,
+      "host_write": "warm-4-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-5-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:f45d7ee9f93074d948c70fca045474e00036265a49298fe110c188b3946ddc3f",
+      "started_at": "2026-11-04T13:16:52Z",
+      "stdout": "git_write_refused-5\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-5\", \"target\": [\"1.1.1.1\", 443]}\nout-5\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 764,
+      "receipt_sha256": "6521ea44d936edc7dee810093058a9eb66cc3c0435bddc022a3755e16b6dacbb",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-5-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_fc7d9da4-2c51-4100-863c-f35bd3928d16",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:f45d7ee9f93074d948c70fca045474e00036265a49298fe110c188b3946ddc3f"
+      },
+      "timings_ms": {
+        "connect_to_ready": 55.2,
+        "prepare_to_prepared": 25.6,
+        "run_to_released": 11.0,
+        "prepare_to_released": 36.5,
+        "connect_to_released": 91.8,
+        "released_to_done": 275.5
+      },
+      "index": 5,
+      "host_write": "warm-5-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-6-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:10f1a3cc46848d9d846244ce31bfedcd5e29fcd5461b5e7eadd7ace023e39e14",
+      "started_at": "2026-11-04T13:16:53Z",
+      "stdout": "git_write_refused-6\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-6\", \"target\": [\"1.1.1.1\", 443]}\nout-6\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 789,
+      "receipt_sha256": "c86ceb2868d9760be9e3db315d200194cef19dbb1c6cc7c5bda630ddf16a3a54",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-6-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_a381d5a9-c9f0-4827-899a-0a2858f9ffd7",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:10f1a3cc46848d9d846244ce31bfedcd5e29fcd5461b5e7eadd7ace023e39e14"
+      },
+      "timings_ms": {
+        "connect_to_ready": 59.6,
+        "prepare_to_prepared": 33.3,
+        "run_to_released": 11.0,
+        "prepare_to_released": 44.3,
+        "connect_to_released": 104.0,
+        "released_to_done": 304.6
+      },
+      "index": 6,
+      "host_write": "warm-6-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-7-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:3a632b5821a77645f6783c99d2fb460c42a9741c3883ddaf5845727e451ea654",
+      "started_at": "2026-11-04T13:16:53Z",
+      "stdout": "git_write_refused-7\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-7\", \"target\": [\"1.1.1.1\", 443]}\nout-7\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 814,
+      "receipt_sha256": "77f4343e4e59c4bc1b40383efc86a101a4b39cff1fffc7f3645976d2decdf394",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-7-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_e8a2a38c-3c33-4d3a-a092-2eac776bb149",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:3a632b5821a77645f6783c99d2fb460c42a9741c3883ddaf5845727e451ea654"
+      },
+      "timings_ms": {
+        "connect_to_ready": 50.2,
+        "prepare_to_prepared": 20.7,
+        "run_to_released": 10.8,
+        "prepare_to_released": 31.5,
+        "connect_to_released": 81.8,
+        "released_to_done": 306.6
+      },
+      "index": 7,
+      "host_write": "warm-7-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-8-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:817790ac4ac9066cfaa653238034eba0596b551ede9b0754f688e7f642d4133c",
+      "started_at": "2026-11-04T13:16:53Z",
+      "stdout": "git_write_refused-8\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-8\", \"target\": [\"1.1.1.1\", 443]}\nout-8\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 839,
+      "receipt_sha256": "7ddadc84fef8504e31311e9ec69507ad6c778a227571d62a1e206efd2348bf87",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-8-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_bc1a3b9c-2e14-4c16-b765-b83fb6b600ac",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:817790ac4ac9066cfaa653238034eba0596b551ede9b0754f688e7f642d4133c"
+      },
+      "timings_ms": {
+        "connect_to_ready": 55.8,
+        "prepare_to_prepared": 30.0,
+        "run_to_released": 10.9,
+        "prepare_to_released": 40.9,
+        "connect_to_released": 96.7,
+        "released_to_done": 283.2
+      },
+      "index": 8,
+      "host_write": "warm-8-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-9-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:75b7757b251293e8dd3336077fa5c8cf83e8190bccc3763bbbba256dc23c685c",
+      "started_at": "2026-11-04T13:16:54Z",
+      "stdout": "git_write_refused-9\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-9\", \"target\": [\"1.1.1.1\", 443]}\nout-9\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 864,
+      "receipt_sha256": "ff67fb3cd6edb9d2c78e18f6b3f3bad9b76946b810d7bbdd9a862c7e400603ab",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-9-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_c594fc08-6cc4-4046-9c68-40b71b0808e8",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:75b7757b251293e8dd3336077fa5c8cf83e8190bccc3763bbbba256dc23c685c"
+      },
+      "timings_ms": {
+        "connect_to_ready": 56.5,
+        "prepare_to_prepared": 22.7,
+        "run_to_released": 15.0,
+        "prepare_to_released": 37.7,
+        "connect_to_released": 94.3,
+        "released_to_done": 282.2
+      },
+      "index": 9,
+      "host_write": "warm-9-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-10-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:a10a432f519664506bac39e186dc74b5269fe6d0fb3bc717a80b887bc62f9cd0",
+      "started_at": "2026-11-04T13:16:54Z",
+      "stdout": "git_write_refused-10\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-10\", \"target\": [\"1.1.1.1\", 443]}\nout-10\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 889,
+      "receipt_sha256": "8f1fb45dba546c2890eb6f15d1d775e162302fed12b66566ce4f2652fc7c51a5",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-10-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_0cf981f0-18a4-4aaf-b3c0-973b8f4a5484",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:a10a432f519664506bac39e186dc74b5269fe6d0fb3bc717a80b887bc62f9cd0"
+      },
+      "timings_ms": {
+        "connect_to_ready": 58.4,
+        "prepare_to_prepared": 24.7,
+        "run_to_released": 15.0,
+        "prepare_to_released": 39.7,
+        "connect_to_released": 98.1,
+        "released_to_done": 289.3
+      },
+      "index": 10,
+      "host_write": "warm-10-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-11-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:e2b31bcdc75c1d03ef1cc1638c3a8e98c19deeda0ff667798c9b732acd520fbe",
+      "started_at": "2026-11-04T13:16:55Z",
+      "stdout": "git_write_refused-11\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-11\", \"target\": [\"1.1.1.1\", 443]}\nout-11\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 914,
+      "receipt_sha256": "b6a6ede6b8c9588dfacda3e07270b221e72c39d9bfe7be809a2fade07f913356",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-11-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_2069a740-0867-46be-8c59-a5864c4a9e82",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:e2b31bcdc75c1d03ef1cc1638c3a8e98c19deeda0ff667798c9b732acd520fbe"
+      },
+      "timings_ms": {
+        "connect_to_ready": 53.2,
+        "prepare_to_prepared": 13.9,
+        "run_to_released": 15.0,
+        "prepare_to_released": 28.9,
+        "connect_to_released": 82.1,
+        "released_to_done": 200.9
+      },
+      "index": 11,
+      "host_write": "warm-11-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-12-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:ebd5ff8a4581949fc4b8ee1bab79ce9504cdd2889b38e41e796444160baca01f",
+      "started_at": "2026-11-04T13:16:55Z",
+      "stdout": "git_write_refused-12\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-12\", \"target\": [\"1.1.1.1\", 443]}\nout-12\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 939,
+      "receipt_sha256": "e87e8edbcc3c97930ba310ec3c4362b093d78f7067e9bb7ba5a1fef657beb41e",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-12-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_a80d2583-8a4d-49bf-9007-9460b805af95",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:ebd5ff8a4581949fc4b8ee1bab79ce9504cdd2889b38e41e796444160baca01f"
+      },
+      "timings_ms": {
+        "connect_to_ready": 59.6,
+        "prepare_to_prepared": 14.9,
+        "run_to_released": 11.2,
+        "prepare_to_released": 26.1,
+        "connect_to_released": 85.7,
+        "released_to_done": 249.4
+      },
+      "index": 12,
+      "host_write": "warm-12-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-13-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:97e9fcf8ab6109cc372b49161b7056b86382dd67094540a2c6b88ba2fcc6c4c4",
+      "started_at": "2026-11-04T13:16:55Z",
+      "stdout": "git_write_refused-13\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-13\", \"target\": [\"1.1.1.1\", 443]}\nout-13\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 964,
+      "receipt_sha256": "ea012c08fa311983872d89d20fc01dd8193f8dde81bd8cd817a36b1ba1eccd69",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-13-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_97c9b23b-b338-4f43-8a4f-034ec6c686c2",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:97e9fcf8ab6109cc372b49161b7056b86382dd67094540a2c6b88ba2fcc6c4c4"
+      },
+      "timings_ms": {
+        "connect_to_ready": 58.8,
+        "prepare_to_prepared": 12.5,
+        "run_to_released": 11.0,
+        "prepare_to_released": 23.5,
+        "connect_to_released": 82.3,
+        "released_to_done": 266.4
+      },
+      "index": 13,
+      "host_write": "warm-13-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-14-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:5ef68a3017b2e7d9c1f3c3c33e602f8d952eb3d91d2e8dbac6def1cb4fae9eda",
+      "started_at": "2026-11-04T13:16:55Z",
+      "stdout": "git_write_refused-14\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-14\", \"target\": [\"1.1.1.1\", 443]}\nout-14\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 989,
+      "receipt_sha256": "32eec2c13035a8425fe71028520d3fc65d844d48cb978aa438fe61cab0ff800c",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-14-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_ed0e6ffb-bf7c-4269-9084-58d2a5fe11bb",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:5ef68a3017b2e7d9c1f3c3c33e602f8d952eb3d91d2e8dbac6def1cb4fae9eda"
+      },
+      "timings_ms": {
+        "connect_to_ready": 52.9,
+        "prepare_to_prepared": 26.2,
+        "run_to_released": 14.8,
+        "prepare_to_released": 41.0,
+        "connect_to_released": 93.9,
+        "released_to_done": 299.6
+      },
+      "index": 14,
+      "host_write": "warm-14-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-15-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:0eea67585d09b7cf5c9b140e7f3e736519dfe0c7c70594c51a5209998523e364",
+      "started_at": "2026-11-04T13:16:56Z",
+      "stdout": "git_write_refused-15\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-15\", \"target\": [\"1.1.1.1\", 443]}\nout-15\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 1014,
+      "receipt_sha256": "1ea7fa005ef6f425a1f157e80bc1db7172cbf41d106f0ba6b406b2c65a6aabb6",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-15-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_d57ee258-44a6-4fda-a515-fb5ebbf994e6",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:0eea67585d09b7cf5c9b140e7f3e736519dfe0c7c70594c51a5209998523e364"
+      },
+      "timings_ms": {
+        "connect_to_ready": 57.0,
+        "prepare_to_prepared": 29.6,
+        "run_to_released": 10.3,
+        "prepare_to_released": 40.0,
+        "connect_to_released": 96.9,
+        "released_to_done": 299.0
+      },
+      "index": 15,
+      "host_write": "warm-15-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-16-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:a1df8222996d5bb5e71f9456024b0489b646bc4ce11e09191f14565876d346b9",
+      "started_at": "2026-11-04T13:16:56Z",
+      "stdout": "git_write_refused-16\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-16\", \"target\": [\"1.1.1.1\", 443]}\nout-16\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 1039,
+      "receipt_sha256": "dc94649fdf51d1a1bc8f1289410b7d6855dc62a6d32be4ab674c6d8e6816f399",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-16-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_9c3355ba-2084-4bcf-9a9d-275465d3fa62",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:a1df8222996d5bb5e71f9456024b0489b646bc4ce11e09191f14565876d346b9"
+      },
+      "timings_ms": {
+        "connect_to_ready": 50.6,
+        "prepare_to_prepared": 16.0,
+        "run_to_released": 11.0,
+        "prepare_to_released": 27.0,
+        "connect_to_released": 77.6,
+        "released_to_done": 292.5
+      },
+      "index": 16,
+      "host_write": "warm-16-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-17-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:6b03abd147cd53c7ae911a74cf21d9c3e6315a759500da8bdb0571a461b91af4",
+      "started_at": "2026-11-04T13:16:57Z",
+      "stdout": "git_write_refused-17\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-17\", \"target\": [\"1.1.1.1\", 443]}\nout-17\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 1064,
+      "receipt_sha256": "3ea264be75832d44408e62cd1f55d1a49bb28a5dc5db877e34699aa2f5a437a8",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-17-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_8444f4e3-2747-4b61-b794-bc2b9e9a5bd8",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:6b03abd147cd53c7ae911a74cf21d9c3e6315a759500da8bdb0571a461b91af4"
+      },
+      "timings_ms": {
+        "connect_to_ready": 59.8,
+        "prepare_to_prepared": 32.5,
+        "run_to_released": 15.0,
+        "prepare_to_released": 47.5,
+        "connect_to_released": 107.4,
+        "released_to_done": 301.0
+      },
+      "index": 17,
+      "host_write": "warm-17-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-18-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:be921e64770b7b46bb6a5b1de8f8aa869933a75718a1b4417dc44c67da54532c",
+      "started_at": "2026-11-04T13:16:57Z",
+      "stdout": "git_write_refused-18\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-18\", \"target\": [\"1.1.1.1\", 443]}\nout-18\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 1089,
+      "receipt_sha256": "ac348d7701b9bd37373346f8be212bba57d2865f3981fb07869831c5b82cdc6d",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-18-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_eecd4ffd-bf83-4311-b24f-38a856a1cb1d",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:be921e64770b7b46bb6a5b1de8f8aa869933a75718a1b4417dc44c67da54532c"
+      },
+      "timings_ms": {
+        "connect_to_ready": 59.6,
+        "prepare_to_prepared": 35.1,
+        "run_to_released": 10.0,
+        "prepare_to_released": 45.1,
+        "connect_to_released": 104.8,
+        "released_to_done": 316.7
+      },
+      "index": 18,
+      "host_write": "warm-18-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    },
+    {
+      "attempt_id": "warm-19-57d09124173d4b10",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:88552d06118dd5d68cf66ce740982c3cd2bc0168da7cc345655d72e114c1710f",
+      "started_at": "2026-11-04T13:16:57Z",
+      "stdout": "git_write_refused-19\nUKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"egress\": \"ENETUNREACH\", \"nonce\": \"57d09124173d4b10-19\", \"target\": [\"1.1.1.1\", 443]}\nout-19\n",
+      "stderr": "/bin/sh: 2: cannot create .git/config: Read-only file system\n",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stderr",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 1114,
+      "receipt_sha256": "b1cb7dab6359adc09e25738da8be8a5d51bfceffa68559821d76c5f1aa7c2166",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "warm-19-57d09124173d4b10",
+        "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+        "guest_attempt_id": "att_e585068a-6a1d-4d04-b779-36b384402df2",
+        "guest_boot_id": "514e9f96-8911-4078-a499-138342dc0a15",
+        "profile": "tool",
+        "argv_digest": "sha256:88552d06118dd5d68cf66ce740982c3cd2bc0168da7cc345655d72e114c1710f"
+      },
+      "timings_ms": {
+        "connect_to_ready": 55.9,
+        "prepare_to_prepared": 24.1,
+        "run_to_released": 11.9,
+        "prepare_to_released": 36.0,
+        "connect_to_released": 92.0,
+        "released_to_done": 299.3
+      },
+      "index": 19,
+      "host_write": "warm-19-57d09124173d4b10\n",
+      "git_config_after": "[core]\n",
+      "probe": {
+        "verdict": "egress_denied",
+        "denied": true,
+        "control": "connected",
+        "control_accepted": true,
+        "egress": "ENETUNREACH",
+        "target": [
+          "1.1.1.1",
+          443
+        ],
+        "dns": null
+      },
+      "receipt_bound": true,
+      "receipt_network": "none"
+    }
+  ],
+  "attempt_facts": [
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    },
+    {
+      "exit_zero": true,
+      "receipt_verified": true,
+      "granted_write_on_host": true,
+      "protected_write_tried_and_refused": true,
+      "protected_git_unchanged": true,
+      "probe_saw_the_jails_denial": true,
+      "receipt_network_none": true
+    }
+  ],
+  "service_exit": 0,
+  "service_stderr": "",
+  "attempts_run": 20,
+  "warm_reuse_one_serve_boot": true,
+  "warm_reuse_one_guest_boot": true,
+  "every_attempt_exit_zero": true,
+  "every_receipt_verified": true,
+  "every_granted_write_reached_host": true,
+  "every_protected_write_tried_and_refused": true,
+  "protected_git_never_reached": true,
+  "every_attempt_saw_the_jails_denial": true,
+  "guest_nat": true,
+  "guest_nat_attached": true,
+  "route_control": {
+    "attempt_id": "warm-route-57d09124173d4b10",
+    "route": {
+      "verdict": "not_reached",
+      "reached": false,
+      "status_line": "HTTP/1.1 504 Gateway Timeout",
+      "error": null,
+      "target": [
+        "1.1.1.1",
+        443
+      ]
+    },
+    "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6",
+    "error": null
+  },
+  "route_control_reached_the_target": false,
+  "route_control_on_the_same_guest_boot": true,
+  "route_control_receipt_bound": true,
+  "every_attempt_network_denied": false,
+  "every_receipt_network_none": true,
+  "k108_client": "python attempt-socket client (warm_live.py), not ukai-jail run --vm",
+  "k108_measure": "connect->released per attempt, including the guest jail's own release",
+  "k108_budget_ms": 1000.0,
+  "k108_latencies_ms": [
+    40006.9,
+    96.9,
+    86.3,
+    96.1,
+    93.0,
+    91.8,
+    104.0,
+    81.8,
+    96.7,
+    94.3,
+    98.1,
+    82.1,
+    85.7,
+    82.3,
+    93.9,
+    96.9,
+    77.6,
+    107.4,
+    104.8,
+    92.0
+  ],
+  "k108_max_ms": 40006.9,
+  "k108_every_attempt_within_budget": false,
+  "k108_twenty_runs": true,
+  "service_stopped_cleanly": true,
+  "k108_real_client": {
+    "client": "ukai-jail run --vm",
+    "runs": [
+      {
+        "index": 0,
+        "exit": 125,
+        "exec_to_first_write_ms": null,
+        "refusals": [
+          "vm:not-measured:tree_termination"
+        ],
+        "stderr_tail": "ukai-jail: error missing_capability at probing [unsupported]: `tree_termination` has no measured guest record in this build's VM tier, so --vm refuses it (vm:not-measured:tree_termination)\n",
+        "stdout_tail": ""
+      },
+      {
+        "index": 1,
+        "exit": 125,
+        "exec_to_first_write_ms": null,
+        "refusals": [
+          "vm:not-measured:tree_termination"
+        ],
+        "stderr_tail": "ukai-jail: error missing_capability at probing [unsupported]: `tree_termination` has no measured guest record in this build's VM tier, so --vm refuses it (vm:not-measured:tree_termination)\n",
+        "stdout_tail": ""
+      }
+    ],
+    "every_run_exit_zero": false,
+    "every_run_within_budget": false,
+    "refusals": [
+      "vm:not-measured:tree_termination"
+    ]
+  },
+  "failed": [
+    "route_control_reached_the_target",
+    "every_attempt_network_denied",
+    "k108_every_attempt_within_budget"
+  ],
+  "outcome": "FAIL"
+}

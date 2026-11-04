@@ -1,0 +1,6 @@
+[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n]3008;start=64a213ace9374bbc9883a2cd433ac830;user=root;hostname=ukai-linux-preview;machineid=b5372fc37ce1460a95456495e831d598;bootid=555e9a8ae24649848d03591e3bcf0f48;pid=640;pidfdid=4352;comm=(agetty);servicename=serial-getty@hvc0.service;invocationid=f1e28a43fd714016b499a21842501a5a;type=service\P+q6E616D65\
+Ubuntu 26.04.1 LTS ukai-linux-preview hvc0
+
+Try contacting this VM's SSH server via 'ssh vsock%3' from host.
+
+ukai-linux-preview login: 

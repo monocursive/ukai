@@ -1,0 +1,28 @@
+UKAI_VM {"event": "live_share_mounted", "mount": "/mnt/workspace", "options": "nosuid,nodev"}
+UKAI_VM {"event": "ready", "kernel": "7.0.0-38-generic", "live_share": true}
+UKAI_VM {"event": "infrastructure_learned", "manager": 514, "helper": [526], "bus": 620, "bus_unit": "session.slice/dbus.service"}
+UKAI_VM {"event": "session_opened", "live_share": true}
+UKAI_VM {"event": "workload_tree_empty", "boundaries": ["user.slice/user-1001.slice/user@1001.service/app.slice"], "strays_killed": []}
+UKAI_VM {"event": "running", "supervisor_pid": 622}
+UKAI_VM {"event": "workload_tree_empty", "boundaries": ["ukai-attempts.slice/attempt-1", "user.slice/user-1001.slice/user@1001.service/app.slice"], "strays_killed": []}
+UKAI_VM {"event": "done", "exit_code": 0}
+UKAI_VM {"event": "workload_tree_empty", "boundaries": ["user.slice/user-1001.slice/user@1001.service/app.slice"], "strays_killed": []}
+UKAI_VM {"event": "running", "supervisor_pid": 646}
+UKAI_VM {"event": "workload_tree_empty", "boundaries": ["ukai-attempts.slice/attempt-2", "user.slice/user-1001.slice/user@1001.service/app.slice"], "strays_killed": []}
+UKAI_VM {"event": "done", "exit_code": 1}
+UKAI_VM {"event": "workload_tree_empty", "boundaries": ["user.slice/user-1001.slice/user@1001.service/app.slice"], "strays_killed": []}
+UKAI_VM {"event": "running", "supervisor_pid": 674}
+UKAI_VM {"event": "workload_tree_empty", "boundaries": ["ukai-attempts.slice/attempt-3", "user.slice/user-1001.slice/user@1001.service/app.slice"], "strays_killed": []}
+UKAI_VM {"event": "done", "exit_code": 1}
+UKAI_VM {"event": "workload_tree_empty", "boundaries": ["user.slice/user-1001.slice/user@1001.service/app.slice"], "strays_killed": []}
+UKAI_VM {"event": "running", "supervisor_pid": 700}
+UKAI_VM {"event": "workload_tree_empty", "boundaries": ["ukai-attempts.slice/attempt-4", "user.slice/user-1001.slice/user@1001.service/app.slice"], "strays_killed": []}
+UKAI_VM {"event": "done", "exit_code": 1}
+UKAI_VM {"event": "workload_tree_empty", "boundaries": ["user.slice/user-1001.slice/user@1001.service/app.slice"], "strays_killed": []}
+UKAI_VM {"event": "running", "supervisor_pid": 726}
+[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6nUKAI_VM {"event": "workload_tree_empty", "boundaries": ["ukai-attempts.slice/attempt-5", "user.slice/user-1001.slice/user@1001.service/app.slice"], "strays_killed": []}
+UKAI_VM {"event": "done", "exit_code": 143}
+UKAI_VM {"event": "workload_tree_empty", "boundaries": ["user.slice/user-1001.slice/user@1001.service/app.slice"], "strays_killed": []}
+UKAI_VM {"event": "running", "supervisor_pid": 751}
+[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6nUKAI_VM {"event": "workload_tree_empty", "boundaries": ["ukai-attempts.slice/attempt-6", "user.slice/user-1001.slice/user@1001.service/app.slice"], "strays_killed": []}
+UKAI_VM {"event": "done", "exit_code": 0}

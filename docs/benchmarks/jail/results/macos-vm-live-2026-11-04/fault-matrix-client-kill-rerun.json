@@ -1,0 +1,88 @@
+{
+  "schema": "ukai.vm.fault-matrix/2",
+  "binary": {
+    "path": "target/release/ukai-vm",
+    "sha256": "dec046e2cc7d1cb0a86a4f0ec4b47ff45031d87c9ad3f7c5f3830d19e5f2db30"
+  },
+  "real_client": null,
+  "cases": {
+    "client-kill": {
+      "case": "client-kill",
+      "facts": {
+        "released": true,
+        "workload_beating_before_kill": true,
+        "workload_stopped_after_kill": true,
+        "client_alive_at_the_kill": true,
+        "client_died_of_our_sigkill": true,
+        "service_still_warm": true,
+        "next_attempt_exit_zero": true,
+        "next_attempt_receipt_bound": true,
+        "next_attempt_same_serve_boot": true,
+        "next_attempt_same_guest_boot": true
+      },
+      "failed": [],
+      "outcome": "PASS",
+      "checked_at": 2311972.261200708,
+      "observations": {
+        "case": "client-kill",
+        "serve_boot": "vm-7d571fed-40da-46af-ad74-a8ee88a66515",
+        "client": "python-stand-in",
+        "released": true,
+        "released_at": 2311969.422395208,
+        "beating": true,
+        "guest_boot": "c005b802-e1de-4ef8-bac9-f72908c56995",
+        "client_alive_at_kill": true,
+        "killed_at": 2311969.834734625,
+        "client_exit": -9,
+        "client_exit_seconds": 0.008,
+        "beats_quiet": true,
+        "last_beat_at": 2311969.828922708,
+        "status_after": {
+          "event": "status",
+          "schema": "ukai.jail.vm-control/1",
+          "boot_id": "vm-7d571fed-40da-46af-ad74-a8ee88a66515",
+          "warm": true,
+          "attempt_live": false,
+          "kernel": "7.0.0-38-generic",
+          "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+          "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+          "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+          "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+          "vsock_port": 1024,
+          "idle_seconds": 0,
+          "live_workspace": "/Volumes/ukai-cs/ws/faults2",
+          "live_workspace_facts": {
+            "case_fold": false,
+            "normalization_fold": true
+          },
+          "guest_nat": false
+        },
+        "next_exit": 0,
+        "next_error": null,
+        "next_receipt_bound": true,
+        "next_serve_boot": "vm-7d571fed-40da-46af-ad74-a8ee88a66515",
+        "next_guest_boot": "c005b802-e1de-4ef8-bac9-f72908c56995",
+        "next_stdout_boot": "c005b802-e1de-4ef8-bac9-f72908c56995"
+      },
+      "cleanup": {
+        "started_at": 2311972.261204291,
+        "service_exit": 0,
+        "service_stderr": "ukai-vm: attempt failed: the attempt lease ended\n",
+        "emergency_killed": []
+      },
+      "checked_before_cleanup": true
+    }
+  },
+  "not_run": {
+    "secrets": "not requested",
+    "client-ctrl-z": "not requested",
+    "serve-kill": "not requested",
+    "custodian-kill": "not requested",
+    "vz-kill": "not requested",
+    "all-suspended": "not requested",
+    "eof": "not requested",
+    "serve-group-stop": "not requested",
+    "client-kill:ukai-jail": "no --ukai-jail given; the python stand-in ran"
+  },
+  "outcome": "FAIL"
+}

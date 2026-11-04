@@ -1,0 +1,140 @@
+{
+  "run_exit_zero": false,
+  "settled": false,
+  "exit_zero": false,
+  "tree_empty": false,
+  "granted_write_on_host": false,
+  "guest_receipt_is_linux": false,
+  "digest_matches_record": false,
+  "binding_matches_attempt": false,
+  "binding_profile_tool": false,
+  "binding_argv_digest_is_this_argv": false,
+  "guest_receipt_argv_digest_is_this_argv": false,
+  "guest_boot_bound": false,
+  "host_receipt_never_contradicts_guest": false,
+  "run_summary_transport_line_present": false,
+  "run_summary_transport_line_from_record": false,
+  "run_summary_network_line_is_the_guests": false,
+  "run_summary_observer_classes_are_the_guests": true,
+  "run_summary_observer_attachment_is_the_guests": true,
+  "tail_summary_transport_line_present": false,
+  "tail_summary_transport_line_from_record": false,
+  "tail_summary_network_line_is_the_guests": false,
+  "tail_summary_observer_classes_are_the_guests": true,
+  "tail_summary_observer_attachment_is_the_guests": true,
+  "outcome": "REFUSED",
+  "refusals": [
+    "vm:not-measured:tree_termination"
+  ],
+  "elapsed_s": 18.0,
+  "stop_exit": 0,
+  "detail": {
+    "expected_argv_digest": "sha256:116fe8bc51ff2ec37c2cdbc53516c1409a4a5ed70dcc4d8c5455ec743ff9e635",
+    "binding": {},
+    "contradictions": [
+      {
+        "field": "platform.kernel",
+        "host": "unknown: the guest reports its kernel at prepare",
+        "guest": null
+      },
+      {
+        "field": "platform.arch",
+        "host": "aarch64",
+        "guest": null
+      },
+      {
+        "field": "exec_observed",
+        "host": false,
+        "guest": null
+      },
+      {
+        "field": "applied.network",
+        "host": {
+          "mode": "pending",
+          "mechanism": null,
+          "allowed_hosts": []
+        },
+        "guest": null
+      },
+      {
+        "field": "applied.limits",
+        "host": [],
+        "guest": null
+      },
+      {
+        "field": "observer",
+        "host": {
+          "backend": null,
+          "set": null,
+          "attached": false,
+          "sources": {
+            "wrapper": "supported",
+            "audit": "unsupported",
+            "proxy": "unsupported"
+          },
+          "gaps": []
+        },
+        "guest": null
+      },
+      {
+        "field": "coverage",
+        "host": {
+          "exec": {
+            "status": "unsupported",
+            "sources": [],
+            "observed_count": null,
+            "gaps": []
+          },
+          "fs.write": {
+            "status": "unsupported",
+            "sources": [],
+            "observed_count": null,
+            "gaps": []
+          },
+          "fs.deny": {
+            "status": "unsupported",
+            "sources": [],
+            "observed_count": null,
+            "gaps": []
+          },
+          "net": {
+            "status": "unsupported",
+            "sources": [],
+            "observed_count": null,
+            "gaps": []
+          },
+          "limits": {
+            "status": "unsupported",
+            "sources": [],
+            "observed_count": null,
+            "gaps": []
+          },
+          "proxy.net": {
+            "status": "unsupported",
+            "sources": [],
+            "observed_count": null,
+            "gaps": []
+          }
+        },
+        "guest": null
+      }
+    ],
+    "run_summary_facts": {
+      "transport_line_present": false,
+      "transport_line_from_record": false,
+      "network_line_is_the_guests": false,
+      "observer_classes_are_the_guests": true,
+      "observer_attachment_is_the_guests": true
+    },
+    "tail_summary_facts": {
+      "transport_line_present": false,
+      "transport_line_from_record": false,
+      "network_line_is_the_guests": false,
+      "observer_classes_are_the_guests": true,
+      "observer_attachment_is_the_guests": true
+    },
+    "attempt_id": "att_f5d71810-b37b-4ede-ae44-b6e97dc40ec2",
+    "transport_schema": null
+  },
+  "terminal_tail": "^D\b\bukai-jail: error missing_capability at probing [unsupported]: `tree_termination` has no measured guest record in this build's VM tier, so --vm refuses it (vm:not-measured:tree_termination)\nukai-jail: NOT settled (refused) \u00b7 survivors: NOT verified \u00b7 errors: missing_capability\nukai-jail: workspace: not observed\nukai-jail: network: not applied\nukai-jail: evidence: observer not attached \u00b7 0/6 classes active \u00b7 exec, fs.write, fs.deny, net, proxy.net, limits not observed\nukai-jail: receipt $TMPDIR/row-k111-6jvrt7mv/attempts/att_f5d71810-b37b-4ede-ae44-b6e97dc40ec2/jail.json\n\n"
+}

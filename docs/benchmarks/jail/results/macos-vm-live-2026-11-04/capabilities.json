@@ -1,0 +1,3112 @@
+{
+  "schema": "ukai.vm.capabilities/2",
+  "binary": {
+    "path": "target/release/ukai-vm",
+    "sha256": "dec046e2cc7d1cb0a86a4f0ec4b47ff45031d87c9ad3f7c5f3830d19e5f2db30"
+  },
+  "measured_at": "2026-11-04T12:50:44Z",
+  "measurements": {
+    "limit:wall": {
+      "verdict": true,
+      "measured_at": "2026-11-04T12:50:44Z",
+      "attempt_id": "cap-wall-dc031830b2b7138f",
+      "capability": "wall"
+    },
+    "limit:pids": {
+      "verdict": true,
+      "measured_at": "2026-11-04T12:51:28Z",
+      "attempt_id": "cap-pids-dc031830b2b7138f",
+      "capability": "pids"
+    },
+    "limit:mem": {
+      "verdict": true,
+      "measured_at": "2026-11-04T12:51:29Z",
+      "attempt_id": "cap-mem-dc031830b2b7138f",
+      "capability": "mem"
+    },
+    "filesystem_containment": {
+      "verdict": true,
+      "measured_at": "2026-11-04T12:51:29Z",
+      "attempt_id": "cap-containment-dc031830b2b7138f",
+      "capability": "containment"
+    },
+    "network_none": {
+      "verdict": true,
+      "measured_at": "2026-11-04T12:51:30Z",
+      "attempt_id": "cap-network_none-dc031830b2b7138f",
+      "capability": "network_none",
+      "control_attempt_id": "cap-route_control-dc031830b2b7138f"
+    }
+  },
+  "status": {
+    "event": "status",
+    "schema": "ukai.jail.vm-control/1",
+    "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+    "warm": true,
+    "attempt_live": false,
+    "kernel": null,
+    "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+    "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+    "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+    "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+    "vsock_port": 1024,
+    "idle_seconds": 0,
+    "live_workspace": "/Volumes/ukai-cs/ws/cap",
+    "live_workspace_facts": {
+      "case_fold": false,
+      "normalization_fold": true
+    },
+    "guest_nat": true
+  },
+  "workspace_cleaned": [],
+  "facts": {
+    "wall": {
+      "receipt_bound_to_this_attempt": true,
+      "later_output_absent": true,
+      "nonzero_exit": true,
+      "receipt_records_the_wall_hit": true,
+      "receipt_cause_is_wall_expiry": true,
+      "ended_by_the_jail_not_the_backstop": true
+    },
+    "pids": {
+      "receipt_bound_to_this_attempt": true,
+      "fork_failed_with_eagain": true,
+      "stopped_at_the_limit_not_before": true,
+      "receipt_applied_the_guest_limit": true,
+      "cgroup_limit_is_the_guest_limit": true,
+      "attempt_settled_without_jail_error": true,
+      "receipt_records_the_pids_hit": true
+    },
+    "mem": {
+      "receipt_bound_to_this_attempt": true,
+      "receipt_applied_the_guest_limit": true,
+      "sigkilled": true,
+      "never_unbounded": true,
+      "receipt_records_the_oom": true,
+      "killed_near_the_limit": true
+    },
+    "containment": {
+      "receipt_bound_to_this_attempt": true,
+      "every_path_probed": true,
+      "write_refused:/etc/ukai-cap-dc031830b2b7138f": true,
+      "write_refused:/usr/local/bin/ukai-cap-dc031830b2b7138f": true,
+      "write_refused:/ukai-cap-dc031830b2b7138f": true,
+      "read_refused:/etc/shadow": true,
+      "read_refused:/var/lib/ukai-vm": true,
+      "read_refused:/home/ukai": true,
+      "read_refused:/run/ukai-vm": true,
+      "read_refused:/root": true,
+      "control_read:/usr/bin/python3": true,
+      "control_read:capability-read-dc031830b2b7138f.txt": true
+    },
+    "network_none": {
+      "receipt_bound_to_this_attempt": true,
+      "nat_attached": true,
+      "probe_denied_after_positive_control": true,
+      "route_control_reached_the_target": true,
+      "route_control_on_the_same_guest_boot": true,
+      "route_control_receipt_bound": true,
+      "dns_unresolved": true,
+      "receipt_network_none": true,
+      "target_answers_from_host": true
+    },
+    "workspace": {
+      "receipt_bound_to_this_attempt": true,
+      "wrote": true,
+      "host_has_this_runs_bytes": true
+    }
+  },
+  "summary": {
+    "wall": true,
+    "pids": true,
+    "mem": true,
+    "containment": true,
+    "network_none": true,
+    "workspace": true,
+    "git_config_untouched": true,
+    "service_stopped_cleanly": true,
+    "outcome": "PASS"
+  },
+  "service_exit": 0,
+  "service_stderr": "",
+  "tag": "dc031830b2b7138f",
+  "fs_paths": [
+    "/etc/ukai-cap-dc031830b2b7138f",
+    "/usr/local/bin/ukai-cap-dc031830b2b7138f",
+    "/ukai-cap-dc031830b2b7138f"
+  ],
+  "results": {
+    "wall": {
+      "attempt_id": "cap-wall-dc031830b2b7138f",
+      "profile": "tool",
+      "wall_seconds": 5,
+      "argv_digest": "sha256:1e60cc0674b03153cb5edda0222475da5fbb7c34ea24cd9af1fa1aefe6c587fa",
+      "started_at": "2026-11-04T12:50:44Z",
+      "stdout": "start-dc031830b2b7138f\n",
+      "stderr": "",
+      "exit_code": 143,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 642,
+      "receipt_sha256": "531020aa3b208e7411e078e75881ce84343508c63f0aeaa8ea36d836228681b5",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "cap-wall-dc031830b2b7138f",
+        "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+        "guest_attempt_id": "att_79732dce-2028-483d-90ca-e108e01bdf83",
+        "guest_boot_id": "c60df7da-a8e7-405f-b5bf-9c3ceb4ac2c7",
+        "profile": "tool",
+        "argv_digest": "sha256:1e60cc0674b03153cb5edda0222475da5fbb7c34ea24cd9af1fa1aefe6c587fa"
+      },
+      "receipt": {
+        "schema": "ukai.jail.receipt/1",
+        "attempt_id": "att_79732dce-2028-483d-90ca-e108e01bdf83",
+        "revision": 3,
+        "phase": "settled",
+        "platform": {
+          "os": "linux",
+          "arch": "aarch64",
+          "kernel": "Linux 7.0.0-38-generic"
+        },
+        "jail": {
+          "component": "ukai-jail",
+          "version": "0.1.0",
+          "backend": "bubblewrap",
+          "backend_version": "bubblewrap 0.11.1"
+        },
+        "policy": {
+          "name": "tool",
+          "digest": "sha256:e2c17dfcbcd1149a50fc4ce90b54e0713b71f5ff5a2a29ec48447d7cd877a1ad",
+          "observe": "on",
+          "evidence": "strict",
+          "requirements": [
+            "tree_termination",
+            "closed_set_observation",
+            "filesystem_containment",
+            "syscall_filter",
+            "network_none",
+            "protected_coverage:existing_and_root",
+            "limit:wall",
+            "limit:pids",
+            "limit:mem",
+            "limit:swap",
+            "execution_boundary"
+          ],
+          "grants": []
+        },
+        "containment": "enforced",
+        "child_protection": "enforced",
+        "exec_observed": true,
+        "argv_digest": "sha256:1e60cc0674b03153cb5edda0222475da5fbb7c34ea24cd9af1fa1aefe6c587fa",
+        "applied": {
+          "filesystem": {
+            "mechanism": "bubblewrap-binds",
+            "protected_coverage": "existing_and_root",
+            "mounts": [
+              {
+                "path": "/",
+                "mode": "ro"
+              },
+              {
+                "path": "/usr",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/ssl",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/resolv.conf",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/passwd",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/group",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/hosts",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/localtime",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/ld.so.cache",
+                "mode": "ro"
+              },
+              {
+                "path": "/proc",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/null",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/zero",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/full",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/random",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/urandom",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/tty",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/pts",
+                "mode": "rw"
+              },
+              {
+                "path": "/tmp",
+                "mode": "rw"
+              },
+              {
+                "path": "/mnt/workspace",
+                "mode": "rw"
+              },
+              {
+                "path": "/mnt/workspace/.git",
+                "mode": "ro"
+              },
+              {
+                "path": "/tmp/.git",
+                "mode": "ro"
+              },
+              {
+                "path": "/tmp/.ukai",
+                "mode": "ro"
+              },
+              {
+                "path": "/mnt/workspace/.ukai",
+                "mode": "ro"
+              },
+              {
+                "path": "/run/ukai/jail",
+                "mode": "ro"
+              }
+            ]
+          },
+          "network": {
+            "mode": "none",
+            "mechanism": "network-namespace",
+            "allowed_hosts": []
+          },
+          "syscalls": {
+            "mechanism": "seccomp-bpf",
+            "digest": "sha256:a7ad5b28fcec61783859752d3fbd4fe653a259cf76531862aabdf8e2ce89ec2b"
+          },
+          "limits": [
+            {
+              "key": "wall",
+              "requested": "5000",
+              "required": true,
+              "applied": true,
+              "mechanism": "boottime-deadline",
+              "scope": "tree",
+              "hit": true
+            },
+            {
+              "key": "pids",
+              "requested": "64",
+              "required": true,
+              "applied": true,
+              "mechanism": "pids.max",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "mem",
+              "requested": "536870912",
+              "required": true,
+              "applied": true,
+              "mechanism": "memory.max",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "swap",
+              "requested": "0",
+              "required": true,
+              "applied": true,
+              "mechanism": "memory.swap.max",
+              "scope": "tree",
+              "hit": null
+            }
+          ],
+          "environment_names": [
+            "LANG",
+            "PATH",
+            "PWD",
+            "TMPDIR"
+          ],
+          "removed_environment_names": []
+        },
+        "observer": {
+          "backend": "ptrace",
+          "set": "linux-closed-v1",
+          "attached": true,
+          "sources": {
+            "wrapper": "active",
+            "audit": "active",
+            "proxy": "unsupported"
+          },
+          "gaps": []
+        },
+        "coverage": {
+          "exec": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 4,
+            "gaps": []
+          },
+          "fs.write": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "fs.deny": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "net": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "limits": {
+            "status": "active",
+            "sources": [
+              "wrapper"
+            ],
+            "observed_count": 1,
+            "gaps": []
+          },
+          "proxy.net": {
+            "status": "unsupported",
+            "sources": [],
+            "observed_count": null,
+            "gaps": []
+          }
+        },
+        "process": {
+          "pid": 663,
+          "identity": {
+            "kind": "linux_boot_start",
+            "value": {
+              "boot_id": "c60df7da-a8e7-405f-b5bf-9c3ceb4ac2c7",
+              "pid": 663,
+              "start_time_ticks": 3791
+            }
+          }
+        },
+        "lifetime": {
+          "boundary": "pid_namespace",
+          "native": {
+            "os": "linux",
+            "details": {
+              "backend_exec_by": "descriptor",
+              "bootstrap_spawn": {
+                "mechanism": "clone3_into_cgroup"
+              },
+              "bwrap_pid": 660,
+              "cgroup_namespace": 4026532313,
+              "command_rules": {
+                "deny": 0,
+                "forbid": 0
+              },
+              "execution_cgroup": {
+                "charged_helpers": [
+                  {
+                    "pid": 660,
+                    "role": "bubblewrap"
+                  },
+                  {
+                    "pid": 662,
+                    "role": "namespace_init"
+                  }
+                ],
+                "device": 31,
+                "inode": 3988,
+                "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_79732dce-2028-483d-90ca-e108e01bdf83.leaf",
+                "scope": "target_descendants_and_listed_helpers"
+              },
+              "filtered_readonly_opens": 0,
+              "launcher_pid": 663,
+              "mnt_namespace": 4026532309,
+              "namespace_init_pid": 662,
+              "narrowing_filter_digest": "sha256:f5353e3a8e29beeca5edb0e19952196e8c1b8b575c4d5aab1698a7017fefb56e",
+              "narrowing_filter_digest_installed": "sha256:2b4ab548564a979bfc91144738cb0feb2e894a00bbb5e0006fd12cb77b398bf0",
+              "net_namespace": 4026532314,
+              "observer_plan": {
+                "backend": "ptrace",
+                "event_bytes_max": 65536,
+                "in_flight_max": 16384,
+                "kernel_ring_bytes": null,
+                "path_snapshot_max": 4096,
+                "queue_bytes_max": 4194304,
+                "queue_events_max": 16384,
+                "queue_lifecycle_reserve_bytes": 65536,
+                "queue_result_bytes_max": 4128768,
+                "test_seams": {}
+              },
+              "path_anchors_unverified": 0,
+              "path_claims_unverified": 0,
+              "pid_namespace": 4026532312,
+              "readonly_open_fast_path": true,
+              "requested_by_other_filters": 0,
+              "resolv_sanitization": "nameservers_only",
+              "seccomp_filters": {
+                "expected": 2,
+                "observed": 2
+              },
+              "supervisor_scope": {
+                "cgroup": "/user.slice/user-1001.slice/user@1001.service/app.slice/ukai-jail-642-42000a6318f343c8.scope",
+                "reason": null,
+                "reason_code": null,
+                "state": "entered",
+                "unit": "ukai-jail-642-42000a6318f343c8.scope"
+              },
+              "user_namespace": 4026532367,
+              "watcher_pid": 661
+            }
+          },
+          "tree_empty": true,
+          "verified_at": "2026-11-04T12:51:28Z",
+          "verification_scope": "attempt_tree",
+          "integrity": "verified"
+        },
+        "outcome": {
+          "kind": "signaled",
+          "code": null,
+          "signal": 15,
+          "cause": "wall_expiry",
+          "error": null
+        },
+        "state_cleanup": "complete",
+        "cleanup_error": null,
+        "created_at": "2026-11-04T12:51:23Z",
+        "updated_at": "2026-11-04T12:51:28Z",
+        "errors": [],
+        "credentials": []
+      },
+      "timings_ms": {
+        "connect_to_ready": 39668.4,
+        "prepare_to_prepared": 14.8,
+        "run_to_released": 15.0,
+        "prepare_to_released": 29.8,
+        "connect_to_released": 39698.2,
+        "released_to_done": 5237.8
+      }
+    },
+    "pids": {
+      "attempt_id": "cap-pids-dc031830b2b7138f",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:98a9d62b19eb7a406219420ac10adcf8f21abc2aa8f037e4eccca05eae3c4df1",
+      "started_at": "2026-11-04T12:51:28Z",
+      "stdout": "UKAI_PIDS_PROBE {\"fork_error\": \"EAGAIN\", \"forked\": 61, \"pids.current\": null, \"pids.max\": null, \"tag\": \"dc031830b2b7138f\"}\n",
+      "stderr": "",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 667,
+      "receipt_sha256": "1e41beb6c683e678322d402f67910f7287f4637c71da29b7751f3c57a4ba8844",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "cap-pids-dc031830b2b7138f",
+        "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+        "guest_attempt_id": "att_ef7c535b-c71e-4e1f-a4d3-276725c60230",
+        "guest_boot_id": "c60df7da-a8e7-405f-b5bf-9c3ceb4ac2c7",
+        "profile": "tool",
+        "argv_digest": "sha256:98a9d62b19eb7a406219420ac10adcf8f21abc2aa8f037e4eccca05eae3c4df1"
+      },
+      "receipt": {
+        "schema": "ukai.jail.receipt/1",
+        "attempt_id": "att_ef7c535b-c71e-4e1f-a4d3-276725c60230",
+        "revision": 3,
+        "phase": "settled",
+        "platform": {
+          "os": "linux",
+          "arch": "aarch64",
+          "kernel": "Linux 7.0.0-38-generic"
+        },
+        "jail": {
+          "component": "ukai-jail",
+          "version": "0.1.0",
+          "backend": "bubblewrap",
+          "backend_version": "bubblewrap 0.11.1"
+        },
+        "policy": {
+          "name": "tool",
+          "digest": "sha256:cd3318506d76c3d27099d2a5c1c4a0e0233c7e032593627807cf19623df9b5f9",
+          "observe": "on",
+          "evidence": "strict",
+          "requirements": [
+            "tree_termination",
+            "closed_set_observation",
+            "filesystem_containment",
+            "syscall_filter",
+            "network_none",
+            "protected_coverage:existing_and_root",
+            "limit:wall",
+            "limit:pids",
+            "limit:mem",
+            "limit:swap",
+            "execution_boundary"
+          ],
+          "grants": []
+        },
+        "containment": "enforced",
+        "child_protection": "enforced",
+        "exec_observed": true,
+        "argv_digest": "sha256:98a9d62b19eb7a406219420ac10adcf8f21abc2aa8f037e4eccca05eae3c4df1",
+        "applied": {
+          "filesystem": {
+            "mechanism": "bubblewrap-binds",
+            "protected_coverage": "existing_and_root",
+            "mounts": [
+              {
+                "path": "/",
+                "mode": "ro"
+              },
+              {
+                "path": "/usr",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/ssl",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/resolv.conf",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/passwd",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/group",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/hosts",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/localtime",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/ld.so.cache",
+                "mode": "ro"
+              },
+              {
+                "path": "/proc",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/null",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/zero",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/full",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/random",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/urandom",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/tty",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/pts",
+                "mode": "rw"
+              },
+              {
+                "path": "/tmp",
+                "mode": "rw"
+              },
+              {
+                "path": "/mnt/workspace",
+                "mode": "rw"
+              },
+              {
+                "path": "/mnt/workspace/.git",
+                "mode": "ro"
+              },
+              {
+                "path": "/tmp/.git",
+                "mode": "ro"
+              },
+              {
+                "path": "/tmp/.ukai",
+                "mode": "ro"
+              },
+              {
+                "path": "/mnt/workspace/.ukai",
+                "mode": "ro"
+              },
+              {
+                "path": "/run/ukai/jail",
+                "mode": "ro"
+              }
+            ]
+          },
+          "network": {
+            "mode": "none",
+            "mechanism": "network-namespace",
+            "allowed_hosts": []
+          },
+          "syscalls": {
+            "mechanism": "seccomp-bpf",
+            "digest": "sha256:a7ad5b28fcec61783859752d3fbd4fe653a259cf76531862aabdf8e2ce89ec2b"
+          },
+          "limits": [
+            {
+              "key": "wall",
+              "requested": "30000",
+              "required": true,
+              "applied": true,
+              "mechanism": "boottime-deadline",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "pids",
+              "requested": "64",
+              "required": true,
+              "applied": true,
+              "mechanism": "pids.max",
+              "scope": "tree",
+              "hit": true
+            },
+            {
+              "key": "mem",
+              "requested": "536870912",
+              "required": true,
+              "applied": true,
+              "mechanism": "memory.max",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "swap",
+              "requested": "0",
+              "required": true,
+              "applied": true,
+              "mechanism": "memory.swap.max",
+              "scope": "tree",
+              "hit": null
+            }
+          ],
+          "environment_names": [
+            "LANG",
+            "PATH",
+            "PWD",
+            "TMPDIR"
+          ],
+          "removed_environment_names": []
+        },
+        "observer": {
+          "backend": "ptrace",
+          "set": "linux-closed-v1",
+          "attached": true,
+          "sources": {
+            "wrapper": "active",
+            "audit": "active",
+            "proxy": "unsupported"
+          },
+          "gaps": []
+        },
+        "coverage": {
+          "exec": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 2,
+            "gaps": []
+          },
+          "fs.write": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "fs.deny": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "net": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "limits": {
+            "status": "active",
+            "sources": [
+              "wrapper"
+            ],
+            "observed_count": 1,
+            "gaps": []
+          },
+          "proxy.net": {
+            "status": "unsupported",
+            "sources": [],
+            "observed_count": null,
+            "gaps": []
+          }
+        },
+        "process": {
+          "pid": 688,
+          "identity": {
+            "kind": "linux_boot_start",
+            "value": {
+              "boot_id": "c60df7da-a8e7-405f-b5bf-9c3ceb4ac2c7",
+              "pid": 688,
+              "start_time_ticks": 4331
+            }
+          }
+        },
+        "lifetime": {
+          "boundary": "pid_namespace",
+          "native": {
+            "os": "linux",
+            "details": {
+              "backend_exec_by": "descriptor",
+              "bootstrap_spawn": {
+                "mechanism": "clone3_into_cgroup"
+              },
+              "bwrap_pid": 685,
+              "cgroup_namespace": 4026532313,
+              "command_rules": {
+                "deny": 0,
+                "forbid": 0
+              },
+              "execution_cgroup": {
+                "charged_helpers": [
+                  {
+                    "pid": 685,
+                    "role": "bubblewrap"
+                  },
+                  {
+                    "pid": 687,
+                    "role": "namespace_init"
+                  }
+                ],
+                "device": 31,
+                "inode": 4338,
+                "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_ef7c535b-c71e-4e1f-a4d3-276725c60230.leaf",
+                "scope": "target_descendants_and_listed_helpers"
+              },
+              "filtered_readonly_opens": 0,
+              "launcher_pid": 688,
+              "mnt_namespace": 4026532309,
+              "namespace_init_pid": 687,
+              "narrowing_filter_digest": "sha256:f5353e3a8e29beeca5edb0e19952196e8c1b8b575c4d5aab1698a7017fefb56e",
+              "narrowing_filter_digest_installed": "sha256:c9ddc8dc110f7018f3ec64f047c4d9dc7d0e984eb026404c30172b2db136e675",
+              "net_namespace": 4026532314,
+              "observer_plan": {
+                "backend": "ptrace",
+                "event_bytes_max": 65536,
+                "in_flight_max": 16384,
+                "kernel_ring_bytes": null,
+                "path_snapshot_max": 4096,
+                "queue_bytes_max": 4194304,
+                "queue_events_max": 16384,
+                "queue_lifecycle_reserve_bytes": 65536,
+                "queue_result_bytes_max": 4128768,
+                "test_seams": {}
+              },
+              "path_anchors_unverified": 0,
+              "path_claims_unverified": 0,
+              "pid_namespace": 4026532312,
+              "readonly_open_fast_path": true,
+              "requested_by_other_filters": 0,
+              "resolv_sanitization": "nameservers_only",
+              "seccomp_filters": {
+                "expected": 2,
+                "observed": 2
+              },
+              "supervisor_scope": {
+                "cgroup": "/user.slice/user-1001.slice/user@1001.service/app.slice/ukai-jail-667-0eb6f623d1d54141.scope",
+                "reason": null,
+                "reason_code": null,
+                "state": "entered",
+                "unit": "ukai-jail-667-0eb6f623d1d54141.scope"
+              },
+              "user_namespace": 4026532367,
+              "watcher_pid": 686
+            }
+          },
+          "tree_empty": true,
+          "verified_at": "2026-11-04T12:51:28Z",
+          "verification_scope": "attempt_tree",
+          "integrity": "verified"
+        },
+        "outcome": {
+          "kind": "exited",
+          "code": 0,
+          "signal": null,
+          "cause": null,
+          "error": null
+        },
+        "state_cleanup": "complete",
+        "cleanup_error": null,
+        "created_at": "2026-11-04T12:51:28Z",
+        "updated_at": "2026-11-04T12:51:28Z",
+        "errors": [],
+        "credentials": []
+      },
+      "timings_ms": {
+        "connect_to_ready": 59.1,
+        "prepare_to_prepared": 27.7,
+        "run_to_released": 13.2,
+        "prepare_to_released": 40.9,
+        "connect_to_released": 100.0,
+        "released_to_done": 295.1
+      }
+    },
+    "mem": {
+      "attempt_id": "cap-mem-dc031830b2b7138f",
+      "profile": "tool",
+      "wall_seconds": 60,
+      "argv_digest": "sha256:1acfe65f466800ee686bd16d74b945427be548a1407c014d9c24f1280aa125b7",
+      "started_at": "2026-11-04T12:51:29Z",
+      "stdout": "UKAI_MEM_PROBE dc031830b2b7138f 16\nUKAI_MEM_PROBE dc031830b2b7138f 32\nUKAI_MEM_PROBE dc031830b2b7138f 48\nUKAI_MEM_PROBE dc031830b2b7138f 64\nUKAI_MEM_PROBE dc031830b2b7138f 80\nUKAI_MEM_PROBE dc031830b2b7138f 96\nUKAI_MEM_PROBE dc031830b2b7138f 112\nUKAI_MEM_PROBE dc031830b2b7138f 128\nUKAI_MEM_PROBE dc031830b2b7138f 144\nUKAI_MEM_PROBE dc031830b2b7138f 160\nUKAI_MEM_PROBE dc031830b2b7138f 176\nUKAI_MEM_PROBE dc031830b2b7138f 192\nUKAI_MEM_PROBE dc031830b2b7138f 208\nUKAI_MEM_PROBE dc031830b2b7138f 224\nUKAI_MEM_PROBE dc031830b2b7138f 240\nUKAI_MEM_PROBE dc031830b2b7138f 256\nUKAI_MEM_PROBE dc031830b2b7138f 272\nUKAI_MEM_PROBE dc031830b2b7138f 288\nUKAI_MEM_PROBE dc031830b2b7138f 304\nUKAI_MEM_PROBE dc031830b2b7138f 320\nUKAI_MEM_PROBE dc031830b2b7138f 336\nUKAI_MEM_PROBE dc031830b2b7138f 352\nUKAI_MEM_PROBE dc031830b2b7138f 368\nUKAI_MEM_PROBE dc031830b2b7138f 384\nUKAI_MEM_PROBE dc031830b2b7138f 400\nUKAI_MEM_PROBE dc031830b2b7138f 416\nUKAI_MEM_PROBE dc031830b2b7138f 432\nUKAI_MEM_PROBE dc031830b2b7138f 448\nUKAI_MEM_PROBE dc031830b2b7138f 464\nUKAI_MEM_PROBE dc031830b2b7138f 480\nUKAI_MEM_PROBE dc031830b2b7138f 496\n",
+      "stderr": "",
+      "exit_code": 137,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 753,
+      "receipt_sha256": "cdf4df17b8d0b4bc58db536b4c2c6aa3cb775b8060062b7882844b36d6182115",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "cap-mem-dc031830b2b7138f",
+        "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+        "guest_attempt_id": "att_a3386ae0-8402-431a-8f63-2202e764dd2c",
+        "guest_boot_id": "c60df7da-a8e7-405f-b5bf-9c3ceb4ac2c7",
+        "profile": "tool",
+        "argv_digest": "sha256:1acfe65f466800ee686bd16d74b945427be548a1407c014d9c24f1280aa125b7"
+      },
+      "receipt": {
+        "schema": "ukai.jail.receipt/1",
+        "attempt_id": "att_a3386ae0-8402-431a-8f63-2202e764dd2c",
+        "revision": 3,
+        "phase": "settled",
+        "platform": {
+          "os": "linux",
+          "arch": "aarch64",
+          "kernel": "Linux 7.0.0-38-generic"
+        },
+        "jail": {
+          "component": "ukai-jail",
+          "version": "0.1.0",
+          "backend": "bubblewrap",
+          "backend_version": "bubblewrap 0.11.1"
+        },
+        "policy": {
+          "name": "tool",
+          "digest": "sha256:9785f02b8554e6bf9af9c0a42b33a882943873ca3c9741fb8bb0336bd52bdc01",
+          "observe": "on",
+          "evidence": "strict",
+          "requirements": [
+            "tree_termination",
+            "closed_set_observation",
+            "filesystem_containment",
+            "syscall_filter",
+            "network_none",
+            "protected_coverage:existing_and_root",
+            "limit:wall",
+            "limit:pids",
+            "limit:mem",
+            "limit:swap",
+            "execution_boundary"
+          ],
+          "grants": []
+        },
+        "containment": "enforced",
+        "child_protection": "enforced",
+        "exec_observed": true,
+        "argv_digest": "sha256:1acfe65f466800ee686bd16d74b945427be548a1407c014d9c24f1280aa125b7",
+        "applied": {
+          "filesystem": {
+            "mechanism": "bubblewrap-binds",
+            "protected_coverage": "existing_and_root",
+            "mounts": [
+              {
+                "path": "/",
+                "mode": "ro"
+              },
+              {
+                "path": "/usr",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/ssl",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/resolv.conf",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/passwd",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/group",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/hosts",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/localtime",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/ld.so.cache",
+                "mode": "ro"
+              },
+              {
+                "path": "/proc",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/null",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/zero",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/full",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/random",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/urandom",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/tty",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/pts",
+                "mode": "rw"
+              },
+              {
+                "path": "/tmp",
+                "mode": "rw"
+              },
+              {
+                "path": "/mnt/workspace",
+                "mode": "rw"
+              },
+              {
+                "path": "/mnt/workspace/.git",
+                "mode": "ro"
+              },
+              {
+                "path": "/tmp/.git",
+                "mode": "ro"
+              },
+              {
+                "path": "/tmp/.ukai",
+                "mode": "ro"
+              },
+              {
+                "path": "/mnt/workspace/.ukai",
+                "mode": "ro"
+              },
+              {
+                "path": "/run/ukai/jail",
+                "mode": "ro"
+              }
+            ]
+          },
+          "network": {
+            "mode": "none",
+            "mechanism": "network-namespace",
+            "allowed_hosts": []
+          },
+          "syscalls": {
+            "mechanism": "seccomp-bpf",
+            "digest": "sha256:a7ad5b28fcec61783859752d3fbd4fe653a259cf76531862aabdf8e2ce89ec2b"
+          },
+          "limits": [
+            {
+              "key": "wall",
+              "requested": "60000",
+              "required": true,
+              "applied": true,
+              "mechanism": "boottime-deadline",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "pids",
+              "requested": "64",
+              "required": true,
+              "applied": true,
+              "mechanism": "pids.max",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "mem",
+              "requested": "536870912",
+              "required": true,
+              "applied": true,
+              "mechanism": "memory.max",
+              "scope": "tree",
+              "hit": true
+            },
+            {
+              "key": "swap",
+              "requested": "0",
+              "required": true,
+              "applied": true,
+              "mechanism": "memory.swap.max",
+              "scope": "tree",
+              "hit": null
+            }
+          ],
+          "environment_names": [
+            "LANG",
+            "PATH",
+            "PWD",
+            "TMPDIR"
+          ],
+          "removed_environment_names": []
+        },
+        "observer": {
+          "backend": "ptrace",
+          "set": "linux-closed-v1",
+          "attached": true,
+          "sources": {
+            "wrapper": "active",
+            "audit": "active",
+            "proxy": "unsupported"
+          },
+          "gaps": []
+        },
+        "coverage": {
+          "exec": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 2,
+            "gaps": []
+          },
+          "fs.write": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "fs.deny": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "net": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "limits": {
+            "status": "active",
+            "sources": [
+              "wrapper"
+            ],
+            "observed_count": 1,
+            "gaps": []
+          },
+          "proxy.net": {
+            "status": "unsupported",
+            "sources": [],
+            "observed_count": null,
+            "gaps": []
+          }
+        },
+        "process": {
+          "pid": 774,
+          "identity": {
+            "kind": "linux_boot_start",
+            "value": {
+              "boot_id": "c60df7da-a8e7-405f-b5bf-9c3ceb4ac2c7",
+              "pid": 774,
+              "start_time_ticks": 4369
+            }
+          }
+        },
+        "lifetime": {
+          "boundary": "pid_namespace",
+          "native": {
+            "os": "linux",
+            "details": {
+              "backend_exec_by": "descriptor",
+              "bootstrap_spawn": {
+                "mechanism": "clone3_into_cgroup"
+              },
+              "bwrap_pid": 771,
+              "cgroup_namespace": 4026532313,
+              "command_rules": {
+                "deny": 0,
+                "forbid": 0
+              },
+              "execution_cgroup": {
+                "charged_helpers": [
+                  {
+                    "pid": 771,
+                    "role": "bubblewrap"
+                  },
+                  {
+                    "pid": 773,
+                    "role": "namespace_init"
+                  }
+                ],
+                "device": 31,
+                "inode": 4688,
+                "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_a3386ae0-8402-431a-8f63-2202e764dd2c.leaf",
+                "scope": "target_descendants_and_listed_helpers"
+              },
+              "filtered_readonly_opens": 0,
+              "launcher_pid": 774,
+              "mnt_namespace": 4026532309,
+              "namespace_init_pid": 773,
+              "narrowing_filter_digest": "sha256:f5353e3a8e29beeca5edb0e19952196e8c1b8b575c4d5aab1698a7017fefb56e",
+              "narrowing_filter_digest_installed": "sha256:9351076d10eeabf098ff1db994e785d3ff4e2f096f7ff4ca1e570a66005fda22",
+              "net_namespace": 4026532314,
+              "observer_plan": {
+                "backend": "ptrace",
+                "event_bytes_max": 65536,
+                "in_flight_max": 16384,
+                "kernel_ring_bytes": null,
+                "path_snapshot_max": 4096,
+                "queue_bytes_max": 4194304,
+                "queue_events_max": 16384,
+                "queue_lifecycle_reserve_bytes": 65536,
+                "queue_result_bytes_max": 4128768,
+                "test_seams": {}
+              },
+              "path_anchors_unverified": 0,
+              "path_claims_unverified": 0,
+              "pid_namespace": 4026532312,
+              "readonly_open_fast_path": true,
+              "requested_by_other_filters": 0,
+              "resolv_sanitization": "nameservers_only",
+              "seccomp_filters": {
+                "expected": 2,
+                "observed": 2
+              },
+              "supervisor_scope": {
+                "cgroup": "/user.slice/user-1001.slice/user@1001.service/app.slice/ukai-jail-753-9c50c75c9bb346ea.scope",
+                "reason": null,
+                "reason_code": null,
+                "state": "entered",
+                "unit": "ukai-jail-753-9c50c75c9bb346ea.scope"
+              },
+              "user_namespace": 4026532367,
+              "watcher_pid": 772
+            }
+          },
+          "tree_empty": true,
+          "verified_at": "2026-11-04T12:51:29Z",
+          "verification_scope": "attempt_tree",
+          "integrity": "verified"
+        },
+        "outcome": {
+          "kind": "signaled",
+          "code": null,
+          "signal": 9,
+          "cause": "memory_oom",
+          "error": null
+        },
+        "state_cleanup": "complete",
+        "cleanup_error": null,
+        "created_at": "2026-11-04T12:51:29Z",
+        "updated_at": "2026-11-04T12:51:29Z",
+        "errors": [],
+        "credentials": []
+      },
+      "timings_ms": {
+        "connect_to_ready": 54.4,
+        "prepare_to_prepared": 12.9,
+        "run_to_released": 10.4,
+        "prepare_to_released": 23.3,
+        "connect_to_released": 77.7,
+        "released_to_done": 394.5
+      }
+    },
+    "containment": {
+      "attempt_id": "cap-containment-dc031830b2b7138f",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:9c9ad94f81b676d7ee3e48b2d19ddb1de05be56a9e589bcc233a3cf7aa2fd074",
+      "started_at": "2026-11-04T12:51:29Z",
+      "stdout": "UKAI_FS_PROBE {\"paths\": {\"/etc/ukai-cap-dc031830b2b7138f\": {\"exists_after\": false, \"open\": \"EROFS\"}, \"/ukai-cap-dc031830b2b7138f\": {\"exists_after\": false, \"open\": \"EROFS\"}, \"/usr/local/bin/ukai-cap-dc031830b2b7138f\": {\"exists_after\": false, \"open\": \"EROFS\"}}, \"reads\": {\"/etc/shadow\": \"ENOENT\", \"/home/ukai\": \"ENOENT\", \"/root\": \"ENOENT\", \"/run/ukai-vm\": \"ENOENT\", \"/usr/bin/python3\": \"read\", \"/var/lib/ukai-vm\": \"ENOENT\", \"capability-read-dc031830b2b7138f.txt\": \"read\"}, \"tag\": \"dc031830b2b7138f\"}\n",
+      "stderr": "",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 777,
+      "receipt_sha256": "09a4d6a6207a8300278ea035f34e5874e4053bb7f7106d3c98f4b1afbd0faf19",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "cap-containment-dc031830b2b7138f",
+        "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+        "guest_attempt_id": "att_6d18f5d2-d0c0-4445-bf4e-017db1903fbb",
+        "guest_boot_id": "c60df7da-a8e7-405f-b5bf-9c3ceb4ac2c7",
+        "profile": "tool",
+        "argv_digest": "sha256:9c9ad94f81b676d7ee3e48b2d19ddb1de05be56a9e589bcc233a3cf7aa2fd074"
+      },
+      "receipt": {
+        "schema": "ukai.jail.receipt/1",
+        "attempt_id": "att_6d18f5d2-d0c0-4445-bf4e-017db1903fbb",
+        "revision": 3,
+        "phase": "settled",
+        "platform": {
+          "os": "linux",
+          "arch": "aarch64",
+          "kernel": "Linux 7.0.0-38-generic"
+        },
+        "jail": {
+          "component": "ukai-jail",
+          "version": "0.1.0",
+          "backend": "bubblewrap",
+          "backend_version": "bubblewrap 0.11.1"
+        },
+        "policy": {
+          "name": "tool",
+          "digest": "sha256:cd3318506d76c3d27099d2a5c1c4a0e0233c7e032593627807cf19623df9b5f9",
+          "observe": "on",
+          "evidence": "strict",
+          "requirements": [
+            "tree_termination",
+            "closed_set_observation",
+            "filesystem_containment",
+            "syscall_filter",
+            "network_none",
+            "protected_coverage:existing_and_root",
+            "limit:wall",
+            "limit:pids",
+            "limit:mem",
+            "limit:swap",
+            "execution_boundary"
+          ],
+          "grants": []
+        },
+        "containment": "enforced",
+        "child_protection": "enforced",
+        "exec_observed": true,
+        "argv_digest": "sha256:9c9ad94f81b676d7ee3e48b2d19ddb1de05be56a9e589bcc233a3cf7aa2fd074",
+        "applied": {
+          "filesystem": {
+            "mechanism": "bubblewrap-binds",
+            "protected_coverage": "existing_and_root",
+            "mounts": [
+              {
+                "path": "/",
+                "mode": "ro"
+              },
+              {
+                "path": "/usr",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/ssl",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/resolv.conf",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/passwd",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/group",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/hosts",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/localtime",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/ld.so.cache",
+                "mode": "ro"
+              },
+              {
+                "path": "/proc",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/null",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/zero",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/full",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/random",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/urandom",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/tty",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/pts",
+                "mode": "rw"
+              },
+              {
+                "path": "/tmp",
+                "mode": "rw"
+              },
+              {
+                "path": "/mnt/workspace",
+                "mode": "rw"
+              },
+              {
+                "path": "/mnt/workspace/.git",
+                "mode": "ro"
+              },
+              {
+                "path": "/tmp/.git",
+                "mode": "ro"
+              },
+              {
+                "path": "/tmp/.ukai",
+                "mode": "ro"
+              },
+              {
+                "path": "/mnt/workspace/.ukai",
+                "mode": "ro"
+              },
+              {
+                "path": "/run/ukai/jail",
+                "mode": "ro"
+              }
+            ]
+          },
+          "network": {
+            "mode": "none",
+            "mechanism": "network-namespace",
+            "allowed_hosts": []
+          },
+          "syscalls": {
+            "mechanism": "seccomp-bpf",
+            "digest": "sha256:a7ad5b28fcec61783859752d3fbd4fe653a259cf76531862aabdf8e2ce89ec2b"
+          },
+          "limits": [
+            {
+              "key": "wall",
+              "requested": "30000",
+              "required": true,
+              "applied": true,
+              "mechanism": "boottime-deadline",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "pids",
+              "requested": "64",
+              "required": true,
+              "applied": true,
+              "mechanism": "pids.max",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "mem",
+              "requested": "536870912",
+              "required": true,
+              "applied": true,
+              "mechanism": "memory.max",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "swap",
+              "requested": "0",
+              "required": true,
+              "applied": true,
+              "mechanism": "memory.swap.max",
+              "scope": "tree",
+              "hit": null
+            }
+          ],
+          "environment_names": [
+            "LANG",
+            "PATH",
+            "PWD",
+            "TMPDIR"
+          ],
+          "removed_environment_names": []
+        },
+        "observer": {
+          "backend": "ptrace",
+          "set": "linux-closed-v1",
+          "attached": true,
+          "sources": {
+            "wrapper": "active",
+            "audit": "active",
+            "proxy": "unsupported"
+          },
+          "gaps": []
+        },
+        "coverage": {
+          "exec": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 2,
+            "gaps": []
+          },
+          "fs.write": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "fs.deny": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 3,
+            "gaps": []
+          },
+          "net": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "limits": {
+            "status": "active",
+            "sources": [
+              "wrapper"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "proxy.net": {
+            "status": "unsupported",
+            "sources": [],
+            "observed_count": null,
+            "gaps": []
+          }
+        },
+        "process": {
+          "pid": 798,
+          "identity": {
+            "kind": "linux_boot_start",
+            "value": {
+              "boot_id": "c60df7da-a8e7-405f-b5bf-9c3ceb4ac2c7",
+              "pid": 798,
+              "start_time_ticks": 4419
+            }
+          }
+        },
+        "lifetime": {
+          "boundary": "pid_namespace",
+          "native": {
+            "os": "linux",
+            "details": {
+              "backend_exec_by": "descriptor",
+              "bootstrap_spawn": {
+                "mechanism": "clone3_into_cgroup"
+              },
+              "bwrap_pid": 795,
+              "cgroup_namespace": 4026532314,
+              "command_rules": {
+                "deny": 0,
+                "forbid": 0
+              },
+              "execution_cgroup": {
+                "charged_helpers": [
+                  {
+                    "pid": 795,
+                    "role": "bubblewrap"
+                  },
+                  {
+                    "pid": 797,
+                    "role": "namespace_init"
+                  }
+                ],
+                "device": 31,
+                "inode": 5038,
+                "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_6d18f5d2-d0c0-4445-bf4e-017db1903fbb.leaf",
+                "scope": "target_descendants_and_listed_helpers"
+              },
+              "filtered_readonly_opens": 0,
+              "launcher_pid": 798,
+              "mnt_namespace": 4026532310,
+              "namespace_init_pid": 797,
+              "narrowing_filter_digest": "sha256:f5353e3a8e29beeca5edb0e19952196e8c1b8b575c4d5aab1698a7017fefb56e",
+              "narrowing_filter_digest_installed": "sha256:7cbc02764e05b197581f4ccdfef5b6571e15ba821802b659a333842587e794c9",
+              "net_namespace": 4026532315,
+              "observer_plan": {
+                "backend": "ptrace",
+                "event_bytes_max": 65536,
+                "in_flight_max": 16384,
+                "kernel_ring_bytes": null,
+                "path_snapshot_max": 4096,
+                "queue_bytes_max": 4194304,
+                "queue_events_max": 16384,
+                "queue_lifecycle_reserve_bytes": 65536,
+                "queue_result_bytes_max": 4128768,
+                "test_seams": {}
+              },
+              "path_anchors_unverified": 0,
+              "path_claims_unverified": 0,
+              "pid_namespace": 4026532313,
+              "readonly_open_fast_path": true,
+              "requested_by_other_filters": 0,
+              "resolv_sanitization": "nameservers_only",
+              "seccomp_filters": {
+                "expected": 2,
+                "observed": 2
+              },
+              "supervisor_scope": {
+                "cgroup": "/user.slice/user-1001.slice/user@1001.service/app.slice/ukai-jail-777-2163da55ec4b4114.scope",
+                "reason": null,
+                "reason_code": null,
+                "state": "entered",
+                "unit": "ukai-jail-777-2163da55ec4b4114.scope"
+              },
+              "user_namespace": 4026532369,
+              "watcher_pid": 796
+            }
+          },
+          "tree_empty": true,
+          "verified_at": "2026-11-04T12:51:29Z",
+          "verification_scope": "attempt_tree",
+          "integrity": "verified"
+        },
+        "outcome": {
+          "kind": "exited",
+          "code": 0,
+          "signal": null,
+          "cause": null,
+          "error": null
+        },
+        "state_cleanup": "complete",
+        "cleanup_error": null,
+        "created_at": "2026-11-04T12:51:29Z",
+        "updated_at": "2026-11-04T12:51:29Z",
+        "errors": [],
+        "credentials": []
+      },
+      "timings_ms": {
+        "connect_to_ready": 59.9,
+        "prepare_to_prepared": 7.9,
+        "run_to_released": 10.1,
+        "prepare_to_released": 18.0,
+        "connect_to_released": 77.9,
+        "released_to_done": 234.8
+      }
+    },
+    "network_none": {
+      "attempt_id": "cap-network_none-dc031830b2b7138f",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:398dab7b7d322f1c63836c4b99032572a86ab14f85f6cacd8f16447374705daf",
+      "started_at": "2026-11-04T12:51:30Z",
+      "stdout": "UKAI_NET_PROBE {\"control\": \"connected\", \"control_accepted\": true, \"dns\": \"unresolved--3\", \"egress\": \"ENETUNREACH\", \"nonce\": \"dc031830b2b7138f\", \"target\": [\"1.1.1.1\", 443]}\n",
+      "stderr": "",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 801,
+      "receipt_sha256": "767cf361fe6d59d33694710c8f41b3b931c58403a26583f7dcd66776b2420c45",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "cap-network_none-dc031830b2b7138f",
+        "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+        "guest_attempt_id": "att_08a66a02-e8a0-4e55-8192-4dae94803286",
+        "guest_boot_id": "c60df7da-a8e7-405f-b5bf-9c3ceb4ac2c7",
+        "profile": "tool",
+        "argv_digest": "sha256:398dab7b7d322f1c63836c4b99032572a86ab14f85f6cacd8f16447374705daf"
+      },
+      "receipt": {
+        "schema": "ukai.jail.receipt/1",
+        "attempt_id": "att_08a66a02-e8a0-4e55-8192-4dae94803286",
+        "revision": 3,
+        "phase": "settled",
+        "platform": {
+          "os": "linux",
+          "arch": "aarch64",
+          "kernel": "Linux 7.0.0-38-generic"
+        },
+        "jail": {
+          "component": "ukai-jail",
+          "version": "0.1.0",
+          "backend": "bubblewrap",
+          "backend_version": "bubblewrap 0.11.1"
+        },
+        "policy": {
+          "name": "tool",
+          "digest": "sha256:cd3318506d76c3d27099d2a5c1c4a0e0233c7e032593627807cf19623df9b5f9",
+          "observe": "on",
+          "evidence": "strict",
+          "requirements": [
+            "tree_termination",
+            "closed_set_observation",
+            "filesystem_containment",
+            "syscall_filter",
+            "network_none",
+            "protected_coverage:existing_and_root",
+            "limit:wall",
+            "limit:pids",
+            "limit:mem",
+            "limit:swap",
+            "execution_boundary"
+          ],
+          "grants": []
+        },
+        "containment": "enforced",
+        "child_protection": "enforced",
+        "exec_observed": true,
+        "argv_digest": "sha256:398dab7b7d322f1c63836c4b99032572a86ab14f85f6cacd8f16447374705daf",
+        "applied": {
+          "filesystem": {
+            "mechanism": "bubblewrap-binds",
+            "protected_coverage": "existing_and_root",
+            "mounts": [
+              {
+                "path": "/",
+                "mode": "ro"
+              },
+              {
+                "path": "/usr",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/ssl",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/resolv.conf",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/passwd",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/group",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/hosts",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/localtime",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/ld.so.cache",
+                "mode": "ro"
+              },
+              {
+                "path": "/proc",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/null",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/zero",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/full",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/random",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/urandom",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/tty",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/pts",
+                "mode": "rw"
+              },
+              {
+                "path": "/tmp",
+                "mode": "rw"
+              },
+              {
+                "path": "/mnt/workspace",
+                "mode": "rw"
+              },
+              {
+                "path": "/mnt/workspace/.git",
+                "mode": "ro"
+              },
+              {
+                "path": "/tmp/.git",
+                "mode": "ro"
+              },
+              {
+                "path": "/tmp/.ukai",
+                "mode": "ro"
+              },
+              {
+                "path": "/mnt/workspace/.ukai",
+                "mode": "ro"
+              },
+              {
+                "path": "/run/ukai/jail",
+                "mode": "ro"
+              }
+            ]
+          },
+          "network": {
+            "mode": "none",
+            "mechanism": "network-namespace",
+            "allowed_hosts": []
+          },
+          "syscalls": {
+            "mechanism": "seccomp-bpf",
+            "digest": "sha256:a7ad5b28fcec61783859752d3fbd4fe653a259cf76531862aabdf8e2ce89ec2b"
+          },
+          "limits": [
+            {
+              "key": "wall",
+              "requested": "30000",
+              "required": true,
+              "applied": true,
+              "mechanism": "boottime-deadline",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "pids",
+              "requested": "64",
+              "required": true,
+              "applied": true,
+              "mechanism": "pids.max",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "mem",
+              "requested": "536870912",
+              "required": true,
+              "applied": true,
+              "mechanism": "memory.max",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "swap",
+              "requested": "0",
+              "required": true,
+              "applied": true,
+              "mechanism": "memory.swap.max",
+              "scope": "tree",
+              "hit": null
+            }
+          ],
+          "environment_names": [
+            "LANG",
+            "PATH",
+            "PWD",
+            "TMPDIR"
+          ],
+          "removed_environment_names": []
+        },
+        "observer": {
+          "backend": "ptrace",
+          "set": "linux-closed-v1",
+          "attached": true,
+          "sources": {
+            "wrapper": "active",
+            "audit": "active",
+            "proxy": "unsupported"
+          },
+          "gaps": []
+        },
+        "coverage": {
+          "exec": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 2,
+            "gaps": []
+          },
+          "fs.write": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "fs.deny": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "net": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 4,
+            "gaps": []
+          },
+          "limits": {
+            "status": "active",
+            "sources": [
+              "wrapper"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "proxy.net": {
+            "status": "unsupported",
+            "sources": [],
+            "observed_count": null,
+            "gaps": []
+          }
+        },
+        "process": {
+          "pid": 822,
+          "identity": {
+            "kind": "linux_boot_start",
+            "value": {
+              "boot_id": "c60df7da-a8e7-405f-b5bf-9c3ceb4ac2c7",
+              "pid": 822,
+              "start_time_ticks": 4455
+            }
+          }
+        },
+        "lifetime": {
+          "boundary": "pid_namespace",
+          "native": {
+            "os": "linux",
+            "details": {
+              "backend_exec_by": "descriptor",
+              "bootstrap_spawn": {
+                "mechanism": "clone3_into_cgroup"
+              },
+              "bwrap_pid": 819,
+              "cgroup_namespace": 4026532314,
+              "command_rules": {
+                "deny": 0,
+                "forbid": 0
+              },
+              "execution_cgroup": {
+                "charged_helpers": [
+                  {
+                    "pid": 819,
+                    "role": "bubblewrap"
+                  },
+                  {
+                    "pid": 821,
+                    "role": "namespace_init"
+                  }
+                ],
+                "device": 31,
+                "inode": 5388,
+                "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_08a66a02-e8a0-4e55-8192-4dae94803286.leaf",
+                "scope": "target_descendants_and_listed_helpers"
+              },
+              "filtered_readonly_opens": 0,
+              "launcher_pid": 822,
+              "mnt_namespace": 4026532310,
+              "namespace_init_pid": 821,
+              "narrowing_filter_digest": "sha256:f5353e3a8e29beeca5edb0e19952196e8c1b8b575c4d5aab1698a7017fefb56e",
+              "narrowing_filter_digest_installed": "sha256:6807f9ddf587e3147546857dffec62e71aabd910992e531aa0e53971378ef054",
+              "net_namespace": 4026532315,
+              "observer_plan": {
+                "backend": "ptrace",
+                "event_bytes_max": 65536,
+                "in_flight_max": 16384,
+                "kernel_ring_bytes": null,
+                "path_snapshot_max": 4096,
+                "queue_bytes_max": 4194304,
+                "queue_events_max": 16384,
+                "queue_lifecycle_reserve_bytes": 65536,
+                "queue_result_bytes_max": 4128768,
+                "test_seams": {}
+              },
+              "path_anchors_unverified": 0,
+              "path_claims_unverified": 0,
+              "pid_namespace": 4026532313,
+              "readonly_open_fast_path": true,
+              "requested_by_other_filters": 0,
+              "resolv_sanitization": "nameservers_only",
+              "seccomp_filters": {
+                "expected": 2,
+                "observed": 2
+              },
+              "supervisor_scope": {
+                "cgroup": "/user.slice/user-1001.slice/user@1001.service/app.slice/ukai-jail-801-4bb1069a29384c18.scope",
+                "reason": null,
+                "reason_code": null,
+                "state": "entered",
+                "unit": "ukai-jail-801-4bb1069a29384c18.scope"
+              },
+              "user_namespace": 4026532369,
+              "watcher_pid": 820
+            }
+          },
+          "tree_empty": true,
+          "verified_at": "2026-11-04T12:51:30Z",
+          "verification_scope": "attempt_tree",
+          "integrity": "verified"
+        },
+        "outcome": {
+          "kind": "exited",
+          "code": 0,
+          "signal": null,
+          "cause": null,
+          "error": null
+        },
+        "state_cleanup": "complete",
+        "cleanup_error": null,
+        "created_at": "2026-11-04T12:51:29Z",
+        "updated_at": "2026-11-04T12:51:30Z",
+        "errors": [],
+        "credentials": []
+      },
+      "timings_ms": {
+        "connect_to_ready": 56.9,
+        "prepare_to_prepared": 17.8,
+        "run_to_released": 15.0,
+        "prepare_to_released": 32.9,
+        "connect_to_released": 89.8,
+        "released_to_done": 277.5
+      }
+    },
+    "route_control": {
+      "attempt_id": "cap-route_control-dc031830b2b7138f",
+      "profile": "agent",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:a5d83366b0f791c82e6c3bc0baeaa427e39fee0b88da774567cfde5ac1775142",
+      "started_at": "2026-11-04T12:51:30Z",
+      "stdout": "UKAI_ROUTE_CONTROL {\"nonce\": \"dc031830b2b7138f-route\", \"proxy\": \"http://127.0.0.1:3128\", \"status_line\": \"HTTP/1.1 200 Connection established\", \"target\": [\"1.1.1.1\", 443]}\n",
+      "stderr": "",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 825,
+      "receipt_sha256": "7f9a4ee3f45b4867622bceeef60d517d41918816106acda3fe6bdf61a626a0ab",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "cap-route_control-dc031830b2b7138f",
+        "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+        "guest_attempt_id": "att_2e7afcd3-54f6-45b0-bcc6-3319286570a0",
+        "guest_boot_id": "c60df7da-a8e7-405f-b5bf-9c3ceb4ac2c7",
+        "profile": "agent",
+        "argv_digest": "sha256:a5d83366b0f791c82e6c3bc0baeaa427e39fee0b88da774567cfde5ac1775142"
+      },
+      "receipt": {
+        "schema": "ukai.jail.receipt/1",
+        "attempt_id": "att_2e7afcd3-54f6-45b0-bcc6-3319286570a0",
+        "revision": 3,
+        "phase": "settled",
+        "platform": {
+          "os": "linux",
+          "arch": "aarch64",
+          "kernel": "Linux 7.0.0-38-generic"
+        },
+        "jail": {
+          "component": "ukai-jail",
+          "version": "0.1.0",
+          "backend": "bubblewrap",
+          "backend_version": "bubblewrap 0.11.1"
+        },
+        "policy": {
+          "name": "agent",
+          "digest": "sha256:f6bfddb5897ed748089d0c2923c95b16cdb8d7e48f630acef831e8623bcc9108",
+          "observe": "on",
+          "evidence": "strict",
+          "requirements": [
+            "tree_termination",
+            "closed_set_observation",
+            "filesystem_containment",
+            "syscall_filter",
+            "network_proxy",
+            "protected_coverage:existing_and_root",
+            "limit:wall",
+            "limit:pids",
+            "limit:mem",
+            "limit:swap",
+            "execution_boundary"
+          ],
+          "grants": [
+            {
+              "kind": "allow_host",
+              "value": "1.1.1.1:443",
+              "by": "operator"
+            }
+          ]
+        },
+        "containment": "enforced",
+        "child_protection": "enforced",
+        "exec_observed": true,
+        "argv_digest": "sha256:a5d83366b0f791c82e6c3bc0baeaa427e39fee0b88da774567cfde5ac1775142",
+        "applied": {
+          "filesystem": {
+            "mechanism": "bubblewrap-binds",
+            "protected_coverage": "existing_and_root",
+            "mounts": [
+              {
+                "path": "/",
+                "mode": "ro"
+              },
+              {
+                "path": "/usr",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/ssl",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/resolv.conf",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/passwd",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/group",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/hosts",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/localtime",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/ld.so.cache",
+                "mode": "ro"
+              },
+              {
+                "path": "/proc",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/null",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/zero",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/full",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/random",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/urandom",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/tty",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/pts",
+                "mode": "rw"
+              },
+              {
+                "path": "/tmp",
+                "mode": "rw"
+              },
+              {
+                "path": "/mnt/workspace",
+                "mode": "rw"
+              },
+              {
+                "path": "/mnt/workspace/.git/config",
+                "mode": "ro"
+              },
+              {
+                "path": "/run/ukai/proxy",
+                "mode": "ro"
+              },
+              {
+                "path": "/run/ukai/jail",
+                "mode": "ro"
+              }
+            ]
+          },
+          "network": {
+            "mode": "proxy",
+            "mechanism": "network-namespace+outside-http-proxy+loopback-bridge+unix-peer-mediation",
+            "allowed_hosts": [
+              "1.1.1.1:443"
+            ]
+          },
+          "syscalls": {
+            "mechanism": "seccomp-bpf+seccomp-user-notification",
+            "digest": "sha256:cc46d9a2a2971889fc33e71d2911ff22b8231e63461008594a7f501092db0041"
+          },
+          "limits": [
+            {
+              "key": "wall",
+              "requested": "30000",
+              "required": true,
+              "applied": true,
+              "mechanism": "boottime-deadline",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "pids",
+              "requested": "64",
+              "required": true,
+              "applied": true,
+              "mechanism": "pids.max",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "mem",
+              "requested": "536870912",
+              "required": true,
+              "applied": true,
+              "mechanism": "memory.max",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "swap",
+              "requested": "0",
+              "required": true,
+              "applied": true,
+              "mechanism": "memory.swap.max",
+              "scope": "tree",
+              "hit": null
+            }
+          ],
+          "environment_names": [
+            "ALL_PROXY",
+            "HTTPS_PROXY",
+            "HTTP_PROXY",
+            "LANG",
+            "NO_PROXY",
+            "PATH",
+            "PWD",
+            "TMPDIR",
+            "all_proxy",
+            "http_proxy",
+            "https_proxy",
+            "no_proxy"
+          ],
+          "removed_environment_names": []
+        },
+        "observer": {
+          "backend": "ptrace",
+          "set": "linux-closed-v1",
+          "attached": true,
+          "sources": {
+            "wrapper": "active",
+            "audit": "active",
+            "proxy": "active"
+          },
+          "gaps": []
+        },
+        "coverage": {
+          "exec": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 2,
+            "gaps": []
+          },
+          "fs.write": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "fs.deny": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "net": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 3,
+            "gaps": []
+          },
+          "limits": {
+            "status": "active",
+            "sources": [
+              "wrapper"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "proxy.net": {
+            "status": "active",
+            "sources": [
+              "proxy"
+            ],
+            "observed_count": 1,
+            "gaps": []
+          }
+        },
+        "process": {
+          "pid": 856,
+          "identity": {
+            "kind": "linux_boot_start",
+            "value": {
+              "boot_id": "c60df7da-a8e7-405f-b5bf-9c3ceb4ac2c7",
+              "pid": 856,
+              "start_time_ticks": 4502
+            }
+          }
+        },
+        "lifetime": {
+          "boundary": "pid_namespace",
+          "native": {
+            "os": "linux",
+            "details": {
+              "agent": {
+                "allowed_setup_operations": [
+                  "prctl(PR_SET_NO_NEW_PRIVS)",
+                  "seccomp",
+                  "landlock_create_ruleset",
+                  "landlock_add_rule",
+                  "landlock_restrict_self"
+                ],
+                "baseline_filter_digest": "sha256:cc46d9a2a2971889fc33e71d2911ff22b8231e63461008594a7f501092db0041",
+                "filter_variant": "unprivileged_inner",
+                "first_flight_bytes_max": 8192,
+                "first_flight_timeout_ms": 5000,
+                "mediation_filter_digest": "sha256:33063c21492671bcf0a73a39a2a51af680cb9482443fb5ab8be82ba019aa4136",
+                "mediation_record_queue": 4096,
+                "nested_user_namespace": "unavailable",
+                "nested_user_namespace_evidence": "a nested bubblewrap exited Some(1): bwrap: No permissions to create a new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.; bare unshare(CLONE_NEWUSER) inside: ok",
+                "origin_verification": "http_host_and_tls_sni",
+                "proxy_socket": "/run/ukai/proxy/proxy.sock",
+                "socks5_listen": "127.0.0.1:3129",
+                "tls_application_authority_verified": false,
+                "udp_egress": false,
+                "unix_peer_mediation": "seccomp_user_notification"
+              },
+              "backend_exec_by": "descriptor",
+              "bootstrap_spawn": {
+                "mechanism": "clone3_into_cgroup"
+              },
+              "bwrap_pid": 852,
+              "cgroup_namespace": 4026532316,
+              "command_rules": {
+                "deny": 0,
+                "forbid": 0
+              },
+              "execution_cgroup": {
+                "charged_helpers": [
+                  {
+                    "pid": 852,
+                    "role": "bubblewrap"
+                  },
+                  {
+                    "pid": 855,
+                    "role": "namespace_init"
+                  },
+                  {
+                    "pid": 858,
+                    "role": "bridge"
+                  }
+                ],
+                "device": 31,
+                "inode": 5738,
+                "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_2e7afcd3-54f6-45b0-bcc6-3319286570a0.leaf",
+                "scope": "target_descendants_and_listed_helpers"
+              },
+              "filtered_readonly_opens": 0,
+              "helpers": [
+                {
+                  "charged_to_attempt": true,
+                  "kind": "bridge",
+                  "listen": "127.0.0.1:3128",
+                  "mediated_connects": 1,
+                  "pid": 858,
+                  "rejected_at_capacity": 0,
+                  "seccomp_filters": 2
+                }
+              ],
+              "launcher_pid": 856,
+              "mnt_namespace": 4026532311,
+              "namespace_init_pid": 855,
+              "narrowing_filter_digest": "sha256:f5353e3a8e29beeca5edb0e19952196e8c1b8b575c4d5aab1698a7017fefb56e",
+              "narrowing_filter_digest_installed": "sha256:86cdfda861044e88d9c0a64f4fa57bfd1351a5f3b88a28690e75440918cbe312",
+              "net_namespace": 4026532317,
+              "observer_plan": {
+                "backend": "ptrace",
+                "event_bytes_max": 65536,
+                "in_flight_max": 16384,
+                "kernel_ring_bytes": null,
+                "path_snapshot_max": 4096,
+                "queue_bytes_max": 4194304,
+                "queue_events_max": 16384,
+                "queue_lifecycle_reserve_bytes": 65536,
+                "queue_result_bytes_max": 4128768,
+                "test_seams": {}
+              },
+              "path_anchors_unverified": 0,
+              "path_claims_unverified": 0,
+              "pid_namespace": 4026532315,
+              "readonly_open_fast_path": true,
+              "requested_by_other_filters": 0,
+              "resolv_sanitization": "nameservers_only",
+              "seccomp_filters": {
+                "expected": 3,
+                "observed": 3
+              },
+              "supervisor_scope": {
+                "cgroup": "/user.slice/user-1001.slice/user@1001.service/app.slice/ukai-jail-825-e582eca67c1d48f6.scope",
+                "reason": null,
+                "reason_code": null,
+                "state": "entered",
+                "unit": "ukai-jail-825-e582eca67c1d48f6.scope"
+              },
+              "user_namespace": 4026532371,
+              "watcher_pid": 853
+            }
+          },
+          "tree_empty": true,
+          "verified_at": "2026-11-04T12:51:30Z",
+          "verification_scope": "attempt_tree",
+          "integrity": "verified"
+        },
+        "outcome": {
+          "kind": "exited",
+          "code": 0,
+          "signal": null,
+          "cause": null,
+          "error": null
+        },
+        "state_cleanup": "complete",
+        "cleanup_error": null,
+        "created_at": "2026-11-04T12:51:30Z",
+        "updated_at": "2026-11-04T12:51:30Z",
+        "errors": [],
+        "credentials": []
+      },
+      "timings_ms": {
+        "connect_to_ready": 58.0,
+        "prepare_to_prepared": 22.2,
+        "run_to_released": 14.9,
+        "prepare_to_released": 37.2,
+        "connect_to_released": 95.2,
+        "released_to_done": 530.1
+      }
+    },
+    "workspace": {
+      "attempt_id": "cap-workspace-dc031830b2b7138f",
+      "profile": "tool",
+      "wall_seconds": 30,
+      "argv_digest": "sha256:a53d25a0112134d7d5d5e033bea185128deabda891aa7ae5bc063160028111da",
+      "started_at": "2026-11-04T12:51:31Z",
+      "stdout": "wrote-dc031830b2b7138f\n",
+      "stderr": "",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "stdout",
+        "bound_receipt",
+        "done"
+      ],
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+        "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+        "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+        "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+        "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+        "vsock_port": 1024
+      },
+      "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 867,
+      "receipt_sha256": "f219de018592151091b7e36cbf15260fc8333f7e742038753fe0651206228093",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "cap-workspace-dc031830b2b7138f",
+        "boot_id": "vm-eba793c5-e10b-47bf-af6a-d402c2f73fb1",
+        "guest_attempt_id": "att_c73add1b-1913-4b6a-8595-b15bf711959d",
+        "guest_boot_id": "c60df7da-a8e7-405f-b5bf-9c3ceb4ac2c7",
+        "profile": "tool",
+        "argv_digest": "sha256:a53d25a0112134d7d5d5e033bea185128deabda891aa7ae5bc063160028111da"
+      },
+      "receipt": {
+        "schema": "ukai.jail.receipt/1",
+        "attempt_id": "att_c73add1b-1913-4b6a-8595-b15bf711959d",
+        "revision": 3,
+        "phase": "settled",
+        "platform": {
+          "os": "linux",
+          "arch": "aarch64",
+          "kernel": "Linux 7.0.0-38-generic"
+        },
+        "jail": {
+          "component": "ukai-jail",
+          "version": "0.1.0",
+          "backend": "bubblewrap",
+          "backend_version": "bubblewrap 0.11.1"
+        },
+        "policy": {
+          "name": "tool",
+          "digest": "sha256:cd3318506d76c3d27099d2a5c1c4a0e0233c7e032593627807cf19623df9b5f9",
+          "observe": "on",
+          "evidence": "strict",
+          "requirements": [
+            "tree_termination",
+            "closed_set_observation",
+            "filesystem_containment",
+            "syscall_filter",
+            "network_none",
+            "protected_coverage:existing_and_root",
+            "limit:wall",
+            "limit:pids",
+            "limit:mem",
+            "limit:swap",
+            "execution_boundary"
+          ],
+          "grants": []
+        },
+        "containment": "enforced",
+        "child_protection": "enforced",
+        "exec_observed": true,
+        "argv_digest": "sha256:a53d25a0112134d7d5d5e033bea185128deabda891aa7ae5bc063160028111da",
+        "applied": {
+          "filesystem": {
+            "mechanism": "bubblewrap-binds",
+            "protected_coverage": "existing_and_root",
+            "mounts": [
+              {
+                "path": "/",
+                "mode": "ro"
+              },
+              {
+                "path": "/usr",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/ssl",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/resolv.conf",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/passwd",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/group",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/hosts",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/localtime",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/ld.so.cache",
+                "mode": "ro"
+              },
+              {
+                "path": "/proc",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/null",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/zero",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/full",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/random",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/urandom",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/tty",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/pts",
+                "mode": "rw"
+              },
+              {
+                "path": "/tmp",
+                "mode": "rw"
+              },
+              {
+                "path": "/mnt/workspace",
+                "mode": "rw"
+              },
+              {
+                "path": "/mnt/workspace/.git",
+                "mode": "ro"
+              },
+              {
+                "path": "/tmp/.git",
+                "mode": "ro"
+              },
+              {
+                "path": "/tmp/.ukai",
+                "mode": "ro"
+              },
+              {
+                "path": "/mnt/workspace/.ukai",
+                "mode": "ro"
+              },
+              {
+                "path": "/run/ukai/jail",
+                "mode": "ro"
+              }
+            ]
+          },
+          "network": {
+            "mode": "none",
+            "mechanism": "network-namespace",
+            "allowed_hosts": []
+          },
+          "syscalls": {
+            "mechanism": "seccomp-bpf",
+            "digest": "sha256:a7ad5b28fcec61783859752d3fbd4fe653a259cf76531862aabdf8e2ce89ec2b"
+          },
+          "limits": [
+            {
+              "key": "wall",
+              "requested": "30000",
+              "required": true,
+              "applied": true,
+              "mechanism": "boottime-deadline",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "pids",
+              "requested": "64",
+              "required": true,
+              "applied": true,
+              "mechanism": "pids.max",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "mem",
+              "requested": "536870912",
+              "required": true,
+              "applied": true,
+              "mechanism": "memory.max",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "swap",
+              "requested": "0",
+              "required": true,
+              "applied": true,
+              "mechanism": "memory.swap.max",
+              "scope": "tree",
+              "hit": null
+            }
+          ],
+          "environment_names": [
+            "LANG",
+            "PATH",
+            "PWD",
+            "TMPDIR"
+          ],
+          "removed_environment_names": []
+        },
+        "observer": {
+          "backend": "ptrace",
+          "set": "linux-closed-v1",
+          "attached": true,
+          "sources": {
+            "wrapper": "active",
+            "audit": "active",
+            "proxy": "unsupported"
+          },
+          "gaps": []
+        },
+        "coverage": {
+          "exec": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 2,
+            "gaps": []
+          },
+          "fs.write": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 1,
+            "gaps": []
+          },
+          "fs.deny": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "net": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "limits": {
+            "status": "active",
+            "sources": [
+              "wrapper"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "proxy.net": {
+            "status": "unsupported",
+            "sources": [],
+            "observed_count": null,
+            "gaps": []
+          }
+        },
+        "process": {
+          "pid": 888,
+          "identity": {
+            "kind": "linux_boot_start",
+            "value": {
+              "boot_id": "c60df7da-a8e7-405f-b5bf-9c3ceb4ac2c7",
+              "pid": 888,
+              "start_time_ticks": 4565
+            }
+          }
+        },
+        "lifetime": {
+          "boundary": "pid_namespace",
+          "native": {
+            "os": "linux",
+            "details": {
+              "backend_exec_by": "descriptor",
+              "bootstrap_spawn": {
+                "mechanism": "clone3_into_cgroup"
+              },
+              "bwrap_pid": 885,
+              "cgroup_namespace": 4026532316,
+              "command_rules": {
+                "deny": 0,
+                "forbid": 0
+              },
+              "execution_cgroup": {
+                "charged_helpers": [
+                  {
+                    "pid": 885,
+                    "role": "bubblewrap"
+                  },
+                  {
+                    "pid": 887,
+                    "role": "namespace_init"
+                  }
+                ],
+                "device": 31,
+                "inode": 6088,
+                "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_c73add1b-1913-4b6a-8595-b15bf711959d.leaf",
+                "scope": "target_descendants_and_listed_helpers"
+              },
+              "filtered_readonly_opens": 0,
+              "launcher_pid": 888,
+              "mnt_namespace": 4026532311,
+              "namespace_init_pid": 887,
+              "narrowing_filter_digest": "sha256:f5353e3a8e29beeca5edb0e19952196e8c1b8b575c4d5aab1698a7017fefb56e",
+              "narrowing_filter_digest_installed": "sha256:c40006770152faa3da57eaf886ce9deaedc1f6bca75d250c877d8a6033746556",
+              "net_namespace": 4026532317,
+              "observer_plan": {
+                "backend": "ptrace",
+                "event_bytes_max": 65536,
+                "in_flight_max": 16384,
+                "kernel_ring_bytes": null,
+                "path_snapshot_max": 4096,
+                "queue_bytes_max": 4194304,
+                "queue_events_max": 16384,
+                "queue_lifecycle_reserve_bytes": 65536,
+                "queue_result_bytes_max": 4128768,
+                "test_seams": {}
+              },
+              "path_anchors_unverified": 0,
+              "path_claims_unverified": 0,
+              "pid_namespace": 4026532315,
+              "readonly_open_fast_path": true,
+              "requested_by_other_filters": 0,
+              "resolv_sanitization": "nameservers_only",
+              "seccomp_filters": {
+                "expected": 2,
+                "observed": 2
+              },
+              "supervisor_scope": {
+                "cgroup": "/user.slice/user-1001.slice/user@1001.service/app.slice/ukai-jail-867-0fc1aed8d2ef4850.scope",
+                "reason": null,
+                "reason_code": null,
+                "state": "entered",
+                "unit": "ukai-jail-867-0fc1aed8d2ef4850.scope"
+              },
+              "user_namespace": 4026532371,
+              "watcher_pid": 886
+            }
+          },
+          "tree_empty": true,
+          "verified_at": "2026-11-04T12:51:31Z",
+          "verification_scope": "attempt_tree",
+          "integrity": "verified"
+        },
+        "outcome": {
+          "kind": "exited",
+          "code": 0,
+          "signal": null,
+          "cause": null,
+          "error": null
+        },
+        "state_cleanup": "complete",
+        "cleanup_error": null,
+        "created_at": "2026-11-04T12:51:31Z",
+        "updated_at": "2026-11-04T12:51:31Z",
+        "errors": [],
+        "credentials": []
+      },
+      "timings_ms": {
+        "connect_to_ready": 55.4,
+        "prepare_to_prepared": 21.9,
+        "run_to_released": 10.4,
+        "prepare_to_released": 32.3,
+        "connect_to_released": 87.8,
+        "released_to_done": 292.9
+      }
+    }
+  },
+  "host_workspace_file": "live-dc031830b2b7138f\n",
+  "reachability": {
+    "target": [
+      "1.1.1.1",
+      443
+    ],
+    "result": "connected",
+    "answers": true,
+    "elapsed_ms": 18.2
+  }
+}

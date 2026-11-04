@@ -1,0 +1,8 @@
+14673a379fe180eda19ae52dd3b5c227cbf3f9ae25dab877b83b6da62b60561c  /Users/monocursive/ukai-vm-live/stop_audit.py
+== stop_audit-2 14:18:48
+{"attempts": [["plain", 0, true], ["detached", 1, true], ["setsid-only", 1, true], ["background-only", 1, true], ["wall", 143, true], ["after", 0, true]], "stops_recorded": 10, "service_exit": 0}
+rc=0
+== gate_rows 14:19:48
+{"K109": "PASS", "K111": "REFUSED", "K112": "PASS", "K113": "NOT_JUDGED_HERE"}
+rc=1
+== done 14:21:40

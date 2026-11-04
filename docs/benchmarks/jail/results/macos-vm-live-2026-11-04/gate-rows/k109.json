@@ -1,0 +1,23 @@
+{
+  "granted_write_on_host": true,
+  "granted_exit_zero": true,
+  "granted_receipt_bound": true,
+  "git_write_tried_and_refused": true,
+  "git_config_unchanged": true,
+  "outside_writes_refused_and_absent": true,
+  "outside_exit_zero": true,
+  "service_stopped_cleanly": true,
+  "containment": {
+    "receipt_bound_to_this_attempt": true,
+    "every_path_probed": true,
+    "write_refused:/etc/ukai-k109-b46cea61aafad874": true,
+    "write_refused:/usr/local/bin/ukai-k109-b46cea61aafad874": true,
+    "write_refused:/ukai-k109-b46cea61aafad874": true
+  },
+  "workspace_listing": [
+    ".git",
+    ".ukai-vm-harness-workspace",
+    "k109-granted.txt"
+  ],
+  "outcome": "PASS"
+}

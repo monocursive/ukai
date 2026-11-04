@@ -1,0 +1,4 @@
+{"audit_token":[501,501,20,501,20,75578,109704,4778367],"event":"owner","pid":75578}
+{"event":"booted","network":true,"pid":75578}
+{"event":"stopping","reason":"signal"}
+{"error":"","event":"stopped"}

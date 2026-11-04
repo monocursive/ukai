@@ -1,0 +1,6 @@
+UKAI_VM {"event": "live_share_mounted", "mount": "/mnt/workspace", "options": "nosuid,nodev"}
+UKAI_VM {"event": "ready", "kernel": "7.0.0-38-generic", "live_share": true}
+UKAI_VM {"event": "infrastructure_learned", "manager": 534, "helper": [538], "bus": 643, "bus_unit": "session.slice/dbus.service"}
+UKAI_VM {"event": "session_opened", "live_share": true}
+UKAI_VM {"event": "workload_tree_empty", "boundaries": ["user.slice/user-1001.slice/user@1001.service/app.slice"], "strays_killed": []}
+UKAI_VM {"event": "running", "supervisor_pid": 645}

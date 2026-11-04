@@ -1,0 +1,81 @@
+{
+  "schema": "ukai.evidence.provenance/1",
+  "record": "macos-vm-live-2026-11-04",
+  "kind": "development evidence: an unsigned source build on one host, not an installed or notarized package",
+  "source": {
+    "commit": "0def15ea1ff724264330e2882ac8ca2d6b937750",
+    "transfer": "git bundle of dev, SHA-256 7feb5d3d19171a3f63a3be017e3af5cc1ac6a3bdb5d0538acf27173c18648b0c, cloned on the host",
+    "patches": [
+      {
+        "commit": "a468b46a7",
+        "file": "crates/ukai-jail/vm/warm_live.py",
+        "sha256": "6d1db68df67aa5553f74dffc51ee6cb6148eb8794d38e9aa20e9f0dea2d47d55",
+        "applied_before": ["warm-live-2.json", "stop-audit/", "stop-audit-2/", "gate-rows/"],
+        "note": "the shared data directory is created 0700; warm-live.json ran the unpatched file"
+      }
+    ]
+  },
+  "host": {
+    "name": "the user's spare Mac (muetdhiver), reached over SSH",
+    "os": "macOS 27.0.1 (26A434)",
+    "cpu": "Apple M2 Pro, 10 CPUs",
+    "memory_bytes": 17179869184,
+    "toolchain": {
+      "rustc": "1.98.1 (48a229cea 2026-09-01)",
+      "swiftc": "Apple Swift 6.4.2 (swiftlang-6.4.2.1.9 clang-2100.4.1.1)",
+      "clang": "Apple clang 21.0.0 (clang-2100.4.1.1)",
+      "qemu-img": "11.1.2 (Homebrew, installed for this run; image conversion only)",
+      "python": "3.14.3 (Homebrew)",
+      "debugfs": "1.47.4 (Homebrew e2fsprogs, installed for this run; read-only diagnosis of failed boot disks only)"
+    },
+    "workspace_volume": "a case-sensitive APFS sparse disk image created with hdiutil and attached by the user (owners disabled); the home volume folds case, which the live share refuses",
+    "sleep": "a self-expiring caffeinate -i -s -m -t 14400 assertion held during the runs"
+  },
+  "binaries": {
+    "ukai-vm": {
+      "path": "target/release/ukai-vm",
+      "sha256": "dec046e2cc7d1cb0a86a4f0ec4b47ff45031d87c9ad3f7c5f3830d19e5f2db30",
+      "build": "cargo build -p ukai-jail --bins --release --locked -j 6, RUSTUP_TOOLCHAIN=1.98.1",
+      "note": "gate_rows needs <root>/bin/ukai-vm; the same bytes were copied there"
+    },
+    "ukai-jail": {
+      "path": "target/release/ukai-jail",
+      "sha256": "9c2a0a52a11a6b2a8e3d8e6e97e4657ca772a18b921c1206a98fbe33ea534497",
+      "note": "built at 0def15ea1, whose GUEST_MEASUREMENTS is empty; a tool plan's first requirement, tree_termination, has no row either way, so its refusal is the same with this record's five rows"
+    }
+  },
+  "image": {
+    "manifest": "image/image.json",
+    "built_by": "crates/ukai-jail/vm/prepare.py at 0def15ea1 (third attempt; host-stability/ has the two that failed)",
+    "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+    "guest_jail": "ukai-jail 0.1.0-rc.5 aarch64-unknown-linux-gnu, archive SHA-256 2af9d2ef48ec12c4072822b6b6dca3cb867ee8fb0054c9e142d4e86a0221a752",
+    "guest_kernel": "7.0.0-38-generic",
+    "apt_snapshot": "20261020T000000Z",
+    "guest_pinned_digest": "26faa9a3062fc7b1eb983b97fa4630043c551d50e21ee78904d55a13231bf038"
+  },
+  "harness_sha256": {
+    "crates/ukai-jail/vm/harness.py": "54d169552c036f161a28c3ee749ef4ede052d8818348dfc5ff94d1c60f4b070a",
+    "crates/ukai-jail/vm/capabilities.py": "0045a65404af6b56fb37ce859370843fd5068ce202ec2e60e078de1c443b63e1",
+    "crates/ukai-jail/vm/fault_matrix.py": "0262ff22a93df15ae3f008014eace0f5a21bfbc942de217bca477f436b046b3c",
+    "crates/ukai-jail/vm/warm_live.py@0def15ea1": "b0d6cdd4aab383b4027e7d1d991a2a33b1bb7c508693d2c285f1c67c0631ef06",
+    "crates/ukai-jail/vm/warm_live.py@a468b46a7": "6d1db68df67aa5553f74dffc51ee6cb6148eb8794d38e9aa20e9f0dea2d47d55",
+    "crates/ukai-jail/vm/gate_rows.py": "72729f44b66883de4d38cf18b4c60f7789f1fc5c8798acd65dd60d1d75007419",
+    "stop_audit.v1.py": "1ad725e82bc5981c606c2286e578aad9a822b3f0aba65bc6afe36a45a99f4c1f",
+    "stop_audit.py": "14673a379fe180eda19ae52dd3b5c227cbf3f9ae25dab877b83b6da62b60561c"
+  },
+  "runs": [
+    {"local_time": "2026-11-04 13:50", "harness": "capabilities.py", "output": "capabilities.json", "summary": "PASS"},
+    {"local_time": "2026-11-04 13:53", "harness": "fault_matrix.py (all nine cases, Python stand-in client)", "output": "fault-matrix.json", "summary": "8 PASS, client-kill ERROR (live_share_mount_failed on its boot)"},
+    {"local_time": "2026-11-04 14:08", "harness": "fault_matrix.py client-kill", "output": "fault-matrix-client-kill-rerun.json", "summary": "client-kill PASS"},
+    {"local_time": "2026-11-04 14:09", "harness": "warm_live.py@0def15ea1 --ukai-jail --real-attempts 2", "output": "warm-live.json", "summary": "FAIL"},
+    {"local_time": "2026-11-04 14:14", "harness": "stop_audit.v1.py", "output": "stop-audit/", "summary": "four attempts, one boot"},
+    {"local_time": "2026-11-04 14:15", "harness": "warm_live.py@a468b46a7 --ukai-jail --real-attempts 2", "output": "warm-live-2.json", "summary": "FAIL"},
+    {"local_time": "2026-11-04 14:18", "harness": "stop_audit.py", "output": "stop-audit-2/", "summary": "six attempts, one boot"},
+    {"local_time": "2026-11-04 14:19", "harness": "gate_rows.py", "output": "gate-rows/", "summary": "K109 PASS, K111 REFUSED, K112 PASS"}
+  ],
+  "not_committed": [
+    "the three bootstrap guest journals (8 MiB each, over the store's 5 MiB limit; host-stability/*/guest-journal-messages.txt keeps their MESSAGE fields and SHA-256)",
+    "boot disks and the serve's retained boot directories (1.3 GiB each)",
+    "K113 (claude_vm_row.py): not run; it needs a Claude Code credential in the guest, and the client refuses at probing in any case"
+  ]
+}

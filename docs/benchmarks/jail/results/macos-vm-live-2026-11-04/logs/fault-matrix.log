@@ -1,0 +1,10 @@
+case: secrets
+case: client-kill
+case: client-ctrl-z
+case: serve-kill
+case: custodian-kill
+case: vz-kill
+case: all-suspended
+case: eof
+case: serve-group-stop
+{"secrets": "PASS", "client-kill": "ERROR", "client-ctrl-z": "PASS", "serve-kill": "PASS", "custodian-kill": "PASS", "vz-kill": "PASS", "all-suspended": "PASS", "eof": "PASS", "serve-group-stop": "PASS"}

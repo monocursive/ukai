@@ -1,0 +1,10 @@
+/Users/monocursive/ukai-vm-live/home/image/vz: replacing existing signature
+Creating hybrid image...
+
+Traceback (most recent call last):
+  File "/Users/monocursive/code/ukai-live/crates/ukai-jail/vm/prepare.py", line 208, in <module>
+    main()
+    ~~~~^^
+  File "/Users/monocursive/code/ukai-live/crates/ukai-jail/vm/prepare.py", line 194, in main
+    raise RuntimeError('guest bootstrap failed; see bootstrap logs')
+RuntimeError: guest bootstrap failed; see bootstrap logs

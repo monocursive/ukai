@@ -1,0 +1,233 @@
+{
+  "binaries": {
+    "ukai-jail": {
+      "path": "target/release/ukai-jail",
+      "sha256": "9c2a0a52a11a6b2a8e3d8e6e97e4657ca772a18b921c1206a98fbe33ea534497"
+    },
+    "ukai-vm": {
+      "path": "~/ukai-vm-live/home3/bin/ukai-vm",
+      "sha256": "dec046e2cc7d1cb0a86a4f0ec4b47ff45031d87c9ad3f7c5f3830d19e5f2db30"
+    }
+  },
+  "rows": {
+    "K109": {
+      "granted_write_on_host": true,
+      "granted_exit_zero": true,
+      "granted_receipt_bound": true,
+      "git_write_tried_and_refused": true,
+      "git_config_unchanged": true,
+      "outside_writes_refused_and_absent": true,
+      "outside_exit_zero": true,
+      "service_stopped_cleanly": true,
+      "containment": {
+        "receipt_bound_to_this_attempt": true,
+        "every_path_probed": true,
+        "write_refused:/etc/ukai-k109-b46cea61aafad874": true,
+        "write_refused:/usr/local/bin/ukai-k109-b46cea61aafad874": true,
+        "write_refused:/ukai-k109-b46cea61aafad874": true
+      },
+      "workspace_listing": [
+        ".git",
+        ".ukai-vm-harness-workspace",
+        "k109-granted.txt"
+      ],
+      "outcome": "PASS"
+    },
+    "K111": {
+      "run_exit_zero": false,
+      "settled": false,
+      "exit_zero": false,
+      "tree_empty": false,
+      "granted_write_on_host": false,
+      "guest_receipt_is_linux": false,
+      "digest_matches_record": false,
+      "binding_matches_attempt": false,
+      "binding_profile_tool": false,
+      "binding_argv_digest_is_this_argv": false,
+      "guest_receipt_argv_digest_is_this_argv": false,
+      "guest_boot_bound": false,
+      "host_receipt_never_contradicts_guest": false,
+      "run_summary_transport_line_present": false,
+      "run_summary_transport_line_from_record": false,
+      "run_summary_network_line_is_the_guests": false,
+      "run_summary_observer_classes_are_the_guests": true,
+      "run_summary_observer_attachment_is_the_guests": true,
+      "tail_summary_transport_line_present": false,
+      "tail_summary_transport_line_from_record": false,
+      "tail_summary_network_line_is_the_guests": false,
+      "tail_summary_observer_classes_are_the_guests": true,
+      "tail_summary_observer_attachment_is_the_guests": true,
+      "outcome": "REFUSED",
+      "refusals": [
+        "vm:not-measured:tree_termination"
+      ],
+      "elapsed_s": 18.0,
+      "stop_exit": 0,
+      "detail": {
+        "expected_argv_digest": "sha256:116fe8bc51ff2ec37c2cdbc53516c1409a4a5ed70dcc4d8c5455ec743ff9e635",
+        "binding": {},
+        "contradictions": [
+          {
+            "field": "platform.kernel",
+            "host": "unknown: the guest reports its kernel at prepare",
+            "guest": null
+          },
+          {
+            "field": "platform.arch",
+            "host": "aarch64",
+            "guest": null
+          },
+          {
+            "field": "exec_observed",
+            "host": false,
+            "guest": null
+          },
+          {
+            "field": "applied.network",
+            "host": {
+              "mode": "pending",
+              "mechanism": null,
+              "allowed_hosts": []
+            },
+            "guest": null
+          },
+          {
+            "field": "applied.limits",
+            "host": [],
+            "guest": null
+          },
+          {
+            "field": "observer",
+            "host": {
+              "backend": null,
+              "set": null,
+              "attached": false,
+              "sources": {
+                "wrapper": "supported",
+                "audit": "unsupported",
+                "proxy": "unsupported"
+              },
+              "gaps": []
+            },
+            "guest": null
+          },
+          {
+            "field": "coverage",
+            "host": {
+              "exec": {
+                "status": "unsupported",
+                "sources": [],
+                "observed_count": null,
+                "gaps": []
+              },
+              "fs.write": {
+                "status": "unsupported",
+                "sources": [],
+                "observed_count": null,
+                "gaps": []
+              },
+              "fs.deny": {
+                "status": "unsupported",
+                "sources": [],
+                "observed_count": null,
+                "gaps": []
+              },
+              "net": {
+                "status": "unsupported",
+                "sources": [],
+                "observed_count": null,
+                "gaps": []
+              },
+              "limits": {
+                "status": "unsupported",
+                "sources": [],
+                "observed_count": null,
+                "gaps": []
+              },
+              "proxy.net": {
+                "status": "unsupported",
+                "sources": [],
+                "observed_count": null,
+                "gaps": []
+              }
+            },
+            "guest": null
+          }
+        ],
+        "run_summary_facts": {
+          "transport_line_present": false,
+          "transport_line_from_record": false,
+          "network_line_is_the_guests": false,
+          "observer_classes_are_the_guests": true,
+          "observer_attachment_is_the_guests": true
+        },
+        "tail_summary_facts": {
+          "transport_line_present": false,
+          "transport_line_from_record": false,
+          "network_line_is_the_guests": false,
+          "observer_classes_are_the_guests": true,
+          "observer_attachment_is_the_guests": true
+        },
+        "attempt_id": "att_f5d71810-b37b-4ede-ae44-b6e97dc40ec2",
+        "transport_schema": null
+      },
+      "terminal_tail": "^D\b\bukai-jail: error missing_capability at probing [unsupported]: `tree_termination` has no measured guest record in this build's VM tier, so --vm refuses it (vm:not-measured:tree_termination)\nukai-jail: NOT settled (refused) \u00b7 survivors: NOT verified \u00b7 errors: missing_capability\nukai-jail: workspace: not observed\nukai-jail: network: not applied\nukai-jail: evidence: observer not attached \u00b7 0/6 classes active \u00b7 exec, fs.write, fs.deny, net, proxy.net, limits not observed\nukai-jail: receipt $TMPDIR/row-k111-6jvrt7mv/attempts/att_f5d71810-b37b-4ede-ae44-b6e97dc40ec2/jail.json\n\n"
+    },
+    "K112": {
+      "native_shipped_refused": true,
+      "native_dev_refused": true,
+      "vm_refused_before_boot": true,
+      "outcome": "PASS",
+      "native_shipped": {
+        "exit": 125,
+        "elapsed_s": 0.0,
+        "stderr": "ukai-jail: error unsupported_platform at probing [unsupported]: native macOS execution is disabled; UKAI_JAIL_MACOS_NATIVE=dev explicitly enables the unshipped development tier",
+        "phase": "refused",
+        "requirements_name_owner_loss": true,
+        "lifetime_boundary": "kernel-bound",
+        "workload_marker": "k112-ran-shipped-52bcff1fcdf2fbfb",
+        "workload_ran": false,
+        "boot_attempted": false,
+        "refusals": []
+      },
+      "native_dev": {
+        "exit": 125,
+        "elapsed_s": 0.1,
+        "stderr": "ukai-jail: error missing_capability at probing [unsupported]: `owner_loss_termination` needs a kernel-bound lifetime, which native macOS does not provide; kernel-bound enforcement in the VM tier is unavailable in this build",
+        "phase": "refused",
+        "requirements_name_owner_loss": true,
+        "lifetime_boundary": "kernel-bound",
+        "workload_marker": "k112-ran-dev-148ad627d7a7489d",
+        "workload_ran": false,
+        "boot_attempted": false,
+        "refusals": []
+      },
+      "vm_installed": {
+        "exit": 125,
+        "elapsed_s": 17.8,
+        "stderr": "ukai-jail: error missing_capability at probing [unsupported]: `owner_loss_termination` needs a kernel-bound lifetime, which the VM tier does not provide in this build: the guest's wall is a deadline, not an owner-loss bound (vm:owner-loss-not-provided)",
+        "phase": "refused",
+        "requirements_name_owner_loss": true,
+        "lifetime_boundary": "kernel-bound",
+        "workload_marker": "k112-ran-vm-fecf46fe221ff37e",
+        "workload_ran": false,
+        "boot_attempted": false,
+        "refusals": [
+          "vm:owner-loss-not-provided"
+        ]
+      },
+      "linux_none_refusal": "K112.2 (portable): ukai-jail/tests/vm_tier.rs"
+    },
+    "K113": {
+      "mechanism_tail_summary_transport_line": false,
+      "note": "K113 is judged by claude_vm_row.py, not here",
+      "outcome": "NOT_JUDGED_HERE"
+    }
+  },
+  "summary": {
+    "K109": "PASS",
+    "K111": "REFUSED",
+    "K112": "PASS",
+    "K113": "NOT_JUDGED_HERE"
+  }
+}

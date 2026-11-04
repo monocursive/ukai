@@ -1,0 +1,3 @@
+UKAI_VM {"event": "live_share_mount_failed", "error": "OSError"}
+UKAI_VM {"event": "workload_tree_empty", "boundary": "user.slice", "events_inode": 271}
+UKAI_VM {"event": "poweroff", "reason": "live_share_mount_failed"}

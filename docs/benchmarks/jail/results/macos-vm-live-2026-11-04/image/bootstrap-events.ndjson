@@ -1,0 +1,3 @@
+{"audit_token":[501,501,20,501,20,664,109743,4819298],"event":"owner","pid":664}
+{"event":"booted","network":true,"pid":664}
+{"event":"guest_stopped"}
