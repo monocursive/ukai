@@ -1239,15 +1239,27 @@ fn request(snapshot: PolicySnapshot) -> PlanRequest {
     }
 }
 
-/// Decision D2: no 2026-11-02 record measured its requirement alone, so the
-/// table is empty and every row of a carried policy is `vm:not-measured`.
-/// `network_none` among them (its TCP half was vacuous).
+/// The requirements the 2026-11-04 live phase measured alone
+/// (`macos-vm-live-2026-11-04/capabilities.json`), in the record's order.
+const LIVE_MEASURED: [&str; 5] = [
+    "limit:wall",
+    "limit:pids",
+    "limit:mem",
+    "filesystem_containment",
+    "network_none",
+];
+
+/// Decision D2: exactly the requirements the live phase measured alone
+/// answer available, with their row's time and pointer. Every other row of a
+/// carried policy is `vm:not-measured`, `tree_termination` among them, so a
+/// carried `run --vm` still refuses at probing.
 #[test]
-fn every_requirement_is_unmeasured_until_the_live_phase() {
-    assert!(
-        GUEST_MEASUREMENTS.is_empty(),
-        "a measured row needs a record that measured it alone, with its time"
-    );
+fn only_the_live_phase_measurements_answer_available() {
+    let listed: Vec<&str> = GUEST_MEASUREMENTS
+        .iter()
+        .map(|row| row.requirement)
+        .collect();
+    assert_eq!(listed, LIVE_MEASURED);
     let platform = platform(Path::new("/unused"));
     let owner = platform
         .owner_identity()
@@ -1258,23 +1270,72 @@ fn every_requirement_is_unmeasured_until_the_live_phase() {
         let rows = platform.probe(&plan);
         assert_eq!(rows.len(), plan.requirements.len());
         for row in &rows {
-            assert!(!row.satisfies(), "{row:?}");
-            assert_eq!(
-                row.reason_code.as_deref(),
-                Some(format!("{REASON_VM_NOT_MEASURED}{}", row.name).as_str())
-            );
-            assert_eq!(row.measured_at, None, "never invented: {row:?}");
-            assert_eq!(row.evidence_ref, None);
+            match GUEST_MEASUREMENTS
+                .iter()
+                .find(|measured| measured.requirement == row.name)
+            {
+                Some(measured) => {
+                    assert!(row.satisfies(), "{row:?}");
+                    assert_eq!(row.reason_code.as_deref(), Some("ok"));
+                    assert_eq!(row.measured_at.as_deref(), Some(measured.measured_at));
+                    assert_eq!(row.evidence_ref.as_deref(), Some(measured.record));
+                }
+                None => {
+                    assert!(!row.satisfies(), "{row:?}");
+                    assert_eq!(
+                        row.reason_code.as_deref(),
+                        Some(format!("{REASON_VM_NOT_MEASURED}{}", row.name).as_str())
+                    );
+                    assert_eq!(row.measured_at, None, "never invented: {row:?}");
+                    assert_eq!(row.evidence_ref, None);
+                }
+            }
         }
+        let tree = rows
+            .iter()
+            .find(|row| row.name == "tree_termination")
+            .expect("every plan requires tree termination");
+        assert!(!tree.satisfies(), "no probe measures it yet: {tree:?}");
     }
     let plan = request(tool());
     assert!(
         platform
             .probe(&plan)
             .iter()
-            .any(|row| row.name == "network_none"
-                && row.reason_code.as_deref() == Some("vm:not-measured:network_none"))
+            .any(|row| row.name == "network_none" && row.satisfies())
     );
+}
+
+/// Each row's record is in the repository: its pointer names a `true`
+/// verdict under `/measurements/<requirement>`, its time is the time that
+/// entry states and the start of the attempt the entry names, and the record
+/// passed as a whole.
+#[test]
+fn every_measurement_row_resolves_in_its_record() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    for row in GUEST_MEASUREMENTS {
+        let (path, pointer) = row.record.split_once('#').expect("path#pointer");
+        let bytes = std::fs::read(root.join(path)).unwrap_or_else(|e| panic!("{path}: {e}"));
+        let record: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(
+            record.pointer(pointer),
+            Some(&serde_json::Value::Bool(true)),
+            "{}",
+            row.record
+        );
+        let entry_pointer = pointer
+            .strip_suffix("/verdict")
+            .expect("a row points at a verdict");
+        assert_eq!(entry_pointer, format!("/measurements/{}", row.requirement));
+        let entry = record.pointer(entry_pointer).unwrap();
+        assert_eq!(entry["measured_at"], row.measured_at, "{}", row.record);
+        let capability = entry["capability"].as_str().expect("capability name");
+        let attempt = &record["results"][capability];
+        assert_eq!(attempt["started_at"], row.measured_at, "{}", row.record);
+        assert_eq!(attempt["attempt_id"], entry["attempt_id"], "{}", row.record);
+        assert_eq!(record["summary"][capability], true, "{}", row.record);
+        assert_eq!(record["summary"]["outcome"], "PASS");
+    }
 }
 
 /// The table is the one source of `available`: a listed requirement answers
