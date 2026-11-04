@@ -9,7 +9,8 @@ remain in place. This does not establish an external-only both-lost residual.
 ## Results
 
 The final measurements are summarized in [summary.json](summary.json); raw guest records are
-retained in [guest-evidence.tar.gz](guest-evidence.tar.gz). Every independent process snapshot precedes
+retained in [guest-evidence.tar.gz](https://github.com/monocursive/ukai/releases/download/evidence%2Fmacos-custody-spike-2026-11-01/macos-custody-spike-2026-11-01-guest-evidence.tar.gz) (a release asset over the evidence
+store's 5 MiB limit; [bundle.json](bundle.json) names its SHA-256). Every independent process snapshot precedes
 harness cleanup. A positive result describes only the recorded fixture and
 configuration, not the complete acceptance row.
 
