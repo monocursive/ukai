@@ -456,12 +456,26 @@ def stop_attempt(account, infrastructure, budget=STOP_BUDGET):
     unit the manager started while the first kill landed. Raises
     [`AttemptTreeUnverified`] past the budget: a warm reset must never run
     alongside surviving workload processes, and the caller powers the guest
-    off."""
+    off.
+
+    Returns the stop's report, which `done` carries to the host: the
+    boundaries it covered, every stray it killed, and, as the witness of the
+    guest jail's own tree termination, what it found BEFORE signalling
+    anything. The stop runs after the guest jail has exited and verified its
+    tree, so a boundary still populated or a live process of the account at
+    that moment survived the guest jail. `strays_killed` alone is no such
+    witness: the boundaries' `cgroup.kill` records nothing of what it ends."""
     if infrastructure is None:
         raise AttemptTreeUnverified('no infrastructure was learned for this session')
     uid = account.pw_uid
     deadline = clock() + budget
     killed = {}
+    before = attempt_boundaries(uid, infrastructure.units)
+    witness = {
+        'populated_before_kill': [str(target.relative_to(CGROUP_ROOT)) for target in before
+                                  if cgroup_populated(target)],
+        'live_before_kill': sorted([pid, cgroup] for pid, _, cgroup in stray_processes(uid, infrastructure.pids)),
+    }
     while True:
         notify()
         targets = attempt_boundaries(uid, infrastructure.units)
@@ -476,9 +490,10 @@ def stop_attempt(account, infrastructure, budget=STOP_BUDGET):
             killed.setdefault(pid, cgroup)
         populated = [target for target in targets if cgroup_populated(target)]
         if not populated and not strays:
-            audit('workload_tree_empty', boundaries=[str(target.relative_to(CGROUP_ROOT)) for target in targets],
-                  strays_killed=sorted([pid, cgroup] for pid, cgroup in killed.items()))
-            return targets
+            report = {'boundaries': [str(target.relative_to(CGROUP_ROOT)) for target in targets],
+                      'strays_killed': sorted([pid, cgroup] for pid, cgroup in killed.items()), **witness}
+            audit('workload_tree_empty', **report)
+            return report
         if clock() >= deadline:
             detail = {'populated': [str(target) for target in populated],
                       'strays': [[pid, cgroup] for pid, _, cgroup in strays],
@@ -1044,9 +1059,11 @@ def main():
         outer-wall backstop). Kill and verify every boundary the attempt can
         occupy, reap the supervisor, remove the attempt's staged files —
         each bounded, each failure a named poweroff rather than a starved
-        watchdog."""
+        watchdog. Returns the stop's report (stop_attempt), which `done`
+        carries."""
+        report = None
         try:
-            stop_attempt(account, infrastructure)
+            report = stop_attempt(account, infrastructure)
             drop_attempt_cgroups(account.pw_uid)
             reap(process)
         except (AttemptTreeUnverified, OSError, ValueError) as error:
@@ -1057,6 +1074,7 @@ def main():
         except OSError as error:
             audit('attempt_files_not_cleared', error=type(error).__name__)
             poweroff('attempt_files_not_cleared')
+        return report
 
     def discard_attempt():
         """Closes one attempt's streams and counters, after its tree has
@@ -1240,11 +1258,14 @@ def main():
                 except Refusal as refusal:
                     poweroff(refusal.reason)
         if process is not None and process.poll() is not None and stream_count == 0:
+            stop = None
             if in_session:
                 # The tree goes before anything is read back, and the staged
                 # values with it: nothing the attempt left runs on, and no
-                # value outlives the attempt that `done` reports.
-                end_attempt()
+                # value outlives the attempt that `done` reports. The stop's
+                # report travels with `done`: the host checks the guest
+                # jail's own tree verdict against it.
+                stop = end_attempt()
             # Only regular files are transported. Never dereference guest links.
             count = 0
             total = 0
@@ -1274,7 +1295,8 @@ def main():
                               'executable': bool(info.st_mode & 0o111), 'data': base64.b64encode(payload).decode()})
             if in_session and binding is None:
                 raise ValueError('missing bound jail receipt')
-            send({'event': 'done', 'exit_code': process.returncode, **({'binding': binding} if in_session else {})})
+            send({'event': 'done', 'exit_code': process.returncode,
+                  **({'binding': binding, 'stop': stop} if in_session else {})})
             audit('done', exit_code=process.returncode)
             if not in_session:
                 # No new run and no reboot/resume. Host tears down this VM.

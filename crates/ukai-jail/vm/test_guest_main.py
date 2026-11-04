@@ -111,6 +111,7 @@ class PreviewOpTests(unittest.TestCase):
         done = guest.expect('done')
         self.assertEqual(done['exit_code'], 3)
         self.assertNotIn('binding', done)
+        self.assertNotIn('stop', done, 'the single-run preview has no warm stop to report')
         exported = {(f['group'], f['path']) for f in done['_seen'] if f['event'] == 'file'}
         self.assertIn(('workspace', 'out.txt'), exported)
         self.assertIn(('workspace', 'dir/input.sh'), exported)
@@ -250,10 +251,25 @@ class AttemptStopTests(unittest.TestCase):
         guest = GuestHarness(self, scenarios=[complete(leftover='app.slice/run-u7.service')])
         guest.session()
         guest.run2()
-        guest.expect('done')
+        done = guest.expect('done')
         leftovers = guest.kernel.alive_in(f'{guest.kernel.delegated}/app.slice/run-u7.service')
         self.assertEqual(leftovers, [], 'an escaped daemon outlived the attempt that reported done')
         self.assert_infrastructure_alive(guest)
+        # `done` tells the host the guest jail left it: the host refuses
+        # the jail's own tree_empty on that report.
+        unit = f'{guest.kernel.delegated}/app.slice/run-u7.service'
+        populated = done['stop']['populated_before_kill']
+        self.assertTrue(any(unit == b or unit.startswith(b + '/') for b in populated), populated)
+        self.assertEqual([cgroup for _, cgroup in done['stop']['live_before_kill']], ['/' + unit])
+
+    def test_a_clean_completion_carries_an_empty_stop_witness_with_done(self):
+        guest = GuestHarness(self, scenarios=[complete()])
+        guest.session()
+        guest.run2()
+        stop = guest.expect('done')['stop']
+        self.assertEqual(sorted(stop), ['boundaries', 'live_before_kill', 'populated_before_kill', 'strays_killed'])
+        self.assertEqual((stop['populated_before_kill'], stop['live_before_kill'], stop['strays_killed']),
+                         ([], [], []))
 
     def test_reset_kills_a_stray_under_the_user_manager(self):
         guest = GuestHarness(self)

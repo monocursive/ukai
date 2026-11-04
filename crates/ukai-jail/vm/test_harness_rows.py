@@ -411,7 +411,9 @@ class WarmLiveTables(unittest.TestCase):
                 'stdout': f'git_write_refused-{index}\n' + probe_line(f'{T}-{index}') + f'\nout-{index}\n',
                 'host_write': f'warm-{index}-{T}\n', 'git_config_after': warm_live.SENTINEL,
                 'probe': harness.probe_verdict(probe_line(f'{T}-{index}'), f'{T}-{index}'),
-                'receipt_network': 'none', 'timings_ms': {'connect_to_released': 15.0}})
+                'receipt_network': 'none', 'timings_ms': {'connect_to_released': 15.0},
+                'guest_stop': {'boundaries': ['ukai-attempts.slice/attempt-1'], 'populated_before_kill': [],
+                               'live_before_kill': [], 'strays_killed': []}})
         return records
 
     def route(self, **changes):
@@ -422,7 +424,7 @@ class WarmLiveTables(unittest.TestCase):
         return value
 
     def judge(self, records, **kwargs):
-        options = dict(budget_ms=1000.0, status={'guest_nat': True}, service_exit=0,
+        options = dict(budget_ms=1000.0, status={'guest_nat': True, 'ready': True}, service_exit=0,
                        git_config_text=warm_live.SENTINEL, route=self.route())
         options.update(kwargs)
         return warm_live.judge(records, T, **options)[1]
@@ -457,12 +459,27 @@ class WarmLiveTables(unittest.TestCase):
             ('a receipt bound to another attempt', at(4, receipt_bound=False), 'every_receipt_verified'),
             ('receipt network not none', at(4, receipt_network='proxy'), 'every_receipt_network_none'),
             ('nineteen runs', self.good(19), 'k108_twenty_runs'),
+            ('a done without the guest stop', at(6, guest_stop=None), 'every_guest_stop_found_nothing_left'),
+            ('a boundary populated after the guest jail', at(6, guest_stop={
+                'boundaries': ['app.slice'], 'populated_before_kill': ['app.slice'], 'live_before_kill': [],
+                'strays_killed': []}), 'every_guest_stop_found_nothing_left'),
+            ('a live account process after the guest jail', at(6, guest_stop={
+                'boundaries': [], 'populated_before_kill': [], 'live_before_kill': [[9, '/user.slice/s']],
+                'strays_killed': []}), 'every_guest_stop_found_nothing_left'),
+            ('a stray the guest stop killed', at(6, guest_stop={
+                'boundaries': [], 'populated_before_kill': [], 'live_before_kill': [],
+                'strays_killed': [[9, None]]}), 'every_guest_stop_found_nothing_left'),
         ]
         for name, records, gate in table:
             with self.subTest(name):
                 verdict = self.judge(records)
                 self.assertEqual(verdict['outcome'], 'FAIL')
                 self.assertIn(gate, verdict['failed'])
+
+    def test_a_serve_that_was_warm_but_not_ready_fails(self):
+        verdict = self.judge(self.good(), status={'guest_nat': True, 'warm': True, 'ready': False})
+        self.assertEqual(verdict['outcome'], 'FAIL')
+        self.assertIn('service_ready_before_the_first_attempt', verdict['failed'])
 
     def test_first_attempt_plus_one_second_is_not_the_budget(self):
         # The old reading: initial 14.9 ms, so anything up to 1014.9 ms passed.
@@ -673,7 +690,7 @@ def control(server):
         stream, _ = server.accept()
         for request in lines(stream):
             if request['op'] == 'status':
-                send(stream, event='status', boot_id=boot, warm=True, attempt_live=False,
+                send(stream, event='status', boot_id=boot, warm=True, ready=True, attempt_live=False,
                      guest_nat='--guest-nat' in args, live_workspace=str(workspace))
             elif request['op'] == 'stop':
                 send(stream, event='stopping')
@@ -703,7 +720,7 @@ def attempt(server):
             text = 'UKAI_ROUTE_CONTROL ' + json.dumps(line) + '\n'
             send(stream, event='stdout', data=base64.b64encode(text.encode()).decode())
             stream.sendall((json.dumps(bound_receipt(prepare, boot, 'guest-1', {'applied': {'network': {'mode': 'proxy'}}})) + '\n').encode())
-            send(stream, event='done', exit_code=0)
+            send(stream, event='done', exit_code=0, stop={'boundaries': ['ukai-attempts.slice/attempt-1'], 'populated_before_kill': [], 'live_before_kill': [], 'strays_killed': []})
             stream.close()
             count += 1
             continue
@@ -719,7 +736,7 @@ def attempt(server):
         if mode == 'unbound' and index == '6':
             frame['binding']['attempt_id'] = 'warm-6-someone-else'
         stream.sendall((json.dumps(frame) + '\n').encode())
-        send(stream, event='done', exit_code=0)
+        send(stream, event='done', exit_code=0, stop={'boundaries': ['ukai-attempts.slice/attempt-1'], 'populated_before_kill': [], 'live_before_kill': [], 'strays_killed': []})
         stream.close()
         count += 1
 
@@ -885,7 +902,7 @@ def control(server):
         stream, _ = server.accept()
         request = next(frames(stream))
         if request['op'] == 'status':
-            send(stream, event='status', boot_id=boot, warm=True, attempt_live=state['live'],
+            send(stream, event='status', boot_id=boot, warm=True, ready=True, attempt_live=state['live'],
                  guest_nat='--guest-nat' in args and not os.environ.get('FAKE_NO_NAT'))
             stream.close()
         else:

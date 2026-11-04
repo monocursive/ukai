@@ -482,6 +482,13 @@ covered by unit and model tests only (stand-in guests and the guest
 controller's model); none of it has run on a booted guest, and live
 verification is pending.
 
+The serve's `status` reports `warm` from the boot's start (the VZ client
+alive and no stop requested) and `ready` once the guest's session handshake
+completed and its kernel is known: only then does an attempt that connects
+run on a booted guest. The harnesses wait for `ready` before their first
+attempt; on 2026-11-04 they waited for `warm`, and the first attempt of each
+warm run waited out the guest's 40 s boot.
+
 Whether `run --vm` reuses a serving `ukai-vm` or spawns one, it checks the
 serve's status the same way: a live share of exactly this workspace and, for
 a proxied policy, the NAT adapter. It keeps the boot id that status
@@ -524,10 +531,29 @@ the stop (the audit lists it in `strays_killed`), and one that survives
 the budget does, as does a cgroup that stays populated (the audit lists
 its `members`). It bounds the supervisor reap at 1 s; every wait feeds the
 guest watchdog. On failure the guest powers off with
-`attempt_tree_unverified`. **The learned set has not been confirmed on a
-booted guest**: on a Linux development host running systemd 259 the
-learning found exactly `systemd --user`, `(sd-pam)` and `dbus-daemon`
-(commit `6c1f11852`; no evidence file is retained). The attempt's staged
+`attempt_tree_unverified`. On a Linux development host running systemd 259
+the learning found exactly `systemd --user`, `(sd-pam)` and `dbus-daemon`
+(commit `6c1f11852`; no evidence file is retained), and on a booted guest
+the 2026-11-04 stop audit's learning found one manager, one helper and the
+bus in `session.slice/dbus.service`, and every stop it recorded found
+nothing to kill
+([record](../../../docs/benchmarks/jail/results/macos-vm-live-2026-11-04/README.md)).
+The stop's kill paths have not run on a booted guest.
+
+Before it signals anything, the stop records what it finds: the cgroups
+still populated (`populated_before_kill`) and the account's live processes
+outside the infrastructure (`live_before_kill`). It runs after the guest
+jail exited and verified its own tree, so either list non-empty means
+something survived the guest jail; `strays_killed` alone cannot say so,
+because `cgroup.kill` records nothing of what it ends. A warm attempt's
+`done` carries the stop's report as `stop`, the serve relays it unchanged,
+and `ukai-jail run --vm` settles nothing (the attempt ends unknown, with no
+relayed outcome and no transport record) when `done` has no `stop` or any
+of those three lists is non-empty. A clean stop's cgroups go in the
+transport record as `guest_stop_boundaries`. `warm_live.py` requires a
+clean stop on every attempt. This is covered by unit and model tests
+(stand-in guests and the guest controller's model); no booted guest has
+sent the report yet. The attempt's staged
 values and launch profile are removed at every stop and poweroff. The
 named poweroffs new in this wave are `attempt_tree_unverified`,
 `attempt_files_not_cleared`, `infrastructure_unknown`,
@@ -536,8 +562,9 @@ name already present, a link included, or an unwritable directory: never
 written through) and `launch_without_toml`; the serve names a guest that
 powered itself off from its console (`guest poweroff: <reason>`).
 
-None of the attempt stop or the named poweroffs above has run on a booted
-guest yet. They are covered by unit and model tests, plus real-`/proc`
+Beyond the 2026-11-04 stop audit's clean stops (which killed nothing), none
+of the attempt stop's kill paths or the named poweroffs above has run on a
+booted guest. They are covered by unit and model tests, plus real-`/proc`
 tests of the pidfd kill and the zombie-leader read on a Linux host
 (`test_guest_warm.RealProcTests`, skipped elsewhere), and live
 verification is pending.

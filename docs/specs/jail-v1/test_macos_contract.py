@@ -471,7 +471,8 @@ class MacosContract(unittest.TestCase):
                              "`nosuid,nodev`", "`init.scope`", "`test_guest_main.py`",
                              "`guest_harness.py`", "`test_custodian.py`",
                              "covered by unit and model tests only",
-                             "been confirmed on a booted guest",
+                             "kill paths have not run on a booted guest",
+                             "`populated_before_kill`" if path == "vm/README.md" else "verified its own tree",
                              # Round 4: the learned stop, the serve binding,
                              # standard input, exit, policy digest, summary.
                              "`infrastructure_unknown`", "`strays_killed`", "`members`",
@@ -499,7 +500,8 @@ class MacosContract(unittest.TestCase):
         paragraphs = [" ".join(p.split()) for p in read("crates/ukai-jail/vm/README.md").split("\n\n")]
         for marker, hedge in [("powers off with `live_share_mount_failed`. The guest's", "unit and model tests only"),
                               ("`<data>/vm/serve-failed.stderr`", "not against a real serve"),
-                              ("**The attempt stop (decision D6).**", "has not been confirmed on a booted guest"),
+                              ("**The attempt stop (decision D6).**", "kill paths have not run on a booted guest"),
+                              ("`populated_before_kill`", "no booted guest has sent the report yet"),
                               ("gives 128 + s", "none has run against a booted guest"),
                               ("is summarized as itself", "not yet on a new run")]:
             with self.subTest(paragraph=marker):

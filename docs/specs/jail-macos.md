@@ -1257,8 +1257,13 @@ published, and it carries only `ukai-vm` and `ukai-vm-install`: no macOS
 tested at the CLI against a fabricated installation (`vm_tier.rs`) and in
 unit tests; the guest-side behavior (attempt stop, mandatory share, named
 poweroffs) is covered by unit and model tests and, for the pidfd kill and
-the zombie-leader read, real-`/proc` tests on a Linux host only. None of it
-has run on a booted guest yet; live verification is pending.
+the zombie-leader read, real-`/proc` tests on a Linux host only. On
+2026-11-04 a booted guest (development evidence,
+[record](../benchmarks/jail/results/macos-vm-live-2026-11-04/README.md))
+ran the session's infrastructure learning, attempt stops that found nothing
+to kill, the mandatory share and one `live_share_mount_failed` poweroff.
+The stop's kill paths, its pre-kill report and the other named poweroffs
+have not run on a booted guest; live verification is pending.
 
 - **Probe (D2).** `owner_loss_termination` always answers
   `vm:owner-loss-not-provided`: the guest's wall is a deadline, not an
@@ -1428,8 +1433,9 @@ has run on a booted guest yet; live verification is pending.
   is checked against `/proc` and pinned by pid and start time (a manager
   without a helper is accepted; two candidate helpers fail the learning);
   nothing a process says about itself makes it infrastructure. If the
-  learning fails, the guest powers off with `infrastructure_unknown`. The
-  learned set has not been confirmed on a booted guest. The stop kills every
+  learning fails, the guest powers off with `infrastructure_unknown`. On a
+  booted guest (2026-11-04 stop audit) the learning found exactly those
+  three; the stop's kill paths have not run on a booted guest. The stop kills every
   `ukai-attempts.slice/attempt-*` cgroup and every cgroup under the user
   manager that neither is nor holds one of those units (walking into the
   units' own sub-cgroups), and kills by pidfd every other live process of
@@ -1445,7 +1451,14 @@ has run on a booted guest yet; live verification is pending.
   bounded at 1 s, and every wait feeds the guest watchdog. A failure powers
   the guest off with `attempt_tree_unverified`, and its audit lists each
   populated cgroup's `members`; a successful stop's audit lists
-  `strays_killed`. The attempt's files (staged values and launch profile)
+  `strays_killed`. Before it signals anything, the stop records the cgroups
+  still populated and the account's live processes outside the
+  infrastructure. It runs after the guest jail exited and verified its own
+  tree, so anything in either list survived the guest jail (`strays_killed`
+  cannot say so: `cgroup.kill` records nothing of what it ends). A warm
+  attempt's `done` carries the report, and the host settles nothing when
+  `done` has none or any of the three lists is non-empty: the guest
+  receipt's `tree_empty` is then unchecked or contradicted. The attempt's files (staged values and launch profile)
   are removed at every stop and every poweroff; failing to remove them at a
   stop powers off with `attempt_files_not_cleared`.
 - **Mandatory share (D7).** A guest booted with a virtio-fs device whose

@@ -198,6 +198,10 @@ struct GuestEvent {
     message: Option<String>,
     #[serde(default)]
     binding: Option<protocol::ReceiptBinding>,
+    /// D6: the guest controller's stop of a warm attempt, carried by `done`;
+    /// relayed as the guest reported it, and judged by the client.
+    #[serde(default)]
+    stop: Option<protocol::GuestStop>,
     /// D7: whether the guest mounted the live workspace share (`ready` and
     /// `session` state it).
     #[serde(default)]
@@ -681,31 +685,39 @@ fn serve_control(service: &Service, listener: &UnixListener, idle_seconds: u64) 
         };
         let manifest = &service.install.manifest;
         let reply = match request {
-            protocol::ToControl::Status => protocol::FromControl::Status {
-                schema: protocol::SCHEMA_CONTROL.to_owned(),
-                boot_id: service.boot_id.clone(),
-                warm: service.shared.helper_alive.load(AtomicOrdering::SeqCst)
-                    && !service.shared.stopping.load(AtomicOrdering::SeqCst),
-                attempt_live: service.shared.attempt_live.load(AtomicOrdering::SeqCst),
-                kernel: SHARED_GUEST_KERNEL.lock().ok().and_then(|g| g.clone()),
-                disk_sha256: manifest.disk_sha256.clone(),
-                helper_sha256: manifest.helper_sha256.clone(),
-                custodian_sha256: manifest.custodian_sha256.clone(),
-                seed_sha256: manifest.seed_sha256.clone(),
-                vsock_port: GUEST_PORT,
-                idle_seconds,
-                live_workspace: service
-                    .live_share
-                    .as_ref()
-                    .map(|(path, _)| path.display().to_string()),
-                live_workspace_facts: service.live_share.as_ref().map(|(_, facts)| {
-                    protocol::LiveShareFacts {
-                        case_fold: facts.case_fold,
-                        normalization_fold: facts.normalization_fold,
-                    }
-                }),
-                guest_nat: service.guest_nat,
-            },
+            protocol::ToControl::Status => {
+                let warm = service.shared.helper_alive.load(AtomicOrdering::SeqCst)
+                    && !service.shared.stopping.load(AtomicOrdering::SeqCst);
+                // The kernel is set once the session handshake completed: the
+                // guest booted, its controller answered, and the next attempt
+                // runs without waiting for a boot (`warm` holds from the start).
+                let kernel = SHARED_GUEST_KERNEL.lock().ok().and_then(|g| g.clone());
+                protocol::FromControl::Status {
+                    schema: protocol::SCHEMA_CONTROL.to_owned(),
+                    boot_id: service.boot_id.clone(),
+                    warm,
+                    ready: warm && kernel.is_some(),
+                    attempt_live: service.shared.attempt_live.load(AtomicOrdering::SeqCst),
+                    kernel,
+                    disk_sha256: manifest.disk_sha256.clone(),
+                    helper_sha256: manifest.helper_sha256.clone(),
+                    custodian_sha256: manifest.custodian_sha256.clone(),
+                    seed_sha256: manifest.seed_sha256.clone(),
+                    vsock_port: GUEST_PORT,
+                    idle_seconds,
+                    live_workspace: service
+                        .live_share
+                        .as_ref()
+                        .map(|(path, _)| path.display().to_string()),
+                    live_workspace_facts: service.live_share.as_ref().map(|(_, facts)| {
+                        protocol::LiveShareFacts {
+                            case_fold: facts.case_fold,
+                            normalization_fold: facts.normalization_fold,
+                        }
+                    }),
+                    guest_nat: service.guest_nat,
+                }
+            }
             protocol::ToControl::Stop => {
                 service.shared.stopping.store(true, AtomicOrdering::SeqCst);
                 STOP.store(true, AtomicOrdering::SeqCst);
@@ -1086,7 +1098,13 @@ fn relay_attempt(
                         binding: frame.binding.ok_or("guest omitted receipt binding")?,
                     },
                 )?;
-                send(stream, &protocol::FromVm::Done { exit_code })?;
+                send(
+                    stream,
+                    &protocol::FromVm::Done {
+                        exit_code,
+                        stop: frame.stop.clone(),
+                    },
+                )?;
                 return Ok(());
             }
             "error" => {

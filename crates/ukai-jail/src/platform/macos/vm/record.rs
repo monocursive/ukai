@@ -60,6 +60,11 @@ pub struct TransportRecord {
     /// The SHA-256 of the stored guest receipt bytes, lowercase hex: the
     /// record's only claim about the receipt, which the host verified.
     pub guest_receipt_sha256: String,
+    /// The cgroups the guest controller's own stop covered (decision D6),
+    /// as `done` reported them. The host writes a record only for a stop
+    /// that found nothing the guest jail left behind in any of them.
+    #[serde(default)]
+    pub guest_stop_boundaries: Vec<String>,
 }
 
 impl TransportRecord {
@@ -91,6 +96,7 @@ impl TransportRecord {
             host_wall_started: host_wall_started.into(),
             elapsed_seconds,
             guest_receipt_sha256: guest_receipt_sha256.into(),
+            guest_stop_boundaries: Vec::new(),
         }
     }
 

@@ -2129,6 +2129,7 @@ impl PreparedExecution for VmExecution {
             inner: execution,
             receipt: None,
             guest: None,
+            stop: None,
             finished: false,
             failed: false,
         }))
@@ -2147,8 +2148,31 @@ struct VmRunning {
     /// What the verified guest receipt reports the guest jail applied, for
     /// the host receipt to mirror (decision D5).
     guest: Option<GuestFacts>,
+    /// The guest controller's own stop of the attempt, once `done` carried
+    /// one that found nothing the guest jail left behind (decision D6).
+    stop: Option<protocol::GuestStop>,
     finished: bool,
     failed: bool,
+}
+
+/// The guest controller's stop that `done` carried (decision D6), accepted
+/// only when it found nothing the guest jail left behind. It ran outside the
+/// guest jail, after the jail exited and verified its own tree, so a
+/// boundary still populated or a live process of the workload account then
+/// contradicts the receipt's `tree_empty`; a `done` without one leaves that
+/// claim unchecked. Either way the host settles nothing as clean.
+fn checked_guest_stop(stop: Option<protocol::GuestStop>) -> Result<protocol::GuestStop, String> {
+    let stop = stop.ok_or(
+        "the guest reported `done` without its own stop of the attempt, so the guest jail's \
+         tree_empty has no check outside the jail",
+    )?;
+    if let Some(survivors) = stop.survivors() {
+        return Err(format!(
+            "the guest controller's own stop found what the guest jail left behind \
+             ({survivors}): the guest receipt's tree_empty is contradicted"
+        ));
+    }
+    Ok(stop)
 }
 
 impl VmRunning {
@@ -2410,7 +2434,7 @@ impl VmRunning {
         }
         let bytes = std::fs::read(self.inner.attempt_dir.join("evidence/jail.json"))
             .map_err(|e| format!("guest evidence read failed: {e}"))?;
-        let record = record::TransportRecord::new(
+        let mut record = record::TransportRecord::new(
             self.inner.attempt_id.clone(),
             self.inner.boot_id.clone(),
             self.inner.guest_kernel.clone(),
@@ -2422,6 +2446,11 @@ impl VmRunning {
             self.inner.started.elapsed().as_secs_f64(),
             image::hex(&sha2::Sha256::digest(&bytes)),
         );
+        record.guest_stop_boundaries = self
+            .stop
+            .as_ref()
+            .map(|stop| stop.boundaries.clone())
+            .ok_or("no checked guest stop")?;
         record
             .write_in(&self.inner.attempt_dir)
             .map_err(|e| format!("transport record write failed: {e}"))
@@ -2536,8 +2565,15 @@ impl VmRunning {
                 protocol::FromVm::Error { message } => {
                     return RunEvent::Unknown { reason: message };
                 }
-                protocol::FromVm::Done { exit_code } => {
+                protocol::FromVm::Done { exit_code, stop } => {
                     self.finished = true;
+                    match checked_guest_stop(stop) {
+                        Ok(stop) => self.stop = Some(stop),
+                        Err(reason) => {
+                            self.failed = true;
+                            return RunEvent::Unknown { reason };
+                        }
+                    }
                     let event = match self.relayed_outcome(exit_code) {
                         Ok(event) => event,
                         Err(reason) => {

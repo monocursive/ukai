@@ -18,6 +18,13 @@ the target, so the N denials are the jail's and not a guest without a route
 (harness.network_denial). The route control is not one of the N and is not
 timed for K108.
 
+Every attempt's `done` must carry the guest controller's own stop (D6),
+which ran outside the guest jail after it exited, and that stop must have
+found nothing left behind. The harness starts the N attempts only once the
+serve reports `ready` (the guest booted and its session opened): `warm`
+alone holds from the boot's start, which made the 2026-11-04 first attempts
+wait out a 40 s boot.
+
 K108 (jail-macos §9.3): "a second attempt in a running guest is released
 within initial 1 s of the guest jail's own release time, over 20 runs".
 `initial` is the spec's tunable-default keyword (§0), so the budget is 1 s
@@ -79,7 +86,16 @@ def attempt_facts(record, tag):
         'protected_git_unchanged': record.get('git_config_after') == SENTINEL,
         'probe_saw_the_jails_denial': record['probe']['denied'],
         'receipt_network_none': record.get('receipt_network') == 'none',
+        'guest_stop_found_nothing_left': guest_stop_clean(record.get('guest_stop')),
     }
+
+
+def guest_stop_clean(stop):
+    """The guest controller's own stop (D6) ran and found nothing the guest
+    jail left behind: no boundary populated and no live account process
+    before it signalled anything, and no stray it had to kill."""
+    return (isinstance(stop, dict)
+            and all(stop.get(key) == [] for key in ('populated_before_kill', 'live_before_kill', 'strays_killed')))
 
 
 def route_control(service, tag):
@@ -129,6 +145,7 @@ GATES = ('warm_reuse_one_serve_boot', 'warm_reuse_one_guest_boot', 'every_attemp
          'every_attempt_saw_the_jails_denial', 'guest_nat_attached', 'route_control_reached_the_target',
          'route_control_on_the_same_guest_boot', 'route_control_receipt_bound',
          'every_attempt_network_denied', 'every_receipt_network_none',
+         'every_guest_stop_found_nothing_left', 'service_ready_before_the_first_attempt',
          'k108_every_attempt_within_budget', 'k108_twenty_runs', 'service_stopped_cleanly')
 
 
@@ -166,6 +183,11 @@ def judge(results, tag, budget_ms, status, service_exit, git_config_text, route,
         'route_control_receipt_bound': bool(denials) and all(d['route_control_receipt_bound'] for d in denials),
         'every_attempt_network_denied': bool(denials) and all(all(d.values()) for d in denials),
         'every_receipt_network_none': all(f['receipt_network_none'] for f in per_attempt),
+        'every_guest_stop_found_nothing_left': bool(per_attempt) and all(
+            f['guest_stop_found_nothing_left'] for f in per_attempt),
+        # harness.Service waits for `ready` (the guest's session open), so no
+        # timed attempt waits out the boot; the status it saw is recorded.
+        'service_ready_before_the_first_attempt': (status or {}).get('ready') is True,
         'k108_client': PYTHON_CLIENT,
         'k108_measure': 'connect->released per attempt, including the guest jail\'s own release',
         'k108_budget_ms': budget_ms,
