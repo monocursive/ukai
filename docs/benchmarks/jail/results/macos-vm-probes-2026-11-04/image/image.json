@@ -1,0 +1,25 @@
+{
+  "schema": "ukai.vm.image-build/1",
+  "status": "prepared",
+  "image_url": "https://cloud-images.ubuntu.com/minimal/releases/resolute/release-20261009/ubuntu-26.04-minimal-cloudimg-arm64.img",
+  "image_sha256": "4e86a7819b4cc7b4a9c2e719dec3e0a723c4a2788dc3f23f17641cba7f5ca216",
+  "jail_url": "https://github.com/monocursive/ukai/releases/download/ukai-jail-v0.1.0-rc.5/ukai-jail-0.1.0-rc.5-aarch64-unknown-linux-gnu.tar.gz",
+  "jail_archive_sha256": "2af9d2ef48ec12c4072822b6b6dca3cb867ee8fb0054c9e142d4e86a0221a752",
+  "apt_snapshot": "20261020T000000Z",
+  "apt_snapshot_url": "https://snapshot.ubuntu.com/ubuntu/20261020T000000Z",
+  "source_sha256": {
+    "guest.py": "7576bc563598b45804af384bd33518430d4159cfbe17b8698b97da0effb5f2e5",
+    "vz.swift": "d1d3c87ad70bf770ab0d9c1f250fe2f64b5baee162f2b28dcf3f2cb89f0df32a",
+    "custodian.c": "d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab",
+    "prepare.py": "22372325c12ebe06399a8008bc630c1542f5224d2cc3b2c1f806c131577aa11d"
+  },
+  "guest_pinned_versions": [
+    "bubblewrap=0.11.1-1ubuntu0.3",
+    "dbus-user-session=1.16.2-2ubuntu4"
+  ],
+  "guest_pinned_digest": "26faa9a3062fc7b1eb983b97fa4630043c551d50e21ee78904d55a13231bf038",
+  "disk_sha256": "16867bb42f943d64576bed35acf3416a9056e0e1f80a18b099b1b967ca78f484",
+  "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+  "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+  "seed_sha256": "3db28d5cb7307283fca6388739409a77300a0b3e214abe9515158e207ef65d05"
+}

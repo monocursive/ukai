@@ -1254,20 +1254,26 @@ fn request(snapshot: PolicySnapshot) -> PlanRequest {
     }
 }
 
-/// The requirements the 2026-11-04 live phase measured alone
-/// (`macos-vm-live-2026-11-04/capabilities.json`), in the record's order.
-const LIVE_MEASURED: [&str; 5] = [
+/// The requirements the 2026-11-04 evening live phase measured, each by its
+/// own attempts (`macos-vm-probes-2026-11-04/capabilities.json`), in the
+/// record's order.
+const LIVE_MEASURED: [&str; 10] = [
     "limit:wall",
     "limit:pids",
     "limit:mem",
     "filesystem_containment",
     "network_none",
+    "tree_termination",
+    "closed_set_observation",
+    "syscall_filter",
+    "protected_coverage:existing_and_root",
+    "network_proxy",
 ];
 
-/// Decision D2: exactly the requirements the live phase measured alone
-/// answer available, with their row's time and pointer. Every other row of a
-/// carried policy is `vm:not-measured`, `tree_termination` among them, so a
-/// carried `run --vm` still refuses at probing.
+/// Decision D2: exactly the requirements the live phase measured answer
+/// available, with their row's time and pointer. Every requirement of a
+/// default `tool` or `agent` plan is among them, so such a plan passes
+/// probing; any other row of a carried policy is `vm:not-measured`.
 #[test]
 fn only_the_live_phase_measurements_answer_available() {
     let listed: Vec<&str> = GUEST_MEASUREMENTS
@@ -1310,7 +1316,11 @@ fn only_the_live_phase_measurements_answer_available() {
             .iter()
             .find(|row| row.name == "tree_termination")
             .expect("every plan requires tree termination");
-        assert!(!tree.satisfies(), "no probe measures it yet: {tree:?}");
+        assert!(tree.satisfies(), "measured on 2026-11-04: {tree:?}");
+        assert!(
+            rows.iter().all(Capability::satisfies),
+            "a default plan passes probing: {rows:?}"
+        );
     }
     let plan = request(tool());
     assert!(

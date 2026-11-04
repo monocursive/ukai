@@ -9,10 +9,10 @@
 //! platform; a difference refuses with `vm:not-carried:<field>`
 //! ([`policy_refusal`]). The probe answers `available` only for a
 //! requirement a measured guest record backs (decision D2,
-//! [`GUEST_MEASUREMENTS`]). The 2026-11-04 live phase measured five; the
-//! rest (`tree_termination` first) have probes that have not run on a
-//! booted guest, so none is measured and every `tool` or `agent` `run --vm`
-//! still refuses at probing.
+//! [`GUEST_MEASUREMENTS`]). The 2026-11-04 evening live phase measured ten,
+//! every requirement of a default `tool` or `agent` plan, so such a plan
+//! passes probing; `execution_boundary`, `credential_staging` and the
+//! owner-loss bound have no record and still refuse there.
 //!
 //! The transport below is tested with stand-ins. Its guest reports are
 //! checked for consistency and binding; they are not independent host
@@ -581,50 +581,81 @@ pub struct GuestMeasurement {
 /// `unavailable` with `vm:not-measured:<requirement>`. The live phase
 /// re-measures the guest and updates this table, and nothing else.
 ///
-/// Its rows are the 2026-11-04 live phase (`macos-vm-live-2026-11-04/`):
-/// `capabilities.py` measured each requirement alone, by its own attempt, on
-/// one warm boot of an image `prepare.py` built from this tree's guest
-/// sources, through the published guest jail 0.1.0-rc.5. Each row points at
-/// that requirement's verdict and states that attempt's start time; a test
-/// reads the record and checks both. Development evidence: an unsigned
-/// source build on one M2 Pro host, not an installed package.
+/// Its rows are the 2026-11-04 evening live phase
+/// (`macos-vm-probes-2026-11-04/`): `capabilities.py` measured each
+/// requirement by its own attempts, on one warm boot of an image `prepare.py`
+/// built from this tree's guest sources, through the published guest jail
+/// 0.1.0-rc.5. Each row points at that requirement's verdict and states the
+/// start of its first attempt; a test reads the record and checks both.
+/// Development evidence: an unsigned source build on one M2 Pro host, not an
+/// installed package, and one run of each probe.
 ///
-/// A `tool` plan also requires `tree_termination`, `closed_set_observation`,
-/// `syscall_filter` and `protected_coverage:existing_and_root`, and an
-/// `agent` plan the same with `network_proxy` for `network_none`; no live
-/// probe measures any of them yet, so every carried `run --vm` still
-/// refuses at probing. `limit:pids` and `limit:mem` become requirements
-/// only when the operator requires those ceilings. The 2026-11-02 records
-/// (`macos-vm-warm-2026-11-02/`) back nothing: they state no time of
-/// measurement, `wall` could not tell the guest jail's deadline from the
-/// controller's `wall + 10 s` backstop, `pids` passed whatever the limit,
-/// `mem` passed on any OOM kill, `containment` measured writes but not
-/// reads, and `network_none`'s TCP half was vacuous (`/dev/tcp` under dash).
+/// A default `tool` plan requires `tree_termination`,
+/// `closed_set_observation`, `filesystem_containment`, `syscall_filter`,
+/// `network_none` and `protected_coverage:existing_and_root`, and an `agent`
+/// plan the same with `network_proxy` for `network_none`: every one is a row
+/// here, so such a plan passes probing. `limit:pids` and `limit:mem` become
+/// requirements only when the operator requires those ceilings;
+/// `credential_staging` (a launch profile that declares credentials),
+/// `owner_loss_termination` and `execution_boundary` have no row and still
+/// refuse. The morning record of the same day (`macos-vm-live-2026-11-04/`)
+/// measured the first five on an image built from older guest sources, and
+/// the 2026-11-02 records (`macos-vm-warm-2026-11-02/`) back nothing: they
+/// state no time of measurement, `wall` could not tell the guest jail's
+/// deadline from the controller's `wall + 10 s` backstop, `pids` passed
+/// whatever the limit, `mem` passed on any OOM kill, `containment` measured
+/// writes but not reads, and `network_none`'s TCP half was vacuous
+/// (`/dev/tcp` under dash).
 pub const GUEST_MEASUREMENTS: &[GuestMeasurement] = &[
     GuestMeasurement {
         requirement: "limit:wall",
-        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/limit:wall/verdict",
-        measured_at: "2026-11-04T12:50:44Z",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/limit:wall/verdict",
+        measured_at: "2026-11-04T20:32:10Z",
     },
     GuestMeasurement {
         requirement: "limit:pids",
-        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/limit:pids/verdict",
-        measured_at: "2026-11-04T12:51:28Z",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/limit:pids/verdict",
+        measured_at: "2026-11-04T20:32:15Z",
     },
     GuestMeasurement {
         requirement: "limit:mem",
-        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/limit:mem/verdict",
-        measured_at: "2026-11-04T12:51:29Z",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/limit:mem/verdict",
+        measured_at: "2026-11-04T20:32:16Z",
     },
     GuestMeasurement {
         requirement: "filesystem_containment",
-        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/filesystem_containment/verdict",
-        measured_at: "2026-11-04T12:51:29Z",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/filesystem_containment/verdict",
+        measured_at: "2026-11-04T20:32:16Z",
     },
     GuestMeasurement {
         requirement: "network_none",
-        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/network_none/verdict",
-        measured_at: "2026-11-04T12:51:30Z",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/network_none/verdict",
+        measured_at: "2026-11-04T20:32:16Z",
+    },
+    GuestMeasurement {
+        requirement: "tree_termination",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/tree_termination/verdict",
+        measured_at: "2026-11-04T20:32:18Z",
+    },
+    GuestMeasurement {
+        requirement: "closed_set_observation",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/closed_set_observation/verdict",
+        measured_at: "2026-11-04T20:32:34Z",
+    },
+    GuestMeasurement {
+        requirement: "syscall_filter",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/syscall_filter/verdict",
+        measured_at: "2026-11-04T20:32:35Z",
+    },
+    GuestMeasurement {
+        requirement: "protected_coverage:existing_and_root",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/protected_coverage:existing_and_root/verdict",
+        measured_at: "2026-11-04T20:32:36Z",
+    },
+    GuestMeasurement {
+        requirement: "network_proxy",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/network_proxy/verdict",
+        measured_at: "2026-11-04T20:32:37Z",
     },
 ];
 
