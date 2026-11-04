@@ -11,11 +11,13 @@ Current implementation: native execution is **off by default**. Setting
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
 receipts are tested; live development-VM smoke runs also attach and report the
 declared set, without satisfying K105–K107 release qualification.
-`ukai-jail run --vm` is wired to the warm `ukai-vm` service, but every
-attempt still refuses at probing, before any connection or boot: the probe
-answers Available only for a requirement a measured guest record backs, the
-2026-11-04 live phase measured five, and every other requirement,
-`tree_termination` among them, answers `vm:not-measured:<requirement>` (§6).
+`ukai-jail run --vm` is wired to the warm `ukai-vm` service. The probe
+answers Available only for a requirement a measured guest record backs; the
+2026-11-04 evening live phase measured every requirement of a default `tool`
+or `agent` plan, and 20 `tool` runs of a source-built client then settled
+with exit 0 on the spare Mac (development evidence). A plan that also needs
+`execution_boundary` or `credential_staging` still refuses at probing,
+before any connection or boot, with `vm:not-measured:<requirement>` (§6).
 The [2026-11-01 measurement spike](../benchmarks/jail/results/macos-custody-spike-2026-11-01/README.md)
 runs this implementation with live Endpoint Security in an isolated,
 SIP-disabled development VM. It exposes a K90 class-2 blocker: an existing
@@ -95,7 +97,7 @@ The native tier is the intended default after qualification. Today the
 default refuses; the development opt-in does not make it supported. A run
 that needs a kernel-bound lifetime must use a supported Linux deployment or
 the separate released VM preview within its documented limits. `run --vm`
-in this tree refuses at probing until the guest is re-measured (§6).
+in this tree is unqualified: K108–K113 are `untested` (§6).
 
 ## 1. Scope
 
@@ -238,8 +240,9 @@ everyday use:
 
 For the interactive laptop case that the adoption ranking puts first, the
 native tier is what people will use. So the native tier must be honest about
-what it is. The VM backend is wired but unqualified; the current
-`run --vm` path refuses at probing, before any connection or boot (§6).
+what it is. The VM backend is wired but unqualified; a `run --vm` whose
+plan needs an unmeasured requirement refuses at probing, before any
+connection or boot (§6).
 
 ## 4. Native tier: defended custody (J16)
 
@@ -1262,8 +1265,12 @@ the zombie-leader read, real-`/proc` tests on a Linux host only. On
 [record](../benchmarks/jail/results/macos-vm-live-2026-11-04/README.md))
 ran the session's infrastructure learning, attempt stops that found nothing
 to kill, the mandatory share and one `live_share_mount_failed` poweroff.
-The stop's kill paths, its pre-kill report and the other named poweroffs
-have not run on a booted guest; live verification is pending.
+The evening's booted guest
+([record](../benchmarks/jail/results/macos-vm-probes-2026-11-04/README.md))
+sent the stop's pre-kill report on every recorded attempt, each with
+nothing populated, live or killed. The stop's kill paths and the other
+named poweroffs have not run on a booted guest; live verification is
+pending.
 
 - **Probe (D2).** `owner_loss_termination` always answers
   `vm:owner-loss-not-provided`: the guest's wall is a deadline, not an
@@ -1271,13 +1278,19 @@ have not run on a booted guest; live verification is pending.
   the VM platform's one measurement table, `GUEST_MEASUREMENTS`, lists it:
   the requirement, the guest record that measured it inside the guest
   through the jail command `--vm` issues, and that record's own time, which
-  becomes `measured_at`. Its five rows are the 2026-11-04 live phase
-  ([record](../benchmarks/jail/results/macos-vm-live-2026-11-04/README.md)):
+  becomes `measured_at`. Its ten rows are the 2026-11-04 evening live phase
+  ([record](../benchmarks/jail/results/macos-vm-probes-2026-11-04/README.md)):
   `capabilities.py` measured `limit:wall`, `limit:pids`, `limit:mem`,
-  `filesystem_containment` and `network_none` each alone, by its own attempt,
-  on one warm boot of an image `prepare.py` built from this tree, through the
-  published guest jail; development evidence from an unsigned source build on
-  one M2 Pro host. The 2026-11-02 records back nothing: they state no time of
+  `filesystem_containment`, `network_none`, `tree_termination`,
+  `closed_set_observation`, `syscall_filter`,
+  `protected_coverage:existing_and_root` and `network_proxy` each by its own
+  attempts, on one warm boot of an image `prepare.py` built from this tree's
+  guest sources, through the published guest jail 0.1.0-rc.5; development
+  evidence from an unsigned source build on one M2 Pro host, one run of each
+  probe. The morning's record of the same day
+  ([record](../benchmarks/jail/results/macos-vm-live-2026-11-04/README.md))
+  measured the first five on an image built from older guest sources and
+  backs no row now. The 2026-11-02 records back nothing: they state no time of
   measurement, and none of their verdicts measured its requirement alone:
   `wall` cannot tell the guest jail's deadline from the controller's
   `wall + 10 s` backstop, `pids` passes whatever the limit, `mem` passes on
@@ -1285,13 +1298,16 @@ have not run on a booted guest; live verification is pending.
   `network_none`'s TCP half was vacuous (`/dev/tcp` under the guest's
   `dash`). Every requirement the table does not list answers
   `vm:not-measured:<requirement>` (`missing_capability`, remediation
-  `unsupported`). A `tool` plan also requires `tree_termination`,
-  `closed_set_observation`, `syscall_filter` and
-  `protected_coverage:existing_and_root`, and an `agent` plan the same with
-  `network_proxy` for `network_none`. No live probe measures any of them
-  yet, so **every `run --vm` still refuses at probing, before any
-  connection or boot,** with exit 125. `limit:pids` and `limit:mem` become
-  requirements only when the operator requires those ceilings. A policy
+  `unsupported`). A default `tool` plan requires `tree_termination`,
+  `closed_set_observation`, `filesystem_containment`, `syscall_filter`,
+  `network_none`, `protected_coverage:existing_and_root` and the wall, and
+  an `agent` plan the same with `network_proxy` for `network_none`: every
+  one has a row, so such a plan passes probing. A plan that also needs `execution_boundary` (a
+  required `pids`, `mem`, `swap` or `cpu` ceiling) or `credential_staging`
+  (a launch profile that declares credentials) **still refuses at probing,
+  before any connection or boot,** with exit 125: neither has a row.
+  `limit:pids` and `limit:mem` become requirements only when the operator
+  requires those ceilings. A policy
   `--vm` does not carry answers its carry reason on every row but owner
   loss instead (remediation `configuration`).
 - **What `--vm` carries (D1).** Exactly the profile (`tool` or `agent`), the
@@ -1677,7 +1693,7 @@ entitlement that the preview already uses.
 | [jail-interactive-sessions](jail-interactive-sessions.md) §3 (J14) | macOS terminal mode is the pty relay (decision 3). X05 does not hold for macOS terminal runs. | Amendment |
 | jail-v1 §6.1, §6.3 (J18) | `--vm`, `vm stop`, and the kernel-bound lifetime key with its narrowing row and requirement name (§6). | Addition |
 | `crates/ukai-jail` | Default native refusal; development-gated preparation, guardian and launcher modes, and the ES shim. Credential/vendor staging refuses. J17 attaches the declared observer before release; strict startup failure refuses. | Implementation |
-| `crates/ukai-jail/vm` | The warm service, guest controller, package builder and measurement harnesses exist; every `run --vm` still refuses at probing (the 2026-11-04 live phase measured five requirements; `tree_termination` and the four others now have probes in `capabilities.py` that have not run on a booted guest), and K108–K113 stay `untested` (§6). | Implementation |
+| `crates/ukai-jail/vm` | The warm service, guest controller, package builder and measurement harnesses exist; the 2026-11-04 evening live phase measured the ten requirements of a default `tool` or `agent` plan, so such a `run --vm` passes probing (20 source-built `tool` runs settled with exit 0), and K108–K113 stay `untested` (§6). | Implementation |
 | Installer, [RELEASING](../RELEASING.md) | The Mac bundle, provisioning profile and notarization, and the protected-Mac release run. | Procedure |
 | [roadmap](../roadmap.md), [guide](../guide.md) | Record Apple's answer and the two tiers, and explain the native boundary and `--vm`. | Guide |
 
@@ -1782,8 +1798,8 @@ and shipped client, after the K111 receipt fix.
   pressure are not excluded. DTS's notification-overload answer does not
   establish an external-only residual.
   The pre-first-message sequence ambiguity (§4.4) is a separate residual.
-  The VM backend refuses at probing until the guest is re-measured (§6);
-  only the released preview has its own recorded, narrower contract.
+  The VM backend is unqualified (K108–K113 `untested`, §6); only the
+  released preview has its own recorded, narrower contract.
 
 ## 11. Open questions
 

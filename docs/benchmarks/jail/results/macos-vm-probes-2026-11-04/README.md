@@ -31,15 +31,22 @@ probing. What still refuses at probing:
 - the owner-loss bound (`--lifetime kernel-bound`, K112);
 - any policy `--vm` does not carry (`vm:not-carried:<field>`).
 
+With that table, a client built at `5a394456a` ran 20 real
+`ukai-jail run --vm` attempts on one warm boot: each passed probing,
+settled and exited 0 (below). These are the first `run --vm` attempts that
+got past probing.
+
 ## Results
 
 | Harness | Record | Verdict |
 | --- | --- | --- |
 | `capabilities.py` | [capabilities.json](capabilities.json) | **PASS**: all ten requirements measured on one guest boot |
 | `route_diag.py` (one-off, kept here) | [route-diagnosis.json](route-diagnosis.json) | 8 of 8 route controls reached; the morning's route-control failure did not recur |
+| `warm_live.py --ukai-jail` (client at `5a394456a`) | [warm-live.json](warm-live.json), [real-client-attempts/](real-client-attempts/) | **PASS**: every gate on 20 stand-in attempts, and 20 real `ukai-jail run --vm` attempts each exit 0 within the 1 s budget |
 
-`capabilities.py` used the Python stand-in client (`harness.run_attempt`),
-not the `ukai-jail` client.
+`capabilities.py` and `route_diag.py` used the Python stand-in client
+(`harness.run_attempt`), not the `ukai-jail` client. `warm_live.py` used
+both: first the stand-in, then the real client against the same serve.
 
 ## The measured requirements ([capabilities.json](capabilities.json))
 
@@ -176,13 +183,68 @@ Each control was paired with the host's own reachability check of the same
 target. All 8 reached their target (`200 Connection established`). The
 failure was not reproduced, and its cause is undetermined.
 
+## The real client ([warm-live.json](warm-live.json))
+
+`warm_live.py` booted one serve with NAT (`vm-bd7c8b5c…`, kernel
+7.0.0-38-generic) and ran its 20 stand-in attempts and route control
+there. Every gate passed:
+
+- one serve boot and one guest boot;
+- verified receipts;
+- granted writes on the host and protected writes refused;
+- the jail's network denial, next to a route control that reached
+  `1.1.1.1:443` on the same boot;
+- a clean guest stop on every attempt.
+
+Stand-in connect-to-release took at most 107 ms.
+
+Then, against the same serve and data directory, it ran 20 real
+`ukai-jail run --vm --terminal detach --profile tool --limit wall=20s`
+attempts, each `/bin/sh -c 'printf x > released-<tag>-<i>'` on the live
+workspace, between 21:01:39 and 21:01:47 UTC. Every one exited 0, with no
+refusal. From exec of `ukai-jail` to the marker file appearing on the
+host took 249–481 ms. That span covers the client's start, probing, the
+serve status check, the attempt up to the workload's write, and the share
+making that write visible; it ends before the attempt settles.
+
+[real-client-attempts/](real-client-attempts/) keeps the 20 attempt
+directories the client wrote. A check of all 20 (not part of
+`warm_live.py`) found:
+
+- each host receipt `settled`, outcome `exited` 0, no errors;
+- `lifetime.integrity` `verified`, `tree_empty` true;
+- `guest_receipt_sha256` equal to the SHA-256 of `evidence/jail.json` and
+  to `vm-transport.json`'s digest;
+- `evidence/vm-binding.json` naming the host and guest attempt ids;
+- one serve boot and one guest boot for all 20;
+- the guest stop's boundaries in `vm-transport.json`;
+- the same coverage in each: 2 `exec`, 1 `fs.write`, no gaps.
+
+`ukai-jail tail --summary` on one of them printed the host summary plus
+the transport line. Its duration reads `0ms attempt (wall clock)`: without
+a host journal, the summary subtracts the receipt's whole-second
+timestamps, so it prints at a precision the record does not have. The
+transport record's own `elapsed_seconds` (0.28–0.33 s) is the host's
+measurement.
+
+**Not shown here**:
+
+- `agent` or any proxied run through the real client;
+- credentials or a launch profile;
+- a signaled or limit-hit outcome through the real client;
+- an attempt whose guest stop found something to kill;
+- an installed package.
+
 ## Files
 
 - [capabilities.json](capabilities.json): the capability record (schema
   `ukai.vm.capabilities/2`).
 - [route-diagnosis.json](route-diagnosis.json) and
   [route_diag.py](route_diag.py): the one-off diagnosis and its script.
+- [warm-live.json](warm-live.json) and
+  [real-client-attempts/](real-client-attempts/): the warm run with the
+  real client, and the 20 attempt directories that client wrote.
 - [image/](image/): the image manifest, the bootstrap console log and its
   event lines.
 - [logs/](logs/): the console output of the build, the image preparation,
-  the capability run and the diagnosis.
+  the capability run, the diagnosis and the warm run.

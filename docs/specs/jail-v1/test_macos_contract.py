@@ -501,9 +501,9 @@ class MacosContract(unittest.TestCase):
         for marker, hedge in [("powers off with `live_share_mount_failed`. The guest's", "unit and model tests only"),
                               ("`<data>/vm/serve-failed.stderr`", "not against a real serve"),
                               ("**The attempt stop (decision D6).**", "kill paths have not run on a booted guest"),
-                              ("`populated_before_kill`", "no booted guest has sent the report yet"),
-                              ("gives 128 + s", "none has run against a booted guest"),
-                              ("is summarized as itself", "not yet on a new run")]:
+                              ("`populated_before_kill`", "are covered by unit and model tests only"),
+                              ("gives 128 + s", "have run only against stand-ins"),
+                              ("is summarized as itself", "by hand, not by a test")]:
             with self.subTest(paragraph=marker):
                 paragraph = next(p for p in paragraphs if marker in p)
                 self.assertIn(hedge, paragraph)
@@ -545,7 +545,7 @@ class MacosContract(unittest.TestCase):
                      "recorded as `REFUSED`, never `PASS`", "`fault_matrix.py`** has nine cases",
                      "`measurements[<requirement>]`",
                      "an upper bound on the overhead the clause limits, not the guest jail's own release time",
-                     "under `not_measured`", "none of it has run against a booted guest",
+                     "under `not_measured`", "also ran against a booted guest on the spare Mac",
                      "`cargo build --release --locked`", "`source_revision`",
                      "No package has been built with the current script yet", "`notarization.2.json`",
                      "`payload-extra`", "It has not been run against a package yet",

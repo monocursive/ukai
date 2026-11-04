@@ -5,7 +5,13 @@
   "source": {
     "commit": "6bd4970766e5c2c81725641d7b9ad07de2d0cfa9",
     "transfer": "git bundle of 0def15ea1..vm-track/stop-ready, SHA-256 c64c307b8c44911f2a742e1e0a1e442977cce7836818ea9812bfb65bec919845, fetched into the morning record's clone (macos-vm-live-2026-11-04) and checked out as branch vm-track-live",
-    "patches": []
+    "patches": [],
+    "then": {
+      "commit": "5a394456a",
+      "transfer": "git bundle of 6bd497076..vm-track/stop-ready, SHA-256 a5140960129545967e8a1bc22e992bfa342b7f5d6058b0ea8080254a4f386da7, fast-forwarded on the host",
+      "change": "GUEST_MEASUREMENTS cites this record's ten rows; the guest sources, the image and ukai-vm are unchanged (same ukai-vm bytes)",
+      "applied_before": ["warm-live.json", "real-client-attempts/"]
+    }
   },
   "host": {
     "name": "the user's spare Mac (muetdhiver), reached over SSH",
@@ -28,10 +34,16 @@
       "sha256": "ea398416828f5969a8d927783ff610b295a35d7833007216c91703b3802969a7",
       "build": "cargo build --release --locked -p ukai-jail --bin ukai-vm --bin ukai-jail, RUSTUP_TOOLCHAIN=1.98.1 (logs/build-2.log)"
     },
-    "ukai-jail": {
+    "ukai-jail@6bd497076": {
       "path": "target/release/ukai-jail",
       "sha256": "64842969c37575a0f630ca3cf53b3974583a5b9a2473c8ac35ee39d7a9a2b77d",
-      "note": "built at 6bd497076, whose GUEST_MEASUREMENTS is the morning record's five rows; no harness in this record ran it (capabilities.py and route_diag.py use the Python stand-in client)"
+      "note": "GUEST_MEASUREMENTS is the morning record's five rows; no harness in this record ran it (capabilities.py and route_diag.py use the Python stand-in client)"
+    },
+    "ukai-jail@5a394456a": {
+      "path": "target/release/ukai-jail",
+      "sha256": "900ea5bbf33241dbb1beeb5b8df06f648058d97a1fae3753cb278c022e274e22",
+      "build": "the same cargo command at 5a394456a; ukai-vm rebuilt to the same SHA-256",
+      "note": "the real client warm_live.py timed (warm-live.json k108_real_client, real-client-attempts/)"
     }
   },
   "image": {
@@ -48,15 +60,18 @@
     "crates/ukai-jail/vm/harness.py": "dd7dc41adf3dd112b1af52b685d701188e97102c5f7883162b60cba53f8e0dbd",
     "crates/ukai-jail/vm/capabilities.py": "ba3d4876a1b5b80954005e38a80167c9deecb8344a1f8dd291b2927a03673db8",
     "crates/ukai-jail/vm/prepare.py": "22372325c12ebe06399a8008bc630c1542f5224d2cc3b2c1f806c131577aa11d",
+    "crates/ukai-jail/vm/warm_live.py": "119c108e8f28c619f05fc082419b327b29f9f1c490241e506119b5467e9ec84f",
     "route_diag.py": "e257114818ba41e90f120f026936887c3c67b85cb4f9fa1e58bd97dc863a3bf2"
   },
   "runs": [
     {"local_time": "2026-11-04 21:26", "harness": "prepare.py", "output": "image/", "summary": "prepared (manifest written 21:30)"},
     {"local_time": "2026-11-04 21:31", "harness": "capabilities.py", "output": "capabilities.json", "summary": "PASS (boot vm-6ef11360-c561-4b9e-b8b4-d634cf292024; first attempt 2026-11-04T20:32:10Z, record written 21:32)"},
-    {"local_time": "2026-11-04 21:34", "harness": "route_diag.py (one-off, kept here)", "output": "route-diagnosis.json", "summary": "8 of 8 route controls reached (boot vm-e95b8696-3d6d-4daf-9f94-51ff8a11c8b9, record written 21:41)"}
+    {"local_time": "2026-11-04 21:34", "harness": "route_diag.py (one-off, kept here)", "output": "route-diagnosis.json", "summary": "8 of 8 route controls reached (boot vm-e95b8696-3d6d-4daf-9f94-51ff8a11c8b9, record written 21:41)"},
+    {"local_time": "2026-11-04 22:00", "harness": "warm_live.py --attempts 20 --ukai-jail (5a394456a) --real-attempts 20", "output": "warm-live.json, real-client-attempts/", "summary": "PASS (boot vm-bd7c8b5c-426f-411d-87fc-a1153a796055; 20 real ukai-jail run --vm attempts 21:01:39Z-21:01:47Z, all exit 0)"}
   ],
   "not_committed": [
     "the boot disk and the serve's retained boot directories",
-    "the bootstrap guest journal and bootstrap-stderr.log (image/ keeps the console log and the event lines)"
+    "the bootstrap guest journal and bootstrap-stderr.log (image/ keeps the console log and the event lines)",
+    "warm_live's serve data directory beyond the real client's attempt records (its vm/ runtime and serve.stderr.log)"
   ]
 }

@@ -1,0 +1,22 @@
+{
+  "schema": "ukai.jail.vm-transport/1",
+  "attempt_id": "att_c2236598-e793-444a-899d-f7d425d60fc1",
+  "boot_id": "vm-bd7c8b5c-426f-411d-87fc-a1153a796055",
+  "guest_kernel": "7.0.0-38-generic",
+  "image": {
+    "disk_sha256": "16867bb42f943d64576bed35acf3416a9056e0e1f80a18b099b1b967ca78f484",
+    "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+    "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+    "seed_sha256": "3db28d5cb7307283fca6388739409a77300a0b3e214abe9515158e207ef65d05"
+  },
+  "vsock_port": 1024,
+  "control_socket": "/var/folders/cb/9ctcf7ys0qs17d6n63b_2fbc0000gn/T/ukai-warm-live-ef796dic/data/vm/control.sock",
+  "attempt_socket": "/var/folders/cb/9ctcf7ys0qs17d6n63b_2fbc0000gn/T/ukai-warm-live-ef796dic/data/vm/attempt.sock",
+  "host_wall_started": "2026-11-04T21:01:40Z",
+  "elapsed_seconds": 0.318430708,
+  "guest_receipt_sha256": "46fd93398e28888133c212002a51b40e4d57defc16a547528f9a3e0a2f654bc2",
+  "guest_stop_boundaries": [
+    "ukai-attempts.slice/attempt-24",
+    "user.slice/user-1001.slice/user@1001.service/app.slice"
+  ]
+}

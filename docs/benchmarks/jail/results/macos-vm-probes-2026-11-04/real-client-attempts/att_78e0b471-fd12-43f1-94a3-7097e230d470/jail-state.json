@@ -1,0 +1,24 @@
+{
+  "arch": "aarch64",
+  "attempt_id": "att_78e0b471-fd12-43f1-94a3-7097e230d470",
+  "boundary": {
+    "backend": "ukai-vm",
+    "backend_version": null,
+    "kind": "pid_namespace",
+    "process": null,
+    "verification_scope": "attempt_tree"
+  },
+  "claimed_at": "2026-11-04T21:01:47Z",
+  "component_version": "0.1.0",
+  "execution_cgroup": null,
+  "kernel": "Darwin 27.0.0",
+  "os": "macos",
+  "owner": {
+    "boot_id": "5CB7C715-93B9-46E0-B085-B8F0F471A230",
+    "pid": 67793,
+    "start_time_ticks": 1793826107
+  },
+  "schema": "ukai.jail.state/1",
+  "state_cleanup": "not_needed",
+  "vendor_state": null
+}
