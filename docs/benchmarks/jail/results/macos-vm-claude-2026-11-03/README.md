@@ -8,6 +8,68 @@ downloads.claude.ai manifest digest) ran headless inside the guest of the
 0.1.0-preview.1 that carried the K108–K112 rows), driven by
 `ukai-jail run --vm --profile agent --launch claude-vm`.
 
+## Errata (2026-11-03, fix wave 1103)
+
+Added after review; the raw files are unchanged, and the text below is kept
+as written except for the digest erratum 1 corrects inline. **This is not a
+J18 compatibility record, and K113 is `untested`:** one attempt meets none
+of J18 §9.4's Linux-row conditions (the A01 fixture, ten repetitions, the
+no-source refusal, revocation mid-stream, observation on with strict
+evidence, the summary's credential use count).
+
+1. **The receipt digest.** The transport line was first cited here as
+   `receipt sha256:10c3c58f…`, which matches no file. The terminal summary
+   ([k113-claude.json](k113-claude.json) `stdout_tail`) printed
+   `receipt sha256:53837b58636d54bd`; the guest receipt
+   `k113-attempt/evidence/jail.json` is `sha256:53837b58…`, the digest
+   [vm-transport.json](k113-attempt/vm-transport.json) carries.
+2. **The stored receipt is the host's.** `k113-attempt/jail.json`
+   (`sha256:b0e534f0…`) is the host's own receipt, not "the guest's Linux
+   receipt", and it contradicts the guest receipt: network `pending`,
+   observer not attached and kernel unknown, against the guest's `proxy`
+   network, attached ptrace observer and kernel `7.0.0-38-generic`.
+3. **Observation.** "The observer was not attached (`0/6 classes active`)"
+   below repeats the host summary. The guest receipt shows the observer
+   attached with six classes active; the summary's "network: not applied"
+   is wrong the same way.
+4. **The harness's summary check** was satisfied by the run's own output:
+   `claude_vm_row.py`'s `summary_names_transport` searches the
+   `tail --summary` output concatenated with the run's own terminal output,
+   so it passes from the run's output alone and does not show that
+   `tail --summary` reproduced the line. Nothing compared the summary's
+   other lines with the guest receipt.
+5. **The client** was built from the repository at `f25ffca8d`; no macOS
+   `ukai-jail` client ships. The package was the development build labeled
+   `0.1.0-preview.1` (DMG `sha256:de86fb71…` before notarization), not the
+   public preview.
+6. **The first run's `401`** is recorded only in this prose; its attempt
+   directory was overwritten by the later runs.
+7. **The TLS-only grant did not cross as TLS-only.** The harness's launch
+   profile allows `api.anthropic.com` with no port, which the host policy
+   records as a TLS-only rule. `run --vm` sent it to the guest in its
+   canonical form, `api.anthropic.com:443`, and the guest jail's rule
+   grammar reads an explicit port as one that also admits plaintext HTTP.
+   The guest receipt shows the result: `applied.network.allowed_hosts` is
+   `["api.anthropic.com:443", "api.anthropic.com:443"]` (the rule twice),
+   the policy grants list the same rule twice, and there is no `tls_only`
+   field. So the guest's policy admitted plaintext HTTP to that host and
+   port, against the host policy. This record does not test a plaintext
+   request. Fixed in `7b1f6d875`: a TLS-only rule now crosses without its
+   `:443`, and the host refuses a guest receipt whose `tls_only` set
+   differs from the policy's; `407b18b05` pins the portless spelling in
+   the guest controller's tests. Neither has run on a booted guest.
+
+Since `7b1f6d875` (decision D5), errata 2 and 3 have a fix in code, not yet
+shown on a live run: when the guest receipt verifies and the guest
+finishes, the settled host receipt takes `platform.kernel`,
+`platform.arch`, `exec_observed`, `applied` (except its `terminal`),
+`observer` and `coverage` from it, and names it in
+`lifetime.native.details` (`guest_receipt`, `guest_receipt_sha256`,
+`guest_carried`). The summary of a `--vm` attempt reads the guest receipt,
+checked against the transport record's digest, for the same groups. Both
+changes are tested against this record's guest receipt and attempt
+directory; neither has produced a receipt or a summary from a new run.
+
 ## What the one attempt proved
 
 - **The agent worked.** `-p` with `--dangerously-skip-permissions
@@ -34,7 +96,7 @@ downloads.claude.ai manifest digest) ran headless inside the guest of the
 - **The summary names its transport** (K113's claim): the run's terminal
   summary carries `vm: guest-reported facts in evidence/jail.json · boot
   vm-9e2e72b1… · image 310cee86ccca5b5d… · vsock 1024 · receipt
-  sha256:10c3c58f…`, every value lifted from the transport record, and
+  sha256:53837b58…` (erratum 1), every value lifted from the transport record, and
   `ukai-jail tail --summary --attempt …` reproduces the summary (exit 0).
 
 ## The two earlier runs, retained verbatim

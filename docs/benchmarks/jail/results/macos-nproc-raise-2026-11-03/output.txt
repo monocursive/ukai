@@ -1,0 +1,26 @@
+== host
+ProductName:		macOS
+ProductVersion:		27.0.1
+BuildVersion:		26A434
+Darwin 27.0.0 arm64
+uid=501
+kern.maxproc: 16000
+kern.maxprocperuid: 10666
+== 1. inherited, then raise the soft limit (hard untouched)
+inherited: soft=10666 hard=16000
+raise soft to 12000: rc=0 soft=10666 hard=10666
+/bin/sh: line 2: ulimit: max user processes: cannot modify limit: Invalid argument
+raise soft to 16000: rc=1 soft=10666 hard=10666
+== 2. soft lowered to 5000 (the only change), then a child raises it
+lowered: soft=5000 hard=10666
+child raise to 10666: rc=0 soft=10666 hard=10666
+/bin/sh: line 1: ulimit: max user processes: cannot modify limit: Invalid argument
+child raise to 12000: rc=1 soft=10666
+== 3. soft 5000 and hard 8000 (both lowered), then a child raises
+lowered: soft=5000 hard=8000
+child raise to hard 8000: rc=0 soft=8000
+/bin/sh: line 1: ulimit: max user processes: cannot modify limit: Invalid argument
+child raise to 9000: rc=1 soft=8000
+== 4. setrlimit directly (python3 resource): soft 5000, hard as inherited
+inherited (10666, 16000)
+after setrlimit(5000, 16000): (5000, 10666)

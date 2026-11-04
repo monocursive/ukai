@@ -860,8 +860,10 @@ fn run_through_launcher(
     use std::os::unix::io::FromRawFd as _;
     use std::os::unix::process::CommandExt as _;
     let mut fds = [0i32; 2];
+    // SAFETY: pipe writes two descriptors into the two-element array.
     assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0);
     let (release_rd, release_wr) = (fds[0], fds[1]);
+    // SAFETY: as above.
     assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0);
     let (error_rd, error_wr) = (fds[0], fds[1]);
     let child_pipe_rd = release_rd;
@@ -871,7 +873,14 @@ fn run_through_launcher(
         .arg("-f")
         .arg(profile_path)
         .arg(launcher)
-        .args(["__launch-macos", "--release-fd", "90", "--error-fd", "91", "--"])
+        .args([
+            "__launch-macos",
+            "--release-fd",
+            "90",
+            "--error-fd",
+            "91",
+            "--",
+        ])
         .args(argv)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null());
@@ -892,6 +901,8 @@ fn run_through_launcher(
         libc::close(release_rd);
         libc::close(error_wr);
     }
+    // SAFETY: error_rd is this process's own open read end, owned by the
+    // File from here on and closed exactly once, when it drops.
     let mut error_pipe = unsafe { std::fs::File::from_raw_fd(error_rd) };
     let mut blocked = [0u8; 8];
     let read = std::io::Read::read_exact(&mut error_pipe, &mut blocked);
@@ -973,8 +984,11 @@ fn class_2_direct_launchd_client_is_unreachable_through_the_launcher() {
     );
 
     // Through the real launcher inside the profile: no port, no route.
-    let (inside_lookup, inside_lookup_code) =
-        run_through_launcher(&profile_path, launcher, &[binary.to_str().unwrap(), "lookup"]);
+    let (inside_lookup, inside_lookup_code) = run_through_launcher(
+        &profile_path,
+        launcher,
+        &[binary.to_str().unwrap(), "lookup"],
+    );
     let (inside_pipe, _inside_pipe_code) =
         run_through_launcher(&profile_path, launcher, &[binary.to_str().unwrap(), "pipe"]);
     assert!(
@@ -989,9 +1003,5 @@ fn class_2_direct_launchd_client_is_unreachable_through_the_launcher() {
             && !inside_pipe.contains("error="),
         "no launchd reply may reach a member: {inside_pipe}"
     );
-    record(
-        "2 direct launchd client via launcher",
-        "DENIED",
-        "RAN",
-    );
+    record("2 direct launchd client via launcher", "DENIED", "RAN");
 }

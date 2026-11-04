@@ -1235,6 +1235,7 @@ fn the_boundary_itself_refuses_a_restriction_it_would_not_apply() {
             ],
             workspace: workspace.clone(),
             config_dir: root.path().join("config"),
+            launch_name: None,
             launch: None,
             proxy: None,
             pinned_roots: Vec::new(),

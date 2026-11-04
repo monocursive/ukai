@@ -16,6 +16,7 @@ import sys
 import tempfile
 import time
 import unittest
+import uuid
 
 BINARY = Path(os.environ.get('UKAI_VM_TEST_BINARY', Path(__file__).resolve().parents[3] / 'target/debug/ukai-vm'))
 
@@ -44,6 +45,21 @@ finally:
 HELPER = r'''
 import base64, hashlib, json, os, struct, sys
 
+# The custodian's child argv: DISK SEED NVRAM CONSOLE run [SHARE_DIR].
+console, share = sys.argv[4], (sys.argv[6] if len(sys.argv) > 6 else None)
+
+def record(value):
+    if os.environ.get('RECORD'):
+        with open(os.environ['RECORD'], 'a') as out:
+            out.write(json.dumps(value) + '\n')
+
+record(dict(helper_argv=sys.argv[1:], nat=os.environ.get('UKAI_VM_GUEST_NAT')))
+if os.environ.get('POWEROFF_REASON'):
+    # A guest that ended itself: the controller's audit on the console.
+    with open(console, 'a') as out:
+        out.write('UKAI_VM ' + json.dumps(dict(event='poweroff', reason=os.environ['POWEROFF_REASON'])) + '\r\n')
+    sys.exit(0)
+
 def emit(value):
     print(json.dumps(value), flush=True)
 
@@ -64,16 +80,22 @@ for line in sys.stdin:
         break
     for raw in base64.b64decode(message['data']).splitlines():
         request = json.loads(raw)
+        record(request)
         op = request['op']
         if op == 'session':
             sessions += 1
             if sessions > 1:
                 guest(dict(event='error', message='duplicate session'))
                 sys.exit(125)
+            # The guest states whether it mounted the share (D7); LIVE_SHARE
+            # makes it lie, or (omit) say nothing like an old controller.
+            live = os.environ.get('LIVE_SHARE', '1' if share else '0')
+            reply = dict(event='session', kernel='stand-in-kernel')
+            if live != 'omit':
+                reply['live_share'] = live == '1'
             if os.environ.get('BAD_SESSION') == '1':
-                guest(dict(event='session'))
-            else:
-                guest(dict(event='session', kernel='stand-in-kernel'))
+                del reply['kernel']
+            guest(reply)
             if os.environ.get('EXIT_AFTER_SESSION') == '1': sys.exit(1)
         elif op == 'reset':
             guest(dict(event='reset'))
@@ -81,6 +103,13 @@ for line in sys.stdin:
             guest(dict(event='cancelled'))
         elif op == 'put':
             guest(dict(event='put', path=request['path']))
+        elif op == 'secret':
+            if os.environ.get('REFUSE_SECRET') == '1':
+                guest(dict(event='error', message='secret_refused:FileExistsError'))
+            else:
+                guest(dict(event='secret', id=request['id'], path='/run/ukai-vm/credentials/' + request['id']))
+        elif op == 'launch_toml':
+            guest(dict(event='launch_toml'))
         elif op == 'run2':
             guest(dict(event='running', supervisor_pid=os.getpid()))
             if os.environ.get('HOLD_RUN') == '1':
@@ -144,11 +173,24 @@ class WarmServiceTests(unittest.TestCase):
                 child.stderr.close()
         self.temp.cleanup()
 
-    def launch(self, idle=600, **env):
-        child = subprocess.Popen([str(BINARY), 'serve', '--idle-seconds', str(idle)],
+    def launch(self, idle=600, args=(), **env):
+        child = subprocess.Popen([str(BINARY), 'serve', '--idle-seconds', str(idle), *args],
                                  env=dict(self.env, **env), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         self.children.append(child)
         return child
+
+    def recorded(self):
+        path = self.root / 'record.ndjson'
+        return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+
+    def wait_recorded(self, predicate, timeout=5):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            found = [frame for frame in self.recorded() if predicate(frame)]
+            if found:
+                return found
+            time.sleep(.02)
+        self.fail('the stand-in guest never received the expected frame')
 
     def assert_exit(self, child, expected):
         _, stderr = child.communicate(timeout=6)
@@ -192,11 +234,13 @@ class WarmServiceTests(unittest.TestCase):
         stream.close()
         return reply
 
-    def attempt(self):
+    def attempt(self, **prepare):
         stream = self.socket('attempt')
         ready = self.frame(stream)
-        self.send(stream, op='prepare', attempt_id='host-attempt', profile='tool',
-                  wall_seconds=30, argv=[base64.b64encode(b'/bin/true').decode()], secrets=[])
+        frame = dict(op='prepare', attempt_id='host-attempt', profile='tool',
+                     wall_seconds=30, argv=[base64.b64encode(b'/bin/true').decode()], secrets=[])
+        frame.update(prepare)
+        self.send(stream, **frame)
         self.assertEqual(self.frame(stream)['event'], 'prepared')
         self.send(stream, op='run')
         self.assertEqual(self.frame(stream)['event'], 'released')
@@ -348,6 +392,182 @@ class WarmServiceTests(unittest.TestCase):
         self.assertEqual(json.loads(status.stdout), reply)
         stopped = subprocess.run([str(BINARY), 'stop'], env=self.env, capture_output=True, timeout=6)
         self.assertEqual(stopped.stdout.decode().strip(), 'ukai-vm: no VM is running')
+
+    def test_guest_nat_is_the_flags_alone(self):
+        record = str(self.root / 'record.ndjson')
+        for args, expected in [((), None), (('--guest-nat',), '1')]:
+            with self.subTest(args=args):
+                (self.root / 'record.ndjson').unlink(missing_ok=True)
+                # An inherited variable must never attach the adapter behind
+                # a status that says false.
+                child = self.launch(args=args, UKAI_VM_GUEST_NAT='1', RECORD=record)
+                start = self.wait_recorded(lambda frame: 'helper_argv' in frame)[0]
+                self.assertEqual(start['nat'], expected)
+                self.assertIs(self.control('status')['guest_nat'], expected == '1')
+                self.control('stop')
+                child.wait(timeout=6)
+
+    def test_the_agent_policy_launch_and_secrets_reach_the_guest(self):
+        child = self.launch(RECORD=str(self.root / 'record.ndjson'))
+        launch = dict(name='claude', toml='[credentials.api]\nsource = "/run/ukai-vm/credentials/api/token"\n')
+        secrets = [dict(id='api/token', data=base64.b64encode(b'value').decode())]
+        # TLS-only grants arrive without their port (S1's snapshot shape).
+        stream, _ = self.attempt(profile='agent', allow_hosts=['api.anthropic.com', 'example.org:8443'],
+                                 launch=launch, secrets=secrets)
+        while self.frame(stream)['event'] != 'done':
+            pass
+        ops = [frame for frame in self.recorded() if 'op' in frame]
+        names = [frame['op'] for frame in ops]
+        self.assertLess(names.index('reset'), names.index('launch_toml'))
+        self.assertLess(names.index('launch_toml'), names.index('secret'))
+        self.assertLess(names.index('secret'), names.index('run2'))
+        self.assertEqual(ops[names.index('launch_toml')]['toml'], launch['toml'])
+        self.assertEqual(ops[names.index('secret')]['id'], 'api/token')
+        run2 = ops[names.index('run2')]
+        self.assertEqual((run2['profile'], run2['allow_hosts'], run2['launch']),
+                         ('agent', ['api.anthropic.com', 'example.org:8443'], 'claude'))
+        self.control('stop')
+        child.wait(timeout=6)
+
+    def test_nested_credential_ids_refuse_before_any_guest_traffic(self):
+        child = self.launch(RECORD=str(self.root / 'record.ndjson'))
+        stream = self.socket('attempt')
+        self.frame(stream)
+        self.send(stream, op='prepare', attempt_id='host', profile='tool', wall_seconds=30,
+                  argv=[base64.b64encode(b'/bin/true').decode()],
+                  secrets=[dict(id=name, data=base64.b64encode(b'v').decode()) for name in ('a', 'a/b')])
+        self.assertEqual(stream.recv(1000), b'')
+        self.wait_recorded(lambda frame: frame.get('op') == 'cancel2')
+        self.assertEqual([frame['op'] for frame in self.recorded() if 'op' in frame and frame['op'] != 'session'],
+                         ['cancel2'], 'a nested id reached the guest')
+        self.assertTrue(self.control('status')['warm'])
+        self.control('stop')
+        child.wait(timeout=6)
+
+    def test_a_secret_the_guest_refuses_cancels_only_that_attempt(self):
+        child = self.launch(REFUSE_SECRET='1')
+        stream = self.socket('attempt')
+        self.frame(stream)
+        self.send(stream, op='prepare', attempt_id='host', profile='tool', wall_seconds=30,
+                  argv=[base64.b64encode(b'/bin/true').decode()],
+                  secrets=[dict(id='token', data=base64.b64encode(b'v').decode())])
+        self.assertEqual(stream.recv(1000), b'')
+        self.assertTrue(self.control('status')['warm'])
+        self.control('stop')
+        child.wait(timeout=6)
+
+    def test_a_session_that_misstates_the_share_is_refused(self):
+        # D7, staged mode: a guest claiming a share, or a controller too old
+        # to say, never serves an attempt.
+        for live in ('1', 'omit'):
+            with self.subTest(live=live):
+                child = self.launch(LIVE_SHARE=live)
+                stderr = self.assert_exit(child, 125)
+                self.assertIn('live', stderr)
+                self.assertFalse((self.root / 'data/vm/attempt.sock').exists())
+
+    def test_a_live_workspace_on_a_folding_volume_refuses_before_boot(self):
+        workspace = self.root / 'workspace'
+        workspace.mkdir()
+        child = self.launch(args=('--live-workspace', str(workspace)), RECORD=str(self.root / 'record.ndjson'))
+        self.assertIn('folds case', self.assert_exit(child, 125))
+        self.assertEqual(self.recorded(), [], 'the custodian was started for a refused share')
+
+    def case_sensitive_workspace(self):
+        """A workspace on a small case-sensitive APFS volume (the Mac's
+        default volume folds case and is refused), under a unique name."""
+        name = 'UKAI-SERVE-' + uuid.uuid4().hex[:12].upper()
+        image = self.root / 'share.dmg'
+        subprocess.run(['hdiutil', 'create', '-size', '16m', '-fs', 'Case-sensitive APFS', '-volname', name,
+                        str(image)], check=True, capture_output=True)
+        volume = Path('/Volumes') / name
+        subprocess.run(['hdiutil', 'attach', '-nobrowse', '-mountpoint', str(volume), str(image)],
+                       check=True, capture_output=True)
+        self.addCleanup(subprocess.run, ['hdiutil', 'detach', str(volume)], capture_output=True)
+        workspace = volume / 'ws'
+        workspace.mkdir()
+        (workspace / 'file.txt').write_text('x')
+        return workspace
+
+    def test_a_live_workspace_is_attached_stated_and_never_staged(self):
+        workspace = self.case_sensitive_workspace()
+        record = str(self.root / 'record.ndjson')
+        child = self.launch(args=('--live-workspace', str(workspace)), RECORD=record)
+        start = self.wait_recorded(lambda frame: 'helper_argv' in frame)[0]
+        self.assertEqual(start['helper_argv'][-1], str(workspace.resolve()))
+        status = self.control('status')
+        self.assertEqual(status['live_workspace'], str(workspace.resolve()))
+        self.assertIs(status['live_workspace_facts']['case_fold'], False)
+        stream = self.socket('attempt')
+        self.frame(stream)
+        self.send(stream, op='prepare', attempt_id='host', profile='tool', wall_seconds=30,
+                  argv=[base64.b64encode(b'/bin/true').decode()], secrets=[])
+        self.assertEqual(self.frame(stream)['event'], 'prepared')
+        self.send(stream, op='put', path='file.txt', executable=False, data=base64.b64encode(b'y').decode())
+        self.assertEqual(stream.recv(1000), b'', 'a live service staged a file')
+        self.assertNotIn('put', [frame.get('op') for frame in self.recorded()])
+        self.control('stop')
+        child.wait(timeout=6)
+        # D7: a guest that did not mount the attached share is refused.
+        (self.root / 'record.ndjson').unlink()
+        child = self.launch(args=('--live-workspace', str(workspace)), LIVE_SHARE='0')
+        self.assertIn('did not mount the live workspace share', self.assert_exit(child, 125))
+
+    def test_a_guest_that_powered_itself_off_is_named(self):
+        child = self.launch(POWEROFF_REASON='live_share_mount_failed')
+        stderr = self.assert_exit(child, 125)
+        self.assertIn('guest poweroff: live_share_mount_failed', stderr)
+
+    def test_a_suspended_service_keeps_its_custody_lease(self):
+        child = self.launch()
+        self.assertTrue(self.control('status')['warm'])
+        custodian = int(subprocess.run(['pgrep', '-P', str(child.pid)], capture_output=True,
+                                       text=True, check=True).stdout.split()[0])
+        # A Ctrl-Z of the group stops the custodian too, and nothing orders
+        # who runs first after the resume: here the service does, so its
+        # first look finds no acknowledgement. Shorter than the stand-in
+        # custodian's own 3 s lease, longer than the service's 1.5 s
+        # acknowledgement budget: only the wake-gap reset saves it.
+        os.kill(custodian, signal.SIGSTOP)
+        child.send_signal(signal.SIGSTOP)
+        time.sleep(2.2)
+        child.send_signal(signal.SIGCONT)
+        time.sleep(.1)
+        os.kill(custodian, signal.SIGCONT)
+        time.sleep(.5)
+        self.assertIsNone(child.poll(), child.stderr.read1().decode() if child.poll() is not None else '')
+        self.assertTrue(self.control('status')['warm'])
+        self.control('stop')
+        child.wait(timeout=6)
+
+    def test_failed_boot_evidence_is_kept_but_bounded(self):
+        runtime = self.root / 'data/vm'
+        runtime.mkdir(parents=True)
+        old = []
+        for index in range(5):
+            boot = runtime / f'vm-old-{index}'
+            boot.mkdir()
+            stamp = time.time() - 3600 + index * 60
+            os.utime(boot, (stamp, stamp))
+            old.append(boot)
+        child = self.launch(ACK_MODE='silent')
+        self.assertIn('evidence retained at', self.assert_exit(child, 125))
+        boots = sorted(path.name for path in runtime.iterdir() if path.name.startswith('vm-'))
+        self.assertEqual(len(boots), 3, boots)
+        self.assertIn('vm-old-4', boots)
+        self.assertIn('vm-old-3', boots)
+        self.assertEqual(len([name for name in boots if not name.startswith('vm-old-')]), 1)
+
+    def test_version_and_doctor_report_the_package_version(self):
+        version = json.loads(subprocess.run([str(BINARY), 'version'], env=self.env, capture_output=True,
+                                            timeout=6, check=True).stdout)
+        expected = os.environ.get('UKAI_VM_EXPECTED_VERSION')
+        if expected:
+            self.assertEqual(version['version'], expected)
+        else:
+            self.assertTrue(version['version'].endswith('-dev'), version)
+        doctor = subprocess.run([str(BINARY), 'doctor'], env=self.env, capture_output=True, timeout=10)
+        self.assertEqual(json.loads(doctor.stdout)['version'], version['version'])
 
     def test_status_prints_object_and_absent_stop_prints_once(self):
         child = self.launch()

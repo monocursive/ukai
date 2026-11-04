@@ -13,6 +13,27 @@ The earlier failed run is retained below verbatim: its probe sent no
 placeholder, and `inject_bound` substitutes a placeholder — it never adds
 a header from nothing. The machinery was correct; the probe was wrong.
 
+## Errata (2026-11-03, fix wave 1103)
+
+Added after review; the raw files are unchanged and the text is kept as
+written.
+
+1. "The earlier failed run is retained below verbatim": its record is the
+   parent directory's [vault-consumption.json](../vault-consumption.json)
+   (`outcome: FAIL`, `injected_header: null`), written by the `fc503e780`
+   version of the harness and committed byte for byte on 2026-11-03. This
+   directory holds only the PASS run and the `ff8f7a100` harness.
+2. The PASS verdict gates on the substituted header, a settled exit-0 run
+   with `tree_empty: true`, a non-empty guest credential list and the leak
+   scan. It does not gate on the child holding only the placeholder or on
+   `never_staged`: the record shows both (`PLACEHOLDER_SEEN vault:att_f1 51`,
+   `never_staged: true`), but the harness would pass without them. The leak
+   scan covers each attempt's `workspace/` and `evidence/` trees, not the
+   attempt directory's own `jail.json`, `policy.json` or `trace.ndjson`.
+3. The run used a `ukai-jail` client built from the repository; no macOS
+   client ships. "The open finding" below describes the FAIL run; the PASS
+   run resolved it.
+
 ## What is wired and verified live
 
 - `run --vm` accepts a vaulted launch policy: the Mac reads the

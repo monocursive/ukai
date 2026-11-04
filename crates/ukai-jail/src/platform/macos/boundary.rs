@@ -75,7 +75,7 @@ use crate::platform::macos::guardian::frames::{
 };
 use crate::platform::macos::guardian::launch_block::{self, FdAction, LaunchBlock};
 use crate::platform::macos::guardian::record;
-use crate::platform::macos::guardian::rlimit::{plan_allowance, AppliedAllowance};
+use crate::platform::macos::guardian::rlimit::{ALLOWANCE_FRAME, AppliedAllowance};
 use crate::platform::macos::observe::{ObserveRun, ObserveStartError};
 use crate::platform::macos::relay::TerminalRelay;
 use crate::platform::macos::sandbox::{self as seatbelt, ProfileParams};
@@ -949,15 +949,41 @@ fn audit_token_value(token: Token) -> serde_json::Map<String, serde_json::Value>
     value
 }
 
+/// Rule 6 in `lifetime.native.details` (§4.1, §4.8): the `RLIMIT_NPROC`
+/// soft and hard limit every member inherited (`process_limit`), the
+/// headroom above the guardian's process-count snapshot
+/// (`process_headroom`) and whether the inherited ceiling stood in for the
+/// full 1024 (`process_headroom_clamped`) — the guardian's own report,
+/// carried from the handshake into every receipt.
+fn insert_process_allowance(
+    details: &mut serde_json::Map<String, serde_json::Value>,
+    allowance: &AppliedAllowance,
+) {
+    details.insert(
+        "process_limit".to_owned(),
+        serde_json::Value::from(allowance.limit),
+    );
+    details.insert(
+        "process_headroom".to_owned(),
+        serde_json::Value::from(allowance.headroom),
+    );
+    details.insert(
+        "process_headroom_clamped".to_owned(),
+        serde_json::Value::from(allowance.clamped),
+    );
+}
+
 // ---------------------------------------------------------------------------
 // The B-pipe frames: what the guardian writes (§4.3)
 // ---------------------------------------------------------------------------
 
 /// One frame from B. `decode_frame` reads A's grammar, so B has its own
-/// reader: `ready` (step 3), `token-seen` (step 5) and the final
-/// `record ` + JSON (§4.4).
+/// reader: `allowance` then `ready` (step 3: rule 6's applied
+/// `RLIMIT_NPROC` allowance as the kernel confirmed it, then readiness),
+/// `token-seen` (step 5) and the final `record ` + JSON (§4.4).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BFrame {
+    Allowance(AppliedAllowance),
     Ready,
     TokenSeen,
     Record(Vec<u8>),
@@ -997,6 +1023,18 @@ impl BReader {
                 b"ready" => BFrame::Ready,
                 b"token-seen" => BFrame::TokenSeen,
                 json if json.starts_with(b"record ") => BFrame::Record(json[7..].to_vec()),
+                body if body.starts_with(ALLOWANCE_FRAME) => BFrame::Allowance(
+                    AppliedAllowance::decode_frame_body(&body[ALLOWANCE_FRAME.len()..]).map_err(
+                        |error| {
+                            refusal(
+                                ErrorCode::BackendUnavailable,
+                                ErrorStage::Preparing,
+                                Remediation::InspectState,
+                                format!("the guardian's rule-6 report did not decode: {error}"),
+                            )
+                        },
+                    )?,
+                ),
                 _ => {
                     return Err(refusal(
                         ErrorCode::BackendUnavailable,
@@ -1159,10 +1197,10 @@ pub struct MacosPrepared {
     relay: Option<TerminalRelay>,
     /// The regular-file and socket stdio relays (jail-v1 §8.3).
     stdio_relays: Vec<StdioRelay>,
-    headroom: u64,
-    /// Whether the full 1024 did not fit under the inherited ceiling and
-    /// the ceiling itself is the allowance (amended rule 6, 2026-11-02).
-    headroom_clamped: bool,
+    /// Rule 6 as the guardian applied it (§4.1): the limit, the headroom
+    /// and whether the inherited ceiling stood in for the full 1024
+    /// (amended rule 6, 2026-11-02).
+    allowance: AppliedAllowance,
     profile_params: ProfileParams,
     handshake_events: Vec<es::EsPoll>,
     /// The outside proxy, the sink that tallies its results, and the
@@ -1352,80 +1390,120 @@ pub fn prepare(plan: PreparedPlan, sinks: Sinks) -> Result<Box<dyn PreparedExecu
             return Err(error);
         }
     };
-    let process = ProcessRecord {
-        pid: handshake.launcher_token[AUDIT_TOKEN_PID],
-        identity: ProcessIdentity {
-            kind: "macos_audit_token".to_owned(),
-            value: audit_token_value(handshake.launcher_token),
-        },
-    };
     // The outside proxy on the attempt's private socket, and the loopback
     // relay to it (§4.10): policy and secret are enforced at the proxy.
     // Vault requests refuse before reaching this raw transport.
-    let (proxy, proxy_sink, serving) = match bridge_bound {
-        Some(bound) => {
-            let started = start_proxy(&plan, &sinks, &bound);
-            match started {
-                Ok(started) => (Some(started.0), Some(started.1), Some(started.2)),
-                Err(error) => {
-                    built.pipe_r_write.close();
-                    abort_guardian(&mut built.guardian, built.pipe_a_write.take_fd());
-                    deliver_before_refusal(&mut built.stdio_relays);
-                    let _ = client.delete();
-                    return Err(error);
-                }
+    let proxy = match bridge_bound {
+        Some(bound) => match start_proxy(&plan, &sinks, &bound) {
+            Ok(started) => Some(started),
+            Err(error) => {
+                built.pipe_r_write.close();
+                abort_guardian(&mut built.guardian, built.pipe_a_write.take_fd());
+                deliver_before_refusal(&mut built.stdio_relays);
+                let _ = client.delete();
+                return Err(error);
             }
-        }
-        None => (None, None, None),
+        },
+        None => None,
     };
-    // Amended rule 6 (2026-11-02): plan the process allowance from the
-    // pre-spawn snapshot the guardian will re-verify; a host where even the
-    // snapshot cannot be read refuses here, naming the failure.
-    let planned_allowance: AppliedAllowance = plan_allowance().map_err(|error| {
-        refusal(
-            ErrorCode::BackendUnavailable,
-            ErrorStage::Preparing,
-            Remediation::Retry,
-            format!("process allowance could not be planned: {error}"),
-        )
-    })?;
-    Ok(Box::new(MacosPrepared {
-        observation,
-        client: Some(client),
-        engine,
-        a_write: built.pipe_a_write.take_fd(),
-        r_write: built.pipe_r_write,
-        b_read: built.b_read,
-        e_read: built.e_read,
-        guardian: built.guardian,
-        launcher_token: handshake.launcher_token,
-        process,
-        applied: build_applied(
-            &plan,
-            &built.profile_params,
-            bridge_config.as_ref(),
-            relay.is_some(),
-        ),
-        profile_params: built.profile_params,
-        wall_ms: plan
-            .request
-            .snapshot
-            .limits
-            .wall
-            .as_ref()
-            .and_then(|wall| wall.value.parse::<u64>().ok()),
-        relay,
-        stdio_relays: built.stdio_relays,
-        // Amended rule 6: the receipt records the allowance the guardian
-        // will apply, from the same pre-spawn snapshot domain; the
-        // guardian's own read remains the authoritative gate (§4.1).
-        headroom: planned_allowance.headroom,
-        headroom_clamped: planned_allowance.clamped,
-        handshake_events: handshake.events,
-        proxy,
-        proxy_sink,
-        serving,
-    }))
+    Ok(Box::new(MacosPrepared::assemble(
+        &plan,
+        handshake,
+        PreparedParts {
+            client: Some(client),
+            engine,
+            observation,
+            spawned: built,
+            relay,
+            bridge: bridge_config,
+            proxy,
+        },
+    )))
+}
+
+/// What preparation built around the handshake (§4.3 steps 1–5), for
+/// [`MacosPrepared::assemble`].
+struct PreparedParts {
+    client: Option<CustodyClient>,
+    engine: Custodian,
+    observation: NativeObservation,
+    spawned: Spawned,
+    relay: Option<TerminalRelay>,
+    bridge: Option<BridgeConfig>,
+    proxy: Option<StartedProxy>,
+}
+
+/// The outside proxy, the sink that tallies its results, and the loopback
+/// relay to it ([`start_proxy`]).
+type StartedProxy = (
+    crate::proxy::ProxyHandle,
+    std::sync::Arc<crate::proxy::coverage::TraceSink>,
+    bridge::Serving,
+);
+
+impl MacosPrepared {
+    /// The prepared boundary: the handshake's facts — the launcher's
+    /// identity, the custody events still to replay and rule 6 as the
+    /// guardian reported it before `ready` — joined with what preparation
+    /// built. The receipt tests assemble their boundary here too, so what
+    /// reaches their receipts is what production carries.
+    fn assemble(plan: &PreparedPlan, handshake: Handshake, parts: PreparedParts) -> Self {
+        let PreparedParts {
+            client,
+            engine,
+            observation,
+            mut spawned,
+            relay,
+            bridge,
+            proxy,
+        } = parts;
+        let (proxy, proxy_sink, serving) = match proxy {
+            Some((proxy, sink, serving)) => (Some(proxy), Some(sink), Some(serving)),
+            None => (None, None, None),
+        };
+        MacosPrepared {
+            observation,
+            client,
+            engine,
+            a_write: spawned.pipe_a_write.take_fd(),
+            r_write: spawned.pipe_r_write,
+            b_read: spawned.b_read,
+            e_read: spawned.e_read,
+            guardian: spawned.guardian,
+            launcher_token: handshake.launcher_token,
+            process: ProcessRecord {
+                pid: handshake.launcher_token[AUDIT_TOKEN_PID],
+                identity: ProcessIdentity {
+                    kind: "macos_audit_token".to_owned(),
+                    value: audit_token_value(handshake.launcher_token),
+                },
+            },
+            applied: build_applied(
+                plan,
+                &spawned.profile_params,
+                bridge.as_ref(),
+                relay.is_some(),
+            ),
+            profile_params: spawned.profile_params,
+            wall_ms: plan
+                .request
+                .snapshot
+                .limits
+                .wall
+                .as_ref()
+                .and_then(|wall| wall.value.parse::<u64>().ok()),
+            relay,
+            stdio_relays: spawned.stdio_relays,
+            // Rule 6 (§4.1, D13): the receipt records the allowance the
+            // guardian applied and reported before `ready`, never a plan of
+            // the supervisor's own.
+            allowance: handshake.allowance,
+            handshake_events: handshake.events,
+            proxy,
+            proxy_sink,
+            serving,
+        }
+    }
 }
 
 /// Starts the outside proxy on the attempt's private socket and the
@@ -1436,14 +1514,7 @@ fn start_proxy(
     plan: &PreparedPlan,
     sinks: &Sinks,
     bound: &bridge::Bound,
-) -> Result<
-    (
-        crate::proxy::ProxyHandle,
-        std::sync::Arc<crate::proxy::coverage::TraceSink>,
-        bridge::Serving,
-    ),
-    JailError,
-> {
+) -> Result<StartedProxy, JailError> {
     let Some(handoff) = &plan.proxy else {
         return Err(refusal(
             ErrorCode::InternalError,
@@ -1743,6 +1814,10 @@ struct Handshake {
     launcher_token: Token,
     // Retained in delivery order, consumed by replay after custodian registration.
     events: Vec<es::EsPoll>,
+    /// Rule 6 as the guardian applied it and the kernel confirmed it
+    /// (§4.1), from the `allowance` frame before `ready`: what every
+    /// receipt records.
+    allowance: AppliedAllowance,
 }
 
 /// Register both custodians before replay, using G's first observed token so
@@ -1833,9 +1908,34 @@ fn abort_guardian(guardian: &mut GuardianProcess, pipe_a_write: RawFd) {
     guardian.end();
 }
 
+/// What the handshake reads from client S (§4.3 steps 3–5): the custody
+/// stream and its synchronization. Production passes S itself; the tests
+/// drive the same handshake from a scripted stream beside a fake guardian
+/// writing the guardian's own B frames, which needs no ES entitlement.
+trait HandshakeStream {
+    /// One bounded synchronization of the stream; `true` once synchronized.
+    fn drain(&self, timeout_ms: u32) -> bool;
+    /// The next custody event, if one waits.
+    fn poll_full(&self) -> Option<es::EsPoll>;
+    /// Whether the stream dropped messages.
+    fn ring_overflowed(&self) -> bool;
+}
+
+impl HandshakeStream for CustodyClient {
+    fn drain(&self, timeout_ms: u32) -> bool {
+        CustodyClient::drain(self, timeout_ms)
+    }
+    fn poll_full(&self) -> Option<es::EsPoll> {
+        CustodyClient::poll_full(self)
+    }
+    fn ring_overflowed(&self) -> bool {
+        CustodyClient::ring_overflowed(self)
+    }
+}
+
 /// The handshake of §4.3 steps 3–5, within the preparation budget.
 fn handshake(
-    client: &CustodyClient,
+    client: &impl HandshakeStream,
     b_read: &mut Fd,
     e_read: &mut Fd,
     pipe_a_write: RawFd,
@@ -1845,23 +1945,19 @@ fn handshake(
     let deadline = Instant::now() + budget.remaining();
     let guardian_pid = guardian.pid.expect("the spawned guardian is still owned");
     let mut reader = BReader::default();
-    // `ready` (step 3). A guardian that dies names its failing step on
-    // stderr and its exit status here.
+    // `allowance`, then `ready` (step 3). A guardian that dies names its
+    // failing step on stderr and its exit status here. Rule 6's report is
+    // required, exactly once, before `ready`: the receipt records the
+    // allowance the guardian applied, and there is no other source for it.
     let mut ready = false;
+    let mut allowance = None;
     let mut events = Vec::new();
     loop {
         for frame in read_b(&mut reader, b_read, guardian)? {
-            match frame {
-                BFrame::Ready => ready = true,
-                other => {
-                    return Err(refusal(
-                        ErrorCode::BackendUnavailable,
-                        ErrorStage::Preparing,
-                        Remediation::InspectState,
-                        format!("the guardian answered {other:?} before `ready`"),
-                    ));
-                }
+            if ready {
+                return Err(out_of_order(&frame));
             }
+            ready = ready_step(frame, &mut allowance)?;
         }
         if ready {
             break;
@@ -1908,16 +2004,20 @@ fn handshake(
             synced_after_block = true;
         }
         if let (Some(token), true) = (launcher_token, blocked_seen && synced_after_block) {
-            // Step 5: the launcher's current token goes on A.
+            // Step 5: the launcher's current token goes on A. The guardian's
+            // next frame is `token-seen`; anything else (a second
+            // `allowance` included) is out of the grammar and refuses.
             write_frame(pipe_a_write, &encode_launcher_token(&token))?;
             loop {
-                for frame in read_b(&mut reader, b_read, guardian)? {
-                    if matches!(frame, BFrame::TokenSeen) {
-                        return Ok(Handshake {
-                            launcher_token: token,
-                            events,
-                        });
+                if let Some(frame) = read_b(&mut reader, b_read, guardian)?.into_iter().next() {
+                    if !matches!(frame, BFrame::TokenSeen) {
+                        return Err(out_of_order(&frame));
                     }
+                    return Ok(Handshake {
+                        launcher_token: token,
+                        events,
+                        allowance: allowance.expect("`ready` required the allowance"),
+                    });
                 }
                 if Instant::now() >= deadline {
                     return Err(handshake_timeout());
@@ -1940,6 +2040,36 @@ fn handshake(
         }
         client.drain(TICK_MS);
     }
+}
+
+/// One frame of step 3 on B: exactly one `allowance`, then `ready` (which
+/// returns `true`). `ready` without the allowance, a second allowance, or
+/// any other frame refuses: the receipt has no other source for rule 6.
+fn ready_step(frame: BFrame, allowance: &mut Option<AppliedAllowance>) -> Result<bool, JailError> {
+    match frame {
+        BFrame::Allowance(applied) if allowance.is_none() => {
+            *allowance = Some(applied);
+            Ok(false)
+        }
+        BFrame::Ready if allowance.is_some() => Ok(true),
+        BFrame::Ready => Err(refusal(
+            ErrorCode::BackendUnavailable,
+            ErrorStage::Preparing,
+            Remediation::InspectState,
+            "the guardian answered `ready` without reporting its applied process allowance \
+             (rule 6)",
+        )),
+        other => Err(out_of_order(&other)),
+    }
+}
+
+fn out_of_order(frame: &BFrame) -> JailError {
+    refusal(
+        ErrorCode::BackendUnavailable,
+        ErrorStage::Preparing,
+        Remediation::InspectState,
+        format!("the guardian sent {frame:?} out of order in the handshake"),
+    )
 }
 
 /// One bounded poll slice of B. Returns the frames that completed.
@@ -2198,14 +2328,7 @@ impl PreparedExecution for MacosPrepared {
             "handshake_events_pending".to_owned(),
             serde_json::Value::from(self.handshake_events.len()),
         );
-        details.insert(
-            "process_headroom".to_owned(),
-            serde_json::Value::from(self.headroom),
-        );
-        details.insert(
-            "process_headroom_clamped".to_owned(),
-            serde_json::Value::from(self.headroom_clamped),
-        );
+        insert_process_allowance(&mut details, &self.allowance);
         BoundaryIdentity {
             boundary: BoundaryKind::NativeTree,
             verification_scope: VerificationScope::AttemptTree,
@@ -2313,7 +2436,14 @@ impl MacosPrepared {
             match self.b_read.read(&mut buffer) {
                 Ok(0) => break,
                 Ok(n) => {
-                    if receive_guardian_record(&mut reader, &buffer[..n], &mut record).is_err() {
+                    if receive_guardian_record(
+                        &mut reader,
+                        &buffer[..n],
+                        &mut record,
+                        &self.allowance,
+                    )
+                    .is_err()
+                    {
                         break;
                     }
                 }
@@ -2408,8 +2538,7 @@ struct MacosRunning {
     relay: Option<TerminalRelay>,
     stdio_relays: Vec<StdioRelay>,
     target_was_stopped: bool,
-    headroom: u64,
-    headroom_clamped: bool,
+    allowance: AppliedAllowance,
     profile_params: ProfileParams,
     handshake_events: Vec<es::EsPoll>,
     /// The outside proxy, its tally, and the loopback relay (§4.10).
@@ -2467,8 +2596,7 @@ impl MacosRunning {
             relay: prepared.relay,
             stdio_relays: prepared.stdio_relays,
             target_was_stopped: false,
-            headroom: prepared.headroom,
-            headroom_clamped: prepared.headroom_clamped,
+            allowance: prepared.allowance,
             profile_params: prepared.profile_params,
             handshake_events: prepared.handshake_events,
             proxy: prepared.proxy,
@@ -2596,11 +2724,13 @@ impl MacosRunning {
                     &mut self.b_reader,
                     &buffer[..n],
                     &mut self.guardian_record,
+                    &self.allowance,
                 ) {
                     self.guardian_lost = true;
                 }
                 if !before && self.guardian_record.is_some() {
-                    self.guardian_record_ns.get_or_insert_with(es::continuous_time_ns);
+                    self.guardian_record_ns
+                        .get_or_insert_with(es::continuous_time_ns);
                 }
             }
             Ok(_) => {}
@@ -2629,7 +2759,8 @@ impl MacosRunning {
     /// Begins the supervisor's own stop: A closes (end-of-file is the
     /// guardian's stop, §4.3) and the engine's stop machine starts.
     fn begin_stop(&mut self) {
-        self.stop_requested_ns.get_or_insert_with(es::continuous_time_ns);
+        self.stop_requested_ns
+            .get_or_insert_with(es::continuous_time_ns);
         if self.a_write >= 0 {
             // SAFETY: a plain close of a descriptor this process owns.
             unsafe { libc::close(self.a_write) };
@@ -2641,7 +2772,8 @@ impl MacosRunning {
     /// Advances the stop one tick; `true` when it has ended (§4.5).
     fn tick_stop(&mut self) -> bool {
         if let Some(result) = self.engine.tick(es::continuous_time_ns(), &mut EsSignaller) {
-            self.stop_result_ns.get_or_insert_with(es::continuous_time_ns);
+            self.stop_result_ns
+                .get_or_insert_with(es::continuous_time_ns);
             self.stop_result = Some(result);
             return true;
         }
@@ -2792,14 +2924,7 @@ impl MacosRunning {
             "handshake_events_pending".to_owned(),
             serde_json::Value::from(self.handshake_events.len()),
         );
-        details.insert(
-            "process_headroom".to_owned(),
-            serde_json::Value::from(self.headroom),
-        );
-        details.insert(
-            "process_headroom_clamped".to_owned(),
-            serde_json::Value::from(self.headroom_clamped),
-        );
+        insert_process_allowance(&mut details, &self.allowance);
         let mut custodians = serde_json::Map::new();
         custodians.insert("supervisor".to_owned(), self.custodian_facts());
         custodians.insert("guardian".to_owned(), self.guardian_facts());
@@ -2915,10 +3040,14 @@ fn track_target(
 
 /// After token-seen, B carries exactly one well-formed final record. A bad
 /// frame invalidates this channel's evidence; EOF cannot later clear loss.
+/// The record must carry the rule-6 allowance the guardian reported before
+/// `ready` (`expected`): one guardian, one applied value, or the record is
+/// not the evidence it claims to be.
 fn receive_guardian_record(
     reader: &mut BReader,
     bytes: &[u8],
     record: &mut Option<serde_json::Value>,
+    expected: &AppliedAllowance,
 ) -> Result<(), ()> {
     let accepted = (|| {
         for frame in reader.feed(bytes).map_err(|_| ())? {
@@ -2934,6 +3063,8 @@ fn receive_guardian_record(
                     .get("drained")
                     .and_then(serde_json::Value::as_bool)
                     .is_none()
+                || value.get("process_allowance")
+                    != Some(&serde_json::to_value(expected).map_err(|_| ())?)
             {
                 return Err(());
             }
@@ -3800,6 +3931,7 @@ mod tests {
     fn the_b_grammar_decodes_ready_token_seen_and_record() {
         let record = br#"{"schema":"ukai.jail.guardian-record/1","drained":true}"#;
         let mut bytes = Vec::new();
+        bytes.extend_from_slice(&frame(&CLAMPED.encode_frame()));
         bytes.extend_from_slice(&frame(b"ready"));
         bytes.extend_from_slice(&frame(b"token-seen"));
         let mut record_payload = b"record ".to_vec();
@@ -3809,11 +3941,21 @@ mod tests {
         assert_eq!(
             decode_b_frames(&[&bytes]).expect("decodes"),
             vec![
+                BFrame::Allowance(CLAMPED),
                 BFrame::Ready,
                 BFrame::TokenSeen,
                 BFrame::Record(record.to_vec()),
             ]
         );
+        // A malformed or impossible rule-6 report refuses; it never decodes
+        // into a value the receipt could record.
+        let mut short = CLAMPED.encode_frame();
+        short.pop();
+        let mut impossible = UNCLAMPED.encode_frame();
+        *impossible.last_mut().unwrap() = 1; // clamped with the full headroom
+        for bad in [short, impossible] {
+            assert!(decode_b_frames(&[&frame(&bad)]).is_err());
+        }
     }
 
     #[test]
@@ -4191,7 +4333,23 @@ os.write({}, (','.join(map(str, fds))).encode())
         prepared_receipt: std::sync::Arc<std::sync::Mutex<Option<serde_json::Value>>>,
         /// Settlement finds relayed output it could not deliver (§8.3).
         undelivered_output: bool,
+        /// What the fixture's guardian reported for rule 6 before `ready`.
+        allowance: AppliedAllowance,
     }
+
+    /// A synthetic guardian's rule-6 report: the unclamped shape.
+    const UNCLAMPED: AppliedAllowance = AppliedAllowance {
+        limit: 312 + crate::platform::macos::guardian::rlimit::PROCESS_HEADROOM,
+        headroom: crate::platform::macos::guardian::rlimit::PROCESS_HEADROOM,
+        clamped: false,
+    };
+
+    /// The 2026-11-02 busy default host: 665 processes under a 1333 ceiling.
+    const CLAMPED: AppliedAllowance = AppliedAllowance {
+        limit: 1333,
+        headroom: 668,
+        clamped: true,
+    };
 
     struct ReceiptPrepared {
         observation: ReceiptObservation,
@@ -4224,6 +4382,7 @@ os.write({}, (','.join(map(str, fds))).encode())
             Handshake {
                 launcher_token,
                 events,
+                allowance: UNCLAMPED,
             },
             engine,
             NativeObservation::Off,
@@ -4236,57 +4395,134 @@ os.write({}, (','.join(map(str, fds))).encode())
         engine: Custodian,
         observation: NativeObservation,
     ) -> (MacosPrepared, [Fd; 2]) {
-        let params = profile_params(plan, None).unwrap();
-        let Handshake {
-            launcher_token: launcher,
-            events,
-        } = handshake;
         let mut a = Pipe::new().unwrap();
         let mut r = Pipe::new().unwrap();
         let peers = [Fd(a.take_read()), Fd(r.take_read())];
-        (
-            MacosPrepared {
-                observation,
+        // Production's own assembly: the fixture supplies only what the
+        // missing client, guardian and launcher would have.
+        let prepared = MacosPrepared::assemble(
+            plan,
+            handshake,
+            PreparedParts {
                 client: None,
                 engine,
-                a_write: a.take_write(),
-                r_write: Fd(r.take_write()),
-                b_read: Fd(-1),
-                e_read: Fd(-1),
-                guardian: GuardianProcess {
-                    pid: None,
-                    status: Some(0),
-                },
-                launcher_token: launcher,
-                process: ProcessRecord {
-                    pid: launcher[AUDIT_TOKEN_PID],
-                    identity: ProcessIdentity {
-                        kind: "macos_audit_token".to_owned(),
-                        value: audit_token_value(launcher),
+                observation,
+                spawned: Spawned {
+                    b_read: Fd(-1),
+                    e_read: Fd(-1),
+                    pipe_a_write: Fd(a.take_write()),
+                    pipe_r_write: Fd(r.take_write()),
+                    profile_params: profile_params(plan, None).unwrap(),
+                    guardian: GuardianProcess {
+                        pid: None,
+                        status: Some(0),
                     },
+                    stdio_relays: Vec::new(),
                 },
-                applied: build_applied(plan, &params, None, false),
-                wall_ms: plan
-                    .request
-                    .snapshot
-                    .limits
-                    .wall
-                    .as_ref()
-                    .map(|wall| wall.value.parse().unwrap()),
                 relay: None,
-                stdio_relays: Vec::new(),
-                headroom: crate::platform::macos::guardian::rlimit::PROCESS_HEADROOM,
-                // A synthetic fixture: the unclamped shape (the receipt
-                // tests do not model a clamped host).
-                headroom_clamped: false,
-                profile_params: params,
-                handshake_events: events,
+                bridge: None,
                 proxy: None,
-                proxy_sink: None,
-                serving: None,
             },
-            peers,
+        );
+        (prepared, peers)
+    }
+
+    /// Client S's custody stream for the handshake, scripted: the retained
+    /// launch events in delivery order, then every drain synchronized.
+    struct ScriptedStream(std::cell::RefCell<std::collections::VecDeque<es::EsPoll>>);
+
+    impl HandshakeStream for ScriptedStream {
+        fn drain(&self, _: u32) -> bool {
+            std::thread::sleep(Duration::from_millis(1));
+            true
+        }
+        fn poll_full(&self) -> Option<es::EsPoll> {
+            self.0.borrow_mut().pop_front()
+        }
+        fn ring_overflowed(&self) -> bool {
+            false
+        }
+    }
+
+    /// The supervisor's real handshake (§4.3 steps 3–5) on real pipes, with
+    /// no ES client: a fake guardian writes `frames` on B with the
+    /// guardian's own frame writer, waits for the launcher token on A and
+    /// answers `token-seen`; the launcher's `blocked` waits on E; the custody
+    /// stream replays [`retained_handshake`]. Returns what the handshake
+    /// returned and the token the fake guardian received on A (`None` when
+    /// the handshake refused before step 5).
+    fn scripted_handshake(frames: Vec<Vec<u8>>) -> (Result<Handshake, JailError>, Option<Token>) {
+        scripted_handshake_answering(
+            frames,
+            vec![crate::platform::macos::guardian::frames::encode_token_seen()],
         )
+    }
+
+    /// [`scripted_handshake`], with `answer` written on B once the launcher
+    /// token arrives on A in place of the guardian's `token-seen`.
+    fn scripted_handshake_answering(
+        frames: Vec<Vec<u8>>,
+        answer: Vec<Vec<u8>>,
+    ) -> (Result<Handshake, JailError>, Option<Token>) {
+        use crate::platform::macos::guardian::{self, frames as wire};
+        use std::io::{Read as _, Write as _};
+        use std::os::fd::FromRawFd as _;
+        let mut b = Pipe::new().unwrap();
+        let mut a = Pipe::new().unwrap();
+        let mut e = Pipe::new().unwrap();
+        let mut b_read = Fd::nonblocking(b.take_read()).unwrap();
+        let mut e_read = Fd::nonblocking(e.take_read()).unwrap();
+        let a_write = Fd(a.take_write());
+        // SAFETY: each end is taken from its pipe once; the File owns it.
+        let (mut b_write, mut a_read, mut e_write) = unsafe {
+            (
+                std::fs::File::from_raw_fd(b.take_write()),
+                std::fs::File::from_raw_fd(a.take_read()),
+                std::fs::File::from_raw_fd(e.take_write()),
+            )
+        };
+        // The launcher's `blocked` report: eight zero bytes.
+        let blocked = [0u8; 8];
+        assert!(crate::platform::macos::launcher::is_blocked_report(
+            &blocked
+        ));
+        e_write.write_all(&blocked).unwrap();
+        let guardian_side = std::thread::spawn(move || {
+            for frame in &frames {
+                guardian::write_frame(&mut b_write, frame).unwrap();
+            }
+            let mut length = [0u8; 4];
+            // End-of-file on A: the supervisor refused before step 5.
+            a_read.read_exact(&mut length).ok()?;
+            let mut payload = vec![0u8; u32::from_le_bytes(length) as usize];
+            a_read.read_exact(&mut payload).unwrap();
+            let Ok(Some(wire::Frame::LauncherToken(token))) = wire::decode_frame(&payload) else {
+                panic!("step 5 sends the launcher token on A: {payload:?}");
+            };
+            for frame in &answer {
+                guardian::write_frame(&mut b_write, frame).unwrap();
+            }
+            Some(token)
+        });
+        let (events, _, _) = retained_handshake();
+        let stream = ScriptedStream(std::cell::RefCell::new(events.into()));
+        // The pid the retained stream's guardian fork carries; nothing here
+        // waits for or signals it (B never reaches end-of-file first).
+        let mut guardian = GuardianProcess {
+            pid: Some(1001),
+            status: None,
+        };
+        let result = handshake(
+            &stream,
+            &mut b_read,
+            &mut e_read,
+            a_write.0,
+            &mut guardian,
+            &ContinuousDeadline::after(Duration::from_secs(10)),
+        );
+        drop(a_write);
+        let seen = guardian_side.join().unwrap();
+        (result, seen)
     }
 
     impl crate::platform::Platform for ReceiptPlatform {
@@ -4318,11 +4554,14 @@ os.write({}, (','.join(map(str, fds))).encode())
             plan: PreparedPlan,
             sinks: Sinks,
         ) -> Result<Box<dyn PreparedExecution>, JailError> {
-            let (events, launcher_token, guardian_token) = retained_handshake();
-            let mut handshake = Handshake {
-                launcher_token,
-                events,
-            };
+            // The real handshake against a fake guardian that announces
+            // this fixture's allowance with the guardian's own frames.
+            let (_, launcher_token, guardian_token) = retained_handshake();
+            let (handshake, _) = scripted_handshake(
+                crate::platform::macos::guardian::announcement(&self.allowance).to_vec(),
+            );
+            let mut handshake = handshake.expect("the scripted handshake completes");
+            assert_eq!(handshake.launcher_token, launcher_token);
             let (send, receive) = std::sync::mpsc::channel();
             let dropped = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
             let source = ReceiptSource {
@@ -4582,6 +4821,7 @@ os.write({}, (','.join(map(str, fds))).encode())
                 let mut handshake = Handshake {
                     launcher_token,
                     events,
+                    allowance: UNCLAMPED,
                 };
                 let result = prepare_custody_and_observation(
                     &plan,
@@ -4665,6 +4905,7 @@ os.write({}, (','.join(map(str, fds))).encode())
                         wall_hit: Some(false),
                         prepared_receipt: captured.clone(),
                         undelivered_output: false,
+                        allowance: UNCLAMPED,
                     }),
                     env_settings: crate::config::EnvSettings {
                         config_dir: Some(root.join("config")),
@@ -4903,6 +5144,7 @@ os.write({}, (','.join(map(str, fds))).encode())
                     wall_hit: Some(false),
                     prepared_receipt: Default::default(),
                     undelivered_output: false,
+                    allowance: UNCLAMPED,
                 }
                 .probe(plan)
             }
@@ -5016,6 +5258,7 @@ os.write({}, (','.join(map(str, fds))).encode())
                     wall_hit,
                     prepared_receipt: captured.clone(),
                     undelivered_output: false,
+                    allowance: UNCLAMPED,
                 }),
                 env_settings: crate::config::EnvSettings {
                     config_dir: Some(root.join("config")),
@@ -5110,6 +5353,150 @@ os.write({}, (','.join(map(str, fds))).encode())
         }
     }
 
+    // D13 and review §4: the receipt's rule-6 fields are the guardian's
+    // report (clamped and unclamped alike, in the prepared and the settled
+    // receipt), and the settled receipt carries the whole-stop phase marks
+    // in their order. Mutations that pin the clamp flag or drop the phases
+    // survived the suite before this test.
+    #[test]
+    fn d13_native_receipts_record_the_guardians_allowance_and_ordered_stop_phases() {
+        use clap::Parser as _;
+        use std::os::unix::fs::PermissionsExt as _;
+        const CHILD: &str = "UKAI_CONTAINMENT_RECEIPT_TEST";
+        if std::env::var_os(CHILD).is_none() {
+            let test_name = format!(
+                "{}::d13_native_receipts_record_the_guardians_allowance_and_ordered_stop_phases",
+                module_path!().split_once("::").unwrap().1
+            );
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", &test_name, "--nocapture"])
+                .env(CHILD, "1")
+                .env("UKAI_JAIL_MACOS_NATIVE", "dev")
+                .output()
+                .unwrap();
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            assert!(
+                output.status.success(),
+                "{stdout}\n{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(stdout.contains("test result: ok. 1 passed"), "{stdout}");
+            assert_eq!(
+                stdout.matches("allowance fixture ran").count(),
+                2,
+                "{stdout}"
+            );
+            return;
+        }
+        let validator = receipt_validator();
+        for allowance in [UNCLAMPED, CLAMPED] {
+            let temp = tempfile::Builder::new()
+                .permissions(std::fs::Permissions::from_mode(0o700))
+                .tempdir()
+                .unwrap();
+            let root = temp.path().canonicalize().unwrap();
+            let workspace = root.join("work");
+            std::fs::create_dir(&workspace).unwrap();
+            let captured = std::sync::Arc::new(std::sync::Mutex::new(None));
+            let ctx = crate::supervisor::Context {
+                platform: Box::new(ReceiptPlatform {
+                    observation: ReceiptObservation::Off,
+                    wall_hit: Some(false),
+                    prepared_receipt: captured.clone(),
+                    undelivered_output: false,
+                    allowance,
+                }),
+                env_settings: crate::config::EnvSettings {
+                    config_dir: Some(root.join("config")),
+                    data_dir: Some(root.join("data")),
+                    ..Default::default()
+                },
+                cwd: workspace.clone(),
+                home: Some(root.join("home")),
+                env_lookup: Box::new(|_| None),
+            };
+            let crate::cli::Command::Run(args) = crate::cli::Cli::parse_from([
+                "ukai-jail",
+                "run",
+                "--profile",
+                "tool",
+                "--observe",
+                "off",
+                "--workspace",
+                workspace.to_str().unwrap(),
+                "--",
+                "/usr/bin/true",
+            ])
+            .command
+            else {
+                unreachable!()
+            };
+            let report = crate::supervisor::run(&ctx, &args);
+            let settled = serde_json::to_value(report.receipt.as_ref().unwrap()).unwrap();
+            assert_eq!(settled["phase"], "settled", "{:?}", report.error);
+            let prepared = captured
+                .lock()
+                .unwrap()
+                .take()
+                .expect("the prepared receipt was persisted before release");
+            assert_eq!(prepared["phase"], "prepared");
+            for receipt in [&prepared, &settled] {
+                let details = &receipt["lifetime"]["native"]["details"];
+                assert_eq!(details["process_limit"], allowance.limit, "{details:#}");
+                assert_eq!(
+                    details["process_headroom"], allowance.headroom,
+                    "{details:#}"
+                );
+                assert_eq!(
+                    details["process_headroom_clamped"], allowance.clamped,
+                    "{details:#}"
+                );
+                let errors: Vec<_> = validator
+                    .iter_errors(receipt)
+                    .map(|error| format!("{error} at {}", error.instance_path()))
+                    .collect();
+                assert!(errors.is_empty(), "{errors:?}\n{receipt:#}");
+            }
+            // The whole-stop phase marks (NC09/NC11), all six named, on the
+            // continuous clock, in stop order. This fixture has no guardian
+            // record, so that mark is null; the supervisor's own request,
+            // result and settlement are always present.
+            let phases = settled["lifetime"]["native"]["details"]["stop"]["phases"]
+                .as_object()
+                .expect("stop.phases is an object");
+            const ORDER: [&str; 6] = [
+                "requested",
+                "freeze_done",
+                "first_kill",
+                "result",
+                "guardian_record",
+                "settled",
+            ];
+            let mut names: Vec<&str> = phases.keys().map(String::as_str).collect();
+            names.sort_unstable();
+            let mut expected = ORDER.to_vec();
+            expected.sort_unstable();
+            assert_eq!(names, expected);
+            for name in ["requested", "result", "settled"] {
+                assert!(phases[name].as_u64().is_some(), "{name}: {phases:?}");
+            }
+            assert!(phases["guardian_record"].is_null(), "{phases:?}");
+            let marks: Vec<u64> = ORDER
+                .iter()
+                .filter_map(|name| phases[*name].as_u64())
+                .collect();
+            assert!(
+                marks.windows(2).all(|pair| pair[0] <= pair[1]),
+                "stop.phases out of order: {phases:?}"
+            );
+            assert!(
+                phases["requested"].as_u64() < phases["settled"].as_u64(),
+                "{phases:?}"
+            );
+            println!("allowance fixture ran");
+        }
+    }
+
     #[test]
     fn native_limit_rows_preserve_all_requested_unapplied_ceilings() {
         let mut limits = crate::policy::LimitsSnapshot::default();
@@ -5188,6 +5575,7 @@ os.write({}, (','.join(map(str, fds))).encode())
                     wall_hit: Some(false),
                     prepared_receipt: Default::default(),
                     undelivered_output,
+                    allowance: UNCLAMPED,
                 }),
                 env_settings: crate::config::EnvSettings {
                     config_dir: Some(root.join("config")),
@@ -6288,18 +6676,34 @@ int main(int argc, char **argv) {
         let error = require_supported_staging(&plan).unwrap_err();
         assert_eq!(error.code, crate::records::ErrorCode::UnsupportedPlatform);
     }
+    /// A record frame carrying `allowance` as its rule-6 report.
+    fn record_frame(drained: bool, allowance: Option<&AppliedAllowance>) -> Vec<u8> {
+        let mut value = serde_json::json!({
+            "schema": "ukai.jail.guardian-record/1",
+            "drained": drained,
+        });
+        if let Some(allowance) = allowance {
+            value["process_allowance"] = serde_json::to_value(allowance).unwrap();
+        }
+        frame(format!("record {value}").as_bytes())
+    }
+
     #[test]
     fn invalid_guardian_frames_invalidate_previous_evidence() {
         let mut reader = BReader::default();
         let mut record = None;
         receive_guardian_record(
             &mut reader,
-            &frame(br#"record {"schema":"ukai.jail.guardian-record/1","drained":true}"#),
+            &record_frame(true, Some(&UNCLAMPED)),
             &mut record,
+            &UNCLAMPED,
         )
         .unwrap();
         assert_eq!(record.as_ref().unwrap()["drained"], true);
-        assert!(receive_guardian_record(&mut reader, &0u32.to_le_bytes(), &mut record).is_err());
+        assert!(
+            receive_guardian_record(&mut reader, &0u32.to_le_bytes(), &mut record, &UNCLAMPED)
+                .is_err()
+        );
         assert!(record.is_none());
         for bytes in [
             frame(b"record {invalid}"),
@@ -6307,7 +6711,241 @@ int main(int argc, char **argv) {
             frame(b"record {}"),
             frame(b"record null"),
         ] {
-            assert!(receive_guardian_record(&mut BReader::default(), &bytes, &mut None).is_err());
+            assert!(
+                receive_guardian_record(&mut BReader::default(), &bytes, &mut None, &UNCLAMPED)
+                    .is_err()
+            );
         }
+    }
+
+    // D13: the guardian reports rule 6 twice (before `ready`, and in its
+    // record). A record without the report, or with any other value, is not
+    // the evidence it claims to be and is refused like a malformed frame.
+    #[test]
+    fn d13_a_guardian_record_must_carry_the_allowance_reported_before_ready() {
+        let mut record = None;
+        receive_guardian_record(
+            &mut BReader::default(),
+            &record_frame(true, Some(&CLAMPED)),
+            &mut record,
+            &CLAMPED,
+        )
+        .unwrap();
+        assert_eq!(
+            record.as_ref().unwrap()["process_allowance"]["headroom"],
+            668
+        );
+        let other_limit = AppliedAllowance {
+            limit: CLAMPED.limit - 1,
+            headroom: CLAMPED.headroom - 1,
+            ..CLAMPED
+        };
+        for bytes in [
+            record_frame(true, None),
+            record_frame(true, Some(&UNCLAMPED)),
+            record_frame(true, Some(&other_limit)),
+            record_frame(
+                true,
+                Some(&AppliedAllowance {
+                    clamped: false,
+                    ..CLAMPED
+                }),
+            ),
+        ] {
+            let mut record = None;
+            assert!(
+                receive_guardian_record(&mut BReader::default(), &bytes, &mut record, &CLAMPED)
+                    .is_err()
+            );
+            assert!(record.is_none());
+        }
+    }
+
+    // D13: step 3 on B is exactly one `allowance`, then `ready`. A guardian
+    // that skips the report cannot reach `prepared`.
+    #[test]
+    fn d13_the_handshake_requires_one_allowance_before_ready() {
+        let mut allowance = None;
+        assert!(!ready_step(BFrame::Allowance(CLAMPED), &mut allowance).unwrap());
+        assert!(ready_step(BFrame::Ready, &mut allowance).unwrap());
+        assert_eq!(allowance, Some(CLAMPED));
+
+        let refused = ready_step(BFrame::Ready, &mut None).unwrap_err();
+        assert_eq!(refused.code, ErrorCode::BackendUnavailable);
+        assert!(
+            refused
+                .message
+                .contains("without reporting its applied process allowance")
+        );
+
+        let mut twice = Some(UNCLAMPED);
+        assert!(ready_step(BFrame::Allowance(CLAMPED), &mut twice).is_err());
+        assert_eq!(
+            twice,
+            Some(UNCLAMPED),
+            "a second report never replaces the first"
+        );
+        for early in [BFrame::TokenSeen, BFrame::Record(b"{}".to_vec())] {
+            assert!(ready_step(early.clone(), &mut None).is_err());
+            assert!(ready_step(early, &mut Some(UNCLAMPED)).is_err());
+        }
+    }
+
+    /// Distinctive rule-6 reports no other fixture uses: what arrives must
+    /// be what the guardian sent, not a default or another fixture's value.
+    const DISTINCT_CLAMPED: AppliedAllowance = AppliedAllowance {
+        limit: 2741,
+        headroom: 593,
+        clamped: true,
+    };
+    const DISTINCT_UNCLAMPED: AppliedAllowance = AppliedAllowance {
+        limit: 4321 + crate::platform::macos::guardian::rlimit::PROCESS_HEADROOM,
+        headroom: crate::platform::macos::guardian::rlimit::PROCESS_HEADROOM,
+        clamped: false,
+    };
+
+    // Review F3 (N12): the supervisor's handshake, driven end to end from
+    // the guardian's own step-3 frames on a real B pipe, returns the
+    // allowance the guardian announced, beside the launcher token it sent
+    // on A. The receipt tests take their handshake from the same path
+    // (`ReceiptPlatform::prepare`), so the value reaches the receipt
+    // through `MacosPrepared::assemble` (N10). The guardian's own call
+    // sites run only with ES; see guardian.rs (N14, N15).
+    #[test]
+    fn f3_the_handshake_returns_the_allowance_the_guardian_announced() {
+        let (_, launcher, _) = retained_handshake();
+        for allowance in [DISTINCT_CLAMPED, DISTINCT_UNCLAMPED] {
+            assert!(allowance.is_consistent());
+            let (result, seen) = scripted_handshake(
+                crate::platform::macos::guardian::announcement(&allowance).to_vec(),
+            );
+            let handshake = result.expect("the handshake completes");
+            assert_eq!(handshake.allowance, allowance);
+            assert_eq!(handshake.launcher_token, launcher);
+            assert_eq!(seen, Some(launcher), "step 5 sent the launcher's token");
+            assert_eq!(handshake.events.len(), 4, "every launch event retained");
+        }
+    }
+
+    // Review F3: the same driven handshake refuses every step-3 shape but
+    // exactly one `allowance` then `ready`, and refuses a frame other than
+    // `token-seen` after the token, before anything reaches a receipt.
+    #[test]
+    fn f3_the_driven_handshake_refuses_any_other_announcement() {
+        use crate::platform::macos::guardian::frames::{encode_ready, encode_token_seen};
+        let allowance = DISTINCT_CLAMPED.encode_frame();
+        for (frames, expected) in [
+            (
+                vec![encode_ready()],
+                "without reporting its applied process allowance",
+            ),
+            (
+                vec![encode_ready(), allowance.clone()],
+                "without reporting its applied process allowance",
+            ),
+            (
+                vec![allowance.clone(), allowance.clone(), encode_ready()],
+                "out of order",
+            ),
+            (vec![encode_token_seen()], "out of order"),
+        ] {
+            let (result, seen) = scripted_handshake(frames.clone());
+            let Err(error) = result else {
+                panic!("{frames:?} completed the handshake");
+            };
+            assert_eq!(error.code, ErrorCode::BackendUnavailable, "{frames:?}");
+            assert!(
+                error.message.contains(expected),
+                "{frames:?}: {}",
+                error.message
+            );
+            assert_eq!(seen, None, "{frames:?}: refused before step 5");
+        }
+        // After the token, a second `allowance` in place of `token-seen`.
+        let (result, seen) = scripted_handshake_answering(
+            crate::platform::macos::guardian::announcement(&DISTINCT_CLAMPED).to_vec(),
+            vec![DISTINCT_UNCLAMPED.encode_frame(), encode_token_seen()],
+        );
+        let (_, launcher, _) = retained_handshake();
+        assert_eq!(seen, Some(launcher));
+        let error = result.err().expect("a second allowance refuses");
+        assert!(error.message.contains("out of order"), "{}", error.message);
+    }
+
+    // Review F4 (N21, N22): each of the six whole-stop marks comes from its
+    // own source, distinct and in stop order: the supervisor's request, the
+    // stop machine's freeze, first kill and result (the supervisor's own
+    // result mark wins when it has one), the guardian record's arrival and
+    // settlement. The machine is driven at chosen instants through a real
+    // freeze and kill of a live member.
+    #[test]
+    fn f4_stop_phases_come_from_their_own_sources_in_stop_order() {
+        let (_dir, plan) = policy_plan(crate::policy::ProfileName::Tool);
+        let (prepared, _peers) = receipt_prepared(&plan);
+        let mut running = prepared.release_inner().unwrap();
+        let mut target = running.launcher_token;
+        target[AUDIT_TOKEN_PIDVERSION] += 1;
+        running.apply_event(&poll(EsEvent::Exec { token: target }, 5, 3, es::EVENT_EXEC));
+        assert_eq!(running.engine.live_count(), 1, "a live member to stop");
+
+        const REQUESTED: u64 = 500;
+        const BEGIN: u64 = 1_000;
+        const FREEZE: u64 = 2_000;
+        const KILL: u64 = FREEZE + SETTLE_NS + 1_000;
+        const RESULT: u64 = KILL + 3_000;
+        const RECORD: u64 = RESULT + 2_000;
+        const SETTLED: u64 = RESULT + 4_000;
+        let mut signals = RecordedSignals::default();
+        running.engine.begin_stop(BEGIN);
+        assert!(running.engine.tick(FREEZE, &mut signals).is_none());
+        assert_eq!(signals.0, [(target, libc::SIGSTOP)]);
+        assert!(running.engine.tick(KILL, &mut signals).is_none());
+        assert_eq!(signals.0.last(), Some(&(target, libc::SIGKILL)));
+        apply_supervisor_event(
+            &mut running.engine,
+            &poll(
+                EsEvent::Exit {
+                    token: target,
+                    status: libc::SIGKILL,
+                },
+                6,
+                1,
+                es::EVENT_EXIT,
+            ),
+            &mut signals,
+        );
+        assert!(running.engine.tick(RESULT, &mut signals).unwrap().drained());
+        running.stop_requested_ns = Some(REQUESTED);
+        running.guardian_record_ns = Some(RECORD);
+        running.settled_at_ns = Some(SETTLED);
+
+        let phases = |running: &MacosRunning| running.native_details()["stop"]["phases"].clone();
+        assert_eq!(
+            phases(&running),
+            serde_json::json!({
+                "requested": REQUESTED,
+                "freeze_done": FREEZE,
+                "first_kill": KILL,
+                "result": RESULT,
+                "guardian_record": RECORD,
+                "settled": SETTLED,
+            })
+        );
+        // The supervisor's own result mark, when it has one, is the result.
+        running.stop_result_ns = Some(RESULT + 1_000);
+        let phases = phases(&running);
+        assert_eq!(phases["result"], RESULT + 1_000);
+        let marks: Vec<u64> = [
+            "requested",
+            "freeze_done",
+            "first_kill",
+            "result",
+            "guardian_record",
+            "settled",
+        ]
+        .iter()
+        .map(|name| phases[*name].as_u64().unwrap())
+        .collect();
+        assert!(marks.windows(2).all(|pair| pair[0] < pair[1]), "{phases:?}");
     }
 }

@@ -46,9 +46,13 @@ class itself
 ([bootstrap-strip record](benchmarks/jail/results/macos-k90-bootstrap-strip-2026-11-02/README.md)).
 Packaging, protected-Mac acceptance and the spike's other open findings
 remain outstanding; the protected-Mac release run stays blocked while
-Apple's entitlement request is pending. J18 still lacks network, the `agent` profile, a workspace
-share and in-guest credentials. The released VM preview is the only Mac
-deliverable today.
+Apple's entitlement request is pending. J18's K108–K113 are `untested`: the
+2026-11-02/03 development measurements on the dev Mac do not meet their
+clauses, a policy element the guest jail does not carry refuses with
+`vm:not-carried:<field>`, and no macOS `ukai-jail` client ships (the VM
+candidate package carries only `ukai-vm` and `ukai-vm-install`; the client
+is built from source). The released VM preview is the only Mac deliverable
+today.
 
 Current implementation: native execution is **off by default**. Setting
 `UKAI_JAIL_MACOS_NATIVE=dev` enables development only; a native receipt records
@@ -57,8 +61,10 @@ Current implementation: native execution is **off by default**. Setting
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
 receipts and development-VM observation smoke runs are tested; full live
-release acceptance remains pending. Every
-`run --vm` refuses before connecting: no qualified VM backend exists yet.
+release acceptance remains pending. Every `run --vm` refuses at probing,
+before any connection or boot, until a live phase re-measures the guest:
+no requirement has a measured guest record yet, so every one answers
+`vm:not-measured:<requirement>`.
 
 You can [build the jail and try a small command](https://github.com/monocursive/ukai/blob/dev/docs/guide.md#build-and-check-your-host)
 today. [Signed Linux developer-preview packages](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.5)
@@ -168,10 +174,14 @@ is supported or shipped:
   blockers resolved, Apple's entitlement, completed packaging and a passing
   protected-Mac acceptance run before release. The both-lost residual is
   not established as external-only while the deputy route remains open.
-- **Warm VM (J18).** The intended backend reuses a warm Linux ARM64 guest
-  through `--vm`, with `ukai-jail vm stop` to stop it. Network, the `agent`
-  profile, a workspace share and in-guest credentials are still missing;
-  warm reuse and fault behavior need new live evidence. The released
+- **Warm VM (J18).** The backend reuses a warm Linux ARM64 guest through
+  `--vm`, with `ukai-jail vm stop` to stop it. The warm service, the live
+  workspace share, the `agent` profile's guest proxy and vault-mode
+  credentials are on `dev`, but `run --vm` refuses at probing until the
+  guest is re-measured, and K108–K113 are `untested`: the development
+  measurements had vacuous network probes, half the K110 fault matrix, a
+  stored receipt that contradicted the guest's, one Claude Code attempt, and
+  a client built from the repository. The released
   [VM preview](https://ukai.sh/guide/#macos-vm-preview) is a separate,
   cold-boot implementation.
 

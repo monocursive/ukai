@@ -167,17 +167,19 @@ impl LineSplitter {
     }
 }
 
-/// One vaulted launch profile crossing to the guest: the name the guest
-/// jail's `--launch` grammar takes, and the profile's TOML text with the
-/// credential sources already rewritten to `/run/ukai-vm/credentials/<id>`
-/// (the transport stages the values there, in tmpfs). The guest's own
-/// loader re-parses the text under its strict file rules, so a malformed
-/// rewrite refuses before any workload starts.
+/// One vaulted launch declaration crossing to the guest: the name the guest
+/// jail's `--launch` grammar takes, and a launch-profile TOML the host
+/// generates from the policy snapshot's `launch` group (decision D3): the
+/// guest profile and each vault credential, its source at
+/// `/run/ukai-vm/credentials/<id>` (the transport stages the values there,
+/// in tmpfs). The host parses the text back with the same loader before it
+/// sends it, and the guest's loader re-parses it under its strict file
+/// rules, so a malformed declaration refuses before any workload starts.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct LaunchDeclaration {
     /// The launch profile name, `[a-z][a-z0-9_-]{0,63}`.
     pub name: String,
-    /// The profile TOML, sources rewritten.
+    /// The generated profile TOML; it holds no credential value.
     pub toml: String,
 }
 
@@ -241,12 +243,12 @@ pub enum ToVm {
         /// workload starts.
         #[serde(default)]
         allow_hosts: Vec<String>,
-        /// The launch profile a vaulted policy runs (J18 §6: credentials
-        /// cross over vsock once per attempt and are never on the guest
-        /// disk): the profile's name, its TOML with every credential
-        /// `source` rewritten to the guest's tmpfs staging path, and the
-        /// credential values themselves as secret entries. `None` runs
-        /// without a launch profile.
+        /// The launch declaration a vaulted policy runs (J18 §6:
+        /// credentials cross over vsock once per attempt and are never on
+        /// the guest disk): its name and the TOML generated from the
+        /// snapshot, whose credential sources name the guest's tmpfs
+        /// staging path; the values themselves are the secret entries.
+        /// `None` runs without a launch profile.
         #[serde(default)]
         launch: Option<LaunchDeclaration>,
     },

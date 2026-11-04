@@ -50,7 +50,8 @@ for line in scenario.get('guest_lines', []):
     guest(line)
 sys.stdout.flush()
 if scenario.get('guest'):
-    guest({'event': 'ready', 'kernel': 'fake', 'lease_seconds': 2.0})
+    guest({'event': 'ready', 'kernel': 'fake', 'lease_seconds': 2.0,
+           **({'live_share': scenario['live_share']} if 'live_share' in scenario else {})})
 for raw in sys.stdin:
     request = json.loads(raw)
     if request['op'] == 'stop':
@@ -101,7 +102,7 @@ class AttemptTests(unittest.TestCase):
     def tearDown(self):
         os.umask(self.umask)
 
-    def attempt(self, scenario, clone=shutil.copyfile):
+    def attempt(self, scenario, clone=shutil.copyfile, live=False):
         (self.root / 'scenario.json').write_text(json.dumps(scenario))
         custodian = self.image / 'custodian'
         custodian.write_text('#!/bin/sh\nexec ' + ' '.join(shlex.quote(str(part)) for part in (
@@ -112,9 +113,14 @@ class AttemptTests(unittest.TestCase):
             'helper_sha256': sha256(self.image / 'vz'), 'custodian_sha256': sha256(custodian),
             'seed_sha256': sha256(self.image / 'seed.iso')}))
         args = argparse.Namespace(image=self.image, workspace=self.workspace, out=self.root / 'out',
-                                  profile='tool', wall=30, keep_disk=False, command=['/bin/true'])
+                                  profile='tool', wall=30, keep_disk=False, command=['/bin/true'],
+                                  live_workspace=live)
         stdout = io.TextIOWrapper(io.BytesIO())
+        # The share preflight has its own tests (test_share); here the live
+        # mode only needs to pass it on any host volume.
+        facts = {'case_fold': False, 'normalization_fold': False, 'symlinks': 0, 'multi_link_files': 0}
         with mock.patch.object(run, 'clone_disk', clone), mock.patch('sys.stdout', stdout), \
+                mock.patch.object(run, 'share_preflight', return_value=facts), \
                 mock.patch('sys.stderr', io.TextIOWrapper(io.BytesIO())):
             code = run.execute(args)
             stdout.flush()
@@ -131,6 +137,34 @@ class AttemptTests(unittest.TestCase):
         self.assertEqual(relayed, b'relayed\n')
         self.assertEqual((self.root / 'out' / 'workspace' / 'output.txt').read_text(), 'created\n')
         self.assertFalse((self.root / 'out' / 'guest.raw').exists())
+
+    def test_the_live_share_must_be_what_the_guest_mounted(self):
+        # D7: a live attempt whose guest did not mount the share (an older
+        # guest saying nothing included) fails; so does the reverse.
+        outputs = [['evidence', 'jail.json', json.dumps(RECEIPT)]]
+        for live, stated, error in [(True, None, 'did not mount the live workspace share'),
+                                    (True, False, 'did not mount the live workspace share'),
+                                    (False, True, 'live share the host did not attach')]:
+            with self.subTest(live=live, stated=stated):
+                shutil.rmtree(self.root / 'out', ignore_errors=True)
+                scenario = {'guest': True, 'outputs': outputs}
+                if stated is not None:
+                    scenario['live_share'] = stated
+                code, report, _ = self.attempt(scenario, live=live)
+                self.assertEqual((code, report['status']), (125, 'failed'), report)
+                self.assertIn(error, report['error'])
+        shutil.rmtree(self.root / 'out', ignore_errors=True)
+        code, report, _ = self.attempt({'guest': True, 'live_share': True, 'outputs': outputs}, live=True)
+        self.assertEqual((code, report['status']), (3, 'completed'), report)
+        self.assertEqual(report['input_files'], 0, 'a live attempt stages nothing')
+
+    def test_execute_restores_the_callers_umask(self):
+        previous = os.umask(0o022)
+        try:
+            self.attempt({'guest': True, 'outputs': [['evidence', 'jail.json', json.dumps(RECEIPT)]]})
+            self.assertEqual(os.umask(0o022), 0o022)
+        finally:
+            os.umask(previous)
 
     def planted(self, links):
         """A clone step that pre-plants symlinks in out/, playing a same-uid adversary."""

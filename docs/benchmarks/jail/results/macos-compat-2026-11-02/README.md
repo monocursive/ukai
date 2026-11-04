@@ -9,6 +9,44 @@ build. Same retained Tart VM (`ukai-custody-spike-20261101`, macOS 27.0
 build `26A428`, SIP disabled, ad-hoc entitlement, isolation re-verified at
 every entry; fresh guest root `/Users/admin/ukai-compat-20261102`).
 
+## Errata (2026-11-03, fix wave 1103)
+
+Added after review; the raw files are unchanged and the text below is kept
+as written. Both concern §1, and both were fixed in `60f7eb7b6` (decision
+D13; jail-macos §4.1 rule 6).
+
+1. **The receipt recorded the supervisor's plan, not the guardian's
+   report.** §1 says "the supervisor plans it at prepare time and the
+   guardian's read-back remains the gate". In this build the receipts'
+   `process_headroom` and `process_headroom_clamped` came from that plan, a
+   separate process-count snapshot the supervisor took after the guardian
+   had applied its own, and the guardian discarded what it applied. The
+   table's `headroom=668 clamped=true` is the supervisor's figure (from
+   [smoke.json](results/smoke.json) and the two clamped smoke receipts);
+   what the guardian applied in that row was never recorded. The guardian
+   now reports the kernel-confirmed allowance on B in an `allowance` frame
+   before `ready`, and receipts record that report as `process_limit`,
+   `process_headroom` and `process_headroom_clamped`.
+2. **The clamped row ran with the hard limit unlowered.** This build's
+   clamped path set no limit at all; it only re-read them. So the
+   `clamped=true` row's members inherited the guardian's limits unchanged.
+   The run did not record those limits during the headroom measurements,
+   when `kern.maxprocperuid` was the default 1333
+   ([provenance.json](provenance.json): 1333 for the headroom
+   measurements, 2000 for K92 and the SQLite build). The only recorded
+   limits come from a later state: the final guest state
+   ([final-guest-state.json](results/final-guest-state.json), recorded after
+   every measurement) shows `rlimit_nproc` soft 1333 and hard 2000, and in
+   that same state `kern.maxprocperuid` and `kern.maxproc` read 2000. So
+   the hard limit of 2000 is from that later state, not the clamped row,
+   whose hard limit is unrecorded. On the development Mac a non-root
+   process cannot raise its soft limit past `kern.maxprocperuid`
+   ([measured 2026-11-03](../macos-nproc-raise-2026-11-03/README.md)); if
+   the row's members held soft 1333 with `kern.maxprocperuid` at 1333, a
+   member probably gained nothing, but no member tried, and the VM was not
+   measured. Both paths now lower soft and hard to the allowance's limit,
+   with kernel read-back.
+
 ## 1. Process headroom (amended rule 6, jail-macos §4.1)
 
 The spike's refusal (wanting 1376 against a default `kern.maxprocperuid`

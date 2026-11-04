@@ -737,15 +737,19 @@ ukai-jail version [--json]
 ```
 
 J18 adds the `--vm` (macOS only) and `ukai-jail vm stop` interfaces for a
-proposed warm Linux guest. Every current `run --vm` refuses before connecting
-because no qualified VM backend exists. `--lifetime kernel-bound` requires `owner_loss_termination`;
-it narrows authority rather than selecting a backend. With native development
-enabled, macOS refuses that requirement with `unsupported`: VM policy
-enforcement is unavailable in this build, so `--vm` is not a working remedy. Linux `none` refuses it too.
-A missing or invalid VM installation instead refuses with exit 125,
-`backend_unavailable` at `probing` and `host_setup`, including `--profile none`;
-once installation discovery succeeds, the unavailable VM-policy backend
-refuses with `unsupported` before connecting.
+proposed warm Linux guest. Every current `run --vm` refuses at probing, before any connection or boot,
+with exit 125: no requirement has a measured guest record yet
+(`GUEST_MEASUREMENTS` is empty), so each answers `vm:not-measured:<requirement>`
+(`missing_capability`, `unsupported`); a policy element `--vm` does not carry
+answers `vm:not-carried:<field>` (`configuration`); `--lifetime kernel-bound`
+requires `owner_loss_termination`, which narrows authority rather than
+selecting a backend, and the VM tier refuses it with
+`vm:owner-loss-not-provided` (`unsupported`). With native development enabled,
+macOS refuses it with `unsupported` too: owner-loss termination is unavailable
+in this build on either macOS tier, so `--vm` is not a working remedy. Linux
+`none` refuses it. A missing or invalid VM installation instead refuses
+with exit 125, `backend_unavailable` at `probing` and `host_setup`, including
+`--profile none`.
 These flags are working-tree interfaces, not a supported Mac release; see
 [jail-macos.md](jail-macos.md) §6 for the intended behavior and missing pieces.
 
@@ -2794,7 +2798,12 @@ executable, a missing interpreter and a permission error are therefore
 distinct in machine fields: (`ENOENT`, `exec_failed`), (`ENOENT`,
 `exec_interpreter_missing`) and (`EACCES`, `exec_failed`); a child exiting 125
 is `exited` with code 125. `refused` is the outcome kind of every other
-pre-exec refusal. Both keep the `refused` phase. `enforced` is the lifecycle phase
+pre-exec refusal. Both keep the `refused` phase. Known deviation, not yet
+reclassified: two launcher refusals after the release record `exec_error`
+although the launcher did not exec, namely a `--from-path` program that
+changed before its exec (`policy_widening`) and a terminal that could not be
+given to the command's process group (`exec_failed`). A failed macOS
+bootstrap strip is `refused` (jail-macos §4.7 class 2). `enforced` is the lifecycle phase
 after target exec, including for a `none`
 run; its `containment` still says none. `settled` requires verified tree death,
 but can preserve unknown execution outcome if evidence was lost. If tree

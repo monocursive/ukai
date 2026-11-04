@@ -201,6 +201,10 @@ impl Harness {
         );
         command
             .env_clear()
+            // The guest jail's admitted environment (guest.py): a `--vm`
+            // policy carries only what the guest applies, so the harness
+            // matches it.
+            .env("LANG", "C.UTF-8")
             .env("PATH", "/usr/bin:/bin")
             .env("HOME", self.temp.path())
             .env("UKAI_DATA_DIR", &self.data)
@@ -631,6 +635,8 @@ fn an_attempt_session_frames_both_ways_against_the_stand_in() {
 
 #[test]
 fn the_transport_line_renders_one_escaped_line() {
+    // The summary renders the line from the record's JSON, on every
+    // platform, so `run` and `tail --summary` print the same one.
     let mut facts = TransportRecord::new(
         "att_00000000-0000-4000-8000-000000000001",
         "boot\nnewline",
@@ -649,12 +655,9 @@ fn the_transport_line_renders_one_escaped_line() {
         "a".repeat(64),
     );
     facts.guest_receipt_sha256 = "f".repeat(64);
-    let receipt = serde_json::json!({
-        "platform": {"os": "linux"},
-        "policy": {"name": "tool"},
-        "lifetime": {"boundary": "pid_namespace"},
-    });
-    let line = record::transport_line(&receipt, &facts);
+    let line = ukai_jail::summary::vm_transport_line(
+        &serde_json::to_value(&facts).expect("the record serializes"),
+    );
     assert!(
         line.starts_with("vm: guest-reported facts in evidence/jail.json"),
         "{line}"
@@ -686,64 +689,135 @@ impl Harness {
     }
 }
 
+/// D1 and D2 at the CLI: every `run --vm` refuses at probing, before any
+/// connection or staging. A policy the guest jail would not apply as asked
+/// names its field (`vm:not-carried:<field>`); one it would apply names the
+/// first requirement no measured guest record backs (`vm:not-measured:`),
+/// which today is every one.
 #[test]
 #[cfg(target_os = "macos")]
-fn vm_none_and_unimplemented_policy_requests_refuse_before_connecting() {
-    for args in [
-        vec!["--profile", "none", "--lifetime", "kernel-bound"],
-        vec!["--profile", "agent", "--limit", "wall=5s"],
-        vec!["--profile", "build", "--limit", "wall=5s", "--limit", "mem=1GiB"],
-        vec!["--profile", "tool", "--deny-read", "private"],
-        vec!["--profile", "tool", "--limit", "mem=256MiB", "--limit", "wall=5s"],
-        vec!["--profile", "tool"],
-        // The share preflight is a host-side fact: this harness's workspace
-        // sits on the Mac's default (case-folding) volume, so a policy that
-        // passes every other gate still refuses before any VM dir exists.
-        vec!["--profile", "tool", "--limit", "wall=5s"],
+fn every_vm_run_refuses_at_probing_with_the_reason_that_applies() {
+    for (args, lang, expected) in [
+        (
+            vec!["--profile", "none", "--lifetime", "kernel-bound"],
+            true,
+            "--vm refuses --profile none",
+        ),
+        (
+            vec!["--profile", "agent", "--limit", "wall=5s"],
+            true,
+            "vm:not-measured:tree_termination",
+        ),
+        (
+            vec!["--profile", "tool", "--limit", "wall=5s"],
+            true,
+            "vm:not-measured:tree_termination",
+        ),
+        (
+            vec![
+                "--profile",
+                "build",
+                "--limit",
+                "wall=5s",
+                "--limit",
+                "mem=1GiB",
+            ],
+            true,
+            "vm:build-profile-refuses-the-live-share",
+        ),
+        (
+            vec!["--profile", "tool", "--deny-read", "private"],
+            true,
+            "vm:not-carried:filesystem.deny_read",
+        ),
+        (
+            vec![
+                "--profile",
+                "tool",
+                "--limit",
+                "mem=256MiB",
+                "--limit",
+                "wall=5s",
+            ],
+            true,
+            "vm:not-carried:limits.mem",
+        ),
+        // The tool baseline's default 30m wall exceeds the guest's 300s
+        // grammar: the refusal names the remedy.
+        (
+            vec!["--profile", "tool"],
+            true,
+            "vm:not-carried:limits.wall",
+        ),
+        // The host environment the guest does not have (no LANG here).
+        (
+            vec!["--profile", "tool", "--limit", "wall=5s"],
+            false,
+            "vm:not-carried:environment.bindings",
+        ),
+        // The review's probe (C1): every host gate used to pass.
+        (
+            vec![
+                "--profile",
+                "agent",
+                "--limit",
+                "wall=60s",
+                "--deny-read",
+                "secret",
+                "--limit",
+                "mem=256MiB",
+                "--limit",
+                "storage=1GiB",
+                "--limit",
+                "cpu=50",
+                "--limit",
+                "pids=8",
+            ],
+            true,
+            "vm:not-carried:filesystem.deny_read",
+        ),
+        (
+            vec!["--profile", "tool", "--limit", "wall=5s", "--ro", "docs"],
+            true,
+            "vm:not-carried:filesystem.read_only",
+        ),
     ] {
         let harness = Harness::new();
         harness.install_stand_in();
         std::fs::write(harness.work.join("private"), b"must never be staged").unwrap();
+        std::fs::write(harness.work.join("secret"), b"must never be staged").unwrap();
+        std::fs::create_dir(harness.work.join("docs")).unwrap();
         let mut argv = vec!["run", "--vm", "--terminal", "detach"];
         argv.extend(args.clone());
         argv.extend(["--", "/bin/sh", "-c", "touch workload-ran"]);
-        let output = harness.run(&argv);
+        let mut command = harness.command(&argv);
+        if !lang {
+            command.env_remove("LANG");
+        }
+        let output = command.output().expect("the binary runs");
         assert_eq!(output.status.code(), Some(125), "{args:?}: {output:?}");
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(!stderr.contains("birth identity"), "{stderr}");
+        assert!(stderr.contains(expected), "{args:?}: {stderr}");
         assert!(!harness.work.join("workload-ran").exists());
         assert!(
             !harness.data.join("vm").exists(),
             "no VM connection or staging: {args:?}"
         );
-        if args.contains(&"none") {
-            assert!(stderr.contains("--vm refuses --profile none"), "{stderr}");
+        if expected.starts_with("vm:not-carried:") {
+            assert!(stderr.contains("[configuration]"), "{stderr}");
         }
-        if args == vec!["--profile", "tool"] {
-            // The tool baseline's default 30m wall exceeds the guest's 300s
-            // grammar: a refusal with the remedy, before any connection.
+        if expected == "vm:not-carried:limits.wall" {
+            assert!(stderr.contains("--limit wall"), "{stderr}");
+        }
+        if expected == "vm:not-carried:environment.bindings" {
+            assert!(stderr.contains("LANG=C.UTF-8"), "{stderr}");
+        }
+        if expected.starts_with("vm:not-measured:") {
             assert!(
-                stderr.contains("guest grammar") && stderr.contains("--limit wall"),
+                stderr.contains("no measured guest record") && stderr.contains("[unsupported]"),
                 "{stderr}"
             );
-        }
-        if args.contains(&"build") {
-            // The probing gate carries the reason code; the prepare-time
-            // refusal spells the full remedy.
-            assert!(
-                stderr.contains("vm:build-profile-refuses-the-live-share"),
-                "{stderr}"
-            );
-        }
-        if args.contains(&"mem=256MiB") {
-            assert!(
-                stderr.contains("vm:guest-applies-its-measured-fixed-limits"),
-                "{stderr}"
-            );
-        }
-        if args == vec!["--profile", "tool", "--limit", "wall=5s"] {
-            assert!(stderr.contains("folds case"), "{stderr}");
-            assert!(stderr.contains("case-sensitive"), "{stderr}");
         }
     }
 }

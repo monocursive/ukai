@@ -17,7 +17,7 @@ compatibility. The historical rows below retain their original scope.
 
 | Agent | Vendor version | Ukai revision | Platform | Backend | Jail mode | Credential | Result |
 |---|---|---|---|---|---|---|---|
-| Claude Code | 2.1.311, linux-arm64 native build (`sha256:2e2496c9…`, the downloads.claude.ai manifest digest) | clean `f25ffca8d`, release build binary `sha256:389964e4…` | Warm Linux guest of the installed ukai-vm 0.1.0-preview.1 (image disk `sha256:310cee86…`, apt snapshot `20261020T000000Z`) on macOS 27.0.1, Apple Silicon; guest kernel 7.0.0-38-generic | `ukai-jail run --vm` (J18: virtio-fs live share, guest proxy, vault transport) | `agent` headless through a measurement launch profile: `--launch claude-vm` (`-p` + `--dangerously-skip-permissions --output-format json`), `api.anthropic.com:443` the only allowed host, nonessential traffic disabled; observation not attached | `claudeAiOauth` access token (the operator's live keychain session) through the vault, never staged — placeholder bound to `CLAUDE_CODE_OAUTH_TOKEN`, substituted in flight | **Supported for exactly this combination** ([record](#claude-code-2111-headless-agent-in-the-warm-macos-guest-2026-11-03)): one attempt settled, exit 0, `tree_empty` true, two turns on claude-sonnet-5-5 with the task's file landing on the host through the share; the token is in no exported byte; the run's summary names its transport from the transport record (K113). Not covered: other versions, interactive sessions, resume, the API key, other hosts; the package is signed but not notarized |
+| Claude Code | 2.1.311, linux-arm64 native build (`sha256:2e2496c9…`, the downloads.claude.ai manifest digest) | clean `f25ffca8d`, release build binary `sha256:389964e4…` | Warm Linux guest of a signed, unnotarized development package labeled 0.1.0-preview.1, not the public preview (erratum 5), installed on the dev Mac: the transport record's image disk (`sha256:310cee86…`, apt snapshot `20261020T000000Z`), VZ client, custodian and seed digests equal the K111 run's on that package (DMG `sha256:de86fb71…` before notarization); the `ukai-jail` client was built from the repository (previous column; none ships). macOS 27.0.1, Apple Silicon; guest kernel 7.0.0-38-generic | `ukai-jail run --vm` (J18: virtio-fs live share, guest proxy, vault transport) | `agent` headless through a measurement launch profile: `--launch claude-vm` (`-p` + `--dangerously-skip-permissions --output-format json`), `api.anthropic.com:443` the only allowed host, nonessential traffic disabled; the host summary printed observation not attached, but the guest receipt shows the ptrace observer attached (erratum) | `claudeAiOauth` access token (the operator's live keychain session) through the vault, never staged — placeholder bound to `CLAUDE_CODE_OAUTH_TOKEN`, substituted in flight | **Not supported: one development attempt, K113 `untested`** ([record and errata](#claude-code-21311-headless-agent-in-the-warm-macos-guest-2026-11-03)): one attempt settled, exit 0, `tree_empty` true, two turns on claude-sonnet-5-5 with the task's file landing on the host through the share; the token is in no exported byte; the run's summary names its transport from the transport record. It does not meet J18 §9.4's Linux-row conditions (A01 fixture, ten repetitions, no-source refusal, revocation, strict observation, use count); the stored host receipt contradicts the guest receipt; the client was built from the repository (no macOS `ukai-jail` client ships); the package is signed but not notarized |
 | Claude Code | 2.1.302, native installer (`~/.local/share/claude/versions/2.1.302`, ELF, `sha256:60d7eb7f…`) | clean `cccf5db30`, the release build: binary `sha256:40621f6d…`, inputs `893f85686e76…`. Full record at clean `79200cfda` (binary `sha256:9ba9da31…`, inputs `95dac7f9fd0b…`); `cccf5db30` changes only TLS dependencies and CI | Reference VPS, Ubuntu 26.04.1, Linux 7.0.0-31, x86_64, stock (AppArmor userns restriction on) | bubblewrap 0.11.1, ptrace | `agent` through the alias with the bundled `claude` profile unchanged (persistent state; `platform.claude.com` allowed since jail-interactive-sessions.md §8 item 30): interactive `ukai-jail claude` attached to a pseudo-terminal reached over SSH and driven by a scripted harness, plus `ukai-jail claude -p "…" --dangerously-skip-permissions` from that shell, attached and with stdin a pipe; observation on, strict evidence | `claude-oauth` (a `claude setup-token` value) through the vault, never staged | **Supported for exactly this combination** ([record](#claude-code-21302-interactive-agent-a-setup-token-through-the-vault-2026-10-21)): all eight runs of [§6.3](../jail-interactive-sessions.md#63-the-interactive-claude-code-compatibility-record-a-row), 31 attempts, passed every condition: first launch with onboarding and Claude Code's own permission prompt at the keyboard, `--resume` and `--continue` (and ten repetitions, 20/20), workspace privacy, resize, `^C`, `^Z`/`fg`, hangup, `/login` with fake codes, headless attached and detached, and the throwaway fallback beside a held state; one generation chain of 29 releases; every summary reproduces; the token is in no record, workspace, state or transcript. The hangup leaves the terminal unrestored (`restored` false but for `after_tree_death`), the exception §6.3 names. Confirmed on the release build `cccf5db30` the same day: the whole driver again, 31/31, no difference in any check ([confirmation](../../benchmarks/jail/claude-code-interactive-2026-10-21.md#confirmation-on-the-release-build)). Not covered: other terminal emulators, other versions, npm installs, other hosts, the API key, a real `/login` |
 | Claude Code | 2.1.302, native installer (`~/.local/share/claude/versions/2.1.302`, ELF, `sha256:60d7eb7f…`) | clean `56f9fb15`; binary `sha256:5115e497…`, inputs `7b1a95a9b6a2…` | Reference VPS, Ubuntu 26.04.1, Linux 7.0.0-31, x86_64, stock (AppArmor userns restriction on) | bubblewrap 0.11.1, ptrace | `agent` through the alias with the bundled `claude` profile unchanged: `ukai-jail claude -p "…" --dangerously-skip-permissions --output-format json`, headless; observation on, strict evidence | `claude-oauth` (a `claude setup-token` value) through the vault, never staged | **Supported for exactly this combination** ([record](#claude-code-21302-agent-a-setup-token-through-the-vault-2026-10-17)): A01 fixture, a real small task, ten repetitions (10/10), the no-source refusal with both hints, and revocation mid-stream all passed; every summary reproduces from its receipt and journal; the token is in no record, workspace, output or sampled environment. Not covered: `-p` without a permission flag (Claude Code refused its own write), the API-key fallback (not run), interactive sessions, npm installs, other versions and hosts |
 | OpenCode | 1.19.0 | clean `56f9fb15` | Reference VPS, Ubuntu 26.04.1, Linux 7.0.0-31, x86_64, stock | bubblewrap 0.11.1, ptrace | `agent` through the alias, `ukai-jail opencode run "…"`, bundled profile; observation on, strict evidence | none (`opencode/big-pickle`) | **Not passed (vendor):** the jail settled cleanly twice (exit 1 is OpenCode's; six classes active, derived grant `~/.opencode/bin`), but OpenCode Zen's free tier refused the request, as it did without the jail for 1.19.0 and 1.19.3. The 1.18.32 rows are not extended to the alias ([record](../../benchmarks/jail/claude-code-compatibility-2026-10-17.md#opencode-under-the-alias)) |
@@ -45,7 +45,50 @@ milestone's A01 record is the run below.
 Evidence: [results directory](../../benchmarks/jail/results/macos-vm-claude-2026-11-03/)
 ([README](../../benchmarks/jail/results/macos-vm-claude-2026-11-03/README.md),
 [k113-claude.json](../../benchmarks/jail/results/macos-vm-claude-2026-11-03/k113-claude.json),
-harness `crates/ukai-jail/vm/claude_vm_row.py`). This is the J18 §9.4
+harness `crates/ukai-jail/vm/claude_vm_row.py`).
+
+**Status and errata (2026-11-03, fix wave 1103).** Not supported. This is
+one development attempt on the dev Mac, not a J18 §9.4 record, and K113 is
+`untested`: it does not meet §9.4's Linux-row conditions (the A01 fixture,
+ten repetitions, the no-source refusal, revocation mid-stream, observation
+on with strict evidence, the summary's credential use count). The text below
+is kept as written, except where errata 1 and 3 correct it inline (and the
+"K113's claim" bullet now says "mechanism"):
+
+1. The transport line's receipt digest was first cited as
+   `sha256:10c3c58f…`, which matches no file. The run's guest receipt
+   (`k113-attempt/evidence/jail.json`) is `sha256:53837b58…`; the transport
+   record names it, and the terminal summary printed
+   `receipt sha256:53837b58636d54bd`.
+2. "The stored receipt is the guest's Linux receipt" is wrong. The stored
+   `k113-attempt/jail.json` (`sha256:b0e534f0…`) is the host's own receipt,
+   and it contradicts the guest receipt: network `pending` and observer not
+   attached, against the guest's `proxy` network and attached ptrace
+   observer.
+3. So "the observer was not attached: `0/6 classes active`" described the
+   host receipt's summary, not the run; the guest receipt shows six classes
+   active. The summary's "network: not applied" line is wrong the same way.
+4. The client was built from the repository at `f25ffca8d`; no macOS
+   `ukai-jail` client ships, so "installed" describes only the VM package.
+5. "The installed ukai-vm 0.1.0-preview.1" was a development package
+   labeled with the public preview's version (DMG `sha256:de86fb71…` before
+   notarization, not the public preview's `sha256:f3a85e14…`); the warm
+   candidate is now numbered `0.1.0-preview.2`.
+6. "`ukai-jail tail --summary --attempt …` reproduces the summary" is not
+   shown: the harness's check searched `tail`'s output together with the
+   run's own terminal output, so it passes from the run's output alone (the
+   record README's erratum 4).
+7. "`api.anthropic.com:443` the only allowed host" was not TLS-only in the
+   guest. The launch profile's portless rule is TLS-only on the host, but
+   `run --vm` sent it as `api.anthropic.com:443`, an explicit port the
+   guest jail reads as also admitting plaintext HTTP; the guest receipt has
+   no `tls_only` (the record README's erratum 7). Fixed in `7b1f6d875`, not
+   yet run on a booted guest. The receipt and summary contradictions of
+   errata 2 and 3 have a fix in code since the same commit (decision D5),
+   tested against this record's guest receipt and not yet shown on a new
+   run.
+
+As first written: this is the J18 §9.4
 record (jail-macos.md): the VM tier's compatibility claim. It marks one
 combination supported: Claude Code 2.1.311, the linux-arm64 native build
 (`sha256:2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3`),
@@ -77,11 +120,11 @@ by `ukai-jail run --vm --profile agent --launch claude-vm` at clean
   share. The attempt settled, exit 0, `tree_empty: true`; the stored
   receipt is the guest's Linux receipt, digest-bound in
   `evidence/vm-binding.json`.
-- **K113's claim.** The run's summary names its transport from the
+- **K113's mechanism.** The run's summary names its transport from the
   transport record (`vm: guest-reported facts in evidence/jail.json ·
   boot vm-9e2e72b1… · image 310cee86ccca5b5d… · vsock 1024 · receipt
-  sha256:10c3c58f…`, every value lifted from `vm-transport.json`), and
-  `ukai-jail tail --summary --attempt …` reproduces the summary.
+  sha256:53837b58…`, every value lifted from `vm-transport.json`; erratum 1),
+  and `ukai-jail tail --summary --attempt …` reproduces the summary.
 - **The first run's failure is evidence.** It sourced the token from the
   stale `~/.claude/.credentials.json` and the API answered `401 OAuth
   access token has expired` — an expired-token verdict, not an
@@ -93,9 +136,10 @@ by `ukai-jail run --vm --profile agent --launch claude-vm` at clean
 
 Not covered: other versions, npm installs, interactive sessions,
 `--resume`/`--continue`, the API-key fallback, hosts beyond
-`api.anthropic.com`, observation coverage (the observer was not
-attached: `0/6 classes active`), and any notarized build — the package is
-signed but notarization is pending on credentials.
+`api.anthropic.com`, observation coverage (the host summary printed
+`0/6 classes active` from the contradicting host receipt; the guest receipt
+shows six classes active; erratum 3), and any notarized build — the package
+is signed but notarization is pending on credentials.
 
 ## Claude Code 2.1.302, interactive, `agent`, a setup token through the vault (2026-10-21)
 

@@ -1,9 +1,22 @@
 Ukai VM 0.1.0-preview.2 for Apple Silicon / macOS 27+
 
-This developer preview serves an offline, disposable Linux ARM64 guest that
-the ukai-jail command drives as its macOS VM backend (J18). It does not run
-macOS binaries, Xcode, or native Apple SDKs. The native macOS Jail backend
-remains unavailable pending a proven process-lifetime boundary.
+This developer preview candidate serves a warm Linux ARM64 guest that the
+ukai-jail command can drive as its macOS VM backend (J18). The guest stays
+up across attempts. By policy, the tool profile has no network and the
+agent profile reaches only its allowed hosts, through the guest's own
+proxy. It does not run macOS binaries, Xcode, or native Apple SDKs. The
+native macOS Jail backend remains unavailable pending a proven
+process-lifetime boundary.
+
+NOT YET USABLE FOR WORKLOADS
+This package ships ukai-vm and its installer helper only. No macOS
+ukai-jail client ships: `ukai-jail run --vm` needs a client built from
+source (the monocursive/ukai repository). Even then, every `run --vm`
+refuses at probing, before any connection or boot, until a live phase
+re-measures the guest: a requirement without a measured guest record
+answers vm:not-measured:<requirement>, and no requirement has one yet. The
+J18 acceptance rows (K108-K113) are untested, and the guest-side attempt
+stop and share checks have run in unit and model tests only.
 
 INSTALL
 Open the signed DMG, then run in Terminal:
@@ -24,34 +37,44 @@ THE SERVICE
   ukai-vm stop    ask the running service for an orderly stop
   ukai-vm doctor  re-run the install checks
 
-`ukai-jail run --vm` starts `ukai-vm serve` itself on first use and reuses
-the warm guest across attempts; you only drive these verbs to inspect or
-stop it. One guest serves one live workspace (a case-sensitive volume;
-the client refuses folding volumes and workspaces with symlinks or
-multi-link files before any boot).
+A client built from source starts `ukai-vm serve` itself on first use and
+reuses the warm guest across attempts; you only drive these verbs to
+inspect or stop it. One guest serves one live workspace (a case-sensitive
+volume; the client refuses folding volumes, and workspaces with symlinks,
+multi-link files, nested mounts, FIFOs, sockets or device nodes, before any
+boot). A guest that cannot mount the share powers off; it never falls back
+to a copy.
 
-RUN (through the client)
-  ukai-jail run --vm --profile tool --limit wall=30s \
+RUN (a client built from source, once the guest is re-measured)
+  env -u TERM -u TZ LANG=C.UTF-8 \
+    ukai-jail run --vm --terminal detach --profile tool --limit wall=30s \
     --workspace /path/to/case-sensitive/dir -- \
     /bin/sh -c 'printf "Linux output\n" > result.txt'
 
 The workspace is shared live over virtio-fs: writes the policy grants
 appear in your directory; protected segments (.git) and every path outside
-the share are refused. Guest commands have 512 MiB memory, no swap, 64
-processes, and a wall of 1-300 seconds; the offline tool profile has no
-egress. The agent profile routes allowed hosts through the guest's own
-proxy, and vault-mode credentials are substituted in flight — never staged
-into the guest's on-disk state. A completed attempt requires a verified
-Linux Jail receipt; the client stores it with the transport record.
+the share are refused. The guest carries only the profile (tool or agent),
+the wall (1-300 seconds), the command, the network shape and vault-mode
+credentials. Any other policy element that differs (deny-read, extra or
+narrowed grants, custom ceilings, staged credentials, an attached terminal,
+and an environment other than the guest's LANG=C.UTF-8 with no TERM or TZ)
+refuses with vm:not-carried:<field> before any boot. Guest commands have
+512 MiB memory, no swap and 64 processes. Vault-mode credentials are
+substituted in flight by the guest proxy, never staged into the guest's
+on-disk state.
+A completed attempt requires a verified Linux Jail receipt; the client
+stores it with the transport record, and the summary prints the guest's
+applied network and observer facts from it.
 
 LIFETIME
 The service is a foreground process: killing it ends its guest and every
 attempt through the custodian lease, and an operator Ctrl-Z does not end a
 running attempt (the lease is end-of-file, not a timer; a suspension can
-only be judged by code that is running). Host sleep, kernel failure and
-arbitrary guest compromise are not qualified, and there is no claim of
-native macOS process-tree containment or production readiness. The
-measured fault model is in the source README.
+only be judged by code that is running). The full fault matrix (K110) is
+not yet measured. Host sleep, kernel failure and arbitrary guest
+compromise are not qualified, and there is no claim of native macOS
+process-tree containment or production readiness. The measured fault
+model is in the source README.
 
 UNINSTALL
 Remove ~/.local/bin/ukai-vm and ~/.local/share/ukai-vm/0.1.0-preview.2.
@@ -63,5 +86,14 @@ versions in /usr/local/share/ukai-vm/pinned-versions.txt. The image is
 built from an immutable Ubuntu archive snapshot (recorded as apt_snapshot
 in payload/image/image.json, with the resolved package versions and their
 digest); its dated upstream image and Linux Jail archive URLs/hashes are
-recorded there too. The source for this preview is included as
-preview-source.tar.gz. This candidate has not been published publicly.
+recorded there too. A package built by the current packaging script
+records its commit as source_revision in payload/image/image.json, and its
+preview-source.tar.gz holds the source of every shipped binary at that
+commit. It is meant to rebuild the service with `cargo build --release
+--locked -p ukai-jail --bin ukai-vm` under the toolchain its
+rust-toolchain.toml pins (crates.io dependencies per Cargo.lock); a
+rebuild with that pinned toolchain has not been verified. An image.json
+without source_revision comes from the earlier script, which built the
+earlier published preview and this version's first candidate
+(2026-11-03): its preview-source.tar.gz holds only the VM tooling
+(crates/ukai-jail/vm). This candidate has not been published publicly.

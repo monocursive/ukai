@@ -6,6 +6,25 @@ qualified backend.** The entitlement-free VM tier is the macOS release
 path while Apple's ES request (S9YJTLLH28) is pending; this measurement
 builds its hardest piece: the live workspace share (jail-macos §6).
 
+## Errata (2026-11-03, fix wave 1103)
+
+Added after review; the raw files are unchanged, and the text below is kept
+as written.
+
+1. **The preflight's normalization probe could not fail.**
+   `run.py::share_preflight` wrote its two probe files under the same name,
+   both spelled with a precomposed `é`, so the second write always replaced
+   the first and the probe reported `normalization_fold: true` on every
+   volume. run-3's attempt record (`normalization_fold: true`, §2) is that
+   constant, not a measurement. The containment probe's collision in §1 (a
+   host NFD name, a guest NFC write) is a separate measurement and is not
+   affected. The probe now writes distinct NFD and NFC names (`bfcf1f9d4`).
+   Re-measured on 2026-11-03 with distinct names: the default APFS volume
+   folds both case and normalization, and a case-sensitive APFS volume
+   folds normalization only; no measurement file is retained for that
+   re-measurement. So the recorded `true` matches what the corrected probe
+   reports on a case-sensitive volume, and the disclosure below stands.
+
 ## 1. The containment probe
 
 A minimal VZ transport ([probe/vzshare.swift](probe/vzshare.swift)) boots

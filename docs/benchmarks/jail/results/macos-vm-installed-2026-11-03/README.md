@@ -18,6 +18,70 @@ K113 does not run** — no VM-tier agent compatibility record exists (J18 §9.4
 names Claude Code headless in the guest as that record), so the row's
 object is absent and the row is recorded as not run, not failed.
 
+## Errata (2026-11-03, fix wave 1103)
+
+Added after review; the raw files are unchanged. **None of these rows meets
+its clause: K108–K113 are `untested`** (the acceptance map's notes give each
+row's reason and what a real row needs). The table and text below are kept
+as written, except the publication sentence that erratum 8 corrects.
+
+1. **The client was not an installed one.** "The rebuilt `ukai-jail`" is
+   `target/release/ukai-jail` built from the repository at `d0bfd0c7b`
+   ([provenance.json](provenance.json)). The DMG ships only `ukai-vm` and
+   `ukai-vm-install`; no macOS `ukai-jail` client ships, so no row here ran
+   an installed and shipped client. K108, K109 and K110 ran through the
+   Python protocol client, not `ukai-jail` at all.
+2. **The package was a development build** labeled with the public
+   preview's version: `ukai-vm-0.1.0-preview.1-macos-arm64.dmg` with
+   `sha256:de86fb71…` before notarization, not the public preview's
+   `sha256:f3a85e14…`. The warm candidate is now numbered `0.1.0-preview.2`.
+3. **K108.** Every attempt's TCP probe was vacuous (`/dev/tcp` under the
+   guest's `dash`), and the `GIT_ALLOWED` line in each attempt's stdout is a
+   shell-precedence artifact that prints whatever happened (the `.git`
+   claim rests on the host-side byte comparison). "Within initial + 1 s"
+   misreads the clause: `initial` marks a tunable default, and the clause
+   compares with the guest jail's own release time, which was not measured.
+4. **K109.** The grants were the guest's fixed `tool` shape through the
+   protocol client, not a host policy's; the `run --vm` path of that build
+   dropped host `--ro`/`--rw` narrowing silently.
+5. **K110** ran half its clause: no custodian kill, no VZ-client kill, no
+   kill or `Ctrl-Z` of a host `ukai-jail` client and no case with every
+   host controller suspended. Case A's workload finished before the kill
+   and C's before the EOF, "same boot" was never checked by comparing boot
+   ids, and the network probe was vacuous.
+6. **K111 is false as recorded.** The stored receipt
+   `k111-attempt/jail.json` (`sha256:935b35bc…`) is the host's own receipt,
+   not the guest's, and it contradicts the guest receipt
+   `k111-attempt/evidence/jail.json` (`sha256:6f7d67b3…`, the digest the
+   transport record carries): network `pending` and observer not attached,
+   against the guest's applied `none` network and attached ptrace observer.
+   Since `7b1f6d875` (decision D5) the settled host receipt takes
+   `platform.kernel`, `platform.arch`, `exec_observed`, `applied` (except
+   its `terminal`), `observer` and `coverage` from the verified guest
+   receipt, and the `--vm` summary reads the guest receipt, checked
+   against this digest. No live run has produced such a receipt yet.
+7. **K112's harness could not fail its no-workload check:** it looks for
+   `/tmp/k112-workload-ran`, while the workload would create
+   `k112-workload-ran` in the workspace. `gate_rows.py` also exits 0
+   whatever its verdict.
+8. **Publication.** A notarized build must rerun the full rows; an install
+   check alone is not enough (`release.json`'s scope note). The sentence
+   under "What this does and does not claim" said otherwise and is corrected
+   inline. K113 was not "measured there": the Claude Code record is one
+   development attempt and K113 stays `untested`.
+9. **K112's `--vm` refusal named native macOS.** The installed `--vm`
+   lane refused with the native reason `kernel_bound_requires_vm`, the one
+   "Two real bugs" item 2 below names, and its message
+   ([k112.json](k112.json) `vm_installed.stderr`) is the native one, word
+   for word: "native macOS does not provide" a kernel-bound lifetime. The
+   refusal was at probing, before any boot, as recorded, but it named the
+   wrong tier. Since `7b1f6d875` the VM tier answers
+   `owner_loss_termination` with its own reason,
+   `vm:owner-loss-not-provided`, and a message naming the VM tier: the
+   guest's wall is a deadline, not an owner-loss bound. That is tested at
+   the CLI with a fabricated installation, not rerun on an installed
+   package.
+
 | Row | Verdict | Evidence |
 | --- | --- | --- |
 | K108 warm reuse | **PASS** | [k108-warm-live.json](k108-warm-live.json): 20 attempts over **one boot** of the installed service, every granted write on the host, `.git/config` byte-identical after every attempt, every exit 0, release latency **14.9 ms initial / 15.0 ms max** — every attempt within initial + 1 s |
@@ -61,7 +125,7 @@ workspace, and a binary outside `/private/tmp`.
 
 - The rows passed on a **signed but not notarized** package. Notarization
   remains pending on credentials; a notarized build must rerun these rows
-  (or at minimum the install check) before any publication claim.
+  in full before any publication claim (erratum 8).
 - `published: false`. The package is not distributed; the DMG's digest
   before notarization is in [provenance.json](provenance.json).
 - K113 stayed open when this record was written (2026-11-03, earlier the

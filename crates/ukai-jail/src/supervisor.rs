@@ -1884,6 +1884,18 @@ fn satisfied(requirement: Requirement, capabilities: &[Capability]) -> bool {
         .any(|capability| requirement.answered_by(capability) && capability.satisfies())
 }
 
+/// The remedy for a `vm:not-carried:<field>` refusal, where the VM tier
+/// exists (decision D1).
+fn vm_not_carried_hint(field: &str) -> Option<&'static str> {
+    #[cfg(target_os = "macos")]
+    return crate::platform::macos::vm::not_carried_hint(field);
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = field;
+        None
+    }
+}
+
 /// The first requirement no capability satisfies, as a typed refusal.
 fn first_unsatisfied(
     requirements: &[Requirement],
@@ -1942,6 +1954,42 @@ fn first_unsatisfied(
             Remediation::Retry,
             format!(
                 "`{requirement}` is temporarily unavailable: Endpoint Security client capacity is exhausted ({reason})"
+            ),
+        ),
+        // K112 in the VM tier: the refusal names the tier that refused, not
+        // native macOS.
+        crate::capability::REASON_VM_OWNER_LOSS_NOT_PROVIDED => (
+            ErrorCode::MissingCapability,
+            Remediation::Unsupported,
+            format!(
+                "`{requirement}` needs a kernel-bound lifetime, which the VM tier does not \
+                 provide in this build: the guest's wall is a deadline, not an owner-loss \
+                 bound ({reason})"
+            ),
+        ),
+        // Decision D1: the policy asks for something the guest jail would
+        // not apply. The operator can drop it; nothing ran.
+        reason if reason.starts_with(crate::capability::REASON_VM_NOT_CARRIED) => {
+            let field = &reason[crate::capability::REASON_VM_NOT_CARRIED.len()..];
+            (
+                ErrorCode::MissingCapability,
+                Remediation::Configuration,
+                format!(
+                    "--vm does not carry `{field}` as this policy sets it: the guest jail \
+                     would apply something else; change it, or run without --vm{} ({reason})",
+                    vm_not_carried_hint(field)
+                        .map(|hint| format!("; {hint}"))
+                        .unwrap_or_default()
+                ),
+            )
+        }
+        // Decision D2: no measured guest record backs the requirement.
+        reason if reason.starts_with(crate::capability::REASON_VM_NOT_MEASURED) => (
+            ErrorCode::MissingCapability,
+            Remediation::Unsupported,
+            format!(
+                "`{requirement}` has no measured guest record in this build's VM tier, so \
+                 --vm refuses it ({reason})"
             ),
         ),
         reason if reason.starts_with("vm:") => (
@@ -2014,6 +2062,19 @@ fn run_with(
             ..RunReport::default()
         },
     }
+}
+
+/// The §8.2 preparation budget for one run. The VM tier's first run pays a
+/// cold guest boot inside it (measured 30-90s on the qualified image), so a
+/// `--vm` run adds the boot-scale budget the platform names; every other run,
+/// and every non-macOS build (which has no `--vm`), keeps the 30 seconds.
+fn prepare_budget(args: &RunArgs) -> Duration {
+    #[cfg(target_os = "macos")]
+    if args.vm {
+        return crate::platform::macos::vm::SERVE_TIMEOUT + PREPARE_BUDGET;
+    }
+    let _ = args;
+    PREPARE_BUDGET
 }
 
 fn run_inner(
@@ -2120,11 +2181,7 @@ fn run_inner(
     // run pays a cold guest boot inside the same budget (measured 30-90s on
     // the qualified image), so its budget is the boot-scale one the platform
     // already names; warm attempts answer in milliseconds either way.
-    let budget = Budget::new(if args.vm {
-        crate::platform::macos::vm::SERVE_TIMEOUT + PREPARE_BUDGET
-    } else {
-        PREPARE_BUDGET
-    });
+    let budget = Budget::new(prepare_budget(args));
     // Step 1: allocate and lock private state before anything else exists.
     let attempt_id = supplied_attempt_id.unwrap_or_else(AttemptId::generate);
     let quiet = plan.quiet;
@@ -6434,6 +6491,69 @@ mod tests {
                 );
                 assert!(!error.message.contains("run with --vm"));
             }
+        }
+    }
+
+    /// K112 and decisions D1/D2: each VM-tier refusal names the tier that
+    /// refused (never native macOS for a `--vm` run), the field it does not
+    /// carry, or the requirement no guest record measured.
+    #[test]
+    fn vm_refusals_say_what_is_true_of_the_vm_tier() {
+        use crate::capability::{CapabilityScope, CapabilityStatus};
+        let refuse = |requirement: Requirement, reason: &str| {
+            first_unsatisfied(
+                &[requirement],
+                &[Capability {
+                    name: requirement.to_string(),
+                    status: CapabilityStatus::Unavailable,
+                    scope: CapabilityScope::Tree,
+                    mechanism: None,
+                    reason_code: Some(reason.into()),
+                    measured_at: None,
+                    evidence_ref: None,
+                }],
+            )
+            .unwrap()
+        };
+        let owner = refuse(
+            Requirement::OwnerLossTermination,
+            crate::capability::REASON_VM_OWNER_LOSS_NOT_PROVIDED,
+        );
+        assert_eq!(owner.remediation, Remediation::Unsupported);
+        assert!(owner.message.contains("kernel-bound lifetime"), "{owner:?}");
+        assert!(owner.message.contains("the VM tier"), "{owner:?}");
+        assert!(!owner.message.contains("native macOS"), "{owner:?}");
+        let native = refuse(
+            Requirement::OwnerLossTermination,
+            crate::capability::REASON_OWNER_LOSS_REQUIRES_VM,
+        );
+        assert!(native.message.contains("native macOS"), "{native:?}");
+        let carried = refuse(
+            Requirement::TreeTermination,
+            "vm:not-carried:filesystem.deny_read",
+        );
+        assert_eq!(carried.remediation, Remediation::Configuration);
+        assert_eq!(carried.code, ErrorCode::MissingCapability);
+        assert!(
+            carried.message.contains("`filesystem.deny_read`"),
+            "{carried:?}"
+        );
+        assert!(
+            !carried.message.contains("`tree_termination`"),
+            "the field refused, not the first requirement: {carried:?}"
+        );
+        let measured = refuse(Requirement::NetworkNone, "vm:not-measured:network_none");
+        assert_eq!(measured.remediation, Remediation::Unsupported);
+        assert!(
+            measured
+                .message
+                .contains("`network_none` has no measured guest record"),
+            "{measured:?}"
+        );
+        #[cfg(target_os = "macos")]
+        {
+            let wall = refuse(Requirement::TreeTermination, "vm:not-carried:limits.wall");
+            assert!(wall.message.contains("--limit wall"), "{wall:?}");
         }
     }
 

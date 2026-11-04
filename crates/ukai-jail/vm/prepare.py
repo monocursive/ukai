@@ -129,10 +129,13 @@ export DEBIAN_FRONTEND=noninteractive
 # recorded in image.json, never the moving live archive.
 printf 'Types: deb\\nURIs: {SNAPSHOT_URL}\\nSuites: resolute resolute-updates resolute-security\\nComponents: main universe\\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\\n' > /etc/apt/sources.list.d/ukai-snapshot.sources
 rm -f /etc/apt/sources.list.d/ubuntu.sources
-# Pin what the guest jail's guarantees measure against (apt is not
-# snapshot-pinned; the installed set is recorded in the image manifest):
-# `bubblewrap` is the containment backend, `dbus-user-session` the session
-# bus the Linux jail's tooling expects.
+# Install what the guest jail's guarantees measure against, resolved from
+# the snapshot above; the installed versions are also recorded in the image
+# manifest: `bubblewrap` is the containment backend, `dbus-user-session`
+# the session bus the jail's scope request (busctl --user) talks to.
+# These leave exactly the user manager, its (sd-pam) helper and the bus
+# running as the account; guest.py learns those three from systemd at
+# session open (learn_infrastructure) and the attempt stop spares only them.
 echo UKAI_STEP apt_update >/dev/hvc0
 apt-get update
 echo UKAI_STEP apt_install >/dev/hvc0

@@ -66,6 +66,96 @@ def rust_test_definition(reference):
     return read("crates/" + source), function
 
 
+def exists(path):
+    """Whether `path` (a file or directory) is in the tree being validated."""
+    if BASE:
+        return subprocess.run(["git", "cat-file", "-e", f"{BASE}:{path.rstrip('/')}"],
+                              cwd=ROOT, capture_output=True).returncode == 0
+    return (ROOT / path).exists()
+
+
+def seatbelt_template_digest():
+    """`sandbox::template_digest()`: SHA-256 of the raw `TEMPLATE` literal.
+
+    The K90 pins in tests/macos_sandbox_profile.rs and
+    tests/macos_defense_matrix.rs assert the Rust side equals the same value.
+    """
+    source = read("crates/ukai-jail/src/platform/macos/sandbox.rs")
+    match = re.search(r'pub const TEMPLATE: &str = r#"(.*?)"#;', source, re.S)
+    return hashlib.sha256(match.group(1).encode()).hexdigest()
+
+
+CITED_PATH = re.compile(r"(?:docs|crates)/[A-Za-z0-9_./-]+")
+NATIVE_GATES = ["L02", "M01"] + [f"K{i}" for i in range(87, 114)]
+
+
+def cited_paths(note):
+    return [path.rstrip(".,;:") for path in CITED_PATH.findall(note or "")]
+
+
+def live_promotion_problems(acceptance, exists):
+    """Why the map breaks the D7 rule; [] when it holds.
+
+    An untested native clause lists no evidence. A native gate left with no
+    untested clause was promoted, and component tests alone cannot promote
+    it: it needs a live clause that names a test or check a gate evaluates
+    and cites an evidence record under docs/benchmarks/ that exists. Every
+    path any note cites must exist (a substring is not a record).
+    """
+    problems = []
+    for gate in NATIVE_GATES:
+        clauses = [c for c in acceptance["clause"] if c["gate"] == gate and c.get("lane") == "macos"]
+        pending = [c for c in clauses if c["tag"] == "untested"]
+        measured = [c for c in clauses if c["tag"] in ("live-cli", "live-lib")]
+        problems += [f"{c['id']} is untested but lists evidence" for c in pending
+                     if c.get("tests") or c.get("checks")]
+        if pending:
+            continue
+        if not measured:
+            problems.append(f"{gate} has no untested clause and no live clause: "
+                            "component tests alone cannot promote a gate")
+        for c in measured:
+            if not c.get("tests") and not c.get("checks"):
+                problems.append(f"{c['id']} is {c['tag']} but names no test or check a gate evaluates")
+            if not any(p.startswith("docs/benchmarks/") for p in cited_paths(c.get("note"))):
+                problems.append(f"{c['id']} cites no docs/benchmarks/ evidence record")
+    for c in acceptance["clause"]:
+        problems += [f"{c['id']} cites {p}, which does not exist"
+                     for p in cited_paths(c.get("note")) if not exists(p)]
+    return problems
+
+
+# A J18 row claimed as passing, in any spelling: a K108-K113 range (hyphen,
+# en or em dash, "to", "through") or a list of those ids, then pass/passes/passed.
+VM_ROW = r"K1(?:0[89]|1[0-3])(?:\.1)?"
+PASSING_VM_ROWS = re.compile(
+    rf"\b{VM_ROW}\s*(?:[-–—]|to|through)\s*{VM_ROW}\s+(?:all\s+|now\s+)?pass(?:es|ed)?\b"
+    rf"|\b{VM_ROW}(?:,?\s+(?:and\s+)?{VM_ROW})+,?\s+(?:all\s+|now\s+)?pass(?:es|ed)?\b"
+    rf"|\b{VM_ROW}\s+(?:now\s+)?pass(?:es|ed)?\b")
+
+
+def passing_vm_row_claims(text):
+    return [match.group(0) for match in PASSING_VM_ROWS.finditer(text)]
+
+
+def candidate_tag_problems(readme, tag_prefix, candidate):
+    """The preview.2 README names the candidate's tag correctly outside its errata.
+
+    Erratum 1 quotes the wrong tag on purpose; everywhere else the candidate
+    may be tagged only with `tag_prefix`, and the publication steps must name
+    that tag.
+    """
+    start = readme.index("**Errata (2026-11-03, fix wave 1103).**")
+    end = readme.index("This build (", start)
+    outside = readme[:start] + readme[end:]
+    problems = [f"`{match.group(1)}{candidate}` outside the erratum"
+                for match in re.finditer(r"([A-Za-z0-9_.-]*-v)" + re.escape(candidate), outside)
+                if match.group(1) != tag_prefix]
+    if f"`{tag_prefix}{candidate}`" not in outside:
+        problems.append(f"the publication steps do not name `{tag_prefix}{candidate}`")
+    return problems
+
+
 def validator_module():
     name = "phase1_validator"
     if BASE:
@@ -98,7 +188,18 @@ class MacosContract(unittest.TestCase):
                 self.assertIn("measurement spike", text)
                 self.assertIn("macos-custody-spike-2026-11-01/README.md", text)
                 self.assertIn("kickstart", text)
-                self.assertRegex(text, r"(?s)J18.*?lacks.*?network.*?`agent`.*?workspace.*?credentials")
+                # J18 status per fix wave 1103 (D1, D2, D11): the rows are
+                # untested, unmeasured requirements and uncarried policy
+                # refuse by name before any connection or boot, and no
+                # macOS client ships.
+                self.assertRegex(text, r"K108–K113 (?:are|remain|stay) `?untested`?")
+                for fact in ["`vm:not-measured:<requirement>`", "`vm:not-carried:<field>`",
+                             "before any connection or boot", "built from source"]:
+                    self.assertIn(fact, text)
+                for stale in ["lacks network", "no qualified VM backend exists yet",
+                              "refuses before connecting"]:
+                    self.assertNotIn(stale, text)
+                self.assertEqual([], passing_vm_row_claims(text))
                 self.assertNotRegex(text, r"(?i)(?:are|is now|both|2026-10-22,) code-complete|The code is complete")
         self.assertIn("refusal-only", read("docs/specs/jail-macos.md"))
 
@@ -202,20 +303,13 @@ class MacosContract(unittest.TestCase):
             with self.subTest(gate=gate):
                 self.assertIn(gate, gates)
                 self.assertEqual(gates[gate]["row"], rows[gate])
-        for gate in ["L02", "M01"] + [f"K{i}" for i in range(87, 114)]:
+        self.assertEqual([], live_promotion_problems(acceptance, exists))
+        # K108-K113 were promoted on 2026-11-03 with notes that named no
+        # test and records that did not meet their clauses; they are
+        # untested again (fix wave 1103, D11).
+        for gate in [f"K{i}" for i in range(108, 114)]:
             with self.subTest(gate=gate):
-                pending = [c for c in acceptance["clause"] if c["gate"] == gate and c.get("lane") == "macos" and c["tag"] == "untested"]
-                measured = [c for c in acceptance["clause"] if c["gate"] == gate and c.get("lane") == "macos" and c["tag"] in ("live-cli", "live-lib")]
-                if pending:
-                    self.assertTrue(all(not c.get("tests") and not c.get("checks") for c in pending))
-                else:
-                    # A gate with no untested clause left (K108-K112,
-                    # 2026-11-03) must have been promoted by live rows whose
-                    # notes cite their evidence record; component tests alone
-                    # still cannot promote a gate.
-                    self.assertTrue(measured, "live native claim needs an explicit failing clause")
-                    self.assertTrue(all("docs/benchmarks/" in (c.get("note") or "") for c in measured),
-                                    "a measured live claim cites its evidence record")
+                self.assertEqual(next(c for c in acceptance["clause"] if c["id"] == gate + ".1")["tag"], "untested")
         for c in acceptance["clause"]:
             if c["gate"] not in {f"K{i}" for i in range(87, 114)}:
                 continue
@@ -223,6 +317,264 @@ class MacosContract(unittest.TestCase):
                 with self.subTest(reference=test):
                     source, name = rust_test_definition(test)
                     self.assertRegex(source, r"(?m)^\s*#\[test\]\s*(?:#\[[^\n]+\]\s*)*fn " + re.escape(name) + r"\(")
+
+    def test_d7_guard_refuses_a_promotion_without_evaluated_tests_or_an_existing_record(self):
+        # Every native gate has an untested clause today, so the guard's
+        # promotion branch runs only on these synthetic maps.
+        acceptance = tomllib.loads(read(CONTRACT + "acceptance-map.toml"))
+        test = "ukai-jail/tests/vm_tier.rs::the_transport_record_carries_the_recorded_facts"
+        record = "docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md"
+        self.assertTrue(exists(record))
+
+        def promote(tag="live-cli", **fields):
+            value = copy.deepcopy(acceptance)
+            next(c for c in value["clause"] if c["id"] == "K111.1").update(tag=tag, **fields)
+            return live_promotion_problems(value, exists)
+
+        # A promotion that holds: a live clause a gate evaluates, citing a real record.
+        self.assertEqual([], promote(tests=[test], note=f"Live row; evidence {record}."))
+        for name, problems in {
+            "a cited record that does not exist":
+                promote(tests=[test], note="Live row; evidence docs/benchmarks/jail/results/no-such-run/README.md."),
+            "no test or check a gate evaluates": promote(note=f"Live row; evidence {record}."),
+            "no evidence record": promote(tests=[test], note="Live row, measured on the dev Mac."),
+            "component tests alone": promote(tag="portable", tests=[test], note=f"Evidence {record}."),
+        }.items():
+            with self.subTest(defect=name):
+                self.assertTrue(problems)
+        # An untested clause's cited path must exist too.
+        value = copy.deepcopy(acceptance)
+        next(c for c in value["clause"] if c["id"] == "K108.1")["note"] = "See docs/benchmarks/jail/results/gone/."
+        self.assertEqual(live_promotion_problems(value, exists),
+                         ["K108.1 cites docs/benchmarks/jail/results/gone/, which does not exist"])
+        # An untested clause lists no evidence: a test or a check on it is
+        # the one problem, whichever it names.
+        for field in ["tests", "checks"]:
+            with self.subTest(untested_lists=field):
+                value = copy.deepcopy(acceptance)
+                clause = next(c for c in value["clause"] if c["id"] == "K111.1")
+                self.assertEqual(clause["tag"], "untested")
+                clause[field] = [test]
+                self.assertEqual(live_promotion_problems(value, exists),
+                                 ["K111.1 is untested but lists evidence"])
+
+    def test_d11_vm_docs_imply_no_shipped_client_and_no_passing_row(self):
+        def flat(path):
+            return " ".join(read(path).split())
+        # No macOS ukai-jail client ships (the DMG carries ukai-vm and
+        # ukai-vm-install): every doc that shows `ukai-jail run --vm` says so.
+        for path in ["crates/ukai-jail/vm/PREVIEW.txt", "crates/ukai-jail/vm/README.md",
+                     "docs/guide.md", "docs/specs/jail-macos.md"]:
+            with self.subTest(path=path):
+                text = flat(path).replace("`", "")
+                self.assertIn("ukai-jail run --vm", text)
+                self.assertIn("built from source", text)
+                self.assertRegex(text, r"(?i)no macOS ukai-jail client ships")
+        # No current VM page claims a J18 row passes, in any spelling.
+        for path in ["crates/ukai-jail/vm/PREVIEW.txt", "crates/ukai-jail/vm/README.md",
+                     CONTRACT + "agent-compatibility.md", "crates/ukai-jail/dist/release.json"]:
+            with self.subTest(path=path, check="no passing row"):
+                self.assertEqual([], passing_vm_row_claims(flat(path)))
+        vm_row = next(line for line in read(CONTRACT + "agent-compatibility.md").splitlines()
+                      if line.startswith("| Claude Code | 2.1.311"))
+        self.assertNotIn("Supported", vm_row)
+        self.assertIn("K113 `untested`", vm_row)
+        platform = vm_row.split(" | ")[3]
+        self.assertNotIn("installed ukai-vm 0.1.0-preview.1", platform)
+        for fact in ["development package labeled 0.1.0-preview.1, not the public preview (erratum 5)",
+                     "built from the repository"]:
+            self.assertIn(fact, platform)
+        # The cited receipt digest matched no file; the guest receipt is
+        # 53837b58. The wrong one may appear only in its erratum.
+        for path in [CONTRACT + "agent-compatibility.md",
+                     "docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/README.md"]:
+            with self.subTest(path=path):
+                text = flat(path)
+                self.assertIn("sha256:53837b58", text)
+                for match in re.finditer("10c3c58f", text):
+                    self.assertIn("matches no file", text[max(0, match.start() - 200):match.end() + 200])
+        self.assertNotIn("or at minimum the install check",
+                         flat("docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md"))
+        vm = json.loads(read("crates/ukai-jail/dist/release.json"))["vm"]
+        self.assertNotEqual(vm["version"], vm["candidate_version"])
+        self.assertEqual([], candidate_tag_problems(
+            read("docs/benchmarks/jail/results/macos-vm-preview2-2026-11-03/README.md"),
+            vm["tag_prefix"], vm["candidate_version"]))
+        self.assertTrue(read("crates/ukai-jail/vm/PREVIEW.txt").startswith(
+            f"Ukai VM {vm['candidate_version']} "))
+
+    def test_d13_rule6_receipts_carry_the_guardians_report(self):
+        """D13: both limits lowered when clamped; the guardian reports on B."""
+        native = " ".join(read("docs/specs/jail-macos.md").split("## 4.", 1)[1].split("## 5.", 1)[0].split())
+        for fact in ["min(soft, hard)", "`allowance` frame on B immediately before `ready`",
+                     "A handshake without exactly one `allowance` before `ready` refuses",
+                     "`allowance ` + limit (u64) + headroom (u64) + clamped (one byte, 0 or 1)",
+                     "`process_limit`", "`process_headroom`", "`process_headroom_clamped`",
+                     "`process_allowance`", "`stop.phases`", "the supervisor plans nothing",
+                     "min(hard, `kern.maxprocperuid`)",
+                     "preparation refuses if either has moved below the decided limit",
+                     "a limit that rose after the decision is not refused"]:
+            self.assertIn(fact, native)
+        for stale in ["The clamped path sets nothing", "the process headroom (rule 6) and pending",
+                      "any member could raise its soft limit up to the hard limit",
+                      "reports `ready` on B. If", "if the limits moved during preparation"]:
+            self.assertNotIn(stale, native)
+        compat = " ".join(read("docs/benchmarks/jail/results/macos-compat-2026-11-02/README.md").split())
+        for fact in ["## Errata (2026-11-03, fix wave 1103)", "the supervisor's figure",
+                     "The clamped row ran with the hard limit unlowered", "`60f7eb7b6`",
+                     "the hard limit of 2000 is from that later state, not the clamped row"]:
+            self.assertIn(fact, compat)
+        self.assertTrue(exists("docs/benchmarks/jail/results/macos-nproc-raise-2026-11-03/output.txt"))
+        # Rule 6's evidence: what tests drive, what only reading verifies.
+        for fact in ["`guardian::announcement`", "`MacosPrepared::assemble`",
+                     "are verified by reading only", "The corrected rule has not run under ES"]:
+            self.assertIn(fact, native)
+
+    def test_failed_bootstrap_strip_is_a_refusal_not_an_exec_error(self):
+        """288c00933: nothing executed, so the attempt is refused, never exec_error."""
+        native = " ".join(read("docs/specs/jail-macos.md").split("## 4.", 1)[1].split("## 5.", 1)[0].split())
+        for fact in ["`bootstrap_strip:KERN_…`", "exits 126 without the exec",
+                     "outcome `refused`, error `backend_unavailable`, remediation `inspect_state`, exit 125",
+                     "never as `exec_error`", "`a_failed_containment_step_is_a_refusal_not_an_exec_error`",
+                     "no strip failure has been observed live",
+                     # The residual is named, not claimed fixed.
+                     "`ProgramChanged` and `TerminalUnavailable`, are still recorded as `exec_error`",
+                     "A failed bootstrap strip (§4.7, class 2) also arrives on E",
+                     # §4 step 7 says the same as §4.7 class 2.
+                     "it is outcome `refused` with `backend_unavailable`, never `exec_error`"]:
+            self.assertIn(fact, native)
+        # A pin only proves a sentence is present; no other sentence of §4 may
+        # give a strip (or anything else) the exec_error outcome.
+        self.assertNotIn("outcome `exec_error`", native)
+        # jail-v1 §13.2 names the residual instead of claiming every pre-exec
+        # refusal is refused.
+        core = " ".join(read("docs/specs/jail-v1.md").split())
+        for fact in ["Known deviation, not yet reclassified: two launcher refusals after the "
+                     "release record `exec_error` although the launcher did not exec",
+                     "A failed macOS bootstrap strip is `refused` (jail-macos §4.7 class 2)."]:
+            self.assertIn(fact, core)
+
+    def test_vm_fix_wave_docs_describe_the_carry_rule_stop_and_share(self):
+        """D1-D8: the VM docs describe the fix wave's code and its test limits."""
+        def flat(path):
+            return " ".join(read(path).split())
+        vm_tier = flat("docs/specs/jail-macos.md").split("## 6.", 1)[1].split("## 7.", 1)[0]
+        readme = flat("crates/ukai-jail/vm/README.md")
+        for path, text in [("jail-macos.md section 6", vm_tier), ("vm/README.md", readme)]:
+            with self.subTest(path=path):
+                for fact in ["`vm:owner-loss-not-provided`", "`GUEST_MEASUREMENTS`",
+                             "`vm:not-measured:<requirement>`", "`vm:not-carried:<field>`",
+                             "`environment.bindings`", "`guest_carried`", "`guest_receipt_sha256`",
+                             "`<data>/vm/serve.stderr`", "`attempt_tree_unverified`",
+                             "`attempt_files_not_cleared`", "`live_share_mount_failed`",
+                             "`launch_profile_unstageable`", "`launch_without_toml`",
+                             "`nosuid,nodev`", "`init.scope`", "`test_guest_main.py`",
+                             "`guest_harness.py`", "`test_custodian.py`",
+                             "covered by unit and model tests only",
+                             "been confirmed on a booted guest",
+                             # Round 4: the learned stop, the serve binding,
+                             # standard input, exit, policy digest, summary.
+                             "`infrastructure_unknown`", "`strays_killed`", "`members`",
+                             "`(sd-pam)`", "pinned by pid and start time", "`6c1f11852`",
+                             "`<data>/vm/serve-failed.stderr`", "another serve replaced it; rerun",
+                             "and the guest jail's standard input is /dev/null: nothing written "
+                             "to it would reach the target; run with `</dev/null`, or without --vm",
+                             "128 + s", "`outcome.cause`", "`/mnt/workspace`", "staged_secrets",
+                             "pinned in `image.json`, and it is not", "is summarized as itself",
+                             "`vm-transport.json` is absent"]:
+                    self.assertIn(fact, text)
+                self.assertNotIn("kernel_bound_requires_vm", text)
+                self.assertNotIn("measured floor", text)
+                # The stop no longer spares a fixed set of units.
+                for stale in ["INFRASTRUCTURE_UNITS",
+                              "`session.slice/dbus.service` or `app.slice/dbus.service`",
+                              "comes from what `prepare.py` installs",
+                              "digest-checked against `vm-transport.json`"]:
+                    self.assertNotIn(stale, text)
+        for fact in ["None is silently dropped", "`KEPT_BOOT_DIRS`", "`UKAI_VM_PACKAGE_VERSION`",
+                     "`<crate version>-dev`", "wake gap"]:
+            self.assertIn(fact, readme)
+        # Each guest-side paragraph carries its own hedge (F2): the share's,
+        # the serve check's and the attempt stop's.
+        paragraphs = [" ".join(p.split()) for p in read("crates/ukai-jail/vm/README.md").split("\n\n")]
+        for marker, hedge in [("powers off with `live_share_mount_failed`. The guest's", "unit and model tests only"),
+                              ("`<data>/vm/serve-failed.stderr`", "not against a real serve"),
+                              ("**The attempt stop (decision D6).**", "has not been confirmed on a booted guest"),
+                              ("gives 128 + s", "none has run against a booted guest"),
+                              ("is summarized as itself", "not yet on a new run")]:
+            with self.subTest(paragraph=marker):
+                paragraph = next(p for p in paragraphs if marker in p)
+                self.assertIn(hedge, paragraph)
+        # The errata name what each record got wrong and point at the fix.
+        results = "docs/benchmarks/jail/results/"
+        for path, facts in [
+            ("macos-vm-installed-2026-11-03/README.md",
+             ["K112's `--vm` refusal named native macOS", "`kernel_bound_requires_vm`",
+              "`vm:owner-loss-not-provided`", "Since `7b1f6d875` (decision D5)"]),
+            ("macos-vm-claude-2026-11-03/README.md",
+             ["The TLS-only grant did not cross as TLS-only",
+              '`["api.anthropic.com:443", "api.anthropic.com:443"]`', "there is no `tls_only` field",
+              "This record does not test a plaintext request", "`407b18b05`"]),
+            ("macos-vm-share-2026-11-02/README.md",
+             ["## Errata (2026-11-03, fix wave 1103)", "The preflight's normalization probe could not fail",
+              "case-sensitive APFS volume folds normalization only", "the disclosure below stands"]),
+            ("macos-vm-warm-2026-11-02/README.md",
+             ["moved the kill to a cgroup the jail leaves", "Case B stayed inside the custodian's lease",
+              "`bfcf1f9d4`", "`7af4af5c1`", "it has not run on a booted guest",
+              "Revised in `6c1f11852`", "kills by pidfd every other live process"]),
+        ]:
+            with self.subTest(path=path):
+                text = flat(results + path)
+                for fact in facts:
+                    self.assertIn(fact, text)
+        # The raw K113 guest receipt still shows the defect the erratum names.
+        guest = json.loads(read(results + "macos-vm-claude-2026-11-03/k113-attempt/evidence/jail.json"))
+        network = guest["applied"]["network"]
+        self.assertNotIn("tls_only", network)
+        self.assertEqual(["api.anthropic.com:443"] * 2, network["allowed_hosts"])
+        k112 = json.loads(read(results + "macos-vm-installed-2026-11-03/k112.json"))
+        self.assertIn("native macOS does not provide", k112["vm_installed"]["stderr"])
+
+    def test_vm_harness_and_packaging_docs_describe_code_not_measurements(self):
+        """D9-D11 (harnesses, packaging): what the scripts do, and that none ran live."""
+        readme = " ".join(read("crates/ukai-jail/vm/README.md").split())
+        for fact in ["`harness.py mark`", "`UKAI_VM_BINARY`", "`--budget-ms`", "`--ukai-jail <client>`",
+                     "Every output directory must be new", "No probe uses `/dev/tcp`",
+                     "recorded as `REFUSED`, never `PASS`", "`fault_matrix.py`** has nine cases",
+                     "`measurements[<requirement>]`",
+                     "an upper bound on the overhead the clause limits, not the guest jail's own release time",
+                     "under `not_measured`", "none of it has run against a booted guest",
+                     "`cargo build --release --locked`", "`source_revision`",
+                     "No package has been built with the current script yet", "`notarization.2.json`",
+                     "`payload-extra`", "It has not been run against a package yet",
+                     # Round 4 (S3): the denial needs a route, receipts are
+                     # bound, installed modes, the scrubbed pinned build.
+                     "`ENETUNREACH`", "`1.1.1.1:443`", "the proxy answered 200",
+                     "never a PASS", "no `--guest-nat` flag",
+                     "The live phase therefore needs outbound access to `1.1.1.1:443`",
+                     "argv digest (in the binding and in the receipt), profile, serve boot and guest boot",
+                     "`row-k111-<nonce>`", "`installed-modes-normalized`",
+                     "directories 0755, files 0755", "`/dev/null` as standard input",
+                     "assume-unchanged or skip-worktree", "`rustc -vV`", "`cargo -V`",
+                     "K112 is `REFUSED` when a lane was refused for its standard input",
+                     "its live acceptance is pending",
+                     "refuses unless both report that file's exact release",
+                     "never an absolute host path",
+                     "No rebuild from such an archive under the pinned toolchain has been verified"]:
+            self.assertIn(fact, readme)
+        self.assertNotIn("the script refuses to run twice", readme)
+        self.assertNotIn("`CARGO_TARGET_DIR` is dropped", readme)
+        self.assertNotIn("`crates/`, enough to rebuild", readme)
+        preview = " ".join(read("crates/ukai-jail/vm/PREVIEW.txt").split())
+        for fact in ["source_revision in payload/image/image.json",
+                     "cargo build --release --locked -p ukai-jail --bin ukai-vm",
+                     "holds only the VM tooling (crates/ukai-jail/vm)",
+                     "a rebuild with that pinned toolchain has not been verified",
+                     "the earlier published preview and this version's first candidate"]:
+            self.assertIn(fact, preview)
+        self.assertNotIn("The VM tooling's source (crates/ukai-jail/vm) is included", preview)
+        # test_coordinates: PREVIEW names only the candidate version.
+        self.assertNotIn("0.1.0-preview.1", preview)
 
     def test_d8_other_writable_is_never_accepted(self):
         for path in ["docs/specs/jail-launch-and-summary.md", "docs/specs/jail-macos.md"]:
@@ -349,7 +701,8 @@ class MacosContract(unittest.TestCase):
             with self.subTest(path=path):
                 text = " ".join(read(path).split())
                 for fact in ["UKAI_JAIL_MACOS_NATIVE=dev", "native_execution=dev", "J17_OBSERVE=true",
-                             "macos-closed-v1", "fs.write", "active", "before connecting"]:
+                             "macos-closed-v1", "fs.write", "active", "refuses at probing",
+                             "before any connection or boot"]:
                     self.assertIn(fact, text)
                 self.assertNotIn("J17_OBSERVE=false", text)
                 self.assertNotIn("unwired", text)
@@ -365,10 +718,19 @@ class MacosContract(unittest.TestCase):
         clauses = {c["id"]: c for c in acceptance["clause"]}
         native = {c["id"] for c in clauses.values() if c["tag"] == "untested" and
                   (c["gate"] in {f"K{i}" for i in range(87, 114)} or c["id"] in {"L02.12", "M01.4"})}
-        release = json.loads(read("crates/ukai-jail/dist/release.json"))["jail"]["unsupported_clauses"]
+        coordinates = json.loads(read("crates/ukai-jail/dist/release.json"))
+        release = coordinates["jail"]["unsupported_clauses"]
         self.assertEqual(set(release), native | {"K22.2", "K23.1", "K24.1", "K26.1", "K29.1"})
         self.assertEqual(len(release), len(set(release)))
         self.assertTrue(all(re.fullmatch(r"[A-Z][0-9]+\.[0-9]+", c) for c in release))
+        # The VM scope names exactly the untested J18 clauses, each also
+        # excluded from the Linux release; nothing else reads this list.
+        vm = coordinates["vm"]["unsupported_clauses"]
+        j18 = {c["id"] for c in clauses.values() if c["tag"] == "untested"
+               and c["gate"] in {f"K{i}" for i in range(108, 114)}}
+        self.assertEqual(j18, {f"K{i}.1" for i in range(108, 114)})
+        self.assertEqual(vm, sorted(j18, key=lambda c: int(c[1:].split(".")[0])))
+        self.assertTrue(set(vm) <= set(release))
         expected = {
             "ukai-jail/tests/macos_observe.rs::k105_events_map_to_schema_valid_audit_results_with_honest_coverage",
             "ukai-jail/tests/macos_observe.rs::j17_published_closed_set_equals_the_subscription_rows",
@@ -415,8 +777,16 @@ class MacosContract(unittest.TestCase):
         value = record("examples/receipt-macos-native.json")
         self.assertNotIn("target_process", value["lifetime"]["native"]["details"])
         self.assertEqual(value["observer"]["sources"]["wrapper"], "supported")
+        # The one real value in the illustration (frozen-schemas.toml,
+        # 2026-10-23: "the template digest matches the integrated Seatbelt
+        # template"): computed from the template's source, never pinned as a
+        # literal, so a template change cannot leave the example stale.
         self.assertEqual(value["lifetime"]["native"]["details"]["profile_digest"],
-                         "23917ae508660fdd58f330ee90d70271a0547b43584c9265f7fad76176b5f11e")
+                         seatbelt_template_digest())
+        for pin in ["crates/ukai-jail/tests/macos_sandbox_profile.rs",
+                    "crates/ukai-jail/tests/macos_defense_matrix.rs"]:
+            self.assertRegex(" ".join(read(pin).split()),
+                             'const PINNED_TEMPLATE_DIGEST: &str = "' + seatbelt_template_digest() + '";')
         self.assertEqual(value["policy"]["requirements"], [
             "tree_termination", "filesystem_containment", "syscall_filter", "network_none",
             "protected_coverage:existing_and_root", "limit:wall"])

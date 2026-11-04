@@ -274,24 +274,67 @@ fn version_key(path: &Path) -> (Vec<u64>, bool, String) {
     )
 }
 
+/// The network shape the host asked the guest jail for: the mode and the
+/// canonical allow rules, the TLS-only ones among them. The guest receipt
+/// must report exactly this applied (decision D1's second wall).
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct GuestNetwork {
+    /// `none` or `proxy`.
+    pub mode: String,
+    /// The canonical allow rules, as a set (a rule granted twice is one).
+    pub allow: std::collections::BTreeSet<String>,
+    /// The allow rules applied as TLS only.
+    pub tls_only: std::collections::BTreeSet<String>,
+}
+
+impl GuestNetwork {
+    /// The shape a policy with `mode`, `allow` and `tls_only` asks for.
+    #[must_use]
+    pub fn requested(
+        mode: &str,
+        allow: impl IntoIterator<Item = String>,
+        tls_only: impl IntoIterator<Item = String>,
+    ) -> Self {
+        GuestNetwork {
+            mode: mode.to_owned(),
+            allow: allow.into_iter().collect(),
+            tls_only: tls_only.into_iter().collect(),
+        }
+    }
+}
+
+/// What a bound guest receipt must agree with: this host attempt, its boot,
+/// profile and argv, and the network shape it asked for.
+#[derive(Clone, Copy, Debug)]
+pub struct BoundExpectation<'a> {
+    /// The host attempt's identifier.
+    pub attempt_id: &'a str,
+    /// The ukai-vm boot the attempt ran in.
+    pub boot_id: &'a str,
+    /// The guest profile.
+    pub profile: &'a str,
+    /// The argv digest.
+    pub argv_digest: &'a str,
+    /// The requested network shape.
+    pub network: &'a GuestNetwork,
+}
+
 /// Validate both the receipt and the controller's statement binding it to this run.
 /// It establishes consistency of guest reports, not independent kernel attestation.
 ///
 /// # Errors
-/// Refuses a replay, wrong boundary, wrong argv, boot, profile, or unapplied limit.
+/// Refuses a replay, wrong boundary, wrong argv, boot, profile, network, or
+/// unapplied limit.
 pub fn verify_bound_guest_receipt(
     receipt: &serde_json::Value,
     binding: &super::protocol::ReceiptBinding,
-    attempt_id: &str,
-    boot_id: &str,
-    profile: &str,
-    argv_digest: &str,
+    expected: &BoundExpectation<'_>,
 ) -> Result<(), Refusal> {
-    verify_guest_receipt(receipt, profile)?;
-    if binding.attempt_id != attempt_id
-        || binding.boot_id != boot_id
-        || binding.profile != profile
-        || binding.argv_digest != argv_digest
+    verify_guest_receipt(receipt, expected.profile, expected.network)?;
+    if binding.attempt_id != expected.attempt_id
+        || binding.boot_id != expected.boot_id
+        || binding.profile != expected.profile
+        || binding.argv_digest != expected.argv_digest
         || binding.guest_attempt_id.is_empty()
         || binding.guest_boot_id.is_empty()
         || receipt
@@ -301,7 +344,7 @@ pub fn verify_bound_guest_receipt(
         || receipt
             .pointer("/argv_digest")
             .and_then(serde_json::Value::as_str)
-            != Some(argv_digest)
+            != Some(expected.argv_digest)
         || receipt
             .pointer("/process/identity/value/boot_id")
             .and_then(serde_json::Value::as_str)
@@ -316,11 +359,18 @@ pub fn verify_bound_guest_receipt(
 
 /// Verifies the guest's Linux receipt on the host, `run.py`'s
 /// `verify_receipt`: the attempt completes only with containment, cleanup
-/// and every required limit verified.
+/// and every required limit verified, the profile it asked for, and exactly
+/// the network shape it asked for applied: the mode, the allow set and the
+/// TLS-only set (decision D1; the host gates before boot, this is the
+/// second wall).
 ///
 /// # Errors
 /// [`Refusal`] naming the first fact the receipt fails to prove.
-pub fn verify_guest_receipt(receipt: &serde_json::Value, profile: &str) -> Result<(), Refusal> {
+pub fn verify_guest_receipt(
+    receipt: &serde_json::Value,
+    profile: &str,
+    network: &GuestNetwork,
+) -> Result<(), Refusal> {
     let string = |pointer: &str| {
         receipt
             .pointer(pointer)
@@ -357,16 +407,36 @@ pub fn verify_guest_receipt(receipt: &serde_json::Value, profile: &str) -> Resul
     if !errors_empty {
         return Err(refusal("guest evidence or cleanup failed"));
     }
-    // The offline shape records `none`; a proxied policy records `proxy`
-    // (J18 §6: the guest jail's own proxy enforces it). Anything else —
-    // `host`, a missing mode — is a boundary the guest never established.
-    match string("/applied/network/mode")? {
-        "none" | "proxy" => {}
-        other => {
-            return Err(refusal(&format!(
-                "guest receipt network mode is `{other}`, not none or proxy"
-            )));
-        }
+    // The applied network is the one the host asked for, nothing else: the
+    // offline shape records `none` with no hosts, a proxied policy `proxy`
+    // with exactly its allow set (J18 §6: the guest jail's own proxy
+    // enforces it). A `host` mode, a missing one, or `proxy` for an offline
+    // request is a boundary the host never asked the guest to establish.
+    let mode = string("/applied/network/mode")?;
+    if mode != network.mode {
+        return Err(refusal(format!(
+            "guest receipt network mode is `{mode}`, not the requested `{}`",
+            network.mode
+        )));
+    }
+    let rules = |pointer: &str, required: bool| match receipt.pointer(pointer) {
+        None if !required => Ok(std::collections::BTreeSet::new()),
+        Some(serde_json::Value::Array(rules)) => rules
+            .iter()
+            .map(|rule| rule.as_str().map(str::to_owned))
+            .collect::<Option<std::collections::BTreeSet<String>>>()
+            .ok_or_else(|| refusal(format!("malformed guest receipt {pointer}"))),
+        _ => Err(refusal(format!("malformed guest receipt {pointer}"))),
+    };
+    if rules("/applied/network/allowed_hosts", true)? != network.allow {
+        return Err(refusal(
+            "guest receipt allowed hosts differ from the requested allow set",
+        ));
+    }
+    if rules("/applied/network/tls_only", false)? != network.tls_only {
+        return Err(refusal(
+            "guest receipt TLS-only hosts differ from the requested ones",
+        ));
     }
     let limits = receipt
         .pointer("/applied/limits")
@@ -591,9 +661,10 @@ mod tests {
             "child_protection": "enforced", "exec_observed": true,
             "lifetime": {"boundary": "pid_namespace", "tree_empty": true, "integrity": "verified"},
             "state_cleanup": "complete", "errors": [],
-            "applied": {"network": {"mode": "none"}, "limits": limits},
+            "applied": {"network": {"mode": "none", "allowed_hosts": []}, "limits": limits},
         });
-        verify_guest_receipt(&receipt, "tool").expect("verified");
+        let offline = GuestNetwork::requested("none", [], []);
+        verify_guest_receipt(&receipt, "tool", &offline).expect("verified");
         for mutate in [
             |r: &mut serde_json::Value| r["containment"] = "refused".into(),
             |r: &mut serde_json::Value| r["platform"]["os"] = "macos".into(),
@@ -609,14 +680,107 @@ mod tests {
             |r: &mut serde_json::Value| r["errors"] = serde_json::json!(["boom"]),
             |r: &mut serde_json::Value| r["policy"]["name"] = "build".into(),
             |r: &mut serde_json::Value| r["applied"]["limits"] = "wall".into(),
+            // The guest jail must have protected its child and observed the
+            // exec: the host mirrors this receipt's facts as the attempt's.
+            |r: &mut serde_json::Value| r["child_protection"] = "unprotected".into(),
+            |r: &mut serde_json::Value| r["exec_observed"] = false.into(),
+            |r: &mut serde_json::Value| r["exec_observed"] = "true".into(),
+            // An offline receipt still states its (empty) allow set.
+            |r: &mut serde_json::Value| {
+                r["applied"]["network"]
+                    .as_object_mut()
+                    .expect("object")
+                    .remove("allowed_hosts");
+            },
         ] {
             let mut receipt = receipt.clone();
             mutate(&mut receipt);
-            assert!(verify_guest_receipt(&receipt, "tool").is_err(), "{receipt}");
+            assert!(
+                verify_guest_receipt(&receipt, "tool", &offline).is_err(),
+                "{receipt}"
+            );
         }
         for receipt in [serde_json::Value::Null, serde_json::json!(7)] {
-            assert!(verify_guest_receipt(&receipt, "tool").is_err());
+            assert!(verify_guest_receipt(&receipt, "tool", &offline).is_err());
         }
+    }
+
+    /// Decision D1's second wall: the applied network is exactly the one
+    /// requested. A `proxy` receipt answers no offline request, and a
+    /// proxied one must report the same allow and TLS-only sets.
+    #[test]
+    fn the_applied_network_must_be_the_requested_one() {
+        let limits: Vec<_> = ["wall", "mem", "pids", "swap"]
+            .into_iter()
+            .map(|key| serde_json::json!({"key": key, "applied": true}))
+            .collect();
+        let receipt = |network: serde_json::Value| {
+            serde_json::json!({
+                "schema": "ukai.jail.receipt/1", "platform": {"os": "linux"},
+                "policy": {"name": "agent"}, "containment": "enforced",
+                "child_protection": "enforced", "exec_observed": true,
+                "lifetime": {"boundary": "pid_namespace", "tree_empty": true, "integrity": "verified"},
+                "state_cleanup": "complete", "errors": [],
+                "applied": {"network": network, "limits": limits},
+            })
+        };
+        let proxied = GuestNetwork::requested(
+            "proxy",
+            [
+                "api.example.com:443".to_owned(),
+                "a.example.com:8080".to_owned(),
+            ],
+            ["api.example.com:443".to_owned()],
+        );
+        let applied = serde_json::json!({
+            "mode": "proxy",
+            "allowed_hosts": ["a.example.com:8080", "api.example.com:443", "api.example.com:443"],
+            "tls_only": ["api.example.com:443"],
+        });
+        verify_guest_receipt(&receipt(applied.clone()), "agent", &proxied).expect("the same shape");
+        for (pointer, value) in [
+            ("/mode", serde_json::json!("none")),
+            ("/allowed_hosts", serde_json::json!(["api.example.com:443"])),
+            (
+                "/allowed_hosts",
+                serde_json::json!([
+                    "a.example.com:8080",
+                    "api.example.com:443",
+                    "b.example.com:443"
+                ]),
+            ),
+            ("/allowed_hosts", serde_json::json!("api.example.com:443")),
+            ("/tls_only", serde_json::json!([])),
+            (
+                "/tls_only",
+                serde_json::json!(["a.example.com:8080", "api.example.com:443"]),
+            ),
+        ] {
+            let mut changed = applied.clone();
+            *changed.pointer_mut(pointer).expect("present") = value.clone();
+            assert!(
+                verify_guest_receipt(&receipt(changed), "agent", &proxied).is_err(),
+                "{pointer} = {value}"
+            );
+        }
+        let mut no_tls = applied.clone();
+        no_tls.as_object_mut().expect("object").remove("tls_only");
+        assert!(verify_guest_receipt(&receipt(no_tls), "agent", &proxied).is_err());
+        let mut no_hosts = applied;
+        no_hosts
+            .as_object_mut()
+            .expect("object")
+            .remove("allowed_hosts");
+        assert!(verify_guest_receipt(&receipt(no_hosts), "agent", &proxied).is_err());
+        // An offline request accepts no proxy receipt, whatever its hosts.
+        let offline = GuestNetwork::requested("none", [], []);
+        let mut tool = receipt(serde_json::json!({"mode": "proxy", "allowed_hosts": []}));
+        tool["policy"]["name"] = "tool".into();
+        assert!(verify_guest_receipt(&tool, "tool", &offline).is_err());
+        tool["applied"]["network"]["mode"] = "none".into();
+        verify_guest_receipt(&tool, "tool", &offline).expect("offline");
+        tool["applied"]["network"]["allowed_hosts"] = serde_json::json!(["x.example.com:443"]);
+        assert!(verify_guest_receipt(&tool, "tool", &offline).is_err());
     }
 
     #[test]

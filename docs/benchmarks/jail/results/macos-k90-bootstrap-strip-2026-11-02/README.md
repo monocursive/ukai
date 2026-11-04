@@ -42,7 +42,7 @@ Findings on this build (macOS 27.0.1/26A434 host, 27.0/26A428 guest; see
 
 ## The fix
 
-[launcher.rs](../../../../crates/ukai-jail/src/platform/macos/launcher.rs)
+[launcher.rs](../../../../../crates/ukai-jail/src/platform/macos/launcher.rs)
 (`ukai-jail __launch-macos`, the inside process that `sandbox-exec` execs)
 now calls `task_set_special_port(TASK_BOOTSTRAP_PORT, MACH_PORT_NULL)`
 immediately before `execve`, clearing the cached `bootstrap_port` global

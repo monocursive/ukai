@@ -9,6 +9,27 @@ coordinates flow from, mirrored under test by `cli.VERSION` and
 `PREVIEW.txt` — while `published_tag` keeps naming the release that is
 actually public today.
 
+**Errata (2026-11-03, fix wave 1103).** Added after review; the raw files
+are unchanged, and the text is kept as written except the tag named in the
+publication steps (erratum 1).
+
+1. The publication steps named the tag `ouro-vm-v0.1.0-preview.2`, but
+   `release.json`'s `tag_prefix` is `ukai-vm-v`; the tag is
+   `ukai-vm-v0.1.0-preview.2`. Only the published preview.1 keeps its
+   pre-rename tag.
+2. The version is now split in `release.json`: `vm.version` stays
+   `0.1.0-preview.1`, the public preview the installer pins, and
+   `vm.candidate_version` is `0.1.0-preview.2`, which `package.py` builds
+   and `cli.VERSION` and `PREVIEW.txt` name.
+3. The warm smoke's "network denied" rests on the vacuous `/dev/tcp`
+   probe (the guest's `/bin/sh` is `dash`), and its `GIT_ALLOWED` lines
+   are a shell-precedence artifact; the `.git` claim rests on the host-side
+   byte comparison.
+4. The K108–K113 rows "measured on the preview.1-labeled build" do not meet
+   their clauses: K108–K113 are `untested`. Before publication they must run
+   in full on the stapled DMG with a shipped client (none ships today; the
+   DMG carries only `ukai-vm` and `ukai-vm-install`).
+
 This build ([provenance.json](provenance.json)):
 `ukai-vm-0.1.0-preview.2-macos-arm64.dmg`,
 `sha256:3e066cea…` **before notarization**, Developer-ID-signed
@@ -34,7 +55,7 @@ this artifact differs in version labeling. **What still gates
 publication, in order:** notarytool credentials (none exist on this Mac —
 re-verified today), then `vm/notarize.py --package …` (submit → staple →
 validate → `spctl`, every step retained in `notarization.json`), then the
-full row rerun on the stapled DMG, then the tag `ouro-vm-v0.1.0-preview.2`,
+full row rerun on the stapled DMG, then the tag `ukai-vm-v0.1.0-preview.2`,
 the guide quickstart and `render_vm_pin` update, and the `published` flip.
 The public installer's `ouro-vm` command/directory naming
 (`~/.local/share/ouro-vm/…`, per the guide) must be reconciled with this

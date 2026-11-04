@@ -101,14 +101,31 @@ impl std::error::Error for ControlError {}
 /// that means: `vm stop` exits 0); [`ControlError::Failed`] for everything
 /// else.
 pub fn control_round_trip(path: &Path, request: ToControl) -> Result<FromControl, ControlError> {
+    control_round_trip_within(path, request, CONTROL_TIMEOUT)
+}
+
+/// [`control_round_trip`] within `budget` instead of [`CONTROL_TIMEOUT`]:
+/// a caller with its own deadline (an attempt's preparation) spends no more
+/// than what is left of it.
+///
+/// # Errors
+/// As [`control_round_trip`]; a reply that does not arrive within `budget`
+/// is [`ControlError::Failed`].
+pub fn control_round_trip_within(
+    path: &Path,
+    request: ToControl,
+    budget: Duration,
+) -> Result<FromControl, ControlError> {
+    let budget = budget.max(Duration::from_millis(1));
+    let started = std::time::Instant::now();
     let mut stream = UnixStream::connect(path).map_err(|_| ControlError::Absent)?;
-    let _ = stream.set_read_timeout(Some(CONTROL_TIMEOUT));
-    let _ = stream.set_write_timeout(Some(CONTROL_TIMEOUT));
+    let _ = stream.set_read_timeout(Some(budget));
+    let _ = stream.set_write_timeout(Some(budget));
     let line = encode(&request).map_err(ControlError::Failed)?;
     stream.write_all(&line).map_err(|error| {
         ControlError::Failed(FrameError(format!("the control request failed: {error}")))
     })?;
-    let deadline = std::time::Instant::now() + CONTROL_TIMEOUT;
+    let deadline = started + budget;
     let mut buffer = Vec::new();
     let mut chunk = [0u8; 4096];
     loop {
@@ -200,6 +217,27 @@ impl AttemptConnection {
         self.stream
             .write_all(&line)
             .map_err(|error| FrameError(format!("the attempt stream failed to write: {error}")))
+    }
+
+    /// [`AttemptConnection::send`] whose write may block no longer than
+    /// `budget` (a peer that stops reading cannot hold the caller past its
+    /// own deadline); later sends get [`HANDSHAKE_TIMEOUT`] again.
+    ///
+    /// # Errors
+    /// [`FrameError`] when the write fails or does not complete in time.
+    pub fn send_within(&mut self, frame: &ToVm, budget: Duration) -> Result<(), FrameError> {
+        let line = encode(frame)?;
+        let _ = self
+            .stream
+            .set_write_timeout(Some(budget.max(Duration::from_millis(1))));
+        let written = self.stream.write_all(&line).map_err(|error| {
+            FrameError(format!(
+                "the attempt stream failed to write within {}ms: {error}",
+                budget.as_millis()
+            ))
+        });
+        let _ = self.stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT));
+        written
     }
 
     /// Half-closes the write side: the lease's end-of-file, which cancels
