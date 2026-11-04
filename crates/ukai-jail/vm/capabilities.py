@@ -125,9 +125,19 @@ Capabilities measured (the limits guest.py's run_command applies):
                   success), and gets the filter's EPERM (ENOSYS,
                   EAFNOSUPPORT); its positive controls are allowed calls
                   shaped the same way, which get the kernel's own answer.
-                  The probe also reads /proc/self/status: Seccomp 2,
+                  It calls nothing unless it runs on Linux aarch64, under a
+                  seccomp filter with no_new_privs, in the guest workspace
+                  mount. The probe also reads /proc/self/status: Seccomp 2,
                   NoNewPrivs 1, and as many filters as the receipt says it
-                  expected and observed
+                  expected and observed. Not probed: 11 DENY_EPERM calls
+                  that, by the kernel's source, an unprivileged caller's
+                  kernel refuses with EPERM before it reads any argument
+                  (SYSCALL_KERNEL_EPERM_FIRST: the filter's answer would be
+                  the kernel's own), and the 17 others in
+                  SYSCALL_NOT_PROBED; the record lists all 28 under
+                  `not_measured`. Residual: a probe that reported EPERM
+                  without making the call would pass; no test off the guest
+                  can show that the probe's call path ran
   protected_coverage
                   protected_coverage:existing_and_root, for both profiles a
                   plan can require it under. The host seeds protected paths
@@ -164,7 +174,9 @@ requires the measured requirement.
 
 A requirement backed by more than one attempt records all of them
 (`measurements[<requirement>].attempt_ids`); its `attempt_id` and
-`measured_at` are its first attempt's.
+`measured_at` are its first attempt's. tree_termination,
+closed_set_observation and syscall_filter also record what their verdict
+does not measure (`not_measured`).
 
 Usage: UKAI_VM_BINARY=<ukai-vm under test> capabilities.py <home> <workspace> <out>
 """
@@ -293,6 +305,24 @@ SYSCALL_DENIED = (
     ('socket_unix', 198, (1, 1, 0), 'EPERM', 'ok'),
     ('socket_vsock', 198, (40, 1, 0), 'EAFNOSUPPORT', 'ok'),
 )
+# rc.5's DENY_EPERM list (0fe655440, platform/linux/seccomp.rs) holds 56
+# calls. SYSCALL_DENIED probes the 28 above. The other 28 are not probed:
+#
+# These 11, by the kernel's source (not measured), are answered EPERM by an
+# unprivileged caller's kernel before it reads any argument, so no argument
+# shape tells the filter's EPERM from the kernel's own: kexec_load and
+# kexec_file_load (kexec_load_permitted), init_module and finit_module
+# (may_init_module), delete_module (CAP_SYS_MODULE), fsopen and fspick
+# (CAP_SYS_ADMIN over the mount namespace), fsmount, move_mount and
+# pivot_root (may_mount), and syslog (under dmesg_restrict, which Ubuntu's
+# kernel config turns on, every action is checked against CAP_SYSLOG first;
+# the image's sysctl is not read here).
+SYSCALL_KERNEL_EPERM_FIRST = ('kexec_load', 'kexec_file_load', 'init_module', 'finit_module', 'delete_module',
+                              'fsopen', 'fspick', 'fsmount', 'move_mount', 'pivot_root', 'syslog')
+# These 17 are simply not probed.
+SYSCALL_NOT_PROBED = ('bpf', 'io_uring_setup', 'open_tree', 'fsconfig', 'userfaultfd', 'open_by_handle_at',
+                      'move_pages', 'migrate_pages', 'quotactl_fd', 'setxattrat', 'getxattrat', 'listxattrat',
+                      'removexattrat', 'open_tree_attr', 'file_getattr', 'file_setattr', 'listns')
 # Allowed calls, shaped like the denied ones: the kernel's own answer.
 SYSCALL_CONTROLS = (
     ('eventfd2', 19, (0, ALL_FLAGS), 'EINVAL'),
@@ -316,6 +346,9 @@ NOT_MEASURED = {
                   'and no done frame, so it cannot back the guest jail\'s tree_termination'},
     'closed_set_observation': {
         'operation_identity': 'the identity of each counted operation (the trace stays in the guest)'},
+    'syscall_filter': {
+        'kernel_eperm_first': list(SYSCALL_KERNEL_EPERM_FIRST),
+        'not_probed': list(SYSCALL_NOT_PROBED)},
 }
 
 # protected_coverage:existing_and_root
@@ -601,8 +634,11 @@ def observe_argv(tag, name):
     return [harness.PYTHON, '-I', '-c', OBSERVE_PROBE, label, str(rounds), json.dumps(spec)]
 
 
-# The syscall probe. It calls nothing unless it runs on Linux aarch64, the
-# only machine whose numbers the tables hold.
+# The syscall probe. It calls nothing unless it runs where only the guest
+# jail's attempt runs: Linux aarch64 (the only machine whose numbers the
+# tables hold), under a seccomp filter with no_new_privs, in the guest's
+# workspace mount. A test host fails the last unless it runs the probe
+# from /mnt/workspace (ProbeSourceRuns never runs it on Linux aarch64).
 SYSCALL_PROBE = r'''
 import ctypes, errno, json, os, sys
 tag, spec = sys.argv[1], json.loads(sys.argv[2])
@@ -618,7 +654,11 @@ try:
 except OSError as error:
     status['error'] = errno.errorcode.get(error.errno, str(error.errno))
 record['status'] = status
-if sys.platform.startswith('linux') and machine == 'aarch64':
+gates = {'linux aarch64': sys.platform.startswith('linux') and machine == 'aarch64',
+         'seccomp filter mode': status.get('Seccomp') == '2', 'no_new_privs': status.get('NoNewPrivs') == '1',
+         'the guest workspace': os.getcwd() == spec['workspace']}
+failed = [name for name, held in gates.items() if not held]
+if not failed:
     libc = ctypes.CDLL(None, use_errno=True)
     libc.syscall.restype = ctypes.c_long
     for label, number, args in spec['calls']:
@@ -627,19 +667,20 @@ if sys.platform.startswith('linux') and machine == 'aarch64':
         code = ctypes.get_errno()
         if ret >= 0:
             record['calls'][label] = 'ok'
+            # Hygiene only: no fact reads the descriptor (an allowed socket).
             if label.startswith('socket_'):
                 os.close(ret)
         else:
             record['calls'][label] = errno.errorcode.get(code, 'errno-%d' % code)
 else:
-    record['skipped'] = 'not linux aarch64'
+    record['skipped'] = 'not ' + ', '.join(failed)
 print('UKAI_SYSCALL_PROBE ' + json.dumps(record, sort_keys=True), flush=True)
 '''
 
 
 def syscall_argv(tag):
     calls = [[label, number, list(args)] for label, number, args, *_ in SYSCALL_DENIED + SYSCALL_CONTROLS]
-    return [harness.PYTHON, '-I', '-c', SYSCALL_PROBE, tag, json.dumps({'calls': calls})]
+    return [harness.PYTHON, '-I', '-c', SYSCALL_PROBE, tag, json.dumps({'calls': calls, 'workspace': WORKSPACE_MOUNT})]
 
 
 # The protected-path probe: every operation's result, never an exit status.
@@ -903,9 +944,11 @@ def proxy_refused():
             ('loopback', '127.0.0.1', 22 if (host, port) != ('127.0.0.1', 22) else 23)]
 
 
-def proxy_argv(tag):
+def proxy_argv(tag, unix_control=None):
+    """The proxy probe's argv. Its AF_UNIX control listens at `unix_control`,
+    by default in /tmp as the attempt sees it."""
     spec = {'environment': sorted(PROXY_ENVIRONMENT), 'target': list(harness.PROBE_TARGET),
-            'unix_control': f'/tmp/ukai-proxy-{tag}.sock', 'proxy_socket': PROXY_SOCKET,
+            'unix_control': unix_control or f'/tmp/ukai-proxy-{tag}.sock', 'proxy_socket': PROXY_SOCKET,
             'connect_timeout': harness.PROBE_TIMEOUT, 'tunnel_timeout': harness.ROUTE_TIMEOUT,
             'tries': PROXY_TRIES, 'refused': [list(entry) for entry in proxy_refused()]}
     return [harness.PYTHON, '-I', '-c', PROXY_PROBE, tag, json.dumps(spec)]
@@ -1304,9 +1347,11 @@ def judge_syscall(record, tag):
     facts = {
         'receipt_bound_to_this_attempt': harness.receipt_bound(record),
         'policy_requires_syscall_filter': policy_requires(record, 'syscall_filter'),
-        'probe_ran_on_linux_aarch64': (probe.get('machine') == 'aarch64'
-                                       and str(probe.get('platform') or '').startswith('linux')
-                                       and 'skipped' not in probe),
+        # The probe's own gates held (Linux aarch64, filtered, the guest
+        # workspace), so it made its calls.
+        'probe_made_its_calls_in_the_guest': (probe.get('machine') == 'aarch64'
+                                              and str(probe.get('platform') or '').startswith('linux')
+                                              and 'skipped' not in probe),
         'every_call_made': sorted(calls) == sorted(labels),
         'seccomp_filter_mode': status.get('Seccomp') == '2',
         'no_new_privs': status.get('NoNewPrivs') == '1',
@@ -1458,8 +1503,8 @@ def judge_protected_profiles(results, tag, views):
 
 
 def proxy_reached(reply):
-    return (reply.get('target') == list(harness.PROBE_TARGET) and isinstance(reply.get('status_line'), str)
-            and bool(harness.ROUTE_REACHED.match(reply['status_line'])))
+    return (isinstance(reply, dict) and reply.get('target') == list(harness.PROBE_TARGET)
+            and isinstance(reply.get('status_line'), str) and bool(harness.ROUTE_REACHED.match(reply['status_line'])))
 
 
 def judge_proxy(record, tag):
@@ -1467,7 +1512,8 @@ def judge_proxy(record, tag):
     probe = tagged(record.get('stdout'), 'UKAI_PROXY_PROBE', tag) or {}
     network = (receipt_of(record).get('applied') or {}).get('network') or {}
     counted = (receipt_of(record).get('coverage') or {}).get('proxy.net') or {}
-    tries = [reply for reply in probe.get('allowed') or [] if isinstance(reply, dict)]
+    # Every entry is one try: one that is not a try record is not dropped.
+    tries = probe.get('allowed') if isinstance(probe.get('allowed'), list) else []
     refused = probe.get('refused') or {}
     facts = {
         'receipt_bound_to_this_attempt': harness.receipt_bound(record),
@@ -1482,7 +1528,8 @@ def judge_proxy(record, tag):
         'direct_connect_denied': probe.get('direct') in harness.DENIAL_ERRNOS,
         'unix_control_connected': probe.get('unix_control') == {'connect': 'connected', 'accepted': True},
         'proxy_socket_refused': probe.get('proxy_socket') == 'EACCES',
-        'every_try_recorded': (1 <= len(tries) <= PROXY_TRIES and not any(proxy_reached(reply) for reply in tries[:-1])
+        'every_try_recorded': (1 <= len(tries) <= PROXY_TRIES and all(isinstance(reply, dict) for reply in tries)
+                               and not any(proxy_reached(reply) for reply in tries[:-1])
                                and (proxy_reached(tries[-1]) or len(tries) == PROXY_TRIES)),
         'allowed_target_reached': bool(tries) and proxy_reached(tries[-1]),
         'attempt_settled_without_jail_error': settled_clean(record),

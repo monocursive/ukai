@@ -19,6 +19,7 @@ import re
 import shutil
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -894,8 +895,9 @@ class GuestMeasurementMutations(unittest.TestCase):
             ('a receipt bound to another attempt', lambda r, v: r['syscall_filter']['binding'].update(attempt_id='x'),
              'receipt_bound_to_this_attempt'),
             ('a policy without syscall_filter', receipt(other_policy), 'policy_requires_syscall_filter'),
-            ('another machine', probe(lambda p: p.update(machine='x86_64')), 'probe_ran_on_linux_aarch64'),
-            ('a probe that skipped', probe(lambda p: p.update(skipped='not linux aarch64')), 'probe_ran_on_linux_aarch64'),
+            ('another machine', probe(lambda p: p.update(machine='x86_64')), 'probe_made_its_calls_in_the_guest'),
+            ('a probe that skipped', probe(lambda p: p.update(skipped='not the guest workspace')),
+             'probe_made_its_calls_in_the_guest'),
             ('a call nobody asked for', probe(lambda p: p['calls'].update(extra='ok')), 'every_call_made'),
             ('no seccomp filter mode', probe(lambda p: p['status'].update(Seccomp='0')), 'seccomp_filter_mode'),
             ('no no_new_privs', probe(lambda p: p['status'].update(NoNewPrivs='0')), 'no_new_privs'),
@@ -905,6 +907,8 @@ class GuestMeasurementMutations(unittest.TestCase):
              receipt(lambda x: x.update(lifetime={'native': {'details': {'seccomp_filters': {'expected': 3, 'observed': 2}}}})),
              'filters_match_the_receipt'),
             ('the attempt failed', lambda r, v: r['syscall_filter'].update(exit_code=1),
+             'attempt_settled_without_jail_error'),
+            ('a receipt that records no errors field', receipt(lambda x: x.pop('errors')),
              'attempt_settled_without_jail_error'),
         ]
         for label, _, _, _, kernel in capabilities.SYSCALL_DENIED:
@@ -934,6 +938,9 @@ class GuestMeasurementMutations(unittest.TestCase):
             def after(path, change, name=name):
                 return lambda r, v: v['protected'][name]['after'].__setitem__(
                     path, change(copy.deepcopy(v['protected'][name]['after'][path]), v['protected'][name]['before']))
+
+            def before(path, value, name=name):
+                return lambda r, v: v['protected'][name]['before'].__setitem__(path, value)
             table += [
                 ('a receipt bound to another attempt', lambda r, v, name=name: r[name]['binding'].update(attempt_id='x'),
                  fact('receipt_bound_to_this_attempt')),
@@ -947,6 +954,11 @@ class GuestMeasurementMutations(unittest.TestCase):
                               receipt(lambda x, path=path: x['applied']['filesystem'].update(mounts=[
                                   entry for entry in x['applied']['filesystem']['mounts']
                                   if entry['path'] != f'{capabilities.WORKSPACE_MOUNT}/{path}'])),
+                              fact(f'receipt_mounts_read_only:{path}')))
+                table.append((f'{path} mounted read-write',
+                              receipt(lambda x, path=path: [entry.update(mode='rw') for entry in
+                                                            x['applied']['filesystem']['mounts']
+                                                            if entry['path'] == f'{capabilities.WORKSPACE_MOUNT}/{path}']),
                               fact(f'receipt_mounts_read_only:{path}')))
             for path in layout['files']:
                 table += [
@@ -973,6 +985,12 @@ class GuestMeasurementMutations(unittest.TestCase):
                      after(f'{path}/new-{probe_tag}', lambda e, b: {'kind': 'file'}), fact(f'unchanged_on_host:{path}')),
                     (f'{path}: its mode changed', after(path, lambda e, b: {**e, 'mode': '0o700'}),
                      fact(f'unchanged_on_host:{path}')),
+                    # The probe's listing and the host's agree only by both
+                    # being missing: no directory was ever there to list.
+                    (f'{path}: no directory before, and no listing', lambda r, v, path=path, name=name, probe_tag=probe_tag: (
+                        v['protected'][name]['before'].__setitem__(path, {'kind': 'absent'}),
+                        reprobe(r[name], 'UKAI_PROTECT_PROBE', probe_tag, lambda p: p['dirs'][path].pop('list'))),
+                     [fact(f'saw_the_listing:{path}'), fact(f'unchanged_on_host:{path}')]),
                 ]
             for path in layout['file_mirrors']:
                 table += [
@@ -1002,6 +1020,9 @@ class GuestMeasurementMutations(unittest.TestCase):
                      probe(lambda p, path=path: p['absent'][path].update(mkdir='ok')), fact(f'absent_refused:{path}')),
                     (f'{path}: left on the host', after(path, lambda e, b: {'kind': 'dir', 'entries': []}),
                      fact(f'still_absent_on_host:{path}')),
+                    (f'{path}: present before the attempt', before(path, {'kind': 'dir', 'mode': '0o755', 'ino': 1,
+                                                                         'entries': []}),
+                     fact(f'still_absent_on_host:{path}')),
                 ]
             if layout['absent_control']:
                 control = layout['absent_control']
@@ -1010,11 +1031,17 @@ class GuestMeasurementMutations(unittest.TestCase):
                      fact('absent_control_succeeded')),
                     ('the absent control left no symlink', after(f'{control}-symlink', lambda e, b: {'kind': 'absent'}),
                      fact('absent_control_effect_on_host')),
+                    ('the absent control\'s directory holds nothing',
+                     after(f'{control}-mkdir/new-{probe_tag}', lambda e, b: {'kind': 'absent'}),
+                     fact('absent_control_effect_on_host')),
                 ]
             for path in layout['creates']:
                 table.append((f'{path}: the ordinary create failed',
                               probe(lambda p, path=path: p['creates'].update({path: 'EROFS'})), fact(f'created:{path}')))
                 table.append((f'{path}: other bytes on the host', after(path, lambda e, b: {**e, 'sha256': 'x'}),
+                              fact(f'created:{path}')))
+                table.append((f'{path}: there before the attempt', before(path, {'kind': 'file', 'mode': '0o644', 'ino': 2,
+                                                                                 'sha256': 'old'}),
                               fact(f'created:{path}')))
         self.assert_table('protected_coverage', table)
 
@@ -1061,9 +1088,18 @@ class GuestMeasurementMutations(unittest.TestCase):
             ('the workload reached the proxy socket', probe(lambda p: p.update(proxy_socket='connected')),
              'proxy_socket_refused'),
             ('the proxy socket was absent', probe(lambda p: p.update(proxy_socket='ENOENT')), 'proxy_socket_refused'),
+            ('the proxy socket refused the connect itself', probe(lambda p: p.update(proxy_socket='ECONNREFUSED')),
+             'proxy_socket_refused'),
             ('a try after success', tries(ok, ok), 'every_try_recorded'),
             ('more tries than allowed', tries(bad, bad, bad, ok), 'every_try_recorded'),
             ('never reached in every try', tries(bad, bad, bad), 'allowed_target_reached'),
+            ('the last try reached another target', probe(lambda p: p['allowed'][-1].update(target=['1.0.0.9', port])),
+             ['allowed_target_reached', 'every_try_recorded']),
+            # R7: entries that are not try records are tries all the same.
+            ('a try that is not a record', lambda r, v: (
+                reprobe(r['network_proxy'], 'UKAI_PROXY_PROBE', T, lambda p: p['allowed'].insert(0, 'junk')),
+                r['network_proxy']['receipt']['coverage']['proxy.net'].update(observed_count=6)),
+             'every_try_recorded'),
             ('the attempt failed', lambda r, v: r['network_proxy'].update(exit_code=1),
              'attempt_settled_without_jail_error'),
         ]
@@ -1071,7 +1107,9 @@ class GuestMeasurementMutations(unittest.TestCase):
             table += [(f'{label} tunnelled', probe(lambda p, label=label: p['refused'][label].update(
                 status_line=ok, reason=None)), f'refused:{label}'),
                 (f'{label} refused for another reason', probe(lambda p, label=label: p['refused'][label].update(
-                    reason='connect_failed')), f'refused:{label}')]
+                    reason='connect_failed')), f'refused:{label}'),
+                (f'{label} answered 502 with the refusal reason', probe(lambda p, label=label: p['refused'][label].update(
+                    status_line='HTTP/1.1 502 Bad Gateway')), f'refused:{label}')]
         self.assert_table('network_proxy', table)
 
     def test_measurements_list_every_attempt_and_what_was_not_measured(self):
@@ -1086,6 +1124,11 @@ class GuestMeasurementMutations(unittest.TestCase):
         self.assertEqual(tree['not_measured'], capabilities.NOT_MEASURED['tree_termination'])
         self.assertEqual(entries['closed_set_observation']['not_measured'], {
             'operation_identity': 'the identity of each counted operation (the trace stays in the guest)'})
+        self.assertEqual(entries['syscall_filter']['not_measured'], {
+            'kernel_eperm_first': list(capabilities.SYSCALL_KERNEL_EPERM_FIRST),
+            'not_probed': list(capabilities.SYSCALL_NOT_PROBED)})
+        self.assertEqual([name for name, entry in entries.items() if 'not_measured' in entry],
+                         ['tree_termination', 'closed_set_observation', 'syscall_filter'])
         # The exit path's evidence_lost and exit 1 are recorded, never required.
         self.assertTrue(tree['verdict'])
         self.assertEqual(tree['notes']['tree_termination']['exit_code'], 1)
@@ -1181,6 +1224,32 @@ class GuestMeasurementMutations(unittest.TestCase):
         self.assertEqual(capabilities.host_entry(root / 'd')['entries'], ['f'])
         self.assertEqual(capabilities.host_entry(root / 'd' / 'f')['sha256'], hashlib.sha256(b'x').hexdigest())
         self.assertEqual(capabilities.host_entry(root / 'l')['kind'], 'symlink')
+        # The same bytes and mode in a new inode (a replace by rename) is a change.
+        first = capabilities.host_entry(root / 'd' / 'f')
+        (root / 'd' / 'g').write_text('x')
+        (root / 'd' / 'g').chmod(stat.S_IMODE((root / 'd' / 'f').stat().st_mode))
+        os.rename(root / 'd' / 'g', root / 'd' / 'f')
+        second = capabilities.host_entry(root / 'd' / 'f')
+        self.assertEqual((first['sha256'], first['mode']), (second['sha256'], second['mode']))
+        self.assertNotEqual(first, second)
+
+    def test_the_syscall_tables_partition_rc5s_deny_eperm_list(self):
+        # rc.5 (0fe655440) platform/linux/seccomp.rs DENY_EPERM, in order.
+        rc5 = ('ptrace process_vm_readv process_vm_writev bpf perf_event_open kexec_load kexec_file_load '
+               'init_module finit_module delete_module keyctl add_key request_key io_uring_setup io_uring_enter '
+               'io_uring_register mount umount2 move_mount open_tree fsopen fsmount fspick fsconfig mount_setattr '
+               'pivot_root chroot unshare setns userfaultfd open_by_handle_at name_to_handle_at syslog '
+               'pidfd_send_signal pidfd_open pidfd_getfd process_madvise kcmp move_pages migrate_pages statmount '
+               'listmount quotactl quotactl_fd adjtimex clock_settime clock_adjtime settimeofday setxattrat '
+               'getxattrat listxattrat removexattrat open_tree_attr file_getattr file_setattr listns').split()
+        probed = [label for label, *_ in capabilities.SYSCALL_DENIED if label in rc5]
+        first, rest = capabilities.SYSCALL_KERNEL_EPERM_FIRST, capabilities.SYSCALL_NOT_PROBED
+        self.assertEqual((len(rc5), len(probed), len(first), len(rest)), (56, 28, 11, 17))
+        self.assertEqual(sorted(probed + list(first) + list(rest)), sorted(rc5))
+        # The rest of SYSCALL_DENIED is clone3 and the argument rules.
+        self.assertEqual([label for label, *_ in capabilities.SYSCALL_DENIED if label not in rc5],
+                         ['clone3', 'clone_untraced', 'clone_newuser', 'ioctl_tiocsti', 'seccomp_listener',
+                          'socket_unix', 'socket_vsock'])
 
 
 class ProbeSourceRuns(unittest.TestCase):
@@ -1231,16 +1300,25 @@ class ProbeSourceRuns(unittest.TestCase):
         self.assertGreater(probe['forked'], 0)
         self.assertLess(probe['forked'], 64)
 
-    def test_the_syscall_probe_calls_nothing_off_linux_aarch64(self):
-        done = self.run_probe(capabilities.syscall_argv(T))
+    def test_the_syscall_probe_calls_nothing_off_the_guest(self):
+        # Never run on a machine whose numbers the tables hold: the probe's
+        # other gates (a filter, no_new_privs, the guest workspace) would be
+        # all that stood between this host and its calls.
+        if sys.platform.startswith('linux') and os.uname().machine == 'aarch64':
+            self.skipTest('a Linux aarch64 host: the probe is not run here')
+        cwd = Path(tempfile.mkdtemp(prefix='syscall-'))
+        self.addCleanup(shutil.rmtree, cwd, True)
+        done = self.run_probe(capabilities.syscall_argv(T), cwd=cwd)
         probe = capabilities.tagged(done.stdout, 'UKAI_SYSCALL_PROBE', T)
         self.assertIsNotNone(probe, done.stderr)
-        if sys.platform.startswith('linux') and os.uname().machine == 'aarch64':
-            self.skipTest('this host would make the calls')
-        self.assertEqual((probe['skipped'], probe['calls']), ('not linux aarch64', {}))
-        self.assertFalse(capabilities.judge_syscall(bind(record(done.stdout), 's'), T)['probe_ran_on_linux_aarch64'])
+        self.assertEqual(probe['calls'], {})
+        self.assertTrue(probe['skipped'].startswith('not linux aarch64'), probe['skipped'])
+        self.assertIn('the guest workspace', probe['skipped'])
+        self.assertFalse(capabilities.judge_syscall(bind(record(done.stdout), 's'), T)['probe_made_its_calls_in_the_guest'])
 
     def test_the_observe_probe_reports_each_operation(self):
+        if os.geteuid() == 0:
+            self.skipTest('as root the probe\'s refused write would create files in this host\'s /etc')
         cwd = Path(tempfile.mkdtemp(prefix='observe-'))
         self.addCleanup(shutil.rmtree, cwd, True)
         name = 'observe_3'
@@ -1288,7 +1366,8 @@ class ProbeSourceRuns(unittest.TestCase):
         cwd = Path(tempfile.mkdtemp(prefix='proxy-'))
         self.addCleanup(shutil.rmtree, cwd, True)
         environment = {key: value for key, value in os.environ.items() if 'proxy' not in key.lower()}
-        done = self.run_probe(capabilities.proxy_argv(T), cwd=cwd, env=environment)
+        control = cwd / 'u.sock'
+        done = self.run_probe(capabilities.proxy_argv(T, str(control)), cwd=cwd, env=environment)
         probe = capabilities.tagged(done.stdout, 'UKAI_PROXY_PROBE', T)
         self.assertIsNotNone(probe, done.stderr)
         self.assertEqual(probe['loopback_control'], {'connect': 'connected', 'accepted': True})
@@ -1299,6 +1378,8 @@ class ProbeSourceRuns(unittest.TestCase):
         self.assertTrue(all('no http proxy' in reply['error'] for reply in probe['allowed']))
         self.assertEqual(sorted(probe['refused']), sorted(label for label, *_ in capabilities.proxy_refused()))
         self.assertEqual(set(probe['environment'].values()), {None})
+        self.assertFalse(control.exists())
+        self.assertEqual(json.loads(capabilities.proxy_argv(T)[-1])['unix_control'], f'/tmp/ukai-proxy-{T}.sock')
         facts = capabilities.judge_proxy(bind(record(done.stdout), 'x'), T)
         self.assertTrue(facts['loopback_control_connected'] and facts['every_try_recorded'])
         self.assertFalse(facts['allowed_target_reached'] or facts['direct_connect_denied'])
