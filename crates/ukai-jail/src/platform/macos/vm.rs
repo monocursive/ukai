@@ -166,9 +166,10 @@ struct ReadyFrame {
 }
 
 /// The `--vm` platform. It discovers the installed preview (the same paths
-/// `install.sh.in` writes, or `UKAI_VM_HOME`), verifies the image against
-/// its recorded hashes, and reuses the preview's custodian and VZ client
-/// binaries unmodified.
+/// `install.sh.in` writes, or `UKAI_VM_HOME`), checks that its manifest is
+/// `prepared`, and reuses the preview's custodian and VZ client binaries
+/// unmodified. It hashes nothing itself: the serve it starts or finds does
+/// (see [`VmPlatform::new`]).
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct VmPlatform {
     data_dir: PathBuf,
@@ -176,15 +177,32 @@ pub struct VmPlatform {
 }
 
 impl VmPlatform {
-    /// Discovers and verifies the installation for this operator.
+    /// Discovers the installation for this operator and checks that its
+    /// manifest is `prepared` ([`Install::prepared`]).
+    ///
+    /// The client does not hash the artifacts: it never runs them. The
+    /// serve it starts hashes every artifact before it listens
+    /// ([`Install::verify`]) and boots only a private copy hashed again after
+    /// the copy ([`Install::verified_copy`]); the client then refuses a serve
+    /// whose reported digests differ from this manifest. A `--vm` run so
+    /// still never boots an image whose bytes do not match `image.json`, and
+    /// a run that reuses a warm guest no longer hashes the disk for nothing
+    /// (about 18 s on the 2026-11-04 spare Mac).
     ///
     /// # Errors
-    /// The discovery or verification refusal: a `--vm` run never boots an
-    /// image whose bytes do not match `image.json`.
+    /// The discovery refusal, or the manifest is not `prepared`.
     pub fn new(data_dir: &Path) -> Result<Self, JailError> {
         let install = Install::discover().map_err(|error| invalid(format!("--vm: {error}")))?;
+        Self::from_install(data_dir, install)
+    }
+
+    /// [`VmPlatform::new`] for an installation already found.
+    ///
+    /// # Errors
+    /// The manifest is not `prepared`.
+    pub fn from_install(data_dir: &Path, install: Install) -> Result<Self, JailError> {
         install
-            .verify()
+            .prepared()
             .map_err(|error| invalid(format!("--vm: {error}")))?;
         Ok(VmPlatform {
             data_dir: data_dir.to_path_buf(),

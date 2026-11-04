@@ -1232,6 +1232,20 @@ fn platform(data_dir: &Path) -> VmPlatform {
     }
 }
 
+#[test]
+fn the_client_refuses_an_install_that_is_not_prepared_without_hashing_it() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let mut install = platform(dir.path()).install;
+    // No artifact exists at all: a client that hashed would refuse on that.
+    VmPlatform::from_install(dir.path(), install.clone()).expect("a prepared manifest is enough");
+    install.manifest.status = "preparing".into();
+    let error = VmPlatform::from_install(dir.path(), install).expect_err("not prepared");
+    assert!(
+        error.to_string().contains("the manifest is not `prepared`"),
+        "{error}"
+    );
+}
+
 fn request(snapshot: PolicySnapshot) -> PlanRequest {
     let requirements = crate::capability::requirements(&snapshot);
     PlanRequest {
