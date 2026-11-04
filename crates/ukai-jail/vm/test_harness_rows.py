@@ -666,6 +666,10 @@ class GuestMeasurementMutations(unittest.TestCase):
                  watch(lambda w: w['during'][-1].update(stopped=3)), fact('stopped_member_froze')),
                 ('the probe read fewer beats than the host saw at the end',
                  probe(lambda p: p['members']['stopped'].update(beats=1)), fact('stopped_member_froze')),
+                # The host's samples are of another file, or the share lost
+                # the frozen count: the host never sees the probe's count.
+                ('the probe read a beat the host never saw',
+                 probe(lambda p: p['members']['stopped'].update(beats=3)), fact('stopped_member_froze')),
                 ('the stopped member\'s beats never reached the host after done',
                  watch(lambda w: w['at_done'].update(stopped=None)),
                  [fact('stopped_member_froze'), fact('every_member_beat')]),
@@ -1308,7 +1312,9 @@ class ProbeSourceRuns(unittest.TestCase):
             self.skipTest('a Linux aarch64 host: the probe is not run here')
         cwd = Path(tempfile.mkdtemp(prefix='syscall-'))
         self.addCleanup(shutil.rmtree, cwd, True)
-        done = self.run_probe(capabilities.syscall_argv(T), cwd=cwd)
+        argv = capabilities.syscall_argv(T)
+        self.assertEqual(json.loads(argv[-1])['workspace'], '/mnt/workspace')
+        done = self.run_probe(argv, cwd=cwd)
         probe = capabilities.tagged(done.stdout, 'UKAI_SYSCALL_PROBE', T)
         self.assertIsNotNone(probe, done.stderr)
         self.assertEqual(probe['calls'], {})
@@ -1373,7 +1379,9 @@ class ProbeSourceRuns(unittest.TestCase):
         self.addCleanup(shutil.rmtree, cwd, True)
         environment = {key: value for key, value in os.environ.items() if 'proxy' not in key.lower()}
         control = cwd / 'u.sock'
-        done = self.run_probe(capabilities.proxy_argv(T, str(control)), cwd=cwd, env=environment)
+        argv = capabilities.proxy_argv(T, str(control))
+        self.assertEqual(json.loads(argv[-1])['unix_control'], str(control))
+        done = self.run_probe(argv, cwd=cwd, env=environment)
         probe = capabilities.tagged(done.stdout, 'UKAI_PROXY_PROBE', T)
         self.assertIsNotNone(probe, done.stderr)
         self.assertEqual(probe['loopback_control'], {'connect': 'connected', 'accepted': True})
