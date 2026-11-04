@@ -415,6 +415,9 @@ class WarmServiceTests(unittest.TestCase):
         listener = socket.socket(socket.AF_UNIX)
         listener.bind(str(runtime / 'control.sock'))
         listener.listen()
+        # Bounded and daemonic: when the binary never connects (it is absent,
+        # or fails first) the test fails instead of the suite never exiting.
+        listener.settimeout(6)
         reply = dict(event='status', schema='ukai.jail.vm-control/1', boot_id='actual-boot',
                      warm=False, ready=False, attempt_live=False, kernel=None, disk_sha256='d'*64,
                      helper_sha256='h'*64, custodian_sha256='c'*64, seed_sha256='s'*64,
@@ -425,7 +428,7 @@ class WarmServiceTests(unittest.TestCase):
                 with stream:
                     stream.recv(1000)
                     stream.sendall((json.dumps(reply) + '\n').encode())
-        thread = threading.Thread(target=answer)
+        thread = threading.Thread(target=answer, daemon=True)
         thread.start()
         status = subprocess.run([str(BINARY), 'status'], env=self.env, capture_output=True, timeout=6)
         thread.join(timeout=1)
