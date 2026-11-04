@@ -163,10 +163,12 @@ Current implementation: native execution is **off by default**. Setting
 `unsupported` and refuse. J17 is wired before release (`J17_OBSERVE=true`):
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
-checks do not establish live acceptance. Every `run --vm` refuses at
-probing, before any connection or boot, until a live phase re-measures the
-guest: no requirement has a measured guest record yet, so every one
-answers `vm:not-measured:<requirement>`. The released VM preview remains
+checks do not establish live acceptance. Every `run --vm` still refuses at
+probing, before any connection or boot. The 2026-11-04 live phase measured
+five guest requirements (the wall, pids and memory limits, filesystem
+containment and `network_none`), but `tree_termination`, which every plan
+requires, and the rest have no measured guest record, so they answer
+`vm:not-measured:<requirement>`. The released VM preview remains
 the only Mac deliverable.
 
 After implementation, packaging and the measurement spike are complete and

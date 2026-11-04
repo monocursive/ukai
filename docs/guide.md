@@ -189,9 +189,11 @@ Current implementation: native execution is **off by default**. Setting
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
 receipts and development-VM observation smoke runs are tested; full live
-release acceptance remains pending. Every `run --vm` refuses at probing,
-before any connection or boot, until a live phase re-measures the guest:
-no requirement has a measured guest record yet, so every one answers
+release acceptance remains pending. Every `run --vm` still refuses at probing,
+before any connection or boot. The 2026-11-04 live phase measured five guest
+requirements (the wall, pids and memory limits, filesystem containment and
+`network_none`), but `tree_termination`, which every plan requires, and the
+rest have no measured guest record, so they answer
 `vm:not-measured:<requirement>`.
 A missing VM installation is exit 125 with `host_setup`. With native
 development enabled, a kernel-bound request explains that the VM tier is

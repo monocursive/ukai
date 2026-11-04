@@ -12,9 +12,9 @@ NOT YET USABLE FOR WORKLOADS
 This package ships ukai-vm and its installer helper only. No macOS
 ukai-jail client ships: `ukai-jail run --vm` needs a client built from
 source (the monocursive/ukai repository). Even then, every `run --vm`
-refuses at probing, before any connection or boot, until a live phase
-re-measures the guest: a requirement without a measured guest record
-answers vm:not-measured:<requirement>, and no requirement has one yet. The
+refuses at probing, before any connection or boot: a requirement without
+a measured guest record answers vm:not-measured:<requirement>, and every
+plan still has one (tree_termination among them). The
 J18 acceptance rows (K108-K113) are untested, and the guest-side attempt
 stop and share checks have run in unit and model tests only.
 

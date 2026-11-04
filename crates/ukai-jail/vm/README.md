@@ -296,8 +296,9 @@ below comes from them):
   the client's output and recorded as `REFUSED`, never `PASS`, and so is
   the client's standard-input refusal: `warm_live.py`'s verdict is
   `REFUSED` when the real client refused and every warm gate held, and
-  K112 is `REFUSED` when a lane was refused for its standard input. Until
-  `GUEST_MEASUREMENTS` has rows, every real-client case refuses that way.
+  K112 is `REFUSED` when a lane was refused for its standard input. While
+  `GUEST_MEASUREMENTS` lacks `tree_termination` (and the other rows below),
+  every real-client case refuses that way.
   The real client's standard input under these harnesses is covered by
   the harness's own tests only; its live acceptance is pending.
 - **`fault_matrix.py`** has nine cases, each on its own boot: `secrets`,
@@ -312,8 +313,8 @@ below comes from them):
   attempt, and records it under `measurements[<requirement>]` (`verdict`,
   `measured_at`, the attempt id) for `limit:wall`, `limit:pids`,
   `limit:mem`, `filesystem_containment` and `network_none`. Those entries
-  are the input a `GUEST_MEASUREMENTS` row would cite; the table stays
-  empty until a live run produces them.
+  are what a `GUEST_MEASUREMENTS` row cites; the 2026-11-04 run's are the
+  table's five rows.
 - **K108's limit.** `warm_live.py` judges each attempt's
   `connect_to_released` time against `--budget-ms` (default 1000, the
   clause's initial 1 s). That time spans the whole host path, the guest
@@ -351,13 +352,23 @@ Apple references: [Virtualization](https://developer.apple.com/documentation/vir
 `ukai-jail run --vm` is wired to the warm `ukai-vm serve`, but **no macOS
 `ukai-jail` client ships**: the DMG carries only `ukai-vm` and
 `ukai-vm-install`, so the client is built from source. Every `run --vm`
-refuses at probing, before any connection or boot, with exit 125, until a
-live phase re-measures the guest. The probe answers Available only for a
+refuses at probing, before any connection or boot, with exit 125, while
+any requirement of its plan lacks a measured guest record (every plan
+does today; see below). The probe answers Available only for a
 requirement a measured guest record backs: one table in the VM platform,
 `GUEST_MEASUREMENTS`, names the requirement, the record and that record's
-own time, which becomes `measured_at`. The table is empty, so every
-requirement answers `vm:not-measured:<requirement>`. No 2026-11-02 record
-states a time or measured its requirement alone, and the TCP half of
+own time, which becomes `measured_at`. Its five rows come from the
+[2026-11-04 live phase](../../../docs/benchmarks/jail/results/macos-vm-live-2026-11-04/README.md):
+`limit:wall`, `limit:pids`, `limit:mem`, `filesystem_containment` and
+`network_none`, each measured alone by `capabilities.py` on one warm boot
+(development evidence: a source build on one M2 Pro host, not an installed
+package). Every other requirement answers `vm:not-measured:<requirement>`,
+and every plan has some: a `tool` plan also requires `tree_termination`,
+`closed_set_observation`, `syscall_filter` and
+`protected_coverage:existing_and_root` (an `agent` plan the same, with
+`network_proxy` for `network_none`), which no live probe measures yet, so
+every `run --vm` still refuses at probing. No 2026-11-02 record states a
+time or measured its requirement alone, and the TCP half of
 `network_none` was vacuous (`/dev/tcp` under the guest's `dash`).
 `owner_loss_termination` always answers `vm:owner-loss-not-provided`.
 
@@ -464,7 +475,7 @@ remediation `configuration`):
 /dev/null: nothing written to it would reach the target; run with
 `</dev/null`, or without --vm". A terminal, `/dev/null` and a closed
 descriptor pass (unit tests); the check runs after probing, so no run
-reaches it while `GUEST_MEASUREMENTS` is empty. The mandatory share, the
+reaches it while every plan has an unmeasured requirement. The mandatory share, the
 `live_share` comparison, the mount
 options, the secret staging and the nested-id refusal in this paragraph are
 covered by unit and model tests only (stand-in guests and the guest
@@ -632,7 +643,9 @@ against a stand-in VZ client; it never boots a VM.
 Before any J18 row can pass: a shipped and installed macOS `ukai-jail`
 client; a live phase that re-measures every guest requirement with real
 network probes (a socket connect to an IP literal, with a positive control)
-and fills `GUEST_MEASUREMENTS` from the records it produces; the full K110
+and fills `GUEST_MEASUREMENTS` from the records it produces (five
+requirements so far; `tree_termination`, `closed_set_observation`,
+`syscall_filter`, protected coverage and `network_proxy` have no probe); the full K110
 matrix (custodian, VZ-client and host-client kills, `Ctrl-Z` of the client,
 every host controller suspended) with long-running workloads and compared
 boot ids; the K111 receipt fix (decision D5, now in the code) shown on a
