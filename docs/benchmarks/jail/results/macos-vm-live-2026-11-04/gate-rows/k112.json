@@ -1,0 +1,45 @@
+{
+  "native_shipped_refused": true,
+  "native_dev_refused": true,
+  "vm_refused_before_boot": true,
+  "outcome": "PASS",
+  "native_shipped": {
+    "exit": 125,
+    "elapsed_s": 0.0,
+    "stderr": "ukai-jail: error unsupported_platform at probing [unsupported]: native macOS execution is disabled; UKAI_JAIL_MACOS_NATIVE=dev explicitly enables the unshipped development tier",
+    "phase": "refused",
+    "requirements_name_owner_loss": true,
+    "lifetime_boundary": "kernel-bound",
+    "workload_marker": "k112-ran-shipped-52bcff1fcdf2fbfb",
+    "workload_ran": false,
+    "boot_attempted": false,
+    "refusals": []
+  },
+  "native_dev": {
+    "exit": 125,
+    "elapsed_s": 0.1,
+    "stderr": "ukai-jail: error missing_capability at probing [unsupported]: `owner_loss_termination` needs a kernel-bound lifetime, which native macOS does not provide; kernel-bound enforcement in the VM tier is unavailable in this build",
+    "phase": "refused",
+    "requirements_name_owner_loss": true,
+    "lifetime_boundary": "kernel-bound",
+    "workload_marker": "k112-ran-dev-148ad627d7a7489d",
+    "workload_ran": false,
+    "boot_attempted": false,
+    "refusals": []
+  },
+  "vm_installed": {
+    "exit": 125,
+    "elapsed_s": 17.8,
+    "stderr": "ukai-jail: error missing_capability at probing [unsupported]: `owner_loss_termination` needs a kernel-bound lifetime, which the VM tier does not provide in this build: the guest's wall is a deadline, not an owner-loss bound (vm:owner-loss-not-provided)",
+    "phase": "refused",
+    "requirements_name_owner_loss": true,
+    "lifetime_boundary": "kernel-bound",
+    "workload_marker": "k112-ran-vm-fecf46fe221ff37e",
+    "workload_ran": false,
+    "boot_attempted": false,
+    "refusals": [
+      "vm:owner-loss-not-provided"
+    ]
+  },
+  "linux_none_refusal": "K112.2 (portable): ukai-jail/tests/vm_tier.rs"
+}

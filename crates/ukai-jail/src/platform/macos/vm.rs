@@ -9,8 +9,9 @@
 //! platform; a difference refuses with `vm:not-carried:<field>`
 //! ([`policy_refusal`]). The probe answers `available` only for a
 //! requirement a measured guest record backs (decision D2,
-//! [`GUEST_MEASUREMENTS`]), which today is none, so every `run --vm`
-//! refuses at probing until the live phase re-measures the guest.
+//! [`GUEST_MEASUREMENTS`]). The 2026-11-04 live phase measured five; the
+//! rest (`tree_termination` first) have no probe yet, so every `tool` or
+//! `agent` `run --vm` still refuses at probing.
 //!
 //! The transport below is tested with stand-ins. Its guest reports are
 //! checked for consistency and binding; they are not independent host
@@ -561,13 +562,52 @@ pub struct GuestMeasurement {
 /// `unavailable` with `vm:not-measured:<requirement>`. The live phase
 /// re-measures the guest and updates this table, and nothing else.
 ///
-/// It is empty. The 2026-11-02 records (`macos-vm-warm-2026-11-02/`) state no
-/// time of measurement, and none of their verdicts measured its requirement
-/// alone: `wall` cannot tell the guest jail's deadline from the controller's
-/// own `wall + 10 s` backstop, `pids` passes whatever the limit, `mem`
-/// passes on any OOM kill, `containment` measured writes but not reads, and
-/// `network_none`'s TCP half was vacuous (`/dev/tcp` under dash).
-pub const GUEST_MEASUREMENTS: &[GuestMeasurement] = &[];
+/// Its rows are the 2026-11-04 live phase (`macos-vm-live-2026-11-04/`):
+/// `capabilities.py` measured each requirement alone, by its own attempt, on
+/// one warm boot of an image `prepare.py` built from this tree's guest
+/// sources, through the published guest jail 0.1.0-rc.5. Each row points at
+/// that requirement's verdict and states that attempt's start time; a test
+/// reads the record and checks both. Development evidence: an unsigned
+/// source build on one M2 Pro host, not an installed package.
+///
+/// A `tool` plan also requires `tree_termination`, `closed_set_observation`,
+/// `syscall_filter` and `protected_coverage:existing_and_root`, and an
+/// `agent` plan the same with `network_proxy` for `network_none`; no live
+/// probe measures any of them yet, so every carried `run --vm` still
+/// refuses at probing. `limit:pids` and `limit:mem` become requirements
+/// only when the operator requires those ceilings. The 2026-11-02 records
+/// (`macos-vm-warm-2026-11-02/`) back nothing: they state no time of
+/// measurement, `wall` could not tell the guest jail's deadline from the
+/// controller's `wall + 10 s` backstop, `pids` passed whatever the limit,
+/// `mem` passed on any OOM kill, `containment` measured writes but not
+/// reads, and `network_none`'s TCP half was vacuous (`/dev/tcp` under dash).
+pub const GUEST_MEASUREMENTS: &[GuestMeasurement] = &[
+    GuestMeasurement {
+        requirement: "limit:wall",
+        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/limit:wall/verdict",
+        measured_at: "2026-11-04T12:50:44Z",
+    },
+    GuestMeasurement {
+        requirement: "limit:pids",
+        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/limit:pids/verdict",
+        measured_at: "2026-11-04T12:51:28Z",
+    },
+    GuestMeasurement {
+        requirement: "limit:mem",
+        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/limit:mem/verdict",
+        measured_at: "2026-11-04T12:51:29Z",
+    },
+    GuestMeasurement {
+        requirement: "filesystem_containment",
+        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/filesystem_containment/verdict",
+        measured_at: "2026-11-04T12:51:29Z",
+    },
+    GuestMeasurement {
+        requirement: "network_none",
+        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/network_none/verdict",
+        measured_at: "2026-11-04T12:51:30Z",
+    },
+];
 
 /// The capability rows for `requirements`: the owner-loss row always refuses
 /// (K112), a policy `--vm` cannot carry refuses every other row with its

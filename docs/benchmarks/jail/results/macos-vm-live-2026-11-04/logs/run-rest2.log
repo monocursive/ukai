@@ -1,0 +1,25 @@
+dec046e2cc7d1cb0a86a4f0ec4b47ff45031d87c9ad3f7c5f3830d19e5f2db30  /Users/monocursive/code/ukai-live/target/release/ukai-vm
+dec046e2cc7d1cb0a86a4f0ec4b47ff45031d87c9ad3f7c5f3830d19e5f2db30  /Users/monocursive/ukai-vm-live/home3/bin/ukai-vm
+6d1db68df67aa5553f74dffc51ee6cb6148eb8794d38e9aa20e9f0dea2d47d55  /Users/monocursive/code/ukai-live/crates/ukai-jail/vm/warm_live.py
+54d169552c036f161a28c3ee749ef4ede052d8818348dfc5ff94d1c60f4b070a  /Users/monocursive/code/ukai-live/crates/ukai-jail/vm/harness.py
+72729f44b66883de4d38cf18b4c60f7789f1fc5c8798acd65dd60d1d75007419  /Users/monocursive/code/ukai-live/crates/ukai-jail/vm/gate_rows.py
+1ad725e82bc5981c606c2286e578aad9a822b3f0aba65bc6afe36a45a99f4c1f  /Users/monocursive/ukai-vm-live/stop_audit.py
+== stop_audit 14:14:14
+{"attempts": [["plain", 0, true], ["detached", 1, true], ["wall", 143, true], ["after", 0, true]], "stops_recorded": 8, "service_exit": 0}
+rc=0
+== warm_live-2 14:15:34
+{"attempts_run": 20, "warm_reuse_one_serve_boot": true, "warm_reuse_one_guest_boot": true, "every_attempt_exit_zero": true, "every_receipt_verified": true, "every_granted_write_reached_host": true, "every_protected_write_tried_and_refused": true, "protected_git_never_reached": true, "every_attempt_saw_the_jails_denial": true, "guest_nat": true, "guest_nat_attached": true, "route_control": {"attempt_id": "warm-route-57d09124173d4b10", "route": {"verdict": "not_reached", "reached": false, "status_line": "HTTP/1.1 504 Gateway Timeout", "error": null, "target": ["1.1.1.1", 443]}, "boot_id": "vm-551e1cd7-a30a-48fd-a4e0-fec85a6c4bf6", "error": null}, "route_control_reached_the_target": false, "route_control_on_the_same_guest_boot": true, "route_control_receipt_bound": true, "every_attempt_network_denied": false, "every_receipt_network_none": true, "k108_client": "python attempt-socket client (warm_live.py), not ukai-jail run --vm", "k108_measure": "connect->released per attempt, including the guest jail's own release", "k108_budget_ms": 1000.0, "k108_max_ms": 40006.9, "k108_every_attempt_within_budget": false, "k108_twenty_runs": true, "service_stopped_cleanly": true, "failed": ["route_control_reached_the_target", "every_attempt_network_denied", "k108_every_attempt_within_budget"], "outcome": "FAIL"}
+rc=1
+== gate_rows 14:17:45
+Traceback (most recent call last):
+  File "/Users/monocursive/code/ukai-live/crates/ukai-jail/vm/gate_rows.py", line 300, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/Users/monocursive/code/ukai-live/crates/ukai-jail/vm/gate_rows.py", line 281, in main
+    out = harness.fresh_out_dir(argv[2])
+  File "/Users/monocursive/code/ukai-live/crates/ukai-jail/vm/harness.py", line 160, in fresh_out_dir
+    raise HarnessError(f'{path} exists: refusing to overwrite a previous run\'s output; '
+                       'choose a new --out') from None
+harness.HarnessError: /Users/monocursive/ukai-vm-live/results/gate-rows exists: refusing to overwrite a previous run's output; choose a new --out
+rc=1
+== done 14:17:45

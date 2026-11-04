@@ -1,0 +1,16 @@
+{
+  "schema": "ukai.vm.image-build/1",
+  "status": "preparing",
+  "image_url": "https://cloud-images.ubuntu.com/minimal/releases/resolute/release-20261009/ubuntu-26.04-minimal-cloudimg-arm64.img",
+  "image_sha256": "4e86a7819b4cc7b4a9c2e719dec3e0a723c4a2788dc3f23f17641cba7f5ca216",
+  "jail_url": "https://github.com/monocursive/ukai/releases/download/ukai-jail-v0.1.0-rc.5/ukai-jail-0.1.0-rc.5-aarch64-unknown-linux-gnu.tar.gz",
+  "jail_archive_sha256": "2af9d2ef48ec12c4072822b6b6dca3cb867ee8fb0054c9e142d4e86a0221a752",
+  "apt_snapshot": "20261020T000000Z",
+  "apt_snapshot_url": "https://snapshot.ubuntu.com/ubuntu/20261020T000000Z",
+  "source_sha256": {
+    "guest.py": "30a651abdeef4a5485347fdee263c345108cd88c187cd71d4e0e1ae36d241c15",
+    "vz.swift": "d1d3c87ad70bf770ab0d9c1f250fe2f64b5baee162f2b28dcf3f2cb89f0df32a",
+    "custodian.c": "d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab",
+    "prepare.py": "22372325c12ebe06399a8008bc630c1542f5224d2cc3b2c1f806c131577aa11d"
+  }
+}

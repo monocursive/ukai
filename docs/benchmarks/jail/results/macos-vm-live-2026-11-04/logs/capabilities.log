@@ -1,0 +1,1 @@
+{"wall": true, "pids": true, "mem": true, "containment": true, "network_none": true, "workspace": true, "git_config_untouched": true, "service_stopped_cleanly": true, "outcome": "PASS"}

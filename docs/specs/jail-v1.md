@@ -738,8 +738,9 @@ ukai-jail version [--json]
 
 J18 adds the `--vm` (macOS only) and `ukai-jail vm stop` interfaces for a
 proposed warm Linux guest. Every current `run --vm` refuses at probing, before any connection or boot,
-with exit 125: no requirement has a measured guest record yet
-(`GUEST_MEASUREMENTS` is empty), so each answers `vm:not-measured:<requirement>`
+with exit 125: `GUEST_MEASUREMENTS` lists only the five requirements the
+2026-11-04 live phase measured, and every plan requires others
+(`tree_termination` first), which answer `vm:not-measured:<requirement>`
 (`missing_capability`, `unsupported`); a policy element `--vm` does not carry
 answers `vm:not-carried:<field>` (`configuration`); `--lifetime kernel-bound`
 requires `owner_loss_termination`, which narrows authority rather than

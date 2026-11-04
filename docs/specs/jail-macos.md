@@ -12,10 +12,10 @@ Current implementation: native execution is **off by default**. Setting
 receipts are tested; live development-VM smoke runs also attach and report the
 declared set, without satisfying K105–K107 release qualification.
 `ukai-jail run --vm` is wired to the warm `ukai-vm` service, but every
-attempt refuses at probing, before any connection or boot, until a live
-phase re-measures the guest: the probe answers Available only for a
-requirement a measured guest record backs, that table is empty, and every
-other requirement answers `vm:not-measured:<requirement>` (§6).
+attempt still refuses at probing, before any connection or boot: the probe
+answers Available only for a requirement a measured guest record backs, the
+2026-11-04 live phase measured five, and every other requirement,
+`tree_termination` among them, answers `vm:not-measured:<requirement>` (§6).
 The [2026-11-01 measurement spike](../benchmarks/jail/results/macos-custody-spike-2026-11-01/README.md)
 runs this implementation with live Endpoint Security in an isolated,
 SIP-disabled development VM. It exposes a K90 class-2 blocker: an existing
@@ -1266,18 +1266,29 @@ has run on a booted guest yet; live verification is pending.
   the VM platform's one measurement table, `GUEST_MEASUREMENTS`, lists it:
   the requirement, the guest record that measured it inside the guest
   through the jail command `--vm` issues, and that record's own time, which
-  becomes `measured_at`. The table is empty. The 2026-11-02 records state no
-  time of measurement, and none of their verdicts measured its requirement
-  alone: `wall` cannot tell the guest jail's deadline from the controller's
+  becomes `measured_at`. Its five rows are the 2026-11-04 live phase
+  ([record](../benchmarks/jail/results/macos-vm-live-2026-11-04/README.md)):
+  `capabilities.py` measured `limit:wall`, `limit:pids`, `limit:mem`,
+  `filesystem_containment` and `network_none` each alone, by its own attempt,
+  on one warm boot of an image `prepare.py` built from this tree, through the
+  published guest jail; development evidence from an unsigned source build on
+  one M2 Pro host. The 2026-11-02 records back nothing: they state no time of
+  measurement, and none of their verdicts measured its requirement alone:
+  `wall` cannot tell the guest jail's deadline from the controller's
   `wall + 10 s` backstop, `pids` passes whatever the limit, `mem` passes on
   any OOM kill, containment measured writes but not reads, and
   `network_none`'s TCP half was vacuous (`/dev/tcp` under the guest's
-  `dash`). So every requirement answers `vm:not-measured:<requirement>`
-  (`missing_capability`, remediation `unsupported`), and **every `run --vm`
-  refuses at probing, before any connection or boot,** with exit 125, until
-  a live phase fills the table. A policy `--vm` does not carry answers its
-  carry reason on every row but owner loss instead (remediation
-  `configuration`).
+  `dash`). Every requirement the table does not list answers
+  `vm:not-measured:<requirement>` (`missing_capability`, remediation
+  `unsupported`). A `tool` plan also requires `tree_termination`,
+  `closed_set_observation`, `syscall_filter` and
+  `protected_coverage:existing_and_root`, and an `agent` plan the same with
+  `network_proxy` for `network_none`. No live probe measures any of them
+  yet, so **every `run --vm` still refuses at probing, before any
+  connection or boot,** with exit 125. `limit:pids` and `limit:mem` become
+  requirements only when the operator requires those ceilings. A policy
+  `--vm` does not carry answers its carry reason on every row but owner
+  loss instead (remediation `configuration`).
 - **What `--vm` carries (D1).** Exactly the profile (`tool` or `agent`), the
   wall (whole seconds, 1–300), the argv, the network shape (`tool`: none;
   `agent`: the proxy with the allow set) and vault-mode credentials. Before
@@ -1339,7 +1350,8 @@ has run on a booted guest yet; live verification is pending.
   <kind>, and the guest jail's standard input is /dev/null: nothing written
   to it would reach the target; run with `</dev/null`, or without --vm". A
   terminal, `/dev/null` and a closed descriptor are allowed. The check runs
-  after probing, so no run reaches it while the probe table is empty.
+  after probing, so no run reaches it while every plan has an unmeasured
+  requirement.
   Covered by unit tests of the classification (a real pipe, file, socket,
   `/dev/zero`, pseudo-terminal and closed descriptor) and of the refusal
   before any contact.
@@ -1652,7 +1664,7 @@ entitlement that the preview already uses.
 | [jail-interactive-sessions](jail-interactive-sessions.md) §3 (J14) | macOS terminal mode is the pty relay (decision 3). X05 does not hold for macOS terminal runs. | Amendment |
 | jail-v1 §6.1, §6.3 (J18) | `--vm`, `vm stop`, and the kernel-bound lifetime key with its narrowing row and requirement name (§6). | Addition |
 | `crates/ukai-jail` | Default native refusal; development-gated preparation, guardian and launcher modes, and the ES shim. Credential/vendor staging refuses. J17 attaches the declared observer before release; strict startup failure refuses. | Implementation |
-| `crates/ukai-jail/vm` | The warm service, guest controller, package builder and measurement harnesses exist; every `run --vm` refuses at probing until a live phase re-measures the guest, and K108–K113 stay `untested` (§6). | Implementation |
+| `crates/ukai-jail/vm` | The warm service, guest controller, package builder and measurement harnesses exist; every `run --vm` still refuses at probing (the 2026-11-04 live phase measured five requirements; `tree_termination` and four others have no probe), and K108–K113 stay `untested` (§6). | Implementation |
 | Installer, [RELEASING](../RELEASING.md) | The Mac bundle, provisioning profile and notarization, and the protected-Mac release run. | Procedure |
 | [roadmap](../roadmap.md), [guide](../guide.md) | Record Apple's answer and the two tiers, and explain the native boundary and `--vm`. | Guide |
 

@@ -1,0 +1,31 @@
+[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n[!p]104\[0m[?7h[1G[0J[6n[32766;32766H[6n]3008;start=ada5be8fe54d42979068c7e9e6581405;user=root;hostname=ukai-linux-preview;machineid=c205c57d47d64d59bf77d9710036f0cd;bootid=6861404fb51047c1bdffbf061a5ffe86;pid=598;pidfdid=284;comm=(agetty);servicename=serial-getty@hvc0.service;invocationid=5959c11eb9294c18930c93daa6181529;type=service\P+q6E616D65\
+Ubuntu 26.04.1 LTS ukai-linux-preview hvc0
+
+Try contacting this VM's SSH server via 'ssh vsock%3' from host.
+
+ukai-linux-preview login: + set -eu
++ export DEBIAN_FRONTEND=noninteractive
++ printf Types: deb\nURIs: https://snapshot.ubuntu.com/ubuntu/20261020T000000Z\nSuites: resolute resolute-updates resolute-security\nComponents: main universe\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n
++ rm -f /etc/apt/sources.list.d/ubuntu.sources
++ echo UKAI_STEP apt_update
+UKAI_STEP apt_update
++ apt-get update
+0% [Working]            Err:1 https://snapshot.ubuntu.com/ubuntu/20261020T000000Z resolute InRelease
+  401  UNAUTHORIZED [IP: 185.125.189.69 443]
+0% [Working]            Err:2 https://snapshot.ubuntu.com/ubuntu/20261020T000000Z resolute-updates InRelease
+  401  UNAUTHORIZED [IP: 185.125.189.69 443]
+0% [Waiting for headers]                        Err:3 https://snapshot.ubuntu.com/ubuntu/20261020T000000Z resolute-security InRelease
+  401  UNAUTHORIZED [IP: 185.125.189.69 443]
+                        0% [Working]            Reading package lists... 0%Reading package lists... 0%Reading package lists... 39%Reading package lists... Done
+N: See apt-secure(8) manpage for repository creation and user configuration details.
+N: Updating from such a repository can't be done securely, and is therefore disabled by default.
+E: The repository 'https://snapshot.ubuntu.com/ubuntu/20261020T000000Z resolute InRelease' is not signed.
+E: Failed to fetch https://snapshot.ubuntu.com/ubuntu/20261020T000000Z/dists/resolute/InRelease  401  UNAUTHORIZED [IP: 185.125.189.69 443]
+E: Failed to fetch https://snapshot.ubuntu.com/ubuntu/20261020T000000Z/dists/resolute-updates/InRelease  401  UNAUTHORIZED [IP: 185.125.189.69 443]
+E: The repository 'https://snapshot.ubuntu.com/ubuntu/20261020T000000Z resolute-updates InRelease' is not signed.
+N: Updating from such a repository can't be done securely, and is therefore disabled by default.
+N: See apt-secure(8) manpage for repository creation and user configuration details.
+E: Failed to fetch https://snapshot.ubuntu.com/ubuntu/20261020T000000Z/dists/resolute-security/InRelease  401  UNAUTHORIZED [IP: 185.125.189.69 443]
+E: The repository 'https://snapshot.ubuntu.com/ubuntu/20261020T000000Z resolute-security InRelease' is not signed.
+N: Updating from such a repository can't be done securely, and is therefore disabled by default.
+N: See apt-secure(8) manpage for repository creation and user configuration details.

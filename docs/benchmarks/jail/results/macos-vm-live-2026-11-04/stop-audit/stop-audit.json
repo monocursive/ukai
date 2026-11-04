@@ -1,0 +1,228 @@
+{
+  "schema": "ukai.vm.stop-audit/1",
+  "binary": {
+    "path": "target/release/ukai-vm",
+    "sha256": "dec046e2cc7d1cb0a86a4f0ec4b47ff45031d87c9ad3f7c5f3830d19e5f2db30"
+  },
+  "harness_sha256": {
+    "harness.py": "54d169552c036f161a28c3ee749ef4ede052d8818348dfc5ff94d1c60f4b070a"
+  },
+  "tag": "898a0b8a68dda1be",
+  "status": {
+    "event": "status",
+    "schema": "ukai.jail.vm-control/1",
+    "boot_id": "vm-167d5adf-c4fa-4399-8d54-1641904fd29a",
+    "warm": true,
+    "attempt_live": false,
+    "kernel": null,
+    "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+    "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+    "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+    "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+    "vsock_port": 1024,
+    "idle_seconds": 0,
+    "live_workspace": "/Volumes/ukai-cs/ws/stop",
+    "live_workspace_facts": {
+      "case_fold": false,
+      "normalization_fold": true
+    },
+    "guest_nat": false
+  },
+  "attempts": [
+    {
+      "name": "plain",
+      "attempt_id": "stop-plain-898a0b8a68dda1be",
+      "wall_seconds": 30,
+      "started_at": "2026-11-04T13:14:50Z",
+      "exit_code": 0,
+      "error": null,
+      "stdout": "plain-898a0b8a68dda1be\n",
+      "serve_boot": "vm-167d5adf-c4fa-4399-8d54-1641904fd29a",
+      "guest_boot": "69272c6e-6679-4699-b126-74a38c3fd254",
+      "receipt_bound": true,
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      }
+    },
+    {
+      "name": "detached",
+      "attempt_id": "stop-detached-898a0b8a68dda1be",
+      "wall_seconds": 30,
+      "started_at": "2026-11-04T13:15:30Z",
+      "exit_code": 1,
+      "error": null,
+      "stdout": "detached-898a0b8a68dda1be\n",
+      "serve_boot": "vm-167d5adf-c4fa-4399-8d54-1641904fd29a",
+      "guest_boot": "69272c6e-6679-4699-b126-74a38c3fd254",
+      "receipt_bound": true,
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      }
+    },
+    {
+      "name": "wall",
+      "attempt_id": "stop-wall-898a0b8a68dda1be",
+      "wall_seconds": 3,
+      "started_at": "2026-11-04T13:15:30Z",
+      "exit_code": 143,
+      "error": null,
+      "stdout": "wall-898a0b8a68dda1be\n",
+      "serve_boot": "vm-167d5adf-c4fa-4399-8d54-1641904fd29a",
+      "guest_boot": "69272c6e-6679-4699-b126-74a38c3fd254",
+      "receipt_bound": true,
+      "outcome": {
+        "kind": "signaled",
+        "code": null,
+        "signal": 15,
+        "cause": "wall_expiry",
+        "error": null
+      }
+    },
+    {
+      "name": "after",
+      "attempt_id": "stop-after-898a0b8a68dda1be",
+      "wall_seconds": 30,
+      "started_at": "2026-11-04T13:15:34Z",
+      "exit_code": 0,
+      "error": null,
+      "stdout": "after-898a0b8a68dda1be\n",
+      "serve_boot": "vm-167d5adf-c4fa-4399-8d54-1641904fd29a",
+      "guest_boot": "69272c6e-6679-4699-b126-74a38c3fd254",
+      "receipt_bound": true,
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      }
+    }
+  ],
+  "console_events": [
+    {
+      "event": "live_share_mounted",
+      "mount": "/mnt/workspace",
+      "options": "nosuid,nodev"
+    },
+    {
+      "event": "ready",
+      "kernel": "7.0.0-38-generic",
+      "live_share": true
+    },
+    {
+      "event": "infrastructure_learned",
+      "manager": 533,
+      "helper": [
+        548
+      ],
+      "bus": 640,
+      "bus_unit": "session.slice/dbus.service"
+    },
+    {
+      "event": "session_opened",
+      "live_share": true
+    },
+    {
+      "event": "workload_tree_empty",
+      "boundaries": [
+        "user.slice/user-1001.slice/user@1001.service/app.slice"
+      ],
+      "strays_killed": []
+    },
+    {
+      "event": "running",
+      "supervisor_pid": 647
+    },
+    {
+      "event": "workload_tree_empty",
+      "boundaries": [
+        "ukai-attempts.slice/attempt-1",
+        "user.slice/user-1001.slice/user@1001.service/app.slice"
+      ],
+      "strays_killed": []
+    },
+    {
+      "event": "done",
+      "exit_code": 0
+    },
+    {
+      "event": "workload_tree_empty",
+      "boundaries": [
+        "user.slice/user-1001.slice/user@1001.service/app.slice"
+      ],
+      "strays_killed": []
+    },
+    {
+      "event": "running",
+      "supervisor_pid": 671
+    },
+    {
+      "event": "workload_tree_empty",
+      "boundaries": [
+        "ukai-attempts.slice/attempt-2",
+        "user.slice/user-1001.slice/user@1001.service/app.slice"
+      ],
+      "strays_killed": []
+    },
+    {
+      "event": "done",
+      "exit_code": 1
+    },
+    {
+      "event": "workload_tree_empty",
+      "boundaries": [
+        "user.slice/user-1001.slice/user@1001.service/app.slice"
+      ],
+      "strays_killed": []
+    },
+    {
+      "event": "running",
+      "supervisor_pid": 699
+    },
+    {
+      "event": "workload_tree_empty",
+      "boundaries": [
+        "ukai-attempts.slice/attempt-3",
+        "user.slice/user-1001.slice/user@1001.service/app.slice"
+      ],
+      "strays_killed": []
+    },
+    {
+      "event": "done",
+      "exit_code": 143
+    },
+    {
+      "event": "workload_tree_empty",
+      "boundaries": [
+        "user.slice/user-1001.slice/user@1001.service/app.slice"
+      ],
+      "strays_killed": []
+    },
+    {
+      "event": "running",
+      "supervisor_pid": 724
+    },
+    {
+      "event": "workload_tree_empty",
+      "boundaries": [
+        "ukai-attempts.slice/attempt-4",
+        "user.slice/user-1001.slice/user@1001.service/app.slice"
+      ],
+      "strays_killed": []
+    },
+    {
+      "event": "done",
+      "exit_code": 0
+    }
+  ],
+  "service_exit": 0,
+  "service_stderr": ""
+}

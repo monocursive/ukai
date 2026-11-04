@@ -1,0 +1,519 @@
+{
+  "schema": "ukai.vm.fault-matrix/2",
+  "binary": {
+    "path": "target/release/ukai-vm",
+    "sha256": "dec046e2cc7d1cb0a86a4f0ec4b47ff45031d87c9ad3f7c5f3830d19e5f2db30"
+  },
+  "real_client": null,
+  "cases": {
+    "secrets": {
+      "case": "secrets",
+      "facts": {
+        "two_values_acked": true,
+        "paths_in_tmpfs_root": true,
+        "nested_id_staged": true,
+        "first_attempt_exit_zero": true,
+        "first_attempt_receipt_bound": true,
+        "network_denied_with_nat": true,
+        "duplicate_id_refused_before_prepared": true,
+        "next_attempt_exit_zero": true,
+        "next_attempt_receipt_bound": true,
+        "next_attempt_same_serve_boot": true,
+        "next_attempt_same_guest_boot": true
+      },
+      "failed": [],
+      "outcome": "PASS",
+      "checked_at": 2311048.929312375,
+      "observations": {
+        "case": "secrets",
+        "serve_boot": "vm-3511b71f-4038-44ab-a294-6c4acbe59ad5",
+        "guest_nat": true,
+        "first_exit": 0,
+        "first_error": null,
+        "staged": [
+          [
+            "api/token",
+            "/run/ukai-vm/credentials/api/token"
+          ],
+          [
+            "nested/id/two",
+            "/run/ukai-vm/credentials/nested/id/two"
+          ]
+        ],
+        "first_receipt_bound": true,
+        "probe": {
+          "verdict": "egress_denied",
+          "denied": true,
+          "control": "connected",
+          "control_accepted": true,
+          "egress": "ENETUNREACH",
+          "target": [
+            "1.1.1.1",
+            443
+          ],
+          "dns": null
+        },
+        "guest_boot": "e2808d95-efea-432d-a87c-061107924778",
+        "route": {
+          "verdict": "reached",
+          "reached": true,
+          "status_line": "HTTP/1.1 200 Connection established",
+          "error": null,
+          "target": [
+            "1.1.1.1",
+            443
+          ]
+        },
+        "network_denial": {
+          "probe_saw_the_jails_denial": true,
+          "guest_nat_attached": true,
+          "route_control_reached_the_target": true,
+          "route_control_on_the_same_guest_boot": true,
+          "route_control_receipt_bound": true
+        },
+        "duplicate_prepared": false,
+        "duplicate_error": "StreamEnded: the stream ended before a complete frame",
+        "next_exit": 0,
+        "next_error": null,
+        "next_receipt_bound": true,
+        "next_serve_boot": "vm-3511b71f-4038-44ab-a294-6c4acbe59ad5",
+        "next_guest_boot": "e2808d95-efea-432d-a87c-061107924778",
+        "next_stdout_boot": "e2808d95-efea-432d-a87c-061107924778"
+      },
+      "cleanup": {
+        "started_at": 2311048.929331875,
+        "service_exit": 0,
+        "service_stderr": "ukai-vm: attempt failed: the attempt stages the same credential id twice; ids must be unique\n",
+        "emergency_killed": []
+      },
+      "checked_before_cleanup": true
+    },
+    "client-kill": {
+      "case": "client-kill",
+      "outcome": "ERROR",
+      "error": "HarnessError: pid 7771 is no longer the process identified (None); not signalled",
+      "checked_at": 2311155.304680208,
+      "observations": {
+        "case": "client-kill",
+        "serve_boot": "vm-1629e1c7-c1e8-4dea-b7d7-9994554d0237",
+        "client": "python-stand-in",
+        "released": false,
+        "released_at": 2311125.240708541,
+        "beating": false,
+        "guest_boot": null,
+        "client_alive_at_kill": false,
+        "killed_at": 2311155.304583458
+      },
+      "cleanup": {
+        "started_at": 2311155.304724541,
+        "service_exit": 125,
+        "service_stderr": "ukai-vm: evidence retained at $TMPDIR/fault-client-kill-cmsbtzqd/vm/vm-1629e1c7-c1e8-4dea-b7d7-9994554d0237\nukai-vm: the guest powered itself off: live_share_mount_failed\nukai-vm: VM custody or transport failed (guest poweroff: live_share_mount_failed)\n",
+        "emergency_killed": []
+      },
+      "checked_before_cleanup": true
+    },
+    "client-ctrl-z": {
+      "case": "client-ctrl-z",
+      "facts": {
+        "released": true,
+        "workload_beating_before_stop": true,
+        "client_was_stopped": true,
+        "workload_continued_while_client_stopped": true,
+        "attempt_completed_after_resume": true,
+        "resumed_attempt_receipt_bound": true,
+        "next_attempt_exit_zero": true,
+        "next_attempt_receipt_bound": true,
+        "next_attempt_same_serve_boot": true,
+        "next_attempt_same_guest_boot": true
+      },
+      "failed": [],
+      "outcome": "PASS",
+      "checked_at": 2311243.619867125,
+      "observations": {
+        "case": "client-ctrl-z",
+        "serve_boot": "vm-37259a28-621c-497b-bc73-b1fcb15f5bf3",
+        "client": "python-stand-in",
+        "released": true,
+        "released_at": 2311231.622522083,
+        "beating": true,
+        "guest_boot": "24e172f6-3bdb-4d14-9494-9a518c04b007",
+        "stopped_at": 2311231.831499791,
+        "client_state_while_stopped": "TN",
+        "beats_during_stop": true,
+        "done_exit": 0,
+        "receipt_bound": true,
+        "workload_finished": true,
+        "next_exit": 0,
+        "next_error": null,
+        "next_receipt_bound": true,
+        "next_serve_boot": "vm-37259a28-621c-497b-bc73-b1fcb15f5bf3",
+        "next_guest_boot": "24e172f6-3bdb-4d14-9494-9a518c04b007",
+        "next_stdout_boot": "24e172f6-3bdb-4d14-9494-9a518c04b007"
+      },
+      "cleanup": {
+        "started_at": 2311243.619874375,
+        "service_exit": 0,
+        "service_stderr": "",
+        "emergency_killed": []
+      },
+      "checked_before_cleanup": true
+    },
+    "serve-kill": {
+      "case": "serve-kill",
+      "facts": {
+        "released": true,
+        "workload_beating_before_kill": true,
+        "one_custodian_vz_and_vm_identified": true,
+        "running_attempt_ended_without_done": true,
+        "running_attempt_open_until_the_kill": true,
+        "queued_attempt_ended_without_done": true,
+        "queued_attempt_open_until_the_kill": true,
+        "workload_stopped_after_kill": true,
+        "serve_gone": true,
+        "custodian_gone": true,
+        "vz_gone": true,
+        "vm_service_gone": true,
+        "sockets_unanswered": true,
+        "workspace_survived": true
+      },
+      "failed": [],
+      "outcome": "PASS",
+      "checked_at": 2311324.506558916,
+      "observations": {
+        "case": "serve-kill",
+        "serve_boot": "vm-16097761-abfc-43a3-9eab-b792a6b5ef37",
+        "released": true,
+        "released_at": 2311319.905789583,
+        "beating": true,
+        "guest_boot": "7b981383-18af-402a-841e-3dcf44dc05eb",
+        "identified": true,
+        "a_open_at_kill": true,
+        "b_open_at_kill": true,
+        "killed_at": 2311322.413562833,
+        "beats_quiet": true,
+        "last_beat_at": 2311322.41777325,
+        "gone_seconds": {
+          "serve": 2.06,
+          "custodian": 0.02,
+          "vz": 0.01,
+          "vm": 0.01
+        },
+        "a_done": false,
+        "a_ended": true,
+        "a_ended_at": 2311322.418532125,
+        "a_events": [
+          "ready",
+          "prepared",
+          "released",
+          "ended"
+        ],
+        "b_done": false,
+        "b_ended": true,
+        "b_ended_at": 2311322.41847125,
+        "b_events": [
+          "ended"
+        ],
+        "sockets_unanswered": true,
+        "workspace_survived": true
+      },
+      "cleanup": {
+        "started_at": 2311324.506577708,
+        "service_exit": -9,
+        "service_stderr": "",
+        "emergency_killed": []
+      },
+      "checked_before_cleanup": true
+    },
+    "custodian-kill": {
+      "case": "custodian-kill",
+      "facts": {
+        "released": true,
+        "workload_beating_before_kill": true,
+        "one_custodian_vz_and_vm_identified": true,
+        "running_attempt_ended_without_done": true,
+        "running_attempt_open_until_the_kill": true,
+        "queued_attempt_ended_without_done": true,
+        "queued_attempt_open_until_the_kill": true,
+        "workload_stopped_after_kill": true,
+        "serve_gone": true,
+        "custodian_gone": true,
+        "vz_gone": true,
+        "vm_service_gone": true,
+        "sockets_unanswered": true,
+        "workspace_survived": true
+      },
+      "failed": [],
+      "outcome": "PASS",
+      "checked_at": 2311404.018829833,
+      "observations": {
+        "case": "custodian-kill",
+        "serve_boot": "vm-215a3266-f959-4ae6-b9e6-43f6fc07c5e5",
+        "released": true,
+        "released_at": 2311400.46426575,
+        "beating": true,
+        "guest_boot": "5ff739a3-e1e5-4c88-a906-52e4738f9d05",
+        "identified": true,
+        "a_open_at_kill": true,
+        "b_open_at_kill": true,
+        "killed_at": 2311401.961361708,
+        "beats_quiet": true,
+        "last_beat_at": 2311401.966183,
+        "gone_seconds": {
+          "serve": 2.03,
+          "custodian": 0.01,
+          "vz": 0.01,
+          "vm": 0.01
+        },
+        "a_done": false,
+        "a_ended": true,
+        "a_ended_at": 2311401.979651375,
+        "a_events": [
+          "ready",
+          "prepared",
+          "released",
+          "ended"
+        ],
+        "b_done": false,
+        "b_ended": true,
+        "b_ended_at": 2311401.979923333,
+        "b_events": [
+          "ended"
+        ],
+        "sockets_unanswered": true,
+        "workspace_survived": true
+      },
+      "cleanup": {
+        "started_at": 2311404.01885125,
+        "service_exit": 125,
+        "service_stderr": "ukai-vm: the custody acknowledgement closed\nukai-vm: evidence retained at $TMPDIR/fault-custodian-kill-_jypnjcb/vm/vm-215a3266-f959-4ae6-b9e6-43f6fc07c5e5\nukai-vm: VM custody or transport failed\n",
+        "emergency_killed": []
+      },
+      "checked_before_cleanup": true
+    },
+    "vz-kill": {
+      "case": "vz-kill",
+      "facts": {
+        "released": true,
+        "workload_beating_before_kill": true,
+        "one_custodian_vz_and_vm_identified": true,
+        "running_attempt_ended_without_done": true,
+        "running_attempt_open_until_the_kill": true,
+        "queued_attempt_ended_without_done": true,
+        "queued_attempt_open_until_the_kill": true,
+        "workload_stopped_after_kill": true,
+        "serve_gone": true,
+        "custodian_gone": true,
+        "vz_gone": true,
+        "vm_service_gone": true,
+        "sockets_unanswered": true,
+        "workspace_survived": true
+      },
+      "failed": [],
+      "outcome": "PASS",
+      "checked_at": 2311502.735361333,
+      "observations": {
+        "case": "vz-kill",
+        "serve_boot": "vm-cc5df2da-a46a-4536-aed4-f4b64bb9a8c1",
+        "released": true,
+        "released_at": 2311499.195286333,
+        "beating": true,
+        "guest_boot": "061b5d94-bcfc-4a42-9744-625c42034c02",
+        "identified": true,
+        "a_open_at_kill": true,
+        "b_open_at_kill": true,
+        "killed_at": 2311500.671685375,
+        "beats_quiet": true,
+        "last_beat_at": 2311500.677373333,
+        "gone_seconds": {
+          "serve": 2.03,
+          "custodian": 0.01,
+          "vz": 0.01,
+          "vm": 0.01
+        },
+        "a_done": false,
+        "a_ended": true,
+        "a_ended_at": 2311500.701839625,
+        "a_events": [
+          "ready",
+          "prepared",
+          "released",
+          "ended"
+        ],
+        "b_done": false,
+        "b_ended": true,
+        "b_ended_at": 2311500.70235475,
+        "b_events": [
+          "ended"
+        ],
+        "sockets_unanswered": true,
+        "workspace_survived": true
+      },
+      "cleanup": {
+        "started_at": 2311502.735381958,
+        "service_exit": 125,
+        "service_stderr": "ukai-vm: evidence retained at $TMPDIR/fault-vz-kill-n45u3k_t/vm/vm-cc5df2da-a46a-4536-aed4-f4b64bb9a8c1\nukai-vm: VM custody or transport failed\n",
+        "emergency_killed": []
+      },
+      "checked_before_cleanup": true
+    },
+    "all-suspended": {
+      "case": "all-suspended",
+      "facts": {
+        "released": true,
+        "workload_beating_before_stop": true,
+        "every_controller_stopped": true,
+        "workload_ran_on_after_the_stop": true,
+        "beats_ended_while_suspended": true,
+        "ended_at_the_guest_wall_deadline": true,
+        "guest_clock_agrees": true
+      },
+      "failed": [],
+      "outcome": "PASS",
+      "checked_at": 2311591.638472583,
+      "observations": {
+        "case": "all-suspended",
+        "serve_boot": "vm-2f7e6159-0768-47b4-a01a-975f052d9eed",
+        "wall": 10,
+        "released": true,
+        "released_at": 2311579.468272833,
+        "beating": true,
+        "guest_boot": "4d1edc93-0839-4b9a-9be0-a4dbc4f1b0c8",
+        "identified": true,
+        "stopped_at": 2311579.951177666,
+        "controller_states": {
+          "custodian": "TN",
+          "vz": "TN",
+          "serve": "TNs",
+          "client": "TN"
+        },
+        "every_controller_stopped": true,
+        "beats_quiet": true,
+        "last_beat_at": 2311589.587506625,
+        "quiet_before_resume": true,
+        "guest_beat_span_s": 9.76,
+        "recovery": "recorded in cleanup"
+      },
+      "cleanup": {
+        "started_at": 2311591.638483083,
+        "service_exit": 0,
+        "service_stderr": "ukai-vm: attempt failed: the attempt lease ended\n",
+        "emergency_killed": []
+      },
+      "recovery_after_resume": {
+        "service_exit": 0,
+        "note": "after the suspended-state verdict; never counted as proof"
+      },
+      "checked_before_cleanup": true
+    },
+    "eof": {
+      "case": "eof",
+      "facts": {
+        "released": true,
+        "workload_beating_before_eof": true,
+        "workload_stopped_after_eof": true,
+        "service_still_warm": true,
+        "next_attempt_exit_zero": true,
+        "next_attempt_receipt_bound": true,
+        "next_attempt_same_serve_boot": true,
+        "next_attempt_same_guest_boot": true
+      },
+      "failed": [],
+      "outcome": "PASS",
+      "checked_at": 2311670.938316541,
+      "observations": {
+        "case": "eof",
+        "serve_boot": "vm-77f94058-7ce0-4784-acaa-ee281be6bbc3",
+        "released": true,
+        "beating": true,
+        "guest_boot": "a2613c3f-1135-42e4-bb0e-9814e5c69378",
+        "eof_at": 2311668.591664041,
+        "beats_quiet": true,
+        "last_beat_at": 2311668.591488041,
+        "status_after": {
+          "event": "status",
+          "schema": "ukai.jail.vm-control/1",
+          "boot_id": "vm-77f94058-7ce0-4784-acaa-ee281be6bbc3",
+          "warm": true,
+          "attempt_live": false,
+          "kernel": "7.0.0-38-generic",
+          "disk_sha256": "62a78dd7f7699722c4369d74c34daf97f5b59e7489b1bc40d342cb52dd85db6a",
+          "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+          "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+          "seed_sha256": "6bff74db09bf61e4f0ae90ce34be56f4e40099dbc71a5acad8a6e80400e3769f",
+          "vsock_port": 1024,
+          "idle_seconds": 0,
+          "live_workspace": "/Volumes/ukai-cs/ws/faults",
+          "live_workspace_facts": {
+            "case_fold": false,
+            "normalization_fold": true
+          },
+          "guest_nat": false
+        },
+        "next_exit": 0,
+        "next_error": null,
+        "next_receipt_bound": true,
+        "next_serve_boot": "vm-77f94058-7ce0-4784-acaa-ee281be6bbc3",
+        "next_guest_boot": "a2613c3f-1135-42e4-bb0e-9814e5c69378",
+        "next_stdout_boot": "a2613c3f-1135-42e4-bb0e-9814e5c69378"
+      },
+      "cleanup": {
+        "started_at": 2311670.938342083,
+        "service_exit": 0,
+        "service_stderr": "ukai-vm: attempt failed: the attempt lease ended\n",
+        "emergency_killed": []
+      },
+      "checked_before_cleanup": true
+    },
+    "serve-group-stop": {
+      "case": "serve-group-stop",
+      "facts": {
+        "released": true,
+        "workload_beating_before_stop": true,
+        "serve_boot_unchanged_after_resume": true,
+        "workload_spanned_the_stop": true,
+        "attempt_completed_after_resume": true,
+        "resumed_attempt_receipt_bound": true,
+        "next_attempt_exit_zero": true,
+        "next_attempt_receipt_bound": true,
+        "next_attempt_same_serve_boot": true,
+        "next_attempt_same_guest_boot": true
+      },
+      "failed": [],
+      "outcome": "PASS",
+      "checked_at": 2311759.208703,
+      "observations": {
+        "case": "serve-group-stop",
+        "serve_boot": "vm-4a002123-5f7f-4ab9-a795-633408790dfc",
+        "released": true,
+        "released_at": 2311747.096417458,
+        "beating": true,
+        "guest_boot": "d5bed2b3-4b34-4f21-86ce-ad5cba9558c9",
+        "stopped_at": 2311747.506840166,
+        "stopped_seconds": 5.0,
+        "beats_during_stop": true,
+        "done_exit": 0,
+        "receipt_bound": true,
+        "workload_finished": true,
+        "status_boot_after": "vm-4a002123-5f7f-4ab9-a795-633408790dfc",
+        "next_exit": 0,
+        "next_error": null,
+        "next_receipt_bound": true,
+        "next_serve_boot": "vm-4a002123-5f7f-4ab9-a795-633408790dfc",
+        "next_guest_boot": "d5bed2b3-4b34-4f21-86ce-ad5cba9558c9",
+        "next_stdout_boot": "d5bed2b3-4b34-4f21-86ce-ad5cba9558c9"
+      },
+      "cleanup": {
+        "started_at": 2311759.208707333,
+        "service_exit": 0,
+        "service_stderr": "",
+        "emergency_killed": []
+      },
+      "checked_before_cleanup": true
+    }
+  },
+  "not_run": {
+    "client-kill:ukai-jail": "no --ukai-jail given; the python stand-in ran",
+    "client-ctrl-z:ukai-jail": "no --ukai-jail given; the python stand-in ran"
+  },
+  "outcome": "FAIL"
+}

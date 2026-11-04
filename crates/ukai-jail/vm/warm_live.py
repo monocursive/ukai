@@ -220,7 +220,12 @@ def main(argv=None):
     tag = harness.nonce()
     root = Path(tempfile.mkdtemp(prefix='ukai-warm-live-'))
     data = root / 'data'
-    data.mkdir()
+    # The real client shares the serve's data directory (to reuse its warm
+    # boot) and refuses one that is not 0700 (unsafe_state_path at
+    # resolving): an umask-dependent mode made every real-client run refuse
+    # before probing on the 2026-11-04 live host.
+    data.mkdir(mode=0o700)
+    os.chmod(data, 0o700)
     real = None
     # The NAT adapter is always attached: a denial is the jail's only where
     # the guest itself has a route (the jail stays the policy gate).

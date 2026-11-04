@@ -1,0 +1,769 @@
+# MESSAGE= fields of prepare-1's guest system.journal, in file order (strings -n 6 | grep ^MESSAGE=)
+# journal sha256 1eb597be18dd8f11f9917f6d7e10520a5422ebec14ad50cabf4ae106a1ab1bf3, 8388608 bytes; the journal itself is not committed (over 5 MiB)
+Booting Linux on physical CPU 0x0000000000 [0x610f0000]
+Linux version 7.0.0-38-generic (buildd@bos03-arm64-061) (aarch64-linux-gnu-gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0, GNU ld (GNU Binutils for Ubuntu) 2.46) #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:28:02 UTC 2026 (Ubuntu 7.0.0-38.38-generic 7.0.14)
+KASLR enabled
+efi: EFI v2.7 by EDK II
+efi: ACPI 2.0=0xefb9f018 SMBIOS=0xee630000 SMBIOS 3.0=0xee610000 MOKvar=0xefb30000 RNG=0xefb9fa18 MEMRESERVE=0xee4b4b18 
+random: crng init done
+secureboot: Secure boot disabled
+ACPI: Early table checksum verification disabled
+ACPI: RSDP 0x00000000EFB9F018 000024 (v02 APPLE )
+ACPI: XSDT 0x00000000EFB9FF18 000044 (v01 APPLE  Apple Vz 00000001      01000013)
+ACPI: FACP 0x00000000EFB9FB18 000114 (v06 APPLE  Apple Vz 00000001 AAPL 20180427)
+ACPI: DSDT 0x00000000EFB9F118 00035A (v02 APPLE  Apple Vz 00000001 AAPL 20180427)
+ACPI: GTDT 0x00000000EFB9FC98 000068 (v03 APPLE  Apple Vz 00000001 AAPL 20180427)
+ACPI: APIC 0x00000000EFB9FD98 00010C (v05 APPLE  Apple Vz 00000001 AAPL 20180427)
+ACPI: MCFG 0x00000000EFB9F098 00003C (v01 APPLE  Apple Vz 00000001 AAPL 20180427)
+NUMA: Faking a node at [mem 0x0000000070000000-0x00000000efffffff]
+NODE_DATA(0) allocated [mem 0xefc0d440-0xefc12fff]
+cma: Reserved 32 MiB at 0x00000000ec400000
+psci: probing for conduit method from ACPI.
+psci: PSCIv1.1 detected in firmware.
+psci: Using standard PSCI v0.2 function IDs
+psci: Trusted OS migration not required
+psci: SMC Calling Convention v1.1
+Zone ranges:
+  DMA      [mem 0x0000000070000000-0x00000000efffffff]
+  DMA32    empty
+  Normal   empty
+  Device   empty
+Movable zone start for each node
+Early memory node ranges
+  node   0: [mem 0x0000000070000000-0x00000000ee5fffff]
+  node   0: [mem 0x00000000ee600000-0x00000000ee68ffff]
+  node   0: [mem 0x00000000ee690000-0x00000000efa8ffff]
+  node   0: [mem 0x00000000efa90000-0x00000000efb1ffff]
+  node   0: [mem 0x00000000efb20000-0x00000000efb2ffff]
+  node   0: [mem 0x00000000efb30000-0x00000000efb6ffff]
+  node   0: [mem 0x00000000efb70000-0x00000000efffffff]
+Initmem setup node 0 [mem 0x0000000070000000-0x00000000efffffff]
+percpu: Embedded 57 pages/cpu s110424 r8192 d114856 u233472
+pcpu-alloc: s110424 r8192 d114856 u233472 alloc=57*4096
+pcpu-alloc: [0] 0 [0] 1 
+Detected PIPT I-cache on CPU0
+CPU features: detected: Address authentication (IMP DEF algorithm)
+CPU features: detected: GICv3 CPU interface
+CPU features: detected: Spectre-v4
+CPU features: detected: Spectre-BHB
+alternatives: applying boot alternatives
+Kernel command line: BOOT_IMAGE=/vmlinuz-7.0.0-38-generic root=PARTUUID=cf7c114a-d09d-44d1-9581-b7ef2c12eb57 ro console=tty1 console=ttyAMA0
+printk: log buffer data + meta data: 262144 + 1114112 = 1376256 bytes
+Dentry cache hash table entries: 262144 (order: 9, 2097152 bytes, linear)
+Inode-cache hash table entries: 131072 (order: 8, 1048576 bytes, linear)
+software IO TLB: SWIOTLB bounce buffer size adjusted to 2MB
+software IO TLB: area num 2.
+software IO TLB: mapped [mem 0x00000000ef51e000-0x00000000ef71e000] (2MB)
+Fallback order for Node 0: 0 
+Built 1 zonelists, mobility grouping on.  Total pages: 524288
+Policy zone: DMA
+mem auto-init: stack:all(zero), heap alloc:on, heap free:off
+SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=2, Nodes=1
+ftrace: allocating 70865 entries in 278 pages
+ftrace: allocated 278 pages with 4 groups
+Dynamic Preempt: lazy
+rcu: Preemptible hierarchical RCU implementation.
+rcu: 
+
+
+
+rcu: RCU calculated value of scheduler-enlistment delay is 100 jiffies.
+rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=2
+RCU Tasks: Setting shift to 1 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=2.
+RCU Tasks Rude: Setting shift to 1 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=2.
+NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+GICv3: 988 SPIs implemented
+GICv3: 0 Extended SPIs implemented
+Root IRQ handler: gic_handle_irq
+GICv3: GICv3 features: 16 PPIs, RSS
+GICv3: GICD_CTLR.DS=1, SCR_EL3.FIQ=0
+GICv3: CPU0: found redistributor 0 region 0:0x0000000010010000
+GICv2m: range[mem 0x1fff0000-0x1fff0fff], SPI[128:255]
+rcu: srcu_init: Setting srcu_struct sizes based on contention.
+clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1911260446275000 ns
+arch_timer: cp15 timer running at 24.00MHz (virt).
+clocksource: arch_sys_counter: mask: 0xffffffffffffff max_cycles: 0x588fe9dc0, max_idle_ns: 440795202592 ns
+sched_clock: 56 bits at 24MHz, resolution 41ns, wraps every 4398046511097ns
+Console: colour dummy device 80x25
+printk: legacy console [tty1] enabled
+ACPI: Core revision 20251212
+Calibrating delay loop (skipped), value calculated using timer frequency.. 48.00 BogoMIPS (lpj=24000)
+pid_max: default: 32768 minimum: 301
+landlock: Up and running.
+Yama: becoming mindful.
+AppArmor: AppArmor initialized
+AppArmor: AppArmor secmark mediation reserved: ready to be enabled
+Mount-cache hash table entries: 4096 (order: 3, 32768 bytes, linear)
+Mountpoint-cache hash table entries: 4096 (order: 3, 32768 bytes, linear)
+VFS: Finished mounting rootfs on nullfs
+ACPI PPTT: No PPTT table found, CPU and cache topology may be inaccurate
+cacheinfo: Unable to detect cache hierarchy for CPU 0
+rcu: Hierarchical SRCU implementation.
+rcu: 
+Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
+Remapping and enabling EFI services.
+smp: Bringing up secondary CPUs ...
+Detected PIPT I-cache on CPU1
+GICv3: CPU1: found redistributor 1 region 0:0x0000000010030000
+CPU1: Booted secondary processor 0x0000000001 [0x610f0000]
+smp: Brought up 1 node, 2 CPUs
+SMP: Total of 2 processors activated.
+CPU: All CPU(s) started at EL1
+CPU features: detected: Branch Target Identification
+CPU features: detected: ARMv8.4 Translation Table Level
+CPU features: detected: Data cache clean to the PoU not required for I/D coherence
+CPU features: detected: Common not Private translations
+CPU features: detected: CRC32 instructions
+CPU features: detected: Data cache clean to Point of Deep Persistence
+CPU features: detected: Data cache clean to Point of Persistence
+CPU features: detected: Data independent timing control (DIT)
+CPU features: detected: E0PD
+CPU features: detected: Generic authentication (IMP DEF algorithm)
+CPU features: detected: RCpc load-acquire (LDAPR)
+CPU features: detected: LSE atomic instructions
+CPU features: detected: Privileged Access Never
+CPU features: detected: RAS Extension Support
+CPU features: detected: Speculation barrier (SB)
+CPU features: detected: TLB range maintenance instructions
+CPU features: detected: XNX
+alternatives: applying system-wide alternatives
+Memory: 1712980K/2097152K available (27840K kernel code, 6298K rwdata, 20120K rodata, 15168K init, 1303K bss, 344280K reserved, 32768K cma-reserved)
+devtmpfs: initialized
+setend instruction emulation is not supported on this system
+posixtimers hash table entries: 1024 (order: 2, 16384 bytes, linear)
+futex hash table entries: 512 (32768 bytes on 1 NUMA nodes, total 32 KiB, linear).
+2G module region forced by RANDOMIZE_MODULE_REGION_FULL
+0 pages in range for non-PLT usage
+506544 pages in range for PLT usage
+SMBIOS 3.3.0 present.
+DMI: Apple Inc. Apple Virtualization Generic Platform, BIOS 2164.0.0.0.0 08/08/2026
+DMI: Memory slots populated: 1/1
+NET: Registered PF_NETLINK/PF_ROUTE protocol family
+DMA: preallocated 256 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+audit: initializing netlink subsys (disabled)
+audit: type=2000 audit(0.004:1): state=initialized audit_enabled=0 res=1
+thermal_sys: Registered thermal governor 'fair_share'
+thermal_sys: Registered thermal governor 'bang_bang'
+thermal_sys: Registered thermal governor 'step_wise'
+thermal_sys: Registered thermal governor 'user_space'
+thermal_sys: Registered thermal governor 'power_allocator'
+cpuidle: using governor ladder
+cpuidle: using governor menu
+hw-breakpoint: found 6 breakpoint and 4 watchpoint registers.
+ASID allocator initialised with 256 entries
+acpiphp: ACPI Hot Plug PCI Controller Driver version: 0.5
+Serial: AMBA PL011 UART driver
+HugeTLB: registered 1.00 GiB page size, pre-allocated 0 pages
+HugeTLB: 0 KiB vmemmap can be freed for a 1.00 GiB page
+HugeTLB: registered 32.0 MiB page size, pre-allocated 0 pages
+HugeTLB: 0 KiB vmemmap can be freed for a 32.0 MiB page
+HugeTLB: registered 2.00 MiB page size, pre-allocated 0 pages
+HugeTLB: 0 KiB vmemmap can be freed for a 2.00 MiB page
+HugeTLB: registered 64.0 KiB page size, pre-allocated 0 pages
+HugeTLB: 0 KiB vmemmap can be freed for a 64.0 KiB page
+fbcon: Taking over console
+ACPI: Added _OSI(Module Device)
+ACPI: Added _OSI(Processor Device)
+ACPI: Added _OSI(Processor Aggregator Device)
+ACPI: 1 ACPI AML tables successfully acquired and loaded
+ACPI: \_SB_: platform _OSC: OS support mask [006e6efe]
+ACPI: Interpreter enabled
+ACPI: Using GIC for interrupt routing
+ACPI: MCFG table detected, 1 entries
+ACPI: CPU0 has been hot-added
+ACPI: CPU1 has been hot-added
+ACPI: PCI Root Bridge [PCI0] (domain 0000 [bus 00-ff])
+acpi PNP0A08:00: _OSC: OS supports [ExtendedConfig ASPM ClockPM Segments MSI EDR HPX-Type3]
+acpi PNP0A08:00: _OSC: OS requested [PCIeHotplug SHPCHotplug PME AER PCIeCapability LTR DPC]
+acpi PNP0A08:00: _OSC: platform willing to grant [PCIeHotplug SHPCHotplug PME AER PCIeCapability LTR DPC]
+acpi PNP0A08:00: _OSC: platform retains control of PCIe features (AE_ERROR)
+acpi PNP0A08:00: ECAM area [mem 0x40000000-0x4fffffff] reserved by PNP0C02:00
+acpi PNP0A08:00: ECAM at [mem 0x40000000-0x4fffffff] for [bus 00-ff]
+ACPI: Remapped I/O 0x000000006fff0000 to [io  0x0000-0xffff window]
+PCI host bridge to bus 0000:00
+pci_bus 0000:00: root bus resource [mem 0x50000000-0x6ffdffff window]
+pci_bus 0000:00: root bus resource [mem 0x100000000-0x4ffffffff window]
+pci_bus 0000:00: root bus resource [io  0x0000-0xffff window]
+pci_bus 0000:00: root bus resource [bus 00-ff]
+PCI: OF: of_root node is NULL, cannot create PCI host bridge node
+pci 0000:00:00.0: [106b:1a05] type 00 class 0x060000 conventional PCI endpoint
+pci 0000:00:01.0: [1af4:1041] type 00 class 0x020000 conventional PCI endpoint
+pci 0000:00:01.0: BAR 0 [mem 0x100040000-0x10004ffff 64bit]
+pci 0000:00:01.0: BAR 2 [mem 0x50005000-0x5000503f]
+pci 0000:00:05.0: [1af4:1043] type 00 class 0x078000 conventional PCI endpoint
+pci 0000:00:05.0: BAR 0 [mem 0x100030000-0x10003ffff 64bit]
+pci 0000:00:05.0: BAR 2 [mem 0x50001000-0x5000107f]
+pci 0000:00:06.0: [1af4:1042] type 00 class 0x018000 conventional PCI endpoint
+pci 0000:00:06.0: BAR 0 [mem 0x100020000-0x10002ffff 64bit]
+pci 0000:00:06.0: BAR 2 [mem 0x50004000-0x5000403f]
+pci 0000:00:07.0: [1af4:1042] type 00 class 0x018000 conventional PCI endpoint
+pci 0000:00:07.0: BAR 0 [mem 0x100010000-0x10001ffff 64bit]
+pci 0000:00:07.0: BAR 2 [mem 0x50003000-0x5000303f]
+pci 0000:00:08.0: [1af4:1053] type 00 class 0x078000 conventional PCI endpoint
+pci 0000:00:08.0: BAR 0 [mem 0x100000000-0x10000ffff 64bit]
+pci 0000:00:08.0: BAR 2 [mem 0x50000000-0x5000007f]
+pci 0000:00:09.0: [1af4:1044] type 00 class 0x100000 conventional PCI endpoint
+pci 0000:00:09.0: BAR 0 [mem 0x100050000-0x100057fff 64bit]
+pci 0000:00:09.0: BAR 2 [mem 0x50002000-0x5000203f]
+pci 0000:00:01.0: BAR 0 [mem 0x100000000-0x10000ffff 64bit]: assigned
+pci 0000:00:05.0: BAR 0 [mem 0x100010000-0x10001ffff 64bit]: assigned
+pci 0000:00:06.0: BAR 0 [mem 0x100020000-0x10002ffff 64bit]: assigned
+pci 0000:00:07.0: BAR 0 [mem 0x100030000-0x10003ffff 64bit]: assigned
+pci 0000:00:08.0: BAR 0 [mem 0x100040000-0x10004ffff 64bit]: assigned
+pci 0000:00:09.0: BAR 0 [mem 0x100050000-0x100057fff 64bit]: assigned
+pci 0000:00:05.0: BAR 2 [mem 0x50000000-0x5000007f]: assigned
+pci 0000:00:08.0: BAR 2 [mem 0x50000080-0x500000ff]: assigned
+pci 0000:00:01.0: BAR 2 [mem 0x50000100-0x5000013f]: assigned
+pci 0000:00:06.0: BAR 2 [mem 0x50000140-0x5000017f]: assigned
+pci 0000:00:07.0: BAR 2 [mem 0x50000180-0x500001bf]: assigned
+pci 0000:00:09.0: BAR 2 [mem 0x500001c0-0x500001ff]: assigned
+pci_bus 0000:00: resource 4 [mem 0x50000000-0x6ffdffff window]
+pci_bus 0000:00: resource 5 [mem 0x100000000-0x4ffffffff window]
+pci_bus 0000:00: resource 6 [io  0x0000-0xffff window]
+iommu: Default domain type: Translated
+iommu: DMA domain TLB invalidation policy: strict mode
+SCSI subsystem initialized
+libata version 3.00 loaded.
+ACPI: bus type USB registered
+usbcore: registered new interface driver usbfs
+usbcore: registered new interface driver hub
+usbcore: registered new device driver usb
+pps_core: LinuxPPS API ver. 1 registered
+pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+PTP clock support registered
+EDAC MC: Ver: 3.0.0
+scmi_core: SCMI protocol bus registered
+efivars: Registered efivars operations
+NetLabel: Initializing
+NetLabel:  domain hash size = 128
+NetLabel:  protocols = UNLABELED CIPSOv4 CALIPSO
+NetLabel:  unlabeled traffic allowed by default
+mctp: management component transport protocol core
+NET: Registered PF_MCTP protocol family
+vgaarb: loaded
+clocksource: Switched to clocksource arch_sys_counter
+VFS: Disk quotas dquot_6.6.0
+VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+AppArmor: AppArmor Filesystem Enabled
+acpi PNP0C02:00: Could not reserve [mem 0x40000000-0x4fffffff]
+pnp: PnP ACPI init
+pnp: PnP ACPI: found 0 devices
+NET: Registered PF_INET protocol family
+IP idents hash table entries: 32768 (order: 6, 262144 bytes, linear)
+tcp_listen_portaddr_hash hash table entries: 1024 (order: 2, 16384 bytes, linear)
+Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+TCP established hash table entries: 16384 (order: 5, 131072 bytes, linear)
+TCP bind hash table entries: 16384 (order: 7, 524288 bytes, linear)
+TCP: Hash tables configured (established 16384 bind 16384)
+MPTCP token hash table entries: 2048 (order: 4, 49152 bytes, linear)
+UDP hash table entries: 1024 (order: 4, 65536 bytes, linear)
+UDP-Lite hash table entries: 1024 (order: 4, 65536 bytes, linear)
+NET: Registered PF_UNIX/PF_LOCAL protocol family
+NET: Registered PF_XDP protocol family
+PCI: CLS 0 bytes, default 64
+kvm [1]: HYP mode not available
+Initialise system trusted keyrings
+Key type blacklist registered
+workingset: timestamp_bits=40 max_order=19 bucket_order=0
+squashfs: version 4.0 (2009/01/31) Phillip Lougher
+fuse: init (API version 7.45)
+integrity: Platform Keyring initialized
+integrity: Machine keyring initialized
+Key type asymmetric registered
+Asymmetric key parser 'x509' registered
+Block layer SCSI generic (bsg) driver version 0.4 loaded (major 241)
+io scheduler mq-deadline registered
+pl061_gpio ARMH0061:00: PL061 GPIO chip registered
+ledtrig-cpu: registered to indicate activity on CPUs
+input: Power Button as /devices/platform/PNP0C0C:00/input/input0
+ACPI: button: Power Button [PWRB]
+Serial: 8250/16550 driver, 32 ports, IRQ sharing enabled
+msm_serial: driver initialized
+SuperH (H)SCI(F) driver initialized
+loop: module loaded
+virtio_blk virtio2: 1/0/0 default/read/poll queues
+virtio_blk virtio2: [vda] 12582912 512-byte logical blocks (6.44 GB/6.00 GiB)
+GPT:Primary header thinks Alt. header is not at the end of the disk.
+GPT:7340031 != 12582911
+GPT:Alternate GPT header not at the end of the disk.
+GPT: Use GNU Parted to correct GPT errors.
+ vda: vda1 vda13 vda15
+virtio_blk virtio3: 1/0/0 default/read/poll queues
+virtio_blk virtio3: [vdb] 32212 512-byte logical blocks (16.5 MB/15.7 MiB)
+ACPI: bus type drm_connector registered
+tun: Universal TUN/TAP device driver, 1.6
+PPP generic driver version 2.4.2
+mousedev: PS/2 mouse device common for all mice
+rtc-efi rtc-efi.0: registered as rtc0
+rtc-efi rtc-efi.0: setting system clock to 2026-11-04T11:10:24 UTC (1793790624)
+i2c_dev: i2c /dev entries driver
+device-mapper: core: CONFIG_IMA_DISABLE_HTABLE is disabled. Duplicate IMA measurements will not be recorded in the IMA log.
+device-mapper: uevent: version 1.0.3
+device-mapper: ioctl: 4.50.0-ioctl (2025-04-28) initialised: dm-devel@lists.linux.dev
+drop_monitor: Initializing network drop monitor service
+NET: Registered PF_INET6 protocol family
+Segment Routing with IPv6
+In-situ OAM (IOAM) with IPv6
+NET: Registered PF_PACKET protocol family
+Key type dns_resolver registered
+registered taskstats version 1
+Loading compiled-in X.509 certificates
+Loaded X.509 cert 'Build time autogenerated kernel key: 1ea3411dae092d79be5bf3cac817f82068e81a43'
+Loaded X.509 cert 'Canonical Ltd. Live Patch Signing 2025 Kmod: d541cef61dc7e793b7eb7e899970a2eef0b5dc8c'
+Loaded X.509 cert 'Canonical Ltd. Live Patch Signing: 14df34d1a87cf37625abec039ef2bf521249b969'
+Loaded X.509 cert 'Canonical Ltd. Kernel Module Signing 2025 Kmod: 4627603d2357a2a3f81006370894c221175893e9'
+Loaded X.509 cert 'Canonical Ltd. Kernel Module Signing: 88f752e560a1e0737e31163a466ad7b70a850c19'
+blacklist: Loading compiled-in revocation X.509 certificates
+Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing: 61482aa2830d0ab2ad5af10b7250da9033ddcef0'
+Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2017): 242ade75ac4a15e50d50c84b0d45ff3eae707a03'
+Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (ESM 2018): 365188c1d374d6b07c3c8f240f8ef722433d6a8b'
+Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2019): c0746fd6c5da3ae827864651ad66ae47fe24b3e8'
+Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2021 v1): a8d54bbb3825cfb94fa13c9f8a594a195c107b8d'
+Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2021 v2): 4cf046892d6fd3c9a5b03f98d845f90851dc6a8c'
+Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2021 v3): 100437bb6de6e469b581e61cd66bce3ef4ed53af'
+Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (Ubuntu Core 2019): c1d57b8f6b743f23ee41f4f7ee292f06eecadfb9'
+Demotion targets for Node 0: null
+Key type .fscrypt registered
+Key type fscrypt-provisioning registered
+Key type big_key registered
+Key type encrypted registered
+AppArmor: AppArmor sha256 policy hashing enabled
+ima: secureboot mode disabled
+ima: No TPM chip found, activating TPM-bypass!
+Loading compiled-in module X.509 certificates
+ima: Allocated hash algorithm: sha256
+ima: No architecture policies found
+evm: Initialising EVM extended attributes:
+evm: security.selinux
+evm: security.SMACK64
+evm: security.SMACK64EXEC
+evm: security.SMACK64TRANSMUTE
+evm: security.SMACK64MMAP
+evm: security.apparmor
+evm: security.ima
+evm: security.capability
+evm: HMAC attrs: 0x1
+clk: Disabling unused clocks
+PM: genpd: Disabling unused power domains
+md: Waiting for all devices to be available before autodetect
+md: If you don't use raid, use raid=noautodetect
+md: Autodetecting RAID arrays.
+md: autorun ...
+md: ... autorun DONE.
+EXT4-fs (vda1): orphan cleanup on readonly fs
+EXT4-fs (vda1): mounted filesystem b387c6d0-40f1-4305-ab29-fc322fc392f1 ro with ordered data mode. Quota mode: none.
+VFS: Mounted root (ext4 filesystem) readonly on device 253:1.
+devtmpfs: mounted
+VFS: Pivoted into new rootfs
+Freeing unused kernel memory: 15168K
+Checked W+X mappings: passed, no W+X pages found
+Run /sbin/init as init process
+  with arguments:
+    /sbin/init
+  with environment:
+    HOME=/
+    TERM=linux
+Inserted module 'autofs4'
+NET: Registered PF_VSOCK protocol family
+systemd 259.5-0ubuntu3.4 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +IPE +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +KMOD +LIBCRYPTSETUP +LIBCRYPTSETUP_PLUGINS +LIBFDISK +PCRE2 +PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD +BPF_FRAMEWORK +BTF -XKBCOMMON -UTMP +SYSVINIT +LIBARCHIVE)
+Detected virtualization apple.
+Detected architecture arm64.
+Initializing machine ID from random generator.
+Installed transient '/etc/machine-id' file.
+Hostname set to <ubuntu>.
+bpf-restrict-fs: BPF LSM hook not enabled in the kernel, BPF LSM not supported.
+Queued start job for default target graphical.target.
+Created slice system-modprobe.slice - Slice /system/modprobe.
+Created slice system-serial\x2dgetty.slice - Slice /system/serial-getty.
+Created slice system-systemd\x2dfsck.slice - Slice /system/systemd-fsck.
+Created slice user.slice - User and Session Slice.
+Started systemd-ask-password-console.path - Dispatch Password Requests to Console Directory Watch.
+Started systemd-ask-password-wall.path - Forward Password Requests to Wall Directory Watch.
+Set up automount proc-sys-fs-binfmt_misc.automount - Arbitrary Executable File Formats File System Automount Point.
+Expecting device dev-disk-by\x2dlabel-BOOT.device - /dev/disk/by-label/BOOT...
+Expecting device dev-disk-by\x2dlabel-UEFI.device - /dev/disk/by-label/UEFI...
+Expecting device dev-hvc0.device - /dev/hvc0...
+Reached target imports.target - Image Downloads.
+Reached target remote-fs.target - Remote File Systems.
+Reached target slices.target - Slice Units.
+Reached target snapd.mounts-pre.target - Mounting snaps.
+Reached target snapd.mounts.target - Mounted snaps.
+Reached target swap.target - Swaps.
+Reached target time-set.target - System Time Set.
+Listening on systemd-ask-password.socket - Query the User Interactively for a Password.
+Listening on systemd-creds.socket - Credential Encryption/Decryption.
+Listening on systemd-factory-reset.socket - Factory Reset Management.
+Listening on systemd-journald-dev-log.socket - Journal Socket (/dev/log).
+Listening on systemd-journald.socket - Journal Sockets.
+Listening on systemd-mute-console.socket - Console Output Muting Service Socket.
+Listening on systemd-networkd-varlink.socket - Network Management Varlink Socket.
+Listening on systemd-networkd.socket - Network Management Netlink Socket.
+systemd-pcrextend.socket - TPM PCR Measurements skipped, unmet condition check ConditionSecurity=measured-uki
+systemd-pcrlock.socket - Make TPM PCR Policy skipped, unmet condition check ConditionSecurity=measured-uki
+Listening on systemd-resolved-monitor.socket - Resolve Monitor Varlink Socket.
+Listening on systemd-resolved-varlink.socket - Resolve Service Varlink Socket.
+Listening on systemd-udevd-control.socket - udev Control Socket.
+Listening on systemd-udevd-kernel.socket - udev Kernel Socket.
+Listening on systemd-udevd-varlink.socket - udev Varlink Socket.
+Mounting dev-hugepages.mount - Huge Pages File System...
+Mounting dev-mqueue.mount - POSIX Message Queue File System...
+Mounting sys-kernel-debug.mount - Kernel Debug File System...
+Mounting sys-kernel-tracing.mount - Kernel Trace File System...
+Mounting tmp.mount - Temporary Directory /tmp...
+Starting systemd-journald.service - Journal Service...
+Starting keyboard-setup.service - Set the console keyboard layout...
+Starting kmod-static-nodes.service - Create List of Static Device Nodes...
+modprobe@configfs.service - Load Kernel Module configfs skipped, unmet condition check ConditionKernelModuleLoaded=!configfs
+Mounting sys-kernel-config.mount - Kernel Configuration File System...
+modprobe@drm.service - Load Kernel Module drm skipped, unmet condition check ConditionKernelModuleLoaded=!drm
+Starting modprobe@efi_pstore.service - Load Kernel Module efi_pstore...
+modprobe@fuse.service - Load Kernel Module fuse skipped, unmet condition check ConditionKernelModuleLoaded=!fuse
+pstore: Using crash dump compression: deflate
+Mounting sys-fs-fuse-connections.mount - FUSE Control File System...
+netplan-ovs-cleanup.service - OpenVSwitch configuration for cleanup skipped, unmet condition check ConditionFileIsExecutable=/usr/bin/ovs-vsctl
+Starting systemd-fsck-root.service - File System Check on Root Device...
+systemd-hibernate-clear.service - Clear Stale Hibernate Storage Info skipped, unmet condition check ConditionPathExists=/sys/firmware/efi/efivars/HibernateLocation-8cf2644b-4b0b-428f-9387-6d876050dc67
+pstore: Registered efi_pstore as persistent store backend
+Starting systemd-modules-load.service - Load Kernel Modules...
+systemd-pcrmachine.service - TPM PCR Machine ID Measurement skipped, unmet condition check ConditionSecurity=measured-uki
+systemd-pcrproduct.service - TPM NvPCR Product ID Measurement skipped, unmet condition check ConditionSecurity=measured-uki
+systemd-tpm2-setup-early.service - Early TPM SRK Setup skipped, unmet condition check ConditionSecurity=measured-uki
+Collecting audit messages is disabled.
+Starting systemd-udev-load-credentials.service - Load udev Rules from Credentials...
+Starting systemd-udev-trigger.service - Coldplug All udev Devices...
+Mounted dev-hugepages.mount - Huge Pages File System.
+Mounted dev-mqueue.mount - POSIX Message Queue File System.
+Mounted sys-kernel-debug.mount - Kernel Debug File System.
+Mounted sys-kernel-tracing.mount - Kernel Trace File System.
+Mounted tmp.mount - Temporary Directory /tmp.
+Finished kmod-static-nodes.service - Create List of Static Device Nodes.
+Mounted sys-kernel-config.mount - Kernel Configuration File System.
+modprobe@efi_pstore.service: Deactivated successfully.
+Finished modprobe@efi_pstore.service - Load Kernel Module efi_pstore.
+Mounted sys-fs-fuse-connections.mount - FUSE Control File System.
+Journal started
+Runtime Journal (/run/log/journal/b5372fc37ce1460a95456495e831d598) is 4.8M, max 39M, 34.1M free.
+Starting systemd-tmpfiles-setup-dev-early.service - Create Static Device Nodes in /dev gracefully...
+Started systemd-journald.service - Journal Service.
+Finished keyboard-setup.service - Set the console keyboard layout.
+cloudimg-rootfs: clean, 30881/327680 files, 247470/655099 blocks
+Finished systemd-udev-load-credentials.service - Load udev Rules from Credentials.
+Finished systemd-fsck-root.service - File System Check on Root Device.
+Finished systemd-modules-load.service - Load Kernel Modules.
+Starting systemd-remount-fs.service - Remount Root and Kernel File Systems...
+Starting systemd-sysctl.service - Apply Kernel Variables...
+Finished systemd-tmpfiles-setup-dev-early.service - Create Static Device Nodes in /dev gracefully.
+Finished systemd-sysctl.service - Apply Kernel Variables.
+EXT4-fs (vda1): re-mounted b387c6d0-40f1-4305-ab29-fc322fc392f1 r/w.
+Finished systemd-remount-fs.service - Remount Root and Kernel File Systems.
+Starting cloud-init-main.service - Cloud-init: Single Process...
+systemd-hwdb-update.service - Rebuild Hardware Database skipped, no trigger condition checks were met.
+Starting systemd-journal-flush.service - Flush Journal to Persistent Storage...
+systemd-pstore.service - Platform Persistent Storage Archival skipped, unmet condition check ConditionDirectoryNotEmpty=/sys/fs/pstore
+Starting systemd-random-seed.service - Load/Save OS Random Seed...
+Starting systemd-sysusers.service - Create System Users...
+Time spent on flushing to /var/log/journal/b5372fc37ce1460a95456495e831d598 is 3.736ms for 464 entries.
+System Journal (/var/log/journal/b5372fc37ce1460a95456495e831d598) is 8M, max 240.8M, 232.8M free.
+Received client request to flush runtime journal.
+systemd-tpm2-setup.service - TPM SRK Setup skipped, unmet condition check ConditionSecurity=measured-uki
+systemd-pcrnvdone.service - TPM PCR NvPCR Initialization Separator skipped, unmet condition check ConditionSecurity=measured-uki
+Finished systemd-sysusers.service - Create System Users.
+Starting systemd-resolved.service - Network Name Resolution...
+Starting systemd-tmpfiles-setup-dev.service - Create Static Device Nodes in /dev...
+Finished systemd-random-seed.service - Load/Save OS Random Seed.
+Finished systemd-tmpfiles-setup-dev.service - Create Static Device Nodes in /dev.
+Reached target local-fs-pre.target - Preparation for Local File Systems.
+Starting systemd-udevd.service - Rule-based Manager for Device Events and Files...
+Finished systemd-journal-flush.service - Flush Journal to Persistent Storage.
+Using default interface naming scheme 'v259'.
+Finished systemd-udev-trigger.service - Coldplug All udev Devices.
+Positive Trust Anchors:
+. IN DS 20326 8 2 e06d44b80b8f1d39a95c0b0d7c65d08458e880409bbc683457104237c7f8ec8d
+. IN DS 38696 8 2 683d2d0acb8c9b712a1948b27f741219298d0a450d612c483af444a4c0fb2b16
+Started systemd-udevd.service - Rule-based Manager for Device Events and Files.
+Using system hostname 'ubuntu'.
+Started systemd-resolved.service - Network Name Resolution.
+Reached target nss-lookup.target - Host and Network Name Lookups.
+virtio_net virtio0 enp0s1: renamed from eth0
+Found device dev-hvc0.device - /dev/hvc0.
+Started cloud-init-main.service - Cloud-init: Single Process.
+Found device dev-disk-by\x2dlabel-UEFI.device - /dev/disk/by-label/UEFI.
+Found device dev-disk-by\x2dlabel-BOOT.device - /dev/disk/by-label/BOOT.
+Starting cloud-init-local.service - Cloud-init: Local Stage (pre-network)...
+Starting systemd-fsck@dev-disk-by\x2dlabel-BOOT.service - File System Check on /dev/disk/by-label/BOOT...
+Cloud-init v. 26.1-0ubuntu3~26.04.1 running 'init-local' at Wed, 04 Nov 2026 11:10:25 +0000. Up 0.59 seconds.
+BOOT: clean, 281/59136 files, 18680/236288 blocks
+Finished systemd-fsck@dev-disk-by\x2dlabel-BOOT.service - File System Check on /dev/disk/by-label/BOOT.
+ISO 9660 Extensions: Microsoft Joliet Level 1
+ISO 9660 Extensions: IEEE_P1282
+System hostname changed to 'ukai-linux-preview'.
+Listening on systemd-rfkill.socket - Load/Save RF Kill Switch Status /dev/rfkill Watch.
+Reload requested from client PID 222 ('systemctl') (unit cloud-init-main.service)...
+Reloading...
+/usr/lib/systemd/system-generators/cloud-init-generator failed with exit status 1.
+Reloading finished in 81 ms.
+Mounting boot.mount - /boot...
+EXT4-fs (vda13): mounted filesystem a685f40c-e82d-4850-8e72-b1adb896e196 r/w with ordered data mode. Quota mode: none.
+Mounted boot.mount - /boot.
+Mounting boot-efi.mount - /boot/efi...
+Mounted boot-efi.mount - /boot/efi.
+Reached target local-fs.target - Local File Systems.
+Listening on systemd-sysext.socket - System Extension Image Management.
+Starting apparmor.service - Load AppArmor profiles...
+Starting console-setup.service - Set console font and keymap...
+Starting netplan-configure.service - Netplan Backend Configuration...
+Starting systemd-binfmt.service - Set Up Additional Binary Formats...
+Starting systemd-tmpfiles-setup.service - Create System Files and Directories...
+Finished console-setup.service - Set console font and keymap.
+Illegal instruction
+Restarting AppArmor
+proc-sys-fs-binfmt_misc.automount: Got automount request for /proc/sys/fs/binfmt_misc, triggered by 269 (systemd-binfmt)
+Reloading AppArmor profiles
+Mounting proc-sys-fs-binfmt_misc.mount - Arbitrary Executable File Formats File System...
+Mounted proc-sys-fs-binfmt_misc.mount - Arbitrary Executable File Formats File System.
+Finished systemd-binfmt.service - Set Up Additional Binary Formats.
+audit: type=1400 audit(1793790625.776:2): apparmor="STATUS" operation="profile_load" profile="unconfined" name="1password" pid=286 comm="apparmor_parser"
+audit: type=1400 audit(1793790625.778:3): apparmor="STATUS" operation="profile_load" profile="unconfined" name="Discord" pid=287 comm="apparmor_parser"
+audit: type=1400 audit(1793790625.779:4): apparmor="STATUS" operation="profile_load" profile="unconfined" name=4D6F6E676F444220436F6D70617373 pid=290 comm="apparmor_parser"
+audit: type=1400 audit(1793790625.780:5): apparmor="STATUS" operation="profile_load" profile="unconfined" name="QtWebEngineProcess" pid=291 comm="apparmor_parser"
+Finished systemd-tmpfiles-setup.service - Create System Files and Directories.
+Starting ldconfig.service - Rebuild Dynamic Linker Cache...
+systemd-firstboot.service - Initial Setup skipped, unmet condition check ConditionFirstBoot=yes
+first-boot-complete.target - First Boot Complete skipped, unmet condition check ConditionFirstBoot=yes
+Starting systemd-journal-catalog-update.service - Rebuild Journal Catalog...
+Starting systemd-machine-id-commit.service - Save Transient machine-id to Disk...
+Finished netplan-configure.service - Netplan Backend Configuration.
+audit: type=1400 audit(1793790625.855:6): apparmor="STATUS" operation="profile_load" profile="unconfined" name="Xorg" pid=292 comm="apparmor_parser"
+audit: type=1400 audit(1793790625.855:7): apparmor="STATUS" operation="profile_load" profile="unconfined" name="Xorg_wrap" pid=292 comm="apparmor_parser"
+audit: type=1400 audit(1793790625.863:8): apparmor="STATUS" operation="profile_load" profile="unconfined" name="alsamixer" pid=293 comm="apparmor_parser"
+Finished systemd-journal-catalog-update.service - Rebuild Journal Catalog.
+audit: type=1400 audit(1793790625.877:9): apparmor="STATUS" operation="profile_load" profile="unconfined" name="balena-etcher" pid=302 comm="apparmor_parser"
+Finished systemd-machine-id-commit.service - Save Transient machine-id to Disk.
+audit: type=1400 audit(1793790625.896:10): apparmor="STATUS" operation="profile_load" profile="unconfined" name="babeld" pid=301 comm="apparmor_parser"
+Finished ldconfig.service - Rebuild Dynamic Linker Cache.
+Starting systemd-update-done.service - Update is Completed...
+Finished systemd-update-done.service - Update is Completed.
+etc-machine\x2did.mount: Deactivated successfully.
+Finished apparmor.service - Load AppArmor profiles.
+Starting snapd.apparmor.service - Load AppArmor profiles managed internally by snapd...
+main.go:143: No profiles to load
+Finished snapd.apparmor.service - Load AppArmor profiles managed internally by snapd.
+Finished cloud-init-local.service - Cloud-init: Local Stage (pre-network).
+Reached target network-pre.target - Preparation for Network.
+Listening on systemd-networkd-resolve-hook.socket - Network Management Resolve Hook Socket.
+Starting cloud-init-network.service - Cloud-init: Network Stage...
+Starting systemd-networkd.service - Network Management...
+cloud-init-main.service: Main process exited, code=killed, status=11/SEGV
+cloud-init-main.service: Failed with result 'signal'.
+cloud-init-main.service: Unit process 201 (sh) remains running after unit stopped.
+cloud-init-main.service: Unit process 202 (tee) remains running after unit stopped.
+cloud-init-main.service: Consumed 2.852s CPU time over 3.216s wall clock time, 124.6M memory peak.
+Finished cloud-init-network.service - Cloud-init: Network Stage.
+Reached target cloud-config.target - Cloud-config availability.
+Reached target sysinit.target - System Initialization.
+apport-autoreport.path - Process error reports when automatic reporting is enabled (file watch) skipped, unmet condition check ConditionPathExists=/var/lib/apport/autoreport
+apport-autoreport.timer - Process error reports when automatic reporting is enabled (timer based) skipped, unmet condition check ConditionPathExists=/var/lib/apport/autoreport
+Started apt-daily.timer - Daily apt download activities.
+Started apt-daily-upgrade.timer - Daily apt upgrade and clean activities.
+Started dpkg-db-backup.timer - Daily dpkg database backup timer.
+Started e2scrub_all.timer - Periodic ext4 Online Metadata Check for All Filesystems.
+Started fstrim.timer - Discard unused filesystem blocks once a week.
+Started motd-news.timer - Message of the Day.
+snapd.snap-repair.timer - Timer to automatically fetch and run repair assertions skipped, no trigger condition checks were met.
+Started systemd-tmpfiles-clean.timer - Daily Cleanup of Temporary Directories.
+ua-timer.timer - Ubuntu Pro Timer for running repeated jobs skipped, unmet condition check ConditionPathExists=/var/lib/ubuntu-advantage/private/machine-token.json
+Reached target boot-complete.target - Boot Completion Check.
+Reached target paths.target - Path Units.
+Reached target timers.target - Timer Units.
+apport-forward.socket - Unix socket for apport crash forwarding skipped, unmet condition check ConditionVirtualization=container
+Listening on cloud-init-hotplugd.socket - cloud-init hotplug hook socket.
+Listening on dbus.socket - D-Bus System Message Bus Socket.
+Starting lxd-installer.socket - Helper to install lxd snap on demand...
+Starting snapd.socket - Socket activation for snappy daemon...
+Listening on ssh.socket - OpenBSD Secure Shell server socket.
+Listening on sshd-unix-local.socket - OpenSSH Server Socket (systemd-ssh-generator, AF_UNIX Local).
+Starting sshd-vsock.socket - OpenSSH Server Socket (systemd-ssh-generator, AF_VSOCK)...
+Listening on systemd-hostnamed.socket - Hostname Service Socket.
+Listening on systemd-logind-varlink.socket - User Login Management Varlink Socket.
+systemd-pcrphase-sysinit.service - TPM PCR Barrier (Initialization) skipped, unmet condition check ConditionSecurity=measured-uki
+systemd-networkd.service: Main process exited, code=killed, status=11/SEGV
+systemd-networkd.service: Failed with result 'signal'.
+Failed to start systemd-networkd.service - Network Management.
+Dependency failed for systemd-networkd-persistent-storage.service - Enable Persistent Storage in systemd-networkd.
+systemd-networkd-persistent-storage.service: Job systemd-networkd-persistent-storage.service/start failed with result 'dependency'.
+Dependency failed for systemd-networkd-wait-online.service - Wait for Network to be Online.
+systemd-networkd-wait-online.service: Job systemd-networkd-wait-online.service/start failed with result 'dependency'.
+Listening on lxd-installer.socket - Helper to install lxd snap on demand.
+Listening on snapd.socket - Socket activation for snappy daemon.
+systemd-networkd.service: Scheduled restart job, restart counter is at 1.
+Listening on sshd-vsock.socket - OpenSSH Server Socket (systemd-ssh-generator, AF_VSOCK).
+Reached target sockets.target - Socket Units.
+Reached target basic.target - Basic System.
+System is tainted: unmerged-bin
+Reached target ssh-access.target - SSH Access Available.
+Starting apport.service - automatic crash report generation...
+Starting chrony.service - chrony, an NTP client/server...
+Starting dbus.service - D-Bus System Message Bus...
+Starting e2scrub_reap.service - Remove Stale Online ext4 Metadata Check Snapshots...
+getty-static.service - getty on tty2-tty6 if dbus and logind are not available skipped, unmet condition check ConditionPathExists=!/usr/bin/dbus-daemon
+Starting grub2-common.service - Record successful boot for GRUB...
+secureboot-db.service - Secure Boot updates for DB and DBX skipped, unmet condition check ConditionPathExists=/sys/firmware/efi/efivars/db-d719b2cb-3d3a-4596-a3bc-dad00e67656f
+snapd.core-fixup.service - Automatically repair incorrect owner/permissions on core devices skipped, no trigger condition checks were met.
+snapd.recovery-chooser-trigger.service - Wait for the Ubuntu Core chooser trigger skipped, unmet condition check ConditionKernelCommandLine=snapd_recovery_mode
+Reached target getty-pre.target - Preparation for Logins.
+Starting snapd.seeded.service - Wait until snapd is fully seeded...
+Starting snapd.service - Snap Daemon...
+sshd-keygen.service - Generate sshd host keys on first boot skipped, unmet condition check ConditionFirstBoot=yes
+Starting systemd-logind.service - User Login Management...
+systemd-pcrphase.service - TPM PCR Barrier (User) skipped, unmet condition check ConditionSecurity=measured-uki
+ua-reboot-cmds.service - Ubuntu Pro reboot cmds skipped, unmet condition check ConditionPathExists=/var/lib/ubuntu-advantage/private/machine-token.json
+dbus.service: Main process exited, code=killed, status=11/SEGV
+dbus.service: Failed with result 'signal'.
+Failed to start dbus.service - D-Bus System Message Bus.
+systemd-networkd.service: Scheduled restart job, restart counter is at 2.
+Segmentation fault
+chrony.service: Main process exited, code=exited, status=139/n/a
+chrony.service: Failed with result 'exit-code'.
+Failed to start chrony.service - chrony, an NTP client/server.
+Watching system buttons on /dev/input/event0 (Power Button)
+free(): chunks in smallbin corrupted
+New seat seat0.
+systemd-udevd.service: Main process exited, code=killed, status=6/ABRT
+systemd-udevd.service: Failed with result 'signal'.
+Started systemd-logind.service - User Login Management.
+systemd-udevd.service: Scheduled restart job, restart counter is at 1.
+e2scrub_reap.service: Deactivated successfully.
+Finished e2scrub_reap.service - Remove Stale Online ext4 Metadata Check Snapshots.
+systemd-networkd.service: Scheduled restart job, restart counter is at 3.
+seclog.go:174: security logger enabled
+dbus.service: Start request repeated too quickly.
+dbus.socket: Failed with result 'service-start-limit-hit'.
+systemd-resolved.service: Main process exited, code=killed, status=11/SEGV
+systemd-resolved.service: Failed with result 'signal'.
+systemd-resolved.service: Scheduled restart job, restart counter is at 1.
+systemd-networkd.service: Scheduled restart job, restart counter is at 4.
+Traceback (most recent call last):
+  File "/usr/share/apport/apport", line 44, in <module>
+    import apport.fileutils
+  File "/usr/lib/python3/dist-packages/apport/fileutils.py", line 32, in <module>
+    from apport.packaging_impl import impl as packaging
+  File "/usr/lib/python3/dist-packages/apport/packaging_impl/__init__.py", line 33, in <module>
+    impl = load_packaging_implementation()
+  File "/usr/lib/python3/dist-packages/apport/packaging_impl/__init__.py", line 27, in load_packaging_implementation
+    module = importlib.import_module(
+        f"apport.packaging_impl.{determine_packaging_implementation()}"
+    )
+  File "/usr/lib/python3.14/importlib/__init__.py", line 88, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3/dist-packages/apport/packaging_impl/apt_dpkg.py", line 49, in <module>
+    import apt
+  File "/usr/lib/python3/dist-packages/apt/__init__.py", line 38, in <module>
+    apt_pkg.init_system()
+    ~~~~~~~~~~~~~~~~~~~^^
+apt_pkg.Error: E:Error reading the CPU table
+Error in sys.excepthook:
+  File "/usr/lib/python3/dist-packages/apport_python_hook.py", line 238, in partial_apport_excepthook
+    return apport_excepthook(binary, exc_type, exc_obj, exc_tb)
+  File "/usr/lib/python3/dist-packages/apport_python_hook.py", line 72, in apport_excepthook
+    import apport.report
+  File "/usr/lib/python3/dist-packages/apport/report.py", line 45, in <module>
+Original exception was:
+/usr/lib/systemd/systemd-resolved: symbol lookup error: /usr/lib/aarch64-linux-gnu/libssl.so.3: undefined symbol: , version OPENSSL_3.0.0
+systemd-resolved.service: Main process exited, code=exited, status=127/n/a
+systemd-resolved.service: Failed with result 'exit-code'.
+Failed to start systemd-resolved.service - Network Name Resolution.
+systemd-resolved.service: Scheduled restart job, restart counter is at 2.
+overlord.go:313: Acquiring state lock file
+overlord.go:318: Acquired state lock file
+grub2-common.service: Deactivated successfully.
+Finished grub2-common.service - Record successful boot for GRUB.
+Starting grub-initrd-fallback.service - GRUB failed boot detection...
+apport.service: Main process exited, code=exited, status=1/FAILURE
+apport.service: Failed with result 'exit-code'.
+Failed to start apport.service - automatic crash report generation.
+systemd-networkd.service: Scheduled restart job, restart counter is at 5.
+systemd-networkd.service: Start request repeated too quickly.
+systemd-networkd-resolve-hook.socket: Failed with result 'service-start-limit-hit'.
+systemd-networkd-varlink.socket: Failed with result 'service-start-limit-hit'.
+systemd-networkd.socket: Failed with result 'service-start-limit-hit'.
+systemd-resolved.service: Scheduled restart job, restart counter is at 3.
+systemd-resolved.service: Scheduled restart job, restart counter is at 4.
+daemon.go:277: started snapd/2.76.3 (series 16; classic) ubuntu/26.04 (arm64) linux/7.0.0-38-generic.
+loop0: detected capacity change from 0 to 8
+daemon.go:371: adjusting startup timeout by 30s (pessimistic estimate of 30s plus 5s per snap)
+systemd-resolved.service: Scheduled restart job, restart counter is at 5.
+systemd-resolved.service: Start request repeated too quickly.
+systemd-resolved-varlink.socket: Failed with result 'service-start-limit-hit'.
+systemd-resolved-monitor.socket: Failed with result 'service-start-limit-hit'.
+Reached target network.target - Network.
+Reached target network-online.target - Network is Online.
+Starting cloud-config.service - Cloud-init: Config Stage...
+nc: /run/cloud-init/share/config.sock: Connection refused
+Starting ssh.service - OpenBSD Secure Shell server...
+Starting systemd-user-sessions.service - Permit User Sessions...
+ubuntu-advantage.service - Ubuntu Pro Background Auto Attach skipped, no trigger condition checks were met.
+Started unattended-upgrades.service - Unattended Upgrades Shutdown.
+Finished cloud-config.service - Cloud-init: Config Stage.
+sshd: no hostkeys available -- exiting.
+ssh.service: Control process exited, code=exited, status=1/FAILURE
+ssh.service: Failed with result 'exit-code'.
+Failed to start ssh.service - OpenBSD Secure Shell server.
+Finished systemd-user-sessions.service - Permit User Sessions.
+Started serial-getty@hvc0.service - Serial Getty on hvc0.
+Starting setvtrgb.service - Set console scheme...
+backends.go:70: AppArmor status: apparmor is enabled and all features are available
+Finished setvtrgb.service - Set console scheme.
+Created slice system-getty.slice - Slice /system/getty.
+Started getty@tty1.service - Getty on tty1.
+Reached target getty.target - Login Prompts.
+unattended-upgrades.service: Main process exited, code=killed, status=11/SEGV
+unattended-upgrades.service: Failed with result 'signal'.
+backend.go:145: reloading profiles for snap-confine
+grub-initrd-fallback.service: Deactivated successfully.
+Finished grub-initrd-fallback.service - GRUB failed boot detection.
+seclog.go:189: security logger disabled
+cannot run daemon: state startup errors: [cannot initialize snap-confine profiles: cannot reload snap-confine apparmor profile: cannot load apparmor profiles: exit status 1
+apparmor_parser output:
+ERROR processing policydb rules for profile /usr/lib/snapd/snap-confine, failed to load
+]
+snapd.service: Main process exited, code=exited, status=1/FAILURE
+snapd.service: Failed with result 'exit-code'.
+ssh.service: Scheduled restart job, restart counter is at 1.
+snapd.service: Scheduled restart job, restart counter is at 1.
+ssh.service: Scheduled restart job, restart counter is at 2.
+patch.go:64: Patching system state level 6 to sublevel 1...
+patch.go:64: Patching system state level 6 to sublevel 2...
+patch.go:64: Patching system state level 6 to sublevel 3...
+ssh.service: Scheduled restart job, restart counter is at 3.
+ssh.service: Scheduled restart job, restart counter is at 4.
+snapd.service: Scheduled restart job, restart counter is at 2.
+tmp-syscheck\x2dmountpoint\x2d3829949861.mount: Deactivated successfully.
+ssh.service: Scheduled restart job, restart counter is at 5.
+ssh.service: Start request repeated too quickly.
+ssh.socket: Failed with result 'service-start-limit-hit'.
+snapd.service: Scheduled restart job, restart counter is at 3.
+tmp-syscheck\x2dmountpoint\x2d3074698053.mount: Deactivated successfully.
+snapd.service: Scheduled restart job, restart counter is at 4.
+tmp-syscheck\x2dmountpoint\x2d3651373790.mount: Deactivated successfully.
+snapd.service: Scheduled restart job, restart counter is at 5.
+snapd.service: Start request repeated too quickly.
+Failed to start snapd.service - Snap Daemon.
+snapd.socket: Failed with result 'service-start-limit-hit'.
+snapd.service: Triggering OnFailure= dependencies.
+Starting snapd.failure.service - Failure handling of the snapd snap...
+cmd_snapd.go:132: no snapd snap in the system
+snapd.failure.service: Deactivated successfully.
+Finished snapd.failure.service - Failure handling of the snapd snap.
+error: cannot communicate with server: Get "http://localhost/v2/snaps/system/conf?keys=seed.loaded": dial unix /run/snapd.socket: connect: connection refused
+snapd.seeded.service: Main process exited, code=exited, status=1/FAILURE
+snapd.seeded.service: Failed with result 'exit-code'.
+Failed to start snapd.seeded.service - Wait until snapd is fully seeded.
+snapd.autoimport.service - Auto import assertions from block devices skipped, no trigger condition checks were met.
+Reached target multi-user.target - Multi-User System.
+Reached target graphical.target - Graphical Interface.
+Starting cloud-final.service - Cloud-init: Final Stage...
+nc: /run/cloud-init/share/final.sock: Connection refused
+Finished cloud-final.service - Cloud-init: Final Stage.
+Reached target cloud-init.target - Cloud-init target.
+Startup finished in 78ms (kernel) + 2min 3.613s (userspace) = 2min 3.692s.

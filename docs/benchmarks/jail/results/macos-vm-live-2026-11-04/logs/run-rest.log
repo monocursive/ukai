@@ -1,0 +1,23 @@
+== client-kill rerun 14:08:20
+case: client-kill
+{"client-kill": "PASS"}
+rc=1
+== warm_live 14:09:39
+{"attempts_run": 20, "warm_reuse_one_serve_boot": true, "warm_reuse_one_guest_boot": true, "every_attempt_exit_zero": true, "every_receipt_verified": true, "every_granted_write_reached_host": true, "every_protected_write_tried_and_refused": true, "protected_git_never_reached": true, "every_attempt_saw_the_jails_denial": true, "guest_nat": true, "guest_nat_attached": true, "route_control": {"attempt_id": "warm-route-de61997888e709bf", "route": {"verdict": "not_reached", "reached": false, "status_line": null, "error": "TimeoutError: timed out", "target": ["1.1.1.1", 443]}, "boot_id": "vm-07370680-401f-4d01-b50e-8cc24ab49cba", "error": null}, "route_control_reached_the_target": false, "route_control_on_the_same_guest_boot": true, "route_control_receipt_bound": true, "every_attempt_network_denied": false, "every_receipt_network_none": true, "k108_client": "python attempt-socket client (warm_live.py), not ukai-jail run --vm", "k108_measure": "connect->released per attempt, including the guest jail's own release", "k108_budget_ms": 1000.0, "k108_max_ms": 39931.1, "k108_every_attempt_within_budget": false, "k108_twenty_runs": true, "service_stopped_cleanly": true, "failed": ["route_control_reached_the_target", "every_attempt_network_denied", "k108_every_attempt_within_budget"], "outcome": "FAIL"}
+rc=1
+== gate_rows 14:11:50
+Traceback (most recent call last):
+  File "/Users/monocursive/code/ukai-live/crates/ukai-jail/vm/gate_rows.py", line 300, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/Users/monocursive/code/ukai-live/crates/ukai-jail/vm/gate_rows.py", line 283, in main
+    binary = harness.required_binary('UKAI_VM_BINARY', str(home / 'bin' / 'ukai-vm'))
+  File "/Users/monocursive/code/ukai-live/crates/ukai-jail/vm/harness.py", line 95, in required_binary
+    path = Path(value).expanduser().resolve(strict=True)
+  File "/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py", line 938, in resolve
+    return self.with_segments(os.path.realpath(self, strict=strict))
+                              ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen posixpath>", line 457, in realpath
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/monocursive/ukai-vm-live/home3/bin'
+rc=1
+== done 14:11:50
