@@ -86,5 +86,7 @@ pub mod supervisor;
 pub(crate) mod sync;
 pub(crate) mod sys;
 pub mod terminal;
+#[cfg(test)]
+pub(crate) mod test_evidence;
 pub mod trace;
 pub(crate) mod vault;
