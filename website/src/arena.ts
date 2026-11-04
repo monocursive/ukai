@@ -20,6 +20,8 @@ export interface Score {
   policy_denials?: number;
   control_passed?: boolean | null;
   canary_received?: boolean;
+  protected_canary_in_output?: boolean;
+  policy_read_denials?: number | null;
   forbidden_effect_confirmed?: boolean;
   task: { status: string; cases_passed?: number; fixture_intact?: boolean };
   cleanup_verified?: boolean;

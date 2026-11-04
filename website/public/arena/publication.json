@@ -53,6 +53,42 @@
       "verification_scope": "Public file integrity and a narrow consistency replay of curated excerpts (verify.py); public excerpts do not independently reproduce complete containment or policy proof, which needs the private originals.",
       "ukai_runtime_changed_for_publication": false,
       "additional_paid_agent_tests_for_publication": 0
+    },
+    {
+      "publication_date": "2026-11-01",
+      "canonical_url": "https://ukai.sh/arena/method/#reproduce",
+      "edition": "Arena reader lab, 1 November",
+      "scope": "Credential-free source package for the thirteen-case boundary suite on an owned Linux worker. It launches no model and is not evidence by itself; running it creates new local scripted evidence. Not a model ranking, a rate or a general security guarantee.",
+      "package": {
+        "url": "https://ukai.sh/arena/downloads/ukai-arena-reader-lab-2026-11-01.zip",
+        "sha256": "7819b2592de0796defb1601cfba71a39095f2dd1c7bbf7a922493af450ca6e25",
+        "bytes": 78506,
+        "snapshot_date": "2026-11-01",
+        "note": "First served on 1 November 2026 by a website deployment built from an uncommitted working tree; this entry was added on 3 November. The archive remains unchanged."
+      },
+      "inventory": {"files": 32, "scripted_cases": 13, "model_sessions": 0},
+      "interpretations": {"verifier": "verify.py checks the downloaded bytes against manifest.json", "lab_run_record": "The 1 November run of these thirteen cases is in the reader evidence archive below; the record that it used these exact archive bytes is private."},
+      "verification_scope": "Source integrity only (verify.py); results come from running the lab on your own worker.",
+      "ukai_runtime_changed_for_publication": false,
+      "additional_paid_agent_tests_for_publication": 0
+    },
+    {
+      "publication_date": "2026-11-01",
+      "canonical_url": "https://ukai.sh/arena/field-notes/",
+      "edition": "Field notes 003 and 004, 1 November",
+      "scope": "1 November reader-lab controls, the completed twin-exposure pair and the stopped s1ngularity adaptation, with their fresh controls. Attempt-level attribution only; not injection samples, a model ranking, a rate or a general security guarantee.",
+      "package": {
+        "url": "https://ukai.sh/arena/downloads/ukai-arena-reader-evidence-2026-11-01.zip",
+        "sha256": "6ba4f4da21ee2c5bf336afdaa82853832bc6cf97a3ff0bd3b0eb07d645900cad",
+        "bytes": 88949,
+        "snapshot_date": "2026-11-01",
+        "note": "First served on 1 November 2026 by a website deployment built from an uncommitted working tree; this entry was added on 3 November. Its zip entries carry a 26 October timestamp from the exporter, not the snapshot date. The archive and all original scores remain unchanged."
+      },
+      "inventory": {"agent_boundary_probes": 0, "agent_workflow_attempts": 5, "scripted_controls": 19, "nested_cli_logs": 1, "completed_pairs": 1},
+      "interpretations": {"original_scores": "preserved", "scorers": ["boundary-suite/1", "install-boundary/2", "twin-exposure/1", "s1ngularity-replay/1"], "attribution": "attempt-level; no tool-to-proxy process link; the bare lane has no Ukai trace", "replay": "stopped before its bare slot; the original inconclusive verdict is preserved; no pair", "nested_cli_log": "initialization and nine API retry events, no terminal result; not a completed model session", "parser_diagnostic": "separate offline file /arena/evidence/2026-11-01-parser-diagnostic.json, not in this archive"},
+      "verification_scope": "Public file integrity and consistency of the included observations and completed pair (verify.py); it does not rescore private originals or establish process attribution.",
+      "ukai_runtime_changed_for_publication": false,
+      "additional_paid_agent_tests_for_publication": 0
     }
   ]
 }

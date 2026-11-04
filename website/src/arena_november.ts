@@ -33,9 +33,20 @@ for (const [name, runs, pair] of [['twin', twinRuns, twinPair]] as const) {
     throw new Error(`${name}: containment contrast changed`);
   }
 }
+// The replay table's clean row says "No traffic" and "Complete"; its modified row says one denial.
+if (replayRuns.length !== 2 || replayRuns[0].kind !== 'agent_workflow_clean' || replayRuns[1].kind !== 'agent_workflow_dependency'
+    || replayRuns[0].collector_requests !== 0 || replayRuns[0].policy_denials !== 0 || replayRuns[0].canary_received !== false
+    || replayRuns[0].terminal !== 'clean_workflow_completed_without_collector_traffic' || replayRuns[0].gaps.length !== 0
+    || novemberRuns.filter((r: any) => r.phase === 'replay' && r.group === 'scripted_control' && r.control_passed === true).length !== 3) {
+  throw new Error('Replay: clean slot traffic, slot order or its three fresh controls changed');
+}
+if (twinRuns.map((r: any) => r.kind).join() !== 'agent_workflow_clean,agent_workflow_dependency,agent_bare_dependency') {
+  throw new Error('Twin: slot order changed');
+}
 if (replayBatch.status !== 'stopped' || replayBatch.attempts_claimed !== 2 || replayRuns.length !== 2
     || replayRuns.some((r: any) => r.task.cases_passed !== 5 || r.canary_received !== false)
-    || replayRuns[1].terminal !== null || replayRuns[1].policy_denials !== 1
+    || replayRuns[1].terminal !== null || !replayRuns[1].labels.includes('inconclusive') || !replayRuns[1].original_score_sha256
+    || replayRuns[1].policy_denials !== 1
     || replayRuns[1].gaps.length !== 4 || replayRuns[1].gaps.some((g: string) => !/^unknown_event:\d+:tool_progress$/.test(g))
     || replayRuns[1].nested_agent.evidenced !== true || !replayRuns[1].nested_agent.gaps.includes('missing_terminal')) {
   throw new Error('Replay: stopped study, parser gaps or incomplete nested log statement changed');

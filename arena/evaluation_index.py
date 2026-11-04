@@ -1,25 +1,102 @@
 """Validation and honest counting for arena/evaluation-index.json.
 
-Read-only helper: it never edits original results, launches processes or
-touches the network. A repeated copy of one run counts once; conflicting
-records under one run ID are an error, not a merge.
+It never edits original results, launches processes or touches the network. A
+repeated copy of one run counts once; conflicting records under one run ID are
+an error, not a merge. Publication fields must match what the website serves:
+`--sync-public --write` regenerates them (and `as_of_utc`) from the public
+exports under website/public/arena/evidence/; nothing else is rewritten.
 """
 import argparse
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 INDEX = HERE / 'evaluation-index.json'
+EVIDENCE = HERE.parent / 'website' / 'public' / 'arena' / 'evidence'
 CLASSES = ('boundary_enforcement', 'workflow_containment', 'prompt_injection_behavior', 'exposure_contrast')
+PRIVATE_STATUSES = ('private_not_published', 'not_published')
+
+
+def served_records(evidence=EVIDENCE):
+    """Run ID -> URL paths of every served copy of its record, oldest export first."""
+    evidence, served = Path(evidence), {}
+    for results in sorted(evidence.glob('*/results.json')):
+        for run in json.loads(results.read_text()).get('runs', []):
+            record = results.parent / run['record']
+            if record.is_file():
+                url = '/' + record.relative_to(evidence.parent.parent).as_posix()
+                served.setdefault(run['run_id'], []).append(url)
+    return served
+
+
+def claimed_records(entry):
+    """Every public record path an entry names, as a served URL path."""
+    values = [entry.get('provenance', {}).get('public_record'), entry.get('public_record'),
+              *entry.get('public_records', [])]
+    return {'/' + v.removeprefix('website/public').lstrip('/') for v in values if isinstance(v, str)}
+
+
+def publication_errors(index, served):
+    """A served record never reads as private, and a private one never claims a page."""
+    errors, seen = [], set()
+    for entry in index.get('runs', []):
+        ident = entry.get('run_id')
+        if not ident or ident in seen:
+            continue
+        seen.add(ident)
+        urls, claimed = set(served.get(ident, [])), claimed_records(entry)
+        status = entry.get('publication_status')
+        if urls and status in PRIVATE_STATUSES:
+            errors.append('served publicly but marked ' + str(status) + ': ' + ident)
+        if urls and claimed != urls:
+            errors.append('public record paths disagree with the served copies: ' + ident)
+        if not urls and (claimed or status not in PRIVATE_STATUSES):
+            errors.append('claims publication without a served record: ' + ident)
+    starts = [e['started_at_utc'] for e in index.get('runs', []) if e.get('started_at_utc')]
+    try:
+        as_of = datetime.fromisoformat(str(index.get('as_of_utc')))
+        if starts and as_of < max(datetime.fromisoformat(v) for v in starts):
+            errors.append('as_of_utc predates the newest indexed run')
+    except ValueError:
+        errors.append('as_of_utc missing or not ISO 8601')
+    return errors
+
+
+def sync_publication(index, served, as_of=None):
+    """Regenerate publication fields from the served exports; returns the changed run IDs.
+
+    Only `publication_status` (private -> public_derivative), `public_record`
+    (the newest served copy), `public_records` (every copy) and a null
+    `provenance.public_record` placeholder are touched; scores, provenance and
+    limits stay as recorded. `as_of_utc` becomes `as_of` (default: now).
+    """
+    changed = []
+    for entry in index['runs']:
+        urls = served.get(entry.get('run_id'))
+        if not urls:
+            continue
+        before = json.dumps(entry, sort_keys=True)
+        if entry.get('publication_status') in PRIVATE_STATUSES:
+            entry['publication_status'] = 'public_derivative'
+        provenance = entry.get('provenance', {})
+        if 'public_record' in provenance and provenance['public_record'] is None:
+            del provenance['public_record']
+        entry['public_record'] = urls[-1]
+        entry['public_records'] = list(urls)
+        if json.dumps(entry, sort_keys=True) != before:
+            changed.append(entry['run_id'])
+    index['as_of_utc'] = as_of or datetime.now(timezone.utc).isoformat()
+    return changed
 
 
 def load(path=None):
     return json.loads(Path(path or INDEX).read_text())
 
 
-def validate(index):
+def validate(index, served=None):
     """Return an error list; empty means the index is internally consistent."""
-    errors = []
+    errors = publication_errors(index, served_records() if served is None else served)
     if index.get('schema') != 'arena.evaluation-index/1':
         errors.append('unknown index schema')
     runs = index.get('runs', [])
@@ -126,9 +203,21 @@ def summary(index):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--index', type=Path)
+    parser.add_argument('--evidence', type=Path, default=EVIDENCE)
+    parser.add_argument('--sync-public', action='store_true',
+                        help='regenerate publication fields and as_of_utc from the served exports')
+    parser.add_argument('--write', action='store_true', help='with --sync-public, rewrite the index file')
     args = parser.parse_args()
-    index = load(args.index)
-    errors = validate(index)
+    path = Path(args.index or INDEX)
+    index = load(path)
+    served = served_records(args.evidence)
+    if args.sync_public:
+        changed = sync_publication(index, served)
+        if args.write:
+            path.write_text(json.dumps(index, indent=2, ensure_ascii=False) + '\n')
+        print(json.dumps({'schema': 'arena.evaluation-index.sync/1', 'changed_runs': changed,
+                          'written': bool(args.write), 'as_of_utc': index['as_of_utc']}, indent=2))
+    errors = validate(index, served)
     result = {'schema': 'arena.evaluation-index.check/1', 'errors': errors,
               'summary': summary(index) if not errors else None}
     print(json.dumps(result, indent=2))

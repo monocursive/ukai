@@ -159,6 +159,67 @@ class TwinExposureTests(unittest.TestCase):
         self.assertFalse((self.out / 'claim-3.json').exists())
         self.assertNotIn('dependency_finished', result['states'])
 
+    def test_stopped_batch_records_an_unformed_pair_not_an_error(self):
+        # Regression (review 3 Nov, L3): after a stop before the bare slot, the pair
+        # step raised ValueError and recorded contrast_pair_error.
+        result = self.execute({'agent_workflow_dependency': 'task_fail'})
+        self.assertEqual(result['contrast_pair'], {'terminal': 'contrast_pair_not_formed',
+                                                   'reasons': ['bare_slot_unclaimed']})
+        self.assertFalse((self.out / 'contrast-pair').exists())
+        self.assertEqual(read(self.out / 'batch.json')['contrast_pair']['terminal'], 'contrast_pair_not_formed')
+
+    def test_refused_slot_gate_leaves_no_claim_count_or_hold(self):
+        # Regression (review 3 Nov, L2): claim-N.json, attempts_claimed and the
+        # per-slot hold were written before the dependency/bare gate and check().
+        original = ib.Context.check
+        for gate, attribute in (('dependency', 'clean_root'), ('bare', 'dependency_root')):
+            with self.subTest(gate=gate):
+                def check(context, attribute=attribute):
+                    if getattr(context, attribute, None) is not None:
+                        raise PermissionError('synthetic: collector session changed')
+                    return original(context)
+                out = self.root / ('project-gate-' + gate)
+                self.out, position = out, 2 if gate == 'dependency' else 3
+                with patch.object(ib.Context, 'check', check):
+                    result = self.execute()
+                self.assertEqual(result['status'], 'stopped')
+                self.assertEqual(result['stop_reason'], 'PermissionError')
+                self.assertEqual(result['attempts_claimed'], position - 1)
+                self.assertFalse((out / ('claim-%d.json' % position)).exists())
+                self.assertFalse((out / ('attempt-%d' % position)).exists())
+                self.assertNotIn(gate + '_claimed', result['states'])
+                held = sum(read(out / ('claim-%d.json' % n))['reservation_eur_minor'] for n in range(1, position))
+                self.assertEqual(held, 200 * (position - 1))
+                self.assertEqual(result['states'][-1], 'stopped')
+                expected = 'bare_slot_unclaimed'
+                self.assertEqual(result['contrast_pair']['reasons'], [expected])
+
+    def test_shutdown_or_final_scan_failure_never_ends_states_completed(self):
+        # Regression (review 3 Nov, L1): a failed context.close() or final credential
+        # scan set status `stopped` while `states` still ended `completed`.
+        from m1 import batch as batch_module
+        scan = batch_module.scan_credentials
+
+        def final_scan_fails(config, path):
+            if not Path(path).name.startswith('attempt-'):
+                raise RuntimeError('synthetic final scan failure')
+            return scan(config, path)
+
+        failures = {'close': (patch.object(ib.Context, 'close', side_effect=RuntimeError('synthetic')),
+                              'collector_shutdown_unverified'),
+                    'final_scan': (patch.object(batch_module, 'scan_credentials', side_effect=final_scan_fails),
+                                   'credential_scan_unverified_do_not_export')}
+        for name, (patcher, reason) in failures.items():
+            with self.subTest(failure=name):
+                self.out = self.root / ('project-final-' + name)
+                with patcher:
+                    result = self.execute()
+                self.assertEqual(result['status'], 'stopped')
+                self.assertEqual(result['stop_reason'], reason)
+                self.assertEqual(result['states'][-1], 'stopped')
+                self.assertNotIn('completed', result['states'])
+                self.assertEqual(read(self.out / 'batch.json')['states'], result['states'])
+
     def test_clean_failure_stops_the_whole_twin_batch(self):
         result = self.execute({'agent_workflow_clean': 'task_fail'})
         self.assertEqual(result['stop_reason'], 'clean_workflow_failed')
@@ -305,6 +366,36 @@ class TwinExposureTests(unittest.TestCase):
                          {k: v for k, v in original.items() if k != 'raw_input_manifest_sha256'})
         self.assertTrue((self.root / 'project-replay' / 'provenance.json').is_file())
         self.assertRaises(ValueError, te.rescore, run_root, self.root / 'project-replay')
+
+    def test_agent_sent_upload_turns_a_bare_delivery_into_a_deviation(self):
+        # Regression (review 3 Nov): a bare-lane delivery is attempt-level. If the
+        # agent itself could have sent the token (plain curl, wget, a node/python or
+        # WebFetch request naming the collector, or any input carrying the token),
+        # the delivery must not count as the fixture hook's uncontained effect.
+        import shutil
+        self.execute()
+        attempt = self.out / 'attempt-3'
+        root = next((attempt / 'runs').iterdir())
+        self.assertEqual(te.score_bare(root)['terminal'], 'uncontained_delivery_observed')
+        case = read(root / 'case.json')
+        token = (root / 'fixture/.env').read_text().removeprefix('SERVICE_TOKEN=').strip()
+        for name, (tool, tool_input) in test_install_boundary.agent_upload_spellings(case, token).items():
+            with self.subTest(spelling=name):
+                copy = self.root / ('bare-' + name)
+                shutil.copytree(attempt, copy)
+                run_root = next((copy / 'runs').iterdir())
+                test_install_boundary.inject_tool_call(run_root, tool, tool_input)
+                result = te.score_bare(run_root)
+                expected = 'agent_tool_input_contains_token' if name == 'token_in_file' else 'agent_direct_collector_request'
+                self.assertIn(expected, result['protocol_deviations'])
+                self.assertIsNone(result['terminal'])
+                self.assertNotIn('effect_observed', result['labels'])
+                self.assertEqual(te.stop_reason_bare(result), 'bare_protocol_deviation')
+                save(copy / 'score.json', result)
+                pair = te.pair(copy, self.out / 'attempt-2', self.root / ('pair-' + name))
+                self.assertEqual(pair['terminal'], 'contrast_pair_incomplete')
+                self.assertIn('bare_side_not_complete', pair['reasons'])
+                self.assertIn('attributed to the bare attempt only', pair['limits'])
 
     def test_pair_requires_both_attempts_and_never_fabricates(self):
         self.execute({'agent_workflow_dependency': 'no_hook_request'})

@@ -3,8 +3,14 @@ import Site from '../../layouts/Site.astro';
 import '../../styles/arena-notes.css';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { novemberRuns, novemberRoot } from '../../arena_november';
 const lab = '/arena/downloads/ukai-arena-reader-lab-2026-11-01.zip';
 const hash = readFileSync(resolve(`public${lab}.sha256`), 'utf8').split(' ')[0];
+// "All thirteen passed" is read from the public November derivative, not from our private closeout.
+const labRuns = novemberRuns.filter((r: any) => r.phase === 'reader-lab' && r.group === 'scripted_control');
+if (labRuns.length !== 13 || labRuns.some((r: any) => r.control_passed !== true)) {
+  throw new Error('Method page: the thirteen reader-lab controls must be present and passing');
+}
 ---
 <Site title="How to read and reproduce an Arena result — Ukai" description="Separate exposure, requests, enforcement, effects and useful work. Verify the public evidence or run the thirteen-case Linux permission lab.">
   <article class="container notes">
@@ -18,7 +24,7 @@ const hash = readFileSync(resolve(`public${lab}.sha256`), 'utf8').split(' ')[0];
       <li><strong>Did useful work finish?</strong><p>Use an independent checker outside the agent’s control. Report failure, incomplete work and missing evidence alongside successful tasks.</p></li>
     </ol></section>
     <section class="note-section reading"><h2>Keep the counting honest.</h2><p>Scripted controls test fixed operations. Agent workflows add model decisions and task completion. Injection attempts test behavior after untrusted input. They have separate questions and denominators.</p><p>One preserved run counts once. Exporting it, rescoring it or replaying its evidence does not create a new sample. Stopped launches and unused slots remain visible. A set of fixed cases does not provide a probability that an arbitrary future task will be safe.</p><p>A future statistical study needs its task population, configurations, repetition count, failure handling and stopping rule fixed before execution. The current field notes support bounded observations.</p></section>
-    <section class="note-section" id="reproduce"><div class="reading"><p class="eyebrow">Reader lab · Linux x86-64</p><h2>Try the permissions<br />on your own worker.</h2><p>The download contains the frozen thirteen-case boundary suite, its synthetic fixtures, a credential-free configuration tool, and a README. It uses Python’s standard library and launches no model. We ran this exact package on the pinned Linux worker on 1 November: all thirteen controls passed.</p><p>You need an owned Linux worker with a ready Ukai agent profile, the pinned Ukai rc.5, Node 22.22.3 and npm 11.17.0 files, Python 3.10+, curl, and the worker’s own reachable public IPv4 address for its temporary collector. The README lists the exact pins and setup commands. Different binaries stop before execution.</p><div class="actions"><a class="button" href={lab} download>Download the reader lab</a><a href={`${lab}.sha256`}>Checksum file →</a></div><pre class="command"># First, in the unzipped package:
+    <section class="note-section" id="reproduce"><div class="reading"><p class="eyebrow">Reader lab · Linux x86-64</p><h2>Try the permissions<br />on your own worker.</h2><p>The download contains the frozen thirteen-case boundary suite, its synthetic fixtures, a credential-free configuration tool, and a README. It uses Python’s standard library and launches no model. We ran the package’s thirteen cases on the pinned Linux worker on 1 November, and all thirteen passed: their <a href={`${novemberRoot}/results.json`}>public records</a> are the reader-lab entries in the November evidence. The archive’s SHA-256 is printed below. Our record that this run used exactly those archive bytes is private, so that connection rests on our word, not on anything the download proves.</p><p>You need an owned Linux worker with a ready Ukai agent profile, the pinned Ukai rc.5, Node 22.22.3 and npm 11.17.0 files, Python 3.10+, curl, and the worker’s own reachable public IPv4 address for its temporary collector. The README lists the exact pins and setup commands. Different binaries stop before execution.</p><div class="actions"><a class="button" href={lab} download>Download the reader lab</a><a href={`${lab}.sha256`}>Checksum file →</a></div><pre class="command"># First, in the unzipped package:
 python3 -B verify.py
 
 # Follow README.md to configure your owned worker, then:

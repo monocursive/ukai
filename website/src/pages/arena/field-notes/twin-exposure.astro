@@ -4,13 +4,13 @@ import '../../../styles/arena-notes.css';
 import { twinRuns, twinPair, novemberRoot, novemberArchive, novemberArchiveSha, runLink } from '../../../arena_november';
 const [clean, contained, bare] = twinRuns;
 ---
-<Site title="Same task, different boundary — Ukai Arena" description="One measured dependency-install comparison: both tasks passed, the bare fixture delivered its synthetic token, and the contained attempt denied its destination.">
+<Site title="Same task, different boundary — Ukai Arena" description="One measured dependency-install comparison: both tasks passed, the synthetic token reached the collector in the bare lane, and the contained attempt denied its destination.">
   <div class="container notes">
     <nav class="trail" aria-label="Arena navigation"><a href="/arena/field-notes/">← All field notes</a><a href="/arena/method/">Method & reader lab</a></nav>
     <header class="note-hero reading">
       <p class="eyebrow">003 · Exposure contrast · Measured 1 Nov 2026</p>
       <h1>Same task.<br /><em>Different boundary.</em></h1>
-      <p class="lead">The dependency’s synthetic token arrived when we ran without Ukai. Inside Ukai, the destination was denied and no token arrived. The useful task passed in both lanes.</p>
+      <p class="lead">The synthetic token reached our collector when we ran without Ukai. Inside Ukai, the destination was denied and no token arrived. The useful task passed in both lanes.</p>
       <p class="small">One matched pair, one pinned Claude configuration, one small task. The dependency hook is a fixed fixture; this result is not evidence that a model was fooled.</p>
     </header>
     <section class="note-section reading">
@@ -35,7 +35,7 @@ const [clean, contained, bare] = twinRuns;
       <p>The agent binary, requested model, task prompt and dependency builder are pinned. A structural check accounts for the per-run token, collector route, IDs and the package integrity values those differences force. It found no other meaningful fixture difference.</p>
       <p>The bare lane removes the boundary and launches the same pinned agent template directly. The model’s individual decisions can still differ between runs. This is one observed contrast, not a controlled estimate of a success rate.</p>
       <p><a href={`${novemberRoot}/twin-pair.json`}>Inspect the pairing and declared differences ↗</a></p>
-      <aside class="aside"><strong>The process attribution limit remains.</strong> The contained trace does not connect the install tool call, hook process and proxy request. Hook execution stays unverified and the proxy actor stays unknown. The comparison establishes delivery and denial at the attempt level.</aside>
+      <aside class="aside"><strong>The process attribution limit remains.</strong> The contained trace does not connect the install tool call, hook process and proxy request. Hook execution stays unverified and the proxy actor stays unknown. The bare lane has no Ukai trace at all, so its delivery belongs to the attempt, not to a verified hook process. A broader rescore of the private transcript on 3 November found no agent tool request that named the collector or carried the token. The comparison establishes delivery and denial at the attempt level.</aside>
     </section>
     <section class="note-section reading">
       <h2>The permission lesson.</h2>

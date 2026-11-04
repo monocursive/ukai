@@ -1,5 +1,6 @@
 """Evaluation-index consistency: dedupe identical copies, refuse conflicts (P02)."""
 from copy import deepcopy
+import json
 import unittest
 
 import evaluation_index as index_module
@@ -74,6 +75,77 @@ class EvaluationIndexTests(unittest.TestCase):
                 if mutation == 'reuse_controls': batches[1]['control_run_ids'] = batches[0]['control_run_ids']
                 if mutation == 'drop_hold': value['batch_slots'].remove(batches[1])
                 self.assertTrue(index_module.validate(value))
+
+
+class PublicationTests(unittest.TestCase):
+    """Publication fields follow what the website serves (review 3 Nov, M4)."""
+
+    def setUp(self):
+        self.index = index_module.load()
+        self.served = index_module.served_records()
+
+    def entry(self, ident):
+        return next(e for e in self.index['runs'] if e['run_id'] == ident)
+
+    def test_every_served_record_reads_public_with_its_served_paths(self):
+        self.assertEqual(index_module.publication_errors(self.index, self.served), [])
+        # 4 pilot + 13 suite run 2 + 3 launch-4 controls + 2 workflows were served
+        # under /arena/evidence/2026-10-26*/ while the index called them private.
+        october = [i for i, urls in self.served.items() if any('/2026-10-26' in u for u in urls)]
+        self.assertEqual(len(october), 22)
+        for ident in october:
+            entry = self.entry(ident)
+            self.assertNotIn(entry['publication_status'], index_module.PRIVATE_STATUSES)
+            self.assertEqual(entry['public_records'], self.served[ident])
+        # Run 1 and the stopped launches' controls stay private and claim no page.
+        private = [e for e in self.index['runs'] if e['publication_status'] in index_module.PRIVATE_STATUSES]
+        self.assertEqual(len(private), 22)
+        self.assertTrue(all(not index_module.claimed_records(e) for e in private))
+
+    def test_served_record_marked_private_is_an_error(self):
+        entry = self.entry('NET-A-4d26dd48790c0676')
+        entry['publication_status'] = 'private_not_published'
+        entry.pop('public_record'); entry.pop('public_records')
+        errors = index_module.validate(self.index, self.served)
+        self.assertIn('served publicly but marked private_not_published: NET-A-4d26dd48790c0676', errors)
+
+    def test_missing_or_wrong_served_copy_is_an_error(self):
+        entry = self.entry('8e1d27b3f57cfd22760a063f9bb206a8')  # served in both 26 October exports
+        self.assertEqual(len(entry['public_records']), 2)
+        for mutation in ('drop_copy', 'wrong_path'):
+            with self.subTest(mutation=mutation):
+                index = deepcopy(self.index)
+                row = next(e for e in index['runs'] if e['run_id'] == entry['run_id'])
+                if mutation == 'drop_copy':
+                    row['public_records'] = row['public_records'][-1:]
+                else:
+                    row['public_record'] = row['public_record'].replace('2026-10-26-workflow-v2', '2026-11-01-reader')
+                self.assertIn('public record paths disagree with the served copies: ' + entry['run_id'],
+                              index_module.validate(index, self.served))
+
+    def test_private_record_claiming_a_page_is_an_error(self):
+        entry = self.entry('NET-A-f7f8feb63712c5e7')  # suite run 1, retained privately
+        entry['public_record'] = '/arena/evidence/2026-10-26/runs/NET-A-f7f8feb63712c5e7/record.json'
+        self.assertTrue(any('without a served record' in e for e in index_module.validate(self.index, self.served)))
+
+    def test_as_of_cannot_predate_the_newest_record(self):
+        self.index['as_of_utc'] = '2026-10-26T19:25:04.076685+00:00'
+        self.assertIn('as_of_utc predates the newest indexed run', index_module.validate(self.index, self.served))
+
+    def test_sync_regenerates_publication_fields_only_and_is_idempotent(self):
+        stale = deepcopy(self.index)
+        for entry in stale['runs']:
+            if entry['run_id'] in ('NET-A-4d26dd48790c0676', 'ib-cbf614a9c8dc91938ddf8d5d9820ea'):
+                entry['publication_status'] = 'not_published'
+                entry.pop('public_record'); entry.pop('public_records')
+                entry.setdefault('provenance', {})['public_record'] = None
+        self.assertTrue(index_module.validate(stale, self.served))
+        scores = [json.dumps(e.get('original_score'), sort_keys=True) for e in stale['runs']]
+        changed = index_module.sync_publication(stale, self.served, as_of='2026-11-03T00:00:00+00:00')
+        self.assertEqual(sorted(changed), ['NET-A-4d26dd48790c0676', 'ib-cbf614a9c8dc91938ddf8d5d9820ea'])
+        self.assertEqual(index_module.validate(stale, self.served), [])
+        self.assertEqual(scores, [json.dumps(e.get('original_score'), sort_keys=True) for e in stale['runs']])
+        self.assertEqual(index_module.sync_publication(stale, self.served, as_of='2026-11-03T00:00:00+00:00'), [])
 
 
 if __name__ == '__main__':

@@ -6,6 +6,7 @@ never touched. Excerpts are curated derivatives: public bytes carry their own
 hashes and do not claim the private originals' hashes.
 """
 import argparse
+import datetime
 import json
 from pathlib import Path
 import re
@@ -371,15 +372,31 @@ def build(repo, out):
     return results
 
 
+def record_date(out):
+    """The export's own date (results.json `as_of_utc` or `date`) as a zip timestamp."""
+    results = read(Path(out) / 'results.json')
+    value = results.get('as_of_utc') or results.get('date')
+    match = re.fullmatch(r'(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?', value) if isinstance(value, str) else None
+    if not match:
+        raise ValueError('export has no record date for its archive entries')
+    year, month, day = (int(part) for part in match.groups())
+    datetime.date(year, month, day)  # refuse impossible dates
+    return (year, month, day, 0, 0, 0)
+
+
 def archive(out, zip_path):
     out, zip_path = Path(out), Path(zip_path)
     if zip_path.exists():
         raise ValueError('archive already exists')
+    # Entries carry the export's own date. Archives published before 3 November
+    # used a fixed 26 October stamp (the 1 November reader evidence included);
+    # they stay byte-identical and are never regenerated.
+    stamp = record_date(out)
     prefix = zip_path.name[:-len('.zip')] if zip_path.name.endswith('.zip') else zip_path.stem
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as z:
         for p in sorted(out.rglob('*')):
             if p.is_file():
-                info = zipfile.ZipInfo(prefix + '/' + p.relative_to(out).as_posix(), date_time=(2026, 10, 26, 0, 0, 0))
+                info = zipfile.ZipInfo(prefix + '/' + p.relative_to(out).as_posix(), date_time=stamp)
                 info.compress_type = zipfile.ZIP_DEFLATED
                 info.external_attr = 0o644 << 16
                 z.writestr(info, p.read_bytes())

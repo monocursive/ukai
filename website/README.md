@@ -66,6 +66,22 @@ the saved source against both original contracts before replaying their scores.
 This keeps a later parser repair from rewriting the stopped result. The
 separate parser diagnostic records the repair's limited effect.
 
+`public/arena/evidence/2026-11-01-parser-diagnostic.json` has no generator in
+this repository: a one-off script wrote it during the 1 November closeout, and
+the private copy `evidence/arena-reader-2026-11-01/parser-diagnostic.json` is
+byte-identical. It summarizes the saved outer transcript and nested log of
+replay run `sg-fc243e25…` under the repaired adapter `claude/2`
+(`adapter_sha256` is `arena/m1/adapters.py` as of 1 November): gaps, tool
+calls, usage records and API retry events. Re-reading the private bundle with
+`m1.adapters.normalize` reproduces the gap, call and usage counts; the nine
+retry events are the nested log's `system`/`api_retry` rows.
+`original_verdict_preserved: null`
+is not a yes/no answer. Its value matches the original score's `terminal`,
+which is null because that score reached no verdict (labels `inconclusive`).
+The original score is unchanged; the run record's `original_score_sha256`
+identifies it. `src/arena_november.ts` pins every one of these values. The file
+is published as written and is never edited.
+
 Build the lab archive with `python3 -B arena/package_reader_lab.py --out
 website/public/arena/downloads/ukai-arena-reader-lab-2026-11-01.zip` from the
 repository root. The packager refuses to overwrite an archive; publish a new
@@ -73,13 +89,20 @@ edition for source changes after release. Its explicit source allowlist never
 packages private evidence or account configuration. The README inside describes
 the pinned Linux dependencies and the thirteen-case unpaid run.
 
-`/arena/` is an illustrated field note in eight chapters (how agents work, the
-traps, what to measure, the sandbox, controls, the day's episodes, results,
-lessons), followed by a board of all runs. `/arena/runs/[id]/` renders each of
-the 34 preserved records, with original and offline scores separated. The pages
-read **only** the redacted export under `public/arena/evidence/2026-10-25/`;
-never point the website at private Arena bundles or account files. Transcript
-and fixture text is escaped as text.
+`/arena/` is an illustrated field note in nine chapters (how agents work, the
+traps, what to measure, the sandbox, controls, the day's episodes, results, the
+26 October boundary evaluation, lessons), followed by a board of all 25 October
+runs. `/arena/runs/[id]/` renders each of the 34 preserved 25 October records,
+with original and offline scores separated. Those pages read **only** the
+redacted export under `public/arena/evidence/2026-10-25/`; never point the
+website at private Arena bundles or account files. Transcript and fixture text
+is escaped as text.
+
+The 26 October chapter reads the separate export under
+`public/arena/evidence/2026-10-26-workflow-v2/` through `src/arena_boundary.ts`,
+and `/arena/boundary/[id]/` renders each of its 22 records. `boundaryMust()`
+checks fail the build the same way. `public/arena/evidence/2026-10-26/` is the
+earlier 17-record boundary export, kept unchanged next to its archive.
 
 Quotes, tool-call strips, counts and fixture excerpts are read from the export
 at build time. `must()` checks in `src/pages/arena/index.astro` and `quote()` in
@@ -87,9 +110,14 @@ at build time. `must()` checks in `src/pages/arena/index.astro` and `quote()` in
 makes. Animations are CSS or SVG, start on scroll, and stop under reduced motion;
 without JavaScript every section, and every quiz answer, is visible.
 
-The public ZIP under `public/arena/downloads/` is the unchanged preparation
+The 25 October ZIP under `public/arena/downloads/` is the unchanged preparation
 snapshot (SHA-256 starts `8d3eb857`). Its historical unpublished label remains
 intact. `public/arena/publication.json` describes the later website publication.
+Its top-level fields are the original 25 October record; each later archive gets
+an additive entry under `later_publications` when it is first served.
+From 3 November the shared exporter archive stamps entries with the export's own
+date; the 26 October and 1 November evidence zips keep their 26 October stamps
+and are never regenerated.
 Preserve this evidence edition when adding future field notes; use a new version
 directory and archive for a new export.
 

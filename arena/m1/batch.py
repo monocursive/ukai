@@ -372,6 +372,7 @@ def execute_batch(bundle, approval_path, funding_path, out):
     out = runtime.fresh_output(out)  # Atomic, durable claim; no retry after a crash.
     install_family = scenario in (install_boundary.SCENARIO, twin_exposure.SCENARIO,
                                   s1ngularity_replay.SCENARIO)
+    pairing = scenario in (twin_exposure.SCENARIO, s1ngularity_replay.SCENARIO)
     summary = {'schema': prefix + '.batch-result/1', 'started_at': now(), 'status': 'claimed',
         'contract_sha256': sha(Path(bundle) / 'contract.json'), 'attempts_claimed': 0,
         'reservation_eur_minor': reservation, 'reservation_released_minor': 0,
@@ -397,30 +398,34 @@ def execute_batch(bundle, approval_path, funding_path, out):
                 raise PermissionError('authority changed during batch')
             check_authority(bundle, approval_path, funding_path, out, claimed=True)
             attempt = out / ('attempt-' + str(position))
-            claim = {'position': position, 'agent': agent, 'kind': kind, 'claimed_at': now(),
-                     'reservation_eur_minor': 200, 'automatic_retry': False}
-            fd = os.open(out / ('claim-' + str(position) + '.json'), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(fd, 'w') as f:
-                json.dump(claim, f); f.flush(); os.fsync(f.fileno())
-            summary['attempts_claimed'] = position
+            state = None
             if install_family:
                 state = ('clean_claimed' if kind == 'agent_workflow_clean'
                          else 'dependency_claimed' if kind == 'agent_workflow_dependency'
                          else 'bare_claimed')
-                summary['states'].append(state)
                 if kind == 'agent_workflow_dependency':
                     # The dependency slot runs only after a successful clean workflow.
                     context.clean_root = out / 'attempt-1'
                     if 'clean_finished' not in summary['states']:
                         raise PermissionError('dependency slot reached without a finished clean slot')
-                    context.check()
                 elif kind == twin_exposure.BARE_KIND:
                     # The uncontained lane runs only after both contained legs finished.
                     context.clean_root = out / 'attempt-1'
                     context.dependency_root = out / 'attempt-2'
                     if 'dependency_finished' not in summary['states']:
                         raise PermissionError('bare slot reached without a finished contained dependency slot')
-                    context.check()
+            if context is not None:
+                # Every admission gate passes before a claim file, a counted attempt or
+                # its per-slot hold exists; a refused slot stays unclaimed.
+                context.check()
+            claim = {'position': position, 'agent': agent, 'kind': kind, 'claimed_at': now(),
+                     'reservation_eur_minor': 200, 'automatic_retry': False}
+            fd = os.open(out / ('claim-' + str(position) + '.json'), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, 'w') as f:
+                json.dump(claim, f); f.flush(); os.fsync(f.fileno())
+            summary['attempts_claimed'] = position
+            if state:
+                summary['states'].append(state)
             permit = _Permit(bundle, config, attempt, position, context)
             result = runtime.execute_agent(config, attempt, scenario, kind, agent, permit=permit)
             scan_credentials(config, attempt)
@@ -434,28 +439,28 @@ def execute_batch(bundle, approval_path, funding_path, out):
                 summary['states'].append('clean_finished')
             if scenario in (twin_exposure.SCENARIO, s1ngularity_replay.SCENARIO) and kind == 'agent_workflow_dependency':
                 summary['states'].append('dependency_finished')
-        if scenario in (twin_exposure.SCENARIO, s1ngularity_replay.SCENARIO):
-            # Join the bare and contained dependency attempts into one contrast record.
-            module = (twin_exposure if scenario == twin_exposure.SCENARIO else s1ngularity_replay)
-            try:
-                contrast = module.pair(out / 'attempt-3', out / 'attempt-2', out / 'contrast-pair')
-                summary['contrast_pair'] = {'terminal': contrast['terminal'],
-                                            'reasons': contrast['reasons'],
-                                            'pair_sha256': sha(out / 'contrast-pair' / 'pair.json')}
-            except Exception as exc:
-                summary['contrast_pair'] = {'terminal': 'contrast_pair_error',
-                                            'error_type': type(exc).__name__}
+        if pairing:
+            if 'bare_claimed' not in summary['states']:
+                # No bare attempt exists: record why there is no pair instead of an error.
+                summary['contrast_pair'] = unpaired(summary)
+            else:
+                # Join the bare and contained dependency attempts into one contrast record.
+                module = (twin_exposure if scenario == twin_exposure.SCENARIO else s1ngularity_replay)
+                try:
+                    contrast = module.pair(out / 'attempt-3', out / 'attempt-2', out / 'contrast-pair')
+                    summary['contrast_pair'] = {'terminal': contrast['terminal'],
+                                                'reasons': contrast['reasons'],
+                                                'pair_sha256': sha(out / 'contrast-pair' / 'pair.json')}
+                except Exception as exc:
+                    summary['contrast_pair'] = {'terminal': 'contrast_pair_error',
+                                                'error_type': type(exc).__name__}
         summary['status'] = 'stopped' if summary['stop_reason'] else 'completed'
-        if summary['status'] == 'completed':
-            summary['states'].append('completed')
     except Exception as exc:
         summary.update(status='stopped', stop_reason=type(exc).__name__)
         if isinstance(exc, EvidenceQuarantined):
             summary.update(quarantined=True, stop_reason=str(exc))
         # Never serialize exception bodies, provider errors or credential contents.
     finally:
-        if summary['status'] == 'stopped' and summary['states'][-1] != 'stopped':
-            summary['states'].append('stopped')
         if context:
             try:
                 context.close()
@@ -468,8 +473,23 @@ def execute_batch(bundle, approval_path, funding_path, out):
             except Exception:
                 summary.update(status='stopped', quarantined=True)
                 summary['stop_reason'] = summary['stop_reason'] or 'credential_scan_unverified_do_not_export'
+        if pairing and 'contrast_pair' not in summary:
+            summary['contrast_pair'] = unpaired(summary)
+        # The terminal state is written last, after collector shutdown and the final
+        # credential scan, so `states` can never end `completed` on a stopped batch.
+        if summary['status'] != 'completed':
+            summary['status'] = 'stopped'
+            summary['stop_reason'] = summary['stop_reason'] or 'interrupted'
+        summary['states'].append(summary['status'])
         summary['ended_at'] = now(); save(out / 'batch.json', summary); manifest(out)
     return summary
+
+
+def unpaired(summary):
+    """The contrast record for a batch that never reached its pairing step."""
+    reason = ('bare_slot_unclaimed' if 'bare_claimed' not in summary['states']
+              else 'batch_stopped_before_pairing')
+    return {'terminal': 'contrast_pair_not_formed', 'reasons': [reason]}
 
 
 def main():
