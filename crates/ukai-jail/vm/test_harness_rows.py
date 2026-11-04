@@ -606,7 +606,7 @@ class WarmLiveTables(unittest.TestCase):
             send(event='done', exit_code=0)
         server = FakeAttemptServer(script)
         self.addCleanup(server.close)
-        route = warm_live.route_control(mock.Mock(connect=server.connect), T)
+        route = warm_live.route_control(mock.Mock(connect=server.connect), T, reach=lambda: {"answers": True})
         self.assertTrue(route['route']['reached'])
         self.assertTrue(route['receipt_bound'])
         self.assertNotIn('receipt', route)
@@ -714,7 +714,8 @@ def attempt(server):
             # The route control: the guest proxy tunnels to an allowed target
             # (connecting nowhere here); with no route it answers 502.
             nonce, host, port = words[4], words[5], int(words[6])
-            reached = f'{host}:{port}' in prepare.get('allow_hosts', []) and mode != 'noroute'
+            reached = (f'{host}:{port}' in prepare.get('allow_hosts', []) and mode != 'noroute'
+                       and not (mode == 'flaky' and not prepare['attempt_id'].endswith('-1')))
             line = {'nonce': nonce, 'target': [host, port],
                     'status_line': 'HTTP/1.1 200 Connection established' if reached else 'HTTP/1.1 502 Bad Gateway'}
             text = 'UKAI_ROUTE_CONTROL ' + json.dumps(line) + '\n'
@@ -767,7 +768,10 @@ class FakeServeFlows(unittest.TestCase):
 
     def warm_live(self, mode, out='out'):
         (self.workspace / 'attempt-3.txt').write_text('warm-3-STALE\n')  # an earlier run's file
-        with mock.patch.dict(os.environ, {'FAKE_MODE': mode, 'UKAI_VM_GUEST_NAT': '1'}), mock.patch('builtins.print'):
+        reach = {'target': ['1.1.1.1', 443], 'result': 'connected', 'answers': True, 'elapsed_ms': 1.0}
+        with mock.patch.dict(os.environ, {'FAKE_MODE': mode, 'UKAI_VM_GUEST_NAT': '1'}), \
+                mock.patch('builtins.print'), \
+                mock.patch.object(harness, 'host_reachability', lambda *a, **k: reach):
             code = warm_live.main(['--image', str(self.image), '--workspace', str(self.workspace),
                                    '--out', str(self.root / out), '--ukai-vm', str(self.binary)])
         return code, json.loads((self.root / out / 'warm-live.json').read_text())
@@ -785,6 +789,14 @@ class FakeServeFlows(unittest.TestCase):
         self.assertEqual(record['route_control']['attempt_id'], f"warm-route-{record['attempts'][0]['attempt_id'].split('-')[-1]}")
         self.assertNotIn(str(self.root), json.dumps(record), 'a record carries no absolute temp path')
 
+    def test_a_route_control_reached_on_a_later_try_passes_and_keeps_every_try(self):
+        code, record = self.warm_live('flaky')
+        self.assertEqual(code, 0, record['failed'])
+        tries = record['route_control']['tries']
+        self.assertEqual([t['route']['reached'] for t in tries], [False, True])
+        self.assertTrue(all(t['host_reachability']['answers'] for t in tries))
+        self.assertTrue(record['route_control']['attempt_id'].endswith('-1'))
+
     def test_a_guest_without_a_route_fails(self):
         # Reviewer FX4 end to end: every probe sees ENETUNREACH, but the
         # guest itself reaches nothing, so the denial is not the jail's.
@@ -792,6 +804,7 @@ class FakeServeFlows(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertTrue(record['every_attempt_saw_the_jails_denial'])
         self.assertEqual(record['failed'], ['route_control_reached_the_target', 'every_attempt_network_denied'])
+        self.assertEqual(len(record['route_control']['tries']), warm_live.ROUTE_TRIES)
 
     def test_a_receipt_bound_elsewhere_fails(self):
         code, record = self.warm_live('unbound')

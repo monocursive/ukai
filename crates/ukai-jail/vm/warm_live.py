@@ -16,7 +16,8 @@ The guest NAT adapter is always attached, and one route control attempt
 after the N: its proxy, outside the jail's network namespace, must reach
 the target, so the N denials are the jail's and not a guest without a route
 (harness.network_denial). The route control is not one of the N and is not
-timed for K108.
+timed for K108. It is tried up to three times (route_control), every try
+recorded with the host's own reachability of the target just before it.
 
 Every attempt's `done` must carry the guest controller's own stop (D6),
 which ran outside the guest jail after it exited, and that stop must have
@@ -98,13 +99,37 @@ def guest_stop_clean(stop):
             and all(stop.get(key) == [] for key in ('populated_before_kill', 'live_before_kill', 'strays_killed')))
 
 
-def route_control(service, tag):
-    """The same-boot route control: an agent attempt asks its proxy for the probe target."""
-    record = harness.run_attempt(service.connect, f'warm-route-{tag}', harness.route_argv(f'{tag}-route'),
-                                 profile='agent', wall=30, allow_hosts=[harness.route_rule()])
-    record['route'] = harness.route_verdict(record['stdout'], f'{tag}-route')
-    record['receipt_bound'] = harness.receipt_bound(record)
-    record.pop('receipt', None)
+ROUTE_TRIES = 3
+
+
+def route_control(service, tag, tries=ROUTE_TRIES, reach=None):
+    """The same-boot route control: an agent attempt asks its proxy for the probe target.
+
+    Up to `tries` attempts on the same boot, each recorded with the host's own
+    reachability of the target just before it; the first that reaches the
+    target is the control, and none reaching it fails. On 2026-11-04 the
+    control timed out once and got the guest proxy's 504 once, each after 20
+    attempts, while the capability run's control on another boot reached the
+    target; the cause was not determined, and every try is kept so the next
+    record can tell a flaky route from a missing one. A retry cannot turn a
+    route-less guest into a denial: each attempt's denial is still judged by
+    the jail's own errno after its loopback control (harness.network_denial).
+    """
+    reach = reach or harness.host_reachability
+    tried = []
+    for index in range(tries):
+        host = reach()
+        name = f'warm-route-{tag}' + (f'-{index}' if index else '')
+        record = harness.run_attempt(service.connect, name, harness.route_argv(f'{tag}-route'),
+                                     profile='agent', wall=30, allow_hosts=[harness.route_rule()])
+        record['route'] = harness.route_verdict(record['stdout'], f'{tag}-route')
+        record['receipt_bound'] = harness.receipt_bound(record)
+        record.pop('receipt', None)
+        tried.append({'attempt_id': name, 'started_at': record['started_at'], 'host_reachability': host,
+                      'route': record['route'], 'error': record.get('error')})
+        if record['route'].get('reached') is True:
+            break
+    record['tries'] = tried
     return record
 
 
@@ -175,7 +200,7 @@ def judge(results, tag, budget_ms, status, service_exit, git_config_text, route,
             d['probe_saw_the_jails_denial'] for d in denials),
         'guest_nat': (status or {}).get('guest_nat'),
         'guest_nat_attached': (status or {}).get('guest_nat') is True,
-        'route_control': {key: route.get(key) for key in ('attempt_id', 'route', 'boot_id', 'error')},
+        'route_control': {key: route.get(key) for key in ('attempt_id', 'route', 'boot_id', 'error', 'tries')},
         'route_control_reached_the_target': bool(denials) and all(
             d['route_control_reached_the_target'] for d in denials),
         'route_control_on_the_same_guest_boot': bool(denials) and all(
