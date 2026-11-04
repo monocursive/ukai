@@ -69,7 +69,10 @@ The receipt now carries `stop.phases` (continuous clock): `requested →
 freeze_done → first_kill → result → guardian_record → settled`, plus the
 guardian's own machine marks in its record (`stop_phases`); a unit test
 pins their ordering and shared clock. K92 rerun with 3 trials × 5
-adversarial shapes, all PASS ([k92.json](results/k92.json)), and the
+adversarial shapes, all PASS (`results/k92.json` inside
+[guest-evidence.tar.gz](guest-evidence.tar.gz), SHA-256 `b73d3de5c22f…`; its
+tracked copy, a byte-identical duplicate of that member over the evidence
+store's 5 MiB limit, was removed on 2026-11-04), and the
 reconciliation table is [k92-phases.json](results/k92-phases.json):
 
 - The machine's whole stop is **20–74 ms** (freeze ≈ 0, first kill at the
