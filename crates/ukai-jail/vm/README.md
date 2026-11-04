@@ -671,8 +671,10 @@ Before any J18 row can pass: a shipped and installed macOS `ukai-jail`
 client; a live phase that re-measures every guest requirement with real
 network probes (a socket connect to an IP literal, with a positive control)
 and fills `GUEST_MEASUREMENTS` from the records it produces (five
-requirements so far; `tree_termination`, `closed_set_observation`,
-`syscall_filter`, protected coverage and `network_proxy` have no probe); the full K110
+requirements so far; `capabilities.py` now also has probes and judges for
+`tree_termination`, `closed_set_observation`, `syscall_filter`, protected
+coverage and `network_proxy`, but none of them has run on a booted guest,
+so none is measured); the full K110
 matrix (custodian, VZ-client and host-client kills, `Ctrl-Z` of the client,
 every host controller suspended) with long-running workloads and compared
 boot ids; the K111 receipt fix (decision D5, now in the code) shown on a

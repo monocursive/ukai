@@ -10,8 +10,9 @@
 //! ([`policy_refusal`]). The probe answers `available` only for a
 //! requirement a measured guest record backs (decision D2,
 //! [`GUEST_MEASUREMENTS`]). The 2026-11-04 live phase measured five; the
-//! rest (`tree_termination` first) have no probe yet, so every `tool` or
-//! `agent` `run --vm` still refuses at probing.
+//! rest (`tree_termination` first) have probes that have not run on a
+//! booted guest, so none is measured and every `tool` or `agent` `run --vm`
+//! still refuses at probing.
 //!
 //! The transport below is tested with stand-ins. Its guest reports are
 //! checked for consistency and binding; they are not independent host

@@ -1677,7 +1677,7 @@ entitlement that the preview already uses.
 | [jail-interactive-sessions](jail-interactive-sessions.md) §3 (J14) | macOS terminal mode is the pty relay (decision 3). X05 does not hold for macOS terminal runs. | Amendment |
 | jail-v1 §6.1, §6.3 (J18) | `--vm`, `vm stop`, and the kernel-bound lifetime key with its narrowing row and requirement name (§6). | Addition |
 | `crates/ukai-jail` | Default native refusal; development-gated preparation, guardian and launcher modes, and the ES shim. Credential/vendor staging refuses. J17 attaches the declared observer before release; strict startup failure refuses. | Implementation |
-| `crates/ukai-jail/vm` | The warm service, guest controller, package builder and measurement harnesses exist; every `run --vm` still refuses at probing (the 2026-11-04 live phase measured five requirements; `tree_termination` and four others have no probe), and K108–K113 stay `untested` (§6). | Implementation |
+| `crates/ukai-jail/vm` | The warm service, guest controller, package builder and measurement harnesses exist; every `run --vm` still refuses at probing (the 2026-11-04 live phase measured five requirements; `tree_termination` and the four others now have probes in `capabilities.py` that have not run on a booted guest), and K108–K113 stay `untested` (§6). | Implementation |
 | Installer, [RELEASING](../RELEASING.md) | The Mac bundle, provisioning profile and notarization, and the protected-Mac release run. | Procedure |
 | [roadmap](../roadmap.md), [guide](../guide.md) | Record Apple's answer and the two tiers, and explain the native boundary and `--vm`. | Guide |
 
