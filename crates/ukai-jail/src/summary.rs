@@ -2190,10 +2190,9 @@ mod vm_tests {
     /// The K113 record (2026-11-03): a proxied, observed `--vm` attempt
     /// whose host receipt still said `pending` and `attached: false` (it
     /// predates decision D5).
-    const K113: &str = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/k113-attempt"
-    );
+    fn k113_recorded() -> std::path::PathBuf {
+        crate::test_evidence::k113_attempt()
+    }
 
     const FILES: [&str; 5] = [
         "jail.json",
@@ -2215,7 +2214,7 @@ mod vm_tests {
             std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
         }
         for file in FILES {
-            std::fs::copy(Path::new(K113).join(file), attempt.join(file)).unwrap();
+            std::fs::copy(k113_recorded().join(file), attempt.join(file)).unwrap();
         }
         (temp, attempt)
     }

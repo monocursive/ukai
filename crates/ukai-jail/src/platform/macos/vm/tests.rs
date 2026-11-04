@@ -1833,10 +1833,7 @@ fn binds_and_declarations_the_loader_reads_differently_refuse() {
 /// The K113 guest receipt (2026-11-03): a proxied, observed attempt. Read
 /// at test time, so the evidence is no build input.
 fn k113_guest() -> Value {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/k113-attempt/evidence/jail.json"
-    );
+    let path = crate::test_evidence::k113_attempt().join("evidence/jail.json");
     serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
 }
 
