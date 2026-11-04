@@ -532,8 +532,48 @@ class CompletionTests(unittest.TestCase):
         guest = GuestHarness(self, scenarios=[wrong_profile])
         guest.session()
         guest.run2()
-        self.assertIsNone(guest.ended(raise_error=False))
-        self.assertIsInstance(guest.error, ValueError)
+        self.assertEqual(guest.ended(), 'receipt_unbound')
+        self.assertIsNone(guest.error, 'a named poweroff, not a controller crash')
+
+    def test_an_attempt_without_a_receipt_powers_off_named(self):
+        def no_receipt(jail):
+            jail.workload()
+            jail.exit(0)
+        guest = GuestHarness(self, scenarios=[no_receipt])
+        guest.session()
+        guest.run2()
+        self.assertEqual(guest.ended(), 'receipt_missing')
+        self.assertIsNone(guest.error)
+
+    def test_an_oversized_evidence_file_powers_off_named_and_sends_no_done(self):
+        def oversized(jail):
+            jail.workload()
+            jail.write_receipt()
+            receipt = Path(os.fsdecode(jail.option(b'--receipt')))
+            (receipt.parent / 'big.bin').write_bytes(b'x' * (guest.guest.MAX_FILE + 1))
+            jail.exit(0)
+        guest = GuestHarness(self, scenarios=[oversized])
+        guest.session()
+        guest.run2()
+        frames = []
+        while (frame := guest.frame()) is not None:
+            frames.append(frame['event'])
+        self.assertNotIn('done', frames)
+        self.assertEqual(guest.ended(), 'export_limit')
+        self.assertIsNone(guest.error)
+
+    def test_a_link_in_the_staged_workspace_powers_off_named(self):
+        def linked(jail):
+            jail.workload()
+            os.symlink('/etc/passwd', Path(jail.kwargs['cwd']) / 'link')
+            jail.write_receipt()
+            jail.exit(0)
+        guest = GuestHarness(self, scenarios=[linked])
+        guest.expect('ready')
+        guest.send(op='run', profile='tool', wall_seconds=30, argv=[b64(b'/bin/true')])
+        guest.expect('running')
+        self.assertEqual(guest.ended(), 'export_nonregular')
+        self.assertIsNone(guest.error)
 
 
 if __name__ == '__main__':

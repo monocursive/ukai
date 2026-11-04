@@ -2,6 +2,7 @@
 """Single-attempt guest controller. Installed root-owned outside the jail."""
 import base64
 import collections
+import errno
 import json
 import hashlib
 import struct
@@ -993,6 +994,56 @@ def receipt_binding(request, receipt, guest_boot_id):
                 profile=request['profile'], argv_digest=digest)
 
 
+def export_outputs(send, in_session, run_request, guest_boot_id):
+    """Send the finished attempt's regular files to the host and return the
+    bound receipt's binding (None outside a session).
+
+    The live share's files are already on the host, so only the evidence
+    tree travels back then; the staged mode sends the workspace too. Only
+    regular files are transported, and a guest link is never dereferenced.
+    Every failure is a named Refusal, so the guest powers off saying what it
+    could not export (`export_nonregular`, `export_unreadable`,
+    `export_limit`, `receipt_unbound`, `receipt_missing`), not as an
+    anonymous `controller_error`. Failing closed is unchanged: the host
+    never receives a `done` for an attempt whose output did not travel."""
+    count = 0
+    total = 0
+    binding = None
+    groups = ([(EVIDENCE, 'evidence')] if WORKSPACE == SHARE_MOUNT
+              else [(WORKSPACE, 'workspace'), (EVIDENCE, 'evidence')])
+    for root, label in groups:
+        for directory, dirs, names in os.walk(root, followlinks=False):
+            dirs[:] = [d for d in dirs if not (Path(directory) / d).is_symlink()]
+            for name in names:
+                path = Path(directory) / name
+                try:
+                    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                except OSError as error:
+                    # O_NOFOLLOW refuses a link with ELOOP: a link is not a
+                    # regular file, whatever it names.
+                    raise Refusal('export_nonregular' if error.errno == errno.ELOOP
+                                  else 'export_unreadable') from None
+                with os.fdopen(fd, 'rb') as source:
+                    info = os.fstat(source.fileno())
+                    if not stat.S_ISREG(info.st_mode):
+                        raise Refusal('export_nonregular')
+                    count += 1
+                    total += info.st_size
+                    if count > MAX_FILES or total > MAX_BYTES or info.st_size > MAX_FILE:
+                        raise Refusal('export_limit')
+                    payload = source.read(MAX_FILE + 1)
+                if in_session and label == 'evidence' and path.name == 'jail.json' and path.parent == EVIDENCE:
+                    try:
+                        binding = receipt_binding(run_request, json.loads(payload), guest_boot_id)
+                    except (ValueError, KeyError, TypeError):
+                        raise Refusal('receipt_unbound') from None
+                send({'event': 'file', 'group': label, 'path': str(path.relative_to(root)),
+                      'executable': bool(info.st_mode & 0o111), 'data': base64.b64encode(payload).decode()})
+    if in_session and binding is None:
+        raise Refusal('receipt_missing')
+    return binding
+
+
 def vsock_listener():
     server = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
     server.bind((VMADDR_CID_ANY, PORT))
@@ -1266,35 +1317,10 @@ def main():
                 # report travels with `done`: the host checks the guest
                 # jail's own tree verdict against it.
                 stop = end_attempt()
-            # Only regular files are transported. Never dereference guest links.
-            count = 0
-            total = 0
-            binding = None
-            # The live share's files are already on the host; only the
-            # evidence tree travels back.
-            groups = ([(EVIDENCE, 'evidence')] if WORKSPACE == SHARE_MOUNT
-                      else [(WORKSPACE, 'workspace'), (EVIDENCE, 'evidence')])
-            for root, label in groups:
-                for directory, dirs, names in os.walk(root, followlinks=False):
-                    dirs[:] = [d for d in dirs if not (Path(directory) / d).is_symlink()]
-                    for name in names:
-                        path = Path(directory) / name
-                        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-                        with os.fdopen(fd, 'rb') as source:
-                            info = os.fstat(source.fileno())
-                            if not stat.S_ISREG(info.st_mode):
-                                raise ValueError('nonregular output')
-                            count += 1
-                            total += info.st_size
-                            if count > MAX_FILES or total > MAX_BYTES or info.st_size > MAX_FILE:
-                                raise ValueError('export_limit')
-                            payload = source.read(MAX_FILE + 1)
-                        if in_session and label == 'evidence' and path.name == 'jail.json' and path.parent == EVIDENCE:
-                            binding = receipt_binding(run_request, json.loads(payload), guest_boot_id)
-                        send({'event': 'file', 'group': label, 'path': str(path.relative_to(root)),
-                              'executable': bool(info.st_mode & 0o111), 'data': base64.b64encode(payload).decode()})
-            if in_session and binding is None:
-                raise ValueError('missing bound jail receipt')
+            try:
+                binding = export_outputs(send, in_session, run_request, guest_boot_id)
+            except Refusal as refusal:
+                poweroff(refusal.reason)
             send({'event': 'done', 'exit_code': process.returncode,
                   **({'binding': binding, 'stop': stop} if in_session else {})})
             audit('done', exit_code=process.returncode)
