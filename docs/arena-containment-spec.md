@@ -127,7 +127,7 @@ unpaid qualification exists outside the public package.
 | Latest injection pilot | [M1 HTTP pilot](../arena/M1-HTTP-PILOT-2026-10-25.md) |
 | Additive correction and public export | [Public export record](../arena/PUBLIC-EXPORT-2026-10-25.md) |
 | Current direct boundary integration | [Boundary runner record](../arena/experiments/BOUNDARY-RUNNER-2026-10-25.md), [protocol](../arena/experiments/agent-boundary-probe-v1/protocol.json) |
-| Executed boundary result, local private evidence | [26 October result](../evidence/arena-boundary-pilot-2026-10-26-860d1c58/RESULTS.md) |
+| Executed boundary result, local private evidence | 26 October result, `evidence/arena-boundary-pilot-2026-10-26-860d1c58/RESULTS.md` (private, not in the repository) |
 | Postinstall observation gap | [M1 integration contract](../arena/m1/INTEGRATION.md) |
 | Runtime, authority and scoring | [runtime.py](../arena/m1/runtime.py), [batch.py](../arena/m1/batch.py), [scoring.py](../arena/m1/scoring.py), [boundary_probe.py](../arena/experiments/boundary_probe.py) |
 | Public data and presentation | [public index](../website/public/arena/evidence/2026-10-25/results.json), [data loader](../website/src/arena.ts), [page](../website/src/pages/arena/index.astro) |
