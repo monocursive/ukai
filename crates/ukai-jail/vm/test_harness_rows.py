@@ -1312,8 +1312,14 @@ class ProbeSourceRuns(unittest.TestCase):
         probe = capabilities.tagged(done.stdout, 'UKAI_SYSCALL_PROBE', T)
         self.assertIsNotNone(probe, done.stderr)
         self.assertEqual(probe['calls'], {})
-        self.assertTrue(probe['skipped'].startswith('not linux aarch64'), probe['skipped'])
-        self.assertIn('the guest workspace', probe['skipped'])
+        # The child inherits this process's seccomp and no_new_privs state:
+        # every gate this host fails is named.
+        status = {}
+        with contextlib.suppress(OSError), open('/proc/self/status') as source:
+            status = dict(line.rstrip('\n').split(':\t', 1) for line in source if ':\t' in line)
+        failed = ['linux aarch64', *(['seccomp filter mode'] if status.get('Seccomp', '').strip() != '2' else []),
+                  *(['no_new_privs'] if status.get('NoNewPrivs', '').strip() != '1' else []), 'the guest workspace']
+        self.assertEqual(probe['skipped'], 'not ' + ', '.join(failed))
         self.assertFalse(capabilities.judge_syscall(bind(record(done.stdout), 's'), T)['probe_made_its_calls_in_the_guest'])
 
     def test_the_observe_probe_reports_each_operation(self):
