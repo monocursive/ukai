@@ -1215,6 +1215,7 @@ def judge_tree(record, tag, path, watch):
         # walks, so the walk would have reached it had it survived.
         'execution_cgroup_under_the_walked_user_manager': under_user_manager(execution),
         'guest_stop_reported': guest_stop_reported(record.get('guest_stop')),
+        'guest_stop_covered_an_attempt_cgroup': harness.stop_covered_the_attempt(record.get('guest_stop')),
         'guest_stop_found_no_populated_boundary': stop.get('populated_before_kill') == [],
         'guest_stop_found_no_live_process': stop.get('live_before_kill') == [],
         'guest_stop_killed_no_stray': stop.get('strays_killed') == [],

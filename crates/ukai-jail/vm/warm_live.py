@@ -92,10 +92,11 @@ def attempt_facts(record, tag):
 
 
 def guest_stop_clean(stop):
-    """The guest controller's own stop (D6) ran and found nothing the guest
-    jail left behind: no boundary populated and no live account process
-    before it signalled anything, and no stray it had to kill."""
-    return (isinstance(stop, dict)
+    """The guest controller's own stop (D6) ran over the attempt's cgroup and
+    found nothing the guest jail left behind: no boundary populated and no
+    live account process before it signalled anything, and no stray it had
+    to kill."""
+    return (isinstance(stop, dict) and harness.stop_covered_the_attempt(stop)
             and all(stop.get(key) == [] for key in ('populated_before_kill', 'live_before_kill', 'strays_killed')))
 
 
@@ -112,8 +113,10 @@ def route_control(service, tag, tries=ROUTE_TRIES, reach=None):
     attempts, while the capability run's control on another boot reached the
     target; the cause was not determined, and every try is kept so the next
     record can tell a flaky route from a missing one. A retry cannot turn a
-    route-less guest into a denial: each attempt's denial is still judged by
-    the jail's own errno after its loopback control (harness.network_denial).
+    route-less guest into a denial: such a guest reaches the target on no
+    try, so the control fails, and harness.network_denial credits the jail
+    with a denial only next to a control that reached the target on the same
+    boot (the errno alone is the same with no route; harness.py header).
     """
     reach = reach or harness.host_reachability
     tried = []
@@ -176,6 +179,9 @@ GATES = ('warm_reuse_one_serve_boot', 'warm_reuse_one_guest_boot', 'every_attemp
 
 def judge(results, tag, budget_ms, status, service_exit, git_config_text, route, real_client=None):
     per_attempt = [attempt_facts(record, tag) for record in results]
+    # Every per-attempt gate needs an attempt: all([]) is True, and an empty
+    # run must fail each gate, not only k108_twenty_runs.
+    ran = bool(per_attempt)
     serve_boots = {record.get('boot_id') for record in results}
     guest_boots = {harness.guest_boot(record) for record in results}
     latencies = [record['timings_ms'].get('connect_to_released') for record in results]
@@ -190,11 +196,11 @@ def judge(results, tag, budget_ms, status, service_exit, git_config_text, route,
         'attempts_run': len(results),
         'warm_reuse_one_serve_boot': len(serve_boots) == 1 and None not in serve_boots,
         'warm_reuse_one_guest_boot': len(guest_boots) == 1 and None not in guest_boots,
-        'every_attempt_exit_zero': all(f['exit_zero'] for f in per_attempt),
-        'every_receipt_verified': all(f['receipt_verified'] for f in per_attempt),
-        'every_granted_write_reached_host': all(f['granted_write_on_host'] for f in per_attempt),
-        'every_protected_write_tried_and_refused': all(f['protected_write_tried_and_refused'] for f in per_attempt),
-        'protected_git_never_reached': all(f['protected_git_unchanged'] for f in per_attempt)
+        'every_attempt_exit_zero': ran and all(f['exit_zero'] for f in per_attempt),
+        'every_receipt_verified': ran and all(f['receipt_verified'] for f in per_attempt),
+        'every_granted_write_reached_host': ran and all(f['granted_write_on_host'] for f in per_attempt),
+        'every_protected_write_tried_and_refused': ran and all(f['protected_write_tried_and_refused'] for f in per_attempt),
+        'protected_git_never_reached': ran and all(f['protected_git_unchanged'] for f in per_attempt)
         and git_config_text == SENTINEL,
         'every_attempt_saw_the_jails_denial': bool(denials) and all(
             d['probe_saw_the_jails_denial'] for d in denials),
@@ -207,8 +213,8 @@ def judge(results, tag, budget_ms, status, service_exit, git_config_text, route,
             d['route_control_on_the_same_guest_boot'] for d in denials),
         'route_control_receipt_bound': bool(denials) and all(d['route_control_receipt_bound'] for d in denials),
         'every_attempt_network_denied': bool(denials) and all(all(d.values()) for d in denials),
-        'every_receipt_network_none': all(f['receipt_network_none'] for f in per_attempt),
-        'every_guest_stop_found_nothing_left': bool(per_attempt) and all(
+        'every_receipt_network_none': ran and all(f['receipt_network_none'] for f in per_attempt),
+        'every_guest_stop_found_nothing_left': ran and all(
             f['guest_stop_found_nothing_left'] for f in per_attempt),
         # harness.Service waits for `ready` (the guest's session open), so no
         # timed attempt waits out the boot; the status it saw is recorded.

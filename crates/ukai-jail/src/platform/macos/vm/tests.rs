@@ -493,7 +493,7 @@ fn ready_must_match_locally_verified_digests() {
         custodian_sha256: "c".repeat(64),
         seed_sha256: "s".repeat(64),
     };
-    let mut ready = ReadyFrame {
+    let fresh = || ReadyFrame {
         boot_id: "boot".into(),
         disk_sha256: manifest.disk_sha256.clone(),
         helper_sha256: manifest.helper_sha256.clone(),
@@ -501,7 +501,30 @@ fn ready_must_match_locally_verified_digests() {
         seed_sha256: manifest.seed_sha256.clone(),
         vsock_port: 1024,
     };
+    let mut ready = fresh();
     verify_ready(&ready, &manifest).unwrap();
+    // Each identity on its own: the client hashes nothing (Install::prepared),
+    // so a serve that booted another disk, helper, custodian or seed is caught
+    // here or nowhere, and the receipt would name the manifest's digests.
+    for name in [
+        "disk",
+        "helper",
+        "custodian",
+        "seed",
+        "boot id",
+        "vsock port",
+    ] {
+        let mut forged = fresh();
+        match name {
+            "disk" => forged.disk_sha256 = "e".repeat(64),
+            "helper" => forged.helper_sha256 = "e".repeat(64),
+            "custodian" => forged.custodian_sha256 = "e".repeat(64),
+            "seed" => forged.seed_sha256 = "e".repeat(64),
+            "boot id" => forged.boot_id.clear(),
+            _ => forged.vsock_port = 1025,
+        }
+        assert!(verify_ready(&forged, &manifest).is_err(), "{name}");
+    }
     ready.disk_sha256 = "forged".into();
     assert!(verify_ready(&ready, &manifest).is_err());
 }
@@ -2146,6 +2169,29 @@ fn a_guest_stop_that_is_absent_or_found_survivors_settles_nothing() {
     assert!(run.guest_facts().is_none());
     assert_eq!(run.wait_tree(Duration::ZERO).tree_empty, None);
     assert!(!dir.path().join(record::TRANSPORT_FILE).exists());
+    // A stop that found nothing because it looked at nothing: no boundary,
+    // only the user manager's slice, or a name that is not an attempt's.
+    let uncovered = [
+        Vec::new(),
+        vec!["user.slice/user-1001.slice/user@1001.service/app.slice".to_owned()],
+        vec!["ukai-attempts.slice/attempt-".to_owned()],
+        vec!["ukai-attempts.slice/attempt-1/leaf".to_owned()],
+        vec!["ukai-attempts.slice".to_owned()],
+    ];
+    for boundaries in uncovered {
+        let stop = protocol::GuestStop {
+            boundaries: boundaries.clone(),
+            ..protocol::GuestStop::default()
+        };
+        let (event, mut run, dir) = finish_with_stop(Some(stop));
+        assert!(
+            matches!(&event, RunEvent::Unknown { reason } if reason.contains("covered no attempt cgroup")),
+            "{boundaries:?}: {event:?}"
+        );
+        assert!(run.guest_facts().is_none(), "{boundaries:?}");
+        assert_eq!(run.wait_tree(Duration::ZERO).tree_empty, None);
+        assert!(!dir.path().join(record::TRANSPORT_FILE).exists());
+    }
 }
 
 /// A clean stop settles the attempt, and the transport record names the
@@ -2507,15 +2553,32 @@ fn the_attempt_connection_must_come_from_the_checked_serve() {
             .digest()
             .unwrap()
     );
-    // A serve running another image than the verified installation.
-    let mut other = status(Some(&workspace), false);
-    if let protocol::FromControl::Status { disk_sha256, .. } = &mut other {
-        *disk_sha256 = "e".repeat(64);
+    // A serve running another image than the verified installation, each
+    // artifact on its own: the serve's status is the client's only check of
+    // what the serve booted.
+    for artifact in ["disk", "helper", "custodian", "seed"] {
+        let mut other = status(Some(&workspace), false);
+        if let protocol::FromControl::Status {
+            disk_sha256,
+            helper_sha256,
+            custodian_sha256,
+            seed_sha256,
+            ..
+        } = &mut other
+        {
+            let digest = match artifact {
+                "disk" => disk_sha256,
+                "helper" => helper_sha256,
+                "custodian" => custodian_sha256,
+                _ => seed_sha256,
+            };
+            *digest = "e".repeat(64);
+        }
+        let error = prepare_against(plan(), other, answering("vm-test", Vec::new()), wait)
+            .expect("prepare returned")
+            .unwrap_err();
+        assert!(error.contains("another image"), "{artifact}: {error}");
     }
-    let error = prepare_against(plan(), other, answering("vm-test", Vec::new()), wait)
-        .expect("prepare returned")
-        .unwrap_err();
-    assert!(error.contains("another image"), "{error}");
 }
 
 /// Review F11c (decision D3): the guest must acknowledge exactly the

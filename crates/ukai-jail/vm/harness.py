@@ -834,6 +834,19 @@ def attempt_dir_bound(attempt, argv):
             and binding.get('boot_id') == transport.get('boot_id') and bool(binding.get('guest_boot_id')))
 
 
+ATTEMPT_CGROUP = re.compile(r'ukai-attempts\.slice/attempt-[0-9]+')
+
+
+def stop_covered_the_attempt(stop):
+    """The guest stop's boundaries include the cgroup guest.py creates for
+    the attempt (`ukai-attempts.slice/attempt-<n>`): a stop that covered no
+    such cgroup found nothing because it looked at nothing (the host's
+    checked_guest_stop refuses it the same way; review of 2026-11-05)."""
+    boundaries = stop.get('boundaries') if isinstance(stop, dict) else None
+    return isinstance(boundaries, list) and any(
+        isinstance(name, str) and ATTEMPT_CGROUP.fullmatch(name) for name in boundaries)
+
+
 def guest_boot(record):
     """The guest kernel's boot id, as the bound receipt binding carries it."""
     binding = record.get('binding') or {}

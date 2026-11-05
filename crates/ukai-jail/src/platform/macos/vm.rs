@@ -187,8 +187,11 @@ impl VmPlatform {
     /// the copy ([`Install::verified_copy`]); the client then refuses a serve
     /// whose reported digests differ from this manifest. A `--vm` run so
     /// still never boots an image whose bytes do not match `image.json`, and
-    /// a run that reuses a warm guest no longer hashes the disk for nothing
-    /// (about 18 s on the 2026-11-04 spare Mac).
+    /// a run that reuses a warm guest no longer hashes the disk for nothing.
+    /// The hash was not timed on its own: the morning record's `--vm`
+    /// refusals, which ran it, took about 18 s each on the 2026-11-04 spare
+    /// Mac, and the evening's real client, which does not, reached its
+    /// workload's first host write within 481 ms.
     ///
     /// # Errors
     /// The discovery refusal, or the manifest is not `prepared`.
@@ -2205,17 +2208,34 @@ struct VmRunning {
     failed: bool,
 }
 
+/// The cgroup the guest controller creates for each attempt
+/// (`guest.py` `prepare_attempt_cgroup`), as `ukai-attempts.slice/attempt-<n>`.
+const GUEST_ATTEMPT_CGROUP: &str = "ukai-attempts.slice/attempt-";
+
 /// The guest controller's stop that `done` carried (decision D6), accepted
-/// only when it found nothing the guest jail left behind. It ran outside the
-/// guest jail, after the jail exited and verified its own tree, so a
-/// boundary still populated or a live process of the workload account then
-/// contradicts the receipt's `tree_empty`; a `done` without one leaves that
+/// only when it covered the attempt's own cgroup and found nothing the guest
+/// jail left behind. It ran outside the guest jail, after the jail exited and
+/// verified its own tree, so a boundary still populated or a live process of
+/// the workload account then contradicts the receipt's `tree_empty`; a
+/// `done` without one, or a stop that covered no attempt cgroup, leaves that
 /// claim unchecked. Either way the host settles nothing as clean.
 fn checked_guest_stop(stop: Option<protocol::GuestStop>) -> Result<protocol::GuestStop, String> {
     let stop = stop.ok_or(
         "the guest reported `done` without its own stop of the attempt, so the guest jail's \
          tree_empty has no check outside the jail",
     )?;
+    let covered_the_attempt = stop.boundaries.iter().any(|boundary| {
+        boundary
+            .strip_prefix(GUEST_ATTEMPT_CGROUP)
+            .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+    });
+    if !covered_the_attempt {
+        return Err(format!(
+            "the guest controller's own stop covered no attempt cgroup \
+             ({GUEST_ATTEMPT_CGROUP}<n>), so it checked nothing the guest jail ran in: the \
+             guest receipt's tree_empty has no check outside the jail"
+        ));
+    }
     if let Some(survivors) = stop.survivors() {
         return Err(format!(
             "the guest controller's own stop found what the guest jail left behind \

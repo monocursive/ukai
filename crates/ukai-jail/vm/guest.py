@@ -1005,15 +1005,27 @@ def export_outputs(send, in_session, run_request, guest_boot_id):
     could not export (`export_nonregular`, `export_unreadable`,
     `export_limit`, `receipt_unbound`, `receipt_missing`), not as an
     anonymous `controller_error`. Failing closed is unchanged: the host
-    never receives a `done` for an attempt whose output did not travel."""
+    never receives a `done` for an attempt whose output did not travel.
+
+    Nothing is skipped either: a link to a directory is refused like a link
+    to a file, and a directory the walk cannot list is `export_unreadable`
+    (os.walk would otherwise drop both silently, and a partial export would
+    settle; review of 2026-11-05)."""
     count = 0
     total = 0
     binding = None
     groups = ([(EVIDENCE, 'evidence')] if WORKSPACE == SHARE_MOUNT
               else [(WORKSPACE, 'workspace'), (EVIDENCE, 'evidence')])
+
+    def unlistable(_error):
+        raise Refusal('export_unreadable') from None
+
     for root, label in groups:
-        for directory, dirs, names in os.walk(root, followlinks=False):
-            dirs[:] = [d for d in dirs if not (Path(directory) / d).is_symlink()]
+        if not root.exists():
+            continue
+        for directory, dirs, names in os.walk(root, onerror=unlistable, followlinks=False):
+            if any((Path(directory) / d).is_symlink() for d in dirs):
+                raise Refusal('export_nonregular')
             for name in names:
                 path = Path(directory) / name
                 try:

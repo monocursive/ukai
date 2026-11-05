@@ -934,5 +934,30 @@ class SummaryNetworkLineTests(unittest.TestCase):
         self.assertFalse(self.facts('allowed a.test (2)', 'proxy', proxy_active=False)['network_line_is_the_guests'])
 
 
+class WaitWarmTests(unittest.TestCase):
+    """Service.wait_warm returns only once the serve reports `ready`: `warm`
+    alone holds from the boot's start (2026-11-04: `warm` with `kernel` null,
+    and a first attempt that waited out the 40 s boot)."""
+
+    def service(self, statuses):
+        service = harness.Service.__new__(harness.Service)
+        service.child = mock.Mock(poll=mock.Mock(return_value=None))
+        replies = iter(statuses)
+        service.status = lambda: next(replies)
+        return service
+
+    def test_warm_but_not_ready_is_waited_past(self):
+        booting = {'warm': True, 'ready': False, 'kernel': None}
+        booted = {'warm': True, 'ready': True, 'kernel': '7.0.0-38-generic'}
+        service = self.service([booting, booting, booted])
+        self.assertIs(service.wait_warm(timeout=5.0), booted)
+        self.assertIs(service.warm_status, booted)
+
+    def test_a_serve_that_never_turns_ready_fails(self):
+        service = self.service(iter(lambda: {'warm': True, 'ready': False}, None))
+        with self.assertRaisesRegex(harness.HarnessError, 'never became ready'):
+            service.wait_warm(timeout=0.5)
+
+
 if __name__ == '__main__':
     unittest.main()

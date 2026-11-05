@@ -575,6 +575,83 @@ class CompletionTests(unittest.TestCase):
         self.assertEqual(guest.ended(), 'export_nonregular')
         self.assertIsNone(guest.error)
 
+    def test_a_directory_link_in_the_staged_workspace_powers_off_named(self):
+        # Review 2026-11-05 F3: a link to a directory used to be dropped from
+        # the walk, so the export went out without it and the guest said
+        # `completed`.
+        def linked(jail):
+            jail.workload()
+            workspace = Path(jail.kwargs['cwd'])
+            (workspace / 'real').mkdir()
+            (workspace / 'real' / 'f.txt').write_text('kept')
+            os.symlink('real', workspace / 'dirlink')
+            jail.write_receipt()
+            jail.exit(0)
+        guest = GuestHarness(self, scenarios=[linked])
+        guest.expect('ready')
+        guest.send(op='run', profile='tool', wall_seconds=30, argv=[b64(b'/bin/true')])
+        guest.expect('running')
+        self.assertEqual(guest.ended(), 'export_nonregular')
+        self.assertIsNone(guest.error)
+
+    @unittest.skipIf(os.geteuid() == 0, 'root lists a mode-000 directory')
+    def test_a_directory_the_walk_cannot_list_powers_off_named(self):
+        closed = []
+
+        def unlistable(jail):
+            jail.workload()
+            directory = Path(jail.kwargs['cwd']) / 'closed'
+            directory.mkdir()
+            (directory / 'f.txt').write_text('hidden')
+            directory.chmod(0)
+            closed.append(directory)
+            jail.write_receipt()
+            jail.exit(0)
+        guest = GuestHarness(self, scenarios=[unlistable])
+        self.addCleanup(lambda: [path.chmod(0o700) for path in closed])
+        guest.expect('ready')
+        guest.send(op='run', profile='tool', wall_seconds=30, argv=[b64(b'/bin/true')])
+        guest.expect('running')
+        self.assertEqual(guest.ended(), 'export_unreadable')
+        self.assertIsNone(guest.error)
+
+    def test_a_fifo_in_the_staged_workspace_powers_off_named(self):
+        # O_NONBLOCK opens a FIFO for reading at once; only the S_ISREG check
+        # keeps it from being exported as an empty file.
+        def fifo(jail):
+            jail.workload()
+            os.mkfifo(Path(jail.kwargs['cwd']) / 'pipe')
+            jail.write_receipt()
+            jail.exit(0)
+        guest = GuestHarness(self, scenarios=[fifo])
+        guest.expect('ready')
+        guest.send(op='run', profile='tool', wall_seconds=30, argv=[b64(b'/bin/true')])
+        guest.expect('running')
+        self.assertEqual(guest.ended(), 'export_nonregular')
+        self.assertIsNone(guest.error)
+
+    def test_the_file_count_and_total_limits_power_off_named(self):
+        # Each file stays under MAX_FILE: only the count or the total trips.
+        for limit, value in [('MAX_FILES', 2), ('MAX_BYTES', 64)]:
+            with self.subTest(limit=limit):
+                def many(jail):
+                    jail.workload()
+                    jail.write_receipt()
+                    receipt = Path(os.fsdecode(jail.option(b'--receipt')))
+                    for index in range(3):
+                        (receipt.parent / f'extra-{index}.txt').write_bytes(b'x' * 40)
+                    jail.exit(0)
+                guest = GuestHarness(self, scenarios=[many])
+                setattr(guest.guest, limit, value)
+                guest.session()
+                guest.run2()
+                frames = []
+                while (frame := guest.frame()) is not None:
+                    frames.append(frame['event'])
+                self.assertNotIn('done', frames)
+                self.assertEqual(guest.ended(), 'export_limit')
+                self.assertIsNone(guest.error)
+
 
 if __name__ == '__main__':
     unittest.main()

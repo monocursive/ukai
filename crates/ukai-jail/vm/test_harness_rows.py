@@ -699,10 +699,16 @@ class GuestMeasurementMutations(unittest.TestCase):
                 ('another verification scope', receipt(lambda x: x['lifetime'].update(verification_scope='target_only')),
                  fact('receipt_scope_attempt_tree')),
                 ('no guest stop report', lambda r, v, name=name: r[name].update(guest_stop=None),
-                 [fact('guest_stop_reported'),
+                 [fact('guest_stop_reported'), fact('guest_stop_covered_an_attempt_cgroup'),
                   fact('guest_stop_found_no_populated_boundary'), fact('guest_stop_found_no_live_process'),
                   fact('guest_stop_killed_no_stray')]),
                 ('a malformed stop report', stop(lambda s: s['boundaries'].append(7)), fact('guest_stop_reported')),
+                # Review 2026-11-05 F6: a stop that looked at nothing found nothing.
+                ('a stop that covered no boundary', stop(lambda s: s.update(boundaries=[])),
+                 fact('guest_stop_covered_an_attempt_cgroup')),
+                ('a stop that covered only the user manager', stop(lambda s: s.update(boundaries=[
+                    'user.slice/user-1001.slice/user@1001.service/app.slice'])),
+                 fact('guest_stop_covered_an_attempt_cgroup')),
                 ('a stray that is not a (pid, cgroup) pair', stop(lambda s: s.update(strays_killed=[['812', None]])),
                  [fact('guest_stop_reported'), fact('guest_stop_killed_no_stray')]),
                 ('a live process that is not a pair', stop(lambda s: s.update(live_before_kill=[[812]])),
@@ -1493,12 +1499,31 @@ class WarmLiveTables(unittest.TestCase):
             ('a stray the guest stop killed', at(6, guest_stop={
                 'boundaries': [], 'populated_before_kill': [], 'live_before_kill': [],
                 'strays_killed': [[9, None]]}), 'every_guest_stop_found_nothing_left'),
+            ('a guest stop that covered no boundary', at(6, guest_stop={
+                'boundaries': [], 'populated_before_kill': [], 'live_before_kill': [],
+                'strays_killed': []}), 'every_guest_stop_found_nothing_left'),
+            ('a guest stop that covered only the user manager', at(6, guest_stop={
+                'boundaries': ['user.slice/user-1001.slice/user@1001.service/app.slice'],
+                'populated_before_kill': [], 'live_before_kill': [], 'strays_killed': []}),
+             'every_guest_stop_found_nothing_left'),
         ]
         for name, records, gate in table:
             with self.subTest(name):
                 verdict = self.judge(records)
                 self.assertEqual(verdict['outcome'], 'FAIL')
                 self.assertIn(gate, verdict['failed'])
+
+    def test_an_empty_run_fails_every_per_attempt_gate(self):
+        # all([]) is True: without the `ran` guard each gate passed on no
+        # attempt, masked only by k108_twenty_runs.
+        verdict = self.judge([])
+        self.assertEqual(verdict['outcome'], 'FAIL')
+        for gate in ['every_attempt_exit_zero', 'every_receipt_verified', 'every_granted_write_reached_host',
+                     'every_protected_write_tried_and_refused', 'protected_git_never_reached',
+                     'every_attempt_saw_the_jails_denial', 'every_receipt_network_none',
+                     'every_guest_stop_found_nothing_left', 'k108_every_attempt_within_budget']:
+            with self.subTest(gate):
+                self.assertIs(verdict[gate], False)
 
     def test_a_serve_that_was_warm_but_not_ready_fails(self):
         verdict = self.judge(self.good(), status={'guest_nat': True, 'warm': True, 'ready': False})
