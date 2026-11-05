@@ -11,11 +11,15 @@ Current implementation: native execution is **off by default**. Setting
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
 receipts are tested; live development-VM smoke runs also attach and report the
 declared set, without satisfying K105–K107 release qualification.
-`ukai-jail run --vm` is wired to the warm `ukai-vm` service, but every
-attempt still refuses at probing, before any connection or boot: the probe
-answers Available only for a requirement a measured guest record backs, the
-2026-11-04 live phase measured five, and every other requirement,
-`tree_termination` among them, answers `vm:not-measured:<requirement>` (§6).
+`ukai-jail run --vm` is wired to the warm `ukai-vm` service. The probe
+answers Available only for a requirement a measured guest record backs; the
+2026-11-04 evening live phase measured every requirement of a `tool` or
+`agent` plan with an explicit wall of 1–300 s (the profiles' own 30 m and 2 h
+walls are `vm:not-carried:limits.wall`), and 20 `tool` runs of a source-built
+client then settled with exit 0 on the spare Mac (development evidence). A
+plan that also needs
+`execution_boundary` or `credential_staging` still refuses at probing,
+before any connection or boot, with `vm:not-measured:<requirement>` (§6).
 The [2026-11-01 measurement spike](../benchmarks/jail/results/macos-custody-spike-2026-11-01/README.md)
 runs this implementation with live Endpoint Security in an isolated,
 SIP-disabled development VM. It exposes a K90 class-2 blocker: an existing
@@ -95,7 +99,7 @@ The native tier is the intended default after qualification. Today the
 default refuses; the development opt-in does not make it supported. A run
 that needs a kernel-bound lifetime must use a supported Linux deployment or
 the separate released VM preview within its documented limits. `run --vm`
-in this tree refuses at probing until the guest is re-measured (§6).
+in this tree is unqualified: K108–K113 are `untested` (§6).
 
 ## 1. Scope
 
@@ -238,8 +242,9 @@ everyday use:
 
 For the interactive laptop case that the adoption ranking puts first, the
 native tier is what people will use. So the native tier must be honest about
-what it is. The VM backend is wired but unqualified; the current
-`run --vm` path refuses at probing, before any connection or boot (§6).
+what it is. The VM backend is wired but unqualified; a `run --vm` whose
+plan needs an unmeasured requirement refuses at probing, before any
+connection or boot (§6).
 
 ## 4. Native tier: defended custody (J16)
 
@@ -1257,8 +1262,21 @@ published, and it carries only `ukai-vm` and `ukai-vm-install`: no macOS
 tested at the CLI against a fabricated installation (`vm_tier.rs`) and in
 unit tests; the guest-side behavior (attempt stop, mandatory share, named
 poweroffs) is covered by unit and model tests and, for the pidfd kill and
-the zombie-leader read, real-`/proc` tests on a Linux host only. None of it
-has run on a booted guest yet; live verification is pending.
+the zombie-leader read, real-`/proc` tests on a Linux host only. On
+2026-11-04 a booted guest (development evidence,
+[record](../benchmarks/jail/results/macos-vm-live-2026-11-04/README.md))
+ran the session's infrastructure learning, attempt stops that found nothing
+to kill, the mandatory share and one `live_share_mount_failed` poweroff.
+The evening's booted guest
+([record](../benchmarks/jail/results/macos-vm-probes-2026-11-04/README.md))
+sent the stop's pre-kill report with each of the 36 harness attempts whose
+record keeps it (16 in `capabilities.json`, 20 in `warm-live.json`), each
+with nothing populated, live or killed, and with each of the 20 real-client
+attempts, which settled only because the host found it clean
+(`vm-transport.json` keeps its boundaries). The route controls' records
+keep no stop. The stop's kill paths and the other
+named poweroffs have not run on a booted guest; live verification is
+pending.
 
 - **Probe (D2).** `owner_loss_termination` always answers
   `vm:owner-loss-not-provided`: the guest's wall is a deadline, not an
@@ -1266,29 +1284,46 @@ has run on a booted guest yet; live verification is pending.
   the VM platform's one measurement table, `GUEST_MEASUREMENTS`, lists it:
   the requirement, the guest record that measured it inside the guest
   through the jail command `--vm` issues, and that record's own time, which
-  becomes `measured_at`. Its five rows are the 2026-11-04 live phase
-  ([record](../benchmarks/jail/results/macos-vm-live-2026-11-04/README.md)):
+  becomes `measured_at`. Its ten rows are the 2026-11-04 evening live phase
+  ([record](../benchmarks/jail/results/macos-vm-probes-2026-11-04/README.md)):
   `capabilities.py` measured `limit:wall`, `limit:pids`, `limit:mem`,
-  `filesystem_containment` and `network_none` each alone, by its own attempt,
-  on one warm boot of an image `prepare.py` built from this tree, through the
-  published guest jail; development evidence from an unsigned source build on
-  one M2 Pro host. The 2026-11-02 records back nothing: they state no time of
+  `filesystem_containment`, `network_none`, `tree_termination`,
+  `closed_set_observation`, `syscall_filter`,
+  `protected_coverage:existing_and_root` and `network_proxy` each by its own
+  attempts, on one warm boot of an image `prepare.py` built from
+  the guest sources at `6bd497076` (the tree's `guest.py` has since added only
+  the staged export's refusal of directory links and unlistable directories,
+  which no probe exercised), through the published guest jail 0.1.0-rc.5;
+  development evidence from an unsigned source build on one M2 Pro host, one
+  run of each probe. The morning's record of the same day
+  ([record](../benchmarks/jail/results/macos-vm-live-2026-11-04/README.md))
+  measured the first five on an image built from older guest sources and backs
+  no row now. The 2026-11-02 records back nothing: they state no time of
   measurement, and none of their verdicts measured its requirement alone:
-  `wall` cannot tell the guest jail's deadline from the controller's
-  `wall + 10 s` backstop, `pids` passes whatever the limit, `mem` passes on
-  any OOM kill, containment measured writes but not reads, and
-  `network_none`'s TCP half was vacuous (`/dev/tcp` under the guest's
-  `dash`). Every requirement the table does not list answers
-  `vm:not-measured:<requirement>` (`missing_capability`, remediation
-  `unsupported`). A `tool` plan also requires `tree_termination`,
-  `closed_set_observation`, `syscall_filter` and
-  `protected_coverage:existing_and_root`, and an `agent` plan the same with
-  `network_proxy` for `network_none`. No live probe measures any of them
-  yet, so **every `run --vm` still refuses at probing, before any
-  connection or boot,** with exit 125. `limit:pids` and `limit:mem` become
-  requirements only when the operator requires those ceilings. A policy
-  `--vm` does not carry answers its carry reason on every row but owner
-  loss instead (remediation `configuration`).
+  `wall` cannot tell the guest jail's deadline from the controller's `wall + 10 s`
+  backstop, `pids` passes whatever the limit, `mem` passes on any OOM
+  kill, containment measured writes but not reads, and `network_none`'s TCP
+  half was vacuous (`/dev/tcp` under the guest's `dash`). Every requirement
+  the table does not list answers `vm:not-measured:<requirement>`
+  (`missing_capability`, remediation `unsupported`). A `tool` plan requires
+  seven: `tree_termination`, `closed_set_observation`,
+  `filesystem_containment`, `syscall_filter`, `network_none`,
+  `protected_coverage:existing_and_root` and the wall, and an `agent` plan the
+  same with `network_proxy` for `network_none` (the 20 real-client receipts
+  list exactly the `tool` seven). Every one has a row, so such a plan passes
+  probing once its wall is one the guest carries: an explicit
+  `--limit wall=<n>s` of 1–300 s, `--terminal detach`, and an environment of
+  `LANG=C.UTF-8` only. The profiles' own walls (30 m for `tool`, 2 h for
+  `agent`) answer `vm:not-carried:limits.wall`. A plan that also needs
+  `execution_boundary` or `credential_staging` (a launch profile that declares
+  credentials) **still refuses at probing, before any connection or boot,**
+  with exit 125: neither has a row. `execution_boundary` comes with any
+  required `pids`, `mem` or `swap` ceiling the guest carries, which is only
+  its own `pids=64`, `mem=512MiB` and `swap=0`; another value, or a required
+  `cpu` ceiling, is `vm:not-carried`. So the `limit:pids` and `limit:mem`
+  rows, though measured, never let a plan pass on their own. A policy `--vm`
+  does not carry answers its carry reason on every row but owner loss instead
+  (remediation `configuration`).
 - **What `--vm` carries (D1).** Exactly the profile (`tool` or `agent`), the
   wall (whole seconds, 1–300), the argv, the network shape (`tool`: none;
   `agent`: the proxy with the allow set) and vault-mode credentials. Before
@@ -1355,8 +1390,15 @@ has run on a booted guest yet; live verification is pending.
   Covered by unit tests of the classification (a real pipe, file, socket,
   `/dev/zero`, pseudo-terminal and closed descriptor) and of the refusal
   before any contact.
-- **Serve (D4).** Whether `run --vm` reuses a serving `ukai-vm` or spawns
-  one, it then reads the serve's status. It refuses unless the serve shares
+- **Serve (D4).** The client hashes no image artifact: it checks only that
+  `image.json` is `prepared`, and refuses a serve whose status, or an
+  attempt whose `ready`, reports a disk, helper, custodian or seed digest
+  other than that manifest's, a boot id other than the status's, or another
+  vsock port. The serve hashes every artifact before it listens and boots
+  only a private copy, hashed again after the copy, so those reported
+  digests are the serve's own measurement. Whether `run --vm` reuses a
+  serving `ukai-vm` or spawns one, it then reads the serve's status. It
+  refuses unless the serve shares
   exactly this workspace live and, for a proxied policy, has its NAT
   adapter, and it keeps the boot id that status reported: the attempt
   socket's `ready` must carry the same boot id, or the run refuses ("another
@@ -1375,8 +1417,9 @@ has run on a booted guest yet; live verification is pending.
   `signaled` with signal s gives 128 + s. A signaled outcome is relayed as
   signaled. Any other combination, or a `done` without a verified receipt,
   makes the attempt's run event unknown, and no transport record is
-  written. Covered by unit tests over guest receipts and `done` codes; no
-  `run --vm` has relayed one yet.
+  written. Covered by unit tests over guest receipts and `done` codes. The
+  evening record's 20 real-client attempts each relayed `exited` 0
+  (development evidence); no `run --vm` has relayed a signaled outcome yet.
 - **Policy digest, the second wall (D5).** After the run, the host derives
   the policy snapshot the guest jail resolves for this attempt (the share
   mount `/mnt/workspace` as its workspace, the fixed guest limits and the
@@ -1416,7 +1459,14 @@ has run on a booted guest yet; live verification is pending.
   the receipt line, so `run` and `tail --summary` print the same lines; the
   JSON summary keeps its frozen shape, and the transport line is not one of
   its lines. Covered by unit tests on the K113 record and receipts derived
-  from it; no `run --vm` has produced such a receipt yet.
+  from it. The evening record's 20 real-client attempts produced such
+  receipts, and `tail --summary` printed one with its transport line
+  (development evidence). Because `applied` is the guest receipt's, each
+  `applied.limits` row's `required` is the guest jail's plan, not the
+  host's: the guest requires its fixed `pids=64`, `mem=512MiB` and `swap=0`,
+  so the host receipt shows them `required` while its own
+  `policy.requirements` names only the wall among the limits. The host plan
+  is the receipt's `policy`; `guest_carried` names `applied` as the guest's.
 - **Attempt stop (D6).** One stop serves the guest's done, cancel2, reset and
   the outer-wall backstop. The workload account's infrastructure is three
   processes, learned at session open, before any attempt of the boot runs:
@@ -1428,8 +1478,9 @@ has run on a booted guest yet; live verification is pending.
   is checked against `/proc` and pinned by pid and start time (a manager
   without a helper is accepted; two candidate helpers fail the learning);
   nothing a process says about itself makes it infrastructure. If the
-  learning fails, the guest powers off with `infrastructure_unknown`. The
-  learned set has not been confirmed on a booted guest. The stop kills every
+  learning fails, the guest powers off with `infrastructure_unknown`. On a
+  booted guest (2026-11-04 stop audit) the learning found exactly those
+  three; the stop's kill paths have not run on a booted guest. The stop kills every
   `ukai-attempts.slice/attempt-*` cgroup and every cgroup under the user
   manager that neither is nor holds one of those units (walking into the
   units' own sub-cgroups), and kills by pidfd every other live process of
@@ -1445,7 +1496,22 @@ has run on a booted guest yet; live verification is pending.
   bounded at 1 s, and every wait feeds the guest watchdog. A failure powers
   the guest off with `attempt_tree_unverified`, and its audit lists each
   populated cgroup's `members`; a successful stop's audit lists
-  `strays_killed`. The attempt's files (staged values and launch profile)
+  `strays_killed`. Before it signals anything, the stop records the cgroups
+  still populated and the account's live processes outside the
+  infrastructure. It runs after the guest jail exited and verified its own
+  tree, so anything in either list survived the guest jail (`strays_killed`
+  cannot say so: `cgroup.kill` records nothing of what it ends). A warm
+  attempt's `done` carries the report, and the host settles nothing when
+  `done` has none or any of the three lists is non-empty: the guest
+  receipt's `tree_empty` is then unchecked or contradicted, and so is a stop
+  that covered no `ukai-attempts.slice/attempt-<n>` cgroup (it found
+  nothing because it looked at nothing). **Residual:** the report of the
+  stop that `reset` and `cancel2` run goes to the console only. The done-stop
+  sees processes and cgroups, not loaded units, so a unit the attempt left
+  scheduled with no process yet (a timer, if the workload can reach the user
+  manager) would start after its attempt settled clean, and the next
+  attempt's reset would kill it with no receipt naming it. This is not
+  measured; the next live phase should try it. The attempt's files (staged values and launch profile)
   are removed at every stop and every poweroff; failing to remove them at a
   stop powers off with `attempt_files_not_cleared`.
 - **Mandatory share (D7).** A guest booted with a virtio-fs device whose
@@ -1664,7 +1730,7 @@ entitlement that the preview already uses.
 | [jail-interactive-sessions](jail-interactive-sessions.md) §3 (J14) | macOS terminal mode is the pty relay (decision 3). X05 does not hold for macOS terminal runs. | Amendment |
 | jail-v1 §6.1, §6.3 (J18) | `--vm`, `vm stop`, and the kernel-bound lifetime key with its narrowing row and requirement name (§6). | Addition |
 | `crates/ukai-jail` | Default native refusal; development-gated preparation, guardian and launcher modes, and the ES shim. Credential/vendor staging refuses. J17 attaches the declared observer before release; strict startup failure refuses. | Implementation |
-| `crates/ukai-jail/vm` | The warm service, guest controller, package builder and measurement harnesses exist; every `run --vm` still refuses at probing (the 2026-11-04 live phase measured five requirements; `tree_termination` and four others have no probe), and K108–K113 stay `untested` (§6). | Implementation |
+| `crates/ukai-jail/vm` | The warm service, guest controller, package builder and measurement harnesses exist; the 2026-11-04 evening live phase measured ten guest requirements, every one a `tool` or `agent` plan with an explicit 1–300 s wall needs, so such a `run --vm` passes probing (20 source-built `tool` runs settled with exit 0), and K108–K113 stay `untested` (§6). | Implementation |
 | Installer, [RELEASING](../RELEASING.md) | The Mac bundle, provisioning profile and notarization, and the protected-Mac release run. | Procedure |
 | [roadmap](../roadmap.md), [guide](../guide.md) | Record Apple's answer and the two tiers, and explain the native boundary and `--vm`. | Guide |
 
@@ -1769,8 +1835,8 @@ and shipped client, after the K111 receipt fix.
   pressure are not excluded. DTS's notification-overload answer does not
   establish an external-only residual.
   The pre-first-message sequence ambiguity (§4.4) is a separate residual.
-  The VM backend refuses at probing until the guest is re-measured (§6);
-  only the released preview has its own recorded, narrower contract.
+  The VM backend is unqualified (K108–K113 `untested`, §6); only the
+  released preview has its own recorded, narrower contract.
 
 ## 11. Open questions
 

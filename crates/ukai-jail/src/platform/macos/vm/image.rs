@@ -101,7 +101,7 @@ pub struct ImageManifest {
 pub struct Install {
     /// The version directory: `.../share/ukai-vm/<version>`.
     pub root: PathBuf,
-    /// The manifest, as read and verified by [`Install::verify`].
+    /// The manifest, as read; [`Install::verify`] checks the artifacts against it.
     pub manifest: ImageManifest,
 }
 
@@ -159,17 +159,31 @@ impl Install {
         Ok(Install { root, manifest })
     }
 
-    /// Verifies every artifact against the manifest, `run.py`'s
-    /// `load_image`. The digests are then the facts `ready` frames carry.
+    /// Checks that the manifest records a finished preparation, without
+    /// hashing anything. A `--vm` run's client makes only this check: the
+    /// serve it starts hashes every artifact ([`Install::verify`]) and boots
+    /// only a private copy it hashed again ([`Install::verified_copy`]), and
+    /// the client compares that serve's reported digests with this manifest.
     ///
     /// # Errors
-    /// [`Refusal`] when any artifact is missing or its hash differs.
-    pub fn verify(&self) -> Result<(), Refusal> {
+    /// [`Refusal`] when the manifest's status is not `prepared`.
+    pub fn prepared(&self) -> Result<(), Refusal> {
         if self.manifest.status != "prepared" {
             return Err(refusal(
                 "image/helper does not match prepared metadata: the manifest is not `prepared`",
             ));
         }
+        Ok(())
+    }
+
+    /// Verifies every artifact against the manifest, `run.py`'s
+    /// `load_image`. The digests are then the facts `ready` frames carry.
+    ///
+    /// # Errors
+    /// [`Refusal`] when the manifest is not `prepared` ([`Install::prepared`])
+    /// or any artifact is missing or its hash differs.
+    pub fn verify(&self) -> Result<(), Refusal> {
+        self.prepared()?;
         let image = self.root.join("image");
         for (name, recorded) in [
             ("base.raw", &self.manifest.disk_sha256),
@@ -641,7 +655,21 @@ mod tests {
         )
         .expect("writes");
         let install = Install::from_root(root).expect("found");
+        assert!(
+            install.prepared().is_err(),
+            "a preparing image is not prepared"
+        );
         assert!(install.verify().is_err(), "a preparing image refuses");
+    }
+
+    #[test]
+    fn prepared_reads_only_the_manifest() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let root = installed(dir.path());
+        std::fs::write(root.join("image/base.raw"), "tampered").expect("swap");
+        let install = Install::from_root(root).expect("found");
+        install.prepared().expect("the status alone is checked");
+        assert!(install.verify().is_err(), "the hash still refuses");
     }
 
     #[test]

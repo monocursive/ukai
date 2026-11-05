@@ -2,6 +2,7 @@
 """Single-attempt guest controller. Installed root-owned outside the jail."""
 import base64
 import collections
+import errno
 import json
 import hashlib
 import struct
@@ -456,12 +457,26 @@ def stop_attempt(account, infrastructure, budget=STOP_BUDGET):
     unit the manager started while the first kill landed. Raises
     [`AttemptTreeUnverified`] past the budget: a warm reset must never run
     alongside surviving workload processes, and the caller powers the guest
-    off."""
+    off.
+
+    Returns the stop's report, which `done` carries to the host: the
+    boundaries it covered, every stray it killed, and, as the witness of the
+    guest jail's own tree termination, what it found BEFORE signalling
+    anything. The stop runs after the guest jail has exited and verified its
+    tree, so a boundary still populated or a live process of the account at
+    that moment survived the guest jail. `strays_killed` alone is no such
+    witness: the boundaries' `cgroup.kill` records nothing of what it ends."""
     if infrastructure is None:
         raise AttemptTreeUnverified('no infrastructure was learned for this session')
     uid = account.pw_uid
     deadline = clock() + budget
     killed = {}
+    before = attempt_boundaries(uid, infrastructure.units)
+    witness = {
+        'populated_before_kill': [str(target.relative_to(CGROUP_ROOT)) for target in before
+                                  if cgroup_populated(target)],
+        'live_before_kill': sorted([pid, cgroup] for pid, _, cgroup in stray_processes(uid, infrastructure.pids)),
+    }
     while True:
         notify()
         targets = attempt_boundaries(uid, infrastructure.units)
@@ -476,9 +491,10 @@ def stop_attempt(account, infrastructure, budget=STOP_BUDGET):
             killed.setdefault(pid, cgroup)
         populated = [target for target in targets if cgroup_populated(target)]
         if not populated and not strays:
-            audit('workload_tree_empty', boundaries=[str(target.relative_to(CGROUP_ROOT)) for target in targets],
-                  strays_killed=sorted([pid, cgroup] for pid, cgroup in killed.items()))
-            return targets
+            report = {'boundaries': [str(target.relative_to(CGROUP_ROOT)) for target in targets],
+                      'strays_killed': sorted([pid, cgroup] for pid, cgroup in killed.items()), **witness}
+            audit('workload_tree_empty', **report)
+            return report
         if clock() >= deadline:
             detail = {'populated': [str(target) for target in populated],
                       'strays': [[pid, cgroup] for pid, _, cgroup in strays],
@@ -978,6 +994,68 @@ def receipt_binding(request, receipt, guest_boot_id):
                 profile=request['profile'], argv_digest=digest)
 
 
+def export_outputs(send, in_session, run_request, guest_boot_id):
+    """Send the finished attempt's regular files to the host and return the
+    bound receipt's binding (None outside a session).
+
+    The live share's files are already on the host, so only the evidence
+    tree travels back then; the staged mode sends the workspace too. Only
+    regular files are transported, and a guest link is never dereferenced.
+    Every failure is a named Refusal, so the guest powers off saying what it
+    could not export (`export_nonregular`, `export_unreadable`,
+    `export_limit`, `receipt_unbound`, `receipt_missing`), not as an
+    anonymous `controller_error`. Failing closed is unchanged: the host
+    never receives a `done` for an attempt whose output did not travel.
+
+    Nothing is skipped either: a link to a directory is refused like a link
+    to a file, and a directory the walk cannot list is `export_unreadable`
+    (os.walk would otherwise drop both silently, and a partial export would
+    settle; review of 2026-11-05)."""
+    count = 0
+    total = 0
+    binding = None
+    groups = ([(EVIDENCE, 'evidence')] if WORKSPACE == SHARE_MOUNT
+              else [(WORKSPACE, 'workspace'), (EVIDENCE, 'evidence')])
+
+    def unlistable(_error):
+        raise Refusal('export_unreadable') from None
+
+    for root, label in groups:
+        if not root.exists():
+            continue
+        for directory, dirs, names in os.walk(root, onerror=unlistable, followlinks=False):
+            if any((Path(directory) / d).is_symlink() for d in dirs):
+                raise Refusal('export_nonregular')
+            for name in names:
+                path = Path(directory) / name
+                try:
+                    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                except OSError as error:
+                    # O_NOFOLLOW refuses a link with ELOOP: a link is not a
+                    # regular file, whatever it names.
+                    raise Refusal('export_nonregular' if error.errno == errno.ELOOP
+                                  else 'export_unreadable') from None
+                with os.fdopen(fd, 'rb') as source:
+                    info = os.fstat(source.fileno())
+                    if not stat.S_ISREG(info.st_mode):
+                        raise Refusal('export_nonregular')
+                    count += 1
+                    total += info.st_size
+                    if count > MAX_FILES or total > MAX_BYTES or info.st_size > MAX_FILE:
+                        raise Refusal('export_limit')
+                    payload = source.read(MAX_FILE + 1)
+                if in_session and label == 'evidence' and path.name == 'jail.json' and path.parent == EVIDENCE:
+                    try:
+                        binding = receipt_binding(run_request, json.loads(payload), guest_boot_id)
+                    except (ValueError, KeyError, TypeError):
+                        raise Refusal('receipt_unbound') from None
+                send({'event': 'file', 'group': label, 'path': str(path.relative_to(root)),
+                      'executable': bool(info.st_mode & 0o111), 'data': base64.b64encode(payload).decode()})
+    if in_session and binding is None:
+        raise Refusal('receipt_missing')
+    return binding
+
+
 def vsock_listener():
     server = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
     server.bind((VMADDR_CID_ANY, PORT))
@@ -1044,9 +1122,11 @@ def main():
         outer-wall backstop). Kill and verify every boundary the attempt can
         occupy, reap the supervisor, remove the attempt's staged files —
         each bounded, each failure a named poweroff rather than a starved
-        watchdog."""
+        watchdog. Returns the stop's report (stop_attempt), which `done`
+        carries."""
+        report = None
         try:
-            stop_attempt(account, infrastructure)
+            report = stop_attempt(account, infrastructure)
             drop_attempt_cgroups(account.pw_uid)
             reap(process)
         except (AttemptTreeUnverified, OSError, ValueError) as error:
@@ -1057,6 +1137,7 @@ def main():
         except OSError as error:
             audit('attempt_files_not_cleared', error=type(error).__name__)
             poweroff('attempt_files_not_cleared')
+        return report
 
     def discard_attempt():
         """Closes one attempt's streams and counters, after its tree has
@@ -1240,41 +1321,20 @@ def main():
                 except Refusal as refusal:
                     poweroff(refusal.reason)
         if process is not None and process.poll() is not None and stream_count == 0:
+            stop = None
             if in_session:
                 # The tree goes before anything is read back, and the staged
                 # values with it: nothing the attempt left runs on, and no
-                # value outlives the attempt that `done` reports.
-                end_attempt()
-            # Only regular files are transported. Never dereference guest links.
-            count = 0
-            total = 0
-            binding = None
-            # The live share's files are already on the host; only the
-            # evidence tree travels back.
-            groups = ([(EVIDENCE, 'evidence')] if WORKSPACE == SHARE_MOUNT
-                      else [(WORKSPACE, 'workspace'), (EVIDENCE, 'evidence')])
-            for root, label in groups:
-                for directory, dirs, names in os.walk(root, followlinks=False):
-                    dirs[:] = [d for d in dirs if not (Path(directory) / d).is_symlink()]
-                    for name in names:
-                        path = Path(directory) / name
-                        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-                        with os.fdopen(fd, 'rb') as source:
-                            info = os.fstat(source.fileno())
-                            if not stat.S_ISREG(info.st_mode):
-                                raise ValueError('nonregular output')
-                            count += 1
-                            total += info.st_size
-                            if count > MAX_FILES or total > MAX_BYTES or info.st_size > MAX_FILE:
-                                raise ValueError('export_limit')
-                            payload = source.read(MAX_FILE + 1)
-                        if in_session and label == 'evidence' and path.name == 'jail.json' and path.parent == EVIDENCE:
-                            binding = receipt_binding(run_request, json.loads(payload), guest_boot_id)
-                        send({'event': 'file', 'group': label, 'path': str(path.relative_to(root)),
-                              'executable': bool(info.st_mode & 0o111), 'data': base64.b64encode(payload).decode()})
-            if in_session and binding is None:
-                raise ValueError('missing bound jail receipt')
-            send({'event': 'done', 'exit_code': process.returncode, **({'binding': binding} if in_session else {})})
+                # value outlives the attempt that `done` reports. The stop's
+                # report travels with `done`: the host checks the guest
+                # jail's own tree verdict against it.
+                stop = end_attempt()
+            try:
+                binding = export_outputs(send, in_session, run_request, guest_boot_id)
+            except Refusal as refusal:
+                poweroff(refusal.reason)
+            send({'event': 'done', 'exit_code': process.returncode,
+                  **({'binding': binding, 'stop': stop} if in_session else {})})
             audit('done', exit_code=process.returncode)
             if not in_session:
                 # No new run and no reboot/resume. Host tears down this VM.

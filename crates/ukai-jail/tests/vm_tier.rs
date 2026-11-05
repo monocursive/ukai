@@ -167,6 +167,13 @@ fn the_kernel_bound_key_is_a_narrowing_none_refuses() {
 // The CLI grammar: the binary, on a private state root
 // ---------------------------------------------------------------------------
 
+/// The `ukai-jail` binary under test.
+fn test_binary() -> PathBuf {
+    std::env::var_os("UKAI_JAIL_TEST_BINARY")
+        .unwrap_or_else(|| env!("CARGO_BIN_EXE_ukai-jail").into())
+        .into()
+}
+
 struct Harness {
     #[allow(dead_code)]
     temp: tempfile::TempDir,
@@ -195,10 +202,11 @@ impl Harness {
     }
 
     fn command(&self, arguments: &[&str]) -> Command {
-        let mut command = Command::new(
-            std::env::var_os("UKAI_JAIL_TEST_BINARY")
-                .unwrap_or_else(|| env!("CARGO_BIN_EXE_ukai-jail").into()),
-        );
+        self.command_of(&test_binary(), arguments)
+    }
+
+    fn command_of(&self, program: &std::path::Path, arguments: &[&str]) -> Command {
+        let mut command = Command::new(program);
         command
             .env_clear()
             // The guest jail's admitted environment (guest.py): a `--vm`
@@ -689,29 +697,35 @@ impl Harness {
     }
 }
 
-/// D1 and D2 at the CLI: every `run --vm` refuses at probing, before any
-/// connection or staging. A policy the guest jail would not apply as asked
-/// names its field (`vm:not-carried:<field>`); one it would apply names the
-/// first requirement no measured guest record backs (`vm:not-measured:`),
-/// which today is every one.
+/// D1 and D2 at the CLI: a `run --vm` the guest cannot honour refuses at
+/// probing, before any connection or staging. A policy the guest jail would
+/// not apply as asked names its field (`vm:not-carried:<field>`); one it
+/// would apply names the first requirement no measured guest record backs
+/// (`vm:not-measured:`), which, since the 2026-11-04 live phase, is only
+/// `execution_boundary`, `credential_staging` or the owner-loss bound.
 #[test]
 #[cfg(target_os = "macos")]
-fn every_vm_run_refuses_at_probing_with_the_reason_that_applies() {
+fn a_vm_run_the_guest_cannot_honour_refuses_at_probing_with_its_reason() {
     for (args, lang, expected) in [
         (
             vec!["--profile", "none", "--lifetime", "kernel-bound"],
             true,
             "--vm refuses --profile none",
         ),
+        // The guest's fixed mem ceiling, required: `limit:mem` has a row,
+        // but a required mem ceiling needs an execution boundary, which no
+        // guest record measured.
         (
-            vec!["--profile", "agent", "--limit", "wall=5s"],
+            vec![
+                "--profile",
+                "tool",
+                "--limit",
+                "wall=5s",
+                "--limit",
+                "mem=512MiB",
+            ],
             true,
-            "vm:not-measured:tree_termination",
-        ),
-        (
-            vec!["--profile", "tool", "--limit", "wall=5s"],
-            true,
-            "vm:not-measured:tree_termination",
+            "vm:not-measured:execution_boundary",
         ),
         (
             vec![
@@ -819,6 +833,65 @@ fn every_vm_run_refuses_at_probing_with_the_reason_that_applies() {
                 "{stderr}"
             );
         }
+    }
+}
+
+/// D2 after the 2026-11-04 live phase: a default `tool` or `agent` plan
+/// passes probing and goes on to preparing. The test copies the binary to a
+/// directory with no `ukai-vm` beside it and keeps `PATH` free of one, so
+/// preparing stops at the live share's case check or at the serve lookup:
+/// past probing, and before any boot, connection or VM runtime directory.
+#[test]
+#[cfg(target_os = "macos")]
+fn a_default_vm_run_passes_probing_and_stops_at_the_serve_lookup() {
+    let harness = Harness::new();
+    harness.install_stand_in();
+    let lone = harness.temp.path().join("lone");
+    std::fs::create_dir(&lone).unwrap();
+    let binary = lone.join("ukai-jail");
+    std::fs::copy(test_binary(), &binary).expect("the copied binary");
+    std::fs::write(harness.work.join("Fold"), b"").unwrap();
+    let folds_case = harness.work.join("fold").exists();
+    std::fs::remove_file(harness.work.join("Fold")).unwrap();
+    for profile in ["tool", "agent"] {
+        let output = harness
+            .command_of(
+                &binary,
+                &[
+                    "run",
+                    "--vm",
+                    "--terminal",
+                    "detach",
+                    "--profile",
+                    profile,
+                    "--limit",
+                    "wall=5s",
+                    "--",
+                    "/bin/sh",
+                    "-c",
+                    "touch workload-ran",
+                ],
+            )
+            .output()
+            .expect("the binary runs");
+        assert_eq!(output.status.code(), Some(125), "{profile}: {output:?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!stderr.contains("vm:not-measured:"), "{profile}: {stderr}");
+        assert!(!stderr.contains("vm:not-carried:"), "{profile}: {stderr}");
+        assert!(stderr.contains(" at preparing "), "{profile}: {stderr}");
+        // The live share's first check refuses a case-folding volume (the
+        // macOS default); a case-sensitive one reaches the serve lookup.
+        let expected = if folds_case {
+            "the workspace volume folds case in file names"
+        } else {
+            "no ukai-vm program found beside ukai-jail or on PATH"
+        };
+        assert!(stderr.contains(expected), "{profile}: {stderr}");
+        assert!(!harness.work.join("workload-ran").exists());
+        assert!(
+            !harness.data.join("vm").exists(),
+            "no VM runtime: {profile}: {stderr}"
+        );
     }
 }
 

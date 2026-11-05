@@ -471,7 +471,8 @@ class MacosContract(unittest.TestCase):
                              "`nosuid,nodev`", "`init.scope`", "`test_guest_main.py`",
                              "`guest_harness.py`", "`test_custodian.py`",
                              "covered by unit and model tests only",
-                             "been confirmed on a booted guest",
+                             "kill paths have not run on a booted guest",
+                             "`populated_before_kill`" if path == "vm/README.md" else "verified its own tree",
                              # Round 4: the learned stop, the serve binding,
                              # standard input, exit, policy digest, summary.
                              "`infrastructure_unknown`", "`strays_killed`", "`members`",
@@ -499,9 +500,10 @@ class MacosContract(unittest.TestCase):
         paragraphs = [" ".join(p.split()) for p in read("crates/ukai-jail/vm/README.md").split("\n\n")]
         for marker, hedge in [("powers off with `live_share_mount_failed`. The guest's", "unit and model tests only"),
                               ("`<data>/vm/serve-failed.stderr`", "not against a real serve"),
-                              ("**The attempt stop (decision D6).**", "has not been confirmed on a booted guest"),
-                              ("gives 128 + s", "none has run against a booted guest"),
-                              ("is summarized as itself", "not yet on a new run")]:
+                              ("**The attempt stop (decision D6).**", "kill paths have not run on a booted guest"),
+                              ("`populated_before_kill`", "are covered by unit and model tests only"),
+                              ("gives 128 + s", "have run only against stand-ins"),
+                              ("is summarized as itself", "by hand, not by a test")]:
             with self.subTest(paragraph=marker):
                 paragraph = next(p for p in paragraphs if marker in p)
                 self.assertIn(hedge, paragraph)
@@ -535,6 +537,32 @@ class MacosContract(unittest.TestCase):
         k112 = json.loads(read(results + "macos-vm-installed-2026-11-03/k112.json"))
         self.assertIn("native macOS does not provide", k112["vm_installed"]["stderr"])
 
+    def test_vm_probing_claims_name_the_wall_the_guest_carries(self):
+        """Review of 2026-11-05 (F1, F7c): the profiles' own walls (30 m, 2 h)
+        are `vm:not-carried:limits.wall`, so no doc may say a default plan
+        passes probing, and the spec's D5 lines say what the evening's real
+        client did."""
+        docs = ["docs/guide.md", "docs/roadmap.md", "docs/RELEASING.md", "docs/benchmarks/jail/README.md",
+                "docs/specs/jail-macos.md", "crates/ukai-jail/vm/README.md",
+                "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/README.md",
+                "crates/ukai-jail/src/platform/macos/vm.rs"]
+        for path in docs:
+            text = " ".join(read(path).replace("//!", " ").replace("///", " ").split())
+            with self.subTest(path):
+                self.assertNotIn("default `tool` or `agent` plan", text)
+                self.assertNotIn("default `tool` or `agent` `run --vm`", text)
+                self.assertNotIn("default `run --vm` passes probing", text)
+                self.assertNotIn("a required `pids`, `mem`, `swap` or `cpu` ceiling", text)
+        spec = " ".join(read("docs/specs/jail-macos.md").split())
+        for stale in ["no `run --vm` has relayed one yet", "no `run --vm` has produced such a receipt yet",
+                      "pre-kill report on every recorded attempt"]:
+            self.assertNotIn(stale, spec)
+        for fact in ["`vm:not-carried:limits.wall`", "relayed `exited` 0",
+                     "The client hashes no image artifact", "covered no `ukai-attempts.slice/attempt-<n>` cgroup",
+                     "**Residual:** the report of the stop that `reset` and `cancel2` run goes to the console only",
+                     "each `applied.limits` row's `required` is the guest jail's plan"]:
+            self.assertIn(fact, spec)
+
     def test_vm_harness_and_packaging_docs_describe_code_not_measurements(self):
         """D9-D11 (harnesses, packaging): what the scripts do, and that none ran live."""
         readme = " ".join(read("crates/ukai-jail/vm/README.md").split())
@@ -543,7 +571,7 @@ class MacosContract(unittest.TestCase):
                      "recorded as `REFUSED`, never `PASS`", "`fault_matrix.py`** has nine cases",
                      "`measurements[<requirement>]`",
                      "an upper bound on the overhead the clause limits, not the guest jail's own release time",
-                     "under `not_measured`", "none of it has run against a booted guest",
+                     "under `not_measured`", "also ran against a booted guest on the spare Mac",
                      "`cargo build --release --locked`", "`source_revision`",
                      "No package has been built with the current script yet", "`notarization.2.json`",
                      "`payload-extra`", "It has not been run against a package yet",

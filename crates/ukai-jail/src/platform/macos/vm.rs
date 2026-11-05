@@ -9,9 +9,12 @@
 //! platform; a difference refuses with `vm:not-carried:<field>`
 //! ([`policy_refusal`]). The probe answers `available` only for a
 //! requirement a measured guest record backs (decision D2,
-//! [`GUEST_MEASUREMENTS`]). The 2026-11-04 live phase measured five; the
-//! rest (`tree_termination` first) have no probe yet, so every `tool` or
-//! `agent` `run --vm` still refuses at probing.
+//! [`GUEST_MEASUREMENTS`]). The 2026-11-04 evening live phase measured ten,
+//! every requirement of a `tool` or `agent` plan, so such a plan passes
+//! probing once its wall is an explicit 1 to 300 s (the profiles' own walls
+//! are `vm:not-carried:limits.wall`); `execution_boundary`,
+//! `credential_staging` and the owner-loss bound have no record and still
+//! refuse there.
 //!
 //! The transport below is tested with stand-ins. Its guest reports are
 //! checked for consistency and binding; they are not independent host
@@ -166,9 +169,10 @@ struct ReadyFrame {
 }
 
 /// The `--vm` platform. It discovers the installed preview (the same paths
-/// `install.sh.in` writes, or `UKAI_VM_HOME`), verifies the image against
-/// its recorded hashes, and reuses the preview's custodian and VZ client
-/// binaries unmodified.
+/// `install.sh.in` writes, or `UKAI_VM_HOME`), checks that its manifest is
+/// `prepared`, and reuses the preview's custodian and VZ client binaries
+/// unmodified. It hashes nothing itself: the serve it starts or finds does
+/// (see [`VmPlatform::new`]).
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct VmPlatform {
     data_dir: PathBuf,
@@ -176,15 +180,35 @@ pub struct VmPlatform {
 }
 
 impl VmPlatform {
-    /// Discovers and verifies the installation for this operator.
+    /// Discovers the installation for this operator and checks that its
+    /// manifest is `prepared` ([`Install::prepared`]).
+    ///
+    /// The client does not hash the artifacts: it never runs them. The
+    /// serve it starts hashes every artifact before it listens
+    /// ([`Install::verify`]) and boots only a private copy hashed again after
+    /// the copy ([`Install::verified_copy`]); the client then refuses a serve
+    /// whose reported digests differ from this manifest. A `--vm` run so
+    /// still never boots an image whose bytes do not match `image.json`, and
+    /// a run that reuses a warm guest no longer hashes the disk for nothing.
+    /// The hash was not timed on its own: the morning record's `--vm`
+    /// refusals, which ran it, took about 18 s each on the 2026-11-04 spare
+    /// Mac, and the evening's real client, which does not, reached its
+    /// workload's first host write within 481 ms.
     ///
     /// # Errors
-    /// The discovery or verification refusal: a `--vm` run never boots an
-    /// image whose bytes do not match `image.json`.
+    /// The discovery refusal, or the manifest is not `prepared`.
     pub fn new(data_dir: &Path) -> Result<Self, JailError> {
         let install = Install::discover().map_err(|error| invalid(format!("--vm: {error}")))?;
+        Self::from_install(data_dir, install)
+    }
+
+    /// [`VmPlatform::new`] for an installation already found.
+    ///
+    /// # Errors
+    /// The manifest is not `prepared`.
+    pub fn from_install(data_dir: &Path, install: Install) -> Result<Self, JailError> {
         install
-            .verify()
+            .prepared()
             .map_err(|error| invalid(format!("--vm: {error}")))?;
         Ok(VmPlatform {
             data_dir: data_dir.to_path_buf(),
@@ -562,50 +586,87 @@ pub struct GuestMeasurement {
 /// `unavailable` with `vm:not-measured:<requirement>`. The live phase
 /// re-measures the guest and updates this table, and nothing else.
 ///
-/// Its rows are the 2026-11-04 live phase (`macos-vm-live-2026-11-04/`):
-/// `capabilities.py` measured each requirement alone, by its own attempt, on
-/// one warm boot of an image `prepare.py` built from this tree's guest
-/// sources, through the published guest jail 0.1.0-rc.5. Each row points at
-/// that requirement's verdict and states that attempt's start time; a test
-/// reads the record and checks both. Development evidence: an unsigned
-/// source build on one M2 Pro host, not an installed package.
+/// Its rows are the 2026-11-04 evening live phase
+/// (`macos-vm-probes-2026-11-04/`): `capabilities.py` measured each
+/// requirement by its own attempts, on one warm boot of an image `prepare.py`
+/// built from the guest sources at `6bd497076`, through the published guest
+/// jail 0.1.0-rc.5. This tree's `guest.py` has since added only the staged
+/// export's refusal of directory links and unlistable directories, which no
+/// probe exercised. Each row points at that requirement's verdict and states the
+/// start of its first attempt; a test reads the record and checks both.
+/// Development evidence: an unsigned source build on one M2 Pro host, not an
+/// installed package, and one run of each probe.
 ///
-/// A `tool` plan also requires `tree_termination`, `closed_set_observation`,
-/// `syscall_filter` and `protected_coverage:existing_and_root`, and an
-/// `agent` plan the same with `network_proxy` for `network_none`; no live
-/// probe measures any of them yet, so every carried `run --vm` still
-/// refuses at probing. `limit:pids` and `limit:mem` become requirements
-/// only when the operator requires those ceilings. The 2026-11-02 records
-/// (`macos-vm-warm-2026-11-02/`) back nothing: they state no time of
-/// measurement, `wall` could not tell the guest jail's deadline from the
-/// controller's `wall + 10 s` backstop, `pids` passed whatever the limit,
-/// `mem` passed on any OOM kill, `containment` measured writes but not
-/// reads, and `network_none`'s TCP half was vacuous (`/dev/tcp` under dash).
+/// A `tool` plan requires `tree_termination`, `closed_set_observation`,
+/// `filesystem_containment`, `syscall_filter`, `network_none`,
+/// `protected_coverage:existing_and_root` and `limit:wall`, and an `agent`
+/// plan the same with `network_proxy` for `network_none`: every one is a row
+/// here, so such a plan passes probing once its wall is one the guest carries
+/// (an explicit 1 to 300 s; the profiles' own are not). `limit:pids` and
+/// `limit:mem` become requirements only when the operator requires those
+/// ceilings, and a required ceiling the guest carries (its own `pids=64`,
+/// `mem=512MiB`, `swap=0`) also adds `execution_boundary`, so those two rows
+/// never let a plan pass on their own;
+/// `credential_staging` (a launch profile that declares credentials),
+/// `owner_loss_termination` and `execution_boundary` have no row and still
+/// refuse. The morning record of the same day (`macos-vm-live-2026-11-04/`)
+/// measured the first five on an image built from older guest sources, and
+/// the 2026-11-02 records (`macos-vm-warm-2026-11-02/`) back nothing: they
+/// state no time of measurement, `wall` could not tell the guest jail's
+/// deadline from the controller's `wall + 10 s` backstop, `pids` passed
+/// whatever the limit, `mem` passed on any OOM kill, `containment` measured
+/// writes but not reads, and `network_none`'s TCP half was vacuous
+/// (`/dev/tcp` under dash).
 pub const GUEST_MEASUREMENTS: &[GuestMeasurement] = &[
     GuestMeasurement {
         requirement: "limit:wall",
-        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/limit:wall/verdict",
-        measured_at: "2026-11-04T12:50:44Z",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/limit:wall/verdict",
+        measured_at: "2026-11-04T20:32:10Z",
     },
     GuestMeasurement {
         requirement: "limit:pids",
-        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/limit:pids/verdict",
-        measured_at: "2026-11-04T12:51:28Z",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/limit:pids/verdict",
+        measured_at: "2026-11-04T20:32:15Z",
     },
     GuestMeasurement {
         requirement: "limit:mem",
-        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/limit:mem/verdict",
-        measured_at: "2026-11-04T12:51:29Z",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/limit:mem/verdict",
+        measured_at: "2026-11-04T20:32:16Z",
     },
     GuestMeasurement {
         requirement: "filesystem_containment",
-        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/filesystem_containment/verdict",
-        measured_at: "2026-11-04T12:51:29Z",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/filesystem_containment/verdict",
+        measured_at: "2026-11-04T20:32:16Z",
     },
     GuestMeasurement {
         requirement: "network_none",
-        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/network_none/verdict",
-        measured_at: "2026-11-04T12:51:30Z",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/network_none/verdict",
+        measured_at: "2026-11-04T20:32:16Z",
+    },
+    GuestMeasurement {
+        requirement: "tree_termination",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/tree_termination/verdict",
+        measured_at: "2026-11-04T20:32:18Z",
+    },
+    GuestMeasurement {
+        requirement: "closed_set_observation",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/closed_set_observation/verdict",
+        measured_at: "2026-11-04T20:32:34Z",
+    },
+    GuestMeasurement {
+        requirement: "syscall_filter",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/syscall_filter/verdict",
+        measured_at: "2026-11-04T20:32:35Z",
+    },
+    GuestMeasurement {
+        requirement: "protected_coverage:existing_and_root",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/protected_coverage:existing_and_root/verdict",
+        measured_at: "2026-11-04T20:32:36Z",
+    },
+    GuestMeasurement {
+        requirement: "network_proxy",
+        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/network_proxy/verdict",
+        measured_at: "2026-11-04T20:32:37Z",
     },
 ];
 
@@ -2129,6 +2190,7 @@ impl PreparedExecution for VmExecution {
             inner: execution,
             receipt: None,
             guest: None,
+            stop: None,
             finished: false,
             failed: false,
         }))
@@ -2147,8 +2209,48 @@ struct VmRunning {
     /// What the verified guest receipt reports the guest jail applied, for
     /// the host receipt to mirror (decision D5).
     guest: Option<GuestFacts>,
+    /// The guest controller's own stop of the attempt, once `done` carried
+    /// one that found nothing the guest jail left behind (decision D6).
+    stop: Option<protocol::GuestStop>,
     finished: bool,
     failed: bool,
+}
+
+/// The cgroup the guest controller creates for each attempt
+/// (`guest.py` `prepare_attempt_cgroup`), as `ukai-attempts.slice/attempt-<n>`.
+const GUEST_ATTEMPT_CGROUP: &str = "ukai-attempts.slice/attempt-";
+
+/// The guest controller's stop that `done` carried (decision D6), accepted
+/// only when it covered the attempt's own cgroup and found nothing the guest
+/// jail left behind. It ran outside the guest jail, after the jail exited and
+/// verified its own tree, so a boundary still populated or a live process of
+/// the workload account then contradicts the receipt's `tree_empty`; a
+/// `done` without one, or a stop that covered no attempt cgroup, leaves that
+/// claim unchecked. Either way the host settles nothing as clean.
+fn checked_guest_stop(stop: Option<protocol::GuestStop>) -> Result<protocol::GuestStop, String> {
+    let stop = stop.ok_or(
+        "the guest reported `done` without its own stop of the attempt, so the guest jail's \
+         tree_empty has no check outside the jail",
+    )?;
+    let covered_the_attempt = stop.boundaries.iter().any(|boundary| {
+        boundary
+            .strip_prefix(GUEST_ATTEMPT_CGROUP)
+            .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+    });
+    if !covered_the_attempt {
+        return Err(format!(
+            "the guest controller's own stop covered no attempt cgroup \
+             ({GUEST_ATTEMPT_CGROUP}<n>), so it checked nothing the guest jail ran in: the \
+             guest receipt's tree_empty has no check outside the jail"
+        ));
+    }
+    if let Some(survivors) = stop.survivors() {
+        return Err(format!(
+            "the guest controller's own stop found what the guest jail left behind \
+             ({survivors}): the guest receipt's tree_empty is contradicted"
+        ));
+    }
+    Ok(stop)
 }
 
 impl VmRunning {
@@ -2410,7 +2512,7 @@ impl VmRunning {
         }
         let bytes = std::fs::read(self.inner.attempt_dir.join("evidence/jail.json"))
             .map_err(|e| format!("guest evidence read failed: {e}"))?;
-        let record = record::TransportRecord::new(
+        let mut record = record::TransportRecord::new(
             self.inner.attempt_id.clone(),
             self.inner.boot_id.clone(),
             self.inner.guest_kernel.clone(),
@@ -2422,6 +2524,11 @@ impl VmRunning {
             self.inner.started.elapsed().as_secs_f64(),
             image::hex(&sha2::Sha256::digest(&bytes)),
         );
+        record.guest_stop_boundaries = self
+            .stop
+            .as_ref()
+            .map(|stop| stop.boundaries.clone())
+            .ok_or("no checked guest stop")?;
         record
             .write_in(&self.inner.attempt_dir)
             .map_err(|e| format!("transport record write failed: {e}"))
@@ -2536,8 +2643,15 @@ impl VmRunning {
                 protocol::FromVm::Error { message } => {
                     return RunEvent::Unknown { reason: message };
                 }
-                protocol::FromVm::Done { exit_code } => {
+                protocol::FromVm::Done { exit_code, stop } => {
                     self.finished = true;
+                    match checked_guest_stop(stop) {
+                        Ok(stop) => self.stop = Some(stop),
+                        Err(reason) => {
+                            self.failed = true;
+                            return RunEvent::Unknown { reason };
+                        }
+                    }
                     let event = match self.relayed_outcome(exit_code) {
                         Ok(event) => event,
                         Err(reason) => {

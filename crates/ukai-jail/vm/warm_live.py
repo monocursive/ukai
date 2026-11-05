@@ -16,7 +16,15 @@ The guest NAT adapter is always attached, and one route control attempt
 after the N: its proxy, outside the jail's network namespace, must reach
 the target, so the N denials are the jail's and not a guest without a route
 (harness.network_denial). The route control is not one of the N and is not
-timed for K108.
+timed for K108. It is tried up to three times (route_control), every try
+recorded with the host's own reachability of the target just before it.
+
+Every attempt's `done` must carry the guest controller's own stop (D6),
+which ran outside the guest jail after it exited, and that stop must have
+found nothing left behind. The harness starts the N attempts only once the
+serve reports `ready` (the guest booted and its session opened): `warm`
+alone holds from the boot's start, which made the 2026-11-04 first attempts
+wait out a 40 s boot.
 
 K108 (jail-macos §9.3): "a second attempt in a running guest is released
 within initial 1 s of the guest jail's own release time, over 20 runs".
@@ -79,16 +87,52 @@ def attempt_facts(record, tag):
         'protected_git_unchanged': record.get('git_config_after') == SENTINEL,
         'probe_saw_the_jails_denial': record['probe']['denied'],
         'receipt_network_none': record.get('receipt_network') == 'none',
+        'guest_stop_found_nothing_left': guest_stop_clean(record.get('guest_stop')),
     }
 
 
-def route_control(service, tag):
-    """The same-boot route control: an agent attempt asks its proxy for the probe target."""
-    record = harness.run_attempt(service.connect, f'warm-route-{tag}', harness.route_argv(f'{tag}-route'),
-                                 profile='agent', wall=30, allow_hosts=[harness.route_rule()])
-    record['route'] = harness.route_verdict(record['stdout'], f'{tag}-route')
-    record['receipt_bound'] = harness.receipt_bound(record)
-    record.pop('receipt', None)
+def guest_stop_clean(stop):
+    """The guest controller's own stop (D6) ran over the attempt's cgroup and
+    found nothing the guest jail left behind: no boundary populated and no
+    live account process before it signalled anything, and no stray it had
+    to kill."""
+    return (isinstance(stop, dict) and harness.stop_covered_the_attempt(stop)
+            and all(stop.get(key) == [] for key in ('populated_before_kill', 'live_before_kill', 'strays_killed')))
+
+
+ROUTE_TRIES = 3
+
+
+def route_control(service, tag, tries=ROUTE_TRIES, reach=None):
+    """The same-boot route control: an agent attempt asks its proxy for the probe target.
+
+    Up to `tries` attempts on the same boot, each recorded with the host's own
+    reachability of the target just before it; the first that reaches the
+    target is the control, and none reaching it fails. On 2026-11-04 the
+    control timed out once and got the guest proxy's 504 once, each after 20
+    attempts, while the capability run's control on another boot reached the
+    target; the cause was not determined, and every try is kept so the next
+    record can tell a flaky route from a missing one. A retry cannot turn a
+    route-less guest into a denial: such a guest reaches the target on no
+    try, so the control fails, and harness.network_denial credits the jail
+    with a denial only next to a control that reached the target on the same
+    boot (the errno alone is the same with no route; harness.py header).
+    """
+    reach = reach or harness.host_reachability
+    tried = []
+    for index in range(tries):
+        host = reach()
+        name = f'warm-route-{tag}' + (f'-{index}' if index else '')
+        record = harness.run_attempt(service.connect, name, harness.route_argv(f'{tag}-route'),
+                                     profile='agent', wall=30, allow_hosts=[harness.route_rule()])
+        record['route'] = harness.route_verdict(record['stdout'], f'{tag}-route')
+        record['receipt_bound'] = harness.receipt_bound(record)
+        record.pop('receipt', None)
+        tried.append({'attempt_id': name, 'started_at': record['started_at'], 'host_reachability': host,
+                      'route': record['route'], 'error': record.get('error')})
+        if record['route'].get('reached') is True:
+            break
+    record['tries'] = tried
     return record
 
 
@@ -129,11 +173,15 @@ GATES = ('warm_reuse_one_serve_boot', 'warm_reuse_one_guest_boot', 'every_attemp
          'every_attempt_saw_the_jails_denial', 'guest_nat_attached', 'route_control_reached_the_target',
          'route_control_on_the_same_guest_boot', 'route_control_receipt_bound',
          'every_attempt_network_denied', 'every_receipt_network_none',
+         'every_guest_stop_found_nothing_left', 'service_ready_before_the_first_attempt',
          'k108_every_attempt_within_budget', 'k108_twenty_runs', 'service_stopped_cleanly')
 
 
 def judge(results, tag, budget_ms, status, service_exit, git_config_text, route, real_client=None):
     per_attempt = [attempt_facts(record, tag) for record in results]
+    # Every per-attempt gate needs an attempt: all([]) is True, and an empty
+    # run must fail each gate, not only k108_twenty_runs.
+    ran = bool(per_attempt)
     serve_boots = {record.get('boot_id') for record in results}
     guest_boots = {harness.guest_boot(record) for record in results}
     latencies = [record['timings_ms'].get('connect_to_released') for record in results]
@@ -148,24 +196,29 @@ def judge(results, tag, budget_ms, status, service_exit, git_config_text, route,
         'attempts_run': len(results),
         'warm_reuse_one_serve_boot': len(serve_boots) == 1 and None not in serve_boots,
         'warm_reuse_one_guest_boot': len(guest_boots) == 1 and None not in guest_boots,
-        'every_attempt_exit_zero': all(f['exit_zero'] for f in per_attempt),
-        'every_receipt_verified': all(f['receipt_verified'] for f in per_attempt),
-        'every_granted_write_reached_host': all(f['granted_write_on_host'] for f in per_attempt),
-        'every_protected_write_tried_and_refused': all(f['protected_write_tried_and_refused'] for f in per_attempt),
-        'protected_git_never_reached': all(f['protected_git_unchanged'] for f in per_attempt)
+        'every_attempt_exit_zero': ran and all(f['exit_zero'] for f in per_attempt),
+        'every_receipt_verified': ran and all(f['receipt_verified'] for f in per_attempt),
+        'every_granted_write_reached_host': ran and all(f['granted_write_on_host'] for f in per_attempt),
+        'every_protected_write_tried_and_refused': ran and all(f['protected_write_tried_and_refused'] for f in per_attempt),
+        'protected_git_never_reached': ran and all(f['protected_git_unchanged'] for f in per_attempt)
         and git_config_text == SENTINEL,
         'every_attempt_saw_the_jails_denial': bool(denials) and all(
             d['probe_saw_the_jails_denial'] for d in denials),
         'guest_nat': (status or {}).get('guest_nat'),
         'guest_nat_attached': (status or {}).get('guest_nat') is True,
-        'route_control': {key: route.get(key) for key in ('attempt_id', 'route', 'boot_id', 'error')},
+        'route_control': {key: route.get(key) for key in ('attempt_id', 'route', 'boot_id', 'error', 'tries')},
         'route_control_reached_the_target': bool(denials) and all(
             d['route_control_reached_the_target'] for d in denials),
         'route_control_on_the_same_guest_boot': bool(denials) and all(
             d['route_control_on_the_same_guest_boot'] for d in denials),
         'route_control_receipt_bound': bool(denials) and all(d['route_control_receipt_bound'] for d in denials),
         'every_attempt_network_denied': bool(denials) and all(all(d.values()) for d in denials),
-        'every_receipt_network_none': all(f['receipt_network_none'] for f in per_attempt),
+        'every_receipt_network_none': ran and all(f['receipt_network_none'] for f in per_attempt),
+        'every_guest_stop_found_nothing_left': ran and all(
+            f['guest_stop_found_nothing_left'] for f in per_attempt),
+        # harness.Service waits for `ready` (the guest's session open), so no
+        # timed attempt waits out the boot; the status it saw is recorded.
+        'service_ready_before_the_first_attempt': (status or {}).get('ready') is True,
         'k108_client': PYTHON_CLIENT,
         'k108_measure': 'connect->released per attempt, including the guest jail\'s own release',
         'k108_budget_ms': budget_ms,

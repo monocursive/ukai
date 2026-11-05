@@ -349,6 +349,11 @@ pub enum FromVm {
     Done {
         /// The guest jail's exit status.
         exit_code: i32,
+        /// The guest controller's own stop of the attempt (decision D6),
+        /// which a warm session runs before `done`. `None` when the guest
+        /// sent none; the host refuses such an attempt's outcome.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        stop: Option<GuestStop>,
     },
     /// The transport failed. The attempt ends failed; the host never
     /// invents a guest outcome.
@@ -356,6 +361,74 @@ pub enum FromVm {
         /// A safe reason.
         message: String,
     },
+}
+
+/// The guest controller's stop of one warm attempt (decision D6), taken
+/// outside the guest jail after the jail exited and verified its own tree.
+/// Guest-reported, like the binding: not a host measurement. Its pre-kill
+/// lists check the guest jail's `tree_empty`: a boundary still populated, or
+/// a live process of the workload account outside the session's learned
+/// infrastructure, when the stop began survived the guest jail. Its kills
+/// alone are no such check: the boundaries' `cgroup.kill` records nothing of
+/// what it ends.
+#[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub struct GuestStop {
+    /// Every cgroup the stop killed and verified empty, relative to the
+    /// guest's cgroup root.
+    pub boundaries: Vec<String>,
+    /// Those that held a process when the stop began, before it signalled
+    /// anything.
+    pub populated_before_kill: Vec<String>,
+    /// The workload account's live processes outside the learned
+    /// infrastructure when the stop began: guest pid and cgroup.
+    pub live_before_kill: Vec<(u32, Option<String>)>,
+    /// Every such process the stop killed by pid: guest pid and cgroup.
+    pub strays_killed: Vec<(u32, Option<String>)>,
+}
+
+impl GuestStop {
+    /// What the stop found the guest jail had left behind, worded for a
+    /// refusal; `None` when it found nothing.
+    #[must_use]
+    pub fn survivors(&self) -> Option<String> {
+        if self.populated_before_kill.is_empty()
+            && self.live_before_kill.is_empty()
+            && self.strays_killed.is_empty()
+        {
+            return None;
+        }
+        let processes = |list: &[(u32, Option<String>)]| {
+            list.iter()
+                .take(4)
+                .map(|(pid, cgroup)| format!("{pid} in {}", cgroup.as_deref().unwrap_or("?")))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        Some(format!(
+            "{} boundar{} still populated [{}], {} process{} live [{}], {} killed by pid [{}]",
+            self.populated_before_kill.len(),
+            if self.populated_before_kill.len() == 1 {
+                "y"
+            } else {
+                "ies"
+            },
+            self.populated_before_kill
+                .iter()
+                .take(4)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", "),
+            self.live_before_kill.len(),
+            if self.live_before_kill.len() == 1 {
+                ""
+            } else {
+                "es"
+            },
+            processes(&self.live_before_kill),
+            self.strays_killed.len(),
+            processes(&self.strays_killed),
+        ))
+    }
 }
 
 /// Client → vm, over the control socket.
@@ -378,8 +451,15 @@ pub enum FromControl {
         schema: String,
         /// The ukai-vm boot's identifier.
         boot_id: String,
-        /// Whether the guest is running.
+        /// Whether the guest is running: the helper is alive and no stop
+        /// was requested. It holds from the boot's start, while the guest
+        /// may still be booting; see `ready`.
         warm: bool,
+        /// Whether the guest completed its session handshake and reported
+        /// its kernel: an attempt that connects now runs on a booted guest
+        /// instead of waiting for the boot.
+        #[serde(default)]
+        ready: bool,
         /// Whether an attempt session is live.
         attempt_live: bool,
         /// The guest kernel, when the guest has reported one.
@@ -475,7 +555,19 @@ mod tests {
                 sha256: "a".repeat(64),
                 data: encode_data(b"{}"),
             },
-            FromVm::Done { exit_code: 3 },
+            FromVm::Done {
+                exit_code: 3,
+                stop: None,
+            },
+            FromVm::Done {
+                exit_code: 0,
+                stop: Some(GuestStop {
+                    boundaries: vec!["ukai-attempts.slice/attempt-1".to_owned()],
+                    populated_before_kill: Vec::new(),
+                    live_before_kill: vec![(7, None)],
+                    strays_killed: vec![(7, Some("/user.slice/x".to_owned()))],
+                }),
+            },
             FromVm::Error {
                 message: "guest lease lost".to_owned(),
             },
@@ -492,6 +584,7 @@ mod tests {
             schema: SCHEMA_CONTROL.to_owned(),
             boot_id: "boot-1".to_owned(),
             warm: true,
+            ready: true,
             attempt_live: false,
             kernel: Some("6.14.0".to_owned()),
             disk_sha256: "d".repeat(64),
@@ -511,6 +604,76 @@ mod tests {
         };
         let line = encode(&stopping).expect("encodes");
         assert_eq!(decode::<FromControl>(&line).as_ref(), Ok(&stopping));
+    }
+
+    #[test]
+    fn a_done_from_a_guest_without_a_stop_report_reads_as_none() {
+        let done = decode::<FromVm>(br#"{"event":"done","exit_code":0}"#).expect("decodes");
+        assert_eq!(
+            done,
+            FromVm::Done {
+                exit_code: 0,
+                stop: None
+            }
+        );
+        let done = decode::<FromVm>(
+            br#"{"event":"done","exit_code":0,"stop":{"boundaries":["a"],"populated_before_kill":[],"live_before_kill":[[9,null]],"strays_killed":[]}}"#,
+        )
+        .expect("decodes");
+        let FromVm::Done {
+            stop: Some(stop), ..
+        } = done
+        else {
+            panic!("no stop: {done:?}");
+        };
+        assert_eq!(stop.live_before_kill, vec![(9, None)]);
+    }
+
+    #[test]
+    fn a_stop_names_survivors_unless_every_list_is_empty() {
+        assert_eq!(GuestStop::default().survivors(), None);
+        let clean = GuestStop {
+            boundaries: vec!["ukai-attempts.slice/attempt-1".to_owned()],
+            ..GuestStop::default()
+        };
+        assert_eq!(
+            clean.survivors(),
+            None,
+            "boundaries alone are what was covered"
+        );
+        let cases = [
+            GuestStop {
+                populated_before_kill: vec!["app.slice".to_owned()],
+                ..GuestStop::default()
+            },
+            GuestStop {
+                live_before_kill: vec![(41, Some("/user.slice/s".to_owned()))],
+                ..GuestStop::default()
+            },
+            GuestStop {
+                strays_killed: vec![(42, None)],
+                ..GuestStop::default()
+            },
+        ];
+        for stop in cases {
+            let named = stop.survivors().expect("a survivor is named");
+            assert!(
+                named.contains("app.slice")
+                    || named.contains("41 in /user.slice/s")
+                    || named.contains("42 in ?"),
+                "{named}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_status_without_ready_is_not_ready() {
+        let line = br#"{"event":"status","schema":"ukai.jail.vm-control/1","boot_id":"b","warm":true,"attempt_live":false,"kernel":null,"disk_sha256":"d","helper_sha256":"h","custodian_sha256":"c","seed_sha256":"s","vsock_port":1024,"idle_seconds":0}"#;
+        let FromControl::Status { warm, ready, .. } = decode::<FromControl>(line).expect("decodes")
+        else {
+            panic!("not a status");
+        };
+        assert!(warm && !ready);
     }
 
     #[test]

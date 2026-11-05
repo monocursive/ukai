@@ -19,6 +19,7 @@ import re
 import shutil
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -144,38 +145,248 @@ def rebound(base, **binding):
     return value
 
 
+# ---------------------------------------------------------------------------
+# Passing observations of the 2026-11-04 guest measurements (capabilities.py),
+# each shaped as rc.5's receipt and the stop-ready guest's frames are.
+# ---------------------------------------------------------------------------
+
+POLICY = {'policy': {'requirements': sorted(capabilities.REQUIREMENTS.values())}}
+TREE_ROOT = {'pid': 2, 'pgrp': 2, 'session': 1}
+# A clean live stop's shape: the attempt cgroup and the user manager's
+# app.slice (the jail had already removed its own scope and leaf).
+GOOD_STOP = {'boundaries': ['ukai-attempts.slice/attempt-3', 'user.slice/user-1001.slice/user@1001.service/app.slice'],
+             'populated_before_kill': [], 'live_before_kill': [], 'strays_killed': []}
+USER_MANAGER = '/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service'
+
+
+def tagged_line(name, value):
+    return f'{name} {json.dumps(value, sort_keys=True)}\n'
+
+
+def tree_members():
+    def proc(ppid, pgrp, session, state='S', ignored=False):
+        return {'state': state, 'ppid': ppid, 'pgrp': pgrp, 'session': session, 'sigterm_ignored': ignored}
+    return {'normal': {'pid': 10, 'beats': 2, 'proc': proc(2, 2, 1)},
+            'sigterm_ignored': {'pid': 11, 'beats': 2, 'proc': proc(2, 2, 1, ignored=True)},
+            'setsid': {'pid': 12, 'beats': 2, 'proc': proc(2, 12, 12)},
+            'daemon': {'pid': 14, 'beats': 2, 'proc': proc(1, 13, 13)},
+            'stopped': {'pid': 15, 'beats': 2, 'proc': proc(2, 2, 1, state='T')},
+            'own_pgid': {'pid': 16, 'beats': 2, 'proc': proc(2, 16, 1)}}
+
+
+def tree_record(path):
+    probe = {'tag': T, 'path': path, 'root': TREE_ROOT, 'members': tree_members()}
+    lifetime = {'boundary': 'pid_namespace', 'tree_empty': True, 'verification_scope': 'attempt_tree',
+                'integrity': 'verified',
+                'native': {'details': {'execution_cgroup': {'path': f'{USER_MANAGER}/ukai-att_{path}.leaf'}}}}
+    if path == 'exit':
+        # A left-behind tree settles as evidence_lost with exit 1 (stop-audit-2):
+        # recorded in notes, never required.
+        receipt = {**POLICY, 'lifetime': lifetime, 'outcome': {'kind': 'exited', 'code': 0, 'cause': None},
+                   'errors': [{'code': 'evidence_lost'}]}
+        exit_code = 1
+    else:
+        receipt = {**POLICY, **limits(wall=True), 'lifetime': lifetime,
+                   'outcome': {'kind': 'signaled', 'signal': 15, 'cause': 'wall_expiry'}, 'errors': []}
+        exit_code = 143
+    return record(tagged_line('UKAI_TREE_PROBE', probe), exit_code, receipt, guest_stop=copy.deepcopy(GOOD_STOP),
+                  files=[])
+
+
+def tree_watch():
+    kinds = capabilities.TREE_KINDS
+    return {'markers': {kind: f'{member["pid"]}\n' for kind, member in tree_members().items()},
+            # The stopped member was frozen at its second beat before the
+            # host's first sample.
+            'during': [{kind: 2 if kind == 'stopped' else 1 for kind in kinds}, {kind: 2 for kind in kinds},
+                       {kind: 2 if kind == 'stopped' else 4 for kind in kinds}],
+            'at_done': {kind: 2 if kind == 'stopped' else 5 for kind in kinds},
+            'settled_from': {kind: 2 if kind == 'stopped' else 5 for kind in kinds},
+            'settled_to': {kind: 2 if kind == 'stopped' else 5 for kind in kinds},
+            'window': {'done_at': 100.0, 'opened_at': 101.0, 'closed_at': 104.0}}
+
+
+def coverage(counts, degraded=()):
+    entries = {}
+    for cls, count in counts.items():
+        if cls in degraded:
+            entries[cls] = {'status': 'degraded', 'sources': ['audit'], 'observed_count': None,
+                            'gaps': [{'classes': list(degraded), 'source': 'audit', 'reason': 'entry_abandoned'}]}
+        else:
+            entries[cls] = {'status': 'active', 'sources': ['audit'], 'observed_count': count, 'gaps': []}
+    return entries
+
+
+OBSERVER = {'backend': 'ptrace', 'set': 'linux-closed-v1', 'attached': True, 'gaps': []}
+
+
+def observe_record(name):
+    label, rounds = capabilities.observe_label(T, name), capabilities.OBSERVE_ROUNDS[name][1]
+    probe = {'tag': label, 'rounds': rounds,
+             'execs': [{'argv': argv, 'returncode': code} for _ in range(rounds) for argv, code in capabilities.OBSERVE_EXECS],
+             'writes': ['written'] * rounds, 'denied_writes': [{'open': 'EROFS', 'exists_after': False}] * rounds,
+             'connects': ['ENETUNREACH'] * rounds}
+    if name == 'observe_background':
+        probe['background_started'] = True
+        # exec and fs.deny lost at settlement (as stop-audit-2); fs.write
+        # complete: the round's write, /dev/null, the marker and five beats.
+        counts = {'exec': None, 'fs.write': 8, 'fs.deny': None, 'net': 1}
+        receipt = {**POLICY, 'observer': OBSERVER, 'coverage': coverage(counts, ('exec', 'fs.deny')),
+                   'errors': [{'code': 'evidence_lost'}]}
+        return record(tagged_line('UKAI_OBSERVE_PROBE', probe), 1, receipt, files=[], guest_stop=GOOD_STOP)
+    # python3's own exec and exit, then each round's operations.
+    counts = {cls: (2 if cls == 'exec' else 0) + rounds * capabilities.PER_ROUND[cls]
+              for cls in capabilities.AUDIT_CLASSES}
+    receipt = {**POLICY, 'observer': OBSERVER, 'coverage': coverage(counts), 'errors': []}
+    return record(tagged_line('UKAI_OBSERVE_PROBE', probe), 0, receipt, files=[], guest_stop=GOOD_STOP)
+
+
+def observe_host(name):
+    label, rounds = capabilities.observe_label(T, name), capabilities.OBSERVE_ROUNDS[name][1]
+    view = {'writes': {f'obs-{label}-{index}.txt': f'observed-{label}-{index}\n' for index in range(rounds)}}
+    if name == 'observe_background':
+        view.update(marker='77\n', beats=5)
+    return view
+
+
+def syscall_record():
+    calls = {label: answer for label, _, _, answer, _ in capabilities.SYSCALL_DENIED}
+    calls.update({label: answer for label, _, _, answer in capabilities.SYSCALL_CONTROLS})
+    probe = {'tag': T, 'machine': 'aarch64', 'platform': 'linux', 'calls': calls,
+             'status': {'Seccomp': '2', 'Seccomp_filters': '2', 'NoNewPrivs': '1'}}
+    receipt = {**POLICY, 'errors': [], 'lifetime': {'native': {'details': {
+        'seccomp_filters': {'expected': 2, 'observed': 2}}}}}
+    return record(tagged_line('UKAI_SYSCALL_PROBE', probe), 0, receipt, guest_stop=GOOD_STOP, files=[])
+
+
+def protected_views(profile):
+    """(record, before, after) of a protected_coverage attempt that held."""
+    layout = capabilities.protected_layout(T, profile)
+    probe_tag = f'{T}-{profile}'
+    before = {name: {'kind': 'absent'} for name in capabilities.protected_names(layout, probe_tag)}
+    inode = iter(range(100, 10000))
+    for path in layout['files'] + layout['file_mirrors']:
+        before[path] = {'kind': 'file', 'mode': '0o644', 'ino': next(inode), 'sha256': 'sha-' + path}
+    for path in layout['dirs'] + layout['dir_mirrors']:
+        before[path] = {'kind': 'dir', 'mode': '0o755', 'ino': next(inode), 'entries': ['HEAD', 'config']}
+    after = copy.deepcopy(before)
+    made = sorted(f'{prefix}-{probe_tag}' for prefix in ('new', 'newdir', 'link'))
+    for path in layout['file_mirrors']:
+        after[path] = {'kind': 'absent'}
+    for path in layout['dir_mirrors']:
+        after[path] = {'kind': 'absent'}
+        after[path + '-moved'] = {'kind': 'dir', 'mode': '0o700', 'ino': before[path]['ino'],
+                                  'entries': sorted(made + ['HEAD', 'config'])}
+    control = layout['absent_control']
+    if control:
+        for op, kind in capabilities.ABSENT_CONTROL_KINDS.items():
+            after[f'{control}-{op}'] = {'kind': kind, 'mode': '0o755', 'ino': next(inode)}
+        after[f'{control}-mkdir/new-{probe_tag}'] = {'kind': 'file', 'mode': '0o644', 'ino': next(inode),
+                                                     'sha256': 'x'}
+    for path, text in layout['creates'].items():
+        after[path] = {'kind': 'file', 'mode': '0o644', 'ino': next(inode),
+                       'sha256': hashlib.sha256(text.encode()).hexdigest()}
+    probe = {'tag': probe_tag, 'cwd': capabilities.WORKSPACE_MOUNT,
+             'files': {path: {'read': before[path]['sha256'], **{op: 'EROFS' for op in capabilities.PROTECT_FILE_OPS}}
+                       for path in layout['files']},
+             'dirs': {path: {'list': before[path]['entries'], **{op: 'EROFS' for op in capabilities.PROTECT_DIR_OPS}}
+                      for path in layout['dirs']},
+             'file_mirrors': {path: {'read': before[path]['sha256'], **{op: 'ok' for op in capabilities.PROTECT_FILE_OPS}}
+                              for path in layout['file_mirrors']},
+             'dir_mirrors': {path: {'list': before[path]['entries'], **{op: 'ok' for op in capabilities.PROTECT_DIR_OPS}}
+                             for path in layout['dir_mirrors']},
+             'absent': {path: {'seen_as': 'dir', 'mkdir': 'EEXIST', 'create_file': 'EEXIST', 'symlink': 'EEXIST',
+                               'rename_onto': 'EBUSY', 'create_inside': 'EROFS'} for path in layout['absent']},
+             'absent_controls': {op: 'ok' for op in capabilities.ABSENT_OPS} if control else {},
+             'creates': {path: 'ok' for path in layout['creates']}}
+    mounts = [{'path': '/', 'mode': 'ro'}, {'path': capabilities.WORKSPACE_MOUNT, 'mode': 'rw'}]
+    mounts += [{'path': f'{capabilities.WORKSPACE_MOUNT}/{path}', 'mode': 'ro'} for path in layout['mounts']]
+    receipt = {**POLICY, 'errors': [], 'applied': {'filesystem': {'protected_coverage': 'existing_and_root',
+                                                                  'mounts': mounts}}}
+    return (record(tagged_line('UKAI_PROTECT_PROBE', probe), 0, receipt, guest_stop=GOOD_STOP, files=[]),
+            before, after)
+
+
+def proxy_record():
+    host, port = harness.PROBE_TARGET
+    connected = {'connect': 'connected', 'accepted': True}
+    probe = {'tag': T, 'environment': dict(capabilities.PROXY_ENVIRONMENT), 'loopback_control': connected,
+             'unix_control': connected, 'direct': 'ENETUNREACH', 'proxy_socket': 'EACCES',
+             # the first try's upstream connect failed: recorded, then retried
+             'allowed': [{'target': [host, port], 'status_line': 'HTTP/1.1 502 Bad Gateway', 'reason': 'connect_failed'},
+                         {'target': [host, port], 'status_line': 'HTTP/1.1 200 Connection established'}],
+             'refused': {label: {'target': [h, p], 'status_line': 'HTTP/1.1 403 Forbidden',
+                                 'reason': 'host_not_allowed'} for label, h, p in capabilities.proxy_refused()}}
+    receipt = {**POLICY, 'errors': [], 'applied': {'network': {'mode': 'proxy', 'allowed_hosts': [harness.route_rule()]}},
+               'coverage': {'proxy.net': {'status': 'active', 'sources': ['proxy'], 'observed_count': 5, 'gaps': []}}}
+    return record(tagged_line('UKAI_PROXY_PROBE', probe), 0, receipt, guest_stop=GOOD_STOP, files=[])
+
+
+AGENT_ATTEMPTS = ('route_control', 'protected_agent', 'network_proxy')
+
+
+def good_results():
+    fs_paths = [f'/etc/ukai-cap-{T}', f'/usr/local/bin/ukai-cap-{T}', f'/ukai-cap-{T}']
+    fs = {'tag': T, 'paths': {path: {'open': 'EROFS', 'exists_after': False} for path in fs_paths},
+          'reads': {**{path: 'ENOENT' for path in capabilities.READ_OUTSIDE},
+                    **{path: 'read' for path in capabilities.read_controls(T)}}}
+    mem = ''.join(f'UKAI_MEM_PROBE {T} {n}\n' for n in range(16, 481, 16))
+    results = {
+        'wall': record(f'start-{T}\n', 143, {**limits(wall=True), 'outcome': {'cause': 'wall_expiry'}},
+                       {'released_to_done': 5100.0}),
+        'pids': record('UKAI_PIDS_PROBE ' + json.dumps({'tag': T, 'forked': 61, 'fork_error': 'EAGAIN',
+                                                        'pids.max': None, 'pids.current': None}) + '\n',
+                       0, {**limits(pids=True), 'errors': []}),
+        'mem': record(mem, 137, {**limits(mem=True), 'outcome': {'cause': 'memory_oom'}}),
+        'containment': record('UKAI_FS_PROBE ' + json.dumps(fs) + '\n'),
+        'network_none': record(probe_line(T, dns='unresolved--3') + '\n', 0,
+                               {'applied': {'network': {'mode': 'none'}}}),
+        'route_control': record(route_line(capabilities.route_tag(T)) + '\n', 0,
+                                {'applied': {'network': {'mode': 'proxy'}}}),
+        'workspace': record(f'wrote-{T}\n'),
+        'tree_termination': tree_record('exit'),
+        'tree_wall': tree_record('wall'),
+        'closed_set_observation': observe_record('closed_set_observation'),
+        'observe_3': observe_record('observe_3'),
+        'observe_background': observe_record('observe_background'),
+        'syscall_filter': syscall_record(),
+        'protected_coverage': protected_views('tool')[0],
+        'protected_agent': protected_views('agent')[0],
+        'network_proxy': proxy_record(),
+    }
+    bound = {}
+    for index, (name, value) in enumerate(results.items()):
+        bound[name] = bind(value, f'cap-{name}-{T}', profile='agent' if name in AGENT_ATTEMPTS else 'tool')
+        bound[name]['started_at'] = f'2026-11-03T10:00:{index:02d}Z'
+    return bound
+
+
+def good_views():
+    """The host-side views measure() takes beside the attempt records."""
+    protected = {}
+    for name, profile in capabilities.PROTECT_PROFILES.items():
+        _, before, after = protected_views(profile)
+        protected[name] = {'before': before, 'after': after}
+    return {'tree_watch': {name: tree_watch() for name in capabilities.TREE_PATHS},
+            'observe_host': {name: observe_host(name) for name in capabilities.OBSERVE_ROUNDS},
+            'protected': protected}
+
+
+def judge_measured(results, views=None, status=None, reachability=None, host=f'live-{T}\n', git=True,
+                   exit_code=0):
+    measured = {'tag': T, 'fs_paths': CapabilityTables.FS, 'results': results, 'host_workspace_file': host,
+                'reachability': reachability or {'answers': True}, **(views or good_views())}
+    return capabilities.judge(measured, status or {'guest_nat': True}, git, exit_code)
+
+
 class CapabilityTables(unittest.TestCase):
     FS = [f'/etc/ukai-cap-{T}', f'/usr/local/bin/ukai-cap-{T}', f'/ukai-cap-{T}']
 
     def good(self):
-        fs = {'tag': T, 'paths': {path: {'open': 'EROFS', 'exists_after': False} for path in self.FS},
-              'reads': {**{path: 'ENOENT' for path in capabilities.READ_OUTSIDE},
-                        **{path: 'read' for path in capabilities.read_controls(T)}}}
-        mem = ''.join(f'UKAI_MEM_PROBE {T} {n}\n' for n in range(16, 481, 16))
-        results = {
-            'wall': record(f'start-{T}\n', 143, {**limits(wall=True), 'outcome': {'cause': 'wall_expiry'}},
-                           {'released_to_done': 5100.0}),
-            'pids': record('UKAI_PIDS_PROBE ' + json.dumps({'tag': T, 'forked': 61, 'fork_error': 'EAGAIN',
-                                                            'pids.max': None, 'pids.current': None}) + '\n',
-                           0, {**limits(pids=True), 'errors': []}),
-            'mem': record(mem, 137, {**limits(mem=True), 'outcome': {'cause': 'memory_oom'}}),
-            'containment': record('UKAI_FS_PROBE ' + json.dumps(fs) + '\n'),
-            'network_none': record(probe_line(T, dns='unresolved--3') + '\n', 0,
-                                   {'applied': {'network': {'mode': 'none'}}}),
-            'route_control': record(route_line(capabilities.route_tag(T)) + '\n', 0,
-                                    {'applied': {'network': {'mode': 'proxy'}}}),
-            'workspace': record(f'wrote-{T}\n'),
-        }
-        bound = {}
-        for index, (name, value) in enumerate(results.items()):
-            bound[name] = bind(value, f'cap-{name}-{T}', profile='agent' if name == 'route_control' else 'tool')
-            bound[name]['started_at'] = f'2026-11-03T10:00:0{index}Z'
-        return bound
+        return good_results()
 
     def judge(self, results, status=None, reachability=None, host=f'live-{T}\n', git=True, exit_code=0):
-        measured = {'tag': T, 'fs_paths': self.FS, 'results': results, 'host_workspace_file': host,
-                    'reachability': reachability or {'answers': True}}
-        return capabilities.judge(measured, status or {'guest_nat': True}, git, exit_code)
+        return judge_measured(results, None, status, reachability, host, git, exit_code)
 
     def test_the_good_observation_passes(self):
         facts, summary = self.judge(self.good())
@@ -334,22 +545,721 @@ class CapabilityTables(unittest.TestCase):
             send(event='released', supervisor_pid=1)
             if argv[:2] == ['/bin/sh', '-c'] and 'capability-' in argv[2]:
                 (workspace / f'capability-{T}.txt').write_text(f'live-{T}\n')
+            if argv[3:4] == [capabilities.TREE_PROBE]:
+                # The tree fixture's members, as the share would show them.
+                for kind in capabilities.TREE_KINDS:
+                    marker, beat = capabilities.tree_files(T, argv[5], kind)
+                    (workspace / marker).write_text('42\n')
+                    (workspace / beat).write_text('beat\n' * 3)
+            if argv[3:4] == [capabilities.PROTECT_PROBE]:
+                # A guest that protected nothing: a seeded protected file is changed.
+                (workspace / f'pc-{T}-tool/repo/.git/config').write_text('forged\n')
             send(event='done', exit_code=0)
         server = FakeAttemptServer(script)
         self.addCleanup(server.close)
         service = mock.Mock(connect=server.connect)
-        measured = capabilities.measure(service, workspace, T, {'answers': True})
-        self.assertEqual(sorted(measured['results']), sorted(['wall', 'pids', 'mem', 'containment', 'network_none',
-                                                              'route_control', 'workspace']))
+        measured = capabilities.measure(service, workspace, T, {'answers': True}, sleep=lambda seconds: None)
+        names = [name for name, *_ in capabilities.plan(T)[1]]
+        self.assertEqual(sorted(measured['results']), sorted(names))
+        self.assertEqual(sorted(requests), sorted(f'cap-{name}-{T}' for name in names))
         self.assertEqual(measured['host_workspace_file'], f'live-{T}\n')
         self.assertEqual(capabilities.plan(T)[1][1][2][0], harness.PYTHON)
         route = requests[f'cap-route_control-{T}']
         self.assertEqual((route['profile'], route['allow_hosts']), ('agent', [harness.route_rule()]))
         self.assertEqual([base64.b64decode(word).decode() for word in route['argv']],
                          harness.route_argv(capabilities.route_tag(T)))
+        agent = {f'cap-route_control-{T}': [harness.route_rule()], f'cap-network_proxy-{T}': [harness.route_rule()],
+                 f'cap-protected_agent-{T}': None}
         for attempt_id, request in requests.items():
-            if attempt_id != f'cap-route_control-{T}':
-                self.assertEqual((request['profile'], request.get('allow_hosts')), ('tool', None), attempt_id)
+            expected = ('agent', agent[attempt_id]) if attempt_id in agent else ('tool', None)
+            self.assertEqual((request['profile'], request.get('allow_hosts')), expected, attempt_id)
+        # The host's own views: the tree's markers and beats, and the protected
+        # paths seeded before and read again after their attempt.
+        for name in capabilities.TREE_PATHS:
+            watch = measured['tree_watch'][name]
+            self.assertEqual(set(watch['markers'].values()), {'42\n'})
+            self.assertEqual(watch['settled_to'], {kind: 3 for kind in capabilities.TREE_KINDS})
+        view = measured['protected']['protected_coverage']
+        path = f'pc-{T}-tool/repo/.git/config'
+        self.assertEqual(view['before'][path]['kind'], 'file')
+        self.assertNotEqual(view['before'][path]['sha256'], view['after'][path]['sha256'])
+        self.assertEqual(measured['observe_host']['closed_set_observation'], {'writes': {}})
+        facts, _ = judge_measured(measured['results'], {key: measured[key] for key in
+                                                         ('tree_watch', 'observe_host', 'protected')})
+        self.assertFalse(facts['protected_coverage'][f'tool:unchanged_on_host:{path}'])
+        self.assertTrue(facts['tree_termination']['exit:every_member_beat'])
+        self.assertFalse(facts['tree_termination']['exit:guest_stop_reported'])
+
+
+def reprobe(result, name, tag, change):
+    """Rewrite one attempt's tagged probe line through `change(probe)`."""
+    probe = copy.deepcopy(capabilities.tagged(result['stdout'], name, tag))
+    change(probe)
+    result['stdout'] = tagged_line(name, probe)
+
+
+def other_policy(receipt):
+    receipt['policy'] = {'requirements': ['limit:wall']}
+
+
+class GuestMeasurementMutations(unittest.TestCase):
+    """The five 2026-11-04 measurements: the good observation passes, and for
+    EVERY fact some mutation flips that fact alone and fails the verdict."""
+
+    def assert_table(self, capability, table):
+        good, views = good_results(), good_views()
+        facts, summary = judge_measured(good, views)
+        self.assertTrue(summary[capability], [key for key, value in facts[capability].items() if value is not True])
+        alone = set()
+        for name, change, expected in table:
+            with self.subTest(f'{capability}: {name}'):
+                results, changed = copy.deepcopy(good), copy.deepcopy(views)
+                change(results, changed)
+                expected = {expected} if isinstance(expected, str) else set(expected)
+                judged, verdicts = judge_measured(results, changed)
+                self.assertEqual({key for key, value in judged[capability].items() if value is not True}, expected)
+                self.assertFalse(verdicts[capability])
+                self.assertEqual(verdicts['outcome'], 'FAIL')
+                alone |= expected if len(expected) == 1 else set()
+        self.assertEqual(sorted(set(facts[capability]) - alone), [], 'facts no mutation flips alone')
+
+    def test_tree_termination(self):
+        table = []
+        unconfirm = {'normal': {'ppid': 1}, 'sigterm_ignored': {'sigterm_ignored': False}, 'setsid': {'session': 1},
+                     'daemon': {'session': 14, 'pgrp': 14}, 'stopped': {'state': 'S'}, 'own_pgid': {'pgrp': 2}}
+        for name, path in capabilities.TREE_PATHS.items():
+            def fact(key, path=path):
+                return f'{path}:{key}'
+
+            def probe(change, name=name):
+                return lambda r, v: reprobe(r[name], 'UKAI_TREE_PROBE', T, change)
+
+            def receipt(change, name=name):
+                return lambda r, v: change(r[name]['receipt'])
+
+            def watch(change, name=name):
+                return lambda r, v: change(v['tree_watch'][name])
+
+            def stop(change, name=name):
+                return lambda r, v: change(r[name]['guest_stop'])
+            ended = 'ended_by_target_exit' if path == 'exit' else 'ended_by_wall_expiry'
+            table += [
+                ('a receipt bound to another attempt', lambda r, v, name=name: r[name]['binding'].update(attempt_id='x'),
+                 fact('receipt_bound_to_this_attempt')),
+                ('a policy without tree_termination', receipt(other_policy), fact('policy_requires_tree_termination')),
+                ('the probe ran the other end path',
+                 probe(lambda p, path=path: p.update(path='wall' if path == 'exit' else 'exit')),
+                 fact('probe_reported_this_path')),
+                ('no probe line at all', lambda r, v, name=name: r[name].update(stdout=''),
+                 [fact('probe_reported_this_path'), fact('every_marker_seen'), fact('stopped_member_froze'),
+                  *[fact(f'kind_confirmed:{kind}') for kind in capabilities.TREE_KINDS]]),
+                ('the host never saw a marker', watch(lambda w: w['markers'].update(daemon=None)), fact('every_marker_seen')),
+                ('a marker naming another process', watch(lambda w: w['markers'].update(normal='99\n')),
+                 fact('every_marker_seen')),
+                ('a member beat only once', watch(lambda w: w['at_done'].update(own_pgid=1)), fact('every_member_beat')),
+                ('no beat file reached the host', watch(lambda w: w['at_done'].update(setsid=None)), fact('every_member_beat')),
+                ('the share showed no growth while the attempt ran', watch(lambda w: w.update(during=w['during'][-1:])),
+                 fact('growth_seen_during_the_attempt')),
+                ('one member never grew', watch(lambda w: [sample.update(sigterm_ignored=3) for sample in w['during']]),
+                 fact('growth_seen_during_the_attempt')),
+                ('the stopped member beat while the attempt ran',
+                 watch(lambda w: w['during'][-1].update(stopped=3)), fact('stopped_member_froze')),
+                ('the probe read fewer beats than the host saw at the end',
+                 probe(lambda p: p['members']['stopped'].update(beats=1)), fact('stopped_member_froze')),
+                # The host's samples are of another file, or the share lost
+                # the frozen count: the host never sees the probe's count.
+                ('the probe read a beat the host never saw',
+                 probe(lambda p: p['members']['stopped'].update(beats=3)), fact('stopped_member_froze')),
+                ('the stopped member\'s beats never reached the host after done',
+                 watch(lambda w: w['at_done'].update(stopped=None)),
+                 [fact('stopped_member_froze'), fact('every_member_beat')]),
+                ('a SIGTERM-ignoring member beat after settlement',
+                 watch(lambda w: w['settled_to'].update(sigterm_ignored=w['settled_to']['sigterm_ignored'] + 2)),
+                 fact('tree_dead_after_the_jail_and_the_guest_stop')),
+                ('the daemon beat after settlement', watch(lambda w: w['settled_to'].update(daemon=9)),
+                 fact('tree_dead_after_the_jail_and_the_guest_stop')),
+                ('no settle sample', watch(lambda w: w.update(settled_from={}, settled_to={})),
+                 [fact('tree_dead_after_the_jail_and_the_guest_stop'), fact('stopped_member_froze')]),
+                ('a settle window that opened inside the share grace',
+                 watch(lambda w: w['window'].update(opened_at=100.5)), fact('settle_window_opened_after_the_share_grace')),
+                ('a settle window opened before done', watch(lambda w: w['window'].update(done_at=101.0)),
+                 fact('settle_window_opened_after_the_share_grace')),
+                ('a settle window shorter than the settle time', watch(lambda w: w['window'].update(closed_at=102.0)),
+                 fact('settle_window_lasted_the_settle_time')),
+                ('no window bounds recorded', watch(lambda w: w.pop('window')),
+                 [fact('settle_window_opened_after_the_share_grace'), fact('settle_window_lasted_the_settle_time')]),
+                ('a clock that is not a number', watch(lambda w: w['window'].update(opened_at=True)),
+                 [fact('settle_window_opened_after_the_share_grace'), fact('settle_window_lasted_the_settle_time')]),
+                ('the receipt says the tree was not empty', receipt(lambda x: x['lifetime'].update(tree_empty=False)),
+                 fact('receipt_tree_empty')),
+                ('integrity not verified', receipt(lambda x: x['lifetime'].update(integrity='unverified')),
+                 fact('receipt_integrity_verified')),
+                ('another boundary', receipt(lambda x: x['lifetime'].update(boundary='process_group')),
+                 fact('receipt_boundary_pid_namespace')),
+                ('another verification scope', receipt(lambda x: x['lifetime'].update(verification_scope='target_only')),
+                 fact('receipt_scope_attempt_tree')),
+                ('no guest stop report', lambda r, v, name=name: r[name].update(guest_stop=None),
+                 [fact('guest_stop_reported'), fact('guest_stop_covered_an_attempt_cgroup'),
+                  fact('guest_stop_found_no_populated_boundary'), fact('guest_stop_found_no_live_process'),
+                  fact('guest_stop_killed_no_stray')]),
+                ('a malformed stop report', stop(lambda s: s['boundaries'].append(7)), fact('guest_stop_reported')),
+                # Review 2026-11-05 F6: a stop that looked at nothing found nothing.
+                ('a stop that covered no boundary', stop(lambda s: s.update(boundaries=[])),
+                 fact('guest_stop_covered_an_attempt_cgroup')),
+                ('a stop that covered only the user manager', stop(lambda s: s.update(boundaries=[
+                    'user.slice/user-1001.slice/user@1001.service/app.slice'])),
+                 fact('guest_stop_covered_an_attempt_cgroup')),
+                ('a stray that is not a (pid, cgroup) pair', stop(lambda s: s.update(strays_killed=[['812', None]])),
+                 [fact('guest_stop_reported'), fact('guest_stop_killed_no_stray')]),
+                ('a live process that is not a pair', stop(lambda s: s.update(live_before_kill=[[812]])),
+                 [fact('guest_stop_reported'), fact('guest_stop_found_no_live_process')]),
+                ('the receipt names no execution cgroup',
+                 receipt(lambda x: x['lifetime'].pop('native')), fact('execution_cgroup_under_the_walked_user_manager')),
+                ('an execution cgroup outside the user manager', receipt(lambda x: x['lifetime']['native']['details'][
+                    'execution_cgroup'].update(path='/sys/fs/cgroup/ukai-attempts.slice/attempt-3/x.leaf')),
+                 fact('execution_cgroup_under_the_walked_user_manager')),
+                ('another account\'s user manager', receipt(lambda x: x['lifetime']['native']['details'][
+                    'execution_cgroup'].update(path='/sys/fs/cgroup/user.slice/user-1002.slice/user@1002.service/a.leaf')),
+                 fact('execution_cgroup_under_the_walked_user_manager')),
+                ('a slice and manager of two uids', receipt(lambda x: x['lifetime']['native']['details'][
+                    'execution_cgroup'].update(path='/sys/fs/cgroup/user.slice/user-1002.slice/user@1001.service/a.leaf')),
+                 fact('execution_cgroup_under_the_walked_user_manager')),
+                ('the user manager itself, no leaf', receipt(lambda x: x['lifetime']['native']['details'][
+                    'execution_cgroup'].update(path=USER_MANAGER + '/')),
+                 fact('execution_cgroup_under_the_walked_user_manager')),
+                ('a path that climbs out of the manager', receipt(lambda x: x['lifetime']['native']['details'][
+                    'execution_cgroup'].update(path=USER_MANAGER + '/../../user-1002.slice/a.leaf')),
+                 fact('execution_cgroup_under_the_walked_user_manager')),
+                ('the attempt cgroup still held a process',
+                 stop(lambda s: s.update(populated_before_kill=['ukai-attempts.slice/attempt-3'])),
+                 fact('guest_stop_found_no_populated_boundary')),
+                ('a workload process outlived the jail',
+                 stop(lambda s: s.update(live_before_kill=[[812, 'ukai-attempts.slice/attempt-3']])),
+                 fact('guest_stop_found_no_live_process')),
+                ('the stop killed a stray', stop(lambda s: s.update(strays_killed=[[812, None]])),
+                 fact('guest_stop_killed_no_stray')),
+            ]
+            for kind, changes in unconfirm.items():
+                table.append((f'/proc does not confirm {kind}',
+                              probe(lambda p, kind=kind, changes=changes: p['members'][kind]['proc'].update(changes)),
+                              fact(f'kind_confirmed:{kind}')))
+            # Each kind's other conditions, one at a time.
+            for kind, changes, why in (
+                    ('daemon', {'ppid': 2}, 'still the root\'s child'),
+                    ('normal', {'session': 12}, 'in another session'),
+                    ('setsid', {'pgrp': 2}, 'leading its session but not its group'),
+                    ('own_pgid', {'session': 16}, 'in its own session too'),
+                    ('sigterm_ignored', {'ppid': 1}, 'not the root\'s child')):
+                table.append((f'{kind} {why}',
+                              probe(lambda p, kind=kind, changes=changes: p['members'][kind]['proc'].update(changes)),
+                              fact(f'kind_confirmed:{kind}')))
+            table.append(('a member kind nobody asked for',
+                          probe(lambda p: p['members'].update(extra={'pid': 30, 'beats': 2, 'proc': None})),
+                          fact('probe_reported_this_path')))
+            if path == 'exit':
+                table.append(('the target did not exit 0 by itself',
+                              receipt(lambda x: x.update(outcome={'kind': 'exited', 'code': 1, 'cause': None})),
+                              fact(ended)))
+            else:
+                table += [('no wall hit', receipt(lambda x: x['applied'].update(limits=[limit_entry('wall', hit=False)])),
+                           fact(ended)),
+                          ('ended by something other than the wall',
+                           receipt(lambda x: x.update(outcome={'kind': 'signaled', 'signal': 9, 'cause': None})),
+                           fact(ended))]
+        self.assertTrue(capabilities.NOT_MEASURED['tree_termination']['cancel'])
+        self.assert_table('tree_termination', table)
+
+    def test_observation(self):
+        table = []
+        for name in ('closed_set_observation', 'observe_3'):
+            short, rounds = capabilities.OBSERVE_ROUNDS[name]
+            label = capabilities.observe_label(T, name)
+
+            def fact(key, short=short):
+                return f'{short}:{key}'
+
+            def probe(change, name=name, label=label):
+                return lambda r, v: reprobe(r[name], 'UKAI_OBSERVE_PROBE', label, change)
+
+            def receipt(change, name=name):
+                return lambda r, v: change(r[name]['receipt'])
+            table += [
+                ('a receipt bound to another attempt', lambda r, v, name=name: r[name]['binding'].update(attempt_id='x'),
+                 fact('receipt_bound_to_this_attempt')),
+                ('a policy without closed_set_observation', receipt(other_policy),
+                 fact('policy_requires_closed_set_observation')),
+                ('observer not attached', receipt(lambda x: x.update(observer={**OBSERVER, 'attached': False})),
+                 fact('observer_attached')),
+                ('another observer set', receipt(lambda x: x.update(observer={**OBSERVER, 'set': 'linux-open'})),
+                 fact('observer_set_linux_closed_v1')),
+                ('observer gaps', receipt(lambda x: x.update(observer={**OBSERVER, 'gaps': [{'reason': 'x'}]})),
+                 fact('observer_without_gaps')),
+                ('an exec answered otherwise', probe(lambda p: p['execs'][-1].update(returncode=0)),
+                 fact('fixture_ran_every_round')),
+                ('a round missing', probe(lambda p: p.update(rounds=rounds + 1)), fact('fixture_ran_every_round')),
+                ('the granted write failed', probe(lambda p: p['writes'].__setitem__(0, 'EROFS')),
+                 fact('granted_writes_written')),
+                ('the denied write was created',
+                 probe(lambda p: p['denied_writes'].__setitem__(0, {'open': 'created', 'exists_after': True})),
+                 fact('denied_writes_refused')),
+                ('a connect a peer refused', probe(lambda p: p['connects'].__setitem__(0, 'ECONNREFUSED')),
+                 fact('connects_refused_by_the_namespace')),
+                ('the host has another run\'s bytes',
+                 lambda r, v, name=name, label=label: v['observe_host'][name]['writes'].update(
+                     {f'obs-{label}-0.txt': 'observed-OLD-0\n'}),
+                 fact('host_has_the_granted_writes')),
+                ('a denied write refused with ENOENT',
+                 probe(lambda p: p['denied_writes'].__setitem__(0, {'open': 'ENOENT', 'exists_after': False})),
+                 fact('denied_writes_refused')),
+                ('a refused denied write that exists after',
+                 probe(lambda p: p['denied_writes'].__setitem__(0, {'open': 'EROFS', 'exists_after': True})),
+                 fact('denied_writes_refused')),
+                ('another observer backend', receipt(lambda x: x.update(observer={**OBSERVER, 'backend': 'ebpf'})),
+                 fact('observer_attached')),
+                ('the attempt failed', lambda r, v, name=name: r[name].update(exit_code=1),
+                 fact('settled_without_error')),
+                ('receipt errors', receipt(lambda x: x.update(errors=[{'code': 'evidence_lost'}])),
+                 fact('settled_without_error')),
+            ]
+            for cls in capabilities.AUDIT_CLASSES:
+                table.append((f'{cls} active with a gap',
+                              receipt(lambda x, cls=cls: x['coverage'].__setitem__(
+                                  cls, {**x['coverage'][cls], 'gaps': [{'classes': [cls]}]})),
+                              fact(f'class_counted:{cls}')))
+
+        def grown(cls):
+            def change(results, views):
+                result = results['observe_3']
+                result['receipt']['coverage'][cls] = dict(result['receipt']['coverage'][cls])
+                result['receipt']['coverage'][cls]['observed_count'] += 1
+            return change
+        for cls in capabilities.AUDIT_CLASSES:
+            table.append((f'{cls} grew by one more than the extra rounds did', grown(cls), f'count_growth:{cls}'))
+
+        def net_counts(low, high):
+            def change(results, views):
+                for name, count in (('closed_set_observation', low), ('observe_3', high)):
+                    results[name]['receipt']['coverage']['net'] = {
+                        'status': 'active', 'sources': ['audit'], 'observed_count': count, 'gaps': []}
+            return change
+        # Growth right, yet each run counted fewer connects than it made.
+        table.append(('net counted below the fixture in both runs', net_counts(0, 2),
+                      ['r1:class_counted:net', 'r3:class_counted:net']))
+
+        def background(change):
+            return lambda r, v: change(r['observe_background']['receipt'])
+        table += [
+            ('bg: a receipt bound to another attempt',
+             lambda r, v: r['observe_background']['binding'].update(attempt_id='x'), 'bg:receipt_bound_to_this_attempt'),
+            ('bg: a policy without closed_set_observation', background(other_policy),
+             'bg:policy_requires_closed_set_observation'),
+            ('bg: observer not attached', background(lambda x: x.update(observer={**OBSERVER, 'attached': False})),
+             'bg:observer_attached'),
+            ('bg: another set', background(lambda x: x.update(observer={**OBSERVER, 'set': None})),
+             'bg:observer_set_linux_closed_v1'),
+            ('bg: observer gaps', background(lambda x: x.update(observer={**OBSERVER, 'gaps': [{}]})),
+             'bg:observer_without_gaps'),
+            ('bg: the host never saw the descendant', lambda r, v: v['observe_host']['observe_background'].update(marker=None),
+             'bg:descendant_started'),
+            ('bg: the descendant never beat', lambda r, v: v['observe_host']['observe_background'].update(beats=0),
+             'bg:descendant_started'),
+            ('bg: a loss the errors do not name', background(lambda x: x.update(errors=[])),
+             'bg:loss_named_in_the_receipt_errors'),
+            ('bg: the probe never saw its descendant start',
+             lambda r, v: reprobe(r['observe_background'], 'UKAI_OBSERVE_PROBE', capabilities.observe_label(
+                 T, 'observe_background'), lambda p: p.update(background_started=False)),
+             'bg:descendant_started'),
+            ('bg: a complete fs.write that misses beats', background(lambda x: x['coverage'].__setitem__(
+                'fs.write', {'status': 'active', 'sources': ['audit'], 'observed_count': 3, 'gaps': []})),
+             'bg:fs_write_accounts_for_every_beat'),
+            # beats + 2: one of the beats' (or the other opens') counts lost.
+            ('bg: a complete fs.write one short of beats + 3', background(lambda x: x['coverage'].__setitem__(
+                'fs.write', {'status': 'active', 'sources': ['audit'], 'observed_count': 7, 'gaps': []})),
+             'bg:fs_write_accounts_for_every_beat'),
+        ]
+        for cls in ('exec', 'fs.deny'):
+            table.append((f'bg: {cls} degraded without naming its gap',
+                          background(lambda x, cls=cls: x['coverage'].__setitem__(cls, {**x['coverage'][cls], 'gaps': []})),
+                          f'bg:no_silent_loss:{cls}'))
+        for cls in ('fs.write', 'net'):
+            table.append((f'bg: {cls} active yet gapped',
+                          background(lambda x, cls=cls: x['coverage'].__setitem__(
+                              cls, {**x['coverage'][cls], 'gaps': [{'classes': [cls]}]})),
+                          f'bg:no_silent_loss:{cls}'))
+        table.append(('bg: a degraded class that kept a count',
+                      background(lambda x: x['coverage'].__setitem__('exec', {**x['coverage']['exec'], 'observed_count': 3})),
+                      'bg:no_silent_loss:exec'))
+        table.append(('bg: a degraded class whose gap names another class',
+                      background(lambda x: x['coverage'].__setitem__('exec', {**x['coverage']['exec'], 'gaps': [
+                          {'classes': ['net'], 'source': 'audit', 'reason': 'entry_abandoned'}]})),
+                      'bg:no_silent_loss:exec'))
+        self.assert_table('closed_set_observation', table)
+
+    def test_syscall_filter(self):
+        def probe(change):
+            return lambda r, v: reprobe(r['syscall_filter'], 'UKAI_SYSCALL_PROBE', T, change)
+
+        def receipt(change):
+            return lambda r, v: change(r['syscall_filter']['receipt'])
+        table = [
+            ('a receipt bound to another attempt', lambda r, v: r['syscall_filter']['binding'].update(attempt_id='x'),
+             'receipt_bound_to_this_attempt'),
+            ('a policy without syscall_filter', receipt(other_policy), 'policy_requires_syscall_filter'),
+            ('another machine', probe(lambda p: p.update(machine='x86_64')), 'probe_made_its_calls_in_the_guest'),
+            ('a probe that skipped', probe(lambda p: p.update(skipped='not the guest workspace')),
+             'probe_made_its_calls_in_the_guest'),
+            ('a call nobody asked for', probe(lambda p: p['calls'].update(extra='ok')), 'every_call_made'),
+            ('no seccomp filter mode', probe(lambda p: p['status'].update(Seccomp='0')), 'seccomp_filter_mode'),
+            ('no no_new_privs', probe(lambda p: p['status'].update(NoNewPrivs='0')), 'no_new_privs'),
+            ('a filter stack the receipt does not name', probe(lambda p: p['status'].update(Seccomp_filters='3')),
+             'filters_match_the_receipt'),
+            ('the receipt missed a filter',
+             receipt(lambda x: x.update(lifetime={'native': {'details': {'seccomp_filters': {'expected': 3, 'observed': 2}}}})),
+             'filters_match_the_receipt'),
+            ('the attempt failed', lambda r, v: r['syscall_filter'].update(exit_code=1),
+             'attempt_settled_without_jail_error'),
+            ('a receipt that records no errors field', receipt(lambda x: x.pop('errors')),
+             'attempt_settled_without_jail_error'),
+        ]
+        for label, _, _, _, kernel in capabilities.SYSCALL_DENIED:
+            table.append((f'{label} answered as an unfiltered kernel would',
+                          probe(lambda p, label=label, kernel=kernel: p['calls'].update({label: kernel})),
+                          f'denied:{label}'))
+        for label, _, _, _ in capabilities.SYSCALL_CONTROLS:
+            table.append((f'{label} filtered too (the control failed)',
+                          probe(lambda p, label=label: p['calls'].update({label: 'EPERM'})), f'control:{label}'))
+        self.assert_table('syscall_filter', table)
+
+    def test_protected_coverage(self):
+        table = []
+        for name, profile in capabilities.PROTECT_PROFILES.items():
+            layout = capabilities.protected_layout(T, profile)
+            probe_tag = f'{T}-{profile}'
+
+            def fact(key, profile=profile):
+                return f'{profile}:{key}'
+
+            def probe(change, name=name, probe_tag=probe_tag):
+                return lambda r, v: reprobe(r[name], 'UKAI_PROTECT_PROBE', probe_tag, change)
+
+            def receipt(change, name=name):
+                return lambda r, v: change(r[name]['receipt'])
+
+            def after(path, change, name=name):
+                return lambda r, v: v['protected'][name]['after'].__setitem__(
+                    path, change(copy.deepcopy(v['protected'][name]['after'][path]), v['protected'][name]['before']))
+
+            def before(path, value, name=name):
+                return lambda r, v: v['protected'][name]['before'].__setitem__(path, value)
+            table += [
+                ('a receipt bound to another attempt', lambda r, v, name=name: r[name]['binding'].update(attempt_id='x'),
+                 fact('receipt_bound_to_this_attempt')),
+                ('a policy without protected_coverage', receipt(other_policy), fact('policy_requires_protected_coverage')),
+                ('another coverage', receipt(lambda x: x['applied']['filesystem'].update(protected_coverage='existing')),
+                 fact('receipt_names_existing_and_root')),
+                ('the probe ran elsewhere', probe(lambda p: p.update(cwd='/tmp')), fact('probe_ran_in_the_workspace')),
+            ]
+            for path in layout['mounts']:
+                table.append((f'no read-only mount for {path}',
+                              receipt(lambda x, path=path: x['applied']['filesystem'].update(mounts=[
+                                  entry for entry in x['applied']['filesystem']['mounts']
+                                  if entry['path'] != f'{capabilities.WORKSPACE_MOUNT}/{path}'])),
+                              fact(f'receipt_mounts_read_only:{path}')))
+                table.append((f'{path} mounted read-write',
+                              receipt(lambda x, path=path: [entry.update(mode='rw') for entry in
+                                                            x['applied']['filesystem']['mounts']
+                                                            if entry['path'] == f'{capabilities.WORKSPACE_MOUNT}/{path}']),
+                              fact(f'receipt_mounts_read_only:{path}')))
+            for path in layout['files']:
+                table += [
+                    (f'{path}: the probe read other bytes', probe(lambda p, path=path: p['files'][path].update(read='x')),
+                     fact(f'saw_the_bytes:{path}')),
+                    (f'{path}: a write succeeded', probe(lambda p, path=path: p['files'][path].update(write='ok')),
+                     fact(f'refused:{path}')),
+                    (f'{path}: a rename refused with ENOENT', probe(lambda p, path=path: p['files'][path].update(
+                        rename_away='ENOENT')), fact(f'refused:{path}')),
+                    (f'{path}: its bytes changed on the host', after(path, lambda e, b: {**e, 'sha256': 'changed'}),
+                     fact(f'unchanged_on_host:{path}')),
+                    (f'{path}: replaced (another inode)', after(path, lambda e, b: {**e, 'ino': 1}),
+                     fact(f'unchanged_on_host:{path}')),
+                    (f'{path}: moved aside on the host', after(path + '.moved', lambda e, b: {'kind': 'file'}),
+                     fact(f'unchanged_on_host:{path}')),
+                ]
+            for path in layout['dirs']:
+                table += [
+                    (f'{path}: the probe listed another directory', probe(lambda p, path=path: p['dirs'][path].update(
+                        list=[])), fact(f'saw_the_listing:{path}')),
+                    (f'{path}: a mkdir inside succeeded', probe(lambda p, path=path: p['dirs'][path].update(
+                        mkdir_inside='ok')), fact(f'refused:{path}')),
+                    (f'{path}: an entry appeared on the host',
+                     after(f'{path}/new-{probe_tag}', lambda e, b: {'kind': 'file'}), fact(f'unchanged_on_host:{path}')),
+                    (f'{path}: its mode changed', after(path, lambda e, b: {**e, 'mode': '0o700'}),
+                     fact(f'unchanged_on_host:{path}')),
+                    # The probe's listing and the host's agree only by both
+                    # being missing: no directory was ever there to list.
+                    (f'{path}: no directory before, and no listing', lambda r, v, path=path, name=name, probe_tag=probe_tag: (
+                        v['protected'][name]['before'].__setitem__(path, {'kind': 'absent'}),
+                        reprobe(r[name], 'UKAI_PROTECT_PROBE', probe_tag, lambda p: p['dirs'][path].pop('list'))),
+                     [fact(f'saw_the_listing:{path}'), fact(f'unchanged_on_host:{path}')]),
+                ]
+            for path in layout['file_mirrors']:
+                table += [
+                    (f'{path}: the control read other bytes',
+                     probe(lambda p, path=path: p['file_mirrors'][path].update(read='x')),
+                     fact(f'control_saw_the_bytes:{path}')),
+                    (f'{path}: the control could not unlink',
+                     probe(lambda p, path=path: p['file_mirrors'][path].update(unlink='EROFS')),
+                     fact(f'control_succeeded:{path}')),
+                    (f'{path}: the host still has it', after(path, lambda e, b, path=path: b[path]),
+                     fact(f'control_effect_on_host:{path}')),
+                ]
+            for path in layout['dir_mirrors']:
+                table += [
+                    (f'{path}: the control listed another directory',
+                     probe(lambda p, path=path: p['dir_mirrors'][path].update(list=['x'])),
+                     fact(f'control_saw_the_listing:{path}')),
+                    (f'{path}: the control could not chmod',
+                     probe(lambda p, path=path: p['dir_mirrors'][path].update(chmod='EROFS')),
+                     fact(f'control_succeeded:{path}')),
+                    (f'{path}: the moved control kept its mode',
+                     after(path + '-moved', lambda e, b: {**e, 'mode': '0o755'}), fact(f'control_effect_on_host:{path}')),
+                ]
+            for path in layout['absent']:
+                table += [
+                    (f'{path}: the absent literal was created',
+                     probe(lambda p, path=path: p['absent'][path].update(mkdir='ok')), fact(f'absent_refused:{path}')),
+                    (f'{path}: left on the host', after(path, lambda e, b: {'kind': 'dir', 'entries': []}),
+                     fact(f'still_absent_on_host:{path}')),
+                    (f'{path}: present before the attempt', before(path, {'kind': 'dir', 'mode': '0o755', 'ino': 1,
+                                                                         'entries': []}),
+                     fact(f'still_absent_on_host:{path}')),
+                ]
+            if layout['absent_control']:
+                control = layout['absent_control']
+                table += [
+                    ('the absent control could not symlink', probe(lambda p: p['absent_controls'].update(symlink='EPERM')),
+                     fact('absent_control_succeeded')),
+                    ('the absent control left no symlink', after(f'{control}-symlink', lambda e, b: {'kind': 'absent'}),
+                     fact('absent_control_effect_on_host')),
+                    ('the absent control\'s directory holds nothing',
+                     after(f'{control}-mkdir/new-{probe_tag}', lambda e, b: {'kind': 'absent'}),
+                     fact('absent_control_effect_on_host')),
+                ]
+            for path in layout['creates']:
+                table.append((f'{path}: the ordinary create failed',
+                              probe(lambda p, path=path: p['creates'].update({path: 'EROFS'})), fact(f'created:{path}')))
+                table.append((f'{path}: other bytes on the host', after(path, lambda e, b: {**e, 'sha256': 'x'}),
+                              fact(f'created:{path}')))
+                table.append((f'{path}: there before the attempt', before(path, {'kind': 'file', 'mode': '0o644', 'ino': 2,
+                                                                                 'sha256': 'old'}),
+                              fact(f'created:{path}')))
+        self.assert_table('protected_coverage', table)
+
+    def test_network_proxy(self):
+        host, port = harness.PROBE_TARGET
+
+        def probe(change):
+            return lambda r, v: reprobe(r['network_proxy'], 'UKAI_PROXY_PROBE', T, change)
+
+        def receipt(change):
+            return lambda r, v: change(r['network_proxy']['receipt'])
+
+        def tries(*statuses):
+            # The receipt counts each try, so only the try record changes.
+            def change(results, views):
+                reprobe(results['network_proxy'], 'UKAI_PROXY_PROBE', T, lambda p: p.update(
+                    allowed=[{'target': [host, port], 'status_line': status} for status in statuses]))
+                results['network_proxy']['receipt']['coverage']['proxy.net'] = {
+                    'status': 'active', 'observed_count': len(statuses) + 3, 'gaps': []}
+            return change
+        ok, bad = 'HTTP/1.1 200 Connection established', 'HTTP/1.1 502 Bad Gateway'
+        table = [
+            ('a receipt bound to another attempt', lambda r, v: r['network_proxy']['binding'].update(attempt_id='x'),
+             'receipt_bound_to_this_attempt'),
+            ('a policy without network_proxy', receipt(other_policy), 'policy_requires_network_proxy'),
+            ('another allow set', receipt(lambda x: x['applied'].update(network={
+                'mode': 'proxy', 'allowed_hosts': [harness.route_rule(), 'example.com:443']})),
+             'receipt_applied_proxy_with_exactly_the_target'),
+            ('network none', receipt(lambda x: x['applied'].update(network={'mode': 'none', 'allowed_hosts': []})),
+             'receipt_applied_proxy_with_exactly_the_target'),
+            ('a request the proxy did not count', receipt(lambda x: x['coverage'].update({'proxy.net': {
+                'status': 'active', 'observed_count': 4, 'gaps': []}})), 'receipt_counted_every_request'),
+            ('proxy.net degraded', receipt(lambda x: x['coverage'].update({'proxy.net': {
+                'status': 'degraded', 'observed_count': None, 'gaps': [{}]}})), 'receipt_counted_every_request'),
+            ('NO_PROXY set', probe(lambda p: p['environment'].update(NO_PROXY='localhost')), 'environment_is_the_bridges'),
+            ('the loopback control failed', probe(lambda p: p.update(loopback_control={'connect': 'ECONNREFUSED',
+                                                                                         'accepted': False})),
+             'loopback_control_connected'),
+            ('a direct connect reached the target', probe(lambda p: p.update(direct='connected')), 'direct_connect_denied'),
+            ('a direct connect timed out', probe(lambda p: p.update(direct='timeout')), 'direct_connect_denied'),
+            ('the AF_UNIX control failed', probe(lambda p: p.update(unix_control={'connect': 'connected',
+                                                                                   'accepted': False})),
+             'unix_control_connected'),
+            ('the workload reached the proxy socket', probe(lambda p: p.update(proxy_socket='connected')),
+             'proxy_socket_refused'),
+            ('the proxy socket was absent', probe(lambda p: p.update(proxy_socket='ENOENT')), 'proxy_socket_refused'),
+            ('the proxy socket refused the connect itself', probe(lambda p: p.update(proxy_socket='ECONNREFUSED')),
+             'proxy_socket_refused'),
+            ('a try after success', tries(ok, ok), 'every_try_recorded'),
+            ('more tries than allowed', tries(bad, bad, bad, ok), 'every_try_recorded'),
+            ('never reached in every try', tries(bad, bad, bad), 'allowed_target_reached'),
+            ('the last try reached another target', probe(lambda p: p['allowed'][-1].update(target=['1.0.0.9', port])),
+             ['allowed_target_reached', 'every_try_recorded']),
+            # R7: entries that are not try records are tries all the same.
+            ('a try that is not a record', lambda r, v: (
+                reprobe(r['network_proxy'], 'UKAI_PROXY_PROBE', T, lambda p: p['allowed'].insert(0, 'junk')),
+                r['network_proxy']['receipt']['coverage']['proxy.net'].update(observed_count=6)),
+             'every_try_recorded'),
+            ('the attempt failed', lambda r, v: r['network_proxy'].update(exit_code=1),
+             'attempt_settled_without_jail_error'),
+        ]
+        for label, _, _ in capabilities.proxy_refused():
+            table += [(f'{label} tunnelled', probe(lambda p, label=label: p['refused'][label].update(
+                status_line=ok, reason=None)), f'refused:{label}'),
+                (f'{label} refused for another reason', probe(lambda p, label=label: p['refused'][label].update(
+                    reason='connect_failed')), f'refused:{label}'),
+                (f'{label} answered 502 with the refusal reason', probe(lambda p, label=label: p['refused'][label].update(
+                    status_line='HTTP/1.1 502 Bad Gateway')), f'refused:{label}')]
+        self.assert_table('network_proxy', table)
+
+    def test_measurements_list_every_attempt_and_what_was_not_measured(self):
+        results = good_results()
+        _, summary = judge_measured(results)
+        entries = capabilities.measurements({'results': results}, summary)
+        for capability, attempts in capabilities.CAPABILITY_ATTEMPTS.items():
+            entry = entries[capabilities.REQUIREMENTS[capability]]
+            self.assertEqual(entry['attempt_ids'], [results[name]['attempt_id'] for name in attempts])
+            self.assertEqual(entry['attempt_id'], results[capability]['attempt_id'])
+        tree = entries['tree_termination']
+        self.assertEqual(tree['not_measured'], capabilities.NOT_MEASURED['tree_termination'])
+        self.assertEqual(entries['closed_set_observation']['not_measured'], {
+            'operation_identity': 'the identity of each counted operation (the trace stays in the guest)'})
+        self.assertEqual(entries['syscall_filter']['not_measured'], {
+            'kernel_eperm_first': list(capabilities.SYSCALL_KERNEL_EPERM_FIRST),
+            'not_probed': list(capabilities.SYSCALL_NOT_PROBED)})
+        self.assertEqual([name for name, entry in entries.items() if 'not_measured' in entry],
+                         ['tree_termination', 'closed_set_observation', 'syscall_filter'])
+        # The exit path's evidence_lost and exit 1 are recorded, never required.
+        self.assertTrue(tree['verdict'])
+        self.assertEqual(tree['notes']['tree_termination']['exit_code'], 1)
+        self.assertEqual(tree['notes']['tree_termination']['receipt_errors'], ['evidence_lost'])
+        self.assertEqual(entries['syscall_filter']['attempt_ids'], [results['syscall_filter']['attempt_id']])
+
+    def test_a_record_without_the_guest_stop_fails_the_tree(self):
+        # A record without the guest's stop report (no `stop` in done) backs
+        # no tree_termination, whatever else holds.
+        results = good_results()
+        for name in capabilities.TREE_PATHS:
+            del results[name]['guest_stop']
+        facts, summary = judge_measured(results)
+        self.assertFalse(summary['tree_termination'])
+        self.assertFalse(facts['tree_termination']['exit:guest_stop_reported'])
+
+    def test_watch_tree_samples_while_the_attempt_runs_then_settles(self):
+        workspace = Path(tempfile.mkdtemp(prefix='tree-watch-'))
+        self.addCleanup(shutil.rmtree, workspace, True)
+        files = {kind: capabilities.tree_files(T, 'exit', kind) for kind in capabilities.TREE_KINDS}
+        for kind, (marker, _) in files.items():
+            (workspace / marker).write_text('5\n')
+
+        def beat(kind):
+            with open(workspace / files[kind][1], 'a') as output:
+                output.write('beat\n')
+
+        def run():
+            for _ in range(3):
+                for kind in files:
+                    beat(kind)
+                time.sleep(0.25)
+            return {'attempt_id': 'x', 'started_at': 'now'}
+        clock = [100.0]
+        sleeps = []
+
+        def sleep(seconds, during_window=()):
+            # The host's sleeps: a beat in the share grace is the share's
+            # delay; `during_window` beats land inside the settle window.
+            sleeps.append(seconds)
+            for kind in (('normal',) if len(sleeps) % 2 else during_window):
+                beat(kind)
+            clock[0] += seconds
+        result, watch = capabilities.watch_tree(run, workspace, T, 'exit', sleep, lambda: clock[0])
+        self.assertEqual(result['attempt_id'], 'x')
+        self.assertEqual(sleeps, [capabilities.TREE_SHARE_GRACE, capabilities.TREE_SETTLE_SECONDS])
+        self.assertGreaterEqual(len({sample['normal'] for sample in watch['during']}), 2)
+        self.assertEqual(watch['at_done'], {kind: 3 for kind in capabilities.TREE_KINDS})
+        # The grace beat is before the window opens: the window saw none.
+        self.assertEqual(watch['settled_from'], {**watch['at_done'], 'normal': 4})
+        self.assertEqual(watch['settled_from'], watch['settled_to'])
+        self.assertEqual(watch['window'], {'done_at': 100.0, 'opened_at': 100.0 + capabilities.TREE_SHARE_GRACE,
+                                           'closed_at': 100.0 + capabilities.TREE_SHARE_GRACE
+                                           + capabilities.TREE_SETTLE_SECONDS})
+        self.assertEqual(watch['markers']['daemon'], '5\n')
+        record = bind(tree_record('exit'), f'cap-tree_termination-{T}')
+        facts = capabilities.judge_tree(record, T, 'exit', watch)
+        for key in ('tree_dead_after_the_jail_and_the_guest_stop', 'settle_window_opened_after_the_share_grace',
+                    'settle_window_lasted_the_settle_time'):
+            self.assertIs(facts[key], True, key)
+
+        # A beat inside the window: the window sees it, and the tree fails.
+        sleeps.clear()
+        _, inside = capabilities.watch_tree(run, workspace, T, 'exit',
+                                            lambda seconds: sleep(seconds, ('daemon',)), lambda: clock[0])
+        self.assertEqual(inside['settled_to']['daemon'], inside['settled_from']['daemon'] + 1)
+        self.assertIs(capabilities.judge_tree(record, T, 'exit', inside)[
+            'tree_dead_after_the_jail_and_the_guest_stop'], False)
+
+        def broken():
+            raise RuntimeError('connect failed')
+        with self.assertRaises(RuntimeError):
+            capabilities.watch_tree(broken, workspace, T, 'exit', sleeps.append)
+
+    def test_the_real_clock_window_meets_its_bounds(self):
+        # time.sleep and time.monotonic together, at small bounds.
+        workspace = Path(tempfile.mkdtemp(prefix='tree-clock-'))
+        self.addCleanup(shutil.rmtree, workspace, True)
+        with mock.patch.object(capabilities, 'TREE_SHARE_GRACE', 0.2), \
+                mock.patch.object(capabilities, 'TREE_SETTLE_SECONDS', 0.3):
+            _, watch = capabilities.watch_tree(lambda: {}, workspace, T, 'wall')
+            facts = capabilities.judge_tree({}, T, 'wall', watch)
+        self.assertIs(facts['settle_window_opened_after_the_share_grace'], True, watch['window'])
+        self.assertIs(facts['settle_window_lasted_the_settle_time'], True, watch['window'])
+
+    def test_the_host_snapshot_reads_kind_mode_bytes_and_listing(self):
+        root = Path(tempfile.mkdtemp(prefix='host-entry-'))
+        self.addCleanup(shutil.rmtree, root, True)
+        (root / 'd').mkdir()
+        (root / 'd' / 'f').write_text('x')
+        (root / 'l').symlink_to('/tmp')
+        self.assertEqual(capabilities.host_entry(root / 'absent'), {'kind': 'absent'})
+        self.assertEqual(capabilities.host_entry(root / 'd')['entries'], ['f'])
+        self.assertEqual(capabilities.host_entry(root / 'd' / 'f')['sha256'], hashlib.sha256(b'x').hexdigest())
+        self.assertEqual(capabilities.host_entry(root / 'l')['kind'], 'symlink')
+        # The same bytes and mode in a new inode (a replace by rename) is a change.
+        first = capabilities.host_entry(root / 'd' / 'f')
+        (root / 'd' / 'g').write_text('x')
+        (root / 'd' / 'g').chmod(stat.S_IMODE((root / 'd' / 'f').stat().st_mode))
+        os.rename(root / 'd' / 'g', root / 'd' / 'f')
+        second = capabilities.host_entry(root / 'd' / 'f')
+        self.assertEqual((first['sha256'], first['mode']), (second['sha256'], second['mode']))
+        self.assertNotEqual(first, second)
+
+    def test_the_syscall_tables_partition_rc5s_deny_eperm_list(self):
+        # rc.5 (0fe655440) platform/linux/seccomp.rs DENY_EPERM, in order.
+        rc5 = ('ptrace process_vm_readv process_vm_writev bpf perf_event_open kexec_load kexec_file_load '
+               'init_module finit_module delete_module keyctl add_key request_key io_uring_setup io_uring_enter '
+               'io_uring_register mount umount2 move_mount open_tree fsopen fsmount fspick fsconfig mount_setattr '
+               'pivot_root chroot unshare setns userfaultfd open_by_handle_at name_to_handle_at syslog '
+               'pidfd_send_signal pidfd_open pidfd_getfd process_madvise kcmp move_pages migrate_pages statmount '
+               'listmount quotactl quotactl_fd adjtimex clock_settime clock_adjtime settimeofday setxattrat '
+               'getxattrat listxattrat removexattrat open_tree_attr file_getattr file_setattr listns').split()
+        probed = [label for label, *_ in capabilities.SYSCALL_DENIED if label in rc5]
+        first, rest = capabilities.SYSCALL_KERNEL_EPERM_FIRST, capabilities.SYSCALL_NOT_PROBED
+        self.assertEqual((len(rc5), len(probed), len(first), len(rest)), (56, 28, 11, 17))
+        self.assertEqual(sorted(probed + list(first) + list(rest)), sorted(rc5))
+        # The rest of SYSCALL_DENIED is clone3 and the argument rules.
+        self.assertEqual([label for label, *_ in capabilities.SYSCALL_DENIED if label not in rc5],
+                         ['clone3', 'clone_untraced', 'clone_newuser', 'ioctl_tiocsti', 'seccomp_listener',
+                          'socket_unix', 'socket_vsock'])
 
 
 class ProbeSourceRuns(unittest.TestCase):
@@ -400,6 +1310,126 @@ class ProbeSourceRuns(unittest.TestCase):
         self.assertGreater(probe['forked'], 0)
         self.assertLess(probe['forked'], 64)
 
+    def test_the_syscall_probe_calls_nothing_off_the_guest(self):
+        # Never run on a machine whose numbers the tables hold: the probe's
+        # other gates (a filter, no_new_privs, the guest workspace) would be
+        # all that stood between this host and its calls.
+        if sys.platform.startswith('linux') and os.uname().machine == 'aarch64':
+            self.skipTest('a Linux aarch64 host: the probe is not run here')
+        cwd = Path(tempfile.mkdtemp(prefix='syscall-'))
+        self.addCleanup(shutil.rmtree, cwd, True)
+        argv = capabilities.syscall_argv(T)
+        self.assertEqual(json.loads(argv[-1])['workspace'], '/mnt/workspace')
+        done = self.run_probe(argv, cwd=cwd)
+        probe = capabilities.tagged(done.stdout, 'UKAI_SYSCALL_PROBE', T)
+        self.assertIsNotNone(probe, done.stderr)
+        self.assertEqual(probe['calls'], {})
+        # The child inherits this process's seccomp and no_new_privs state:
+        # every gate this host fails is named.
+        status = {}
+        with contextlib.suppress(OSError), open('/proc/self/status') as source:
+            status = dict(line.rstrip('\n').split(':\t', 1) for line in source if ':\t' in line)
+        failed = ['linux aarch64', *(['seccomp filter mode'] if status.get('Seccomp', '').strip() != '2' else []),
+                  *(['no_new_privs'] if status.get('NoNewPrivs', '').strip() != '1' else []), 'the guest workspace']
+        self.assertEqual(probe['skipped'], 'not ' + ', '.join(failed))
+        self.assertFalse(capabilities.judge_syscall(bind(record(done.stdout), 's'), T)['probe_made_its_calls_in_the_guest'])
+
+    def test_the_observe_probe_reports_each_operation(self):
+        if os.geteuid() == 0:
+            self.skipTest('as root the probe\'s refused write would create files in this host\'s /etc')
+        cwd = Path(tempfile.mkdtemp(prefix='observe-'))
+        self.addCleanup(shutil.rmtree, cwd, True)
+        name = 'observe_3'
+        label = capabilities.observe_label(T, name)
+        done = self.run_probe(capabilities.observe_argv(T, name), cwd=cwd)
+        probe = capabilities.tagged(done.stdout, 'UKAI_OBSERVE_PROBE', label)
+        self.assertIsNotNone(probe, done.stderr)
+        self.assertEqual(probe['execs'], [{'argv': argv, 'returncode': code} for _ in range(3)
+                                          for argv, code in capabilities.OBSERVE_EXECS])
+        self.assertEqual(probe['writes'], ['written'] * 3)
+        self.assertEqual(capabilities.observe_view(cwd, T, name)['writes'],
+                         {f'obs-{label}-{i}.txt': f'observed-{label}-{i}\n' for i in range(3)})
+        # This host's /etc refuses an unprivileged create; its loopback target
+        # (setUpModule) refuses the connect: a peer's answer, not a namespace's.
+        for entry in probe['denied_writes']:
+            self.assertIn(entry['open'], capabilities.DENIED_WRITE_ERRNOS)
+            self.assertFalse(entry['exists_after'])
+        self.assertEqual(probe['connects'], ['ECONNREFUSED'] * 3)
+        facts = capabilities.judge_observe_run(bind(record(done.stdout), 'o'), T, name,
+                                               capabilities.observe_view(cwd, T, name))
+        self.assertTrue(facts['fixture_ran_every_round'] and facts['host_has_the_granted_writes'])
+        self.assertFalse(facts['connects_refused_by_the_namespace'])
+
+    def test_the_protect_probe_against_a_workspace_that_protects_nothing(self):
+        # Every protected operation succeeds here, so every refusal fact is
+        # false while every control (and the host's view of it) holds.
+        cwd = Path(tempfile.mkdtemp(prefix='protect-'))
+        self.addCleanup(shutil.rmtree, cwd, True)
+        harness.protected_sentinel(cwd)
+        layout = capabilities.protected_layout(T, 'tool')
+        capabilities.seed_protected(cwd, layout)
+        before = capabilities.protected_snapshot(cwd, layout, f'{T}-tool')
+        done = self.run_probe(capabilities.protect_argv(T, 'tool'), cwd=cwd)
+        self.assertIsNotNone(capabilities.tagged(done.stdout, 'UKAI_PROTECT_PROBE', f'{T}-tool'), done.stderr)
+        after = capabilities.protected_snapshot(cwd, layout, f'{T}-tool')
+        facts = capabilities.judge_protected(bind(record(done.stdout), 'p'), T, 'tool', before, after)
+        for key, value in facts.items():
+            with self.subTest(key):
+                if key.startswith(('control_', 'absent_control_', 'created:', 'saw_the_')):
+                    self.assertIs(value, True)
+                elif key.startswith(('refused:', 'unchanged_on_host:', 'absent_refused:', 'still_absent_on_host:')):
+                    self.assertIs(value, False)
+
+    def test_the_proxy_probe_records_its_controls_and_every_try(self):
+        cwd = Path(tempfile.mkdtemp(prefix='proxy-'))
+        self.addCleanup(shutil.rmtree, cwd, True)
+        environment = {key: value for key, value in os.environ.items() if 'proxy' not in key.lower()}
+        control = cwd / 'u.sock'
+        argv = capabilities.proxy_argv(T, str(control))
+        self.assertEqual(json.loads(argv[-1])['unix_control'], str(control))
+        done = self.run_probe(argv, cwd=cwd, env=environment)
+        probe = capabilities.tagged(done.stdout, 'UKAI_PROXY_PROBE', T)
+        self.assertIsNotNone(probe, done.stderr)
+        self.assertEqual(probe['loopback_control'], {'connect': 'connected', 'accepted': True})
+        self.assertEqual(probe['unix_control'], {'connect': 'connected', 'accepted': True})
+        self.assertEqual(probe['direct'], 'ECONNREFUSED')
+        self.assertEqual(probe['proxy_socket'], 'ENOENT')
+        self.assertEqual(len(probe['allowed']), capabilities.PROXY_TRIES)
+        self.assertTrue(all('no http proxy' in reply['error'] for reply in probe['allowed']))
+        self.assertEqual(sorted(probe['refused']), sorted(label for label, *_ in capabilities.proxy_refused()))
+        self.assertEqual(set(probe['environment'].values()), {None})
+        self.assertFalse(control.exists())
+        self.assertEqual(json.loads(capabilities.proxy_argv(T)[-1])['unix_control'], f'/tmp/ukai-proxy-{T}.sock')
+        facts = capabilities.judge_proxy(bind(record(done.stdout), 'x'), T)
+        self.assertTrue(facts['loopback_control_connected'] and facts['every_try_recorded'])
+        self.assertFalse(facts['allowed_target_reached'] or facts['direct_connect_denied'])
+
+    def test_the_tree_probe_starts_every_kind(self):
+        cwd = Path(tempfile.mkdtemp(prefix='tree-'))
+        self.addCleanup(shutil.rmtree, cwd, True)
+        files = {kind: capabilities.tree_files(T, 'exit', kind) for kind in capabilities.TREE_KINDS}
+
+        def reap():
+            for marker, _ in files.values():
+                pid = capabilities.marker_pid(capabilities.read_text(cwd / marker))
+                if pid:
+                    with contextlib.suppress(OSError):
+                        os.kill(pid, signal.SIGKILL)
+        self.addCleanup(reap)
+        argv = capabilities.tree_argv(T, 'exit')[:-1] + ['0']   # no hold
+        done = self.run_probe(argv, cwd=cwd)
+        probe = capabilities.tagged(done.stdout, 'UKAI_TREE_PROBE', T)
+        self.assertIsNotNone(probe, done.stderr)
+        self.assertEqual(probe['path'], 'exit')
+        for kind, (marker, _) in files.items():
+            with self.subTest(kind):
+                self.assertEqual(capabilities.marker_pid(capabilities.read_text(cwd / marker)),
+                                 probe['members'][kind]['pid'])
+                self.assertGreaterEqual(probe['members'][kind]['beats'], capabilities.TREE_MIN_BEATS)
+        if sys.platform.startswith('linux'):
+            for kind in capabilities.TREE_KINDS:
+                self.assertTrue(capabilities.kind_confirmed(kind, probe['members'][kind], probe['root']), kind)
+
 
 class WarmLiveTables(unittest.TestCase):
     def good(self, count=20):
@@ -411,7 +1441,9 @@ class WarmLiveTables(unittest.TestCase):
                 'stdout': f'git_write_refused-{index}\n' + probe_line(f'{T}-{index}') + f'\nout-{index}\n',
                 'host_write': f'warm-{index}-{T}\n', 'git_config_after': warm_live.SENTINEL,
                 'probe': harness.probe_verdict(probe_line(f'{T}-{index}'), f'{T}-{index}'),
-                'receipt_network': 'none', 'timings_ms': {'connect_to_released': 15.0}})
+                'receipt_network': 'none', 'timings_ms': {'connect_to_released': 15.0},
+                'guest_stop': {'boundaries': ['ukai-attempts.slice/attempt-1'], 'populated_before_kill': [],
+                               'live_before_kill': [], 'strays_killed': []}})
         return records
 
     def route(self, **changes):
@@ -422,7 +1454,7 @@ class WarmLiveTables(unittest.TestCase):
         return value
 
     def judge(self, records, **kwargs):
-        options = dict(budget_ms=1000.0, status={'guest_nat': True}, service_exit=0,
+        options = dict(budget_ms=1000.0, status={'guest_nat': True, 'ready': True}, service_exit=0,
                        git_config_text=warm_live.SENTINEL, route=self.route())
         options.update(kwargs)
         return warm_live.judge(records, T, **options)[1]
@@ -457,12 +1489,46 @@ class WarmLiveTables(unittest.TestCase):
             ('a receipt bound to another attempt', at(4, receipt_bound=False), 'every_receipt_verified'),
             ('receipt network not none', at(4, receipt_network='proxy'), 'every_receipt_network_none'),
             ('nineteen runs', self.good(19), 'k108_twenty_runs'),
+            ('a done without the guest stop', at(6, guest_stop=None), 'every_guest_stop_found_nothing_left'),
+            ('a boundary populated after the guest jail', at(6, guest_stop={
+                'boundaries': ['app.slice'], 'populated_before_kill': ['app.slice'], 'live_before_kill': [],
+                'strays_killed': []}), 'every_guest_stop_found_nothing_left'),
+            ('a live account process after the guest jail', at(6, guest_stop={
+                'boundaries': [], 'populated_before_kill': [], 'live_before_kill': [[9, '/user.slice/s']],
+                'strays_killed': []}), 'every_guest_stop_found_nothing_left'),
+            ('a stray the guest stop killed', at(6, guest_stop={
+                'boundaries': [], 'populated_before_kill': [], 'live_before_kill': [],
+                'strays_killed': [[9, None]]}), 'every_guest_stop_found_nothing_left'),
+            ('a guest stop that covered no boundary', at(6, guest_stop={
+                'boundaries': [], 'populated_before_kill': [], 'live_before_kill': [],
+                'strays_killed': []}), 'every_guest_stop_found_nothing_left'),
+            ('a guest stop that covered only the user manager', at(6, guest_stop={
+                'boundaries': ['user.slice/user-1001.slice/user@1001.service/app.slice'],
+                'populated_before_kill': [], 'live_before_kill': [], 'strays_killed': []}),
+             'every_guest_stop_found_nothing_left'),
         ]
         for name, records, gate in table:
             with self.subTest(name):
                 verdict = self.judge(records)
                 self.assertEqual(verdict['outcome'], 'FAIL')
                 self.assertIn(gate, verdict['failed'])
+
+    def test_an_empty_run_fails_every_per_attempt_gate(self):
+        # all([]) is True: without the `ran` guard each gate passed on no
+        # attempt, masked only by k108_twenty_runs.
+        verdict = self.judge([])
+        self.assertEqual(verdict['outcome'], 'FAIL')
+        for gate in ['every_attempt_exit_zero', 'every_receipt_verified', 'every_granted_write_reached_host',
+                     'every_protected_write_tried_and_refused', 'protected_git_never_reached',
+                     'every_attempt_saw_the_jails_denial', 'every_receipt_network_none',
+                     'every_guest_stop_found_nothing_left', 'k108_every_attempt_within_budget']:
+            with self.subTest(gate):
+                self.assertIs(verdict[gate], False)
+
+    def test_a_serve_that_was_warm_but_not_ready_fails(self):
+        verdict = self.judge(self.good(), status={'guest_nat': True, 'warm': True, 'ready': False})
+        self.assertEqual(verdict['outcome'], 'FAIL')
+        self.assertIn('service_ready_before_the_first_attempt', verdict['failed'])
 
     def test_first_attempt_plus_one_second_is_not_the_budget(self):
         # The old reading: initial 14.9 ms, so anything up to 1014.9 ms passed.
@@ -589,7 +1655,7 @@ class WarmLiveTables(unittest.TestCase):
             send(event='done', exit_code=0)
         server = FakeAttemptServer(script)
         self.addCleanup(server.close)
-        route = warm_live.route_control(mock.Mock(connect=server.connect), T)
+        route = warm_live.route_control(mock.Mock(connect=server.connect), T, reach=lambda: {"answers": True})
         self.assertTrue(route['route']['reached'])
         self.assertTrue(route['receipt_bound'])
         self.assertNotIn('receipt', route)
@@ -673,7 +1739,7 @@ def control(server):
         stream, _ = server.accept()
         for request in lines(stream):
             if request['op'] == 'status':
-                send(stream, event='status', boot_id=boot, warm=True, attempt_live=False,
+                send(stream, event='status', boot_id=boot, warm=True, ready=True, attempt_live=False,
                      guest_nat='--guest-nat' in args, live_workspace=str(workspace))
             elif request['op'] == 'stop':
                 send(stream, event='stopping')
@@ -697,13 +1763,14 @@ def attempt(server):
             # The route control: the guest proxy tunnels to an allowed target
             # (connecting nowhere here); with no route it answers 502.
             nonce, host, port = words[4], words[5], int(words[6])
-            reached = f'{host}:{port}' in prepare.get('allow_hosts', []) and mode != 'noroute'
+            reached = (f'{host}:{port}' in prepare.get('allow_hosts', []) and mode != 'noroute'
+                       and not (mode == 'flaky' and not prepare['attempt_id'].endswith('-1')))
             line = {'nonce': nonce, 'target': [host, port],
                     'status_line': 'HTTP/1.1 200 Connection established' if reached else 'HTTP/1.1 502 Bad Gateway'}
             text = 'UKAI_ROUTE_CONTROL ' + json.dumps(line) + '\n'
             send(stream, event='stdout', data=base64.b64encode(text.encode()).decode())
             stream.sendall((json.dumps(bound_receipt(prepare, boot, 'guest-1', {'applied': {'network': {'mode': 'proxy'}}})) + '\n').encode())
-            send(stream, event='done', exit_code=0)
+            send(stream, event='done', exit_code=0, stop={'boundaries': ['ukai-attempts.slice/attempt-1'], 'populated_before_kill': [], 'live_before_kill': [], 'strays_killed': []})
             stream.close()
             count += 1
             continue
@@ -719,7 +1786,7 @@ def attempt(server):
         if mode == 'unbound' and index == '6':
             frame['binding']['attempt_id'] = 'warm-6-someone-else'
         stream.sendall((json.dumps(frame) + '\n').encode())
-        send(stream, event='done', exit_code=0)
+        send(stream, event='done', exit_code=0, stop={'boundaries': ['ukai-attempts.slice/attempt-1'], 'populated_before_kill': [], 'live_before_kill': [], 'strays_killed': []})
         stream.close()
         count += 1
 
@@ -750,7 +1817,10 @@ class FakeServeFlows(unittest.TestCase):
 
     def warm_live(self, mode, out='out'):
         (self.workspace / 'attempt-3.txt').write_text('warm-3-STALE\n')  # an earlier run's file
-        with mock.patch.dict(os.environ, {'FAKE_MODE': mode, 'UKAI_VM_GUEST_NAT': '1'}), mock.patch('builtins.print'):
+        reach = {'target': ['1.1.1.1', 443], 'result': 'connected', 'answers': True, 'elapsed_ms': 1.0}
+        with mock.patch.dict(os.environ, {'FAKE_MODE': mode, 'UKAI_VM_GUEST_NAT': '1'}), \
+                mock.patch('builtins.print'), \
+                mock.patch.object(harness, 'host_reachability', lambda *a, **k: reach):
             code = warm_live.main(['--image', str(self.image), '--workspace', str(self.workspace),
                                    '--out', str(self.root / out), '--ukai-vm', str(self.binary)])
         return code, json.loads((self.root / out / 'warm-live.json').read_text())
@@ -768,6 +1838,14 @@ class FakeServeFlows(unittest.TestCase):
         self.assertEqual(record['route_control']['attempt_id'], f"warm-route-{record['attempts'][0]['attempt_id'].split('-')[-1]}")
         self.assertNotIn(str(self.root), json.dumps(record), 'a record carries no absolute temp path')
 
+    def test_a_route_control_reached_on_a_later_try_passes_and_keeps_every_try(self):
+        code, record = self.warm_live('flaky')
+        self.assertEqual(code, 0, record['failed'])
+        tries = record['route_control']['tries']
+        self.assertEqual([t['route']['reached'] for t in tries], [False, True])
+        self.assertTrue(all(t['host_reachability']['answers'] for t in tries))
+        self.assertTrue(record['route_control']['attempt_id'].endswith('-1'))
+
     def test_a_guest_without_a_route_fails(self):
         # Reviewer FX4 end to end: every probe sees ENETUNREACH, but the
         # guest itself reaches nothing, so the denial is not the jail's.
@@ -775,6 +1853,7 @@ class FakeServeFlows(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertTrue(record['every_attempt_saw_the_jails_denial'])
         self.assertEqual(record['failed'], ['route_control_reached_the_target', 'every_attempt_network_denied'])
+        self.assertEqual(len(record['route_control']['tries']), warm_live.ROUTE_TRIES)
 
     def test_a_receipt_bound_elsewhere_fails(self):
         code, record = self.warm_live('unbound')
@@ -885,7 +1964,7 @@ def control(server):
         stream, _ = server.accept()
         request = next(frames(stream))
         if request['op'] == 'status':
-            send(stream, event='status', boot_id=boot, warm=True, attempt_live=state['live'],
+            send(stream, event='status', boot_id=boot, warm=True, ready=True, attempt_live=state['live'],
                  guest_nat='--guest-nat' in args and not os.environ.get('FAKE_NO_NAT'))
             stream.close()
         else:
@@ -1242,7 +2321,9 @@ class MainFlows(unittest.TestCase):
             def stderr_text(self):
                 return ''
         with mock.patch.object(harness, 'Service', FakeService), mock.patch('builtins.print'), \
-                mock.patch.dict(os.environ, {'UKAI_VM_BINARY': str(self.home / 'bin/ukai-vm')}):
+                mock.patch.dict(os.environ, {'UKAI_VM_BINARY': str(self.home / 'bin/ukai-vm')}), \
+                mock.patch.object(capabilities, 'TREE_SETTLE_SECONDS', 0.0), \
+                mock.patch.object(capabilities, 'TREE_SHARE_GRACE', 0.0):
             code = capabilities.main([str(self.home), str(self.workspace), str(self.root / out)])
         return code, json.loads((self.root / out / 'capabilities.json').read_text())
 

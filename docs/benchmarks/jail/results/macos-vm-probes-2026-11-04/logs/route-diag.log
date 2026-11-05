@@ -1,0 +1,9 @@
+{"verdict": "reached", "reached": true, "status_line": "HTTP/1.1 200 Connection established", "error": null, "target": ["1.1.1.1", 443]} boot 1.1.1.1
+{"verdict": "reached", "reached": true, "status_line": "HTTP/1.1 200 Connection established", "error": null, "target": ["8.8.8.8", 443]} boot 8.8.8.8
+{"verdict": "reached", "reached": true, "status_line": "HTTP/1.1 200 Connection established", "error": null, "target": ["1.1.1.1", 443]} after-20 1.1.1.1
+{"verdict": "reached", "reached": true, "status_line": "HTTP/1.1 200 Connection established", "error": null, "target": ["8.8.8.8", 443]} after-20 8.8.8.8
+{"verdict": "reached", "reached": true, "status_line": "HTTP/1.1 200 Connection established", "error": null, "target": ["1.1.1.1", 443]} idle-300 1.1.1.1
+{"verdict": "reached", "reached": true, "status_line": "HTTP/1.1 200 Connection established", "error": null, "target": ["8.8.8.8", 443]} idle-300 8.8.8.8
+{"verdict": "reached", "reached": true, "status_line": "HTTP/1.1 200 Connection established", "error": null, "target": ["1.1.1.1", 443]} idle-300-again 1.1.1.1
+{"verdict": "reached", "reached": true, "status_line": "HTTP/1.1 200 Connection established", "error": null, "target": ["8.8.8.8", 443]} idle-300-again 8.8.8.8
+written /Users/monocursive/ukai-vm-live/results/route-diag/route-diagnosis.json

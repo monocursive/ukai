@@ -86,12 +86,19 @@ A warm backend with a **live workspace share** is under development on
 `dev` and is not part of the download. Its candidate package,
 0.1.0-preview.2, is signed but neither notarized nor published, and it
 carries only `ukai-vm` and `ukai-vm-install`: no macOS `ukai-jail` client
-ships, so `ukai-jail run --vm` needs a client built from source. Even then,
-every `run --vm` currently refuses at probing, before any connection or
-boot. The probe answers Available only for a requirement a measured guest
-record backs, and no requirement has one yet: every requirement answers
-`vm:not-measured:<requirement>` (`network_none`'s 2026-11-02 TCP probe, for
-one, was vacuous: `/dev/tcp` under the guest's `dash`). The guest carries
+ships, so `ukai-jail run --vm` needs a client built from source. The probe
+answers Available only for a requirement a measured guest record backs. The
+2026-11-04 evening live phase on the spare Mac
+([record](benchmarks/jail/results/macos-vm-probes-2026-11-04/README.md))
+measured every requirement of a `tool` or `agent` plan, so such a run
+passes probing once it sets an explicit wall of 1–300 s
+(`--limit wall=<n>s`: the profiles' own 30 m and 2 h walls are
+`vm:not-carried`); 20 `tool` runs of a source-built client then settled with exit 0 there
+(development evidence, one host). A run whose plan also needs
+`execution_boundary` (a required `pids=64`, `mem=512MiB` or `swap=0`, the
+only values the guest carries) or `credential_staging` still refuses at
+probing, before any connection or boot, with
+`vm:not-measured:<requirement>`. The guest carries
 only the profile (`tool` or `agent`), the wall (whole seconds, 1–300), the
 argv, the network shape and vault-mode credentials; any other policy
 element that differs (deny-read, `--ro`/`--rw` grants, observation choices,
@@ -179,7 +186,8 @@ custodians; the route was closed and re-measured in the same VM on 2026-11-02
 ([kickstart-fix record](benchmarks/jail/results/macos-k90-kickstart-fix-2026-11-02/README.md)),
 and K90 and NC01 remain blocked pending full release qualification. J16 still
 needs packaging, Apple's entitlement and the protected-Mac acceptance run.
-J18's K108–K113 are `untested`, and its `run --vm` refuses at probing (below).
+J18's K108–K113 are `untested`; a `run --vm` with an explicit 1–300 s wall
+passes probing on development evidence only (below).
 The following describes the intended contract.
 
 Current implementation: native execution is **off by default**. Setting
@@ -189,12 +197,16 @@ Current implementation: native execution is **off by default**. Setting
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
 receipts and development-VM observation smoke runs are tested; full live
-release acceptance remains pending. Every `run --vm` still refuses at probing,
-before any connection or boot. The 2026-11-04 live phase measured five guest
-requirements (the wall, pids and memory limits, filesystem containment and
-`network_none`), but `tree_termination`, which every plan requires, and the
-rest have no measured guest record, so they answer
-`vm:not-measured:<requirement>`.
+release acceptance remains pending. A `tool` or `agent` `run --vm` with an
+explicit wall of 1–300 s now passes probing: the 2026-11-04 evening live phase
+measured every guest requirement such a plan has, and a client built from
+source then ran 20 `tool` attempts through it on the spare Mac, each settled
+with exit 0 (development evidence, one host). The profiles' own walls (30 m
+for `tool`, 2 h for `agent`) exceed the guest's, so a run without
+`--limit wall=<n>s` refuses with `vm:not-carried:limits.wall`. A plan that also needs
+`execution_boundary` (a required `pids=64`, `mem=512MiB` or `swap=0`, the only
+values the guest carries) or `credential_staging` still refuses at probing,
+before any connection or boot, with `vm:not-measured:<requirement>`.
 A missing VM installation is exit 125 with `host_setup`. With native
 development enabled, a kernel-bound request explains that the VM tier is
 unavailable in this build; `--vm` is not a working remedy.

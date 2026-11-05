@@ -106,6 +106,7 @@ fn running_with(network: image::GuestNetwork) -> (VmRunning, UnixStream, tempfil
             inner: execution,
             receipt: None,
             guest: None,
+            stop: None,
             finished: false,
             failed: false,
         },
@@ -434,7 +435,7 @@ fn output_uses_owned_sinks_and_done_requires_verified_receipt_and_record() {
         protocol::FromVm::Stderr {
             data: protocol::encode_data(b"diagnostic"),
         },
-        protocol::FromVm::Done { exit_code: 0 },
+        done(0),
     ] {
         peer.write_all(&protocol::encode(&frame).unwrap()).unwrap();
     }
@@ -461,7 +462,7 @@ fn output_uses_owned_sinks_and_done_requires_verified_receipt_and_record() {
         .unwrap(),
     )
     .unwrap();
-    peer.write_all(&protocol::encode(&protocol::FromVm::Done { exit_code: 0 }).unwrap())
+    peer.write_all(&protocol::encode(&done(0)).unwrap())
         .unwrap();
     assert!(
         matches!(run.wait(soon()),RunEvent::Unknown {reason} if reason.contains("record write"))
@@ -477,7 +478,7 @@ fn unbound_receipt_never_becomes_verified_on_the_cleanup_path() {
     let (sha256, data) = encoded(&receipt());
     peer.write_all(&protocol::encode(&protocol::FromVm::Receipt { sha256, data }).unwrap())
         .unwrap();
-    peer.write_all(&protocol::encode(&protocol::FromVm::Done { exit_code: 0 }).unwrap())
+    peer.write_all(&protocol::encode(&done(0)).unwrap())
         .unwrap();
     assert!(matches!(run.wait(soon()), RunEvent::Unknown { .. }));
     assert_eq!(run.wait_tree(Duration::ZERO).tree_empty, None);
@@ -492,7 +493,7 @@ fn ready_must_match_locally_verified_digests() {
         custodian_sha256: "c".repeat(64),
         seed_sha256: "s".repeat(64),
     };
-    let mut ready = ReadyFrame {
+    let fresh = || ReadyFrame {
         boot_id: "boot".into(),
         disk_sha256: manifest.disk_sha256.clone(),
         helper_sha256: manifest.helper_sha256.clone(),
@@ -500,7 +501,30 @@ fn ready_must_match_locally_verified_digests() {
         seed_sha256: manifest.seed_sha256.clone(),
         vsock_port: 1024,
     };
+    let mut ready = fresh();
     verify_ready(&ready, &manifest).unwrap();
+    // Each identity on its own: the client hashes nothing (Install::prepared),
+    // so a serve that booted another disk, helper, custodian or seed is caught
+    // here or nowhere, and the receipt would name the manifest's digests.
+    for name in [
+        "disk",
+        "helper",
+        "custodian",
+        "seed",
+        "boot id",
+        "vsock port",
+    ] {
+        let mut forged = fresh();
+        match name {
+            "disk" => forged.disk_sha256 = "e".repeat(64),
+            "helper" => forged.helper_sha256 = "e".repeat(64),
+            "custodian" => forged.custodian_sha256 = "e".repeat(64),
+            "seed" => forged.seed_sha256 = "e".repeat(64),
+            "boot id" => forged.boot_id.clear(),
+            _ => forged.vsock_port = 1025,
+        }
+        assert!(verify_ready(&forged, &manifest).is_err(), "{name}");
+    }
     ready.disk_sha256 = "forged".into();
     assert!(verify_ready(&ready, &manifest).is_err());
 }
@@ -614,7 +638,7 @@ fn guest_facts_are_the_verified_receipts_and_only_after_done() {
     run.store_receipt(&hash, &data, &bind).unwrap();
     assert_eq!(run.guest_facts(), None, "no facts before `done`");
     assert!(run.final_limits().is_empty(), "no rows before `done`");
-    peer.write_all(&protocol::encode(&protocol::FromVm::Done { exit_code: 0 }).unwrap())
+    peer.write_all(&protocol::encode(&done(0)).unwrap())
         .unwrap();
     assert!(matches!(
         run.wait(soon()),
@@ -1231,6 +1255,20 @@ fn platform(data_dir: &Path) -> VmPlatform {
     }
 }
 
+#[test]
+fn the_client_refuses_an_install_that_is_not_prepared_without_hashing_it() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let mut install = platform(dir.path()).install;
+    // No artifact exists at all: a client that hashed would refuse on that.
+    VmPlatform::from_install(dir.path(), install.clone()).expect("a prepared manifest is enough");
+    install.manifest.status = "preparing".into();
+    let error = VmPlatform::from_install(dir.path(), install).expect_err("not prepared");
+    assert!(
+        error.to_string().contains("the manifest is not `prepared`"),
+        "{error}"
+    );
+}
+
 fn request(snapshot: PolicySnapshot) -> PlanRequest {
     let requirements = crate::capability::requirements(&snapshot);
     PlanRequest {
@@ -1239,20 +1277,26 @@ fn request(snapshot: PolicySnapshot) -> PlanRequest {
     }
 }
 
-/// The requirements the 2026-11-04 live phase measured alone
-/// (`macos-vm-live-2026-11-04/capabilities.json`), in the record's order.
-const LIVE_MEASURED: [&str; 5] = [
+/// The requirements the 2026-11-04 evening live phase measured, each by its
+/// own attempts (`macos-vm-probes-2026-11-04/capabilities.json`), in the
+/// record's order.
+const LIVE_MEASURED: [&str; 10] = [
     "limit:wall",
     "limit:pids",
     "limit:mem",
     "filesystem_containment",
     "network_none",
+    "tree_termination",
+    "closed_set_observation",
+    "syscall_filter",
+    "protected_coverage:existing_and_root",
+    "network_proxy",
 ];
 
-/// Decision D2: exactly the requirements the live phase measured alone
-/// answer available, with their row's time and pointer. Every other row of a
-/// carried policy is `vm:not-measured`, `tree_termination` among them, so a
-/// carried `run --vm` still refuses at probing.
+/// Decision D2: exactly the requirements the live phase measured answer
+/// available, with their row's time and pointer. Every requirement of a
+/// default `tool` or `agent` plan is among them, so such a plan passes
+/// probing; any other row of a carried policy is `vm:not-measured`.
 #[test]
 fn only_the_live_phase_measurements_answer_available() {
     let listed: Vec<&str> = GUEST_MEASUREMENTS
@@ -1295,7 +1339,11 @@ fn only_the_live_phase_measurements_answer_available() {
             .iter()
             .find(|row| row.name == "tree_termination")
             .expect("every plan requires tree termination");
-        assert!(!tree.satisfies(), "no probe measures it yet: {tree:?}");
+        assert!(tree.satisfies(), "measured on 2026-11-04: {tree:?}");
+        assert!(
+            rows.iter().all(Capability::satisfies),
+            "a default plan passes probing: {rows:?}"
+        );
     }
     let plan = request(tool());
     assert!(
@@ -1592,6 +1640,7 @@ fn status(live_workspace: Option<&Path>, guest_nat: bool) -> protocol::FromContr
         schema: protocol::SCHEMA_CONTROL.into(),
         boot_id: "vm-test".into(),
         warm: true,
+        ready: false,
         attempt_live: false,
         kernel: None,
         disk_sha256: "d".repeat(64),
@@ -2037,6 +2086,128 @@ fn every_declared_credential_needs_its_own_staged_value() {
 // policy, and the receipt checks the first round left untested.
 // ---------------------------------------------------------------------------
 
+/// A `done` whose guest stop (decision D6) found nothing left behind.
+fn done(exit_code: i32) -> protocol::FromVm {
+    protocol::FromVm::Done {
+        exit_code,
+        stop: Some(clean_stop()),
+    }
+}
+
+fn clean_stop() -> protocol::GuestStop {
+    protocol::GuestStop {
+        boundaries: vec![
+            "ukai-attempts.slice/attempt-1".into(),
+            "user.slice/user-1001.slice/user@1001.service/app.slice".into(),
+        ],
+        ..protocol::GuestStop::default()
+    }
+}
+
+/// Sends a bound, verifying receipt and then `done` carrying `stop`.
+fn finish_with_stop(stop: Option<protocol::GuestStop>) -> (RunEvent, VmRunning, tempfile::TempDir) {
+    let (mut run, mut peer, dir) = running();
+    let (sha256, data) = encoded(&with_outcome("exited", Some(0), None));
+    for frame in [
+        protocol::FromVm::BoundReceipt {
+            sha256,
+            data,
+            binding: binding(),
+        },
+        protocol::FromVm::Done { exit_code: 0, stop },
+    ] {
+        peer.write_all(&protocol::encode(&frame).unwrap()).unwrap();
+    }
+    let event = run.wait(soon());
+    (event, run, dir)
+}
+
+/// D6: the guest controller's own stop is the check on the guest jail's
+/// `tree_empty`. A `done` without one, or one that found anything the guest
+/// jail left behind (a boundary still populated, a live process of the
+/// account, a stray it killed by pid), settles nothing: no relayed outcome,
+/// no mirrored guest facts, no transport record.
+#[test]
+fn a_guest_stop_that_is_absent_or_found_survivors_settles_nothing() {
+    let survivors = [
+        protocol::GuestStop {
+            populated_before_kill: vec![
+                "user.slice/user-1001.slice/user@1001.service/app.slice".into(),
+            ],
+            ..clean_stop()
+        },
+        protocol::GuestStop {
+            live_before_kill: vec![(
+                4242,
+                Some("/user.slice/user-1001.slice/session-1.scope".into()),
+            )],
+            ..clean_stop()
+        },
+        protocol::GuestStop {
+            strays_killed: vec![(4243, None)],
+            ..clean_stop()
+        },
+    ];
+    for stop in survivors {
+        let (event, mut run, dir) = finish_with_stop(Some(stop.clone()));
+        assert!(
+            matches!(&event, RunEvent::Unknown { reason } if reason.contains("tree_empty is contradicted")),
+            "{stop:?}: {event:?}"
+        );
+        assert!(run.guest_facts().is_none(), "{stop:?}");
+        assert_eq!(run.wait_tree(Duration::ZERO).tree_empty, None, "{stop:?}");
+        assert!(
+            !dir.path().join(record::TRANSPORT_FILE).exists(),
+            "{stop:?}"
+        );
+    }
+    let (event, mut run, dir) = finish_with_stop(None);
+    assert!(
+        matches!(&event, RunEvent::Unknown { reason } if reason.contains("without its own stop")),
+        "{event:?}"
+    );
+    assert!(run.guest_facts().is_none());
+    assert_eq!(run.wait_tree(Duration::ZERO).tree_empty, None);
+    assert!(!dir.path().join(record::TRANSPORT_FILE).exists());
+    // A stop that found nothing because it looked at nothing: no boundary,
+    // only the user manager's slice, or a name that is not an attempt's.
+    let uncovered = [
+        Vec::new(),
+        vec!["user.slice/user-1001.slice/user@1001.service/app.slice".to_owned()],
+        vec!["ukai-attempts.slice/attempt-".to_owned()],
+        vec!["ukai-attempts.slice/attempt-1/leaf".to_owned()],
+        vec!["ukai-attempts.slice".to_owned()],
+    ];
+    for boundaries in uncovered {
+        let stop = protocol::GuestStop {
+            boundaries: boundaries.clone(),
+            ..protocol::GuestStop::default()
+        };
+        let (event, mut run, dir) = finish_with_stop(Some(stop));
+        assert!(
+            matches!(&event, RunEvent::Unknown { reason } if reason.contains("covered no attempt cgroup")),
+            "{boundaries:?}: {event:?}"
+        );
+        assert!(run.guest_facts().is_none(), "{boundaries:?}");
+        assert_eq!(run.wait_tree(Duration::ZERO).tree_empty, None);
+        assert!(!dir.path().join(record::TRANSPORT_FILE).exists());
+    }
+}
+
+/// A clean stop settles the attempt, and the transport record names the
+/// cgroups that stop covered.
+#[test]
+fn a_clean_guest_stop_settles_and_its_boundaries_are_recorded() {
+    let (event, run, dir) = finish_with_stop(Some(clean_stop()));
+    assert!(
+        matches!(event, RunEvent::TargetExited { code: 0 }),
+        "{event:?}"
+    );
+    assert!(run.guest_facts().is_some());
+    let record = record::TransportRecord::read_in(dir.path()).expect("the transport record");
+    assert_eq!(record.guest_stop_boundaries, clean_stop().boundaries);
+}
+
 /// Sends `receipt` bound and `done` with `exit_code` to a fresh attempt,
 /// and returns what the host relays and whether it mirrors the guest.
 fn finish(receipt: &Value, exit_code: i32) -> (RunEvent, Option<GuestFacts>) {
@@ -2051,7 +2222,7 @@ fn finish(receipt: &Value, exit_code: i32) -> (RunEvent, Option<GuestFacts>) {
         .unwrap(),
     )
     .unwrap();
-    peer.write_all(&protocol::encode(&protocol::FromVm::Done { exit_code }).unwrap())
+    peer.write_all(&protocol::encode(&done(exit_code)).unwrap())
         .unwrap();
     let event = run.wait(soon());
     (event, run.guest_facts())
@@ -2097,7 +2268,7 @@ fn the_relayed_outcome_is_the_verified_receipts() {
             data,
             binding: binding(),
         },
-        protocol::FromVm::Done { exit_code: 137 },
+        done(137),
     ] {
         peer.write_all(&protocol::encode(&frame).unwrap()).unwrap();
     }
@@ -2382,15 +2553,32 @@ fn the_attempt_connection_must_come_from_the_checked_serve() {
             .digest()
             .unwrap()
     );
-    // A serve running another image than the verified installation.
-    let mut other = status(Some(&workspace), false);
-    if let protocol::FromControl::Status { disk_sha256, .. } = &mut other {
-        *disk_sha256 = "e".repeat(64);
+    // A serve running another image than the verified installation, each
+    // artifact on its own: the serve's status is the client's only check of
+    // what the serve booted.
+    for artifact in ["disk", "helper", "custodian", "seed"] {
+        let mut other = status(Some(&workspace), false);
+        if let protocol::FromControl::Status {
+            disk_sha256,
+            helper_sha256,
+            custodian_sha256,
+            seed_sha256,
+            ..
+        } = &mut other
+        {
+            let digest = match artifact {
+                "disk" => disk_sha256,
+                "helper" => helper_sha256,
+                "custodian" => custodian_sha256,
+                _ => seed_sha256,
+            };
+            *digest = "e".repeat(64);
+        }
+        let error = prepare_against(plan(), other, answering("vm-test", Vec::new()), wait)
+            .expect("prepare returned")
+            .unwrap_err();
+        assert!(error.contains("another image"), "{artifact}: {error}");
     }
-    let error = prepare_against(plan(), other, answering("vm-test", Vec::new()), wait)
-        .expect("prepare returned")
-        .unwrap_err();
-    assert!(error.contains("another image"), "{error}");
 }
 
 /// Review F11c (decision D3): the guest must acknowledge exactly the

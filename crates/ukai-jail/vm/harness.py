@@ -639,6 +639,11 @@ class Service:
         return self.control('status')
 
     def wait_warm(self, timeout=300.0):
+        """Waits until the serve reports `ready`: the guest booted and its
+        session handshake completed, so the next attempt runs on a booted
+        guest. `warm` alone holds from the boot's start (measured
+        2026-11-04: `warm` with `kernel` null, and a first attempt that
+        waited out the 40 s boot)."""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self.child.poll() is not None:
@@ -648,11 +653,11 @@ class Service:
                 status = self.status()
             except (OSError, StreamEnded, ValueError):
                 status = None
-            if status and status.get('warm') is True:
+            if status and status.get('warm') is True and status.get('ready') is True:
                 self.warm_status = status
                 return status
             time.sleep(0.2)
-        raise HarnessError('the service never became warm')
+        raise HarnessError('the service never became ready')
 
     def connect(self, timeout=120.0):
         return connect_unix(self.socket_path('attempt'), timeout=timeout)
@@ -708,7 +713,8 @@ def run_attempt(connect, attempt_id, argv, profile='tool', wall=30, secrets=(),
     """
     record = {'attempt_id': attempt_id, 'profile': profile, 'wall_seconds': wall,
               'argv_digest': argv_digest(argv), 'started_at': rfc3339_now(), 'stdout': '',
-              'stderr': '', 'exit_code': None, 'error': None, 'events': []}
+              'stderr': '', 'exit_code': None, 'error': None, 'events': [],
+              'files': [], 'guest_stop': None}
     marks = {}
     stdout, stderr = [], []
     channel = None
@@ -748,6 +754,18 @@ def run_attempt(connect, attempt_id, argv, profile='tool', wall=30, secrets=(),
                 stdout.append(base64.b64decode(message['data']))
             elif event == 'stderr':
                 stderr.append(base64.b64decode(message['data']))
+            elif event == 'file':
+                # A file the guest forwards: everything under its evidence
+                # directory (/home/ukai/evidence, which holds the jail's
+                # receipt, jail.json) and, without the live share, the
+                # workspace. The jail's trace stays in its attempt
+                # directory and never arrives. jail.json also arrives as
+                # bound_receipt.
+                raw = base64.b64decode(message.get('data') or '')
+                record['files'].append({
+                    'group': message.get('group'), 'path': message.get('path'),
+                    'executable': message.get('executable'),
+                    'sha256': hashlib.sha256(raw).hexdigest(), 'text': raw.decode(errors='replace')})
             elif event == 'bound_receipt':
                 raw = base64.b64decode(message['data'])
                 record['receipt_sha256'] = message.get('sha256')
@@ -760,6 +778,9 @@ def run_attempt(connect, attempt_id, argv, profile='tool', wall=30, secrets=(),
             elif event == 'done':
                 marks['done'] = clock()
                 record['exit_code'] = message.get('exit_code')
+                # The guest controller's own stop (D6), outside the guest
+                # jail: None when the guest sent none.
+                record['guest_stop'] = message.get('stop')
                 break
             elif event == 'error':
                 record['error'] = f"guest error: {message.get('message')}"
@@ -811,6 +832,19 @@ def attempt_dir_bound(attempt, argv):
             and binding.get('attempt_id') == attempt.name and binding.get('argv_digest') == digest
             and guest.get('argv_digest') == digest and bool(binding.get('boot_id'))
             and binding.get('boot_id') == transport.get('boot_id') and bool(binding.get('guest_boot_id')))
+
+
+ATTEMPT_CGROUP = re.compile(r'ukai-attempts\.slice/attempt-[0-9]+')
+
+
+def stop_covered_the_attempt(stop):
+    """The guest stop's boundaries include the cgroup guest.py creates for
+    the attempt (`ukai-attempts.slice/attempt-<n>`): a stop that covered no
+    such cgroup found nothing because it looked at nothing (the host's
+    checked_guest_stop refuses it the same way; review of 2026-11-05)."""
+    boundaries = stop.get('boundaries') if isinstance(stop, dict) else None
+    return isinstance(boundaries, list) and any(
+        isinstance(name, str) and ATTEMPT_CGROUP.fullmatch(name) for name in boundaries)
 
 
 def guest_boot(record):

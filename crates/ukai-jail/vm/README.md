@@ -250,8 +250,14 @@ UKAI_VM_BINARY=~/.local/bin/ukai-vm python3 crates/ukai-jail/vm/fault_matrix.py 
 ```
 
 What the current harnesses do (code tested on this host with the VM and
-its clients faked; none of it has run against a booted guest, so no record
-below comes from them):
+its clients faked). On 2026-11-04 `capabilities.py`, `warm_live.py`,
+`fault_matrix.py` and `gate_rows.py` also ran against a booted guest on the
+spare Mac
+([morning record](../../../docs/benchmarks/jail/results/macos-vm-live-2026-11-04/README.md),
+[evening record](../../../docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/README.md));
+each record's provenance names the harness revision it ran.
+`claude_vm_row.py` has not run on the current client: K113 needs a Claude
+Code credential in the guest.
 
 - **The binaries under test** are named, never assumed: `warm_live.py`,
   `fault_matrix.py` and `capabilities.py` take `ukai-vm` from
@@ -296,11 +302,13 @@ below comes from them):
   the client's output and recorded as `REFUSED`, never `PASS`, and so is
   the client's standard-input refusal: `warm_live.py`'s verdict is
   `REFUSED` when the real client refused and every warm gate held, and
-  K112 is `REFUSED` when a lane was refused for its standard input. While
-  `GUEST_MEASUREMENTS` lacks `tree_termination` (and the other rows below),
-  every real-client case refuses that way.
-  The real client's standard input under these harnesses is covered by
-  the harness's own tests only; its live acceptance is pending.
+  K112 is `REFUSED` when a lane was refused for its standard input. Since
+`GUEST_MEASUREMENTS` has the ten rows below, a `tool` or `agent`
+real-client case with an explicit 1–300 s wall passes probing (the cases
+pass `--limit wall`); the evening record's 20 real
+`warm_live.py` attempts ran with `/dev/null` as standard input and exited 0.
+The client's standard-input refusal under these harnesses is covered by the
+harness's own tests only; its live acceptance is pending.
 - **`fault_matrix.py`** has nine cases, each on its own boot: `secrets`,
   `client-kill`, `client-ctrl-z`, `serve-kill`, `custodian-kill`,
   `vz-kill`, `all-suspended`, `eof` and `serve-group-stop` (a 5 s stop,
@@ -311,16 +319,20 @@ below comes from them):
   before any cleanup (`checked_at` ≤ `cleanup_started_at`).
 - **`capabilities.py`** measures each requirement alone, by its own
   attempt, and records it under `measurements[<requirement>]` (`verdict`,
-  `measured_at`, the attempt id) for `limit:wall`, `limit:pids`,
-  `limit:mem`, `filesystem_containment` and `network_none`. Those entries
-  are what a `GUEST_MEASUREMENTS` row cites; the 2026-11-04 run's are the
-  table's five rows.
+  `measured_at`, the attempt id) for `limit:wall`, `limit:pids`, `limit:mem`, `filesystem_containment`,
+`network_none`, `tree_termination`, `closed_set_observation`,
+`syscall_filter`, `protected_coverage:existing_and_root` and
+`network_proxy`, and under `not_measured` what a probe leaves out.
+Those entries are what a `GUEST_MEASUREMENTS` row cites; the 2026-11-04
+evening run's are the table's ten rows.
 - **K108's limit.** `warm_live.py` judges each attempt's
   `connect_to_released` time against `--budget-ms` (default 1000, the
   clause's initial 1 s). That time spans the whole host path, the guest
   jail's own release included, so it is an upper bound on the overhead the
   clause limits, not the guest jail's own release time. The path is the
-  harness's Python client, and the record says so.
+harness's Python client, and the record says so. With `--ukai-jail`, the
+real client is timed separately, from its exec to its workload's first
+write visible on the host, which ends before the attempt settles.
 - **K113's limit.** `claude_vm_row.py` judges on `ukai-jail tail
   --summary` alone and lists under `not_measured` the J18 §9.4 Linux-row
   conditions it does not measure: the A01 fixture, ten repetitions, the
@@ -351,26 +363,36 @@ Apple references: [Virtualization](https://developer.apple.com/documentation/vir
 
 `ukai-jail run --vm` is wired to the warm `ukai-vm serve`, but **no macOS
 `ukai-jail` client ships**: the DMG carries only `ukai-vm` and
-`ukai-vm-install`, so the client is built from source. Every `run --vm`
+`ukai-vm-install`, so the client is built from source. A `run --vm`
 refuses at probing, before any connection or boot, with exit 125, while
-any requirement of its plan lacks a measured guest record (every plan
-does today; see below). The probe answers Available only for a
-requirement a measured guest record backs: one table in the VM platform,
-`GUEST_MEASUREMENTS`, names the requirement, the record and that record's
-own time, which becomes `measured_at`. Its five rows come from the
-[2026-11-04 live phase](../../../docs/benchmarks/jail/results/macos-vm-live-2026-11-04/README.md):
-`limit:wall`, `limit:pids`, `limit:mem`, `filesystem_containment` and
-`network_none`, each measured alone by `capabilities.py` on one warm boot
+any requirement of its plan lacks a measured guest record. The probe
+answers Available only for a requirement a measured guest record backs:
+one table in the VM platform, `GUEST_MEASUREMENTS`, names the requirement,
+the record and that record's own time, which becomes `measured_at`. Its
+ten rows come from the
+[2026-11-04 evening live phase](../../../docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/README.md):
+`limit:wall`, `limit:pids`, `limit:mem`, `filesystem_containment`,
+`network_none`, `tree_termination`, `closed_set_observation`,
+`syscall_filter`, `protected_coverage:existing_and_root` and
+`network_proxy`, each measured by its own attempts in `capabilities.py` on
+one warm boot of an image built from the guest sources at `6bd497076`
 (development evidence: a source build on one M2 Pro host, not an installed
-package). Every other requirement answers `vm:not-measured:<requirement>`,
-and every plan has some: a `tool` plan also requires `tree_termination`,
-`closed_set_observation`, `syscall_filter` and
-`protected_coverage:existing_and_root` (an `agent` plan the same, with
-`network_proxy` for `network_none`), which no live probe measures yet, so
-every `run --vm` still refuses at probing. No 2026-11-02 record states a
-time or measured its requirement alone, and the TCP half of
-`network_none` was vacuous (`/dev/tcp` under the guest's `dash`).
-`owner_loss_termination` always answers `vm:owner-loss-not-provided`.
+package, one run of each probe). This tree's `guest.py` has since added
+only the staged export's refusal of directory links and unlistable
+directories, which no probe exercised. A `tool` or `agent` plan with an explicit
+wall of 1–300 s requires only those, so it passes probing; the profiles' own
+walls (30 m, 2 h) are `vm:not-carried:limits.wall`. Every other requirement
+answers `vm:not-measured:<requirement>`: `execution_boundary` (a required
+`pids=64`, `mem=512MiB` or `swap=0`, the only values the guest carries, adds
+it; another value or a required `cpu` ceiling is `vm:not-carried`) and
+`credential_staging` (a launch profile that declares credentials) have no row.
+The morning record of the same day
+([record](../../../docs/benchmarks/jail/results/macos-vm-live-2026-11-04/README.md))
+measured the first five on an image built from older guest sources and backs
+no row now. No 2026-11-02 record states a time or measured its requirement
+alone, and the TCP half of `network_none` was vacuous (`/dev/tcp` under the
+guest's `dash`). `owner_loss_termination` always answers
+`vm:owner-loss-not-provided`.
 
 K108–K113 are `untested`. The 2026-11-02/03 measurements on the dev Mac
 ([installed-package rows](../../../docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md),
@@ -482,6 +504,13 @@ covered by unit and model tests only (stand-in guests and the guest
 controller's model); none of it has run on a booted guest, and live
 verification is pending.
 
+The serve's `status` reports `warm` from the boot's start (the VZ client
+alive and no stop requested) and `ready` once the guest's session handshake
+completed and its kernel is known: only then does an attempt that connects
+run on a booted guest. The harnesses wait for `ready` before their first
+attempt; on 2026-11-04 they waited for `warm`, and the first attempt of each
+warm run waited out the guest's 40 s boot.
+
 Whether `run --vm` reuses a serving `ukai-vm` or spawns one, it checks the
 serve's status the same way: a live share of exactly this workspace and, for
 a proxied policy, the NAT adapter. It keeps the boot id that status
@@ -524,10 +553,33 @@ the stop (the audit lists it in `strays_killed`), and one that survives
 the budget does, as does a cgroup that stays populated (the audit lists
 its `members`). It bounds the supervisor reap at 1 s; every wait feeds the
 guest watchdog. On failure the guest powers off with
-`attempt_tree_unverified`. **The learned set has not been confirmed on a
-booted guest**: on a Linux development host running systemd 259 the
-learning found exactly `systemd --user`, `(sd-pam)` and `dbus-daemon`
-(commit `6c1f11852`; no evidence file is retained). The attempt's staged
+`attempt_tree_unverified`. On a Linux development host running systemd 259
+the learning found exactly `systemd --user`, `(sd-pam)` and `dbus-daemon`
+(commit `6c1f11852`; no evidence file is retained), and on a booted guest
+the 2026-11-04 stop audit's learning found one manager, one helper and the
+bus in `session.slice/dbus.service`, and every stop it recorded found nothing to kill ([record](../../../docs/benchmarks/jail/results/macos-vm-live-2026-11-04/README.md)),
+as did every stop the evening record reports
+([record](../../../docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/README.md)).
+The stop's kill paths have not run on a booted guest.
+
+Before it signals anything, the stop records what it finds: the cgroups
+still populated (`populated_before_kill`) and the account's live processes
+outside the infrastructure (`live_before_kill`). It runs after the guest
+jail exited and verified its own tree, so either list non-empty means
+something survived the guest jail; `strays_killed` alone cannot say so,
+because `cgroup.kill` records nothing of what it ends. A warm attempt's
+`done` carries the stop's report as `stop`, the serve relays it unchanged,
+and `ukai-jail run --vm` settles nothing (the attempt ends unknown, with no
+relayed outcome and no transport record) when `done` has no `stop` or any
+of those three lists is non-empty. A clean stop's cgroups go in the
+transport record as `guest_stop_boundaries`. `warm_live.py` requires a clean stop on every attempt. Booted guests
+have sent the report: on 2026-11-04 the 16 probe attempts and 20 warm
+stand-in attempts of the
+[evening record](../../../docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/README.md)
+reported all three lists empty, and its 20 real `ukai-jail run --vm`
+attempts settled, which the client allows only on such a report. A
+non-empty list, and the client's refusal of it, are covered by unit and
+model tests only (stand-in guests and the guest controller's model). The attempt's staged
 values and launch profile are removed at every stop and poweroff. The
 named poweroffs new in this wave are `attempt_tree_unverified`,
 `attempt_files_not_cleared`, `infrastructure_unknown`,
@@ -536,15 +588,18 @@ name already present, a link included, or an unwritable directory: never
 written through) and `launch_without_toml`; the serve names a guest that
 powered itself off from its console (`guest poweroff: <reason>`).
 
-None of the attempt stop or the named poweroffs above has run on a booted
-guest yet. They are covered by unit and model tests, plus real-`/proc`
+Beyond the 2026-11-04 stop audit's clean stops (which killed nothing), none
+of the attempt stop's kill paths or the named poweroffs above has run on a
+booted guest. They are covered by unit and model tests, plus real-`/proc`
 tests of the pidfd kill and the zombie-leader read on a Linux host
 (`test_guest_warm.RealProcTests`, skipped elsewhere), and live
 verification is pending.
 
 The service holds an exclusive runtime lock before removing stale sockets. It
 copies the installed artifacts to a private boot directory and verifies the
-copies before executing them. A boot has one session handshake. Each attempt
+copies before executing them. The `run --vm` client hashes nothing itself:
+it checks that `image.json` is `prepared` and refuses a serve status or a
+`ready` whose disk, helper, custodian or seed digest differs from it. A boot has one session handshake. Each attempt
 resets its directories, stages files, releases, relays output and returns its
 receipt. Client EOF cancels only that attempt; an unacknowledged cancellation
 ends the service. The custody heartbeat validates acknowledgement bytes and
@@ -582,10 +637,13 @@ crossing allow rules, the generated launch declaration, `LANG` only) and
 refuses a guest receipt whose `policy.digest` differs. Nothing checks the
 guest jail's version before the run: that would need it pinned in
 `image.json`, and it is not, so a guest jail of another version still runs
-the attempt and only its receipt is refused. These checks are covered by
-unit tests against stand-in guest replies (the policy prediction against
-the real supervisor's plan for `tool`, `agent` and `agent` with a vault
-credential); none has run against a booted guest.
+the attempt and only its receipt is refused. These checks are covered by unit tests against stand-in guest replies (the
+policy prediction against the real supervisor's plan for `tool`, `agent` and
+`agent` with a vault credential). Against a booted guest they have run only
+for `tool` attempts that exited 0: the 20 real attempts of the
+[evening record](../../../docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/README.md),
+each settled with its guest receipt verified. The signaled branch, `agent`
+and a vault credential have run only against stand-ins.
 
 Once the guest receipt is verified and the guest's `done` agrees with it,
 the settled host receipt takes `platform.kernel`, `platform.arch`,
@@ -601,9 +659,10 @@ both the digest `vm-transport.json` records and the host receipt's
 that names a guest receipt while `vm-transport.json` is absent. A host
 receipt that names no guest receipt (the K113 record predates D5) is
 summarized as itself. The summary counts nothing from the host journal,
-and `run` and `tail --summary` print the same lines. This is tested in
-unit tests on the recorded K113 attempt and receipts derived from it, not
-yet on a new run.
+and `run` and `tail --summary` print the same lines. This is tested in unit tests on the recorded K113 attempt and receipts
+derived from it, and on 2026-11-04 `ukai-jail tail --summary` printed the
+host summary and the transport line for one of the evening record's 20 new
+attempts (by hand, not by a test).
 
 From the repository root, build and run the stand-in tests without a VM:
 
@@ -644,8 +703,10 @@ Before any J18 row can pass: a shipped and installed macOS `ukai-jail`
 client; a live phase that re-measures every guest requirement with real
 network probes (a socket connect to an IP literal, with a positive control)
 and fills `GUEST_MEASUREMENTS` from the records it produces (five
-requirements so far; `tree_termination`, `closed_set_observation`,
-`syscall_filter`, protected coverage and `network_proxy` have no probe); the full K110
+requirements so far; `capabilities.py` now also has probes and judges for
+`tree_termination`, `closed_set_observation`, `syscall_filter`, protected
+coverage and `network_proxy`, but none of them has run on a booted guest,
+so none is measured); the full K110
 matrix (custodian, VZ-client and host-client kills, `Ctrl-Z` of the client,
 every host controller suspended) with long-running workloads and compared
 boot ids; the K111 receipt fix (decision D5, now in the code) shown on a

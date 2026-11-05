@@ -133,7 +133,11 @@ for line in sys.stdin:
             binding = dict(attempt_id=request.get('attempt_id'), boot_id=request.get('boot_id'),
                            guest_attempt_id='guest-attempt', guest_boot_id='guest-boot',
                            profile=request['profile'], argv_digest=digest)
-            guest(dict(event='done', exit_code=0, binding=binding))
+            done = dict(event='done', exit_code=0, binding=binding)
+            if os.environ.get('NO_STOP') != '1':
+                done['stop'] = dict(boundaries=['ukai-attempts.slice/attempt-1'], populated_before_kill=[],
+                                    live_before_kill=[[77, None]], strays_killed=[[77, '/user.slice/s']])
+            guest(done)
 '''
 
 
@@ -246,6 +250,37 @@ class WarmServiceTests(unittest.TestCase):
         self.assertEqual(self.frame(stream)['event'], 'released')
         return stream, ready
 
+    def test_a_done_without_a_stop_is_relayed_without_one(self):
+        child = self.launch(NO_STOP='1')
+        stream, _ = self.attempt()
+        while (frame := self.frame(stream))['event'] != 'done':
+            pass
+        self.assertNotIn('stop', frame)
+        self.control('stop')
+        child.wait(timeout=6)
+
+    def test_status_is_ready_only_once_the_guest_session_is_open(self):
+        # `warm` holds from the boot's start; `ready` waits for the session
+        # handshake, which a guest that never says `ready` never reaches.
+        child = self.launch(BLOCK_READY='1')
+        status = self.control('status')
+        self.assertTrue(status['warm'])
+        self.assertIs(status['ready'], False)
+        self.assertIsNone(status['kernel'])
+        self.control('stop')
+        child.wait(timeout=6)
+        child = self.launch()
+        deadline = time.monotonic() + 3
+        while not (status := self.control('status'))['ready']:
+            self.assertIsNone(status['kernel'], 'a kernel was known before the serve said ready')
+            if time.monotonic() >= deadline:
+                self.fail('the serve never said ready')
+            time.sleep(.01)
+        self.assertEqual(status['kernel'], 'stand-in-kernel')
+        self.assertTrue(status['warm'])
+        self.control('stop')
+        child.wait(timeout=6)
+
     def test_lease_refresh_survives_three_seconds_and_stop_exits(self):
         child = self.launch()
         first = self.control('status')
@@ -271,6 +306,11 @@ class WarmServiceTests(unittest.TestCase):
             binding = found['bound_receipt']['binding']
             self.assertEqual(binding['attempt_id'], 'host-attempt')
             self.assertEqual(binding['boot_id'], ready['boot_id'])
+            # D6: the serve relays the guest's stop as the guest reported it
+            # (the client, not the relay, judges it).
+            self.assertEqual(found['done']['stop'],
+                             dict(boundaries=['ukai-attempts.slice/attempt-1'], populated_before_kill=[],
+                                  live_before_kill=[[77, None]], strays_killed=[[77, '/user.slice/s']]))
             # Keep prior clients open: the service must not wait for their EOF.
         self.control('stop')
         child.wait(timeout=6)
@@ -375,8 +415,11 @@ class WarmServiceTests(unittest.TestCase):
         listener = socket.socket(socket.AF_UNIX)
         listener.bind(str(runtime / 'control.sock'))
         listener.listen()
+        # Bounded and daemonic: when the binary never connects (it is absent,
+        # or fails first) the test fails instead of the suite never exiting.
+        listener.settimeout(6)
         reply = dict(event='status', schema='ukai.jail.vm-control/1', boot_id='actual-boot',
-                     warm=False, attempt_live=False, kernel=None, disk_sha256='d'*64,
+                     warm=False, ready=False, attempt_live=False, kernel=None, disk_sha256='d'*64,
                      helper_sha256='h'*64, custodian_sha256='c'*64, seed_sha256='s'*64,
                      vsock_port=1024, idle_seconds=600, guest_nat=False)
         def answer():
@@ -385,7 +428,7 @@ class WarmServiceTests(unittest.TestCase):
                 with stream:
                     stream.recv(1000)
                     stream.sendall((json.dumps(reply) + '\n').encode())
-        thread = threading.Thread(target=answer)
+        thread = threading.Thread(target=answer, daemon=True)
         thread.start()
         status = subprocess.run([str(BINARY), 'status'], env=self.env, capture_output=True, timeout=6)
         thread.join(timeout=1)
