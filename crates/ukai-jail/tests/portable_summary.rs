@@ -766,7 +766,7 @@ fn k45_refused_before_exec() {
     assert_lines(
         &summary::summary(&receipt, Journal::Absent),
         &[
-            "NOT settled (refused) · 0ms attempt (wall clock) · survivors: NOT verified · \
+            "NOT settled (refused) · under 1s attempt (wall clock) · survivors: NOT verified · \
              errors: unsupported_platform",
             "workspace: not observed",
             "network: not applied",
@@ -880,7 +880,7 @@ fn k45_trace_fd_keeps_no_local_journal() {
     assert_lines(
         &summary,
         &[
-            "settled · exited 0 · 1.0s attempt (wall clock) · survivors: none (verified)",
+            "settled · exited 0 · 1s ±1s attempt (wall clock) · survivors: none (verified)",
             "workspace: no local journal",
             "network: proxy, no local journal",
             "credential api: vault, never staged · uses: no local journal",
@@ -2328,6 +2328,51 @@ fn k52_an_independent_script_recomputes_the_numbers() {
     }
 }
 
+/// Without a journal the duration is the receipt's wall clock, printed at
+/// the precision its stamps carry; the script renders the same text.
+#[test]
+fn k52_the_wall_clock_duration_is_printed_at_the_stamps_precision() {
+    let cases = [
+        ("2026-01-01T00:00:10Z", "2026-01-01T00:00:10Z", "under 1s"),
+        ("2026-01-01T00:00:10Z", "2026-01-01T00:00:11Z", "1s ±1s"),
+        ("2026-01-01T00:00:10Z", "2026-01-01T00:01:10Z", "1m00s ±1s"),
+        (
+            "2026-01-01T00:00:10Z",
+            "2026-01-01T01:02:15Z",
+            "1h02m05s ±1s",
+        ),
+        (
+            "2026-01-01T00:00:10.900Z",
+            "2026-01-01T00:00:11.100Z",
+            "200ms",
+        ),
+        (
+            "2026-01-01T00:00:10.250Z",
+            "2026-01-01T00:00:14.375Z",
+            "4.1s",
+        ),
+        // One stamp in whole seconds: the span is only as good as it.
+        ("2026-01-01T00:00:10Z", "2026-01-01T00:00:11.500Z", "1s ±1s"),
+        ("2026-01-01T00:00:10.9Z", "2026-01-01T00:00:11.1Z", "1s ±1s"),
+    ];
+    for (created, updated, shown) in cases {
+        let mut fixture = clean_agent();
+        fixture.receipt["created_at"] = json!(created);
+        fixture.receipt["updated_at"] = json!(updated);
+        let summary = summary::summary(&fixture.receipt, Journal::Absent);
+        let status = summary.lines[0].text.clone();
+        assert!(
+            status.contains(&format!(" · {shown} attempt (wall clock) · ")),
+            "{created} to {updated}: {status}"
+        );
+        let bin = Bin::new();
+        let attempt = bin.record(&fixture, None);
+        let (code, json) = tail_summary(&bin, &["--attempt", ATTEMPT, "--json"]);
+        assert_eq!(code, Some(0), "{created} to {updated}");
+        recompute(&attempt, &serde_json::from_str(&json).expect("json"));
+    }
+}
+
 #[test]
 fn k54_bounds_and_list_caps_in_the_json_form() {
     let mut fixture = every_class();
@@ -2460,7 +2505,7 @@ fn k51_a_journal_past_the_scan_cap_prints_the_receipt_only_lines() {
     assert_lines(
         &summary,
         &[
-            "settled · exited 0 · 1.0s attempt (wall clock) · survivors: none (verified)",
+            "settled · exited 0 · 1s ±1s attempt (wall clock) · survivors: none (verified)",
             &format!("workspace: journal not scanned ({size} MiB)"),
             &format!("network: proxy, journal not scanned ({size} MiB)"),
             &format!(

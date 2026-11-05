@@ -1074,6 +1074,35 @@ fn duration(ms: u128) -> String {
     }
 }
 
+/// The receipt's wall-clock span at the precision its timestamps carry.
+///
+/// Two stamps with milliseconds print like the journal's duration. The
+/// receipt's own writer keeps whole seconds (`rfc3339_utc`), and two stamps
+/// `n` whole seconds apart mean anything from just over `n - 1` to just under
+/// `n + 1` seconds: `0` prints `under 1s` and `n` prints `<n>s ±1s`, never a
+/// `0ms` the record cannot back (2026-11-04, the VM tier's host receipt).
+fn wall_duration(created: &str, updated: &str, ms: u128) -> String {
+    let millisecond = |stamp: &str| {
+        stamp
+            .get(19..stamp.len().saturating_sub(1))
+            .and_then(|fraction| fraction.strip_prefix('.'))
+            .is_some_and(|digits| digits.len() >= 3)
+    };
+    if millisecond(created) && millisecond(updated) {
+        return duration(ms);
+    }
+    let whole = |stamp: &str| epoch_ms(stamp).map(|ms| ms.div_euclid(1000));
+    let seconds = match (whole(created), whole(updated)) {
+        (Some(start), Some(end)) => u128::try_from(end - start).unwrap_or(0),
+        _ => ms / 1000,
+    };
+    match seconds {
+        0 => "under 1s".to_owned(),
+        1..60 => format!("{seconds}s ±1s"),
+        _ => format!("{} ±1s", duration(seconds * 1000)),
+    }
+}
+
 /// Milliseconds since the epoch of an RFC 3339 UTC timestamp as the receipt
 /// writes them (`YYYY-MM-DDTHH:MM:SS[.fraction]Z`).
 fn epoch_ms(timestamp: &str) -> Option<i128> {
@@ -1204,7 +1233,14 @@ impl View<'_> {
         if let Some(ms) = journal_ms {
             parts.push(format!("{} exec→settled", duration(ms)));
         } else if let Some(ms) = wall_ms {
-            parts.push(format!("{} attempt (wall clock)", duration(ms)));
+            let (created, updated) = (
+                self.text("/created_at").unwrap_or_default(),
+                self.text("/updated_at").unwrap_or_default(),
+            );
+            parts.push(format!(
+                "{} attempt (wall clock)",
+                wall_duration(created, updated, ms)
+            ));
         }
 
         let tree_empty = self
