@@ -61,13 +61,16 @@ Current implementation: native execution is **off by default**. Setting
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
 receipts and development-VM observation smoke runs are tested; full live
-release acceptance remains pending. A default `tool` or `agent` `run --vm` now passes probing: the 2026-11-04
-evening live phase measured every guest requirement such a plan has, and a
-client built from source then ran 20 `tool` attempts through it on the
-spare Mac, each settled with exit 0 (development evidence, one host). A plan
-that also needs `execution_boundary` (a required `pids`, `mem`, `swap` or
-`cpu` ceiling) or `credential_staging` still refuses at probing, before any
-connection or boot, with `vm:not-measured:<requirement>`.
+release acceptance remains pending. A `tool` or `agent` `run --vm` with an
+explicit wall of 1–300 s now passes probing: the 2026-11-04 evening live phase
+measured every guest requirement such a plan has, and a client built from
+source then ran 20 `tool` attempts through it on the spare Mac, each settled
+with exit 0 (development evidence, one host). The profiles' own walls (30 m
+for `tool`, 2 h for `agent`) exceed the guest's, so a run without
+`--limit wall=<n>s` refuses with `vm:not-carried:limits.wall`. A plan that also needs
+`execution_boundary` (a required `pids=64`, `mem=512MiB` or `swap=0`, the only
+values the guest carries) or `credential_staging` still refuses at probing,
+before any connection or boot, with `vm:not-measured:<requirement>`.
 
 You can [build the jail and try a small command](https://github.com/monocursive/ukai/blob/dev/docs/guide.md#build-and-check-your-host)
 today. [Signed Linux developer-preview packages](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.5)
@@ -181,7 +184,8 @@ is supported or shipped:
   `--vm`, with `ukai-jail vm stop` to stop it. The warm service, the live
   workspace share, the `agent` profile's guest proxy and vault-mode
   credentials are on `dev`. Since the 2026-11-04 evening re-measurement a
-  default `run --vm` passes probing (development evidence from one host),
+  `run --vm` with an explicit 1–300 s wall passes probing (development
+  evidence from one host; the profiles' own walls are `vm:not-carried`),
   and K108–K113 are still `untested`: the development
   measurements had vacuous network probes, half the K110 fault matrix, a
   stored receipt that contradicted the guest's, one Claude Code attempt, and

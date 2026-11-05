@@ -20,12 +20,18 @@ toolchain and run times are in [provenance.json](provenance.json).
 `GUEST_MEASUREMENTS` rows in `crates/ukai-jail/src/platform/macos/vm.rs`.
 They replace the morning record's five
 ([macos-vm-live-2026-11-04](../macos-vm-live-2026-11-04/README.md)), which
-were measured on an image built from older guest sources. A default `tool`
-or `agent` plan requires only measured requirements now, so it passes
-probing. What still refuses at probing:
+were measured on an image built from older guest sources. A `tool` or
+`agent` plan with an explicit wall of 1–300 s (`--limit wall=<n>s`)
+requires only measured requirements now, so it passes probing. What still
+refuses at probing:
 
-- `execution_boundary`, which a required `pids`, `mem`, `swap` or `cpu`
-  ceiling adds;
+- the profiles' own walls (30 m for `tool`, 2 h for `agent`), which the
+  guest does not carry (`vm:not-carried:limits.wall`), and likewise a run
+  without `--terminal detach` or with an environment beyond
+  `LANG=C.UTF-8`;
+- `execution_boundary`, which a required `pids=64`, `mem=512MiB` or
+  `swap=0` ceiling adds (the only values the guest carries; another value,
+  or a required `cpu` ceiling, is `vm:not-carried`);
 - `credential_staging`, which a launch profile that declares credentials
   adds;
 - the owner-loss bound (`--lifetime kernel-bound`, K112);
@@ -42,7 +48,7 @@ got past probing.
 | --- | --- | --- |
 | `capabilities.py` | [capabilities.json](capabilities.json) | **PASS**: all ten requirements measured on one guest boot |
 | `route_diag.py` (one-off, kept here) | [route-diagnosis.json](route-diagnosis.json) | 8 of 8 route controls reached; the morning's route-control failure did not recur |
-| `warm_live.py --ukai-jail` (client at `5a394456a`) | [warm-live.json](warm-live.json), [real-client-attempts/](real-client-attempts/) | **PASS**: every gate on 20 stand-in attempts, and 20 real `ukai-jail run --vm` attempts each exit 0 within the 1 s budget |
+| `warm_live.py --ukai-jail` (client at `5a394456a`) | [warm-live.json](warm-live.json), [real-client-attempts/](real-client-attempts/) | **PASS**: every gate on 20 stand-in attempts, and 20 real `ukai-jail run --vm` attempts each exit 0, each reaching its workload's host write within the 1 s budget (exit time is not recorded) |
 
 `capabilities.py` and `route_diag.py` used the Python stand-in client
 (`harness.run_attempt`), not the `ukai-jail` client. `warm_live.py` used
@@ -221,11 +227,13 @@ directories the client wrote. A check of all 20 (not part of
 - the same coverage in each: 2 `exec`, 1 `fs.write`, no gaps.
 
 `ukai-jail tail --summary` on one of them printed the host summary plus
-the transport line. Its duration reads `0ms attempt (wall clock)`: without
-a host journal, the summary subtracts the receipt's whole-second
-timestamps, so it prints at a precision the record does not have. The
-transport record's own `elapsed_seconds` (0.28–0.33 s) is the host's
-measurement.
+the transport line. Its duration read `0ms attempt (wall clock)`: without
+a host journal, the summary subtracted the receipt's whole-second
+timestamps, so it printed at a precision the record does not have. Over
+the 20 receipts that gives `0ms` for the 11 whose two stamps share a second
+and `1.0s` for the other 9. Since `3b31aad90` the summary prints `under 1s`
+or `1s ±1s` for such stamps. The transport record's own `elapsed_seconds`
+(0.28–0.33 s) is the host's measurement.
 
 **Not shown here**:
 

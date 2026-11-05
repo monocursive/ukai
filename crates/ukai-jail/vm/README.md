@@ -302,8 +302,10 @@ Code credential in the guest.
   the client's output and recorded as `REFUSED`, never `PASS`, and so is
   the client's standard-input refusal: `warm_live.py`'s verdict is
   `REFUSED` when the real client refused and every warm gate held, and
-  K112 is `REFUSED` when a lane was refused for its standard input. Since `GUEST_MEASUREMENTS` has the ten rows below, a default `tool` or
-`agent` real-client case passes probing; the evening record's 20 real
+  K112 is `REFUSED` when a lane was refused for its standard input. Since
+`GUEST_MEASUREMENTS` has the ten rows below, a `tool` or `agent`
+real-client case with an explicit 1–300 s wall passes probing (the cases
+pass `--limit wall`); the evening record's 20 real
 `warm_live.py` attempts ran with `/dev/null` as standard input and exited 0.
 The client's standard-input refusal under these harnesses is covered by the
 harness's own tests only; its live acceptance is pending.
@@ -373,19 +375,24 @@ ten rows come from the
 `network_none`, `tree_termination`, `closed_set_observation`,
 `syscall_filter`, `protected_coverage:existing_and_root` and
 `network_proxy`, each measured by its own attempts in `capabilities.py` on
-one warm boot of an image built from this tree's guest sources
+one warm boot of an image built from the guest sources at `6bd497076`
 (development evidence: a source build on one M2 Pro host, not an installed
-package, one run of each probe). A default `tool` or `agent` plan requires
-only those, so it passes probing. Every other requirement answers
-`vm:not-measured:<requirement>`: `execution_boundary` (a required `pids`,
-`mem`, `swap` or `cpu` ceiling adds it) and `credential_staging` (a launch
-profile that declares credentials) have no row. The morning record of the
-same day ([record](../../../docs/benchmarks/jail/results/macos-vm-live-2026-11-04/README.md))
-measured the first five on an image built from older guest sources and
-backs no row now. No 2026-11-02 record states a time or measured its
-requirement alone, and the TCP half of `network_none` was vacuous
-(`/dev/tcp` under the guest's `dash`).
-`owner_loss_termination` always answers `vm:owner-loss-not-provided`.
+package, one run of each probe). This tree's `guest.py` has since added
+only the staged export's refusal of directory links and unlistable
+directories, which no probe exercised. A `tool` or `agent` plan with an explicit
+wall of 1–300 s requires only those, so it passes probing; the profiles' own
+walls (30 m, 2 h) are `vm:not-carried:limits.wall`. Every other requirement
+answers `vm:not-measured:<requirement>`: `execution_boundary` (a required
+`pids=64`, `mem=512MiB` or `swap=0`, the only values the guest carries, adds
+it; another value or a required `cpu` ceiling is `vm:not-carried`) and
+`credential_staging` (a launch profile that declares credentials) have no row.
+The morning record of the same day
+([record](../../../docs/benchmarks/jail/results/macos-vm-live-2026-11-04/README.md))
+measured the first five on an image built from older guest sources and backs
+no row now. No 2026-11-02 record states a time or measured its requirement
+alone, and the TCP half of `network_none` was vacuous (`/dev/tcp` under the
+guest's `dash`). `owner_loss_termination` always answers
+`vm:owner-loss-not-provided`.
 
 K108–K113 are `untested`. The 2026-11-02/03 measurements on the dev Mac
 ([installed-package rows](../../../docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md),
@@ -590,7 +597,9 @@ verification is pending.
 
 The service holds an exclusive runtime lock before removing stale sockets. It
 copies the installed artifacts to a private boot directory and verifies the
-copies before executing them. A boot has one session handshake. Each attempt
+copies before executing them. The `run --vm` client hashes nothing itself:
+it checks that `image.json` is `prepared` and refuses a serve status or a
+`ready` whose disk, helper, custodian or seed digest differs from it. A boot has one session handshake. Each attempt
 resets its directories, stages files, releases, relays output and returns its
 receipt. Client EOF cancels only that attempt; an unacknowledged cancellation
 ends the service. The custody heartbeat validates acknowledgement bytes and

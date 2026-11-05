@@ -163,13 +163,16 @@ Current implementation: native execution is **off by default**. Setting
 `unsupported` and refuse. J17 is wired before release (`J17_OBSERVE=true`):
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
-checks do not establish live acceptance. A default `tool` or `agent`
-`run --vm` now passes probing: the 2026-11-04 evening live phase measured
-every guest requirement such a plan has, and a client built from source then
-ran 20 `tool` attempts through it on the spare Mac, each settled with exit 0
-(development evidence, one host). A plan that also needs `execution_boundary`
-(a required `pids`, `mem`, `swap` or `cpu` ceiling) or `credential_staging`
-still refuses at probing, before any connection or boot, with
+checks do not establish live acceptance. A `tool` or `agent` `run --vm` with
+an explicit wall of 1–300 s now passes probing: the 2026-11-04 evening live
+phase measured every guest requirement such a plan has, and a client built
+from source then ran 20 `tool` attempts through it on the spare Mac, each
+settled with exit 0 (development evidence, one host). The profiles' own walls
+(30 m for `tool`, 2 h for `agent`) exceed the guest's, so a run without
+`--limit wall=<n>s` refuses with `vm:not-carried:limits.wall`. A plan that
+also needs `execution_boundary` (a required `pids=64`, `mem=512MiB` or
+`swap=0`, the only values the guest carries) or `credential_staging` still
+refuses at probing, before any connection or boot, with
 `vm:not-measured:<requirement>`. The released VM preview remains the only Mac
 deliverable.
 

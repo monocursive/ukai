@@ -10,9 +10,11 @@
 //! ([`policy_refusal`]). The probe answers `available` only for a
 //! requirement a measured guest record backs (decision D2,
 //! [`GUEST_MEASUREMENTS`]). The 2026-11-04 evening live phase measured ten,
-//! every requirement of a default `tool` or `agent` plan, so such a plan
-//! passes probing; `execution_boundary`, `credential_staging` and the
-//! owner-loss bound have no record and still refuse there.
+//! every requirement of a `tool` or `agent` plan, so such a plan passes
+//! probing once its wall is an explicit 1 to 300 s (the profiles' own walls
+//! are `vm:not-carried:limits.wall`); `execution_boundary`,
+//! `credential_staging` and the owner-loss bound have no record and still
+//! refuse there.
 //!
 //! The transport below is tested with stand-ins. Its guest reports are
 //! checked for consistency and binding; they are not independent host
@@ -587,18 +589,24 @@ pub struct GuestMeasurement {
 /// Its rows are the 2026-11-04 evening live phase
 /// (`macos-vm-probes-2026-11-04/`): `capabilities.py` measured each
 /// requirement by its own attempts, on one warm boot of an image `prepare.py`
-/// built from this tree's guest sources, through the published guest jail
-/// 0.1.0-rc.5. Each row points at that requirement's verdict and states the
+/// built from the guest sources at `6bd497076`, through the published guest
+/// jail 0.1.0-rc.5. This tree's `guest.py` has since added only the staged
+/// export's refusal of directory links and unlistable directories, which no
+/// probe exercised. Each row points at that requirement's verdict and states the
 /// start of its first attempt; a test reads the record and checks both.
 /// Development evidence: an unsigned source build on one M2 Pro host, not an
 /// installed package, and one run of each probe.
 ///
-/// A default `tool` plan requires `tree_termination`,
-/// `closed_set_observation`, `filesystem_containment`, `syscall_filter`,
-/// `network_none` and `protected_coverage:existing_and_root`, and an `agent`
+/// A `tool` plan requires `tree_termination`, `closed_set_observation`,
+/// `filesystem_containment`, `syscall_filter`, `network_none`,
+/// `protected_coverage:existing_and_root` and `limit:wall`, and an `agent`
 /// plan the same with `network_proxy` for `network_none`: every one is a row
-/// here, so such a plan passes probing. `limit:pids` and `limit:mem` become
-/// requirements only when the operator requires those ceilings;
+/// here, so such a plan passes probing once its wall is one the guest carries
+/// (an explicit 1 to 300 s; the profiles' own are not). `limit:pids` and
+/// `limit:mem` become requirements only when the operator requires those
+/// ceilings, and a required ceiling the guest carries (its own `pids=64`,
+/// `mem=512MiB`, `swap=0`) also adds `execution_boundary`, so those two rows
+/// never let a plan pass on their own;
 /// `credential_staging` (a launch profile that declares credentials),
 /// `owner_loss_termination` and `execution_boundary` have no row and still
 /// refuse. The morning record of the same day (`macos-vm-live-2026-11-04/`)
