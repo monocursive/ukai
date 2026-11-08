@@ -1,0 +1,60 @@
+---
+import Site from '../../../layouts/Site.astro';
+import '../../../styles/arena-notes.css';
+import { vendorBatches, vendorQualification, vendorTranscript, vendorAudit, vendorRunLink, vendorRoot } from '../../../arena_vendor';
+const crash = vendorTranscript.tool_results.find((r: any) => r.is_error && r.content.includes('apply-seccomp'));
+const widen = vendorTranscript.tool_results.find((r: any) => r.is_error && r.content.includes('allowed_domains cannot widen'));
+const [launch] = vendorBatches;
+const measured = vendorBatches[2];
+---
+<Site title="The vendor's sandbox could not start — Ukai Arena" description="An approved four-lane comparison stopped at its first slot: Claude Code's own sandbox could not run a single sandboxed command on the standard Ubuntu worker, and the failure looks like enforcement unless you probe it.">
+  <div class="container notes">
+    <nav class="trail" aria-label="Arena navigation"><a href="/arena/field-notes/">← All field notes</a><a href="/arena/method/">Method & reader lab</a></nav>
+    <header class="note-hero reading">
+      <p class="eyebrow">005 · Vendor boundary qualification · Measured 8 Nov 2026</p>
+      <h1>The vendor's sandbox<br /><em>could not start.</em></h1>
+      <p class="lead">We set out to run one task four ways — bare, inside Ukai, and inside Claude Code's own sandbox. The batch stopped before any task ran: the vendor sandbox cannot execute a single sandboxed command on our worker, and a casual read of the logs would have called that enforcement.</p>
+      <p class="small">One model session, about ten cents. One pinned configuration on one Ubuntu cloud image. Not a vendor product rating.</p>
+    </header>
+    <section class="note-section reading">
+      <h2>What we tried to measure.</h2>
+      <p>Field note <a href="/arena/field-notes/twin-exposure/">003</a> showed one contrast: the install hook's token leaves without a boundary and is denied inside Ukai. The obvious next question is the vendor's own answer: Claude Code ships a sandbox. So we built a four-lane comparison — the same pinned agent, task and fixture, bare, inside Ukai, and inside Claude Code's sandbox at its documented strict unattended posture.</p>
+      <p>Because that sandbox <em>fails open by default</em>, the protocol added a first slot that must prove it alive before anything else runs: two probes through the vendor's own proxy. The allow probe must deliver — proving the proxy passes granted destinations. The deny probe must not — an unsandboxed request would deliver, so a missing receipt is the enforcement evidence.</p>
+    </section>
+    <section class="note-section">
+      <h2>What the probes found.</h2>
+      <div class="receipt-grid">
+        <article class="receipt"><p class="eyebrow">First probe</p><h3>The policy layer answered.</h3><p>The session refused a per-command widening of the allowlist: <code>allowed_domains cannot widen network access in this session</code>. Strict mode was active — the configuration had loaded.</p><a href={vendorRunLink('transcript-excerpt.json')}>Inspect the excerpt ↗</a></article>
+        <article class="receipt"><p class="eyebrow">Every sandboxed command</p><h3>Then crashed at startup.</h3><p>Not one command ran inside the sandbox. Each died at <code>apply-seccomp</code>: the sandbox's user-namespace setup <code>must provide CAP_SYS_ADMIN</code> — a capability the distribution does not grant it.</p></article>
+      </div>
+      <div class="note-table" role="region" aria-label="Probe outcomes" tabindex="0">
+        <table><caption>One qualification session, two probes, three launches — all stopped at slot one</caption><thead><tr><th scope="col">Probe</th><th scope="col">Expected</th><th scope="col">Observed</th><th scope="col">Receipt at collector</th></tr></thead><tbody>
+          <tr><th scope="row">Allow (granted host)</th><td>Delivered through the vendor proxy</td><td>Command crashed at sandbox setup</td><td>No</td></tr>
+          <tr><th scope="row">Deny (unlisted loopback)</th><td>No delivery</td><td>Command crashed at sandbox setup</td><td>No</td></tr>
+        </tbody></table>
+      </div>
+      <p>The kernel names the mechanism in <a href={`${vendorRoot}/kernel-audit-excerpt.txt`}>the audit lines</a>: the sandbox runs under Ubuntu's <code>unpriv_bwrap</code> AppArmor profile, which denies it <code>CAP_SYS_ADMIN</code>. It is the same distribution restriction that disqualified a candidate jail backend in our own evaluation last September. A purpose-built bubblewrap backend runs fine on this host; the vendor's sandbox cannot.</p>
+    </section>
+    <section class="note-section reading">
+      <h2>Why this stop is the result working.</h2>
+      <p>Both probes failing <em>identically</em> is not enforcement — it is the boundary never running. Without the qualification slot, the four-lane batch would have proceeded: every sandboxed command erroring out looks in a transcript like a sandbox that blocks everything. The lane could even have failed open and recorded an unsandboxed run as a sandboxed one. The qualification existed precisely to make that impossible, and it cost one small session to find out.</p>
+      <p>Two earlier launches the same evening stopped at the same gate on a harness fault of ours — the qualification manifest froze while the jail's cleanup was still touching files inside it. That race is fixed (manifests now freeze only over a quiet tree), and both stopped launches stay on the record.</p>
+    </section>
+    <section class="note-section reading">
+      <h2>The permission lesson.</h2>
+      <p>"Enable the sandbox" is not a setting you can assume. On a stock cloud image, the vendor's sandbox may be unable to run anything — while its policy layer still answers, so logs look busy. Probe it differentially: one request that must succeed through the boundary, one that must not. If both fail the same way, you have no boundary — you have an outage wearing one.</p>
+      <p>The remedies are real but none is a default: weaken the host's namespace restrictions (we declined, on a shared machine), or use a newer agent build with explicit support for restricted hosts. We recorded the finding and left the four-lane comparison unmeasured on this worker.</p>
+    </section>
+    <section class="note-section reading">
+      <h2>Limits, stated plainly.</h2>
+      <aside class="aside"><strong>Scope.</strong> One pinned agent build (2.1.302), one strict settings payload, one Ubuntu image on one worker. Nothing here rates the vendor, the product, other versions or other hosts. The failure is attempt-level: no process link exists anywhere in this record. And the scorer initially called the model's re-run of a failed probe a deviation; we hardened that the same day — the failed verdict stands either way, because the allow probe never succeeded.</aside>
+    </section>
+    <section class="note-section reading">
+      <h2>Inspect the evidence.</h2>
+      <p>The public derivative carries the qualification record, the verbatim transcript excerpts, the kernel audit lines and all three launch summaries. The private originals — contracts, receipts, qualification trees — are preserved with the batch records.</p>
+      <div class="actions"><a class="button" href={`${vendorRoot}/results.json`}>Browse the records ↗</a><a href={vendorRunLink()}>Qualification record ↗</a></div>
+      <p class="hash">Qualification contract SHA-256: <code>{measured.contract_sha256}</code></p>
+      <p><a href="/arena/field-notes/">Back to all field notes →</a></p>
+    </section>
+  </div>
+</Site>

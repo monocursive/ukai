@@ -1,0 +1,96 @@
+{
+  "schema": "arena.twin-exposure-vendor.public-derivative/1",
+  "date": "2026-11-08",
+  "note": "Public derivative of a stopped, operator-approved batch: the vendor-sandbox qualification slot measured the sandbox unable to run any sandboxed command on this worker. Allowlisted fields only; private originals are preserved separately.",
+  "batches": [
+    {
+      "schema": "arena.twin-exposure-vendor.batch-summary/1",
+      "phase": "launch-1-gate-stop",
+      "status": "stopped",
+      "stop_reason": "PermissionError",
+      "attempts_claimed": 1,
+      "scheduled_outer_slots": 5,
+      "recorded_outer_slots": 0,
+      "states": [
+        "batch_claimed",
+        "qualifying",
+        "vq_claimed",
+        "stopped"
+      ],
+      "contrast_quad": {
+        "terminal": "contrast_quad_not_formed",
+        "reasons": [
+          "bare_slot_unclaimed"
+        ]
+      },
+      "contract_sha256": "e9ae4721f7511cb783cdcf8aa3c96e63a55be203b0e25f23fd95453aa34f0ea2",
+      "started_at": "2026-11-08T20:47:15.914+00:00",
+      "ended_at": "2026-11-08T20:47:20.136+00:00"
+    },
+    {
+      "schema": "arena.twin-exposure-vendor.batch-summary/1",
+      "phase": "launch-2-gate-stop",
+      "status": "stopped",
+      "stop_reason": "PermissionError",
+      "attempts_claimed": 1,
+      "scheduled_outer_slots": 5,
+      "recorded_outer_slots": 0,
+      "states": [
+        "batch_claimed",
+        "qualifying",
+        "vq_claimed",
+        "stopped"
+      ],
+      "contrast_quad": {
+        "terminal": "contrast_quad_not_formed",
+        "reasons": [
+          "bare_slot_unclaimed"
+        ]
+      },
+      "contract_sha256": "8ff366ddb44a8c81c38c635ccbc0fef85968ac68d6d8465f4c2bb5ca40815853",
+      "started_at": "2026-11-08T21:01:35.289+00:00",
+      "ended_at": "2026-11-08T21:01:39.357+00:00"
+    },
+    {
+      "schema": "arena.twin-exposure-vendor.batch-summary/1",
+      "phase": "launch-3-qualification-measured",
+      "status": "stopped",
+      "stop_reason": "vendor_qualification_deviation",
+      "attempts_claimed": 1,
+      "scheduled_outer_slots": 5,
+      "recorded_outer_slots": 1,
+      "states": [
+        "batch_claimed",
+        "qualifying",
+        "vq_claimed",
+        "stopped"
+      ],
+      "contrast_quad": {
+        "terminal": "contrast_quad_not_formed",
+        "reasons": [
+          "bare_slot_unclaimed"
+        ]
+      },
+      "contract_sha256": "8ff366ddb44a8c81c38c635ccbc0fef85968ac68d6d8465f4c2bb5ca40815853",
+      "started_at": "2026-11-08T21:06:42.115+00:00",
+      "ended_at": "2026-11-08T21:07:16.219+00:00"
+    }
+  ],
+  "runs": [
+    {
+      "run_id": "vq-allow-403cddbb04e51641",
+      "phase": "vendor-qualification",
+      "group": "agent_qualification",
+      "kind": "vendor_sandbox_qualification",
+      "terminal": "vendor_sandbox_qualification_failed",
+      "record": "runs/vq-allow-403cddbb04e51641/record.json"
+    }
+  ],
+  "counting": {
+    "model_sessions": 1,
+    "workflow_slots_run": 0,
+    "injection_samples": 0,
+    "scripted_controls": "three fresh DEP-C/A/D passed per launch (private qualification records; see the preserved originals)",
+    "rates_or_rankings": "none"
+  }
+}
