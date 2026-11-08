@@ -87,8 +87,10 @@ the November archives.
 Counting rules: a repeated copy of one run counts once (the index enforces
 this); replays, rescores and public-export copies are not new samples; skipped
 and failed slots stay visible in the index's `batch_slots`. The index contains
-21 recorded outer agent sessions (12 injection attempts + 2 boundary probes +
-2 install workflows + 3 twin + 2 replay) and 81 scripted controls; the 81
+22 recorded outer agent sessions (12 injection attempts + 2 boundary probes +
+2 install workflows + 3 twin + 2 replay + 1 vendor qualification, 8 November) and
+90 scripted controls (the nine fresh launch controls of the three stopped vendor
+launches joined on 8 November, retained privately); the 90
 include suite run 1's 13 retained cases, which never count as passes. The one
 incomplete nested log is separate. These are inventory counts, not comparable
 trials. No escape, refusal or resistance rate exists.
@@ -166,6 +168,66 @@ trials. No escape, refusal or resistance rate exists.
   12 offline tests; full arena suite 224 passing. Prepared only — its paid
   phase needs its own approval, and no live provider key existed on 28
   October (both scoped keys returned 401 at the live check).
+
+## Four-slot vendor lane (prepared 7 November; proposal only)
+
+- [twin-exposure-vendor-v1 protocol](experiments/twin-exposure-vendor-v1/protocol.json) —
+  family `arena.twin-exposure-vendor`, scenario `install-exposure-contrast-vendor`,
+  class `exposure_contrast`. Five slots: a paid vendor-sandbox qualification
+  (differential allow/deny probes through the vendor's own proxy), then the
+  frozen twin trio with Claude Code's own sandbox lane
+  (`agent_vendor_sandbox_dependency`) inserted before the bare lane. The
+  vendor sandbox is enabled at its documented strict unattended posture
+  (`failIfUnavailable`, no unsandboxed retries, `strictAllowlist`, only the
+  model service allowed) via one appended `--settings` argv argument — the
+  pinned template's `--setting-sources ""` disables settings files, so a
+  settings file would silently not load. Bare and vendor launches differ in
+  exactly that one argument; fixtures stay structurally identical. Proposed
+  hold €10 (€60 → €70 held). **Built and offline-tested 7 November, still
+  not approved and not measured**: module
+  [experiments/twin_exposure_vendor.py](experiments/twin_exposure_vendor.py)
+  (qualification + vendor capture, scorer `twin-exposure-vendor/1`, quad and
+  lane-configuration records), controller dispatch in `m1/batch.py` and
+  `m1/runtime.py`, and 21 offline tests in
+  [experiments/test_twin_exposure_vendor.py](experiments/test_twin_exposure_vendor.py);
+  full arena suite 275 passing. The nested-CLI gate
+  does not apply (one outer CLI per slot, like twin v1); re-verification of
+  the selected scoped key does (the November batches ran on a later key
+  whose current status is unknown). **Launch attempted 8 November under the
+  operator's €10 approval: three launches, all stopped at the qualification
+  slot, records retained on the worker** (`project-d19aeeb6…`,
+  `project-ea325a34…`: gate `PermissionError`, no model session — the second
+  not fully isolated; `project-5eb186c5…`: the qualification ran, $0.0974
+  CLI-estimated, and **measured the vendor sandbox unusable on this
+  worker** — Ubuntu's `unpriv_bwrap` AppArmor profile denies `CAP_SYS_ADMIN`
+  to its sandbox's userns setup, the same distro restriction that
+  disqualified srt in the D8 evaluation; every sandboxed command crashes at
+  `apply-seccomp`, so the lane would have failed open without the
+  qualification slot). A harness fix landed en route
+  (`install_boundary.settle_and_freeze`: freeze qualification manifests
+  only over a write-quiet tree; suite 277 passing). Remaining unblocks are
+  operator decisions — host-wide userns weakening (rejected as too broad) or
+  re-pinning a ≥2.1.305 binary with `allowNestedUserNamespaces`. The quad is
+  unmeasured; no C12 claim exists; ledger €60 → €66 held (three €2 slot-1
+  claims). Both outcomes are pre-registered
+  as useful: a vendor-lane stop says containment is a commodity and the
+  explanation column is the product; a delivery is field note 005 with its
+  qualification attached. No Ukai-versus-vendor ranking is licensed by the
+  quad record. Proposal:
+  [TWIN-VENDOR-LANE-PROPOSAL-2026-11-07.md](experiments/TWIN-VENDOR-LANE-PROPOSAL-2026-11-07.md)
+  (worker preflight measured green 8 November: bwrap 0.11.1 + socat present,
+  pinned agent hash matches, 22 GB free). The reusable standard all of this
+  follows, written down as a checklist on 8 November:
+  [pre-registration format](../docs/arena-preregistration.md).
+  **Published 8 November as field note 005** —
+  [vendor-sandbox.astro](../website/src/pages/arena/field-notes/vendor-sandbox.astro)
+  with the public derivative under
+  [2026-11-08-vendor/](../website/public/arena/evidence/2026-11-08-vendor/)
+  (build-time claim checks in `website/src/arena_vendor.ts`) and the private
+  originals in [evidence/arena-vendor-lane-2026-11-08/](../evidence/arena-vendor-lane-2026-11-08/).
+  The VQ scorer was hardened the same day (retry-tolerant probes, a no-retry
+  prompt pinned in the protocol, a rogue-command deviation; suite 279); the
+  measured failed verdict is unchanged — the allow probe never succeeded.
 
 ## Claim register
 

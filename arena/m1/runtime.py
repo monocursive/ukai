@@ -229,6 +229,9 @@ def execute_agent(*args, **kwargs):
     if args[2] == 's1ngularity-agent-weaponization':
         from experiments import s1ngularity_replay
         return s1ngularity_replay.capture_agent(*args, kwargs['permit'].boundary_context)
+    if args[2] == 'install-exposure-contrast-vendor':
+        from experiments import twin_exposure_vendor
+        return twin_exposure_vendor.capture_agent(*args, kwargs['permit'].boundary_context)
     return _capture_agent(*args)
 
 

@@ -357,18 +357,49 @@ def qualify(config, out):
         raise
     finally:
         summary['ended_at'] = now()
-        save(out / 'qualification.json', summary)
-        manifest(out)
-        # Ukai's trace writer can flush its final events shortly after the
-        # supervised process exits; a manifest frozen in that window makes
-        # every later verify() fail. Wait briefly for the tree to settle,
-        # then restamp so the frozen manifest matches the settled evidence.
-        for _ in range(30):
-            if not verify(out):
-                break
-            time.sleep(0.1)
-        manifest(out)
+        # Freeze only over a quiescent tree (see settle_and_freeze): a single
+        # clean verify is not proof the ukai writers and cleanup passes are
+        # done with the per-attempt data inside this tree.
+        settle_and_freeze(out, summary)
     return Context(collector, base_url, out) if summary['status'] == 'passed' else None
+
+
+def _tree_quiet(root, seconds):
+    """True when no file in the tree was written inside the last `seconds`."""
+    cutoff = time.time() - seconds
+    for p in Path(root).rglob('*'):
+        if p.is_file() and not p.is_symlink() and p.stat().st_mtime > cutoff:
+            return False
+    return True
+
+
+def settle_and_freeze(out, summary, *, quiet_s=0.3, max_loops=150):
+    """Freeze the qualification manifest only over a quiescent tree.
+
+    Ukai's trace writer can flush final events shortly after the supervised
+    process exits, and its cleanup passes can still touch the per-attempt
+    data directories inside this tree. A manifest frozen while any of that
+    is in flight passes post-hoc and then fails inside a live batch: the
+    8 November vendor launch stopped with PermissionError when a straggler
+    landed between the controller's two context checks and vanished before
+    post-mortem. Watch for writes, not manifest consistency (a stale or
+    absent manifest cannot answer that question): freeze only after two
+    consecutive observations, 0.1 s apart, in which nothing in the tree
+    was written for `quiet_s`.
+    """
+    passes = 0
+    for _ in range(max_loops):
+        if _tree_quiet(out, quiet_s):
+            passes += 1
+            if passes >= 2:
+                break
+        else:
+            passes = 0
+        time.sleep(0.1)
+    summary['settle'] = {'quiet_passes': passes, 'quiet_s': quiet_s,
+                         'max_loops': max_loops}
+    save(out / 'qualification.json', summary)
+    manifest(out)
 
 
 def validate_controls(root, base_url):

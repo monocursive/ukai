@@ -21,6 +21,7 @@ from m1 import runtime
 from m1.pilot import validate_plan
 from m1.scoring import UKAI_SHA256
 from experiments import boundary_probe, install_boundary, s1ngularity_replay, twin_exposure
+from experiments import twin_exposure_vendor
 
 ORDER = [('claude', 'agent_clean'), ('codex', 'agent_clean'),
          ('codex', 'agent_poisoned'), ('claude', 'agent_poisoned')]
@@ -55,6 +56,10 @@ def family(schema):
         # The replay family: contained clean + weaponized, then the bare weaponized lane.
         return ('arena.s1ngularity-replay', s1ngularity_replay.SCENARIO, s1ngularity_replay.order(),
                 600, (s1ngularity_replay.selected_agent(),))
+    if schema == twin_exposure_vendor.CONTRACT_SCHEMA:
+        # The vendor family: qualification, the frozen twin trio, vendor lane before bare.
+        return ('arena.twin-exposure-vendor', twin_exposure_vendor.SCENARIO, twin_exposure_vendor.order(),
+                1000, (twin_exposure_vendor.selected_agent(),))
     if schema == 'arena.m1.execution-contract/1':
         return 'arena.m1', 'protected-issue', ORDER, 800, ('claude', 'codex')
     raise PermissionError('unknown batch contract family')
@@ -65,9 +70,11 @@ def prepare(plan, config, out):
     install = plan.get('schema') == install_boundary.PROTOCOL_SCHEMA
     twin = plan.get('schema') == twin_exposure.PROTOCOL_SCHEMA
     replay = plan.get('schema') == s1ngularity_replay.PROTOCOL_SCHEMA
+    vendor = plan.get('schema') == twin_exposure_vendor.PROTOCOL_SCHEMA
     schema = (boundary_probe.CONTRACT_SCHEMA if boundary else install_boundary.CONTRACT_SCHEMA
               if install else twin_exposure.CONTRACT_SCHEMA if twin
-              else s1ngularity_replay.CONTRACT_SCHEMA if replay else 'arena.m1.execution-contract/1')
+              else s1ngularity_replay.CONTRACT_SCHEMA if replay
+              else twin_exposure_vendor.CONTRACT_SCHEMA if vendor else 'arena.m1.execution-contract/1')
     prefix, _, order, reservation, providers = family(schema)
     if boundary:
         boundary_probe.validate_plan(plan)
@@ -81,6 +88,9 @@ def prepare(plan, config, out):
     elif replay:
         s1ngularity_replay.validate_plan(plan)
         s1ngularity_replay.validate_config(config)
+    elif vendor:
+        twin_exposure_vendor.validate_plan(plan)
+        twin_exposure_vendor.validate_config(config)
     else:
         validate_plan(plan)
         if [(r['agent'], r['kind']) for r in plan['schedule']] != ORDER:
@@ -163,6 +173,9 @@ def checked_contract(bundle):
     elif scenario == s1ngularity_replay.SCENARIO:
         s1ngularity_replay.validate_plan(c['plan'])
         s1ngularity_replay.validate_config(c['config'])
+    elif scenario == twin_exposure_vendor.SCENARIO:
+        twin_exposure_vendor.validate_plan(c['plan'])
+        twin_exposure_vendor.validate_config(c['config'])
     else:
         validate_plan(c['plan'])
         if [(r['agent'], r['kind']) for r in c['plan']['schedule']] != order:
@@ -274,6 +287,9 @@ def consume_permit(permit, config, out, scenario, kind, agent):
     elif scenario == s1ngularity_replay.SCENARIO:
         if not isinstance(permit.boundary_context, install_boundary.Context):
             raise PermissionError('s1ngularity-replay requires the install-boundary fresh controls context')
+    elif scenario == twin_exposure_vendor.SCENARIO:
+        if not isinstance(permit.boundary_context, install_boundary.Context):
+            raise PermissionError('twin-exposure-vendor requires the install-boundary fresh controls context')
     else:
         if permit.boundary_context is not None:
             raise PermissionError('this family takes no live-context permit')
@@ -320,6 +336,10 @@ def qualify_pilot(config, out):
 
 
 def stop_reason(result, kind, agent, transport=None):
+    if kind == twin_exposure_vendor.VQ_KIND and result.get('schema') == twin_exposure_vendor.VQ_SCORE_SCHEMA:
+        return twin_exposure_vendor.stop_reason_vq(result)
+    if kind == twin_exposure_vendor.VENDOR_KIND and result.get('schema') == twin_exposure_vendor.SCORE_SCHEMA:
+        return twin_exposure_vendor.stop_reason_vendor(result)
     if kind in (twin_exposure.BARE_KIND, s1ngularity_replay.BARE_KIND):
         # Both bare-lane scorers share the result shape; dispatch by score schema.
         if result.get('schema') == s1ngularity_replay.SCORE_SCHEMA:
@@ -365,13 +385,14 @@ def execute_batch(bundle, approval_path, funding_path, out):
     runtime.pin(config['jail'], 'ukai', UKAI_SHA256)
     for name in providers:
         runtime.pin(config['agents'][name], name)
-    if scenario in (install_boundary.SCENARIO, twin_exposure.SCENARIO, s1ngularity_replay.SCENARIO):
+    if scenario in (install_boundary.SCENARIO, twin_exposure.SCENARIO, s1ngularity_replay.SCENARIO,
+                    twin_exposure_vendor.SCENARIO):
         # Only these families need the node/npm runtime for the install workflow.
         for name in ('node', 'npm'):
             runtime.pin(config['runtimes'][name], name)
     out = runtime.fresh_output(out)  # Atomic, durable claim; no retry after a crash.
     install_family = scenario in (install_boundary.SCENARIO, twin_exposure.SCENARIO,
-                                  s1ngularity_replay.SCENARIO)
+                                  s1ngularity_replay.SCENARIO, twin_exposure_vendor.SCENARIO)
     pairing = scenario in (twin_exposure.SCENARIO, s1ngularity_replay.SCENARIO)
     summary = {'schema': prefix + '.batch-result/1', 'started_at': now(), 'status': 'claimed',
         'contract_sha256': sha(Path(bundle) / 'contract.json'), 'attempts_claimed': 0,
@@ -400,20 +421,45 @@ def execute_batch(bundle, approval_path, funding_path, out):
             attempt = out / ('attempt-' + str(position))
             state = None
             if install_family:
-                state = ('clean_claimed' if kind == 'agent_workflow_clean'
+                vendor_family = scenario == twin_exposure_vendor.SCENARIO
+                state = ('vq_claimed' if kind == twin_exposure_vendor.VQ_KIND
+                         else 'clean_claimed' if kind == 'agent_workflow_clean'
                          else 'dependency_claimed' if kind == 'agent_workflow_dependency'
+                         else 'vendor_claimed' if kind == twin_exposure_vendor.VENDOR_KIND
                          else 'bare_claimed')
-                if kind == 'agent_workflow_dependency':
+                if kind == 'agent_workflow_clean' and vendor_family:
+                    # Nothing runs before the vendor-sandbox qualification proved the
+                    # boundary active on this worker in this batch.
+                    if 'vq_finished' not in summary['states']:
+                        raise PermissionError('clean slot reached without a finished qualification slot')
+                elif kind == 'agent_workflow_dependency':
                     # The dependency slot runs only after a successful clean workflow.
-                    context.clean_root = out / 'attempt-1'
+                    context.clean_root = out / ('attempt-2' if vendor_family else 'attempt-1')
                     if 'clean_finished' not in summary['states']:
                         raise PermissionError('dependency slot reached without a finished clean slot')
+                elif kind == twin_exposure_vendor.VENDOR_KIND:
+                    # The vendor lane runs only after the contained legs finished and the
+                    # qualification proved the sandbox active in this batch.
+                    context.clean_root = out / 'attempt-2'
+                    context.dependency_root = out / 'attempt-3'
+                    context.vendor_root = out / 'attempt-1'
+                    if ('vq_finished' not in summary['states']
+                            or 'dependency_finished' not in summary['states']):
+                        raise PermissionError('vendor slot reached without finished qualification '
+                                              'and contained dependency slots')
                 elif kind == twin_exposure.BARE_KIND:
-                    # The uncontained lane runs only after both contained legs finished.
-                    context.clean_root = out / 'attempt-1'
-                    context.dependency_root = out / 'attempt-2'
-                    if 'dependency_finished' not in summary['states']:
-                        raise PermissionError('bare slot reached without a finished contained dependency slot')
+                    # The uncontained lane runs only after every contained leg finished.
+                    if vendor_family:
+                        context.clean_root = out / 'attempt-2'
+                        context.dependency_root = out / 'attempt-3'
+                        if 'vendor_finished' not in summary['states']:
+                            raise PermissionError('bare slot reached without a finished vendor lane')
+                    else:
+                        context.clean_root = out / 'attempt-1'
+                        context.dependency_root = out / 'attempt-2'
+                        if 'dependency_finished' not in summary['states']:
+                            raise PermissionError('bare slot reached without a finished contained '
+                                                  'dependency slot')
             if context is not None:
                 # Every admission gate passes before a claim file, a counted attempt or
                 # its per-slot hold exists; a refused slot stays unclaimed.
@@ -437,8 +483,13 @@ def execute_batch(bundle, approval_path, funding_path, out):
                 break
             if install_family and kind == 'agent_workflow_clean':
                 summary['states'].append('clean_finished')
-            if scenario in (twin_exposure.SCENARIO, s1ngularity_replay.SCENARIO) and kind == 'agent_workflow_dependency':
+            if scenario in (twin_exposure.SCENARIO, s1ngularity_replay.SCENARIO,
+                            twin_exposure_vendor.SCENARIO) and kind == 'agent_workflow_dependency':
                 summary['states'].append('dependency_finished')
+            if scenario == twin_exposure_vendor.SCENARIO and kind == twin_exposure_vendor.VQ_KIND:
+                summary['states'].append('vq_finished')
+            if scenario == twin_exposure_vendor.SCENARIO and kind == twin_exposure_vendor.VENDOR_KIND:
+                summary['states'].append('vendor_finished')
         if pairing:
             if 'bare_claimed' not in summary['states']:
                 # No bare attempt exists: record why there is no pair instead of an error.
@@ -453,6 +504,21 @@ def execute_batch(bundle, approval_path, funding_path, out):
                                                 'pair_sha256': sha(out / 'contrast-pair' / 'pair.json')}
                 except Exception as exc:
                     summary['contrast_pair'] = {'terminal': 'contrast_pair_error',
+                                                'error_type': type(exc).__name__}
+        elif scenario == twin_exposure_vendor.SCENARIO:
+            if 'bare_claimed' not in summary['states']:
+                # No bare attempt exists: record why there is no quad instead of an error.
+                summary['contrast_quad'] = twin_exposure_vendor.unpaired_quad(summary)
+            else:
+                # Join the bare, vendor and contained dependency attempts into one record.
+                try:
+                    contrast = twin_exposure_vendor.quad(out / 'attempt-5', out / 'attempt-4',
+                                                         out / 'attempt-3', out / 'contrast-quad')
+                    summary['contrast_quad'] = {'terminal': contrast['terminal'],
+                                                'reasons': contrast['reasons'],
+                                                'quad_sha256': sha(out / 'contrast-quad' / 'quad.json')}
+                except Exception as exc:
+                    summary['contrast_quad'] = {'terminal': 'contrast_quad_error',
                                                 'error_type': type(exc).__name__}
         summary['status'] = 'stopped' if summary['stop_reason'] else 'completed'
     except Exception as exc:
@@ -475,6 +541,8 @@ def execute_batch(bundle, approval_path, funding_path, out):
                 summary['stop_reason'] = summary['stop_reason'] or 'credential_scan_unverified_do_not_export'
         if pairing and 'contrast_pair' not in summary:
             summary['contrast_pair'] = unpaired(summary)
+        if scenario == twin_exposure_vendor.SCENARIO and 'contrast_quad' not in summary:
+            summary['contrast_quad'] = twin_exposure_vendor.unpaired_quad(summary)
         # The terminal state is written last, after collector shutdown and the final
         # credential scan, so `states` can never end `completed` on a stopped batch.
         if summary['status'] != 'completed':
