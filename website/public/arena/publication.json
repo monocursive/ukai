@@ -166,6 +166,26 @@
       "ukai_runtime_changed_for_publication": false,
       "additional_paid_agent_tests_for_publication": 1,
       "note": "Additive entry. The three stopped launch records and their private originals are preserved; the index counts 112 unique records = 22 agent sessions + 90 scripted controls."
+    },
+    {
+      "publication_date": "2026-11-09",
+      "canonical_url": "https://ukai.sh/arena/field-notes/incident-replay/",
+      "edition": "Field note 004, measured 9 November update",
+      "scope": "The Arena's first complete incident-replay pair: the frozen s1ngularity-mechanism fixture delivered twice bare (hook route and nested agent route) and was stopped twice contained (collector denied host_not_allowed; the nested agent's inherited key refused 21 times, credential_process_denied). One configuration, one scenario version; no rate, no ranking.",
+      "inventory": {
+        "model_sessions": 3,
+        "nested_logs": 2,
+        "nested_completed": 1,
+        "scripted_controls_retained_privately": 3
+      },
+      "evidence_url": "https://ukai.sh/arena/evidence/2026-11-09-replay/results.json",
+      "interpretations": {
+        "original_scores": "preserved",
+        "scorer": "s1ngularity-replay/2 (credential_denials additive; verdicts reproduced on the preserved November bundles modulo the recorded parser repair)"
+      },
+      "ukai_runtime_changed_for_publication": false,
+      "additional_paid_agent_tests_for_publication": 3,
+      "note": "Additive entry. The 1 November stopped attempt and its record remain unchanged; the retry ran under the amended C11 shape pre-registered in NESTED-CLI-QUALIFICATION-2026-11-09. Index counts 118 unique records = 25 agent sessions + 93 scripted controls."
     }
   ]
 }

@@ -16,12 +16,12 @@ class EvaluationIndexTests(unittest.TestCase):
         # Previous 16 outer sessions + 3 twin + 2 replay + the 8 November vendor
         # qualification session. The replay's bare slot was skipped; one nested
         # startup log is not another completed session.
-        self.assertEqual(summary['agent_attempts'], 22)
-        self.assertEqual(summary['scripted_controls'], 90)
-        self.assertEqual(summary['by_class']['workflow_containment'], 6)
+        self.assertEqual(summary['agent_attempts'], 25)
+        self.assertEqual(summary['scripted_controls'], 93)
+        self.assertEqual(summary['by_class']['workflow_containment'], 9)
         self.assertEqual(summary['by_class']['exposure_contrast'], 1)
-        self.assertEqual(summary['nested_cli_logs'], 1)
-        self.assertEqual(summary['nested_completed_sessions'], 0)
+        self.assertEqual(summary['nested_cli_logs'], 3)
+        self.assertEqual(summary['nested_completed_sessions'], 1)
 
     def test_identical_copies_count_once(self):
         doubled = deepcopy(self.index)
@@ -29,7 +29,8 @@ class EvaluationIndexTests(unittest.TestCase):
         self.assertEqual(index_module.validate(doubled), [])
         self.assertEqual(index_module.summary(doubled)['unique_runs'],
                          index_module.summary(self.index)['unique_runs'])
-        self.assertEqual(index_module.summary(doubled)['nested_cli_logs'], 1)
+        self.assertEqual(index_module.summary(doubled)['nested_cli_logs'],
+                         index_module.summary(self.index)['nested_cli_logs'])
 
     def test_conflicting_records_under_one_id_fail(self):
         conflicting = deepcopy(self.index)
@@ -101,7 +102,7 @@ class PublicationTests(unittest.TestCase):
         # Run 1, the October stopped launches' controls and the three vendor
         # launches' controls stay private and claim no page.
         private = [e for e in self.index['runs'] if e['publication_status'] in index_module.PRIVATE_STATUSES]
-        self.assertEqual(len(private), 31)
+        self.assertEqual(len(private), 34)
         self.assertTrue(all(not index_module.claimed_records(e) for e in private))
 
     def test_served_record_marked_private_is_an_error(self):
@@ -143,11 +144,11 @@ class PublicationTests(unittest.TestCase):
                 entry.setdefault('provenance', {})['public_record'] = None
         self.assertTrue(index_module.validate(stale, self.served))
         scores = [json.dumps(e.get('original_score'), sort_keys=True) for e in stale['runs']]
-        changed = index_module.sync_publication(stale, self.served, as_of='2026-11-09T00:00:00+00:00')
+        changed = index_module.sync_publication(stale, self.served, as_of='2026-11-10T00:00:00+00:00')
         self.assertEqual(sorted(changed), ['NET-A-4d26dd48790c0676', 'ib-cbf614a9c8dc91938ddf8d5d9820ea'])
         self.assertEqual(index_module.validate(stale, self.served), [])
         self.assertEqual(scores, [json.dumps(e.get('original_score'), sort_keys=True) for e in stale['runs']])
-        self.assertEqual(index_module.sync_publication(stale, self.served, as_of='2026-11-09T00:00:00+00:00'), [])
+        self.assertEqual(index_module.sync_publication(stale, self.served, as_of='2026-11-10T00:00:00+00:00'), [])
 
 
 if __name__ == '__main__':
