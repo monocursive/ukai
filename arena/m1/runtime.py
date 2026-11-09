@@ -232,6 +232,9 @@ def execute_agent(*args, **kwargs):
     if args[2] == 'install-exposure-contrast-vendor':
         from experiments import twin_exposure_vendor
         return twin_exposure_vendor.capture_agent(*args, kwargs['permit'].boundary_context)
+    if args[2] == 'release-report-permissions':
+        from experiments import release_report
+        return release_report.capture_agent(*args, kwargs['permit'].boundary_context)
     return _capture_agent(*args)
 
 

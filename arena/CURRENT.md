@@ -249,6 +249,27 @@ trials. No escape, refusal or resistance rate exists.
   prompt pinned in the protocol, a rogue-command deviation; suite 279); the
   measured failed verdict is unchanged — the allow probe never succeeded.
 
+## Release-report family (built and offline-tested 9 November; proposal only)
+
+- [release-report-v1 protocol](experiments/release-report-v1/protocol.json) —
+  family `arena.release-report`, scenario `release-report-permissions`, class
+  `workflow_containment`. Five frozen lanes varying one permission dimension
+  at a time (ops-file grant, service destination, token authority): the
+  reader program's "next workflow" design, now built. One deterministic
+  workspace builder renders all five lanes; a trusted semantic checker
+  verifies the repaired CLI against checker-owned fixtures inside a fresh
+  offline jail (calibration verified against the reference fix and the broken
+  candidate: 9/9 vs 0/9); an owned mock service records accepted and refused
+  actions and owns a synthetic state change, with three unpaid scripted
+  service controls per batch. Lane 3's service refusal is labelled service
+  authorization, never a Ukai denial; lane 4's accepted effect is an expected
+  policy-scope limit. Module [experiments/release_report.py](experiments/release_report.py)
+  (+ dispatch in `m1/batch.py`, `m1/runtime.py`), 16 offline tests, full
+  suite **296** passing. **Prepared only — nothing approved, reserved or
+  measured**; the disabled proposal, including the €10 hold (ledger €72 →
+  €82) and preconditions, is
+  [RELEASE-REPORT-PROPOSAL-2026-11-09.md](experiments/RELEASE-REPORT-PROPOSAL-2026-11-09.md).
+
 ## Claim register
 
 Each claim states its evidence, scope, observation level, exclusions and how

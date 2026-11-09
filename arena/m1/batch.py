@@ -21,7 +21,7 @@ from m1 import runtime
 from m1.pilot import validate_plan
 from m1.scoring import UKAI_SHA256
 from experiments import boundary_probe, install_boundary, s1ngularity_replay, twin_exposure
-from experiments import twin_exposure_vendor
+from experiments import release_report, twin_exposure_vendor
 
 ORDER = [('claude', 'agent_clean'), ('codex', 'agent_clean'),
          ('codex', 'agent_poisoned'), ('claude', 'agent_poisoned')]
@@ -60,6 +60,10 @@ def family(schema):
         # The vendor family: qualification, the frozen twin trio, vendor lane before bare.
         return ('arena.twin-exposure-vendor', twin_exposure_vendor.SCENARIO, twin_exposure_vendor.order(),
                 1000, (twin_exposure_vendor.selected_agent(),))
+    if schema == release_report.CONTRACT_SCHEMA:
+        # The release-report family: five frozen permission lanes, one configuration.
+        return ('arena.release-report', release_report.SCENARIO, release_report.order(),
+                1000, (release_report.selected_agent(),))
     if schema == 'arena.m1.execution-contract/1':
         return 'arena.m1', 'protected-issue', ORDER, 800, ('claude', 'codex')
     raise PermissionError('unknown batch contract family')
@@ -71,10 +75,12 @@ def prepare(plan, config, out):
     twin = plan.get('schema') == twin_exposure.PROTOCOL_SCHEMA
     replay = plan.get('schema') == s1ngularity_replay.PROTOCOL_SCHEMA
     vendor = plan.get('schema') == twin_exposure_vendor.PROTOCOL_SCHEMA
+    release = plan.get('schema') == release_report.PROTOCOL_SCHEMA
     schema = (boundary_probe.CONTRACT_SCHEMA if boundary else install_boundary.CONTRACT_SCHEMA
               if install else twin_exposure.CONTRACT_SCHEMA if twin
               else s1ngularity_replay.CONTRACT_SCHEMA if replay
-              else twin_exposure_vendor.CONTRACT_SCHEMA if vendor else 'arena.m1.execution-contract/1')
+              else twin_exposure_vendor.CONTRACT_SCHEMA if vendor
+              else release_report.CONTRACT_SCHEMA if release else 'arena.m1.execution-contract/1')
     prefix, _, order, reservation, providers = family(schema)
     if boundary:
         boundary_probe.validate_plan(plan)
@@ -91,6 +97,9 @@ def prepare(plan, config, out):
     elif vendor:
         twin_exposure_vendor.validate_plan(plan)
         twin_exposure_vendor.validate_config(config)
+    elif release:
+        release_report.validate_plan(plan)
+        release_report.validate_config(config)
     else:
         validate_plan(plan)
         if [(r['agent'], r['kind']) for r in plan['schedule']] != ORDER:
@@ -176,6 +185,9 @@ def checked_contract(bundle):
     elif scenario == twin_exposure_vendor.SCENARIO:
         twin_exposure_vendor.validate_plan(c['plan'])
         twin_exposure_vendor.validate_config(c['config'])
+    elif scenario == release_report.SCENARIO:
+        release_report.validate_plan(c['plan'])
+        release_report.validate_config(c['config'])
     else:
         validate_plan(c['plan'])
         if [(r['agent'], r['kind']) for r in c['plan']['schedule']] != order:
@@ -290,6 +302,9 @@ def consume_permit(permit, config, out, scenario, kind, agent):
     elif scenario == twin_exposure_vendor.SCENARIO:
         if not isinstance(permit.boundary_context, install_boundary.Context):
             raise PermissionError('twin-exposure-vendor requires the install-boundary fresh controls context')
+    elif scenario == release_report.SCENARIO:
+        if not isinstance(permit.boundary_context, release_report.Context):
+            raise PermissionError('release-report requires its own service and controls context')
     else:
         if permit.boundary_context is not None:
             raise PermissionError('this family takes no live-context permit')
@@ -336,6 +351,8 @@ def qualify_pilot(config, out):
 
 
 def stop_reason(result, kind, agent, transport=None):
+    if kind in release_report.KINDS and result.get('schema') == release_report.SCORE_SCHEMA:
+        return release_report.stop_reason(result)
     if kind == twin_exposure_vendor.VQ_KIND and result.get('schema') == twin_exposure_vendor.VQ_SCORE_SCHEMA:
         return twin_exposure_vendor.stop_reason_vq(result)
     if kind == twin_exposure_vendor.VENDOR_KIND and result.get('schema') == twin_exposure_vendor.SCORE_SCHEMA:
@@ -390,6 +407,8 @@ def execute_batch(bundle, approval_path, funding_path, out):
         # Only these families need the node/npm runtime for the install workflow.
         for name in ('node', 'npm'):
             runtime.pin(config['runtimes'][name], name)
+    if scenario == release_report.SCENARIO:
+        runtime.pin(config['runtimes']['node'], 'node')
     out = runtime.fresh_output(out)  # Atomic, durable claim; no retry after a crash.
     install_family = scenario in (install_boundary.SCENARIO, twin_exposure.SCENARIO,
                                   s1ngularity_replay.SCENARIO, twin_exposure_vendor.SCENARIO)
@@ -406,6 +425,10 @@ def execute_batch(bundle, approval_path, funding_path, out):
         summary['states'].append('qualifying')
         if scenario == boundary_probe.SCENARIO:
             context = boundary_probe.qualify(config, out / 'qualification')
+        elif scenario == release_report.SCENARIO:
+            context = release_report.qualify(config, out / 'qualification')
+            if context is None:
+                raise RuntimeError('release-report qualification failed')
         elif install_family:
             # Both install-family scenarios use the same fresh dependency controls;
             # the twin bare lane shares this collector session.
@@ -420,7 +443,11 @@ def execute_batch(bundle, approval_path, funding_path, out):
             check_authority(bundle, approval_path, funding_path, out, claimed=True)
             attempt = out / ('attempt-' + str(position))
             state = None
-            if install_family:
+            if scenario == release_report.SCENARIO:
+                state = 'lane%d_claimed' % position
+                if position > 1 and ('lane%d_finished' % (position - 1)) not in summary['states']:
+                    raise PermissionError('lane reached before the previous lane finished')
+            elif install_family:
                 vendor_family = scenario == twin_exposure_vendor.SCENARIO
                 state = ('vq_claimed' if kind == twin_exposure_vendor.VQ_KIND
                          else 'clean_claimed' if kind == 'agent_workflow_clean'
@@ -490,6 +517,8 @@ def execute_batch(bundle, approval_path, funding_path, out):
                 summary['states'].append('vq_finished')
             if scenario == twin_exposure_vendor.SCENARIO and kind == twin_exposure_vendor.VENDOR_KIND:
                 summary['states'].append('vendor_finished')
+            if scenario == release_report.SCENARIO:
+                summary['states'].append('lane%d_finished' % position)
         if pairing:
             if 'bare_claimed' not in summary['states']:
                 # No bare attempt exists: record why there is no pair instead of an error.
