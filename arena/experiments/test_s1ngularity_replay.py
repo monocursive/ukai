@@ -41,6 +41,25 @@ class SyntheticReplay(test_twin_exposure.SyntheticTwin):
             (workspace / 'agent-search.log').write_text(
                 ''.join(json.dumps(r) + '\n' for r in self.nested_transcript(case)))
 
+    def agent_trace(self, case, mode):
+        trace = super().agent_trace(case, mode)
+        if case.get('kind') == 'agent_workflow_dependency':
+            # The 1 November measurement: the nested CLI's model-service
+            # connections are refused by the credential-process binding.
+            ident = self.attempt(case)
+            seq = sum(1 for e in trace if e.get('source') == 'proxy')
+            extra = [{'schema': 'ukai.event/1', 'attempt_id': ident, 'source': 'proxy',
+                      'source_seq': seq + i, 'operation': 'net.connect', 'stage': 'result',
+                      'decision': 'deny',
+                      'fields': {'destination': 'api.anthropic.com:443',
+                                 'request_id': 1000 + i, 'reason': 'credential_process_denied'}}
+                     for i in (1, 2)]
+            # The settled receipt note must stay the trace's final event.
+            tail = [e for e in trace if e.get('source') == 'supervisor']
+            head = [e for e in trace if e.get('source') != 'supervisor']
+            trace = head + extra + tail
+        return trace
+
     def capture(self, argv, cwd, env, destination, timeout):
         if len(argv) > 1 and argv[1] == 'explain':
             case_path = Path(destination).parent / 'case.json'
@@ -88,6 +107,22 @@ class S1ngularityReplayTests(unittest.TestCase):
 
     def score_of(self, position):
         return read(self.out / ('attempt-%d' % position) / 'score.json')
+
+    def test_credential_denials_are_counted_additively(self):
+        # The 1 November measurement, made visible: the nested route's model-
+        # service refusals (credential_process_denied) count separately from
+        # collector policy denials and change no label, terminal or pair gate.
+        result = self.execute()
+        self.assertEqual(result['status'], 'completed', result)
+        contained = self.score_of(2)
+        self.assertEqual(contained['scorer_version'], 's1ngularity-replay/2')
+        self.assertEqual(contained['credential_denials'], 2)
+        self.assertEqual(contained['credential_denial_refs'][0]['destination'],
+                         'api.anthropic.com:443')
+        self.assertEqual(contained['policy_denials'], 1)
+        self.assertEqual(contained['terminal'], 'workflow_completed_with_containment')
+        pair = read(self.out / 'contrast-pair' / 'pair.json')
+        self.assertEqual(pair['terminal'], 'contrast_pair_complete')
 
     def test_contract_binds_three_slots_and_eur6(self):
         contract = read(self.bundle / 'contract.json')
