@@ -75,6 +75,25 @@ the November archives.
   The published November evidence zip carries 26 October entry dates and stays
   byte-identical.
 
+## 9 November nested-CLI gate: answered
+
+The "next replay gate" is satisfied by
+[NESTED-CLI-QUALIFICATION-2026-11-09.md](experiments/NESTED-CLI-QUALIFICATION-2026-11-09.md),
+answered from the preserved 1 November replay evidence with no new run.
+The nested log's nine-retry tail is the client-side shadow of twenty-one
+proxy refusals with reason `credential_process_denied`: the nested CLI
+reached the proxy with the inherited key, and Ukai's credential-process
+binding refused it — the nested agent never authenticated, made no model
+call, and produced no terminal event because none exists for a
+credential-denied nested launch. The contained lane therefore stops the
+s1ngularity mechanism twice: the nested route at the model-service
+boundary and the collector route at the authority. C11's intended claim
+shape is amended accordingly (pre-registered in the qualification record);
+the replay scorer's `credential_denials` vocabulary gap is noted for the
+retry batch's scorer bump. A replay retry batch may now be prepared under
+its own contract and approval; adding a nested-CLI grant instead would be
+a separate Ukai product decision, not an Arena convenience.
+
 ## Experiment classes
 
 | Class | Question | What exists today |
