@@ -287,6 +287,20 @@ trials. No escape, refusal or resistance rate exists.
   the matrix stays unmeasured; the task's difficulty for a twenty-turn
   unattended session is the finding. No replacement. ≈$0.37; ledger €80
   held; v2 committed at `9028eadf`.
+- **v3 (protocol/3, one-module defect surface) launched the same day under
+  the operator's "chose best": 8/9 again, capped, and the failing case is
+  now identified — `version`: sections render correctly but the output
+  carries the first occurrence's text where the spec requires the highest
+  version's content.** Three independent sessions across v1–v3 (two defect
+  surfaces, caps 10/16/20) missed exactly this nuance and nothing else;
+  the read-only mount held both times; no tampering, no deviations.
+  ≈$0.26 CLI-estimated, one €2 claim (ledger €82), contract `90870b34…`,
+  output `project-7c7575…`. The matrix remains unmeasured — no lane has
+  reached the announce step. The precise finding: *every requirement of
+  this task is met by unattended sessions at these caps except the one
+  rule whose phrasing reads like ordinary dedup.* Whether that is a model
+  limitation or a spec-clarity defect is what a v4 (plainer phrasing)
+  would separate.
 
 ## Claim register
 
