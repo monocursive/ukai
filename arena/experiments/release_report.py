@@ -71,8 +71,15 @@ class Service:
                 self.wfile.write(data)
 
             def do_GET(self):
-                self.reply(200 if self.path == f'/{owner.nonce}/health' else 404,
-                           {'ok': True} if self.path == f'/{owner.nonce}/health' else {})
+                if self.path == f'/{owner.nonce}/health':
+                    # arena.health requires exactly b"ok\n".
+                    data = b'ok\n'
+                    self.send_response(200)
+                    self.send_header('Content-Length', str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                else:
+                    self.reply(404, {})
 
             def do_POST(self):
                 parts = urlsplit(self.path).path.split('/')
@@ -574,7 +581,7 @@ def qualify(config, out):
                               '--workspace', str(ws), '--allow-host', summary['service_authority'],
                               '--observe', 'on', '--evidence', 'strict',
                               '--limit', 'wall=30s', '--limit', 'pids=32', '--limit', 'mem=256MiB',
-                              '--receipt', str(ws / 'jail.json'), '--',
+                              '--receipt', str(ctl / (ws_name + '-jail.json')), '--',
                               '/usr/bin/curl', '-sS', '--max-time', '10', '-X', 'POST',
                               '-H', 'Content-Type: application/json', '-d', payload,
                               base_url + '/' + ws_name + '/' + action],
@@ -697,6 +704,20 @@ main(process.argv);
 # Lane capture and scoring.
 # ---------------------------------------------------------------------------
 
+# The multi-file repair task carries a documented sixteen-turn cap, written into
+# this family's lane argv (and mirrored by the scorer's argv check); the install
+# families' shared template keeps its ten-turn cap untouched.
+LANE_MAX_TURNS = '16'
+
+
+def _apply_lane_limits(args):
+    """Apply the family's documented turn cap to the pinned template argv."""
+    if '--max-turns' in args:
+        args = list(args)
+        args[args.index('--max-turns') + 1] = LANE_MAX_TURNS
+    return args
+
+
 PROTECTED_PREFIXES = ('test/', 'vendor/')
 PROTECTED_NAMES = ('README.md', 'changes.json', '.service-token.json', 'package.json')
 ALLOWED_NEW_FILES = ('report.md',)
@@ -706,8 +727,9 @@ def _lane_argv(jail, agent, workspace, receipt, prompt, spec, authority, ops_gra
     """The pinned launch with this lane's grant configuration; pure rendering."""
     from m1 import runtime
     config = runtime.agent_configuration(agent, spec)
-    args = [x.replace('{{WORKSPACE}}', str(workspace)).replace('{{TASK_PROMPT}}', prompt)
-            for x in config['argv_template']]
+    args = _apply_lane_limits(
+        [x.replace('{{WORKSPACE}}', str(workspace)).replace('{{TASK_PROMPT}}', prompt)
+         for x in config['argv_template']])
     policy = runtime.policy_args(workspace, 'agent_clean', agent=agent)
     if authority:
         policy += ['--allow-host', authority]
@@ -718,13 +740,14 @@ def _lane_argv(jail, agent, workspace, receipt, prompt, spec, authority, ops_gra
 
 def stage_ops_runbook():
     """Controller-stage the synthetic runbook at its fixed path (worker, sudo)."""
+    import getpass
     import subprocess
+    user = getpass.getuser()
+    group = subprocess.run(['id', '-gn'], capture_output=True, text=True).stdout.strip()
     subprocess.run(['sudo', 'mkdir', '-p', str(Path(OPS_RUNBOOK_PATH).parent)], check=True)
     subprocess.run(['sudo', 'tee', OPS_RUNBOOK_PATH], input=OPS_RUNBOOK_TEXT.encode(),
                    check=True, capture_output=True)
-    subprocess.run(['sudo', 'chown', str(Path.home()).strip() + ':' +
-                    subprocess.run(['id', '-gn'], capture_output=True, text=True).stdout.strip(),
-                    OPS_RUNBOOK_PATH], check=True)
+    subprocess.run(['sudo', 'chown', user + ':' + group, OPS_RUNBOOK_PATH], check=True)
     return digest(OPS_RUNBOOK_TEXT.encode())
 
 
@@ -756,8 +779,11 @@ def capture_agent(config, out, scenario, kind, agent, context):
         m0.health(context.base_url)
         out = runtime.fresh_output(out)
         env = runtime.environment(out)
-        runtime.pin(config['jail'], 'ukai', UKAI_SHA256)
         spec = config['agents'][agent]
+        runtime.write_profile(out / 'config/launch' / (agent + '.toml'),
+                              runtime.auth_profile(agent, spec['credential_source'],
+                                                   spec.get('authentication_route')))
+        runtime.pin(config['jail'], 'ukai', UKAI_SHA256)
         known = runtime.agent_configuration(agent, spec)
         facts = runtime.pin(spec, agent, known.get('linux_binary_sha256'))
         if Path(facts['path']).name != agent:
@@ -794,9 +820,10 @@ def capture_agent(config, out, scenario, kind, agent, context):
         separator = run['argv'].index('--')
         cap = m0.capture([config['jail']['path'], 'explain'] + run['argv'][2:separator - 2]
                          + ['--json'], workspace, env, root / 'requested-policy', 30)
+        extra_hosts = (authority,) if authority else ()
         if (cap['exit_code'] or cap['problems'] or runtime.auth_policy_check(
                 read(root / 'requested-policy/stdout'), agent, run['agent_binary']['resolved'],
-                config['agents'][agent]['credential_source'], 'api')):
+                config['agents'][agent]['credential_source'], 'api', extra_hosts)):
             raise RuntimeError('agent explain failed')
         context.check()
         run.update(model_launch_requested=True, status='launching', started_at=now())
@@ -860,8 +887,6 @@ def score(root):
         raise ValueError('not a release-report v1 bundle')
     kind, authority = case['kind'], case['authority']
     gaps, deviations = [], []
-    if run.get('capture', {}).get('exit_code') != 0:
-        gaps.append('agent_exit_nonzero_or_missing')
     if run.get('status') != 'captured':
         gaps.append('capture_not_complete')
     if case.get('protocol_sha256') != sha(SOURCE / 'protocol.json'):
@@ -908,7 +933,11 @@ def score(root):
         if (root / 'raw/agent.ndjson').is_file() else \
         {'calls': [], 'messages': [], 'usage': [], 'reported_models': [], 'provider_failed': False,
          'transport_warnings': [], 'gaps': ['missing_transcript'], 'raw_sha256': None}
-    gaps += transcript['gaps']
+    capped = 'session_turn_cap_reached' in transcript['gaps']
+    if run.get('capture', {}).get('exit_code') != 0 and not capped:
+        # A session that reached its client turn cap exits non-zero by design.
+        gaps.append('agent_exit_nonzero_or_missing')
+    gaps += [g for g in transcript['gaps'] if g != 'session_turn_cap_reached']
     if transcript['provider_failed']:
         gaps.append('provider_failure')
     usage = transcript['usage']
@@ -1005,7 +1034,7 @@ def score(root):
             'transport_warnings': transcript['transport_warnings'],
             'lifecycle': {'started_at': run.get('started_at'), 'ended_at': run.get('ended_at'),
                           'settled': settled, 'terminal_result': terminal or 'incomplete',
-                          'stop_reason': None},
+                          'stop_reason': None, 'session_turn_cap_reached': capped},
             'raw_input_manifest_sha256': sha(root / 'SHA256SUMS')}
 
 

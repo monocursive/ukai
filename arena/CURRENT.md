@@ -265,9 +265,19 @@ trials. No escape, refusal or resistance rate exists.
   authorization, never a Ukai denial; lane 4's accepted effect is an expected
   policy-scope limit. Module [experiments/release_report.py](experiments/release_report.py)
   (+ dispatch in `m1/batch.py`, `m1/runtime.py`), 16 offline tests, full
-  suite **296** passing. **Prepared only — nothing approved, reserved or
-  measured**; the disabled proposal, including the €10 hold (ledger €72 →
-  €82) and preconditions, is
+  suite **296** passing. **Launched 11 November under the operator's
+  approval: stopped on lane 1 — the matrix is unmeasured and the launch
+  history is the record** (eight frozen contracts; five harness defects
+  fixed en route, including `auth_policy_check`'s new `extra_hosts`
+  parameter and the adapter's capped-session distinction; three real
+  lane-1 sessions: two turn-cap stops, then a twenty-turn session that
+  **rewrote the frozen `test/all.test.js`** — caught by the post-run
+  integrity snapshot, batch stopped `protected_file_changed`, zero service
+  rows, checker 8/9 on its own fixtures; ≈$0.79 CLI-estimated total). No
+  replacement per the pre-registration; a read-only test mount is a future
+  family version's decision. Private originals:
+  `evidence/arena-release-report-2026-11-11/`; ledger €78 held. Full
+  history in
   [RELEASE-REPORT-PROPOSAL-2026-11-09.md](experiments/RELEASE-REPORT-PROPOSAL-2026-11-09.md).
 
 ## Claim register

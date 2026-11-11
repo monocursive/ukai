@@ -77,6 +77,13 @@ class SyntheticReport(test_install_boundary.SyntheticWorkflow):
                      'usage': {'input_tokens': 110, 'output_tokens': 35}, 'total_cost_usd': 0.04})
         return rows
 
+    def agent_policy(self, case):
+        doc = super().agent_policy(case)
+        snap = doc['snapshot']
+        if case['lane']['service_destination_grant'] and case.get('authority'):
+            snap['network']['allow'] = sorted(snap['network']['allow'] + [case['authority']])
+        return doc
+
     def agent_receipt(self, case):
         receipt = super().agent_receipt(case)
         if case['lane']['service_destination_grant'] and case.get('authority'):
