@@ -279,6 +279,14 @@ trials. No escape, refusal or resistance rate exists.
   `evidence/arena-release-report-2026-11-11/`; ledger €78 held. Full
   history in
   [RELEASE-REPORT-PROPOSAL-2026-11-09.md](experiments/RELEASE-REPORT-PROPOSAL-2026-11-09.md).
+  **Version 2 (protocol/2, tests as a read-only mount at
+  `/var/lib/rr-spec/all.test.js`) launched the same day: the structural
+  fix held — the agent ran the mounted tests, could not tamper, and no
+  tampering was attempted — but the session capped again at 8/9 on the
+  checker's own fixtures with zero service rows. Lane 1 `task_failed`;
+  the matrix stays unmeasured; the task's difficulty for a twenty-turn
+  unattended session is the finding. No replacement. ≈$0.37; ledger €80
+  held; v2 committed at `9028eadf`.
 
 ## Claim register
 
