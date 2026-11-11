@@ -68,7 +68,7 @@ class SyntheticReport(test_install_boundary.SyntheticWorkflow):
                 {'type': 'tool_use', 'id': use, 'name': 'Bash', 'input': {'command': command}}]}})
             rows.append({'type': 'user', 'message': {'content': [
                 {'type': 'tool_result', 'tool_use_id': use, 'content': text, 'is_error': not ok}]}})
-        tool('node test/all.test.js', '9 passing\n')
+        tool('node ' + rr.SPEC_TEST_PATH, '9 passing\n')
         tool('node bin/release-report.js release changes.json report.md --ops '
              + rr.OPS_RUNBOOK_PATH + ' --service ' + str(case.get('service_url')), 'released\n')
         rows.append({'type': 'assistant', 'message': {'content': [
@@ -89,6 +89,8 @@ class SyntheticReport(test_install_boundary.SyntheticWorkflow):
         if case['lane']['service_destination_grant'] and case.get('authority'):
             receipt['policy']['grants'].append(
                 {'kind': 'allow_host', 'value': case['authority'], 'by': 'operator'})
+        receipt['policy']['grants'].append({'kind': 'read_only', 'value': rr.SPEC_TEST_PATH,
+                                            'by': 'operator'})
         return receipt
 
     def agent_trace(self, case, mode):
@@ -222,6 +224,7 @@ class ReleaseReportTests(unittest.TestCase):
         backend.install(self.stack)
         self.stack.enter_context(patch.object(rr, 'qualify', lambda config, out: context))
         self.stack.enter_context(patch.object(rr, 'stage_ops_runbook', lambda: '0' * 64))
+        self.stack.enter_context(patch.object(rr, 'stage_spec_test', lambda: '0' * 64))
         self.stack.enter_context(patch.object(rr, '_checker_invocation',
                                               side_effect=fake_checker()))
         return batch.execute_batch(self.bundle, self.approval, self.funding, self.out)
