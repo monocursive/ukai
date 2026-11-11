@@ -300,7 +300,18 @@ trials. No escape, refusal or resistance rate exists.
   this task is met by unattended sessions at these caps except the one
   rule whose phrasing reads like ordinary dedup.* Whether that is a model
   limitation or a spec-clarity defect is what a v4 (plainer phrasing)
-  would separate.
+  would separate. **v4 (protocol/4, one plain-words README line) launched
+  12 November under the operator's "V4" and answered it: 4/9 — worse, and
+  diagnostic. With the version rule disambiguated, the session partially
+  applied it but broke the final-newline invariant on four other cases
+  while `version` still missed text. Plain phrasing does not produce
+  completeness; the sessions trade requirements at a capacity boundary.
+  A model limitation under this cap and task shape, not a spec-clarity
+  defect. ≈$0.29, one €2 claim (ledger €84), contract `ee05f4db…`. The
+  family's four-launch record (tamper-caught → mount-held →
+  case-identified → answer-measured) is complete as a behavioral study;
+  the matrix stays unmeasured and further launches belong to a redesigned
+  task, not a reworded one.**
 
 ## Claim register
 
