@@ -119,3 +119,13 @@ as launched so the preserved contracts keep verifying.
   wordings are in the repository history at `09e81f120`.
 - Field note 006 is retitled "The requirement we never wrote down"; its
   build-time checks now read `correction.json`.
+
+## Addendum, 12 November: version 5
+
+Added after this record was written; nothing above is changed. The five
+prerequisites are addressed by protocol version 5,
+[release-report-v5](release-report-v5/README.md), prepared offline. It has
+not been launched, and none of it has run inside the jail: the calibration
+this record asks for in point 3 exists and passes over an emulated jail on
+the development machine, and still has to pass on the reference host before
+any approval. Versions 1–4 and the evidence are untouched.

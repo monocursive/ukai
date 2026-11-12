@@ -131,6 +131,35 @@ public derivative:
   task under a new protocol version; the prerequisites are listed in the
   correction record.
 
+## 12 November: release-report v5 prepared (offline, not launched)
+
+No run. [release-report-v5](experiments/release-report-v5/README.md) is the
+repaired task the correction asked for, under protocol/5; versions 1–4 are
+untouched and a test pins their protocol digests to the preserved case
+records.
+
+- **The five prerequisites:** the README states numeric version ordering and
+  three visible tests exercise it; the fixture is real files written as
+  bytes, with `node --check` on every rendered file in the suite; the prompt
+  and the README's module list are rendered from one protocol field, which
+  the reference repair must match; calibration runs the visible tests
+  against the broken and the repaired workspace and runs the reference
+  repair through every lane's documented announce command; the CLI posts
+  through the proxy in `HTTP_PROXY`.
+- **Verified offline (macOS):** reference repair 21/21 visible tests and 9/9
+  on the unchanged checker; broken workspace 11 visible failures by
+  assertion and 5/9; the announce step through a loopback proxy in all five
+  lane configurations; the real `qualify()` end to end over an emulated
+  jail, stopping on four injected faults. Suite **321** passing; evaluation
+  index unchanged (124 = 31 + 93).
+- **Not verified:** anything inside the jail. The emulation contains
+  nothing. One command on the reference host establishes the rest
+  (`release_report.py qualify`, no model, no credential, no budget); it is
+  listed in the version's README with what it stages.
+- **Open:** that in-jail calibration; whether sixteen turns suits the
+  repaired task. No approval, no hold, no launch: the ledger stays at €84
+  held.
+
 ## Experiment classes
 
 | Class | Question | What exists today |
