@@ -14,3 +14,8 @@ case — is the reason. Twenty-turn lane cap.
 - Lineage: [RELEASE-REPORT-PROPOSAL-2026-11-09.md](../RELEASE-REPORT-PROPOSAL-2026-11-09.md)
 
 One matrix, one configuration: no rate, no ranking, no pooled denominator.
+
+**Correction, 12 November.** The reading of the v1–v3 measurements given
+here is withdrawn; see
+[RELEASE-REPORT-CORRECTION-2026-11-12.md](../RELEASE-REPORT-CORRECTION-2026-11-12.md).
+The protocol is kept as launched.

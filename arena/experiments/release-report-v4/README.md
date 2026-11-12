@@ -10,3 +10,8 @@ the five-lane matrix all carried forward.
 
 - Protocol: [protocol.json](protocol.json) (disabled; `execution_enabled: false`)
 - Lineage: [RELEASE-REPORT-PROPOSAL-2026-11-09.md](../RELEASE-REPORT-PROPOSAL-2026-11-09.md)
+
+**Correction, 12 November.** The reading of the v1–v3 measurements given
+here is withdrawn; see
+[RELEASE-REPORT-CORRECTION-2026-11-12.md](../RELEASE-REPORT-CORRECTION-2026-11-12.md).
+The protocol is kept as launched.

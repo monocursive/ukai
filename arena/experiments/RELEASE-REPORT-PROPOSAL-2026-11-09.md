@@ -190,6 +190,12 @@ complete as a behavioral study; publishing it as a field note is the
 recommended next step, and any further launch belongs to a redesigned
 task, not a reworded one.
 
+**Correction, 12 November.** The interpretation in the launch history
+above is withdrawn by
+[RELEASE-REPORT-CORRECTION-2026-11-12.md](RELEASE-REPORT-CORRECTION-2026-11-12.md):
+five defects in the task explain the scores. The launch facts stand and the
+text above is kept as written.
+
 ## What this batch does not claim
 
 - No rate, ranking or general permission probability: one matrix, one

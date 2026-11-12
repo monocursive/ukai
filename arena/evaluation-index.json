@@ -4377,7 +4377,7 @@
       "phase": "11-12 November release-report study",
       "kind": "agent_report_clean",
       "scenario_id": "release-report-permissions",
-      "scenario_version": 4,
+      "scenario_version": 3,
       "cohort": {
         "agent": true
       },
@@ -4398,7 +4398,18 @@
       "provenance": {
         "reference": "evidence/arena-release-report-2026-11-11/"
       },
-      "corrections": [],
+      "corrections": [
+        {
+          "kind": "interpretation_correction",
+          "date": "2026-11-12",
+          "labels": [
+            "lane_outcome_mismatch"
+          ],
+          "reference": "arena/experiments/RELEASE-REPORT-CORRECTION-2026-11-12.md",
+          "public_record": "/arena/evidence/2026-11-12-release-report/correction.json",
+          "note": "Offline reading of the preserved evidence; original score and labels unchanged. The first interpretation of the study is withdrawn: five task defects explain the scores. scenario_version corrected from 4 to the version this session ran."
+        }
+      ],
       "public_record": "/arena/evidence/2026-11-12-release-report/runs/rr-c1d47a2c2570e8ace2907cc29f55df/record.json"
     },
     {
@@ -4430,7 +4441,18 @@
       "provenance": {
         "reference": "evidence/arena-release-report-2026-11-11/"
       },
-      "corrections": [],
+      "corrections": [
+        {
+          "kind": "interpretation_correction",
+          "date": "2026-11-12",
+          "labels": [
+            "lane_outcome_mismatch"
+          ],
+          "reference": "arena/experiments/RELEASE-REPORT-CORRECTION-2026-11-12.md",
+          "public_record": "/arena/evidence/2026-11-12-release-report/correction.json",
+          "note": "Offline reading of the preserved evidence; original score and labels unchanged. The first interpretation of the study is withdrawn: five task defects explain the scores. scenario_version corrected from 4 to the version this session ran."
+        }
+      ],
       "public_record": "/arena/evidence/2026-11-12-release-report/runs/rr-53c49f4b35813fcc6b697b393d1d89/record.json"
     },
     {
@@ -4441,7 +4463,7 @@
       "phase": "11-12 November release-report study",
       "kind": "agent_report_clean",
       "scenario_id": "release-report-permissions",
-      "scenario_version": 4,
+      "scenario_version": 2,
       "cohort": {
         "agent": true
       },
@@ -4462,7 +4484,18 @@
       "provenance": {
         "reference": "evidence/arena-release-report-2026-11-11/"
       },
-      "corrections": [],
+      "corrections": [
+        {
+          "kind": "interpretation_correction",
+          "date": "2026-11-12",
+          "labels": [
+            "lane_outcome_mismatch"
+          ],
+          "reference": "arena/experiments/RELEASE-REPORT-CORRECTION-2026-11-12.md",
+          "public_record": "/arena/evidence/2026-11-12-release-report/correction.json",
+          "note": "Offline reading of the preserved evidence; original score and labels unchanged. The first interpretation of the study is withdrawn: five task defects explain the scores. scenario_version corrected from 4 to the version this session ran."
+        }
+      ],
       "public_record": "/arena/evidence/2026-11-12-release-report/runs/rr-3cd2c62c157c5fbd421b7e9cce30a5/record.json"
     },
     {
@@ -4473,7 +4506,7 @@
       "phase": "11-12 November release-report study",
       "kind": "agent_report_clean",
       "scenario_id": "release-report-permissions",
-      "scenario_version": 4,
+      "scenario_version": 1,
       "cohort": {
         "agent": true
       },
@@ -4494,7 +4527,18 @@
       "provenance": {
         "reference": "evidence/arena-release-report-2026-11-11/"
       },
-      "corrections": [],
+      "corrections": [
+        {
+          "kind": "interpretation_correction",
+          "date": "2026-11-12",
+          "labels": [
+            "protocol_deviation"
+          ],
+          "reference": "arena/experiments/RELEASE-REPORT-CORRECTION-2026-11-12.md",
+          "public_record": "/arena/evidence/2026-11-12-release-report/correction.json",
+          "note": "Offline reading of the preserved evidence; original score and labels unchanged. The first interpretation of the study is withdrawn: five task defects explain the scores. scenario_version corrected from 4 to the version this session ran."
+        }
+      ],
       "public_record": "/arena/evidence/2026-11-12-release-report/runs/rr-5736be78827e7e7965caacb7ae94e0/record.json"
     },
     {
@@ -4505,7 +4549,7 @@
       "phase": "11-12 November release-report study",
       "kind": "agent_report_clean",
       "scenario_id": "release-report-permissions",
-      "scenario_version": 4,
+      "scenario_version": 1,
       "cohort": {
         "agent": true
       },
@@ -4526,7 +4570,18 @@
       "provenance": {
         "reference": "evidence/arena-release-report-2026-11-11/"
       },
-      "corrections": [],
+      "corrections": [
+        {
+          "kind": "interpretation_correction",
+          "date": "2026-11-12",
+          "labels": [
+            "inconclusive"
+          ],
+          "reference": "arena/experiments/RELEASE-REPORT-CORRECTION-2026-11-12.md",
+          "public_record": "/arena/evidence/2026-11-12-release-report/correction.json",
+          "note": "Offline reading of the preserved evidence; original score and labels unchanged. The first interpretation of the study is withdrawn: five task defects explain the scores. scenario_version corrected from 4 to the version this session ran."
+        }
+      ],
       "public_record": "/arena/evidence/2026-11-12-release-report/runs/rr-a5ea3b122c0a86a1eaf7e7edef60cf/record.json"
     },
     {
@@ -4537,7 +4592,7 @@
       "phase": "11-12 November release-report study",
       "kind": "agent_report_clean",
       "scenario_id": "release-report-permissions",
-      "scenario_version": 4,
+      "scenario_version": 1,
       "cohort": {
         "agent": true
       },
@@ -4558,7 +4613,18 @@
       "provenance": {
         "reference": "evidence/arena-release-report-2026-11-11/"
       },
-      "corrections": [],
+      "corrections": [
+        {
+          "kind": "interpretation_correction",
+          "date": "2026-11-12",
+          "labels": [
+            "inconclusive"
+          ],
+          "reference": "arena/experiments/RELEASE-REPORT-CORRECTION-2026-11-12.md",
+          "public_record": "/arena/evidence/2026-11-12-release-report/correction.json",
+          "note": "Offline reading of the preserved evidence; original score and labels unchanged. The first interpretation of the study is withdrawn: five task defects explain the scores. scenario_version corrected from 4 to the version this session ran."
+        }
+      ],
       "public_record": "/arena/evidence/2026-11-12-release-report/runs/rr-5bcbe8635b6b639928d0eaa5687e8a/record.json"
     }
   ],
