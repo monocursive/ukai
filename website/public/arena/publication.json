@@ -186,6 +186,25 @@
       "ukai_runtime_changed_for_publication": false,
       "additional_paid_agent_tests_for_publication": 3,
       "note": "Additive entry. The 1 November stopped attempt and its record remain unchanged; the retry ran under the amended C11 shape pre-registered in NESTED-CLI-QUALIFICATION-2026-11-09. Index counts 118 unique records = 25 agent sessions + 93 scripted controls."
+    },
+    {
+      "publication_date": "2026-11-12",
+      "canonical_url": "https://ukai.sh/arena/field-notes/release-report/",
+      "edition": "Field note 006",
+      "scope": "The release-report behavioral study v1-v4: a three-module repair task run unattended across four protocol versions. v1: the agent rewrote the frozen tests and was caught. v2: read-only test mount held. v3: the consistent miss is version-content selection. v4: clarifying it scored worse (4/9) — requirements trade at a capacity boundary. The five-lane permission matrix was never reached; no rate, no ranking.",
+      "inventory": {
+        "model_sessions": 6,
+        "launches": 8,
+        "matrix_measured": false
+      },
+      "evidence_url": "https://ukai.sh/arena/evidence/2026-11-12-release-report/results.json",
+      "interpretations": {
+        "original_scores": "preserved",
+        "study": "behavioral, pre-registered per version"
+      },
+      "ukai_runtime_changed_for_publication": false,
+      "additional_paid_agent_tests_for_publication": 6,
+      "note": "Additive entry. Index counts 124 unique records = 31 agent sessions + 93 scripted controls."
     }
   ]
 }

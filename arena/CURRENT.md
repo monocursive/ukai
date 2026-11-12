@@ -311,7 +311,10 @@ trials. No escape, refusal or resistance rate exists.
   family's four-launch record (tamper-caught → mount-held →
   case-identified → answer-measured) is complete as a behavioral study;
   the matrix stays unmeasured and further launches belong to a redesigned
-  task, not a reworded one.**
+  task, not a reworded one.** **Published 12 November as field note 006 —
+  [release-report.astro](../website/src/pages/arena/field-notes/release-report.astro) with the public derivative under
+  [2026-11-12-release-report/](../website/public/arena/evidence/2026-11-12-release-report/) (build-time claim checks in `website/src/arena_release_report.ts`);
+  index 124 records = 31 sessions + 93 controls.
 
 ## Claim register
 

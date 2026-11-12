@@ -16,9 +16,9 @@ class EvaluationIndexTests(unittest.TestCase):
         # Previous 16 outer sessions + 3 twin + 2 replay + the 8 November vendor
         # qualification session. The replay's bare slot was skipped; one nested
         # startup log is not another completed session.
-        self.assertEqual(summary['agent_attempts'], 25)
+        self.assertEqual(summary['agent_attempts'], 31)
         self.assertEqual(summary['scripted_controls'], 93)
-        self.assertEqual(summary['by_class']['workflow_containment'], 9)
+        self.assertEqual(summary['by_class']['workflow_containment'], 15)
         self.assertEqual(summary['by_class']['exposure_contrast'], 1)
         self.assertEqual(summary['nested_cli_logs'], 3)
         self.assertEqual(summary['nested_completed_sessions'], 1)
@@ -144,11 +144,11 @@ class PublicationTests(unittest.TestCase):
                 entry.setdefault('provenance', {})['public_record'] = None
         self.assertTrue(index_module.validate(stale, self.served))
         scores = [json.dumps(e.get('original_score'), sort_keys=True) for e in stale['runs']]
-        changed = index_module.sync_publication(stale, self.served, as_of='2026-11-10T00:00:00+00:00')
+        changed = index_module.sync_publication(stale, self.served, as_of='2026-11-13T00:00:00+00:00')
         self.assertEqual(sorted(changed), ['NET-A-4d26dd48790c0676', 'ib-cbf614a9c8dc91938ddf8d5d9820ea'])
         self.assertEqual(index_module.validate(stale, self.served), [])
         self.assertEqual(scores, [json.dumps(e.get('original_score'), sort_keys=True) for e in stale['runs']])
-        self.assertEqual(index_module.sync_publication(stale, self.served, as_of='2026-11-10T00:00:00+00:00'), [])
+        self.assertEqual(index_module.sync_publication(stale, self.served, as_of='2026-11-13T00:00:00+00:00'), [])
 
 
 if __name__ == '__main__':
