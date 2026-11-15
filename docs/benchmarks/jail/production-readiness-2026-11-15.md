@@ -7,6 +7,10 @@ execution. No production release or website deployment was performed. Final
 candidate commit checks and artifact results are tracked on [PR #51](https://github.com/monocursive/ukai/pull/51)
 and in the local `evidence/production-2026-11-15/` records.
 
+The later [qualification follow-up](production-qualification-2026-11-15.md)
+records the exact frozen Linux candidate's completed checks and the separately
+built warm-VM baseline. This pre-build snapshot remains a historical record.
+
 ## Source and scope
 
 - Initial qualification snapshot: `8f8c0f753e1ca2ccf03c3bbe18eb0f16a4220977`.
