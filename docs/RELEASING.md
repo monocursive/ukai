@@ -147,8 +147,14 @@ K90 and NC01 remain blocked pending full release qualification, and the
 protected-Mac release run (K104) stays explicitly blocked while Apple's
 entitlement request is pending. No release
 gate is promoted by these measurements.
-J16 still needs its bundle,
-Info.plist, entitlements and `~/Applications` installer. J18's K108–K113 are
+J16 now has [native candidate tooling](../crates/ukai-jail/dist/macos/README.md)
+for the exact `Ukai.app` layout, macOS 27 Info.plist, clean-source provenance,
+profile-gated signing and per-user install/upgrade/removal with recovery.
+Unsigned staging is not runnable-workflow qualification; no approved Ukai ES
+profile, signed/notarized native candidate or protected-host acceptance has been
+obtained. Signing and notarization are separate explicit maintainer actions.
+Native execution remains disabled by default and NC02/K104 remain blocked.
+J18's K108–K113 are
 `untested`, a policy element the guest jail does not carry refuses with
 `vm:not-carried:<field>`, and no macOS `ukai-jail` client ships in the existing
 public preview or earlier candidate: those packages carry only `ukai-vm`
@@ -159,7 +165,8 @@ that tooling yet; signing, notarization and the installed K108–K113 runs
 remain release requirements.
 Apple's Endpoint Security grant (request `S9YJTLLH28`, submitted 2026-09-29)
 is necessary, but does not by itself make the release run ready. The procedure
-below is a release requirement, not an implemented packaging workflow.
+below remains a release requirement; the candidate tooling implements packaging
+mechanics, not the entitlement grant or live acceptance.
 
 Current implementation: native execution is **off by default**. Setting
 `UKAI_JAIL_MACOS_NATIVE=dev` enables development only; a native receipt records
