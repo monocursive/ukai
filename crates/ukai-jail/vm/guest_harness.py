@@ -404,7 +404,8 @@ class FakeJail:
 
     def write_receipt(self, profile=None, boot_id=None):
         argv = self.workload_argv()
-        receipt = {'schema': 'ukai.jail.receipt/1', 'attempt_id': f'att_guest_{self.pid}',
+        receipt = {'schema': 'ukai.jail.receipt/1',
+                   'attempt_id': f'att_00000000-0000-4000-8000-{self.pid:012x}',
                    'argv_digest': argv_digest(argv),
                    'policy': {'name': profile or os.fsdecode(self.option(b'--profile'))},
                    'process': {'identity': {'value': {'boot_id': boot_id or 'guest-boot-0001'}}}}

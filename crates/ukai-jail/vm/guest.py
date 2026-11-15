@@ -26,6 +26,12 @@ MAX_LINE = 2 * 1024 * 1024
 MAX_BYTES = 32 * 1024 * 1024
 MAX_FILE = 512 * 1024
 MAX_FILES = 5000
+# Journal parts use the existing file transport, never a larger frame. The
+# whole journal has the host summary's scan bound; over-bound evidence is
+# reported as unavailable rather than truncated or an execution failure.
+MAX_JOURNAL = 16 * 1024 * 1024
+JOURNAL_DIR = 'guest-journal'
+JOURNAL_SCHEMA = 'ukai.vm.guest-journal/1'
 CONFIG_DIR = Path(os.environ.get('UKAI_VM_CONFIG_DIR', '/var/lib/ukai-vm/config'))
 WORKSPACE = Path('/home/ukai/workspace')
 EVIDENCE = Path('/home/ukai/evidence')
@@ -895,6 +901,71 @@ def clear_secrets(secrets=None):
         raise OSError('the staged credentials were not removed')
 
 
+def secret_parent(secret_id, secrets=None):
+    """Open an existing controller-owned staging parent; never create/repair it."""
+    root = secrets_root() if secrets is None else Path(secrets)
+    parts = relative(secret_id)
+    current = os.open(root.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for component in (root.name, *parts[:-1]):
+            info = os.fstat(current)
+            if info.st_uid != os.geteuid() or info.st_mode & 0o022:
+                raise ValueError('credential parent ownership changed')
+            child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=current)
+            os.close(current)
+            current = child
+        info = os.fstat(current)
+        if info.st_uid != os.geteuid() or info.st_mode & 0o022:
+            raise ValueError('credential parent ownership changed')
+        return current, parts[-1]
+    except BaseException:
+        os.close(current)
+        raise
+
+
+def staged_secret_identity(secret_id, secrets=None):
+    parent, name = secret_parent(secret_id, secrets)
+    try:
+        info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_mode & 0o077:
+            raise ValueError('credential entry is not one private regular file')
+        return info.st_dev, info.st_ino
+    finally:
+        os.close(parent)
+
+
+def revoke_secrets(ids, staged, revoked, secrets=None):
+    """Unlink only remembered staged inodes. A partial failure never acknowledges.
+
+    The parent is controller-owned, so the workload cannot replace its entry
+    between the identity check and unlink. Remember revoked IDs until reset;
+    a repeated command or changed entry is a transport failure, not success.
+    """
+    if (type(ids) is not list or not ids or any(type(key) is not str for key in ids)
+            or ids != sorted(set(ids)) or any(key not in staged or key in revoked for key in ids)):
+        raise Refusal('invalid_secret_revocation')
+    for key in ids:
+        try:
+            parent, name = secret_parent(key, secrets)
+            try:
+                info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+                if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                        or (info.st_dev, info.st_ino) != staged[key]):
+                    raise ValueError('credential entry changed')
+                os.unlink(name, dir_fd=parent)
+                try:
+                    os.stat(name, dir_fd=parent, follow_symlinks=False)
+                except FileNotFoundError:
+                    pass
+                else:
+                    raise ValueError('credential entry remains')
+            finally:
+                os.close(parent)
+        except (OSError, ValueError):
+            raise Refusal('secret_revocation_failed') from None
+        revoked.add(key)
+
+
 def clear_attempt_files():
     """Everything one attempt staged outside its directories."""
     clear_secrets()
@@ -994,7 +1065,76 @@ def receipt_binding(request, receipt, guest_boot_id):
                 profile=request['profile'], argv_digest=digest)
 
 
-def export_outputs(send, in_session, run_request, guest_boot_id):
+def journal_export(receipt_bytes, data_dir):
+    """Read only this receipt's journal, anchored without following any link.
+
+    The workload tree has already ended. No private-state tree is walked and
+    no credential source is opened. Source absence/read failure/size limits
+    describe evidence availability; they do not change the execution verdict.
+    """
+    receipt = json.loads(receipt_bytes)
+    attempt = receipt.get('attempt_id')
+    if type(attempt) is not str or re.fullmatch(
+            r'att_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}',
+            attempt) is None:
+        raise Refusal('journal_identity_invalid')
+    manifest = dict(schema=JOURNAL_SCHEMA, guest_attempt_id=attempt,
+                    guest_receipt_sha256=hashlib.sha256(receipt_bytes).hexdigest(),
+                    state='unreadable', bytes=None, parts=0, sha256=None)
+    descriptors = []
+    payload = None
+    try:
+        # Absolute, controller-selected state root; anchor every component,
+        # including parents that the workload account owns.
+        path = Path(data_dir)
+        if not path.is_absolute():
+            raise ValueError('guest state root must be absolute')
+        descriptor = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        descriptors.append(descriptor)
+        for component in (*path.parts[1:], 'attempts', attempt):
+            descriptor = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                                 dir_fd=descriptor)
+            descriptors.append(descriptor)
+        descriptor = os.open('trace.ndjson', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                             dir_fd=descriptor)
+        descriptors.append(descriptor)
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+            raise OSError('journal is not one regular file')
+        manifest['bytes'] = before.st_size
+        if before.st_size > MAX_JOURNAL:
+            manifest['state'] = 'not_scanned'
+        else:
+            with os.fdopen(os.dup(descriptor), 'rb') as source:
+                payload = source.read(MAX_JOURNAL + 1)
+            after = os.fstat(descriptor)
+            if (len(payload) != before.st_size or len(payload) > MAX_JOURNAL
+                    or (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
+                    != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns)):
+                payload = None
+                manifest['state'] = 'unreadable'
+            else:
+                manifest.update(state='exported', sha256=hashlib.sha256(payload).hexdigest(),
+                                parts=(len(payload) + MAX_FILE - 1) // MAX_FILE)
+    except FileNotFoundError:
+        payload = None
+        manifest['bytes'] = None
+        manifest['state'] = 'absent'
+    except (OSError, ValueError):
+        payload = None
+        manifest['state'] = 'unreadable'
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+    files = []
+    if payload is not None:
+        files.extend((f'{JOURNAL_DIR}/{index:04}.part', payload[offset:offset + MAX_FILE])
+                     for index, offset in enumerate(range(0, len(payload), MAX_FILE)))
+    files.append((f'{JOURNAL_DIR}/manifest.json', json.dumps(manifest, sort_keys=True).encode()))
+    return files
+
+
+def export_outputs(send, in_session, run_request, guest_boot_id, data_dir=None):
     """Send the finished attempt's regular files to the host and return the
     bound receipt's binding (None outside a session).
 
@@ -1014,6 +1154,7 @@ def export_outputs(send, in_session, run_request, guest_boot_id):
     count = 0
     total = 0
     binding = None
+    receipt_bytes = None
     groups = ([(EVIDENCE, 'evidence')] if WORKSPACE == SHARE_MOUNT
               else [(WORKSPACE, 'workspace'), (EVIDENCE, 'evidence')])
 
@@ -1028,6 +1169,8 @@ def export_outputs(send, in_session, run_request, guest_boot_id):
                 raise Refusal('export_nonregular')
             for name in names:
                 path = Path(directory) / name
+                if label == 'evidence' and path.relative_to(root).parts[0] == JOURNAL_DIR:
+                    raise Refusal('journal_export_collision')
                 try:
                     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
                 except OSError as error:
@@ -1044,6 +1187,10 @@ def export_outputs(send, in_session, run_request, guest_boot_id):
                     if count > MAX_FILES or total > MAX_BYTES or info.st_size > MAX_FILE:
                         raise Refusal('export_limit')
                     payload = source.read(MAX_FILE + 1)
+                    if len(payload) != info.st_size or len(payload) > MAX_FILE:
+                        raise Refusal('export_limit')
+                if label == 'evidence' and path.name == 'jail.json' and path.parent == EVIDENCE:
+                    receipt_bytes = payload
                 if in_session and label == 'evidence' and path.name == 'jail.json' and path.parent == EVIDENCE:
                     try:
                         binding = receipt_binding(run_request, json.loads(payload), guest_boot_id)
@@ -1053,6 +1200,14 @@ def export_outputs(send, in_session, run_request, guest_boot_id):
                       'executable': bool(info.st_mode & 0o111), 'data': base64.b64encode(payload).decode()})
     if in_session and binding is None:
         raise Refusal('receipt_missing')
+    if receipt_bytes is not None and data_dir is not None:
+        for path, payload in journal_export(receipt_bytes, data_dir):
+            count += 1
+            total += len(payload)
+            if count > MAX_FILES or total > MAX_BYTES or len(payload) > MAX_FILE:
+                raise Refusal('export_limit')
+            send({'event': 'file', 'group': 'evidence', 'path': path,
+                  'executable': False, 'data': base64.b64encode(payload).decode()})
     return binding
 
 
@@ -1115,6 +1270,9 @@ def main():
     # the stop spares these and nothing else of the account.
     infrastructure = None
     run_request = None
+    staged_secrets = {}
+    revoked_secrets = set()
+    attempt_started = False
     guest_boot_id = (PROC_ROOT / 'sys/kernel/random/boot_id').read_text().strip()
 
     def end_attempt():
@@ -1154,7 +1312,7 @@ def main():
 
     def start(request):
         """Starts the jail for a validated `run` or `run2` request."""
-        nonlocal process, stream_count, wall_deadline
+        nonlocal process, stream_count, wall_deadline, attempt_started
         profile, wall, argv, allow_hosts, launch = validate_run(request, WORKSPACE == SHARE_MOUNT)
         command = run_command(profile, argv, wall, allow_hosts=allow_hosts, launch=launch)
         env = attempt_environment(account)
@@ -1171,6 +1329,7 @@ def main():
                                    stderr=subprocess.PIPE, cwd=WORKSPACE, env=env,
                                    user=account.pw_uid, group=account.pw_gid, extra_groups=[])
         move_into_attempt_cgroup(attempt_cgroup, process.pid)
+        attempt_started = True
         for stream, name in [(process.stdout, 'stdout'), (process.stderr, 'stderr')]:
             selector.register(stream, selectors.EVENT_READ, name)
         stream_count = 2
@@ -1286,9 +1445,12 @@ def main():
                         globals()['launch_toml'] = None
                         end_attempt()
                         reset_attempt(account)
+                        staged_secrets.clear()
+                        revoked_secrets.clear()
+                        attempt_started = False
                         uploaded = files = output_bytes = 0
                         send({'event': 'reset'})
-                    elif op == 'secret' and process is None and in_session:
+                    elif op == 'secret' and process is None and in_session and not attempt_started:
                         # J18 §6 transport: the value crosses the vsock once
                         # and lands in tmpfs for this attempt only (never the
                         # guest disk); a vaulted launch profile's sources
@@ -1297,20 +1459,29 @@ def main():
                         # serve cancels it), never a controller crash.
                         secret_id, data = request.get('id'), request.get('data')
                         try:
-                            if type(secret_id) is not str or type(data) is not str:
+                            if (type(secret_id) is not str or type(data) is not str
+                                    or secret_id in staged_secrets):
                                 raise ValueError('ill-typed secret frame')
                             path = stage_secret(secret_id, base64.b64decode(data, validate=True),
                                                 account=account)
+                            staged_secrets[secret_id] = staged_secret_identity(secret_id)
                         except (ValueError, OSError) as error:
                             send({'event': 'error', 'message': 'secret_refused:' + type(error).__name__})
                             continue
                         send({'event': 'secret', 'id': secret_id, 'path': str(path)})
+                    elif op == 'revoke_secrets' and in_session and process is not None:
+                        ids = request.get('ids')
+                        revoke_secrets(ids, staged_secrets, revoked_secrets)
+                        send({'event': 'secrets_revoked', 'ids': ids})
                     elif op == 'cancel2' and in_session:
                         # The attempt lease's end-of-file reached the host's
                         # ukai-vm, which passes the cancellation on. The
                         # session and the VM stay up; no timer was involved.
                         end_attempt()
                         reset_attempt(account)
+                        staged_secrets.clear()
+                        revoked_secrets.clear()
+                        attempt_started = False
                         discard_attempt()
                         audit('attempt_cancelled')
                         send({'event': 'cancelled'})
@@ -1330,7 +1501,8 @@ def main():
                 # jail's own tree verdict against it.
                 stop = end_attempt()
             try:
-                binding = export_outputs(send, in_session, run_request, guest_boot_id)
+                binding = export_outputs(send, in_session, run_request, guest_boot_id,
+                                         Path(account.pw_dir) / '.local/share/ukai')
             except Refusal as refusal:
                 poweroff(refusal.reason)
             send({'event': 'done', 'exit_code': process.returncode,
