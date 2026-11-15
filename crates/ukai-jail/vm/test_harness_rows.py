@@ -2095,19 +2095,39 @@ class VmClientStandardInput(unittest.TestCase):
             return call.func.id if isinstance(call.func, ast.Name) else (
                 call.func.attr if isinstance(call.func, ast.Attribute) else None)
 
-        def forwarded_spawn(name):
-            """Only a single direct argv-forwarding spawn qualifies as a wrapper."""
+        def forwarded_spawn(name, visiting=frozenset()):
+            """Trace one argv-forwarding spawn, including bounded wrapper chains.
+
+            A lowercase injected spawner is recognized only when its default
+            is explicitly subprocess.Popen/run/etc. Cycles, ambiguous wrappers
+            and transformed argv parameters remain uncovered and fail closed.
+            """
             found = functions.get(name, [])
-            if len(found) != 1:
+            if len(found) != 1 or name in visiting:
                 return None
             wrapper = found[0]
-            children = [n for n in ast.walk(wrapper) if isinstance(n, ast.Call) and spawn_name(n) in self.SPAWNERS]
-            parameters = [arg.arg for arg in wrapper.args.args]
-            if len(children) == 1 and children[0].args:
-                command = children[0].args[0]
+            aliases = set()
+            positional = wrapper.args.posonlyargs + wrapper.args.args
+            defaults = list(zip(positional[-len(wrapper.args.defaults):], wrapper.args.defaults)) if wrapper.args.defaults else []
+            defaults += list(zip(wrapper.args.kwonlyargs, wrapper.args.kw_defaults))
+            for parameter, default in defaults:
+                if (isinstance(default, ast.Attribute) and isinstance(default.value, ast.Name)
+                        and default.value.id == 'subprocess' and default.attr in self.SPAWNERS):
+                    aliases.add(parameter.arg)
+            parameters = [arg.arg for arg in positional]
+            children = []
+            for call in (n for n in ast.walk(wrapper) if isinstance(n, ast.Call)):
+                called = spawn_name(call)
+                if called in self.SPAWNERS | aliases:
+                    forwarded = (call, 0)
+                else:
+                    forwarded = forwarded_spawn(called, visiting | {name})
+                if forwarded is None or len(call.args) <= forwarded[1]:
+                    continue
+                command = call.args[forwarded[1]]
                 if isinstance(command, ast.Name) and command.id in parameters:
-                    return children[0], parameters.index(command.id)
-            return None
+                    children.append((forwarded[0], parameters.index(command.id)))
+            return children[0] if len(children) == 1 else None
 
         spawns, covered = {}, set()
         for function in ast.walk(tree):
@@ -2156,8 +2176,9 @@ class VmClientStandardInput(unittest.TestCase):
         # fault_matrix 1, proxy_measurement 1, vault_measurement 2, warm_live 1,
         # gate_rows 2 (K111 under script(1), K112 both lanes), claude_vm_row 2
         # (literal plus the shared native run/task-check process wrapper),
-        # credential_revocation_measurement 2 (normal client and sync).
-        self.assertEqual(sites, 11)
+        # credential_revocation_measurement 2 (normal client and sync),
+        # claude_vm_revocation 1 (one bounded collector for vendor and sync).
+        self.assertEqual(sites, 12)
 
     def test_factored_argv_and_spawn_still_check_actual_stdin(self):
         template = """def argv(j):
@@ -2176,6 +2197,36 @@ def main(j, run):
                 spawns, constants, covered = self.spawns(template.format(stdin=argument))
                 self.assertEqual(spawns, [(6, expected)])
                 self.assertEqual(len(covered), len(constants))
+
+    def test_injected_collector_and_nested_forwarder_check_real_stdin(self):
+        template = """def argv(j):
+    return [j, 'run', '--vm'], ['suffix']
+def collect(command, *, popen=subprocess.Popen):
+    return popen(command{stdin})
+def main(j):
+    def execute(label, command):
+        return collect(command)
+    command, suffix = argv(j)
+    collect(command)
+    execute('sync', [j, 'run', '--vm', '--', '/bin/sync'])
+"""
+        for argument, expected in [('', False), (', stdin=sys.stdin', 'sys.stdin'),
+                                   (', stdin=subprocess.DEVNULL', 'subprocess.DEVNULL')]:
+            spawns, constants, covered = self.spawns(template.format(stdin=argument))
+            self.assertEqual(spawns, [(4, expected)])
+            self.assertEqual(len(covered), len(constants))
+        # A name alone is not proof that the injected callable is a spawner.
+        changed = template.format(stdin=', stdin=subprocess.DEVNULL').replace('subprocess.Popen', 'other.Popen')
+        spawns, constants, covered = self.spawns(changed)
+        self.assertEqual(spawns, []); self.assertEqual(covered, set()); self.assertEqual(len(constants), 2)
+
+    def test_recursive_or_multiple_spawn_wrapper_stays_uncovered(self):
+        for helpers in [
+            'def first(command):\n    return second(command)\ndef second(command):\n    return first(command)\n',
+            'def first(command):\n    subprocess.run(command, stdin=subprocess.DEVNULL)\n    subprocess.Popen(command, stdin=subprocess.DEVNULL)\n',
+        ]:
+            spawns, constants, covered = self.spawns(helpers + "def main(j):\n    first([j, '--vm'])\n")
+            self.assertEqual(spawns, []); self.assertEqual(covered, set()); self.assertEqual(len(constants), 1)
 
     def test_the_check_sees_a_missing_or_other_stdin(self):
         for text, expected in [

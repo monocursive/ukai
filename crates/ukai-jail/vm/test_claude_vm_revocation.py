@@ -361,7 +361,7 @@ result=m.replay(target)
 print(json.dumps({'outcome':result['outcome'],'qualified':result['qualified']}))
 """
         done=subprocess.run([sys.executable,'-B','-c',script,str(self.root),str(other)],stdin=subprocess.DEVNULL,
-                            capture_output=True,text=True,timeout=10)
+                            capture_output=True,text=True,timeout=10,cwd=Path(__file__).resolve().parent)
         self.assertEqual(done.returncode,0,done.stderr)
         self.assertEqual(json.loads(done.stdout),{'outcome':'PASS','qualified':False})
 
