@@ -530,6 +530,20 @@ your launch profile; normal login state is not exposed automatically. See the
 [launch profile reference](https://github.com/monocursive/ukai/blob/dev/docs/specs/jail-v1/operating.md#launch-profiles-and-credentials)
 for the configuration format.
 
+For a recorded working provider configuration, see the
+[15 November candidate onboarding record](benchmarks/jail/results/release-preview-2026-11-15-rc6/README.md).
+It uses OpenCode 1.18.32, `anthropic/claude-sonnet-5-5`, and the
+[`opencode-vault` operator profile in the harness](benchmarks/jail/onboarding_guest.py)
+with an Anthropic API key stored by `ukai-jail credential set anthropic`.
+The profile maps a vault placeholder to `ANTHROPIC_API_KEY`; the real key stays
+outside the agent. Copy the `VAULT_PROFILE` TOML to your configuration directory's
+`launch/opencode-vault.toml`, set its mode to 0600, and use
+`--launch opencode-vault` and OpenCode's `--model anthropic/claude-sonnet-5-5`.
+Review it with `explain` first. The bundled profile does not select or authenticate
+a provider, and the historical free-tier examples do not establish current
+provider availability. This record covers one task and one learning run on the
+named Linux candidate; other versions and native macOS remain experimental.
+
 OpenCode 1.18.32 uses `rg` for file search. Without it, OpenCode attempts a
 GitHub download that the starter profile refuses. Provision the tool before
 launch instead of widening the network policy. For a private tool installation,

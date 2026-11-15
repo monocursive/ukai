@@ -45,6 +45,8 @@ jobs:
           python3 -m unittest discover -s docs/benchmarks -p test_check_evidence_store.py
       - name: VM transport boundary regressions (no live VM)
         run: python3 -m unittest discover -s crates/ukai-jail/vm -p 'test_*.py'
+      - name: Native macOS candidate tooling (synthetic signing and installation)
+        run: python3 -m unittest discover -s crates/ukai-jail/dist/macos -p 'test_*.py'
       - name: macOS mechanism evidence regressions (no live workloads)
         run: |
           python3 -m unittest discover -s docs/benchmarks/jail -p test_macos_es_pair_summary.py
