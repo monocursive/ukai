@@ -184,8 +184,10 @@ implementation is work in progress on `dev`, and
 ran on 2026-11-01 and found an open `launchctl kickstart` deputy route to both
 custodians; the route was closed and re-measured in the same VM on 2026-11-02
 ([kickstart-fix record](benchmarks/jail/results/macos-k90-kickstart-fix-2026-11-02/README.md)),
-and K90 and NC01 remain blocked pending full release qualification. J16 still
-needs packaging, Apple's entitlement and the protected-Mac acceptance run.
+and K90 and NC01 remain blocked pending full release qualification. J16 now has
+[native candidate packaging tools](../crates/ukai-jail/dist/macos/README.md) and
+an unsigned installation check. It still needs an approved ES provisioning
+profile, a signed/notarized candidate and the protected-Mac acceptance run.
 J18's K108–K113 are `untested`; a `run --vm` with an explicit 1–300 s wall
 passes probing on development evidence only (below).
 The following describes the intended contract.

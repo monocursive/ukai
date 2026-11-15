@@ -144,15 +144,17 @@ from the inherited bootstrap port, the launcher now strips that port before
 the exec ([bootstrap-strip
 record](benchmarks/jail/results/macos-k90-bootstrap-strip-2026-11-02/README.md)).
 K90 and NC01 remain blocked pending full release qualification, and the
-protected-Mac release run (K104) stays explicitly blocked while Apple's
-entitlement request is pending. No release
-gate is promoted by these measurements.
+protected-Mac release run (K104) stays explicitly blocked without a usable
+approved ES profile and protected-host acceptance. The November 15 local
+provisioning inventory found no matching profile; Apple's account-side decision
+was not verified. No release gate is promoted by these measurements.
 J16 now has [native candidate tooling](../crates/ukai-jail/dist/macos/README.md)
 for the exact `Ukai.app` layout, macOS 27 Info.plist, clean-source provenance,
 profile-gated signing and per-user install/upgrade/removal with recovery.
 Unsigned staging is not runnable-workflow qualification; no approved Ukai ES
-profile, signed/notarized native candidate or protected-host acceptance has been
-obtained. Signing and notarization are separate explicit maintainer actions.
+profile was available locally, and no signed/notarized native candidate or
+protected-host acceptance was obtained. Signing and notarization are separate
+explicit maintainer actions.
 Native execution remains disabled by default and NC02/K104 remain blocked.
 J18's K108–K113 are
 `untested`, a policy element the guest jail does not carry refuses with
