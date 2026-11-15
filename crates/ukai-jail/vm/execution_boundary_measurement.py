@@ -42,6 +42,8 @@ def judge(record):
             image_identified=bool(SHA256.fullmatch(status.get('disk_sha256', ''))),
             service_binary_identified=bool(SHA256.fullmatch(record['binary'].get('sha256', ''))),
             distinct_attempts=len({r.get('attempt_id') for r in results.values()}) == len(ATTEMPTS),
+            distinct_guest_attempts=len({capabilities.receipt_of(r).get('attempt_id')
+                                        for r in results.values()}) == len(ATTEMPTS),
             distinct_execution_cgroups=len({capabilities.lifetime_details(r)
                                             .get('execution_cgroup', {}).get('path')
                                             for r in results.values()}) == len(ATTEMPTS),
@@ -54,8 +56,15 @@ def judge(record):
             lifetime = receipt.get('lifetime') or {}
             execution = capabilities.lifetime_details(attempt).get('execution_cgroup') or {}
             stop = attempt.get('guest_stop') or {}
+            binding = attempt.get('binding') or {}
+            guest_boot = (((receipt.get('process') or {}).get('identity') or {}).get('value') or {}).get('boot_id')
             checks = {
                 'receipt_bound': harness.receipt_bound(attempt),
+                'guest_receipt_identity_bound': bool(receipt.get('attempt_id'))
+                    and binding.get('guest_attempt_id') == receipt['attempt_id']
+                    and bool(guest_boot) and binding.get('guest_boot_id') == guest_boot,
+                'linux_receipt': receipt.get('schema') == 'ukai.jail.receipt/1'
+                    and (receipt.get('platform') or {}).get('os') == 'linux',
                 'measurement_time': utc_time(attempt.get('started_at')),
                 'settled_enforced': receipt.get('phase') == 'settled'
                     and receipt.get('containment') == 'enforced'

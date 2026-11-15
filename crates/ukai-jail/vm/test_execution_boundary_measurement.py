@@ -38,6 +38,10 @@ class ExecutionBoundaryMeasurementTests(unittest.TestCase):
             mutations = (
                 lambda r: r.update(receipt_digest_ok=False),
                 lambda r: r['binding'].update(attempt_id='another-attempt'),
+                lambda r: r['receipt'].update(attempt_id='another-guest-attempt'),
+                lambda r: r['receipt']['process']['identity']['value'].update(boot_id='another-guest-boot'),
+                lambda r: r['receipt'].update(schema='unknown-schema'),
+                lambda r: r['receipt']['platform'].update(os='macos'),
                 lambda r: r['receipt'].update(phase='running'),
                 lambda r: r['receipt'].update(containment='not_enforced'),
                 lambda r: r['receipt'].update(child_protection='not_enforced'),
