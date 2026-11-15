@@ -235,10 +235,12 @@ release needs a fresh reference conformance rerun on the VPS, followed by
 freeze intentionally removes that record and cannot establish release readiness;
 only a successful matching reference run can restore it.
 
-Set the reviewed coordinates and production key:
+Set a new, reviewed candidate version and the production key. The example
+below names the unpublished rc.6 candidate; it does not change the published
+rc.5 release. Never reuse a published version for different bytes:
 
 ```sh
-release_version=0.1.0-rc.5
+release_version=0.1.0-rc.6
 release_revision=$(git rev-parse HEAD)
 release_public_key=$(sed -n '2p' crates/ukai-jail/dist/release.pub)
 release_private_key="$HOME/.config/ouroboros/release-keys/ouro-jail-2026-10-10.key"
