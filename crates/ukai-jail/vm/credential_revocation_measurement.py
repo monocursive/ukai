@@ -28,6 +28,7 @@ import vault_measurement
 
 
 CREDENTIAL = 'test'
+CREDENTIAL_ENV = 'AGENT_TOKEN'
 DISCONNECT_BOUND = 5.0
 ACK_BOUND = 2.0
 
@@ -111,12 +112,29 @@ class StreamingPeer(http.server.BaseHTTPRequestHandler):
             witness.finished.set()
 
 
+def launch_profile(source, address, port):
+    """One explicit, non-reserved fixture binding for normal and raw lanes."""
+    return f'''name = "revocation-measurement"
+jail = "agent"
+credentials_one_of = ["test"]
+[credentials.test]
+mode = "vault"
+source = {json.dumps(str(source))}
+hosts = ["http://{address}:{port}"]
+allow_plaintext = true
+header = {{ name = "x-test-token" }}
+env = {json.dumps(CREDENTIAL_ENV)}
+[network]
+allow = ["{address}:{port}"]
+'''
+
+
 def guest_script(address, port):
     # The child holds a placeholder, not the synthetic credential. No value
     # or vendor key is embedded in this argv. The first read cannot finish
     # normally: the peer never sends the terminating chunk.
     return f'''import hashlib, os, re, urllib.error, urllib.request
-token = os.environ.get('UKAI_VAULT_TEST', '')
+token = os.environ.get({CREDENTIAL_ENV!r}, '')
 shown = token if re.fullmatch({vault_measurement.PLACEHOLDER_SHAPE!r}, token) else '-'
 print('PLACEHOLDER', hashlib.sha256(token.encode()).hexdigest(), len(token), shown, flush=True)
 def request(path):
@@ -537,7 +555,7 @@ def replay_raw(root, exact_inputs=None):
         launch = tomllib.loads(inputs['launch_toml'])
         expected_credential = {'mode': 'vault', 'source': '/run/ukai-vm/credentials/test',
             'hosts': [f'http://{address}:{port}'], 'allow_plaintext': True,
-            'header': {'name': 'x-test-token'}, 'env': 'UKAI_VAULT_TEST'}
+            'header': {'name': 'x-test-token'}, 'env': CREDENTIAL_ENV}
         facts['exact_probe_declaration_and_argv'] = (launch == {'name': 'revocation-measurement', 'jail': 'agent',
             'credentials_one_of': ['test'], 'credentials': {'test': expected_credential},
             'network': {'allow': [f'{address}:{port}']}}
@@ -579,19 +597,7 @@ def raw_main(args):
     threading.Thread(target=server.serve_forever, daemon=True).start()
     port = server.server_address[1]
     allow_host = f'{address}:{port}'
-    launch = f'''name = "revocation-measurement"
-jail = "agent"
-credentials_one_of = ["test"]
-[credentials.test]
-mode = "vault"
-source = "/run/ukai-vm/credentials/test"
-hosts = ["http://{address}:{port}"]
-allow_plaintext = true
-header = {{ name = "x-test-token" }}
-env = "UKAI_VAULT_TEST"
-[network]
-allow = ["{allow_host}"]
-'''
+    launch = launch_profile('/run/ukai-vm/credentials/test', address, port)
     command = ['/usr/bin/python3', '-c', guest_script(address, port)]
     env = harness.vm_client_environment(PATH=f'{home}/bin:/usr/bin:/bin', UKAI_VM_HOME=home,
                                         UKAI_DATA_DIR=data, UKAI_CONFIG_DIR=config)
@@ -771,19 +777,7 @@ def main(argv=None):
     source = source_dir / 'token'
     config = Path(tempfile.mkdtemp(prefix='ukai-revoke-config-')).resolve()
     (config / 'launch').mkdir(mode=0o700)
-    profile = f'''name = "revocation-measurement"
-jail = "agent"
-credentials_one_of = ["test"]
-[credentials.test]
-mode = "vault"
-source = {json.dumps(str(source))}
-hosts = ["http://{address}:{port}"]
-allow_plaintext = true
-header = {{ name = "x-test-token" }}
-env = "UKAI_VAULT_TEST"
-[network]
-allow = ["{address}:{port}"]
-'''
+    profile = launch_profile(source, address, port)
     (config / 'launch/revocation-measurement.toml').write_text(profile)
     (config / 'launch/revocation-measurement.toml').chmod(0o600)
     data = Path(tempfile.mkdtemp(prefix='ukai-revoke-data-')).resolve()

@@ -4,6 +4,8 @@ import base64
 import hashlib
 import http.server
 import json
+import os
+import tomllib
 from pathlib import Path
 import shutil
 import socket
@@ -73,6 +75,43 @@ class PeerTests(unittest.TestCase):
         self.assertIn("response.read()", script)
         self.assertIn('timeout=30', script)
         compile(script, '<guest>', 'exec')
+
+
+class LaunchProfileTests(unittest.TestCase):
+    def test_raw_and_normal_profiles_use_the_same_nonreserved_child_binding(self):
+        for source in ('/run/ukai-vm/credentials/test', '/private/synthetic-source'):
+            launch = tomllib.loads(measurement.launch_profile(source, '192.0.2.1', 1234))
+            self.assertEqual(launch['credentials']['test']['env'], 'AGENT_TOKEN')
+            self.assertEqual(launch['credentials']['test']['source'], source)
+            self.assertIn("os.environ.get('AGENT_TOKEN', '')", measurement.guest_script('192.0.2.1', 1234))
+
+    @unittest.skipUnless(os.environ.get('UKAI_JAIL_TEST_BINARY'), 'explicit native parser test binary not supplied')
+    def test_actual_launch_parser_accepts_fixture_and_refuses_reserved_negative_control(self):
+        # `explain` resolves the actual launch rules without probing a backend,
+        # starting a child. Its private source is synthetic and local.
+        binary = Path(os.environ['UKAI_JAIL_TEST_BINARY']).resolve(strict=True)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            workspace = root / 'workspace'; workspace.mkdir()
+            config = root / 'config'; (config / 'launch').mkdir(parents=True)
+            profile = config / 'launch/revocation-measurement.toml'
+            source = root / 'synthetic-source'
+            source.write_text('synthetic-fixture-parser-value')
+            source.chmod(0o600)
+            launch = measurement.launch_profile(source, '192.0.2.1', 1234)
+            env = dict(os.environ, UKAI_CONFIG_DIR=str(config), UKAI_DATA_DIR=str(root / 'data'))
+            command = [str(binary), 'explain', '--profile', 'agent', '--launch', 'revocation-measurement',
+                       '--workspace', str(workspace), '--json']
+            profile.write_text(launch)
+            profile.chmod(0o600)
+            good = subprocess.run(command, env=env, capture_output=True, text=True, timeout=30)
+            self.assertEqual(good.returncode, 0, good.stderr)
+            profile.write_text(launch.replace('env = "AGENT_TOKEN"', 'env = "UKAI_VAULT_TEST"'))
+            bad = subprocess.run(command, env=env, capture_output=True, text=True, timeout=30)
+            self.assertNotEqual(bad.returncode, 0)
+            self.assertIn('launch.credentials.test.env', bad.stderr)
+            self.assertIn('reserved Ukai name', bad.stderr)
+            self.assertEqual(source.read_text(), 'synthetic-fixture-parser-value')
 
 
 class JudgeTests(unittest.TestCase):
@@ -400,7 +439,7 @@ source = "/run/ukai-vm/credentials/test"
 hosts = ["http://{address}:{port}"]
 allow_plaintext = true
 header = {{ name = "x-test-token" }}
-env = "UKAI_VAULT_TEST"
+env = "AGENT_TOKEN"
 [network]
 allow = ["{address}:{port}"]
 '''
