@@ -113,6 +113,44 @@ credential-revocation and measurement-tool changes are a separate workstream;
 they must receive their own source-bound package and live results before any
 capability or compatibility claim changes.
 
+## Signed guest admission follow-up
+
+The separate signed package at clean source
+`53e5605fd9d0728ea46da2449c635f364ba2b4f4` includes bound guest journal export,
+source-generation revocation and the actual guest Session contract handshake.
+Its DMG SHA-256 is
+`b399e8f7116180f3fe9dbb2c4c8540387f101e44a762bd567f23389644431c44`.
+All six strict signature checks and seven actual mounted-DMG installer cases
+passed. Independent verification matched installed bytes, source provenance,
+the signed Linux guest and the Apple Developer ID requirement.
+
+All ten guest capability rows passed again on this image. A separate boundary
+judge passed 121 checks across four resource/tree attempts. A synthetic raw
+transport experiment passed 24 checks after correcting its offline judge to
+accept the complete valid Outcome schema. The unchanged original FAIL report
+is retained. The guest acknowledged removal in about 114 ms; the accepted
+upstream stream closed about 204 ms after revocation, and a subsequent request
+was denied without another upstream credential use. Full bound journal export,
+cleanup and same-boot disk scans passed.
+
+The [bounded reproducible proof](results/macos-vm-admission-2026-11-15/README.md)
+backs twelve image-scoped capability rows. Both the guest disk and seed must
+match before any capability answers available; the exact guest revocation and
+journal contracts remain mandatory before secret transfer. Rebuilding or
+re-signing host helpers requires fresh installed-client validation and does
+not inherit host qualification. Unsupported policy carry, swap capability and
+owner-loss guarantees remain unavailable.
+
+The full VM Python suite at clean tooling `1cb8f1af7` passed 517 tests with
+three explicit platform skips, using byte-snapshots of this signed package's
+service/client. It exercised no live VM. The earlier full Mac workspace run at
+`bb10b8572` passed 2,449 tests with seven deliberate ignored tests; subsequent
+handshake changes received targeted Rust and guest/service checks. These are
+component and portable checks, not native Endpoint Security acceptance.
+
+Normal installed-client source revocation, vendor compatibility, full K113,
+independent installed-host acceptance and notarization remain separate gates.
+
 ## Remaining release limits
 
 No usable Endpoint Security provisioning profile was found among the 17 local
@@ -124,7 +162,7 @@ passed staging/install/upgrade/removal checks and correctly refused production
 distribution and native workload admission.
 
 The warm-VM route does not require Endpoint Security, but still needs its
-corrected credential lifecycle, full K113 evidence, independent installed-host
+normal installed-client credential lifecycle, full K113 evidence, independent installed-host
 acceptance and notarization. No usable notarization credential was located in
 the inspected local metadata; no notarization submission was made. Existing
 scope limits, including unsupported owner-loss guarantees, remain explicit.

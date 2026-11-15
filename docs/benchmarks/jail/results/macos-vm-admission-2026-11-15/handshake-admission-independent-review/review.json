@@ -1,0 +1,228 @@
+{
+  "schema": "ukai.vm.admission-independent-review/1",
+  "reviewer_scope": "Read-only artifact identity, derived admission and execution-boundary evidence; no capability table write",
+  "result": "PASS",
+  "qualified": false,
+  "source_revision": "53e5605fd9d0728ea46da2449c635f364ba2b4f4",
+  "replay_helper_revision": "1cb8f1af7eab7b1064a576f4d830ec0cd2e807c1",
+  "raw_replay": {
+    "outcome": "PASS",
+    "facts": 24,
+    "errors": [],
+    "inputs_sha256": "5d0b1ab4256b418f967fc78597e24f070e2998bd2658f830ed649af312cb3178",
+    "original_report_preserved": "FAIL"
+  },
+  "credential_admission_exact_rederive": true,
+  "execution_boundary": {
+    "verdict": true,
+    "facts": 121,
+    "source_record_sha256": "a7c6520a681ee12fe15ace25586946e69cf1a1182c5813b15b575a24c91d803e"
+  },
+  "artifact_checks": {
+    "handshake-package/ukai-vm-0.1.0-preview.2-macos-arm64.dmg": {
+      "developer_id_signature": true,
+      "sha256_match": true
+    },
+    "handshake-installer/prefix with spaces/share/ukai-vm/0.1.0-preview.2/bin/ukai-vm": {
+      "developer_id_signature": true,
+      "sha256_match": true
+    },
+    "handshake-installer/prefix with spaces/share/ukai-vm/0.1.0-preview.2/bin/ukai-jail": {
+      "developer_id_signature": true,
+      "sha256_match": true
+    },
+    "handshake-installer/prefix with spaces/share/ukai-vm/0.1.0-preview.2/image/vz": {
+      "developer_id_signature": true,
+      "sha256_match": true
+    },
+    "handshake-installer/prefix with spaces/share/ukai-vm/0.1.0-preview.2/image/custodian": {
+      "developer_id_signature": true,
+      "sha256_match": true
+    },
+    "installed-image-json": {
+      "sha256_match": true
+    },
+    "guest-source-commit": {
+      "sha256_match": true
+    }
+  },
+  "consistency_checks": {
+    "capability_facts_recomputed_match": true,
+    "capability_summary_recomputed_match": true,
+    "capability_measurements_match": true,
+    "capability_status_exact_image": true,
+    "capability_ready_exact_image": true,
+    "capability_ready_contracts": true,
+    "boundary_service_exact": true,
+    "raw_client_exact": true,
+    "source_version_matches": true,
+    "guest_controller_source_bound": true
+  },
+  "permitted_interpretation": "Evidence supports admitting only vault guest/service credential staging and measured execution boundary on the exact authenticated image and matching guest contract versions. It does not establish normal installed-client source monitoring, copied credentials, program-bound credentials, refresh, vendor/TLS compatibility, owner-loss behavior or full K113/release qualification.",
+  "signature_limit": "Apple Developer ID signatures were freshly verified on the actual DMG and four binaries. Notarization was not established. A source-only proof bundle can replay records but cannot independently reproduce Apple signature verification without retrieving the exact DMG by its digest.",
+  "inventory": {
+    "files": [
+      {
+        "path": "handshake-capabilities/capabilities.json",
+        "bytes": 633715,
+        "sha256": "a7c6520a681ee12fe15ace25586946e69cf1a1182c5813b15b575a24c91d803e",
+        "role": "core"
+      },
+      {
+        "path": "handshake-credential-admission/credential-staging.json",
+        "bytes": 14852,
+        "sha256": "00f68bd3efbc99738f10ce206b05bd56d4df016afd68b4451195c43d9573fe8f",
+        "role": "core"
+      },
+      {
+        "path": "handshake-execution-boundary/execution-boundary.json",
+        "bytes": 7966,
+        "sha256": "ad34238c13d36afa7abef3c48cb81b4e8010b32d629ee0676cf5d57606b72e31",
+        "role": "core"
+      },
+      {
+        "path": "handshake-lifecycle.json",
+        "bytes": 355,
+        "sha256": "f1f7da3f893d7e66265621a7da6c667d69d36dc8580f01513e106bb3d74ab628",
+        "role": "core"
+      },
+      {
+        "path": "handshake-package/package.json",
+        "bytes": 12871,
+        "sha256": "c8974247cef7acfe904a6184ee04e8b5d9b27945f524743340994f00d49db734",
+        "role": "optional-context"
+      },
+      {
+        "path": "handshake-package/volume/SHA256SUMS",
+        "bytes": 1403,
+        "sha256": "7ab8b14b31579fb5fe669c3d5886d5add9e439e8c542adab66e7e87c8ff83c0a",
+        "role": "core"
+      },
+      {
+        "path": "handshake-raw-credential/auxiliary-output.txt",
+        "bytes": 2,
+        "sha256": "75a11da44c802486bc6f65640aa48a730f0f684c5c07a42ba3cd1735eb3fb070",
+        "role": "core"
+      },
+      {
+        "path": "handshake-raw-credential/guest-artifact/evidence/guest-journal/0000.part",
+        "bytes": 8271,
+        "sha256": "6ef07e67a4e7dea3af463a7b7fd2beea4c20b46c0641056a1c4ee27949c640f8",
+        "role": "core"
+      },
+      {
+        "path": "handshake-raw-credential/guest-artifact/evidence/guest-journal/manifest.json",
+        "bytes": 319,
+        "sha256": "43266e2f68f8407eaf8104e1f02a5c2921c30ceb272b204d13c63ecfe93fadd2",
+        "role": "core"
+      },
+      {
+        "path": "handshake-raw-credential/guest-artifact/evidence/jail.json",
+        "bytes": 11628,
+        "sha256": "c0f1ba744dde3c57609c3dc3ca58ffa7d0132ec9558b372bf0d5d7c6a9288e4a",
+        "role": "core"
+      },
+      {
+        "path": "handshake-raw-credential/guest-tail.json",
+        "bytes": 2701,
+        "sha256": "ef895a8a105a5aca1c5fe68c780e2b7776e4aa9d78a8077a95e9efe0c278d624",
+        "role": "core"
+      },
+      {
+        "path": "handshake-raw-credential/guest-tail.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "role": "core"
+      },
+      {
+        "path": "handshake-raw-credential/guest-tail.txt",
+        "bytes": 583,
+        "sha256": "7dc12f253e1216a0a99efcf086edfcb4249aa3bf1d9220a21b20583e7cdc775f",
+        "role": "core"
+      },
+      {
+        "path": "handshake-raw-credential/image.json",
+        "bytes": 10547,
+        "sha256": "7d30ad0fbc2e8f794eb548d9addd4a47a375bc18ff20dc1b54033a4a1fa03649",
+        "role": "core"
+      },
+      {
+        "path": "handshake-raw-credential/raw-credential-revocation.json",
+        "bytes": 33193,
+        "sha256": "77b9cf38fa531f0fb731024e9b19c59518d023b66d76471573a43c87b060f21c",
+        "role": "core"
+      },
+      {
+        "path": "handshake-raw-credential/raw-inputs.json",
+        "bytes": 41722,
+        "sha256": "5d0b1ab4256b418f967fc78597e24f070e2998bd2658f830ed649af312cb3178",
+        "role": "core"
+      },
+      {
+        "path": "handshake-raw-credential/raw-launch.toml",
+        "bytes": 307,
+        "sha256": "2a6fc94e77851f212880e5f49f87d485e33aaca9ee51e31c44899a9e14655786",
+        "role": "core"
+      },
+      {
+        "path": "handshake-raw-credential/raw-stderr.txt",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "role": "core"
+      },
+      {
+        "path": "handshake-raw-credential/raw-stdout.txt",
+        "bytes": 198,
+        "sha256": "9fc351a21b96640a604be47181202bbbc49983d10924097dcf13d40b89d75957",
+        "role": "core"
+      },
+      {
+        "path": "handshake-raw-credential/sync-artifact/evidence/jail.json",
+        "bytes": 8481,
+        "sha256": "b9ee89157c56e098d06d7d9743eb1d2a1bb23702e7bcc752ad8bab1dacf8bf4b",
+        "role": "core"
+      },
+      {
+        "path": "handshake-signed-install-independent.json",
+        "bytes": 11987,
+        "sha256": "cc99a6690e8c4c7e88d99c01d7fbf43125789fbb24b8ff2f128765c619aa2f5f",
+        "role": "core"
+      },
+      {
+        "path": "handshake-version.json",
+        "bytes": 1009,
+        "sha256": "48ebf46a4bfbc60cfb549c2df9fabcd4f037d009398de4e784c275a707d91f41",
+        "role": "core"
+      },
+      {
+        "path": "k113-tooling/fixture-env-53e5605fd/initial-failure-review.json",
+        "bytes": 529,
+        "sha256": "263a9e7f78ae0b7c7efa2246b9fe2a709ef20ee67fb2191088df5f8289f3e981",
+        "role": "optional-context"
+      },
+      {
+        "path": "k113-tooling/outcome-replay-1cb8f1af7/review.json",
+        "bytes": 3267,
+        "sha256": "05612799cff10a55b1317a55a07cfeaec8a61dfaeabe810e52770a5e855bab78",
+        "role": "optional-context"
+      }
+    ],
+    "core_bytes": 789239,
+    "total_bytes": 805906
+  },
+  "privacy": {
+    "credentials_detected": false,
+    "scan_scope": "UTF-8 proposed proof files only; private-key block/API-key/raw synthetic-secret patterns plus prior exact live synthetic spelling scans. Pattern absence is not a universal secret guarantee. No real provider credentials were used in this synthetic run.",
+    "retained_metadata": {
+      "raw-inputs.json": "capture.service_status.live_workspace has an absolute operator workspace path; raw argv and receipt references contain LAN192.168.1.6",
+      "raw-launch.toml": "LAN192.168.1.6 endpoint",
+      "guest receipt and journal": "LAN192.168.1.6 network endpoint plus guest process/cgroup identities",
+      "optional package.json": "build.cargo_target_dir has absolute operator cache path"
+    },
+    "exclude_from_bounded_import": [
+      "handshake-signatures.json (absolute paths and Developer ID certificate holder labels; independent review records precise verification without these labels)",
+      "DMG, executable binaries, VM disks, seed ISO, source archive, pyinstaller build output, private keys, temporary source directories"
+    ],
+    "redaction_constraint": "Do not mutate exact raw inputs/launch/receipt/journal; hashes/canonical binding would no longer replay. Retain exact evidence privately or knowingly retain this nonsecret machine metadata; an independently redacted presentation is not replay authority."
+  }
+}

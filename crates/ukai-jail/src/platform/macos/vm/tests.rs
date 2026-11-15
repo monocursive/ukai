@@ -1539,10 +1539,9 @@ fn request(snapshot: PolicySnapshot) -> PlanRequest {
     }
 }
 
-/// The requirements the 2026-11-04 evening live phase measured, each by its
-/// own attempts (`macos-vm-probes-2026-11-04/capabilities.json`), in the
-/// record's order.
-const LIVE_MEASURED: [&str; 10] = [
+/// Current installed-image probes plus the two separately derived admissions,
+/// in the table's order. Their schemas and source records are checked below.
+const LIVE_MEASURED: [&str; 12] = [
     "limit:wall",
     "limit:pids",
     "limit:mem",
@@ -1553,6 +1552,8 @@ const LIVE_MEASURED: [&str; 10] = [
     "syscall_filter",
     "protected_coverage:existing_and_root",
     "network_proxy",
+    "execution_boundary",
+    "credential_staging",
 ];
 
 /// Decision D2: exactly the requirements the live phase measured answer
@@ -1566,7 +1567,7 @@ fn only_the_live_phase_measurements_answer_available() {
         .map(|row| row.requirement)
         .collect();
     assert_eq!(listed, LIVE_MEASURED);
-    let platform = platform(Path::new("/unused"));
+    let platform = measured_platform();
     let owner = platform
         .owner_identity()
         .expect("VM supervisor is a macOS process");
@@ -1601,7 +1602,7 @@ fn only_the_live_phase_measurements_answer_available() {
             .iter()
             .find(|row| row.name == "tree_termination")
             .expect("every plan requires tree termination");
-        assert!(tree.satisfies(), "measured on 2026-11-04: {tree:?}");
+        assert!(tree.satisfies(), "measured on 2026-11-15: {tree:?}");
         assert!(
             rows.iter().all(Capability::satisfies),
             "a default plan passes probing: {rows:?}"
@@ -1616,35 +1617,174 @@ fn only_the_live_phase_measurements_answer_available() {
     );
 }
 
-/// Each row's record is in the repository: its pointer names a `true`
-/// verdict under `/measurements/<requirement>`, its time is the time that
-/// entry states and the start of the attempt the entry names, and the record
-/// passed as a whole.
+fn measured_platform() -> VmPlatform {
+    let mut result = platform(Path::new("/unused"));
+    result.install.manifest.disk_sha256 = GUEST_MEASURED_DISK_SHA256.into();
+    result.install.manifest.seed_sha256 = GUEST_MEASURED_SEED_SHA256.into();
+    result
+}
+
+#[test]
+fn measured_guest_identity_is_required_before_any_capability_is_available() {
+    let mut required = tool();
+    required.limits.mem = Some(LimitCeiling {
+        value: (512 * 1024 * 1024).to_string(),
+        required: true,
+    });
+    let plans = [
+        request(tool()),
+        request(required),
+        request(agent_with_launch(VAULT_LAUNCH)),
+    ];
+    for plan in &plans {
+        let platform = measured_platform();
+        assert!(platform.probe(plan).iter().all(Capability::satisfies));
+        // Signing host helpers again changes their signatures, not guest bytes.
+        let mut resigned = platform.clone();
+        resigned.install.manifest.helper_sha256 = "a".repeat(64);
+        resigned.install.manifest.custodian_sha256 = "b".repeat(64);
+        assert!(resigned.probe(plan).iter().all(Capability::satisfies));
+        for (disk, seed) in [(false, true), (true, false), (false, false)] {
+            let mut other = platform.clone();
+            if !disk {
+                other.install.manifest.disk_sha256 = "0".repeat(64);
+            }
+            if !seed {
+                other.install.manifest.seed_sha256 = "0".repeat(64);
+            }
+            let rows = other.probe(plan);
+            assert!(!rows.is_empty());
+            assert!(rows.iter().all(|row| !row.satisfies()
+                && row.reason_code.as_deref()
+                    == Some(format!("{REASON_VM_NOT_MEASURED}{}", row.name).as_str())
+                && row.measured_at.is_none()
+                && row.evidence_ref.is_none()));
+        }
+    }
+    // Admission does not invent the still unmeasured swap requirement.
+    let mut swap = tool();
+    swap.limits.swap = Some(LimitCeiling {
+        value: "0".into(),
+        required: true,
+    });
+    assert!(
+        measured_platform()
+            .probe(&request(swap))
+            .iter()
+            .any(|row| row.name == "limit:swap" && !row.satisfies())
+    );
+}
+
+/// Follow each schema's evidence linkage, rather than treating every derived
+/// admission as a capabilities.py row or trusting a stored PASS alone.
 #[test]
 fn every_measurement_row_resolves_in_its_record() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let bundle = root.join("docs/benchmarks/jail/results/macos-vm-admission-2026-11-15");
+    let read = |path: &Path| -> (Vec<u8>, serde_json::Value) {
+        let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let record = serde_json::from_slice(&bytes).unwrap();
+        (bytes, record)
+    };
+    let (cap_bytes, capabilities) = read(&bundle.join("handshake-capabilities/capabilities.json"));
+    let (raw_bytes, raw) = read(&bundle.join("handshake-raw-credential/raw-inputs.json"));
+    let (_, measured_image) = read(&bundle.join("handshake-raw-credential/image.json"));
+    assert_eq!(measured_image["disk_sha256"], GUEST_MEASURED_DISK_SHA256);
+    assert_eq!(measured_image["seed_sha256"], GUEST_MEASURED_SEED_SHA256);
+    assert_eq!(
+        capabilities["status"]["disk_sha256"],
+        GUEST_MEASURED_DISK_SHA256
+    );
+    assert_eq!(
+        capabilities["status"]["seed_sha256"],
+        GUEST_MEASURED_SEED_SHA256
+    );
     for row in GUEST_MEASUREMENTS {
         let (path, pointer) = row.record.split_once('#').expect("path#pointer");
-        let bytes = std::fs::read(root.join(path)).unwrap_or_else(|e| panic!("{path}: {e}"));
-        let record: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let (_, record) = read(&root.join(path));
         assert_eq!(
             record.pointer(pointer),
             Some(&serde_json::Value::Bool(true)),
             "{}",
             row.record
         );
-        let entry_pointer = pointer
-            .strip_suffix("/verdict")
-            .expect("a row points at a verdict");
+        let entry_pointer = pointer.strip_suffix("/verdict").expect("verdict pointer");
         assert_eq!(entry_pointer, format!("/measurements/{}", row.requirement));
         let entry = record.pointer(entry_pointer).unwrap();
         assert_eq!(entry["measured_at"], row.measured_at, "{}", row.record);
-        let capability = entry["capability"].as_str().expect("capability name");
-        let attempt = &record["results"][capability];
-        assert_eq!(attempt["started_at"], row.measured_at, "{}", row.record);
-        assert_eq!(attempt["attempt_id"], entry["attempt_id"], "{}", row.record);
-        assert_eq!(record["summary"][capability], true, "{}", row.record);
-        assert_eq!(record["summary"]["outcome"], "PASS");
+        assert!(!entry["attempt_id"].as_str().unwrap().is_empty());
+        match record["schema"].as_str().unwrap() {
+            "ukai.vm.capabilities/2" => {
+                let capability = entry["capability"].as_str().expect("capability name");
+                let attempt = &record["results"][capability];
+                assert_eq!(attempt["started_at"], row.measured_at);
+                assert_eq!(attempt["attempt_id"], entry["attempt_id"]);
+                assert_eq!(record["summary"][capability], true);
+                assert_eq!(record["summary"]["outcome"], "PASS");
+            }
+            "ukai.vm.execution-boundary-measurement/1" => {
+                assert_eq!(row.requirement, "execution_boundary");
+                assert_eq!(record["outcome"], "PASS");
+                assert_eq!(
+                    record["source_record_sha256"],
+                    format!("{:x}", sha2::Sha256::digest(&cap_bytes))
+                );
+                let names = ["pids", "mem", "tree_termination", "tree_wall"];
+                let attempts: Vec<_> = names
+                    .iter()
+                    .map(|name| capabilities["results"][name]["attempt_id"].clone())
+                    .collect();
+                assert_eq!(entry["attempt_ids"], serde_json::json!(attempts));
+                assert_eq!(entry["attempt_id"], attempts[0]);
+                assert_eq!(
+                    entry["measured_at"],
+                    capabilities["results"]["pids"]["started_at"]
+                );
+                let facts = record["facts"].as_object().unwrap();
+                assert!(!facts.is_empty() && facts.values().all(|value| value == true));
+                assert_eq!(record["status"], capabilities["status"]);
+            }
+            "ukai.vm.credential-staging-measurement/2" => {
+                assert_eq!(row.requirement, "credential_staging");
+                assert_eq!(record["outcome"], "PASS");
+                assert_eq!(record["qualified"], false);
+                assert_eq!(
+                    record["source_record_sha256"],
+                    format!("{:x}", sha2::Sha256::digest(&raw_bytes))
+                );
+                assert_eq!(entry["attempt_id"], raw["record"]["attempt_id"]);
+                assert_eq!(
+                    entry["guest_attempt_id"],
+                    raw["record"]["receipt"]["attempt_id"]
+                );
+                assert_eq!(entry["measured_at"], raw["record"]["started_at"]);
+                assert_eq!(record["installation"]["image"], measured_image);
+                assert_eq!(
+                    record["compatibility"]["required_guest_image"],
+                    serde_json::json!({
+                        "disk_sha256": GUEST_MEASURED_DISK_SHA256,
+                        "seed_sha256": GUEST_MEASURED_SEED_SHA256,
+                    })
+                );
+                assert_eq!(
+                    raw["record"]["ready"]["guest_contracts"],
+                    serde_json::json!({
+                        "secret_revocation": protocol::SECRET_REVOCATION_CONTRACT,
+                        "journal_export": protocol::JOURNAL_EXPORT_CONTRACT,
+                    })
+                );
+                let facts = record["recomputed_facts"].as_object().unwrap();
+                assert!(!facts.is_empty() && facts.values().all(|value| value == true));
+                assert!(
+                    entry["not_measured"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|value| value == "normal installed-client host-source watch")
+                );
+            }
+            schema => panic!("unrecognized measurement schema {schema}"),
+        }
     }
 }
 
