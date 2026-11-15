@@ -97,6 +97,67 @@ class NativeUsageTests(unittest.TestCase):
         self.assertEqual(row.native_output('token', ['token']), (True, ''), 'unsafe replacement is withheld')
 
 
+class NativeApiBoundsTests(unittest.TestCase):
+    def arguments(self, *extra):
+        return ['installed', 'workspace', 'out', 'jail', '--execution-mode', 'guest-native',
+                '--credential-kind', 'api-key', '--credential-source', '/not-read', '--case', 'a01',
+                '--native-api-bounds', '--api-model', 'sonnet', '--api-max-budget-usd', '0.25', *extra]
+
+    def test_explicit_bounds_are_reusable_for_single_tasks_without_enabling_matrix(self):
+        for case in ('a01', 'small-task', 'missing-source'):
+            args = row.parse_args(self.arguments('--case', case))
+            controls = row.native_api_controls(args)
+            command, suffix = row.native_argv('jail', 'workspace', case, api_controls=controls)
+            self.assertEqual(command[command.index('--') + 1:], suffix)
+            self.assertEqual(suffix[-6:], ['--model', 'sonnet', '--max-budget-usd', '0.25',
+                                          '--bare', '--no-session-persistence'])
+            self.assertEqual(controls['max_budget_usd'], '0.25')
+            self.assertEqual(controls['requested_model'], 'sonnet')
+            self.assertIsNone(controls['turn_limit'])
+            self.assertEqual(controls['wall_seconds'], 240)
+            self.assertEqual(controls['client_timeout_seconds'], 420)
+            self.assertNotIn('--max-turns', suffix)
+            self.assertNotIn('/not-read', suffix)
+
+    def test_incompatible_credential_scope_matrix_and_missing_bounds_refuse_before_source_read(self):
+        cases = [self.arguments('--credential-kind', 'oauth'), self.arguments('--compatibility'),
+                 self.arguments('--execution-mode', 'workspace-literal'), self.arguments('--case', 'marker')]
+        for option in ('--native-api-bounds', '--api-model', '--api-max-budget-usd'):
+            args = self.arguments(); i = args.index(option); del args[i:i + (1 if option == '--native-api-bounds' else 2)]
+            cases.append(args)
+        with mock.patch.object(row, 'private_source', side_effect=AssertionError('must not read')):
+            for args in cases:
+                with self.subTest(args=args), mock.patch('sys.stderr'), self.assertRaises(SystemExit): row.parse_args(args)
+
+    def test_budget_is_finite_positive_small_and_canonical_decimal(self):
+        for value, expected in [('0.01', '0.01'), ('0.1', '0.10'), ('0.25', '0.25'), ('1', '1.00')]:
+            self.assertEqual(row.parse_args(self.arguments('--api-max-budget-usd', value)).api_max_budget_usd, expected)
+        for value in ('0', '-1', '1.01', 'NaN', 'Infinity', '1e-2', '0.001', '0.25;anything', ' 0.25'):
+            with self.subTest(value=value), mock.patch('sys.stderr'), self.assertRaises(SystemExit):
+                row.parse_args(self.arguments('--api-max-budget-usd', value))
+        for value in ('claude-sonnet-5-5', 'opus', 'sonnet;anything'):
+            with self.subTest(model=value), mock.patch('sys.stderr'), self.assertRaises(SystemExit):
+                row.parse_args(self.arguments('--api-model', value))
+
+    def test_reported_cost_is_checked_without_claiming_a_billing_or_turn_limit(self):
+        controls = row.native_api_controls(row.parse_args(self.arguments()))
+        for cost, expected in [(0, True), (.25, True), (.250001, False), (1, False)]:
+            value = vendor_result(); value['total_cost_usd'] = cost
+            usage = row.native_vendor_usage(value)
+            self.assertIs(row.native_api_reported_cost_within_budget(usage, controls), expected)
+            self.assertEqual(usage['models'][0]['model'], 'claude-sonnet-5-5')
+        for usage in (None, {'state': 'complete'}, {**row.native_vendor_usage(vendor_result()), 'total_cost_usd': True}):
+            self.assertFalse(row.native_api_reported_cost_within_budget(usage, controls))
+        self.assertIn('not independent billing enforcement', controls['scope'])
+        self.assertIsNone(controls['turn_limit'])
+
+    def test_existing_native_and_literal_modes_do_not_gain_api_only_bare_flags(self):
+        args = row.parse_args(['installed', 'workspace', 'out', 'jail'])
+        self.assertIsNone(row.native_api_controls(args))
+        _, suffix = row.native_argv('jail', 'workspace', 'a01')
+        self.assertEqual(suffix, ['-p', row.A01_PROMPT, '--dangerously-skip-permissions', '--output-format', 'json'])
+
+
 class CompatibilityTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp(prefix='k113-compat-test-')).resolve()
@@ -493,6 +554,29 @@ class NativeModeTests(unittest.TestCase):
         self.assertIsNone(args.credential_source)
         with mock.patch('sys.stderr'), self.assertRaises(SystemExit):
             row.parse_args(self.args('--execution-mode', 'guest-native', '--case', 'missing-source', '--compatibility'))
+
+    def test_missing_source_bounded_api_lane_uses_exact_declared_argv_without_reading_source(self):
+        args = self.args('--execution-mode', 'guest-native', '--credential-kind', 'api-key',
+                         '--case', 'missing-source', '--native-api-bounds', '--api-model', 'sonnet',
+                         '--api-max-budget-usd', '0.25')
+        profile = row.native_context(self.home, self.jail)['profile']
+        hints = '\n'.join(profile['credentials'][name]['hint'] for name in profile['credentials_one_of'])
+        calls = []
+        def execute(command, **options):
+            calls.append(command)
+            self.addCleanup(shutil.rmtree, Path(options['env']['UKAI_DATA_DIR']), True)
+            self.assertEqual(options['stdin'], subprocess.DEVNULL)
+            self.assertEqual(command[-6:], ['--model', 'sonnet', '--max-budget-usd', '0.25', '--bare', '--no-session-persistence'])
+            return subprocess.CompletedProcess(command, 2, '', 'credential_unavailable launch.credentials_one_of: none is present; claude-oauth anthropic\n' + hints)
+        with mock.patch.object(row, 'private_source', side_effect=AssertionError('no provider source read')):
+            self.assertEqual(row.main(args, run=execute), 0)
+        self.assertEqual(len(calls), 1)
+        report = json.loads((self.out / 'k113-native.json').read_bytes())
+        self.assertEqual(report['outcome'], 'PASS')
+        self.assertFalse(report['qualified'])
+        self.assertEqual(report['api_controls']['max_budget_usd'], '0.25')
+        self.assertEqual(report['api_controls']['requested_model'], 'sonnet')
+        self.assertEqual(report['api_controls']['pinned_vendor_help_sha256'], row.CLAUDE_HELP_SHA256)
 
     def test_installed_catalog_must_match_profile_vendor_and_installed_binaries(self):
         context = row.native_context(self.home, self.jail)

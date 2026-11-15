@@ -44,11 +44,18 @@ after the first failed lane. They retain typed vendor-reported cost/model usage
 and scan six credential encoding classes; these checks do not independently
 meter provider billing or qualify the missing revocation and credential rows.
 
+--native-api-bounds is a separate, single API-key A01/small-task/missing-source lane. It
+requires explicit --api-model sonnet and --api-max-budget-usd, uses the
+pinned vendor's API-only --bare mode, and never schedules a compatibility
+matrix or claims an unadvertised turn limit. Its cost check uses the vendor's
+reported usage; it does not independently enforce a provider billing ceiling.
+
 Usage: claude_vm_row.py <installed-root> <workspace> <out> <ukai-jail> [options]
 """
 import argparse
 import base64
 import contextlib
+from decimal import Decimal, InvalidOperation
 import hashlib
 import json
 import math
@@ -72,6 +79,7 @@ CLAUDE_BINARY = 'claude'          # staged in the workspace by the caller
 CLAUDE_VERSION = '2.1.311'        # downloads.claude.ai manifest, linux-arm64
 CLAUDE_SHA256 = ('2e2496c9a8065df93acb0fca2d341f59'
                  'a6b8777649b2e025ab8c9bcd5eef61f3')
+CLAUDE_HELP_SHA256 = 'fc9af56f65f8a84a9e7e98cd538ccac13f57d1cc0e22099666508198ba88d64d'
 # Exact signed Linux guest candidate used by the native image preparation.
 # A self-consistent catalog alone cannot select another jail artifact.
 NATIVE_GUEST_JAIL_SHA256 = '118c8bdda8c7bd5b5957bce15171ff418fb7df0350de795770532beaee2e3462'
@@ -363,6 +371,19 @@ def _compatibility_facts(row, guest, summary, events):
             'measurement_passed': row.get('outcome') == 'PASS'}
 
 
+def api_budget(value):
+    """A small, explicit decimal vendor budget, canonicalized before argv."""
+    try:
+        if type(value) is not str or re.fullmatch(r'[0-9]{1,2}(?:\.[0-9]{1,2})?', value) is None:
+            raise ValueError
+        amount = Decimal(value)
+        if not amount.is_finite() or not Decimal('0.01') <= amount <= Decimal('1.00'):
+            raise ValueError
+        return format(amount, '.2f')
+    except (ValueError, InvalidOperation):
+        raise argparse.ArgumentTypeError('API budget must be a decimal amount from 0.01 to 1.00 USD') from None
+
+
 def parse_args(argv):
     parser = argparse.ArgumentParser(description='Measure a scoped warm-VM Claude row; no qualification is implied.')
     for name in ('home', 'workspace', 'out', 'jail'):
@@ -373,11 +394,23 @@ def parse_args(argv):
     parser.add_argument('--compatibility', action='store_true')
     parser.add_argument('--execution-mode', choices=('workspace-literal', 'guest-native'),
                         default='workspace-literal', help='explicit native catalog mode; no workspace executable or launch override')
+    parser.add_argument('--native-api-bounds', action='store_true',
+                        help='single API-key A01/small-task/missing-source run using documented bare mode; not an OAuth or matrix lane')
+    parser.add_argument('--api-model', choices=('sonnet',))
+    parser.add_argument('--api-max-budget-usd', type=api_budget)
     args = parser.parse_args(argv)
     if args.credential_kind == 'api-key' and args.credential_source is None and args.case != 'missing-source':
         parser.error('--credential-kind api-key requires --credential-source')
     if args.execution_mode == 'guest-native' and args.credential_source is None and (args.compatibility or args.case != 'missing-source'):
         parser.error('guest-native mode requires an explicit --credential-source; it never discovers operator credentials')
+    if args.native_api_bounds:
+        if (args.execution_mode != 'guest-native' or args.credential_kind != 'api-key'
+                or args.case not in ('a01', 'small-task', 'missing-source') or args.compatibility):
+            parser.error('--native-api-bounds requires one guest-native api-key a01/small-task/missing-source lane')
+        if args.api_model is None or args.api_max_budget_usd is None:
+            parser.error('--native-api-bounds requires explicit --api-model and --api-max-budget-usd')
+    elif args.api_model is not None or args.api_max_budget_usd is not None:
+        parser.error('API model/budget options require --native-api-bounds')
     return args
 
 
@@ -823,9 +856,23 @@ def native_context(home, jail):
             'exposure_control': native_exposure_control(metadata)}
 
 
-def native_argv(jail, workspace, case):
+def native_api_controls(args):
+    if not args.native_api_bounds:
+        return None
+    return {'schema': 'ukai.vm.native-api-controls/1', 'credential_kind': 'api-key',
+            'requested_model': args.api_model, 'max_budget_usd': args.api_max_budget_usd,
+            'auth_mode': 'bare-api-key-only', 'session_persistence': False,
+            'wall_seconds': 240, 'client_timeout_seconds': RUN_TIMEOUT_SECONDS, 'turn_limit': None,
+            'pinned_vendor_help_sha256': CLAUDE_HELP_SHA256,
+            'scope': 'Single API-key bounded run. Vendor-declared budget and reported costs are not independent billing enforcement; no OAuth or K113 qualification.'}
+
+
+def native_argv(jail, workspace, case, *, api_controls=None):
     prompt = {'marker': PROMPT, 'a01': A01_PROMPT, 'small-task': TASK_PROMPT, 'missing-source': PROMPT}[case]
     suffix = ['-p', prompt, '--dangerously-skip-permissions', '--output-format', 'json']
+    if api_controls is not None:
+        suffix += ['--model', api_controls['requested_model'], '--max-budget-usd', api_controls['max_budget_usd'],
+                   '--bare', '--no-session-persistence']
     command = [str(jail), 'run', '--vm', '--from-path', '--launch', 'claude', '--state', 'attempt',
                '--terminal', 'detach', '--profile', 'agent', *harness.vm_wall(240),
                '--workspace', str(workspace), '--', *suffix]
@@ -947,6 +994,16 @@ def native_usage_valid(value):
         return native_vendor_usage({'total_cost_usd': value['total_cost_usd'], 'num_turns': value['num_turns'],
                                     'usage': value['usage'], 'modelUsage': models}) == value and value['state'] == 'complete'
     except (KeyError, TypeError, ValueError):
+        return False
+
+
+def native_api_reported_cost_within_budget(usage, controls):
+    """A reported-cost verdict after execution, not authority over billing."""
+    try:
+        return (native_usage_valid(usage)
+                and controls['max_budget_usd'] == api_budget(controls['max_budget_usd'])
+                and Decimal(str(usage['total_cost_usd'])) <= Decimal(controls['max_budget_usd']))
+    except (KeyError, TypeError, ValueError, InvalidOperation, argparse.ArgumentTypeError):
         return False
 
 
@@ -1089,6 +1146,9 @@ def native_main(args, *, run=subprocess.run):
                 'credential_kind': args.credential_kind,
                 'credential_id': 'anthropic' if args.credential_kind == 'api-key' else 'claude-oauth',
                 'qualified': False, 'not_measured': NATIVE_PENDING}
+    api_controls = native_api_controls(args)
+    if api_controls is not None:
+        observed['api_controls'] = api_controls
     token = b''; spellings = []; outputs = {}; attempt = None; source = None
     structured_vendor_leak = False
     host, guest, events, summary, binding, context, suffix = {}, {}, None, {}, {}, {}, []
@@ -1123,7 +1183,7 @@ def native_main(args, *, run=subprocess.run):
                 spellings = native_secret_spellings(token)
                 descriptor = os.open(source, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
                 with os.fdopen(descriptor, 'wb') as target: target.write(token)
-            command, suffix = native_argv(jail, workspace, args.case)
+            command, suffix = native_argv(jail, workspace, args.case, api_controls=api_controls)
             observed['request_argv_digest'] = harness.argv_digest(['claude', *suffix])
             observed['resolved_argv_digest'] = harness.argv_digest([*context['entry']['argv_prefix'], *suffix])
             started = time.monotonic()
@@ -1244,6 +1304,9 @@ def native_main(args, *, run=subprocess.run):
             try: observed['facts'] = native_facts(observed, guest, events, summary, context, suffix, binding, host)
             except (KeyError, TypeError, ValueError): observed['facts'] = {'evidence_well_formed': False}
             observed['facts']['exact_attempt_and_inputs_retained'] = bool(observed.get('inputs_sha256'))
+            if api_controls is not None:
+                observed['facts']['vendor_reported_cost_within_requested_budget'] = native_api_reported_cost_within_budget(
+                    observed.get('vendor_usage'), api_controls)
         else:
             observed.setdefault('facts', {'missing_source_refusal': False})
             observed['facts']['service_cleanup_verified'] = observed['service_shutdown']['complete']
