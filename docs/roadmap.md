@@ -77,6 +77,11 @@ The proof uses the installed, Developer-ID-signed package built from source
 `53e5605fd`. It does not qualify a rebuilt host client, normal host source
 monitoring, vendor compatibility or full K113. K108–K113 remain `untested`.
 
+The separate [signed `9ceada861` host candidate](benchmarks/jail/production-qualification-2026-11-15.md#corrected-signed-host-candidate)
+records fresh installed synthetic source-watch, warm-workflow, bounded wall
+termination and source-rebuild checks. It remains private and unnotarized;
+those results do not establish vendor compatibility or full release acceptance.
+
 You can [build the jail and try a small command](https://github.com/monocursive/ukai/blob/dev/docs/guide.md#build-and-check-your-host)
 today. [Signed Linux developer-preview packages](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.5)
 are also available; a Homebrew tap remains unconfigured.

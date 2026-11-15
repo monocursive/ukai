@@ -148,8 +148,9 @@ service/client. It exercised no live VM. The earlier full Mac workspace run at
 handshake changes received targeted Rust and guest/service checks. These are
 component and portable checks, not native Endpoint Security acceptance.
 
-Normal installed-client source revocation, vendor compatibility, full K113,
-independent installed-host acceptance and notarization remain separate gates.
+Normal installed-client source revocation and independent installed-host
+checks are recorded below for a later host build. Vendor compatibility, full
+K113 and notarization remain separate gates.
 K113 still needs guest-native program resolution and `@program` binding,
 the bundled profile's attempt-state/environment carry, independent summary
 recomputation and sampled-environment exposure checks. A specifically named
@@ -159,6 +160,113 @@ default persistent alias. The required two authentication modes remain part
 of the headless row. Metadata inspection found the configured `anthropic`
 source file present, regular, private and operator-owned, but `claude-oauth`
 absent. No source value or provider validity was inspected by that check.
+
+## Corrected signed host candidate
+
+The latest private warm package is built from clean source
+`9ceada86135895ba7e2ea84a2cdea6b7022d9b39`. Its DMG SHA-256 is
+`900c3707c0244ce60cf6d8c0b70c74800c12cb6cd656e17fca18847d1f145d7e`;
+the host runtime inputs are
+`sha256:ba9809bc979a32fe6a8b0641f1e92a98754ff3d6885f0aca4dfd4cd374e648f3`.
+It retains the measured guest disk and seed above. It is not notarized,
+stapled or published. Later documentation changes do not change this artifact's
+source identity or qualify a rebuilt executable.
+
+The previous signed `abf523fee` package failed runtime qualification on the
+second Mac: after the execution wall expired, the guest cancelled but the
+host client repeatedly requested shutdown and consumed a CPU indefinitely.
+The corrected client reports wall expiry once and drains final frames or EOF
+under a fixed five-second stop budget. Repeated stop requests cannot extend
+that budget. Its 116 VM tests, strict all-target lint and two independent
+reviews passed. All six hosted checks at the corrected source passed:
+[Rust and dependency policy](https://github.com/monocursive/ukai/actions/runs/43726730417),
+[contracts and website](https://github.com/monocursive/ukai/actions/runs/43726730423),
+and [fleet](https://github.com/monocursive/ukai/actions/runs/43726730413).
+
+The exact corrected DMG and installed payload passed six strict Developer ID
+checks and seven mounted-DMG installer cases. Independent verification matched
+every installed file and mode, manifest, source identity and executable
+signature. All 573 embedded source files and modes match the clean commit;
+all five native components rebuild from that archive alone with pinned Rust
+1.98.1, locked offline Cargo dependencies and the locked Python build
+environment. This establishes source rebuildability, not byte reproducibility.
+The archive's SHA-256 is
+`1f1680e55140e3b4cf448001ce68a1f01b22a71f2e5365def54b068a2fd5279b`.
+Its 26 bounded proof files also replay successfully.
+
+On the primary protected Mac, the actual installed client's synthetic
+credential-source revocation passed all 21 checks. Removing the private source
+closed the accepted stream in 813 ms; a later request returned 403 without
+another upstream credential use. The child remained alive for a further
+2.503 s, beyond the revocation acknowledgement budget. The complete bound
+guest journal contains 16 events and exactly one credential use. Strict
+six-class coverage, host and guest settlement and the same-boot disk scan
+passed. The attempt-state/workspace scan covered 23 files with no synthetic
+credential spelling found; retained exact inputs and attempt bytes were also
+scanned before export. The harness pinned the service-lock descriptor before
+stop, acquired its exclusive lock after service cleanup and held it through
+scanning. This witnesses completion of the cleanup critical section, not OS
+process reaping. Independent review rehashed the
+exact retained inputs and attempt, verified the journal and binding, and
+recomputed both summaries with the signed client. Live peer timestamps and
+the destroyed disk scan remain recorded host observations, not offline
+attestation. This is synthetic plaintext evidence, not vendor/TLS compatibility.
+
+Twenty warm service attempts and twenty actual installed-client attempts
+passed on one guest/service boot. The maximum connect-to-release time was
+104.6 ms against the 1,000 ms budget; the maximum client launch to first
+workspace write was 329.5 ms. Granted writes, protected-write and network
+refusals, receipt binding and cleanup were checked. The installed workspace,
+receipt/summary and unsupported owner-loss row harnesses also passed within
+their recorded scope. These development measurements do not promote K108–K113.
+
+The complete fault harness passed all 11 lanes in 614.893 s: secrets, client
+kill and suspension with both the stand-in and actual installed client,
+service/custodian/VZ kills, all-controller suspension, socket EOF and service
+process-group suspension. No lane was omitted. All verdicts were recorded
+before cleanup, and no emergency cleanup kill was needed. Independent offline
+recomputation reproduced all 118 facts from the retained observations and
+matched the installed client/service hashes. This checks the harness's named
+fixtures and observations; it is not a new independent process census or a
+promotion of the full installed release clauses.
+
+Actual installed wall-three-second probes returned in 3.129 s on the primary
+Mac and 3.148 s on the second protected Mac, without the previous CPU spin.
+Their host receipts honestly retain `wall_expiry`, unknown outcome, lost
+integrity and no verified empty-tree claim: these lease cancellations returned
+no bound guest final receipt. No late marker appeared during the
+retained observation window. This is a bounded-host regression result, not a
+complete process-population inventory or a clean wall receipt. K110 requires
+termination under its full fault matrix before cleanup; it does not require
+inventing a guest result after the client lease is lost.
+
+The second protected Apple Silicon Mac independently verified the exact DMG,
+six strict signatures, fresh installation, installed tree/modes and packaged
+helper hashes. Its actual agent/tool commands and bounded wall regression
+ran. Its synthetic source-watch experiment did **not** pass: the local HTTP
+witness accepted no request, so no source revocation was triggered. A separate
+credential-free diagnostic reproduced the timeout with a direct host request
+to that Mac's own LAN address, outside Ukai, while the same listener answered
+over loopback. This establishes a host non-loopback peer-reachability
+limitation; it does not identify the particular firewall, filter or routing
+cause. No security setting was changed. The original long-socket-path setup
+failure, unreachable-peer attempt and diagnostic remain retained under
+`spare-mac-9ceada861/`. The primary-Mac synthetic result is not substituted
+for this missing independent-host revocation result.
+
+Exact records are retained under
+`evidence/production-2026-11-15/warm-vm-current/`: `deadline-fixed-package/`,
+`deadline-fixed-installer/`, `deadline-fixed-credential-revocation/`,
+`deadline-fixed-warm/`, `deadline-fixed-gate-rows/`,
+`deadline-fixed-faults/`, `deadline-fixed-wall-v2/` and
+`source-rebuild-9ceada861/`.
+`deadline-fixed-qualification.json` binds the completed primary-host records;
+the final process inventory found no remaining task VM/service/custodian
+processes.
+The earlier failed package, setup failures and corrected offline-judge records
+remain separate and unchanged. [Draft PR #52](https://github.com/monocursive/ukai/pull/52)
+is stacked on the frozen Linux candidate; neither candidate inherits the
+other's runtime qualification.
 
 ## Remaining release limits
 
@@ -170,8 +278,10 @@ acceptance. The actual unsigned native candidate at the frozen Linux source
 passed staging/install/upgrade/removal checks and correctly refused production
 distribution and native workload admission.
 
-The warm-VM route does not require Endpoint Security, but still needs its
-normal installed-client credential lifecycle, full K113 evidence, independent installed-host
-acceptance and notarization. No usable notarization credential was located in
+The warm-VM route does not require Endpoint Security, but still needs full
+K113 engineering and vendor evidence, complete installed release acceptance
+on the notarized/stapled bytes, and notarization. Its successful synthetic
+source-watch measurement does not satisfy vendor compatibility. No usable
+notarization credential was located in
 the inspected local metadata; no notarization submission was made. Existing
 scope limits, including unsupported owner-loss guarantees, remain explicit.
