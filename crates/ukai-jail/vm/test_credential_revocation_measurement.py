@@ -390,6 +390,18 @@ class RawTransportTests(unittest.TestCase):
             self.assertEqual(measurement.main(['home', 'workspace', 'out', 'jail', '--raw-transport']), 19)
             self.assertTrue(raw.call_args.args[0].raw_transport)
 
+    def test_separate_peer_interpreter_is_explicit_normal_only(self):
+        with mock.patch.object(measurement, 'normal_main', return_value=17) as normal:
+            self.assertEqual(measurement.main(['home', 'workspace', 'out', 'jail',
+                                              '--peer-python', '/usr/bin/python3']), 17)
+            self.assertEqual(normal.call_args.args[0].peer_python, Path('/usr/bin/python3'))
+        with mock.patch.object(measurement, 'raw_main') as raw, contextlib.redirect_stderr(io.StringIO()):
+            for extra in [ ['--peer-python', 'python3'],
+                           ['--peer-python', '/usr/bin/python3', '--raw-transport'] ]:
+                with self.assertRaises(SystemExit):
+                    measurement.main(['home', 'workspace', 'out', 'jail', *extra])
+            raw.assert_not_called()
+
     def raw_fixture(self):
         observed, guest, events, summary = JudgeTests().fixture()
         observed['peer'].update(deleted_at=None, revocation_sent_at=1.1)
@@ -640,6 +652,32 @@ with (root / 'serve.lock').open('rb') as lock:
 
 
 class RefusalTests(unittest.TestCase):
+    def test_setup_failure_after_peer_start_reaps_child_and_closes_listener(self):
+        import stream_peer
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            workspace = root / 'workspace'; workspace.mkdir(); harness.mark_workspace(workspace)
+            home = root / 'installed'; (home / 'bin').mkdir(parents=True)
+            jail = home / 'bin/ukai-jail'; jail.write_text('#!/bin/sh\n'); jail.chmod(0o755)
+            created = []
+            constructor = stream_peer.PeerProcess
+            def launch(*args):
+                child = constructor(*args); created.append(child); return child
+            started = time.monotonic()
+            with mock.patch.object(stream_peer, 'PeerProcess', side_effect=launch), \
+                 mock.patch.object(measurement.vault_measurement, 'mac_address', return_value='127.0.0.1'), \
+                 mock.patch.object(tempfile, 'mkdtemp', side_effect=OSError('injected setup failure')):
+                with self.assertRaisesRegex(OSError, 'injected setup failure'):
+                    measurement.main([str(home), str(workspace), str(root / 'out'), str(jail),
+                                      '--peer-python', str(Path(sys.executable).resolve())])
+            self.assertEqual(len(created), 1)
+            peer = created[0]
+            self.assertIsNotNone(peer.process.poll())
+            self.assertTrue(peer.provenance()['complete'])
+            self.assertLess(time.monotonic() - started, 4)
+            with self.assertRaises(OSError):
+                socket.create_connection(('127.0.0.1', peer.server_address[1]), timeout=.2)
+
     def test_installed_capability_refusal_is_preserved_and_source_removed(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -661,12 +699,20 @@ class RefusalTests(unittest.TestCase):
                 mock.patch.object(measurement.vault_measurement, 'mac_address', return_value='127.0.0.1'), \
                 mock.patch.object(tempfile, 'tempdir', str(scratch)), mock.patch('builtins.print'):
             self.assertEqual(measurement.main([str(home), str(workspace), str(root / 'out'), str(jail)]), 1)
+            self.assertEqual(measurement.main([str(home), str(workspace), str(root / 'out-peer'), str(jail),
+                                              '--peer-python', str(Path(sys.executable).resolve())]), 1)
         report = json.loads((root / 'out/credential-revocation.json').read_text())
         self.assertEqual(report['outcome'], 'REFUSED')
         self.assertFalse(report['qualified'])
         self.assertIsNone(report['observed']['peer']['deleted_at'])
         self.assertTrue(report['observed']['source_removed_before_stop'])
         self.assertFalse(any('revoke_secrets' in argument for call in calls for argument in call))
+        explicit = json.loads((root / 'out-peer/credential-revocation.json').read_text())
+        self.assertEqual(explicit['outcome'], 'REFUSED')
+        self.assertTrue(explicit['facts']['explicit_peer_process_verified'])
+        self.assertTrue(explicit['observed']['peer_process']['complete'])
+        self.assertIsNone(explicit['observed']['peer']['deleted_at'])
+        self.assertTrue(explicit['observed']['source_removed_before_stop'])
 
 
 class PersistedReplayTests(unittest.TestCase):
