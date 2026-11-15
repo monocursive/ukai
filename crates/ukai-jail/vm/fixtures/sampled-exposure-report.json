@@ -3,7 +3,7 @@
   "arbitrary_memory_examined": false,
   "catalog_executable_identity": {
     "dev": 16777234,
-    "ino": 372940337
+    "ino": 373503333
   },
   "catalog_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
   "continuous_coverage_claimed": false,
@@ -12,7 +12,7 @@
   "first_ns": 1,
   "guest_attempt_id": "att_example",
   "guest_boot_id": "01234567-89ab-4cde-8012-3456789abcde",
-  "guest_receipt_sha256": "ecd1c82440d2b519957d8f77abc4d820a42fbc2331b15293a73be6c46077262c",
+  "guest_receipt_sha256": "b5be8a2fbfa5974acb76093f18fe97d93d01f9dc098a0c49fafc904d37ce1e58",
   "hits": [],
   "host_attempt_id": "att_host",
   "last_ns": 100000001,
@@ -31,7 +31,7 @@
     "tick_ns": 50000000
   },
   "maximum_gap_ns": 100000000,
-  "maximum_tick_duration_ns": 642083,
+  "maximum_tick_duration_ns": 636834,
   "missed_tick_count": 0,
   "observation_incomplete": false,
   "observed_interval_ns": 100000000,
@@ -73,9 +73,32 @@
       "vanished": 0
     }
   },
-  "sampler_sha256": "4834d227be5e6ce8b3d7d14e1c42cbee161f19e7f19015de9c88264603d076f4",
+  "receipt_process": {
+    "pid": 11,
+    "starttime": 101
+  },
+  "receipt_program_observed": true,
+  "receipt_program_reads": {
+    "argv": {
+      "capped": 0,
+      "oversize": 0,
+      "readable": 2,
+      "unreadable": 0,
+      "unstable": 0,
+      "vanished": 0
+    },
+    "environment": {
+      "capped": 0,
+      "oversize": 0,
+      "readable": 2,
+      "unreadable": 0,
+      "unstable": 0,
+      "vanished": 0
+    }
+  },
+  "sampler_sha256": "9257817c42baf6d7af0717a8f7b1a31017501fdc3caab71f818d1ad38416f94b",
   "scan_errors": {},
-  "schema": "ukai.vm.sampled-exposure/1",
+  "schema": "ukai.vm.sampled-exposure/2",
   "scope": "periodic-readable-environment-and-argv-only",
   "service_boot_id": "vm_service",
   "supervisor": {

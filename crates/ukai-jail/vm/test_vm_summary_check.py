@@ -132,16 +132,17 @@ class Fixture:
         return summary, text
 
 
-def install_exposure(fixture, report=None, status=None):
+def install_exposure(fixture, report=None, status=None, *, receipt_pid=67, receipt_start=1001, supervisor_pid=66):
     """Hand-stated controller report, independent of sampler/verifier code."""
     fixture.guest['process']['identity'] = {'kind': 'linux_boot_start', 'value': {
-        'boot_id': fixture.binding['guest_boot_id'], 'pid': 66, 'start_time_ticks': 1000}}
+        'boot_id': fixture.binding['guest_boot_id'], 'pid': receipt_pid, 'start_time_ticks': receipt_start}}
+    fixture.transport['supervisor_pid'] = supervisor_pid
     fixture.write()
     source_sha = hashlib.sha256(Path(__file__).with_name('guest_exposure.py').read_bytes()).hexdigest()
     if report is None:
         native = fixture.binding['native_program']
         counts = {'readable': 2, 'unreadable': 0, 'oversize': 0, 'vanished': 0, 'unstable': 0, 'capped': 0}
-        report = {'schema': 'ukai.vm.sampled-exposure/1', 'host_attempt_id': HOST_ID,
+        report = {'schema': 'ukai.vm.sampled-exposure/2', 'host_attempt_id': HOST_ID,
             'service_boot_id': fixture.binding['boot_id'], 'guest_attempt_id': GUEST_ID,
             'guest_boot_id': fixture.binding['guest_boot_id'], 'catalog_sha256': native['catalog_sha256'],
             'executable_sha256': native['executable_sha256'], 'sampler_sha256': source_sha,
@@ -153,11 +154,13 @@ def install_exposure(fixture, report=None, status=None):
             'late_poll_count': 0, 'missed_tick_count': 0,
             'reads': {name: dict(counts) for name in ('environment', 'argv')},
             'verified_program_reads': {name: dict(counts, readable=1) for name in ('environment', 'argv')},
+            'receipt_program_reads': {name: dict(counts, readable=1) for name in ('environment', 'argv')},
+            'receipt_program_observed': True, 'receipt_process': {'pid': receipt_pid, 'starttime': receipt_start},
             'verified_program_observed': True, 'observation_incomplete': False, 'scan_errors': {}, 'hits': [],
-            'processes': [{'pid': 66, 'starttime': 1000, 'roles': ['supervisor', 'workload_uid']},
-                          {'pid': 67, 'starttime': 1001, 'roles': ['catalog_program', 'descendant', 'workload_uid']}],
+            'processes': [{'pid': supervisor_pid, 'starttime': 1000, 'roles': ['supervisor', 'workload_uid']},
+                          {'pid': receipt_pid, 'starttime': receipt_start, 'roles': ['catalog_program', 'descendant', 'workload_uid']}],
             'lifecycle': {'started_ns': 90, 'supervisor_exit_observed_ns': 110, 'stopped_ns': 120, 'stop_reason': 'supervisor_exit'},
-            'supervisor': {'pid': 66, 'starttime': 1000}, 'catalog_executable_identity': {'dev': 1, 'ino': 200},
+            'supervisor': {'pid': supervisor_pid, 'starttime': 1000}, 'catalog_executable_identity': {'dev': 1, 'ino': 200},
             'workload_uid': 1001, 'limits': {'read_bytes': 2 * 1024 * 1024, 'process_count': 4096,
                 'tick_bytes': 16 * 1024 * 1024, 'tick_ns': 50_000_000, 'hit_count': 4096}}
     raw = encoded(report); sha = hashlib.sha256(raw).hexdigest()
@@ -332,6 +335,86 @@ class VmSummaryTests(unittest.TestCase):
                 self.assertEqual(result['outcome'], 'PASS')
                 self.assertEqual(result['sampling']['state'], 'invalid')
 
+    def test_sampling_distinguishes_captured_supervisor_from_receipt_workload(self):
+        self.native_fixture()
+        # The retained 23e --version probe released supervisor PID 640, while
+        # its actual Linux receipt names workload PID 672/start tick 2673.
+        # The remaining observations here are synthetic parser inputs; no
+        # sampler report existed for that failed /1 export.
+        report = install_exposure(self.fixture, receipt_pid=672, receipt_start=2673, supervisor_pid=640)
+        self.summary, self.text = self.fixture.expected()
+        result = self.verify()
+        self.assertEqual(result['outcome'], 'PASS')
+        self.assertEqual(result['sampling']['state'], 'complete')
+        self.assertEqual(result['sampling']['supervisor']['pid'], 640)
+        self.assertEqual(result['sampling']['receipt_process'], {'pid': 672, 'starttime': 2673})
+        for change in (lambda r: r.update(receipt_process=dict(r['supervisor'])),
+                       lambda r: r['receipt_process'].update(starttime=2674),
+                       lambda r: r['receipt_process'].update(pid=True),
+                       lambda r: r['supervisor'].update(pid=672),
+                       lambda r: r['supervisor'].update(starttime=None),
+                       lambda r: r.update(schema='ukai.vm.sampled-exposure/1'),
+                       lambda r: r.pop('receipt_program_reads')):
+            changed = copy.deepcopy(report); change(changed)
+            install_exposure(self.fixture, changed, receipt_pid=672, receipt_start=2673, supervisor_pid=640)
+            with self.subTest(change=change):
+                self.assertEqual(self.verify()['sampling']['state'], 'invalid')
+                self.assertEqual(self.verify()['outcome'], 'PASS')
+        install_exposure(self.fixture, report, receipt_pid=672, receipt_start=2673, supervisor_pid=640)
+        for value in (None, True, 672, 0, 2 ** 32):
+            self.fixture.transport['supervisor_pid'] = value; self.fixture.write()
+            self.assertEqual(self.verify()['sampling']['state'], 'invalid')
+        self.fixture.transport.pop('supervisor_pid')
+        self.fixture.transport['sampled_exposure']['status'] = 'unavailable'
+        self.fixture.write()
+        self.assertEqual(self.verify()['sampling'], {'state': 'unavailable', 'reason': 'released_supervisor_missing'})
+
+    def test_sampling_receipt_root_needs_its_own_catalog_observations(self):
+        self.native_fixture(); original = install_exposure(self.fixture)
+        self.summary, self.text = self.fixture.expected()
+        report = copy.deepcopy(original)
+        for row in report['receipt_program_reads'].values(): row['readable'] = 0
+        report.update(receipt_program_observed=False, observation_incomplete=True)
+        install_exposure(self.fixture, report)
+        result = self.verify()['sampling']
+        self.assertEqual(result['state'], 'incomplete')
+        self.assertTrue(result['verified_program_observed'])
+        self.assertFalse(result['receipt_program_observed'])
+        report['observation_incomplete'] = False
+        install_exposure(self.fixture, report)
+        self.assertEqual(self.verify()['sampling']['state'], 'invalid')
+        for change in (lambda r: r['receipt_program_reads']['argv'].update(readable=0),
+                       lambda r: r['receipt_program_reads']['argv'].update(readable=True),
+                       lambda r: [row.update(readable=2) for row in r['receipt_program_reads'].values()],
+                       lambda r: r['processes'][1].update(roles=['descendant', 'workload_uid']),
+                       lambda r: r['processes'][1].update(pid=68)):
+            report = copy.deepcopy(original); change(report)
+            install_exposure(self.fixture, report)
+            with self.subTest(change=change): self.assertEqual(self.verify()['sampling']['state'], 'invalid')
+
+    def test_sampling_unknown_supervisor_birth_is_only_zero_observation_initialization_failure(self):
+        self.native_fixture(); report = install_exposure(self.fixture)
+        self.summary, self.text = self.fixture.expected()
+        report.update(tick_count=0, first_ns=None, last_ns=None, observed_interval_ns=0,
+                      maximum_gap_ns=0, maximum_tick_duration_ns=0, late_poll_count=0, missed_tick_count=0,
+                      processes=[], verified_program_observed=False, receipt_program_observed=False,
+                      observation_incomplete=True, scan_errors={'monitor_initialization_failed': 1},
+                      catalog_executable_identity={'dev': 0, 'ino': 0})
+        report['supervisor']['starttime'] = None
+        for name in ('reads', 'verified_program_reads', 'receipt_program_reads'):
+            for row in report[name].values(): row.update({key: 0 for key in row})
+        install_exposure(self.fixture, report)
+        self.assertEqual(self.verify()['sampling']['state'], 'incomplete')
+        self.assertIsNone(self.verify()['sampling']['supervisor']['starttime'])
+        report['hits'] = [{'pid': 67, 'starttime': 1001, 'channel': 'environment',
+                           'representation': 'raw', 'identity_stable': False}]
+        install_exposure(self.fixture, report)
+        self.assertEqual(self.verify()['sampling']['state'], 'invalid')
+        report['hits'] = []
+        report['scan_errors'] = {'monitor_worker_failed': 1}
+        install_exposure(self.fixture, report)
+        self.assertEqual(self.verify()['sampling']['state'], 'invalid')
+
     def test_sampling_population_time_domain_and_complete_lifecycle_are_consistent(self):
         self.native_fixture(); original = install_exposure(self.fixture)
         self.summary, self.text = self.fixture.expected()
@@ -382,9 +465,9 @@ class VmSummaryTests(unittest.TestCase):
             self.assertEqual(self.verify()['sampling']['state'], 'invalid')
         report.update(tick_count=0, first_ns=None, last_ns=None, observed_interval_ns=0,
                       maximum_gap_ns=0, maximum_tick_duration_ns=0, late_poll_count=0, missed_tick_count=0,
-                      processes=[], verified_program_observed=False, observation_incomplete=True,
+                      processes=[], verified_program_observed=False, receipt_program_observed=False, observation_incomplete=True,
                       scan_errors={'monitor_initialization_failed': 1}, catalog_executable_identity={'dev': 0, 'ino': 0})
-        for name in ('reads', 'verified_program_reads'):
+        for name in ('reads', 'verified_program_reads', 'receipt_program_reads'):
             for row in report[name].values():
                 row.update({key: 0 for key in row})
         install_exposure(self.fixture, report)
@@ -420,7 +503,8 @@ class VmSummaryTests(unittest.TestCase):
         binding = {'attempt_id': context['host_attempt_id'], 'boot_id': context['service_boot_id'],
                    'guest_boot_id': context['guest_boot_id']}
         native = {key: context[key] for key in ('catalog_sha256', 'executable_sha256')}
-        result = check.sampled_exposure_report(report, guest, hashlib.sha256(raw).hexdigest(), binding, native, context['sampler_sha256'])
+        result = check.sampled_exposure_report(report, guest, hashlib.sha256(raw).hexdigest(), binding, native,
+                                               context['sampler_sha256'], context['supervisor_pid'])
         self.assertEqual(result['state'], 'complete')
         self.assertEqual(result['tick_count'], 2)
 

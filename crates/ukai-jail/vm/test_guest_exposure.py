@@ -23,7 +23,7 @@ def stat_bytes(pid, parent, start):
     return str(pid).encode() + b' (misleading ) name) ' + b' '.join(fields) + b'\n'
 
 
-def receipt(pid=10, start=100):
+def receipt(pid=11, start=101):
     return json.dumps({'attempt_id': 'att_example', 'process': {'identity': {
         'kind': 'linux_boot_start', 'value': {'boot_id': BOOT, 'pid': pid, 'start_time_ticks': start}}}}).encode()
 
@@ -96,6 +96,79 @@ class SamplerTests(unittest.TestCase):
         self.assertNotIn(str(self.root), json.dumps(report))
         with self.assertRaises(ValueError): sampler.sample(200_000_000)
         with self.assertRaises(ValueError): sampler.finish(receipt(), binding())
+
+    def test_actual_receipt_workload_is_distinct_from_supervisor(self):
+        sampler=self.sampler(); sampler.sample(1)
+        report=self.finish(sampler)
+        self.assertEqual(report['schema'],'ukai.vm.sampled-exposure/2')
+        self.assertEqual(report['supervisor'],{'pid':10,'starttime':100})
+        self.assertEqual(report['receipt_process'],{'pid':11,'starttime':101})
+        self.assertTrue(report['receipt_program_observed'])
+        self.assertEqual(report['receipt_program_reads']['environment']['readable'],1)
+        self.assertEqual(report['receipt_program_reads']['argv']['readable'],1)
+        self.assertFalse(report['observation_incomplete'])
+
+    def test_other_catalog_process_cannot_supply_receipt_positive_credit(self):
+        self.process(12,10,102,1000,self.exe)
+        self.process(11,10,101,1000,self.other)
+        sampler=self.sampler(); sampler.sample(1)
+        report=self.finish(sampler)
+        self.assertTrue(report['verified_program_observed'])
+        self.assertFalse(report['receipt_program_observed'])
+        self.assertTrue(report['observation_incomplete'])
+        self.assertTrue(all(value==0 for row in report['receipt_program_reads'].values() for value in row.values()))
+
+    def test_receipt_pid_reuse_cannot_borrow_previous_birth_reads(self):
+        sampler=self.sampler(); sampler.sample(1)
+        report=sampler.finish(receipt(11,999),binding())
+        self.assertTrue(report['verified_program_observed'])
+        self.assertFalse(report['receipt_program_observed'])
+        self.assertTrue(report['observation_incomplete'])
+
+    def test_receipt_identity_counters_remain_bounded_across_pid_reuse(self):
+        sampler=self.sampler()
+        with mock.patch.object(exposure,'MAX_PROCESS_COUNT',2):
+            for tick,start in enumerate((101,102,103),1):
+                self.process(11,10,start,1000,self.exe)
+                sampler.sample(tick*100_000_000)
+        report=sampler.finish(receipt(11,103),binding())
+        self.assertEqual(len(sampler.program_identity_counts),1)
+        self.assertGreater(report['scan_errors']['identity_cap'],0)
+        self.assertFalse(report['receipt_program_observed'])
+        self.assertTrue(report['observation_incomplete'])
+
+    def test_inventory_cap_withholds_unbound_receipt_positive_credit(self):
+        sampler=self.sampler()
+        with mock.patch.object(exposure,'MAX_PROCESS_COUNT',2):
+            sampler.sample(1)
+            self.process(11,10,102,1000,self.exe)
+            sampler.sample(100_000_001)
+        report=sampler.finish(receipt(11,102),binding())
+        self.assertTrue(report['verified_program_observed'])
+        self.assertFalse(report['receipt_program_observed'])
+        self.assertTrue(report['observation_incomplete'])
+        self.assertGreater(report['scan_errors']['identity_cap'],0)
+
+    def test_inventory_cap_withholds_unbound_aggregate_program_credit(self):
+        self.process(11,10,101,1000,self.other)
+        sampler=self.sampler()
+        with mock.patch.object(exposure,'MAX_PROCESS_COUNT',2):
+            sampler.sample(1)
+            self.process(11,10,102,1000,self.exe)
+            sampler.sample(100_000_001)
+        report=sampler.finish(receipt(11,102),binding())
+        self.assertFalse(report['verified_program_observed'])
+        self.assertFalse(report['receipt_program_observed'])
+        self.assertTrue(report['observation_incomplete'])
+        self.assertEqual(report['reads']['environment']['readable'],4)
+        self.assertGreater(report['scan_errors']['identity_cap'],0)
+
+    def test_receipt_identity_strict_numbers_and_boot(self):
+        for key,value in [('pid',True),('start_time_ticks',True),('pid',0),('start_time_ticks',0),('boot_id','other')]:
+            with self.subTest(key=key,value=value):
+                sampler=self.sampler();sampler.sample(1)
+                raw=json.loads(receipt());raw['process']['identity']['value'][key]=value
+                with self.assertRaises(ValueError):sampler.finish(json.dumps(raw).encode(),binding())
 
     def test_same_scanner_positive_control_both_channels_no_values_exported(self):
         self.process(11, 10, 101, 1000, self.exe, b'TOKEN='+CANARY+b'\0', b'program\0'+CANARY+b'\0')
@@ -244,12 +317,15 @@ class SamplerTests(unittest.TestCase):
         self.assertEqual(report['missed_tick_count'],1)
         self.assertFalse(report['observation_incomplete'])
 
-    def test_receipt_binding_and_supervisor_mismatch_cannot_finish(self):
+    def test_receipt_binding_mismatch_cannot_finish(self):
         for key,value in [('guest_boot_id','wrong'),('sampler_sha256','0'*64),('guest_attempt_id','att_other')]:
             sampler=self.sampler(); sampler.sample(1); bound=binding(); bound[key]=value
             with self.assertRaises(ValueError): sampler.finish(receipt(),bound)
         sampler=self.sampler(); sampler.sample(1)
-        with self.assertRaises(ValueError): sampler.finish(receipt(start=999),binding())
+        report=sampler.finish(receipt(start=999),binding())
+        self.assertTrue(report['observation_incomplete'])
+        self.assertFalse(report['receipt_program_observed'])
+        sampler=self.sampler(); sampler.sample(1)
         with self.assertRaises(ValueError): sampler.finish(b'{"attempt_id":1,"attempt_id":2}',binding())
 
     def test_no_samples_remains_incomplete_and_exact_record_scan_withholds(self):
@@ -303,6 +379,24 @@ class SamplerTests(unittest.TestCase):
         self.assertEqual(report['tick_count'],0)
         self.assertEqual(report['catalog_executable_identity'],{'dev':0,'ino':0})
 
+    def test_monitor_missing_supervisor_birth_is_not_taken_from_receipt(self):
+        (self.proc/'10/stat').unlink()
+        monitor,process=self.monitor();process.returncode=0
+        report=monitor.finish(receipt(),binding())
+        self.assertEqual(report['supervisor'],{'pid':10,'starttime':None})
+        self.assertEqual(report['receipt_process'],{'pid':11,'starttime':101})
+        self.assertEqual(report['scan_errors'],{'monitor_initialization_failed':1})
+        self.assertEqual(report['tick_count'],0)
+        self.assertFalse(report['receipt_program_observed'])
+        self.assertTrue(report['observation_incomplete'])
+
+    def test_monitor_later_initialization_failure_keeps_actual_supervisor_birth(self):
+        monitor,process=self.monitor(catalog_executable_path=self.root/'absent')
+        process.returncode=0;report=monitor.finish(receipt(),binding())
+        self.assertEqual(report['supervisor'],{'pid':10,'starttime':100})
+        self.assertEqual(report['receipt_process'],{'pid':11,'starttime':101})
+        self.assertFalse(report['receipt_program_observed'])
+
     def test_monitor_worker_failure_cannot_be_erased_by_finish(self):
         with mock.patch.object(exposure.Sampler,'sample',side_effect=ValueError('private-error-never-export')):
             monitor,process=self.monitor()
@@ -340,6 +434,53 @@ class SamplerTests(unittest.TestCase):
 
 @unittest.skipUnless(sys.platform.startswith('linux'), 'actual proc control requires Linux')
 class RealProcControlTests(unittest.TestCase):
+    def test_monitor_real_supervisor_and_distinct_receipt_child(self):
+        # Real Linux /proc identities, without a VM/provider or invented
+        # supervisor==workload equality. The owned supervisor reaps its child.
+        child_code = 'import time; time.sleep(5)'
+        parent_code = '''import os,subprocess,sys
+child=subprocess.Popen([sys.executable,'-I','-c',sys.argv[1],sys.argv[2]],env={'LANG':'C','PUBLIC_CANARY':sys.argv[2]})
+print(child.pid,flush=True)
+try: sys.stdin.read(1)
+finally:
+    child.terminate()
+    child.wait(timeout=2)
+'''
+        process=subprocess.Popen([sys.executable,'-I','-c',parent_code,child_code,CANARY.decode()],
+                                 stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        monitor=None
+        try:
+            import selectors
+            with selectors.DefaultSelector() as selector:
+                selector.register(process.stdout,selectors.EVENT_READ)
+                self.assertTrue(selector.select(2))
+            child_pid=int(process.stdout.readline())
+            root=Path('/proc');boot=(root/'sys/kernel/random/boot_id').read_text().strip()
+            _,child_start=exposure._stat((root/str(child_pid)/'stat').read_bytes(),child_pid)
+            monitor=exposure.Monitor(root,boot,process,2**32-2,[],Path(sys.executable).resolve(),[CANARY])
+            deadline=time.monotonic()+1
+            while time.monotonic()<deadline:
+                counts=(monitor.sampler.program_identity_counts.get((child_pid,child_start),{})
+                        if monitor.sampler is not None else {})
+                if all(counts.get(channel,{}).get('readable',0)>0 for channel in ('environment','argv')): break
+                time.sleep(.01)
+            process.stdin.write(b'x');process.stdin.flush();process.wait(timeout=2)
+            bound=binding();bound['guest_boot_id']=boot
+            raw=json.loads(receipt(child_pid,child_start));raw['process']['identity']['value']['boot_id']=boot
+            report=monitor.finish(json.dumps(raw).encode(),bound)
+            self.assertEqual(report['supervisor']['pid'],process.pid)
+            self.assertEqual(report['receipt_process'],{'pid':child_pid,'starttime':child_start})
+            self.assertNotEqual(process.pid,child_pid)
+            self.assertTrue(report['receipt_program_observed'])
+            self.assertEqual({hit['channel'] for hit in report['hits'] if hit['pid']==child_pid and hit['identity_stable']}, {'environment','argv'})
+            self.assertNotIn(CANARY,json.dumps(report).encode())
+        finally:
+            if process.poll() is None:
+                try: process.stdin.write(b'x');process.stdin.flush();process.wait(timeout=3)
+                except (OSError,subprocess.TimeoutExpired): process.kill();process.wait(timeout=2)
+            if monitor is not None: monitor.discard()
+            for stream in (process.stdin,process.stdout,process.stderr): stream.close()
+
     def test_public_canary_detected_in_real_child_env_and_argv(self):
         # The unmatched UID prevents sweeping unrelated operator processes. Only
         # this owned child (the pinned supervisor) and its descendants are read.

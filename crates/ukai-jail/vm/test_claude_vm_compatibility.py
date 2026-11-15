@@ -624,7 +624,8 @@ class NativeModeTests(unittest.TestCase):
             {'kind': 'allow_host', 'value': 'api.anthropic.com:443', 'by': 'operator'},
             {'kind': 'allow_host', 'value': 'platform.claude.com:443', 'by': 'operator'}]}
         observed.update(independent_summary={'outcome': 'PASS', 'scope': 'bound_guest', 'sampling': {
-                            'state': 'complete', 'verified_program_observed': True, 'no_hits': True, 'scan_errors': {},
+                            'state': 'complete', 'verified_program_observed': True, 'receipt_program_observed': True,
+                            'no_hits': True, 'scan_errors': {},
                             'sampler_sha256': self.metadata['source_sha256']['guest_exposure.py'], 'last_ns': 100,
                             'lifecycle': {'stop_reason': 'supervisor_exit', 'supervisor_exit_observed_ns': 110, 'stopped_ns': 120}}}, run_exit=0,
                         tail_exit=0, tail_json_exit=0, source_removed_before_stop=True, stop_exit=0,
@@ -665,7 +666,8 @@ class NativeModeTests(unittest.TestCase):
         self.assertFalse(all(facts(h=changed).values()))
         sample = observed['independent_summary']['sampling']
         for key, value in [('state', 'incomplete'), ('state', 'unavailable'), ('state', 'invalid'), ('no_hits', False),
-                           ('verified_program_observed', False), ('scan_errors', {'unreadable': 1}), ('sampler_sha256', '0' * 64)]:
+                           ('verified_program_observed', False), ('receipt_program_observed', False),
+                           ('scan_errors', {'unreadable': 1}), ('sampler_sha256', '0' * 64)]:
             prior = sample[key]; sample[key] = value
             self.assertFalse(all(facts().values()), (key, value))
             sample[key] = prior

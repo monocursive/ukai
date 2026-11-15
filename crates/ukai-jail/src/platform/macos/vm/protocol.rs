@@ -32,7 +32,7 @@ pub const SECRET_REVOCATION_CONTRACT: &str = "ukai.vm.secret-revocation/1";
 pub const JOURNAL_EXPORT_CONTRACT: &str = "ukai.vm.guest-journal/1";
 /// Image-bound native program resolution with unchanged bundled profiles.
 pub const NATIVE_PROGRAM_CONTRACT: &str = "ukai.vm.guest-native-launch/1";
-pub const SAMPLED_EXPOSURE_CONTRACT: &str = "ukai.vm.sampled-exposure/1";
+pub const SAMPLED_EXPOSURE_CONTRACT: &str = "ukai.vm.sampled-exposure/2";
 
 /// Contracts the running guest declared in its Session reply. Optional fields
 /// keep old noncredential guests usable; absent or unknown versions never

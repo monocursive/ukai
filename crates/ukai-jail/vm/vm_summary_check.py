@@ -1073,16 +1073,17 @@ def native_program_binding(reader, guest, transport, binding):
     require(equal(native, expected), 'native program binding differs')
 
 
-def sampled_exposure_report(report, guest, receipt_hash, binding, native, sampler_hash):
+def sampled_exposure_report(report, guest, receipt_hash, binding, native, sampler_hash, supervisor_pid):
     """Independently validate bounded sampled observations, never memory absence."""
     keys = {'schema', 'host_attempt_id', 'service_boot_id', 'guest_attempt_id', 'guest_boot_id',
             'catalog_sha256', 'executable_sha256', 'sampler_sha256', 'guest_receipt_sha256',
             'finished', 'actual_values_retained', 'scope', 'continuous_coverage_claimed', 'arbitrary_memory_examined',
             'period_ns', 'first_ns', 'last_ns', 'observed_interval_ns', 'maximum_gap_ns', 'maximum_tick_duration_ns',
             'tick_count', 'late_poll_count', 'missed_tick_count', 'reads', 'verified_program_reads',
+            'receipt_program_reads', 'receipt_program_observed', 'receipt_process',
             'verified_program_observed', 'observation_incomplete', 'scan_errors', 'hits', 'processes',
             'supervisor', 'catalog_executable_identity', 'workload_uid', 'limits', 'lifecycle'}
-    require(type(report) is dict and set(report) == keys and report['schema'] == 'ukai.vm.sampled-exposure/1',
+    require(type(report) is dict and set(report) == keys and report['schema'] == 'ukai.vm.sampled-exposure/2',
             'sampled exposure schema differs')
     expected = {'host_attempt_id': binding['attempt_id'], 'service_boot_id': binding['boot_id'],
                 'guest_attempt_id': guest['attempt_id'], 'guest_boot_id': binding['guest_boot_id'],
@@ -1117,14 +1118,16 @@ def sampled_exposure_report(report, guest, receipt_hash, binding, native, sample
                                                      'late_poll_count', 'missed_tick_count')), 'empty sampling timing differs')
     channels = {'environment', 'argv'}
     states = {'readable', 'unreadable', 'oversize', 'vanished', 'unstable', 'capped'}
-    for key in ('reads', 'verified_program_reads'):
+    for key in ('reads', 'verified_program_reads', 'receipt_program_reads'):
         rows = report[key]
         require(type(rows) is dict and set(rows) == channels and all(type(row) is dict and set(row) == states
                 and all(uint(value) for value in row.values()) for row in rows.values()), 'sampled exposure read counters differ')
         require(sum(rows['environment'].values()) == sum(rows['argv'].values())
-                <= ticks * 4096, 'sampled exposure population counters differ')
+                <= ticks * (1 if key == 'receipt_program_reads' else 4096), 'sampled exposure population counters differ')
     require(all(report['verified_program_reads'][channel][state] <= report['reads'][channel][state]
                 for channel in channels for state in states), 'sampled program counts exceed population')
+    require(all(report['receipt_program_reads'][channel][state] <= report['verified_program_reads'][channel][state]
+                for channel in channels for state in states), 'sampled receipt program counts exceed aggregate')
     errors = report['scan_errors']
     error_codes = {'malformed_stat', 'malformed_status', 'tick_time_cap', 'tick_byte_cap', 'nonregular_proc_file',
                    'oversize', 'boot_identity_changed', 'nonregular_executable', 'identity_cap', 'hit_cap',
@@ -1137,10 +1140,11 @@ def sampled_exposure_report(report, guest, receipt_hash, binding, native, sample
     require(report['maximum_tick_duration_ns'] <= 50_000_000 or errors.get('tick_time_cap', 0) > 0,
             'sampled tick overrun lacks error')
     positive = all(report['verified_program_reads'][channel]['readable'] > 0 for channel in channels)
-    incomplete = bool(errors) or not positive or ticks == 0 or any(
+    receipt_positive = all(report['receipt_program_reads'][channel]['readable'] > 0 for channel in channels)
+    incomplete = bool(errors) or not positive or not receipt_positive or ticks == 0 or any(
         row[state] for row in report['reads'].values() for state in states - {'readable'})
-    require(report['verified_program_observed'] is positive and report['observation_incomplete'] is incomplete,
-            'sampled exposure availability claim differs')
+    require(report['verified_program_observed'] is positive and report['receipt_program_observed'] is receipt_positive,
+            'sampled exposure positive observation claim differs')
     limits = {'read_bytes': 2 * 1024 * 1024, 'process_count': 4096, 'tick_bytes': 16 * 1024 * 1024,
               'tick_ns': 50_000_000, 'hit_count': 4096}
     require(equal(report['limits'], limits), 'sampled exposure bounds differ')
@@ -1158,16 +1162,31 @@ def sampled_exposure_report(report, guest, receipt_hash, binding, native, sample
                 'sampled process role differs')
     require(not positive or any('catalog_program' in process['roles'] for process in processes), 'no sampled program identity')
     supervisor = report['supervisor']; executable = report['catalog_executable_identity']
+    receipt_process = report['receipt_process']
+    require(type(receipt_process) is dict and set(receipt_process) == {'pid', 'starttime'}
+            and all(uint(value, 1) for value in receipt_process.values())
+            and uint(pointer(guest, 'process', 'identity', 'value', 'pid'), 1)
+            and uint(pointer(guest, 'process', 'identity', 'value', 'start_time_ticks'), 1)
+            and receipt_process['pid'] == pointer(guest, 'process', 'identity', 'value', 'pid')
+            and receipt_process['starttime'] == pointer(guest, 'process', 'identity', 'value', 'start_time_ticks')
+            and pointer(guest, 'process', 'identity', 'kind') == 'linux_boot_start', 'sampled receipt workload differs')
+    require(not receipt_positive or any(process['pid'] == receipt_process['pid']
+                and process['starttime'] == receipt_process['starttime'] and 'catalog_program' in process['roles']
+                for process in processes), 'sampled receipt program identity absent')
     require(type(supervisor) is dict and set(supervisor) == {'pid', 'starttime'}
-            and all(uint(value, 1) for value in supervisor.values())
-            and supervisor['pid'] == pointer(guest, 'process', 'identity', 'value', 'pid')
-            and supervisor['starttime'] == pointer(guest, 'process', 'identity', 'value', 'start_time_ticks')
-            and pointer(guest, 'process', 'identity', 'kind') == 'linux_boot_start', 'sampled supervisor differs')
+            and uint(supervisor_pid, 1) and supervisor_pid <= 2 ** 32 - 1
+            and supervisor['pid'] == supervisor_pid and uint(supervisor['pid'], 1)
+            and (uint(supervisor['starttime'], 1) or (supervisor['starttime'] is None and ticks == 0
+                and not positive and not receipt_positive and processes == [] and report['hits'] == []
+                and all(sum(row.values()) == 0 for row in report['reads'].values())
+                and errors.get('monitor_initialization_failed', 0) > 0)), 'sampled released supervisor differs')
     require(type(executable) is dict and set(executable) == {'dev', 'ino'} and uint(executable['dev'])
             and uint(executable['ino']) and (executable['ino'] > 0 or (executable['dev'] == 0 and ticks == 0 and not positive
                 and errors.get('monitor_initialization_failed', 0) > 0)), 'sampled executable identity differs')
-    require(incomplete or any(process['pid'] == supervisor['pid'] and process['starttime'] == supervisor['starttime']
-                and 'supervisor' in process['roles'] for process in processes), 'complete sampling lacks supervisor observation')
+    supervisor_observed = any(process['pid'] == supervisor['pid'] and process['starttime'] == supervisor['starttime']
+                              and 'supervisor' in process['roles'] for process in processes)
+    incomplete = incomplete or not supervisor_observed
+    require(report['observation_incomplete'] is incomplete, 'sampled exposure availability claim differs')
     lifecycle = report['lifecycle']
     require(type(lifecycle) is dict and set(lifecycle) == {'started_ns', 'supervisor_exit_observed_ns', 'stopped_ns', 'stop_reason'}
             and lifecycle['stop_reason'] in {'manual', 'requested', 'supervisor_exit', 'worker_failed', 'join_timeout'}
@@ -1193,6 +1212,8 @@ def sampled_exposure_report(report, guest, receipt_hash, binding, native, sample
                 'complete sampling has unbound hit')
     return {'state': 'incomplete' if incomplete else 'complete', 'no_hits': hits == [],
             'verified_program_observed': positive, 'period_ns': report['period_ns'], 'tick_count': ticks,
+            'receipt_program_observed': receipt_positive, 'receipt_program_reads': report['receipt_program_reads'],
+            'receipt_process': receipt_process, 'supervisor': supervisor,
             'first_ns': report['first_ns'], 'last_ns': report['last_ns'], 'observed_interval_ns': report['observed_interval_ns'],
             'maximum_gap_ns': report['maximum_gap_ns'], 'late_poll_count': report['late_poll_count'],
             'missed_tick_count': report['missed_tick_count'], 'reads': report['reads'],
@@ -1225,10 +1246,14 @@ def sampled_exposure(reader, guest, transport, binding, receipt_hash):
         require(binding.get('sampled_exposure_sha256') == digest, 'sampling report hash')
         require(status.get('path') == 'evidence/sampled-exposure.json' and status.get('sha256') == digest,
                 'sampling transport report hash')
+        if 'supervisor_pid' not in transport:
+            require(status['status'] == 'unavailable', 'missing released supervisor contradicts transport')
+            return {'state': 'unavailable', 'reason': 'released_supervisor_missing'}
         with EvidenceReader(Path(__file__).absolute().parent) as source:
             local_source = hashlib.sha256(source.read('guest_exposure.py', 512 * 1024)).hexdigest()
         require(pin == local_source, 'sampling archived source hash')
-        result = sampled_exposure_report(object_json(raw, 'sampled exposure'), guest, receipt_hash, binding, native, pin)
+        result = sampled_exposure_report(object_json(raw, 'sampled exposure'), guest, receipt_hash, binding, native, pin,
+                                         transport.get('supervisor_pid'))
         require(status['status'] == result['state'], 'sampling state contradicts transport')
         result.update(report_sha256=digest)
         return result

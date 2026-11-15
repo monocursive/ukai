@@ -2522,11 +2522,13 @@ impl PreparedExecution for VmExecution {
         let revocation =
             revocation::Watch::start(&execution.connection, execution.vault_lease.clone())
                 .map_err(|reason| fail(refused(reason)))?;
-        match execution
+        let supervisor_pid = match execution
             .connection
             .next_frame_within(control::HANDSHAKE_TIMEOUT)
         {
-            Ok(control::Within::Frame(protocol::FromVm::Released { .. })) => {}
+            Ok(control::Within::Frame(protocol::FromVm::Released { supervisor_pid })) => {
+                supervisor_pid
+            }
             Ok(control::Within::Frame(protocol::FromVm::Error { message })) => {
                 return Err(fail(refused(format!("--vm: {message}"))));
             }
@@ -2541,10 +2543,11 @@ impl PreparedExecution for VmExecution {
             Err(error) => {
                 return Err(fail(transport(error)));
             }
-        }
+        };
         revocation.check().map_err(|reason| fail(refused(reason)))?;
         Ok(Box::new(VmRunning {
             inner: execution,
+            supervisor_pid,
             receipt: None,
             receipt_binding: None,
             sampling_exports: 0,
@@ -2568,6 +2571,8 @@ impl PreparedExecution for VmExecution {
 /// The released attempt: the guest jail runs, and this side relays.
 struct VmRunning {
     inner: VmExecution,
+    /// The controller process from Released, never the receipt workload PID.
+    supervisor_pid: u32,
     receipt: Option<Value>,
     receipt_binding: Option<protocol::ReceiptBinding>,
     sampling_exports: usize,
@@ -2898,6 +2903,7 @@ impl VmRunning {
             image::hex(&sha2::Sha256::digest(&bytes)),
         );
         record.native_program = self.inner.native_program.clone();
+        record.supervisor_pid = Some(self.supervisor_pid);
         if let Some(native) = &self.inner.native_binding
             && let (Some(receipt), Some(binding)) = (&self.receipt, &self.receipt_binding)
         {
@@ -2907,6 +2913,7 @@ impl VmRunning {
                 &crate::guest_program::sha256(&bytes),
                 binding,
                 native,
+                Some(self.supervisor_pid),
                 self.inner.image.sampler_sha256.as_deref(),
                 self.sampling_export_error,
             ));

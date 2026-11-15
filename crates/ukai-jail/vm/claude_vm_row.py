@@ -1014,6 +1014,7 @@ def native_facts(observed, guest, events, summary, context, suffix, binding, hos
             and (observed.get('independent_summary') or {}).get('scope') == 'bound_guest',
         complete_bound_periodic_guest_samples=sampling.get('state') == 'complete'
             and sampling.get('verified_program_observed') is True and sampling.get('no_hits') is True
+            and sampling.get('receipt_program_observed') is True
             and sampling.get('scan_errors') == {}
             and sampling.get('sampler_sha256') == context['identity']['image']['source_sha256']['guest_exposure.py']
             and sample_lifecycle.get('stop_reason') == 'supervisor_exit'

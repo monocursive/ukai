@@ -100,7 +100,7 @@ may omit these fields for literal commands; native requests require exact
 versions and the image-bound digest. Existing credential-revocation and
 full-journal contracts remain required as well.
 Native attempts also require the Session's
-`guest_contracts.sampled_exposure: "ukai.vm.sampled-exposure/1"` declaration.
+`guest_contracts.sampled_exposure: "ukai.vm.sampled-exposure/2"` declaration.
 
 Prepare's optional `native_program` object has exactly these fields:
 
@@ -182,8 +182,22 @@ between cgroups. Each process read is anchored to its proc directory and birth
 identity. A sample counts as the catalog program only when its executable
 device/inode matches the verified installation. Environment and argv reads are
 bounded; unreadable, oversized, vanished, unstable, skipped, and late samples
-remain explicit. At least one verified-program environment and argv read is
-needed for positive sampling evidence.
+remain explicit. Version 2 distinguishes the controller's actual jail
+`supervisor` (PID and captured birth tick) from `receipt_process`, the workload
+PID and birth tick in the Linux receipt. The host retains the Released
+`supervisor_pid` and compares it with the report; it never equates the jail
+supervisor with its workload child. An initialization failure before the
+supervisor's birth is readable may report a null birth only with zero ticks,
+zero observations, and the explicit initialization failure.
+
+`verified_program_reads` counts all catalog-executable observations.
+`receipt_program_reads` counts only observations of the exact receipt workload
+identity, and `receipt_program_observed` requires both its environment and argv
+to have been read. Another catalog process or an earlier birth of the same PID
+cannot provide this credit. Complete observations require both the actual
+supervisor and these positive receipt-workload reads; absent coverage remains
+incomplete. Supervisor lifetime timestamps stay anchored to the actual jail
+process, including when its workload has exited.
 
 After bounded sampler shutdown and attempt stop, the controller creates the
 reserved `evidence/sampled-exposure.json` exclusively. A workload-created file

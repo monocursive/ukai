@@ -16,7 +16,7 @@ import time
 import threading
 import urllib.parse
 
-SCHEMA = 'ukai.vm.sampled-exposure/1'
+SCHEMA = 'ukai.vm.sampled-exposure/2'
 MAX_READ_BYTES = 2 * 1024 * 1024
 MAX_PROCESS_COUNT = 4096
 MAX_TICK_BYTES = 16 * 1024 * 1024
@@ -198,6 +198,9 @@ class Sampler:
         self.errors = Counter()
         self.counts = {name: Counter({state: 0 for state in READ_STATES}) for name in ('environment', 'argv')}
         self.program_counts = {name: Counter({state: 0 for state in READ_STATES}) for name in self.counts}
+        # Bounded identity-indexed catalog reads, retained only as counters.
+        # Another vendor process cannot certify the receipt's workload.
+        self.program_identity_counts = {}
         self.identities = {}
         self.hits = []
         self.ticks = self.late_polls = self.missed_ticks = self.max_gap = self.max_duration = 0
@@ -337,14 +340,22 @@ class Sampler:
             os.close(fd)
         if not stable:
             states = {channel: ('unstable' if state == 'readable' else state) for channel, state in states.items()}
+        self._retain_identity(identity, roles | ({'catalog_program'} if candidate and stable else set()))
         for channel in self.counts:
             state = states.get(channel, 'unstable')
             self.counts[channel][state] += 1
-            if candidate:
+            if candidate and identity in self.identities:
                 self.program_counts[channel][state] += 1
+                if identity not in self.program_identity_counts:
+                    if len(self.program_identity_counts) >= MAX_PROCESS_COUNT:
+                        self.errors['identity_cap'] += 1
+                    else:
+                        self.program_identity_counts[identity] = {
+                            name: Counter({key: 0 for key in READ_STATES}) for name in self.counts}
+                if identity in self.program_identity_counts:
+                    self.program_identity_counts[identity][channel][state] += 1
             if channel in data:
                 self._scan(data[channel], identity, channel, stable)
-        self._retain_identity(identity, roles | ({'catalog_program'} if candidate and stable else set()))
 
     def sample(self, now_ns):
         if self.finished or self.root is None or not _integer(now_ns):
@@ -460,13 +471,21 @@ class Sampler:
                     or identity['kind'] != 'linux_boot_start'
                     or identity['value']['boot_id'] != self.boot_id
                     or not _integer(identity['value']['pid'], 1)
-                    or not _integer(identity['value']['start_time_ticks'], 1)
-                    or (identity['value']['pid'], identity['value']['start_time_ticks']) != self.supervisor):
+                    or not _integer(identity['value']['start_time_ticks'], 1)):
                 raise ValueError('receipt identity differs')
         except (UnicodeError, KeyError, TypeError, RecursionError):
             raise ValueError('invalid receipt identity') from None
+        receipt_identity = (identity['value']['pid'], identity['value']['start_time_ticks'])
+        receipt_counts = self.program_identity_counts.get(receipt_identity,
+            {name: Counter({state: 0 for state in READ_STATES}) for name in self.counts})
         positive = all(self.program_counts[channel]['readable'] > 0 for channel in self.counts)
-        incomplete = bool(self.errors) or not positive or self.ticks == 0 or any(
+        receipt_positive = all(receipt_counts[channel]['readable'] > 0 for channel in self.counts)
+        if self.supervisor[1] is None and not (self.ticks == 0 and not self.identities
+                and self.errors.get('monitor_initialization_failed', 0) > 0
+                and not any(value for row in self.counts.values() for value in row.values())):
+            raise ValueError('unknown supervisor birth is not initialization failure')
+        supervisor_observed = 'supervisor' in self.identities.get(self.supervisor, set())
+        incomplete = bool(self.errors) or not positive or not receipt_positive or not supervisor_observed or self.ticks == 0 or any(
             count for row in self.counts.values() for state, count in row.items() if state != 'readable')
         report = dict(schema=SCHEMA, **binding, guest_receipt_sha256=hashlib.sha256(receipt_bytes).hexdigest(),
                       finished=True, actual_values_retained=False,
@@ -477,12 +496,14 @@ class Sampler:
                       maximum_gap_ns=self.max_gap, maximum_tick_duration_ns=self.max_duration,
                       tick_count=self.ticks, late_poll_count=self.late_polls, missed_tick_count=self.missed_ticks,
                       reads=self.counts, verified_program_reads=self.program_counts,
+                      receipt_program_reads=receipt_counts, receipt_program_observed=receipt_positive,
                       verified_program_observed=positive, observation_incomplete=incomplete,
                       scan_errors=dict(sorted(self.errors.items())), hits=self.hits,
                       processes=[dict(pid=pid, starttime=start, roles=sorted(roles))
                                  for (pid, start), roles in sorted(self.identities.items())],
                       lifecycle=self.lifecycle,
                       supervisor=dict(pid=self.supervisor[0], starttime=self.supervisor[1]),
+                      receipt_process=dict(pid=receipt_identity[0], starttime=receipt_identity[1]),
                       catalog_executable_identity=dict(dev=self.executable[0], ino=self.executable[1]),
                       workload_uid=self.uid,
                       limits=dict(read_bytes=MAX_READ_BYTES, process_count=MAX_PROCESS_COUNT,
@@ -519,6 +540,9 @@ class Monitor:
         self.exit_observed = self.stopped = None
         self.reason = 'requested'
         self.executable = (0, 0)
+        # Popen is the jail supervisor. The Linux receipt names its launched
+        # workload; never borrow that child's birth when initialization fails.
+        self.supervisor = (process.pid, None)
         self.source_digest = source_sha256()
         # Required for a safe zero-observation report if proc setup is unavailable.
         self.patterns = _patterns(protected_values)
@@ -530,6 +554,7 @@ class Monitor:
                     fd = os.open('stat', _FILE, dir_fd=pidfd)
                     try:
                         _, start = _stat(os.read(fd, 65537), process.pid)
+                        self.supervisor = _identity((process.pid, start))
                     finally:
                         os.close(fd)
                 finally:
@@ -615,13 +640,9 @@ class Monitor:
         if sampler is None:
             # This identifies the receipt, not an observed process. Zero ticks,
             # no program observations and the sticky failure make that explicit.
-            raw = json.loads(receipt_bytes.decode('utf-8'))
-            identity = raw['process']['identity']['value']
-            if type(identity.get('pid')) is not int or identity['pid'] != self.process.pid:
-                raise ValueError('fallback supervisor identity differs')
             sampler = Sampler.__new__(Sampler)
             sampler.root = None
-            sampler.supervisor = (self.process.pid, identity['start_time_ticks'])
+            sampler.supervisor = self.supervisor
             sampler.executable = self.executable
             sampler.boot_id, sampler.uid, sampler.period = self.boot_id, self.uid, 100_000_000
             sampler.patterns = list(self.patterns)

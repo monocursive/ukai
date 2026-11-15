@@ -77,7 +77,7 @@ contracts = dict(secret_revocation='ukai.vm.secret-revocation/1', journal_export
 native_catalog = os.environ.get('NATIVE_CATALOG')
 if native_catalog:
     contracts['native_program'] = 'ukai.vm.guest-native-launch/1'
-    contracts['sampled_exposure'] = 'ukai.vm.sampled-exposure/1'
+    contracts['sampled_exposure'] = 'ukai.vm.sampled-exposure/2'
 native_prepared = None
 # Ready deliberately advertises the current contracts even when Session
 # below omits them: the service must use the actual Session, not this frame.
@@ -398,8 +398,10 @@ class WarmServiceTests(unittest.TestCase):
         self.native_request()
         ordinary = dict(secret_revocation='ukai.vm.secret-revocation/1', journal_export='ukai.vm.guest-journal/1')
         no_sampling = dict(ordinary, native_program='ukai.vm.guest-native-launch/1')
+        old_sampling = dict(no_sampling, sampled_exposure='ukai.vm.sampled-exposure/1')
         for overrides in ({'SESSION_NATIVE_CATALOG':'omit'}, {'SESSION_NATIVE_CATALOG':'f'*64},
-                          {'GUEST_CONTRACTS':json.dumps(ordinary)}, {'GUEST_CONTRACTS':json.dumps(no_sampling)}):
+                          {'GUEST_CONTRACTS':json.dumps(ordinary)}, {'GUEST_CONTRACTS':json.dumps(no_sampling)},
+                          {'GUEST_CONTRACTS':json.dumps(old_sampling)}):
             child = self.launch(**overrides)
             self.assertIn('Session does not match', self.assert_exit(child, 125))
         image = self.install / 'image'

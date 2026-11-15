@@ -55,7 +55,7 @@ class NativeControllerTests(unittest.TestCase):
     def test_session_native_contract_from_actual_catalog(self):
         h = self.create(); _, session = h.session()
         self.assertEqual(session['guest_contracts']['native_program'], gp.CONTRACT)
-        self.assertEqual(session['guest_contracts']['sampled_exposure'], 'ukai.vm.sampled-exposure/1')
+        self.assertEqual(session['guest_contracts']['sampled_exposure'], 'ukai.vm.sampled-exposure/2')
         self.assertEqual(session['guest_program_catalog_sha256'], h.verified['sha256'])
 
     def test_missing_catalog_keeps_legacy_but_refuses_native_prepare(self):
@@ -228,13 +228,15 @@ raise SystemExit(0 if all(value is True for value in checks.values()) else 1)
 
     def test_successful_native_receipt_binds_requested_and_resolved_argv(self):
         h = self.create()
+        workload_identity = {}
         def complete(jail):
-            jail.workload()
+            child = jail.workload()
+            workload_identity.update(pid=child.pid, starttime=child.starttime)
             receipt = {'schema': 'ukai.jail.receipt/1', 'attempt_id': 'att_00000000-0000-4000-8000-000000000123',
                        'argv_digest': h.intent['resolved_argv_digest'],
                        'policy': {'name': 'agent', 'digest': h.intent['expected_policy_digest']},
                        'process': {'identity': {'kind': 'linux_boot_start', 'value': {'boot_id': 'guest-boot-0001',
-                           'pid': jail.pid, 'start_time_ticks': jail.process.starttime}}}}
+                           'pid': child.pid, 'start_time_ticks': child.starttime}}}}
             Path(os.fsdecode(jail.option(b'--receipt'))).write_text(json.dumps(receipt)); jail.exit(0)
         h.scenarios.append(complete)
         self.prepare(h); self.secret(h); self.launch(h)
@@ -247,6 +249,10 @@ raise SystemExit(0 if all(value is True for value in checks.values()) else 1)
         raw = base64.b64decode(samples[0]['data'])
         self.assertEqual(done['binding']['sampled_exposure_sha256'], hashlib.sha256(raw).hexdigest())
         report = json.loads(raw)
+        self.assertEqual(report['schema'], 'ukai.vm.sampled-exposure/2')
+        self.assertEqual(report['receipt_process'], workload_identity)
+        self.assertEqual(report['supervisor']['pid'], h.subprocess.jails[0].pid)
+        self.assertNotEqual(report['supervisor']['pid'], report['receipt_process']['pid'])
         self.assertTrue(report['observation_incomplete'])  # modeled catalog path is absent
         self.assertEqual(report['scan_errors'], {'monitor_initialization_failed': 1})
         self.assertEqual(done['exit_code'], 0)  # sample failure never rewrites execution

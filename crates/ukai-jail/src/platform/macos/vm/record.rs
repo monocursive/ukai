@@ -73,6 +73,10 @@ pub struct TransportRecord {
     /// Exact checked native request; absent for the literal-program route.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub native_program: Option<super::protocol::GuestLaunchIntent>,
+    /// The controller's supervisor PID from this attempt's Released frame.
+    /// This is distinct from the workload process identified by the Linux receipt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supervisor_pid: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sampled_exposure: Option<SampledExposure>,
 }
@@ -121,6 +125,7 @@ impl TransportRecord {
             guest_receipt_sha256: guest_receipt_sha256.into(),
             guest_stop_boundaries: Vec::new(),
             native_program: None,
+            supervisor_pid: None,
             sampled_exposure: None,
         }
     }

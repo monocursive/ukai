@@ -525,6 +525,7 @@ fn running_with(network: image::GuestNetwork) -> (VmRunning, UnixStream, tempfil
     (
         VmRunning {
             inner: execution,
+            supervisor_pid: 10,
             receipt: None,
             receipt_binding: None,
             sampling_exports: 0,
@@ -1165,6 +1166,61 @@ fn the_summary_reads_the_transport_record_this_tier_writes() {
         "vm: guest-reported facts in evidence/jail.json · boot vm-boot<U+000A>forged · image \
          0123456789abcdef · vsock 2048 · receipt sha256:ffffffffffffffff"
     );
+}
+
+#[test]
+fn released_supervisor_pid_is_retained_without_replacing_the_workload_identity() {
+    let (run, mut peer, root) = running();
+    let writer = std::thread::spawn(move || {
+        let request = read_line(&mut peer);
+        assert_eq!(
+            protocol::decode::<protocol::ToVm>(&request).unwrap(),
+            protocol::ToVm::Run
+        );
+        peer.write_all(
+            &protocol::encode(&protocol::FromVm::Released {
+                supervisor_pid: 640,
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        let mut value = receipt();
+        value["process"]["identity"] = serde_json::json!({
+            "kind":"linux_boot_start",
+            "value":{"boot_id":"guest-boot","pid":672,"start_time_ticks":2673}
+        });
+        let (sha256, data) = encoded(&value);
+        peer.write_all(
+            &protocol::encode(&protocol::FromVm::BoundReceipt {
+                sha256,
+                data,
+                binding: binding(),
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        peer.write_all(&protocol::encode(&done(0)).unwrap())
+            .unwrap();
+    });
+    let mut released = match Box::new(run.inner).release() {
+        Ok(released) => released,
+        Err(_) => panic!("valid release refused"),
+    };
+    assert!(matches!(
+        released.wait(soon()),
+        RunEvent::TargetExited { code: 0 }
+    ));
+    assert_eq!(released.wait_tree(Duration::ZERO).tree_empty, Some(true));
+    let transport = record::TransportRecord::read_in(root.path()).unwrap();
+    assert_eq!(transport.supervisor_pid, Some(640));
+    let guest: Value =
+        serde_json::from_slice(&std::fs::read(root.path().join("evidence/jail.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        guest.pointer("/process/identity/value/pid"),
+        Some(&Value::from(672))
+    );
+    writer.join().unwrap();
 }
 
 // ---------------------------------------------------------------------------
@@ -2099,7 +2155,9 @@ fn every_measurement_row_resolves_in_its_record() {
                                 "secret_revocation": protocol::SECRET_REVOCATION_CONTRACT,
                                 "journal_export": protocol::JOURNAL_EXPORT_CONTRACT,
                                 "native_program": protocol::NATIVE_PROGRAM_CONTRACT,
-                                "sampled_exposure": protocol::SAMPLED_EXPOSURE_CONTRACT,
+                                // Historical component evidence predates the
+                                // corrected native sampling contract.
+                                "sampled_exposure": "ukai.vm.sampled-exposure/1",
                             })
                         }
                     );
@@ -4109,6 +4167,7 @@ fn native_client_contract_gate_and_exact_source_ack_precede_release() {
         "wrong-catalog",
         "wrong-version",
         "missing-sampling",
+        "old-sampling",
         "wrong-source",
         "valid",
     ] {
@@ -4187,9 +4246,11 @@ fn native_client_contract_gate_and_exact_source_ack_precede_release() {
                 } else {
                     catalog
                 });
-                guest_contracts.as_mut().unwrap().sampled_exposure = (variant
-                    != "missing-sampling")
-                    .then(|| protocol::SAMPLED_EXPOSURE_CONTRACT.into());
+                guest_contracts.as_mut().unwrap().sampled_exposure = match variant {
+                    "missing-sampling" => None,
+                    "old-sampling" => Some("ukai.vm.sampled-exposure/1".into()),
+                    _ => Some(protocol::SAMPLED_EXPOSURE_CONTRACT.into()),
+                };
                 guest_contracts.as_mut().unwrap().native_program = match variant {
                     "missing" => None,
                     "wrong-version" => Some("ukai.vm.guest-native-launch/2".into()),
@@ -4248,7 +4309,7 @@ fn native_client_contract_gate_and_exact_source_ack_precede_release() {
         let request = observed.recv_timeout(Duration::from_secs(5)).unwrap();
         if matches!(
             variant,
-            "missing" | "wrong-catalog" | "wrong-version" | "missing-sampling"
+            "missing" | "wrong-catalog" | "wrong-version" | "missing-sampling" | "old-sampling"
         ) {
             assert!(result.is_err());
             assert!(
@@ -4378,6 +4439,9 @@ fn sampling_data_failure_does_not_replace_the_verified_guest_execution_outcome()
         "executable",
         "oversize",
         "incomplete",
+        "wrong-supervisor",
+        "wrong-receipt-process",
+        "complete",
     ] {
         let (mut run, mut peer, root) = running();
         let native = protocol::NativeProgramBinding {
@@ -4396,8 +4460,11 @@ fn sampling_data_failure_does_not_replace_the_verified_guest_execution_outcome()
         let mut binding = binding();
         binding.native_program = Some(native);
         let mut guest_receipt = receipt();
-        guest_receipt["process"]["identity"] = serde_json::json!({"kind":"linux_boot_start", "value":{"boot_id":binding.guest_boot_id,"pid":10,"start_time_ticks":100}});
-        let payload = if variant == "incomplete" {
+        guest_receipt["process"]["identity"] = serde_json::json!({"kind":"linux_boot_start", "value":{"boot_id":binding.guest_boot_id,"pid":11,"start_time_ticks":101}});
+        let payload = if matches!(
+            variant,
+            "incomplete" | "wrong-supervisor" | "wrong-receipt-process" | "complete"
+        ) {
             let mut report: Value = serde_json::from_slice(include_bytes!(
                 "../../../../vm/fixtures/sampled-exposure-report.json"
             ))
@@ -4410,32 +4477,42 @@ fn sampling_data_failure_does_not_replace_the_verified_guest_execution_outcome()
             report["executable_sha256"] = Value::String("c".repeat(64));
             report["sampler_sha256"] = Value::String("e".repeat(64));
             report["guest_receipt_sha256"] = Value::String(encoded(&guest_receipt).0);
-            report["supervisor"] = serde_json::json!({"pid":guest_receipt.pointer("/process/identity/value/pid").unwrap(), "starttime":guest_receipt.pointer("/process/identity/value/start_time_ticks").unwrap()});
-            report["catalog_executable_identity"] = serde_json::json!({"dev":0,"ino":0});
-            for key in ["reads", "verified_program_reads"] {
-                for channel in ["environment", "argv"] {
-                    for count in report[key][channel].as_object_mut().unwrap().values_mut() {
-                        *count = Value::from(0);
+            report["supervisor"] = serde_json::json!({"pid":run.supervisor_pid,"starttime":100});
+            report["receipt_process"] = serde_json::json!({"pid":11,"starttime":101});
+            if variant == "wrong-supervisor" {
+                report["supervisor"]["pid"] = Value::from(11);
+            } else if variant == "wrong-receipt-process" {
+                report["receipt_process"]["pid"] = Value::from(10);
+            }
+            if variant == "incomplete" {
+                report["catalog_executable_identity"] = serde_json::json!({"dev":0,"ino":0});
+                report["supervisor"]["starttime"] = Value::Null;
+                for key in ["reads", "verified_program_reads", "receipt_program_reads"] {
+                    for channel in ["environment", "argv"] {
+                        for count in report[key][channel].as_object_mut().unwrap().values_mut() {
+                            *count = Value::from(0);
+                        }
                     }
                 }
+                for key in [
+                    "tick_count",
+                    "observed_interval_ns",
+                    "maximum_gap_ns",
+                    "maximum_tick_duration_ns",
+                    "late_poll_count",
+                    "missed_tick_count",
+                ] {
+                    report[key] = Value::from(0);
+                }
+                report["first_ns"] = Value::Null;
+                report["last_ns"] = Value::Null;
+                report["processes"] = serde_json::json!([]);
+                report["verified_program_observed"] = Value::Bool(false);
+                report["receipt_program_observed"] = Value::Bool(false);
+                report["observation_incomplete"] = Value::Bool(true);
+                report["scan_errors"] = serde_json::json!({"monitor_initialization_failed":1});
+                report["lifecycle"] = serde_json::json!({"started_ns":0,"stopped_ns":1,"supervisor_exit_observed_ns":2,"stop_reason":"worker_failed"});
             }
-            for key in [
-                "tick_count",
-                "observed_interval_ns",
-                "maximum_gap_ns",
-                "maximum_tick_duration_ns",
-                "late_poll_count",
-                "missed_tick_count",
-            ] {
-                report[key] = Value::from(0);
-            }
-            report["first_ns"] = Value::Null;
-            report["last_ns"] = Value::Null;
-            report["processes"] = serde_json::json!([]);
-            report["verified_program_observed"] = Value::Bool(false);
-            report["observation_incomplete"] = Value::Bool(true);
-            report["scan_errors"] = serde_json::json!({"monitor_initialization_failed":1});
-            report["lifecycle"] = serde_json::json!({"started_ns":0,"stopped_ns":1,"supervisor_exit_observed_ns":2,"stop_reason":"worker_failed"});
             serde_json::to_vec(&report).unwrap()
         } else if variant == "oversize" {
             vec![b'x'; protocol::MAX_FILE + 1]
@@ -4485,11 +4562,17 @@ fn sampling_data_failure_does_not_replace_the_verified_guest_execution_outcome()
         )
         .unwrap();
         assert_eq!(
+            transport["supervisor_pid"], 10,
+            "Released PID is retained independently of receipt workload PID 11"
+        );
+        assert_eq!(
             transport["sampled_exposure"]["status"],
             if variant == "missing" {
                 "unavailable"
             } else if variant == "incomplete" {
                 "incomplete"
+            } else if variant == "complete" {
+                "complete"
             } else {
                 "invalid"
             },

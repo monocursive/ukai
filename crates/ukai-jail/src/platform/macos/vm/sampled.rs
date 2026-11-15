@@ -65,6 +65,13 @@ struct ProcessIdentity {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct SupervisorIdentity {
+    pid: u64,
+    #[serde(deserialize_with = "nullable_u64")]
+    starttime: Option<u64>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ExecutableIdentity {
     dev: u64,
     ino: u64,
@@ -139,12 +146,15 @@ struct Report {
     reads: Reads,
     verified_program_reads: Reads,
     verified_program_observed: bool,
+    receipt_program_reads: Reads,
+    receipt_program_observed: bool,
     observation_incomplete: bool,
     #[serde(deserialize_with = "unique_errors")]
     scan_errors: BTreeMap<String, u64>,
     hits: Vec<Hit>,
     processes: Vec<Process>,
-    supervisor: ProcessIdentity,
+    supervisor: SupervisorIdentity,
+    receipt_process: ProcessIdentity,
     catalog_executable_identity: ExecutableIdentity,
     workload_uid: u64,
     limits: Limits,
@@ -217,6 +227,7 @@ fn valid(
     receipt_sha256: &str,
     binding: &protocol::ReceiptBinding,
     native: &protocol::NativeProgramBinding,
+    supervisor_pid: u32,
     sampler: &str,
 ) -> bool {
     let pid = receipt
@@ -243,10 +254,17 @@ fn valid(
             .pointer("/process/identity/kind")
             .and_then(serde_json::Value::as_str)
             != Some("linux_boot_start")
-        || Some(report.supervisor.pid) != pid
-        || Some(report.supervisor.starttime) != start
+        || receipt
+            .pointer("/process/identity/value/boot_id")
+            .and_then(serde_json::Value::as_str)
+            != Some(binding.guest_boot_id.as_str())
+        || Some(report.receipt_process.pid) != pid
+        || Some(report.receipt_process.starttime) != start
+        || report.receipt_process.pid == 0
+        || report.receipt_process.starttime == 0
         || report.supervisor.pid == 0
-        || report.supervisor.starttime == 0
+        || report.supervisor.pid != u64::from(supervisor_pid)
+        || report.supervisor.starttime == Some(0)
         || report.workload_uid == 0
         || report.workload_uid > u64::from(u32::MAX)
         || report.period_ns != 100_000_000
@@ -265,6 +283,14 @@ fn valid(
             .verified_program_reads
             .argv
             .bounded_by(&report.reads.argv)
+        || !report
+            .receipt_program_reads
+            .environment
+            .bounded_by(&report.verified_program_reads.environment)
+        || !report
+            .receipt_program_reads
+            .argv
+            .bounded_by(&report.verified_program_reads.argv)
     {
         return false;
     }
@@ -338,6 +364,9 @@ fn valid(
     if total != report.reads.argv.total()
         || report.verified_program_reads.environment.total()
             != report.verified_program_reads.argv.total()
+        || report.receipt_program_reads.environment.total()
+            != report.receipt_program_reads.argv.total()
+        || report.receipt_program_reads.environment.total() > u128::from(report.tick_count)
         || total > u128::from(report.tick_count) * u128::from(report.limits.process_count)
     {
         return false;
@@ -379,12 +408,37 @@ fn valid(
     }
     let positive = report.verified_program_reads.environment.readable > 0
         && report.verified_program_reads.argv.readable > 0;
+    let receipt_positive = report.receipt_program_reads.environment.readable > 0
+        && report.receipt_program_reads.argv.readable > 0;
+    let supervisor_observed = report.processes.iter().any(|process| {
+        process.pid == report.supervisor.pid
+            && Some(process.starttime) == report.supervisor.starttime
+            && process.roles.iter().any(|role| role == "supervisor")
+    });
     let incomplete = !report.scan_errors.is_empty()
         || !positive
+        || !receipt_positive
+        || !supervisor_observed
         || report.tick_count == 0
         || report.reads.environment.failed()
         || report.reads.argv.failed();
-    if report.verified_program_observed != positive || report.observation_incomplete != incomplete {
+    if report.verified_program_observed != positive
+        || report.receipt_program_observed != receipt_positive
+        || report.observation_incomplete != incomplete
+    {
+        return false;
+    }
+    // Startup may fail before the supervisor's birth can be read. Never fill
+    // that unknown generation using the separate workload receipt identity.
+    if report.supervisor.starttime.is_none()
+        && (report.tick_count != 0
+            || total != 0
+            || !report.processes.is_empty()
+            || !report.hits.is_empty()
+            || !report
+                .scan_errors
+                .contains_key("monitor_initialization_failed"))
+    {
         return false;
     }
     // An initialization failure may know no executable identity at all. Every
@@ -428,11 +482,11 @@ fn valid(
     {
         return false;
     }
-    if !incomplete
+    if receipt_positive
         && !report.processes.iter().any(|process| {
-            process.pid == report.supervisor.pid
-                && process.starttime == report.supervisor.starttime
-                && process.roles.iter().any(|role| role == "supervisor")
+            process.pid == report.receipt_process.pid
+                && process.starttime == report.receipt_process.starttime
+                && process.roles.iter().any(|role| role == "catalog_program")
         })
     {
         return false;
@@ -466,12 +520,14 @@ fn status(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn inspect(
     attempt: &Path,
     receipt: &serde_json::Value,
     receipt_sha256: &str,
     binding: &protocol::ReceiptBinding,
     native: &protocol::NativeProgramBinding,
+    supervisor_pid: Option<u32>,
     sampler: Option<&str>,
     export_error: Option<&str>,
 ) -> record::SampledExposure {
@@ -518,11 +574,27 @@ pub(super) fn inspect(
             Some("sampler_source_invalid"),
         );
     }
+    let Some(supervisor_pid) = supervisor_pid else {
+        return status(
+            "unavailable",
+            Some(PATH),
+            Some(hash),
+            Some("released_supervisor_missing"),
+        );
+    };
     let report: Report = match serde_json::from_slice(&bytes) {
         Ok(report) => report,
         Err(_) => return status("invalid", Some(PATH), Some(hash), Some("report_malformed")),
     };
-    if !valid(&report, receipt, receipt_sha256, binding, native, sampler) {
+    if !valid(
+        &report,
+        receipt,
+        receipt_sha256,
+        binding,
+        native,
+        supervisor_pid,
+        sampler,
+    ) {
         return status(
             "invalid",
             Some(PATH),
@@ -588,6 +660,9 @@ mod tests {
         )
     }
     fn judge(bytes: &[u8]) -> record::SampledExposure {
+        judge_with_supervisor(bytes, Some(10))
+    }
+    fn judge_with_supervisor(bytes: &[u8], supervisor: Option<u32>) -> record::SampledExposure {
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir(dir.path().join("evidence")).unwrap();
         std::fs::write(dir.path().join(PATH), bytes).unwrap();
@@ -599,9 +674,98 @@ mod tests {
             &crate::guest_program::sha256(RECEIPT),
             &binding,
             &native,
+            supervisor,
             Some(&sampler),
             None,
         )
+    }
+    #[test]
+    fn supervisor_and_receipt_process_are_distinct_and_both_are_bound() {
+        let value: Value = serde_json::from_slice(REPORT).unwrap();
+        assert_ne!(value["supervisor"], value["receipt_process"]);
+        assert_eq!(judge(REPORT).status, "complete");
+        assert_eq!(judge_with_supervisor(REPORT, Some(11)).status, "invalid");
+        assert_eq!(judge_with_supervisor(REPORT, Some(0)).status, "invalid");
+        assert_eq!(judge_with_supervisor(REPORT, None).status, "unavailable");
+
+        let mut other_program = value.clone();
+        for channel in ["environment", "argv"] {
+            for count in other_program["receipt_program_reads"][channel]
+                .as_object_mut()
+                .unwrap()
+                .values_mut()
+            {
+                *count = json!(0);
+            }
+        }
+        other_program["receipt_program_observed"] = json!(false);
+        other_program["observation_incomplete"] = json!(true);
+        assert_eq!(
+            judge(&serde_json::to_vec(&other_program).unwrap()).status,
+            "incomplete",
+            "other catalog processes cannot supply the receipt process's observations"
+        );
+        other_program["observation_incomplete"] = json!(false);
+        assert_eq!(
+            judge(&serde_json::to_vec(&other_program).unwrap()).status,
+            "invalid"
+        );
+
+        let mut inflation = value;
+        for key in ["reads", "verified_program_reads", "receipt_program_reads"] {
+            for channel in ["environment", "argv"] {
+                inflation[key][channel]["readable"] = json!(3);
+            }
+        }
+        assert_eq!(
+            judge(&serde_json::to_vec(&inflation).unwrap()).status,
+            "invalid",
+            "one receipt process cannot be counted twice in a sampling tick"
+        );
+    }
+    #[test]
+    fn unknown_supervisor_birth_is_only_an_explicit_zero_observation_startup_failure() {
+        let mut value: Value = serde_json::from_slice(REPORT).unwrap();
+        value["supervisor"]["starttime"] = Value::Null;
+        assert_eq!(
+            judge(&serde_json::to_vec(&value).unwrap()).status,
+            "invalid"
+        );
+        for key in ["reads", "verified_program_reads", "receipt_program_reads"] {
+            for channel in ["environment", "argv"] {
+                for count in value[key][channel].as_object_mut().unwrap().values_mut() {
+                    *count = json!(0);
+                }
+            }
+        }
+        for key in [
+            "tick_count",
+            "observed_interval_ns",
+            "maximum_gap_ns",
+            "maximum_tick_duration_ns",
+            "late_poll_count",
+            "missed_tick_count",
+        ] {
+            value[key] = json!(0);
+        }
+        value["first_ns"] = Value::Null;
+        value["last_ns"] = Value::Null;
+        value["processes"] = json!([]);
+        value["hits"] = json!([]);
+        value["catalog_executable_identity"] = json!({"dev":0, "ino":0});
+        value["verified_program_observed"] = json!(false);
+        value["receipt_program_observed"] = json!(false);
+        value["observation_incomplete"] = json!(true);
+        value["scan_errors"] = json!({"monitor_initialization_failed":1});
+        assert_eq!(
+            judge(&serde_json::to_vec(&value).unwrap()).status,
+            "incomplete"
+        );
+        value["scan_errors"] = json!({"monitor_worker_failed":1});
+        assert_eq!(
+            judge(&serde_json::to_vec(&value).unwrap()).status,
+            "invalid"
+        );
     }
     #[test]
     fn actual_sampler_fixture_and_valid_incomplete_reports_are_separate_from_execution() {
@@ -643,6 +807,10 @@ mod tests {
             ("/guest_receipt_sha256", json!("a".repeat(64))),
             ("/supervisor/pid", json!(11)),
             ("/supervisor/starttime", json!(101)),
+            ("/receipt_process/pid", json!(10)),
+            ("/receipt_process/starttime", json!(100)),
+            ("/receipt_program_observed", json!(false)),
+            ("/receipt_program_reads/argv/readable", json!(99)),
             ("/reads/environment/readable", json!(true)),
             ("/verified_program_reads/argv/readable", json!(99)),
             ("/tick_count", json!(0)),
@@ -722,6 +890,7 @@ mod tests {
                 &crate::guest_program::sha256(RECEIPT),
                 &binding,
                 &native,
+                Some(10),
                 pin,
                 error,
             )

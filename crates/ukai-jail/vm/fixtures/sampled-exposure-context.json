@@ -4,6 +4,7 @@
   "guest_attempt_id": "att_example",
   "guest_boot_id": "01234567-89ab-4cde-8012-3456789abcde",
   "host_attempt_id": "att_host",
-  "sampler_sha256": "4834d227be5e6ce8b3d7d14e1c42cbee161f19e7f19015de9c88264603d076f4",
-  "service_boot_id": "vm_service"
+  "sampler_sha256": "9257817c42baf6d7af0717a8f7b1a31017501fdc3caab71f818d1ad38416f94b",
+  "service_boot_id": "vm_service",
+  "supervisor_pid": 10
 }
