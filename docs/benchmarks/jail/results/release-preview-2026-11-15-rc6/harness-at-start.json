@@ -1,0 +1,12 @@
+{
+  "harness_commit": "e8ed786af",
+  "model": "anthropic/claude-sonnet-5-5",
+  "model_selection_reason": "Previous model alias absent from pinned OpenCode current catalog; this model is one of its suggestions and is documented by Anthropic. No credential or jail grant change.",
+  "primary_documentation": "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
+  "sha256": {
+    "docs/benchmarks/jail/onboarding_vm.py": "3abd58d77d665f30314948fb39d3c0488f6b7344410000ace164cf982fad08b1",
+    "docs/benchmarks/jail/onboarding_guest.py": "f54ac343dfc5774568901c9f3ccd91e9d3ce25a323c739b77c120397ff8b14fc",
+    "crates/ukai-jail/dist/package.py": "a784056cc602838a13def8615adcabe9b5b1b0b902d1efd4bde12092b9708c9e",
+    "crates/ukai-jail/dist/install.sh": "9c49ea8a0d7c2633b446d1912d9def945bb10dad325de6542320dd185a13f012"
+  }
+}
