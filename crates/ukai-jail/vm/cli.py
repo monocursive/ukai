@@ -25,6 +25,7 @@ def installed_image():
 
 def expand_image(directory):
     metadata = json.loads((directory / 'image.json').read_text())
+    run.optional_program_catalog(directory, metadata)
     destination = directory / 'base.raw'
     digest = hashlib.sha256()
     total = 0
@@ -73,6 +74,11 @@ def main():
         checks = {'virtualization_supported': subprocess.run(['/usr/sbin/sysctl', '-n', 'kern.hv_support'], capture_output=True, text=True).stdout.strip() == '1'}
         for name, key in [('base.raw', 'disk_sha256'), ('seed.iso', 'seed_sha256'), ('vz', 'helper_sha256'), ('custodian', 'custodian_sha256')]:
             checks[name] = (image / name).is_file() and run.digest(image / name) == metadata[key]
+        try:
+            run.optional_program_catalog(image, metadata)
+            checks['guest_program_catalog'] = True
+        except (OSError, ValueError):
+            checks['guest_program_catalog'] = False
         result = {'schema': 'ukai.vm.install-check/1', 'ready': all(checks.values()), 'checks': checks,
                   'scope': 'package and host prerequisites; a real run still verifies the guest jail'}
         print(json.dumps(result, indent=2))

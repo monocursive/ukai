@@ -53,6 +53,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -63,6 +64,11 @@ CLAUDE_BINARY = 'claude'          # staged in the workspace by the caller
 CLAUDE_VERSION = '2.1.311'        # downloads.claude.ai manifest, linux-arm64
 CLAUDE_SHA256 = ('2e2496c9a8065df93acb0fca2d341f59'
                  'a6b8777649b2e025ab8c9bcd5eef61f3')
+# Exact signed Linux guest candidate used by the native image preparation.
+# A self-consistent catalog alone cannot select another jail artifact.
+NATIVE_GUEST_JAIL_SHA256 = '118c8bdda8c7bd5b5957bce15171ff418fb7df0350de795770532beaee2e3462'
+NATIVE_GUEST_REVISION = '6ffff05dc6ae08602a39630b947c704bf9cf05a9'
+NATIVE_GUEST_INPUTS = 'sha256:efdc169e8e09f514c908e02bb6f972bc8761d2efc9af94d9b53d914a436f14e6'
 RUN_TIMEOUT_SECONDS = 420
 EXPIRY_MARGIN_SECONDS = 30 * 60   # the run's timeout and the summary, with room
 PROMPT = ('In the current directory, create a file named k113-marker.txt '
@@ -73,6 +79,9 @@ NOT_MEASURED = ['A01 fixture', 'ten repetitions', 'no-source refusal', 'revocati
 COMPATIBILITY_PENDING = ['revocation mid-stream', 'full independent summary recomputation',
                          'sampled child environments', 'alias-derived executable grants',
                          'installed notarized candidate qualification']
+NATIVE_PENDING = ['vendor mid-stream source revocation',
+                  'both credential-kind records', 'native installer and --version evidence',
+                  'installed notarized candidate qualification']
 A01_PROMPT = 'Create a file named greeting.txt containing the single word hello.'
 TASK_PROMPT = ('Fix slugify in slug.py so it lowercases its input. Run the existing '
                'test_slug.py tests without changing that test file.')
@@ -354,9 +363,13 @@ def parse_args(argv):
     parser.add_argument('--credential-source', type=Path)
     parser.add_argument('--case', choices=('marker', 'a01', 'small-task', 'missing-source'), default='marker')
     parser.add_argument('--compatibility', action='store_true')
+    parser.add_argument('--execution-mode', choices=('workspace-literal', 'guest-native'),
+                        default='workspace-literal', help='explicit native catalog mode; no workspace executable or launch override')
     args = parser.parse_args(argv)
     if args.credential_kind == 'api-key' and args.credential_source is None and args.case != 'missing-source':
         parser.error('--credential-kind api-key requires --credential-source')
+    if args.execution_mode == 'guest-native' and args.credential_source is None and (args.compatibility or args.case != 'missing-source'):
+        parser.error('guest-native mode requires an explicit --credential-source; it never discovers operator credentials')
     return args
 
 
@@ -505,6 +518,8 @@ def judge(row):
 def main(argv=None, now=time.time, candidates=credential_candidates, run=subprocess.run):
     argv = sys.argv[1:] if argv is None else argv
     args = parse_args(argv)
+    if args.execution_mode == 'guest-native':
+        return native_matrix(args, run=run) if args.compatibility else native_main(args, run=run)
     if args.compatibility:
         return compatibility_matrix(args, now=now, candidates=candidates, run=run)
     home = Path(args.home).resolve(strict=True)
@@ -700,6 +715,395 @@ def main(argv=None, now=time.time, candidates=credential_candidates, run=subproc
     harness.write_json(out / 'k113-claude.json', row)
     print(json.dumps({'facts': facts, 'outcome': outcome}))
     return 0 if outcome == 'PASS' else 1
+
+
+def native_exposure_control(metadata):
+    """Validate the image-bound detector control, not merely its PASS label."""
+    import credential_revocation_measurement as lifecycle
+    control = metadata.get('guest_exposure_control')
+    fields = {'schema', 'passed', 'scope', 'actual_values_retained', 'jail_execution_claimed', 'facts', 'sampling',
+              'errors', 'control_source_sha256', 'sampler_sha256', 'guest_boot_id', 'guest_kernel', 'process'}
+    facts = {'environment_canary_detected', 'argv_canary_detected', 'verified_program_environment_read',
+             'verified_program_argv_read', 'only_owned_child_observed', 'sampler_source_unchanged', 'owned_child_reaped'}
+    if type(control) is not dict or set(control) != fields:
+        raise harness.HarnessError('image lacks the exact guest exposure detector control')
+    for key, name in [('sampler_sha256', 'guest_exposure.py'), ('control_source_sha256', 'guest_exposure_control.py')]:
+        digest = hashlib.sha256(lifecycle.bounded_file(Path(__file__).with_name(name), 512 * 1024)).hexdigest()
+        if control[key] != digest or (metadata.get('source_sha256') or {}).get(name) != digest:
+            raise harness.HarnessError('detector control does not match archived source')
+    raw = (json.dumps(control, sort_keys=True, separators=(',', ':')) + '\n').encode()
+    if (hashlib.sha256(raw).hexdigest() != metadata.get('guest_exposure_control_sha256')
+            or control['schema'] != 'ukai.vm.sampled-exposure-control/1'
+            or control['scope'] != 'owned-public-canary-process-detector-control'
+            or control['passed'] is not True or control['actual_values_retained'] is not False
+            or control['jail_execution_claimed'] is not False or control['errors'] != []
+            or type(control['facts']) is not dict or set(control['facts']) != facts
+            or any(value is not True for value in control['facts'].values())):
+        raise harness.HarnessError('detector control facts differ')
+    for key in ('guest_boot_id', 'guest_kernel'):
+        if type(control[key]) is not str or re.fullmatch(r'[A-Za-z0-9._+-]{1,128}', control[key]) is None:
+            raise harness.HarnessError('detector control guest identity differs')
+    process = control['process']
+    if (type(process) is not dict or set(process) != {'pid', 'starttime', 'executable_dev', 'executable_ino'}
+            or any(type(value) is not int or not (0 if key == 'executable_dev' else 1) <= value < 2 ** 64
+                   for key, value in process.items())):
+        raise harness.HarnessError('detector control process identity differs')
+    sample = control['sampling']; states = {'readable', 'unreadable', 'oversize', 'vanished', 'unstable', 'capped'}
+    if (type(sample) is not dict or set(sample) != {'ticks', 'verified_program_reads', 'scan_errors'}
+            or type(sample['ticks']) is not int or not 1 <= sample['ticks'] <= 1000
+            or type(sample['verified_program_reads']) is not dict
+            or set(sample['verified_program_reads']) != {'environment', 'argv'}):
+        raise harness.HarnessError('detector control read evidence differs')
+    for counts in sample['verified_program_reads'].values():
+        if (type(counts) is not dict or set(counts) != states or counts['readable'] < 1
+                or any(type(value) is not int or not 0 <= value < 2 ** 64 for value in counts.values())):
+            raise harness.HarnessError('detector control lacks positive program reads')
+    if (type(sample['scan_errors']) is not dict
+            or any(type(key) is not str or re.fullmatch(r'[a-z_]{1,64}', key) is None
+                   or type(value) is not int or not 1 <= value < 2 ** 64 for key, value in sample['scan_errors'].items())):
+        raise harness.HarnessError('detector control error evidence differs')
+    return {'verified': True, 'sha256': metadata['guest_exposure_control_sha256'],
+            'guest_kernel': control['guest_kernel'], 'scope': control['scope']}
+
+
+def native_context(home, jail):
+    """Read metadata only; catalog guest paths are never opened on the Mac."""
+    import guest_program
+    import credential_revocation_measurement as lifecycle
+    import run as image_tools
+    identity = lifecycle.normal_identity(home, jail)
+    metadata = identity['image']
+    raw = image_tools.optional_program_catalog(Path(home) / 'image', metadata)
+    if raw is None:
+        raise harness.HarnessError('guest-native measurement requires an image-bound catalog')
+    entries = [entry for entry in guest_program.parse_catalog(raw)['entries'] if entry['alias'] == 'claude']
+    profile_bytes = lifecycle.bounded_file(Path(__file__).resolve().parents[1] / 'profiles/launch/claude.toml', 65536)
+    if (len(entries) != 1 or entries[0]['version'] != CLAUDE_VERSION
+            or entries[0]['executable_sha256'] != CLAUDE_SHA256
+            or entries[0]['profile_sha256'] != hashlib.sha256(profile_bytes).hexdigest()):
+        raise harness.HarnessError('catalog does not match this pinned vendor and unchanged bundled profile')
+    if (identity['service']['sha256'] != metadata.get('ukai_vm_sha256')
+            or identity['client']['sha256'] != metadata.get('ukai_jail_sha256')):
+        raise harness.HarnessError('installed service/client do not match image provenance')
+    sampler_hash = hashlib.sha256(lifecycle.bounded_file(Path(__file__).with_name('guest_exposure.py'), 512 * 1024)).hexdigest()
+    if (metadata.get('source_sha256') or {}).get('guest_exposure.py') != sampler_hash:
+        raise harness.HarnessError('installed image does not bind this archived guest sampler source')
+    candidate = metadata.get('jail_candidate') or {}
+    version = candidate.get('version') or {}
+    build = version.get('build') or {}
+    trusted_key = Path(__file__).resolve().parents[1] / 'dist/release.pub'
+    if (candidate.get('kind') != 'signed-local-candidate' or candidate.get('signature_verified') is not True
+            or candidate.get('verifier') != 'publish_release.check'
+            or candidate.get('trusted_key_sha256') != hashlib.sha256(lifecycle.bounded_file(trusted_key, 8192)).hexdigest()
+            or candidate.get('target') != 'aarch64-unknown-linux-gnu'
+            or candidate.get('binary_sha256') != entries[0]['guest_jail_sha256']
+            or candidate.get('binary_sha256') != NATIVE_GUEST_JAIL_SHA256
+            or candidate.get('source_revision') != NATIVE_GUEST_REVISION
+            or candidate.get('build_inputs') != NATIVE_GUEST_INPUTS
+            or candidate.get('archive_sha256') != metadata.get('jail_archive_sha256')
+            or re.fullmatch(r'[0-9a-f]{64}', candidate.get('archive_sha256', '')) is None
+            or version.get('component') != 'ukai-jail' or version.get('version') != '0.1.0'
+            or version.get('frozen') is not True or build.get('revision') != NATIVE_GUEST_REVISION
+            or build.get('inputs') != NATIVE_GUEST_INPUTS or build.get('dirty') is not False
+            or build.get('debug_assertions') is not False or build.get('opt_level') != '3'
+            or build.get('target') != 'aarch64-unknown-linux-gnu'
+            or not build.get('rustc', '').startswith('rustc 1.98.1 ')):
+        raise harness.HarnessError('guest jail candidate does not match the pinned native measurement artifact')
+    identity['measurement'] = {'sha256': harness.sha256_file(__file__)}
+    return {'identity': identity, 'entry': entries[0], 'catalog_sha256': hashlib.sha256(raw).hexdigest(),
+            'catalog_json': raw.decode(), 'profile': tomllib.loads(profile_bytes.decode()),
+            'exposure_control': native_exposure_control(metadata)}
+
+
+def native_argv(jail, workspace, case):
+    prompt = {'marker': PROMPT, 'a01': A01_PROMPT, 'small-task': TASK_PROMPT, 'missing-source': PROMPT}[case]
+    suffix = ['-p', prompt, '--dangerously-skip-permissions', '--output-format', 'json']
+    command = [str(jail), 'run', '--vm', '--from-path', '--launch', 'claude', '--state', 'attempt',
+               '--terminal', 'detach', '--profile', 'agent', *harness.vm_wall(240),
+               '--workspace', str(workspace), '--', *suffix]
+    return command, suffix
+
+
+def native_missing_source_facts(observed, text, attempts, profile):
+    ids = profile['credentials_one_of']
+    return {'missing_source_refusal': type(observed.get('run_exit')) is int and observed['run_exit'] != 0
+                and 'credential_unavailable' in text and 'none is present' in text
+                and 'launch.credentials_one_of' in text and all(name in text for name in ids),
+            'both_bundled_hints': all(profile['credentials'][name]['hint'] in text for name in ids),
+            'no_attempt_or_workload': attempts == [],
+            'not_a_vm_capability_refusal': not harness.vm_refusals(text)}
+
+
+def native_facts(observed, guest, events, summary, context, suffix, binding, host):
+    """Qualification facts, independent of a reported PASS label."""
+    import credential_revocation_measurement as lifecycle
+    facts = compatibility_facts(observed, guest, summary, events)
+    facts.pop('measurement_passed', None)
+    facts.pop('tail_json_text_matches_text', None)
+    entry = context['entry']
+    wanted = {'catalog_sha256': context['catalog_sha256'], 'entry_id': entry['id'],
+              'profile_sha256': entry['profile_sha256'], 'executable_sha256': entry['executable_sha256'],
+              'selected_credential_id': observed['credential_id'], 'state': 'attempt',
+              'request_argv_digest': harness.argv_digest(['claude', *suffix]),
+              'resolved_argv_digest': harness.argv_digest([*entry['argv_prefix'], *suffix]),
+              'policy_digest': (guest.get('policy') or {}).get('digest')}
+    grants = [{'kind': 'read_only', 'value': entry['install_root'], 'by': 'program_resolution'}]
+    grants += [{'kind': 'allow_host', 'value': host + ':443', 'by': 'operator'}
+               for host in context['profile']['network']['allow']]
+    actual = (guest.get('policy') or {}).get('grants')
+    normalized = lambda values: sorted(json.dumps(value, sort_keys=True) for value in values)
+    host_sources = [{'id': observed['credential_id'], 'mode': 'vault', 'never_staged': True,
+                     'digest': None, 'digest_unavailable_reason': 'never_staged'}]
+    host_source_only = (type(host.get('credentials')) is list
+                        and normalized(host['credentials']) == normalized(host_sources))
+    sampling = (observed.get('independent_summary') or {}).get('sampling') or {}
+    sample_lifecycle = sampling.get('lifecycle') or {}
+    monitored_exit = sample_lifecycle.get('supervisor_exit_observed_ns')
+    monitored_stop = sample_lifecycle.get('stopped_ns')
+    facts.update(
+        exact_native_binding=type(binding) is dict and binding.get('native_program') == wanted
+            and guest.get('argv_digest') == wanted['resolved_argv_digest'],
+        derived_program_root_and_only_declared_grants=type(actual) is list and normalized(actual) == normalized(grants),
+        strict_successful_outcome=lifecycle.successful_outcome(guest.get('outcome')),
+        vendor_reported_success=type(observed.get('agent_result')) is dict
+            and observed['agent_result'].get('subtype') == 'success'
+            and observed['agent_result'].get('is_error') is False,
+        actual_guest_version_matches_pinned_candidate=(guest.get('jail') or {}).get('component') == 'ukai-jail'
+            and (guest.get('jail') or {}).get('version') == context['identity']['image']['jail_candidate']['version']['version']
+            and (guest.get('jail') or {}).get('backend') == 'bubblewrap'
+            and (guest.get('platform') or {}).get('os') == 'linux'
+            and (guest.get('platform') or {}).get('arch') == 'aarch64',
+        image_bound_sampler_positive_control=(context.get('exposure_control') or {}).get('verified') is True
+            and 'Linux ' + context['exposure_control']['guest_kernel'] == (guest.get('platform') or {}).get('kernel'),
+        host_settled_clean=host.get('phase') == 'settled' and host.get('errors') == []
+            and lifecycle.successful_outcome(host.get('outcome')) and host.get('exec_observed') is True
+            and (host.get('lifetime') or {}).get('tree_empty') is True
+            and (host.get('lifetime') or {}).get('integrity') == 'verified'
+            and host.get('cleanup_error') is None
+            and (host.get('state_cleanup') == 'complete' or (host.get('state_cleanup') == 'not_needed'
+                 and host.get('vendor_state') is None and host_source_only)),
+        exact_host_source_only_provenance=host_source_only and host.get('vendor_state') is None,
+        independent_full_summary=(observed.get('independent_summary') or {}).get('outcome') == 'PASS'
+            and (observed.get('independent_summary') or {}).get('scope') == 'bound_guest',
+        complete_bound_periodic_guest_samples=sampling.get('state') == 'complete'
+            and sampling.get('verified_program_observed') is True and sampling.get('no_hits') is True
+            and sampling.get('scan_errors') == {}
+            and sampling.get('sampler_sha256') == context['identity']['image']['source_sha256']['guest_exposure.py']
+            and sample_lifecycle.get('stop_reason') == 'supervisor_exit'
+            and type(monitored_exit) is int and type(monitored_stop) is int and monitored_stop >= monitored_exit
+            and type(sampling.get('last_ns')) is int and monitored_exit >= sampling['last_ns'],
+        installed_identity_unchanged=observed.get('installed_identity_unchanged') is True,
+        run_and_both_tail_commands_succeeded=all(type(observed.get(key)) is int and observed[key] == 0
+            for key in ('run_exit', 'tail_exit', 'tail_json_exit')),
+        source_removed_before_stop=observed.get('source_removed_before_stop') is True,
+        service_shutdown_complete=(observed.get('service_shutdown') or {}).get('complete') is True
+            and type(observed.get('stop_exit')) is int and observed['stop_exit'] == 0,
+        all_exports_and_outputs_scanned=observed.get('leaks') == [] and observed.get('files_scanned', 0) > 0
+            and observed.get('output_leaks') == [],
+        no_harness_failure='error_type' not in observed,
+    )
+    return facts
+
+
+def native_matrix(args, *, run=subprocess.run):
+    """Keep every native failure and never infer missing auth/revocation proof."""
+    workspace = harness.guarded_workspace(args.workspace)
+    out = harness.fresh_out_dir(args.out)
+    rows = []
+    lanes = [('a01', 'a01'), ('small-task', 'small-task')]
+    lanes += [(f'repetition-{number:02}', 'a01') for number in range(1, 11)]
+    lanes += [('missing-source', 'missing-source')]
+    for label, case in lanes:
+        trial = workspace / ('a01' if case == 'small-task' else label)
+        if case != 'small-task':
+            trial.mkdir(); harness.mark_workspace(trial)
+        argv = [args.home, str(trial), str(out / label), args.jail, '--execution-mode', 'guest-native',
+                '--credential-kind', args.credential_kind, '--case', case]
+        if args.credential_source is not None:
+            argv += ['--credential-source', str(args.credential_source)]
+        try:
+            code = main(argv, run=run)
+            report = read_json(out / label / 'k113-native.json')
+            rows.append({'case': label, 'exit': code, 'outcome': report.get('outcome'),
+                         'facts': report.get('facts', {})})
+        except Exception as error:
+            rows.append({'case': label, 'exit': None, 'outcome': 'ERROR', 'error_type': type(error).__name__})
+        harness.write_json(out / f'k113-native-progress-{len(rows):02}.json', {'rows': rows, 'qualified': False})
+    passed = all(item.get('facts') and all(item['facts'].values()) for item in rows)
+    result = {'schema': 'ukai.vm.native-claude-matrix/1', 'credential_kind': args.credential_kind,
+              'rows': rows, 'qualified': False, 'outcome': 'UNMEASURED' if passed else 'FAIL',
+              'not_measured': NATIVE_PENDING,
+              'scope': 'Guest-native attempt-state measurement for the named credential kind; not full K113.'}
+    harness.write_json(out / 'k113-native-matrix.json', result)
+    return 1
+
+
+def native_main(args, *, run=subprocess.run):
+    """Explicit installed-client path. No fallback, provider credentials in argv, or launch override."""
+    import credential_revocation_measurement as lifecycle
+    import vm_summary_check
+    home = Path(args.home).resolve(strict=True)
+    jail = harness.required_binary('UKAI_JAIL_BINARY', args.jail)
+    workspace = harness.guarded_workspace(args.workspace)
+    out = harness.fresh_out_dir(args.out)
+    observed = {'schema': 'ukai.vm.native-claude/1', 'execution_mode': 'guest-native', 'case': args.case,
+                'credential_kind': args.credential_kind,
+                'credential_id': 'anthropic' if args.credential_kind == 'api-key' else 'claude-oauth',
+                'qualified': False, 'not_measured': NATIVE_PENDING}
+    token = b''; outputs = {}; attempt = None; source = None
+    host, guest, events, summary, binding, context, suffix = {}, {}, None, {}, {}, {}, []
+    # Keep socket paths short even on the default long macOS temporary directory.
+    data = Path(tempfile.mkdtemp(prefix='k113n-', dir='/tmp')).resolve()
+    config = Path(tempfile.mkdtemp(prefix='k113n-config-')).resolve()
+    environment = harness.vm_client_environment(PATH=f'{home}/bin:/usr/bin:/bin', UKAI_VM_HOME=home,
+                                                UKAI_DATA_DIR=data, UKAI_CONFIG_DIR=config)
+    def execute(label, argv, timeout):
+        done = run(argv, env=environment, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout)
+        outputs[label + '.stdout'] = done.stdout
+        outputs[label + '.stderr'] = done.stderr
+        return done
+    with contextlib.ExitStack() as cleanup:
+        shutdown_lock = None
+        try:
+            context = native_context(home, jail)
+            harness.clean_workspace(workspace, keep=('.git', 'greeting.txt') if args.case == 'small-task' else ())
+            if args.case in ('a01', 'small-task'):
+                if execute('git-init', ['git', '-c', 'init.defaultBranch=main', 'init', '-q', str(workspace)], 30).returncode != 0:
+                    raise harness.HarnessError('fresh git repository initialization failed')
+            if args.case == 'small-task':
+                (workspace / 'slug.py').write_text(SLUG)
+                (workspace / 'test_slug.py').write_text(SLUG_TEST)
+            (config / 'credentials').mkdir(mode=0o700)
+            source = config / 'credentials' / observed['credential_id']
+            if args.case != 'missing-source':
+                token = private_source(args.credential_source)
+                descriptor = os.open(source, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                with os.fdopen(descriptor, 'wb') as target: target.write(token)
+            command, suffix = native_argv(jail, workspace, args.case)
+            observed['request_argv_digest'] = harness.argv_digest(['claude', *suffix])
+            observed['resolved_argv_digest'] = harness.argv_digest([*context['entry']['argv_prefix'], *suffix])
+            started = time.monotonic()
+            observed['run_exit'] = execute('run', command, RUN_TIMEOUT_SECONDS).returncode
+            observed['elapsed_seconds'] = time.monotonic() - started
+            vendor = agent_result(outputs['run.stdout'])
+            if type(vendor) is dict:
+                # Sanitize parsed strings before truncation/serialization.
+                if token: vendor = redact_value(vendor, token)
+                observed['agent_result'] = {key: vendor.get(key) for key in ('subtype', 'is_error', 'num_turns')}
+                if type(vendor.get('result')) is str:
+                    observed['agent_result']['result_text'] = vendor['result'][:200]
+            attempts = sorted((data / 'attempts').glob('att_*'))
+            if args.case == 'missing-source':
+                observed['facts'] = native_missing_source_facts(observed, outputs['run.stdout'] + outputs['run.stderr'],
+                                                               attempts, context['profile'])
+            elif len(attempts) == 1:
+                attempt = attempts[0]
+                observed['attempt_id'] = attempt.name
+                host = strict_json(lifecycle.bounded_file(attempt / 'jail.json', RECEIPT_MAX))
+                guest, events, observed['guest_journal'] = verified_guest_journal(attempt)
+                binding = strict_json(lifecycle.bounded_file(attempt / 'evidence/vm-binding.json', RECEIPT_MAX))
+                observed['tail_exit'] = execute('tail', [str(jail), 'tail', '--summary', '--attempt', attempt.name], 60).returncode
+                observed['tail_json_exit'] = execute('tail-json', [str(jail), 'tail', '--summary', '--json', '--attempt', attempt.name], 60).returncode
+                summary = strict_json(outputs['tail-json.stdout'])
+                observed['independent_summary'] = vm_summary_check.verify_attempt(attempt, summary, outputs['tail.stdout'])
+                target = workspace / ('greeting.txt' if args.case == 'a01' else 'k113-marker.txt')
+                if args.case in ('a01', 'marker'):
+                    observed['task_passed'] = lifecycle.bounded_file(target, 1024).strip() == (b'hello' if args.case == 'a01' else b'contained')
+                else:
+                    tests = workspace / 'test_slug.py'
+                    unchanged = lifecycle.bounded_file(tests, 4096) == SLUG_TEST.encode()
+                    if unchanged:
+                        # Load stdlib unittest in isolated mode before making the
+                        # workspace importable; a vendor-created unittest.py
+                        # must not replace the fixed checker.
+                        check_argv = ['/usr/bin/python3', '-I', '-c',
+                            'import os,sys,unittest;sys.path.insert(0,os.getcwd());exec(' + repr(SLUG_TEST) + ')']
+                        checked = execute('task-check', [str(jail), 'run', '--vm', '--terminal', 'detach', '--profile', 'tool',
+                            *harness.vm_wall(20), '--workspace', str(workspace), '--', *check_argv], 300)
+                        check_attempts = sorted(p for p in (data / 'attempts').glob('att_*') if p != attempt)
+                        check_guest = read_json(check_attempts[0] / 'evidence/jail.json') if len(check_attempts) == 1 else {}
+                        observed['task_passed'] = (checked.returncode == 0 and lifecycle.bounded_file(tests, 4096) == SLUG_TEST.encode()
+                            and len(check_attempts) == 1 and harness.attempt_dir_bound(check_attempts[0], check_argv)
+                            and lifecycle.successful_outcome(check_guest.get('outcome'))
+                            and check_guest.get('phase') == 'settled' and check_guest.get('errors') == []
+                            and check_guest.get('containment') == 'enforced' and check_guest.get('child_protection') == 'enforced'
+                            and check_guest.get('exec_observed') is True
+                            and (check_guest.get('lifetime') or {}).get('tree_empty') is True
+                            and (check_guest.get('lifetime') or {}).get('integrity') == 'verified')
+                        observed['task_check_attempts'] = [p.name for p in check_attempts]
+                    else:
+                        observed['task_passed'] = False
+            else:
+                raise harness.HarnessError('native run did not create exactly one attempt')
+        except Exception as error:
+            observed['error_type'] = type(error).__name__
+            if isinstance(error, subprocess.TimeoutExpired):
+                for key, value in [('timeout.stdout', error.stdout), ('timeout.stderr', error.stderr)]:
+                    outputs[key] = value.decode(errors='replace') if isinstance(value, bytes) else (value or '')
+        finally:
+            try:
+                if source is not None: source.unlink(missing_ok=True)
+                observed['source_removed_before_stop'] = source is None or not source.exists()
+            except OSError as error:
+                observed['source_removed_before_stop'] = False
+                observed['source_cleanup_error_type'] = type(error).__name__
+            try:
+                if os.path.lexists(data / 'vm/serve.lock'):
+                    shutdown_lock = lifecycle.running_service_lock(data)
+                    cleanup.enter_context(shutdown_lock)
+                    observed['stop_exit'] = execute('stop', [str(home / 'bin/ukai-vm'), 'stop'], 60).returncode
+                    observed['service_shutdown'] = lifecycle.stopped_service_lock(data, shutdown_lock)
+                else:
+                    observed['service_shutdown'] = {'complete': args.case == 'missing-source', 'not_started': True}
+            except Exception as error:
+                observed['service_shutdown'] = {'complete': False, 'error_type': type(error).__name__}
+                # A failed lock witness must still attempt to stop this isolated service.
+                try: observed['stop_exit'] = execute('stop-fallback', [str(home / 'bin/ukai-vm'), 'stop'], 60).returncode
+                except Exception: observed['stop_exit'] = None
+        try:
+            observed['installed_identity_unchanged'] = native_context(home, jail) == context
+        except Exception:
+            observed['installed_identity_unchanged'] = False
+        spellings = secret_spellings(token) if token else []
+        observed['output_leaks'] = text_leaks(token, **outputs) if token else []
+        scans = ([vault_measurement.leak_scan([data, workspace, config], spelling.encode()) for spelling in spellings]
+                 if observed['service_shutdown']['complete'] else [(['scan-error:service-shutdown-unverified'], 0)])
+        observed['leaks'] = sorted({path for hits, _ in scans for path in hits})
+        observed['files_scanned'] = max((count for _, count in scans), default=0)
+        for name, value in outputs.items():
+            (out / name).write_text(redact_text(value, token) if token else value)
+        if attempt is not None and not observed['leaks'] and not observed['output_leaks']:
+            try:
+                observed['retained_attempt_sha256'] = lifecycle.retain_normal_attempt(attempt, out / 'attempt', spellings)
+                # Exact caller mapping accounts only for relocation of the receipt's display path.
+                mapping = {str(out / 'attempt'): str(attempt)}
+                observed['retained_summary'] = vm_summary_check.verify_attempt(out / 'attempt', summary, outputs['tail.stdout'],
+                                                                             display_mapping=mapping)
+                inputs = {'schema': 'ukai.vm.native-claude-inputs/1', 'context': context, 'argv_suffix': suffix,
+                          'display_mapping': mapping, 'summary': summary, 'attempt_id': attempt.name}
+                encoded = (json.dumps(inputs, ensure_ascii=False, indent=2) + '\n').encode()
+                if len(encoded) > 8 * 1024 * 1024 or any(spelling.encode() in encoded for spelling in spellings):
+                    raise harness.HarnessError('native input retention refused a secret spelling')
+                (out / 'native-inputs.json').write_bytes(encoded)
+                observed['inputs_sha256'] = hashlib.sha256(encoded).hexdigest()
+            except Exception as error:
+                observed['error_type'] = type(error).__name__
+        if args.case != 'missing-source':
+            try: observed['facts'] = native_facts(observed, guest, events, summary, context, suffix, binding, host)
+            except (KeyError, TypeError, ValueError): observed['facts'] = {'evidence_well_formed': False}
+            observed['facts']['exact_attempt_and_inputs_retained'] = bool(observed.get('inputs_sha256'))
+        else:
+            observed.setdefault('facts', {'missing_source_refusal': False})
+            observed['facts']['service_cleanup_verified'] = observed['service_shutdown']['complete']
+            observed['facts']['no_harness_failure'] = 'error_type' not in observed
+        observed['outcome'] = 'PASS' if observed['facts'] and all(observed['facts'].values()) else 'FAIL'
+        observed['compatibility_outcome'] = 'UNMEASURED' if observed['outcome'] == 'PASS' else 'FAIL'
+        if token: observed = redact_value(observed, token)
+        harness.write_json(out / 'k113-native.json', observed)
+    # Leave the isolated data directory as failure evidence, but never a source.
+    if observed.get('source_removed_before_stop'):
+        shutil.rmtree(config)
+    return 0 if observed['outcome'] == 'PASS' else 1
 
 
 def read_json(path):

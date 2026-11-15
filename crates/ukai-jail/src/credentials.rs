@@ -1976,3 +1976,99 @@ mod tests {
         }
     }
 }
+
+/// Source-only transport handoff. No host vendor state, executable pin or proxy.
+#[cfg(target_os = "macos")]
+#[derive(Clone, Debug, Default)]
+pub struct GuestLaunchHandoff {
+    pub(crate) sources: Vec<Arc<crate::vault::transport::Source>>,
+}
+#[cfg(target_os = "macos")]
+impl PartialEq for GuestLaunchHandoff {
+    fn eq(&self, other: &Self) -> bool {
+        self.sources.len() == other.sources.len()
+            && self
+                .sources
+                .iter()
+                .zip(&other.sources)
+                .all(|(a, b)| Arc::ptr_eq(a, b))
+    }
+}
+#[cfg(target_os = "macos")]
+impl Eq for GuestLaunchHandoff {}
+
+/// Capture exactly one source under the preparation deadline. The worker never
+/// creates child-visible files, and an abandoned result is dropped and zeroized.
+#[cfg(target_os = "macos")]
+pub(crate) fn stage_guest_within(
+    launch: &LaunchSnapshot,
+    program: &crate::guest_program::GuestProgram,
+    forbidden: &[(u64, u64)],
+    remaining: &dyn Fn() -> Duration,
+) -> Result<(GuestLaunchHandoff, StagedCredential), JailError> {
+    if remaining().is_zero() {
+        return Err(abandoned_error());
+    }
+    if launch.credentials.len() != 1 {
+        return Err(refusal(
+            "*",
+            Remediation::Configuration,
+            "guest launch requires one selected source",
+        ));
+    }
+    let declaration = launch.credentials[0].clone();
+    if declaration.mode != CredentialMode::Vault {
+        return Err(refusal(
+            &declaration.id,
+            Remediation::Configuration,
+            "guest launch only transports vault sources",
+        ));
+    }
+    let policy = declaration.vault.clone().ok_or_else(|| {
+        refusal(
+            &declaration.id,
+            Remediation::Configuration,
+            "guest vault policy absent",
+        )
+    })?;
+    let forbidden = forbidden.to_vec();
+    let executable = program.executable.as_str().to_owned();
+    let result = within(remaining, move || {
+        let source = Arc::new(
+            crate::vault::transport::Source::load(
+                declaration.id.clone(),
+                policy,
+                declaration.source.as_bytes().to_vec(),
+                forbidden,
+                &executable,
+            )
+            .map_err(|e| refusal(&declaration.id, Remediation::Configuration, e))?,
+        );
+        // No earlier identity read can be mistaken for the generation actually captured.
+        let staged = StagedCredential {
+            vault: None,
+            mode: CredentialMode::Vault,
+            record: CredentialRecord {
+                id: declaration.id,
+                mode: "vault".into(),
+                never_staged: true,
+                binding: None,
+                digest: None,
+                digest_unavailable_reason: Some("never_staged".into()),
+            },
+            bind: None,
+            source: source.identity(),
+        };
+        Ok((
+            GuestLaunchHandoff {
+                sources: vec![source],
+            },
+            staged,
+        ))
+    })
+    .map_err(|_| abandoned_error())?;
+    if remaining().is_zero() {
+        return Err(abandoned_error());
+    }
+    result
+}

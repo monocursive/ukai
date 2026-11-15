@@ -6,6 +6,8 @@ use zeroize::Zeroizing;
 
 pub(crate) mod lifecycle;
 pub(crate) mod origin;
+#[cfg(target_os = "macos")]
+pub(crate) mod transport;
 pub(crate) use lifecycle::RefreshPolicy;
 
 #[derive(Clone, Default, PartialEq, Eq, Debug, Serialize, Deserialize)]

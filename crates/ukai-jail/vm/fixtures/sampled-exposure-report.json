@@ -1,0 +1,106 @@
+{
+  "actual_values_retained": false,
+  "arbitrary_memory_examined": false,
+  "catalog_executable_identity": {
+    "dev": 16777234,
+    "ino": 372940337
+  },
+  "catalog_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "continuous_coverage_claimed": false,
+  "executable_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "finished": true,
+  "first_ns": 1,
+  "guest_attempt_id": "att_example",
+  "guest_boot_id": "01234567-89ab-4cde-8012-3456789abcde",
+  "guest_receipt_sha256": "ecd1c82440d2b519957d8f77abc4d820a42fbc2331b15293a73be6c46077262c",
+  "hits": [],
+  "host_attempt_id": "att_host",
+  "last_ns": 100000001,
+  "late_poll_count": 0,
+  "lifecycle": {
+    "started_ns": 0,
+    "stop_reason": "supervisor_exit",
+    "stopped_ns": 100000003,
+    "supervisor_exit_observed_ns": 100000002
+  },
+  "limits": {
+    "hit_count": 4096,
+    "process_count": 4096,
+    "read_bytes": 2097152,
+    "tick_bytes": 16777216,
+    "tick_ns": 50000000
+  },
+  "maximum_gap_ns": 100000000,
+  "maximum_tick_duration_ns": 642083,
+  "missed_tick_count": 0,
+  "observation_incomplete": false,
+  "observed_interval_ns": 100000000,
+  "period_ns": 100000000,
+  "processes": [
+    {
+      "pid": 10,
+      "roles": [
+        "supervisor",
+        "workload_uid"
+      ],
+      "starttime": 100
+    },
+    {
+      "pid": 11,
+      "roles": [
+        "catalog_program",
+        "descendant",
+        "workload_uid"
+      ],
+      "starttime": 101
+    }
+  ],
+  "reads": {
+    "argv": {
+      "capped": 0,
+      "oversize": 0,
+      "readable": 4,
+      "unreadable": 0,
+      "unstable": 0,
+      "vanished": 0
+    },
+    "environment": {
+      "capped": 0,
+      "oversize": 0,
+      "readable": 4,
+      "unreadable": 0,
+      "unstable": 0,
+      "vanished": 0
+    }
+  },
+  "sampler_sha256": "4834d227be5e6ce8b3d7d14e1c42cbee161f19e7f19015de9c88264603d076f4",
+  "scan_errors": {},
+  "schema": "ukai.vm.sampled-exposure/1",
+  "scope": "periodic-readable-environment-and-argv-only",
+  "service_boot_id": "vm_service",
+  "supervisor": {
+    "pid": 10,
+    "starttime": 100
+  },
+  "tick_count": 2,
+  "verified_program_observed": true,
+  "verified_program_reads": {
+    "argv": {
+      "capped": 0,
+      "oversize": 0,
+      "readable": 2,
+      "unreadable": 0,
+      "unstable": 0,
+      "vanished": 0
+    },
+    "environment": {
+      "capped": 0,
+      "oversize": 0,
+      "readable": 2,
+      "unreadable": 0,
+      "unstable": 0,
+      "vanished": 0
+    }
+  },
+  "workload_uid": 1000
+}

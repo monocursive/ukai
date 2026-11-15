@@ -18,10 +18,13 @@ import stat
 import subprocess
 import time
 
+import guest_program
+import guest_exposure
+
 PORT = 1024
 LEASE = 2.0
-# The transport limits live here because this file is installed alone in the
-# guest; run.py imports them, so both ends enforce the same values.
+# The transport limits live here; bundled helpers are guest_program and guest_exposure.
+# run.py imports these limits, so both ends enforce the same values.
 MAX_LINE = 2 * 1024 * 1024
 MAX_BYTES = 32 * 1024 * 1024
 MAX_FILE = 512 * 1024
@@ -34,6 +37,7 @@ JOURNAL_DIR = 'guest-journal'
 JOURNAL_SCHEMA = 'ukai.vm.guest-journal/1'
 SECRET_REVOCATION_CONTRACT = 'ukai.vm.secret-revocation/1'
 CONFIG_DIR = Path(os.environ.get('UKAI_VM_CONFIG_DIR', '/var/lib/ukai-vm/config'))
+NATIVE_CONFIG = guest_program.NATIVE_CONFIG
 WORKSPACE = Path('/home/ukai/workspace')
 EVIDENCE = Path('/home/ukai/evidence')
 # J18 (jail-macos.md §6): where an attempt's ephemeral credentials stage.
@@ -967,13 +971,69 @@ def revoke_secrets(ids, staged, revoked, secrets=None):
         revoked.add(key)
 
 
+def prepare_native_config(account):
+    """A separate empty tmpfs config; no operator launch override can exist."""
+    # /run is a tmpfs on the prepared image. Verify the actual longest mount
+    # ancestor instead of assuming that a pathname makes storage ephemeral.
+    with (PROC_ROOT / 'self/mountinfo').open('rb') as source:
+        raw = source.read(1024 * 1024 + 1)
+    if len(raw) > 1024 * 1024:
+        raise ValueError('native mount inventory limit')
+    target = str(NATIVE_CONFIG)
+    candidates = []
+    for line in raw.decode().splitlines():
+        before, after = line.split(' - ', 1)
+        point = before.split()[4]
+        point = re.sub(r'\\([0-7]{3})', lambda m: chr(int(m[1], 8)), point)
+        if target == point or target.startswith(point.rstrip('/') + '/'):
+            candidates.append((len(point), after.split()[0]))
+    if not candidates or max(candidates)[1] != 'tmpfs':
+        raise ValueError('native configuration is not tmpfs')
+    NATIVE_CONFIG.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+    parent = os.open(NATIVE_CONFIG.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        info = os.fstat(parent)
+        if info.st_uid != os.geteuid() or info.st_mode & 0o022:
+            raise ValueError('native config parent ownership')
+        directory = _private_level(parent, NATIVE_CONFIG.name, os.geteuid(), account.pw_gid)
+        try:
+            if os.listdir(directory):
+                raise ValueError('native config is not empty')
+        finally:
+            os.close(directory)
+    finally:
+        os.close(parent)
+
+
+def clear_native_config():
+    try:
+        parent = os.open(NATIVE_CONFIG.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        return
+    try:
+        try:
+            info = os.stat(NATIVE_CONFIG.name, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            return
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o022:
+            raise OSError('native config ownership changed')
+        if not shutil.rmtree.avoids_symlink_attacks:
+            raise OSError('fd-relative safe rmtree required')
+        shutil.rmtree(NATIVE_CONFIG.name, dir_fd=parent)
+        if os.path.lexists(NATIVE_CONFIG):
+            raise OSError('native config not removed')
+    finally:
+        os.close(parent)
+
+
 def clear_attempt_files():
     """Everything one attempt staged outside its directories."""
     clear_secrets()
     clear_launch_profile()
+    clear_native_config()
 
 
-def run_command(profile, argv, wall, workspace=None, evidence=None, allow_hosts=(), launch=None):
+def run_command(profile, argv, wall, workspace=None, evidence=None, allow_hosts=(), launch=None, native_program=None):
     """The jail command one attempt runs, in either mode. The single-run
     `run` op builds exactly this list, and `run2` shares it, so the warm
     design changes nothing about what the jail is asked to do. The paths
@@ -998,7 +1058,10 @@ def run_command(profile, argv, wall, workspace=None, evidence=None, allow_hosts=
     # (credential sources at the tmpfs staging root) under the attempt's
     # config directory; the jail resolves `--launch` from there and its
     # vault proxy injects the staged values into admitted requests.
-    if launch is not None:
+    if native_program is not None:
+        command += [b'--from-path', b'--launch', native_program['launch_name'].encode(), b'--state', b'attempt']
+        argv = guest_program.decode_argv(native_program['argv_suffix'])
+    elif launch is not None:
         command += [b'--launch', os.fsencode(launch)]
     command += [b'--', *argv]
     return command
@@ -1037,17 +1100,18 @@ def validate_run(request, live_share):
     return profile, wall, argv, allow_hosts, launch
 
 
-def attempt_environment(account):
+def attempt_environment(account, native_entry=None):
     """The environment one guest jail runs under, in either mode."""
     return {'HOME': account.pw_dir, 'USER': 'ukai', 'LOGNAME': 'ukai',
-            'PATH': '/usr/local/bin:/usr/bin:/bin', 'LANG': 'C.UTF-8',
+            'PATH': ((native_entry['install_root'] + ':') if native_entry else '') + '/usr/local/bin:/usr/bin:/bin',
+            'LANG': 'C.UTF-8',
             'XDG_RUNTIME_DIR': f'/run/user/{account.pw_uid}',
             # The controller stages the vaulted launch profile (if any) under
             # this directory; the jail resolves `--launch` from it.
-            'UKAI_CONFIG_DIR': str(CONFIG_DIR)}
+            'UKAI_CONFIG_DIR': str(NATIVE_CONFIG if native_entry else CONFIG_DIR)}
 
 
-def receipt_binding(request, receipt, guest_boot_id):
+def receipt_binding(request, receipt, guest_boot_id, native_entry=None):
     """Keep the raw jail receipt unchanged; bind its identity in a separate envelope.
 
     These are controller reports. The host verifies consistency, not kernel
@@ -1061,9 +1125,17 @@ def receipt_binding(request, receipt, guest_boot_id):
         raise ValueError('receipt argv/profile mismatch')
     if receipt['process']['identity']['value']['boot_id'] != guest_boot_id:
         raise ValueError('receipt boot mismatch')
-    return dict(attempt_id=request['attempt_id'], boot_id=request['boot_id'],
-                guest_attempt_id=receipt['attempt_id'], guest_boot_id=guest_boot_id,
-                profile=request['profile'], argv_digest=digest)
+    binding = dict(attempt_id=request['attempt_id'], boot_id=request['boot_id'],
+                   guest_attempt_id=receipt['attempt_id'], guest_boot_id=guest_boot_id,
+                   profile=request['profile'], argv_digest=digest)
+    native = request.get('native_program')
+    if native is not None:
+        if native_entry is None or native['resolved_argv_digest'] != digest:
+            raise ValueError('native receipt argv/entry mismatch')
+        binding['native_program'] = guest_program.native_binding(native, native_entry, receipt['policy']['digest'])
+    elif native_entry is not None:
+        raise ValueError('unexpected native receipt entry')
+    return binding
 
 
 def journal_export(receipt_bytes, data_dir):
@@ -1135,7 +1207,7 @@ def journal_export(receipt_bytes, data_dir):
     return files
 
 
-def export_outputs(send, in_session, run_request, guest_boot_id, data_dir=None):
+def export_outputs(send, in_session, run_request, guest_boot_id, data_dir=None, native_entry=None, sampled_exposure=None):
     """Send the finished attempt's regular files to the host and return the
     bound receipt's binding (None outside a session).
 
@@ -1166,6 +1238,11 @@ def export_outputs(send, in_session, run_request, guest_boot_id, data_dir=None):
         if not root.exists():
             continue
         for directory, dirs, names in os.walk(root, onerror=unlistable, followlinks=False):
+            if label == 'evidence' and Path(directory) == EVIDENCE and native_entry is not None:
+                # This reserved artifact is sent only from controller-produced
+                # bytes below. A workload collision is never adopted or walked.
+                dirs[:] = [name for name in dirs if name != 'sampled-exposure.json']
+                names = [name for name in names if name != 'sampled-exposure.json']
             if any((Path(directory) / d).is_symlink() for d in dirs):
                 raise Refusal('export_nonregular')
             for name in names:
@@ -1194,7 +1271,7 @@ def export_outputs(send, in_session, run_request, guest_boot_id, data_dir=None):
                     receipt_bytes = payload
                 if in_session and label == 'evidence' and path.name == 'jail.json' and path.parent == EVIDENCE:
                     try:
-                        binding = receipt_binding(run_request, json.loads(payload), guest_boot_id)
+                        binding = receipt_binding(run_request, json.loads(payload), guest_boot_id, native_entry)
                     except (ValueError, KeyError, TypeError):
                         raise Refusal('receipt_unbound') from None
                 send({'event': 'file', 'group': label, 'path': str(path.relative_to(root)),
@@ -1209,7 +1286,63 @@ def export_outputs(send, in_session, run_request, guest_boot_id, data_dir=None):
                 raise Refusal('export_limit')
             send({'event': 'file', 'group': 'evidence', 'path': path,
                   'executable': False, 'data': base64.b64encode(payload).decode()})
+    if sampled_exposure is not None and binding is not None:
+        count += 1
+        total += len(sampled_exposure)
+        if count <= MAX_FILES and total <= MAX_BYTES and len(sampled_exposure) <= MAX_FILE:
+            send({'event': 'file', 'group': 'evidence', 'path': 'sampled-exposure.json',
+                  'executable': False, 'data': base64.b64encode(sampled_exposure).decode()})
+            binding['sampled_exposure_sha256'] = hashlib.sha256(sampled_exposure).hexdigest()
     return binding
+
+
+def retain_sampled_exposure(monitor, request, guest_boot_id, native_entry):
+    """After verified stop, create only our own safe report; failure is sampling-only."""
+    if monitor is None or request is None or native_entry is None:
+        return None
+    descriptors = []
+    try:
+        root = os.open(EVIDENCE, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        descriptors.append(root)
+        source = os.open('jail.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=root)
+        descriptors.append(source)
+        info = os.fstat(source)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_FILE:
+            return None
+        with os.fdopen(os.dup(source), 'rb') as stream:
+            raw = stream.read(MAX_FILE + 1)
+        after = os.fstat(source)
+        if len(raw) != info.st_size or (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns) != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+            return None
+        bound = receipt_binding(request, json.loads(raw), guest_boot_id, native_entry)
+        metadata = dict(host_attempt_id=bound['attempt_id'], service_boot_id=bound['boot_id'],
+                        guest_attempt_id=bound['guest_attempt_id'], guest_boot_id=bound['guest_boot_id'],
+                        catalog_sha256=request['native_program']['catalog_sha256'],
+                        executable_sha256=native_entry['executable_sha256'],
+                        sampler_sha256=monitor.source_digest)
+        report = monitor.finish(raw, metadata)
+        payload = json.dumps(report, sort_keys=True, separators=(',', ':')).encode()
+        if len(payload) > MAX_FILE:
+            return None
+        destination = os.open('sampled-exposure.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=root)
+        descriptors.append(destination)
+        with os.fdopen(os.dup(destination), 'wb') as output:
+            output.write(payload)
+        final = os.fstat(destination)
+        if not stat.S_ISREG(final.st_mode) or final.st_uid != os.geteuid() or final.st_nlink != 1 or stat.S_IMODE(final.st_mode) != 0o600 or final.st_size != len(payload):
+            return None
+        return payload
+    except (OSError, ValueError, TypeError, KeyError, RuntimeError):
+        # No exception strings or protected values enter diagnostic output. A
+        # missing hash/report is explicitly unavailable to the host's verifier.
+        return None
+    finally:
+        try:
+            monitor.discard()
+        except Exception:
+            pass  # Sampling cleanup cannot rewrite the actual jail outcome.
+        for fd in reversed(descriptors):
+            os.close(fd)
 
 
 def vsock_listener():
@@ -1274,6 +1407,10 @@ def main():
     staged_secrets = {}
     revoked_secrets = set()
     attempt_started = False
+    native_catalog = native_intent = native_entry = None
+    active_secrets = None
+    protected_values = []
+    exposure_monitor = None
     guest_boot_id = (PROC_ROOT / 'sys/kernel/random/boot_id').read_text().strip()
 
     def end_attempt():
@@ -1283,7 +1420,13 @@ def main():
         each bounded, each failure a named poweroff rather than a starved
         watchdog. Returns the stop's report (stop_attempt), which `done`
         carries."""
+        nonlocal exposure_monitor
         report = None
+        if exposure_monitor is not None:
+            try:
+                exposure_monitor.stop()
+            except Exception:
+                exposure_monitor = None  # No report can certify this observer.
         try:
             report = stop_attempt(account, infrastructure)
             drop_attempt_cgroups(account.pw_uid)
@@ -1301,7 +1444,14 @@ def main():
     def discard_attempt():
         """Closes one attempt's streams and counters, after its tree has
         been ended: the next attempt stages from scratch."""
-        nonlocal process, stream_count, uploaded, files, output_bytes, wall_deadline
+        nonlocal process, stream_count, uploaded, files, output_bytes, wall_deadline, exposure_monitor
+        if exposure_monitor is not None:
+            try:
+                exposure_monitor.discard()
+            except Exception:
+                pass
+            exposure_monitor = None
+        protected_values.clear()
         for key in list(selector.get_map().values()):
             if key.data != 'control':
                 selector.unregister(key.fileobj)
@@ -1313,10 +1463,31 @@ def main():
 
     def start(request):
         """Starts the jail for a validated `run` or `run2` request."""
-        nonlocal process, stream_count, wall_deadline, attempt_started
+        nonlocal process, stream_count, wall_deadline, attempt_started, native_entry, exposure_monitor
         profile, wall, argv, allow_hosts, launch = validate_run(request, WORKSPACE == SHARE_MOUNT)
-        command = run_command(profile, argv, wall, allow_hosts=allow_hosts, launch=launch)
-        env = attempt_environment(account)
+        native = request.get('native_program')
+        if native is not None or native_intent is not None:
+            try:
+                if (set(request) - {'op', 'attempt_id', 'boot_id', 'profile', 'wall_seconds', 'argv',
+                                    'allow_hosts', 'launch', 'native_program'}
+                        or native != native_intent or native is None or profile != 'agent'
+                        or launch is not None or globals()['launch_toml'] is not None
+                        or set(staged_secrets) != {native['selected_credential_id']}):
+                    raise ValueError('native release shape')
+                fresh = guest_program.verify_catalog(notify=notify)
+                if fresh != native_catalog:
+                    raise ValueError('native catalog changed before release')
+                native_entry, _ = guest_program.validate_intent(native, request['argv'], fresh)
+                # The root is controller-owned; verify exactly the selected
+                # source and no profile override immediately before launch.
+                if sorted(os.listdir(NATIVE_CONFIG)) != ['credentials'] or sorted(os.listdir(active_secrets)) != [native['selected_credential_id']]:
+                    raise ValueError('native configuration changed')
+                if staged_secret_identity(native['selected_credential_id'], active_secrets) != staged_secrets[native['selected_credential_id']]:
+                    raise ValueError('native credential identity changed')
+            except (OSError, ValueError, TypeError, KeyError):
+                raise Refusal('native_release_refused') from None
+        command = run_command(profile, argv, wall, allow_hosts=allow_hosts, launch=launch, native_program=native)
+        env = attempt_environment(account, native_entry if native is not None else None)
         if launch is not None:
             try:
                 _stage_launch_profile(launch, account)
@@ -1330,6 +1501,14 @@ def main():
                                    stderr=subprocess.PIPE, cwd=WORKSPACE, env=env,
                                    user=account.pw_uid, group=account.pw_gid, extra_groups=[])
         move_into_attempt_cgroup(attempt_cgroup, process.pid)
+        if native is not None:
+            try:
+                exposure_monitor = guest_exposure.Monitor(PROC_ROOT, guest_boot_id, process, account.pw_uid,
+                    list(infrastructure.pids.items()), native_entry['executable'], protected_values)
+            except (OSError, ValueError, RuntimeError):
+                # Execution stays truthful; absent sampling proof is unavailable.
+                exposure_monitor = None
+            protected_values.clear()
         attempt_started = True
         for stream, name in [(process.stdout, 'stdout'), (process.stderr, 'stderr')]:
             selector.register(stream, selectors.EVENT_READ, name)
@@ -1372,7 +1551,12 @@ def main():
                 poweroff('input_limit')
             while b'\n' in buffer:
                 line, buffer = buffer.split(b'\n', 1)
-                request = json.loads(line)
+                try:
+                    request = json.loads(line, object_pairs_hook=guest_program._object)
+                    if type(request) is not dict or type(request.get('op')) is not str:
+                        raise ValueError('request shape')
+                except (ValueError, TypeError, RecursionError):
+                    poweroff('invalid_json')
                 op = request['op']
                 try:
                     if op == 'ping':
@@ -1383,6 +1567,8 @@ def main():
                         last_ping = clock()
                         send({'event': 'pong', 'sequence': sequence})
                     elif op == 'launch_toml' and process is None and in_session:
+                        if native_intent is not None:
+                            raise Refusal('native_launch_override')
                         # The vaulted launch profile's TOML: it carries no
                         # value (sources point at /run/ukai-vm/credentials),
                         # so writing it under the config dir keeps the guest
@@ -1427,6 +1613,22 @@ def main():
                             poweroff('missing_attempt_binding')
                         run_request = request
                         start(request)
+                    elif op == 'native_prepare' and process is None and in_session and not attempt_started:
+                        try:
+                            if (set(request) != {'op', 'native_program', 'argv'}
+                                    or native_intent is not None or staged_secrets or globals()['launch_toml'] is not None):
+                                raise ValueError('mixed native preparation')
+                            fresh = guest_program.verify_catalog(notify=notify)
+                            if native_catalog is None or fresh != native_catalog:
+                                raise ValueError('native catalog unavailable or changed')
+                            native = request.get('native_program')
+                            entry, _ = guest_program.validate_intent(native, request.get('argv'), fresh)
+                            prepare_native_config(account)
+                            native_intent, native_entry = native, entry
+                            active_secrets = NATIVE_CONFIG / 'credentials'
+                        except (OSError, ValueError, TypeError, KeyError):
+                            raise Refusal('native_prepare_refused') from None
+                        send({'event': 'native_prepared', 'native_program': native_intent})
                     elif op == 'session' and process is None and not in_session:
                         # J18: the warm session's handshake. After this the
                         # ping lease no longer applies: the attempt's lease
@@ -1440,16 +1642,28 @@ def main():
                         except InfrastructureUnknown as error:
                             audit('infrastructure_unknown', error=str(error))
                             poweroff('infrastructure_unknown')
+                        try:
+                            native_catalog = guest_program.verify_catalog(notify=notify)
+                        except (OSError, ValueError, TypeError, KeyError):
+                            raise Refusal('native_catalog_invalid') from None
+                        contracts = {'secret_revocation': SECRET_REVOCATION_CONTRACT,
+                                     'journal_export': JOURNAL_SCHEMA}
+                        extra = {}
+                        if native_catalog is not None:
+                            contracts['native_program'] = guest_program.CONTRACT
+                            contracts['sampled_exposure'] = guest_exposure.SCHEMA
+                            extra['guest_program_catalog_sha256'] = native_catalog['sha256']
                         audit('session_opened', live_share=live_share)
                         send({'event': 'session', 'kernel': os.uname().release, 'live_share': live_share,
-                              'guest_contracts': {'secret_revocation': SECRET_REVOCATION_CONTRACT,
-                                                  'journal_export': JOURNAL_SCHEMA}})
+                              'guest_contracts': contracts, **extra})
                     elif op == 'reset' and process is None and in_session:
                         globals()['launch_toml'] = None
                         end_attempt()
                         reset_attempt(account)
                         staged_secrets.clear()
+                        protected_values.clear()
                         revoked_secrets.clear()
+                        native_intent = native_entry = active_secrets = None
                         attempt_started = False
                         uploaded = files = output_bytes = 0
                         send({'event': 'reset'})
@@ -1463,18 +1677,22 @@ def main():
                         secret_id, data = request.get('id'), request.get('data')
                         try:
                             if (type(secret_id) is not str or type(data) is not str
-                                    or secret_id in staged_secrets):
+                                    or secret_id in staged_secrets
+                                    or (native_intent is not None and secret_id != native_intent['selected_credential_id'])):
                                 raise ValueError('ill-typed secret frame')
-                            path = stage_secret(secret_id, base64.b64decode(data, validate=True),
-                                                account=account)
-                            staged_secrets[secret_id] = staged_secret_identity(secret_id)
+                            decoded = base64.b64decode(data, validate=True)
+                            path = stage_secret(secret_id, decoded, account=account, secrets=active_secrets)
+                            staged_secrets[secret_id] = staged_secret_identity(secret_id, active_secrets)
+                            if native_intent is not None:
+                                protected_values.append(decoded)
+                            del decoded
                         except (ValueError, OSError) as error:
                             send({'event': 'error', 'message': 'secret_refused:' + type(error).__name__})
                             continue
                         send({'event': 'secret', 'id': secret_id, 'path': str(path)})
                     elif op == 'revoke_secrets' and in_session and process is not None:
                         ids = request.get('ids')
-                        revoke_secrets(ids, staged_secrets, revoked_secrets)
+                        revoke_secrets(ids, staged_secrets, revoked_secrets, active_secrets)
                         send({'event': 'secrets_revoked', 'ids': ids})
                     elif op == 'cancel2' and in_session:
                         # The attempt lease's end-of-file reached the host's
@@ -1483,7 +1701,9 @@ def main():
                         end_attempt()
                         reset_attempt(account)
                         staged_secrets.clear()
+                        protected_values.clear()
                         revoked_secrets.clear()
+                        native_intent = native_entry = active_secrets = None
                         attempt_started = False
                         discard_attempt()
                         audit('attempt_cancelled')
@@ -1503,9 +1723,10 @@ def main():
                 # report travels with `done`: the host checks the guest
                 # jail's own tree verdict against it.
                 stop = end_attempt()
+            sample = retain_sampled_exposure(exposure_monitor, run_request, guest_boot_id, native_entry)
             try:
                 binding = export_outputs(send, in_session, run_request, guest_boot_id,
-                                         Path(account.pw_dir) / '.local/share/ukai')
+                                         Path(account.pw_dir) / '.local/share/ukai', native_entry, sample)
             except Refusal as refusal:
                 poweroff(refusal.reason)
             send({'event': 'done', 'exit_code': process.returncode,

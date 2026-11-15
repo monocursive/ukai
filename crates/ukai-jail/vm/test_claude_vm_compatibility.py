@@ -345,5 +345,337 @@ class GuestJournalTests(unittest.TestCase):
             with self.assertRaises(ValueError): row.canonical_receipt(value)
 
 
+class NativeModeTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        self.home = self.root / 'installed'; (self.home / 'bin').mkdir(parents=True)
+        self.image = self.home / 'image'; self.image.mkdir()
+        self.jail = self.home / 'bin/ukai-jail'
+        self.jail.write_bytes(b'fake-client'); self.jail.chmod(0o755)
+        (self.home / 'bin/ukai-vm').write_bytes(b'fake-service')
+        profile = Path(row.__file__).resolve().parents[1] / 'profiles/launch/claude.toml'
+        self.catalog = json.loads((Path(row.__file__).parent / 'fixtures/guest-program-catalog.json').read_bytes())
+        entry = self.catalog['entries'][0]
+        root = f'/opt/ukai/programs/claude/{row.CLAUDE_VERSION}'
+        entry.update(id='claude-' + row.CLAUDE_VERSION, alias='claude', version=row.CLAUDE_VERSION,
+                     executable=root + '/claude', install_root=root, argv_prefix=[root + '/claude'],
+                     executable_sha256=row.CLAUDE_SHA256,
+                     guest_jail_sha256=row.NATIVE_GUEST_JAIL_SHA256,
+                     profile_sha256=hashlib.sha256(profile.read_bytes()).hexdigest())
+        entry['tree'][1]['path'] = 'claude'
+        self.catalog_bytes = json.dumps(self.catalog).encode()
+        (self.image / 'guest-program-catalog.json').write_bytes(self.catalog_bytes)
+        self.metadata = {'guest_program_catalog_sha256': hashlib.sha256(self.catalog_bytes).hexdigest(),
+                         'ukai_vm_sha256': hashlib.sha256(b'fake-service').hexdigest(),
+                         'ukai_jail_sha256': hashlib.sha256(b'fake-client').hexdigest()}
+        self.metadata['source_sha256'] = {'guest_exposure.py': hashlib.sha256(Path(row.__file__).with_name('guest_exposure.py').read_bytes()).hexdigest()}
+        self.metadata['source_sha256']['guest_exposure_control.py'] = hashlib.sha256(Path(row.__file__).with_name('guest_exposure_control.py').read_bytes()).hexdigest()
+        read_counts = {'readable': 1, 'unreadable': 0, 'oversize': 0, 'vanished': 0, 'unstable': 0, 'capped': 0}
+        control = {'schema': 'ukai.vm.sampled-exposure-control/1', 'passed': True,
+            'scope': 'owned-public-canary-process-detector-control', 'actual_values_retained': False,
+            'jail_execution_claimed': False, 'errors': [],
+            'facts': {key: True for key in ('environment_canary_detected', 'argv_canary_detected',
+                'verified_program_environment_read', 'verified_program_argv_read', 'only_owned_child_observed',
+                'sampler_source_unchanged', 'owned_child_reaped')},
+            'sampler_sha256': self.metadata['source_sha256']['guest_exposure.py'],
+            'control_source_sha256': self.metadata['source_sha256']['guest_exposure_control.py'],
+            'guest_boot_id': 'bootstrap-fixture', 'guest_kernel': '7.0.0-fixture',
+            'process': {'pid': 11, 'starttime': 100, 'executable_dev': 1, 'executable_ino': 101},
+            'sampling': {'ticks': 1, 'verified_program_reads': {channel: dict(read_counts) for channel in ('environment', 'argv')},
+                         'scan_errors': {}}}
+        self.metadata['guest_exposure_control'] = control
+        self.metadata['guest_exposure_control_sha256'] = hashlib.sha256((json.dumps(control, sort_keys=True, separators=(',', ':')) + '\n').encode()).hexdigest()
+        self.metadata.update(jail_archive_sha256='1' * 64, jail_candidate={
+            'kind': 'signed-local-candidate', 'signature_verified': True, 'verifier': 'publish_release.check',
+            'trusted_key_sha256': hashlib.sha256((profile.parents[2] / 'dist/release.pub').read_bytes()).hexdigest(),
+            'target': 'aarch64-unknown-linux-gnu', 'binary_sha256': row.NATIVE_GUEST_JAIL_SHA256,
+            'source_revision': row.NATIVE_GUEST_REVISION, 'build_inputs': row.NATIVE_GUEST_INPUTS,
+            'archive_sha256': '1' * 64, 'version': {'component': 'ukai-jail', 'version': '0.1.0', 'frozen': True,
+                'build': {'revision': row.NATIVE_GUEST_REVISION, 'inputs': row.NATIVE_GUEST_INPUTS, 'dirty': False,
+                          'debug_assertions': False, 'opt_level': '3', 'target': 'aarch64-unknown-linux-gnu',
+                          'rustc': 'rustc 1.98.1 (fixture)'}}})
+        (self.image / 'image.json').write_text(json.dumps(self.metadata))
+        self.workspace = self.root / 'workspace'; self.workspace.mkdir(); harness.mark_workspace(self.workspace)
+        self.out = self.root / 'out'
+
+    def args(self, *extra):
+        return [str(self.home), str(self.workspace), str(self.out), str(self.jail), *extra]
+
+    def test_mode_is_explicit_and_never_discovers_operator_credentials(self):
+        self.assertEqual(row.parse_args(self.args()).execution_mode, 'workspace-literal')
+        with mock.patch('sys.stderr'), self.assertRaises(SystemExit):
+            row.parse_args(self.args('--execution-mode', 'guest-native'))
+        args = row.parse_args(self.args('--execution-mode', 'guest-native', '--case', 'missing-source'))
+        self.assertIsNone(args.credential_source)
+        with mock.patch('sys.stderr'), self.assertRaises(SystemExit):
+            row.parse_args(self.args('--execution-mode', 'guest-native', '--case', 'missing-source', '--compatibility'))
+
+    def test_installed_catalog_must_match_profile_vendor_and_installed_binaries(self):
+        context = row.native_context(self.home, self.jail)
+        self.assertEqual(context['entry']['alias'], 'claude')
+        self.assertEqual(context['profile']['credentials_one_of'], ['claude-oauth', 'anthropic'])
+        (self.home / 'bin/ukai-vm').write_bytes(b'different')
+        with self.assertRaises(harness.HarnessError): row.native_context(self.home, self.jail)
+        (self.home / 'bin/ukai-vm').write_bytes(b'fake-service')
+        self.catalog['entries'][0]['profile_sha256'] = '0' * 64
+        data = json.dumps(self.catalog).encode()
+        (self.image / 'guest-program-catalog.json').write_bytes(data)
+        self.metadata['guest_program_catalog_sha256'] = hashlib.sha256(data).hexdigest()
+        (self.image / 'image.json').write_text(json.dumps(self.metadata))
+        with self.assertRaises(harness.HarnessError): row.native_context(self.home, self.jail)
+
+    def test_native_command_is_direct_with_explicit_attempt_state(self):
+        command, suffix = row.native_argv(self.jail, self.workspace, 'small-task')
+        self.assertEqual(command[command.index('--') + 1:], suffix)
+        self.assertEqual(command[command.index('--state') + 1], 'attempt')
+        self.assertEqual(command[command.index('--launch') + 1], 'claude')
+        self.assertIn('--from-path', command)
+        self.assertNotIn('/bin/sh', command)
+        self.assertNotIn('./claude', command)
+        self.assertNotIn('&&', ' '.join(command))
+
+    def test_catalog_cannot_choose_a_different_self_consistent_guest_artifact(self):
+        original = copy.deepcopy(self.metadata)
+        changes = [('binary_sha256', 'a' * 64), ('source_revision', 'b' * 40),
+                   ('build_inputs', 'sha256:' + 'c' * 64), ('signature_verified', 1),
+                   ('archive_sha256', '2' * 64), ('trusted_key_sha256', '3' * 64)]
+        for key, value in changes:
+            self.metadata = copy.deepcopy(original); self.metadata['jail_candidate'][key] = value
+            (self.image / 'image.json').write_text(json.dumps(self.metadata))
+            with self.subTest(key=key), self.assertRaises(harness.HarnessError):
+                row.native_context(self.home, self.jail)
+        self.metadata = copy.deepcopy(original)
+        self.catalog['entries'][0]['guest_jail_sha256'] = self.metadata['jail_candidate']['binary_sha256'] = 'a' * 64
+        data = json.dumps(self.catalog).encode()
+        (self.image / 'guest-program-catalog.json').write_bytes(data)
+        self.metadata['guest_program_catalog_sha256'] = hashlib.sha256(data).hexdigest()
+        (self.image / 'image.json').write_text(json.dumps(self.metadata))
+        with self.assertRaises(harness.HarnessError): row.native_context(self.home, self.jail)
+
+    def test_image_control_requires_all_facts_positive_reads_and_source_pins(self):
+        original = copy.deepcopy(self.metadata)
+        mutations = [lambda c: c['facts'].update(environment_canary_detected=False),
+                     lambda c: c['facts'].update(owned_child_reaped=1),
+                     lambda c: c['sampling']['verified_program_reads']['argv'].update(readable=0),
+                     lambda c: c.update(sampler_sha256='0' * 64), lambda c: c.update(control_source_sha256='0' * 64),
+                     lambda c: c.update(jail_execution_claimed=True)]
+        for mutate in mutations:
+            metadata = copy.deepcopy(original); mutate(metadata['guest_exposure_control'])
+            metadata['guest_exposure_control_sha256'] = hashlib.sha256((json.dumps(metadata['guest_exposure_control'], sort_keys=True, separators=(',', ':')) + '\n').encode()).hexdigest()
+            with self.subTest(mutate=mutate), self.assertRaises(harness.HarnessError): row.native_exposure_control(metadata)
+
+    def missing_text(self):
+        profile = row.native_context(self.home, self.jail)['profile']
+        return ('credential_unavailable at resolving: none is present: launch.credentials_one_of '
+                + ' '.join(name + ' ' + profile['credentials'][name]['hint'] for name in profile['credentials_one_of']))
+
+    def test_missing_source_requires_both_unchanged_hints_and_actual_cause(self):
+        profile = row.native_context(self.home, self.jail)['profile']
+        text = self.missing_text()
+        self.assertTrue(all(row.native_missing_source_facts({'run_exit': 125}, text, [], profile).values()))
+        for changed in (text.replace(profile['credentials']['anthropic']['hint'], ''),
+                        text.replace('credential_unavailable', ''), text + ' vm:not-measured:credential_staging'):
+            self.assertFalse(all(row.native_missing_source_facts({'run_exit': 125}, changed, [], profile).values()))
+        self.assertFalse(all(row.native_missing_source_facts({'run_exit': True}, text, [], profile).values()))
+        self.assertFalse(all(row.native_missing_source_facts({'run_exit': 125}, text, [Path('att_early')], profile).values()))
+
+    def test_missing_native_source_executes_no_workspace_binary_or_override(self):
+        calls = []
+        def fake(command, **options):
+            calls.append(command)
+            config = Path(options['env']['UKAI_CONFIG_DIR'])
+            data = Path(options['env']['UKAI_DATA_DIR'])
+            self.addCleanup(shutil.rmtree, data, True)
+            self.assertFalse((config / 'launch').exists())
+            self.assertEqual(list((config / 'credentials').iterdir()), [])
+            self.assertEqual(options['stdin'], subprocess.DEVNULL)
+            return subprocess.CompletedProcess(command, 125, '', self.missing_text())
+        with mock.patch.object(row, 'credential_candidates', side_effect=AssertionError('must not read credentials')):
+            code = row.main(self.args('--execution-mode', 'guest-native', '--case', 'missing-source'), run=fake)
+        self.assertEqual(code, 0)
+        self.assertEqual(len(calls), 1)
+        report = json.loads((self.out / 'k113-native.json').read_bytes())
+        self.assertEqual(report['outcome'], 'PASS')
+        self.assertEqual(report['compatibility_outcome'], 'UNMEASURED')
+        self.assertFalse(report['qualified'])
+
+    def test_selected_source_is_private_no_override_and_removed_on_refusal(self):
+        source = self.root / 'operator-source'; source.write_bytes(b'synthetic-native-secret'); source.chmod(0o600)
+        configs = []
+        def fake(command, **options):
+            config = Path(options['env']['UKAI_CONFIG_DIR']); configs.append(config)
+            self.addCleanup(shutil.rmtree, Path(options['env']['UKAI_DATA_DIR']), True)
+            self.assertFalse((config / 'launch').exists())
+            selected = config / 'credentials/anthropic'
+            self.assertEqual(list((config / 'credentials').iterdir()), [selected])
+            self.assertEqual(selected.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(selected.read_bytes(), source.read_bytes())
+            self.assertNotIn(source.read_text(), ' '.join(command))
+            return subprocess.CompletedProcess(command, 125, '', 'vm:not-measured:guest-native')
+        code = row.main(self.args('--execution-mode', 'guest-native', '--credential-kind', 'api-key',
+                                 '--credential-source', str(source)), run=fake)
+        self.assertEqual(code, 1)
+        self.assertEqual(source.read_bytes(), b'synthetic-native-secret')
+        self.assertTrue(all(not config.exists() for config in configs))
+        self.assertNotIn(source.read_bytes(), (self.out / 'k113-native.json').read_bytes())
+
+    def test_native_grants_and_binding_are_exact(self):
+        context = row.native_context(self.home, self.jail)
+        observed, guest, summary, events = CompatibilityTests.strict_fixture(self)
+        _, suffix = row.native_argv(self.jail, self.workspace, 'a01')
+        guest.update(outcome={'kind': 'exited', 'code': 0, 'signal': None, 'cause': None, 'error': None})
+        guest.update(jail={'component': 'ukai-jail', 'version': '0.1.0', 'backend': 'bubblewrap'},
+                     platform={'os': 'linux', 'arch': 'aarch64', 'kernel': 'Linux 7.0.0-fixture'})
+        entry = context['entry']; resolved = harness.argv_digest(entry['argv_prefix'] + suffix)
+        guest['argv_digest'] = resolved
+        guest['policy'] = {'digest': 'sha256:' + 'b' * 64, 'grants': [
+            {'kind': 'read_only', 'value': entry['install_root'], 'by': 'program_resolution'},
+            {'kind': 'allow_host', 'value': 'api.anthropic.com:443', 'by': 'operator'},
+            {'kind': 'allow_host', 'value': 'platform.claude.com:443', 'by': 'operator'}]}
+        observed.update(independent_summary={'outcome': 'PASS', 'scope': 'bound_guest', 'sampling': {
+                            'state': 'complete', 'verified_program_observed': True, 'no_hits': True, 'scan_errors': {},
+                            'sampler_sha256': self.metadata['source_sha256']['guest_exposure.py'], 'last_ns': 100,
+                            'lifecycle': {'stop_reason': 'supervisor_exit', 'supervisor_exit_observed_ns': 110, 'stopped_ns': 120}}}, run_exit=0,
+                        tail_exit=0, tail_json_exit=0, source_removed_before_stop=True, stop_exit=0,
+                        service_shutdown={'complete': True}, leaks=[], files_scanned=5, output_leaks=[],
+                        installed_identity_unchanged=True, agent_result={'subtype': 'success', 'is_error': False})
+        native = {'catalog_sha256': context['catalog_sha256'], 'entry_id': entry['id'],
+                  'profile_sha256': entry['profile_sha256'], 'executable_sha256': entry['executable_sha256'],
+                  'selected_credential_id': 'anthropic', 'state': 'attempt',
+                  'request_argv_digest': harness.argv_digest(['claude', *suffix]), 'resolved_argv_digest': resolved,
+                  'policy_digest': guest['policy']['digest']}
+        host = copy.deepcopy(guest)
+        host.update(credentials=[{'id': 'anthropic', 'mode': 'vault', 'never_staged': True,
+                                 'digest': None, 'digest_unavailable_reason': 'never_staged'}], state_cleanup='not_needed')
+        def facts(g=guest, b=native, h=host): return row.native_facts(observed, g, events, summary, context, suffix, {'native_program': b}, h)
+        self.assertTrue(all(facts().values()), facts())
+        for key in native:
+            changed = dict(native); changed[key] = 'wrong'
+            self.assertFalse(all(facts(b=changed).values()), key)
+        for mutation in ('wrong-root', 'operator-grant', 'extra-grant', 'missing-grant'):
+            changed = copy.deepcopy(guest)
+            if mutation == 'wrong-root': changed['policy']['grants'][0]['value'] = '/tmp/workspace'
+            elif mutation == 'operator-grant': changed['policy']['grants'][0]['by'] = 'operator'
+            elif mutation == 'extra-grant': changed['policy']['grants'].append({'kind': 'read_only', 'value': '/', 'by': 'operator'})
+            else: changed['policy']['grants'].pop()
+            self.assertFalse(all(facts(g=changed).values()), mutation)
+        for value in (True, 0.0, '0'):
+            changed = copy.deepcopy(guest); changed['outcome']['code'] = value
+            self.assertFalse(all(facts(g=changed).values()))
+        for key, value in [('version', '0.2.0'), ('component', 'other'), ('backend', 'none')]:
+            changed = copy.deepcopy(guest); changed['jail'][key] = value
+            self.assertFalse(all(facts(g=changed).values()), key)
+        for key, value in [('phase', 'prepared'), ('errors', ['tree_unknown']), ('exec_observed', False),
+                           ('credentials', [{'id': 'pending-source'}]), ('vendor_state', {'pending': True})]:
+            changed = copy.deepcopy(host); changed[key] = value
+            self.assertFalse(all(facts(h=changed).values()), key)
+        changed = copy.deepcopy(host); changed['credentials'][0]['never_staged'] = 1
+        self.assertFalse(all(facts(h=changed).values()))
+        sample = observed['independent_summary']['sampling']
+        for key, value in [('state', 'incomplete'), ('state', 'unavailable'), ('state', 'invalid'), ('no_hits', False),
+                           ('verified_program_observed', False), ('scan_errors', {'unreadable': 1}), ('sampler_sha256', '0' * 64)]:
+            prior = sample[key]; sample[key] = value
+            self.assertFalse(all(facts().values()), (key, value))
+            sample[key] = prior
+
+    def test_native_matrix_never_requires_workspace_cli_and_retains_all_failures(self):
+        source = self.root / 'not-read'
+        args = row.parse_args(self.args('--execution-mode', 'guest-native', '--compatibility',
+                                       '--credential-source', str(source)))
+        calls = []
+        def lane(argv, **kwargs):
+            calls.append(argv)
+            self.assertIn('guest-native', argv)
+            self.assertFalse((Path(argv[1]) / 'claude').exists())
+            if len(calls) == 3: raise RuntimeError('unsafe detail')
+            output = Path(argv[2]); output.mkdir()
+            (output / 'k113-native.json').write_text(json.dumps({'outcome': 'PASS', 'facts': {'available': True}}))
+            return 0
+        with mock.patch.object(row, 'main', side_effect=lane): self.assertEqual(row.native_matrix(args), 1)
+        report = json.loads((self.out / 'k113-native-matrix.json').read_bytes())
+        self.assertEqual(len(calls), 13)
+        self.assertEqual(calls[0][1], calls[1][1])
+        self.assertEqual(report['rows'][2]['error_type'], 'RuntimeError')
+        self.assertEqual(report['outcome'], 'FAIL')
+        self.assertFalse(report['qualified'])
+        self.assertNotIn('unsafe detail', json.dumps(report))
+
+    def test_native_retained_roundtrip_and_bad_summary_with_real_independent_checker(self):
+        import base64
+        import credential_revocation_measurement as lifecycle
+        from test_vm_summary_check import Fixture, HOST_ID, install_exposure
+        source = self.root / 'source'; source.write_bytes(b'synthetic-native-token'); source.chmod(0o600)
+        context = row.native_context(self.home, self.jail)
+        for corrupt in (False, True):
+            with self.subTest(corrupt=corrupt):
+                self.out = self.root / ('out-bad' if corrupt else 'out-good')
+                fixtures = {}
+                def fake(command, **options):
+                    data = Path(options['env']['UKAI_DATA_DIR'])
+                    self.addCleanup(shutil.rmtree, data, True)
+                    config = Path(options['env']['UKAI_CONFIG_DIR'])
+                    if 'run' in command:
+                        suffix = command[command.index('--') + 1:]
+                        fixture = Fixture(data / 'attempts' / HOST_ID); fixtures['current'] = fixture
+                        entry = context['entry']; policy_digest = fixture.guest['policy']['digest']
+                        resolved = harness.argv_digest(entry['argv_prefix'] + suffix)
+                        native = {'catalog_sha256': context['catalog_sha256'], 'entry_id': entry['id'],
+                                  'profile_sha256': entry['profile_sha256'], 'executable_sha256': entry['executable_sha256'],
+                                  'selected_credential_id': 'anthropic', 'state': 'attempt',
+                                  'request_argv_digest': harness.argv_digest(['claude', *suffix]),
+                                  'resolved_argv_digest': resolved, 'policy_digest': policy_digest}
+                        fixture.binding.update(native_program=native, argv_digest=resolved)
+                        fixture.guest['argv_digest'] = fixture.host['argv_digest'] = resolved
+                        fixture.guest['credentials'][0]['id'] = 'anthropic'
+                        fixture.guest['jail'] = {'component': 'ukai-jail', 'version': '0.1.0', 'backend': 'bubblewrap'}
+                        fixture.host['credentials'] = [{'id': 'anthropic', 'mode': 'vault', 'never_staged': True,
+                                                        'digest': None, 'digest_unavailable_reason': 'never_staged'}]
+                        fixture.events[0]['fields']['credential_id'] = 'anthropic'
+                        fixture.events[2]['fields']['credentials'] = ['anthropic']
+                        fixture.guest['policy']['grants'] = [
+                            {'kind': 'read_only', 'value': entry['install_root'], 'by': 'program_resolution'},
+                            {'kind': 'allow_host', 'value': 'api.anthropic.com:443', 'by': 'operator'},
+                            {'kind': 'allow_host', 'value': 'platform.claude.com:443', 'by': 'operator'}]
+                        intent = {key: value for key, value in native.items() if key not in ('executable_sha256', 'policy_digest')}
+                        intent.update(schema='ukai.vm.guest-native-launch/1', launch_name='claude',
+                                      expected_policy_digest=policy_digest,
+                                      argv_suffix=[base64.b64encode(word.encode()).decode() for word in suffix])
+                        fixture.transport['native_program'] = intent
+                        fixture.transport['image']['guest_program_catalog_sha256'] = context['catalog_sha256']
+                        (fixture.root / 'guest-native-catalog.json').write_bytes(self.catalog_bytes)
+                        fixture.write()
+                        install_exposure(fixture)
+                        (self.workspace / 'k113-marker.txt').write_text('contained\n')
+                        (data / 'vm').mkdir(); (data / 'vm/serve.lock').touch()
+                        return subprocess.CompletedProcess(command, 0, '{"type":"result","subtype":"success","is_error":false,"result":"done"}\n', '')
+                    if 'tail' in command:
+                        summary, text = fixtures['current'].expected()
+                        credential = next(line for line in summary['lines'] if line['line'] == 'credentials')
+                        credential['text'] = credential['text'].replace('credential test:', 'credential anthropic:')
+                        credential['facts']['credentials'][0]['id'] = 'anthropic'
+                        text = text.replace('credential test:', 'credential anthropic:')
+                        if corrupt: summary['lines'][1]['facts']['opened_for_writing'] = 999
+                        return subprocess.CompletedProcess(command, 0, json.dumps(summary) if '--json' in command else text, '')
+                    self.assertEqual(command[-1], 'stop')
+                    self.assertFalse((config / 'credentials/anthropic').exists())
+                    return subprocess.CompletedProcess(command, 0, '', '')
+                with mock.patch.object(lifecycle, 'running_service_lock', side_effect=lambda data: (data / 'vm/serve.lock').open('rb')), \
+                     mock.patch.object(lifecycle, 'stopped_service_lock', return_value={'complete': True}):
+                    code = row.main(self.args('--execution-mode', 'guest-native', '--credential-kind', 'api-key',
+                                             '--credential-source', str(source)), run=fake)
+                report = json.loads((self.out / 'k113-native.json').read_bytes())
+                self.assertEqual(code, 1 if corrupt else 0, report)
+                self.assertEqual(report['outcome'], 'FAIL' if corrupt else 'PASS')
+                self.assertFalse(report['qualified'])
+                if not corrupt:
+                    self.assertEqual(report['retained_summary']['scope'], 'bound_guest')
+                    inputs = (self.out / 'native-inputs.json').read_bytes()
+                    self.assertEqual(hashlib.sha256(inputs).hexdigest(), report['inputs_sha256'])
+                    self.assertNotIn(source.read_bytes(), inputs)
+                    self.assertTrue(all(report['facts'].values()), report['facts'])
+
+
 if __name__ == '__main__':
     unittest.main()

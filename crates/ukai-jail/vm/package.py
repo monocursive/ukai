@@ -40,7 +40,7 @@ import sys
 import tarfile
 
 from cli import VERSION
-from run import digest
+from run import CATALOG_FILENAME, digest, optional_program_catalog
 
 SOURCE = Path(__file__).resolve().parent
 REPO = SOURCE.parents[2]
@@ -406,6 +406,10 @@ def main():
             or digest(prepared / 'seed.iso') != metadata['seed_sha256']
             or digest(args.jail_archive) != metadata['jail_archive_sha256']):
         parser.error('prepared disk, seed, or Linux archive does not match provenance')
+    try:
+        catalog_bytes = optional_program_catalog(prepared, metadata)
+    except (OSError, ValueError) as error:
+        parser.error(f'prepared guest program catalog is invalid: {error}')
     # Refuse stale attribution before compiling or signing any candidate byte.
     host_license_bytes = host_notices()
     out = args.out.resolve()
@@ -442,6 +446,11 @@ def main():
             SOURCE / 'cli.py')
     shutil.move(out / 'dist' / 'ukai-vm-install', binaries / 'ukai-vm-install')
     shutil.copy2(prepared / 'seed.iso', image / 'seed.iso')
+    if catalog_bytes is not None:
+        # Copy the validated snapshot, never reopen an input that may have
+        # changed since verification. SHA256SUMS also binds this package file.
+        with (image / CATALOG_FILENAME).open('xb') as output:
+            output.write(catalog_bytes)
     print('Compressing verified guest image', flush=True)
     with (prepared / 'base.raw').open('rb') as source, (image / 'base.raw.gz').open('wb') as output:
         with gzip.GzipFile(filename='', mode='wb', compresslevel=6, fileobj=output, mtime=0) as compressed:

@@ -1,0 +1,9 @@
+{
+  "catalog_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "executable_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "guest_attempt_id": "att_example",
+  "guest_boot_id": "01234567-89ab-4cde-8012-3456789abcde",
+  "host_attempt_id": "att_host",
+  "sampler_sha256": "4834d227be5e6ce8b3d7d14e1c42cbee161f19e7f19015de9c88264603d076f4",
+  "service_boot_id": "vm_service"
+}

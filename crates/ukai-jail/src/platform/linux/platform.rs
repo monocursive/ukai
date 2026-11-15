@@ -531,6 +531,8 @@ pub(super) mod tests {
                 config_dir: root.join("config"),
                 launch_name: None,
                 launch: None,
+                #[cfg(target_os = "macos")]
+                guest_launch: None,
                 proxy: None,
                 pinned_roots: Vec::new(),
                 exec_pins: Vec::new(),

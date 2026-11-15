@@ -127,6 +127,8 @@ pub struct PlatformIdentity {
 /// What the supervisor asks a platform to plan for.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct PlanRequest {
+    /// Descriptive identity resolved in the guest path domain, never a host descriptor.
+    pub guest_program: Option<crate::guest_program::GuestProgram>,
     /// The resolved policy; its `profile` is the base profile.
     pub snapshot: PolicySnapshot,
     /// The capability requirements the policy derives.
@@ -165,6 +167,9 @@ pub struct PreparedPlan {
     /// bound by descriptor (§9.1, §12), so the platform receives the exact
     /// objects staging examined instead of re-resolving paths.
     pub launch: Option<crate::credentials::LaunchHandoff>,
+    /// Captured source-only leases for a native guest launch; never a local vault.
+    #[cfg(target_os = "macos")]
+    pub guest_launch: Option<crate::credentials::GuestLaunchHandoff>,
     /// The attempt's registered, 0700 proxy directory (§10), for a proxy-mode
     /// profile; `None` otherwise. The platform binds the proxy socket inside
     /// it and exposes it read-only by this descriptor.
@@ -566,6 +571,27 @@ pub struct OwnerIdentity {
 pub trait Platform {
     /// The execution platform used to resolve policy and describe receipts.
     fn identity(&self) -> PlatformIdentity;
+
+    /// Resolve a catalog-backed guest program, or select the ordinary local resolver.
+    fn program_target(
+        &self,
+        _request: &crate::guest_program::ProgramRequest,
+    ) -> Result<crate::guest_program::ProgramTarget, JailError> {
+        Ok(crate::guest_program::ProgramTarget::Local)
+    }
+
+    /// Refuse a guest plan that cannot be carried before any source is staged.
+    fn validate_guest_plan(&self, plan: &PlanRequest) -> Result<(), JailError> {
+        if plan.guest_program.is_some() {
+            return Err(JailError::new(
+                crate::records::ErrorCode::UnsupportedPlatform,
+                crate::records::ErrorStage::Resolving,
+                crate::records::Remediation::Unsupported,
+                "this backend cannot execute a guest program",
+            ));
+        }
+        Ok(())
+    }
 
     /// The host that owns persisted attempt state and the supervisor's birth
     /// identity. A guest backend overrides this independently of `identity`:

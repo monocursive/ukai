@@ -2065,10 +2065,12 @@ class VmClientStandardInput(unittest.TestCase):
         tree = ast.parse(source)
         constants = [node for node in ast.walk(tree)
                      if isinstance(node, ast.Constant) and node.value == '--vm']
-        spawns, covered = {}, set()
-        for function in ast.walk(tree):
-            if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
+        functions = {}
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                functions.setdefault(node.name, []).append(node)
+
+        def assignments(function):
             assigned = {}
             for node in ast.walk(function):
                 targets = node.targets if isinstance(node, ast.Assign) else (
@@ -2076,24 +2078,64 @@ class VmClientStandardInput(unittest.TestCase):
                 for target in targets:
                     if isinstance(target, ast.Name) and node.value is not None:
                         assigned.setdefault(target.id, []).append(node.value)
+                    elif isinstance(target, ast.Tuple) and isinstance(node.value, ast.Call):
+                        # A bounded argv producer can return (command, suffix).
+                        producer = functions.get(getattr(node.value.func, 'id', None), [])
+                        if len(producer) == 1:
+                            for result in (r.value for r in ast.walk(producer[0]) if isinstance(r, ast.Return)):
+                                if isinstance(result, ast.Tuple) and len(result.elts) == len(target.elts):
+                                    local = assignments(producer[0])
+                                    for name, value in zip(target.elts, result.elts):
+                                        if isinstance(name, ast.Name):
+                                            assigned.setdefault(name.id, []).extend(
+                                                local.get(value.id, []) if isinstance(value, ast.Name) else [value])
+            return assigned
+
+        def spawn_name(call):
+            return call.func.id if isinstance(call.func, ast.Name) else (
+                call.func.attr if isinstance(call.func, ast.Attribute) else None)
+
+        def forwarded_spawn(name):
+            """Only a single direct argv-forwarding spawn qualifies as a wrapper."""
+            found = functions.get(name, [])
+            if len(found) != 1:
+                return None
+            wrapper = found[0]
+            children = [n for n in ast.walk(wrapper) if isinstance(n, ast.Call) and spawn_name(n) in self.SPAWNERS]
+            parameters = [arg.arg for arg in wrapper.args.args]
+            if len(children) == 1 and children[0].args:
+                command = children[0].args[0]
+                if isinstance(command, ast.Name) and command.id in parameters:
+                    return children[0], parameters.index(command.id)
+            return None
+
+        spawns, covered = {}, set()
+        for function in ast.walk(tree):
+            if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            assigned = assignments(function)
             for call in ast.walk(function):
                 if not isinstance(call, ast.Call):
                     continue
-                func = call.func
-                name = func.id if isinstance(func, ast.Name) else (
-                    func.attr if isinstance(func, ast.Attribute) else None)
-                if name not in self.SPAWNERS:
-                    continue
-                command = call.args[0] if call.args else next(
-                    (k.value for k in call.keywords if k.arg == 'args'), None)
+                name = spawn_name(call)
+                spawn = call
+                if name in self.SPAWNERS:
+                    command = call.args[0] if call.args else next(
+                        (k.value for k in call.keywords if k.arg == 'args'), None)
+                else:
+                    forwarded = forwarded_spawn(name)
+                    if forwarded is None or len(call.args) <= forwarded[1]:
+                        continue
+                    spawn, position = forwarded
+                    command = call.args[position]
                 if command is None:
                     continue
                 parts = [command] + (assigned.get(command.id, []) if isinstance(command, ast.Name) else [])
                 held = {id(node) for part in parts for node in ast.walk(part)
                         if isinstance(node, ast.Constant) and node.value == '--vm'}
                 if held:
-                    stdin = next((k.value for k in call.keywords if k.arg == 'stdin'), None)
-                    spawns[id(call)] = (call.lineno, stdin is not None and ast.unparse(stdin))
+                    stdin = next((k.value for k in spawn.keywords if k.arg == 'stdin'), None)
+                    spawns[id(spawn)] = (spawn.lineno, stdin is not None and ast.unparse(stdin))
                     covered |= held
         return list(spawns.values()), constants, covered
 
@@ -2112,9 +2154,28 @@ class VmClientStandardInput(unittest.TestCase):
                     self.assertEqual(stdin, 'subprocess.DEVNULL', f'{module}.py:{line}')
                 sites += len(spawns)
         # fault_matrix 1, proxy_measurement 1, vault_measurement 2, warm_live 1,
-        # gate_rows 2 (K111 under script(1), K112 both lanes), claude_vm_row 1,
+        # gate_rows 2 (K111 under script(1), K112 both lanes), claude_vm_row 2
+        # (literal plus the shared native run/task-check process wrapper),
         # credential_revocation_measurement 2 (normal client and sync).
-        self.assertEqual(sites, 10)
+        self.assertEqual(sites, 11)
+
+    def test_factored_argv_and_spawn_still_check_actual_stdin(self):
+        template = """def argv(j):
+    command = [j, 'run', '--vm']
+    return command, ['suffix']
+def main(j, run):
+    def execute(label, command):
+        return run(command{stdin})
+    command, suffix = argv(j)
+    execute('run', command)
+    execute('check', [j, 'run', '--vm', '--', 'true'])
+"""
+        for argument, expected in [('', False), (', stdin=sys.stdin', 'sys.stdin'),
+                                   (', stdin=subprocess.DEVNULL', 'subprocess.DEVNULL')]:
+            with self.subTest(stdin=argument):
+                spawns, constants, covered = self.spawns(template.format(stdin=argument))
+                self.assertEqual(spawns, [(6, expected)])
+                self.assertEqual(len(covered), len(constants))
 
     def test_the_check_sees_a_missing_or_other_stdin(self):
         for text, expected in [

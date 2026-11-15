@@ -1003,6 +1003,7 @@ fn j4_n7_a_failed_leaf_registration_refuses_and_leaves_no_leaf() {
             attempt_id: attempt_id.as_str().to_owned(),
             attempt_dir: attempt.clone(),
             request: PlanRequest {
+                guest_program: None,
                 requirements: ukai_jail::capability::requirements(&resolved.snapshot),
                 snapshot: resolved.snapshot,
             },
@@ -1011,6 +1012,8 @@ fn j4_n7_a_failed_leaf_registration_refuses_and_leaves_no_leaf() {
             config_dir: attempt.parent().unwrap().parent().unwrap().join("config"),
             launch_name: None,
             launch: None,
+            #[cfg(target_os = "macos")]
+            guest_launch: None,
             proxy: None,
             pinned_roots: Vec::new(),
             exec_pins: Vec::new(),

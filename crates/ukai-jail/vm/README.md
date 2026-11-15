@@ -413,6 +413,14 @@ Apple references: [Virtualization](https://developer.apple.com/documentation/vir
 
 ## J18: the warm service and measured guest admission (unreleased)
 
+The opt-in [guest-native launch contract](GUEST-NATIVE.md) describes the
+catalog-installed program work in progress. It preserves the bundled profile
+and actual Linux launcher; it does not qualify a new image or promote K113.
+`vm_summary_check.py` independently checks retained VM evidence against both
+JSON and terminal summaries, including complete guest journal bindings. Its
+PASS means the summaries match those bytes, not that the attempt or package
+has passed production qualification.
+
 The current local signed warm package includes both `ukai-vm` and the native
 macOS `ukai-jail` client. No macOS `ukai-jail` client ships in the existing
 public cold-boot preview or older candidates; those need a client built from

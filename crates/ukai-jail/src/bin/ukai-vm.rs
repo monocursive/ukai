@@ -38,6 +38,11 @@ use serde_json::Value;
 use sha2::Digest as _;
 use std::os::fd::{AsRawFd as _, FromRawFd as _};
 use std::os::unix::process::CommandExt as _;
+use ukai_jail::guest_program;
+
+#[path = "../../profiles/embedded.rs"]
+#[allow(dead_code)]
+mod embedded_profiles;
 
 #[path = "../platform/macos/vm/control.rs"]
 // Both ends include the wire modules by path; the bin drives the subset it
@@ -143,6 +148,11 @@ enum GuestOp {
     /// guest controller writes it under its config dir and runs the jail
     /// with `--launch NAME`).
     LaunchToml { toml: String },
+    /// Verify the catalog and establish isolated configuration before secrets.
+    NativePrepare {
+        native_program: protocol::GuestLaunchIntent,
+        argv: Vec<String>,
+    },
     /// One workspace file, the preview's frame.
     Put {
         path: String,
@@ -161,6 +171,8 @@ enum GuestOp {
         /// jail's `--launch` grammar. The guest synthesizes the TOML with
         /// credential sources at the tmpfs staging root.
         launch: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        native_program: Option<protocol::GuestLaunchIntent>,
     },
     /// Cancel one attempt; the session stays up.
     Cancel2,
@@ -213,6 +225,10 @@ struct GuestEvent {
     /// The current boot's guest contracts, learned from Session only.
     #[serde(default)]
     guest_contracts: Option<protocol::GuestContracts>,
+    #[serde(default)]
+    guest_program_catalog_sha256: Option<String>,
+    #[serde(default)]
+    native_program: Option<protocol::GuestLaunchIntent>,
 }
 
 // ---------------------------------------------------------------------------
@@ -310,6 +326,8 @@ struct Service {
     guest_nat: bool,
     /// Set once by the actual guest Session before accepting any attempts.
     guest_contracts: std::sync::OnceLock<Option<protocol::GuestContracts>>,
+    /// Actual verified Session catalog, never inferred from the service build.
+    guest_program_catalog_sha256: std::sync::OnceLock<Option<String>>,
 }
 
 /// One guest frame as the reader thread delivered it, or the transport's end.
@@ -610,6 +628,7 @@ fn serve(args: ServeArgs) -> Result<(), String> {
         live_share,
         guest_nat: args.guest_nat,
         guest_contracts: std::sync::OnceLock::new(),
+        guest_program_catalog_sha256: std::sync::OnceLock::new(),
     });
     let control_service = Arc::clone(&service);
     let control_thread = std::thread::spawn(move || {
@@ -620,12 +639,17 @@ fn serve(args: ServeArgs) -> Result<(), String> {
         expect_guest_within(&guest_frames, "ready", Duration::from_secs(150))?;
         guest_line(&service, &GuestOp::Session)?;
         let session = expect_guest(&guest_frames, "session")?;
+        check_native_session(&service.install, &session)?;
         let kernel = session.kernel.ok_or("session omitted kernel")?;
         check_live_share(service.live_share.is_some(), session.live_share)?;
         service
             .guest_contracts
             .set(session.guest_contracts)
             .map_err(|_| "guest contracts were already established for this boot")?;
+        service
+            .guest_program_catalog_sha256
+            .set(session.guest_program_catalog_sha256)
+            .map_err(|_| "guest catalog was already established for this boot")?;
         *SHARED_GUEST_KERNEL.lock().map_err(|e| e.to_string())? = Some(kernel);
         drive_attempts(
             &service,
@@ -802,6 +826,217 @@ fn drive_attempts(
     }
 }
 
+fn check_native_session(install: &image::Install, session: &GuestEvent) -> Result<(), String> {
+    let installed = install.catalog().map_err(|error| error.to_string())?;
+    let contract = session
+        .guest_contracts
+        .as_ref()
+        .and_then(|contracts| contracts.native_program.as_deref());
+    match installed {
+        None if contract.is_none() && session.guest_program_catalog_sha256.is_none() => Ok(()),
+        Some((_, digest))
+            if contract == Some(protocol::NATIVE_PROGRAM_CONTRACT)
+                && session
+                    .guest_contracts
+                    .as_ref()
+                    .and_then(|contracts| contracts.sampled_exposure.as_deref())
+                    == Some(protocol::SAMPLED_EXPOSURE_CONTRACT)
+                && session.guest_program_catalog_sha256.as_deref() == Some(digest.as_str()) =>
+        {
+            Ok(())
+        }
+        _ => Err(
+            "guest native program Session does not match the installed image catalog".to_owned(),
+        ),
+    }
+}
+
+fn native_argv(encoded: &[String]) -> Result<Vec<Vec<u8>>, String> {
+    if encoded.len() > 4096 {
+        return Err("native argument count exceeds its bound".to_owned());
+    }
+    let mut total = 0usize;
+    encoded
+        .iter()
+        .map(|word| {
+            let bytes = protocol::decode_data(word)
+                .map_err(|_| "invalid native argument encoding".to_owned())?;
+            total = total.saturating_add(bytes.len());
+            if bytes.contains(&0) || protocol::encode_data(&bytes) != *word || total > 1024 * 1024 {
+                return Err("native arguments are not canonical bounded byte strings".to_owned());
+            }
+            Ok(bytes)
+        })
+        .collect()
+}
+
+fn check_native_intent(
+    catalog: &guest_program::Catalog,
+    catalog_digest: &str,
+    intent: &protocol::GuestLaunchIntent,
+    argv: &[String],
+    secrets: &[protocol::SecretEntry],
+) -> Result<protocol::NativeProgramBinding, String> {
+    if intent.schema != protocol::NATIVE_PROGRAM_CONTRACT
+        || intent.state != "attempt"
+        || intent.catalog_sha256 != catalog_digest
+        || !intent
+            .expected_policy_digest
+            .strip_prefix("sha256:")
+            .is_some_and(guest_program::is_sha256)
+    {
+        return Err("native launch contract, state, catalog or policy digest differs".to_owned());
+    }
+    let entry = catalog
+        .entries
+        .iter()
+        .find(|entry| entry.id == intent.entry_id)
+        .ok_or("native launch catalog entry is absent")?;
+    let text = embedded_profiles::bundled_profile(&intent.launch_name)
+        .ok_or("native launch is not a bundled profile")?;
+    if entry.alias != intent.launch_name
+        || entry.profile_sha256 != intent.profile_sha256
+        || guest_program::sha256(text.as_bytes()) != entry.profile_sha256
+    {
+        return Err("native launch bundled profile identity differs".to_owned());
+    }
+    // Parsing is lexical: these guest paths never enter a host filesystem API.
+    let profile = ukai_jail::launch_profile::parse_with(
+        text,
+        &intent.launch_name,
+        ukai_jail::launch_profile::LaunchSource::Bundled,
+        None,
+        Some(b"/run/ukai-vm/native-config"),
+    )
+    .map_err(|_| "native bundled profile cannot be resolved".to_owned())?;
+    let declared = profile
+        .credentials
+        .iter()
+        .find(|declaration| declaration.id == intent.selected_credential_id);
+    if profile.program_root != entry.program_root
+        || !profile
+            .credentials_one_of
+            .contains(&intent.selected_credential_id)
+        || !declared.is_some_and(|declaration| {
+            declaration.mode == ukai_jail::policy::CredentialMode::Vault
+                && declaration.vault.as_ref().is_some_and(|policy| {
+                    policy.binaries == ["@program"] && policy.refresh.is_none()
+                })
+        })
+        || secrets.len() != 1
+        || secrets[0].id != intent.selected_credential_id
+    {
+        return Err(
+            "native launch requires exactly its selected declared program-bound source".to_owned(),
+        );
+    }
+    let suffix = native_argv(&intent.argv_suffix)?;
+    let resolved = native_argv(argv)?;
+    let mut expected = vec![entry.executable.as_bytes().to_vec()];
+    expected.extend(suffix.iter().cloned());
+    let mut logical = vec![entry.alias.as_bytes().to_vec()];
+    logical.extend(suffix);
+    if resolved != expected
+        || ukai_jail::canonical::argv_digest(&logical) != intent.request_argv_digest
+        || ukai_jail::canonical::argv_digest(&resolved) != intent.resolved_argv_digest
+    {
+        return Err("native launch suffix, resolved argv or digest differs".to_owned());
+    }
+    Ok(protocol::NativeProgramBinding {
+        catalog_sha256: catalog_digest.to_owned(),
+        entry_id: entry.id.clone(),
+        profile_sha256: entry.profile_sha256.clone(),
+        executable_sha256: entry.executable_sha256.clone(),
+        selected_credential_id: intent.selected_credential_id.clone(),
+        state: intent.state.clone(),
+        request_argv_digest: intent.request_argv_digest.clone(),
+        resolved_argv_digest: intent.resolved_argv_digest.clone(),
+        policy_digest: intent.expected_policy_digest.clone(),
+    })
+}
+
+fn check_native_request(
+    service: &Service,
+    intent: &protocol::GuestLaunchIntent,
+    argv: &[String],
+    secrets: &[protocol::SecretEntry],
+) -> Result<protocol::NativeProgramBinding, String> {
+    if service
+        .guest_contracts
+        .get()
+        .and_then(Option::as_ref)
+        .and_then(|contracts| contracts.native_program.as_deref())
+        != Some(protocol::NATIVE_PROGRAM_CONTRACT)
+        || service
+            .guest_contracts
+            .get()
+            .and_then(Option::as_ref)
+            .and_then(|contracts| contracts.sampled_exposure.as_deref())
+            != Some(protocol::SAMPLED_EXPOSURE_CONTRACT)
+        || service
+            .guest_program_catalog_sha256
+            .get()
+            .and_then(Option::as_deref)
+            != Some(intent.catalog_sha256.as_str())
+    {
+        return Err(
+            "this guest did not verify the requested native launch contract and catalog".to_owned(),
+        );
+    }
+    let (catalog, digest) = service
+        .install
+        .catalog()
+        .map_err(|error| error.to_string())?
+        .ok_or("native launch image has no catalog")?;
+    check_native_intent(&catalog, &digest, intent, argv, secrets)
+}
+
+struct NativeExpectation {
+    program: protocol::NativeProgramBinding,
+    attempt_id: String,
+    boot_id: String,
+    profile: String,
+}
+
+fn check_native_receipt(
+    bytes: &[u8],
+    binding: &protocol::ReceiptBinding,
+    expected: Option<&NativeExpectation>,
+) -> Result<(), String> {
+    let Some(expected) = expected else {
+        return if binding.native_program.is_none() {
+            Ok(())
+        } else {
+            Err("literal launch received an unsolicited native binding".to_owned())
+        };
+    };
+    let receipt: Value =
+        serde_json::from_slice(bytes).map_err(|_| "native guest receipt is not JSON")?;
+    if binding.native_program.as_ref() != Some(&expected.program)
+        || binding.attempt_id != expected.attempt_id
+        || binding.boot_id != expected.boot_id
+        || binding.profile != expected.profile
+        || binding.argv_digest != expected.program.resolved_argv_digest
+        || binding.guest_attempt_id.is_empty()
+        || binding.guest_boot_id.is_empty()
+        || receipt.pointer("/attempt_id").and_then(Value::as_str)
+            != Some(binding.guest_attempt_id.as_str())
+        || receipt
+            .pointer("/process/identity/value/boot_id")
+            .and_then(Value::as_str)
+            != Some(binding.guest_boot_id.as_str())
+        || receipt.pointer("/policy/name").and_then(Value::as_str)
+            != Some(expected.profile.as_str())
+        || receipt.pointer("/policy/digest").and_then(Value::as_str)
+            != Some(expected.program.policy_digest.as_str())
+        || receipt.pointer("/argv_digest").and_then(Value::as_str)
+            != Some(expected.program.resolved_argv_digest.as_str())
+    {
+        return Err("native guest receipt does not bind to the exact prepared request".to_owned());
+    }
+    Ok(())
+}
+
 /// One attempt session: stage, release, relay, verdict. The connection is
 /// the lease; its end cancels the attempt (§6).
 fn run_attempt(
@@ -838,6 +1073,11 @@ fn run_attempt(
             seed_sha256: manifest.seed_sha256.clone(),
             vsock_port: GUEST_PORT,
             guest_contracts: service.guest_contracts.get().cloned().flatten(),
+            guest_program_catalog_sha256: service
+                .guest_program_catalog_sha256
+                .get()
+                .cloned()
+                .flatten(),
         },
     )?;
     let prepared = match read_request(&mut stream)? {
@@ -849,6 +1089,7 @@ fn run_attempt(
             secrets,
             allow_hosts,
             launch,
+            native_program,
         } => {
             if !protocol::GUEST_PROFILES.contains(&profile.as_str()) {
                 return Err(format!(
@@ -898,13 +1139,15 @@ fn run_attempt(
                 secrets,
                 allow_hosts,
                 launch,
+                native_program,
             ))
         }
         protocol::ToVm::Put(_) | protocol::ToVm::Run | protocol::ToVm::RevokeSecrets { .. } => {
             Err("the attempt opened with staging frames instead of `prepare`".to_owned())
         }
     }?;
-    let (attempt_id, profile, wall_seconds, argv, secrets, allow_hosts, launch) = prepared;
+    let (attempt_id, profile, wall_seconds, argv, secrets, allow_hosts, launch, native_program) =
+        prepared;
     if !secrets.is_empty()
         && !service
             .guest_contracts
@@ -918,8 +1161,44 @@ fn run_attempt(
         );
     }
     check_secret_ids(secrets.iter().map(|s| s.id.as_str()))?;
+    let native_expected = native_program
+        .as_ref()
+        .map(|intent| {
+            if launch.is_some() || profile != "agent" {
+                return Err(
+                    "native program requires the agent profile without a launch override"
+                        .to_owned(),
+                );
+            }
+            check_native_request(service, intent, &argv, &secrets).map(|program| {
+                NativeExpectation {
+                    program,
+                    attempt_id: attempt_id.clone(),
+                    boot_id: service.boot_id.clone(),
+                    profile: profile.clone(),
+                }
+            })
+        })
+        .transpose()?;
     guest_line(service, &GuestOp::Reset)?;
-    expect_guest(frames, "reset")?;
+    if native_program.is_some() {
+        expect_preparation_guest(frames, "reset", &stream)?;
+    } else {
+        expect_guest(frames, "reset")?;
+    }
+    if let Some(intent) = &native_program {
+        guest_line(
+            service,
+            &GuestOp::NativePrepare {
+                native_program: intent.clone(),
+                argv: argv.clone(),
+            },
+        )?;
+        let acknowledged = expect_preparation_guest(frames, "native_prepared", &stream)?;
+        if acknowledged.native_program.as_ref() != Some(intent) {
+            return Err("the guest acknowledged a different native program request".to_owned());
+        }
+    }
     if let Some(launch) = &launch {
         // The launch TOML crossed in Prepare as part of the declaration;
         // the guest controller keeps it for `--launch` (it holds no value:
@@ -934,6 +1213,9 @@ fn run_attempt(
     }
     let mut staged_secrets: Vec<(String, String)> = Vec::new();
     for secret in &secrets {
+        if native_program.is_some() {
+            check_preparation_lease(&stream)?;
+        }
         // The transport stages each value in the guest's tmpfs for this
         // attempt, where the launch profile's sources name it; the guest
         // removes every value when the attempt ends, and a value it refuses
@@ -945,7 +1227,11 @@ fn run_attempt(
                 data: secret.data.clone(),
             },
         )?;
-        let staged = expect_guest(frames, "secret")?;
+        let staged = if native_program.is_some() {
+            expect_preparation_guest(frames, "secret", &stream)?
+        } else {
+            expect_guest(frames, "secret")?
+        };
         if staged.id.as_deref() != Some(secret.id.as_str()) {
             return Err(format!(
                 "the guest acknowledged the wrong secret: {:?}",
@@ -1014,6 +1300,7 @@ fn run_attempt(
             argv,
             allow_hosts: allow_hosts.clone(),
             launch: launch.as_ref().map(|decl| decl.name.clone()),
+            native_program,
         },
     )?;
     let mut secret_ids: Vec<String> = secrets.iter().map(|secret| secret.id.clone()).collect();
@@ -1034,7 +1321,14 @@ fn run_attempt(
                 .ok_or("running omitted supervisor_pid")?,
         },
     )?;
-    relay_attempt(service, frames, &mut stream, &secret_ids, revocation_sent)
+    relay_attempt(
+        service,
+        frames,
+        &mut stream,
+        &secret_ids,
+        revocation_sent,
+        native_expected.as_ref(),
+    )
 }
 
 /// The attempt lease and credential controls remain live while guest startup
@@ -1132,6 +1426,7 @@ fn relay_attempt(
     stream: &mut UnixStream,
     secret_ids: &[String],
     mut revocation_sent: Option<u128>,
+    native_expected: Option<&NativeExpectation>,
 ) -> Result<(), String> {
     let deadline = continuous_ns() + u128::from(protocol::WALL_MAX + 90) * 1_000_000_000;
     let mut receipt: Option<(String, Vec<u8>)> = None;
@@ -1229,12 +1524,14 @@ fn relay_attempt(
                     .take()
                     .ok_or("the guest completed without carrying its receipt")?;
                 let digest = image::hex(&sha2::Sha256::digest(&bytes));
+                let binding = frame.binding.ok_or("guest omitted receipt binding")?;
+                check_native_receipt(&bytes, &binding, native_expected)?;
                 send(
                     stream,
                     &protocol::FromVm::BoundReceipt {
                         sha256: digest,
                         data: sha256,
-                        binding: frame.binding.ok_or("guest omitted receipt binding")?,
+                        binding,
                     },
                 )?;
                 send(
@@ -1253,6 +1550,9 @@ fn relay_attempt(
                     .unwrap_or_else(|| "guest error".to_owned());
                 let _ = send(stream, &protocol::FromVm::Error { message });
                 return Err("the guest reported an error".to_owned());
+            }
+            "native_prepared" => {
+                return Err("unexpected repeated native preparation acknowledgement".to_owned());
             }
             _ => {}
         }
@@ -1326,6 +1626,57 @@ fn expect_guest(
     expect_guest_within(frames, event, Duration::from_secs(30))
 }
 
+/// Native catalog verification may take time. A caller whose source lease
+/// closes while it is pending must cancel before any subsequent secret send.
+fn check_preparation_lease(stream: &UnixStream) -> Result<(), String> {
+    let mut byte = 0u8;
+    // SAFETY: the socket is live and recv writes one caller-owned byte.
+    let result = unsafe {
+        libc::recv(
+            stream.as_raw_fd(),
+            (&raw mut byte).cast(),
+            1,
+            libc::MSG_PEEK | libc::MSG_DONTWAIT,
+        )
+    };
+    match result {
+        0 => Err("the native preparation connection closed".to_owned()),
+        value if value > 0 => {
+            Err("native preparation received a request before Prepared".to_owned())
+        }
+        _ if std::io::Error::last_os_error().kind() == std::io::ErrorKind::WouldBlock => Ok(()),
+        _ => Err("the native preparation connection failed".to_owned()),
+    }
+}
+
+fn expect_preparation_guest(
+    frames: &std::sync::mpsc::Receiver<GuestLine>,
+    event: &str,
+    stream: &UnixStream,
+) -> Result<GuestEvent, String> {
+    let deadline = continuous_ns() + control::HANDSHAKE_TIMEOUT.as_nanos();
+    loop {
+        check_preparation_lease(stream)?;
+        if STOP.load(AtomicOrdering::SeqCst) || continuous_ns() >= deadline {
+            return Err(format!("native preparation did not complete `{event}`"));
+        }
+        match frames.recv_timeout(Duration::from_millis(100)) {
+            Ok(GuestLine::Frame(frame)) if frame.event == event => {
+                check_preparation_lease(stream)?;
+                return Ok(*frame);
+            }
+            Ok(GuestLine::Frame(_)) => {
+                return Err("unexpected guest frame during native preparation".to_owned());
+            }
+            Ok(GuestLine::HelperEnded(_))
+            | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                return Err("guest transport ended during native preparation".to_owned());
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+        }
+    }
+}
+
 fn expect_guest_within(
     frames: &std::sync::mpsc::Receiver<GuestLine>,
     event: &str,
@@ -1343,6 +1694,9 @@ fn expect_guest_within(
             Ok(GuestLine::Frame(frame)) if frame.event == event => return Ok(*frame),
             Ok(GuestLine::Frame(frame)) if frame.event == "error" => {
                 return Err(frame.message.unwrap_or_else(|| "guest error".to_owned()));
+            }
+            Ok(GuestLine::Frame(frame)) if frame.event == "native_prepared" => {
+                return Err("unexpected native preparation acknowledgement".to_owned());
             }
             Ok(GuestLine::Frame(_)) => continue,
             Ok(GuestLine::HelperEnded(reason)) => {
@@ -1842,6 +2196,254 @@ fn qualified() -> Result<(), String> {
 #[cfg(test)]
 mod service_regressions {
     use super::*;
+
+    fn profile_input(key: &str) -> String {
+        let inputs: Value = serde_json::from_slice(include_bytes!(
+            "../../vm/fixtures/guest-native-profile-inputs.json"
+        ))
+        .unwrap();
+        inputs[key].as_str().unwrap().to_owned()
+    }
+
+    fn native_fixture() -> (
+        guest_program::Catalog,
+        String,
+        protocol::GuestLaunchIntent,
+        Vec<String>,
+        Vec<protocol::SecretEntry>,
+    ) {
+        let mut catalog: guest_program::Catalog = serde_json::from_slice(include_bytes!(
+            "../../vm/fixtures/guest-program-catalog.json"
+        ))
+        .unwrap();
+        let alias = profile_input("alias");
+        let primary_id = profile_input("primary_credential_id");
+        let entry = &mut catalog.entries[0];
+        entry.id = format!("{alias}-{}-linux-arm64", entry.version);
+        entry.alias = alias.clone();
+        entry.install_root = format!("/opt/ukai/programs/{alias}/{}", entry.version);
+        entry.executable = format!("{}/{alias}", entry.install_root);
+        entry.argv_prefix = vec![entry.executable.clone()];
+        entry.tree[1].path = alias.clone();
+        entry.profile_sha256 = guest_program::sha256(
+            embedded_profiles::bundled_profile(&alias)
+                .unwrap()
+                .as_bytes(),
+        );
+        entry.validate().unwrap();
+        let argv = vec![
+            entry.executable.as_bytes().to_vec(),
+            b"--print".to_vec(),
+            b"hello".to_vec(),
+        ];
+        let intent = protocol::GuestLaunchIntent {
+            schema: protocol::NATIVE_PROGRAM_CONTRACT.into(),
+            catalog_sha256: "d".repeat(64),
+            entry_id: entry.id.clone(),
+            launch_name: entry.alias.clone(),
+            profile_sha256: entry.profile_sha256.clone(),
+            state: "attempt".into(),
+            selected_credential_id: primary_id.clone(),
+            argv_suffix: argv[1..]
+                .iter()
+                .map(|arg| protocol::encode_data(arg))
+                .collect(),
+            request_argv_digest: ukai_jail::canonical::argv_digest(&[
+                alias.as_bytes().to_vec(),
+                b"--print".to_vec(),
+                b"hello".to_vec(),
+            ]),
+            resolved_argv_digest: ukai_jail::canonical::argv_digest(&argv),
+            expected_policy_digest: format!("sha256:{}", "e".repeat(64)),
+        };
+        let secrets = vec![protocol::SecretEntry {
+            id: primary_id,
+            data: protocol::encode_data(b"synthetic-value"),
+        }];
+        (
+            catalog,
+            intent.catalog_sha256.clone(),
+            intent,
+            argv.iter().map(|arg| protocol::encode_data(arg)).collect(),
+            secrets,
+        )
+    }
+
+    #[test]
+    fn native_intent_preserves_bundled_profile_and_both_declared_auth_modes() {
+        let (catalog, digest, mut intent, argv, mut secrets) = native_fixture();
+        for id in [
+            profile_input("primary_credential_id"),
+            profile_input("secondary_credential_id"),
+        ] {
+            intent.selected_credential_id = id.clone();
+            secrets[0].id = id.clone();
+            let bound = check_native_intent(&catalog, &digest, &intent, &argv, &secrets).unwrap();
+            assert_eq!(bound.selected_credential_id, id);
+            assert_eq!(bound.request_argv_digest, intent.request_argv_digest);
+            assert_eq!(bound.resolved_argv_digest, intent.resolved_argv_digest);
+            assert_ne!(bound.request_argv_digest, bound.resolved_argv_digest);
+        }
+    }
+
+    #[test]
+    fn native_intent_rejects_identity_state_suffix_and_source_substitution() {
+        let (catalog, digest, intent, argv, secrets) = native_fixture();
+        let value = serde_json::to_value(&intent).unwrap();
+        for field in [
+            "schema",
+            "catalog_sha256",
+            "entry_id",
+            "launch_name",
+            "profile_sha256",
+            "state",
+            "selected_credential_id",
+            "request_argv_digest",
+            "resolved_argv_digest",
+            "expected_policy_digest",
+        ] {
+            let mut changed = value.clone();
+            changed[field] = Value::String("wrong".into());
+            let changed: protocol::GuestLaunchIntent = serde_json::from_value(changed).unwrap();
+            assert!(
+                check_native_intent(&catalog, &digest, &changed, &argv, &secrets).is_err(),
+                "{field}"
+            );
+        }
+        let mut changed = intent.clone();
+        changed.argv_suffix.push(protocol::encode_data(b"changed"));
+        assert!(check_native_intent(&catalog, &digest, &changed, &argv, &secrets).is_err());
+        let mut changed_argv = argv.clone();
+        changed_argv[0] = protocol::encode_data(b"/bin/sh");
+        assert!(check_native_intent(&catalog, &digest, &intent, &changed_argv, &secrets).is_err());
+        assert!(check_native_intent(&catalog, &digest, &intent, &argv, &[]).is_err());
+        let mut multiple = secrets.clone();
+        multiple.push(protocol::SecretEntry {
+            id: profile_input("secondary_credential_id"),
+            data: protocol::encode_data(b"second-synthetic"),
+        });
+        assert!(check_native_intent(&catalog, &digest, &intent, &argv, &multiple).is_err());
+    }
+
+    #[test]
+    fn native_arguments_require_canonical_encoding_and_exact_bounds() {
+        assert_eq!(
+            native_argv(&[protocol::encode_data(b""), protocol::encode_data(b"\xff")]).unwrap(),
+            [b"".to_vec(), b"\xff".to_vec()]
+        );
+        for bad in [
+            vec!["YQ".into()],
+            vec!["YR==".into()],
+            vec![protocol::encode_data(b"a\0b")],
+            vec![protocol::encode_data(&vec![b'x'; 1024 * 1024 + 1])],
+            vec![String::new(); 4097],
+        ] {
+            assert!(native_argv(&bad).is_err());
+        }
+    }
+
+    #[test]
+    fn native_preparation_observes_caller_eof_while_guest_is_silent() {
+        let (stream, peer) = UnixStream::pair().unwrap();
+        let (_sender, receiver) = std::sync::mpsc::channel();
+        let closer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(20));
+            drop(peer);
+        });
+        let started = std::time::Instant::now();
+        assert!(
+            expect_preparation_guest(&receiver, "native_prepared", &stream)
+                .err()
+                .unwrap()
+                .contains("connection closed")
+        );
+        assert!(started.elapsed() < Duration::from_secs(1));
+        closer.join().unwrap();
+    }
+
+    #[test]
+    fn native_preparation_rejects_early_requests_and_wrong_guest_ack() {
+        let (stream, mut peer) = UnixStream::pair().unwrap();
+        check_preparation_lease(&stream).unwrap();
+        peer.write_all(b"{\"op\":\"run\"}\n").unwrap();
+        assert!(check_preparation_lease(&stream).is_err());
+        let (stream, _peer) = UnixStream::pair().unwrap();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        sender
+            .send(GuestLine::Frame(Box::new(
+                serde_json::from_value(serde_json::json!({"event":"secret"})).unwrap(),
+            )))
+            .unwrap();
+        assert!(expect_preparation_guest(&receiver, "native_prepared", &stream).is_err());
+    }
+
+    #[test]
+    fn native_receipt_requires_prepared_binding_and_actual_guest_digests() {
+        let (catalog, digest, intent, argv, secrets) = native_fixture();
+        let program = check_native_intent(&catalog, &digest, &intent, &argv, &secrets).unwrap();
+        let expected = NativeExpectation {
+            program: program.clone(),
+            attempt_id: "host-attempt".into(),
+            boot_id: "service-boot".into(),
+            profile: "agent".into(),
+        };
+        let binding = protocol::ReceiptBinding {
+            attempt_id: expected.attempt_id.clone(),
+            boot_id: expected.boot_id.clone(),
+            guest_attempt_id: "guest-attempt".into(),
+            guest_boot_id: "guest-boot".into(),
+            profile: expected.profile.clone(),
+            argv_digest: intent.resolved_argv_digest.clone(),
+            native_program: Some(program),
+            sampled_exposure_sha256: None,
+        };
+        let receipt = serde_json::json!({"attempt_id":"guest-attempt","process":{"identity":{"value":{"boot_id":"guest-boot"}}},
+            "policy":{"name":"agent","digest":intent.expected_policy_digest},"argv_digest":intent.resolved_argv_digest});
+        let bytes = serde_json::to_vec(&receipt).unwrap();
+        check_native_receipt(&bytes, &binding, Some(&expected)).unwrap();
+        assert!(check_native_receipt(&bytes, &binding, None).is_err());
+        let mut absent = binding.clone();
+        absent.native_program = None;
+        assert!(check_native_receipt(&bytes, &absent, Some(&expected)).is_err());
+        for pointer in [
+            "/attempt_id",
+            "/process/identity/value/boot_id",
+            "/policy/name",
+            "/policy/digest",
+            "/argv_digest",
+        ] {
+            let mut changed = receipt.clone();
+            *changed.pointer_mut(pointer).unwrap() = Value::String("wrong".into());
+            assert!(
+                check_native_receipt(
+                    &serde_json::to_vec(&changed).unwrap(),
+                    &binding,
+                    Some(&expected)
+                )
+                .is_err(),
+                "{pointer}"
+            );
+        }
+        for field in [
+            "catalog_sha256",
+            "entry_id",
+            "profile_sha256",
+            "executable_sha256",
+            "selected_credential_id",
+            "state",
+            "request_argv_digest",
+            "resolved_argv_digest",
+            "policy_digest",
+        ] {
+            let mut changed = serde_json::to_value(&binding).unwrap();
+            changed["native_program"][field] = Value::String("wrong".into());
+            let changed = serde_json::from_value(changed).unwrap();
+            assert!(
+                check_native_receipt(&bytes, &changed, Some(&expected)).is_err(),
+                "{field}"
+            );
+        }
+    }
 
     #[test]
     fn request_bound_is_reached_before_json_decode_or_timeout() {

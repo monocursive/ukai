@@ -174,16 +174,23 @@ class TransportAgreementTests(unittest.TestCase):
     """guest.py runs alone in the guest image: the host imports its limits and repeats its path rule."""
 
     def test_guest_imports_only_the_standard_library(self):
-        # The image carries guest.py and nothing beside it, so the limits run.py takes
-        # from it must not come from a module the guest does not have.
-        imported = set()
-        for node in ast.walk(ast.parse(Path(guest.__file__).read_text())):
-            if isinstance(node, ast.Import):
-                imported.update(alias.name for alias in node.names)
-            elif isinstance(node, ast.ImportFrom):
-                imported.add('.' * node.level + (node.module or ''))
-        self.assertTrue(imported)
-        self.assertEqual({name for name in imported if name.split('.')[0] not in sys.stdlib_module_names}, set())
+        # The controller and its explicit helper are both seeded. Neither
+        # may depend on a host-only module or a third-party package.
+        for module, allowed in [(Path(guest.__file__), {'guest_program', 'guest_exposure'}),
+                                (Path(guest.__file__).with_name('guest_program.py'), set()),
+                                (Path(guest.__file__).with_name('guest_exposure.py'), set())]:
+            imported = set()
+            for node in ast.walk(ast.parse(module.read_text())):
+                if isinstance(node, ast.Import):
+                    imported.update(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom):
+                    imported.add('.' * node.level + (node.module or ''))
+            self.assertTrue(imported)
+            self.assertEqual({name for name in imported if name.split('.')[0] not in sys.stdlib_module_names}, allowed)
+        prepared = Path(guest.__file__).with_name('prepare.py').read_text()
+        self.assertIn("('/usr/local/lib/ukai-vm/guest_program.py'", prepared)
+        self.assertIn("('/usr/local/lib/ukai-vm/guest_exposure.py'", prepared)
+
 
     def test_host_and_guest_path_verdicts_agree(self):
         root = Path('/staging')

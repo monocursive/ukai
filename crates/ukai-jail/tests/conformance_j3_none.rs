@@ -1225,6 +1225,7 @@ fn the_boundary_itself_refuses_a_restriction_it_would_not_apply() {
             attempt_id: "att_00000000-0000-4000-8000-000000000001".to_owned(),
             attempt_dir: root.path().join("attempt"),
             request: PlanRequest {
+                guest_program: None,
                 requirements: ukai_jail::capability::requirements(&snapshot),
                 snapshot,
             },
@@ -1237,6 +1238,8 @@ fn the_boundary_itself_refuses_a_restriction_it_would_not_apply() {
             config_dir: root.path().join("config"),
             launch_name: None,
             launch: None,
+            #[cfg(target_os = "macos")]
+            guest_launch: None,
             proxy: None,
             pinned_roots: Vec::new(),
             exec_pins: Vec::new(),
