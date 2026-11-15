@@ -137,6 +137,8 @@ enum GuestOp {
     /// launch profile's sources name these paths, the guest jail's vault
     /// reads them, and the guest removes them when the attempt ends.
     Secret { id: String, data: String },
+    /// Remove the released attempt's staged sources; never replace a value.
+    RevokeSecrets { ids: Vec<String> },
     /// Receive the vaulted launch profile's TOML for this attempt (the
     /// guest controller writes it under its config dir and runs the jail
     /// with `--launch NAME`).
@@ -182,6 +184,8 @@ struct GuestEvent {
     path: Option<String>,
     #[serde(default)]
     id: Option<String>,
+    #[serde(default)]
+    ids: Option<Vec<String>>,
     #[serde(default)]
     group: Option<String>,
     #[serde(default)]
@@ -318,6 +322,9 @@ fn write_helper(service: &Service, frame: &HelperWrite) -> Result<(), String> {
     let deadline = std::time::Instant::now() + Duration::from_secs(2);
     let mut pending = line.as_slice();
     while !pending.is_empty() {
+        if std::time::Instant::now() >= deadline {
+            return Err("the VZ client write timed out".to_owned());
+        }
         match stdin.write(pending) {
             Ok(0) => return Err("the VZ client stopped reading".to_owned()),
             Ok(n) => pending = &pending[n..],
@@ -797,16 +804,17 @@ fn run_attempt(
         .attempt_live
         .store(true, AtomicOrdering::SeqCst);
     let mut stream = stream;
-    stream.set_nonblocking(false).map_err(|e| e.to_string())?;
-    stream
-        .set_write_timeout(Some(Duration::from_secs(2)))
-        .map_err(|e| e.to_string())?;
+    stream.set_nonblocking(true).map_err(|e| e.to_string())?;
     let send = |stream: &mut UnixStream, frame: &protocol::FromVm| -> Result<(), String> {
         let mut line = serde_json::to_vec(frame).map_err(|error| error.to_string())?;
         line.push(b'\n');
-        stream
-            .write_all(&line)
-            .map_err(|error| format!("the attempt connection failed: {error}"))
+        control::write_before(
+            stream,
+            &line,
+            std::time::Instant::now() + Duration::from_secs(2),
+            || false,
+        )
+        .map_err(|error| format!("the attempt connection failed: {error}"))
     };
     let manifest = &service.install.manifest;
     send(
@@ -881,7 +889,7 @@ fn run_attempt(
                 launch,
             ))
         }
-        protocol::ToVm::Put(_) | protocol::ToVm::Run => {
+        protocol::ToVm::Put(_) | protocol::ToVm::Run | protocol::ToVm::RevokeSecrets { .. } => {
             Err("the attempt opened with staging frames instead of `prepare`".to_owned())
         }
     }?;
@@ -966,6 +974,11 @@ fn run_attempt(
             protocol::ToVm::Prepare { .. } => {
                 return Err("the attempt repeated `prepare`".to_owned());
             }
+            protocol::ToVm::RevokeSecrets { .. } => {
+                return Err(
+                    "credential revocation before release must cancel the attempt".to_owned(),
+                );
+            }
         }
     }
     guest_line(
@@ -980,7 +993,16 @@ fn run_attempt(
             launch: launch.as_ref().map(|decl| decl.name.clone()),
         },
     )?;
-    let running = expect_guest(frames, "running")?;
+    let mut secret_ids: Vec<String> = secrets.iter().map(|secret| secret.id.clone()).collect();
+    secret_ids.sort_unstable();
+    let mut revocation_sent = None;
+    let running = await_running(
+        service,
+        frames,
+        &mut stream,
+        &secret_ids,
+        &mut revocation_sent,
+    )?;
     send(
         &mut stream,
         &protocol::FromVm::Released {
@@ -989,44 +1011,50 @@ fn run_attempt(
                 .ok_or("running omitted supervisor_pid")?,
         },
     )?;
-    relay_attempt(service, frames, &mut stream)
+    relay_attempt(service, frames, &mut stream, &secret_ids, revocation_sent)
 }
 
-fn relay_attempt(
+/// The attempt lease and credential controls remain live while guest startup
+/// is pending, as well as during output relay. A delayed Running frame cannot
+/// defer cancellation until the ordinary 30-second handshake timeout.
+fn poll_attempt_control(
     service: &Service,
-    frames: &std::sync::mpsc::Receiver<GuestLine>,
     stream: &mut UnixStream,
+    secret_ids: &[String],
+    revocation_sent: &mut Option<u128>,
+    revocation_acknowledged: bool,
 ) -> Result<(), String> {
-    let deadline = continuous_ns() + u128::from(protocol::WALL_MAX + 90) * 1_000_000_000;
-    let mut receipt: Option<(String, Vec<u8>)> = None;
-    let send = |stream: &mut UnixStream, frame: &protocol::FromVm| -> Result<(), String> {
-        let mut line = serde_json::to_vec(frame).map_err(|error| error.to_string())?;
-        line.push(b'\n');
-        stream
-            .write_all(&line)
-            .map_err(|error| format!("the attempt connection failed: {error}"))
+    if STOP.load(AtomicOrdering::SeqCst) || service.shared.stopping.load(AtomicOrdering::SeqCst) {
+        return Err("service stopping".to_owned());
+    }
+    let mut byte = [0u8; 1];
+    // SAFETY: recv peeks into caller-owned memory without consuming protocol data.
+    let peer = unsafe {
+        libc::recv(
+            stream.as_raw_fd(),
+            byte.as_mut_ptr().cast(),
+            1,
+            libc::MSG_PEEK | libc::MSG_DONTWAIT,
+        )
     };
-    loop {
-        if STOP.load(AtomicOrdering::SeqCst) || service.shared.stopping.load(AtomicOrdering::SeqCst)
-        {
-            return Err("service stopping".to_owned());
+    if peer == 0 {
+        return Err("the attempt lease ended".to_owned());
+    }
+    if peer > 0 {
+        let line = read_line(stream, Duration::from_secs(2))?;
+        let request: protocol::ToVm = protocol::decode(&line).map_err(|error| error.to_string())?;
+        match request {
+            protocol::ToVm::RevokeSecrets { ids }
+                if revocation_sent.is_none() && !ids.is_empty() && ids == secret_ids =>
+            {
+                *revocation_sent = Some(continuous_ns());
+                guest_line(service, &GuestOp::RevokeSecrets { ids })?;
+            }
+            _ => {
+                return Err("unexpected or invalid credential control after release".to_owned());
+            }
         }
-        let mut byte = [0u8; 1];
-        // SAFETY: recv peeks into caller-owned memory without consuming protocol data.
-        let peer = unsafe {
-            libc::recv(
-                stream.as_raw_fd(),
-                byte.as_mut_ptr().cast(),
-                1,
-                libc::MSG_PEEK | libc::MSG_DONTWAIT,
-            )
-        };
-        if peer == 0 {
-            return Err("the attempt lease ended".to_owned());
-        }
-        if peer > 0 {
-            return Err("unexpected data after release".to_owned());
-        }
+    } else {
         let error = std::io::Error::last_os_error();
         if !matches!(
             error.kind(),
@@ -1034,6 +1062,76 @@ fn relay_attempt(
         ) {
             return Err(error.to_string());
         }
+    }
+    if !revocation_acknowledged
+        && revocation_sent.is_some_and(|sent| continuous_ns().saturating_sub(sent) >= 2_000_000_000)
+    {
+        return Err("guest credential revocation acknowledgement timed out".to_owned());
+    }
+    Ok(())
+}
+
+fn await_running(
+    service: &Service,
+    frames: &std::sync::mpsc::Receiver<GuestLine>,
+    stream: &mut UnixStream,
+    secret_ids: &[String],
+    revocation_sent: &mut Option<u128>,
+) -> Result<GuestEvent, String> {
+    let deadline = continuous_ns() + control::HANDSHAKE_TIMEOUT.as_nanos();
+    loop {
+        poll_attempt_control(service, stream, secret_ids, revocation_sent, false)?;
+        if continuous_ns() >= deadline {
+            return Err("the guest did not answer `running`".to_owned());
+        }
+        match frames.recv_timeout(Duration::from_millis(100)) {
+            Ok(GuestLine::Frame(frame)) if frame.event == "running" => return Ok(*frame),
+            Ok(GuestLine::Frame(frame)) if frame.event == "error" => {
+                return Err(frame.message.unwrap_or_else(|| "guest error".to_owned()));
+            }
+            Ok(GuestLine::Frame(_)) => {
+                return Err("the guest sent an unexpected frame before running".to_owned());
+            }
+            Ok(GuestLine::HelperEnded(reason)) => {
+                return Err(format!("the VM service ended: {reason}"));
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                return Err("the guest reader stopped".to_owned());
+            }
+        }
+    }
+}
+
+fn relay_attempt(
+    service: &Service,
+    frames: &std::sync::mpsc::Receiver<GuestLine>,
+    stream: &mut UnixStream,
+    secret_ids: &[String],
+    mut revocation_sent: Option<u128>,
+) -> Result<(), String> {
+    let deadline = continuous_ns() + u128::from(protocol::WALL_MAX + 90) * 1_000_000_000;
+    let mut receipt: Option<(String, Vec<u8>)> = None;
+    let mut revocation_acknowledged = false;
+    let send = |stream: &mut UnixStream, frame: &protocol::FromVm| -> Result<(), String> {
+        let mut line = serde_json::to_vec(frame).map_err(|error| error.to_string())?;
+        line.push(b'\n');
+        control::write_before(
+            stream,
+            &line,
+            std::time::Instant::now() + Duration::from_secs(2),
+            || false,
+        )
+        .map_err(|error| format!("the attempt connection failed: {error}"))
+    };
+    loop {
+        poll_attempt_control(
+            service,
+            stream,
+            secret_ids,
+            &mut revocation_sent,
+            revocation_acknowledged,
+        )?;
         if continuous_ns() > deadline {
             return Err("the attempt ran past its host deadline".to_owned());
         }
@@ -1050,6 +1148,24 @@ fn relay_attempt(
             }
         };
         match frame.event.as_str() {
+            "secrets_revoked" => {
+                if revocation_sent
+                    .is_none_or(|sent| continuous_ns().saturating_sub(sent) >= 2_000_000_000)
+                    || revocation_acknowledged
+                    || frame.ids.as_deref() != Some(secret_ids)
+                {
+                    return Err(
+                        "the guest acknowledged unexpected credential revocation".to_owned()
+                    );
+                }
+                send(
+                    stream,
+                    &protocol::FromVm::SecretsRevoked {
+                        ids: secret_ids.to_vec(),
+                    },
+                )?;
+                revocation_acknowledged = true;
+            }
             "stdout" | "stderr" => {
                 let data = frame.data.clone().unwrap_or_default();
                 let line = if frame.event == "stdout" {
@@ -1121,8 +1237,9 @@ fn relay_attempt(
 }
 
 fn read_line(stream: &mut UnixStream, timeout: Duration) -> Result<Vec<u8>, String> {
-    // macOS accepted sockets inherit O_NONBLOCK from the listener.
-    stream.set_nonblocking(false).map_err(|e| e.to_string())?;
+    // Keep internal sockets nonblocking on every platform; output clones use
+    // absolute send deadlines, and no operator descriptor is involved.
+    stream.set_nonblocking(true).map_err(|e| e.to_string())?;
     let deadline = std::time::Instant::now() + timeout;
     let mut line = Vec::new();
     let mut chunk = [0u8; 16384];

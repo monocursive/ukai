@@ -57,6 +57,7 @@ pub mod control;
 pub mod image;
 pub mod protocol;
 pub mod record;
+mod revocation;
 pub mod share;
 
 /// How long starting `ukai-vm serve` may take before the run refuses: the
@@ -590,9 +591,10 @@ pub struct GuestMeasurement {
 /// (`macos-vm-probes-2026-11-04/`): `capabilities.py` measured each
 /// requirement by its own attempts, on one warm boot of an image `prepare.py`
 /// built from the guest sources at `6bd497076`, through the published guest
-/// jail 0.1.0-rc.5. This tree's `guest.py` has since added only the staged
-/// export's refusal of directory links and unlistable directories, which no
-/// probe exercised. Each row points at that requirement's verdict and states the
+/// jail 0.1.0-rc.5. This tree's guest controller has since added stricter staged
+/// export checks, bound journal export, and credential-source revocation.
+/// Those changes do not promote any capability without fresh live evidence.
+/// Each row points at that requirement's verdict and states the
 /// start of its first attempt; a test reads the record and checks both.
 /// Development evidence: an unsigned source build on one M2 Pro host, not an
 /// installed package, and one run of each probe.
@@ -738,6 +740,8 @@ struct VmExecution {
     /// ([`guest_snapshot`]); the guest receipt's `policy.digest` is
     /// compared with it after the run.
     guest_policy_digest: String,
+    /// Captured before transport; replacements never become a new lease.
+    vault_lease: crate::vault::lifecycle::Lease,
     stdout: std::fs::File,
     stderr: std::fs::File,
 }
@@ -775,6 +779,14 @@ impl VmExecution {
         let wall = guest_wall(snapshot)?;
         let profile = snapshot.profile.as_str().to_owned();
         let vault = vault_launch(&plan)?;
+        let mut vault_lease = crate::vault::lifecycle::Lease::default();
+        if let Some(launch) = &plan.launch {
+            for secret in &launch.vault {
+                vault_lease.extend(secret.staged_source_lease().map_err(|_| {
+                    refused("--vm: the staged credential source changed before transport")
+                })?);
+            }
+        }
         let guest_policy_digest = guest_snapshot(
             snapshot,
             wall,
@@ -829,6 +841,11 @@ impl VmExecution {
             allow_hosts,
             launch: vault.declaration,
         };
+        if vault_lease.check().is_err() {
+            return Err(refused(
+                "--vm: the staged credential source changed before transport",
+            ));
+        }
         connection
             .send_within(&staged, plan.prepare_deadline.remaining())
             .map_err(transport)?;
@@ -866,6 +883,7 @@ impl VmExecution {
             limits: snapshot.limits.clone(),
             network,
             guest_policy_digest,
+            vault_lease,
             stdout,
             stderr,
         })
@@ -2163,9 +2181,17 @@ impl PreparedExecution for VmExecution {
                 teardown: Some(Teardown { tree: None }),
             })
         };
+        if execution.vault_lease.check().is_err() {
+            return Err(fail(refused(
+                "--vm: the staged credential source changed before release",
+            )));
+        }
         if let Err(error) = execution.connection.send(&protocol::ToVm::Run) {
             return Err(fail(transport(error)));
         }
+        let revocation =
+            revocation::Watch::start(&execution.connection, execution.vault_lease.clone())
+                .map_err(|reason| fail(refused(reason)))?;
         match execution
             .connection
             .next_frame_within(control::HANDSHAKE_TIMEOUT)
@@ -2186,6 +2212,7 @@ impl PreparedExecution for VmExecution {
                 return Err(fail(transport(error)));
             }
         }
+        revocation.check().map_err(|reason| fail(refused(reason)))?;
         Ok(Box::new(VmRunning {
             inner: execution,
             receipt: None,
@@ -2193,6 +2220,7 @@ impl PreparedExecution for VmExecution {
             stop: None,
             finished: false,
             failed: false,
+            revocation: Some(revocation),
         }))
     }
 
@@ -2214,6 +2242,7 @@ struct VmRunning {
     stop: Option<protocol::GuestStop>,
     finished: bool,
     failed: bool,
+    revocation: Option<revocation::Watch>,
 }
 
 /// The cgroup the guest controller creates for each attempt
@@ -2538,6 +2567,9 @@ impl VmRunning {
 impl VmRunning {
     fn wait_frames(&mut self, deadline: Deadline) -> RunEvent {
         loop {
+            if let Some(Err(reason)) = self.revocation.as_ref().map(revocation::Watch::check) {
+                return RunEvent::Unknown { reason };
+            }
             let budget = deadline
                 .at
                 .map(|at| at.saturating_duration_since(Instant::now()))
@@ -2566,6 +2598,18 @@ impl VmRunning {
                 }
             };
             match frame {
+                protocol::FromVm::SecretsRevoked { ids } => {
+                    let result = self
+                        .revocation
+                        .as_ref()
+                        .ok_or_else(|| {
+                            "unexpected credential revocation acknowledgement".to_owned()
+                        })
+                        .and_then(|watch| watch.acknowledge(&ids));
+                    if let Err(reason) = result {
+                        return RunEvent::Unknown { reason };
+                    }
+                }
                 protocol::FromVm::Stdout { data } => {
                     let payload = match protocol::decode_data(&data) {
                         Ok(data) => data,
@@ -2660,6 +2704,12 @@ impl VmRunning {
                         }
                     };
                     if let Err(reason) = self.settle_record() {
+                        self.failed = true;
+                        return RunEvent::Unknown { reason };
+                    }
+                    if let Some(Err(reason)) =
+                        self.revocation.as_ref().map(revocation::Watch::settled)
+                    {
                         self.failed = true;
                         return RunEvent::Unknown { reason };
                     }

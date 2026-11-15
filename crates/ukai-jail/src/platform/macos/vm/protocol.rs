@@ -257,6 +257,9 @@ pub enum ToVm {
     /// Release: run the jail. The frames before this stage; this one starts
     /// the guest attempt.
     Run,
+    /// Revoke the already-staged sources of this released attempt. No value
+    /// or replacement crosses; the guest removes them and acknowledges IDs.
+    RevokeSecrets { ids: Vec<String> },
 }
 
 /// A guest-controller statement connecting a guest jail receipt to this host run.
@@ -308,6 +311,8 @@ pub enum FromVm {
         /// The guest supervisor's pid, as the guest reported it.
         supervisor_pid: u32,
     },
+    /// Every named staged source was removed from this attempt's tmpfs.
+    SecretsRevoked { ids: Vec<String> },
     /// A chunk of the target's stdout, base64.
     Stdout {
         /// The bytes, base64.

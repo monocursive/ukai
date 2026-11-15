@@ -64,6 +64,265 @@ fn running() -> (VmRunning, UnixStream, tempfile::TempDir) {
     running_with(image::GuestNetwork::requested("none", [], []))
 }
 
+fn staged_test_source(root: &Path) -> (PathBuf, Arc<crate::vault::Secret>) {
+    let source = root.join("private-source");
+    std::fs::write(&source, b"source-token").unwrap();
+    std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o600)).unwrap();
+    let source = source.canonicalize().unwrap();
+    let secret = crate::vault::Secret::from_source(
+        "token".to_owned(),
+        crate::vault::Policy {
+            hosts: vec!["https://example.com".to_owned()],
+            ..Default::default()
+        },
+        source.as_os_str().as_encoded_bytes().to_vec(),
+        Vec::new(),
+    )
+    .unwrap();
+    (source, Arc::new(secret))
+}
+
+#[test]
+fn vm_staged_source_lease_never_adopts_a_replacement_or_restored_token() {
+    for replace_before_capture in [false, true] {
+        let root = tempfile::tempdir().unwrap();
+        let (source, secret) = staged_test_source(root.path());
+        let lease = secret.staged_source_lease().unwrap();
+        let replacement = root.path().join("replacement");
+        std::fs::write(&replacement, b"source-token").unwrap();
+        std::fs::set_permissions(&replacement, std::fs::Permissions::from_mode(0o600)).unwrap();
+        std::fs::rename(replacement, &source).unwrap();
+        if replace_before_capture {
+            assert!(
+                secret.staged_source_lease().is_err(),
+                "capture must not reload the same bytes from a new source"
+            );
+        }
+        assert!(lease.check().is_err());
+        std::fs::remove_file(&source).unwrap();
+        std::fs::write(&source, b"source-token").unwrap();
+        std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(lease.check().is_err());
+        assert!(secret.staged_source_lease().is_err());
+        assert_eq!(
+            secret.loaded_values().0.len(),
+            1,
+            "no replacement load occurred"
+        );
+    }
+}
+
+#[test]
+fn vm_revokes_a_removed_source_once_and_requires_the_exact_acknowledgement() {
+    use std::io::{BufRead as _, BufReader};
+    for wrong_ack in [false, true] {
+        let (mut run, mut peer, root) = running();
+        let (source, secret) = staged_test_source(root.path());
+        run.inner.vault_lease = secret.staged_source_lease().unwrap();
+        run.revocation = Some(
+            revocation::Watch::start(&run.inner.connection, run.inner.vault_lease.clone()).unwrap(),
+        );
+        peer.set_read_timeout(Some(Duration::from_secs(4))).unwrap();
+        std::fs::remove_file(source).unwrap();
+        let mut line = String::new();
+        BufReader::new(&mut peer).read_line(&mut line).unwrap();
+        assert_eq!(
+            protocol::decode::<protocol::ToVm>(line.as_bytes()).unwrap(),
+            protocol::ToVm::RevokeSecrets {
+                ids: vec!["token".to_owned()]
+            }
+        );
+        run.revocation.as_ref().unwrap().check().unwrap();
+        peer.set_nonblocking(true).unwrap();
+        assert_eq!(
+            peer.read(&mut [0]).unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+        peer.set_nonblocking(false).unwrap();
+        peer.write_all(
+            &protocol::encode(&protocol::FromVm::SecretsRevoked {
+                ids: vec![if wrong_ack { "other" } else { "token" }.to_owned()],
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        let event = run.wait(Deadline {
+            at: Some(Instant::now() + Duration::from_millis(20)),
+        });
+        if wrong_ack {
+            assert!(matches!(event, RunEvent::Unknown { .. }));
+            assert!(run.failed);
+            assert!(!run.revocation.as_ref().unwrap().acknowledged());
+        } else {
+            assert!(matches!(event, RunEvent::WallExpired));
+            assert!(run.revocation.as_ref().unwrap().acknowledged());
+            assert!(run.revocation.as_ref().unwrap().check().is_ok());
+        }
+    }
+}
+
+#[test]
+fn vm_unsolicited_revocation_ack_refuses() {
+    let (mut run, mut peer, _root) = running();
+    peer.write_all(&protocol::encode(&protocol::FromVm::SecretsRevoked { ids: vec![] }).unwrap())
+        .unwrap();
+    assert!(matches!(run.wait(soon()), RunEvent::Unknown { .. }));
+    assert!(run.failed);
+}
+
+#[test]
+fn vm_revoked_source_refuses_before_sending_run() {
+    let (mut run, mut peer, root) = running();
+    let (source, secret) = staged_test_source(root.path());
+    run.inner.vault_lease = secret.staged_source_lease().unwrap();
+    std::fs::remove_file(source).unwrap();
+    assert!(Box::new(run.inner).release().is_err());
+    assert_eq!(
+        peer.read(&mut [0]).unwrap(),
+        0,
+        "the connection closed without a Run frame"
+    );
+}
+
+#[test]
+fn vm_revocation_survives_blocked_stdout_and_stderr_without_changing_output_flags() {
+    use std::io::{BufRead as _, BufReader};
+    use std::os::fd::{FromRawFd as _, IntoRawFd as _};
+    for stderr in [false, true] {
+        let (mut run, mut peer, root) = running();
+        let (source, secret) = staged_test_source(root.path());
+        run.inner.vault_lease = secret.staged_source_lease().unwrap();
+        run.revocation = Some(
+            revocation::Watch::start(&run.inner.connection, run.inner.vault_lease.clone()).unwrap(),
+        );
+        let (output, held_reader) = UnixStream::pair().unwrap();
+        let inspected = output.try_clone().unwrap();
+        // Fill the stand-in output, then restore its blocking mode before
+        // handing it to the runtime. Runtime operations must preserve it.
+        output.set_nonblocking(true).unwrap();
+        let buffer = [b'x'; 65536];
+        loop {
+            // SAFETY: live test socket and fixed input buffer.
+            let sent = unsafe {
+                libc::send(
+                    output.as_raw_fd(),
+                    buffer.as_ptr().cast(),
+                    buffer.len(),
+                    libc::MSG_DONTWAIT | libc::MSG_NOSIGNAL,
+                )
+            };
+            if sent < 0 {
+                assert_eq!(
+                    std::io::Error::last_os_error().kind(),
+                    std::io::ErrorKind::WouldBlock
+                );
+                break;
+            }
+        }
+        output.set_nonblocking(false).unwrap();
+        // SAFETY: F_GETFL reads the live test descriptor's flags.
+        let before = unsafe { libc::fcntl(inspected.as_raw_fd(), libc::F_GETFL) };
+        assert_eq!(before & libc::O_NONBLOCK, 0);
+        // SAFETY: into_raw_fd transfers exactly this owned socket to File.
+        let output = unsafe { std::fs::File::from_raw_fd(output.into_raw_fd()) };
+        if stderr {
+            run.inner.stderr = output;
+        } else {
+            run.inner.stdout = output;
+        }
+        let frame = if stderr {
+            protocol::FromVm::Stderr {
+                data: protocol::encode_data(b"blocked"),
+            }
+        } else {
+            protocol::FromVm::Stdout {
+                data: protocol::encode_data(b"blocked"),
+            }
+        };
+        peer.write_all(&protocol::encode(&frame).unwrap()).unwrap();
+        let (done, observed) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let event = run.wait(Deadline { at: None });
+            done.send(event).unwrap();
+        });
+        assert!(
+            observed.recv_timeout(Duration::from_millis(50)).is_err(),
+            "output should be blocked"
+        );
+        std::fs::remove_file(source).unwrap();
+        peer.set_read_timeout(Some(Duration::from_secs(4))).unwrap();
+        let mut request = String::new();
+        BufReader::new(&mut peer).read_line(&mut request).unwrap();
+        assert_eq!(
+            protocol::decode::<protocol::ToVm>(request.as_bytes()).unwrap(),
+            protocol::ToVm::RevokeSecrets {
+                ids: vec!["token".into()]
+            }
+        );
+        // Even a correct ACK cannot help until the main reader processes it.
+        peer.write_all(
+            &protocol::encode(&protocol::FromVm::SecretsRevoked {
+                ids: vec!["token".into()],
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            peer.read(&mut [0]).unwrap(),
+            0,
+            "unprocessed ACK must still cancel by deadline"
+        );
+        assert!(
+            observed.try_recv().is_err(),
+            "main stayed blocked throughout revocation"
+        );
+        assert_eq!(
+            // SAFETY: F_GETFL reads the same still-live output description.
+            unsafe { libc::fcntl(inspected.as_raw_fd(), libc::F_GETFL) },
+            before
+        );
+        drop(held_reader);
+        assert!(matches!(
+            observed.recv_timeout(Duration::from_secs(2)).unwrap(),
+            RunEvent::Unknown { .. }
+        ));
+        worker.join().unwrap();
+    }
+}
+
+#[test]
+fn vm_verified_completion_without_a_revocation_ack_is_settlement_not_acknowledgement() {
+    use std::io::{BufRead as _, BufReader};
+    let (mut run, mut peer, root) = running();
+    let (source, secret) = staged_test_source(root.path());
+    run.inner.vault_lease = secret.staged_source_lease().unwrap();
+    run.revocation = Some(
+        revocation::Watch::start(&run.inner.connection, run.inner.vault_lease.clone()).unwrap(),
+    );
+    std::fs::remove_file(source).unwrap();
+    peer.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+    let mut request = String::new();
+    BufReader::new(&mut peer).read_line(&mut request).unwrap();
+    let (sha256, data) = encoded(&receipt());
+    for frame in [
+        protocol::FromVm::BoundReceipt {
+            sha256,
+            data,
+            binding: binding(),
+        },
+        done(0),
+    ] {
+        peer.write_all(&protocol::encode(&frame).unwrap()).unwrap();
+    }
+    assert!(matches!(
+        run.wait(soon()),
+        RunEvent::TargetExited { code: 0 }
+    ));
+    assert!(run.verified());
+    assert!(run.revocation.as_ref().unwrap().is_settled());
+    assert!(!run.revocation.as_ref().unwrap().acknowledged());
+}
+
 fn running_with(network: image::GuestNetwork) -> (VmRunning, UnixStream, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
     for name in ["workspace", "evidence"] {
@@ -98,6 +357,7 @@ fn running_with(network: image::GuestNetwork) -> (VmRunning, UnixStream, tempfil
         .unwrap(),
         network,
         guest_policy_digest: GUEST_POLICY.into(),
+        vault_lease: crate::vault::lifecycle::Lease::default(),
         stdout: std::fs::File::create(dir.path().join("stdout")).unwrap(),
         stderr: std::fs::File::create(dir.path().join("stderr")).unwrap(),
     };
@@ -109,6 +369,7 @@ fn running_with(network: image::GuestNetwork) -> (VmRunning, UnixStream, tempfil
             stop: None,
             finished: false,
             failed: false,
+            revocation: None,
         },
         peer,
         dir,

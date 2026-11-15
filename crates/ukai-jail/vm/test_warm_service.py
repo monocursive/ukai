@@ -111,7 +111,13 @@ for line in sys.stdin:
                 guest(dict(event='secret', id=request['id'], path='/run/ukai-vm/credentials/' + request['id']))
         elif op == 'launch_toml':
             guest(dict(event='launch_toml'))
+        elif op == 'revoke_secrets':
+            if os.environ.get('HOLD_REVOKE') != '1':
+                ids = ['other'] if os.environ.get('WRONG_REVOKE') == '1' else request['ids']
+                guest(dict(event='secrets_revoked', ids=ids))
         elif op == 'run2':
+            if os.environ.get('HOLD_RUNNING') == '1':
+                continue
             guest(dict(event='running', supervisor_pid=os.getpid()))
             if os.environ.get('HOLD_RUN') == '1':
                 continue
@@ -188,10 +194,10 @@ class WarmServiceTests(unittest.TestCase):
         path = self.root / 'record.ndjson'
         return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
 
-    def wait_recorded(self, predicate, timeout=5):
+    def wait_recorded(self, predicate, timeout=5, after=0):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            found = [frame for frame in self.recorded() if predicate(frame)]
+            found = [frame for frame in self.recorded()[after:] if predicate(frame)]
             if found:
                 return found
             time.sleep(.02)
@@ -497,6 +503,77 @@ class WarmServiceTests(unittest.TestCase):
                   secrets=[dict(id='token', data=base64.b64encode(b'v').decode())])
         self.assertEqual(stream.recv(1000), b'')
         self.assertTrue(self.control('status')['warm'])
+        self.control('stop')
+        child.wait(timeout=6)
+
+    def test_released_credentials_revoke_exactly_once_and_keep_other_attempts_possible(self):
+        child = self.launch(HOLD_RUN='1', RECORD=str(self.root / 'record.ndjson'))
+        secrets = [dict(id='token', data=base64.b64encode(b'value').decode())]
+        stream, _ = self.attempt(secrets=secrets)
+        self.send(stream, op='revoke_secrets', ids=['token'])
+        self.assertEqual(self.frame(stream), dict(event='secrets_revoked', ids=['token']))
+        self.send(stream, op='revoke_secrets', ids=['token'])
+        self.assertEqual(stream.recv(1000), b'')
+        self.wait_recorded(lambda frame: frame.get('op') == 'cancel2')
+        self.assertEqual(sum(frame.get('op') == 'revoke_secrets' for frame in self.recorded()), 1)
+        self.assertTrue(self.control('status')['warm'])
+        following, _ = self.attempt(secrets=secrets)
+        self.send(following, op='revoke_secrets', ids=['token'])
+        self.assertEqual(self.frame(following)['ids'], ['token'])
+        following.close()
+        self.control('stop')
+        child.wait(timeout=6)
+
+    def test_unknown_or_incomplete_revocation_never_reaches_guest(self):
+        child = self.launch(HOLD_RUN='1', RECORD=str(self.root / 'record.ndjson'))
+        secrets = [dict(id='token', data=base64.b64encode(b'value').decode())]
+        for ids in ([], ['unknown'], ['token', 'token']):
+            with self.subTest(ids=ids):
+                stream, _ = self.attempt(secrets=secrets)
+                self.send(stream, op='revoke_secrets', ids=ids)
+                self.assertEqual(stream.recv(1000), b'')
+        self.assertFalse(any(frame.get('op') == 'revoke_secrets' for frame in self.recorded()))
+        self.control('stop')
+        child.wait(timeout=6)
+
+    def test_wrong_or_absent_guest_revocation_acknowledgement_cancels(self):
+        for mode in ('WRONG_REVOKE', 'HOLD_REVOKE'):
+            with self.subTest(mode=mode):
+                child = self.launch(HOLD_RUN='1', **{mode: '1'})
+                stream, _ = self.attempt(secrets=[dict(id='token', data=base64.b64encode(b'value').decode())])
+                stream.settimeout(6)
+                self.send(stream, op='revoke_secrets', ids=['token'])
+                self.assertEqual(stream.recv(1000), b'')
+                self.assertTrue(self.control('status')['warm'])
+                self.control('stop')
+                child.wait(timeout=6)
+
+    def test_lease_cancellation_and_revocation_remain_live_before_running(self):
+        child = self.launch(HOLD_RUNNING='1', HOLD_REVOKE='1', RECORD=str(self.root / 'record.ndjson'))
+        for revoke in (False, True):
+            with self.subTest(revoke=revoke):
+                stream = self.socket('attempt')
+                self.assertEqual(self.frame(stream)['event'], 'ready')
+                self.send(stream, op='prepare', attempt_id='startup-attempt', profile='tool',
+                          wall_seconds=30, argv=[base64.b64encode(b'/bin/true').decode()],
+                          secrets=[dict(id='token', data=base64.b64encode(b'value').decode())])
+                self.assertEqual(self.frame(stream)['event'], 'prepared')
+                prior = len(self.recorded())
+                self.send(stream, op='run')
+                self.wait_recorded(lambda frame: frame.get('op') == 'run2', after=prior)
+                started = time.monotonic()
+                if revoke:
+                    self.send(stream, op='revoke_secrets', ids=['token'])
+                else:
+                    stream.shutdown(socket.SHUT_WR)
+                self.assertEqual(stream.recv(1000), b'')
+                self.wait_recorded(lambda frame: frame.get('op') == 'cancel2', timeout=3, after=prior)
+                self.assertLess(time.monotonic() - started, 3)
+                frames = self.recorded()[prior:]
+                self.assertTrue(any(frame.get('op') == 'cancel2' for frame in frames))
+                requests = [frame for frame in frames if frame.get('op') == 'revoke_secrets']
+                self.assertEqual(requests, [dict(op='revoke_secrets', ids=['token'])] if revoke else [])
+                self.assertTrue(self.control('status')['warm'])
         self.control('stop')
         child.wait(timeout=6)
 
