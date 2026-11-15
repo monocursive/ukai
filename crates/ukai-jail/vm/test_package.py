@@ -346,21 +346,25 @@ class SourceArchiveCoverageTests(unittest.TestCase):
                   'crates/ukai-jail/vm/vz.swift', 'crates/ukai-jail/vm/custodian.c',
                   'crates/ukai-jail/vm/entitlements.plist', 'crates/ukai-jail/vm/cli.py',
                   'crates/ukai-jail/vm/run.py', 'crates/ukai-jail/vm/guest.py',
+                  'docs/specs/jail-v1/examples/event-note-learning-read.json',
                   *(member + '/Cargo.toml' for member in members), *package.build_inputs()[1:]}
         self.assertEqual(sorted(needed - listed), [])
         self.assertTrue(any(name.startswith('crates/ukai-jail/src/') for name in listed))
 
 
-    def test_only_the_bounded_admission_proof_is_added_to_the_source_archive(self):
+    def test_only_the_bounded_proof_and_exact_compile_fixture_are_archived(self):
         proof = 'docs/benchmarks/jail/results/macos-vm-admission-2026-11-15'
         self.assertEqual(package.ADMISSION_PROOF, proof)
         docs = {name for name in package.archive_paths() if name.startswith('docs')}
-        self.assertEqual(docs, {proof, 'docs/specs/jail-v1/network-addresses.json'})
+        fixture = 'docs/specs/jail-v1/examples/event-note-learning-read.json'
+        self.assertEqual(docs, {proof, 'docs/specs/jail-v1/network-addresses.json', fixture})
         with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, GIT_ENVIRONMENT, clear=True):
             repo = Path(temporary) / 'repo'; repo.mkdir()
-            included = {proof + '/handshake-capabilities/capabilities.json': b'{"fixture":true}\n',
+            included = {fixture: b'{"event":"note"}\n',
+                        proof + '/handshake-capabilities/capabilities.json': b'{"fixture":true}\n',
                         proof + '/handshake-raw-credential/guest-artifact/evidence/guest-journal/0000.part': b'exact journal bytes\n'}
-            excluded = {'docs/unrelated.json': b'not selected', 'docs/benchmarks/jail/results/other/binary.dmg': b'not selected',
+            excluded = {'docs/specs/jail-v1/examples/unrelated.json': b'not selected',
+                        'docs/unrelated.json': b'not selected', 'docs/benchmarks/jail/results/other/binary.dmg': b'not selected',
                         'evidence/private-key.pem': b'not selected', 'vm-disks/base.raw': b'not selected'}
             for name, data in {**included, **excluded}.items():
                 path = repo / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(data)

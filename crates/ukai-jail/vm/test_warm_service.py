@@ -26,6 +26,9 @@ CUSTODIAN = r'''
 import os, select, signal, subprocess, sys, time
 lease, ack = map(int, sys.argv[1:3])
 child = subprocess.Popen(sys.argv[3:])
+if os.environ.get('STARTUP_DIAGNOSTIC') == 'no_owner':
+    # Only the helper may retain the output writer in this EOF fixture.
+    os.close(1)
 try:
     deadline = time.monotonic() + 3
     while child.poll() is None:
@@ -69,6 +72,25 @@ def guest(value, split=False):
     raw = (json.dumps(value) + '\n').encode()
     for offset in range(0, len(raw), 65536 if split else len(raw)):
         emit(dict(event='data', data=base64.b64encode(raw[offset:offset+65536] if split else raw).decode()))
+
+if mode := os.environ.get('STARTUP_DIAGNOSTIC'):
+    sentinel = 'PRIVATE_STARTUP_PAYLOAD_PATH_OR_CREDENTIAL'
+    if mode == 'no_owner':
+        os.close(1)
+    else:
+        emit(dict(event='owner', audit_token=sentinel))
+        emit(dict(event='booted', arbitrary=sentinel))
+        if mode == 'boot_timeout':
+            emit(dict(event='stopping', reason='boot_timeout'))
+            emit(dict(event='stopped', error=sentinel))
+        else:
+            emit(dict(event='connected'))
+            emit(dict(event='stopping', reason=sentinel))
+            emit(dict(event='error', error=sentinel))
+    # Keep custody alive until the host observes the terminal frame/EOF and
+    # requests teardown, so acknowledgement EOF cannot race this test's cause.
+    sys.stdin.readline()
+    sys.exit(0)
 
 if os.environ.get('BLOCK_READY') == '1':
     sys.stdin.read()
@@ -581,6 +603,43 @@ class WarmServiceTests(unittest.TestCase):
     def test_bad_session_is_not_an_orderly_stop(self):
         child = self.launch(BAD_SESSION='1')
         self.assertIn('session omitted kernel', self.assert_exit(child, 125))
+
+    def test_startup_failure_retains_safe_milestones_and_original_transport_cause(self):
+        for mode, terminal, cause in [('no_owner', 'eof', 'helper_eof'),
+                                      ('boot_timeout', 'stopped', 'helper_stopped'),
+                                      ('connected_error', 'reported_error', 'helper_reported_error')]:
+            with self.subTest(mode=mode):
+                data = self.root / ('startup-' + mode)
+                runtime = data / 'vm'
+                before = set(runtime.glob('vm-*'))
+                child = self.launch(STARTUP_DIAGNOSTIC=mode, UKAI_DATA_DIR=str(data))
+                stderr = self.assert_exit(child, 125)
+                self.assertIn(cause, stderr)
+                self.assertNotIn('PRIVATE_STARTUP_PAYLOAD_PATH_OR_CREDENTIAL', stderr)
+                self.assertNotIn('the guest did not answer', stderr)
+                created = set(runtime.glob('vm-*')) - before
+                self.assertEqual(len(created), 1)
+                boot = created.pop()
+                path = boot / 'startup.json'
+                raw = path.read_bytes()
+                self.assertLessEqual(len(raw), 4096)
+                self.assertNotIn(b'PRIVATE_STARTUP_PAYLOAD_PATH_OR_CREDENTIAL', raw)
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                report = json.loads(raw)
+                self.assertEqual(report['boot_id'], boot.name)
+                observed = report['observed']
+                self.assertEqual(observed['transport_end'], terminal)
+                self.assertEqual(observed['first_failure'], cause)
+                self.assertEqual(observed['owner_ms'] is not None, mode != 'no_owner')
+                self.assertEqual(observed['booted_ms'] is not None, mode != 'no_owner')
+                self.assertEqual(observed['connected_ms'] is not None, mode == 'connected_error')
+                self.assertIsNone(observed['guest_ready_ms'])
+                self.assertIsNone(observed['session_validated_ms'])
+                self.assertEqual(observed['stopping_reason'],
+                                 {'no_owner': None, 'boot_timeout': 'boot_timeout',
+                                  'connected_error': 'unrecognized'}[mode])
+                self.assertFalse((runtime / 'control.sock').exists())
+                self.assertFalse((runtime / 'attempt.sock').exists())
 
     def test_helper_death_and_stop_during_silent_attempt_are_bounded(self):
         child = self.launch(EXIT_AFTER_SESSION='1')

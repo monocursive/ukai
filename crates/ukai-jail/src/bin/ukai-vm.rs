@@ -123,8 +123,9 @@ struct HelperEvent {
     event: String,
     #[serde(default)]
     data: Option<String>,
-    #[serde(default)]
-    error: Option<String>,
+    // Keep the existing decode contract; its arbitrary text is never retained.
+    #[serde(default, rename = "error")]
+    _error: Option<String>,
 }
 
 /// Host → guest, over vsock. `ready`, `put`, `ping`, `run` and `cancel`
@@ -242,6 +243,7 @@ struct Shared {
     attempt_live: AtomicBool,
     helper_alive: AtomicBool,
     failed: AtomicBool,
+    startup: Mutex<StartupDiagnostics>,
 }
 
 impl Shared {
@@ -249,6 +251,201 @@ impl Shared {
         // The signal handler can only set STOP. Every thread must observe
         // that request before interpreting teardown as a custody failure.
         STOP.load(AtomicOrdering::SeqCst) || self.stopping.load(AtomicOrdering::SeqCst)
+    }
+
+    fn startup(&self) -> std::sync::MutexGuard<'_, StartupDiagnostics> {
+        self.startup
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+/// Fixed-size observations, never helper text, guest payload, paths or credentials.
+/// Offsets start when the service creates its reader state, after spawning custody.
+/// `Instant` may exclude suspended time on the host platform: these offsets are
+/// observations, not the continuous-clock deadlines used by the startup waits.
+#[derive(Clone, Serialize)]
+struct StartupDiagnostics {
+    #[serde(skip)]
+    started: std::time::Instant,
+    owner_ms: Option<u64>,
+    booted_ms: Option<u64>,
+    connected_ms: Option<u64>,
+    guest_ready_ms: Option<u64>,
+    session_validated_ms: Option<u64>,
+    stopping_ms: Option<u64>,
+    stopping_reason: Option<&'static str>,
+    transport_end: Option<HelperEnd>,
+    first_failure: Option<&'static str>,
+    waiting_for: Option<&'static str>,
+    wait_end: Option<&'static str>,
+}
+
+impl Default for StartupDiagnostics {
+    fn default() -> Self {
+        Self {
+            started: std::time::Instant::now(),
+            owner_ms: None,
+            booted_ms: None,
+            connected_ms: None,
+            guest_ready_ms: None,
+            session_validated_ms: None,
+            stopping_ms: None,
+            stopping_reason: None,
+            transport_end: None,
+            first_failure: None,
+            waiting_for: None,
+            wait_end: None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum HelperEnd {
+    Eof,
+    ReadError,
+    HelperFraming,
+    HelperDecode,
+    MissingData,
+    InvalidData,
+    GuestFraming,
+    GuestDecode,
+    ReportedError,
+    Stopped,
+    GuestStopped,
+    UnknownEvent,
+    ConsumerClosed,
+    RequestedStop,
+}
+
+impl HelperEnd {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Eof => "helper_eof",
+            Self::ReadError => "helper_read_error",
+            Self::HelperFraming => "helper_framing_error",
+            Self::HelperDecode => "helper_decode_error",
+            Self::MissingData => "helper_missing_data",
+            Self::InvalidData => "helper_invalid_data",
+            Self::GuestFraming => "guest_framing_error",
+            Self::GuestDecode => "guest_decode_error",
+            Self::ReportedError => "helper_reported_error",
+            Self::Stopped => "helper_stopped",
+            Self::GuestStopped => "guest_stopped",
+            Self::UnknownEvent => "helper_unknown_event",
+            Self::ConsumerClosed => "guest_consumer_closed",
+            Self::RequestedStop => "requested_stop",
+        }
+    }
+}
+
+impl StartupDiagnostics {
+    fn observe(&mut self, event: &str, reason: Option<&str>) {
+        let elapsed = u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        let slot = match event {
+            "owner" => &mut self.owner_ms,
+            "booted" => &mut self.booted_ms,
+            "connected" => &mut self.connected_ms,
+            "ready" => &mut self.guest_ready_ms,
+            "session_validated" => &mut self.session_validated_ms,
+            "stopping" => &mut self.stopping_ms,
+            _ => return,
+        };
+        if slot.is_none() {
+            *slot = Some(elapsed);
+            if event == "stopping" {
+                self.stopping_reason = Some(match reason {
+                    Some("custodian_lost") => "custodian_lost",
+                    Some("signal") => "signal",
+                    Some("caller_eof") => "caller_eof",
+                    Some("input_limit") => "input_limit",
+                    Some("bad_request") => "bad_request",
+                    Some("caller_stop") => "caller_stop",
+                    Some("not_connected") => "not_connected",
+                    Some("socket_write_failed") => "socket_write_failed",
+                    Some("boot_timeout") => "boot_timeout",
+                    Some("guest_eof") => "guest_eof",
+                    Some(_) => "unrecognized",
+                    None => "omitted",
+                });
+            }
+        }
+    }
+
+    fn helper_ended(&mut self, end: HelperEnd, orderly_stop: bool) {
+        self.transport_end.get_or_insert(end);
+        if !orderly_stop {
+            self.first_failure.get_or_insert(end.label());
+        }
+    }
+
+    fn custody_failed(&mut self, error: &str) {
+        self.first_failure.get_or_insert(match error {
+            "the custody lease closed" => "custody_lease_closed",
+            "the custody acknowledgement closed" => "custody_acknowledgement_closed",
+            "invalid custody acknowledgement" => "custody_acknowledgement_invalid",
+            "the custody lease stopped being acknowledged" => "custody_acknowledgement_timeout",
+            _ => "custody_io_error",
+        });
+    }
+
+    fn interruption(&mut self, stopped: bool, expired: bool) -> Option<String> {
+        // The reader latches the cause before setting STOP. A stop cannot erase
+        // a transport failure merely because its channel notification is later.
+        if let Some(cause) = self.first_failure {
+            self.wait_end.get_or_insert("failure");
+            return Some(format!("VM startup failed: {cause}"));
+        }
+        if stopped || expired {
+            let cause = if stopped {
+                "requested_stop"
+            } else {
+                "deadline"
+            };
+            self.wait_end.get_or_insert(cause);
+            return Some(format!(
+                "VM startup waiting for {} ended: {cause}",
+                self.waiting_for.unwrap_or("ready")
+            ));
+        }
+        None
+    }
+
+    fn summary(&self) -> String {
+        format!(
+            "startup owner={} booted={} connected={} guest_ready={} session_validated={} stopping={} transport_end={} first_failure={}",
+            self.owner_ms.is_some(),
+            self.booted_ms.is_some(),
+            self.connected_ms.is_some(),
+            self.guest_ready_ms.is_some(),
+            self.session_validated_ms.is_some(),
+            self.stopping_reason.unwrap_or("not_observed"),
+            self.transport_end.map_or("not_observed", HelperEnd::label),
+            self.first_failure.unwrap_or("none"),
+        )
+    }
+
+    fn retain(&self, boot: &Path, boot_id: &str) -> Result<(), String> {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        let bytes = serde_json::to_vec(&serde_json::json!({
+            "schema": "ukai.vm.startup-diagnostics/1", "boot_id": boot_id,
+            "milestone_clock": "std::time::Instant; may exclude suspension; not the continuous deadline clock",
+            "observed": self,
+        }))
+        .map_err(|_| "startup diagnostic encoding failed")?;
+        if bytes.len() > 4096 {
+            return Err("startup diagnostic bound exceeded".to_owned());
+        }
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(boot.join("startup.json"))
+            .map_err(|_| "startup diagnostic creation failed")?;
+        file.write_all(&bytes)
+            .map_err(|_| "startup diagnostic write failed".to_owned())
     }
 }
 
@@ -423,43 +620,63 @@ fn nonblocking(fd: &impl std::os::fd::AsRawFd) -> Result<(), String> {
 }
 
 fn read_helper(
-    mut stdout: std::process::ChildStdout,
+    mut stdout: impl std::io::Read,
     sender: &std::sync::mpsc::Sender<GuestLine>,
     shared: &Shared,
-) -> Result<(), String> {
+) -> Result<(), HelperEnd> {
     let mut helper = protocol::LineSplitter::default();
     let mut guest = protocol::LineSplitter::default();
     let mut chunk = [0u8; 16384];
     while !shared.stop_requested() {
         let n = match stdout.read(&mut chunk) {
-            Ok(0) => return Err("helper EOF".to_owned()),
+            Ok(0) => return Err(HelperEnd::Eof),
             Ok(n) => n,
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                 std::thread::sleep(Duration::from_millis(10));
                 continue;
             }
             Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
-            Err(error) => return Err(error.to_string()),
+            Err(_) => return Err(HelperEnd::ReadError),
         };
-        for line in helper.push(&chunk[..n]).map_err(|e| e.to_string())? {
-            let event: HelperEvent = protocol::decode(&line).map_err(|e| e.to_string())?;
+        for line in helper
+            .push(&chunk[..n])
+            .map_err(|_| HelperEnd::HelperFraming)?
+        {
+            let event: HelperEvent =
+                protocol::decode(&line).map_err(|_| HelperEnd::HelperDecode)?;
             match event.event.as_str() {
                 "data" => {
                     let bytes =
-                        protocol::decode_data(event.data.as_deref().ok_or("missing helper data")?)
-                            .map_err(|e| e.to_string())?;
-                    for line in guest.push(&bytes).map_err(|e| e.to_string())? {
-                        let frame =
-                            protocol::decode::<GuestEvent>(&line).map_err(|e| e.to_string())?;
+                        protocol::decode_data(event.data.as_deref().ok_or(HelperEnd::MissingData)?)
+                            .map_err(|_| HelperEnd::InvalidData)?;
+                    for line in guest.push(&bytes).map_err(|_| HelperEnd::GuestFraming)? {
+                        let frame = protocol::decode::<GuestEvent>(&line)
+                            .map_err(|_| HelperEnd::GuestDecode)?;
+                        if frame.event == "ready" {
+                            shared.startup().observe("ready", None);
+                        }
                         sender
                             .send(GuestLine::Frame(Box::new(frame)))
-                            .map_err(|e| e.to_string())?;
+                            .map_err(|_| HelperEnd::ConsumerClosed)?;
                     }
                 }
-                "error" => return Err(event.error.unwrap_or_else(|| "helper error".to_owned())),
-                "stopped" | "guest_stopped" => return Err("helper stopped".to_owned()),
-                "owner" | "booted" | "connected" | "stopping" => {}
-                other => return Err(format!("unknown helper event: {other}")),
+                "error" => return Err(HelperEnd::ReportedError),
+                "stopped" => return Err(HelperEnd::Stopped),
+                "guest_stopped" => return Err(HelperEnd::GuestStopped),
+                "owner" | "booted" | "connected" | "stopping" => {
+                    // `reason` was an unconstrained extra field in this wire
+                    // grammar. Inspect it only for diagnostics, without making
+                    // its type or duplicate fields a new acceptance condition.
+                    let details = (event.event == "stopping")
+                        .then(|| serde_json::from_slice::<Value>(&line).ok())
+                        .flatten();
+                    let reason = details
+                        .as_ref()
+                        .and_then(|value| value.get("reason"))
+                        .map(|value| value.as_str().unwrap_or(""));
+                    shared.startup().observe(&event.event, reason);
+                }
+                _ => return Err(HelperEnd::UnknownEvent),
             }
         }
     }
@@ -596,7 +813,10 @@ fn serve(args: ServeArgs) -> Result<(), String> {
     let reader_shared = Arc::clone(&shared);
     let reader = std::thread::spawn(move || {
         let result = read_helper(helper_stdout, &guest_sender, &reader_shared);
-        if !reader_shared.stop_requested() {
+        let end = result.err().unwrap_or(HelperEnd::RequestedStop);
+        let orderly_stop = reader_shared.stop_requested();
+        reader_shared.startup().helper_ended(end, orderly_stop);
+        if !orderly_stop {
             reader_shared.failed.store(true, AtomicOrdering::SeqCst);
             STOP.store(true, AtomicOrdering::SeqCst);
         }
@@ -604,15 +824,13 @@ fn serve(args: ServeArgs) -> Result<(), String> {
             .helper_alive
             .store(false, AtomicOrdering::SeqCst);
         reader_shared.stopping.store(true, AtomicOrdering::SeqCst);
-        let _ = guest_sender.send(GuestLine::HelperEnded(
-            result.err().unwrap_or_else(|| "stopped".to_owned()),
-        ));
+        let _ = guest_sender.send(GuestLine::HelperEnded(end.label().to_owned()));
     });
     let lease_shared = Arc::clone(&shared);
     let lease = std::thread::spawn(move || {
         if let Err(error) = maintain_lease(lease_write, ack_read, &lease_shared) {
             if !lease_shared.stop_requested() {
-                eprintln!("ukai-vm: {error}");
+                lease_shared.startup().custody_failed(&error);
                 lease_shared.failed.store(true, AtomicOrdering::SeqCst);
             }
             STOP.store(true, AtomicOrdering::SeqCst);
@@ -636,9 +854,19 @@ fn serve(args: ServeArgs) -> Result<(), String> {
     });
     // Exactly one session handshake per boot, including the first kernel reply.
     let result = (|| {
-        expect_guest_within(&guest_frames, "ready", Duration::from_secs(150))?;
+        expect_startup_guest(
+            &guest_frames,
+            "ready",
+            Duration::from_secs(150),
+            &service.shared,
+        )?;
         guest_line(&service, &GuestOp::Session)?;
-        let session = expect_guest(&guest_frames, "session")?;
+        let session = expect_startup_guest(
+            &guest_frames,
+            "session",
+            Duration::from_secs(30),
+            &service.shared,
+        )?;
         check_native_session(&service.install, &session)?;
         let kernel = session.kernel.ok_or("session omitted kernel")?;
         check_live_share(service.live_share.is_some(), session.live_share)?;
@@ -651,6 +879,7 @@ fn serve(args: ServeArgs) -> Result<(), String> {
             .set(session.guest_program_catalog_sha256)
             .map_err(|_| "guest catalog was already established for this boot")?;
         *SHARED_GUEST_KERNEL.lock().map_err(|e| e.to_string())? = Some(kernel);
+        service.shared.startup().observe("session_validated", None);
         drive_attempts(
             &service,
             &guest_frames,
@@ -687,6 +916,11 @@ fn serve(args: ServeArgs) -> Result<(), String> {
         // failure becomes undiagnosable (measured 2026-11-02). The newest
         // [`KEPT_BOOT_DIRS`] are kept.
         eprintln!("ukai-vm: evidence retained at {}", boot.display());
+        let startup = service.shared.startup().clone();
+        eprintln!("ukai-vm: {}", startup.summary());
+        if startup.retain(&boot, &service.boot_id).is_err() {
+            eprintln!("ukai-vm: startup diagnostics could not be retained");
+        }
         if let Err(error) = prune_boot_dirs(&runtime, KEPT_BOOT_DIRS.saturating_sub(1), Some(&boot))
         {
             eprintln!("ukai-vm: earlier boot evidence could not be pruned: {error}");
@@ -698,9 +932,12 @@ fn serve(args: ServeArgs) -> Result<(), String> {
         std::fs::remove_dir_all(&boot).map_err(|e| e.to_string())?;
     }
     if failed {
+        let startup = service.shared.startup().summary();
         return Err(match powered_off {
-            Some(reason) => format!("VM custody or transport failed (guest poweroff: {reason})"),
-            None => "VM custody or transport failed".to_owned(),
+            Some(reason) => {
+                format!("VM custody or transport failed (guest poweroff: {reason}; {startup})")
+            }
+            None => format!("VM custody or transport failed ({startup})"),
         });
     }
     if stop_requested { Ok(()) } else { result }
@@ -1626,6 +1863,68 @@ fn expect_guest(
     expect_guest_within(frames, event, Duration::from_secs(30))
 }
 
+/// Initial boot diagnostics use the same deadlines and polling cadence as the
+/// ordinary wait. The separately latched reader cause survives its STOP signal.
+fn expect_startup_guest(
+    frames: &std::sync::mpsc::Receiver<GuestLine>,
+    event: &'static str,
+    budget: Duration,
+    shared: &Shared,
+) -> Result<GuestEvent, String> {
+    {
+        let mut startup = shared.startup();
+        startup.waiting_for = Some(event);
+        startup.wait_end = None;
+    }
+    let deadline = continuous_ns() + budget.as_nanos();
+    loop {
+        if let Some(error) = shared.startup().interruption(
+            STOP.load(AtomicOrdering::SeqCst),
+            continuous_ns() > deadline,
+        ) {
+            return Err(error);
+        }
+        match frames.recv_timeout(Duration::from_millis(100)) {
+            Ok(GuestLine::Frame(frame)) if frame.event == event => {
+                let mut startup = shared.startup();
+                startup.waiting_for = None;
+                startup.wait_end = Some("received");
+                return Ok(*frame);
+            }
+            Ok(GuestLine::Frame(frame)) if frame.event == "error" => {
+                shared
+                    .startup()
+                    .wait_end
+                    .get_or_insert("guest_reported_error");
+                return Err("VM startup guest reported an error".to_owned());
+            }
+            Ok(GuestLine::Frame(frame)) if frame.event == "native_prepared" => {
+                shared
+                    .startup()
+                    .wait_end
+                    .get_or_insert("unexpected_native_prepared");
+                return Err("unexpected native preparation acknowledgement".to_owned());
+            }
+            Ok(GuestLine::Frame(_)) => continue,
+            Ok(GuestLine::HelperEnded(_)) => {
+                shared.startup().wait_end.get_or_insert("transport_ended");
+                return Err(format!(
+                    "VM startup transport ended ({})",
+                    shared.startup().summary()
+                ));
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                shared
+                    .startup()
+                    .wait_end
+                    .get_or_insert("reader_disconnected");
+                return Err("VM startup guest reader stopped".to_owned());
+            }
+        }
+    }
+}
+
 /// Native catalog verification may take time. A caller whose source lease
 /// closes while it is pending must cancel before any subsequent secret send.
 fn check_preparation_lease(stream: &UnixStream) -> Result<(), String> {
@@ -2196,6 +2495,197 @@ fn qualified() -> Result<(), String> {
 #[cfg(test)]
 mod service_regressions {
     use super::*;
+
+    #[test]
+    fn startup_observations_are_bounded_and_never_retain_payload_text() {
+        let shared = Shared::default();
+        let (sender, _receiver) = std::sync::mpsc::channel();
+        let sentinel = "PRIVATE_PAYLOAD_PATH_OR_CREDENTIAL";
+        let mut bytes = Vec::new();
+        for _ in 0..1000 {
+            bytes.extend(
+                serde_json::to_vec(&serde_json::json!({
+                    "event":"owner", "audit_token":sentinel, "error":sentinel,
+                }))
+                .unwrap(),
+            );
+            bytes.push(b'\n');
+        }
+        for event in ["booted", "connected"] {
+            bytes.extend(format!("{{\"event\":\"{event}\"}}\n").as_bytes());
+        }
+        let guest = format!("{{\"event\":\"ready\",\"kernel\":\"{sentinel}\"}}\n");
+        bytes.extend(
+            serde_json::to_vec(&serde_json::json!({
+                "event":"data", "data":base64::engine::general_purpose::STANDARD.encode(guest),
+            }))
+            .unwrap(),
+        );
+        bytes.push(b'\n');
+        bytes.extend(format!("{{\"event\":\"stopping\",\"reason\":\"{sentinel}\"}}\n").as_bytes());
+        bytes.extend(format!("{{\"event\":\"error\",\"error\":\"{sentinel}\"}}\n").as_bytes());
+        let end = read_helper(std::io::Cursor::new(bytes), &sender, &shared).unwrap_err();
+        assert_eq!(end.label(), "helper_reported_error");
+        let mut observed = shared.startup();
+        observed.helper_ended(end, false);
+        let owner = observed.owner_ms;
+        observed.observe("owner", None);
+        observed.observe("stopping", Some("caller_stop"));
+        assert_eq!(observed.owner_ms, owner);
+        assert_eq!(observed.stopping_reason, Some("unrecognized"));
+        assert!(
+            observed.owner_ms.is_some()
+                && observed.booted_ms.is_some()
+                && observed.connected_ms.is_some()
+                && observed.guest_ready_ms.is_some()
+        );
+        assert!(observed.session_validated_ms.is_none());
+        let retained = serde_json::to_string(&*observed).unwrap();
+        assert!(retained.len() < 1024);
+        assert!(!retained.contains(sentinel));
+        assert!(!observed.summary().contains(sentinel));
+    }
+
+    #[test]
+    fn startup_transport_cause_precedes_stop_and_is_not_overwritten() {
+        let mut observed = StartupDiagnostics {
+            waiting_for: Some("ready"),
+            ..StartupDiagnostics::default()
+        };
+        // Deterministic ordering: read failure is published, STOP becomes true,
+        // and HelperEnded has not reached the receiver yet.
+        observed.helper_ended(HelperEnd::Eof, false);
+        assert_eq!(
+            observed.interruption(true, true).unwrap(),
+            "VM startup failed: helper_eof"
+        );
+        observed.custody_failed("the custody lease closed");
+        observed.helper_ended(HelperEnd::RequestedStop, true);
+        assert_eq!(observed.first_failure, Some("helper_eof"));
+        assert_eq!(observed.transport_end.unwrap().label(), "helper_eof");
+
+        let mut orderly = StartupDiagnostics::default();
+        orderly.helper_ended(HelperEnd::RequestedStop, true);
+        assert!(orderly.first_failure.is_none());
+        assert!(
+            orderly
+                .interruption(true, false)
+                .unwrap()
+                .contains("requested_stop")
+        );
+        let mut custody = StartupDiagnostics::default();
+        custody.custody_failed("UNTRUSTED_IO_PATH");
+        assert_eq!(custody.first_failure, Some("custody_io_error"));
+    }
+
+    #[test]
+    fn startup_reason_inspection_does_not_change_helper_wire_acceptance() {
+        for reason in [
+            r#"42"#,
+            r#"{"private":"sentinel"}"#,
+            r#""first","reason":"boot_timeout""#,
+        ] {
+            let shared = Shared::default();
+            let (sender, _receiver) = std::sync::mpsc::channel();
+            let bytes = format!(
+                "{{\"event\":\"stopping\",\"reason\":{reason}}}\n{{\"event\":\"stopped\"}}\n"
+            );
+            let end = read_helper(std::io::Cursor::new(bytes), &sender, &shared).unwrap_err();
+            assert_eq!(end.label(), "helper_stopped");
+            assert!(shared.startup().stopping_ms.is_some());
+        }
+        let shared = Shared::default();
+        let (sender, _receiver) = std::sync::mpsc::channel();
+        // This was already rejected by HelperEvent's optional string field.
+        let end = read_helper(
+            std::io::Cursor::new(b"{\"event\":\"owner\",\"error\":42}\n"),
+            &sender,
+            &shared,
+        )
+        .unwrap_err();
+        assert_eq!(end.label(), "helper_decode_error");
+        assert!(shared.startup().owner_ms.is_none());
+    }
+
+    #[test]
+    fn startup_silence_distinguishes_each_observed_stage_without_extending_budget() {
+        let stages = ["owner", "booted", "connected", "ready"];
+        for count in 0..=stages.len() {
+            let shared = Shared::default();
+            for stage in &stages[..count] {
+                shared.startup().observe(stage, None);
+            }
+            let (_sender, receiver) = std::sync::mpsc::channel();
+            let start = std::time::Instant::now();
+            let error = expect_startup_guest(&receiver, "ready", Duration::ZERO, &shared)
+                .err()
+                .unwrap();
+            assert!(error.contains("deadline"), "{error}");
+            assert!(start.elapsed() < Duration::from_millis(250));
+            let observed = shared.startup();
+            assert_eq!(observed.owner_ms.is_some(), count >= 1);
+            assert_eq!(observed.booted_ms.is_some(), count >= 2);
+            assert_eq!(observed.connected_ms.is_some(), count >= 3);
+            assert_eq!(observed.guest_ready_ms.is_some(), count >= 4);
+            assert!(observed.session_validated_ms.is_none());
+        }
+    }
+
+    #[test]
+    fn startup_guest_error_does_not_copy_untrusted_message() {
+        let shared = Shared::default();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        sender
+            .send(GuestLine::Frame(Box::new(
+                serde_json::from_value(serde_json::json!({"event":"ready"})).unwrap(),
+            )))
+            .unwrap();
+        assert!(expect_startup_guest(&receiver, "ready", Duration::from_secs(1), &shared).is_ok());
+        assert_eq!(shared.startup().waiting_for, None);
+        assert_eq!(shared.startup().wait_end, Some("received"));
+        sender
+            .send(GuestLine::Frame(Box::new(
+                serde_json::from_value(
+                    serde_json::json!({"event":"error","message":"PRIVATE_SENTINEL"}),
+                )
+                .unwrap(),
+            )))
+            .unwrap();
+        let error = expect_startup_guest(&receiver, "session", Duration::from_secs(1), &shared)
+            .err()
+            .unwrap();
+        assert_eq!(error, "VM startup guest reported an error");
+        assert_eq!(shared.startup().waiting_for, Some("session"));
+        assert_eq!(shared.startup().wait_end, Some("guest_reported_error"));
+        assert!(
+            !serde_json::to_string(&*shared.startup())
+                .unwrap()
+                .contains("PRIVATE_SENTINEL")
+        );
+    }
+
+    #[test]
+    fn startup_retention_is_private_exclusive_and_does_not_follow_links() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let boot = tempfile::tempdir().unwrap();
+        let outside = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(outside.path(), "untouched").unwrap();
+        let path = boot.path().join("startup.json");
+        std::os::unix::fs::symlink(outside.path(), &path).unwrap();
+        let observed = StartupDiagnostics::default();
+        assert!(observed.retain(boot.path(), "vm-test").is_err());
+        assert_eq!(std::fs::read(outside.path()).unwrap(), b"untouched");
+        std::fs::remove_file(&path).unwrap();
+        observed.retain(boot.path(), "vm-test").unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        assert!(bytes.len() <= 4096);
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert!(observed.retain(boot.path(), "vm-other").is_err());
+        assert_eq!(std::fs::read(path).unwrap(), bytes);
+    }
 
     fn profile_input(key: &str) -> String {
         let inputs: Value = serde_json::from_slice(include_bytes!(

@@ -12,6 +12,7 @@ import base64
 import contextlib
 import copy
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -2924,6 +2925,56 @@ FAULT_MUTATIONS['vz-kill'] = FAULT_MUTATIONS['serve-kill']
 
 
 class FaultMatrixTables(unittest.TestCase):
+    def test_operator_interruption_cleans_up_current_case_and_propagates(self):
+        cleaned = []
+
+        class FakeRun:
+            def __init__(self, context, case):
+                self.cleanup = {}
+
+            def tear_down(self):
+                cleaned.append(True)
+
+        with mock.patch.object(fault_matrix, 'Run', FakeRun), \
+                mock.patch.object(fault_matrix, 'case_eof', side_effect=KeyboardInterrupt), \
+                mock.patch.object(fault_matrix, 'judge') as judge:
+            with self.assertRaises(KeyboardInterrupt):
+                fault_matrix.run_case({}, 'eof')
+        self.assertEqual(cleaned, [True])
+        judge.assert_not_called()
+
+    def test_interrupted_real_client_lane_preserves_completed_result_without_matrix_pass(self):
+        for outcome in ('PASS', 'ERROR'):
+            with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                out = root / 'results'
+                completed = {'outcome': outcome, 'checked_before_cleanup': True,
+                             'observations': {'case': 'client-kill'},
+                             'cleanup': {'service_exit': 0}}
+
+                def next_lane(context, case, variant=None):
+                    self.assertEqual(case, 'client-kill')
+                    if variant is None:
+                        return completed
+                    # The stand-in's result must be durable before execution
+                    # of the actual-client lane, even when that lane aborts.
+                    saved = json.loads((out / 'fault-progress-01.json').read_text())
+                    self.assertEqual(saved['cases']['client-kill'], completed)
+                    self.assertEqual(saved['outcome'], 'INCOMPLETE')
+                    self.assertEqual(saved['pending_cases'], ['client-kill:ukai-jail', 'eof'])
+                    raise KeyboardInterrupt('interrupted next lane')
+
+                with mock.patch.object(harness, 'guarded_workspace', return_value=root), \
+                        mock.patch.object(harness, 'required_binary', return_value=root / 'fake-binary'), \
+                        mock.patch.object(harness, 'fingerprint', return_value={'test': True}), \
+                        mock.patch.object(fault_matrix, 'real_client', return_value=object()), \
+                        mock.patch.object(fault_matrix, 'run_case', side_effect=next_lane), \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    with self.assertRaises(KeyboardInterrupt):
+                        fault_matrix.main([str(root), str(root), str(out), 'client-kill,eof',
+                                           '--ukai-jail', str(root / 'fake-binary')])
+                self.assertEqual([p.name for p in out.iterdir()], ['fault-progress-01.json'])
+
     def test_every_case_passes_on_its_good_observation(self):
         self.assertEqual(sorted(FAULT_GOOD), sorted(fault_matrix.CASES))
         for case in fault_matrix.CASES:
