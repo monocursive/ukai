@@ -347,6 +347,31 @@ class SourceArchiveCoverageTests(unittest.TestCase):
         self.assertTrue(any(name.startswith('crates/ukai-jail/src/') for name in listed))
 
 
+    def test_only_the_bounded_admission_proof_is_added_to_the_source_archive(self):
+        proof = 'docs/benchmarks/jail/results/macos-vm-admission-2026-11-15'
+        self.assertEqual(package.ADMISSION_PROOF, proof)
+        docs = {name for name in package.archive_paths() if name.startswith('docs')}
+        self.assertEqual(docs, {proof, 'docs/specs/jail-v1/network-addresses.json'})
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, GIT_ENVIRONMENT, clear=True):
+            repo = Path(temporary) / 'repo'; repo.mkdir()
+            included = {proof + '/handshake-capabilities/capabilities.json': b'{"fixture":true}\n',
+                        proof + '/handshake-raw-credential/guest-artifact/evidence/guest-journal/0000.part': b'exact journal bytes\n'}
+            excluded = {'docs/unrelated.json': b'not selected', 'docs/benchmarks/jail/results/other/binary.dmg': b'not selected',
+                        'evidence/private-key.pem': b'not selected', 'vm-disks/base.raw': b'not selected'}
+            for name, data in {**included, **excluded}.items():
+                path = repo / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(data)
+            subprocess.run(['git', '-C', str(repo), 'init', '-q'], check=True, capture_output=True)
+            subprocess.run(['git', '-C', str(repo), 'add', '.'], check=True, capture_output=True)
+            names = package.listed_sources(repo, package.archive_paths())
+            self.assertEqual(set(names), set(included))
+            archive = Path(temporary) / 'source.tar.gz'
+            package.write_source_archive(archive, repo, {name: sha256(included[name]) for name in names})
+            with tarfile.open(archive) as held:
+                self.assertEqual(set(held.getnames()), {'vm/' + name for name in included})
+                for name, data in included.items():
+                    self.assertEqual(held.extractfile('vm/' + name).read(), data)
+
+
 class PreparedSourceTests(unittest.TestCase):
     current = {'guest.py': 'g', 'vz.swift': 'v', 'custodian.c': 'c', 'prepare.py': 'p', 'run.py': 'r'}
 

@@ -199,15 +199,21 @@ client's digest and build report are recorded as `ukai_jail_sha256` and
 `package.json`. It records the revision as
 `source_revision` in `package.json` and `image.json`, and
 `preview-source.tar.gz` holds the workspace at that revision: the Cargo
-files, the toolchain pin, every crate and the build inputs outside
-`crates/`, meant to be enough to rebuild `ukai-vm`, `ukai-jail`, the VZ client, the
+files, the toolchain pin, every crate, the build inputs outside
+`crates/`, and the bounded `docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/`
+text proof used by the admission table tests and offline replay. No other
+top-level docs/results tree, local `evidence/`, VM disk or signing key is
+selected. This is meant to be enough to rebuild `ukai-vm`, `ukai-jail`, the VZ client, the
 custodian and the installer helper. No rebuild from such an archive under
 the pinned toolchain has been verified: the fix wave's one rebuild check
 of an archive probably ran under rustc 1.96.0, not the pin. The
 `0.1.0-preview.2` candidate built on 2026-11-03
 and the published `0.1.0-preview.1` were built by the earlier script: no
 `source_revision`, and a source archive of `crates/ukai-jail/vm` only. No
-package has been built with the current script yet. A Developer ID
+public warm-service release is qualified by those earlier artifacts. The
+2026-11-15 local signed package at `53e5605fd` includes both host commands
+and supplies the admission evidence below; rebuilding or re-signing the host
+runtime requires fresh installed-client validation. A Developer ID
 Application identity must be available in Keychain:
 
 ```sh
@@ -346,12 +352,11 @@ Code credential in the guest.
   the client's standard-input refusal: `warm_live.py`'s verdict is
   `REFUSED` when the real client refused and every warm gate held, and
   K112 is `REFUSED` when a lane was refused for its standard input. Since
-`GUEST_MEASUREMENTS` has the ten rows below, a `tool` or `agent`
-real-client case with an explicit 1–300 s wall passes probing (the cases
-pass `--limit wall`); the evening record's 20 real
-`warm_live.py` attempts ran with `/dev/null` as standard input and exited 0.
-The client's standard-input refusal under these harnesses is covered by the
-harness's own tests only; its live acceptance is pending.
+`GUEST_MEASUREMENTS` has the twelve image-bound rows below, a `tool` or
+  `agent` real-client case on the measured guest with an explicit 1–300 s
+  wall passes probing (the cases pass `--limit wall`). Historical November 4
+  `warm_live.py` client attempts ran with `/dev/null` as standard input and
+  exited 0; that does not qualify a rebuilt current host runtime.
 - **`fault_matrix.py`** has nine cases, each on its own boot: `secrets`,
   `client-kill`, `client-ctrl-z`, `serve-kill`, `custodian-kill`,
   `vz-kill`, `all-suspended`, `eof` and `serve-group-stop` (a 5 s stop,
@@ -366,8 +371,9 @@ harness's own tests only; its live acceptance is pending.
 `network_none`, `tree_termination`, `closed_set_observation`,
 `syscall_filter`, `protected_coverage:existing_and_root` and
 `network_proxy`, and under `not_measured` what a probe leaves out.
-Those entries are what a `GUEST_MEASUREMENTS` row cites; the 2026-11-04
-evening run's are the table's ten rows.
+Those ten entries are remeasured in the 2026-11-15 installed-package
+  record. Two separate derived records add `execution_boundary` and
+  `credential_staging`; they do not invent direct probe rows.
 - **K108's limit.** `warm_live.py` judges each attempt's
   `connect_to_released` time against `--budget-ms` (default 1000, the
   clause's initial 1 s). That time spans the whole host path, the guest
@@ -376,11 +382,11 @@ evening run's are the table's ten rows.
 harness's Python client, and the record says so. With `--ukai-jail`, the
 real client is timed separately, from its exec to its workload's first
 write visible on the host, which ends before the attempt settles.
-- **K113's limit.** `claude_vm_row.py` judges on `ukai-jail tail
-  --summary` alone and lists under `not_measured` the J18 §9.4 Linux-row
-  conditions it does not measure: the A01 fixture, ten repetitions, the
-  no-source refusal, revocation, six active classes and the credential use
-  count.
+- **K113's limit.** The harnesses and exact guest-journal verifier in
+  [K113.md](K113.md) distinguish vendor compatibility, source revocation and
+  guest admission. A synthetic raw transport measurement does not qualify
+  normal host-source monitoring, either vendor auth mode, sampled vendor
+  environments, derived executable grants or the complete Linux-row conditions.
 
 ## Preview transport contract
 
@@ -402,44 +408,58 @@ Apple references: [Virtualization](https://developer.apple.com/documentation/vir
 [virtualization entitlement](https://developer.apple.com/documentation/virtualization/adding-the-virtualization-entitlement-to-your-project),
 [unconditional stop](https://developer.apple.com/documentation/virtualization/vzvirtualmachine/stop(completionhandler:)).
 
-## J18: the warm service (development; no row passes)
+## J18: the warm service and measured guest admission (unreleased)
 
-`ukai-jail run --vm` is wired to the warm `ukai-vm serve`, but **no macOS
-`ukai-jail` client ships in the existing public preview or earlier
-candidate**: those DMGs carry only `ukai-vm` and `ukai-vm-install`, so their
-client is built from source. The current packager includes the client;
-its signed package and installed workflows remain unqualified. A `run --vm`
-refuses at probing, before any connection or boot, with exit 125, while
-any requirement of its plan lacks a measured guest record. The probe
-answers Available only for a requirement a measured guest record backs:
-one table in the VM platform, `GUEST_MEASUREMENTS`, names the requirement,
-the record and that record's own time, which becomes `measured_at`. Its
-ten rows come from the
-[2026-11-04 evening live phase](../../../docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/README.md):
-`limit:wall`, `limit:pids`, `limit:mem`, `filesystem_containment`,
-`network_none`, `tree_termination`, `closed_set_observation`,
-`syscall_filter`, `protected_coverage:existing_and_root` and
-`network_proxy`, each measured by its own attempts in `capabilities.py` on
-one warm boot of an image built from the guest sources at `6bd497076`
-(development evidence: a source build on one M2 Pro host, not an installed
-package, one run of each probe). This tree's `guest.py` has since added
-only the staged export's refusal of directory links and unlistable
-directories, which no probe exercised. A `tool` or `agent` plan with an explicit
-wall of 1–300 s requires only those, so it passes probing; the profiles' own
-walls (30 m, 2 h) are `vm:not-carried:limits.wall`. Every other requirement
-answers `vm:not-measured:<requirement>`: `execution_boundary` (a required
-`pids=64`, `mem=512MiB` or `swap=0`, the only values the guest carries, adds
-it; another value or a required `cpu` ceiling is `vm:not-carried`) and
-`credential_staging` (a launch profile that declares credentials) have no row.
-The morning record of the same day
-([record](../../../docs/benchmarks/jail/results/macos-vm-live-2026-11-04/README.md))
-measured the first five on an image built from older guest sources and backs
-no row now. No 2026-11-02 record states a time or measured its requirement
-alone, and the TCP half of `network_none` was vacuous (`/dev/tcp` under the
-guest's `dash`). `owner_loss_termination` always answers
-`vm:owner-loss-not-provided`.
+The current local signed warm package ships both `ukai-vm` and the native
+macOS `ukai-jail` client. The existing public cold-boot preview and older
+candidates did not ship that client. This does not enable native macOS
+Endpoint Security execution or establish a public warm-service release.
 
-K108–K113 are `untested`. The 2026-11-02/03 measurements on the dev Mac
+`GUEST_MEASUREMENTS` has twelve rows backed by the
+[2026-11-15 installed-package evidence](../../../docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/README.md).
+Ten direct rows come from the fresh capability matrix: `limit:wall`,
+`limit:pids`, `limit:mem`, `filesystem_containment`, `network_none`,
+`tree_termination`, `closed_set_observation`, `syscall_filter`,
+`protected_coverage:existing_and_root` and `network_proxy`. The derived
+`execution_boundary` row combines separate pids, memory, descendant-exit
+and descendant-wall attempts on one boot. The derived `credential_staging`
+row is the synthetic vault guest/service proof: placeholder-only child
+output, one upstream substitution, explicit revoke acknowledgement,
+stream disconnect, later refusal, bound journal and exact use count,
+cleanup and leak scans. It does not establish the normal host client's
+source-watch path or TLS/vendor compatibility.
+
+Admission is tied to the exact measured disk and seed SHA-256 values; a
+prepared image with another pair gets `vm:not-measured:<requirement>`.
+The credential record's `ukai.vm.credential-staging-measurement/2` schema
+separates `measured_image` (all four original disk, seed, VZ-helper and
+custodian hashes) from `required_guest_image` (disk and seed). The full
+signed measured package, source, client and service identities remain in
+that record. Deriving it still requires the exact measured image and
+installed bytes. Rebuilding or re-signing any host runtime does not inherit
+runtime qualification: it needs a clean source build, Developer ID and
+installed-byte verification, and fresh installed-client live validation.
+Every run still checks all four artifact hashes against its chosen install,
+and no credential is sent unless the actual guest declares both
+`ukai.vm.secret-revocation/1` and `ukai.vm.guest-journal/1`.
+
+A carried `tool` or `agent` policy with an explicit wall of 1–300 s can pass
+probing on that guest. Required `pids=64` and `mem=512MiB` also have the
+measured execution boundary. Other resource shapes remain refused;
+`limit:swap` has no measured row even for the carried zero-swap shape.
+Credentials remain vault-only: copied/bound credentials, executable-bound
+credentials and refresh are not carried. `owner_loss_termination` always
+answers `vm:owner-loss-not-provided`; the guest wall deadline is not an
+owner-loss guarantee.
+
+The [2026-11-04 evening phase](../../../docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/README.md)
+previously backed ten rows using an unsigned source build and the rc.5
+guest. It remains historical evidence, not authority for the new image.
+The earlier morning and November 2 records likewise do not acquire new
+capabilities from this promotion.
+
+These guest admission records do not qualify the complete K108–K113 release
+clauses. The 2026-11-02/03 measurements on the dev Mac
 ([installed-package rows](../../../docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md),
 [Claude Code guest record](../../../docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/README.md),
 [2026-11-02 record](../../../docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/README.md))
@@ -751,24 +771,18 @@ against a stand-in VZ client; it never boots a VM.
 
 ## What remains
 
-Before any J18 row can pass: a shipped and installed macOS `ukai-jail`
-client; a live phase that re-measures every guest requirement with real
-network probes (a socket connect to an IP literal, with a positive control)
-and fills `GUEST_MEASUREMENTS` from the records it produces (five
-requirements so far; `capabilities.py` now also has probes and judges for
-`tree_termination`, `closed_set_observation`, `syscall_filter`, protected
-coverage and `network_proxy`, but none of them has run on a booted guest,
-so none is measured); the full K110
-matrix (custodian, VZ-client and host-client kills, `Ctrl-Z` of the client,
-every host controller suspended) with long-running workloads and compared
-boot ids; the K111 receipt fix (decision D5, now in the code) shown on a
-live run, with every host field compared with the guest receipt; the
-attempt stop and the mandatory share (D6, D7) run on a booted guest, the
-learned infrastructure confirmed on the image; a VM-tier compatibility record
-that meets J18 §9.4's Linux-row conditions (K113); a package built by the
-current `package.py` and checked by the current `check_install.py`; and
-notarization, followed by the full row rerun on the stapled DMG before
-publication. The harnesses for most of this exist in code (above); none
-has run live. These stand-in checks do
-not establish a release, signed-package qualification or production
+The twelve guest admission rows are a bounded prerequisite. The rebuilt
+host client and service still need their current installed source-watch and
+revocation proof, current installed workflow/fault checks, and a K113
+compatibility record satisfying both auth modes and the imported Linux-row
+conditions. The synthetic raw proof does not substitute for those runs.
+Owner-loss termination remains unsupported. Native macOS execution remains
+separately unqualified and is not enabled by the warm VM package.
+
+The signed package used for these guest measurements is not a notarization
+or publication result. A releasable warm package still requires notarization
+and stapling, followed by the required row checks on those exact installed
+bytes. The retained November 2–4 failures and the original raw judge failure
+remain evidence history; corrected offline replay is recorded separately.
+Neither fixture tests nor admission-table availability establishes production
 readiness.
