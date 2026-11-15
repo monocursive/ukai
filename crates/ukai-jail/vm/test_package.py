@@ -180,6 +180,8 @@ class BuildTests(unittest.TestCase):
         (args, env, cwd), = calls
         words = [str(word) for word in args]
         self.assertIn('--locked', words)
+        self.assertEqual([words[i + 1] for i, word in enumerate(words) if word == '--bin'],
+                         ['ukai-vm', 'ukai-jail'])
         self.assertEqual(words[words.index('--target-dir') + 1], '/tmp/pkg/cargo-target')
         self.assertEqual(built, Path('/tmp/pkg/cargo-target/release/ukai-vm'))
         self.assertEqual((env['UKAI_BUILD_REVISION'], env['UKAI_BUILD_DIRTY'], env['UKAI_VM_PACKAGE_VERSION']),
@@ -269,6 +271,38 @@ class BuildTests(unittest.TestCase):
         with self.assertRaisesRegex(package.SourceError, 'cli.VERSION is 0.1.0-preview.2'):
             package.check_version('0.1.0-preview.3', '0.1.0-preview.2')
         self.assertEqual(package.check_version.__defaults__, (None,))
+
+    def test_client_build_must_match_the_clean_native_revision(self):
+        pin = package.toolchain_pin()
+        report = {'component': 'ukai-jail', 'version': '0.1.0', 'build': {
+            'revision': 'a' * 40, 'dirty': False, 'target': 'aarch64-apple-darwin',
+            'opt_level': '3', 'debug_assertions': False, 'rustc': f'rustc {pin} (fixture)',
+            'inputs': 'sha256:' + 'b' * 64}}
+        self.assertEqual(package.check_built_client(Path('/client'), 'a' * 40, pin, report), report)
+        for field, value in [('revision', 'c' * 40), ('dirty', True), ('dirty', None),
+                             ('target', 'x86_64-apple-darwin'), ('opt_level', '0'),
+                             ('debug_assertions', True), ('rustc', 'rustc 1.80.0 (fixture)'),
+                             ('inputs', 'unknown')]:
+            with self.subTest(field=field, value=value), self.assertRaises(package.SourceError):
+                package.check_built_client(Path('/client'), 'a' * 40, pin,
+                                           {**report, 'build': {**report['build'], field: value}})
+
+    def test_both_operator_binaries_are_signed_without_es_entitlements(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            built, payload = root / 'release', root / 'payload'
+            built.mkdir(); payload.mkdir()
+            for name in ('ukai-vm', 'ukai-jail'):
+                (built / name).write_bytes(name.encode())
+            calls = []
+            package.sign_operator_binaries(built / 'ukai-vm', payload, 'test identity',
+                                            run=lambda *args: calls.append(args))
+            self.assertEqual(len(calls), 4)
+            for index, name in enumerate(('ukai-vm', 'ukai-jail')):
+                self.assertEqual((payload / name).read_bytes(), name.encode())
+                self.assertEqual(calls[index * 2], ('codesign', '--force', '--options', 'runtime',
+                                                  '--timestamp', '--sign', 'test identity', payload / name))
+                self.assertEqual(calls[index * 2 + 1], ('codesign', '--verify', '--strict', payload / name))
 
     def test_head_revision_is_a_full_commit(self):
         # Reviewer PK12.
