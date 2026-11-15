@@ -13,12 +13,12 @@
     "@fontsource-variable/manrope": "5.3.0",
     "@fontsource/cormorant-garamond": "5.3.0",
     "@fontsource/dm-mono": "5.3.0",
-    "astro": "7.3.2"
+    "astro": "7.4.12"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.23.4"
   },
   "devDependencies": {
-    "wrangler": "4.143.1"
+    "wrangler": "4.162.0"
   }
 }
