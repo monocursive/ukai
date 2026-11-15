@@ -35,7 +35,7 @@ def create_archive(binary, target, out, version):
     out.mkdir(parents=True, exist_ok=True)
     archive_path = out / f'ukai-jail-{version}-{target}.tar.gz'
     notices = ((Path(__file__).resolve().parents[3] / 'LICENSE').read_bytes()
-               + b'\n\nwebpki-roots 1.0.9, Mozilla CA certificate data\n\n'
+               + b'\n\nwebpki-roots, Mozilla CA certificate data\n\n'
                + (Path(__file__).parent / 'WEBPKI_ROOTS_LICENSE').read_bytes())
     with archive_path.open('wb') as raw:
         with gzip.GzipFile(filename='', fileobj=raw, mode='wb', mtime=0) as compressed:
