@@ -93,6 +93,9 @@ python3 crates/ukai-jail/dist/prepare_release.py stage \
 
 The staged archive name carries that release version, and assembly refuses
 artifacts staged for a different one.
+Already pinned Linux archives and Mac disk images keep their original hashes.
+Reusing a version with changed archive bytes refuses before assembly creates
+the candidate or signs anything; choose a new release version.
 
 Copy the two staged directories to the release operator's machine. Archive
 bytes are deterministic across source-file timestamps and locations. Assembly

@@ -64,8 +64,9 @@ pub fn absolute_name(host: &str) -> String {
 /// [`ResolveError::Overloaded`], as a bound on supervisor memory. A late
 /// worker finishes on its own and is counted until it does.
 ///
-/// Successful answers are cached per name for [`CACHE_TTL`], so a burst of
-/// connections to one host costs one lookup.
+/// Successful answers are cached per name for [`CACHE_TTL`]. Callers
+/// queued behind the worker limit reuse an answer completed while they
+/// waited, rather than starting redundant lookups.
 pub struct SystemResolver {
     state: Arc<Shared>,
     max_in_flight: usize,
@@ -151,14 +152,15 @@ impl Default for SystemResolver {
     }
 }
 
-/// Releases one in-flight slot and wakes the next waiter.
+/// Releases one in-flight slot and wakes waiters. More than one waiter may
+/// now be served by a cached answer without taking another worker slot.
 struct InFlight(Arc<Shared>);
 
 impl Drop for InFlight {
     fn drop(&mut self) {
         let mut in_flight = lock(&self.0.in_flight);
         *in_flight = in_flight.saturating_sub(1);
-        self.0.free.notify_one();
+        self.0.free.notify_all();
     }
 }
 
@@ -173,6 +175,9 @@ impl Resolver for SystemResolver {
             || host.ends_with('.')
         {
             return Err(ResolveError::Invalid);
+        }
+        if Instant::now() >= deadline {
+            return Err(ResolveError::Timeout);
         }
         let name = absolute_name(host);
         if let Some(answers) = cached(&self.state.cache, &name) {
@@ -191,9 +196,15 @@ impl Resolver for SystemResolver {
                 if Instant::now() >= deadline {
                     break Err(ResolveError::Timeout);
                 }
+                // A worker may have filled this entry while this caller
+                // waited for capacity. It must not spend another slot or
+                // repeat a lookup whose answer is already available.
+                if let Some(answers) = cached(&self.state.cache, &name) {
+                    break Ok(Some(answers));
+                }
                 if *in_flight < self.max_in_flight {
                     *in_flight += 1;
-                    break Ok(());
+                    break Ok(None);
                 }
                 let (guard, wait) = wait_timeout(
                     &self.state.free,
@@ -207,7 +218,9 @@ impl Resolver for SystemResolver {
             }
         };
         self.state.waiting.fetch_sub(1, Ordering::SeqCst);
-        queued?;
+        if let Some(answers) = queued? {
+            return Ok(answers);
+        }
         let state = Arc::clone(&self.state);
         let guard = InFlight(Arc::clone(&self.state));
         let (sender, receiver) = mpsc::sync_channel(1);
@@ -311,5 +324,70 @@ impl Resolver for FixtureResolver {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn queued_requests_reuse_the_answer_that_frees_the_lookup_slot() {
+        let (started, lookup_started) = mpsc::sync_channel(1);
+        let (finish, finish_lookup) = mpsc::sync_channel(1);
+        let finish_lookup = Mutex::new(finish_lookup);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let counted = Arc::clone(&calls);
+        let resolver = SystemResolver::with_lookup(
+            1,
+            Arc::new(move |_| {
+                let call = counted.fetch_add(1, Ordering::SeqCst);
+                if call == 0 {
+                    started.send(()).unwrap();
+                    finish_lookup
+                        .lock()
+                        .unwrap()
+                        .recv_timeout(Duration::from_secs(5))
+                        .unwrap();
+                }
+                Ok(vec![IpAddr::from([192, 0, 2, 1 + call as u8])])
+            }),
+        );
+        let deadline = Instant::now() + Duration::from_secs(5);
+        thread::scope(|scope| {
+            let first = scope.spawn(|| resolver.resolve("burst.test", deadline));
+            lookup_started.recv_timeout(Duration::from_secs(2)).unwrap();
+            let queued: Vec<_> = (0..3)
+                .map(|_| scope.spawn(|| resolver.resolve("burst.test", deadline)))
+                .collect();
+            // All three callers must already be waiting for the occupied
+            // slot, so none can take the cache's initial fast path.
+            while resolver.state.waiting.load(Ordering::SeqCst) != 3 {
+                assert!(Instant::now() < deadline, "requests did not queue");
+                thread::yield_now();
+            }
+            finish.send(()).unwrap();
+            let expected = Ok(vec![IpAddr::from([192, 0, 2, 1])]);
+            assert_eq!(first.join().unwrap(), expected);
+            for request in queued {
+                assert_eq!(request.join().unwrap(), expected);
+            }
+        });
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(resolver.in_flight(), 0);
+        assert_eq!(resolver.state.waiting.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn an_expired_deadline_refuses_even_a_cached_answer() {
+        let resolver =
+            SystemResolver::with_lookup(1, Arc::new(|_| Ok(vec![IpAddr::from([192, 0, 2, 1])])));
+        resolver
+            .resolve("cached.test", Instant::now() + Duration::from_secs(2))
+            .unwrap();
+        assert_eq!(
+            resolver.resolve("cached.test", Instant::now()),
+            Err(ResolveError::Timeout)
+        );
     }
 }

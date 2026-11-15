@@ -3,7 +3,7 @@
 use std::fmt;
 use std::path::Path;
 
-/// A commit, and whether the tree had uncommitted changes to tracked files.
+/// A commit, and whether the tree had uncommitted or untracked files.
 /// Written `<40 hex>` or `<40 hex>+dirty`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Revision {
@@ -33,7 +33,7 @@ impl Revision {
     }
 
     /// The revision the repository at `root` is at: `HEAD`, dirty when
-    /// tracked files have uncommitted changes.
+    /// tracked files have uncommitted changes or non-ignored untracked files exist.
     ///
     /// # Errors
     /// git could not say.
@@ -42,7 +42,8 @@ impl Revision {
         let mut revision =
             Revision::parse(&head).ok_or_else(|| format!("HEAD is `{head}`, not a commit"))?;
         revision.dirty =
-            !crate::proc::git(root, &["status", "--porcelain", "--untracked-files=no"])?.is_empty();
+            !crate::proc::git(root, &["status", "--porcelain", "--untracked-files=all"])?
+                .is_empty();
         Ok(revision)
     }
 }
@@ -80,5 +81,39 @@ mod tests {
         ] {
             assert_eq!(Revision::parse(bad), None, "{bad}");
         }
+    }
+
+    #[test]
+    fn untracked_source_cannot_be_transferred_as_a_clean_revision() {
+        // Conformance copies visible untracked source files as well as tracked
+        // files, without .git. Its build claim must account for both kinds.
+        let root = tempfile::tempdir().unwrap();
+        let git = |args: &[&str]| crate::proc::git(root.path(), args).unwrap();
+        git(&["init", "-q"]);
+        std::fs::write(root.path().join(".gitignore"), "target/\n").unwrap();
+        git(&["add", ".gitignore"]);
+        git(&[
+            "-c",
+            "user.name=Ukai fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-qm",
+            "fixture",
+        ]);
+        assert!(!Revision::of_repository(root.path()).unwrap().dirty);
+
+        std::fs::create_dir(root.path().join("target")).unwrap();
+        std::fs::write(root.path().join("target/ignored"), "build output").unwrap();
+        assert!(!Revision::of_repository(root.path()).unwrap().dirty);
+
+        std::fs::create_dir(root.path().join("crates")).unwrap();
+        let source = root.path().join("crates/untracked.rs");
+        std::fs::write(&source, "// uncommitted build input\n").unwrap();
+        assert!(Revision::of_repository(root.path()).unwrap().dirty);
+        git(&["add", "crates/untracked.rs"]);
+        assert!(Revision::of_repository(root.path()).unwrap().dirty);
     }
 }

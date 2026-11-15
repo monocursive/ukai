@@ -1606,25 +1606,13 @@ fn control_socket() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("/nonexistent/vm/control.sock"))
 }
 
-/// The installer's readiness report, in the preview's schema: the image
-/// directory beside this executable (the staged installer runs the check
-/// before the install reaches its final location), otherwise the
-/// discovered installation. A real run still verifies the guest jail.
+/// The installer's readiness report, in the preview's schema. Discovery
+/// is identical to serve (including explicit overrides and staged installs),
+/// so the report checks the image an actual run will use.
 fn doctor() -> Result<(), String> {
-    let image_dir = std::env::current_exe()
-        .ok()
-        .and_then(|exe| {
-            exe.parent()
-                .and_then(|bin| bin.parent())
-                .map(|root| root.join("image"))
-        })
-        .filter(|dir| dir.join("image.json").is_file())
-        .or_else(|| {
-            image::Install::discover()
-                .ok()
-                .map(|install| install.root.join("image"))
-        })
-        .ok_or_else(|| "no installed ukai-vm image found".to_owned())?;
+    let install = image::Install::discover().map_err(|error| error.to_string())?;
+    install.prepared().map_err(|error| error.to_string())?;
+    let image_dir = install.root.join("image");
     let manifest: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(image_dir.join("image.json")).map_err(|e| e.to_string())?,
     )

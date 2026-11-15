@@ -30,6 +30,10 @@ def _render(script, version, hashes, default):
     if any(not re.fullmatch('[0-9a-f]{64}', digest) for digest in hashes.values()):
         raise ValueError('invalid archive SHA-256')
     pins = archive_pins(script)
+    for target, digest in hashes.items():
+        previous = pins.get((version, target))
+        if previous is not None and previous != digest:
+            raise ValueError(f'cannot replace the pinned archive for {version} ({target}); use a new release version')
     pins.update(((version, target), digest) for target, digest in hashes.items())
     block = '    # BEGIN SHA256 PINS\n    case "$version:$target" in\n'
     for (release, target), digest in sorted(pins.items()):

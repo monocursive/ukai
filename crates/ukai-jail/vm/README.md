@@ -595,6 +595,13 @@ tests of the pidfd kill and the zombie-leader read on a Linux host
 (`test_guest_warm.RealProcTests`, skipped elsewhere), and live
 verification is pending.
 
+Image discovery uses `UKAI_VM_HOME` first, then the image beside the installed
+executable (including a custom install prefix or an explicitly selected older
+version), then the newest version in `~/.local/share/ukai-vm` for source builds.
+Both `doctor` and `serve` use that order and refuse a damaged selected image;
+the diagnostic cannot pass by checking a different installation. Numeric
+prerelease identifiers sort numerically, so `preview.10` follows `preview.9`.
+
 The service holds an exclusive runtime lock before removing stale sockets. It
 copies the installed artifacts to a private boot directory and verifies the
 copies before executing them. The `run --vm` client hashes nothing itself:

@@ -29,7 +29,7 @@ class ReleaseTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
 
-    def fixture(self, target, release='0.1.0-rc.1'):
+    def fixture(self, target, release='9.9.9-rc.1'):
         binary = self.root / target
         contents = bytearray(64)
         contents[:6] = b'\x7fELF\x02\x01'
@@ -45,7 +45,7 @@ class ReleaseTests(unittest.TestCase):
         script = Path(__file__).with_name('prepare_release.py')
         stages = [self.fixture(target) for target in TARGETS]
         command = [sys.executable, str(script), 'assemble', '--revision', REVISION,
-                   '--inputs', INPUTS, '--version', '0.1.0-rc.1', '--out', str(self.root / 'cli-out')]
+                   '--inputs', INPUTS, '--version', '9.9.9-rc.1', '--out', str(self.root / 'cli-out')]
         for directory in stages:
             command += ['--stage', str(directory)]
         result = subprocess.run(command, capture_output=True, text=True, timeout=20)
@@ -61,7 +61,7 @@ class ReleaseTests(unittest.TestCase):
         binary = self.root / 'invalid-elf'; binary.write_bytes(b'not an ELF image')
         command = [sys.executable, str(script), 'stage', '--binary', str(binary),
                    '--target', next(iter(TARGETS)), '--revision', REVISION, '--inputs', INPUTS,
-                   '--version', '0.1.0-rc.1', '--out', str(self.root / 'cli-stage')]
+                   '--version', '9.9.9-rc.1', '--out', str(self.root / 'cli-stage')]
         result = subprocess.run(command, capture_output=True, text=True, timeout=20)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('binary ELF architecture does not match', result.stderr)
@@ -73,10 +73,10 @@ class ReleaseTests(unittest.TestCase):
         binary = self.root / 'binary'
         binary.write_bytes(b'fixed test payload')
         target = next(iter(TARGETS))
-        first = create_archive(binary, target, self.root / 'first', '0.1.0-rc.1').read_bytes()
+        first = create_archive(binary, target, self.root / 'first', '9.9.9-rc.1').read_bytes()
         os.utime(binary, (1234567, 1234567))
         other = self.root / 'other'; shutil.copyfile(binary, other)
-        second = create_archive(other, target, self.root / 'second', '0.1.0-rc.1').read_bytes()
+        second = create_archive(other, target, self.root / 'second', '9.9.9-rc.1').read_bytes()
         self.assertEqual(first, second)
         self.assertEqual(first, create_archive(
             binary, target, self.root / 'renamed', '9.9.9').read_bytes())
@@ -96,7 +96,16 @@ class ReleaseTests(unittest.TestCase):
         single = self.fixture(next(iter(TARGETS)))
         for records in [[single], [single, single]]:
             with self.assertRaises(ValueError):
-                assemble(records, REVISION, INPUTS, '0.1.0-rc.1', self.root / 'out')
+                assemble(records, REVISION, INPUTS, '9.9.9-rc.1', self.root / 'out')
+        self.assertFalse((self.root / 'out').exists())
+
+    def test_assembly_cannot_reuse_a_published_version_for_different_archives(self):
+        stages = [self.fixture(target, release=JAIL_VERSION) for target in TARGETS]
+        with patch('prepare_release.subprocess.run') as signing:
+            with self.assertRaisesRegex(ValueError, 'use a new release version'):
+                assemble(stages, REVISION, INPUTS, JAIL_VERSION, self.root / 'out',
+                         self.root / 'unused-key', 'A' * 56)
+            signing.assert_not_called()
         self.assertFalse((self.root / 'out').exists())
 
     def test_tampered_archive_and_binary_attestation_refuse(self):
@@ -118,7 +127,7 @@ class ReleaseTests(unittest.TestCase):
         binary = self.root / target
         with patch('prepare_release.subprocess.check_output', return_value=json.dumps(version(other)).encode()):
             with self.assertRaises(ValueError):
-                stage(binary, other, REVISION, INPUTS, self.root / 'wrong', '0.1.0-rc.1')
+                stage(binary, other, REVISION, INPUTS, self.root / 'wrong', '9.9.9-rc.1')
         record = json.loads((directory / 'artifact.json').read_text())
         record['archive'] = '../outside.tar.gz'
         (directory / 'artifact.json').write_text(json.dumps(record))
@@ -133,30 +142,30 @@ class ReleaseTests(unittest.TestCase):
         target = next(iter(TARGETS))
         other = next(t for t in TARGETS if t != target)
         first = self.fixture(target)
-        second = self.fixture(other, release='0.1.0-rc.2')
+        second = self.fixture(other, release='9.9.9-rc.2')
         with self.assertRaises(ValueError):
-            assemble([first, second], REVISION, INPUTS, '0.1.0-rc.1', self.root / 'out')
+            assemble([first, second], REVISION, INPUTS, '9.9.9-rc.1', self.root / 'out')
         self.assertFalse((self.root / 'out').exists())
 
     def test_bootstrap_help_follows_the_assembled_release(self):
-        stages = [self.fixture(target, release='0.1.0-rc.2') for target in TARGETS]
+        stages = [self.fixture(target, release='9.9.9-rc.2') for target in TARGETS]
         out = self.root / 'out'
-        assemble(stages, REVISION, INPUTS, '0.1.0-rc.2', out)
+        assemble(stages, REVISION, INPUTS, '9.9.9-rc.2', out)
         result = subprocess.run(['bash', str(out / 'bootstrap.sh'), '--help'],
                                 capture_output=True, text=True, timeout=5)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('Linux: installs the Ukai Jail preview 0.1.0-rc.2 ', result.stdout)
+        self.assertIn('Linux: installs the Ukai Jail preview 9.9.9-rc.2 ', result.stdout)
         pins = archive_pins((out / 'bootstrap.sh').read_text())
         for directory in stages:
             record = json.loads((directory / 'artifact.json').read_text())
-            self.assertEqual(pins['0.1.0-rc.2', record['target']], record['archive_sha256'])
+            self.assertEqual(pins['9.9.9-rc.2', record['target']], record['archive_sha256'])
         # The current public releases remain installable with their original pins.
         self.assertEqual({target for release, target in pins if release == JAIL_VERSION}, set(TARGETS))
         self.assertIn((VM_VERSION, VM_TARGET), pins)
 
     def test_unsigned_preparation_remains_unpublished_and_names_signing_blocker(self):
         stages = [self.fixture(t) for t in TARGETS]
-        plan = assemble(stages, REVISION, INPUTS, '0.1.0-rc.1', self.root / 'out')
+        plan = assemble(stages, REVISION, INPUTS, '9.9.9-rc.1', self.root / 'out')
         self.assertFalse(plan['published']); self.assertFalse(plan['signature_verified'])
         self.assertTrue(plan['draft'])
         self.assertIn('production_signing_identity_not_configured', plan['publication_blockers'])
@@ -166,7 +175,7 @@ class ReleaseTests(unittest.TestCase):
         manifest = (self.root / 'out' / 'SHA256SUMS').read_text().splitlines()
         names = sorted(line.split('  ')[1] for line in manifest)
         self.assertEqual(names, sorted(
-            [f'ukai-jail-0.1.0-rc.1-{target}.tar.gz' for target in TARGETS]
+            [f'ukai-jail-9.9.9-rc.1-{target}.tar.gz' for target in TARGETS]
             + ['install.sh', 'bootstrap.sh', 'release-plan.json', 'RELEASE_NOTES.md']))
 
     @unittest.skipUnless(shutil.which('minisign'), 'minisign is required for actual signature checks')
@@ -176,12 +185,12 @@ class ReleaseTests(unittest.TestCase):
             subprocess.run(['minisign', '-G', '-W', '-s', str(self.root / (name + '.key')),
                             '-p', str(self.root / (name + '.pub'))], check=True, capture_output=True)
         key = (self.root / 'test.pub').read_text().splitlines()[1]
-        plan = assemble(stages, REVISION, INPUTS, '0.1.0-rc.1', self.root / 'signed',
+        plan = assemble(stages, REVISION, INPUTS, '9.9.9-rc.1', self.root / 'signed',
                         self.root / 'test.key', key)
         self.assertTrue(plan['signature_verified']); self.assertFalse(plan['published'])
         wrong = (self.root / 'wrong.pub').read_text().splitlines()[1]
         with self.assertRaises(subprocess.CalledProcessError):
-            assemble(stages, REVISION, INPUTS, '0.1.0-rc.1', self.root / 'refused',
+            assemble(stages, REVISION, INPUTS, '9.9.9-rc.1', self.root / 'refused',
                      self.root / 'test.key', wrong)
         self.assertFalse((self.root / 'refused/release-plan.json').exists())
 
