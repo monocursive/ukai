@@ -1,0 +1,3408 @@
+{
+  "bundle_sha256": "a772fb84f80ac70eb07aeab1d66a5892dbd68a8d50f830ac0e840b7d9a292acf",
+  "documents": [
+    {
+      "component": "anstream@1.0.0",
+      "label": "LICENSE-APACHE",
+      "length": 11358,
+      "offset": 344,
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "anstream@1.0.0",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 11740,
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "anstyle@1.0.14",
+      "label": "LICENSE-APACHE",
+      "length": 11358,
+      "offset": 12843,
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "anstyle@1.0.14",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 24239,
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "anstyle-parse@1.0.0",
+      "label": "LICENSE-APACHE",
+      "length": 11358,
+      "offset": 25347,
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "anstyle-parse@1.0.0",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 36748,
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "anstyle-query@1.1.5",
+      "label": "LICENSE-APACHE",
+      "length": 11358,
+      "offset": 37856,
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "anstyle-query@1.1.5",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 49257,
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "base64@0.22.1",
+      "label": "LICENSE-APACHE",
+      "length": 10847,
+      "offset": 50359,
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "base64@0.22.1",
+      "label": "LICENSE-MIT",
+      "length": 1076,
+      "offset": 61243,
+      "sha256": "0dd882e53de11566d50f8e8e2d5a651bcf3fabee4987d70f306233cf39094ba7",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "base64@0.23.1",
+      "label": "LICENSE-APACHE",
+      "length": 10847,
+      "offset": 62359,
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "base64@0.23.1",
+      "label": "LICENSE-MIT",
+      "length": 1093,
+      "offset": 73243,
+      "sha256": "ab499c75a0f0da8e0fe83bf9ba3a27e5c39705310f07107c6c66b69958d2401c",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "block-buffer@0.10.4",
+      "label": "LICENSE-APACHE",
+      "length": 10849,
+      "offset": 74382,
+      "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "block-buffer@0.10.4",
+      "label": "LICENSE-MIT",
+      "length": 1082,
+      "offset": 85274,
+      "sha256": "d5c22aa3118d240e877ad41c5d9fa232f9c77d757d4aac0c2f943afc0a95e0ef",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "bytes@1.12.1",
+      "label": "LICENSE",
+      "length": 1055,
+      "offset": 86388,
+      "sha256": "45f522cacecb1023856e46df79ca625dfc550c94910078bd8aec6e02880b3d42",
+      "sources": [
+        "LICENSE"
+      ]
+    },
+    {
+      "component": "cfg-if@1.0.5",
+      "label": "LICENSE-APACHE",
+      "length": 10847,
+      "offset": 87482,
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "cfg-if@1.0.5",
+      "label": "LICENSE-MIT",
+      "length": 1057,
+      "offset": 98365,
+      "sha256": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "clap@4.6.7",
+      "label": "LICENSE-APACHE",
+      "length": 11349,
+      "offset": 99459,
+      "sha256": "249fdb6694467dd615b259f7ddde07be3f8ae5a72cecebb0e24f6629af4215fe",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "clap@4.6.7",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 110842,
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "clap_builder@4.6.7",
+      "label": "LICENSE-APACHE",
+      "length": 11349,
+      "offset": 111949,
+      "sha256": "249fdb6694467dd615b259f7ddde07be3f8ae5a72cecebb0e24f6629af4215fe",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "clap_builder@4.6.7",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 123340,
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "clap_derive@4.6.7",
+      "label": "LICENSE-APACHE",
+      "length": 11349,
+      "offset": 124446,
+      "sha256": "249fdb6694467dd615b259f7ddde07be3f8ae5a72cecebb0e24f6629af4215fe",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "clap_derive@4.6.7",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 135836,
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "clap_lex@1.1.1",
+      "label": "LICENSE-APACHE",
+      "length": 11349,
+      "offset": 136939,
+      "sha256": "249fdb6694467dd615b259f7ddde07be3f8ae5a72cecebb0e24f6629af4215fe",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "clap_lex@1.1.1",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 148326,
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "colorchoice@1.0.5",
+      "label": "LICENSE-APACHE",
+      "length": 11358,
+      "offset": 149432,
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "colorchoice@1.0.5",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 160831,
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "cpufeatures@0.2.17",
+      "label": "LICENSE-APACHE",
+      "length": 10849,
+      "offset": 161938,
+      "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "cpufeatures@0.2.17",
+      "label": "LICENSE-MIT",
+      "length": 1082,
+      "offset": 172829,
+      "sha256": "ae9baa7beea910273c2f384c2a6b721fb7bd02bda3436074a1072e4ee689f985",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "crypto-common@0.1.7",
+      "label": "LICENSE-APACHE",
+      "length": 10849,
+      "offset": 173957,
+      "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "crypto-common@0.1.7",
+      "label": "LICENSE-MIT",
+      "length": 1065,
+      "offset": 184849,
+      "sha256": "3521672491a3479422d5fe1aca6645dd2984090f85da6e5205abfb18fb7a6897",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "deranged@0.5.8",
+      "label": "LICENSE-Apache",
+      "length": 11349,
+      "offset": 185955,
+      "sha256": "edd65bdd88957a205c47d53fa499eed8865a70320f0f03f6391668cb304ea376",
+      "sources": [
+        "LICENSE-Apache"
+      ]
+    },
+    {
+      "component": "deranged@0.5.8",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 197342,
+      "sha256": "231c837c45eb53f108fb48929e488965bc4fcc14e9ea21d35f50e6b99d98685b",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "digest@0.10.7",
+      "label": "LICENSE-APACHE",
+      "length": 10849,
+      "offset": 198444,
+      "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "digest@0.10.7",
+      "label": "LICENSE-MIT",
+      "length": 1057,
+      "offset": 209330,
+      "sha256": "9e0dfd2dd4173a530e238cb6adb37aa78c34c6bc7444e0e10c1ab5d8881f63ba",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "equivalent@1.0.2",
+      "label": "LICENSE-APACHE",
+      "length": 10847,
+      "offset": 210430,
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "equivalent@1.0.2",
+      "label": "LICENSE-MIT",
+      "length": 1049,
+      "offset": 221317,
+      "sha256": "7365cc8878a1d7ce155a58c4ca09c3d7a6be413efa5334a80ea842912b669349",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "generic-array@0.14.7",
+      "label": "LICENSE",
+      "length": 1107,
+      "offset": 222406,
+      "sha256": "c09aae9d3c77b531f56351a9947bc7446511d6b025b3255312d3e3442a9a7583",
+      "sources": [
+        "LICENSE"
+      ]
+    },
+    {
+      "component": "getrandom@0.2.17",
+      "label": "LICENSE-APACHE",
+      "length": 10849,
+      "offset": 223556,
+      "sha256": "aaff376532ea30a0cd5330b9502ad4a4c8bf769c539c87ffe78819d188a18ebf",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "getrandom@0.2.17",
+      "label": "LICENSE-MIT",
+      "length": 1130,
+      "offset": 234445,
+      "sha256": "42fa16951ce7f24b5a467a40e5b449a1d41e662f97ca779864f053f39e097737",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "getrandom@0.4.3",
+      "label": "LICENSE-APACHE",
+      "length": 10849,
+      "offset": 235617,
+      "sha256": "aaff376532ea30a0cd5330b9502ad4a4c8bf769c539c87ffe78819d188a18ebf",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "getrandom@0.4.3",
+      "label": "LICENSE-MIT",
+      "length": 1130,
+      "offset": 246505,
+      "sha256": "523a42c25d245dde9c015f882cec7f4555aad883382a6cf19b4b7d9b2cd5419b",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "hashbrown@0.17.1",
+      "label": "LICENSE-APACHE",
+      "length": 10847,
+      "offset": 247678,
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "hashbrown@0.17.1",
+      "label": "LICENSE-MIT",
+      "length": 1060,
+      "offset": 258565,
+      "sha256": "ff8f68cb076caf8cefe7a6430d4ac086ce6af2ca8ce2c4e5a2004d4552ef52a2",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "heck@0.5.0",
+      "label": "LICENSE-APACHE",
+      "length": 10847,
+      "offset": 259662,
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "heck@0.5.0",
+      "label": "LICENSE-MIT",
+      "length": 1071,
+      "offset": 270543,
+      "sha256": "7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "http@1.5.0",
+      "label": "LICENSE-APACHE",
+      "length": 10835,
+      "offset": 271651,
+      "sha256": "8bb1b50b0e5c9399ae33bd35fab2769010fa6c14e8860c729a52295d84896b7a",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "http@1.5.0",
+      "label": "LICENSE-MIT",
+      "length": 1059,
+      "offset": 282520,
+      "sha256": "dc91f8200e4b2a1f9261035d4c18c33c246911a6c0f7b543d75347e61b249cff",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "httparse@1.10.1",
+      "label": "LICENSE-APACHE",
+      "length": 10847,
+      "offset": 283621,
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "httparse@1.10.1",
+      "label": "LICENSE-MIT",
+      "length": 1063,
+      "offset": 294507,
+      "sha256": "391a5396cec6230bfabd4ef4eb2350eb895bc5efce377a2218f5702ed020d3e3",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "indexmap@2.14.2",
+      "label": "LICENSE-APACHE",
+      "length": 10847,
+      "offset": 295612,
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "indexmap@2.14.2",
+      "label": "LICENSE-MIT",
+      "length": 1049,
+      "offset": 306498,
+      "sha256": "ecc269ef87fd38a1d98e30bfac9ba964a9dbd9315c3770fed98d4d7cb5882055",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "is_terminal_polyfill@1.70.2",
+      "label": "LICENSE-APACHE",
+      "length": 11358,
+      "offset": 307601,
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "is_terminal_polyfill@1.70.2",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 319010,
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "itoa@1.0.18",
+      "label": "LICENSE-APACHE",
+      "length": 9723,
+      "offset": 320110,
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "itoa@1.0.18",
+      "label": "LICENSE-MIT",
+      "length": 1023,
+      "offset": 329868,
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "libc@0.2.189",
+      "label": "LICENSE-APACHE",
+      "length": 9723,
+      "offset": 330930,
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "libc@0.2.189",
+      "label": "LICENSE-MIT",
+      "length": 1066,
+      "offset": 340689,
+      "sha256": "123a331b5dbf04c30097fa43b8f858bc85df671fe776de498d01f3d6b7c1f69e",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "log@0.4.34",
+      "label": "LICENSE-APACHE",
+      "length": 10847,
+      "offset": 341792,
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "log@0.4.34",
+      "label": "LICENSE-MIT",
+      "length": 1071,
+      "offset": 352673,
+      "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "memchr@2.8.3",
+      "label": "COPYING",
+      "length": 126,
+      "offset": 353776,
+      "sha256": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f",
+      "sources": [
+        "COPYING"
+      ]
+    },
+    {
+      "component": "memchr@2.8.3",
+      "label": "LICENSE-MIT",
+      "length": 1081,
+      "offset": 353938,
+      "sha256": "0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "num-conv@0.2.2",
+      "label": "LICENSE-Apache",
+      "length": 10174,
+      "offset": 355060,
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+      "sources": [
+        "LICENSE-Apache"
+      ]
+    },
+    {
+      "component": "num-conv@0.2.2",
+      "label": "LICENSE-MIT",
+      "length": 1050,
+      "offset": 365272,
+      "sha256": "e2e245f2b566d0bfafb0f6a04c16b82d710c4e6e7d799e39bb4ef6e541b85b98",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "once_cell@1.21.4",
+      "label": "LICENSE-APACHE",
+      "length": 10847,
+      "offset": 366365,
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "once_cell@1.21.4",
+      "label": "LICENSE-MIT",
+      "length": 1023,
+      "offset": 377252,
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "pem@4.0.0",
+      "label": "LICENSE.md",
+      "length": 1085,
+      "offset": 378307,
+      "sha256": "b7c76ff4466a3aeb6a7d903e81b651335e97d64ecb857e2ee9812a36c6fd1acf",
+      "sources": [
+        "LICENSE.md"
+      ]
+    },
+    {
+      "component": "percent-encoding@2.3.2",
+      "label": "LICENSE-APACHE",
+      "length": 10847,
+      "offset": 379441,
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "percent-encoding@2.3.2",
+      "label": "LICENSE-MIT",
+      "length": 1072,
+      "offset": 390334,
+      "sha256": "b38f11f6096706e6de553dabe2a7ed142d59b6fa8c97e290c67496154745cdd5",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "powerfmt@0.2.0",
+      "label": "LICENSE-Apache",
+      "length": 11349,
+      "offset": 391447,
+      "sha256": "155420c6403d4e0fca34105e3c03fdd6939b64c393c7ec6f95f5b72c5474eab0",
+      "sources": [
+        "LICENSE-Apache"
+      ]
+    },
+    {
+      "component": "powerfmt@0.2.0",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 402834,
+      "sha256": "070dbc7dda03a29296f2d58bdb9b7331af90f2abc9f31df22875d1eabaf29852",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "proc-macro2@1.0.107",
+      "label": "LICENSE-APACHE",
+      "length": 9723,
+      "offset": 403942,
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "proc-macro2@1.0.107",
+      "label": "LICENSE-MIT",
+      "length": 1023,
+      "offset": 413708,
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "quote@1.0.47",
+      "label": "LICENSE-APACHE",
+      "length": 9723,
+      "offset": 414770,
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "quote@1.0.47",
+      "label": "LICENSE-MIT",
+      "length": 1023,
+      "offset": 424529,
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "rcgen@0.14.10",
+      "label": "LICENSE",
+      "length": 11670,
+      "offset": 425585,
+      "sha256": "debe6fed7ac143217c7f533759c54b14f18cd01d5fe195c51d83c2ae2d136cb4",
+      "sources": [
+        "LICENSE"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "LICENSE",
+      "length": 499,
+      "offset": 437287,
+      "sha256": "b3d734001a94efff3579978d953391aa7115f877657d25eb54037a43875d078a",
+      "sources": [
+        "LICENSE"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "LICENSE-BoringSSL",
+      "length": 14870,
+      "offset": 437828,
+      "sha256": "005fc765ddc5115da796cca915baa9557abae13ff35e0a47c47affc56f6c414d",
+      "sources": [
+        "LICENSE-BoringSSL"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "LICENSE-other-bits",
+      "length": 731,
+      "offset": 452741,
+      "sha256": "f025ccfb7dfb6bdfedc75ca0f67acc69e6fb4998143d834f7c2f38a29989680f",
+      "sources": [
+        "LICENSE-other-bits"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "build.rs [legal comment 1]; src/ec/curve25519/ed25519.rs [legal comment 1]; src/ec/curve25519/ed25519/signing.rs [legal comment 1]; src/ec/curve25519/ed25519/verification.rs [legal comment 1]; src/ec/curve25519/x25519.rs [legal comment 1]; src/ec/suite_b/ecdsa/digest_scalar.rs [legal comment 1]; src/ec/suite_b/ecdsa/signing.rs [legal comment 1]; src/ec/suite_b/ecdsa/verification.rs [legal comment 1]; src/hmac.rs [legal comment 1]; src/lib.rs [legal comment 1]; src/polyfill.rs [legal comment 1]; src/rand.rs [legal comment 1]; src/rsa.rs [legal comment 1]; src/rsa/keypair.rs [legal comment 1]; src/rsa/padding.rs [legal comment 1]; src/rsa/padding/pkcs1.rs [legal comment 1]; src/rsa/padding/pss.rs [legal comment 1]; src/rsa/verification.rs [legal comment 1]; src/testutil.rs [legal comment 1]; tests/ecdsa_tests.rs [legal comment 1]; tests/hmac_tests.rs [legal comment 1]",
+      "length": 768,
+      "offset": 454375,
+      "sha256": "826f6e3ca197d28f0bb2901b0887912574bacc542aa1bfc764724814285511dc",
+      "sources": [
+        "build.rs [legal comment 1]",
+        "src/ec/curve25519/ed25519.rs [legal comment 1]",
+        "src/ec/curve25519/ed25519/signing.rs [legal comment 1]",
+        "src/ec/curve25519/ed25519/verification.rs [legal comment 1]",
+        "src/ec/curve25519/x25519.rs [legal comment 1]",
+        "src/ec/suite_b/ecdsa/digest_scalar.rs [legal comment 1]",
+        "src/ec/suite_b/ecdsa/signing.rs [legal comment 1]",
+        "src/ec/suite_b/ecdsa/verification.rs [legal comment 1]",
+        "src/hmac.rs [legal comment 1]",
+        "src/lib.rs [legal comment 1]",
+        "src/polyfill.rs [legal comment 1]",
+        "src/rand.rs [legal comment 1]",
+        "src/rsa.rs [legal comment 1]",
+        "src/rsa/keypair.rs [legal comment 1]",
+        "src/rsa/padding.rs [legal comment 1]",
+        "src/rsa/padding/pkcs1.rs [legal comment 1]",
+        "src/rsa/padding/pss.rs [legal comment 1]",
+        "src/rsa/verification.rs [legal comment 1]",
+        "src/testutil.rs [legal comment 1]",
+        "tests/ecdsa_tests.rs [legal comment 1]",
+        "tests/hmac_tests.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/chacha/asm/chacha-armv4.pl [legal comment 1]; crypto/chacha/asm/chacha-armv8.pl [legal comment 1]; crypto/chacha/asm/chacha-x86.pl [legal comment 1]; crypto/chacha/asm/chacha-x86_64.pl [legal comment 1]",
+      "length": 67,
+      "offset": 455377,
+      "sha256": "f10863fc166a1c9830fee4c2125b05dd6b894a43aa6bcf3f3ec685253f481c63",
+      "sources": [
+        "crypto/chacha/asm/chacha-armv4.pl [legal comment 1]",
+        "crypto/chacha/asm/chacha-armv8.pl [legal comment 1]",
+        "crypto/chacha/asm/chacha-x86.pl [legal comment 1]",
+        "crypto/chacha/asm/chacha-x86_64.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/chacha/asm/chacha-armv4.pl [legal comment 2]; crypto/chacha/asm/chacha-armv8.pl [legal comment 2]; crypto/chacha/asm/chacha-x86.pl [legal comment 2]; crypto/chacha/asm/chacha-x86_64.pl [legal comment 2]; crypto/cipher/asm/chacha20_poly1305_armv8.pl [legal comment 2]; crypto/cipher/asm/chacha20_poly1305_x86_64.pl [legal comment 2]; crypto/fipsmodule/aes/asm/aes-gcm-avx2-x86_64.pl [legal comment 2]; crypto/fipsmodule/aes/asm/aesni-gcm-x86_64.pl [legal comment 2]; crypto/fipsmodule/aes/asm/aesni-x86.pl [legal comment 2]; crypto/fipsmodule/aes/asm/aesni-x86_64.pl [legal comment 2]; crypto/fipsmodule/aes/asm/aesv8-armx.pl [legal comment 2]; crypto/fipsmodule/aes/asm/aesv8-gcm-armv8.pl [legal comment 2]; crypto/fipsmodule/aes/asm/bsaes-armv7.pl [legal comment 2]; crypto/fipsmodule/aes/asm/ghash-armv4.pl [legal comment 2]; crypto/fipsmodule/aes/asm/ghash-neon-armv8.pl [legal comment 2]; crypto/fipsmodule/aes/asm/ghash-x86.pl [legal comment 2]; crypto/fipsmodule/aes/asm/ghash-x86_64.pl [legal comment 2]; crypto/fipsmodule/aes/asm/ghashv8-armx.pl [legal comment 2]; crypto/fipsmodule/aes/asm/vpaes-armv7.pl [legal comment 2]; crypto/fipsmodule/aes/asm/vpaes-armv8.pl [legal comment 2]; crypto/fipsmodule/aes/asm/vpaes-x86.pl [legal comment 2]; crypto/fipsmodule/aes/asm/vpaes-x86_64.pl [legal comment 2]; crypto/fipsmodule/bn/asm/armv4-mont.pl [legal comment 2]; crypto/fipsmodule/bn/asm/armv8-mont.pl [legal comment 2]; crypto/fipsmodule/bn/asm/x86-mont.pl [legal comment 2]; crypto/fipsmodule/bn/asm/x86_64-mont.pl [legal comment 2]; crypto/fipsmodule/bn/asm/x86_64-mont5.pl [legal comment 2]; crypto/fipsmodule/ec/asm/p256-armv8-asm.pl [legal comment 2]; crypto/fipsmodule/ec/asm/p256-x86_64-asm.pl [legal comment 2]; crypto/fipsmodule/sha/asm/sha256-armv4.pl [legal comment 2]; crypto/fipsmodule/sha/asm/sha512-armv4.pl [legal comment 2]; crypto/fipsmodule/sha/asm/sha512-armv8.pl [legal comment 2]; crypto/fipsmodule/sha/asm/sha512-x86_64.pl [legal comment 2]; crypto/perlasm/arm-xlate.pl [legal comment 2]; crypto/perlasm/x86_64-xlate.pl [legal comment 2]; crypto/perlasm/x86asm.pl [legal comment 2]; crypto/perlasm/x86gas.pl [legal comment 2]; crypto/perlasm/x86nasm.pl [legal comment 2]",
+      "length": 175,
+      "offset": 457677,
+      "sha256": "f50c392ef225056de3002950226306d5096ef3a9742c1a5cef291d2bf6f6a43e",
+      "sources": [
+        "crypto/chacha/asm/chacha-armv4.pl [legal comment 2]",
+        "crypto/chacha/asm/chacha-armv8.pl [legal comment 2]",
+        "crypto/chacha/asm/chacha-x86.pl [legal comment 2]",
+        "crypto/chacha/asm/chacha-x86_64.pl [legal comment 2]",
+        "crypto/cipher/asm/chacha20_poly1305_armv8.pl [legal comment 2]",
+        "crypto/cipher/asm/chacha20_poly1305_x86_64.pl [legal comment 2]",
+        "crypto/fipsmodule/aes/asm/aes-gcm-avx2-x86_64.pl [legal comment 2]",
+        "crypto/fipsmodule/aes/asm/aesni-gcm-x86_64.pl [legal comment 2]",
+        "crypto/fipsmodule/aes/asm/aesni-x86.pl [legal comment 2]",
+        "crypto/fipsmodule/aes/asm/aesni-x86_64.pl [legal comment 2]",
+        "crypto/fipsmodule/aes/asm/aesv8-armx.pl [legal comment 2]",
+        "crypto/fipsmodule/aes/asm/aesv8-gcm-armv8.pl [legal comment 2]",
+        "crypto/fipsmodule/aes/asm/bsaes-armv7.pl [legal comment 2]",
+        "crypto/fipsmodule/aes/asm/ghash-armv4.pl [legal comment 2]",
+        "crypto/fipsmodule/aes/asm/ghash-neon-armv8.pl [legal comment 2]",
+        "crypto/fipsmodule/aes/asm/ghash-x86.pl [legal comment 2]",
+        "crypto/fipsmodule/aes/asm/ghash-x86_64.pl [legal comment 2]",
+        "crypto/fipsmodule/aes/asm/ghashv8-armx.pl [legal comment 2]",
+        "crypto/fipsmodule/aes/asm/vpaes-armv7.pl [legal comment 2]",
+        "crypto/fipsmodule/aes/asm/vpaes-armv8.pl [legal comment 2]",
+        "crypto/fipsmodule/aes/asm/vpaes-x86.pl [legal comment 2]",
+        "crypto/fipsmodule/aes/asm/vpaes-x86_64.pl [legal comment 2]",
+        "crypto/fipsmodule/bn/asm/armv4-mont.pl [legal comment 2]",
+        "crypto/fipsmodule/bn/asm/armv8-mont.pl [legal comment 2]",
+        "crypto/fipsmodule/bn/asm/x86-mont.pl [legal comment 2]",
+        "crypto/fipsmodule/bn/asm/x86_64-mont.pl [legal comment 2]",
+        "crypto/fipsmodule/bn/asm/x86_64-mont5.pl [legal comment 2]",
+        "crypto/fipsmodule/ec/asm/p256-armv8-asm.pl [legal comment 2]",
+        "crypto/fipsmodule/ec/asm/p256-x86_64-asm.pl [legal comment 2]",
+        "crypto/fipsmodule/sha/asm/sha256-armv4.pl [legal comment 2]",
+        "crypto/fipsmodule/sha/asm/sha512-armv4.pl [legal comment 2]",
+        "crypto/fipsmodule/sha/asm/sha512-armv8.pl [legal comment 2]",
+        "crypto/fipsmodule/sha/asm/sha512-x86_64.pl [legal comment 2]",
+        "crypto/perlasm/arm-xlate.pl [legal comment 2]",
+        "crypto/perlasm/x86_64-xlate.pl [legal comment 2]",
+        "crypto/perlasm/x86asm.pl [legal comment 2]",
+        "crypto/perlasm/x86gas.pl [legal comment 2]",
+        "crypto/perlasm/x86nasm.pl [legal comment 2]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/cipher/asm/chacha20_poly1305_armv8.pl [legal comment 1]",
+      "length": 38,
+      "offset": 457939,
+      "sha256": "4fc944deaec67104fac125ed1d24c2dc4dbb42cc21fc6f47852c89b4cab94cd1",
+      "sources": [
+        "crypto/cipher/asm/chacha20_poly1305_armv8.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/cipher/asm/chacha20_poly1305_x86_64.pl [legal comment 1]",
+      "length": 38,
+      "offset": 458065,
+      "sha256": "f7338cadb700adea8f0947591b91c4fe0061d2971450ae4262c067c9dbf9b834",
+      "sources": [
+        "crypto/cipher/asm/chacha20_poly1305_x86_64.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/constant_time_test.c [legal comment 1]",
+      "length": 632,
+      "offset": 458173,
+      "sha256": "0794c420cea59bf58084d3d65f56c5ad92b089bdd870684b253124c185a71f15",
+      "sources": [
+        "crypto/constant_time_test.c [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/cpu_intel.c [legal comment 1]; crypto/fipsmodule/bn/montgomery.c [legal comment 1]; crypto/internal.h [legal comment 1]; crypto/mem.c [legal comment 1]; include/ring-core/mem.h [legal comment 1]",
+      "length": 632,
+      "offset": 459031,
+      "sha256": "e5df1a1e4be22b4b24531ad846438cb23883f0c98bb97d35158a113a411c503e",
+      "sources": [
+        "crypto/cpu_intel.c [legal comment 1]",
+        "crypto/fipsmodule/bn/montgomery.c [legal comment 1]",
+        "crypto/internal.h [legal comment 1]",
+        "crypto/mem.c [legal comment 1]",
+        "include/ring-core/mem.h [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/crypto.c [legal comment 1]",
+      "length": 599,
+      "offset": 459721,
+      "sha256": "388358f4a097d89594c39cc7b2cd475e517f6cb5f26216d81157bbf1c5dfca7d",
+      "sources": [
+        "crypto/crypto.c [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/curve25519/asm/x25519-asm-arm.S [legal comment 1]; crypto/fipsmodule/ec/util.h [legal comment 1]",
+      "length": 599,
+      "offset": 460448,
+      "sha256": "8ca246cb5c323120e25c3ff9a3f8fe4de715c71441add4353b34116a494edccd",
+      "sources": [
+        "crypto/curve25519/asm/x25519-asm-arm.S [legal comment 1]",
+        "crypto/fipsmodule/ec/util.h [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/curve25519/curve25519.c [legal comment 1]; crypto/curve25519/curve25519_tables.h [legal comment 1]; crypto/curve25519/internal.h [legal comment 1]; crypto/fipsmodule/ec/p256.c [legal comment 1]; crypto/fipsmodule/ec/p256_table.h [legal comment 1]",
+      "length": 599,
+      "offset": 461325,
+      "sha256": "16256ab70fb55a0f1383aa505862651ead7e380d81a592d5496e5304d031b15b",
+      "sources": [
+        "crypto/curve25519/curve25519.c [legal comment 1]",
+        "crypto/curve25519/curve25519_tables.h [legal comment 1]",
+        "crypto/curve25519/internal.h [legal comment 1]",
+        "crypto/fipsmodule/ec/p256.c [legal comment 1]",
+        "crypto/fipsmodule/ec/p256_table.h [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/curve25519/curve25519_64_adx.c [legal comment 1]; include/ring-core/asm_base.h [legal comment 1]; include/ring-core/target.h [legal comment 1]",
+      "length": 599,
+      "offset": 462098,
+      "sha256": "86c60ce1d1aad14ef0d9f1d6f056dc640ff9c030f91f627a50eef66728eed29b",
+      "sources": [
+        "crypto/curve25519/curve25519_64_adx.c [legal comment 1]",
+        "include/ring-core/asm_base.h [legal comment 1]",
+        "include/ring-core/target.h [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/aes/aes_nohw.c [legal comment 1]",
+      "length": 769,
+      "offset": 462772,
+      "sha256": "e01f82dc64c40e422eb046cba40fce87545c6a45bc9719e23176ef53bdb8ce8b",
+      "sources": [
+        "crypto/fipsmodule/aes/aes_nohw.c [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/aes/asm/aes-gcm-avx2-x86_64.pl [legal comment 1]",
+      "length": 39,
+      "offset": 463632,
+      "sha256": "9d6b1367cfe5a8f593bd2b43dd1379586065aa8d5f24ba4437957571eb9af20f",
+      "sources": [
+        "crypto/fipsmodule/aes/asm/aes-gcm-avx2-x86_64.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/aes/asm/aesni-gcm-x86_64.pl [legal comment 1]",
+      "length": 72,
+      "offset": 463759,
+      "sha256": "b76961893a048f1620df18af65b5e412db977f0eeaed3aa769846afd4b556e85",
+      "sources": [
+        "crypto/fipsmodule/aes/asm/aesni-gcm-x86_64.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/aes/asm/aesni-x86.pl [legal comment 1]; crypto/fipsmodule/aes/asm/aesni-x86_64.pl [legal comment 1]",
+      "length": 72,
+      "offset": 463973,
+      "sha256": "c54a52c00953508e888d0a7539a332148d70bd7d398d7c2d362c779160f99763",
+      "sources": [
+        "crypto/fipsmodule/aes/asm/aesni-x86.pl [legal comment 1]",
+        "crypto/fipsmodule/aes/asm/aesni-x86_64.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/aes/asm/aesv8-armx.pl [legal comment 1]",
+      "length": 72,
+      "offset": 464127,
+      "sha256": "a9ee563d3eef817bb95a79e0dd1fe5ed19299f25054c2a9afbd7519317959529",
+      "sources": [
+        "crypto/fipsmodule/aes/asm/aesv8-armx.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/aes/asm/aesv8-gcm-armv8.pl [legal comment 1]",
+      "length": 31,
+      "offset": 464286,
+      "sha256": "5cf7cbad9e2a4013653772ece8e5381171eec1c2c6e1cb85dfd5dcf64ca033bd",
+      "sources": [
+        "crypto/fipsmodule/aes/asm/aesv8-gcm-armv8.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/aes/asm/bsaes-armv7.pl [legal comment 1]",
+      "length": 72,
+      "offset": 464400,
+      "sha256": "3337d510af51fa89f45e47d51f47d2ff42a18e89cb4973856bda6b42518fede7",
+      "sources": [
+        "crypto/fipsmodule/aes/asm/bsaes-armv7.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/aes/asm/ghash-armv4.pl [legal comment 1]",
+      "length": 72,
+      "offset": 464555,
+      "sha256": "cab028a05d31b0a1deefb3163f2b98c85bb5a922c4c913bade2d2a7049e866d0",
+      "sources": [
+        "crypto/fipsmodule/aes/asm/ghash-armv4.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/aes/asm/ghash-neon-armv8.pl [legal comment 1]; crypto/fipsmodule/aes/asm/ghash-x86.pl [legal comment 1]; crypto/fipsmodule/aes/asm/ghash-x86_64.pl [legal comment 1]",
+      "length": 72,
+      "offset": 464834,
+      "sha256": "0df0eb286f953b3bd50a57ab38f44502f31efaad0c4582b6166c198bfc1a1805",
+      "sources": [
+        "crypto/fipsmodule/aes/asm/ghash-neon-armv8.pl [legal comment 1]",
+        "crypto/fipsmodule/aes/asm/ghash-x86.pl [legal comment 1]",
+        "crypto/fipsmodule/aes/asm/ghash-x86_64.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/aes/asm/ghashv8-armx.pl [legal comment 1]; crypto/fipsmodule/sha/asm/sha512-armv8.pl [legal comment 1]",
+      "length": 72,
+      "offset": 465051,
+      "sha256": "88a901db49f8fe01f3b7f0fa94b3d7f1ad442b15eb2d50dbf9afbafd2be55981",
+      "sources": [
+        "crypto/fipsmodule/aes/asm/ghashv8-armx.pl [legal comment 1]",
+        "crypto/fipsmodule/sha/asm/sha512-armv8.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/aes/asm/vpaes-armv7.pl [legal comment 1]; crypto/fipsmodule/aes/asm/vpaes-armv8.pl [legal comment 1]; crypto/fipsmodule/bn/asm/armv8-mont.pl [legal comment 1]; crypto/perlasm/arm-xlate.pl [legal comment 1]",
+      "length": 72,
+      "offset": 465371,
+      "sha256": "e4348c5456467960a7f9c1bb0ecb4f9e544608944f21d30d8fef94678d15ec7f",
+      "sources": [
+        "crypto/fipsmodule/aes/asm/vpaes-armv7.pl [legal comment 1]",
+        "crypto/fipsmodule/aes/asm/vpaes-armv8.pl [legal comment 1]",
+        "crypto/fipsmodule/bn/asm/armv8-mont.pl [legal comment 1]",
+        "crypto/perlasm/arm-xlate.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/aes/asm/vpaes-x86.pl [legal comment 1]; crypto/fipsmodule/aes/asm/vpaes-x86_64.pl [legal comment 1]; crypto/fipsmodule/bn/asm/x86_64-mont5.pl [legal comment 1]",
+      "length": 72,
+      "offset": 465645,
+      "sha256": "e1b7c990717ef17049133c5f30d029573e18e7136d2a213812639aa38b364b90",
+      "sources": [
+        "crypto/fipsmodule/aes/asm/vpaes-x86.pl [legal comment 1]",
+        "crypto/fipsmodule/aes/asm/vpaes-x86_64.pl [legal comment 1]",
+        "crypto/fipsmodule/bn/asm/x86_64-mont5.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/bn/asm/armv4-mont.pl [legal comment 1]; crypto/fipsmodule/sha/asm/sha256-armv4.pl [legal comment 1]; crypto/fipsmodule/sha/asm/sha512-armv4.pl [legal comment 1]; crypto/perlasm/x86gas.pl [legal comment 1]",
+      "length": 72,
+      "offset": 465964,
+      "sha256": "21364d51ac491d26bad0991114c7683b4f73fd9c483354dc88c8a7e0cdadd670",
+      "sources": [
+        "crypto/fipsmodule/bn/asm/armv4-mont.pl [legal comment 1]",
+        "crypto/fipsmodule/sha/asm/sha256-armv4.pl [legal comment 1]",
+        "crypto/fipsmodule/sha/asm/sha512-armv4.pl [legal comment 1]",
+        "crypto/perlasm/x86gas.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/bn/asm/x86-mont.pl [legal comment 1]; crypto/fipsmodule/bn/asm/x86_64-mont.pl [legal comment 1]; crypto/fipsmodule/sha/asm/sha512-x86_64.pl [legal comment 1]; crypto/perlasm/x86_64-xlate.pl [legal comment 1]",
+      "length": 72,
+      "offset": 466286,
+      "sha256": "33225c9a2ad4f84f45dd963a8380a256b0ab63a1851fd36a4e2cd064ce94496a",
+      "sources": [
+        "crypto/fipsmodule/bn/asm/x86-mont.pl [legal comment 1]",
+        "crypto/fipsmodule/bn/asm/x86_64-mont.pl [legal comment 1]",
+        "crypto/fipsmodule/sha/asm/sha512-x86_64.pl [legal comment 1]",
+        "crypto/perlasm/x86_64-xlate.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/bn/internal.h [legal comment 1]",
+      "length": 706,
+      "offset": 466432,
+      "sha256": "f126e3944c1566ef9983c6813f8fad671750e36edc82d409eb517832541a3b5a",
+      "sources": [
+        "crypto/fipsmodule/bn/internal.h [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/bn/montgomery_inv.c [legal comment 1]; crypto/fipsmodule/ec/gfp_p256.c [legal comment 1]; crypto/fipsmodule/ec/gfp_p384.c [legal comment 1]; crypto/limbs/limbs.h [legal comment 1]; crypto/limbs/limbs.inl [legal comment 1]",
+      "length": 765,
+      "offset": 467402,
+      "sha256": "6528f641c8d1423a93045a9a9f00784b090f23a7f75453d425036405355fbc6d",
+      "sources": [
+        "crypto/fipsmodule/bn/montgomery_inv.c [legal comment 1]",
+        "crypto/fipsmodule/ec/gfp_p256.c [legal comment 1]",
+        "crypto/fipsmodule/ec/gfp_p384.c [legal comment 1]",
+        "crypto/limbs/limbs.h [legal comment 1]",
+        "crypto/limbs/limbs.inl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/ec/asm/p256-armv8-asm.pl [legal comment 1]",
+      "length": 72,
+      "offset": 468252,
+      "sha256": "7467182d149055c210e44d062b91b78a4382ebe5dff18749e4a5c94985f27f2a",
+      "sources": [
+        "crypto/fipsmodule/ec/asm/p256-armv8-asm.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/ec/asm/p256-x86_64-asm.pl [legal comment 1]",
+      "length": 172,
+      "offset": 468410,
+      "sha256": "132b8851aabc19048ebd7b2fcc0d3c593960b5e147227d1014e05d509853ad44",
+      "sources": [
+        "crypto/fipsmodule/ec/asm/p256-x86_64-asm.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/ec/ecp_nistz.c [legal comment 1]; crypto/fipsmodule/ec/ecp_nistz384.h [legal comment 1]; crypto/fipsmodule/ec/ecp_nistz384.inl [legal comment 1]",
+      "length": 776,
+      "offset": 468769,
+      "sha256": "1f6e55e48a7dc93660e034e5c72572e464353ebe46b7af6ae5c065e55277ff25",
+      "sources": [
+        "crypto/fipsmodule/ec/ecp_nistz.c [legal comment 1]",
+        "crypto/fipsmodule/ec/ecp_nistz384.h [legal comment 1]",
+        "crypto/fipsmodule/ec/ecp_nistz384.inl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/ec/ecp_nistz.h [legal comment 1]",
+      "length": 769,
+      "offset": 469620,
+      "sha256": "19c779f8bbc141fa15c14e0a15aacaee2da917f7043af883c90cbef3cd6f4847",
+      "sources": [
+        "crypto/fipsmodule/ec/ecp_nistz.h [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/ec/p256-nistz-table.h [legal comment 1]",
+      "length": 666,
+      "offset": 470471,
+      "sha256": "b1f9a46d45c17233cc3d906e02190b567d28cc0dd410ce89ea762d9fb7cb22eb",
+      "sources": [
+        "crypto/fipsmodule/ec/p256-nistz-table.h [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/fipsmodule/ec/p256-nistz.c [legal comment 1]; crypto/fipsmodule/ec/p256-nistz.h [legal comment 1]; crypto/fipsmodule/ec/p256_shared.h [legal comment 1]",
+      "length": 1005,
+      "offset": 471320,
+      "sha256": "696cc66cf72629283bd8169f2f1f57761347846fbf4713d38359c36faee431a0",
+      "sources": [
+        "crypto/fipsmodule/ec/p256-nistz.c [legal comment 1]",
+        "crypto/fipsmodule/ec/p256-nistz.h [legal comment 1]",
+        "crypto/fipsmodule/ec/p256_shared.h [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/limbs/limbs.c [legal comment 1]",
+      "length": 770,
+      "offset": 472388,
+      "sha256": "1e640b3431319ef67b6da1dc8a4337904e9f601f1e90f9b2cfbd89e4f96081d4",
+      "sources": [
+        "crypto/limbs/limbs.c [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/perlasm/x86asm.pl [legal comment 1]",
+      "length": 72,
+      "offset": 473225,
+      "sha256": "37b5c02817663cf5af0a485ad40dc91bf8ba521bab71075992fee8beef5359f9",
+      "sources": [
+        "crypto/perlasm/x86asm.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/perlasm/x86nasm.pl [legal comment 1]",
+      "length": 72,
+      "offset": 473365,
+      "sha256": "652489ec8f147bb9518ade26f55cbd4f7c9717f6c46180e1872a1257932c5c4a",
+      "sources": [
+        "crypto/perlasm/x86nasm.pl [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "crypto/poly1305/poly1305.c [legal comment 1]; crypto/poly1305/poly1305_arm.c [legal comment 1]",
+      "length": 769,
+      "offset": 473556,
+      "sha256": "9d3cd1e69f280a14314994684fb0f503013e1159d5168f8cbb63931bd49ed814",
+      "sources": [
+        "crypto/poly1305/poly1305.c [legal comment 1]",
+        "crypto/poly1305/poly1305_arm.c [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "include/ring-core/aes.h [legal comment 1]",
+      "length": 632,
+      "offset": 474391,
+      "sha256": "0a3a2968deee45bfbddf2bb9e7fdfee965ac86cd687af9c150a242944ae62e80",
+      "sources": [
+        "include/ring-core/aes.h [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "include/ring-core/base.h [legal comment 1]",
+      "length": 632,
+      "offset": 475090,
+      "sha256": "a1f9499b1e8806e42ddfe0f6d94cd584127169aef60c3c3d4788f17ff7451ba0",
+      "sources": [
+        "include/ring-core/base.h [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "include/ring-core/check.h [legal comment 1]; tests/constant_time_tests.rs [legal comment 1]",
+      "length": 763,
+      "offset": 475838,
+      "sha256": "99a07315c47a6c27e677a2a47e357217e12acabb89177deadae9e141696e7195",
+      "sources": [
+        "include/ring-core/check.h [legal comment 1]",
+        "tests/constant_time_tests.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "include/ring-core/type_check.h [legal comment 1]",
+      "length": 632,
+      "offset": 476674,
+      "sha256": "2a4d2dcf0ea50fd3ee028c9b816dca5fedc8718e23d5d67735f8d21fb8637856",
+      "sources": [
+        "include/ring-core/type_check.h [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "pregenerated/bsaes-armv7-linux32.S [legal comment 2]",
+      "length": 619,
+      "offset": 477383,
+      "sha256": "f6936d682fdb82a5feec0df00465762753733f88c191b792c5be1de92c4517d6",
+      "sources": [
+        "pregenerated/bsaes-armv7-linux32.S [legal comment 2]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "pregenerated/sha256-armv4-linux32.S [legal comment 2]; pregenerated/sha512-armv4-linux32.S [legal comment 2]",
+      "length": 619,
+      "offset": 478135,
+      "sha256": "4fecb62c4bf63bef5823c6f6cf38c9733a6ce3322b288f23a13212853c47e867",
+      "sources": [
+        "pregenerated/sha256-armv4-linux32.S [legal comment 2]",
+        "pregenerated/sha512-armv4-linux32.S [legal comment 2]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "pregenerated/sha256-armv8-ios64.S [legal comment 2]; pregenerated/sha256-armv8-linux64.S [legal comment 2]; pregenerated/sha256-armv8-win64.S [legal comment 2]; pregenerated/sha512-armv8-ios64.S [legal comment 2]; pregenerated/sha512-armv8-linux64.S [legal comment 2]; pregenerated/sha512-armv8-win64.S [legal comment 2]",
+      "length": 632,
+      "offset": 479099,
+      "sha256": "e8a4a2bca4a29a49d5a147be15370432736fdfc8c02ab107138b46547046d074",
+      "sources": [
+        "pregenerated/sha256-armv8-ios64.S [legal comment 2]",
+        "pregenerated/sha256-armv8-linux64.S [legal comment 2]",
+        "pregenerated/sha256-armv8-win64.S [legal comment 2]",
+        "pregenerated/sha512-armv8-ios64.S [legal comment 2]",
+        "pregenerated/sha512-armv8-linux64.S [legal comment 2]",
+        "pregenerated/sha512-armv8-win64.S [legal comment 2]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/aead.rs [legal comment 1]; src/arithmetic/bigint/modulus.rs [legal comment 1]; src/arithmetic/bigint/modulusvalue.rs [legal comment 1]; src/bb/leaky.rs [legal comment 1]; src/bb/word.rs [legal comment 1]",
+      "length": 768,
+      "offset": 479963,
+      "sha256": "237e22bccd2a90c3305dceb0f4d9bcf79710c176f51390a87f725653f43b8d63",
+      "sources": [
+        "src/aead.rs [legal comment 1]",
+        "src/arithmetic/bigint/modulus.rs [legal comment 1]",
+        "src/arithmetic/bigint/modulusvalue.rs [legal comment 1]",
+        "src/bb/leaky.rs [legal comment 1]",
+        "src/bb/word.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/aead/aes.rs [legal comment 1]; src/aead/aes/bs.rs [legal comment 1]; src/aead/aes/fallback.rs [legal comment 1]; src/aead/aes/ffi.rs [legal comment 1]; src/aead/aes/hw.rs [legal comment 1]; src/aead/aes/vp.rs [legal comment 1]; src/aead/gcm.rs [legal comment 1]; src/aead/gcm/clmul.rs [legal comment 1]; src/aead/gcm/clmulavxmovbe.rs [legal comment 1]; src/aead/gcm/neon.rs [legal comment 1]",
+      "length": 768,
+      "offset": 481151,
+      "sha256": "6a45aec599a0e0c783330dbce968ffcf3967e085ef7374c4f168e9cb420c80d4",
+      "sources": [
+        "src/aead/aes.rs [legal comment 1]",
+        "src/aead/aes/bs.rs [legal comment 1]",
+        "src/aead/aes/fallback.rs [legal comment 1]",
+        "src/aead/aes/ffi.rs [legal comment 1]",
+        "src/aead/aes/hw.rs [legal comment 1]",
+        "src/aead/aes/vp.rs [legal comment 1]",
+        "src/aead/gcm.rs [legal comment 1]",
+        "src/aead/gcm/clmul.rs [legal comment 1]",
+        "src/aead/gcm/clmulavxmovbe.rs [legal comment 1]",
+        "src/aead/gcm/neon.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/aead/aes_gcm.rs [legal comment 1]; src/aead/aes_gcm/aarch64.rs [legal comment 1]; src/aead/aes_gcm/aeshwclmulmovbe.rs [legal comment 1]; src/aead/aes_gcm/vaesclmulavx2.rs [legal comment 1]; src/aead/chacha20_poly1305/integrated.rs [legal comment 1]; src/aead/chacha20_poly1305/mod.rs [legal comment 1]; src/aead/poly1305.rs [legal comment 1]; src/arithmetic/limbs/x86_64/mont.rs [legal comment 1]; src/bb/mod.rs [legal comment 1]; src/deprecated_constant_time.rs [legal comment 1]",
+      "length": 768,
+      "offset": 482428,
+      "sha256": "72048c66c621b211f6c0dfde2e164c601b2b0423fe4d0916bb3b3c37c9eaef2c",
+      "sources": [
+        "src/aead/aes_gcm.rs [legal comment 1]",
+        "src/aead/aes_gcm/aarch64.rs [legal comment 1]",
+        "src/aead/aes_gcm/aeshwclmulmovbe.rs [legal comment 1]",
+        "src/aead/aes_gcm/vaesclmulavx2.rs [legal comment 1]",
+        "src/aead/chacha20_poly1305/integrated.rs [legal comment 1]",
+        "src/aead/chacha20_poly1305/mod.rs [legal comment 1]",
+        "src/aead/poly1305.rs [legal comment 1]",
+        "src/arithmetic/limbs/x86_64/mont.rs [legal comment 1]",
+        "src/bb/mod.rs [legal comment 1]",
+        "src/deprecated_constant_time.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/aead/algorithm.rs [legal comment 1]; src/aead/less_safe_key.rs [legal comment 1]; src/aead/opening_key.rs [legal comment 1]; src/aead/sealing_key.rs [legal comment 1]; src/aead/unbound_key.rs [legal comment 1]; src/rsa/public_key.rs [legal comment 1]; src/rsa/public_key_components.rs [legal comment 1]; tests/aead_tests.rs [legal comment 1]",
+      "length": 768,
+      "offset": 483566,
+      "sha256": "b3cb162f8b1889e37cb10b9bdbe6e4bc935be4e179b21a32ec204daff74dd66e",
+      "sources": [
+        "src/aead/algorithm.rs [legal comment 1]",
+        "src/aead/less_safe_key.rs [legal comment 1]",
+        "src/aead/opening_key.rs [legal comment 1]",
+        "src/aead/sealing_key.rs [legal comment 1]",
+        "src/aead/unbound_key.rs [legal comment 1]",
+        "src/rsa/public_key.rs [legal comment 1]",
+        "src/rsa/public_key_components.rs [legal comment 1]",
+        "tests/aead_tests.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/aead/chacha.rs [legal comment 1]",
+      "length": 807,
+      "offset": 484395,
+      "sha256": "0ad1a3cc7a7d9e92db1a9d7c021dbf0b99a723576f6690c4001654a2f588d8f0",
+      "sources": [
+        "src/aead/chacha.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/aead/chacha/fallback.rs [legal comment 1]",
+      "length": 929,
+      "offset": 485272,
+      "sha256": "febed558a6be507d6a0a1644a4aeb21d6adbe39f5384a3f51d6e4087c64a933f",
+      "sources": [
+        "src/aead/chacha/fallback.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/aead/chacha/ffi.rs [legal comment 1]",
+      "length": 768,
+      "offset": 486266,
+      "sha256": "d1c3e8595b158c804dda9bac18d076f2e2dcccf5fbd8dde63e530a9d2642cc06",
+      "sources": [
+        "src/aead/chacha/ffi.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/aead/chacha20_poly1305_openssh.rs [legal comment 1]; src/bits.rs [legal comment 1]; src/cpu.rs [legal comment 1]; src/ec/curve25519.rs [legal comment 1]; src/ec/suite_b.rs [legal comment 1]; src/ec/suite_b/ops.rs [legal comment 1]; src/ec/suite_b/private_key.rs [legal comment 1]; src/ec/suite_b/public_key.rs [legal comment 1]",
+      "length": 763,
+      "offset": 487390,
+      "sha256": "19150b0a6365ccc80859157a2b9e6603efb5bdbaafd845b2384710e0fe567436",
+      "sources": [
+        "src/aead/chacha20_poly1305_openssh.rs [legal comment 1]",
+        "src/bits.rs [legal comment 1]",
+        "src/cpu.rs [legal comment 1]",
+        "src/ec/curve25519.rs [legal comment 1]",
+        "src/ec/suite_b.rs [legal comment 1]",
+        "src/ec/suite_b/ops.rs [legal comment 1]",
+        "src/ec/suite_b/private_key.rs [legal comment 1]",
+        "src/ec/suite_b/public_key.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/aead/gcm/fallback.rs [legal comment 1]",
+      "length": 812,
+      "offset": 488220,
+      "sha256": "da3826979b38e1936c454677d8c435e56f6ec301ce82741382a53e0c10de1ef7",
+      "sources": [
+        "src/aead/gcm/fallback.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/aead/gcm/ffi.rs [legal comment 1]; src/aead/nonce.rs [legal comment 1]; src/aead/quic.rs [legal comment 1]; src/aead/shift.rs [legal comment 1]; src/io.rs [legal comment 1]; src/io/der_writer.rs [legal comment 1]; src/io/positive.rs [legal comment 1]; src/io/writer.rs [legal comment 1]; tests/quic_tests.rs [legal comment 1]",
+      "length": 763,
+      "offset": 489386,
+      "sha256": "c0dd6d7b3309fa831a1aeabae2e45420d06750ed1d5f97e8d4f6021626060ed0",
+      "sources": [
+        "src/aead/gcm/ffi.rs [legal comment 1]",
+        "src/aead/nonce.rs [legal comment 1]",
+        "src/aead/quic.rs [legal comment 1]",
+        "src/aead/shift.rs [legal comment 1]",
+        "src/io.rs [legal comment 1]",
+        "src/io/der_writer.rs [legal comment 1]",
+        "src/io/positive.rs [legal comment 1]",
+        "src/io/writer.rs [legal comment 1]",
+        "tests/quic_tests.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/aead/gcm/vclmulavx2.rs [legal comment 1]",
+      "length": 768,
+      "offset": 490218,
+      "sha256": "e506ebbdf1bcb57746db792b868f8b523c464637059e80d402497f2643310b0f",
+      "sources": [
+        "src/aead/gcm/vclmulavx2.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/aead/overlapping/array.rs [legal comment 1]; src/aead/overlapping/base.rs [legal comment 1]; src/aead/overlapping/mod.rs [legal comment 1]; src/aead/overlapping/partial_block.rs [legal comment 1]; src/bb/boolmask.rs [legal comment 1]; src/digest/sha2/ffi.rs [legal comment 1]; src/digest/sha2/sha2_32.rs [legal comment 1]; src/digest/sha2/sha2_64.rs [legal comment 1]; src/error/input_too_long.rs [legal comment 1]; src/polyfill/cold_error.rs [legal comment 1]; src/polyfill/cstr.rs [legal comment 1]; src/polyfill/notsend.rs [legal comment 1]; src/polyfill/ptr.rs [legal comment 1]; src/polyfill/sliceutil.rs [legal comment 1]; src/tests/bits_tests.rs [legal comment 1]; src/tests/mod.rs [legal comment 1]",
+      "length": 763,
+      "offset": 491721,
+      "sha256": "bddecf3d73f993501ad38d56b85ebcf967d389d2c35c6c15bf1557a499baa0cc",
+      "sources": [
+        "src/aead/overlapping/array.rs [legal comment 1]",
+        "src/aead/overlapping/base.rs [legal comment 1]",
+        "src/aead/overlapping/mod.rs [legal comment 1]",
+        "src/aead/overlapping/partial_block.rs [legal comment 1]",
+        "src/bb/boolmask.rs [legal comment 1]",
+        "src/digest/sha2/ffi.rs [legal comment 1]",
+        "src/digest/sha2/sha2_32.rs [legal comment 1]",
+        "src/digest/sha2/sha2_64.rs [legal comment 1]",
+        "src/error/input_too_long.rs [legal comment 1]",
+        "src/polyfill/cold_error.rs [legal comment 1]",
+        "src/polyfill/cstr.rs [legal comment 1]",
+        "src/polyfill/notsend.rs [legal comment 1]",
+        "src/polyfill/ptr.rs [legal comment 1]",
+        "src/polyfill/sliceutil.rs [legal comment 1]",
+        "src/tests/bits_tests.rs [legal comment 1]",
+        "src/tests/mod.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/aead/poly1305/ffi_arm_neon.rs [legal comment 1]; src/aead/poly1305/ffi_fallback.rs [legal comment 1]",
+      "length": 818,
+      "offset": 492613,
+      "sha256": "2f2f4afce114b8a1b3c1d14a18eeb841fe5803dc553cfda3254bc0eb90e2293b",
+      "sources": [
+        "src/aead/poly1305/ffi_arm_neon.rs [legal comment 1]",
+        "src/aead/poly1305/ffi_fallback.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/agreement.rs [legal comment 1]; src/ec.rs [legal comment 1]; src/ec/curve25519/ops.rs [legal comment 1]; src/ec/suite_b/curve.rs [legal comment 1]; src/ec/suite_b/ecdh.rs [legal comment 1]; src/signature.rs [legal comment 1]; tests/agreement_tests.rs [legal comment 1]; tests/digest_tests.rs [legal comment 1]; tests/ed25519_tests.rs [legal comment 1]; tests/pbkdf2_tests.rs [legal comment 1]",
+      "length": 768,
+      "offset": 493852,
+      "sha256": "7f5ad230d8156d356ddde6fc7da616155c3a22390a4f36edb81e0995990ecf19",
+      "sources": [
+        "src/agreement.rs [legal comment 1]",
+        "src/ec.rs [legal comment 1]",
+        "src/ec/curve25519/ops.rs [legal comment 1]",
+        "src/ec/suite_b/curve.rs [legal comment 1]",
+        "src/ec/suite_b/ecdh.rs [legal comment 1]",
+        "src/signature.rs [legal comment 1]",
+        "tests/agreement_tests.rs [legal comment 1]",
+        "tests/digest_tests.rs [legal comment 1]",
+        "tests/ed25519_tests.rs [legal comment 1]",
+        "tests/pbkdf2_tests.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/arithmetic.rs [legal comment 1]",
+      "length": 768,
+      "offset": 494680,
+      "sha256": "1e84d94cf2609b964e7a1a8118c40ff5fac131e75f1e44290c86bfe80c2ae22f",
+      "sources": [
+        "src/arithmetic.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/arithmetic/bigint.rs [legal comment 1]; src/arithmetic/bigint/boxed_limbs.rs [legal comment 1]; src/arithmetic/bigint/private_exponent.rs [legal comment 1]",
+      "length": 768,
+      "offset": 495632,
+      "sha256": "fea1e7957d9e391d2f48d8a875807b136d7fc00144249e7e3ba41e73c8218f72",
+      "sources": [
+        "src/arithmetic/bigint.rs [legal comment 1]",
+        "src/arithmetic/bigint/boxed_limbs.rs [legal comment 1]",
+        "src/arithmetic/bigint/private_exponent.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/arithmetic/ffi.rs [legal comment 1]",
+      "length": 768,
+      "offset": 496464,
+      "sha256": "81bdb0e7c0426a845a01b30cb149984faca6f332e13641403de7f2acc4515e39",
+      "sources": [
+        "src/arithmetic/ffi.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/arithmetic/inout.rs [legal comment 1]; src/arithmetic/limbs/aarch64/mod.rs [legal comment 1]; src/arithmetic/limbs/aarch64/mont.rs [legal comment 1]; src/arithmetic/limbs/mod.rs [legal comment 1]; src/arithmetic/limbs/x86_64/mod.rs [legal comment 1]; src/arithmetic/limbs512/mod.rs [legal comment 1]; src/arithmetic/limbs512/storage.rs [legal comment 1]; src/deprecated_test.rs [legal comment 1]; src/polyfill/slice/as_chunks.rs [legal comment 1]; src/polyfill/slice/as_chunks_mut.rs [legal comment 1]",
+      "length": 763,
+      "offset": 497762,
+      "sha256": "9516efec29bcdaaf2e31549fddd0ec52cf5d91c9bfa96702fb0d666f6d8d8f5a",
+      "sources": [
+        "src/arithmetic/inout.rs [legal comment 1]",
+        "src/arithmetic/limbs/aarch64/mod.rs [legal comment 1]",
+        "src/arithmetic/limbs/aarch64/mont.rs [legal comment 1]",
+        "src/arithmetic/limbs/mod.rs [legal comment 1]",
+        "src/arithmetic/limbs/x86_64/mod.rs [legal comment 1]",
+        "src/arithmetic/limbs512/mod.rs [legal comment 1]",
+        "src/arithmetic/limbs512/storage.rs [legal comment 1]",
+        "src/deprecated_test.rs [legal comment 1]",
+        "src/polyfill/slice/as_chunks.rs [legal comment 1]",
+        "src/polyfill/slice/as_chunks_mut.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/arithmetic/montgomery.rs [legal comment 1]",
+      "length": 768,
+      "offset": 498596,
+      "sha256": "77e2f0aee6927969cdb1b5b7bd894539728127b364515d4981f01ac990359f9e",
+      "sources": [
+        "src/arithmetic/montgomery.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/arithmetic/n0.rs [legal comment 1]",
+      "length": 768,
+      "offset": 499427,
+      "sha256": "38a6ec7a22e71a78f91d9b785a3657f1b119beb8bd8b0e04df316b1880ca62d2",
+      "sources": [
+        "src/arithmetic/n0.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/bssl.rs [legal comment 1]; src/hkdf.rs [legal comment 1]; src/io/der.rs [legal comment 1]; src/pbkdf2.rs [legal comment 1]; tests/hkdf_tests.rs [legal comment 1]",
+      "length": 763,
+      "offset": 500385,
+      "sha256": "dfb17ab986e447f02bce4df5a83543ac374ee5306e170ea79d9b6abb47652720",
+      "sources": [
+        "src/bssl.rs [legal comment 1]",
+        "src/hkdf.rs [legal comment 1]",
+        "src/io/der.rs [legal comment 1]",
+        "src/pbkdf2.rs [legal comment 1]",
+        "tests/hkdf_tests.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/c.rs [legal comment 1]",
+      "length": 768,
+      "offset": 501199,
+      "sha256": "4a42f2ce6a381bc99573c7bb3402bfc2a6ae999428ec28695e825fd20ff985c5",
+      "sources": [
+        "src/c.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/cpu/arm.rs [legal comment 1]; src/cpu/arm/darwin.rs [legal comment 1]; src/cpu/arm/fuchsia.rs [legal comment 1]; src/cpu/arm/linux.rs [legal comment 1]; src/cpu/arm/windows.rs [legal comment 1]; src/error/into_unspecified.rs [legal comment 1]; src/error/key_rejected.rs [legal comment 1]; src/error/mod.rs [legal comment 1]; src/error/unspecified.rs [legal comment 1]",
+      "length": 768,
+      "offset": 502363,
+      "sha256": "a1de28dd15d492d04a589bd24d738a78e6ff86b7100017c23961a2f3b2693132",
+      "sources": [
+        "src/cpu/arm.rs [legal comment 1]",
+        "src/cpu/arm/darwin.rs [legal comment 1]",
+        "src/cpu/arm/fuchsia.rs [legal comment 1]",
+        "src/cpu/arm/linux.rs [legal comment 1]",
+        "src/cpu/arm/windows.rs [legal comment 1]",
+        "src/error/into_unspecified.rs [legal comment 1]",
+        "src/error/key_rejected.rs [legal comment 1]",
+        "src/error/mod.rs [legal comment 1]",
+        "src/error/unspecified.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/cpu/intel.rs [legal comment 1]",
+      "length": 768,
+      "offset": 503190,
+      "sha256": "330113b2198c4da8fda6cb1b723a4bf177d7d471e1954c3f786e0cc3815520db",
+      "sources": [
+        "src/cpu/intel.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/debug.rs [legal comment 1]",
+      "length": 764,
+      "offset": 504013,
+      "sha256": "a264e6ecbb96738bd7385067768eecae76843dad219a8f5549bf4327a085d9b7",
+      "sources": [
+        "src/debug.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/digest.rs [legal comment 1]; src/digest/dynstate.rs [legal comment 1]; src/ec/curve25519/scalar.rs [legal comment 1]; tests/rand_tests.rs [legal comment 1]",
+      "length": 768,
+      "offset": 504961,
+      "sha256": "e6be49f5608cf90f6b17ca48506967b7cd2ac6a1afafd16891395ea7eb35025a",
+      "sources": [
+        "src/digest.rs [legal comment 1]",
+        "src/digest/dynstate.rs [legal comment 1]",
+        "src/ec/curve25519/scalar.rs [legal comment 1]",
+        "tests/rand_tests.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/digest/sha1.rs [legal comment 1]",
+      "length": 799,
+      "offset": 505790,
+      "sha256": "17c1e9bd9a6e4c153fb9d4799c782ec3c73209badd370ba6af6cc013bd7aa428",
+      "sources": [
+        "src/digest/sha1.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/digest/sha2/fallback.rs [legal comment 1]",
+      "length": 768,
+      "offset": 506659,
+      "sha256": "def0956b3c24824a62c8f8f6b31f0d5ecf13a82ddfb4a14fca4b9292c62c09cc",
+      "sources": [
+        "src/digest/sha2/fallback.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/digest/sha2/mod.rs [legal comment 1]",
+      "length": 768,
+      "offset": 507492,
+      "sha256": "571a10f8047a0fb1fd161d04896dfca6373bf8d0606ea49a948ad252f37d5aa0",
+      "sources": [
+        "src/digest/sha2/mod.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/ec/suite_b/ops/elem.rs [legal comment 1]; src/pkcs8.rs [legal comment 1]; tests/rsa_tests.rs [legal comment 1]",
+      "length": 763,
+      "offset": 508399,
+      "sha256": "b513b7bc1a6844fa2a27e39d42c2bf2f49e142c9afe928ac458c2203528d0b6a",
+      "sources": [
+        "src/ec/suite_b/ops/elem.rs [legal comment 1]",
+        "src/pkcs8.rs [legal comment 1]",
+        "tests/rsa_tests.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/ec/suite_b/ops/p256.rs [legal comment 1]; src/ec/suite_b/ops/p384.rs [legal comment 1]",
+      "length": 768,
+      "offset": 509277,
+      "sha256": "1992bdfcc167bcc2e41a493b905b4fdf05ae4be32350ebe0ab0f5aa925596162",
+      "sources": [
+        "src/ec/suite_b/ops/p256.rs [legal comment 1]",
+        "src/ec/suite_b/ops/p384.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/limb.rs [legal comment 1]",
+      "length": 793,
+      "offset": 510099,
+      "sha256": "ee0af6ac0629846be4aeaccce432c35b254cde9eb1819467e9bb3023ff5e8d21",
+      "sources": [
+        "src/limb.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/polyfill/array_split_map.rs [legal comment 1]",
+      "length": 763,
+      "offset": 510966,
+      "sha256": "cf5e6bf5152921c93919cdaa7555a65b6f2ffda8018f44b5655c1d5fead36a51",
+      "sources": [
+        "src/polyfill/array_split_map.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/polyfill/once_cell/LICENSE-APACHE",
+      "length": 10847,
+      "offset": 511791,
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "sources": [
+        "src/polyfill/once_cell/LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/polyfill/once_cell/LICENSE-MIT",
+      "length": 1022,
+      "offset": 522697,
+      "sha256": "6ee2ed6c77710de911761acd5fc1ad1da00f476beb1a7ef27e78c2d1858deafc",
+      "sources": [
+        "src/polyfill/once_cell/LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/polyfill/slice.rs [legal comment 1]",
+      "length": 1089,
+      "offset": 523783,
+      "sha256": "a8040aa6ad623505276a81cf93128024eb4f8e5411b78b15c68a43ba3290295d",
+      "sources": [
+        "src/polyfill/slice.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "src/polyfill/unwrap_const.rs [legal comment 1]",
+      "length": 763,
+      "offset": 524943,
+      "sha256": "514793d77703272686d8a5d6fd1f8276c1fbeae542b55bd57456fd71f3f75f4c",
+      "sources": [
+        "src/polyfill/unwrap_const.rs [legal comment 1]"
+      ]
+    },
+    {
+      "component": "ring@0.17.14",
+      "label": "third_party/fiat/LICENSE",
+      "length": 638,
+      "offset": 525755,
+      "sha256": "9eacbcb81be660840c714a560a9d65ba07913db98dd4baf969f78dd499fdd60f",
+      "sources": [
+        "third_party/fiat/LICENSE"
+      ]
+    },
+    {
+      "component": "rustls@0.23.46",
+      "label": "LICENSE-APACHE",
+      "length": 10847,
+      "offset": 526434,
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "rustls@0.23.46",
+      "label": "LICENSE-ISC",
+      "length": 775,
+      "offset": 537319,
+      "sha256": "7cfafc877eccc46c0e346ccbaa5c51bb6b894d2b818e617d970211e232785ad4",
+      "sources": [
+        "LICENSE-ISC"
+      ]
+    },
+    {
+      "component": "rustls@0.23.46",
+      "label": "LICENSE-MIT",
+      "length": 1082,
+      "offset": 538132,
+      "sha256": "709e3175b4212f7b13aa93971c9f62ff8c69ec45ad8c6532a7e0c41d7a7d6f8c",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "rustls-pki-types@1.15.1",
+      "label": "LICENSE-APACHE",
+      "length": 10835,
+      "offset": 539264,
+      "sha256": "45fd05c4865e7c350b98ad7ac50e1b15462d49af4a91e9b0c9dd933dc9a69742",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "rustls-pki-types@1.15.1",
+      "label": "LICENSE-MIT",
+      "length": 1080,
+      "offset": 550146,
+      "sha256": "9117d922e667125508dde62b02c1f57ed22f5ad21eb536aa2e2d99e1c796e639",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "rustls-webpki@0.103.16",
+      "label": "LICENSE",
+      "length": 916,
+      "offset": 551268,
+      "sha256": "5b698ca13897be3afdb7174256fa1574f8c6892b8bea1a66dd6469d3fe27885a",
+      "sources": [
+        "LICENSE"
+      ]
+    },
+    {
+      "component": "serde@1.0.229",
+      "label": "LICENSE-APACHE",
+      "length": 9723,
+      "offset": 552224,
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "serde@1.0.229",
+      "label": "LICENSE-MIT",
+      "length": 1023,
+      "offset": 561984,
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "serde_core@1.0.229",
+      "label": "LICENSE-APACHE",
+      "length": 9723,
+      "offset": 563052,
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "serde_core@1.0.229",
+      "label": "LICENSE-MIT",
+      "length": 1023,
+      "offset": 572817,
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "serde_derive@1.0.229",
+      "label": "LICENSE-APACHE",
+      "length": 9723,
+      "offset": 573887,
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "serde_derive@1.0.229",
+      "label": "LICENSE-MIT",
+      "length": 1023,
+      "offset": 583654,
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "serde_json@1.0.151",
+      "label": "LICENSE-APACHE",
+      "length": 9723,
+      "offset": 584722,
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "serde_json@1.0.151",
+      "label": "LICENSE-MIT",
+      "length": 1023,
+      "offset": 594487,
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "serde_spanned@0.6.9",
+      "label": "LICENSE-APACHE",
+      "length": 11358,
+      "offset": 595556,
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "serde_spanned@0.6.9",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 606957,
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "sha1@0.10.7",
+      "label": "LICENSE-APACHE",
+      "length": 10849,
+      "offset": 608057,
+      "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "sha1@0.10.7",
+      "label": "LICENSE-MIT",
+      "length": 1138,
+      "offset": 618941,
+      "sha256": "b4eb00df6e2a4d22518fcaa6a2b4646f249b3a3c9814509b22bd2091f1392ff1",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "sha2@0.10.9",
+      "label": "LICENSE-APACHE",
+      "length": 10849,
+      "offset": 620117,
+      "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "sha2@0.10.9",
+      "label": "LICENSE-MIT",
+      "length": 1138,
+      "offset": 631001,
+      "sha256": "b4eb00df6e2a4d22518fcaa6a2b4646f249b3a3c9814509b22bd2091f1392ff1",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "strsim@0.11.1",
+      "label": "LICENSE",
+      "length": 1166,
+      "offset": 632172,
+      "sha256": "1e697ce8d21401fbf1bddd9b5c3fd4c4c79ae1e3bdf51f81761c85e11d5a89cd",
+      "sources": [
+        "LICENSE"
+      ]
+    },
+    {
+      "component": "subtle@2.6.1",
+      "label": "LICENSE",
+      "length": 1582,
+      "offset": 633370,
+      "sha256": "d1fc1bc0d155df60b2e7705b6b2ae02a05c96f948e1cec6e2fb86360b09f346b",
+      "sources": [
+        "LICENSE"
+      ]
+    },
+    {
+      "component": "syn@3.0.6",
+      "label": "LICENSE-APACHE",
+      "length": 9723,
+      "offset": 634988,
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "syn@3.0.6",
+      "label": "LICENSE-MIT",
+      "length": 1023,
+      "offset": 644744,
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "time@0.3.55",
+      "label": "LICENSE-Apache",
+      "length": 10174,
+      "offset": 645805,
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+      "sources": [
+        "LICENSE-Apache"
+      ]
+    },
+    {
+      "component": "time@0.3.55",
+      "label": "LICENSE-MIT",
+      "length": 1057,
+      "offset": 656014,
+      "sha256": "2537228d9a1b44a5dc595241349cae7090b326c8de165aaf89bfddef4a00d0fc",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "time-core@0.1.9",
+      "label": "LICENSE-Apache",
+      "length": 10174,
+      "offset": 657113,
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+      "sources": [
+        "LICENSE-Apache"
+      ]
+    },
+    {
+      "component": "time-core@0.1.9",
+      "label": "LICENSE-MIT",
+      "length": 1057,
+      "offset": 667326,
+      "sha256": "2537228d9a1b44a5dc595241349cae7090b326c8de165aaf89bfddef4a00d0fc",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "toml@0.8.23",
+      "label": "LICENSE-APACHE",
+      "length": 11358,
+      "offset": 668421,
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "toml@0.8.23",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 679814,
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "toml_datetime@0.6.11",
+      "label": "LICENSE-APACHE",
+      "length": 11358,
+      "offset": 680923,
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "toml_datetime@0.6.11",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 692325,
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "toml_edit@0.22.27",
+      "label": "LICENSE-APACHE",
+      "length": 11358,
+      "offset": 693431,
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "toml_edit@0.22.27",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 704830,
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "toml_write@0.1.2",
+      "label": "LICENSE-APACHE",
+      "length": 11358,
+      "offset": 705935,
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "toml_write@0.1.2",
+      "label": "LICENSE-MIT",
+      "length": 1062,
+      "offset": 717333,
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "typenum@1.20.1",
+      "label": "LICENSE",
+      "length": 17,
+      "offset": 718429,
+      "sha256": "db11fec9946737df39ca3898d9cd8c10ec6f6c3a884a6802b0ad0b81b4e8f23a",
+      "sources": [
+        "LICENSE"
+      ]
+    },
+    {
+      "component": "typenum@1.20.1",
+      "label": "LICENSE-APACHE",
+      "length": 10835,
+      "offset": 718487,
+      "sha256": "516b24e051bf5630880ebbd55c40a25ce9552ebaf8970a53e8976eb70e522406",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "typenum@1.20.1",
+      "label": "LICENSE-MIT",
+      "length": 1083,
+      "offset": 729360,
+      "sha256": "a825bd853ab71619a4923d7b4311221427848070ff44d990da39b0b274c1683f",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "unicode-ident@1.0.26",
+      "label": "LICENSE-APACHE",
+      "length": 9723,
+      "offset": 730490,
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "unicode-ident@1.0.26",
+      "label": "LICENSE-MIT",
+      "length": 1023,
+      "offset": 740257,
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "unicode-ident@1.0.26",
+      "label": "LICENSE-UNICODE",
+      "length": 1995,
+      "offset": 741328,
+      "sha256": "f7db81051789b729fea528a63ec4c938fdcb93d9d61d97dc8cc2e9df6d47f2a1",
+      "sources": [
+        "LICENSE-UNICODE"
+      ]
+    },
+    {
+      "component": "untrusted@0.9.0",
+      "label": "LICENSE.txt",
+      "length": 769,
+      "offset": 743362,
+      "sha256": "7abd9b6960dcf7d4d0a48606a5b71bfe37d472db68d70637f3a58a56785f1621",
+      "sources": [
+        "LICENSE.txt"
+      ]
+    },
+    {
+      "component": "ureq@3.4.2",
+      "label": "LICENSE-APACHE",
+      "length": 11357,
+      "offset": 744168,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "ureq@3.4.2",
+      "label": "LICENSE-MIT",
+      "length": 1072,
+      "offset": 755559,
+      "sha256": "7e5886959f67f8c75063a9d55cd3cb08c5a8cbea9a944fa1df2d4ae038f53721",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "ureq-proto@0.6.4",
+      "label": "LICENSE-APACHE.txt",
+      "length": 11358,
+      "offset": 756678,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "sources": [
+        "LICENSE-APACHE.txt"
+      ]
+    },
+    {
+      "component": "ureq-proto@0.6.4",
+      "label": "LICENSE-MIT.txt",
+      "length": 1055,
+      "offset": 768080,
+      "sha256": "5b460f37be48ac4cf2181596181cc6cae432fc2caae05944873f380730829a4b",
+      "sources": [
+        "LICENSE-MIT.txt"
+      ]
+    },
+    {
+      "component": "utf8-zero@0.8.1",
+      "label": "LICENSE-APACHE",
+      "length": 9723,
+      "offset": 769177,
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "utf8-zero@0.8.1",
+      "label": "LICENSE-MIT",
+      "length": 1023,
+      "offset": 778939,
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "utf8parse@0.2.2",
+      "label": "LICENSE-APACHE",
+      "length": 9723,
+      "offset": 780004,
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "utf8parse@0.2.2",
+      "label": "LICENSE-MIT",
+      "length": 1052,
+      "offset": 789766,
+      "sha256": "e4c9b06fa850cb9b540a5e400e9f6394cf15efcf4098144de477d1d3dae10150",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "uuid@1.26.1",
+      "label": "LICENSE-APACHE",
+      "length": 10847,
+      "offset": 790856,
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "uuid@1.26.1",
+      "label": "LICENSE-MIT",
+      "length": 1157,
+      "offset": 801738,
+      "sha256": "436bc5a105d8e57dcd8778730f3754f7bf39c14d2f530e4cde4bd2d17a83ec3d",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "webpki-roots@1.0.10",
+      "label": "LICENSE",
+      "length": 2371,
+      "offset": 802934,
+      "sha256": "e271993808fec50ab29350b39539cdec611a9103f827e0aa26d61da70e2d33f8",
+      "sources": [
+        "LICENSE"
+      ]
+    },
+    {
+      "component": "winnow@0.7.15",
+      "label": "LICENSE-MIT",
+      "length": 1023,
+      "offset": 805342,
+      "sha256": "cb5aedb296c5246d1f22e9099f925a65146f9f0d6b4eebba97fd27a6cdbbab2d",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "yasna@0.6.0",
+      "label": "LICENSE-APACHE",
+      "length": 10847,
+      "offset": 806403,
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "yasna@0.6.0",
+      "label": "LICENSE-MIT",
+      "length": 1055,
+      "offset": 817285,
+      "sha256": "2a7df90e60fd5512b8bca35d3ce90e068f21c52d962855053fd1d9e2e7ca0f16",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "zeroize@1.9.0",
+      "label": "LICENSE-APACHE",
+      "length": 11358,
+      "offset": 818380,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "sources": [
+        "LICENSE-APACHE"
+      ]
+    },
+    {
+      "component": "zeroize@1.9.0",
+      "label": "LICENSE-MIT",
+      "length": 1082,
+      "offset": 829775,
+      "sha256": "8c7516d4b27b1e495be5e38b612298b63de48d05f49cdac94f70f3cd70f8864b",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "zmij@1.0.23",
+      "label": "LICENSE-MIT",
+      "length": 1023,
+      "offset": 830892,
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "sources": [
+        "LICENSE-MIT"
+      ]
+    },
+    {
+      "component": "unicode-uts46-data",
+      "label": "Unicode 17.0.0 / UTS 46 revision 35 source attribution",
+      "length": 1342,
+      "offset": 832000,
+      "sha256": "49b10b9241735fa737ec70ee239ce4d3c866acc75090c5ec54ff5baaea743005",
+      "sources": [
+        "crates/ukai-jail/data/uts46_unicode17_tables.rs [generated header]"
+      ]
+    },
+    {
+      "component": "unicode-uts46-data",
+      "label": "Unicode License v3",
+      "length": 1995,
+      "offset": 833391,
+      "sha256": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+      "sources": [
+        "https://www.unicode.org/license.txt",
+        "crates/ukai-jail/dist/UNICODE_LICENSE"
+      ]
+    },
+    {
+      "component": "rust-standard-library",
+      "label": "Rust 1.98.1 COPYRIGHT-library.html, readable body text",
+      "length": 1439246,
+      "offset": 835474,
+      "sha256": "b0799bda1aa6907a74099db26bebc0c8aaf059834d47ff80e695dfc21f90528f",
+      "sources": [
+        "share/doc/rust/COPYRIGHT-library.html"
+      ]
+    },
+    {
+      "component": "rust-standard-library",
+      "label": "licenses/Apache-2.0.txt",
+      "length": 10280,
+      "offset": 2274777,
+      "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff",
+      "sources": [
+        "share/doc/rust/licenses/Apache-2.0.txt"
+      ]
+    },
+    {
+      "component": "rust-standard-library",
+      "label": "licenses/BSD-2-Clause.txt",
+      "length": 1267,
+      "offset": 2285116,
+      "sha256": "f32fb3b417a194167cfad068223fc975ba96c5960513a10f66a3c28720aec1df",
+      "sources": [
+        "share/doc/rust/licenses/BSD-2-Clause.txt"
+      ]
+    },
+    {
+      "component": "rust-standard-library",
+      "label": "licenses/LLVM-exception.txt",
+      "length": 919,
+      "offset": 2286444,
+      "sha256": "e34c58338bd89d43e709e226610d8f32b3e3c47f4ad9a99a8dc1d4ac7842488e",
+      "sources": [
+        "share/doc/rust/licenses/LLVM-exception.txt"
+      ]
+    },
+    {
+      "component": "rust-standard-library",
+      "label": "licenses/MIT.txt",
+      "length": 1078,
+      "offset": 2287413,
+      "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0",
+      "sources": [
+        "share/doc/rust/licenses/MIT.txt"
+      ]
+    },
+    {
+      "component": "rust-standard-library",
+      "label": "licenses/Unicode-3.0.txt",
+      "length": 1995,
+      "offset": 2288549,
+      "sha256": "f5062c9a188d81dfe66b56db4182dcf9e4b17c0d9b0d311a8e20b3a1b075c443",
+      "sources": [
+        "share/doc/rust/licenses/Unicode-3.0.txt"
+      ]
+    }
+  ],
+  "inputs_sha256": {
+    "Cargo.lock": "0ea5c6f32c427532e563313d3a6d0d8a8f1faf9759e24e0ff59a1b09a0ba45e3",
+    "Cargo.toml": "3cc10c9a71a628d9f3183aa8dd58985de1278c1d2b4bf576aed41c3de81a031e",
+    "LICENSE": "38184627dc06fbee992333e9d7009f4d9efdc724f00edf305067e266fa8cab11",
+    "crates/ukai-jail/Cargo.toml": "5902562fd0ccc73560abf72e2bf6ff70501543e5ecea7767749fa3be571431e4",
+    "crates/ukai-jail/data/uts46_unicode17_tables.rs": "645e9fef4c807e756ec42eb4b6e1eb12ab91a5e36f8602cbd827e82f6668f714",
+    "crates/ukai-jail/dist/UNICODE_LICENSE": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+    "crates/ukai-jail/dist/WEBPKI_ROOTS_LICENSE": "e271993808fec50ab29350b39539cdec611a9103f827e0aa26d61da70e2d33f8",
+    "crates/ukai-jail/dist/notices.py": "6f8ec489942893937769bc7fb1a1c2c641d58d826371f5ae39ceacd9077fd090",
+    "crates/ukai-jail/dist/release.json": "a72827852f5558cf8608b5f24d3c7a54c89dd7d46d29dc82aca12c5e9cc8548b",
+    "crates/ukai-records/Cargo.toml": "c13609044b387af128792c8dcbc562d80cb08ef87c8c6404190de05744b4582e",
+    "rust-toolchain.toml": "740e56dec60a3bf551dcecbc05811bb86fba460a57d9a7fe1e706d8a35de4543"
+  },
+  "packages": [
+    {
+      "checksum": "824a212faf96e9acacdbd09febd34438f8f711fb84e09a8916013cd7815ca28d",
+      "license": "MIT OR Apache-2.0",
+      "name": "anstream",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "checksum": "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000",
+      "license": "MIT OR Apache-2.0",
+      "name": "anstyle",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.0.14"
+    },
+    {
+      "checksum": "52ce7f38b242319f7cabaa6813055467063ecdc9d355bbb4ce0c68908cd8130e",
+      "license": "MIT OR Apache-2.0",
+      "name": "anstyle-parse",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "checksum": "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc",
+      "license": "MIT OR Apache-2.0",
+      "name": "anstyle-query",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.1.5"
+    },
+    {
+      "checksum": "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6",
+      "license": "MIT OR Apache-2.0",
+      "name": "base64",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.22.1"
+    },
+    {
+      "checksum": "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5",
+      "license": "MIT OR Apache-2.0",
+      "name": "base64",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.23.1"
+    },
+    {
+      "checksum": "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71",
+      "license": "MIT OR Apache-2.0",
+      "name": "block-buffer",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.10.4"
+    },
+    {
+      "checksum": "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04",
+      "license": "MIT",
+      "name": "bytes",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.12.1"
+    },
+    {
+      "checksum": "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600",
+      "license": "MIT OR Apache-2.0",
+      "name": "cfg-if",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.0.5"
+    },
+    {
+      "checksum": "aa8876b300ab35ba921adea3dfd70157a46249b33f95c9084ae5709785478946",
+      "license": "MIT OR Apache-2.0",
+      "name": "clap",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "4.6.7"
+    },
+    {
+      "checksum": "ec0797fb7aeb1406c84efac526901f7ec3ead2124f946b494e72879d4b54704d",
+      "license": "MIT OR Apache-2.0",
+      "name": "clap_builder",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "4.6.7"
+    },
+    {
+      "checksum": "f9c751b79415d4e559e3d1fcf128e09e720eb673a06d26cf6f392d37d75b66e0",
+      "license": "MIT OR Apache-2.0",
+      "name": "clap_derive",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "4.6.7"
+    },
+    {
+      "checksum": "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486",
+      "license": "MIT OR Apache-2.0",
+      "name": "clap_lex",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.1.1"
+    },
+    {
+      "checksum": "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570",
+      "license": "MIT OR Apache-2.0",
+      "name": "colorchoice",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.0.5"
+    },
+    {
+      "checksum": "59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280",
+      "license": "MIT OR Apache-2.0",
+      "name": "cpufeatures",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.2.17"
+    },
+    {
+      "checksum": "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a",
+      "license": "MIT OR Apache-2.0",
+      "name": "crypto-common",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.1.7"
+    },
+    {
+      "checksum": "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c",
+      "license": "MIT OR Apache-2.0",
+      "name": "deranged",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.5.8"
+    },
+    {
+      "checksum": "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292",
+      "license": "MIT OR Apache-2.0",
+      "name": "digest",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.10.7"
+    },
+    {
+      "checksum": "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f",
+      "license": "Apache-2.0 OR MIT",
+      "name": "equivalent",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.0.2"
+    },
+    {
+      "checksum": "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a",
+      "license": "MIT",
+      "name": "generic-array",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.14.7"
+    },
+    {
+      "checksum": "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0",
+      "license": "MIT OR Apache-2.0",
+      "name": "getrandom",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.2.17"
+    },
+    {
+      "checksum": "300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099",
+      "license": "MIT OR Apache-2.0",
+      "name": "getrandom",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.4.3"
+    },
+    {
+      "checksum": "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a",
+      "license": "MIT OR Apache-2.0",
+      "name": "hashbrown",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.17.1"
+    },
+    {
+      "checksum": "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea",
+      "license": "MIT OR Apache-2.0",
+      "name": "heck",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.5.0"
+    },
+    {
+      "checksum": "918d3568bebf352712bc2ef3d46a8bcf1a75b373be6539de198e9105cbbf9ce0",
+      "license": "MIT OR Apache-2.0",
+      "name": "http",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.5.0"
+    },
+    {
+      "checksum": "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87",
+      "license": "MIT OR Apache-2.0",
+      "name": "httparse",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.10.1"
+    },
+    {
+      "checksum": "cc4e190f5d26ca7051642629da2c52fc03bde85a03197c99408dcd291734c855",
+      "license": "Apache-2.0 OR MIT",
+      "name": "indexmap",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "2.14.2"
+    },
+    {
+      "checksum": "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695",
+      "license": "MIT OR Apache-2.0",
+      "name": "is_terminal_polyfill",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.70.2"
+    },
+    {
+      "checksum": "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682",
+      "license": "MIT OR Apache-2.0",
+      "name": "itoa",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.0.18"
+    },
+    {
+      "checksum": "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2",
+      "license": "MIT OR Apache-2.0",
+      "name": "libc",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.2.189"
+    },
+    {
+      "checksum": "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6",
+      "license": "MIT OR Apache-2.0",
+      "name": "log",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.4.34"
+    },
+    {
+      "checksum": "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98",
+      "license": "Unlicense OR MIT",
+      "name": "memchr",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "2.8.3"
+    },
+    {
+      "checksum": "521739c6d2bac4aa25192232afe6841231376b2b26d4d9fae5ecf8ca5772e441",
+      "license": "MIT OR Apache-2.0",
+      "name": "num-conv",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.2.2"
+    },
+    {
+      "checksum": "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50",
+      "license": "MIT OR Apache-2.0",
+      "name": "once_cell",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.21.4"
+    },
+    {
+      "checksum": "d354a98a3d1251555de99e8fdd8afda05573c31b82f59063a7b0a29b5527f120",
+      "license": "MIT",
+      "name": "pem",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "4.0.0"
+    },
+    {
+      "checksum": "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220",
+      "license": "MIT OR Apache-2.0",
+      "name": "percent-encoding",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "2.3.2"
+    },
+    {
+      "checksum": "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391",
+      "license": "MIT OR Apache-2.0",
+      "name": "powerfmt",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.2.0"
+    },
+    {
+      "checksum": "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9",
+      "license": "MIT OR Apache-2.0",
+      "name": "proc-macro2",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.0.107"
+    },
+    {
+      "checksum": "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001",
+      "license": "MIT OR Apache-2.0",
+      "name": "quote",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.0.47"
+    },
+    {
+      "checksum": "8774e05a7d0de114588e6a28fe7e71694b82614ed569d86d8b389dfbc98b8ad8",
+      "license": "MIT OR Apache-2.0",
+      "name": "rcgen",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.14.10"
+    },
+    {
+      "checksum": "a4689e6c2294d81e88dc6261c768b63bc4fcdb852be6d1352498b114f61383b7",
+      "license": "Apache-2.0 AND ISC",
+      "name": "ring",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.17.14"
+    },
+    {
+      "checksum": "48e13bd8c0e9365c43cfa5c9e8f9ad49d3c8444926c9aac819e0e4dc503c8fdf",
+      "license": "Apache-2.0 OR ISC OR MIT",
+      "name": "rustls",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.23.46"
+    },
+    {
+      "checksum": "2f4925028c7eb5d1fcdaf196971378ed9d2c1c4efc7dc5d011256f76c99c0a96",
+      "license": "MIT OR Apache-2.0",
+      "name": "rustls-pki-types",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.15.1"
+    },
+    {
+      "checksum": "4443b1b6d39d7c663139942cc4558262562d2c84123bb6282ef177009ca8b281",
+      "license": "ISC",
+      "name": "rustls-webpki",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.103.16"
+    },
+    {
+      "checksum": "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba",
+      "license": "MIT OR Apache-2.0",
+      "name": "serde",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.0.229"
+    },
+    {
+      "checksum": "67dca2c9c51e58a4791a4b1ed58308b39c64224d349a935ab5039aa360942a48",
+      "license": "MIT OR Apache-2.0",
+      "name": "serde_core",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.0.229"
+    },
+    {
+      "checksum": "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348",
+      "license": "MIT OR Apache-2.0",
+      "name": "serde_derive",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.0.229"
+    },
+    {
+      "checksum": "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14",
+      "license": "MIT OR Apache-2.0",
+      "name": "serde_json",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.0.151"
+    },
+    {
+      "checksum": "bf41e0cfaf7226dca15e8197172c295a782857fcb97fad1808a166870dee75a3",
+      "license": "MIT OR Apache-2.0",
+      "name": "serde_spanned",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.6.9"
+    },
+    {
+      "checksum": "a978451301f4db1d02937a4ab3ccce137717b81826e79b7d49ffe3244a13c3b8",
+      "license": "MIT OR Apache-2.0",
+      "name": "sha1",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.10.7"
+    },
+    {
+      "checksum": "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283",
+      "license": "MIT OR Apache-2.0",
+      "name": "sha2",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.10.9"
+    },
+    {
+      "checksum": "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f",
+      "license": "MIT",
+      "name": "strsim",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.11.1"
+    },
+    {
+      "checksum": "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292",
+      "license": "BSD-3-Clause",
+      "name": "subtle",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "2.6.1"
+    },
+    {
+      "checksum": "8593e8e72159ed2257d083c7a454a85cbf854f37a0966d8d483aff8c8a3ebcee",
+      "license": "MIT OR Apache-2.0",
+      "name": "syn",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "3.0.6"
+    },
+    {
+      "checksum": "cdb87b95ec50ddfa440816d227a17b2ccbdda963a316a727fda0fc4334f7d134",
+      "license": "MIT OR Apache-2.0",
+      "name": "time",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.3.55"
+    },
+    {
+      "checksum": "9e1c906769ad99c88eaa54e728060edef082f8e358ff32030cb7c7d315e81109",
+      "license": "MIT OR Apache-2.0",
+      "name": "time-core",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.1.9"
+    },
+    {
+      "checksum": "dc1beb996b9d83529a9e75c17a1686767d148d70663143c7854d8b4a09ced362",
+      "license": "MIT OR Apache-2.0",
+      "name": "toml",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.8.23"
+    },
+    {
+      "checksum": "22cddaf88f4fbc13c51aebbf5f8eceb5c7c5a9da2ac40a13519eb5b0a0e8f11c",
+      "license": "MIT OR Apache-2.0",
+      "name": "toml_datetime",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.6.11"
+    },
+    {
+      "checksum": "41fe8c660ae4257887cf66394862d21dbca4a6ddd26f04a3560410406a2f819a",
+      "license": "MIT OR Apache-2.0",
+      "name": "toml_edit",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.22.27"
+    },
+    {
+      "checksum": "5d99f8c9a7727884afe522e9bd5edbfc91a3312b36a77b5fb8926e4c31a41801",
+      "license": "MIT OR Apache-2.0",
+      "name": "toml_write",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.1.2"
+    },
+    {
+      "checksum": "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20",
+      "license": "MIT OR Apache-2.0",
+      "name": "typenum",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.20.1"
+    },
+    {
+      "checksum": "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954",
+      "license": "(MIT OR Apache-2.0) AND Unicode-3.0",
+      "name": "unicode-ident",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.0.26"
+    },
+    {
+      "checksum": "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1",
+      "license": "ISC",
+      "name": "untrusted",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.9.0"
+    },
+    {
+      "checksum": "9a7ac20be9b7726e0bbdbf974c059676d9acb1cd414961f570a4e8231cacd7fc",
+      "license": "MIT OR Apache-2.0",
+      "name": "ureq",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "3.4.2"
+    },
+    {
+      "checksum": "f86fd172ccca569e458f61b6bdd6220965a9ef36e672a6852953b51a0e1583be",
+      "license": "MIT OR Apache-2.0",
+      "name": "ureq-proto",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.6.4"
+    },
+    {
+      "checksum": "b8c0a043c9540bae7c578c88f91dda8bd82e59ae27c21baca69c8b191aaf5a6e",
+      "license": "MIT OR Apache-2.0",
+      "name": "utf8-zero",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.8.1"
+    },
+    {
+      "checksum": "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821",
+      "license": "Apache-2.0 OR MIT",
+      "name": "utf8parse",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.2.2"
+    },
+    {
+      "checksum": "2ef6dac1e96601b4fb3acccccff2139741fcb757cb9a36089bf5be91cfb285ce",
+      "license": "Apache-2.0 OR MIT",
+      "name": "uuid",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.26.1"
+    },
+    {
+      "checksum": "1c1c8e20c8a38fc7d65abfe74eb7280e4aa667e8eec8bc84996d2874810748d9",
+      "license": "CDLA-Permissive-2.0",
+      "name": "webpki-roots",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.0.10"
+    },
+    {
+      "checksum": "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945",
+      "license": "MIT",
+      "name": "winnow",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.7.15"
+    },
+    {
+      "checksum": "b5f6765e852b9b4dc8e2a76843e4d64d1cea8e79bcde0b6901aea8e7c7f08282",
+      "license": "MIT OR Apache-2.0",
+      "name": "yasna",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "0.6.0"
+    },
+    {
+      "checksum": "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e",
+      "license": "Apache-2.0 OR MIT",
+      "name": "zeroize",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.9.0"
+    },
+    {
+      "checksum": "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b",
+      "license": "MIT",
+      "name": "zmij",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "targets": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "version": "1.0.23"
+    }
+  ],
+  "rust_standard_library": {
+    "copyright_html_sha256": "68129500b616d5838629e68f55ff3aed5e096dacf60ce9eb41bbe599a563afa6",
+    "preformatted_notices_preserved": 267,
+    "readable_text_sha256": "b0799bda1aa6907a74099db26bebc0c8aaf059834d47ff80e695dfc21f90528f",
+    "release": "1.98.1",
+    "scope": "Upstream cross-platform library inventory and available notices retained as provided; named components are not all linked into the three shipped targets, and this is not a claim of full license-text coverage for unshipped components.",
+    "standard_license_sha256": {
+      "Apache-2.0.txt": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff",
+      "BSD-2-Clause.txt": "f32fb3b417a194167cfad068223fc975ba96c5960513a10f66a3c28720aec1df",
+      "LLVM-exception.txt": "e34c58338bd89d43e709e226610d8f32b3e3c47f4ad9a99a8dc1d4ac7842488e",
+      "MIT.txt": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0",
+      "Unicode-3.0.txt": "f5062c9a188d81dfe66b56db4182dcf9e4b17c0d9b0d311a8e20b3a1b075c443"
+    }
+  },
+  "schema": "ukai.jail.third-party-notices/1",
+  "selection": "Union of normal cargo-tree dependencies for three shipped targets; includes proc-macro normal edges, excludes dev/build-only edges. Upstream notices conservatively retain cross-platform content.",
+  "targets": [
+    "aarch64-apple-darwin",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu"
+  ]
+}

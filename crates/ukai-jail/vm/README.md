@@ -208,6 +208,12 @@ evidence/vm-build-env/bin/python crates/ukai-jail/vm/package.py \
   --identity 'Developer ID Application: YOUR ORGANIZATION (TEAMID)'
 ```
 
+Before building or signing, `package.py` checks the current source's shared
+third-party notice inventory. It places those current client/service notices in
+`payload/licenses/Native-Host-LICENSES.txt`, separately from the prepared guest
+archive's `Linux-Jail-LICENSES.txt`; an older guest notice cannot substitute for
+the newly built host client. Stale notice inputs refuse packaging.
+
 `package.py` signs all Mach-O runtime files with hardened runtime, and grants
 only the VZ client `com.apple.security.virtualization`. Neither operator
 command receives Endpoint Security entitlements, and packaging the client

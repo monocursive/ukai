@@ -25,6 +25,10 @@ Staging requires a clean full revision, independently recomputes the binary's
 source-input digest from Git objects, and checks native Mach-O arm64, optimization,
 debug mode and pinned compiler provenance. The linker may add an ad-hoc signature
 to an arm64 binary; "unsigned" here means no Developer ID/ES distribution signing.
+Staging also checks the source-bound shared third-party notice inventory and
+embeds the same project/dependency/Unicode/Rust-library attribution as Linux.
+Stale notice inputs refuse before an app output is created. Installed-package
+validation remains standalone and needs neither Cargo nor a source checkout.
 The package contains one executable:
 
 ```text
