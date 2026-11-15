@@ -379,8 +379,21 @@ passed its Linux and dependency lanes but **failed on macOS**: the byte-relay
 test delivered its entire 49,163-byte request without forwarding the half-close
 within 20 seconds. The unchanged bridge reproduced that failure locally.
 The failed CI log is retained; this source has no all-checks-pass claim.
-Diagnosis, final admitted-host validation, source-archive rebuilding and
-provider qualification remain open.
+
+The subsequent diagnostic isolated the failure to the test peer's blocking
+timeout read: the bridge had drained all bytes and successfully called
+shutdown 20,001 ms before the peer timed out; an immediate poll then reported
+readable/hang-up and an actual read returned EOF. The test peer now uses a
+nonblocking read/poll loop under the same monotonic deadline. It still requires
+real EOF and the complete exact payload. A live peer that sends all bytes but
+withholds its half-close must still time out. The complete production bridge
+source preceding its test module is byte-identical to the frozen Linux
+candidate; no Linux release artifact change follows from this test fix.
+All eight bridge tests, 400 fixed-binary repetitions and 135 VM tests passed,
+along with strict lint and formatting. The original local and hosted failures
+remain retained under `bridge-half-close-9fdf/` and `guest-native-ci-9fdf7edc8/`.
+A fresh hosted run, final admitted-host validation, source-archive rebuilding
+and provider qualification remain open.
 
 ## Remaining release limits
 
