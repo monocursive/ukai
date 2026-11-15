@@ -50,6 +50,18 @@ python3 crates/ukai-jail/vm/run.py \
   /bin/sh -c 'cat input.txt; printf "created in Linux\n" > output.txt'
 ```
 
+To qualify an unpublished Linux guest candidate, pass
+`--jail-candidate /absolute/path/to/signed-candidate` to `prepare.py`.
+It runs the existing release verifier against the production public key in
+this checkout's `dist/release.pub`, verifies the complete signed candidate,
+copies and re-verifies its assets, and selects its ARM64 archive. The image
+records the guest's exact source revision, build-input digest, binary and
+archive hashes, signature/manifest hashes and trusted public-key hash. The
+verified source assets remain under `cache/signed-jail-candidate` for review.
+No candidate-supplied trust key is accepted, and verification does not publish
+anything. Without this option, the immutable published guest defaults above
+remain unchanged. A local override requires `minisign` on the build host.
+
 Use new output directories for image preparation and every attempt. The image
 directory is private trusted state: the launcher verifies its saved disk and
 helper hashes before boot, and clones rather than boots the base disk.
