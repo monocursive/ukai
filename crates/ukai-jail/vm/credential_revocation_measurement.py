@@ -266,6 +266,8 @@ def _judge(observed, guest, events, summary):
             and observed.get('client_thread_settled') is True and 'harness_error_type' not in observed,
         'source_removed_before_stop': observed.get('source_removed_before_stop') is True,
         'post_revocation_hold_exceeds_ack_budget': held_past_ack_window(observed.get('post_revocation_hold')),
+        'normal_identity_bound': observed.get('normal_identity_bound') is True,
+        'exact_normal_inputs_retained': observed.get('exact_normal_inputs_retained') is True,
         'all_exported_bytes_scanned': observed.get('leaks') == [] and observed.get('files_scanned', 0) > 0
             and observed.get('output_leak') is False,
         'same_boot_disk_scanned': observed.get('same_boot') is True and observed.get('disk_scan') == 'clean'
@@ -428,7 +430,7 @@ def _raw_judge(observed, guest, events, summary, record):
     component['peer']['deleted_at'] = component['peer'].get('revocation_sent_at')
     facts = judge(component, guest, events, summary)
     for name in ('host_binding_and_settlement', 'client_and_summary_succeeded', 'source_removed_before_stop',
-                 'post_revocation_hold_exceeds_ack_budget'):
+                 'post_revocation_hold_exceeds_ack_budget', 'normal_identity_bound', 'exact_normal_inputs_retained'):
         facts.pop(name, None)
     facts['explicit_revoke_after_peer_accept_then_disconnect'] = facts.pop(
         'independent_stream_before_delete_then_prompt_disconnect', False)
@@ -494,6 +496,120 @@ def retain_raw_inputs(root, inputs, spellings):
         raise harness.HarnessError('exact input retention exceeds its bound')
     result = {}
     for key, name, data in [('record', 'raw-inputs.json', encoded), ('launch', 'raw-launch.toml', launch)]:
+        descriptor = os.open(Path(root) / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(descriptor, 'wb') as stream: stream.write(data)
+        result[key] = {'path': name, 'sha256': hashlib.sha256(data).hexdigest()}
+    return result
+
+
+def normal_identity(home, jail):
+    """Bounded identities of the installed artifacts and the executing helper."""
+    def fingerprint(path, cap):
+        path = Path(path).resolve(strict=True)
+        return {'path': str(path), 'sha256': hashlib.sha256(bounded_file(path, cap)).hexdigest()}
+    image_path = Path(home) / 'image/image.json'
+    image_bytes = bounded_file(image_path, 1024 * 1024)
+    return {'home': str(home), 'image_manifest_sha256': hashlib.sha256(image_bytes).hexdigest(),
+            'image_manifest_json': image_bytes.decode('utf-8'),
+            'image': compatibility.strict_json(image_bytes),
+            'service': fingerprint(Path(home) / 'bin/ukai-vm', 128 * 1024 * 1024),
+            'client': fingerprint(jail, 128 * 1024 * 1024),
+            'measurement': fingerprint(__file__, 1024 * 1024)}
+
+
+def source_generation(source):
+    """Metadata only: never read or hash the synthetic source's value."""
+    try:
+        info = source.lstat()
+    except FileNotFoundError:
+        return {'path': str(source), 'present': False}
+    return {'path': str(source), 'present': True, 'regular': stat.S_ISREG(info.st_mode),
+            'device': info.st_dev, 'inode': info.st_ino, 'size': info.st_size,
+            'mtime_ns': info.st_mtime_ns, 'ctime_ns': info.st_ctime_ns,
+            'mode': stat.S_IMODE(info.st_mode), 'uid': info.st_uid, 'links': info.st_nlink}
+
+
+def normal_identity_bound(inputs):
+    try:
+        before, after = inputs['identity_before'], inputs['identity_after']
+        image = before['image']
+        source, removed = inputs['source_before'], inputs['source_after']
+        launch = tomllib.loads(inputs['launch_toml'])
+        build = image['ukai_jail_version']['build']
+        return (bool(before) and before == after and len(image['source_revision']) == 40
+                and hashlib.sha256(before['image_manifest_json'].encode()).hexdigest() == before['image_manifest_sha256']
+                and compatibility.strict_json(before['image_manifest_json']) == image
+                and build['revision'] == image['source_revision'] and build['dirty'] is False
+                and before['service']['sha256'] == image['ukai_vm_sha256']
+                and before['client']['sha256'] == image['ukai_jail_sha256']
+                and inputs['profile'] == launch['jail'] == 'agent'
+                and inputs['argv_digest'] == harness.argv_digest(inputs['argv'])
+                and inputs['launch_sha256'] == hashlib.sha256(inputs['launch_toml'].encode()).hexdigest()
+                and source['path'] == launch['credentials'][CREDENTIAL]['source']
+                and source['present'] is True and source['regular'] is True and source['links'] == 1
+                and source['mode'] == 0o600 and source['size'] > 0
+                and removed == {'path': source['path'], 'present': False})
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
+def normal_attempt_files(attempt):
+    """Snapshot receipt/journal/transport bytes without following any link."""
+    result, total = {}, 0
+    def fail(error):
+        raise error
+    for directory, directories, files in os.walk(attempt, followlinks=False, onerror=fail):
+        if any((Path(directory) / name).is_symlink() for name in directories):
+            raise harness.HarnessError('retained attempt contains a directory link')
+        for name in files:
+            path = Path(directory) / name
+            data = bounded_file(path, 16 * 1024 * 1024)
+            total += len(data)
+            if total > 64 * 1024 * 1024 or len(result) >= 5000:
+                raise harness.HarnessError('retained attempt exceeds its bound')
+            result[str(path.relative_to(attempt))] = data
+    if not {'jail.json', 'vm-transport.json'} <= set(result):
+        raise harness.HarnessError('retained attempt lacks receipt or transport')
+    return result
+
+
+def normal_attempt_hashes(attempt):
+    return {name: hashlib.sha256(data).hexdigest() for name, data in normal_attempt_files(attempt).items()}
+
+
+def retain_normal_attempt(attempt, destination, spellings):
+    """Scan the exact bounded snapshot before exporting any byte, never links."""
+    files = normal_attempt_files(attempt)
+    for name, data in files.items():
+        if any(needle in name or needle.encode() in data for needle in spellings):
+            raise harness.HarnessError('normal attempt retention refused a secret spelling')
+    hashes = {name: hashlib.sha256(data).hexdigest() for name, data in files.items()}
+    destination.mkdir(mode=0o700)
+    for name, data in sorted(files.items()):
+        target = destination / name
+        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(descriptor, 'wb') as stream: stream.write(data)
+    if normal_attempt_hashes(destination) != hashes:
+        raise harness.HarnessError('retained normal attempt changed after snapshot')
+    return hashes
+
+
+def retain_normal_inputs(root, inputs, spellings):
+    """Preserve exact declarations/identities only after scanning decoded text."""
+    encoded = (json.dumps(inputs, ensure_ascii=False, indent=2) + '\n').encode()
+    launch = inputs['launch_toml'].encode()
+    def contains(value):
+        if isinstance(value, str): return any(needle in value for needle in spellings)
+        if isinstance(value, list): return any(contains(item) for item in value)
+        if isinstance(value, dict): return any(contains(key) or contains(item) for key, item in value.items())
+        return False
+    if contains(inputs) or any(needle.encode() in data for needle in spellings for data in (encoded, launch)):
+        raise harness.HarnessError('normal input retention refused a secret spelling')
+    if len(encoded) > 4 * 1024 * 1024 or len(launch) > 256 * 1024:
+        raise harness.HarnessError('normal input retention exceeds its bound')
+    result = {}
+    for key, name, data in [('record', 'normal-inputs.json', encoded), ('launch', 'normal-launch.toml', launch)]:
         descriptor = os.open(Path(root) / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         with os.fdopen(descriptor, 'wb') as stream: stream.write(data)
         result[key] = {'path': name, 'sha256': hashlib.sha256(data).hexdigest()}
@@ -839,6 +955,7 @@ def main(argv=None):
     guest, events, summary = {}, None, {}
     attempt = None
     worker = None
+    identity_before, identity_after, source_before, source_after = {}, {}, {}, {}
     def run():
         try:
             result['run'] = subprocess.run([str(jail), 'run', '--vm', '--terminal', 'detach', '--profile', 'agent',
@@ -848,6 +965,8 @@ def main(argv=None):
             result['error_type'] = type(error).__name__
     try:
         source.write_bytes(secret); source.chmod(0o600)
+        source_before = source_generation(source)
+        identity_before = normal_identity(home, jail)
         worker = threading.Thread(target=run, daemon=True)
         worker.start()
         while worker.is_alive() and not witness.accepted.wait(0.05):
@@ -898,6 +1017,10 @@ def main(argv=None):
         observed['harness_error_type'] = type(error).__name__
     finally:
         try:
+            source_after = source_generation(source)
+        except OSError as error:
+            observed['source_identity_error_type'] = type(error).__name__
+        try:
             source.unlink(missing_ok=True)
             source_dir.rmdir()
         except OSError as error:
@@ -914,6 +1037,10 @@ def main(argv=None):
         if worker is not None:
             worker.join(timeout=5)
             observed['client_thread_settled'] = not worker.is_alive()
+        try:
+            identity_after = normal_identity(home, jail)
+        except (OSError, ValueError, harness.HarnessError) as error:
+            observed['identity_error_type'] = type(error).__name__
     observed['peer'] = witness.snapshot()
     observed['placeholder'] = vault_measurement.placeholder(stdout)
     observed['after_refused'] = 'AFTER_ATTEMPT' in stdout and 'AFTER_REFUSED 403' in stdout and 'AFTER_ALLOWED' not in stdout
@@ -923,9 +1050,7 @@ def main(argv=None):
     scans = [vault_measurement.leak_scan([data, workspace], value.encode()) for value in spellings]
     observed['leaks'] = sorted({path for hits, _ in scans for path in hits})
     observed['files_scanned'] = max(scanned for _, scanned in scans)
-    facts = judge(observed, guest, events, summary)
     refusals = harness.vm_refusals(stdout + '\n' + stderr)
-    outcome = 'REFUSED' if refusals else ('PASS' if all(facts.values()) else 'FAIL')
     def redacted(text):
         for value in sorted(spellings, key=len, reverse=True): text = text.replace(value, '<synthetic-credential>')
         return vault_measurement.redact(text, address)
@@ -935,11 +1060,27 @@ def main(argv=None):
         (out / name).write_text(redacted(text))
     # The raw bound receipt/journal is useful evidence, but never export a
     # detected secret copy. Diagnostics still retain every failed condition.
-    if attempt is not None and not observed['leaks']:
-        shutil.copytree(attempt, out / 'attempt')
+    exact_inputs = None
+    inputs = {'schema': 'ukai.vm.normal-credential-revocation-inputs/1',
+              'identity_before': identity_before, 'identity_after': identity_after,
+              'profile': 'agent', 'argv': command, 'argv_digest': harness.argv_digest(command),
+              'launch_toml': profile, 'launch_sha256': hashlib.sha256(profile.encode()).hexdigest(),
+              'source_before': source_before, 'source_after': source_after}
+    observed['normal_identity_bound'] = normal_identity_bound(inputs)
+    if attempt is not None and not observed['leaks'] and not observed['output_leak']:
+        try:
+            inputs['attempt_id'] = attempt.name
+            inputs['attempt_files_sha256'] = retain_normal_attempt(attempt, out / 'attempt', spellings)
+            exact_inputs = retain_normal_inputs(out, inputs, spellings)
+        except (OSError, ValueError, harness.HarnessError) as error:
+            observed['input_retention_error_type'] = type(error).__name__
+    observed['exact_normal_inputs_retained'] = exact_inputs is not None
+    facts = judge(observed, guest, events, summary)
+    outcome = 'REFUSED' if refusals else ('PASS' if all(facts.values()) else 'FAIL')
     report = {'schema': 'ukai.vm.credential-revocation/1', 'outcome': outcome, 'qualified': False,
               'scope': 'Synthetic plaintext stream on installed VM client; no vendor/TLS/K113 qualification.',
-              'binary': harness.fingerprint(jail), 'observed': observed, 'facts': facts, 'refusals': refusals}
+              'binary': harness.fingerprint(jail), 'observed': observed, 'facts': facts, 'refusals': refusals,
+              'exact_inputs': exact_inputs}
     harness.write_json(out / 'credential-revocation.json', json.loads(redacted(json.dumps(report))))
     print(json.dumps({'outcome': outcome, 'qualified': False, 'facts': facts}))
     return 0 if outcome == 'PASS' else 1

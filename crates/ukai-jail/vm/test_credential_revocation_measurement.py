@@ -190,6 +190,7 @@ class JudgeTests(unittest.TestCase):
                     'run_exit': 0, 'tail_exit': 0, 'tail_json_exit': 0, 'tail_agrees': True,
                     'client_thread_settled': True, 'source_removed_before_stop': True,
                     'post_revocation_hold': {'started_ns': 100, 'finished_ns': 2_500_000_100},
+                    'normal_identity_bound': True, 'exact_normal_inputs_retained': True,
                     'leaks': [], 'files_scanned': 5, 'output_leak': False, 'same_boot': True,
                     'disk_scan': 'clean', 'sync_exit': 0, 'stop_exit': 0}
         guest = {'attempt_id': guest_id, 'phase': 'settled', 'errors': [],
@@ -275,6 +276,7 @@ class JudgeTests(unittest.TestCase):
                    'same_boot': False, 'disk_scan': 'not-scanned', 'sync_exit': 1,
                    'stop_exit': 1, 'run_exit': 1, 'tail_exit': 1, 'tail_json_exit': 1,
                    'tail_agrees': False, 'after_refused': False, 'client_thread_settled': False}
+        changes.update(normal_identity_bound=False, exact_normal_inputs_retained=False)
         for key, value in changes.items():
             with self.subTest(key=key):
                 fixture = self.fixture(); fixture[0][key] = value
@@ -418,6 +420,127 @@ class RawTransportTests(unittest.TestCase):
                 self.assertFalse(all(measurement.raw_judge(*fixture).values()))
 
 
+class NormalInputsTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name).resolve()
+        self.home = self.root / 'installed'; (self.home / 'bin').mkdir(parents=True)
+        (self.home / 'image').mkdir()
+        self.jail = self.home / 'bin/ukai-jail'; self.jail.write_bytes(b'fixture-client')
+        (self.home / 'bin/ukai-vm').write_bytes(b'fixture-service')
+        image = {'source_revision': '1' * 40, 'ukai_jail_version': {'build': {'revision': '1' * 40, 'dirty': False}},
+                 'ukai_vm_sha256': hashlib.sha256(b'fixture-service').hexdigest(),
+                 'ukai_jail_sha256': hashlib.sha256(b'fixture-client').hexdigest()}
+        (self.home / 'image/image.json').write_text(json.dumps(image, indent=3) + '\n')
+        self.source = self.root / 'private-source'; self.source.write_bytes(b'synthetic-value'); self.source.chmod(0o600)
+
+    def inputs(self):
+        identity = measurement.normal_identity(self.home, self.jail)
+        launch = measurement.launch_profile(self.source, '192.0.2.1', 1234)
+        argv = ['/usr/bin/python3', '-c', measurement.normal_guest_script('192.0.2.1', 1234)]
+        return {'schema': 'ukai.vm.normal-credential-revocation-inputs/1',
+                'identity_before': identity, 'identity_after': copy.deepcopy(identity), 'profile': 'agent',
+                'argv': argv, 'argv_digest': harness.argv_digest(argv), 'launch_toml': launch,
+                'launch_sha256': hashlib.sha256(launch.encode()).hexdigest(),
+                'source_before': measurement.source_generation(self.source),
+                'source_after': {'path': str(self.source), 'present': False}}
+
+    def test_exact_identity_declarations_and_source_metadata_are_retained_without_value(self):
+        inputs = self.inputs(); self.assertTrue(measurement.normal_identity_bound(inputs))
+        self.assertNotIn('synthetic-value', json.dumps(inputs))
+        out = self.root / 'out'; out.mkdir()
+        result = measurement.retain_normal_inputs(out, inputs, {'synthetic-value'})
+        raw = (out / result['record']['path']).read_bytes()
+        self.assertEqual(hashlib.sha256(raw).hexdigest(), result['record']['sha256'])
+        self.assertEqual(json.loads(raw), inputs)
+        self.assertEqual((out / 'normal-launch.toml').read_text(), inputs['launch_toml'])
+        image_text = inputs['identity_before']['image_manifest_json']
+        self.assertEqual(image_text.encode(), (self.home / 'image/image.json').read_bytes())
+        self.source.unlink(); self.assertEqual(measurement.source_generation(self.source), inputs['source_after'])
+        self.assertEqual((out / 'normal-inputs.json').stat().st_mode & 0o777, 0o600)
+
+    def test_changed_binary_image_source_generation_or_declaration_cannot_pass(self):
+        for target in ('service', 'client', 'image', 'manifest', 'revision', 'source', 'mode', 'argv', 'launch'):
+            with self.subTest(target=target):
+                inputs = self.inputs()
+                if target in ('service', 'client'):
+                    inputs['identity_after'][target]['sha256'] = '0' * 64
+                elif target == 'image': inputs['identity_after']['image']['ukai_vm_sha256'] = '0' * 64
+                elif target == 'manifest': inputs['identity_before']['image_manifest_sha256'] = '0' * 64
+                elif target == 'revision': inputs['identity_after']['image']['source_revision'] = '2' * 40
+                elif target == 'source': inputs['source_after'] = inputs['source_before']
+                elif target == 'mode': inputs['source_before']['mode'] = 0o644
+                elif target == 'argv': inputs['argv'].append('different')
+                else: inputs['launch_toml'] += '# different\n'
+                self.assertFalse(measurement.normal_identity_bound(inputs))
+                fixture = JudgeTests().fixture(); fixture[0]['normal_identity_bound'] = measurement.normal_identity_bound(inputs)
+                self.assertFalse(all(measurement.judge(*fixture).values()))
+        before = measurement.normal_identity(self.home, self.jail)
+        self.jail.write_bytes(b'changed-client')
+        self.assertNotEqual(before, measurement.normal_identity(self.home, self.jail))
+
+    def test_secret_scanner_refuses_decoded_escaped_and_encoded_values_before_any_write(self):
+        secret = b'private-"value'
+        spellings = measurement.vault_measurement.value_spellings(secret)
+        for index, spelling in enumerate(spellings):
+            inputs = self.inputs(); inputs['argv'].append(spelling)
+            out = self.root / str(index); out.mkdir()
+            with self.assertRaises(harness.HarnessError): measurement.retain_normal_inputs(out, inputs, spellings)
+            self.assertEqual(list(out.iterdir()), [])
+            fixture = JudgeTests().fixture(); fixture[0]['exact_normal_inputs_retained'] = False
+            self.assertFalse(all(measurement.judge(*fixture).values()))
+        inputs = self.inputs(); inputs['launch_toml'] += '\n# synthetic-value'
+        out = self.root / 'profile'; out.mkdir()
+        with self.assertRaises(harness.HarnessError): measurement.retain_normal_inputs(out, inputs, {'synthetic-value'})
+        self.assertEqual(list(out.iterdir()), [])
+
+    def test_bounds_and_exact_attempt_hashes_refuse_links_missing_transport_and_large_inputs(self):
+        attempt = self.root / 'attempt'; attempt.mkdir()
+        (attempt / 'jail.json').write_text('{}')
+        with self.assertRaises(harness.HarnessError): measurement.normal_attempt_hashes(attempt)
+        (attempt / 'vm-transport.json').write_text('{}')
+        self.assertEqual(set(measurement.normal_attempt_hashes(attempt)), {'jail.json', 'vm-transport.json'})
+        (attempt / 'link').symlink_to(self.source)
+        with self.assertRaises(OSError): measurement.normal_attempt_hashes(attempt)
+        inputs = self.inputs(); inputs['launch_toml'] = 'x' * (256 * 1024 + 1)
+        out = self.root / 'bounded'; out.mkdir()
+        with self.assertRaises(harness.HarnessError): measurement.retain_normal_inputs(out, inputs, set())
+        self.assertEqual(list(out.iterdir()), [])
+        manifest = self.home / 'image/image.json'
+        with manifest.open('wb') as stream: stream.truncate(1024 * 1024 + 1)
+        with self.assertRaises(harness.HarnessError): measurement.normal_identity(self.home, self.jail)
+
+    def test_actual_attempt_retention_never_follows_links_or_exports_unscanned_secret_bytes(self):
+        attempt = self.root / 'attempt'; attempt.mkdir()
+        (attempt / 'jail.json').write_text('{}')
+        (attempt / 'vm-transport.json').write_text('{}')
+        secret = b'outside-synthetic-secret'
+        outside = self.root / 'outside'; outside.write_bytes(secret)
+        link = attempt / 'linked'; link.symlink_to(outside)
+        destination = self.root / 'export'
+        with self.assertRaises(OSError): measurement.retain_normal_attempt(attempt, destination, {secret.decode()})
+        self.assertFalse(destination.exists()); self.assertEqual(outside.read_bytes(), secret)
+        link.unlink(); link.write_bytes(secret)
+        with self.assertRaises(harness.HarnessError): measurement.retain_normal_attempt(attempt, destination, {secret.decode()})
+        self.assertFalse(destination.exists())
+        link.unlink()
+        expected = measurement.normal_attempt_hashes(attempt)
+        # A source change after the bounded snapshot cannot replace the bytes
+        # exported; the snapshot is the only input to the writer.
+        snapshot = measurement.normal_attempt_files(attempt)
+        real_snapshot = measurement.normal_attempt_files
+        def captured(path):
+            if path == attempt:
+                (attempt / 'jail.json').write_bytes(secret)
+                return snapshot
+            return real_snapshot(path)
+        with mock.patch.object(measurement, 'normal_attempt_files', side_effect=captured):
+            self.assertEqual(measurement.retain_normal_attempt(attempt, destination, {secret.decode()}), expected)
+        self.assertEqual(measurement.normal_attempt_hashes(destination), expected)
+        self.assertEqual((destination / 'jail.json').read_text(), '{}')
+
+
 class RefusalTests(unittest.TestCase):
     def test_installed_capability_refusal_is_preserved_and_source_removed(self):
         temporary = tempfile.TemporaryDirectory()
@@ -435,6 +558,7 @@ class RefusalTests(unittest.TestCase):
             self.assertFalse(list(scratch.glob('ukai-revoke-source-*/token')))
             return subprocess.CompletedProcess(argv, 0, '', '')
         with mock.patch.object(measurement.subprocess, 'run', side_effect=run), \
+                mock.patch.object(measurement, 'normal_identity', return_value={}), \
                 mock.patch.object(measurement, 'raw_main', side_effect=AssertionError('hidden raw fallback')), \
                 mock.patch.object(measurement.vault_measurement, 'mac_address', return_value='127.0.0.1'), \
                 mock.patch.object(tempfile, 'tempdir', str(scratch)), mock.patch('builtins.print'):
