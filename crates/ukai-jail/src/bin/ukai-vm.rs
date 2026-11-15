@@ -2524,7 +2524,7 @@ mod service_regressions {
         bytes.push(b'\n');
         bytes.extend(format!("{{\"event\":\"stopping\",\"reason\":\"{sentinel}\"}}\n").as_bytes());
         bytes.extend(format!("{{\"event\":\"error\",\"error\":\"{sentinel}\"}}\n").as_bytes());
-        let end = read_helper(std::io::Cursor::new(bytes), &sender, &shared).unwrap_err();
+        let end = read_helper(bytes.as_slice(), &sender, &shared).unwrap_err();
         assert_eq!(end.label(), "helper_reported_error");
         let mut observed = shared.startup();
         observed.helper_ended(end, false);
@@ -2590,7 +2590,7 @@ mod service_regressions {
             let bytes = format!(
                 "{{\"event\":\"stopping\",\"reason\":{reason}}}\n{{\"event\":\"stopped\"}}\n"
             );
-            let end = read_helper(std::io::Cursor::new(bytes), &sender, &shared).unwrap_err();
+            let end = read_helper(bytes.as_bytes(), &sender, &shared).unwrap_err();
             assert_eq!(end.label(), "helper_stopped");
             assert!(shared.startup().stopping_ms.is_some());
         }
@@ -2598,7 +2598,7 @@ mod service_regressions {
         let (sender, _receiver) = std::sync::mpsc::channel();
         // This was already rejected by HelperEvent's optional string field.
         let end = read_helper(
-            std::io::Cursor::new(b"{\"event\":\"owner\",\"error\":42}\n"),
+            b"{\"event\":\"owner\",\"error\":42}\n".as_slice(),
             &sender,
             &shared,
         )

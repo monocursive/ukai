@@ -556,9 +556,120 @@ exact native-v5 pair and its actual measurement timestamps. The legacy table
 is unchanged. Tests reject native-v2, native-v4 and mixed image pairs; the
 four catalog/entry/profile/executable pins remain identical. All native
 vendor, K113, release and new-host-runtime qualification flags remain false.
-The newly admitted host still requires a clean rebuild, signed installation
-and fresh runtime acceptance before another bounded provider measurement.
-No further provider call followed the failed A01.
+The following results belong to the newly admitted host. They do not change
+the earlier failed A01 or promote full K113 qualification.
+
+## Native-v5 installed candidate and API-key pilot
+
+Clean source `6c1f95567cf77cc671064fd45a1a78bf3cdfe211` produced private DMG
+`8c0eeb816b5e7dda7c7c14cc54e34912b5380bdebd08bb3db9d21b5b25157b1c`.
+Six strict Developer ID checks and seven mounted-DMG installer cases passed.
+Independent verification matched every installed file and mode, all 846
+archived Git files and modes, and the unchanged native-v5 image inputs. All
+five ARM64 components rebuilt from that archive with locked offline Cargo and
+Python dependencies. These are source-build and artifact-consistency checks;
+the package remains unnotarized and unpublished.
+
+All six hosted jobs passed: [Rust and dependency policy](https://github.com/monocursive/ukai/actions/runs/43764980991),
+[contracts and website](https://github.com/monocursive/ukai/actions/runs/43764980953),
+and [fleet](https://github.com/monocursive/ukai/actions/runs/43764980899).
+macOS reported 2,491 passes, seven deliberate ignores and no runtime skips;
+Ubuntu reported 3,058 passes, 18 ignores and 519 runtime skip diagnostics.
+Python suites ran 1,052 cases with 80 explicit skips. This ordinary hosted
+Linux lane is distinct from strict reference conformance. Exact records are
+under `guest-gate-ci-6c1f95567/` and `source-rebuild-6c1f95567/`.
+
+The normal installed native version route passed all 27 facts with no provider
+call. Its short sampler was honestly incomplete, with no workload reads,
+secret hits or scan errors. Synthetic source-watch revocation passed all 21
+facts: one substitution, stream closure, a later denied request and a further
+2.503-second child hold. Twenty service and twenty actual-client warm attempts
+passed on one boot. Maximum release latency was 107.4 ms; maximum client exec
+to first workspace write was 297.3 ms, each below the one-second bound.
+
+The primary Mac's K109 and K112 rows passed, but **K111 failed** when the
+attempt socket closed before Ready after 175.6 seconds. The configured startup
+budget remains 150 seconds; the old service retained no stage timings that
+identify where this boot stalled. The attempt had no verified workload
+execution or guest receipt. K112 refuses an
+unsupported request before boot; its pass is not a successful-boot control.
+The original failed row, stopped boot disk, empty serial console and lifecycle
+record remain under `guest-native-gates-6c1f95567/` and
+`guest-native-measurements-6c1f95567/gates-startup-failure/`.
+
+Read-only host and disk diagnostics confirmed that this guest reached Linux
+and wrote early boot journal entries. The new journal tail was incomplete;
+the unchanged base image's journal verified with the same reader. This does
+not identify the cause of the startup failure. No failed disk was mounted,
+repaired or booted again. The diagnostic record is in
+`k111-disk-readonly-6c1f95567/`; K111 remains failed and unwaived.
+
+An explicit execution-order supplement then allowed independent fault and
+second-machine evidence collection without changing that verdict. All 11
+fault lanes passed within the original 1,800-second outer budget; offline
+review recomputed all 118 facts. All verdicts preceded cleanup, with no
+emergency cleanup kills. The complete matrix and supplemental lifecycle are
+under `guest-native-faults-6c1f95567/` and
+`guest-native-measurements-6c1f95567/faults-supplement-final.json`.
+
+On the second protected Apple Silicon Mac, the exact DMG passed signatures,
+installation and repeat-install refusal. Cold agent and warm tool work took
+81.418 seconds and 0.293 seconds respectively, with bound guest journals and
+independently recomputed summaries. A three-second wall limit returned in
+3.261 seconds with a truthful unknown/lost, unverified outcome and no late
+marker. Synthetic source-watch revocation passed all 22 facts. Installed
+bytes were unchanged, all owned processes exited and both task mounts were
+detached. These results are in `spare-mac-6c1f95567/`; they do not waive the
+primary Mac's K111 failure or establish provider compatibility.
+
+The user selected API-key qualification and left OAuth pending. Exactly one
+new bounded API-key A01 pilot ran on this installed candidate after a fresh
+missing-source control passed all six facts without creating a workload.
+A01 passed **all 28 facts**: it created `greeting.txt` containing `hello` and a
+newline, exported a complete 161-frame guest journal with four exact
+credential uses, and retained complete `/2` periodic sampling. The sampler
+recorded 42 ticks and 37 environment and argv reads of the exact receipt
+workload, with zero hits or scan errors and a 104.729 ms maximum gap. These
+are periodic observations, not continuous coverage. Six-class scans of 34
+files found no secret material in retained output or exports.
+
+The vendor reported two turns on `claude-sonnet-5-5` and USD 0.0062454; this
+is reported usage, not independently metered billing. Independent offline
+review reproduced all 28 facts in 56 checks. All 29 final lifecycle checks
+passed: the original credential source generation was unchanged, the private
+copy was removed, no owned VM or build process remained and the workspace
+was detached. Evidence is under `guest-native-api-a01-6c1f95567/`,
+`guest-native-api-independent-6c1f95567/` and
+`guest-native-api-pilot-plan-6c1f95567/`. The small task, ten fresh repetitions
+and real vendor mid-stream revocation remain pending. The earlier failed A01
+is retained; this successful pilot does not establish full K113 acceptance.
+
+## Startup diagnostics and qualification tooling
+
+Source `57d6a68ddc7bd593fc3463d2a2f8d3c4bbab406f` retains bounded, typed startup
+stage observations and failure causes in a private failed-boot record. It
+does not retain helper payloads or credential text, extend the existing
+deadlines, retry boots or alter guest/image admission. Fault tooling now
+retains explicitly incomplete progress after each judged and cleaned lane,
+and cleans its current case before propagating interruption. These changes
+improve diagnosis and evidence retention; they do not claim to repair the
+unknown K111 startup cause.
+
+The source archive now includes the exact 596-byte portable-tail test fixture
+`docs/specs/jail-v1/examples/event-note-learning-read.json`. The prior archive
+built all five production components, but could not compile all test targets
+without this fixture. Coverage verifies its exact bytes and excludes an
+unrelated sibling. The corrected archive is expected to contain 847 files.
+
+Local and independent checks passed 66 service unit tests, 43 fake-service
+integration tests, 11 fault-table tests and 37 packaging tests, plus strict
+all-target lint and formatting. The first hosted run at 57d6 nevertheless
+failed both Rust lanes before tests: three test-only standard-library reader
+type names matched the existing I02 vendor-token ban. The other four jobs
+passed. That failure remains in `guest-gate-ci-57d6a68dd/`; no rerun or package
+was produced from that revision. The correction uses borrowed byte slices in
+those three tests without changing production code. Fresh CI and a signed
+installed candidate are still required for the corrected source.
 
 ## Remaining release limits
 
@@ -570,10 +681,11 @@ acceptance. The actual unsigned native candidate at the frozen Linux source
 passed staging/install/upgrade/removal checks and correctly refused production
 distribution and native workload admission.
 
-The warm-VM route does not require Endpoint Security, but still needs full
-K113 engineering and vendor evidence, complete installed release acceptance
-on the notarized/stapled bytes, and notarization. Its successful synthetic
-source-watch measurement does not satisfy vendor compatibility. No usable
+The warm-VM route does not require Endpoint Security, but still needs the
+remaining API-key checks, OAuth qualification, resolution of the retained
+startup failure, complete installed release acceptance on notarized/stapled
+bytes, and notarization. The API-key pilot does not satisfy the complete
+vendor matrix; OAuth remains pending at the user's request. No usable
 notarization credential was located in
 the inspected local metadata; no notarization submission was made. Existing
 scope limits, including unsupported owner-loss guarantees, remain explicit.
