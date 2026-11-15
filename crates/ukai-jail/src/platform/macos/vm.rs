@@ -2240,6 +2240,8 @@ impl PreparedExecution for VmExecution {
             receipt: None,
             guest: None,
             stop: None,
+            termination_deadline: None,
+            wall_reported: false,
             finished: false,
             failed: false,
             revocation: Some(revocation),
@@ -2262,6 +2264,10 @@ struct VmRunning {
     /// The guest controller's own stop of the attempt, once `done` carried
     /// one that found nothing the guest jail left behind (decision D6).
     stop: Option<protocol::GuestStop>,
+    /// The first stop replaces the execution wall with one bounded drain.
+    /// Repeated stop requests must not extend it or prevent reading EOF.
+    termination_deadline: Option<Instant>,
+    wall_reported: bool,
     finished: bool,
     failed: bool,
     revocation: Option<revocation::Watch>,
@@ -2789,7 +2795,31 @@ impl RunningExecution for VmRunning {
     }
 
     fn wait(&mut self, deadline: Deadline) -> RunEvent {
-        let event = self.wait_frames(deadline);
+        // The supervisor keeps the execution wall after requesting stop.
+        // Continue consuming the guest's final frames or EOF under the fixed
+        // termination budget instead of reporting that expired wall forever.
+        // Classify the selected deadline, not the clock after waiting: the
+        // host may resume after both deadlines elapsed, but the earlier
+        // unreported wall still needs its one hit before termination fails.
+        let (deadline, wall_timeout) = match (
+            self.termination_deadline,
+            deadline.at.filter(|_| !self.wall_reported),
+        ) {
+            (Some(stop), Some(wall)) if wall <= stop => (Deadline { at: Some(wall) }, true),
+            (Some(stop), _) => (Deadline { at: Some(stop) }, false),
+            (None, _) => (deadline, true),
+        };
+        let mut event = self.wait_frames(deadline);
+        if matches!(event, RunEvent::WallExpired) {
+            if wall_timeout {
+                self.wall_reported = true;
+            } else {
+                event = RunEvent::Unknown {
+                    reason: "the guest outcome was not observed within the termination budget"
+                        .to_owned(),
+                };
+            }
+        }
         if matches!(
             event,
             RunEvent::Unknown { .. } | RunEvent::StdioFailed { .. }
@@ -2800,6 +2830,10 @@ impl RunningExecution for VmRunning {
     }
 
     fn request_stop(&mut self, _reason: StopReason) {
+        if self.termination_deadline.is_some() {
+            return;
+        }
+        self.termination_deadline = Some(Instant::now() + crate::supervisor::TREE_BUDGET);
         // The lease is end-of-file: half-closing the write side cancels the
         // guest attempt, and the frames that remain are still read for the
         // outcome the guest reports on its way down.
@@ -2808,8 +2842,12 @@ impl RunningExecution for VmRunning {
 
     fn wait_tree(&mut self, budget: Duration) -> TreeObservation {
         if !self.finished && !self.failed {
-            let event = self.wait(Deadline {
-                at: Some(Instant::now() + budget),
+            let deadline = Instant::now() + budget;
+            let event = self.wait_frames(Deadline {
+                at: Some(
+                    self.termination_deadline
+                        .map_or(deadline, |at| at.min(deadline)),
+                ),
             });
             if !matches!(
                 event,

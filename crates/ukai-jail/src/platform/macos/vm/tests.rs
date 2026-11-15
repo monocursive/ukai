@@ -64,6 +64,161 @@ fn running() -> (VmRunning, UnixStream, tempfile::TempDir) {
     running_with(image::GuestNetwork::requested("none", [], []))
 }
 
+#[test]
+fn vm_wall_expiry_still_reads_the_cancelled_attempts_eof() {
+    let (mut run, mut peer, _root) = running();
+    let expired = Instant::now() - Duration::from_secs(1);
+    assert!(matches!(
+        run.wait(Deadline { at: Some(expired) }),
+        RunEvent::WallExpired
+    ));
+    run.request_stop(StopReason::WallExpiry);
+    assert_eq!(
+        peer.read(&mut [0]).unwrap(),
+        0,
+        "cancellation ends the lease"
+    );
+    drop(peer);
+    assert!(
+        matches!(
+            run.wait(Deadline { at: Some(expired) }),
+            RunEvent::Unknown { .. }
+        ),
+        "the supervisor keeps the original wall deadline after requesting stop"
+    );
+    assert!(run.failed);
+    assert!(run.guest_facts().is_none());
+    assert_eq!(run.wait_tree(Duration::ZERO).tree_empty, None);
+}
+
+#[test]
+fn vm_wall_expiry_drains_a_delayed_receipt_without_relaxing_its_binding() {
+    for valid_binding in [true, false] {
+        let (mut run, mut peer, _root) = running();
+        let expired = Instant::now() - Duration::from_secs(1);
+        assert!(matches!(
+            run.wait(Deadline { at: Some(expired) }),
+            RunEvent::WallExpired
+        ));
+        let server = std::thread::spawn(move || {
+            peer.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+            assert_eq!(peer.read(&mut [0]).unwrap(), 0);
+            let mut held_binding = binding();
+            if !valid_binding {
+                held_binding.attempt_id = "another-attempt".into();
+            }
+            let (sha256, data) = encoded(&with_outcome("signaled", None, Some(9)));
+            // The result arrives after cancellation, not before the wall.
+            std::thread::sleep(Duration::from_millis(20));
+            for frame in [
+                protocol::FromVm::BoundReceipt {
+                    sha256,
+                    data,
+                    binding: held_binding,
+                },
+                done(137),
+            ] {
+                peer.write_all(&protocol::encode(&frame).unwrap()).unwrap();
+            }
+        });
+        run.request_stop(StopReason::WallExpiry);
+        let event = run.wait(Deadline { at: Some(expired) });
+        server.join().unwrap();
+        if valid_binding {
+            assert!(matches!(event, RunEvent::TargetSignaled { signal: 9 }));
+            assert!(run.verified());
+            assert!(run.guest_facts().is_some());
+            assert_eq!(run.wait_tree(Duration::ZERO).tree_empty, Some(true));
+        } else {
+            assert!(matches!(event, RunEvent::Unknown { .. }));
+            assert!(run.failed);
+            assert!(run.guest_facts().is_none());
+            assert_eq!(run.wait_tree(Duration::ZERO).tree_empty, None);
+        }
+    }
+}
+
+#[test]
+fn vm_stop_has_one_bounded_drain_even_for_a_silent_peer_and_repeated_requests() {
+    let (mut run, mut peer, _root) = running();
+    run.request_stop(StopReason::WallExpiry);
+    let deadline = run.termination_deadline.unwrap();
+    assert_eq!(peer.read(&mut [0]).unwrap(), 0);
+    for reason in [
+        StopReason::WallExpiry,
+        StopReason::EvidenceLoss,
+        StopReason::StdioFailure,
+    ] {
+        run.request_stop(reason);
+        assert_eq!(run.termination_deadline, Some(deadline));
+    }
+    let event = run.wait(Deadline { at: None });
+    assert!(matches!(event, RunEvent::Unknown { reason } if reason.contains("termination budget")));
+    assert!(Instant::now() < deadline + Duration::from_secs(1));
+    assert!(run.failed);
+    assert!(run.guest_facts().is_none());
+    assert_eq!(run.wait_tree(Duration::ZERO).tree_empty, None);
+}
+
+#[test]
+fn vm_tree_wait_does_not_extend_its_callers_budget_after_stop() {
+    let (mut run, _peer, _root) = running();
+    run.request_stop(StopReason::WallExpiry);
+    let start = Instant::now();
+    let tree = run.wait_tree(Duration::ZERO);
+    assert!(start.elapsed() < Duration::from_millis(100));
+    assert_eq!(tree.tree_empty, None);
+    assert_eq!(tree.integrity, Integrity::Lost);
+}
+
+#[test]
+fn vm_wall_can_hit_once_during_an_earlier_stop_without_extending_it() {
+    let (mut run, peer, _root) = running();
+    run.request_stop(StopReason::EvidenceLoss);
+    let stop_deadline = run.termination_deadline;
+    let wall = Instant::now() + Duration::from_millis(20);
+    assert!(matches!(
+        run.wait(Deadline { at: Some(wall) }),
+        RunEvent::WallExpired
+    ));
+    run.request_stop(StopReason::WallExpiry);
+    assert_eq!(run.termination_deadline, stop_deadline);
+    drop(peer);
+    assert!(matches!(
+        run.wait(Deadline { at: Some(wall) }),
+        RunEvent::Unknown { .. }
+    ));
+    assert!(run.failed);
+}
+
+#[test]
+fn vm_an_earlier_wall_is_reported_even_if_the_host_resumes_after_both_deadlines() {
+    for same_deadline in [false, true] {
+        let (mut run, _peer, _root) = running();
+        run.request_stop(StopReason::EvidenceLoss);
+        let stop = Instant::now() - Duration::from_secs(1);
+        // Model a scheduling pause without making this test wait for one.
+        run.termination_deadline = Some(stop);
+        let wall = if same_deadline {
+            stop
+        } else {
+            stop - Duration::from_secs(1)
+        };
+        assert!(matches!(
+            run.wait(Deadline { at: Some(wall) }),
+            RunEvent::WallExpired
+        ));
+        run.request_stop(StopReason::WallExpiry);
+        assert_eq!(run.termination_deadline, Some(stop));
+        assert!(matches!(
+            run.wait(Deadline { at: Some(wall) }),
+            RunEvent::Unknown { .. }
+        ));
+        assert!(run.failed);
+        assert!(run.guest_facts().is_none());
+    }
+}
+
 fn staged_test_source(root: &Path) -> (PathBuf, Arc<crate::vault::Secret>) {
     let source = root.join("private-source");
     std::fs::write(&source, b"source-token").unwrap();
@@ -367,6 +522,8 @@ fn running_with(network: image::GuestNetwork) -> (VmRunning, UnixStream, tempfil
             receipt: None,
             guest: None,
             stop: None,
+            termination_deadline: None,
+            wall_reported: false,
             finished: false,
             failed: false,
             revocation: None,
@@ -2700,6 +2857,8 @@ struct WallSim;
 struct WallPrepared;
 struct WallRunning {
     waits: u32,
+    inner: VmRunning,
+    _root: tempfile::TempDir,
 }
 
 impl Platform for WallSim {
@@ -2725,7 +2884,27 @@ impl PreparedExecution for WallPrepared {
         GuestPrepared.boundary()
     }
     fn release(self: Box<Self>) -> Result<Box<dyn RunningExecution>, Box<ReleaseFailure>> {
-        Ok(Box::new(WallRunning { waits: 0 }))
+        let (inner, mut peer, root) = running();
+        std::thread::spawn(move || {
+            peer.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+            assert_eq!(peer.read(&mut [0]).unwrap(), 0);
+            let (sha256, data) = encoded(&with_outcome("signaled", None, Some(9)));
+            for frame in [
+                protocol::FromVm::BoundReceipt {
+                    sha256,
+                    data,
+                    binding: binding(),
+                },
+                done(137),
+            ] {
+                peer.write_all(&protocol::encode(&frame).unwrap()).unwrap();
+            }
+        });
+        Ok(Box::new(WallRunning {
+            waits: 0,
+            inner,
+            _root: root,
+        }))
     }
     fn abort(self: Box<Self>) -> Result<Teardown, JailError> {
         Ok(Teardown { tree: None })
@@ -2733,33 +2912,34 @@ impl PreparedExecution for WallPrepared {
 }
 
 impl RunningExecution for WallRunning {
-    // A platform whose final rows are the guest's (hit false): the order of
-    // the settle, not this platform, must keep the host's hit.
+    // The verified guest's rows do not claim the host's wall hit.
     fn final_limits(&self) -> Vec<AppliedLimit> {
-        serde_json::from_value(k113_guest()["applied"]["limits"].clone()).unwrap()
+        self.inner.final_limits()
     }
     fn wait(&mut self, _: Deadline) -> RunEvent {
         self.waits += 1;
-        if self.waits == 1 {
-            RunEvent::WallExpired
-        } else {
-            RunEvent::TargetExited { code: 137 }
+        if self.waits > 3 {
+            // A regression must fail the outcome assertions, not hang the
+            // test supervisor forever on repeated WallExpired events.
+            return RunEvent::Unknown {
+                reason: "VM wall expiry did not retire".into(),
+            };
         }
+        self.inner.wait(Deadline {
+            at: Some(Instant::now() - Duration::from_secs(1)),
+        })
     }
-    fn request_stop(&mut self, _: StopReason) {}
-    fn wait_tree(&mut self, _: Duration) -> TreeObservation {
-        TreeObservation {
-            tree_empty: Some(true),
-            verified_at: None,
-            verification_scope: VerificationScope::AttemptTree,
-            integrity: Integrity::Verified,
-        }
+    fn request_stop(&mut self, reason: StopReason) {
+        self.inner.request_stop(reason);
+    }
+    fn wait_tree(&mut self, budget: Duration) -> TreeObservation {
+        self.inner.wait_tree(budget)
     }
     fn observer_summary(&mut self) -> Option<crate::observer::CoverageSummary> {
         None
     }
     fn guest_facts(&self) -> Option<GuestFacts> {
-        guest_facts(&k113_guest(), &"5".repeat(64)).ok()
+        self.inner.guest_facts()
     }
 }
 
@@ -2803,6 +2983,9 @@ fn the_host_wall_hit_survives_settlement() {
     let receipt_path = report.receipt_path.expect("a receipt");
     let host: Value = serde_json::from_slice(&std::fs::read(&receipt_path).unwrap()).unwrap();
     assert_eq!(host["outcome"]["cause"], "wall_expiry");
+    assert_eq!(host["outcome"]["kind"], "signaled");
+    assert_eq!(host["outcome"]["signal"], 9);
+    assert_eq!(host["lifetime"]["tree_empty"], true);
     let wall = host["applied"]["limits"]
         .as_array()
         .unwrap()
