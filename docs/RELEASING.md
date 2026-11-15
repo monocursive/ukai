@@ -219,8 +219,10 @@ needs at least 4 GiB free for a release build. Record successful conformance wit
 skipped reference host or an older passing run is insufficient. The next
 release needs a fresh reference conformance rerun on the VPS, followed by
 `cargo xtask freeze --doctor <successful-run>/doctor.json`. The current
-`milestone-1-freeze.toml` has no `[tested]` record: regenerating a tree-only
-freeze intentionally removes it and cannot establish release readiness.
+`milestone-1-freeze.toml` still records the rc.5 inputs and its October 23
+tested run; that historical record does not cover later source changes.
+Regenerating a tree-only freeze intentionally removes its `[tested]` record
+and cannot establish release readiness.
 
 Set the reviewed coordinates and production key:
 

@@ -100,6 +100,11 @@ def assemble(stages, revision, inputs, version, out, signing_key=None, public_ke
         raise ValueError('provide both the signing key and its independently trusted public key')
     if public_key and not re.fullmatch(r'[A-Za-z0-9+/]{56}', public_key):
         raise ValueError('expected a Minisign public key, not a path or shell expression')
+    # Validate release coordinates before creating any candidate files. Published
+    # archive pins are immutable, even when the replacement would be signed.
+    bootstrap = (Path(__file__).resolve().parents[3] / 'install.sh').read_text()
+    bootstrap = render_bootstrap(bootstrap, version,
+                                {r['target']: r['archive_sha256'] for r in records})
     out.mkdir(parents=True, exist_ok=False)
     for directory, record in zip(stages, records):
         shutil.copyfile(directory / record['archive'], out / record['archive'])
@@ -111,9 +116,6 @@ def assemble(stages, revision, inputs, version, out, signing_key=None, public_ke
     shutil.copyfile(Path(__file__).with_name('install.sh'), install_sh)
     # Users verify embedded archive hashes without a signature-tool dependency.
     # Maintainer signatures still bind the candidate and publication evidence.
-    bootstrap = (Path(__file__).resolve().parents[3] / 'install.sh').read_text()
-    bootstrap = render_bootstrap(bootstrap, version,
-                                {r['target']: r['archive_sha256'] for r in records})
     (out / 'bootstrap.sh').write_text(bootstrap)
     entries = [(record['archive'], record['archive_sha256']) for record in records]
     entries.append(('install.sh', digest(install_sh)))
