@@ -3269,6 +3269,66 @@ class VaultTables(unittest.TestCase):
         self.assertTrue(vault_measurement.file_holds(path, b'SECRETVALUE', chunk=8))
         self.assertFalse(vault_measurement.file_holds(path, b'SECRETVALUX', chunk=8))
 
+    def test_an_unreadable_subtree_is_recorded_even_with_readable_files(self):
+        # Model os.walk's real contract: without onerror it silently omits
+        # this subtree. chmod is not a valid negative control when run as root.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'readable').write_bytes(b'clean')
+            hidden = root / 'unreadable'
+
+            def incomplete_walk(path, followlinks=False, onerror=None):
+                yield str(path), ['unreadable'], ['readable']
+                if onerror:
+                    onerror(PermissionError(13, 'deliberately omitted private contents', str(hidden)))
+
+            with mock.patch.object(vault_measurement.os, 'walk', side_effect=incomplete_walk):
+                findings, scanned = vault_measurement.leak_scan([root], b'synthetic-value')
+            self.assertEqual(scanned, 1)
+            self.assertEqual(findings, [f'scan-error:walk:PermissionError:{hidden}'])
+            self.assertNotIn('deliberately omitted private contents', '\n'.join(findings))
+            facts, outcome = vault_measurement.judge(mutated(self.good(), leaks=findings, files_scanned=scanned))
+            self.assertFalse(facts['no_value_in_any_export'])
+            self.assertEqual(outcome, 'FAIL')
+            # Both revocation lanes share this no-findings predicate. The
+            # error survives their existing aggregation, report and verdict.
+            import credential_revocation_measurement as revocation
+            observed = {'leaks': findings, 'files_scanned': scanned, 'output_leak': False}
+            normal = revocation.judge(observed, {}, [], {})
+            raw = revocation.raw_judge(observed, {}, [], {}, {})
+            self.assertIs(normal['all_exported_bytes_scanned'], False)
+            self.assertIs(raw['all_exported_bytes_scanned'], False)
+
+    def test_read_failure_is_retained_and_never_counted_as_scanned(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'readable').write_bytes(b'clean')
+            unreadable = root / 'unreadable'
+            unreadable.write_bytes(b'synthetic-value')
+            read = vault_measurement.file_holds
+
+            def guarded_read(path, needle):
+                if path == unreadable:
+                    raise PermissionError('private error contents must not enter the report')
+                return read(path, needle)
+
+            with mock.patch.object(vault_measurement, 'file_holds', side_effect=guarded_read):
+                findings, scanned = vault_measurement.leak_scan([root], b'synthetic-value')
+            self.assertEqual(scanned, 1)
+            self.assertEqual(findings, [f'scan-error:read:PermissionError:{unreadable}'])
+
+    def test_missing_or_linked_roots_do_not_become_empty_clean_scans(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            absent = root / 'absent'
+            linked = root / 'link'
+            linked.symlink_to(root, target_is_directory=True)
+            for path, error in ((absent, 'FileNotFoundError'), (linked, 'NotADirectoryError')):
+                with self.subTest(path=path):
+                    findings, scanned = vault_measurement.leak_scan([path], b'synthetic-value')
+                    self.assertEqual(scanned, 0)
+                    self.assertEqual(findings, [f'scan-error:root:{error}:{path}'])
+
 
 class ProxyTables(unittest.TestCase):
     def good(self):

@@ -39,6 +39,7 @@ import http.server
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import tempfile
@@ -87,22 +88,53 @@ def file_holds(path, needle, chunk=CHUNK):
 
 
 def leak_scan(roots, needle, skip=()):
-    """Every regular file under each root (never following links), no size cap."""
+    """Regular files under each root, no size cap; incomplete scans fail closed.
+
+    Keep the (findings, scanned) API: findings contains matching paths or
+    explicit scan-error:<operation>:<type>:<path> diagnostics. Every caller
+    requires no findings, so errors are retained and cannot become a clean
+    scan merely because another file was readable. Exception text is omitted.
+    """
     hits, scanned = [], 0
-    skip = {Path(path).resolve() for path in skip}
+
+    def failed(operation, path, error):
+        hits.append(f'scan-error:{operation}:{type(error).__name__}:{path}')
+
+    excluded = set()
+    for path in skip:
+        try:
+            excluded.add(Path(path).resolve())
+        except OSError as error:
+            failed('skip-resolution', path, error)
     for root in roots:
         root = Path(root)
-        if not root.exists():
+        try:
+            if not stat.S_ISDIR(root.lstat().st_mode):
+                raise NotADirectoryError('scan root must be a real directory')
+        except OSError as error:
+            failed('root', root, error)
             continue
-        for directory, _, names in os.walk(root, followlinks=False):
-            for name in names:
-                path = Path(directory) / name
-                if path.is_symlink() or not path.is_file() or path.resolve() in skip:
-                    continue
-                scanned += 1
-                if file_holds(path, needle):
-                    hits.append(str(path))
-    return sorted(hits), scanned
+
+        def walk_error(error):
+            failed('walk', error.filename or root, error)
+
+        try:
+            for directory, _, names in os.walk(root, followlinks=False, onerror=walk_error):
+                for name in names:
+                    path = Path(directory) / name
+                    try:
+                        if not stat.S_ISREG(path.lstat().st_mode) or path.resolve() in excluded:
+                            continue
+                        found = file_holds(path, needle)
+                    except OSError as error:
+                        failed('read', path, error)
+                        continue
+                    scanned += 1
+                    if found:
+                        hits.append(str(path))
+        except OSError as error:
+            failed('walk', error.filename or root, error)
+    return sorted(set(hits)), scanned
 
 
 CREDENTIAL_ID = 'test'
