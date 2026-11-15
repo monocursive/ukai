@@ -1849,117 +1849,397 @@ fn measured_guest_identity_is_required_before_any_capability_is_available() {
     );
 }
 
+fn native_measured_platform() -> VmPlatform {
+    let mut result = platform(Path::new("/unused"));
+    result.install.manifest.disk_sha256 = NATIVE_GUEST_MEASURED_DISK_SHA256.into();
+    result.install.manifest.seed_sha256 = NATIVE_GUEST_MEASURED_SEED_SHA256.into();
+    result.install.manifest.guest_program_catalog_sha256 =
+        Some(NATIVE_PROGRAM_ADMISSION.catalog_sha256.into());
+    result
+}
+
+#[test]
+fn second_measured_image_has_its_own_rows_and_mixed_images_have_none() {
+    let measured = native_measured_platform();
+    for snapshot in [tool(), agent(), agent_with_launch(VAULT_LAUNCH)] {
+        let plan = request(snapshot);
+        for row in measured.probe(&plan) {
+            assert!(row.satisfies(), "{row:?}");
+            let proof = NATIVE_GUEST_MEASUREMENTS
+                .iter()
+                .find(|item| item.requirement == row.name)
+                .unwrap();
+            assert_eq!(row.evidence_ref.as_deref(), Some(proof.record));
+            assert_eq!(row.measured_at.as_deref(), Some(proof.measured_at));
+        }
+        for (disk, seed) in [
+            (
+                GUEST_MEASURED_DISK_SHA256,
+                NATIVE_GUEST_MEASURED_SEED_SHA256,
+            ),
+            (
+                NATIVE_GUEST_MEASURED_DISK_SHA256,
+                GUEST_MEASURED_SEED_SHA256,
+            ),
+        ] {
+            let mut mixed = measured.clone();
+            mixed.install.manifest.disk_sha256 = disk.into();
+            mixed.install.manifest.seed_sha256 = seed.into();
+            assert!(
+                mixed
+                    .probe(&plan)
+                    .iter()
+                    .all(|row| !row.satisfies() && row.evidence_ref.is_none())
+            );
+        }
+    }
+}
+
+#[test]
+fn native_admission_requires_every_pin_before_source_staging() {
+    let (_dir, mut context, args) = native::tests::context();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let bytes = std::fs::read(root.join("docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/image/guest-program-catalog.json")).unwrap();
+    let mut platform = native_measured_platform();
+    platform.data_dir = context.env_settings.data_dir.clone().unwrap();
+    platform.install.root = context.cwd.parent().unwrap().join("install");
+    std::fs::write(
+        platform
+            .install
+            .root
+            .join("image/guest-program-catalog.json"),
+        bytes,
+    )
+    .unwrap();
+    context.platform = Box::new(platform.clone());
+    let plan = crate::supervisor::resolve_plan(&context, &args).unwrap();
+    let request = PlanRequest {
+        guest_program: plan.guest_program,
+        snapshot: plan.resolved.snapshot,
+        requirements: plan.resolved.requirements,
+    };
+    let program = request.guest_program.as_ref().unwrap();
+    assert!(native_program_admitted(&platform.install.manifest, program));
+    assert!(platform.probe(&request).iter().all(Capability::satisfies));
+    for index in 0..9 {
+        let mut altered = platform.clone();
+        let mut request = request.clone();
+        let program = request.guest_program.as_mut().unwrap();
+        match index {
+            0 => altered.install.manifest.disk_sha256 = GUEST_MEASURED_DISK_SHA256.into(),
+            1 => altered.install.manifest.seed_sha256 = GUEST_MEASURED_SEED_SHA256.into(),
+            2 => altered.install.manifest.guest_program_catalog_sha256 = None,
+            3 => program.disk_sha256 = GUEST_MEASURED_DISK_SHA256.into(),
+            4 => program.seed_sha256 = GUEST_MEASURED_SEED_SHA256.into(),
+            5 => program.catalog_sha256 = "0".repeat(64),
+            6 => program.entry.id.push_str("-other"),
+            7 => program.entry.profile_sha256 = "0".repeat(64),
+            8 => program.entry.executable_sha256 = "0".repeat(64),
+            _ => unreachable!(),
+        }
+        assert!(
+            !native_program_admitted(&altered.install.manifest, program),
+            "pin {index}"
+        );
+        assert!(
+            altered.probe(&request).iter().all(|row| !row.satisfies()),
+            "pin {index}"
+        );
+    }
+    let old = measured_platform();
+    assert!(old.probe(&request).iter().all(|row| !row.satisfies()));
+    let mut narrowing = request.clone();
+    narrowing
+        .snapshot
+        .filesystem
+        .deny_read
+        .push(crate::policy::PathRef::host(NativeString::Text(
+            "/private".into(),
+        )));
+    assert!(
+        platform
+            .probe(&narrowing)
+            .iter()
+            .all(|row| row.reason_code.as_deref() == Some("vm:not-carried:filesystem.deny_read"))
+    );
+    let mut owner_loss = request.clone();
+    owner_loss.snapshot.lifetime_boundary = Some(crate::policy::LifetimeBoundary::KernelBound);
+    owner_loss.requirements = crate::capability::requirements(&owner_loss.snapshot);
+    let rows = platform.probe(&owner_loss);
+    assert!(rows.iter().all(|row| !row.satisfies()));
+    assert_eq!(
+        rows.iter()
+            .find(|row| row.name == "owner_loss_termination")
+            .unwrap()
+            .reason_code
+            .as_deref(),
+        Some(REASON_VM_OWNER_LOSS_NOT_PROVIDED)
+    );
+    assert!(!platform.data_dir.join("attempts").exists());
+}
+
 /// Follow each schema's evidence linkage, rather than treating every derived
 /// admission as a capabilities.py row or trusting a stored PASS alone.
 #[test]
 fn every_measurement_row_resolves_in_its_record() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let bundle = root.join("docs/benchmarks/jail/results/macos-vm-admission-2026-11-15");
-    let read = |path: &Path| -> (Vec<u8>, serde_json::Value) {
-        let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        let record = serde_json::from_slice(&bytes).unwrap();
-        (bytes, record)
-    };
-    let (cap_bytes, capabilities) = read(&bundle.join("handshake-capabilities/capabilities.json"));
-    let (raw_bytes, raw) = read(&bundle.join("handshake-raw-credential/raw-inputs.json"));
-    let (_, measured_image) = read(&bundle.join("handshake-raw-credential/image.json"));
-    assert_eq!(measured_image["disk_sha256"], GUEST_MEASURED_DISK_SHA256);
-    assert_eq!(measured_image["seed_sha256"], GUEST_MEASURED_SEED_SHA256);
-    assert_eq!(
-        capabilities["status"]["disk_sha256"],
-        GUEST_MEASURED_DISK_SHA256
-    );
-    assert_eq!(
-        capabilities["status"]["seed_sha256"],
-        GUEST_MEASURED_SEED_SHA256
-    );
-    for row in GUEST_MEASUREMENTS {
-        let (path, pointer) = row.record.split_once('#').expect("path#pointer");
-        let (_, record) = read(&root.join(path));
+    for (subdir, cap_path, raw_path, disk, seed, table) in [
+        (
+            "",
+            "handshake-capabilities/capabilities.json",
+            "handshake-raw-credential",
+            GUEST_MEASURED_DISK_SHA256,
+            GUEST_MEASURED_SEED_SHA256,
+            GUEST_MEASUREMENTS,
+        ),
+        (
+            "native-v2",
+            "capabilities/capabilities.json",
+            "raw-vault",
+            NATIVE_GUEST_MEASURED_DISK_SHA256,
+            NATIVE_GUEST_MEASURED_SEED_SHA256,
+            NATIVE_GUEST_MEASUREMENTS,
+        ),
+    ] {
         assert_eq!(
-            record.pointer(pointer),
-            Some(&serde_json::Value::Bool(true)),
-            "{}",
-            row.record
+            table.iter().map(|row| row.requirement).collect::<Vec<_>>(),
+            LIVE_MEASURED
         );
-        let entry_pointer = pointer.strip_suffix("/verdict").expect("verdict pointer");
-        assert_eq!(entry_pointer, format!("/measurements/{}", row.requirement));
-        let entry = record.pointer(entry_pointer).unwrap();
-        assert_eq!(entry["measured_at"], row.measured_at, "{}", row.record);
-        assert!(!entry["attempt_id"].as_str().unwrap().is_empty());
-        match record["schema"].as_str().unwrap() {
-            "ukai.vm.capabilities/2" => {
-                let capability = entry["capability"].as_str().expect("capability name");
-                let attempt = &record["results"][capability];
-                assert_eq!(attempt["started_at"], row.measured_at);
-                assert_eq!(attempt["attempt_id"], entry["attempt_id"]);
-                assert_eq!(record["summary"][capability], true);
-                assert_eq!(record["summary"]["outcome"], "PASS");
-            }
-            "ukai.vm.execution-boundary-measurement/1" => {
-                assert_eq!(row.requirement, "execution_boundary");
-                assert_eq!(record["outcome"], "PASS");
-                assert_eq!(
-                    record["source_record_sha256"],
-                    format!("{:x}", sha2::Sha256::digest(&cap_bytes))
-                );
-                let names = ["pids", "mem", "tree_termination", "tree_wall"];
-                let attempts: Vec<_> = names
-                    .iter()
-                    .map(|name| capabilities["results"][name]["attempt_id"].clone())
-                    .collect();
-                assert_eq!(entry["attempt_ids"], serde_json::json!(attempts));
-                assert_eq!(entry["attempt_id"], attempts[0]);
-                assert_eq!(
-                    entry["measured_at"],
-                    capabilities["results"]["pids"]["started_at"]
-                );
-                let facts = record["facts"].as_object().unwrap();
-                assert!(!facts.is_empty() && facts.values().all(|value| value == true));
-                assert_eq!(record["status"], capabilities["status"]);
-            }
-            "ukai.vm.credential-staging-measurement/2" => {
-                assert_eq!(row.requirement, "credential_staging");
-                assert_eq!(record["outcome"], "PASS");
-                assert_eq!(record["qualified"], false);
-                assert_eq!(
-                    record["source_record_sha256"],
-                    format!("{:x}", sha2::Sha256::digest(&raw_bytes))
-                );
-                assert_eq!(entry["attempt_id"], raw["record"]["attempt_id"]);
-                assert_eq!(
-                    entry["guest_attempt_id"],
-                    raw["record"]["receipt"]["attempt_id"]
-                );
-                assert_eq!(entry["measured_at"], raw["record"]["started_at"]);
-                assert_eq!(record["installation"]["image"], measured_image);
-                assert_eq!(
-                    record["compatibility"]["required_guest_image"],
-                    serde_json::json!({
-                        "disk_sha256": GUEST_MEASURED_DISK_SHA256,
-                        "seed_sha256": GUEST_MEASURED_SEED_SHA256,
-                    })
-                );
-                assert_eq!(
-                    raw["record"]["ready"]["guest_contracts"],
-                    serde_json::json!({
-                        "secret_revocation": protocol::SECRET_REVOCATION_CONTRACT,
-                        "journal_export": protocol::JOURNAL_EXPORT_CONTRACT,
-                    })
-                );
-                let facts = record["recomputed_facts"].as_object().unwrap();
-                assert!(!facts.is_empty() && facts.values().all(|value| value == true));
-                assert!(
-                    entry["not_measured"]
-                        .as_array()
-                        .unwrap()
+        let bundle = root
+            .join("docs/benchmarks/jail/results/macos-vm-admission-2026-11-15")
+            .join(subdir);
+        let read = |path: &Path| -> (Vec<u8>, serde_json::Value) {
+            let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            let record = serde_json::from_slice(&bytes).unwrap();
+            (bytes, record)
+        };
+        let (cap_bytes, capabilities) = read(&bundle.join(cap_path));
+        let (raw_bytes, raw) = read(&bundle.join(raw_path).join("raw-inputs.json"));
+        let (_, measured_image) = read(&bundle.join(raw_path).join("image.json"));
+        assert_eq!(measured_image["disk_sha256"], disk);
+        assert_eq!(measured_image["seed_sha256"], seed);
+        assert_eq!(capabilities["status"]["disk_sha256"], disk);
+        assert_eq!(capabilities["status"]["seed_sha256"], seed);
+        for row in table {
+            let (path, pointer) = row.record.split_once('#').expect("path#pointer");
+            let (_, record) = read(&root.join(path));
+            assert_eq!(
+                record.pointer(pointer),
+                Some(&serde_json::Value::Bool(true)),
+                "{}",
+                row.record
+            );
+            let entry_pointer = pointer.strip_suffix("/verdict").expect("verdict pointer");
+            assert_eq!(entry_pointer, format!("/measurements/{}", row.requirement));
+            let entry = record.pointer(entry_pointer).unwrap();
+            assert_eq!(entry["measured_at"], row.measured_at, "{}", row.record);
+            assert!(!entry["attempt_id"].as_str().unwrap().is_empty());
+            match record["schema"].as_str().unwrap() {
+                "ukai.vm.capabilities/2" => {
+                    let capability = entry["capability"].as_str().expect("capability name");
+                    let attempt = &record["results"][capability];
+                    assert_eq!(attempt["started_at"], row.measured_at);
+                    assert_eq!(attempt["attempt_id"], entry["attempt_id"]);
+                    assert_eq!(record["summary"][capability], true);
+                    assert_eq!(record["summary"]["outcome"], "PASS");
+                }
+                "ukai.vm.execution-boundary-measurement/1" => {
+                    assert_eq!(row.requirement, "execution_boundary");
+                    assert_eq!(record["outcome"], "PASS");
+                    assert_eq!(
+                        record["source_record_sha256"],
+                        format!("{:x}", sha2::Sha256::digest(&cap_bytes))
+                    );
+                    let names = ["pids", "mem", "tree_termination", "tree_wall"];
+                    let attempts: Vec<_> = names
                         .iter()
-                        .any(|value| value == "normal installed-client host-source watch")
-                );
+                        .map(|name| capabilities["results"][name]["attempt_id"].clone())
+                        .collect();
+                    assert_eq!(entry["attempt_ids"], serde_json::json!(attempts));
+                    assert_eq!(entry["attempt_id"], attempts[0]);
+                    assert_eq!(
+                        entry["measured_at"],
+                        capabilities["results"]["pids"]["started_at"]
+                    );
+                    let facts = record["facts"].as_object().unwrap();
+                    assert!(!facts.is_empty() && facts.values().all(|value| value == true));
+                    assert_eq!(record["status"], capabilities["status"]);
+                }
+                "ukai.vm.credential-staging-measurement/2" => {
+                    assert_eq!(row.requirement, "credential_staging");
+                    assert_eq!(record["outcome"], "PASS");
+                    assert_eq!(record["qualified"], false);
+                    assert_eq!(
+                        record["source_record_sha256"],
+                        format!("{:x}", sha2::Sha256::digest(&raw_bytes))
+                    );
+                    assert_eq!(entry["attempt_id"], raw["record"]["attempt_id"]);
+                    assert_eq!(
+                        entry["guest_attempt_id"],
+                        raw["record"]["receipt"]["attempt_id"]
+                    );
+                    assert_eq!(entry["measured_at"], raw["record"]["started_at"]);
+                    assert_eq!(record["installation"]["image"], measured_image);
+                    assert_eq!(
+                        record["compatibility"]["required_guest_image"],
+                        serde_json::json!({
+                            "disk_sha256": disk,
+                            "seed_sha256": seed,
+                        })
+                    );
+                    assert_eq!(
+                        raw["record"]["ready"]["guest_contracts"],
+                        if subdir.is_empty() {
+                            serde_json::json!({
+                                "secret_revocation": protocol::SECRET_REVOCATION_CONTRACT,
+                                "journal_export": protocol::JOURNAL_EXPORT_CONTRACT,
+                            })
+                        } else {
+                            serde_json::json!({
+                                "secret_revocation": protocol::SECRET_REVOCATION_CONTRACT,
+                                "journal_export": protocol::JOURNAL_EXPORT_CONTRACT,
+                                "native_program": protocol::NATIVE_PROGRAM_CONTRACT,
+                                "sampled_exposure": protocol::SAMPLED_EXPOSURE_CONTRACT,
+                            })
+                        }
+                    );
+                    let facts = record["recomputed_facts"].as_object().unwrap();
+                    assert!(!facts.is_empty() && facts.values().all(|value| value == true));
+                    assert!(
+                        entry["not_measured"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .any(|value| value == "normal installed-client host-source watch")
+                    );
+                }
+                schema => panic!("unrecognized measurement schema {schema}"),
             }
-            schema => panic!("unrecognized measurement schema {schema}"),
         }
     }
+}
+
+#[test]
+fn native_admission_pins_resolve_to_the_exact_retained_component_evidence() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let (path, pointer) = NATIVE_PROGRAM_ADMISSION_RECORD.split_once('#').unwrap();
+    let path = root.join(path);
+    let bundle = path.parent().unwrap();
+    let admission: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    assert_eq!(admission["schema"], "ukai.vm.native-program-admission/1");
+    assert_eq!(admission.pointer(pointer).unwrap(), "PASS");
+    assert_eq!(
+        admission["required_guest_image"],
+        serde_json::json!({
+            "disk_sha256": NATIVE_GUEST_MEASURED_DISK_SHA256,
+            "seed_sha256": NATIVE_GUEST_MEASURED_SEED_SHA256,
+        })
+    );
+    let pin = &NATIVE_PROGRAM_ADMISSION;
+    assert_eq!(
+        admission["native_program"],
+        serde_json::json!({
+            "catalog_sha256": pin.catalog_sha256,
+            "entry_id_sha256": pin.entry_id_sha256,
+            "profile_sha256": pin.profile_sha256,
+            "executable_sha256": pin.executable_sha256,
+        })
+    );
+    assert_eq!(
+        admission["qualification"],
+        serde_json::json!({
+            "native_vendor": false, "k113": false, "release": false, "new_host_runtime": false,
+        })
+    );
+    assert_eq!(
+        admission["compatibility"]["older_or_changed_guest_images_inherit_admission"],
+        false
+    );
+    let evidence = admission["evidence"].as_object().unwrap();
+    assert!(!evidence.is_empty());
+    let mut files = BTreeMap::new();
+    for (name, entry) in evidence {
+        let relative = Path::new(entry["path"].as_str().unwrap());
+        assert!(
+            relative
+                .components()
+                .all(|part| matches!(part, std::path::Component::Normal(_))),
+            "{name}"
+        );
+        let bytes = std::fs::read(bundle.join(relative)).unwrap();
+        assert_eq!(
+            entry["sha256"],
+            crate::guest_program::sha256(&bytes),
+            "{name}"
+        );
+        files.insert(name.as_str(), bytes);
+    }
+    let json = |name: &str| -> Value { serde_json::from_slice(files.get(name).unwrap()).unwrap() };
+    let catalog =
+        crate::guest_program::Catalog::parse(files.get("catalog").unwrap(), pin.catalog_sha256)
+            .unwrap();
+    let entry = catalog
+        .entries
+        .iter()
+        .find(|entry| crate::guest_program::sha256(entry.id.as_bytes()) == pin.entry_id_sha256)
+        .unwrap();
+    assert_eq!(entry.profile_sha256, pin.profile_sha256);
+    assert_eq!(entry.executable_sha256, pin.executable_sha256);
+    let profile = crate::launch_profile::bundled_profile(&entry.alias).unwrap();
+    assert_eq!(
+        files.get("bundled_profile").unwrap().as_slice(),
+        profile.as_bytes()
+    );
+    assert_eq!(
+        crate::guest_program::sha256(profile.as_bytes()),
+        pin.profile_sha256
+    );
+    for name in ["prepared_image", "signed_image_manifest"] {
+        let image = json(name);
+        assert_eq!(image["disk_sha256"], NATIVE_GUEST_MEASURED_DISK_SHA256);
+        assert_eq!(image["seed_sha256"], NATIVE_GUEST_MEASURED_SEED_SHA256);
+        assert_eq!(image["guest_program_catalog_sha256"], pin.catalog_sha256);
+    }
+    let inputs = json("program_inputs");
+    let measurement = &admission["measurements"]["native_program"];
+    assert_eq!(measurement["attempt_id"], inputs["record"]["attempt_id"]);
+    assert_eq!(
+        measurement["guest_attempt_id"],
+        inputs["record"]["receipt"]["attempt_id"]
+    );
+    assert_eq!(admission["measured_at"], inputs["record"]["started_at"]);
+    for name in [
+        "program_measurement",
+        "program_result",
+        "program_offline_replay",
+    ] {
+        let report = json(name);
+        assert_eq!(
+            report["inputs_sha256"],
+            evidence["program_inputs"]["sha256"]
+        );
+        assert_eq!(report["qualified"], false);
+        if name != "program_measurement" {
+            assert_eq!(report["outcome"], "PASS");
+            let facts = report["facts"].as_object().unwrap();
+            assert!(!facts.is_empty() && facts.values().all(|value| value == true));
+            assert_eq!(measurement["program_binding_facts"], facts.len());
+        }
+    }
+    let staging = json("generic_credential_staging");
+    assert_eq!(
+        staging["source_record_sha256"],
+        evidence["generic_vault_inputs"]["sha256"]
+    );
+    assert_eq!(
+        staging["compatibility"]["required_guest_image"],
+        admission["required_guest_image"]
+    );
+    assert_eq!(staging["outcome"], "PASS");
+    assert_eq!(staging["qualified"], false);
+    let facts = staging["recomputed_facts"].as_object().unwrap();
+    assert!(!facts.is_empty() && facts.values().all(|value| value == true));
+    assert_eq!(measurement["vault_staging_facts"], facts.len());
 }
 
 /// The table is the one source of `available`: a listed requirement answers

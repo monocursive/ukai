@@ -1,0 +1,56 @@
+{
+  "schema": "ukai.task.vm-lifecycle/1",
+  "recorded_at": "2026-11-15T17:19:05.766501+00:00",
+  "source_revision": "160a9bf51823ae552f55ae2c02c34019567c0dbf",
+  "scope": "Final task-owned VZ and workspace-volume teardown; original measurement records unchanged",
+  "owned_process_selection": {
+    "executable_prefixes": [
+      "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-160a9bf51/",
+      "/private/tmp/ukai-gn-160a9bf51/"
+    ]
+  },
+  "before_owned_processes": [],
+  "after_owned_processes": [],
+  "workspace_before": [
+    {
+      "image_path": "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/workspaces.sparseimage",
+      "entities": [
+        {
+          "content-hint": "GUID_partition_scheme",
+          "dev-entry": "/dev/disk4"
+        },
+        {
+          "content-hint": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+          "dev-entry": "/dev/disk4s1"
+        },
+        {
+          "content-hint": "7C3457EF-0000-11AA-AA11-00306543ECAC",
+          "dev-entry": "/dev/disk4s2"
+        },
+        {
+          "content-hint": "EF57347C-0000-11AA-AA11-00306543ECAC",
+          "dev-entry": "/dev/disk5"
+        },
+        {
+          "content-hint": "41504653-0000-11AA-AA11-00306543ECAC",
+          "dev-entry": "/dev/disk5s1",
+          "mount-point": "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/workspace-volume"
+        }
+      ]
+    }
+  ],
+  "workspace_after": [],
+  "open_files_check": {
+    "returncode": 1,
+    "stdout_empty": true,
+    "stderr_empty": true
+  },
+  "detach": {
+    "returncode": 0,
+    "stdout": "\"disk4\" ejected.\n",
+    "stderr": "hdiutil: WARNING: 'hdiutil detach ...' is deprecated. Please use 'diskutil eject ...' instead.\n"
+  },
+  "backing_image_preserved": true,
+  "mountpoint_mounted_after": false,
+  "passed": true
+}

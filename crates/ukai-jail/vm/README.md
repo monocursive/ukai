@@ -414,8 +414,10 @@ Apple references: [Virtualization](https://developer.apple.com/documentation/vir
 ## J18: the warm service and measured guest admission (unreleased)
 
 The opt-in [guest-native launch contract](GUEST-NATIVE.md) describes the
-catalog-installed program work in progress. It preserves the bundled profile
-and actual Linux launcher; it does not qualify a new image or promote K113.
+catalog-installed program path. It preserves the bundled profile and actual
+Linux launcher. The [native image component proof](../../../docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/README.md)
+backs a separate exact image/catalog admission guard; installed native-client
+and vendor qualification remain required, and K113 is not promoted.
 `vm_summary_check.py` independently checks retained VM evidence against both
 JSON and terminal summaries, including complete guest journal bindings. Its
 PASS means the summaries match those bytes, not that the attempt or package

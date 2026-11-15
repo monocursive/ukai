@@ -1,10 +1,12 @@
 # Guest-native launch contract
 
-This contract describes the opt-in implementation under development for a
-catalog-installed native Linux program on the macOS VM backend. It does not
-admit a new image, complete K113, or change any published release coordinate.
-The existing literal-command VM path remains a separate mode. New images need
-new component measurements and installed-client qualification.
+This contract describes the opt-in implementation for a catalog-installed
+native Linux program on the macOS VM backend. The
+[retained component proof](../../../docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/README.md)
+admits one exact guest image and catalog shape. It does not complete K113 or
+change any published release coordinate. The existing literal-command VM path
+remains a separate mode. New images need new component measurements, and
+rebuilt hosts need fresh installed-client qualification.
 
 ## Supported execution
 
@@ -213,10 +215,18 @@ it does not manufacture a jail receipt or qualify workload observation.
 
 ## Qualification still required
 
+The native admission guard additionally pins the catalog, entry identity,
+profile, and executable to the measured disk/seed pair. Its proof combines
+same-image vault staging with an actual Linux `@program` control: the allowed
+program made one successful request, while a byte-identical copy at another
+file identity received `credential_process_denied`. That control used the
+literal service path and synthetic credentials. It did not execute the catalog
+vendor or establish the native alias path's behavior.
+
 Unit and protocol tests cover malformed catalogs, changed trees, missing
 contracts, poisoned host PATH, mixed launch modes, unsupported narrowing,
 incorrect source selection, mismatched intent/digests, and honest cleanup.
-Fresh image measurements, installed signed-client runs, both real supported
+Native alias and derived-root execution, installed signed-client runs, both real supported
 auth modes, neither-source refusal, midstream revocation, ten fresh vendor
 tasks, guest-side environment/argv sampling with a positive leak control,
 and independent full-summary verification are separate evidence requirements.

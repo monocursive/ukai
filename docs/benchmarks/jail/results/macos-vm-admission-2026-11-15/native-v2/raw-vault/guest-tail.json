@@ -1,0 +1,105 @@
+{
+  "attempt_id": "att_eea263ca-5434-49ea-ace7-1aa8bb1824ad",
+  "journal": "complete",
+  "lines": [
+    {
+      "facts": {
+        "attempt_wall_ms": null,
+        "cause": null,
+        "code": 0,
+        "errors": [],
+        "exec_to_settled_ms": 378,
+        "integrity": "verified",
+        "outcome": "exited",
+        "phase": "settled",
+        "signal": null,
+        "survivors": "none_verified"
+      },
+      "line": "status",
+      "text": "settled · exited 0 · 378ms exec→settled · survivors: none (verified)"
+    },
+    {
+      "facts": {
+        "bound": "exact",
+        "omitted": 0,
+        "opened_for_writing": 0,
+        "paths": [],
+        "refused": 0,
+        "refused_bound": "exact",
+        "removed": 0,
+        "renamed": 0,
+        "unnamed": 0
+      },
+      "line": "workspace",
+      "text": "workspace: 0 paths opened for writing"
+    },
+    {
+      "facts": {
+        "allowed": [
+          {
+            "connect_failed": 0,
+            "destination": "<mac-address>:53551",
+            "results": 1
+          }
+        ],
+        "bound": "exact",
+        "denied": [
+          {
+            "destination": "<mac-address>:53551",
+            "reason": "credential_revoked",
+            "results": 1
+          }
+        ],
+        "mode": "proxy",
+        "omitted": 0,
+        "resolver_refused": null
+      },
+      "line": "network",
+      "text": "network: allowed <mac-address>:53551 (1) · denied <mac-address>:53551 (1)"
+    },
+    {
+      "facts": {
+        "credentials": [
+          {
+            "id": "test",
+            "mode": "vault",
+            "never_staged": true,
+            "transitions": [
+              "loaded",
+              "revoked"
+            ],
+            "unconfirmed": 0,
+            "uses": 1,
+            "uses_bound": "exact"
+          }
+        ],
+        "omitted": 0,
+        "refusals": 1,
+        "refusals_bound": "exact"
+      },
+      "line": "credentials",
+      "text": "credential test: vault, never staged · used on 1 proxy result · revoked · 1 credential refusal"
+    },
+    {
+      "facts": {
+        "attached": true,
+        "classes": {
+          "exec": "active",
+          "fs.deny": "active",
+          "fs.write": "active",
+          "limits": "active",
+          "net": "active",
+          "proxy.net": "active"
+        },
+        "disagree": [],
+        "evidence": "strict",
+        "gaps": [],
+        "observe": "on"
+      },
+      "line": "evidence",
+      "text": "evidence: 6/6 classes active, no gaps · reads and file contents are not observed"
+    }
+  ],
+  "receipt_digest": "sha256:c83901fbcac21b1051f66d016f0c04ff5b53a2b7211cef430843e0e257b72f89",
+  "schema": "ukai.jail.summary/1"
+}

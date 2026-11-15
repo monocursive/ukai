@@ -1,0 +1,53 @@
+{
+  "schema": "ukai.vm.program-binding-component/1",
+  "qualified": false,
+  "outcome": "PASS",
+  "facts": {
+    "literal_component_scope": true,
+    "bound_actual_guest_receipt": true,
+    "exact_staging_ack": true,
+    "placeholder_only_child_value": true,
+    "copied_executable_same_bytes_different_identity": true,
+    "copied_program_actually_exec_observed": true,
+    "own_request_succeeded": true,
+    "other_program_exact_proxy_refusal": true,
+    "one_substitution_and_one_later_program_denial": true,
+    "independent_upstream_received_only_authorized_request": true,
+    "bound_complete_journal": true,
+    "exact_summary_credential_count": true,
+    "strict_six_classes": true,
+    "vault_never_staged": true,
+    "settled_clean_guest": true,
+    "controller_cleanup": true,
+    "fixture_removed_without_error": true,
+    "exact_literal_declaration_and_argv": true,
+    "exact_installed_image_and_binaries": true,
+    "independent_complete_summary": true,
+    "same_boot_sync": true,
+    "stopped_and_quiescent": true,
+    "complete_spelling_scans": true,
+    "no_harness_error": true
+  },
+  "inputs_sha256": "b168916310817e2cd6e8235a65911f7b4c10fb8f5b3f4244946d80dc8c6dce30",
+  "independent_summary": {
+    "schema": "ukai.vm.summary-verification/1",
+    "outcome": "PASS",
+    "qualified": false,
+    "scope": "host_only",
+    "journal": "complete",
+    "journal_frames": 22,
+    "sampling": {
+      "state": "not_requested"
+    },
+    "lines": 5,
+    "display_mapping_applied": true,
+    "display_mapping_sha256": "299948c33016e166fdbe9a75ed85060a3fc054acc4b20ed8d313c6b5b610591f",
+    "evidence_sha256": {
+      "jail.json": "c2ce92035d3737a9954d324978bb1e575c0547ad29520bffdad804e88bce1900",
+      "trace.ndjson": "79a4aad5f041f43fc8fc069525e2738435ce930ccf5282e327d127722721b4f1"
+    },
+    "summary_json_sha256": "b2cab85dd118145e8310ff715710889fcc4af4989a2f8484ebe1f49a8cac2218",
+    "summary_text_sha256": "b605ef52ad4215c38414229b61355738af10138a6755d1549165729a6305e428"
+  },
+  "scope": "Literal warm-service component: actual Linux @program own/copy proxy control; not native catalog, vendor, host source-watch or K113 qualification."
+}

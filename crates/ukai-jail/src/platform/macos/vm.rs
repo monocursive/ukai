@@ -9,9 +9,10 @@
 //! platform; a difference refuses with `vm:not-carried:<field>`
 //! ([`policy_refusal`]). The probe answers `available` only for a
 //! requirement a measured guest record backs (decision D2,
-//! [`GUEST_MEASUREMENTS`]). The 2026-11-15 signed-image measurements back
+//! [`GUEST_MEASUREMENTS`] and [`NATIVE_GUEST_MEASUREMENTS`]). The signed-image measurements back
 //! twelve requirements, including execution boundaries and vault credential
-//! staging. They apply only to the measured guest disk and seed. The guest
+//! staging. Each table applies only to its measured guest disk and seed. A
+//! native program additionally requires its exact catalog/entry admission. The guest
 //! must also advertise the exact revocation and journal contracts before
 //! any secret crosses. Owner-loss bounds and unsupported policy fields
 //! continue to refuse.
@@ -629,14 +630,14 @@ impl Platform for VmPlatform {
             } else {
                 policy_refusal(&plan.snapshot)
             }
-            .map(|(reason, _)| reason),
-            if self.install.manifest.disk_sha256 == GUEST_MEASURED_DISK_SHA256
-                && self.install.manifest.seed_sha256 == GUEST_MEASURED_SEED_SHA256
-            {
-                GUEST_MEASUREMENTS
-            } else {
-                &[]
-            },
+            .map(|(reason, _)| reason)
+            .or_else(|| {
+                plan.guest_program.as_ref().and_then(|program| {
+                    (!native_program_admitted(&self.install.manifest, program))
+                        .then(|| format!("{REASON_VM_NOT_MEASURED}guest-native-program"))
+                })
+            }),
+            guest_measurements(&self.install.manifest),
         )
     }
 
@@ -679,9 +680,9 @@ pub const GUEST_MEASURED_DISK_SHA256: &str =
 pub const GUEST_MEASURED_SEED_SHA256: &str =
     "7a9197f33bd205636279dee4d2435915270e12d55d6e97911a8e0837fca71653";
 
-/// The one table backing guest capability availability (decision D2).
-/// `probe` uses it only for the measured disk/seed pair above. Every other
-/// requirement or image answers `vm:not-measured:<requirement>`; owner loss
+/// The original table backing guest capability availability (decision D2).
+/// `probe` uses it only for the measured disk/seed pair above. Requirements or
+/// images outside both measured tables answer `vm:not-measured:<requirement>`; owner loss
 /// always refuses with its dedicated reason, and unsupported policy fields
 /// retain their carry refusal before any connection or boot.
 ///
@@ -760,6 +761,124 @@ pub const GUEST_MEASUREMENTS: &[GuestMeasurement] = &[
         measured_at: "2026-11-15T13:52:23Z",
     },
 ];
+
+/// The second measured guest retains its own twelve component records. These
+/// rows admit the existing literal policy shape; native program requests also
+/// need the exact component admission below. Neither table qualifies a vendor,
+/// a rebuilt host, sampled exposure, or a release.
+pub const NATIVE_GUEST_MEASURED_DISK_SHA256: &str =
+    "f4fafa35c0dc4ee6e174f125eea0a8d13873f6b58f83b23683542c35fbe87c31";
+pub const NATIVE_GUEST_MEASURED_SEED_SHA256: &str =
+    "3676179232ceec91aa32ca0dcbc1aaff944733d1fad2281319bdc03e32825cd1";
+pub const NATIVE_GUEST_MEASUREMENTS: &[GuestMeasurement] = &[
+    GuestMeasurement {
+        requirement: "limit:wall",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/capabilities/capabilities.json#/measurements/limit:wall/verdict",
+        measured_at: "2026-11-15T17:12:12Z",
+    },
+    GuestMeasurement {
+        requirement: "limit:pids",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/capabilities/capabilities.json#/measurements/limit:pids/verdict",
+        measured_at: "2026-11-15T17:12:18Z",
+    },
+    GuestMeasurement {
+        requirement: "limit:mem",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/capabilities/capabilities.json#/measurements/limit:mem/verdict",
+        measured_at: "2026-11-15T17:12:18Z",
+    },
+    GuestMeasurement {
+        requirement: "filesystem_containment",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/capabilities/capabilities.json#/measurements/filesystem_containment/verdict",
+        measured_at: "2026-11-15T17:12:18Z",
+    },
+    GuestMeasurement {
+        requirement: "network_none",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/capabilities/capabilities.json#/measurements/network_none/verdict",
+        measured_at: "2026-11-15T17:12:19Z",
+    },
+    GuestMeasurement {
+        requirement: "tree_termination",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/capabilities/capabilities.json#/measurements/tree_termination/verdict",
+        measured_at: "2026-11-15T17:12:20Z",
+    },
+    GuestMeasurement {
+        requirement: "closed_set_observation",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/capabilities/capabilities.json#/measurements/closed_set_observation/verdict",
+        measured_at: "2026-11-15T17:12:36Z",
+    },
+    GuestMeasurement {
+        requirement: "syscall_filter",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/capabilities/capabilities.json#/measurements/syscall_filter/verdict",
+        measured_at: "2026-11-15T17:12:37Z",
+    },
+    GuestMeasurement {
+        requirement: "protected_coverage:existing_and_root",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/capabilities/capabilities.json#/measurements/protected_coverage:existing_and_root/verdict",
+        measured_at: "2026-11-15T17:12:37Z",
+    },
+    GuestMeasurement {
+        requirement: "network_proxy",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/capabilities/capabilities.json#/measurements/network_proxy/verdict",
+        measured_at: "2026-11-15T17:12:38Z",
+    },
+    GuestMeasurement {
+        requirement: "execution_boundary",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/execution-boundary/execution-boundary.json#/measurements/execution_boundary/verdict",
+        measured_at: "2026-11-15T17:12:18Z",
+    },
+    GuestMeasurement {
+        requirement: "credential_staging",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/credential-staging/credential-staging.json#/measurements/credential_staging/verdict",
+        measured_at: "2026-11-15T17:13:52Z",
+    },
+];
+
+/// Additional, image-specific authorization for the guest program domain.
+/// Entry names remain data: the digest binds their exact UTF-8 bytes without
+/// teaching the execution core a vendor alias.
+struct NativeProgramAdmission {
+    catalog_sha256: &'static str,
+    entry_id_sha256: &'static str,
+    profile_sha256: &'static str,
+    executable_sha256: &'static str,
+}
+
+/// Component-only authorization; tests bind every pin to this retained proof.
+/// This record does not qualify a vendor, the new host client, or a release.
+pub const NATIVE_PROGRAM_ADMISSION_RECORD: &str = "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/native-admission.json#/measurements/native_program/verdict";
+
+const NATIVE_PROGRAM_ADMISSION: NativeProgramAdmission = NativeProgramAdmission {
+    catalog_sha256: "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244",
+    entry_id_sha256: "52aecf2264a738f1a16899c7536da1cf26034c440a62348b402db682e0a550aa",
+    profile_sha256: "e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24",
+    executable_sha256: "2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3",
+};
+
+fn guest_measurements(manifest: &image::ImageManifest) -> &'static [GuestMeasurement] {
+    match (manifest.disk_sha256.as_str(), manifest.seed_sha256.as_str()) {
+        (GUEST_MEASURED_DISK_SHA256, GUEST_MEASURED_SEED_SHA256) => GUEST_MEASUREMENTS,
+        (NATIVE_GUEST_MEASURED_DISK_SHA256, NATIVE_GUEST_MEASURED_SEED_SHA256) => {
+            NATIVE_GUEST_MEASUREMENTS
+        }
+        _ => &[],
+    }
+}
+
+fn native_program_admitted(
+    manifest: &image::ImageManifest,
+    program: &crate::guest_program::GuestProgram,
+) -> bool {
+    let pin = &NATIVE_PROGRAM_ADMISSION;
+    manifest.disk_sha256 == NATIVE_GUEST_MEASURED_DISK_SHA256
+        && manifest.seed_sha256 == NATIVE_GUEST_MEASURED_SEED_SHA256
+        && program.disk_sha256 == manifest.disk_sha256
+        && program.seed_sha256 == manifest.seed_sha256
+        && manifest.guest_program_catalog_sha256.as_deref() == Some(pin.catalog_sha256)
+        && program.catalog_sha256 == pin.catalog_sha256
+        && crate::guest_program::sha256(program.entry.id.as_bytes()) == pin.entry_id_sha256
+        && program.entry.profile_sha256 == pin.profile_sha256
+        && program.entry.executable_sha256 == pin.executable_sha256
+}
 
 /// The capability rows for `requirements`: the owner-loss row always refuses
 /// (K112), a policy `--vm` cannot carry refuses every other row with its
