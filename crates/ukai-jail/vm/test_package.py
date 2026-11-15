@@ -412,6 +412,17 @@ class SourceArchiveTests(unittest.TestCase):
 
 
 class PackageMetadataTests(unittest.TestCase):
+    def test_host_client_notices_come_from_current_source_not_guest_archive(self):
+        notices = package.host_notices()
+        self.assertIn((package.REPO / 'crates/ukai-jail/dist/THIRD_PARTY_NOTICES.txt').read_bytes(), notices)
+        self.assertIn(b'Copyright 2015-2025 Brian Smith.', notices)
+        self.assertIn(b'Copyright notices for The Rust Standard Library', notices)
+
+    def test_stale_host_notices_refuse(self):
+        with mock.patch('package.subprocess.check_output', side_effect=subprocess.CalledProcessError(1, ['notice-check'])):
+            with self.assertRaises(subprocess.CalledProcessError):
+                package.host_notices()
+
     def test_keeps_prepare_time_source_hashes(self):
         prepared = {'schema': 'ukai.vm.image-build/1', 'status': 'prepared',
                     'source_sha256': {'guest.py': 'g0', 'vz.swift': 'v0'}, 'helper_sha256': 'prepared-vz'}

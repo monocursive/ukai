@@ -77,6 +77,13 @@ def capture(*args, env=None, cwd=None):
                           capture_output=True, text=True).stdout
 
 
+def host_notices(repo=REPO):
+    # The guest archive can be an older public preview. Its notices cannot
+    # stand in for the client/service just built from the reviewed source.
+    return subprocess.check_output([sys.executable, str(repo / 'crates/ukai-jail/dist/notices.py'),
+                                    'print', '--source', str(repo)], timeout=120)
+
+
 def release_coordinates():
     """dist/coordinates.py, loaded by path as prepare.py does (dist/ also holds a package.py)."""
     import importlib.util
@@ -395,6 +402,8 @@ def main():
             or digest(prepared / 'seed.iso') != metadata['seed_sha256']
             or digest(args.jail_archive) != metadata['jail_archive_sha256']):
         parser.error('prepared disk, seed, or Linux archive does not match provenance')
+    # Refuse stale attribution before compiling or signing any candidate byte.
+    host_license_bytes = host_notices()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     volume = out / 'volume'
@@ -447,6 +456,7 @@ def main():
     notices = payload / 'licenses'
     notices.mkdir()
     shutil.copy2(REPO / 'LICENSE', notices / 'Ukai-LICENSE.txt')
+    (notices / 'Native-Host-LICENSES.txt').write_bytes(host_license_bytes)
     with tarfile.open(args.jail_archive) as archive:
         for member in archive.getmembers():
             if member.isfile() and member.name.endswith('LICENSES.txt'):

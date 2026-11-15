@@ -13,6 +13,7 @@ import shutil
 import stat
 import struct
 import subprocess
+import sys
 import tempfile
 import tomllib
 
@@ -155,6 +156,13 @@ def info_plist(release, number):
             'LSMinimumSystemVersion': '27.0', 'LSBackgroundOnly': True}
 
 
+def license_notices(repo, revision):
+    # Staging alone needs source. Copied native.py/install.py remain standalone;
+    # load_package verifies their embedded license bytes through the manifest.
+    return execute([sys.executable, repo / 'crates/ukai-jail/dist/notices.py', 'print',
+                    '--source', repo, '--revision', revision], env=environment()).stdout
+
+
 def stage(binary, repo, out, release, number):
     revision = git(repo, 'rev-parse', 'HEAD').decode().strip()
     require(re.fullmatch('[0-9a-f]{40}', revision), 'Source HEAD is not a full commit')
@@ -174,6 +182,7 @@ def stage(binary, repo, out, release, number):
                   'build_number': number, 'native_execution': 'disabled-by-default',
                   'qualification': 'none; NC02/K104 and native workflows remain unsupported'}
     plist = info_plist(release, number)
+    licenses = license_notices(repo, revision)
     out.mkdir(parents=True, exist_ok=False)
     app = out / APP
     (app / 'Contents/MacOS').mkdir(parents=True)
@@ -181,8 +190,6 @@ def stage(binary, repo, out, release, number):
     (app / EXECUTABLE).write_bytes(raw)
     (app / EXECUTABLE).chmod(0o755)
     (app / 'Contents/Info.plist').write_bytes(plistlib.dumps(plist))
-    licenses = git(repo, 'show', f'{revision}:LICENSE') + b'\n\nwebpki-roots CA data\n' + git(
-        repo, 'show', f'{revision}:crates/ukai-jail/dist/WEBPKI_ROOTS_LICENSE')
     (app / 'Contents/Resources/LICENSES.txt').write_bytes(licenses)
     write_json(app / PROVENANCE, provenance)
     for directory, _, files in os.walk(app):

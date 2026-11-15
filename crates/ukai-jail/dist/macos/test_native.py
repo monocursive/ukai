@@ -143,10 +143,17 @@ class NativeTests(unittest.TestCase):
         report = copy.deepcopy(self.report['provenance']['build'])
         report['build'].update(revision=revision, inputs=native.commit_inputs(repo, revision))
         binary = self.package / native.APP / native.EXECUTABLE
-        with patch.object(native, 'version', return_value=report):
+        with patch.object(native, 'version', return_value=report), patch.object(
+                native, 'license_notices', return_value=b'verified notices'):
             result = native.stage(binary, repo, self.root / 'stage', '0.1.0-native.1', 1)
         self.assertEqual(result['provenance']['source_revision'], revision)
         native.load_package(self.root / 'stage')
+        self.assertEqual((self.root / 'stage' / native.APP / 'Contents/Resources/LICENSES.txt').read_bytes(), b'verified notices')
+        with patch.object(native, 'version', return_value=report), patch.object(
+                native, 'license_notices', side_effect=ValueError('Stale third-party notices')):
+            with self.assertRaisesRegex(ValueError, 'Stale third-party notices'):
+                native.stage(binary, repo, self.root / 'stale-stage', '0.1.0-native.1', 1)
+        self.assertFalse((self.root / 'stale-stage').exists())
         report['build']['inputs'] = 'sha256:' + '0' * 64
         with patch.object(native, 'version', return_value=report):
             with self.assertRaisesRegex(native.Refused, 'named source inputs'):
