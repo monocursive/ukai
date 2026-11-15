@@ -13,7 +13,8 @@ and in the local `evidence/production-2026-11-15/` records.
 - Native Linux candidate source: `5cfcf0c64e9832ba81b46b5f698374a863564790`.
 - Integrated implementation snapshot: `5d359b9d8` in the main checkout and
   `128ff2273` on the isolated validation branch; the final candidate adds the
-  tested freeze and this evidence snapshot without changing runtime inputs.
+  tested freeze, this evidence snapshot and verified third-party attribution
+  without changing runtime inputs.
 - Jail build inputs: `sha256:efdc169e8e09f514c908e02bb6f972bc8761d2efc9af94d9b53d914a436f14e6`, independently matched by clean Mac and native x86_64 and ARM64 Linux builds.
 - The existing unrelated website edits were excluded from the clean snapshot
   and preserved in the main checkout. Website dependency validation used the
@@ -278,6 +279,35 @@ guidance, freeze and evidence-only commits require their own final CI. These
 are intermediate checks, not final release authority.
 
 ## Release conditions
+
+### Attribution follow-up before the final build
+
+The intermediate `1e4dc0026` candidate passed hosted Rust, contracts, website and
+fleet checks and both native Linux packaging jobs. Its exact archives passed
+installation, upgrade, containment, deadline and cleanup checks on native
+x86_64 and ARM64 hosts; unsigned Mac staging and installation also passed.
+Independent artifact review then found a stale CA attribution label and missing
+upstream dependency notices. Those artifacts remain preserved under
+`final-candidate/` as superseded evidence. The `43710003697` reference run was
+cancelled during compilation, before tests started; its exact owned remote
+process group was stopped and its logs retained. It has no conformance verdict.
+
+Commits `d9e11c543` and `d748c17fe` correct the label and add a shared, generated
+attribution bundle to Linux, native Mac and VM host packages. The bundle covers
+73 external dependencies across the three shipped targets, 142 upstream notice
+files, ring's legal source headers, Rust standard-library notices and the custom
+Unicode data notice. Extraction uses checksum-verified crate bytes; packaging
+refuses stale source bindings or modified bundle content. Existing VM guest
+attribution remains separate from the newly packaged host client.
+
+Distribution tests (52), native Mac packaging tests (49), VM package tests (36),
+exact bundle regeneration, optimized-Python guards and independent coverage
+review passed. Documentation validation found zero broken links in 530 files.
+CI now checks the committed attribution and its regression tests. These changes
+do not alter the jail input digest above. New final packages must include the
+bundle and have their own exact-commit CI, reference and artifact results;
+those results belong in the PR and retained artifacts rather than a later
+self-referential edit to this pre-build snapshot.
 
 | Required evidence | Status in this record |
 | --- | --- |

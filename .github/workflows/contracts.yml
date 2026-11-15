@@ -47,6 +47,10 @@ jobs:
         run: python3 -m unittest discover -s crates/ukai-jail/vm -p 'test_*.py'
       - name: Native macOS candidate tooling (synthetic signing and installation)
         run: python3 -m unittest discover -s crates/ukai-jail/dist/macos -p 'test_*.py'
+      - name: Locked runtime attribution
+        run: |
+          python3 crates/ukai-jail/dist/notices.py check
+          python3 -m unittest discover -s crates/ukai-jail/dist -p test_notices.py
       - name: macOS mechanism evidence regressions (no live workloads)
         run: |
           python3 -m unittest discover -s docs/benchmarks/jail -p test_macos_es_pair_summary.py
