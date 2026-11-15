@@ -344,10 +344,20 @@ class FakeJail:
         return Path(os.fsdecode(self.argv[self.argv.index(b'join-cgroup') + 1]))
 
     def write(self, stream, data):
-        os.write(self.out_write if stream == 'stdout' else self.err_write, data)
+        fd = self.out_write if stream == 'stdout' else self.err_write
+        if fd is None:
+            raise ValueError('fake jail output stream is closed')
+        os.write(fd, data)
 
     def close_streams(self):
-        for fd in (self.out_write, self.err_write):
+        for name in ('out_write', 'err_write'):
+            fd = getattr(self, name)
+            # exit/poll and harness teardown may both close the same jail.
+            # Give up ownership before close: its number can immediately be
+            # reused by another pipe or by a guest transport socket.
+            setattr(self, name, None)
+            if fd is None:
+                continue
             try:
                 os.close(fd)
             except OSError:

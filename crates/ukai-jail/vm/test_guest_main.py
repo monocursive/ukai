@@ -28,6 +28,9 @@ import base64
 import os
 from pathlib import Path
 import stat
+import subprocess
+import sys
+import textwrap
 import threading
 import types
 import unittest
@@ -40,6 +43,39 @@ def b64(data):
 
 
 LAUNCH = '[credentials.api]\nsource = "/run/ukai-vm/credentials/api/token"\n'
+
+
+class HarnessDescriptorTests(unittest.TestCase):
+    def test_repeated_jail_cleanup_does_not_close_reused_writer_descriptors(self):
+        # Force descriptor reuse in a separate process so the negative control
+        # cannot close another test's socket or a live controller's descriptors.
+        script = textwrap.dedent("""
+            import os
+            from guest_harness import FakeJail
+            jail = FakeJail.__new__(FakeJail)
+            _, jail.out_write = os.pipe()
+            _, jail.err_write = os.pipe()
+            out, err = jail.out_write, jail.err_write
+            jail.close_streams()
+            reader, writer = os.pipe()
+            reader = os.dup(reader)
+            os.dup2(writer, out)
+            os.dup2(writer, err)
+            jail.close_streams()
+            os.write(out, b'a')
+            os.write(err, b'b')
+            if os.read(reader, 2) != b'ab':
+                raise AssertionError('replacement pipe was damaged')
+            try:
+                jail.write('stdout', b'must not reach replacement pipe')
+            except ValueError:
+                pass
+            else:
+                raise AssertionError('closed fake-jail output remained writable')
+        """)
+        result = subprocess.run([sys.executable, '-c', script], cwd=Path(__file__).parent,
+                                capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 class BootTests(unittest.TestCase):
