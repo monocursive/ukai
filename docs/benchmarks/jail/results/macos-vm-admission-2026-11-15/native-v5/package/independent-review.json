@@ -1,0 +1,77 @@
+{
+  "source_revision": "b54086a3e31d1097954448e2bd37278f20beab7c",
+  "scope": "Actual read-only DMG, installed bytes and source archive consistency; no notarization or runtime qualification",
+  "facts": {
+    "clean_exact_source_before": true,
+    "package_source_and_scope": true,
+    "dmg_hash": true,
+    "image_metadata_exact": true,
+    "all_manifest_files_exact": true,
+    "exact_payload_inventory": true,
+    "manifest_and_installer_hashes": true,
+    "six_signatures": true,
+    "installed_exact_files": true,
+    "installed_exact_hashes": true,
+    "payload_component_identities": true,
+    "installed_normal_modes": true,
+    "source_archive_hash": true,
+    "complete_source_bytes_and_modes": true,
+    "native_catalog_exact": true,
+    "same_prepared_guest_and_detector": true,
+    "actual_client_provenance": true,
+    "actual_service_version": true,
+    "current_host_notices": true,
+    "new_gate_sources_in_archive": true,
+    "clean_exact_source_after": true,
+    "owned_dmg_detached": true
+  },
+  "signatures": [
+    {
+      "name": "ukai-vm-0.1.0-preview.2-macos-arm64.dmg",
+      "sha256": "74b63a94edfe6a3269d2cb876900c25a5a1c7d97459e39b4e0b927e0ee249cbc",
+      "valid": true
+    },
+    {
+      "name": "payload/bin/ukai-jail",
+      "sha256": "f4547b149ccc65b661a6e7e4bf875f4778aef2edaacd24369cd7374f5d776fc6",
+      "valid": true
+    },
+    {
+      "name": "payload/bin/ukai-vm",
+      "sha256": "775aca4a32220172d9749e2f78373a0802b973f453cf907d0a17753229fb1143",
+      "valid": true
+    },
+    {
+      "name": "payload/bin/ukai-vm-install",
+      "sha256": "5feeab8dd4c39f5ca80c95f0120e3276309a88699232700da4f0d1a6d1498dd6",
+      "valid": true
+    },
+    {
+      "name": "payload/image/vz",
+      "sha256": "842308de1450445c9de2413166a0666568c284f1fea413dbb4bce07016d664d8",
+      "valid": true
+    },
+    {
+      "name": "payload/image/custodian",
+      "sha256": "947c548bbec27c211e3423e3f17f0aa7f29c18becc92f7e847549d4debbbb205",
+      "valid": true
+    }
+  ],
+  "dmg_sha256": "74b63a94edfe6a3269d2cb876900c25a5a1c7d97459e39b4e0b927e0ee249cbc",
+  "source_file_count": 758,
+  "client_version": {
+    "component": "ukai-jail",
+    "version": "0.1.0",
+    "build": {
+      "debug_assertions": false,
+      "dirty": false,
+      "inputs": "sha256:541518a2ac95d8f2b71f7174859d528fa2c25822ab07e0cb7c8b458aba038ca2",
+      "opt_level": "3",
+      "revision": "b54086a3e31d1097954448e2bd37278f20beab7c",
+      "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+      "target": "aarch64-apple-darwin"
+    }
+  },
+  "completed": true,
+  "outcome": "PASS"
+}

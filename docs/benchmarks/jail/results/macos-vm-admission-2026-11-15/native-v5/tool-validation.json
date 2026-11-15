@@ -1,0 +1,20 @@
+{
+  "schema": "ukai.task.copied-component-tools/1",
+  "source_revision": "b54086a3e31d1097954448e2bd37278f20beab7c",
+  "command": [
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/build-env/bin/python",
+    "-B",
+    "-m",
+    "unittest",
+    "test_credential_staging_measurement",
+    "test_program_binding_measurement",
+    "test_vm_summary_check"
+  ],
+  "outcome": "PASS",
+  "tests": 67,
+  "failures": 0,
+  "errors": 0,
+  "skips": 0,
+  "log_sha256": "5a5ae7648b28ebcc41ca5ab77bf8930395666c808d599ed5ba7afe802f2f6142",
+  "scope": "Offline tests of exact copied modules and fixture closure; no VM/provider."
+}

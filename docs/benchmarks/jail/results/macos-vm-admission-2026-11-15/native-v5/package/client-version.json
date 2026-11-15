@@ -1,0 +1,35 @@
+{
+  "build": {
+    "debug_assertions": false,
+    "dirty": false,
+    "inputs": "sha256:541518a2ac95d8f2b71f7174859d528fa2c25822ab07e0cb7c8b458aba038ca2",
+    "opt_level": "3",
+    "revision": "b54086a3e31d1097954448e2bd37278f20beab7c",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "target": "aarch64-apple-darwin"
+  },
+  "component": "ukai-jail",
+  "frozen": true,
+  "observation": {
+    "closed_set": "macos-closed-v1"
+  },
+  "platform": {
+    "arch": "aarch64",
+    "kernel": "Darwin 27.0.0",
+    "os": "macos"
+  },
+  "schemas": {
+    "control": "ukai.jail.control/1",
+    "doctor": "ukai.jail.doctor/1",
+    "event": "ukai.event/1",
+    "gate": "ukai.jail.gate/1",
+    "learned_policy": "ukai.jail.learned-policy/1",
+    "network": "ukai.jail.network/1",
+    "policy": "ukai.jail.policy/1",
+    "policy_file": "ukai.jail.policy-file/1",
+    "policy_snapshot": "ukai.jail.policy-snapshot/1",
+    "receipt": "ukai.jail.receipt/1",
+    "summary": "ukai.jail.summary/1"
+  },
+  "version": "0.1.0"
+}

@@ -1,0 +1,9 @@
+{
+  "schema": "ukai.component-phase-lifecycle/1",
+  "phase": "vault",
+  "owned_processes": [],
+  "boot_directories": [],
+  "sockets_absent": true,
+  "record_sha256": "b72d8b18dfa8b9fcbbfeef46b6e964339d4b129fc351b679f3dbe4a12bfe3bfb",
+  "outcome": "PASS"
+}

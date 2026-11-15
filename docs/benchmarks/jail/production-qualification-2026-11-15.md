@@ -512,7 +512,7 @@ owned volumes were detached; original evidence is unchanged. Records are in
 `cn-proc-feasibility-aedc1003d/` and `cn-proc-attribution-aedc1003d/`. They do not
 qualify K113 or promote the installed candidate.
 
-The next controller revision replaces the cgroup wrapper's external
+Controller revision `b54086a3e` replaces the cgroup wrapper's external
 `grep`/`sleep` polling with a same-process pipe gate. Root pins the child with a
 pidfd, moves it into the attempt cgroup, initializes the existing native
 sampler, then releases the gate. EOF, an invalid byte or timeout refuses exec;
@@ -529,9 +529,36 @@ and pidfd controls executed. A 2.5-second public-canary control used an unused
 workload UID, observed only its exact owned PID/birth, collected later periodic
 environment/argv reads and joined its observer with no scan errors. It created
 no vendor receipt and does not qualify a vendor launch. Evidence is retained
-under `guest-pipe-gate-406a91a66/`. The changed controller requires a fresh
-guest image, component proofs, admission review and installed qualification;
-it does not inherit the native-v4 candidate's results.
+under `guest-pipe-gate-406a91a66/`. The controller does not inherit the
+native-v4 candidate's results. Its Python-to-jail executable transition can
+still overlap an observation; the unchanged sampler must report any resulting
+identity error rather than suppress it.
+
+The fresh native-v5 image and private signed baseline package were built from
+clean `b54086a3e31d1097954448e2bd37278f20beab7c`. All six CI jobs passed on that
+revision. Actual package verification passed six Apple signature checks and
+seven installer cases, and independently matched 758 source-archive files
+and modes to Git. This is a private, unnotarized component candidate.
+
+Fresh component measurements and independent replays passed ten capability
+rows, 121 execution-boundary facts, 24 raw vault/revocation facts and 24
+literal executable-binding facts. The owned processes exited and workspace
+volume detached. Their 88-file retained bundle is
+`results/macos-vm-admission-2026-11-15/native-v5/`; its manifest SHA-256 is
+`2aabcfd2155c092acbe53bffa4f630708203d57944ed898a859b10efd4f22701`.
+All 183 prior proof files remain unchanged. The copied offline tools passed
+67 tests, admission derivation passed 54 checks, and relocated read-only
+validation passed 24 positive/tamper controls, including rejection of an
+intact old capability/boundary pair substituted beside the new image.
+
+The updated client admission replaces the native-v4 disk/seed pair with this
+exact native-v5 pair and its actual measurement timestamps. The legacy table
+is unchanged. Tests reject native-v2, native-v4 and mixed image pairs; the
+four catalog/entry/profile/executable pins remain identical. All native
+vendor, K113, release and new-host-runtime qualification flags remain false.
+The newly admitted host still requires a clean rebuild, signed installation
+and fresh runtime acceptance before another bounded provider measurement.
+No further provider call followed the failed A01.
 
 ## Remaining release limits
 
