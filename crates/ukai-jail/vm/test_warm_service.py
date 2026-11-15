@@ -72,7 +72,10 @@ def guest(value, split=False):
 if os.environ.get('BLOCK_READY') == '1':
     sys.stdin.read()
     sys.exit(0)
-guest(dict(event='ready', kernel='stand-in-kernel'))
+contracts = dict(secret_revocation='ukai.vm.secret-revocation/1', journal_export='ukai.vm.guest-journal/1')
+# Ready deliberately advertises the current contracts even when Session
+# below omits them: the service must use the actual Session, not this frame.
+guest(dict(event='ready', kernel='stand-in-kernel', guest_contracts=contracts))
 sessions = 0
 for line in sys.stdin:
     message = json.loads(line)
@@ -92,6 +95,9 @@ for line in sys.stdin:
             # makes it lie, or (omit) say nothing like an old controller.
             live = os.environ.get('LIVE_SHARE', '1' if share else '0')
             reply = dict(event='session', kernel='stand-in-kernel')
+            declared = os.environ.get('GUEST_CONTRACTS')
+            if declared != 'omit':
+                reply['guest_contracts'] = contracts if declared is None else json.loads(declared)
             if live != 'omit':
                 reply['live_share'] = live == '1'
             if os.environ.get('BAD_SESSION') == '1':
@@ -521,6 +527,42 @@ class WarmServiceTests(unittest.TestCase):
         self.send(following, op='revoke_secrets', ids=['token'])
         self.assertEqual(self.frame(following)['ids'], ['token'])
         following.close()
+        self.control('stop')
+        child.wait(timeout=6)
+
+    def test_session_contracts_forward_truthfully_and_refuse_credentials_before_guest_traffic(self):
+        required = dict(secret_revocation='ukai.vm.secret-revocation/1', journal_export='ukai.vm.guest-journal/1')
+        cases = [None, {}, {'secret_revocation': required['secret_revocation']},
+                 {'journal_export': required['journal_export']},
+                 dict(required, secret_revocation='ukai.vm.secret-revocation/2'),
+                 dict(required, journal_export='ukai.vm.guest-journal/2')]
+        for declared in cases:
+            with self.subTest(contracts=declared):
+                child = self.launch(GUEST_CONTRACTS='omit' if declared is None else json.dumps(declared),
+                                    RECORD=str(self.root / 'record.ndjson'))
+                stream = self.socket('attempt')
+                ready = self.frame(stream)
+                self.assertEqual(ready.get('guest_contracts'), declared)
+                prior = len(self.recorded())
+                self.send(stream, op='prepare', attempt_id='legacy', profile='agent', wall_seconds=30,
+                          argv=[base64.b64encode(b'/bin/true').decode()],
+                          secrets=[dict(id='token', data=base64.b64encode(b'must-not-cross').decode())],
+                          launch=dict(name='probe', toml='name = "probe"\njail = "agent"\n'))
+                self.assertEqual(stream.recv(1000), b'')
+                self.wait_recorded(lambda frame: frame.get('op') == 'cancel2', after=prior)
+                self.assertEqual([frame['op'] for frame in self.recorded()[prior:]], ['cancel2'])
+                # This same legacy guest still serves an ordinary attempt.
+                plain, old_ready = self.attempt()
+                self.assertEqual(old_ready.get('guest_contracts'), declared)
+                while self.frame(plain)['event'] != 'done':
+                    pass
+                self.control('stop')
+                child.wait(timeout=6)
+        child = self.launch()
+        stream, ready = self.attempt(secrets=[dict(id='token', data=base64.b64encode(b'value').decode())])
+        self.assertEqual(ready['guest_contracts'], required)
+        while self.frame(stream)['event'] != 'done':
+            pass
         self.control('stop')
         child.wait(timeout=6)
 

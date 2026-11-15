@@ -612,6 +612,10 @@ fn an_attempt_session_frames_both_ways_against_the_stand_in() {
             custodian_sha256: "c".repeat(64),
             seed_sha256: "s".repeat(64),
             vsock_port: 1024,
+            guest_contracts: Some(protocol::GuestContracts {
+                secret_revocation: Some(protocol::SECRET_REVOCATION_CONTRACT.into()),
+                journal_export: Some(protocol::JOURNAL_EXPORT_CONTRACT.into()),
+            }),
         });
         reply(&FromVm::Prepared {
             kernel: "6.14.0".to_owned(),

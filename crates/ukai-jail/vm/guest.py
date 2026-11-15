@@ -32,6 +32,7 @@ MAX_FILES = 5000
 MAX_JOURNAL = 16 * 1024 * 1024
 JOURNAL_DIR = 'guest-journal'
 JOURNAL_SCHEMA = 'ukai.vm.guest-journal/1'
+SECRET_REVOCATION_CONTRACT = 'ukai.vm.secret-revocation/1'
 CONFIG_DIR = Path(os.environ.get('UKAI_VM_CONFIG_DIR', '/var/lib/ukai-vm/config'))
 WORKSPACE = Path('/home/ukai/workspace')
 EVIDENCE = Path('/home/ukai/evidence')
@@ -1440,7 +1441,9 @@ def main():
                             audit('infrastructure_unknown', error=str(error))
                             poweroff('infrastructure_unknown')
                         audit('session_opened', live_share=live_share)
-                        send({'event': 'session', 'kernel': os.uname().release, 'live_share': live_share})
+                        send({'event': 'session', 'kernel': os.uname().release, 'live_share': live_share,
+                              'guest_contracts': {'secret_revocation': SECRET_REVOCATION_CONTRACT,
+                                                  'journal_export': JOURNAL_SCHEMA}})
                     elif op == 'reset' and process is None and in_session:
                         globals()['launch_toml'] = None
                         end_attempt()

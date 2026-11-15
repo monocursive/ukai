@@ -210,6 +210,9 @@ struct GuestEvent {
     /// `session` state it).
     #[serde(default)]
     live_share: Option<bool>,
+    /// The current boot's guest contracts, learned from Session only.
+    #[serde(default)]
+    guest_contracts: Option<protocol::GuestContracts>,
 }
 
 // ---------------------------------------------------------------------------
@@ -305,6 +308,8 @@ struct Service {
     live_share: Option<(PathBuf, share::ShareFacts)>,
     /// Whether this guest booted with its NAT adapter.
     guest_nat: bool,
+    /// Set once by the actual guest Session before accepting any attempts.
+    guest_contracts: std::sync::OnceLock<Option<protocol::GuestContracts>>,
 }
 
 /// One guest frame as the reader thread delivered it, or the transport's end.
@@ -604,6 +609,7 @@ fn serve(args: ServeArgs) -> Result<(), String> {
         sockets: (runtime.join("control.sock"), runtime.join("attempt.sock")),
         live_share,
         guest_nat: args.guest_nat,
+        guest_contracts: std::sync::OnceLock::new(),
     });
     let control_service = Arc::clone(&service);
     let control_thread = std::thread::spawn(move || {
@@ -616,6 +622,10 @@ fn serve(args: ServeArgs) -> Result<(), String> {
         let session = expect_guest(&guest_frames, "session")?;
         let kernel = session.kernel.ok_or("session omitted kernel")?;
         check_live_share(service.live_share.is_some(), session.live_share)?;
+        service
+            .guest_contracts
+            .set(session.guest_contracts)
+            .map_err(|_| "guest contracts were already established for this boot")?;
         *SHARED_GUEST_KERNEL.lock().map_err(|e| e.to_string())? = Some(kernel);
         drive_attempts(
             &service,
@@ -827,6 +837,7 @@ fn run_attempt(
             custodian_sha256: manifest.custodian_sha256.clone(),
             seed_sha256: manifest.seed_sha256.clone(),
             vsock_port: GUEST_PORT,
+            guest_contracts: service.guest_contracts.get().cloned().flatten(),
         },
     )?;
     let prepared = match read_request(&mut stream)? {
@@ -894,6 +905,18 @@ fn run_attempt(
         }
     }?;
     let (attempt_id, profile, wall_seconds, argv, secrets, allow_hosts, launch) = prepared;
+    if !secrets.is_empty()
+        && !service
+            .guest_contracts
+            .get()
+            .and_then(Option::as_ref)
+            .is_some_and(protocol::GuestContracts::supports_credentials)
+    {
+        return Err(
+            "this guest lacks credential revocation/journal contracts; no credential was forwarded"
+                .to_owned(),
+        );
+    }
     check_secret_ids(secrets.iter().map(|s| s.id.as_str()))?;
     guest_line(service, &GuestOp::Reset)?;
     expect_guest(frames, "reset")?;

@@ -167,6 +167,7 @@ struct ReadyFrame {
     custodian_sha256: String,
     seed_sha256: String,
     vsock_port: u32,
+    guest_contracts: Option<protocol::GuestContracts>,
 }
 
 /// The `--vm` platform. It discovers the installed preview (the same paths
@@ -822,6 +823,16 @@ impl VmExecution {
                  status this run checked: another serve replaced it; rerun",
                 crate::records::escape_control(&ready.boot_id)
             )));
+        }
+        if !vault.secrets.is_empty()
+            && !ready
+                .guest_contracts
+                .as_ref()
+                .is_some_and(protocol::GuestContracts::supports_credentials)
+        {
+            return Err(refused(
+                "--vm: this guest did not declare the required credential revocation and journal export contracts; no credential was sent",
+            ));
         }
         let sent: Vec<String> = vault
             .secrets
@@ -2042,6 +2053,7 @@ fn expect_ready(
             custodian_sha256,
             seed_sha256,
             vsock_port,
+            guest_contracts,
         }) => {
             if schema != protocol::SCHEMA_ATTEMPT {
                 return Err(refused(format!(
@@ -2056,6 +2068,7 @@ fn expect_ready(
                 custodian_sha256,
                 seed_sha256,
                 vsock_port,
+                guest_contracts,
             })
         }
         control::Within::Frame(protocol::FromVm::Error { message }) => {

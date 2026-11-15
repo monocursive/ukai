@@ -755,6 +755,7 @@ fn ready_must_match_locally_verified_digests() {
         seed_sha256: "s".repeat(64),
     };
     let fresh = || ReadyFrame {
+        guest_contracts: None,
         boot_id: "boot".into(),
         disk_sha256: manifest.disk_sha256.clone(),
         helper_sha256: manifest.helper_sha256.clone(),
@@ -2696,6 +2697,10 @@ fn ready(boot_id: &str) -> protocol::FromVm {
         custodian_sha256: "c".repeat(64),
         seed_sha256: "s".repeat(64),
         vsock_port: 1024,
+        guest_contracts: Some(protocol::GuestContracts {
+            secret_revocation: Some(protocol::SECRET_REVOCATION_CONTRACT.into()),
+            journal_export: Some(protocol::JOURNAL_EXPORT_CONTRACT.into()),
+        }),
     }
 }
 
@@ -2879,6 +2884,96 @@ fn the_guest_must_acknowledge_exactly_the_secrets_sent() {
                 assert!(error.contains("acknowledged the staged secrets"), "{error}");
             }
             (other, _) => panic!("{shown}: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn missing_or_unknown_guest_contracts_refuse_before_secret_prepare_but_allow_plain_runs() {
+    let (_volume, workspace) = shareable_workspace();
+    let snapshot = agent_with_launch(VAULT_LAUNCH);
+    let secret = staged_secret(&snapshot, b"must-not-cross-legacy-transport");
+    let required = protocol::GuestContracts {
+        secret_revocation: Some(protocol::SECRET_REVOCATION_CONTRACT.into()),
+        journal_export: Some(protocol::JOURNAL_EXPORT_CONTRACT.into()),
+    };
+    let unsupported = [
+        None,
+        Some(protocol::GuestContracts::default()),
+        Some(protocol::GuestContracts {
+            journal_export: None,
+            ..required.clone()
+        }),
+        Some(protocol::GuestContracts {
+            secret_revocation: None,
+            ..required.clone()
+        }),
+        Some(protocol::GuestContracts {
+            secret_revocation: Some("ukai.vm.secret-revocation/2".into()),
+            ..required.clone()
+        }),
+        Some(protocol::GuestContracts {
+            journal_export: Some("ukai.vm.guest-journal/2".into()),
+            ..required
+        }),
+    ];
+    for contracts in unsupported {
+        for credentials in [false, true] {
+            let plan = PreparedPlan {
+                workspace: workspace.clone(),
+                ..if credentials {
+                    prepared_plan(snapshot.clone(), Some("svc"), vec![secret.clone()])
+                } else {
+                    prepared_plan(tool(), None, Vec::new())
+                }
+            };
+            let (sent, observed) = std::sync::mpsc::channel();
+            let contracts = contracts.clone();
+            let result = prepare_against(
+                plan,
+                status(Some(&workspace), credentials),
+                move |mut stream| {
+                    let mut frame = ready("vm-test");
+                    let protocol::FromVm::Ready {
+                        guest_contracts, ..
+                    } = &mut frame
+                    else {
+                        unreachable!()
+                    };
+                    *guest_contracts = contracts;
+                    stream
+                        .write_all(&protocol::encode(&frame).unwrap())
+                        .unwrap();
+                    let request = read_line(&mut stream);
+                    sent.send(request.clone()).unwrap();
+                    if !request.is_empty() {
+                        stream
+                            .write_all(
+                                &protocol::encode(&protocol::FromVm::Prepared {
+                                    kernel: "guest-kernel".into(),
+                                    staged_secrets: Vec::new(),
+                                })
+                                .unwrap(),
+                            )
+                            .unwrap();
+                    }
+                },
+                Duration::from_secs(20),
+            )
+            .expect("prepare returned");
+            let request = observed.recv_timeout(Duration::from_secs(1)).unwrap();
+            if credentials {
+                assert!(result.unwrap_err().contains("no credential was sent"));
+                assert!(
+                    request.is_empty(),
+                    "legacy peer received a Prepare containing a secret"
+                );
+            } else {
+                assert!(result.is_ok(), "{result:?}");
+                assert!(
+                    matches!(protocol::decode::<protocol::ToVm>(&request).unwrap(), protocol::ToVm::Prepare { secrets, .. } if secrets.is_empty())
+                );
+            }
         }
     }
 }
