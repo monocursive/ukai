@@ -97,6 +97,20 @@ impl Case {
 
 /// A Python target: `/usr/bin/python3 -c SCRIPT`, from the read-only `/usr`.
 fn py(script: &str) -> Vec<OsString> {
+    // Python's libc.syscall has no named-number lookup. Supply this build's
+    // target ABI constants, independently of the jail's seccomp tables.
+    let mut script = script.to_owned();
+    for (name, number) in [
+        ("mount", libc::SYS_mount),
+        ("umount2", libc::SYS_umount2),
+        ("setns", libc::SYS_setns),
+        ("ptrace", libc::SYS_ptrace),
+        ("seccomp", libc::SYS_seccomp),
+        ("keyctl", libc::SYS_keyctl),
+        ("clone", libc::SYS_clone),
+    ] {
+        script = script.replace(&format!("__NR_{name}__"), &number.to_string());
+    }
     vec![
         OsString::from(PYTHON),
         OsString::from("-c"),
@@ -222,9 +236,9 @@ out = {{}}
 src = b"/tmp\0"
 none = b"none\0"
 # mount("/tmp", GIT, "none", MS_BIND, NULL)
-out["mount_bind"] = call(165, src, GIT + b"\0", none, 0x1000, 0)
+out["mount_bind"] = call(__NR_mount__, src, GIT + b"\0", none, 0x1000, 0)
 # umount2(GIT, MNT_DETACH)
-out["umount2"] = call(166, GIT + b"\0", 2)
+out["umount2"] = call(__NR_umount2__, GIT + b"\0", 2)
 # move_mount(AT_FDCWD, "/tmp", AT_FDCWD, GIT, 0)
 out["move_mount"] = call(429, -100, src, -100, GIT + b"\0", 0)
 # open_tree(AT_FDCWD, GIT, 0)
@@ -641,7 +655,7 @@ def setns(path):
     except OSError as e:
         return "open:" + errno.errorcode.get(e.errno, str(e.errno))
     ctypes.set_errno(0)
-    r = libc.syscall(308, fd, 0)  # setns(fd, 0)
+    r = libc.syscall(__NR_setns__, fd, 0)  # setns(fd, 0)
     os.close(fd)
     return "ok" if r == 0 else errno.errorcode.get(ctypes.get_errno(), str(ctypes.get_errno()))
 out = {
@@ -782,8 +796,7 @@ fn s03_the_outer_boundaries_cannot_be_reversed_inside_agent() {
     const SCRIPT: &str = r#"
 import ctypes, errno, json, os, platform, struct
 libc = ctypes.CDLL(None, use_errno=True)
-# __NR_ptrace: 101 on x86_64, 117 on aarch64 (where 101 is nanosleep).
-SYS_PTRACE = 101 if platform.machine() == "x86_64" else 26
+SYS_PTRACE = __NR_ptrace__
 libc.syscall.restype = ctypes.c_long
 out = {}
 
@@ -813,12 +826,12 @@ class SockFprog(ctypes.Structure):
 ALLOW = (SockFilter * 1)(SockFilter(0x06, 0, 0, 0x7fff0000))  # BPF_RET|BPF_K ALLOW
 prog = SockFprog(1, ALLOW)
 ctypes.set_errno(0)
-r = libc.syscall(317, 1, 0, ctypes.byref(prog))  # seccomp(SET_MODE_FILTER, 0, prog)
+r = libc.syscall(__NR_seccomp__, 1, 0, ctypes.byref(prog))  # seccomp(SET_MODE_FILTER, 0, prog)
 out["add_allow_filter"] = "ok" if r >= 0 else errno.errorcode.get(ctypes.get_errno(), str(ctypes.get_errno()))
 out["filters"] = status("Seccomp_filters")
 # keyctl(0): a DENY_EPERM syscall outside the closed set that the observer does
 # not touch, so its EPERM is the seccomp baseline alone (isolates the clause).
-out["keyctl_after_allow"] = call(250, 0, 0, 0, 0)
+out["keyctl_after_allow"] = call(__NR_keyctl__, 0, 0, 0, 0)
 # ptrace(PTRACE_TRACEME): defence in depth (observer + baseline) when observed.
 out["ptrace_after_allow"] = call(SYS_PTRACE, 0, 0, 0, 0)
 
@@ -1853,8 +1866,7 @@ fn o03_an_unmatched_exit_is_a_gap_not_a_result() {
 const X06_PROBE: &str = r#"
 import os, ctypes, json, platform
 libc = ctypes.CDLL(None, use_errno=True)
-# __NR_ptrace: 101 on x86_64, 117 on aarch64 (where 101 is nanosleep).
-SYS_PTRACE = 101 if platform.machine() == "x86_64" else 26
+SYS_PTRACE = __NR_ptrace__
 def call(nr, *a):
     ctypes.set_errno(0)
     rc = libc.syscall(nr, *[ctypes.c_long(x) for x in a])
@@ -1886,7 +1898,7 @@ addressable = [probe(int(d)) for d in os.listdir('/proc') if d.isdigit() and int
 # The filter denies pidfd_open, so a plain probe's getfd list is vacuous:
 # obtain a pidfd WITHOUT pidfd_open — clone(CLONE_PIDFD) — and then run
 # pidfd_getfd against that descriptor, which the filter must deny on its own.
-SYS_CLONE = 56 if platform.machine() == 'x86_64' else 220
+SYS_CLONE = __NR_clone__
 CLONE_PIDFD = 0x1000
 pidfd = ctypes.c_int(-1)
 cloned = call(SYS_CLONE, CLONE_PIDFD | 17, 0, ctypes.addressof(pidfd), 0, 0)
@@ -2155,8 +2167,7 @@ fn r05_the_supervisors_own_proc_is_closed_to_a_same_uid_peer() {
     const CODE: &str = r#"
 import os, ctypes, json, platform
 libc = ctypes.CDLL(None, use_errno=True)
-# __NR_ptrace: 101 on x86_64, 117 on aarch64 (where 101 is nanosleep).
-SYS_PTRACE = 101 if platform.machine() == "x86_64" else 26
+SYS_PTRACE = __NR_ptrace__
 libc.syscall.restype = ctypes.c_long
 def comm(p):
     try: return open('/proc/%d/comm' % p).read().strip()
@@ -2186,10 +2197,7 @@ print(json.dumps(out))
 "#;
     // none: the supervisor is reachable, and every access to its /proc fails.
     let (jail, _) = none_case("on").expect("none precondition already checked");
-    let run = jail
-        .target([PYTHON, "-c", CODE])
-        .run()
-        .expect("the jail runs");
+    let run = jail.target(py(CODE)).run().expect("the jail runs");
     assert_eq!(run.code(), Some(0), "none: {}", run.stderr_text());
     let out = py_out(&run);
     assert!(

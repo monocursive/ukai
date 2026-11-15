@@ -339,9 +339,44 @@ fn r1_the_baseline_filter_denies_what_the_spec_lists() {
     }
     let c = case();
     let probe = c.workspace.join("deny.py");
-    std::fs::write(
-        &probe,
-        r#"
+    // The fixture uses libc's native ABI constants, independently of the
+    // filter under test. x86_64 syscall literals name other calls on ARM64.
+    let numbers = serde_json::json!({
+        "ptrace": libc::SYS_ptrace,
+        "process_vm_readv": libc::SYS_process_vm_readv,
+        "process_vm_writev": libc::SYS_process_vm_writev,
+        "bpf": libc::SYS_bpf,
+        "perf_event_open": libc::SYS_perf_event_open,
+        "kexec_load": libc::SYS_kexec_load,
+        "init_module": libc::SYS_init_module,
+        "finit_module": libc::SYS_finit_module,
+        "delete_module": libc::SYS_delete_module,
+        "keyctl": libc::SYS_keyctl,
+        "add_key": libc::SYS_add_key,
+        "request_key": libc::SYS_request_key,
+        "io_uring_setup": libc::SYS_io_uring_setup,
+        "io_uring_enter": libc::SYS_io_uring_enter,
+        "io_uring_register": libc::SYS_io_uring_register,
+        "mount": libc::SYS_mount,
+        "umount2": libc::SYS_umount2,
+        "move_mount": libc::SYS_move_mount,
+        "open_tree": libc::SYS_open_tree,
+        "fsopen": libc::SYS_fsopen,
+        "fsmount": libc::SYS_fsmount,
+        "fspick": libc::SYS_fspick,
+        "fsconfig": libc::SYS_fsconfig,
+        "mount_setattr": libc::SYS_mount_setattr,
+        "pivot_root": libc::SYS_pivot_root,
+        "chroot": libc::SYS_chroot,
+        "unshare": libc::SYS_unshare,
+        "setns": libc::SYS_setns,
+        "clone3": libc::SYS_clone3,
+        "clone": libc::SYS_clone,
+        "socket": libc::SYS_socket,
+        "socketpair": libc::SYS_socketpair,
+        "ioctl": libc::SYS_ioctl,
+    });
+    let script = r#"
 import ctypes, errno, os, sys, json
 libc = ctypes.CDLL(None, use_errno=True)
 def call(nr, *args):
@@ -350,37 +385,37 @@ def call(nr, *args):
     r = libc.syscall(ctypes.c_long(nr), *[ctypes.c_long(a) for a in args])
     return r, ctypes.get_errno()
 table = {
-  "ptrace": 101, "process_vm_readv": 310, "process_vm_writev": 311,
-  "bpf": 321, "perf_event_open": 298, "kexec_load": 246,
-  "init_module": 175, "finit_module": 313, "delete_module": 176,
-  "keyctl": 250, "add_key": 248, "request_key": 249,
-  "io_uring_setup": 425, "io_uring_enter": 426, "io_uring_register": 427,
-  "mount": 165, "umount2": 166, "move_mount": 429, "open_tree": 428,
-  "fsopen": 430, "fsmount": 432, "fspick": 433, "fsconfig": 431,
-  "mount_setattr": 442, "pivot_root": 155, "chroot": 161,
-  "unshare": 272, "setns": 308,
+  "ptrace": NR["ptrace"], "process_vm_readv": NR["process_vm_readv"], "process_vm_writev": NR["process_vm_writev"],
+  "bpf": NR["bpf"], "perf_event_open": NR["perf_event_open"], "kexec_load": NR["kexec_load"],
+  "init_module": NR["init_module"], "finit_module": NR["finit_module"], "delete_module": NR["delete_module"],
+  "keyctl": NR["keyctl"], "add_key": NR["add_key"], "request_key": NR["request_key"],
+  "io_uring_setup": NR["io_uring_setup"], "io_uring_enter": NR["io_uring_enter"], "io_uring_register": NR["io_uring_register"],
+  "mount": NR["mount"], "umount2": NR["umount2"], "move_mount": NR["move_mount"], "open_tree": NR["open_tree"],
+  "fsopen": NR["fsopen"], "fsmount": NR["fsmount"], "fspick": NR["fspick"], "fsconfig": NR["fsconfig"],
+  "mount_setattr": NR["mount_setattr"], "pivot_root": NR["pivot_root"], "chroot": NR["chroot"],
+  "unshare": NR["unshare"], "setns": NR["setns"],
 }
 out = {}
 for name, nr in table.items():
     r, e = call(nr, 0, 0, 0, 0, 0, 0)
     out[name] = errno.errorcode.get(e, str(e)) if r < 0 else "OK(%d)" % r
 # clone3 -> ENOSYS
-r, e = call(435, 0, 0)
+r, e = call(NR["clone3"], 0, 0)
 out["clone3"] = errno.errorcode.get(e, str(e)) if r < 0 else "OK"
 # clone with a namespace flag -> EPERM
 CLONE_NEWUSER = 0x10000000
-r, e = call(56, CLONE_NEWUSER, 0, 0, 0, 0)
+r, e = call(NR["clone"], CLONE_NEWUSER, 0, 0, 0, 0)
 out["clone_newuser"] = errno.errorcode.get(e, str(e)) if r < 0 else "OK(%d)" % r
 # socket(AF_UNIX) -> EPERM; socketpair(AF_UNIX) -> EPERM
-r, e = call(41, 1, 1, 0)
+r, e = call(NR["socket"], 1, 1, 0)
 out["socket_af_unix"] = errno.errorcode.get(e, str(e)) if r < 0 else "OK(%d)" % r
-r, e = call(53, 1, 1, 0, 0)
+r, e = call(NR["socketpair"], 1, 1, 0, 0)
 out["socketpair_af_unix"] = errno.errorcode.get(e, str(e)) if r < 0 else "OK(%d)" % r
 # socket(AF_INET) must still be allowed by the filter (the netns denies egress)
-r, e = call(41, 2, 1, 0)
+r, e = call(NR["socket"], 2, 1, 0)
 out["socket_af_inet"] = errno.errorcode.get(e, str(e)) if r < 0 else "OK(%d)" % r
 # ioctl TIOCSTI -> EPERM
-r, e = call(16, 0, 0x5412, 0)
+r, e = call(NR["ioctl"], 0, 0x5412, 0)
 out["ioctl_tiocsti"] = errno.errorcode.get(e, str(e)) if r < 0 else "OK(%d)" % r
 # ordinary work
 try:
@@ -396,9 +431,8 @@ t = threading.Thread(target=lambda: seen.append(1))
 t.start(); t.join()
 out["thread"] = "OK" if seen == [1] else "FAILED"
 print(json.dumps(out))
-"#,
-    )
-    .unwrap();
+"#;
+    std::fs::write(&probe, format!("NR = {numbers}\n{script}")).unwrap();
 
     let run = c
         .jail

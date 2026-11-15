@@ -1304,7 +1304,7 @@ fn j4_o06_a_name_through_a_descriptor_is_named_by_the_kernels_resolution() {
                 "g.tmp",
                 "greeting.txt",
                 "--via",
-                "rename",
+                native_via("rename"),
                 "--dirfd",
                 ws,
                 "--proc-fd"
@@ -1368,7 +1368,7 @@ fn j4_o06_a_name_through_a_descriptor_is_named_by_the_kernels_resolution() {
         );
         assert_eq!(created["fields"]["path_complete"], true);
 
-        let renamed = event_for(&events, "rename", 0);
+        let renamed = event_for(&events, native_via("rename"), 0);
         for (key, name) in [("path", "g.tmp"), ("path2", "greeting.txt")] {
             assert_eq!(
                 renamed["fields"][key],
