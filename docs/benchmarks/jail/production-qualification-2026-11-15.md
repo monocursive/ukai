@@ -487,6 +487,52 @@ entry was inside or outside the measured workload. It is not waived. The
 failed record is retained under `guest-native-api-a01-aedc1003d/`; no automatic
 paid retry or repetition followed it. Later provider rows remain unmeasured.
 
+The subsequent diagnostics preserve that failure. One fixed synthetic cold/warm
+`--version` pair reproduced an unidentified vanished inventory PID. Its original
+console reader rejected the serial console's LF-to-CRLF transformation; a
+separate offline replay verified the exact terminal-CR transformation without
+rerunning or replacing the failed record. Neither the retained reports nor the
+guest journal identify that process generation.
+
+A separate disposable image then captured numeric Linux process-connector
+events around exactly two further synthetic version launches. Its collector
+retained 340 envelopes, 130 initial process/thread identities and start/end
+fork-and-exit anchors on both guest CPUs. The bounded framing, report binding,
+per-CPU sequence-window checks and cleanup passed. No inventory error occurred
+in this pair, so it provides no attribution of the earlier failures. The warm
+sampler instead retained one `selected_process_vanished` error without the
+failed PID. Both short sampler reports remain incomplete, with no positive
+receipt-program reads. The event stream does not prove continuous coverage or
+the absence of delayed kernel producers.
+
+These diagnostic images used the unchanged `aedc1003d` controller and sampler,
+synthetic credentials and no provider calls. All task processes exited and
+owned volumes were detached; original evidence is unchanged. Records are in
+`sampler-inventory-diagnostic-aedc1003d/`,
+`cn-proc-feasibility-aedc1003d/` and `cn-proc-attribution-aedc1003d/`. They do not
+qualify K113 or promote the installed candidate.
+
+The next controller revision replaces the cgroup wrapper's external
+`grep`/`sleep` polling with a same-process pipe gate. Root pins the child with a
+pidfd, moves it into the attempt cgroup, initializes the existing native
+sampler, then releases the gate. EOF, an invalid byte or timeout refuses exec;
+setup failures use the pinned process descriptor for bounded cleanup. The
+gate closes before the jail execs, and byte argv/environment are preserved.
+The sampler implementation and its failure criteria are unchanged. This
+removes source-known setup churn; it does not establish the cause of the
+earlier unidentified errors.
+
+The exact gate source passed 222 optimized guest test cases on macOS (204
+passes and 18 explicit Linux/root skips), and 149 on an actual Linux ARM64
+guest (148 passes and one existing root-permission skip). All new Linux gate
+and pidfd controls executed. A 2.5-second public-canary control used an unused
+workload UID, observed only its exact owned PID/birth, collected later periodic
+environment/argv reads and joined its observer with no scan errors. It created
+no vendor receipt and does not qualify a vendor launch. Evidence is retained
+under `guest-pipe-gate-406a91a66/`. The changed controller requires a fresh
+guest image, component proofs, admission review and installed qualification;
+it does not inherit the native-v4 candidate's results.
+
 ## Remaining release limits
 
 No usable Endpoint Security provisioning profile was found among the 17 local

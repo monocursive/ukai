@@ -557,28 +557,121 @@ def prepare_attempt_cgroup(account):
     return child
 
 
-# The join wrapper runs as the workload user, before the jail execs: a
-# failure names the cgroup and errno on stderr (relayed to the host by the
-# controller) instead of dying inside preexec_fn where the reason is lost.
-# The wrapper waits until its own pid appears in the attempt cgroup's
-# cgroup.procs; the controller (root) performs the move, because moving a
-# process out of the root-owned service cgroup needs the source-side
-# permission only root has (measured: uid 1001 writing cgroup.procs gets
-# EIO). Waiting (not writing) keeps the join race-free: the jail execs
-# only after the move, and a controller death times out loudly.
-_JOIN_CGROUP_WRAPPER = [
-    '/bin/sh', '-c',
-    'i=0; while ! grep -qx "$$" "$1/cgroup.procs" 2>/dev/null; do '
-    'i=$((i+1)); [ "$i" -gt 500 ] && { echo "CGROUP_JOIN_TIMEOUT:$1" >&2; exit 124; }; '
-    'sleep 0.02; done; shift; exec "$@"', 'join-cgroup',
-]
+# One process waits for the root controller's cgroup move, then execs the
+# jail with the same PID. External grep/sleep polling would create avoidable
+# short-lived descendants during sampling. The gate carries one fixed byte,
+# never a source value; EOF/timeout/error cannot authorize exec. Python is
+# isolated from workspace/user imports, and byte argv/environment survive via
+# the filesystem codec's surrogateescape and os.environb.
+_JOIN_GATE_CODE = r'''
+import os, select, sys, time
+try:
+    if sys.argv[1] != 'join-cgroup' or len(sys.argv) < 4:
+        raise ValueError()
+    gate = int(sys.argv[2])
+    if gate < 3:
+        raise ValueError()
+    os.set_inheritable(gate, False)
+    deadline = time.monotonic() + 10.0
+    while True:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError()
+        try:
+            ready, _, _ = select.select([gate], [], [], left)
+            if not ready:
+                continue
+            if time.monotonic() >= deadline:
+                raise TimeoutError()
+            if os.read(gate, 2) != b'R':
+                raise ValueError()
+            if time.monotonic() >= deadline:
+                raise TimeoutError()
+            break
+        except InterruptedError:
+            continue
+    os.close(gate)
+    argv = [os.fsencode(value) for value in sys.argv[3:]]
+    if not argv[0].startswith(b'/'):
+        raise ValueError()
+    os.execve(argv[0], argv, os.environb)
+except BaseException:
+    try:
+        os.write(2, b'UKAI_CGROUP_JOIN_REFUSED\n')
+    except BaseException:
+        pass
+    os._exit(125)
+'''
 
 
-def _join_attempt_cgroup(child):
-    """The argv prefix whose process waits for its move into the attempt's
-    delegated cgroup; the controller completes it with
-    [`move_into_attempt_cgroup`] before the jail execs."""
-    return [*_JOIN_CGROUP_WRAPPER, str(child)]
+class AttemptProcessPin:
+    """Pin the unreaped gated child before Monitor can poll/reap it."""
+    def __init__(self, process):
+        self.fd = os.pidfd_open(process.pid)
+
+    def kill(self):
+        try:
+            signal.pidfd_send_signal(self.fd, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+    def close(self):
+        descriptor, self.fd = self.fd, None
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+class AttemptGate:
+    """Own all launch-gate descriptors and bounded failure cleanup."""
+    def __init__(self):
+        self.reader, self.writer = os.pipe()  # Both non-inheritable (PEP 446).
+        self.process = self.pin = None
+        self.released = False
+        try:
+            os.set_blocking(self.writer, False)
+        except BaseException:
+            self.close('reader'); self.close('writer')
+            raise
+
+    def close(self, name):
+        descriptor = getattr(self, name)
+        setattr(self, name, None)
+        if descriptor is not None:
+            os.close(descriptor)
+
+    def command(self, command):
+        return [b'/usr/bin/python3', b'-I', b'-S', b'-c', _JOIN_GATE_CODE.encode(),
+                b'join-cgroup', str(self.reader).encode(), *command]
+
+    def attach(self, process):
+        self.process = process
+        self.close('reader')
+        self.pin = AttemptProcessPin(process)
+
+    def release(self):
+        if self.process is None or self.pin is None or self.released:
+            raise Refusal('attempt_gate_invalid')
+        if os.write(self.writer, b'R') != 1:
+            raise Refusal('attempt_gate_write_failed')
+        self.released = True
+        self.close('writer')
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, kind, value, traceback):
+        try:
+            self.close('reader'); self.close('writer')
+            if self.process is not None and (kind is not None or not self.released):
+                if self.pin is not None:
+                    self.pin.kill()
+                # If pinning failed, closing the sole writer refuses exec.
+                # Never fall back to a numeric PID signal after concurrent
+                # Monitor polling; an unverified reap powers off the guest.
+                reap(self.process)
+        finally:
+            if self.pin is not None:
+                self.pin.close()
 
 
 def move_into_attempt_cgroup(child, pid):
@@ -1501,26 +1594,29 @@ def main():
                 # unwritable directory: never written through.
                 raise Refusal('launch_profile_unstageable') from None
         attempt_cgroup = prepare_attempt_cgroup(account)
-        joined = [os.fsencode(part) for part in _join_attempt_cgroup(attempt_cgroup)]
-        process = subprocess.Popen([*joined, *command], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE, cwd=WORKSPACE, env=env,
-                                   user=account.pw_uid, group=account.pw_gid, extra_groups=[])
-        move_into_attempt_cgroup(attempt_cgroup, process.pid)
-        if native is not None:
-            try:
-                exposure_monitor = guest_exposure.Monitor(PROC_ROOT, guest_boot_id, process, account.pw_uid,
-                    list(infrastructure.pids.items()), native_entry['executable'], protected_values)
-            except (OSError, ValueError, RuntimeError):
-                # Execution stays truthful; absent sampling proof is unavailable.
-                exposure_monitor = None
-            protected_values.clear()
-        attempt_started = True
-        for stream, name in [(process.stdout, 'stdout'), (process.stderr, 'stderr')]:
-            selector.register(stream, selectors.EVENT_READ, name)
-        stream_count = 2
-        wall_deadline = clock() + wall + 10
-        audit('running', supervisor_pid=process.pid)
-        send({'event': 'running', 'supervisor_pid': process.pid})
+        with AttemptGate() as gate:
+            process = subprocess.Popen(gate.command(command), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE, cwd=WORKSPACE, env=env, close_fds=True,
+                                       pass_fds=(gate.reader,), user=account.pw_uid,
+                                       group=account.pw_gid, extra_groups=[])
+            gate.attach(process)
+            move_into_attempt_cgroup(attempt_cgroup, process.pid)
+            if native is not None:
+                try:
+                    exposure_monitor = guest_exposure.Monitor(PROC_ROOT, guest_boot_id, process, account.pw_uid,
+                        list(infrastructure.pids.items()), native_entry['executable'], protected_values)
+                except (OSError, ValueError, RuntimeError):
+                    # Execution stays truthful; absent sampling proof is unavailable.
+                    exposure_monitor = None
+                protected_values.clear()
+            gate.release()
+            attempt_started = True
+            for stream, name in [(process.stdout, 'stdout'), (process.stderr, 'stderr')]:
+                selector.register(stream, selectors.EVENT_READ, name)
+            stream_count = 2
+            wall_deadline = clock() + wall + 10
+            audit('running', supervisor_pid=process.pid)
+            send({'event': 'running', 'supervisor_pid': process.pid})
 
     while True:
         notify()

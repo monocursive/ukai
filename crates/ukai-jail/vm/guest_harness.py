@@ -294,6 +294,29 @@ def install_kernel(g, kernel):
     g.remove_cgroup = kernel.remove
     g.kill_process = kernel.kill_process
 
+    class ProcessPin:
+        def __init__(self, process):
+            self.process = process.process
+            self.closed = False
+
+        def kill(self):
+            if self.closed:
+                raise AssertionError('closed attempt pidfd')
+            kernel.kill_process(self.process.pid, self.process.starttime)
+
+        def close(self):
+            self.closed = True
+
+    g.AttemptProcessPin = ProcessPin
+
+    def move_into_attempt_cgroup(child, pid):
+        process = kernel.processes[pid]
+        process.join_path = Path(child)
+        (Path(child) / 'cgroup.procs').write_text(str(pid))
+        kernel.move(process, kernel.relative(child))
+
+    g.move_into_attempt_cgroup = move_into_attempt_cgroup
+
     def systemctl(*args, account=None):
         answer = kernel.systemctl(args, account is not None)
         if answer is None:
@@ -323,8 +346,15 @@ class FakeJail:
         self.stderr = os.fdopen(err_read, 'rb', buffering=0)
         self.returncode = None
         self.started = False
+        # Popen duplicates the one passed descriptor in the child. The fake
+        # retains its own read endpoint and obeys the actual release byte.
+        if not kwargs.get('close_fds') or len(kwargs.get('pass_fds', ())) != 1:
+            raise AssertionError('attempt gate descriptor contract')
+        self.gate = os.dup(kwargs['pass_fds'][0])
+        os.set_blocking(self.gate, False)
+        self.released = False
         # The wrapper starts in the controller's own service cgroup.
-        self.process = kernel.spawn(kwargs['user'], 'system.slice/ukai-vm.service', '/bin/sh')
+        self.process = kernel.spawn(kwargs['user'], 'system.slice/ukai-vm.service', '/usr/bin/python3')
         self.pid = self.process.pid
         self.children = []
 
@@ -341,7 +371,7 @@ class FakeJail:
         return command[command.index(b'--') + 1:]
 
     def attempt_cgroup(self):
-        return Path(os.fsdecode(self.argv[self.argv.index(b'join-cgroup') + 1]))
+        return self.process.join_path
 
     def write(self, stream, data):
         fd = self.out_write if stream == 'stdout' else self.err_write
@@ -350,8 +380,8 @@ class FakeJail:
         os.write(fd, data)
 
     def close_streams(self):
-        for name in ('out_write', 'err_write'):
-            fd = getattr(self, name)
+        for name in ('out_write', 'err_write', 'gate'):
+            fd = getattr(self, name, None)
             # exit/poll and harness teardown may both close the same jail.
             # Give up ownership before close: its number can immediately be
             # reused by another pipe or by a guest transport socket.
@@ -378,6 +408,18 @@ class FakeJail:
             self.close_streams()
             self.returncode = -9
             return self.returncode
+        if not self.released:
+            try:
+                release = os.read(self.gate, 2)
+            except BlockingIOError:
+                return None
+            if release != b'R':
+                self.write('stderr', b'UKAI_CGROUP_JOIN_REFUSED\n')
+                self.exit(125)
+                return self.returncode
+            descriptor, self.gate = self.gate, None
+            os.close(descriptor)
+            self.released = True
         if not self.started:
             self.first_poll()
             self.started = True
@@ -387,8 +429,8 @@ class FakeJail:
         attempt = self.attempt_cgroup()
         joined = (attempt / 'cgroup.procs').read_text().split()
         if str(self.pid) not in joined:
-            # The real wrapper waits ten seconds for the move, then exits.
-            self.write('stderr', f'CGROUP_JOIN_TIMEOUT:{attempt}\n'.encode())
+            # Release is authorized only after the controller's verified move.
+            self.write('stderr', b'UKAI_CGROUP_JOIN_REFUSED\n')
             self.exit(124)
             return
         self.kernel.move(self.process, self.kernel.relative(attempt))
