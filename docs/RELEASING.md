@@ -150,9 +150,13 @@ gate is promoted by these measurements.
 J16 still needs its bundle,
 Info.plist, entitlements and `~/Applications` installer. J18's K108–K113 are
 `untested`, a policy element the guest jail does not carry refuses with
-`vm:not-carried:<field>`, and no macOS `ukai-jail` client ships: the VM
-candidate package carries only `ukai-vm` and `ukai-vm-install`, and the
-client is built from source.
+`vm:not-carried:<field>`, and no macOS `ukai-jail` client ships in the existing
+public preview or earlier candidate: those packages carry only `ukai-vm`
+and `ukai-vm-install`, so their client is built from source. The current
+packager builds, signs and installs `ukai-jail` with its sibling service
+from the same clean revision. No full DMG has been built or qualified with
+that tooling yet; signing, notarization and the installed K108–K113 runs
+remain release requirements.
 Apple's Endpoint Security grant (request `S9YJTLLH28`, submitted 2026-09-29)
 is necessary, but does not by itself make the release run ready. The procedure
 below is a release requirement, not an implemented packaging workflow.

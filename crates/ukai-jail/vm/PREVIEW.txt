@@ -8,21 +8,25 @@ proxy. It does not run macOS binaries, Xcode, or native Apple SDKs. The
 native macOS Jail backend remains unavailable pending a proven
 process-lifetime boundary.
 
-NOT YET USABLE FOR WORKLOADS
-This package ships ukai-vm and its installer helper only. No macOS
-ukai-jail client ships: `ukai-jail run --vm` needs a client built from
-source (the monocursive/ukai repository). Even then, every `run --vm`
-refuses at probing, before any connection or boot: a requirement without
-a measured guest record answers vm:not-measured:<requirement>, and every
-plan still has one (tree_termination among them). The
-J18 acceptance rows (K108-K113) are untested, and the guest-side attempt
-stop and share checks have run in unit and model tests only.
+DEVELOPMENT CANDIDATE; WORKLOAD QUALIFICATION PENDING
+The current packaging script includes both ukai-vm and the macOS
+ukai-jail client, built from the same clean source revision, plus the
+installer helper. No package built by that script has been qualified.
+No macOS ukai-jail client ships in the existing public preview or the
+earlier candidate: those require a client built from source (the
+monocursive/ukai repository) for `ukai-jail run --vm`.
+An unmeasured requirement still refuses at probing, before any connection
+or boot, with vm:not-measured:<requirement>. Some development tool runs
+have completed with verified guest receipts, but the J18 acceptance rows
+(K108-K113) remain untested. The full fault matrix, guest stop kill paths,
+network and credential workflows require installed-package qualification.
 
 INSTALL
 Open the signed DMG, then run in Terminal:
   bash "/Volumes/Ukai VM Preview/install.sh"
   export PATH="$HOME/.local/bin:$PATH"
   ukai-vm doctor
+  ukai-jail version --json
 
 Python, Swift, Rust, Homebrew, sudo, and Endpoint Security approval are not
 required. The installer checks pinned SHA-256 hashes and expands a private
@@ -31,13 +35,23 @@ volume. A running guest needs 2 GiB RAM and two virtual CPUs. Notarization
 of this build is pending; Gatekeeper's Open Anyway (or xattr -d com.apple.
 quarantine on the DMG) installs it before its first notarized build.
 
+Before an upgrade, stop the service with ukai-vm stop. The installer
+switches both commands to the new version and retains older version
+directories. It refuses an existing command that is not a link managed
+under this prefix; use --prefix /absolute/path for a separate installation.
+A failed activation restores the links it changed. Concurrent installers
+for the same prefix refuse while share/ukai-vm/.install-lock exists.
+Killing the installer with SIGKILL or losing power can interrupt recovery
+and leave that lock; inspect both command links and ensure no installer
+is running before removing the empty lock directory with rmdir.
+
 THE SERVICE
   ukai-vm serve   boot the guest once and serve attempts until idle
   ukai-vm status  report the warm guest's state
   ukai-vm stop    ask the running service for an orderly stop
   ukai-vm doctor  re-run the install checks
 
-A client built from source starts `ukai-vm serve` itself on first use and
+The packaged client starts its sibling `ukai-vm serve` itself on first use and
 reuses the warm guest across attempts; you only drive these verbs to
 inspect or stop it. One guest serves one live workspace (a case-sensitive
 volume; the client refuses folding volumes, and workspaces with symlinks,
@@ -45,7 +59,7 @@ multi-link files, nested mounts, FIFOs, sockets or device nodes, before any
 boot). A guest that cannot mount the share powers off; it never falls back
 to a copy.
 
-RUN (a client built from source, once the guest is re-measured)
+RUN (development candidate; installed-package qualification pending)
   env -u TERM -u TZ LANG=C.UTF-8 \
     ukai-jail run --vm --terminal detach --profile tool --limit wall=30s \
     --workspace /path/to/case-sensitive/dir -- \
@@ -77,7 +91,25 @@ process-tree containment or production readiness. The measured fault
 model is in the source README.
 
 UNINSTALL
-Remove ~/.local/bin/ukai-vm and ~/.local/share/ukai-vm/0.1.0-preview.2.
+Stop the selected version's service before removing it. For the default
+prefix, remove only command links that still select this version, then
+remove its version directory:
+  prefix="$HOME/.local"
+  selected="$prefix/share/ukai-vm/0.1.0-preview.2"
+  "$selected/bin/ukai-vm" stop
+  for name in ukai-vm ukai-jail; do
+    link="$prefix/bin/$name"
+    if [ -L "$link" ] && [ "$(readlink "$link")" = "$selected/bin/$name" ]; then
+      rm -- "$link"
+    fi
+  done
+  rm -rf -- "$selected"
+For a custom installation, set prefix to the same --prefix used to
+install. This preserves unrelated commands and links to other versions.
+To use an older retained package without changing the command links,
+invoke its share/ukai-vm/<version>/bin/ukai-jail directly; it selects the
+ukai-vm beside it. Earlier packages without a client cannot provide that
+rollback path. Stop the current service before switching versions.
 
 LICENSES AND PROVENANCE
 Ukai and bundled runtime licenses are in payload/licenses. The guest
@@ -87,10 +119,13 @@ built from an immutable Ubuntu archive snapshot (recorded as apt_snapshot
 in payload/image/image.json, with the resolved package versions and their
 digest); its dated upstream image and Linux Jail archive URLs/hashes are
 recorded there too. A package built by the current packaging script
-records its commit as source_revision in payload/image/image.json, and its
-preview-source.tar.gz holds the source of every shipped binary at that
-commit. It is meant to rebuild the service with `cargo build --release
---locked -p ukai-jail --bin ukai-vm` under the toolchain its
+records its commit as source_revision in payload/image/image.json, plus
+ukai_jail_sha256 and ukai_jail_version for the signed host client. The
+client's version is the Cargo package version; its build record identifies
+this VM candidate by clean revision, target, toolchain and input digest.
+Its preview-source.tar.gz holds the source of every shipped binary at that
+commit. It is meant to rebuild both commands with `cargo build --release
+--locked -p ukai-jail --bin ukai-vm --bin ukai-jail` under the toolchain its
 rust-toolchain.toml pins (crates.io dependencies per Cargo.lock); a
 rebuild with that pinned toolchain has not been verified. An image.json
 without source_revision comes from the earlier script, which built the

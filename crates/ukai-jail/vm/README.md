@@ -122,9 +122,10 @@ clauses and the public Linux release gates remain unchanged.
 
 ## Packaged preview
 
-The DMG's operator surface is the **Rust `ukai-vm`** (`serve`, `stop`,
-`status`, `version`, `doctor`) — the same binary `ukai-jail run --vm`
-starts. `ukai-vm version` and `doctor` report `UKAI_VM_PACKAGE_VERSION` when
+The current packager includes the **Rust `ukai-vm`** (`serve`, `stop`,
+`status`, `version`, `doctor`) and the native **`ukai-jail` client** in the
+same `bin/` directory. `ukai-jail run --vm` starts that sibling service.
+`ukai-vm version` and `doctor` report `UKAI_VM_PACKAGE_VERSION` when
 the build sets it (`package.py` sets it from `release.json`'s
 `vm.candidate_version`), and `<crate version>-dev` otherwise.
 `ukai-vm-install` is the installer's helper (the preview's
@@ -140,8 +141,21 @@ every listed digest, so an unlisted file refuses; a refused install removes
 the directories it created. The manifest carries no modes, so the
 installer sets them: directories 0755, files 0755 where the volume's file
 is executable and 0644 otherwise; no world-writable, setuid, setgid or
-sticky bit installs. Read [PREVIEW.txt](PREVIEW.txt) for installation, command
-examples and limits. Apple Silicon / macOS 27+ is the package's minimum;
+sticky bit installs. Both command paths are checked before installation;
+an unrelated `ukai-vm` or `ukai-jail` refuses before either changes. A
+successful upgrade switches both links and retains the older version
+directory. An atomic per-prefix `.install-lock` serializes all versions
+before the installer snapshots command links; a concurrent installation
+refuses without removing the lock. A failed activation restores only links
+that invocation changed and removes the new version if rollback succeeds. This handles ordinary
+errors and caught signals, not SIGKILL or power loss during activation.
+An interrupted install's lock is never stolen automatically; after
+checking that no installer is running and inspecting both links, the
+operator can remove that empty directory with `rmdir`.
+Stop the service before upgrading or selecting an older version. Read
+[PREVIEW.txt](PREVIEW.txt) for installation, safe removal of both command
+links, rollback to a retained package, command examples and limits.
+Apple Silicon / macOS 27+ is the package's minimum;
 measured execution is on macOS 27.0.1. Intel Macs and native macOS
 workloads are not included.
 
@@ -152,7 +166,8 @@ tree differs from HEAD anywhere under the jail's build inputs (the ones
 `build_provenance.rs` names) or the archived source paths: a change staged
 or not, an untracked or ignored file (Python bytecode excepted), an index
 entry marked assume-unchanged or skip-worktree, or a file whose bytes are
-not HEAD's blob. It checks again after the build. It builds `ukai-vm` with
+not HEAD's blob. It checks again after the build. It builds both `ukai-vm`
+and `ukai-jail` in one invocation with
 `cargo build --release --locked` from the repository root into an explicit
 `--target-dir` (a fresh one under `--out` by default), in a scrubbed
 environment: only `HOME`, `PATH`, `USER`, `LOGNAME`, `TMPDIR`,
@@ -163,12 +178,17 @@ setting never does, and rustup takes the toolchain from
 `cargo -V` in `package.json` and refuses unless both report that file's
 exact release. It sets `UKAI_BUILD_REVISION` to HEAD,
 `UKAI_BUILD_DIRTY=false` and `UKAI_VM_PACKAGE_VERSION` to the candidate
-version, and refuses a binary whose `version` reports anything else. It
-records the revision as
+version, and refuses a service whose `version` reports anything else. The
+client retains its Cargo package version: its `version --json` must report
+the same clean revision, the pinned rustc release, Apple Silicon target,
+release optimization, no debug assertions, and an input digest. The signed
+client's digest and build report are recorded as `ukai_jail_sha256` and
+`ukai_jail_version` in `image.json`; the build report is also in
+`package.json`. It records the revision as
 `source_revision` in `package.json` and `image.json`, and
 `preview-source.tar.gz` holds the workspace at that revision: the Cargo
 files, the toolchain pin, every crate and the build inputs outside
-`crates/`, meant to be enough to rebuild `ukai-vm`, the VZ client, the
+`crates/`, meant to be enough to rebuild `ukai-vm`, `ukai-jail`, the VZ client, the
 custodian and the installer helper. No rebuild from such an archive under
 the pinned toolchain has been verified: the fix wave's one rebuild check
 of an archive probably ran under rustc 1.96.0, not the pin. The
@@ -189,7 +209,9 @@ evidence/vm-build-env/bin/python crates/ukai-jail/vm/package.py \
 ```
 
 `package.py` signs all Mach-O runtime files with hardened runtime, and grants
-only the VZ client `com.apple.security.virtualization`. Notarization is the
+only the VZ client `com.apple.security.virtualization`. Neither operator
+command receives Endpoint Security entitlements, and packaging the client
+does not enable the native macOS backend. Notarization is the
 one step that needs the operator's Apple credentials, so it is its own
 script — `notarize.py` submits and waits, staples, validates the staple,
 runs `spctl --assess`, records every step's raw output, and only after all
@@ -218,11 +240,14 @@ shipped DMG
 and its development gate measurements, which leave K108–K113 `untested`,
 are in
 [docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/](../../../docs/benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md).
-The current `check_install.py` (schema `ukai.vm.installer-check/2`) has a
-sixth case, `payload-extra`, which plants an unlisted payload file and
-requires a refusal with nothing installed. Its `install` case passes only
+The current `check_install.py` (schema `ukai.vm.installer-check/3`) has seven
+cases. `payload-extra` plants an unlisted payload file and requires a
+refusal with nothing installed; `unrelated-client-refused` preserves an
+existing client and requires no service installation. Its `install` case passes only
 when the installed `ukai-vm version` reports exactly the version the
-installer names, never a `-dev` build, the installed tree is exactly the
+installer names, never a `-dev` build, the installed `ukai-jail version
+--json` matches the clean client build recorded in the package and both
+commands select the same version directory, the installed tree is exactly the
 manifest's payload, and every installed mode is the normalized one
 (`installed-modes-normalized`). `summary.json` binds the manifest and
 installer
@@ -362,8 +387,10 @@ Apple references: [Virtualization](https://developer.apple.com/documentation/vir
 ## J18: the warm service (development; no row passes)
 
 `ukai-jail run --vm` is wired to the warm `ukai-vm serve`, but **no macOS
-`ukai-jail` client ships**: the DMG carries only `ukai-vm` and
-`ukai-vm-install`, so the client is built from source. A `run --vm`
+`ukai-jail` client ships in the existing public preview or earlier
+candidate**: those DMGs carry only `ukai-vm` and `ukai-vm-install`, so their
+client is built from source. The current packager includes the client;
+its signed package and installed workflows remain unqualified. A `run --vm`
 refuses at probing, before any connection or boot, with exit 125, while
 any requirement of its plan lacks a measured guest record. The probe
 answers Available only for a requirement a measured guest record backs:
