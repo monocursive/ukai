@@ -31,6 +31,7 @@ CREDENTIAL = 'test'
 CREDENTIAL_ENV = 'AGENT_TOKEN'
 DISCONNECT_BOUND = 5.0
 ACK_BOUND = 2.0
+NORMAL_HOLD_NS = 2_500_000_000
 
 
 class StreamWitness:
@@ -157,6 +158,44 @@ except urllib.error.HTTPError as error:
 '''
 
 
+def normal_guest_script(address, port):
+    # Raw replay reconstructs guest_script byte for byte. Only the normal
+    # client lane stays live after the refused request: verified settlement
+    # before the watch's two-second deadline is deliberately not an ACK.
+    return guest_script(address, port).replace(
+        '    raise SystemExit(0 if error.code == 403 else 2)\n',
+        f'''    if error.code != 403:
+        raise SystemExit(2)
+    import json, time
+    started_ns = time.monotonic_ns()
+    time.sleep({NORMAL_HOLD_NS / 1_000_000_000!r})
+    finished_ns = time.monotonic_ns()
+    print('ACK_WINDOW_HELD', json.dumps(dict(started_ns=started_ns, finished_ns=finished_ns)), flush=True)
+    raise SystemExit(0)
+''')
+
+
+def held_past_ack_window(hold):
+    return (type(hold) is dict and set(hold) == {'started_ns', 'finished_ns'}
+            and all(type(value) is int for value in hold.values())
+            and hold['started_ns'] > 0
+            and hold['finished_ns'] - hold['started_ns'] >= NORMAL_HOLD_NS)
+
+
+def normal_hold(stdout):
+    lines = stdout.splitlines()
+    held = [line for line in lines if line.startswith('ACK_WINDOW_HELD ')]
+    if (len(held) != 1 or lines.count('AFTER_ATTEMPT') != 1
+            or lines.count('AFTER_REFUSED 403') != 1
+            or not lines.index('AFTER_ATTEMPT') < lines.index('AFTER_REFUSED 403') < lines.index(held[0])):
+        return None
+    try:
+        hold = compatibility.strict_json(held[0].removeprefix('ACK_WINDOW_HELD '))
+    except (ValueError, TypeError):
+        return None
+    return hold if held_past_ack_window(hold) else None
+
+
 def successful_outcome(outcome):
     """Match the complete records::Outcome schema without accepting faults."""
     return (type(outcome) is dict
@@ -226,6 +265,7 @@ def _judge(observed, guest, events, summary):
             and observed.get('tail_json_exit') == 0 and observed.get('tail_agrees') is True
             and observed.get('client_thread_settled') is True and 'harness_error_type' not in observed,
         'source_removed_before_stop': observed.get('source_removed_before_stop') is True,
+        'post_revocation_hold_exceeds_ack_budget': held_past_ack_window(observed.get('post_revocation_hold')),
         'all_exported_bytes_scanned': observed.get('leaks') == [] and observed.get('files_scanned', 0) > 0
             and observed.get('output_leak') is False,
         'same_boot_disk_scanned': observed.get('same_boot') is True and observed.get('disk_scan') == 'clean'
@@ -387,7 +427,8 @@ def _raw_judge(observed, guest, events, summary, record):
     component = dict(observed, peer=dict(observed.get('peer') or {}))
     component['peer']['deleted_at'] = component['peer'].get('revocation_sent_at')
     facts = judge(component, guest, events, summary)
-    for name in ('host_binding_and_settlement', 'client_and_summary_succeeded', 'source_removed_before_stop'):
+    for name in ('host_binding_and_settlement', 'client_and_summary_succeeded', 'source_removed_before_stop',
+                 'post_revocation_hold_exceeds_ack_budget'):
         facts.pop(name, None)
     facts['explicit_revoke_after_peer_accept_then_disconnect'] = facts.pop(
         'independent_stream_before_delete_then_prompt_disconnect', False)
@@ -790,7 +831,7 @@ def main(argv=None):
     data = Path(tempfile.mkdtemp(prefix='ukai-revoke-data-')).resolve()
     env = harness.vm_client_environment(PATH=f'{home}/bin:/usr/bin:/bin', UKAI_VM_HOME=home,
                                         UKAI_DATA_DIR=data, UKAI_CONFIG_DIR=config)
-    command = ['/usr/bin/python3', '-c', guest_script(address, port)]
+    command = ['/usr/bin/python3', '-c', normal_guest_script(address, port)]
     observed = {}
     result = {}
     stdout = stderr = tail = tail_json = tail_error = ''
@@ -876,6 +917,7 @@ def main(argv=None):
     observed['peer'] = witness.snapshot()
     observed['placeholder'] = vault_measurement.placeholder(stdout)
     observed['after_refused'] = 'AFTER_ATTEMPT' in stdout and 'AFTER_REFUSED 403' in stdout and 'AFTER_ALLOWED' not in stdout
+    observed['post_revocation_hold'] = normal_hold(stdout)
     observed['output_leak'] = any(value in stdout + stderr + tail + tail_json + tail_error
                                  + ''.join(auxiliary_output) for value in spellings)
     scans = [vault_measurement.leak_scan([data, workspace], value.encode()) for value in spellings]

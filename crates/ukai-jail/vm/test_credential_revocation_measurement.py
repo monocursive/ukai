@@ -1,9 +1,11 @@
 """Independent peer/order and negative evidence controls; no VM/provider calls."""
 import copy
+import contextlib
 import base64
 import hashlib
 import http.server
 import json
+import io
 import os
 import tomllib
 from pathlib import Path
@@ -14,6 +16,7 @@ import tempfile
 import threading
 import time
 import unittest
+import urllib.error
 from unittest import mock
 
 import credential_revocation_measurement as measurement
@@ -114,6 +117,66 @@ class LaunchProfileTests(unittest.TestCase):
             self.assertEqual(source.read_text(), 'synthetic-fixture-parser-value')
 
 
+class NormalHoldTests(unittest.TestCase):
+    def output(self, hold):
+        return 'AFTER_ATTEMPT\nAFTER_REFUSED 403\nACK_WINDOW_HELD ' + json.dumps(hold) + '\n'
+
+    def test_raw_argv_remains_byte_identical_for_historical_replay(self):
+        raw = measurement.guest_script('192.0.2.1', 1234)
+        self.assertEqual(hashlib.sha256(raw.encode()).hexdigest(),
+                         '7306f6cc900bacd63652ebc71957e4d8538bb9bc2dd4e8f4534d2602939b5e34')
+        self.assertNotIn('ACK_WINDOW_HELD', raw)
+
+    def test_missing_short_malformed_or_reordered_holds_never_pass(self):
+        valid = {'started_ns': 100, 'finished_ns': 2_500_000_100}
+        self.assertEqual(measurement.normal_hold(self.output(valid)), valid)
+        for hold in (None, {}, {'started_ns': 100}, {'started_ns': True, 'finished_ns': 2_500_000_100},
+                     {'started_ns': 100.0, 'finished_ns': 2_500_000_100},
+                     {'started_ns': 100, 'finished_ns': 2_000_000_100},
+                     {'started_ns': 100, 'finished_ns': 2_500_000_099},
+                     {'started_ns': 0, 'finished_ns': 2_500_000_100},
+                     dict(valid, extra=None)):
+            with self.subTest(hold=hold):
+                self.assertIsNone(measurement.normal_hold(self.output(hold)))
+        text = self.output(valid)
+        for wrong in ('', text + text, text.replace('AFTER_REFUSED 403\n', ''),
+                      text.replace('AFTER_REFUSED 403', 'AFTER_REFUSED 401'),
+                      '\n'.join(reversed(text.splitlines())), text.replace('"started_ns": 100', '"started_ns": 1, "started_ns": 100')):
+            with self.subTest(text=wrong):
+                self.assertIsNone(measurement.normal_hold(wrong))
+
+    def run_script(self, code=403, sleep=None):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.side_effect = OSError('fixture interrupted stream')
+        refused = urllib.error.HTTPError('http://fixture/after', code, 'fixture', {}, None)
+        output = io.StringIO()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(contextlib.redirect_stdout(output))
+            stack.enter_context(mock.patch('urllib.request.urlopen', side_effect=[response, refused]))
+            if sleep is not None:
+                stack.enter_context(mock.patch('time.sleep', sleep))
+            started = time.monotonic_ns()
+            with self.assertRaises(SystemExit) as ended:
+                exec(compile(measurement.normal_guest_script('192.0.2.1', 1234), '<normal-guest>', 'exec'), {})
+            elapsed = time.monotonic_ns() - started
+        return ended.exception.code, output.getvalue(), elapsed
+
+    def test_actual_child_clock_holds_after_refusal_before_success(self):
+        code, output, elapsed = self.run_script()
+        self.assertEqual(code, 0)
+        self.assertGreaterEqual(elapsed, 2_500_000_000)
+        self.assertIsNotNone(measurement.normal_hold(output))
+        self.assertLess(output.index('AFTER_REFUSED 403'), output.index('ACK_WINDOW_HELD'))
+
+    def test_no_wait_negative_control_and_wrong_denial_cannot_claim_hold(self):
+        code, output, _ = self.run_script(sleep=lambda _: None)
+        self.assertEqual(code, 0)
+        self.assertIsNone(measurement.normal_hold(output))
+        code, output, _ = self.run_script(code=401)
+        self.assertEqual(code, 2)
+        self.assertIsNone(measurement.normal_hold(output))
+
+
 class JudgeTests(unittest.TestCase):
     def fixture(self):
         guest_id = 'att_00000000-0000-4000-8000-000000000001'
@@ -126,6 +189,7 @@ class JudgeTests(unittest.TestCase):
                     'receipt_bound': True, 'host_receipt_contradictions': [], 'host_clean': True,
                     'run_exit': 0, 'tail_exit': 0, 'tail_json_exit': 0, 'tail_agrees': True,
                     'client_thread_settled': True, 'source_removed_before_stop': True,
+                    'post_revocation_hold': {'started_ns': 100, 'finished_ns': 2_500_000_100},
                     'leaks': [], 'files_scanned': 5, 'output_leak': False, 'same_boot': True,
                     'disk_scan': 'clean', 'sync_exit': 0, 'stop_exit': 0}
         guest = {'attempt_id': guest_id, 'phase': 'settled', 'errors': [],
@@ -206,7 +270,7 @@ class JudgeTests(unittest.TestCase):
 
     def test_leak_cleanup_binding_and_settlement_failures_remain_failures(self):
         changes = {'leaks': ['private-file'], 'files_scanned': 0, 'output_leak': True,
-                   'source_removed_before_stop': False, 'receipt_bound': False,
+                   'source_removed_before_stop': False, 'receipt_bound': False, 'post_revocation_hold': None,
                    'host_receipt_contradictions': ['different'], 'host_clean': False,
                    'same_boot': False, 'disk_scan': 'not-scanned', 'sync_exit': 1,
                    'stop_exit': 1, 'run_exit': 1, 'tail_exit': 1, 'tail_json_exit': 1,
