@@ -256,11 +256,13 @@ closes its scripted durability gate. Historical-custody migration and managed
 project authorization remain open. Local consistency is reported separately from coverage and
 protection from the child.
 
-The [October 8 follow-up record](docs/benchmarks/jail/followup-2026-10-08.md)
-refreshes performance, conformance and signed-package checks against the
-current frozen runtime inputs; the
-[earlier validation](docs/benchmarks/jail/validation-2026-10-08.md) records the
-signed onboarding runs and the corrected ripgrep prerequisite. Repeated
+The [November 15 candidate record](docs/benchmarks/jail/results/release-preview-2026-11-15-rc6/README.md)
+records current-input clean-VM onboarding, a real agent task and learning for
+the unpublished rc.6 candidate, using an ephemeral signing key. It does not
+publish or qualify a production release. The
+[October 8 follow-up](docs/benchmarks/jail/followup-2026-10-08.md) and
+[earlier validation](docs/benchmarks/jail/validation-2026-10-08.md) retain their
+historical performance, conformance and signed-package scope. Repeated
 real-agent compatibility remains unqualified where trials failed or stopped
 early.
 
@@ -269,8 +271,10 @@ early.
 - **Next:** broader host and agent/version compatibility records. Current-input
   clean-VM onboarding and benchmark results are linked above.
 - **Research:** native macOS execution, including process-tree cleanup when the
-  supervising helper dies. Apple entitlement approval is also pending; approval
-  alone does not resolve the cleanup blocker.
+  supervising helper dies. Native candidate packaging and unsigned installation
+  are implemented, but no approved Ukai ES profile was available locally on
+  November 15. Apple's account-side approval status is unverified; an approved
+  profile alone does not satisfy protected-Mac cleanup and workflow qualification.
 - **Later:** company-managed Linux workers, starting with one worker before a fleet.
 
 These are planned features with no release dates. See the [roadmap](docs/roadmap.md),
