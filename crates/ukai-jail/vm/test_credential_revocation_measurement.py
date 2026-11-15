@@ -89,6 +89,7 @@ class JudgeTests(unittest.TestCase):
                     'leaks': [], 'files_scanned': 5, 'output_leak': False, 'same_boot': True,
                     'disk_scan': 'clean', 'sync_exit': 0, 'stop_exit': 0}
         guest = {'attempt_id': guest_id, 'phase': 'settled', 'errors': [],
+                 'policy': {'name': 'agent'},
                  'containment': 'enforced', 'child_protection': 'enforced', 'exec_observed': True,
                  'process': {'identity': {'value': {'boot_id': 'guest-boot'}}},
                  'outcome': {'kind': 'exited', 'code': 0}, 'state_cleanup': 'complete', 'cleanup_error': None,

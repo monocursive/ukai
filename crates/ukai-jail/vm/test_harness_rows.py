@@ -118,7 +118,10 @@ def bind(base, attempt_id, argv=('/bin/sh', '-c', 'x'), profile='tool', boot='vm
     value.update(attempt_id=attempt_id, argv_digest=digest, profile=profile, boot_id=boot, receipt_digest_ok=True,
                  binding={'attempt_id': attempt_id, 'argv_digest': digest, 'profile': profile, 'boot_id': boot,
                           'guest_attempt_id': 'att_' + attempt_id, 'guest_boot_id': guest_boot})
-    value['receipt'] = dict(value.get('receipt') or {}, argv_digest=digest)
+    receipt = value.get('receipt') or {}
+    value['receipt'] = dict(receipt, argv_digest=digest, attempt_id='att_' + attempt_id,
+                            process={'identity': {'value': {'boot_id': guest_boot}}},
+                            policy={**receipt.get('policy', {}), 'name': profile})
     return value
 
 
@@ -135,13 +138,20 @@ def mutated(base, **changes):
 
 
 def with_receipt(base, receipt):
-    """`base` with another receipt, still bound to its attempt (its argv digest kept)."""
-    return mutated(base, receipt=dict(receipt, argv_digest=base['receipt']['argv_digest']))
+    """Change receipt facts while retaining all identity fields for this attempt."""
+    original = base['receipt']
+    return mutated(base, receipt=dict(receipt, **{key: original[key] for key in
+                   ('argv_digest', 'attempt_id', 'process')},
+                   policy={**receipt.get('policy', {}), 'name': original['policy']['name']}))
 
 
 def rebound(base, **binding):
     value = copy.deepcopy(base)
     value['binding'].update(binding)
+    if 'guest_boot_id' in binding:
+        # This fixture models a valid receipt on a different boot, so it is
+        # the same-boot condition (not internal consistency) that must fail.
+        value['receipt']['process']['identity']['value']['boot_id'] = binding['guest_boot_id']
     return value
 
 
@@ -599,7 +609,7 @@ def reprobe(result, name, tag, change):
 
 
 def other_policy(receipt):
-    receipt['policy'] = {'requirements': ['limit:wall']}
+    receipt['policy']['requirements'] = ['limit:wall']
 
 
 class GuestMeasurementMutations(unittest.TestCase):
@@ -1686,7 +1696,9 @@ def argv_digest(words):
 
 def bound_receipt(prepare, boot, guest_boot, receipt):
     digest = argv_digest([base64.b64decode(word) for word in prepare['argv']])
-    raw = json.dumps(dict(receipt, argv_digest=digest)).encode()
+    raw = json.dumps(dict(receipt, argv_digest=digest, attempt_id='att_' + prepare['attempt_id'],
+                          process={'identity': {'value': {'boot_id': guest_boot}}},
+                          policy={**receipt.get('policy', {}), 'name': prepare['profile']})).encode()
     return {'event': 'bound_receipt', 'sha256': hashlib.sha256(raw).hexdigest(),
             'data': base64.b64encode(raw).decode(),
             'binding': {'attempt_id': prepare['attempt_id'], 'boot_id': boot, 'profile': prepare['profile'],
@@ -2100,8 +2112,9 @@ class VmClientStandardInput(unittest.TestCase):
                     self.assertEqual(stdin, 'subprocess.DEVNULL', f'{module}.py:{line}')
                 sites += len(spawns)
         # fault_matrix 1, proxy_measurement 1, vault_measurement 2, warm_live 1,
-        # gate_rows 2 (K111 under script(1), K112 both lanes), claude_vm_row 1.
-        self.assertEqual(sites, 8)
+        # gate_rows 2 (K111 under script(1), K112 both lanes), claude_vm_row 1,
+        # credential_revocation_measurement 2 (normal client and sync).
+        self.assertEqual(sites, 10)
 
     def test_the_check_sees_a_missing_or_other_stdin(self):
         for text, expected in [
@@ -2374,6 +2387,7 @@ class MainFlows(unittest.TestCase):
             boot = boots[min(index, len(boots) - 1)]
             mode = 'proxy' if profile == 'agent' else 'none'
             guest = {'applied': {'network': {'mode': mode}}, 'argv_digest': digest, 'attempt_id': f'att_guest{index}',
+                     'policy': {'name': profile}, 'process': {'identity': {'value': {'boot_id': 'g-1'}}},
                      'credentials': [{'id': 'test', 'mode': 'vault', 'never_staged': True}]}
             raw = json.dumps(guest).encode()
             (attempt / 'jail.json').write_text(json.dumps({'phase': 'settled', 'outcome': {'code': 0},
@@ -2384,7 +2398,7 @@ class MainFlows(unittest.TestCase):
                 'boot_id': boot, 'guest_receipt_sha256': hashlib.sha256(raw).hexdigest()}))
             (attempt / 'evidence/vm-binding.json').write_text(json.dumps({
                 'attempt_id': attempt.name if unbound != index else 'att_other', 'argv_digest': digest,
-                'boot_id': boot, 'profile': profile, 'guest_boot_id': 'g-1'}))
+                'boot_id': boot, 'profile': profile, 'guest_boot_id': 'g-1', 'guest_attempt_id': guest['attempt_id']}))
             (data / 'vm' / boot / 'image').mkdir(parents=True, exist_ok=True)
             (data / 'vm' / boot / 'image' / 'base.raw').write_bytes(b'\0' * 4096)
             script = workload[-1]
@@ -2542,6 +2556,7 @@ def k111_attempt_dir(attempt, argv, contradict=False, boot='vm-b'):
     (attempt / 'evidence').mkdir(parents=True)
     digest = harness.argv_digest(argv)
     guest = {'platform': {'os': 'linux', 'kernel': '6.12', 'arch': 'aarch64'}, 'argv_digest': digest,
+             'policy': {'name': 'tool'}, 'process': {'identity': {'value': {'boot_id': 'g-1'}}},
              'attempt_id': 'att_guest', 'applied': {'network': {'mode': 'none'}}, 'observer': {'attached': True},
              'coverage': {name: {'status': 'active'} for name in harness.SUMMARY_CLASSES}, 'outcome': {'code': 0}}
     raw = json.dumps(guest).encode()
@@ -3352,6 +3367,8 @@ class ClaudeRowTests(unittest.TestCase):
     def fake_run(self, tail_has_line=True, run_raises=None, refused=False, stop_raises=None, leak_to=None,
                  print_token=False, contradict=False, tail_exit=0):
         guest = {'platform': {'os': 'linux'}, 'applied': {'network': {'mode': 'proxy'}},
+                 'attempt_id': 'att_guest', 'policy': {'name': 'agent'},
+                 'process': {'identity': {'value': {'boot_id': 'g-1'}}},
                  'observer': {'attached': True}, 'outcome': {'code': 0},
                  'coverage': {name: {'status': 'active'} for name in harness.SUMMARY_CLASSES}}
         line = None
@@ -3394,7 +3411,7 @@ class ClaudeRowTests(unittest.TestCase):
                 (attempt / 'evidence/jail.json').write_bytes(guest_bytes)
                 (attempt / 'evidence/vm-binding.json').write_text(json.dumps({
                     'attempt_id': 'att_1', 'profile': 'agent', 'argv_digest': harness.argv_digest(workload),
-                    'boot_id': 'vm-x', 'guest_boot_id': 'g-1'}))
+                    'boot_id': 'vm-x', 'guest_boot_id': 'g-1', 'guest_attempt_id': 'att_guest'}))
                 (self.workspace / 'k113-marker.txt').write_text('contained\n')
                 if leak_to == 'data':
                     (data / 'vm').mkdir(exist_ok=True)
