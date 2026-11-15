@@ -1,5 +1,6 @@
 """Focused negative controls for scoped K113 measurements; no provider calls."""
 import copy
+import base64
 import hashlib
 import json
 import os
@@ -8,11 +9,92 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import urllib.parse
 from unittest import mock
 
 import claude_vm_row as row
 import harness
 import test_harness_rows as historical
+
+
+def vendor_result():
+    return {'type': 'result', 'subtype': 'success', 'is_error': False, 'result': 'done',
+            'num_turns': 2, 'total_cost_usd': 0.0054782,
+            'usage': {'input_tokens': 4, 'output_tokens': 156, 'cache_creation_input_tokens': 185,
+                      'cache_read_input_tokens': 31702},
+            'modelUsage': {'claude-sonnet-5-5': {'inputTokens': 4, 'outputTokens': 156,
+                'cacheReadInputTokens': 31702, 'cacheCreationInputTokens': 185,
+                'costUSD': 0.0054782, 'canonicalModel': 'claude-sonnet-5-5'}}}
+
+
+class NativeUsageTests(unittest.TestCase):
+    def test_safe_report_retains_actual_cost_models_and_typed_counters(self):
+        vendor = vendor_result()
+        vendor['usage']['unknown_sensitive_string'] = 'must not retain'
+        vendor['modelUsage']['claude-sonnet-5-5']['unknown'] = 'must not retain'
+        usage = row.native_vendor_usage(vendor)
+        self.assertEqual(usage['state'], 'complete')
+        self.assertEqual(usage['total_cost_usd'], 0.0054782)
+        self.assertEqual(usage['num_turns'], 2)
+        self.assertEqual(usage['models'][0]['model'], 'claude-sonnet-5-5')
+        self.assertEqual(usage['models'][0]['canonical_model'], 'claude-sonnet-5-5')
+        self.assertEqual(usage['usage']['cache_read_input_tokens'], 31702)
+        self.assertNotIn('must not retain', json.dumps(usage))
+        self.assertIn('not independently metered', usage['scope'])
+        self.assertTrue(row.native_usage_valid(usage))
+        for changed in ({'state': 'complete'}, {**usage, 'total_cost_usd': True},
+                        {**usage, 'models': usage['models'] * 2}, {**usage, 'unknown': 'data'}):
+            self.assertFalse(row.native_usage_valid(changed))
+
+    def test_malformed_or_missing_cost_model_and_counts_never_become_complete(self):
+        for value in (True, '0.01', -1, float('nan'), float('inf'), 10 ** 300):
+            for field in ('total_cost_usd', 'num_turns'):
+                changed = vendor_result(); changed[field] = value
+                with self.subTest(field=field, value=value):
+                    self.assertEqual(row.native_vendor_usage(changed)['state'], 'invalid')
+        for mutation in (
+            lambda d: d.pop('total_cost_usd'),
+            lambda d: d.update(modelUsage={}),
+            lambda d: d['usage'].update(input_tokens=True),
+            lambda d: d['usage'].pop('output_tokens'),
+            lambda d: d['modelUsage'].update({'bad\nmodel': d['modelUsage'].pop('claude-sonnet-5-5')}),
+            lambda d: d['modelUsage']['claude-sonnet-5-5'].update(costUSD=True),
+            lambda d: d['modelUsage']['claude-sonnet-5-5'].update(outputTokens=1.0),
+            lambda d: d['modelUsage']['claude-sonnet-5-5'].update(canonicalModel='<token>'),
+        ):
+            changed = vendor_result(); mutation(changed)
+            self.assertEqual(row.native_vendor_usage(changed)['state'], 'invalid')
+        self.assertEqual(row.native_vendor_usage(None)['state'], 'unavailable')
+
+    def test_native_encoding_variants_and_nested_redaction_preserve_literal_behavior(self):
+        token = ('synthetic-"quoted"-\\-é-credential-' + 'X' * 201).encode()
+        expected = {token.decode(), json.dumps(token.decode())[1:-1],
+                    base64.b64encode(token).decode(), base64.b64encode(token).decode().rstrip('='),
+                    base64.urlsafe_b64encode(token).decode(), base64.urlsafe_b64encode(token).decode().rstrip('='),
+                    token.hex(), token.hex().upper(), urllib.parse.quote_from_bytes(token, safe='')}
+        native = row.native_secret_spellings(token)
+        self.assertTrue(expected <= set(native))
+        self.assertNotIn(token.hex(), row.secret_spellings(token), 'literal historical behavior stays fixed')
+        for spelling in expected:
+            value = {spelling: [{'result': spelling, 'prefix': 'safe'}]}
+            redacted = row.native_redact(value, native)
+            self.assertEqual(redacted, {'<token>': [{'result': '<token>', 'prefix': 'safe'}]})
+            self.assertNotIn(spelling, json.dumps(redacted))
+            detected, retained = row.native_output(json.dumps(value) + '\n', native)
+            self.assertTrue(detected)
+            self.assertEqual(json.loads(retained), redacted)
+            self.assertFalse(row.native_output(retained, native)[0])
+            for container in ([value], spelling):
+                detected, retained = row.native_output(json.dumps(container) + '\n', native)
+                self.assertTrue(detected)
+                self.assertFalse(row.native_output(retained, native)[0])
+            detected, retained = row.native_output('\x1b[32m' + json.dumps(value) + '\n', native)
+            self.assertTrue(detected)
+            self.assertEqual(json.loads(retained.removeprefix('\x1b[32m')), redacted)
+            self.assertFalse(row.native_output(retained, native)[0])
+        clean = 'unrelated text\n{"unrelated": "same bytes"}\n'
+        self.assertEqual(row.native_output(clean, native), (False, clean))
+        self.assertEqual(row.native_output('token', ['token']), (True, ''), 'unsafe replacement is withheld')
 
 
 class CompatibilityTests(unittest.TestCase):
@@ -508,14 +590,21 @@ class NativeModeTests(unittest.TestCase):
             config = Path(options['env']['UKAI_CONFIG_DIR']); configs.append(config)
             self.addCleanup(shutil.rmtree, Path(options['env']['UKAI_DATA_DIR']), True)
             self.assertFalse((config / 'launch').exists())
+            self.assertEqual(set(options['env']), {'PATH','HOME','TMPDIR','LANG','UKAI_VM_HOME','UKAI_DATA_DIR','UKAI_CONFIG_DIR'})
+            self.assertEqual(Path(options['env']['HOME']), config / 'home')
+            self.assertEqual((config / 'home').stat().st_mode & 0o777, 0o700)
+            self.assertEqual(options['env']['TMPDIR'], '/private/tmp')
             selected = config / 'credentials/anthropic'
             self.assertEqual(list((config / 'credentials').iterdir()), [selected])
             self.assertEqual(selected.stat().st_mode & 0o777, 0o600)
             self.assertEqual(selected.read_bytes(), source.read_bytes())
             self.assertNotIn(source.read_text(), ' '.join(command))
             return subprocess.CompletedProcess(command, 125, '', 'vm:not-measured:guest-native')
-        code = row.main(self.args('--execution-mode', 'guest-native', '--credential-kind', 'api-key',
-                                 '--credential-source', str(source)), run=fake)
+        with mock.patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'ambient-api-not-used',
+                'CLAUDE_CODE_OAUTH_TOKEN': 'ambient-oauth-not-used', 'HTTP_PROXY': 'http://ambient.invalid',
+                'CLAUDE_CONFIG_DIR': '/ambient-config', 'UKAI_CONFIG_DIR': '/ambient-ukai', 'HOME': '/ambient-home'}):
+            code = row.main(self.args('--execution-mode', 'guest-native', '--credential-kind', 'api-key',
+                                     '--credential-source', str(source)), run=fake)
         self.assertEqual(code, 1)
         self.assertEqual(source.read_bytes(), b'synthetic-native-secret')
         self.assertTrue(all(not config.exists() for config in configs))
@@ -540,7 +629,8 @@ class NativeModeTests(unittest.TestCase):
                             'lifecycle': {'stop_reason': 'supervisor_exit', 'supervisor_exit_observed_ns': 110, 'stopped_ns': 120}}}, run_exit=0,
                         tail_exit=0, tail_json_exit=0, source_removed_before_stop=True, stop_exit=0,
                         service_shutdown={'complete': True}, leaks=[], files_scanned=5, output_leaks=[],
-                        installed_identity_unchanged=True, agent_result={'subtype': 'success', 'is_error': False})
+                        installed_identity_unchanged=True, agent_result={'subtype': 'success', 'is_error': False},
+                        vendor_usage=row.native_vendor_usage(vendor_result()))
         native = {'catalog_sha256': context['catalog_sha256'], 'entry_id': entry['id'],
                   'profile_sha256': entry['profile_sha256'], 'executable_sha256': entry['executable_sha256'],
                   'selected_credential_id': 'anthropic', 'state': 'attempt',
@@ -580,7 +670,7 @@ class NativeModeTests(unittest.TestCase):
             self.assertFalse(all(facts().values()), (key, value))
             sample[key] = prior
 
-    def test_native_matrix_never_requires_workspace_cli_and_retains_all_failures(self):
+    def test_native_matrix_missing_source_first_then_stops_at_failure_and_names_unrun(self):
         source = self.root / 'not-read'
         args = row.parse_args(self.args('--execution-mode', 'guest-native', '--compatibility',
                                        '--credential-source', str(source)))
@@ -591,16 +681,90 @@ class NativeModeTests(unittest.TestCase):
             self.assertFalse((Path(argv[1]) / 'claude').exists())
             if len(calls) == 3: raise RuntimeError('unsafe detail')
             output = Path(argv[2]); output.mkdir()
-            (output / 'k113-native.json').write_text(json.dumps({'outcome': 'PASS', 'facts': {'available': True}}))
+            (output / 'k113-native.json').write_text(json.dumps({'outcome': 'PASS', 'facts': {'available': True},
+                'vendor_usage': row.native_vendor_usage(vendor_result())}))
+            return 0
+        with mock.patch.object(row, 'main', side_effect=lane): self.assertEqual(row.native_matrix(args), 1)
+        report = json.loads((self.out / 'k113-native-matrix.json').read_bytes())
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(calls[0][calls[0].index('--case') + 1], 'missing-source')
+        self.assertEqual(calls[1][1], calls[2][1])
+        self.assertEqual(report['rows'][2]['error_type'], 'RuntimeError')
+        self.assertEqual(report['stopped_after'], 'small-task')
+        self.assertEqual(len(report['rows']), 13)
+        self.assertTrue(all(item['outcome'] == 'NOT_RUN' for item in report['rows'][3:]))
+        self.assertEqual(report['outcome'], 'FAIL')
+        self.assertFalse(report['qualified'])
+        self.assertNotIn('unsafe detail', json.dumps(report))
+
+    def test_native_matrix_rejects_pilot_exit_or_usage_failure_despite_pass_label(self):
+        for code, usage in [(1, row.native_vendor_usage(vendor_result())), (0, {'state': 'invalid'}),
+                            (0, None), (0, {'state': 'complete'})]:
+            self.out = self.root / ('out-' + str(code) + '-' + str(usage is None) + '-' + str(len(list(self.root.iterdir()))))
+            args = row.parse_args(self.args('--execution-mode', 'guest-native', '--compatibility',
+                                           '--credential-source', str(self.root / 'unused')))
+            calls = []
+            def lane(argv, **kwargs):
+                calls.append(argv)
+                output = Path(argv[2]); output.mkdir()
+                (output / 'k113-native.json').write_text(json.dumps({'outcome': 'PASS', 'facts': {'available': True},
+                    'vendor_usage': usage}))
+                return 0 if len(calls) == 1 else code
+            # A fresh marked parent for each matrix; it owns only its new children.
+            self.workspace = self.root / ('workspace-' + self.out.name); self.workspace.mkdir(); harness.mark_workspace(self.workspace)
+            args.workspace = str(self.workspace)
+            with mock.patch.object(row, 'main', side_effect=lane): self.assertEqual(row.native_matrix(args), 1)
+            report = json.loads((self.out / 'k113-native-matrix.json').read_bytes())
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(report['stopped_after'], 'a01')
+            self.assertTrue(all(item['outcome'] == 'NOT_RUN' for item in report['rows'][2:]))
+
+    def test_native_matrix_all_runs_passed_still_unmeasured(self):
+        args = row.parse_args(self.args('--execution-mode', 'guest-native', '--compatibility',
+                                       '--credential-source', str(self.root / 'unused')))
+        calls = []
+        def lane(argv, **kwargs):
+            calls.append(argv); output = Path(argv[2]); output.mkdir()
+            (output / 'k113-native.json').write_text(json.dumps({'outcome': 'PASS', 'facts': {'available': True},
+                'vendor_usage': row.native_vendor_usage(vendor_result())}))
             return 0
         with mock.patch.object(row, 'main', side_effect=lane): self.assertEqual(row.native_matrix(args), 1)
         report = json.loads((self.out / 'k113-native-matrix.json').read_bytes())
         self.assertEqual(len(calls), 13)
-        self.assertEqual(calls[0][1], calls[1][1])
-        self.assertEqual(report['rows'][2]['error_type'], 'RuntimeError')
-        self.assertEqual(report['outcome'], 'FAIL')
+        self.assertEqual(report['outcome'], 'UNMEASURED')
+        self.assertIsNone(report['stopped_after'])
         self.assertFalse(report['qualified'])
-        self.assertNotIn('unsafe detail', json.dumps(report))
+        self.assertEqual(report['rows'][1]['vendor_usage']['total_cost_usd'], 0.0054782)
+
+    def test_native_encoded_output_and_workspace_leaks_fail_and_are_not_exported(self):
+        import credential_revocation_measurement as lifecycle
+        token = ('synthetic-native-"quoted"-\\-é-' + 'Q' * 201).encode()
+        source = self.root / 'operator-source'; source.write_bytes(token); source.chmod(0o600)
+        spellings = row.native_secret_spellings(token)
+        for number, spelling in enumerate(spellings):
+            self.out = self.root / f'encoded-output-{number}'
+            def fake(command, **options):
+                data = Path(options['env']['UKAI_DATA_DIR']); self.addCleanup(shutil.rmtree, data, True)
+                if 'run' in command:
+                    (self.workspace / 'encoded-leak').write_text(spelling)
+                    (data / 'vm').mkdir(); (data / 'vm/serve.lock').touch()
+                    result = vendor_result(); result['result'] = spelling
+                    return subprocess.CompletedProcess(command, 1, ('\x1b[32m' if number % 2 else '') + json.dumps(result) + '\n', '')
+                return subprocess.CompletedProcess(command, 0, '', '')
+            with mock.patch.object(lifecycle, 'running_service_lock', side_effect=lambda data: (data / 'vm/serve.lock').open('rb')), \
+                 mock.patch.object(lifecycle, 'stopped_service_lock', return_value={'complete': True}):
+                self.assertEqual(row.main(self.args('--execution-mode', 'guest-native', '--credential-kind', 'api-key',
+                    '--credential-source', str(source)), run=fake), 1)
+            report = json.loads((self.out / 'k113-native.json').read_bytes())
+            self.assertEqual(report['agent_result']['result_text'], '<token>')
+            self.assertEqual(report['output_leaks'], ['run.stdout'])
+            self.assertTrue(any('encoded-leak' in path for path in report['leaks']))
+            self.assertEqual(set(report['scan_encoding_classes']), {'raw','base64','base64url','hex','url','json'})
+            self.assertFalse((self.out / 'attempt').exists())
+            for retained in self.out.rglob('*'):
+                if retained.is_file():
+                    for needle in spellings: self.assertNotIn(needle.encode(), retained.read_bytes())
+            self.assertEqual(source.read_bytes(), token)
 
     def test_native_retained_roundtrip_and_bad_summary_with_real_independent_checker(self):
         import base64
@@ -649,7 +813,7 @@ class NativeModeTests(unittest.TestCase):
                         install_exposure(fixture)
                         (self.workspace / 'k113-marker.txt').write_text('contained\n')
                         (data / 'vm').mkdir(); (data / 'vm/serve.lock').touch()
-                        return subprocess.CompletedProcess(command, 0, '{"type":"result","subtype":"success","is_error":false,"result":"done"}\n', '')
+                        return subprocess.CompletedProcess(command, 0, json.dumps(vendor_result()) + '\n', '')
                     if 'tail' in command:
                         summary, text = fixtures['current'].expected()
                         credential = next(line for line in summary['lines'] if line['line'] == 'credentials')

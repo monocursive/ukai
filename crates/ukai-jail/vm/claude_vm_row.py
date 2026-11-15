@@ -39,12 +39,19 @@ row conditions must still be demonstrated. --credential-source with
 --credential-kind api-key uses an explicitly supplied private Anthropic source;
 its value is never supplied in argv or the child environment.
 
+Guest-native matrices run the missing-source control first and stop scheduling
+after the first failed lane. They retain typed vendor-reported cost/model usage
+and scan six credential encoding classes; these checks do not independently
+meter provider billing or qualify the missing revocation and credential rows.
+
 Usage: claude_vm_row.py <installed-root> <workspace> <out> <ukai-jail> [options]
 """
 import argparse
+import base64
 import contextlib
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -54,6 +61,7 @@ import sys
 import tempfile
 import time
 import tomllib
+import urllib.parse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -824,6 +832,124 @@ def native_argv(jail, workspace, case):
     return command, suffix
 
 
+def native_secret_spellings(token):
+    """Six encoding classes and common variants; the literal lane is unchanged."""
+    return sorted(set(secret_spellings(token)) | {
+        base64.b64encode(token).decode(), base64.b64encode(token).decode().rstrip('='),
+        base64.urlsafe_b64encode(token).decode(), base64.urlsafe_b64encode(token).decode().rstrip('='),
+        token.hex(), token.hex().upper(), urllib.parse.quote_from_bytes(token, safe=''),
+    }, key=len, reverse=True)
+
+
+def native_redact(value, spellings):
+    """Sanitize parsed strings before truncation and JSON escaping."""
+    if isinstance(value, str):
+        for spelling in spellings:
+            value = value.replace(spelling, '<token>')
+        return value
+    if isinstance(value, list):
+        return [native_redact(item, spellings) for item in value]
+    if isinstance(value, dict):
+        return {native_redact(key, spellings): native_redact(item, spellings) for key, item in value.items()}
+    return value
+
+
+def _native_output_pass(text, spellings):
+    """Detect encoded strings inside JSON before re-escaping them for retention."""
+    if not spellings:
+        return False, text
+    hit = False
+    retained = []
+    for line in text.splitlines(keepends=True):
+        safe = native_redact(line, spellings)
+        hit |= safe != line
+        try:
+            # agent_result accepts a terminal prefix before its JSON object.
+            prefix = ''
+            try:
+                value = strict_json(line)
+            except ValueError:
+                start = line.find('{')
+                if start <= 0:
+                    raise
+                prefix = line[:start]
+                value = strict_json(line[start:])
+            redacted = native_redact(value, spellings)
+            if redacted != value:
+                hit = True
+                safe = native_redact(prefix, spellings) + json.dumps(redacted, ensure_ascii=True)
+                safe += '\n' if line.endswith('\n') else ''
+        except (ValueError, TypeError, RecursionError):
+            pass
+        retained.append(safe)
+    return hit, ''.join(retained)
+
+
+def native_output(text, spellings):
+    """Check the serialized redaction too; an unsafe result is withheld."""
+    hit, safe = _native_output_pass(text, spellings)
+    if _native_output_pass(safe, spellings)[0]:
+        return True, ''
+    return hit, safe
+
+
+def native_vendor_usage(vendor):
+    """Typed vendor-reported usage, not independently metered billing."""
+    result = {'schema': 'ukai.vm.vendor-reported-usage/1', 'state': 'unavailable',
+              'scope': 'Vendor-reported usage; not independently metered provider billing.'}
+    if not isinstance(vendor, dict):
+        return result
+    def count(value):
+        return type(value) is int and 0 <= value < 2 ** 63
+    def cost(value):
+        return type(value) in (int, float) and 0 <= value <= 1_000_000 and math.isfinite(value)
+    def model(value):
+        return type(value) is str and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}', value) is not None
+    total, turns, usage, models = (vendor.get(key) for key in ('total_cost_usd', 'num_turns', 'usage', 'modelUsage'))
+    result['state'] = 'invalid'
+    if (not cost(total) or not count(turns) or type(usage) is not dict or type(models) is not dict
+            or not 1 <= len(models) <= 16):
+        return result
+    usage_keys = ('input_tokens', 'output_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens')
+    if any(not count(usage.get(key)) for key in usage_keys):
+        return result
+    typed_models = []
+    model_keys = ('inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens')
+    for name, details in sorted(models.items(), key=lambda item: str(item[0])):
+        if (not model(name) or type(details) is not dict or not cost(details.get('costUSD'))
+                or any(not count(details.get(key)) for key in model_keys)
+                or ('canonicalModel' in details and not model(details['canonicalModel']))):
+            return result
+        typed = {'model': name, 'cost_usd': details['costUSD'],
+                 'usage': {key: details[key] for key in model_keys}}
+        if 'canonicalModel' in details:
+            typed['canonical_model'] = details['canonicalModel']
+        typed_models.append(typed)
+    result.update(state='complete', total_cost_usd=total, num_turns=turns,
+                  usage={key: usage[key] for key in usage_keys}, models=typed_models)
+    return result
+
+
+def native_usage_valid(value):
+    """Validate retained usage fields, rather than trusting a complete label."""
+    try:
+        if type(value) is not dict or type(value.get('models')) is not list or not 1 <= len(value['models']) <= 16:
+            return False
+        models = {}
+        for item in value['models']:
+            name = item['model']
+            if name in models:
+                return False
+            details = {**item['usage'], 'costUSD': item['cost_usd']}
+            if 'canonical_model' in item:
+                details['canonicalModel'] = item['canonical_model']
+            models[name] = details
+        return native_vendor_usage({'total_cost_usd': value['total_cost_usd'], 'num_turns': value['num_turns'],
+                                    'usage': value['usage'], 'modelUsage': models}) == value and value['state'] == 'complete'
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
 def native_missing_source_facts(observed, text, attempts, profile):
     ids = profile['credentials_one_of']
     return {'missing_source_refusal': type(observed.get('run_exit')) is int and observed['run_exit'] != 0
@@ -868,6 +994,7 @@ def native_facts(observed, guest, events, summary, context, suffix, binding, hos
         vendor_reported_success=type(observed.get('agent_result')) is dict
             and observed['agent_result'].get('subtype') == 'success'
             and observed['agent_result'].get('is_error') is False,
+        typed_vendor_usage_reported=native_usage_valid(observed.get('vendor_usage')),
         actual_guest_version_matches_pinned_candidate=(guest.get('jail') or {}).get('component') == 'ukai-jail'
             and (guest.get('jail') or {}).get('version') == context['identity']['image']['jail_candidate']['version']['version']
             and (guest.get('jail') or {}).get('backend') == 'bubblewrap'
@@ -906,14 +1033,18 @@ def native_facts(observed, guest, events, summary, context, suffix, binding, hos
 
 
 def native_matrix(args, *, run=subprocess.run):
-    """Keep every native failure and never infer missing auth/revocation proof."""
+    """Keep every attempted outcome, stop on failure, and name unrun lanes."""
     workspace = harness.guarded_workspace(args.workspace)
     out = harness.fresh_out_dir(args.out)
     rows = []
-    lanes = [('a01', 'a01'), ('small-task', 'small-task')]
+    lanes = [('missing-source', 'missing-source'), ('a01', 'a01'), ('small-task', 'small-task')]
     lanes += [(f'repetition-{number:02}', 'a01') for number in range(1, 11)]
-    lanes += [('missing-source', 'missing-source')]
+    stopped_after = None
     for label, case in lanes:
+        if stopped_after is not None:
+            rows.append({'case': label, 'outcome': 'NOT_RUN', 'reason': 'prior_lane_failed',
+                         'stopped_after': stopped_after})
+            continue
         trial = workspace / ('a01' if case == 'small-task' else label)
         if case != 'small-task':
             trial.mkdir(); harness.mark_workspace(trial)
@@ -925,13 +1056,20 @@ def native_matrix(args, *, run=subprocess.run):
             code = main(argv, run=run)
             report = read_json(out / label / 'k113-native.json')
             rows.append({'case': label, 'exit': code, 'outcome': report.get('outcome'),
-                         'facts': report.get('facts', {})})
+                         'facts': report.get('facts', {}), 'vendor_usage': report.get('vendor_usage')})
         except Exception as error:
             rows.append({'case': label, 'exit': None, 'outcome': 'ERROR', 'error_type': type(error).__name__})
+        latest = rows[-1]
+        if (type(latest.get('exit')) is not int or latest['exit'] != 0 or latest.get('outcome') != 'PASS'
+                or type(latest.get('facts')) is not dict or not latest['facts']
+                or any(value is not True for value in latest['facts'].values())
+                or (case != 'missing-source' and not native_usage_valid(latest.get('vendor_usage')))):
+            stopped_after = label
         harness.write_json(out / f'k113-native-progress-{len(rows):02}.json', {'rows': rows, 'qualified': False})
-    passed = all(item.get('facts') and all(item['facts'].values()) for item in rows)
+    passed = stopped_after is None and len(rows) == len(lanes)
     result = {'schema': 'ukai.vm.native-claude-matrix/1', 'credential_kind': args.credential_kind,
               'rows': rows, 'qualified': False, 'outcome': 'UNMEASURED' if passed else 'FAIL',
+              'stopped_after': stopped_after,
               'not_measured': NATIVE_PENDING,
               'scope': 'Guest-native attempt-state measurement for the named credential kind; not full K113.'}
     harness.write_json(out / 'k113-native-matrix.json', result)
@@ -950,12 +1088,16 @@ def native_main(args, *, run=subprocess.run):
                 'credential_kind': args.credential_kind,
                 'credential_id': 'anthropic' if args.credential_kind == 'api-key' else 'claude-oauth',
                 'qualified': False, 'not_measured': NATIVE_PENDING}
-    token = b''; outputs = {}; attempt = None; source = None
+    token = b''; spellings = []; outputs = {}; attempt = None; source = None
+    structured_vendor_leak = False
     host, guest, events, summary, binding, context, suffix = {}, {}, None, {}, {}, {}, []
     # Keep socket paths short even on the default long macOS temporary directory.
     data = Path(tempfile.mkdtemp(prefix='k113n-', dir='/tmp')).resolve()
     config = Path(tempfile.mkdtemp(prefix='k113n-config-')).resolve()
-    environment = harness.vm_client_environment(PATH=f'{home}/bin:/usr/bin:/bin', UKAI_VM_HOME=home,
+    private_home = config / 'home'
+    private_home.mkdir(mode=0o700)
+    environment = harness.vm_client_environment(base={}, PATH=f'{home}/bin:/usr/bin:/bin', HOME=private_home,
+                                                TMPDIR='/private/tmp', UKAI_VM_HOME=home,
                                                 UKAI_DATA_DIR=data, UKAI_CONFIG_DIR=config)
     def execute(label, argv, timeout):
         done = run(argv, env=environment, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout)
@@ -977,6 +1119,7 @@ def native_main(args, *, run=subprocess.run):
             source = config / 'credentials' / observed['credential_id']
             if args.case != 'missing-source':
                 token = private_source(args.credential_source)
+                spellings = native_secret_spellings(token)
                 descriptor = os.open(source, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
                 with os.fdopen(descriptor, 'wb') as target: target.write(token)
             command, suffix = native_argv(jail, workspace, args.case)
@@ -988,10 +1131,14 @@ def native_main(args, *, run=subprocess.run):
             vendor = agent_result(outputs['run.stdout'])
             if type(vendor) is dict:
                 # Sanitize parsed strings before truncation/serialization.
-                if token: vendor = redact_value(vendor, token)
+                if token:
+                    redacted = native_redact(vendor, spellings)
+                    structured_vendor_leak = redacted != vendor
+                    vendor = redacted
                 observed['agent_result'] = {key: vendor.get(key) for key in ('subtype', 'is_error', 'num_turns')}
                 if type(vendor.get('result')) is str:
                     observed['agent_result']['result_text'] = vendor['result'][:200]
+            observed['vendor_usage'] = native_vendor_usage(vendor)
             attempts = sorted((data / 'attempts').glob('att_*'))
             if args.case == 'missing-source':
                 observed['facts'] = native_missing_source_facts(observed, outputs['run.stdout'] + outputs['run.stderr'],
@@ -1064,14 +1211,18 @@ def native_main(args, *, run=subprocess.run):
             observed['installed_identity_unchanged'] = native_context(home, jail) == context
         except Exception:
             observed['installed_identity_unchanged'] = False
-        spellings = secret_spellings(token) if token else []
-        observed['output_leaks'] = text_leaks(token, **outputs) if token else []
+        safe_outputs = {name: native_output(value, spellings) for name, value in outputs.items()}
+        output_leaks = {name for name, (hit, _) in safe_outputs.items() if hit}
+        if structured_vendor_leak:
+            output_leaks.add('run.stdout')
+        observed['output_leaks'] = sorted(output_leaks)
+        observed['scan_encoding_classes'] = ['raw', 'base64', 'base64url', 'hex', 'url', 'json'] if token else []
         scans = ([vault_measurement.leak_scan([data, workspace, config], spelling.encode()) for spelling in spellings]
                  if observed['service_shutdown']['complete'] else [(['scan-error:service-shutdown-unverified'], 0)])
         observed['leaks'] = sorted({path for hits, _ in scans for path in hits})
         observed['files_scanned'] = max((count for _, count in scans), default=0)
-        for name, value in outputs.items():
-            (out / name).write_text(redact_text(value, token) if token else value)
+        for name, (_, value) in safe_outputs.items():
+            (out / name).write_text(value)
         if attempt is not None and not observed['leaks'] and not observed['output_leaks']:
             try:
                 observed['retained_attempt_sha256'] = lifecycle.retain_normal_attempt(attempt, out / 'attempt', spellings)
@@ -1098,7 +1249,7 @@ def native_main(args, *, run=subprocess.run):
             observed['facts']['no_harness_failure'] = 'error_type' not in observed
         observed['outcome'] = 'PASS' if observed['facts'] and all(observed['facts'].values()) else 'FAIL'
         observed['compatibility_outcome'] = 'UNMEASURED' if observed['outcome'] == 'PASS' else 'FAIL'
-        if token: observed = redact_value(observed, token)
+        if token: observed = native_redact(observed, spellings)
         harness.write_json(out / 'k113-native.json', observed)
     # Leave the isolated data directory as failure evidence, but never a source.
     if observed.get('source_removed_before_stop'):
