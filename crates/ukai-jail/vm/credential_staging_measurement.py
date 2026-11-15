@@ -19,11 +19,12 @@ import claude_vm_row as compatibility
 import credential_revocation_measurement as revocation
 import harness
 
-SCHEMA = 'ukai.vm.credential-staging-measurement/1'
+SCHEMA = 'ukai.vm.credential-staging-measurement/2'
 SHA = re.compile(r'[0-9a-f]{64}')
 REVISION = re.compile(r'[0-9a-f]{40}')
 FILE_MAX = 64 * 1024 ** 3
 IMAGE_KEYS = ('disk_sha256', 'helper_sha256', 'custodian_sha256', 'seed_sha256')
+GUEST_IMAGE_KEYS = ('disk_sha256', 'seed_sha256')
 GUEST_CONTRACTS = {'secret_revocation': 'ukai.vm.secret-revocation/1',
                    'journal_export': 'ukai.vm.guest-journal/1'}
 
@@ -260,10 +261,17 @@ def derive(replayed, installation):
                                  'K113/release qualification']}},
             'installation': installation, 'recomputed_facts': replayed['facts'],
             'scope': 'Guest admission evidence only; no capability-table change, host-source-watch or release qualification.',
-            'compatibility': {'required_image': {key: image[key] for key in IMAGE_KEYS},
+            'compatibility': {'measured_image': {key: image[key] for key in IMAGE_KEYS},
+                              'required_guest_image': {key: image[key] for key in GUEST_IMAGE_KEYS},
                               'required_guest_contracts': GUEST_CONTRACTS,
                               'guest_source_sha256': image['guest_source_sha256'],
-                              'older_images_inherit_measurement': False}}
+                              'older_images_inherit_measurement': False,
+                              'changed_host_runtime': {
+                                  'inherits_runtime_qualification': False,
+                                  'requires': ['clean-source rebuild',
+                                               'Developer ID signature and exact installed-byte verification',
+                                               'fresh installed-client live requalification'],
+                                  'scope': 'The disk and seed identify guest admission only. Rebuilt or re-signed host helpers, service and client remain subject to these checks; they are not the measured host artifact.'}}}
 
 
 def main(argv=None):

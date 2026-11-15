@@ -51,6 +51,33 @@ class AdmissionProofTests(unittest.TestCase):
         self.assertIn('normal installed-client host-source watch', row['not_measured'])
         self.assertFalse(result['compatibility']['older_images_inherit_measurement'])
 
+    def test_v2_separates_measured_artifacts_from_guest_admission_identity(self):
+        raw, installed = proof()
+        result = admission.derive(raw, installed)
+        self.assertEqual(result['schema'], 'ukai.vm.credential-staging-measurement/2')
+        compatible = result['compatibility']
+        self.assertNotIn('required_image', compatible)
+        self.assertEqual(compatible['measured_image'],
+                         {key: raw['image'][key] for key in admission.IMAGE_KEYS})
+        self.assertEqual(compatible['required_guest_image'],
+                         {key: raw['image'][key] for key in ('disk_sha256', 'seed_sha256')})
+        self.assertEqual(compatible['required_guest_contracts'], admission.GUEST_CONTRACTS)
+        self.assertEqual(result['installation'], installed)
+        changed = compatible['changed_host_runtime']
+        self.assertFalse(changed['inherits_runtime_qualification'])
+        self.assertEqual(changed['requires'], ['clean-source rebuild',
+            'Developer ID signature and exact installed-byte verification',
+            'fresh installed-client live requalification'])
+
+    def test_guest_only_compatibility_does_not_relax_exact_measured_artifact_binding(self):
+        for key in admission.IMAGE_KEYS:
+            for side in ('raw', 'installed'):
+                with self.subTest(key=key, side=side):
+                    raw, installed = proof()
+                    (raw if side == 'raw' else installed)['image'][key] = '2' * 64
+                    with self.assertRaises(admission.AdmissionError):
+                        admission.derive(raw, installed)
+
     def test_replay_image_signer_and_contract_mismatches_refuse(self):
         changes = [
             lambda r, i: r.update(outcome='FAIL'),
