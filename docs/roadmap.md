@@ -49,10 +49,11 @@ remain outstanding; the protected-Mac release run stays blocked while
 Apple's entitlement request is pending. J18's K108–K113 are `untested`: the
 2026-11-02/03 development measurements on the dev Mac do not meet their
 clauses, a policy element the guest jail does not carry refuses with
-`vm:not-carried:<field>`, and no macOS `ukai-jail` client ships (the VM
-candidate package carries only `ukai-vm` and `ukai-vm-install`; the client
-is built from source). The released VM preview is the only Mac deliverable
-today.
+`vm:not-carried:<field>`. No macOS `ukai-jail` client ships in the public
+cold-boot preview; its warm-client experiments required a client built from
+source. The local signed `53e5605fd` package includes the client and service,
+but is neither notarized nor published. The released cold-boot VM preview is
+the only public Mac deliverable today.
 
 Current implementation: native execution is **off by default**. Setting
 `UKAI_JAIL_MACOS_NATIVE=dev` enables development only; a native receipt records
@@ -61,16 +62,20 @@ Current implementation: native execution is **off by default**. Setting
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
 receipts and development-VM observation smoke runs are tested; full live
-release acceptance remains pending. A `tool` or `agent` `run --vm` with an
-explicit wall of 1–300 s now passes probing: the 2026-11-04 evening live phase
-measured every guest requirement such a plan has, and a client built from
-source then ran 20 `tool` attempts through it on the spare Mac, each settled
-with exit 0 (development evidence, one host). The profiles' own walls (30 m
-for `tool`, 2 h for `agent`) exceed the guest's, so a run without
-`--limit wall=<n>s` refuses with `vm:not-carried:limits.wall`. A plan that also needs
-`execution_boundary` (a required `pids=64`, `mem=512MiB` or `swap=0`, the only
-values the guest carries) or `credential_staging` still refuses at probing,
-before any connection or boot, with `vm:not-measured:<requirement>`.
+release acceptance remains pending.
+
+The current VM probe admits twelve requirements only for the exact disk and
+seed in the [15 November signed-image record](benchmarks/jail/results/macos-vm-admission-2026-11-15/README.md):
+ten direct guest capabilities plus derived `execution_boundary` and vault-only
+`credential_staging`. Required `pids=64` and `mem=512MiB` can pass admission;
+required swap remains unmeasured, and the owner-loss bound remains unsupported.
+An unmeasured requirement or another guest image refuses at probing with
+`vm:not-measured:<requirement>` before any connection or boot. A `tool` or
+`agent` plan still needs an explicit `--limit wall=<n>s` of 1–300 s; the
+profiles' own 30 m and 2 h walls refuse with `vm:not-carried:limits.wall`.
+The proof uses the installed, Developer-ID-signed package built from source
+`53e5605fd`. It does not qualify a rebuilt host client, normal host source
+monitoring, vendor compatibility or full K113. K108–K113 remain `untested`.
 
 You can [build the jail and try a small command](https://github.com/monocursive/ukai/blob/dev/docs/guide.md#build-and-check-your-host)
 today. [Signed Linux developer-preview packages](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.5)
@@ -183,13 +188,16 @@ is supported or shipped:
 - **Warm VM (J18).** The backend reuses a warm Linux ARM64 guest through
   `--vm`, with `ukai-jail vm stop` to stop it. The warm service, the live
   workspace share, the `agent` profile's guest proxy and vault-mode
-  credentials are on `dev`. Since the 2026-11-04 evening re-measurement a
-  `run --vm` with an explicit 1–300 s wall passes probing (development
-  evidence from one host; the profiles' own walls are `vm:not-carried`),
-  and K108–K113 are still `untested`: the development
+  credentials are on `dev`. The [15 November proof](benchmarks/jail/results/macos-vm-admission-2026-11-15/README.md)
+  backs twelve disk/seed-bound guest admissions, including execution-boundary
+  and vault-only component records. The unchanged policy carry restrictions
+  still require an explicit 1–300 s wall. K108–K113 remain `untested`;
+  normal installed-client source monitoring and the full vendor workflow
+  still need live qualification. The earlier November 2/3 development
   measurements had vacuous network probes, half the K110 fault matrix, a
   stored receipt that contradicted the guest's, one Claude Code attempt, and
-  a client built from the repository. The released
+  a client built from the repository. November 4's ten-row record remains
+  historical evidence, not authority for the current image. The released
   [VM preview](https://ukai.sh/guide/#macos-vm-preview) is a separate,
   cold-boot implementation.
 
