@@ -16,6 +16,7 @@ from unittest import mock
 
 import credential_revocation_measurement as measurement
 import harness
+import claude_vm_row as compatibility
 
 
 class PeerTests(unittest.TestCase):
@@ -322,6 +323,161 @@ class RefusalTests(unittest.TestCase):
         self.assertIsNone(report['observed']['peer']['deleted_at'])
         self.assertTrue(report['observed']['source_removed_before_stop'])
         self.assertFalse(any('revoke_secrets' in argument for call in calls for argument in call))
+
+
+class PersistedReplayTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name).resolve()
+        self.counter = 0
+        self.secret = b'only-a-synthetic-replay-key'
+        self.spellings = measurement.vault_measurement.value_spellings(self.secret)
+
+    def case(self):
+        self.counter += 1
+        root = self.root / str(self.counter); root.mkdir()
+        observed, guest, events, summary, record = RawTransportTests().raw_fixture()
+        address, port = '192.0.2.44', 12345
+        argv = ['/usr/bin/python3', '-c', measurement.guest_script(address, port)]
+        digest = harness.argv_digest(argv)
+        guest.update(argv_digest=digest, schema='ukai.jail.receipt/1', platform={'os': 'linux'},
+                     applied={'network': {'mode': 'proxy', 'allow': [f'{address}:{port}']}})
+        guest['policy']['requirements'] = ['credential_staging']
+        record.update(argv_digest=digest, receipt=guest)
+        record.update(revocation_ack_ids=['test'], revocation_sent_ids=['test'],
+                      prepared={'staged_secrets': [['test', '/run/ukai-vm/credentials/test']]})
+        record['binding']['argv_digest'] = digest
+        raw = json.dumps(guest).encode()
+        record['receipt_sha256'] = hashlib.sha256(raw).hexdigest()
+        ready = {'schema': 'ukai.jail.vm-attempt/1', 'boot_id': 'service-boot',
+                 'disk_sha256': 'a' * 64, 'helper_sha256': 'b' * 64,
+                 'custodian_sha256': 'c' * 64, 'seed_sha256': 'd' * 64}
+        record['ready'] = ready
+        placeholder = observed['placeholder']
+        record['stdout'] = f"PLACEHOLDER {placeholder['sha256']} {placeholder['length']} {placeholder['value']}\nAFTER_ATTEMPT\nAFTER_REFUSED 403\n"
+        record['stderr'] = ''
+        image = {**ready, 'ukai_vm_sha256': 'e' * 64, 'ukai_jail_sha256': 'f' * 64, 'source_revision': '1' * 40}
+        image_raw = json.dumps(image).encode(); (root / 'image.json').write_bytes(image_raw)
+        identity = {'binary': {'sha256': 'e' * 64}, 'summary_binary': {'sha256': 'f' * 64},
+                    'image_manifest_sha256': hashlib.sha256(image_raw).hexdigest()}
+        evidence = root / 'guest-artifact/evidence'; journal = evidence / 'guest-journal'; journal.mkdir(parents=True)
+        (evidence / 'jail.json').write_bytes(raw)
+        sequences = {}
+        for event in events:
+            sequences[event['source']] = sequences.get(event['source'], 0) + 1
+            event.update(attempt_id=guest['attempt_id'], source_seq=sequences[event['source']], stage='result')
+        receipt_digest = 'sha256:' + hashlib.sha256(compatibility.canonical_receipt(guest).encode()).hexdigest()
+        events.append({'source': 'wrapper', 'source_seq': sequences['wrapper'] + 1,
+                       'operation': 'jail.receipt', 'attempt_id': guest['attempt_id'],
+                       'fields': {'phase': 'settled', 'receipt_digest': receipt_digest}})
+        trace = b''.join(json.dumps(event).encode() + b'\n' for event in events)
+        (journal / '0000.part').write_bytes(trace)
+        (journal / 'manifest.json').write_text(json.dumps({'schema': 'ukai.vm.guest-journal/1',
+            'guest_attempt_id': guest['attempt_id'], 'guest_receipt_sha256': hashlib.sha256(raw).hexdigest(),
+            'state': 'exported', 'bytes': len(trace), 'parts': 1, 'sha256': hashlib.sha256(trace).hexdigest()}))
+        summary.update(attempt_id=guest['attempt_id'], receipt_digest=receipt_digest, journal='complete')
+        for line in summary['lines']: line['text'] = line['line'] + ': retained exact ' + address
+        sync_guest = copy.deepcopy(guest)
+        sync_guest.update(attempt_id='att_00000000-0000-4000-8000-000000000002', argv_digest=harness.argv_digest(['/bin/sync']))
+        sync_guest['policy']['name'] = 'tool'
+        sync_raw = json.dumps(sync_guest).encode()
+        sync_dir = root / 'sync-artifact/evidence'; sync_dir.mkdir(parents=True)
+        (sync_dir / 'jail.json').write_bytes(sync_raw)
+        sync = {'receipt': sync_guest, 'receipt_sha256': hashlib.sha256(sync_raw).hexdigest(), 'receipt_digest_ok': False,
+                'attempt_id': 'sync-host', 'profile': 'tool', 'boot_id': record['boot_id'], 'exit_code': 0,
+                'argv_digest': sync_guest['argv_digest'], 'binding': {**record['binding'], 'attempt_id': 'sync-host',
+                    'profile': 'tool', 'guest_attempt_id': sync_guest['attempt_id'], 'argv_digest': sync_guest['argv_digest']}}
+        peer = observed['peer']; peer['requests'][0]['credential_sha256'] = hashlib.sha256(self.secret).hexdigest()
+        peer['requests'][0]['credential_matches'] = False  # Must be recomputed from actual header hash.
+        record['receipt_digest_ok'] = False  # Must be recomputed from raw guest receipt.
+        launch = f'''name = "revocation-measurement"
+jail = "agent"
+credentials_one_of = ["test"]
+[credentials.test]
+mode = "vault"
+source = "/run/ukai-vm/credentials/test"
+hosts = ["http://{address}:{port}"]
+allow_plaintext = true
+header = {{ name = "x-test-token" }}
+env = "UKAI_VAULT_TEST"
+[network]
+allow = ["{address}:{port}"]
+'''
+        values = {'raw': self.secret, 'base64': base64.b64encode(self.secret), 'hex': self.secret.hex().encode()}
+        inputs = {'schema': 'ukai.vm.raw-credential-revocation-inputs/1', 'record': record,
+            'identity': identity, 'argv': argv, 'launch_toml': launch,
+            'capture': {'peer': peer, 'secret_sha256': hashlib.sha256(self.secret).hexdigest(),
+                'upstream': {'address': address, 'port': port}, 'service_status': {'boot_id': record['boot_id']},
+                'tail': {'json': json.dumps(summary), 'text': '\n'.join('ukai-jail: ' + line['text'] for line in summary['lines']),
+                         'stderr': '', 'exit': 0, 'json_exit': 0},
+                'sync': sync, 'service_exit': 0, 'error_type': None,
+                'scans': {'spellings': [{'encoding': encoding, 'sha256': hashlib.sha256(value).hexdigest(),
+                    'file_hits': [], 'files_scanned': 10, 'disk_bytes': 4096, 'disk_hits': 0, 'output_hits': []}
+                    for encoding, value in values.items()]}}}
+        exact = measurement.retain_raw_inputs(root, inputs, self.spellings)
+        display = {'schema': 'ukai.vm.raw-credential-revocation/1', 'qualified': False, 'display_redacted': True,
+                   'outcome': 'FAIL', 'facts': {'do_not_trust': False}, 'exact_inputs': exact, 'record': record}
+        (root / 'raw-credential-revocation.json').write_text(measurement.vault_measurement.redact(json.dumps(display), address))
+        return root, inputs
+
+    def rewrite(self, root, inputs):
+        raw = (json.dumps(inputs, ensure_ascii=False) + '\n').encode()
+        (root / 'raw-inputs.json').write_bytes(raw)
+        display = json.loads((root / 'raw-credential-revocation.json').read_text())
+        display['exact_inputs']['record']['sha256'] = hashlib.sha256(raw).hexdigest()
+        (root / 'raw-credential-revocation.json').write_text(json.dumps(display))
+
+    def test_complete_persisted_roundtrip_uses_original_bytes_not_display_or_booleans(self):
+        root, inputs = self.case()
+        display = json.loads((root / 'raw-credential-revocation.json').read_text())
+        self.assertNotEqual(display['record']['receipt'], inputs['record']['receipt'])
+        replay = measurement.replay_raw(root)
+        self.assertEqual(replay['outcome'], 'PASS', replay)
+        self.assertEqual(replay['record']['receipt'], inputs['record']['receipt'])
+        self.assertTrue(replay['record']['receipt_digest_ok'])
+        self.assertEqual(replay['inputs_sha256'], hashlib.sha256((root / 'raw-inputs.json').read_bytes()).hexdigest())
+        self.assertEqual(replay['identity']['binary']['sha256'], 'e' * 64)
+
+    def test_changed_exact_inputs_and_symlinked_artifacts_refuse(self):
+        for mutation in ('record', 'launch', 'journal', 'image', 'sync', 'symlink'):
+            with self.subTest(mutation=mutation):
+                root, _ = self.case()
+                path = {'record': 'raw-inputs.json', 'launch': 'raw-launch.toml', 'journal': 'guest-artifact/evidence/guest-journal/0000.part',
+                        'image': 'image.json', 'sync': 'sync-artifact/evidence/jail.json', 'symlink': 'raw-inputs.json'}[mutation]
+                target = root / path
+                if mutation == 'symlink':
+                    target.rename(root / 'elsewhere'); target.symlink_to(root / 'elsewhere')
+                else: target.write_bytes(target.read_bytes() + b' ')
+                self.assertEqual(measurement.replay_raw(root)['outcome'], 'FAIL')
+
+    def test_rehashing_false_measurement_inputs_does_not_turn_them_into_proof(self):
+        for mutation in ('header', 'ack', 'ack-ids', 'staged-ids', 'argv', 'tail-count', 'scan-hit', 'scan-missing', 'disk-unscanned', 'boot', 'service-exit'):
+            with self.subTest(mutation=mutation):
+                root, inputs = self.case()
+                capture = inputs['capture']
+                if mutation == 'header': capture['peer']['requests'][0]['credential_sha256'] = '0' * 64
+                elif mutation == 'ack': inputs['record']['revocation_ack_at'] += 5
+                elif mutation == 'ack-ids': inputs['record']['revocation_ack_ids'] = ['other']
+                elif mutation == 'staged-ids': inputs['record']['prepared']['staged_secrets'] = []
+                elif mutation == 'argv': inputs['argv'] = ['/bin/true']
+                elif mutation == 'tail-count':
+                    value = json.loads(capture['tail']['json']); value['lines'][0]['facts']['credentials'][0]['uses'] = 999
+                    capture['tail']['json'] = json.dumps(value)
+                elif mutation == 'scan-hit': capture['scans']['spellings'][0]['file_hits'] = ['artifact']
+                elif mutation == 'scan-missing': capture['scans']['spellings'].pop()
+                elif mutation == 'disk-unscanned': capture['scans']['spellings'][0]['disk_bytes'] = 0
+                elif mutation == 'boot': capture['sync']['binding']['guest_boot_id'] = 'other'
+                else: capture['service_exit'] = 1
+                self.rewrite(root, inputs)
+                self.assertEqual(measurement.replay_raw(root)['outcome'], 'FAIL')
+
+    def test_retention_refuses_each_secret_spelling_before_any_file_is_created(self):
+        for spelling in self.spellings:
+            root = self.root / hashlib.sha256(spelling.encode()).hexdigest(); root.mkdir()
+            with self.assertRaises(harness.HarnessError):
+                measurement.retain_raw_inputs(root, {'launch_toml': 'safe', 'nested': {'result': spelling}}, self.spellings)
+            self.assertEqual(list(root.iterdir()), [])
 
 
 if __name__ == '__main__':

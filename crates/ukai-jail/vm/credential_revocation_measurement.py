@@ -20,6 +20,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import tomllib
 
 import claude_vm_row as compatibility
 import harness
@@ -70,9 +71,11 @@ class StreamingPeer(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         witness = self.server.witness
         matches = self.headers.get('x-test-token') == witness.secret
+        header_hash = hashlib.sha256(self.headers.get('x-test-token', '').encode()).hexdigest()
         with witness.lock:
             witness.requests.append({'path': self.path if self.path in ('/stream', '/after') else 'other',
-                                     'credential_matches': matches, 'at': time.monotonic()})
+                                     'credential_matches': matches, 'credential_sha256': header_hash,
+                                     'at': time.monotonic()})
         if self.path != '/stream' or not matches:
             self.send_response(403)
             self.send_header('Content-Length', '0')
@@ -292,6 +295,7 @@ def raw_attempt(service, artifact, command, launch, secret, witness, allow_host)
                 with witness.lock:
                     witness.revocation_sent_at = time.monotonic()
                 channel.send(op='revoke_secrets', ids=[CREDENTIAL])
+                record['revocation_sent_ids'] = [CREDENTIAL]
                 sent = True
             try:
                 message = frames.receive(0.05)
@@ -306,6 +310,7 @@ def raw_attempt(service, artifact, command, launch, secret, witness, allow_host)
                 if not sent or record['revocation_ack'] or message.get('ids') != [CREDENTIAL]:
                     raise harness.HarnessError('unexpected raw revocation acknowledgment')
                 record['revocation_ack'] = True
+                record['revocation_ack_ids'] = message['ids']
                 record['revocation_ack_at'] = time.monotonic()
             elif event in ('stdout', 'stderr'):
                 raw = base64.b64decode(message.get('data', ''), validate=True)
@@ -383,7 +388,15 @@ def _raw_judge(observed, guest, events, summary, record):
 
 
 def bounded_file(path, cap):
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    path = Path(path).absolute()
+    parent = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for part in path.parts[1:-1]:
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+            os.close(parent); parent = child
+        fd = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+    finally:
+        os.close(parent)
     with os.fdopen(fd, 'rb') as stream:
         before = os.fstat(fd)
         if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_size > cap:
@@ -394,6 +407,155 @@ def bounded_file(path, cap):
     if len(value) != before.st_size or stamp(before) != stamp(after):
         raise harness.HarnessError('evidence changed during bounded read')
     return value
+
+
+def retain_raw_inputs(root, inputs, spellings):
+    """Persist exact measurement inputs only after scanning every spelling.
+
+    No display/path transformation is allowed here. The report may redact its
+    own display copy, but replay hashes these original bytes and launch text.
+    """
+    encoded = (json.dumps(inputs, ensure_ascii=False, indent=2) + '\n').encode()
+    launch = inputs['launch_toml'].encode()
+    def contains(value):
+        if isinstance(value, str): return any(needle in value for needle in spellings)
+        if isinstance(value, list): return any(contains(item) for item in value)
+        if isinstance(value, dict): return any(contains(key) or contains(item) for key, item in value.items())
+        return False
+    if contains(inputs) or any(needle.encode() in encoded or needle.encode() in launch for needle in spellings):
+        raise harness.HarnessError('exact input retention refused a secret spelling')
+    if len(encoded) > 16 * 1024 * 1024 or len(launch) > 256 * 1024:
+        raise harness.HarnessError('exact input retention exceeds its bound')
+    result = {}
+    for key, name, data in [('record', 'raw-inputs.json', encoded), ('launch', 'raw-launch.toml', launch)]:
+        descriptor = os.open(Path(root) / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(descriptor, 'wb') as stream: stream.write(data)
+        result[key] = {'path': name, 'sha256': hashlib.sha256(data).hexdigest()}
+    return result
+
+
+def replay_raw(root, exact_inputs=None):
+    """Recompute component facts from bounded exact inputs and archived evidence.
+
+    `exact_inputs` is supplied only while creating the report; offline callers
+    omit it and the display report must hash-bind the two exact files. Stored
+    PASS/facts/boolean bindings are never used. Peer timing/header hashes and
+    scanner counts are retained observations of this host, not host attestation
+    or an offline re-scan of a destroyed VM disk. Installed package authority
+    is deliberately left to the caller's independent signature verification.
+    """
+    result = {'outcome': 'FAIL', 'facts': {}, 'errors': [], 'record': {}, 'guest': {},
+              'image': {}, 'identity': {}, 'inputs_sha256': None}
+    try:
+        root = Path(root)
+        if root.is_symlink() or not root.is_dir():
+            raise ValueError('invalid evidence root')
+        if exact_inputs is None:
+            report = compatibility.strict_json(bounded_file(root / 'raw-credential-revocation.json', 16 * 1024 * 1024))
+            if (report.get('schema') != 'ukai.vm.raw-credential-revocation/1'
+                    or report.get('qualified') is not False or report.get('display_redacted') is not True):
+                raise ValueError('invalid display report')
+            exact_inputs = report.get('exact_inputs')
+        if type(exact_inputs) is not dict or set(exact_inputs) != {'record', 'launch'}:
+            raise ValueError('missing exact input binding')
+        payloads = {}
+        for key, name, cap in [('record', 'raw-inputs.json', 16 * 1024 * 1024), ('launch', 'raw-launch.toml', 256 * 1024)]:
+            descriptor = exact_inputs[key]
+            if descriptor.get('path') != name:
+                raise ValueError('unexpected exact input path')
+            raw = bounded_file(root / name, cap)
+            if hashlib.sha256(raw).hexdigest() != descriptor.get('sha256'):
+                raise ValueError('exact input digest mismatch')
+            payloads[key] = raw
+        inputs = compatibility.strict_json(payloads['record'])
+        if inputs.get('schema') != 'ukai.vm.raw-credential-revocation-inputs/1':
+            raise ValueError('unknown exact input schema')
+        if payloads['launch'].decode() != inputs['launch_toml']:
+            raise ValueError('exact launch bytes disagree')
+        capture, identity = inputs['capture'], inputs['identity']
+        image_raw = bounded_file(root / 'image.json', 1024 * 1024)
+        if hashlib.sha256(image_raw).hexdigest() != identity['image_manifest_sha256']:
+            raise ValueError('image manifest binding mismatch')
+        image = compatibility.strict_json(image_raw)
+        guest, events, journal = compatibility.verified_guest_journal(root / 'guest-artifact')
+        if events is None or journal.get('verified') is not True:
+            raise ValueError('guest journal is not complete and bound')
+        raw_guest = bounded_file(root / 'guest-artifact/evidence/jail.json', compatibility.RECEIPT_MAX)
+        record = dict(inputs['record'])
+        record['receipt_digest_ok'] = (hashlib.sha256(raw_guest).hexdigest() == record.get('receipt_sha256')
+                                       and record.get('receipt') == guest)
+        record['argv_digest'] = harness.argv_digest(inputs['argv'])
+        record['revocation_ack'] = (record.get('revocation_sent_ids') == [CREDENTIAL]
+                                    and record.get('revocation_ack_ids') == [CREDENTIAL])
+        sync = dict(capture['sync'])
+        sync_raw = bounded_file(root / 'sync-artifact/evidence/jail.json', compatibility.RECEIPT_MAX)
+        sync_guest = compatibility.strict_json(sync_raw)
+        sync['receipt_digest_ok'] = (hashlib.sha256(sync_raw).hexdigest() == sync.get('receipt_sha256')
+                                    and sync.get('receipt') == sync_guest)
+        sync['argv_digest'] = harness.argv_digest(['/bin/sync'])
+        peer = dict(capture['peer'])
+        peer['requests'] = [dict(request, credential_matches=request.get('credential_sha256') == capture['secret_sha256'])
+                            for request in peer.get('requests', [])]
+        tail = capture['tail']
+        summary = compatibility.strict_json(tail['json'])
+        summary_lines = [f"ukai-jail: {line.get('text', '')}" for line in summary.get('lines', [])]
+        text_lines = [line for line in tail['text'].splitlines()
+                      if line.startswith('ukai-jail: ') and not line.startswith('ukai-jail: receipt ')]
+        scan = capture['scans']
+        spellings = scan.get('spellings') or []
+        scan_shape = (len(spellings) == 3 and {item.get('encoding') for item in spellings} == {'raw', 'base64', 'hex'}
+                      and all(type(item.get('files_scanned')) is int and item['files_scanned'] > 0
+                              and type(item.get('disk_bytes')) is int and item['disk_bytes'] > 0
+                              and type(item.get('disk_hits')) is int and item['disk_hits'] >= 0
+                              and type(item.get('file_hits')) is list and type(item.get('output_hits')) is list
+                              for item in spellings)
+                      and next(item for item in spellings if item.get('encoding') == 'raw').get('sha256') == capture['secret_sha256'])
+        same_boot = (harness.receipt_bound(sync) and sync.get('boot_id') == record.get('boot_id')
+                     and harness.guest_boot(sync) == harness.guest_boot(record))
+        ready = record.get('ready') or {}
+        image_binding = (ready.get('boot_id') == capture['service_status'].get('boot_id')
+            and all(ready.get(key) == image.get(key) and ready.get(key)
+                    for key in ('disk_sha256', 'helper_sha256', 'custodian_sha256', 'seed_sha256'))
+            and identity['binary']['sha256'] == image.get('ukai_vm_sha256')
+            and identity['summary_binary']['sha256'] == image.get('ukai_jail_sha256'))
+        stdout = record.get('stdout', '')
+        observed = {'peer': peer, 'guest_journal': journal, 'placeholder': vault_measurement.placeholder(stdout),
+                    'after_refused': 'AFTER_ATTEMPT' in stdout and 'AFTER_REFUSED 403' in stdout and 'AFTER_ALLOWED' not in stdout,
+                    'tail_exit': tail['exit'], 'tail_json_exit': tail['json_exit'],
+                    'tail_agrees': bool(summary_lines) and summary_lines == text_lines,
+                    'leaks': [] if scan_shape and all(item['file_hits'] == [] for item in spellings) else ['scan-unavailable-or-hit'],
+                    'files_scanned': min(item['files_scanned'] for item in spellings) if scan_shape else 0,
+                    'output_leak': not scan_shape or any(item['output_hits'] != [] for item in spellings),
+                    'disk_scan': 'clean' if scan_shape and all(item['disk_hits'] == 0 for item in spellings) else 'unverified-or-value-present',
+                    'same_boot': same_boot, 'sync_exit': sync.get('exit_code'), 'stop_exit': capture['service_exit'],
+                    'image_binding': image_binding}
+        if capture.get('error_type') is not None:
+            observed['harness_error_type'] = capture['error_type']
+        facts = raw_judge(observed, guest, events, summary, record)
+        upstream = capture['upstream']
+        address, port = upstream['address'], upstream['port']
+        launch = tomllib.loads(inputs['launch_toml'])
+        expected_credential = {'mode': 'vault', 'source': '/run/ukai-vm/credentials/test',
+            'hosts': [f'http://{address}:{port}'], 'allow_plaintext': True,
+            'header': {'name': 'x-test-token'}, 'env': 'UKAI_VAULT_TEST'}
+        facts['exact_probe_declaration_and_argv'] = (launch == {'name': 'revocation-measurement', 'jail': 'agent',
+            'credentials_one_of': ['test'], 'credentials': {'test': expected_credential},
+            'network': {'allow': [f'{address}:{port}']}}
+            and inputs['argv'] == ['/usr/bin/python3', '-c', guest_script(address, port)])
+        facts['offline_guest_summary_identity'] = (summary.get('attempt_id') == guest.get('attempt_id')
+            and summary.get('receipt_digest') == journal.get('receipt_digest') and summary.get('journal') == 'complete')
+        facts['raw_protocol_identity'] = ready.get('schema') == 'ukai.jail.vm-attempt/1'
+        facts['exact_guest_staging_ack'] = (record.get('prepared') or {}).get('staged_secrets') == [
+            [CREDENTIAL, '/run/ukai-vm/credentials/test']]
+        facts['guest_receipt_schema_linux'] = (guest.get('schema') == 'ukai.jail.receipt/1'
+                                              and (guest.get('platform') or {}).get('os') == 'linux')
+        result.update(outcome='PASS' if all(value is True for value in facts.values()) else 'FAIL', facts=facts,
+                      record=record, guest=guest, image=image, identity=identity,
+                      inputs_sha256=hashlib.sha256(payloads['record']).hexdigest())
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, StopIteration, harness.HarnessError) as error:
+        result['errors'] = [type(error).__name__]
+        result['facts']['replay_inputs_valid'] = False
+    return result
 
 
 def raw_main(args):
@@ -408,7 +570,8 @@ def raw_main(args):
     artifact = data / 'raw-attempt'; artifact.mkdir()
     config = data / 'config'; config.mkdir(mode=0o700)
     secret = ('ukai-raw-revoke-' + os.urandom(24).hex()).encode()
-    spellings = vault_measurement.value_spellings(secret)
+    spelling_values = {'raw': secret.decode(), 'base64': base64.b64encode(secret).decode(), 'hex': secret.hex()}
+    spellings = set(spelling_values.values())
     address = vault_measurement.mac_address()
     witness = StreamWitness(secret)
     server = http.server.ThreadingHTTPServer(('0.0.0.0', 0), StreamingPeer)
@@ -433,6 +596,8 @@ allow = ["{allow_host}"]
     env = harness.vm_client_environment(PATH=f'{home}/bin:/usr/bin:/bin', UKAI_VM_HOME=home,
                                         UKAI_DATA_DIR=data, UKAI_CONFIG_DIR=config)
     service = None
+    status, sync, disk_observations = {}, {}, {}
+    sync_artifact = data / 'raw-sync'; sync_artifact.mkdir()
     record, observed, guest, summary = {}, {}, {}, {}
     events = None
     tail = tail_json = tail_error = ''
@@ -479,14 +644,33 @@ allow = ["{allow_host}"]
             observed['tail_agrees'] = ([f"ukai-jail: {line.get('text', '')}" for line in summary.get('lines', [])]
                 == [line for line in tail.splitlines() if line.startswith('ukai-jail: ')
                     and not line.startswith('ukai-jail: receipt ')])
-        sync = harness.run_attempt(service.connect, 'k113-sync-' + harness.nonce(), ['/bin/sync'], wall=20)
+        class SyncChannel:
+            def __init__(self):
+                self.channel = service.connect()
+                self.frames = BoundedFrames(self.channel)
+                self.seen = set()
+            def send(self, **value): self.channel.send(**value)
+            def close(self): self.channel.close()
+            def frame(self):
+                value = self.frames.receive(120)
+                if value.get('event') == 'bound_receipt':
+                    raw = base64.b64decode(value['data'], validate=True)
+                    if hashlib.sha256(raw).hexdigest() != value.get('sha256'):
+                        raise harness.HarnessError('sync receipt digest mismatch')
+                    store_raw_file(sync_artifact, 'evidence', 'jail.json', raw, self.seen)
+                return value
+        sync = harness.run_attempt(SyncChannel, 'k113-sync-' + harness.nonce(), ['/bin/sync'], wall=20)
         observed['sync_exit'] = sync.get('exit_code')
         observed['same_boot'] = (harness.receipt_bound(sync) and sync.get('boot_id') == record.get('boot_id')
             and harness.guest_boot(sync) == harness.guest_boot(record))
         auxiliary_output.extend([sync.get('stdout', ''), sync.get('stderr', '')])
         disk = service.boot_dir() / 'image/base.raw'
-        observed['disk_scan'] = ('clean' if observed['same_boot'] and all(
-            not vault_measurement.file_holds(disk, value.encode()) for value in spellings) else 'unverified-or-value-present')
+        if observed['same_boot']:
+            disk_observations = {encoding: {'disk_bytes': disk.stat().st_size,
+                'disk_hits': int(vault_measurement.file_holds(disk, value.encode()))}
+                for encoding, value in spelling_values.items()}
+        observed['disk_scan'] = ('clean' if disk_observations and all(
+            item['disk_hits'] == 0 for item in disk_observations.values()) else 'unverified-or-value-present')
         observed['sync'] = {key: value for key, value in sync.items() if key not in ('files', 'stdout', 'stderr')}
     except Exception as error:
         observed['harness_error_type'] = type(error).__name__
@@ -502,11 +686,19 @@ allow = ["{allow_host}"]
     observed['after_refused'] = 'AFTER_ATTEMPT' in stdout and 'AFTER_REFUSED 403' in stdout and 'AFTER_ALLOWED' not in stdout
     observed['output_leak'] = any(value in stdout + stderr + tail + tail_json + tail_error
                                  + ''.join(auxiliary_output) for value in spellings)
-    scans = [vault_measurement.leak_scan([data, workspace], value.encode()) for value in spellings]
+    scans_by_encoding = {encoding: vault_measurement.leak_scan([data, workspace], value.encode())
+                         for encoding, value in spelling_values.items()}
+    scans = list(scans_by_encoding.values())
     observed['leaks'] = sorted({path for hits, _ in scans for path in hits})
     observed['files_scanned'] = max(scanned for _, scanned in scans)
     facts = raw_judge(observed, guest, events, summary, record)
-    outcome = 'PASS' if all(facts.values()) else 'FAIL'
+    output_texts = {'stdout': stdout, 'stderr': stderr, 'tail': tail, 'tail_json': tail_json,
+                    'tail_stderr': tail_error, 'auxiliary': '\n'.join(auxiliary_output)}
+    scan_observations = {'spellings': [dict(encoding=encoding, sha256=hashlib.sha256(value.encode()).hexdigest(),
+        files_scanned=scans_by_encoding[encoding][1], file_hits=scans_by_encoding[encoding][0],
+        output_hits=[name for name, text in output_texts.items() if value in text],
+        **disk_observations.get(encoding, {'disk_bytes': 0, 'disk_hits': 0}))
+        for encoding, value in spelling_values.items()]}
     def redacted(text):
         for value in sorted(spellings, key=len, reverse=True): text = text.replace(value, '<synthetic-credential>')
         return vault_measurement.redact(text, address)
@@ -516,13 +708,38 @@ allow = ["{allow_host}"]
         (out / name).write_text(redacted(text))
     if not observed['leaks']:
         shutil.copytree(artifact, out / 'guest-artifact')
+        shutil.copytree(sync_artifact, out / 'sync-artifact')
     (out / 'image.json').write_bytes(image_bytes)
+    identity = {'binary': harness.fingerprint(binary), 'summary_binary': harness.fingerprint(jail),
+                'image_manifest_sha256': hashlib.sha256(image_bytes).hexdigest()}
+    inputs = {'schema': 'ukai.vm.raw-credential-revocation-inputs/1', 'identity': identity,
+              'record': record, 'argv': command, 'launch_toml': launch,
+              'capture': {'peer': witness.snapshot(), 'secret_sha256': hashlib.sha256(secret).hexdigest(),
+                  'upstream': {'address': address, 'port': port}, 'service_status': status,
+                  'tail': {'text': tail, 'json': tail_json, 'stderr': tail_error,
+                           'exit': observed.get('tail_exit'), 'json_exit': observed.get('tail_json_exit')},
+                  'sync': sync, 'scans': scan_observations, 'service_exit': observed.get('stop_exit'),
+                  'error_type': observed.get('harness_error_type')}}
+    exact_inputs = None
+    replay = {'outcome': 'FAIL', 'errors': ['secret_scan_incomplete_or_hit'], 'facts': {}}
+    if (not observed['leaks'] and not observed['output_leak'] and observed['files_scanned'] > 0
+            and observed.get('disk_scan') == 'clean'):
+        try:
+            exact_inputs = retain_raw_inputs(out, inputs, spellings)
+            replay = replay_raw(out, exact_inputs)
+        except (OSError, ValueError, harness.HarnessError) as error:
+            replay = {'outcome': 'FAIL', 'errors': [type(error).__name__], 'facts': {}}
+    facts.update(replay.get('facts', {}))
+    facts['exact_persisted_inputs_replay'] = replay['outcome'] == 'PASS'
+    outcome = 'PASS' if all(value is True for value in facts.values()) else 'FAIL'
     report = {'schema': 'ukai.vm.raw-credential-revocation/1', 'outcome': outcome, 'qualified': False,
+              'display_redacted': True, 'exact_inputs': exact_inputs,
               'scope': 'Explicit raw guest/transport component proof; no host source-watch, installed-client or K113 qualification.',
-              'binary': harness.fingerprint(binary), 'summary_binary': harness.fingerprint(jail),
+              'binary': identity['binary'], 'summary_binary': identity['summary_binary'],
               'image_manifest_sha256': hashlib.sha256(image_bytes).hexdigest(),
               'launch_toml': launch, 'argv_digest': harness.argv_digest(command),
-              'record': record, 'observed': observed, 'facts': facts}
+              'record': record, 'observed': observed, 'facts': facts,
+              'offline_replay': {'outcome': replay['outcome'], 'errors': replay.get('errors', [])}}
     harness.write_json(out / 'raw-credential-revocation.json', json.loads(redacted(json.dumps(report))))
     print(json.dumps({'outcome': outcome, 'qualified': False, 'component_only': True, 'facts': facts}))
     return 0 if outcome == 'PASS' else 1
