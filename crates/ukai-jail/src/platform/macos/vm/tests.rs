@@ -1952,10 +1952,64 @@ fn second_measured_image_has_its_own_rows_and_mixed_images_have_none() {
 }
 
 #[test]
+fn superseded_intermediate_image_no_longer_admits_literal_or_native_runs() {
+    let bundle = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2");
+    let image: Value =
+        serde_json::from_slice(&std::fs::read(bundle.join("raw-vault/image.json")).unwrap())
+            .unwrap();
+    let old_disk = image["disk_sha256"].as_str().unwrap();
+    let old_seed = image["seed_sha256"].as_str().unwrap();
+    assert_ne!(old_disk, NATIVE_GUEST_MEASURED_DISK_SHA256);
+    assert_ne!(old_seed, NATIVE_GUEST_MEASURED_SEED_SHA256);
+    let catalog = crate::guest_program::Catalog::parse(
+        &std::fs::read(bundle.join("image/guest-program-catalog.json")).unwrap(),
+        NATIVE_PROGRAM_ADMISSION.catalog_sha256,
+    )
+    .unwrap();
+    let entry = catalog
+        .entries
+        .into_iter()
+        .find(|entry| {
+            crate::guest_program::sha256(entry.id.as_bytes())
+                == NATIVE_PROGRAM_ADMISSION.entry_id_sha256
+        })
+        .unwrap();
+    for (disk, seed) in [
+        (old_disk, old_seed),
+        (old_disk, NATIVE_GUEST_MEASURED_SEED_SHA256),
+        (NATIVE_GUEST_MEASURED_DISK_SHA256, old_seed),
+    ] {
+        let mut platform = native_measured_platform();
+        platform.install.manifest.disk_sha256 = disk.into();
+        platform.install.manifest.seed_sha256 = seed.into();
+        for snapshot in [tool(), agent(), agent_with_launch(VAULT_LAUNCH)] {
+            assert!(
+                platform
+                    .probe(&request(snapshot))
+                    .iter()
+                    .all(|row| { !row.satisfies() && row.evidence_ref.is_none() })
+            );
+        }
+        let program = crate::guest_program::GuestProgram::new(
+            NATIVE_PROGRAM_ADMISSION.catalog_sha256.into(),
+            disk.into(),
+            seed.into(),
+            entry.clone(),
+        )
+        .unwrap();
+        assert!(!native_program_admitted(
+            &platform.install.manifest,
+            &program
+        ));
+    }
+}
+
+#[test]
 fn native_admission_requires_every_pin_before_source_staging() {
     let (_dir, mut context, args) = native::tests::context();
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let bytes = std::fs::read(root.join("docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/image/guest-program-catalog.json")).unwrap();
+    let bytes = std::fs::read(root.join("docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v4/image/guest-program-catalog.json")).unwrap();
     let mut platform = native_measured_platform();
     platform.data_dir = context.env_settings.data_dir.clone().unwrap();
     platform.install.root = context.cwd.parent().unwrap().join("install");
@@ -2049,7 +2103,7 @@ fn every_measurement_row_resolves_in_its_record() {
             GUEST_MEASUREMENTS,
         ),
         (
-            "native-v2",
+            "native-v4",
             "capabilities/capabilities.json",
             "raw-vault",
             NATIVE_GUEST_MEASURED_DISK_SHA256,
@@ -2155,9 +2209,7 @@ fn every_measurement_row_resolves_in_its_record() {
                                 "secret_revocation": protocol::SECRET_REVOCATION_CONTRACT,
                                 "journal_export": protocol::JOURNAL_EXPORT_CONTRACT,
                                 "native_program": protocol::NATIVE_PROGRAM_CONTRACT,
-                                // Historical component evidence predates the
-                                // corrected native sampling contract.
-                                "sampled_exposure": "ukai.vm.sampled-exposure/1",
+                                "sampled_exposure": protocol::SAMPLED_EXPOSURE_CONTRACT,
                             })
                         }
                     );
