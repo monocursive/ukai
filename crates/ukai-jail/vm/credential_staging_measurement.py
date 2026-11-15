@@ -17,6 +17,7 @@ import tempfile
 
 import claude_vm_row as compatibility
 import credential_revocation_measurement as revocation
+import guest_program
 import harness
 
 SCHEMA = 'ukai.vm.credential-staging-measurement/2'
@@ -27,6 +28,9 @@ IMAGE_KEYS = ('disk_sha256', 'helper_sha256', 'custodian_sha256', 'seed_sha256')
 GUEST_IMAGE_KEYS = ('disk_sha256', 'seed_sha256')
 GUEST_CONTRACTS = {'secret_revocation': 'ukai.vm.secret-revocation/1',
                    'journal_export': 'ukai.vm.guest-journal/1'}
+OPTIONAL_NATIVE_CONTRACTS = {'native_program': 'ukai.vm.guest-native-launch/1',
+                             'sampled_exposure': 'ukai.vm.sampled-exposure/1'}
+CATALOG_KEY = 'guest_program_catalog_sha256'
 
 
 class AdmissionError(ValueError):
@@ -40,6 +44,39 @@ def require(held, reason):
 
 def valid_sha(value):
     return type(value) is str and SHA.fullmatch(value) is not None
+
+
+def guest_contract_observation(ready, image):
+    """Admit only the two known contract shapes, without qualifying native use."""
+    require(type(ready) is dict, 'guest Ready record absent')
+    contracts = ready.get('guest_contracts')
+    require(type(contracts) is dict and contracts in (
+        GUEST_CONTRACTS, GUEST_CONTRACTS | OPTIONAL_NATIVE_CONTRACTS),
+        'guest credential contracts are missing, unknown or incompatible')
+    catalog = ready.get(CATALOG_KEY)
+    if 'native_program' in contracts:
+        require(valid_sha(catalog) and valid_sha(image.get(CATALOG_KEY))
+                and catalog == image[CATALOG_KEY],
+                'native guest catalog is absent or differs from the signed image')
+    else:
+        require(catalog is None and CATALOG_KEY not in image,
+                'legacy credential contracts cannot advertise a native catalog')
+    return {'contracts': dict(contracts), CATALOG_KEY: catalog,
+            'native_launch_or_sampling_qualified': False}
+
+
+def verify_catalog_manifest(volume, image, manifest):
+    """Bind optional native metadata to the authenticated payload, not host paths."""
+    name = 'payload/image/' + guest_program.CATALOG_FILENAME
+    if CATALOG_KEY not in image:
+        require(name not in manifest, 'unbound guest program catalog in signed payload')
+        return
+    digest = image[CATALOG_KEY]
+    require(valid_sha(digest) and manifest.get(name) == digest,
+            'guest program catalog differs from signed image metadata')
+    data = revocation.bounded_file(volume / name, guest_program.MAX_CATALOG_BYTES)
+    require(sha(data) == digest, 'guest program catalog bytes changed')
+    guest_program.parse_catalog(data)
 
 
 def sha(data):
@@ -167,6 +204,7 @@ def inspect_volume(home, volume, team):
     image_bytes = revocation.bounded_file(volume / 'payload/image/image.json', 1024 * 1024)
     image = compatibility.strict_json(image_bytes)
     expected_version = clean_image(image)
+    verify_catalog_manifest(volume, image, manifest)
     expected = {name[len('payload/'):]: value for name, value in manifest.items() if name.startswith('payload/')}
     require(expected.get('image/base.raw.gz') == image['compressed_disk_sha256'], 'compressed image is not bound')
     expected.pop('image/base.raw.gz')
@@ -229,8 +267,7 @@ def derive(replayed, installation):
             and all(value is True for value in replayed['facts'].values())
             and not replayed.get('errors'), 'raw evidence does not replay as PASS')
     record, image = replayed['record'], replayed['image']
-    require((record.get('ready') or {}).get('guest_contracts') == GUEST_CONTRACTS,
-            'the actual guest did not declare the required credential contracts')
+    observation = guest_contract_observation(record.get('ready'), image)
     require(image == installation['image'], 'raw attempt used another image')
     identity = replayed['identity']
     require(identity['binary']['sha256'] == installation['service_sha256']
@@ -260,6 +297,7 @@ def derive(replayed, installation):
                                  'credential refresh', 'copied/bound credentials', 'TLS/vendor compatibility',
                                  'K113/release qualification']}},
             'installation': installation, 'recomputed_facts': replayed['facts'],
+            'guest_contract_observation': observation,
             'scope': 'Guest admission evidence only; no capability-table change, host-source-watch or release qualification.',
             'compatibility': {'measured_image': {key: image[key] for key in IMAGE_KEYS},
                               'required_guest_image': {key: image[key] for key in GUEST_IMAGE_KEYS},

@@ -41,7 +41,67 @@ def proof():
     return replayed, installed
 
 
+def native_proof():
+    replayed, installed = proof()
+    replayed['record']['ready']['guest_contracts'].update(admission.OPTIONAL_NATIVE_CONTRACTS)
+    replayed['record']['ready'][admission.CATALOG_KEY] = '2' * 64
+    for held in (replayed['image'], installed['image']):
+        held[admission.CATALOG_KEY] = '2' * 64
+    return replayed, installed
+
+
 class AdmissionProofTests(unittest.TestCase):
+    def test_known_paired_native_contracts_do_not_extend_the_measurement_scope(self):
+        result = admission.derive(*native_proof())
+        self.assertEqual(result['outcome'], 'PASS')
+        self.assertFalse(result['qualified'])
+        self.assertEqual(result['compatibility']['required_guest_contracts'], admission.GUEST_CONTRACTS)
+        self.assertEqual(result['guest_contract_observation'], {
+            'contracts': admission.GUEST_CONTRACTS | admission.OPTIONAL_NATIVE_CONTRACTS,
+            admission.CATALOG_KEY: '2' * 64, 'native_launch_or_sampling_qualified': False})
+        self.assertIn('program-bound credentials',
+                      result['measurements']['credential_staging']['not_measured'])
+
+    def test_native_contract_pair_versions_types_and_catalog_are_exact(self):
+        changes = [
+            lambda r, i: r['record']['ready'].update(guest_contracts=None),
+            lambda r, i: r['record']['ready'].update(guest_contracts=[]),
+            lambda r, i: r['record']['ready']['guest_contracts'].update(unknown='future/1'),
+            lambda r, i: r['record']['ready']['guest_contracts'].pop('native_program'),
+            lambda r, i: r['record']['ready']['guest_contracts'].pop('sampled_exposure'),
+            lambda r, i: r['record']['ready']['guest_contracts'].update(native_program='ukai.vm.guest-native-launch/2'),
+            lambda r, i: r['record']['ready']['guest_contracts'].update(sampled_exposure='ukai.vm.sampled-exposure/2'),
+            lambda r, i: r['record']['ready']['guest_contracts'].update(native_program=True),
+            lambda r, i: r['record']['ready']['guest_contracts'].update(sampled_exposure=None),
+            lambda r, i: r['record']['ready']['guest_contracts'].update(secret_revocation='future/2'),
+            lambda r, i: r['record']['ready']['guest_contracts'].pop('journal_export'),
+            lambda r, i: r['record']['ready'].pop(admission.CATALOG_KEY),
+            lambda r, i: r['record']['ready'].update({admission.CATALOG_KEY: None}),
+            lambda r, i: r['record']['ready'].update({admission.CATALOG_KEY: True}),
+            lambda r, i: r['record']['ready'].update({admission.CATALOG_KEY: 'X' * 64}),
+            lambda r, i: r['record']['ready'].update({admission.CATALOG_KEY: '3' * 64}),
+            lambda r, i: (r['image'].pop(admission.CATALOG_KEY), i['image'].pop(admission.CATALOG_KEY)),
+            lambda r, i: (r['image'].update({admission.CATALOG_KEY: None}),
+                          i['image'].update({admission.CATALOG_KEY: None})),
+        ]
+        for index, change in enumerate(changes):
+            with self.subTest(case=index):
+                raw, installed = native_proof(); change(raw, installed)
+                with self.assertRaises(admission.AdmissionError):
+                    admission.derive(raw, installed)
+
+    def test_legacy_contracts_reject_advertised_or_image_bound_native_catalog(self):
+        for location in ('ready', 'image'):
+            with self.subTest(location=location):
+                raw, installed = proof()
+                if location == 'ready':
+                    raw['record']['ready'][admission.CATALOG_KEY] = '2' * 64
+                else:
+                    raw['image'][admission.CATALOG_KEY] = '2' * 64
+                    installed['image'][admission.CATALOG_KEY] = '2' * 64
+                with self.assertRaises(admission.AdmissionError):
+                    admission.derive(raw, installed)
+
     def test_complete_component_evidence_preserves_its_limited_scope(self):
         result = admission.derive(*proof())
         self.assertEqual(result['outcome'], 'PASS')
@@ -136,6 +196,29 @@ class AdmissionProofTests(unittest.TestCase):
 
 
 class ArtifactTests(unittest.TestCase):
+    def test_optional_catalog_must_match_manifest_metadata_and_strict_schema(self):
+        valid = (Path(__file__).parent / 'fixtures/guest-program-catalog.json').read_bytes()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            path = root / 'payload/image/guest-program-catalog.json'
+            path.parent.mkdir(parents=True); path.write_bytes(valid)
+            name = path.relative_to(root).as_posix()
+            digest = admission.sha(valid)
+            admission.verify_catalog_manifest(root, {admission.CATALOG_KEY: digest}, {name: digest})
+            for metadata, manifest in (({}, {name: digest}),
+                    ({admission.CATALOG_KEY: digest}, {}),
+                    ({admission.CATALOG_KEY: None}, {name: digest}),
+                    ({admission.CATALOG_KEY: '3' * 64}, {name: digest}),
+                    ({admission.CATALOG_KEY: '3' * 64}, {name: '3' * 64})):
+                with self.subTest(metadata=metadata, manifest=manifest):
+                    with self.assertRaises(admission.AdmissionError):
+                        admission.verify_catalog_manifest(root, metadata, manifest)
+            for raw in (b'{}', b'{"schema": 1, "schema": 2}'):
+                path.write_bytes(raw); digest = admission.sha(raw)
+                with self.assertRaises(ValueError):
+                    admission.verify_catalog_manifest(root, {admission.CATALOG_KEY: digest}, {name: digest})
+            admission.verify_catalog_manifest(root, {}, {})
+
     def test_manifest_rejects_ambiguous_escaping_and_duplicate_paths(self):
         row = 'a' * 64 + '  payload/bin/ukai-vm\n'
         self.assertEqual(admission.parse_manifest(row.encode()), {'payload/bin/ukai-vm': 'a' * 64})
