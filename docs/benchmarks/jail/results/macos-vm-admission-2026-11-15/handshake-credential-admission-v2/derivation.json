@@ -1,0 +1,11 @@
+{
+  "helper_commit": "aed338a05e35a01a678a14fc22b883c621db6bbf",
+  "helper_sha256": "b246f9e10d6523568deaa72f2a79a9c7769e682d1446698ad666e16b6a2f8999",
+  "artifact_sha256": "8699fb6ded540c87408970b8c4e6c38859500b1c905ce2ca2ab9fb07442a7e69",
+  "source_package_revision": "53e5605fd9d0728ea46da2449c635f364ba2b4f4",
+  "tests_passed": 11,
+  "actual_signature_and_installed_byte_verification": "PASS",
+  "raw_replay": "PASS",
+  "v1_preserved_sha256": "00f68bd3efbc99738f10ce206b05bd56d4df016afd68b4451195c43d9573fe8f",
+  "scope": "Guest admission identity clarification only; full measured artifact binding unchanged; no host runtime qualification inherited"
+}

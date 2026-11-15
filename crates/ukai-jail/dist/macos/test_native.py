@@ -211,6 +211,7 @@ class NativeTests(unittest.TestCase):
             native.verify_signature(self.package / native.APP, report, run)
         self.assertEqual(len(calls), 2)
         self.assertIn('anchor apple generic', calls[-1][0][-2])
+        self.assertTrue(calls[-1][0][-2].startswith('='), 'codesign requires inline-text syntax')
 
     def test_disabled_custom_or_unknown_sip_cannot_authorize_profile(self):
         for output in (b'System Integrity Protection status: disabled.',

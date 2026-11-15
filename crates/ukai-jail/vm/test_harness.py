@@ -249,7 +249,8 @@ class ReceiptBindingTests(unittest.TestCase):
     def good(self):
         digest = harness.argv_digest(self.ARGV)
         return {'attempt_id': 'a-1', 'profile': 'tool', 'argv_digest': digest, 'boot_id': 'vm-1',
-                'receipt_digest_ok': True, 'receipt': {'argv_digest': digest},
+                'receipt_digest_ok': True, 'receipt': {'argv_digest': digest, 'attempt_id': 'att_1',
+                    'process': {'identity': {'value': {'boot_id': 'g-1'}}}, 'policy': {'name': 'tool'}},
                 'binding': {'attempt_id': 'a-1', 'profile': 'tool', 'argv_digest': digest, 'boot_id': 'vm-1',
                             'guest_boot_id': 'g-1', 'guest_attempt_id': 'att_1'}}
 
@@ -265,6 +266,11 @@ class ReceiptBindingTests(unittest.TestCase):
                 ('another serve boot', lambda r: r['binding'].update(boot_id='vm-2')),
                 ('no serve boot', lambda r: r.update(boot_id=None)),
                 ('no guest boot', lambda r: r['binding'].pop('guest_boot_id')),
+                ('another guest boot', lambda r: r['binding'].update(guest_boot_id='g-2')),
+                ('another guest attempt', lambda r: r['binding'].update(guest_attempt_id='att_2')),
+                ('no guest attempt', lambda r: r['receipt'].pop('attempt_id')),
+                ('another receipt profile', lambda r: r['receipt']['policy'].update(name='agent')),
+                ('no receipt process identity', lambda r: r['receipt'].pop('process')),
                 ('no binding', lambda r: r.pop('binding')),
                 ('no receipt', lambda r: r.pop('receipt'))]:
             with self.subTest(name):
@@ -288,12 +294,14 @@ class ReceiptBindingTests(unittest.TestCase):
         attempt = root / 'att_42'
         (attempt / 'evidence').mkdir(parents=True)
         digest = harness.argv_digest(self.ARGV)
-        guest = json.dumps({'argv_digest': digest}).encode()
+        guest = json.dumps({'argv_digest': digest, 'attempt_id': 'att_guest', 'policy': {'name': 'tool'},
+                            'process': {'identity': {'value': {'boot_id': 'g-1'}}}}).encode()
         (attempt / 'evidence' / 'jail.json').write_bytes(guest)
         (attempt / 'vm-transport.json').write_text(json.dumps({'boot_id': 'vm-1',
                                                                'guest_receipt_sha256': hashlib.sha256(guest).hexdigest()}))
         (attempt / 'evidence' / 'vm-binding.json').write_text(json.dumps({
-            'attempt_id': 'att_42', 'argv_digest': digest, 'boot_id': 'vm-1', 'guest_boot_id': 'g-1'}))
+            'attempt_id': 'att_42', 'argv_digest': digest, 'boot_id': 'vm-1', 'guest_boot_id': 'g-1',
+            'guest_attempt_id': 'att_guest', 'profile': 'tool'}))
         return attempt
 
     def test_an_attempt_directory_binds_the_same_way(self):
@@ -304,6 +312,9 @@ class ReceiptBindingTests(unittest.TestCase):
                 ('another attempt', 'evidence/vm-binding.json', {'attempt_id': 'att_41'}),
                 ('another serve boot', 'evidence/vm-binding.json', {'boot_id': 'vm-2'}),
                 ('no guest boot', 'evidence/vm-binding.json', {'guest_boot_id': None}),
+                ('another guest boot', 'evidence/vm-binding.json', {'guest_boot_id': 'g-2'}),
+                ('another guest attempt', 'evidence/vm-binding.json', {'guest_attempt_id': 'att_other'}),
+                ('another guest profile', 'evidence/vm-binding.json', {'profile': 'agent'}),
                 ('a receipt digest that is not this receipt', 'vm-transport.json', {'guest_receipt_sha256': '0' * 64})]:
             with self.subTest(name):
                 attempt = self.attempt_dir()
@@ -574,7 +585,9 @@ def bound_frame(request, receipt=None, boot_id='vm-fake', guest_boot='guest-boot
     """A bound_receipt frame as guest.py builds it for this prepare `request`."""
     words = [base64.b64decode(word) for word in request['argv']]
     digest = harness.argv_digest(words)
-    receipt = dict(receipt or {}, argv_digest=digest)
+    receipt = dict(receipt or {}, argv_digest=digest, attempt_id='att_' + request['attempt_id'],
+                   process={'identity': {'value': {'boot_id': guest_boot}}},
+                   policy={**(receipt or {}).get('policy', {}), 'name': request['profile']})
     return receipt_frame(receipt, corrupt=corrupt, binding={
         'attempt_id': request['attempt_id'], 'boot_id': boot_id, 'guest_attempt_id': 'att_' + request['attempt_id'],
         'guest_boot_id': guest_boot, 'profile': request['profile'], 'argv_digest': digest})

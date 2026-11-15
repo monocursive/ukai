@@ -9,12 +9,12 @@
 //! platform; a difference refuses with `vm:not-carried:<field>`
 //! ([`policy_refusal`]). The probe answers `available` only for a
 //! requirement a measured guest record backs (decision D2,
-//! [`GUEST_MEASUREMENTS`]). The 2026-11-04 evening live phase measured ten,
-//! every requirement of a `tool` or `agent` plan, so such a plan passes
-//! probing once its wall is an explicit 1 to 300 s (the profiles' own walls
-//! are `vm:not-carried:limits.wall`); `execution_boundary`,
-//! `credential_staging` and the owner-loss bound have no record and still
-//! refuse there.
+//! [`GUEST_MEASUREMENTS`]). The 2026-11-15 signed-image measurements back
+//! twelve requirements, including execution boundaries and vault credential
+//! staging. They apply only to the measured guest disk and seed. The guest
+//! must also advertise the exact revocation and journal contracts before
+//! any secret crosses. Owner-loss bounds and unsupported policy fields
+//! continue to refuse.
 //!
 //! The transport below is tested with stand-ins. Its guest reports are
 //! checked for consistency and binding; they are not independent host
@@ -57,6 +57,7 @@ pub mod control;
 pub mod image;
 pub mod protocol;
 pub mod record;
+mod revocation;
 pub mod share;
 
 /// How long starting `ukai-vm serve` may take before the run refuses: the
@@ -166,6 +167,7 @@ struct ReadyFrame {
     custodian_sha256: String,
     seed_sha256: String,
     vsock_port: u32,
+    guest_contracts: Option<protocol::GuestContracts>,
 }
 
 /// The `--vm` platform. It discovers the installed preview (the same paths
@@ -549,7 +551,13 @@ impl Platform for VmPlatform {
         probe_rows(
             &plan.requirements,
             policy_refusal(&plan.snapshot).map(|(reason, _)| reason),
-            GUEST_MEASUREMENTS,
+            if self.install.manifest.disk_sha256 == GUEST_MEASURED_DISK_SHA256
+                && self.install.manifest.seed_sha256 == GUEST_MEASURED_SEED_SHA256
+            {
+                GUEST_MEASUREMENTS
+            } else {
+                &[]
+            },
         )
     }
 
@@ -580,93 +588,97 @@ pub struct GuestMeasurement {
     pub measured_at: &'static str,
 }
 
-/// The one table of guest measurements (decision D2): a requirement answers
-/// `available` only when a record here measured it inside the guest, through
-/// the guest jail command `--vm` issues. Every other requirement answers
-/// `unavailable` with `vm:not-measured:<requirement>`. The live phase
-/// re-measures the guest and updates this table, and nothing else.
+/// Guest image identities measured on 2026-11-15. The disk and seed pin
+/// the guest jail, controller and configuration. Host helpers may be rebuilt
+/// and re-signed without changing these bytes; they remain trusted host code
+/// requiring their own package and installed-client validation. The selected
+/// installation's full four-digest identity is still checked against status
+/// and Ready before use.
+pub const GUEST_MEASURED_DISK_SHA256: &str =
+    "81bc57865f7b9d1ea9b1fd579a3d5c1dfa69495e0d2024ff9e46a7a9c11367bf";
+/// Seed paired with [`GUEST_MEASURED_DISK_SHA256`]; neither alone admits a guest.
+pub const GUEST_MEASURED_SEED_SHA256: &str =
+    "7a9197f33bd205636279dee4d2435915270e12d55d6e97911a8e0837fca71653";
+
+/// The one table backing guest capability availability (decision D2).
+/// `probe` uses it only for the measured disk/seed pair above. Every other
+/// requirement or image answers `vm:not-measured:<requirement>`; owner loss
+/// always refuses with its dedicated reason, and unsupported policy fields
+/// retain their carry refusal before any connection or boot.
 ///
-/// Its rows are the 2026-11-04 evening live phase
-/// (`macos-vm-probes-2026-11-04/`): `capabilities.py` measured each
-/// requirement by its own attempts, on one warm boot of an image `prepare.py`
-/// built from the guest sources at `6bd497076`, through the published guest
-/// jail 0.1.0-rc.5. This tree's `guest.py` has since added only the staged
-/// export's refusal of directory links and unlistable directories, which no
-/// probe exercised. Each row points at that requirement's verdict and states the
-/// start of its first attempt; a test reads the record and checks both.
-/// Development evidence: an unsigned source build on one M2 Pro host, not an
-/// installed package, and one run of each probe.
+/// The signed installed package at source 53e5605fd measured ten requirements
+/// with individual live probes, through the signed Linux jail 0.1.0-rc.6.
+/// Separate schema-specific records derive execution-boundary admission from
+/// four resource/tree attempts and vault-only credential staging from a
+/// replayable synthetic revocation run and verified signed installation.
+/// Credential preparation also requires the actual guest's exact revocation
+/// and journal contracts before transferring any secret.
 ///
-/// A `tool` plan requires `tree_termination`, `closed_set_observation`,
-/// `filesystem_containment`, `syscall_filter`, `network_none`,
-/// `protected_coverage:existing_and_root` and `limit:wall`, and an `agent`
-/// plan the same with `network_proxy` for `network_none`: every one is a row
-/// here, so such a plan passes probing once its wall is one the guest carries
-/// (an explicit 1 to 300 s; the profiles' own are not). `limit:pids` and
-/// `limit:mem` become requirements only when the operator requires those
-/// ceilings, and a required ceiling the guest carries (its own `pids=64`,
-/// `mem=512MiB`, `swap=0`) also adds `execution_boundary`, so those two rows
-/// never let a plan pass on their own;
-/// `credential_staging` (a launch profile that declares credentials),
-/// `owner_loss_termination` and `execution_boundary` have no row and still
-/// refuse. The morning record of the same day (`macos-vm-live-2026-11-04/`)
-/// measured the first five on an image built from older guest sources, and
-/// the 2026-11-02 records (`macos-vm-warm-2026-11-02/`) back nothing: they
-/// state no time of measurement, `wall` could not tell the guest jail's
-/// deadline from the controller's `wall + 10 s` backstop, `pids` passed
-/// whatever the limit, `mem` passed on any OOM kill, `containment` measured
-/// writes but not reads, and `network_none`'s TCP half was vacuous
-/// (`/dev/tcp` under dash).
+/// These records do not qualify the newly admitted host client, copied or
+/// program-bound credentials, refresh, vendor/TLS compatibility, owner-loss
+/// guarantees, or a release. Policy carry remains restricted to the measured
+/// guest shape: an explicit 1 to 300 second wall, fixed resource ceilings,
+/// supported network shape and vault declarations without binary bindings.
 pub const GUEST_MEASUREMENTS: &[GuestMeasurement] = &[
     GuestMeasurement {
         requirement: "limit:wall",
-        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/limit:wall/verdict",
-        measured_at: "2026-11-04T20:32:10Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/limit:wall/verdict",
+        measured_at: "2026-11-15T13:54:14Z",
     },
     GuestMeasurement {
         requirement: "limit:pids",
-        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/limit:pids/verdict",
-        measured_at: "2026-11-04T20:32:15Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/limit:pids/verdict",
+        measured_at: "2026-11-15T13:54:19Z",
     },
     GuestMeasurement {
         requirement: "limit:mem",
-        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/limit:mem/verdict",
-        measured_at: "2026-11-04T20:32:16Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/limit:mem/verdict",
+        measured_at: "2026-11-15T13:54:20Z",
     },
     GuestMeasurement {
         requirement: "filesystem_containment",
-        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/filesystem_containment/verdict",
-        measured_at: "2026-11-04T20:32:16Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/filesystem_containment/verdict",
+        measured_at: "2026-11-15T13:54:20Z",
     },
     GuestMeasurement {
         requirement: "network_none",
-        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/network_none/verdict",
-        measured_at: "2026-11-04T20:32:16Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/network_none/verdict",
+        measured_at: "2026-11-15T13:54:21Z",
     },
     GuestMeasurement {
         requirement: "tree_termination",
-        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/tree_termination/verdict",
-        measured_at: "2026-11-04T20:32:18Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/tree_termination/verdict",
+        measured_at: "2026-11-15T13:54:22Z",
     },
     GuestMeasurement {
         requirement: "closed_set_observation",
-        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/closed_set_observation/verdict",
-        measured_at: "2026-11-04T20:32:34Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/closed_set_observation/verdict",
+        measured_at: "2026-11-15T13:54:38Z",
     },
     GuestMeasurement {
         requirement: "syscall_filter",
-        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/syscall_filter/verdict",
-        measured_at: "2026-11-04T20:32:35Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/syscall_filter/verdict",
+        measured_at: "2026-11-15T13:54:39Z",
     },
     GuestMeasurement {
         requirement: "protected_coverage:existing_and_root",
-        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/protected_coverage:existing_and_root/verdict",
-        measured_at: "2026-11-04T20:32:36Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/protected_coverage:existing_and_root/verdict",
+        measured_at: "2026-11-15T13:54:39Z",
     },
     GuestMeasurement {
         requirement: "network_proxy",
-        record: "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/capabilities.json#/measurements/network_proxy/verdict",
-        measured_at: "2026-11-04T20:32:37Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/network_proxy/verdict",
+        measured_at: "2026-11-15T13:54:40Z",
+    },
+    GuestMeasurement {
+        requirement: "execution_boundary",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-execution-boundary/execution-boundary.json#/measurements/execution_boundary/verdict",
+        measured_at: "2026-11-15T13:54:19Z",
+    },
+    GuestMeasurement {
+        requirement: "credential_staging",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-credential-admission-v2/credential-staging.json#/measurements/credential_staging/verdict",
+        measured_at: "2026-11-15T13:52:23Z",
     },
 ];
 
@@ -738,6 +750,8 @@ struct VmExecution {
     /// ([`guest_snapshot`]); the guest receipt's `policy.digest` is
     /// compared with it after the run.
     guest_policy_digest: String,
+    /// Captured before transport; replacements never become a new lease.
+    vault_lease: crate::vault::lifecycle::Lease,
     stdout: std::fs::File,
     stderr: std::fs::File,
 }
@@ -775,6 +789,14 @@ impl VmExecution {
         let wall = guest_wall(snapshot)?;
         let profile = snapshot.profile.as_str().to_owned();
         let vault = vault_launch(&plan)?;
+        let mut vault_lease = crate::vault::lifecycle::Lease::default();
+        if let Some(launch) = &plan.launch {
+            for secret in &launch.vault {
+                vault_lease.extend(secret.staged_source_lease().map_err(|_| {
+                    refused("--vm: the staged credential source changed before transport")
+                })?);
+            }
+        }
         let guest_policy_digest = guest_snapshot(
             snapshot,
             wall,
@@ -811,6 +833,16 @@ impl VmExecution {
                 crate::records::escape_control(&ready.boot_id)
             )));
         }
+        if !vault.secrets.is_empty()
+            && !ready
+                .guest_contracts
+                .as_ref()
+                .is_some_and(protocol::GuestContracts::supports_credentials)
+        {
+            return Err(refused(
+                "--vm: this guest did not declare the required credential revocation and journal export contracts; no credential was sent",
+            ));
+        }
         let sent: Vec<String> = vault
             .secrets
             .iter()
@@ -829,6 +861,11 @@ impl VmExecution {
             allow_hosts,
             launch: vault.declaration,
         };
+        if vault_lease.check().is_err() {
+            return Err(refused(
+                "--vm: the staged credential source changed before transport",
+            ));
+        }
         connection
             .send_within(&staged, plan.prepare_deadline.remaining())
             .map_err(transport)?;
@@ -866,6 +903,7 @@ impl VmExecution {
             limits: snapshot.limits.clone(),
             network,
             guest_policy_digest,
+            vault_lease,
             stdout,
             stderr,
         })
@@ -2024,6 +2062,7 @@ fn expect_ready(
             custodian_sha256,
             seed_sha256,
             vsock_port,
+            guest_contracts,
         }) => {
             if schema != protocol::SCHEMA_ATTEMPT {
                 return Err(refused(format!(
@@ -2038,6 +2077,7 @@ fn expect_ready(
                 custodian_sha256,
                 seed_sha256,
                 vsock_port,
+                guest_contracts,
             })
         }
         control::Within::Frame(protocol::FromVm::Error { message }) => {
@@ -2163,9 +2203,17 @@ impl PreparedExecution for VmExecution {
                 teardown: Some(Teardown { tree: None }),
             })
         };
+        if execution.vault_lease.check().is_err() {
+            return Err(fail(refused(
+                "--vm: the staged credential source changed before release",
+            )));
+        }
         if let Err(error) = execution.connection.send(&protocol::ToVm::Run) {
             return Err(fail(transport(error)));
         }
+        let revocation =
+            revocation::Watch::start(&execution.connection, execution.vault_lease.clone())
+                .map_err(|reason| fail(refused(reason)))?;
         match execution
             .connection
             .next_frame_within(control::HANDSHAKE_TIMEOUT)
@@ -2186,13 +2234,17 @@ impl PreparedExecution for VmExecution {
                 return Err(fail(transport(error)));
             }
         }
+        revocation.check().map_err(|reason| fail(refused(reason)))?;
         Ok(Box::new(VmRunning {
             inner: execution,
             receipt: None,
             guest: None,
             stop: None,
+            termination_deadline: None,
+            wall_reported: false,
             finished: false,
             failed: false,
+            revocation: Some(revocation),
         }))
     }
 
@@ -2212,8 +2264,13 @@ struct VmRunning {
     /// The guest controller's own stop of the attempt, once `done` carried
     /// one that found nothing the guest jail left behind (decision D6).
     stop: Option<protocol::GuestStop>,
+    /// The first stop replaces the execution wall with one bounded drain.
+    /// Repeated stop requests must not extend it or prevent reading EOF.
+    termination_deadline: Option<Instant>,
+    wall_reported: bool,
     finished: bool,
     failed: bool,
+    revocation: Option<revocation::Watch>,
 }
 
 /// The cgroup the guest controller creates for each attempt
@@ -2538,6 +2595,9 @@ impl VmRunning {
 impl VmRunning {
     fn wait_frames(&mut self, deadline: Deadline) -> RunEvent {
         loop {
+            if let Some(Err(reason)) = self.revocation.as_ref().map(revocation::Watch::check) {
+                return RunEvent::Unknown { reason };
+            }
             let budget = deadline
                 .at
                 .map(|at| at.saturating_duration_since(Instant::now()))
@@ -2566,6 +2626,18 @@ impl VmRunning {
                 }
             };
             match frame {
+                protocol::FromVm::SecretsRevoked { ids } => {
+                    let result = self
+                        .revocation
+                        .as_ref()
+                        .ok_or_else(|| {
+                            "unexpected credential revocation acknowledgement".to_owned()
+                        })
+                        .and_then(|watch| watch.acknowledge(&ids));
+                    if let Err(reason) = result {
+                        return RunEvent::Unknown { reason };
+                    }
+                }
                 protocol::FromVm::Stdout { data } => {
                     let payload = match protocol::decode_data(&data) {
                         Ok(data) => data,
@@ -2663,6 +2735,12 @@ impl VmRunning {
                         self.failed = true;
                         return RunEvent::Unknown { reason };
                     }
+                    if let Some(Err(reason)) =
+                        self.revocation.as_ref().map(revocation::Watch::settled)
+                    {
+                        self.failed = true;
+                        return RunEvent::Unknown { reason };
+                    }
                     return event;
                 }
             }
@@ -2717,7 +2795,31 @@ impl RunningExecution for VmRunning {
     }
 
     fn wait(&mut self, deadline: Deadline) -> RunEvent {
-        let event = self.wait_frames(deadline);
+        // The supervisor keeps the execution wall after requesting stop.
+        // Continue consuming the guest's final frames or EOF under the fixed
+        // termination budget instead of reporting that expired wall forever.
+        // Classify the selected deadline, not the clock after waiting: the
+        // host may resume after both deadlines elapsed, but the earlier
+        // unreported wall still needs its one hit before termination fails.
+        let (deadline, wall_timeout) = match (
+            self.termination_deadline,
+            deadline.at.filter(|_| !self.wall_reported),
+        ) {
+            (Some(stop), Some(wall)) if wall <= stop => (Deadline { at: Some(wall) }, true),
+            (Some(stop), _) => (Deadline { at: Some(stop) }, false),
+            (None, _) => (deadline, true),
+        };
+        let mut event = self.wait_frames(deadline);
+        if matches!(event, RunEvent::WallExpired) {
+            if wall_timeout {
+                self.wall_reported = true;
+            } else {
+                event = RunEvent::Unknown {
+                    reason: "the guest outcome was not observed within the termination budget"
+                        .to_owned(),
+                };
+            }
+        }
         if matches!(
             event,
             RunEvent::Unknown { .. } | RunEvent::StdioFailed { .. }
@@ -2728,6 +2830,10 @@ impl RunningExecution for VmRunning {
     }
 
     fn request_stop(&mut self, _reason: StopReason) {
+        if self.termination_deadline.is_some() {
+            return;
+        }
+        self.termination_deadline = Some(Instant::now() + crate::supervisor::TREE_BUDGET);
         // The lease is end-of-file: half-closing the write side cancels the
         // guest attempt, and the frames that remain are still read for the
         // outcome the guest reports on its way down.
@@ -2736,8 +2842,12 @@ impl RunningExecution for VmRunning {
 
     fn wait_tree(&mut self, budget: Duration) -> TreeObservation {
         if !self.finished && !self.failed {
-            let event = self.wait(Deadline {
-                at: Some(Instant::now() + budget),
+            let deadline = Instant::now() + budget;
+            let event = self.wait_frames(Deadline {
+                at: Some(
+                    self.termination_deadline
+                        .map_or(deadline, |at| at.min(deadline)),
+                ),
             });
             if !matches!(
                 event,

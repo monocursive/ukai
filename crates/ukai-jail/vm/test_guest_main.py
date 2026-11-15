@@ -47,6 +47,9 @@ class BootTests(unittest.TestCase):
         self.assertIs(ready['live_share'], False)
         self.assertIs(session['live_share'], False)
         self.assertEqual(session['kernel'], os.uname().release)
+        self.assertEqual(session['guest_contracts'], {
+            'secret_revocation': 'ukai.vm.secret-revocation/1',
+            'journal_export': 'ukai.vm.guest-journal/1'})
 
     def test_a_mounted_share_is_live_stated_and_nosuid_nodev(self):
         guest = GuestHarness(self, share='mounts')

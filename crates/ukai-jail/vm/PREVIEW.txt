@@ -11,15 +11,19 @@ process-lifetime boundary.
 DEVELOPMENT CANDIDATE; WORKLOAD QUALIFICATION PENDING
 The current packaging script includes both ukai-vm and the macOS
 ukai-jail client, built from the same clean source revision, plus the
-installer helper. No package built by that script has been qualified.
+installer helper. Signed local packages have passed installation and bounded
+guest component checks. This is not a release-qualified warm VM package.
 No macOS ukai-jail client ships in the existing public preview or the
 earlier candidate: those require a client built from source (the
 monocursive/ukai repository) for `ukai-jail run --vm`.
-An unmeasured requirement still refuses at probing, before any connection
-or boot, with vm:not-measured:<requirement>. Some development tool runs
-have completed with verified guest receipts, but the J18 acceptance rows
-(K108-K113) remain untested. The full fault matrix, guest stop kill paths,
-network and credential workflows require installed-package qualification.
+The client admits only the measured guest disk and seed. Another image or
+an unmeasured requirement refuses at probing, before any connection or boot,
+with vm:not-measured:<requirement>. Twelve bounded guest capability rows
+have evidence, including execution limits and vault credential staging.
+The J18 release acceptance rows (K108-K113) remain untested: earlier baseline
+fault and workflow results do not qualify later installed bytes. Current
+credential workflows, full agent compatibility and the remaining release
+checks still require installed-package qualification.
 
 INSTALL
 Open the signed DMG, then run in Terminal:
@@ -32,8 +36,8 @@ Python, Swift, Rust, Homebrew, sudo, and Endpoint Security approval are not
 required. The installer checks pinned SHA-256 hashes and expands a private
 6 GiB sparse image. Allow 8 GiB free space and use an APFS installation
 volume. A running guest needs 2 GiB RAM and two virtual CPUs. Notarization
-of this build is pending; Gatekeeper's Open Anyway (or xattr -d com.apple.
-quarantine on the DMG) installs it before its first notarized build.
+of this build is pending. This package is for controlled development
+qualification; public distribution requires the notarized and stapled build.
 
 Before an upgrade, stop the service with ukai-vm stop. The installer
 switches both commands to the new version and retains older version
@@ -73,7 +77,9 @@ credentials. Any other policy element that differs (deny-read, extra or
 narrowed grants, custom ceilings, staged credentials, an attached terminal,
 and an environment other than the guest's LANG=C.UTF-8 with no TERM or TZ)
 refuses with vm:not-carried:<field> before any boot. Guest commands have
-512 MiB memory, no swap and 64 processes. Vault-mode credentials are
+512 MiB memory, no swap and 64 processes. Requiring exactly mem=512MiB or
+pids=64 is admitted on the measured image; a required swap capability is
+still unavailable. Vault-mode credentials are
 substituted in flight by the guest proxy, never staged into the guest's
 on-disk state.
 A completed attempt requires a verified Linux Jail receipt; the client
@@ -84,8 +90,9 @@ LIFETIME
 The service is a foreground process: killing it ends its guest and every
 attempt through the custodian lease, and an operator Ctrl-Z does not end a
 running attempt (the lease is end-of-file, not a timer; a suspension can
-only be judged by code that is running). The full fault matrix (K110) is
-not yet measured. Host sleep, kernel failure and arbitrary guest
+only be judged by code that is running). The earlier fa1d3392d baseline
+passed nine fault scenarios and two real-client lanes; the current package
+needs its own installed-byte qualification. Host sleep, kernel failure and arbitrary guest
 compromise are not qualified, and there is no claim of native macOS
 process-tree containment or production readiness. The measured fault
 model is in the source README.
@@ -126,8 +133,11 @@ this VM candidate by clean revision, target, toolchain and input digest.
 Its preview-source.tar.gz holds the source of every shipped binary at that
 commit. It is meant to rebuild both commands with `cargo build --release
 --locked -p ukai-jail --bin ukai-vm --bin ukai-jail` under the toolchain its
-rust-toolchain.toml pins (crates.io dependencies per Cargo.lock); a
-rebuild with that pinned toolchain has not been verified. An image.json
+rust-toolchain.toml pins (crates.io dependencies per Cargo.lock). The
+fa1d3392d baseline archive was rebuilt under Rust 1.98.1 for all five
+components; that is not a byte-reproducibility or later-archive claim.
+The current source archive also includes bounded admission proof for
+replaying its record judgments. An image.json
 without source_revision comes from the earlier script, which built the
 earlier published preview and this version's first candidate
 (2026-11-03): its preview-source.tar.gz holds only the VM tooling

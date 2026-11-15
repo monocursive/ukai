@@ -220,6 +220,19 @@ impl Secret {
         self.runtime.loaded_values()
     }
 
+    /// Keep a transported value bound to its staged source generation. This
+    /// never loads a replacement or refreshes a token. The VM carry rules
+    /// separately refuse refresh and executable bindings before using it.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn staged_source_lease(
+        self: &Arc<Self>,
+    ) -> Result<lifecycle::Lease, crate::proxy::Reason> {
+        let mut lease = lifecycle::Lease::default();
+        lease.add(Arc::clone(self), self.runtime.staged_generation());
+        lease.check()?;
+        Ok(lease)
+    }
+
     /// The `(dev, ino)` of every executable this secret is bound to, as
     /// pinned when it was staged.
     pub(crate) fn executable_identities(&self) -> Vec<(u64, u64)> {

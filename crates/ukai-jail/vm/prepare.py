@@ -7,7 +7,9 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
+import sys
 import tarfile
 import urllib.request
 
@@ -57,6 +59,64 @@ def fetch(url, path, expected):
         raise ValueError('checksum mismatch: ' + str(path))
 
 
+def verify_candidate(directory, dist):
+    """Use the release verifier without importing dist/package as vm/package.
+
+    The trust root is this checkout's release.pub, never a key supplied beside
+    the candidate or by the caller. This invokes check only, not publication.
+    """
+    script = '''import json, pathlib, sys
+sys.path.insert(0, sys.argv[1])
+from publish_release import check
+public = pathlib.Path(sys.argv[1], 'release.pub').read_text().splitlines()[1]
+plan, names = check(pathlib.Path(sys.argv[2]), public)
+print(json.dumps({'plan': plan, 'names': names}))
+'''
+    result = subprocess.run([sys.executable, '-I', '-c', script, str(dist), str(directory)],
+                            check=True, capture_output=True, text=True, timeout=60)
+    return json.loads(result.stdout)
+
+
+def stage_candidate(directory, cache, dist=None):
+    """Retain and reverify signed local inputs, then select their ARM archive."""
+    dist = (dist or SOURCE.parent / 'dist').resolve(strict=True)
+    directory = Path(directory).resolve(strict=True)
+    public = (dist / 'release.pub').read_bytes()
+    verified = verify_candidate(directory, dist)
+    retained = cache / 'signed-jail-candidate'
+    retained.mkdir(exist_ok=False)
+    for name in verified['names']:
+        shutil.copyfile(directory / name, retained / name)
+    # Check the copied bytes too: a changing input directory cannot put an
+    # unverified archive, plan or signature into the seed or saved provenance.
+    copied = verify_candidate(retained, dist)
+    if copied != verified or (dist / 'release.pub').read_bytes() != public:
+        raise ValueError('signed candidate or trusted public key changed while copying')
+    plan = copied['plan']
+    record = next(record for record in plan['artifacts'] if record['target'] == JAIL_TARGET)
+    archive = retained / record['archive']
+    destination = cache / 'jail.tar.gz'
+    # Existing output is never silently adopted or overwritten.
+    with archive.open('rb') as source, destination.open('xb') as output:
+        shutil.copyfileobj(source, output)
+    if sha(destination) != record['archive_sha256']:
+        raise ValueError('selected ARM archive changed while copying')
+    (retained / 'trusted-release.pub').write_bytes(public)
+    provenance = {
+        'kind': 'signed-local-candidate', 'signature_verified': True,
+        'verifier': 'publish_release.check', 'trusted_key': 'crates/ukai-jail/dist/release.pub',
+        'trusted_key_sha256': hashlib.sha256(public).hexdigest(),
+        'target': JAIL_TARGET, 'release': record['release'], 'tag': plan['tag'],
+        'source_revision': plan['target_commit'], 'build_inputs': plan['inputs'],
+        'archive': record['archive'], 'archive_sha256': record['archive_sha256'],
+        'binary_sha256': record['binary_sha256'], 'version': record['version'],
+        'retained_directory': 'cache/signed-jail-candidate',
+        'verified_assets_sha256': {name: sha(retained / name) for name in copied['names']},
+        'publication': 'local input verification only; no publication performed',
+    }
+    return record['archive_sha256'], provenance
+
+
 def seed(directory, files, commands):
     directory.mkdir()
     config = {'users': [], 'ssh_deletekeys': True, 'ssh_genkeytypes': [],
@@ -87,6 +147,8 @@ def pinned_digest(rows):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--jail-candidate', type=Path,
+                        help='use a local signed Linux candidate verified with the checked-in release.pub')
     args = parser.parse_args()
     if os.uname().sysname != 'Darwin' or os.uname().machine != 'arm64':
         parser.error('this prototype requires an Apple Silicon Mac')
@@ -95,8 +157,13 @@ def main():
     root.mkdir(parents=True, exist_ok=True)
     cache = root / 'cache'
     cache.mkdir(exist_ok=True)
+    if args.jail_candidate:
+        jail_sha256, jail_candidate = stage_candidate(args.jail_candidate, cache)
+        jail_url = None
+    else:
+        fetch(JAIL_URL, cache / 'jail.tar.gz', JAIL_SHA256)
+        jail_sha256, jail_candidate, jail_url = JAIL_SHA256, None, JAIL_URL
     fetch(IMAGE_URL, cache / 'ubuntu.img', IMAGE_SHA256)
-    fetch(JAIL_URL, cache / 'jail.tar.gz', JAIL_SHA256)
     subprocess.run(['swiftc', '-warnings-as-errors', '-O', str(SOURCE / 'vz.swift'), '-o', str(root / 'vz')], check=True)
     subprocess.run(['clang', '-Wall', '-Wextra', '-Werror', '-O2', str(SOURCE / 'custodian.c'), '-o', str(root / 'custodian')], check=True)
     subprocess.run(['codesign', '--force', '--sign', '-', '--entitlements', str(SOURCE / 'entitlements.plist'), str(root / 'vz')], check=True)
@@ -171,9 +238,11 @@ sh -x /usr/local/lib/ukai-vm/setup.sh
                         ('/usr/local/lib/ukai-vm/trace.sh', trace, '0700')],
          [['/bin/sh', '/usr/local/lib/ukai-vm/trace.sh']])
     metadata = {'schema': 'ukai.vm.image-build/1', 'status': 'preparing', 'image_url': IMAGE_URL,
-                'image_sha256': IMAGE_SHA256, 'jail_url': JAIL_URL, 'jail_archive_sha256': JAIL_SHA256,
+                'image_sha256': IMAGE_SHA256, 'jail_url': jail_url, 'jail_archive_sha256': jail_sha256,
                 'apt_snapshot': SNAPSHOT, 'apt_snapshot_url': SNAPSHOT_URL,
                 'source_sha256': {name: sha(SOURCE / name) for name in ['guest.py', 'vz.swift', 'custodian.c', 'prepare.py']}}
+    if jail_candidate is not None:
+        metadata['jail_candidate'] = jail_candidate
     (root / 'image.json').write_text(json.dumps(metadata, indent=2) + '\n')
     with (root / 'bootstrap-events.ndjson').open('wb') as events, (root / 'bootstrap-stderr.log').open('wb') as errors:
         vm = subprocess.Popen([str(root / 'vz'), str(root / 'base.raw'), str(root / 'seed.iso'),

@@ -276,7 +276,9 @@ def verify_signature(app, report, run=execute, distribution=False):
     require(report['signing'] == 'developer-id', 'A Developer ID signed package is required')
     protected_host(run)
     team = report['team']
-    run(['/usr/bin/codesign', '--verify', '--strict', '-R', requirement(team), app])
+    # A leading '=' selects inline requirement text; otherwise codesign
+    # interprets the expression as a filename and refuses before verification.
+    run(['/usr/bin/codesign', '--verify', '--strict', '-R', '=' + requirement(team), app])
     details = run(['/usr/bin/codesign', '--display', '--verbose=4', app]).stderr.decode()
     require(re.search(r'flags=0x[0-9a-fA-F]+\([^\n)]*runtime', details), 'Hardened runtime is absent')
     claimed = plistlib.loads(run(['/usr/bin/codesign', '--display', '--entitlements', '-', '--xml', app]).stdout)

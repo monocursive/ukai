@@ -612,6 +612,10 @@ fn an_attempt_session_frames_both_ways_against_the_stand_in() {
             custodian_sha256: "c".repeat(64),
             seed_sha256: "s".repeat(64),
             vsock_port: 1024,
+            guest_contracts: Some(protocol::GuestContracts {
+                secret_revocation: Some(protocol::SECRET_REVOCATION_CONTRACT.into()),
+                journal_export: Some(protocol::JOURNAL_EXPORT_CONTRACT.into()),
+            }),
         });
         reply(&FromVm::Prepared {
             kernel: "6.14.0".to_owned(),
@@ -700,9 +704,8 @@ impl Harness {
 /// D1 and D2 at the CLI: a `run --vm` the guest cannot honour refuses at
 /// probing, before any connection or staging. A policy the guest jail would
 /// not apply as asked names its field (`vm:not-carried:<field>`); one it
-/// would apply names the first requirement no measured guest record backs
-/// (`vm:not-measured:`), which, since the 2026-11-04 live phase, is only
-/// `execution_boundary`, `credential_staging` or the owner-loss bound.
+/// would apply needs both a measured requirement and the matching guest image.
+/// Owner-loss bounds always refuse, regardless of measured capabilities.
 #[test]
 #[cfg(target_os = "macos")]
 fn a_vm_run_the_guest_cannot_honour_refuses_at_probing_with_its_reason() {
@@ -711,21 +714,6 @@ fn a_vm_run_the_guest_cannot_honour_refuses_at_probing_with_its_reason() {
             vec!["--profile", "none", "--lifetime", "kernel-bound"],
             true,
             "--vm refuses --profile none",
-        ),
-        // The guest's fixed mem ceiling, required: `limit:mem` has a row,
-        // but a required mem ceiling needs an execution boundary, which no
-        // guest record measured.
-        (
-            vec![
-                "--profile",
-                "tool",
-                "--limit",
-                "wall=5s",
-                "--limit",
-                "mem=512MiB",
-            ],
-            true,
-            "vm:not-measured:execution_boundary",
         ),
         (
             vec![
@@ -836,16 +824,53 @@ fn a_vm_run_the_guest_cannot_honour_refuses_at_probing_with_its_reason() {
     }
 }
 
-/// D2 after the 2026-11-04 live phase: a default `tool` or `agent` plan
-/// passes probing and goes on to preparing. The test copies the binary to a
-/// directory with no `ukai-vm` beside it and keeps `PATH` free of one, so
-/// preparing stops at the live share's case check or at the serve lookup:
-/// past probing, and before any boot, connection or VM runtime directory.
+/// A prepared manifest for another image cannot borrow the measured rows.
+#[test]
+#[cfg(target_os = "macos")]
+fn an_unmeasured_vm_image_refuses_before_connection_or_staging() {
+    for extra in [Vec::new(), vec!["--limit", "mem=512MiB"]] {
+        let harness = Harness::new();
+        harness.install_stand_in();
+        let mut args = vec![
+            "run",
+            "--vm",
+            "--terminal",
+            "detach",
+            "--profile",
+            "tool",
+            "--limit",
+            "wall=5s",
+        ];
+        args.extend(extra);
+        args.extend(["--", "/bin/sh", "-c", "touch workload-ran"]);
+        let output = harness.run(&args);
+        assert_eq!(output.status.code(), Some(125), "{output:?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("vm:not-measured:"), "{stderr}");
+        assert!(stderr.contains(" at probing "), "{stderr}");
+        assert!(!harness.work.join("workload-ran").exists());
+        assert!(!harness.data.join("vm").exists());
+    }
+}
+
+/// A measured tool/agent plan, including explicit matching mem/pids limits,
+/// passes probing and reaches the share preflight or serve lookup. The manifest
+/// advertises the measured guest only in this no-boot stand-in; its payload is
+/// deliberately not usable and is never submitted to a VM service.
 #[test]
 #[cfg(target_os = "macos")]
 fn a_default_vm_run_passes_probing_and_stops_at_the_serve_lookup() {
     let harness = Harness::new();
     harness.install_stand_in();
+    let manifest_path = harness
+        .temp
+        .path()
+        .join(".local/share/ukai-vm/0.10.0/image/image.json");
+    let mut manifest: image::ImageManifest =
+        serde_json::from_slice(&std::fs::read(&manifest_path).unwrap()).unwrap();
+    manifest.disk_sha256 = ukai_jail::platform::macos::vm::GUEST_MEASURED_DISK_SHA256.into();
+    manifest.seed_sha256 = ukai_jail::platform::macos::vm::GUEST_MEASURED_SEED_SHA256.into();
+    std::fs::write(manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
     let lone = harness.temp.path().join("lone");
     std::fs::create_dir(&lone).unwrap();
     let binary = lone.join("ukai-jail");
@@ -853,25 +878,26 @@ fn a_default_vm_run_passes_probing_and_stops_at_the_serve_lookup() {
     std::fs::write(harness.work.join("Fold"), b"").unwrap();
     let folds_case = harness.work.join("fold").exists();
     std::fs::remove_file(harness.work.join("Fold")).unwrap();
-    for profile in ["tool", "agent"] {
+    for (profile, extra) in [
+        ("tool", Vec::new()),
+        ("agent", Vec::new()),
+        ("tool", vec!["--limit", "mem=512MiB"]),
+        ("tool", vec!["--limit", "pids=64"]),
+    ] {
+        let mut args = vec![
+            "run",
+            "--vm",
+            "--terminal",
+            "detach",
+            "--profile",
+            profile,
+            "--limit",
+            "wall=5s",
+        ];
+        args.extend(extra);
+        args.extend(["--", "/bin/sh", "-c", "touch workload-ran"]);
         let output = harness
-            .command_of(
-                &binary,
-                &[
-                    "run",
-                    "--vm",
-                    "--terminal",
-                    "detach",
-                    "--profile",
-                    profile,
-                    "--limit",
-                    "wall=5s",
-                    "--",
-                    "/bin/sh",
-                    "-c",
-                    "touch workload-ran",
-                ],
-            )
+            .command_of(&binary, &args)
             .output()
             .expect("the binary runs");
         assert_eq!(output.status.code(), Some(125), "{profile}: {output:?}");

@@ -32,12 +32,23 @@ also needs): the A01 fixture, ten repetitions, the no-source refusal,
 revocation, six active classes and the credential use count. The record
 lists them under `not_measured`.
 
-Usage: claude_vm_row.py <installed-root> <workspace> <out> <ukai-jail>
+Use --compatibility to retain A01, a small task, ten fresh repetitions and a
+missing-source control. This is a measurement matrix, never an automatic K113
+promotion: guest revocation, exported guest journal/counts and remaining Linux
+row conditions must still be demonstrated. --credential-source with
+--credential-kind api-key uses an explicitly supplied private Anthropic source;
+its value is never supplied in argv or the child environment.
+
+Usage: claude_vm_row.py <installed-root> <workspace> <out> <ukai-jail> [options]
 """
+import argparse
+import contextlib
 import hashlib
 import json
 import os
+import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -59,6 +70,21 @@ PROMPT = ('In the current directory, create a file named k113-marker.txt '
           'one newline. Then reply with just the word done.')
 NOT_MEASURED = ['A01 fixture', 'ten repetitions', 'no-source refusal', 'revocation',
                 'six active classes', 'credential use count']
+COMPATIBILITY_PENDING = ['revocation mid-stream', 'full independent summary recomputation',
+                         'sampled child environments', 'alias-derived executable grants',
+                         'installed notarized candidate qualification']
+A01_PROMPT = 'Create a file named greeting.txt containing the single word hello.'
+TASK_PROMPT = ('Fix slugify in slug.py so it lowercases its input. Run the existing '
+               'test_slug.py tests without changing that test file.')
+SLUG = 'def slugify(text):\n    return "-".join(text.strip().split())\n'
+SLUG_TEST = '''import unittest
+from slug import slugify
+class SlugTests(unittest.TestCase):
+    def test_lowercase(self): self.assertEqual(slugify("Hello World"), "hello-world")
+    def test_spaces(self): self.assertEqual(slugify("  Many   Spaces "), "many-spaces")
+    def test_empty(self): self.assertEqual(slugify(""), "")
+if __name__ == "__main__": unittest.main()
+'''
 
 PROFILE = '''# K113 measurement-only profile: the OAuth token through the vault
 name = "claude-vm"
@@ -74,6 +100,306 @@ env = "CLAUDE_CODE_OAUTH_TOKEN"
 [network]
 allow = ["api.anthropic.com"]
 '''
+
+
+def private_source(path):
+    """Read only a caller-selected regular private file, never a symlink/FIFO."""
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, 'rb') as stream:
+        before = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(before.st_mode) or before.st_uid != os.getuid()
+                or before.st_mode & 0o077 or before.st_nlink != 1 or not 0 < before.st_size <= 65536):
+            raise harness.HarnessError('credential source must be one private, owned regular file')
+        value = stream.read(65537)
+        after = os.fstat(stream.fileno())
+    if ((before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
+            != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns)
+            or len(value) != before.st_size):
+        raise harness.HarnessError('credential source changed during the bounded read')
+    if not value.strip() or any(char in value for char in (b'\0', b'\r', b'\n')):
+        raise harness.HarnessError('credential source must contain a single nonempty value without newlines')
+    try:
+        value.decode('utf-8')
+    except UnicodeError:
+        raise harness.HarnessError('credential source is not UTF-8') from None
+    return value
+
+
+def launch_profile(source, kind):
+    credential = 'anthropic' if kind == 'api-key' else 'claude'
+    variable = 'ANTHROPIC_API_KEY' if kind == 'api-key' else 'CLAUDE_CODE_OAUTH_TOKEN'
+    header = '{ name = "x-api-key" }' if kind == 'api-key' else '{ name = "authorization", prefix = "Bearer " }'
+    return (f'name = "claude-vm"\njail = "agent"\ncredentials_one_of = ["{credential}"]\n\n'
+            f'[credentials.{credential}]\nmode = "vault"\nsource = {json.dumps(str(source))}\n'
+            f'hosts = ["https://api.anthropic.com"]\nheader = {header}\nenv = "{variable}"\n'
+            f'hint = "supply the selected {credential} measurement source"\n\n'
+            '[network]\nallow = ["api.anthropic.com"]\n')
+
+
+def missing_source_facts(row, text, attempts):
+    """A capability refusal is not evidence of credential-source validation."""
+    return {'missing_source_refusal': row.get('run_exit') not in (None, 0)
+            and 'credential_unavailable' in text and 'none is present' in text
+            and 'launch.credentials_one_of' in text and row['credential_id'] in text,
+            'selected_source_hint': f'supply the selected {row["credential_id"]} measurement source' in text,
+            'no_attempt_or_workload': not attempts and row.get('unexpected_exec') is False,
+            'not_a_vm_capability_refusal': not harness.vm_refusals(text)}
+
+
+JOURNAL_MAX = 16 * 1024 * 1024
+JOURNAL_PART = 512 * 1024
+RECEIPT_MAX = 4 * 1024 * 1024
+
+
+def strict_json(data):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError('duplicate JSON member')
+            result[key] = value
+        return result
+    def invalid(_):
+        raise ValueError('non-JSON constant')
+    return json.loads(data, object_pairs_hook=pairs, parse_constant=invalid)
+
+
+def canonical_receipt(value):
+    """The receipt's integer-only JCS domain, including UTF-16 member order."""
+    if value is None or type(value) in (bool, str):
+        return json.dumps(value, ensure_ascii=False, separators=(',', ':'))
+    if type(value) is int and -(2 ** 63) <= value < 2 ** 64:
+        return str(value)
+    if type(value) is list:
+        return '[' + ','.join(canonical_receipt(item) for item in value) + ']'
+    if type(value) is dict:
+        return '{' + ','.join(canonical_receipt(key) + ':' + canonical_receipt(value[key])
+                              for key in sorted(value, key=lambda key: key.encode('utf-16-be'))) + '}'
+    raise ValueError('unsupported canonical receipt value')
+
+
+def verified_guest_journal(attempt):
+    """Bounded, anchored independent evidence reads; no host journal fallback.
+
+    A malformed/new unavailable export yields no events. Error text and journal
+    values never enter the diagnostic, which can be retained before a leak scan.
+    This qualification judge intentionally rejects all source-sequence holes,
+    even a documented loss that the general summary can describe as a lower bound.
+    """
+    result = {'state': 'invalid', 'verified': False}
+    guest = {}
+    try:
+        with contextlib.ExitStack() as stack:
+            def directory(path, parent=None):
+                fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+                stack.callback(os.close, fd)
+                return fd
+            def read(parent, name, cap):
+                fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+                with os.fdopen(fd, 'rb') as stream:
+                    before = os.fstat(fd)
+                    if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_size > cap:
+                        raise ValueError('invalid evidence file')
+                    value = stream.read(cap + 1)
+                    after = os.fstat(fd)
+                identity = lambda info: (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+                if len(value) != before.st_size or identity(before) != identity(after):
+                    raise ValueError('evidence changed while reading')
+                return value
+            root = directory(attempt)
+            evidence = directory('evidence', root)
+            receipt_bytes = read(evidence, 'jail.json', RECEIPT_MAX)
+            guest = strict_json(receipt_bytes)
+            if type(guest) is not dict or re.fullmatch(
+                    r'att_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}',
+                    guest.get('attempt_id', '')) is None:
+                raise ValueError('invalid guest identity')
+            receipt_hash = hashlib.sha256(receipt_bytes).hexdigest()
+            result.update(guest_attempt_id=guest['attempt_id'], guest_receipt_sha256=receipt_hash)
+            try:
+                journal = directory('guest-journal', evidence)
+            except FileNotFoundError:
+                result['state'] = 'absent'
+                return guest, None, result
+            manifest = strict_json(read(journal, 'manifest.json', 4096))
+            keys = {'schema', 'guest_attempt_id', 'guest_receipt_sha256', 'state', 'bytes', 'parts', 'sha256'}
+            if (type(manifest) is not dict or set(manifest) != keys
+                    or manifest['schema'] != 'ukai.vm.guest-journal/1'
+                    or manifest['guest_attempt_id'] != guest['attempt_id']
+                    or manifest['guest_receipt_sha256'] != receipt_hash
+                    or type(manifest['parts']) is not int or not 0 <= manifest['parts'] <= JOURNAL_MAX // JOURNAL_PART):
+                raise ValueError('invalid journal manifest')
+            expected = {'manifest.json'} | {f'{index:04}.part' for index in range(manifest['parts'])}
+            with os.scandir(journal) as listing:
+                names = []
+                for entry in listing:
+                    names.append(entry.name)
+                    if len(names) > len(expected):
+                        raise ValueError('unexpected journal entry')
+            if set(names) != expected or len(names) != len(expected):
+                raise ValueError('journal parts disagree')
+            if manifest['state'] != 'exported':
+                if (manifest['parts'] != 0 or manifest['sha256'] is not None
+                        or not ((manifest['state'] == 'absent' and manifest['bytes'] is None)
+                                or (manifest['state'] == 'unreadable' and (manifest['bytes'] is None
+                                    or type(manifest['bytes']) is int and manifest['bytes'] >= 0))
+                                or (manifest['state'] == 'not_scanned' and type(manifest['bytes']) is int
+                                    and manifest['bytes'] > JOURNAL_MAX))):
+                    raise ValueError('invalid unavailable journal')
+                result['state'] = manifest['state']
+                return guest, None, result
+            size = manifest['bytes']
+            if (type(size) is not int or not 0 < size <= JOURNAL_MAX
+                    or (size + JOURNAL_PART - 1) // JOURNAL_PART != manifest['parts']):
+                raise ValueError('invalid journal size')
+            payload = bytearray()
+            for index in range(manifest['parts']):
+                part = read(journal, f'{index:04}.part', JOURNAL_PART)
+                if len(part) != min(JOURNAL_PART, size - len(payload)):
+                    raise ValueError('invalid journal part size')
+                payload.extend(part)
+            digest = hashlib.sha256(payload).hexdigest()
+            if digest != manifest['sha256'] or not payload.endswith(b'\n'):
+                raise ValueError('invalid journal bytes')
+            events, sequences = [], {}
+            for line in payload.splitlines():
+                if not 0 < len(line) <= 65536:
+                    raise ValueError('invalid journal frame size')
+                event = strict_json(line)
+                if (type(event) is not dict or event.get('attempt_id') != guest['attempt_id']
+                        or type(event.get('source')) is not str or not event['source']
+                        or type(event.get('source_seq')) is not int
+                        or event['source_seq'] != sequences.get(event['source'], 0) + 1
+                        or type(event.get('fields', {})) is not dict):
+                    raise ValueError('invalid journal frame')
+                sequences[event['source']] = event['source_seq']
+                if event['source'] == 'proxy' and event.get('operation') == 'net.connect':
+                    fields = event.get('fields', {})
+                    if (event.get('stage') != 'result' or event.get('decision') not in ('allow', 'deny')
+                            or any(type(fields.get(key, [])) is not list
+                                   or any(type(item) is not str for item in fields.get(key, []))
+                                   for key in ('credentials', 'credentials_unconfirmed'))):
+                        raise ValueError('invalid proxy result')
+                events.append(event)
+            last = events[-1]
+            canonical_hash = 'sha256:' + hashlib.sha256(canonical_receipt(guest).encode()).hexdigest()
+            if (guest.get('phase') != 'settled' or last['source'] != 'wrapper'
+                    or last.get('operation') != 'jail.receipt'
+                    or last.get('fields', {}).get('phase') != 'settled'
+                    or last['fields'].get('receipt_digest') != canonical_hash):
+                raise ValueError('journal does not settle this receipt')
+            result.update(state='complete', verified=True, bytes=size, parts=manifest['parts'],
+                          sha256=digest, events=len(events), receipt_digest=canonical_hash)
+            return guest, events, result
+    except (OSError, ValueError, TypeError, KeyError, IndexError, RecursionError, UnicodeError):
+        return guest if type(guest) is dict else {}, None, result
+
+
+def compatibility_facts(row, guest, summary, events):
+    """Required per-run facts; absent guest journal/counts fail, never become zero."""
+    try:
+        return _compatibility_facts(row, guest, summary, events)
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return {'evidence_well_formed': False}
+
+
+def _compatibility_facts(row, guest, summary, events):
+    lines = {line.get('line'): line for line in summary.get('lines', [])}
+    evidence = (lines.get('evidence') or {}).get('facts') or {}
+    credentials = guest.get('credentials') or []
+    counted = ((lines.get('credentials') or {}).get('facts') or {}).get('credentials') or []
+    uses = None if events is None else sum(
+        event.get('source') == 'proxy' and event.get('operation') == 'net.connect'
+        and event.get('stage') == 'result' and row['credential_id'] in ((event.get('fields') or {}).get('credentials') or [])
+        for event in events)
+    proxy_results = [] if events is None else [event for event in events
+        if event.get('source') == 'proxy' and event.get('operation') == 'net.connect']
+    coverage = guest.get('coverage') or {}
+    return {'strict_observation': evidence.get('observe') == 'on' and evidence.get('evidence') == 'strict',
+            'six_active_classes_no_gaps': set(coverage) == set(harness.SUMMARY_CLASSES)
+            and all(value.get('status') == 'active' and value.get('gaps') == [] for value in coverage.values()),
+            'guest_settled_clean': guest.get('phase') == 'settled' and guest.get('errors') == []
+            and guest.get('containment') == 'enforced' and guest.get('child_protection') == 'enforced'
+            and guest.get('exec_observed') is True
+            and (guest.get('outcome') or {}).get('kind') == 'exited'
+            and (guest.get('outcome') or {}).get('code') == 0
+            and guest.get('state_cleanup') == 'complete' and guest.get('cleanup_error') is None
+            and (guest.get('lifetime') or {}).get('tree_empty') is True
+            and (guest.get('lifetime') or {}).get('integrity') == 'verified',
+            'one_vault_credential_never_staged': len(credentials) == 1
+            and credentials[0].get('id') == row['credential_id'] and credentials[0].get('mode') == 'vault'
+            and credentials[0].get('never_staged') is True,
+            'guest_journal_available': events is not None,
+            'guest_proxy_count_matches_receipt': events is not None
+            and type((coverage.get('proxy.net') or {}).get('observed_count')) is int
+            and coverage['proxy.net']['observed_count'] == len(proxy_results),
+            'credential_use_recording_confirmed': events is not None and any(
+                event.get('source') == 'wrapper' and event.get('operation') == 'note'
+                and (event.get('fields') or {}).get('kind') == 'credential'
+                and event['fields'].get('credential_id') == row['credential_id']
+                and event['fields'].get('uses_recorded') is True for event in events),
+            'exact_credential_uses_match': uses is not None and uses > 0 and len(counted) == 1
+            and counted[0].get('id') == row['credential_id'] and counted[0].get('uses_bound') == 'exact'
+            and counted[0].get('uses') == uses,
+            'tail_json_text_matches_text': row.get('tail_json_text_matches_text') is True,
+            'task_passed': row.get('task_passed') is True,
+            'measurement_passed': row.get('outcome') == 'PASS'}
+
+
+def parse_args(argv):
+    parser = argparse.ArgumentParser(description='Measure a scoped warm-VM Claude row; no qualification is implied.')
+    for name in ('home', 'workspace', 'out', 'jail'):
+        parser.add_argument(name)
+    parser.add_argument('--credential-kind', choices=('oauth', 'api-key'), default='oauth')
+    parser.add_argument('--credential-source', type=Path)
+    parser.add_argument('--case', choices=('marker', 'a01', 'small-task', 'missing-source'), default='marker')
+    parser.add_argument('--compatibility', action='store_true')
+    args = parser.parse_args(argv)
+    if args.credential_kind == 'api-key' and args.credential_source is None and args.case != 'missing-source':
+        parser.error('--credential-kind api-key requires --credential-source')
+    return args
+
+
+def compatibility_matrix(args, **injected):
+    workspace = harness.guarded_workspace(args.workspace)
+    out = harness.fresh_out_dir(args.out)
+    staged = workspace / CLAUDE_BINARY
+    if not staged.is_file() or staged.is_symlink() or harness.sha256_file(staged) != CLAUDE_SHA256:
+        raise harness.HarnessError('stage the pinned Claude binary before the compatibility matrix')
+    lanes = [('a01', 'a01'), ('small-task', 'small-task')]
+    lanes += [(f'repetition-{number:02}', 'a01') for number in range(1, 11)]
+    lanes += [('missing-source', 'missing-source')]
+    rows = []
+    for label, case in lanes:
+        trial = workspace / ('a01' if case == 'small-task' else label)
+        if case != 'small-task':
+            trial.mkdir()
+            harness.mark_workspace(trial)
+            shutil.copyfile(staged, trial / CLAUDE_BINARY)
+            (trial / CLAUDE_BINARY).chmod(0o755)
+        argv = [args.home, str(trial), str(out / label), args.jail,
+                '--credential-kind', args.credential_kind, '--case', case]
+        if args.credential_source is not None:
+            argv += ['--credential-source', str(args.credential_source)]
+        try:
+            code = main(argv, **injected)
+            row = read_json(out / label / 'k113-claude.json')
+            rows.append({'case': label, 'exit': code, 'outcome': row.get('outcome'),
+                         'compatibility_facts': row.get('compatibility_facts', {})})
+        except Exception as error:
+            # Keep every failed lane, but never serialize exception messages that
+            # may carry vendor output or credentials.
+            rows.append({'case': label, 'exit': None, 'outcome': 'ERROR', 'error_type': type(error).__name__})
+        harness.write_json(out / f'k113-progress-{len(rows):02}.json', {'rows': rows, 'qualified': False,
+            'outcome': 'UNMEASURED', 'not_measured': COMPATIBILITY_PENDING})
+    measured = all(row.get('compatibility_facts') and all(row['compatibility_facts'].values()) for row in rows)
+    result = {'schema': 'ukai.vm.claude-compatibility/1', 'credential_kind': args.credential_kind,
+              'rows': rows, 'qualified': False, 'outcome': 'UNMEASURED' if measured else 'FAIL',
+              'not_measured': COMPATIBILITY_PENDING,
+              'scope': 'Explicit workspace executable; no native alias, revocation or release promotion.'}
+    harness.write_json(out / 'k113-matrix.json', result)
+    print(json.dumps({'outcome': result['outcome'], 'qualified': False, 'runs_retained': len(rows)}))
+    return 1  # An incomplete compatibility record can never signal qualification.
 
 
 def credential_candidates():
@@ -129,7 +455,31 @@ def agent_result(text):
 
 
 def text_leaks(token, **texts):
-    return sorted(name for name, text in texts.items() if token.decode() in (text or ''))
+    return sorted(name for name, text in texts.items()
+                  if any(spelling in (text or '') for spelling in secret_spellings(token)))
+
+
+def secret_spellings(token):
+    text = token.decode()
+    return sorted({text, json.dumps(text, ensure_ascii=True)[1:-1],
+                   json.dumps(text, ensure_ascii=False)[1:-1]}, key=len, reverse=True)
+
+
+def redact_text(text, token):
+    for spelling in secret_spellings(token):
+        text = text.replace(spelling, '<token>')
+    return text
+
+
+def redact_value(value, token):
+    """Redact parsed values before shortening or JSON escaping can hide a match."""
+    if isinstance(value, str):
+        return redact_text(value, token)
+    if isinstance(value, list):
+        return [redact_value(entry, token) for entry in value]
+    if isinstance(value, dict):
+        return {redact_value(key, token): redact_value(entry, token) for key, entry in value.items()}
+    return value
 
 
 def judge(row):
@@ -138,7 +488,8 @@ def judge(row):
                                          and row.get('tree_empty') is True),
         'agent_succeeded': bool(row.get('agent_result')) and row['agent_result'].get('subtype') == 'success'
         and row['agent_result'].get('is_error') is False,
-        'marker_on_host': (row.get('marker_content') or '') == 'contained\n',
+        'marker_on_host': ((row.get('marker_content') or '') == 'contained\n'
+                           if row.get('case', 'marker') == 'marker' else row.get('task_passed') is True),
         'guest_receipt_linux': row.get('guest_receipt_linux') is True,
         'receipt_bound_to_this_attempt': row.get('receipt_bound') is True,
         'token_in_no_export': row.get('token_in_exports') == [] and row.get('files_scanned', 0) > 0,
@@ -153,23 +504,32 @@ def judge(row):
 
 def main(argv=None, now=time.time, candidates=credential_candidates, run=subprocess.run):
     argv = sys.argv[1:] if argv is None else argv
-    if len(argv) != 4:
-        print(__doc__, file=sys.stderr)
-        return 2
-    home = Path(argv[0]).resolve(strict=True)
-    workspace = harness.guarded_workspace(argv[1])
-    jail = harness.required_binary('UKAI_JAIL_BINARY', argv[3])
-    out = harness.fresh_out_dir(argv[2])
-    harness.clean_workspace(workspace, keep=(CLAUDE_BINARY,))
+    args = parse_args(argv)
+    if args.compatibility:
+        return compatibility_matrix(args, now=now, candidates=candidates, run=run)
+    home = Path(args.home).resolve(strict=True)
+    workspace = harness.guarded_workspace(args.workspace)
+    jail = harness.required_binary('UKAI_JAIL_BINARY', args.jail)
+    out = harness.fresh_out_dir(args.out)
+    keep = (CLAUDE_BINARY, '.git', 'greeting.txt') if args.case == 'small-task' else (CLAUDE_BINARY,)
+    harness.clean_workspace(workspace, keep=keep)
     staged = workspace / CLAUDE_BINARY
     if not staged.is_file() or staged.is_symlink():
         raise harness.HarnessError(f'stage the {CLAUDE_VERSION} linux-arm64 binary in {staged} first')
     if harness.sha256_file(staged) != CLAUDE_SHA256:
         raise harness.HarnessError('the staged claude binary does not match its manifest digest')
-    section = select_token(candidates(), now() * 1000)
-    if section is None:
+    section = None
+    if args.case != 'missing-source' and args.credential_source is None:
+        section = select_token(candidates(), now() * 1000)
+    if section is None and args.credential_source is None and args.case != 'missing-source':
         raise harness.HarnessError(f'no Claude Code OAuth token with {EXPIRY_MARGIN_SECONDS // 60} min of life '
                                    'left: run `claude` once on this Mac to refresh the session, then rerun')
+    if args.case in ('a01', 'small-task'):
+        subprocess.run(['git', '-c', 'init.defaultBranch=main', 'init', '-q', str(workspace)], check=True,
+                       env=harness.vm_client_environment(), capture_output=True, timeout=30)
+    if args.case == 'small-task':
+        (workspace / 'slug.py').write_text(SLUG)
+        (workspace / 'test_slug.py').write_text(SLUG_TEST)
 
     source_dir = Path(tempfile.mkdtemp(prefix='k113-vault-')).resolve()
     source = source_dir / 'token'
@@ -180,18 +540,34 @@ def main(argv=None, now=time.time, candidates=credential_candidates, run=subproc
     environment = harness.vm_client_environment(PATH=f'{home}/bin:/usr/bin:/bin', UKAI_VM_HOME=home,
                                                 UKAI_DATA_DIR=data, UKAI_CONFIG_DIR=config)
     row = {'claude_version': CLAUDE_VERSION, 'claude_sha256': CLAUDE_SHA256,
-           'binary': harness.fingerprint(jail), 'not_measured': NOT_MEASURED}
+           'binary': harness.fingerprint(jail), 'not_measured': NOT_MEASURED,
+           'case': args.case, 'credential_kind': args.credential_kind,
+           'credential_id': 'anthropic' if args.credential_kind == 'api-key' else 'claude',
+           'qualified': False, 'compatibility_outcome': 'UNMEASURED'}
     token = b''
-    stdout = stderr = tail = ''
+    stdout = stderr = tail = tail_json = tail_json_error = ''
     try:
-        token, row['token_shape'] = write_token(section, source)
+        if args.case != 'missing-source':
+            if args.credential_source is not None:
+                token = private_source(args.credential_source)
+                descriptor = os.open(source, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(descriptor, 'wb') as output:
+                    output.write(token)
+                row['token_shape'] = {'bytes': len(token), 'kind': args.credential_kind}
+            else:
+                token, row['token_shape'] = write_token(section, source)
         os.chmod(config, 0o700)
         (config / 'launch').mkdir()
-        (config / 'launch' / 'claude-vm.toml').write_text(PROFILE.format(source=source))
+        (config / 'launch' / 'claude-vm.toml').write_text(launch_profile(source, args.credential_kind))
         os.chmod(config / 'launch' / 'claude-vm.toml', 0o600)
+        prompt = {'marker': PROMPT, 'a01': A01_PROMPT, 'small-task': TASK_PROMPT}.get(args.case, PROMPT)
         script = ('CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 '
-                  f'./{CLAUDE_BINARY} -p {json.dumps(PROMPT)} '
+                  f'./{CLAUDE_BINARY} -p {json.dumps(prompt)} '
                   '--dangerously-skip-permissions --output-format json')
+        if args.case == 'small-task':
+            script += " && /usr/bin/python3 -m unittest -q && printf 'K113_TESTS_PASSED\\n'"
+        if args.case == 'missing-source':
+            script = "printf 'unexpected execution\\n' > k113-unexpected-exec.txt"
         row['argv_digest'] = harness.argv_digest(['/bin/sh', '-c', script])
         started = time.monotonic()
         try:
@@ -214,6 +590,12 @@ def main(argv=None, now=time.time, candidates=credential_candidates, run=subproc
                           env=environment, capture_output=True, text=True, timeout=60)
             tail = summary.stdout + summary.stderr
             row['tail_summary_exit'] = summary.returncode
+            if args.case != 'marker':
+                json_summary = run([str(jail), 'tail', '--summary', '--json', '--attempt', attempt.name],
+                                   env=environment, capture_output=True, text=True, timeout=60)
+                tail_json = json_summary.stdout
+                tail_json_error = json_summary.stderr
+                row['tail_summary_json_exit'] = json_summary.returncode
     finally:
         # The token goes first: `ukai-vm stop` may raise or time out, and
         # nothing after a raise would run.
@@ -238,7 +620,16 @@ def main(argv=None, now=time.time, candidates=credential_candidates, run=subproc
         transport = read_json(attempt / 'vm-transport.json')
         guest = read_json(attempt / 'evidence/jail.json')
         result = agent_result(stdout + stderr)
+        if token:
+            result = redact_value(result, token)
         marker = workspace / 'k113-marker.txt'
+        greeting = workspace / 'greeting.txt'
+        if args.case == 'a01':
+            row['task_passed'] = greeting.is_file() and not greeting.is_symlink() and greeting.read_text().strip() == 'hello'
+        elif args.case == 'small-task':
+            tests = workspace / 'test_slug.py'
+            row['task_passed'] = (tests.is_file() and not tests.is_symlink() and tests.read_text() == SLUG_TEST
+                                  and 'K113_TESTS_PASSED' in stdout and row.get('run_exit') == 0)
         row.update({
             'attempt_id': attempt.name,
             'phase': stored.get('phase'),
@@ -260,18 +651,52 @@ def main(argv=None, now=time.time, candidates=credential_candidates, run=subproc
         })
     if token:
         # The texts are scanned in memory first; a copy on disk never carries the value.
-        row['token_in_outputs'] = text_leaks(token, stdout=stdout, stderr=stderr, tail=tail)
-        stdout, stderr, tail = (text.replace(token.decode(), '<token>') for text in (stdout, stderr, tail))
+        row['token_in_outputs'] = text_leaks(token, stdout=stdout, stderr=stderr, tail=tail,
+                                           tail_json=tail_json, tail_json_error=tail_json_error)
+        stdout, stderr, tail, tail_json, tail_json_error = (
+            redact_text(text, token) for text in (stdout, stderr, tail, tail_json, tail_json_error))
     (out / 'k113-tail-summary.txt').write_text(tail)
     (out / 'k113-run-stdout.txt').write_text(stdout)
     (out / 'k113-run-stderr.txt').write_text(stderr)
+    if args.case != 'marker':
+        (out / 'k113-tail-summary.json').write_text(tail_json)
+        (out / 'k113-tail-summary-json.stderr').write_text(tail_json_error)
     if token:
-        row['token_in_exports'], row['files_scanned'] = vault_measurement.leak_scan([data, out, workspace], token)
-    facts, outcome = judge(row)
+        scans = [vault_measurement.leak_scan([data, out, workspace], spelling.encode())
+                 for spelling in secret_spellings(token)]
+        row['token_in_exports'] = sorted({path for hits, _ in scans for path in hits})
+        row['files_scanned'] = max(scanned for _, scanned in scans)
+    if args.case == 'missing-source':
+        row['unexpected_exec'] = (workspace / 'k113-unexpected-exec.txt').exists()
+        facts = missing_source_facts(row, stdout + '\n' + stderr, attempts)
+        outcome = 'PASS' if all(facts.values()) else 'FAIL'
+        row['compatibility_facts'] = facts
+    else:
+        facts, outcome = judge(row)
     row['refusals'] = harness.vm_refusals(stdout + '\n' + stderr)
     if row['refusals']:
         outcome = 'REFUSED'  # recorded as what it is, never a pass
     row.update({'facts': facts, 'outcome': outcome})
+    if args.case in ('a01', 'small-task'):
+        try:
+            summary_value = json.loads(tail_json)
+            if type(summary_value) is not dict:
+                raise ValueError('summary shape')
+        except ValueError:
+            summary_value = {}
+        summary_lines = [f"ukai-jail: {line.get('text', '')}" for line in summary_value.get('lines', [])]
+        printed = [line for line in tail.splitlines()
+                   if line.startswith('ukai-jail: ') and not line.startswith('ukai-jail: receipt ')
+                   and not line.startswith('ukai-jail: vm: ')]
+        row['tail_json_text_matches_text'] = (row.get('tail_summary_json_exit') == 0
+                                            and bool(summary_lines) and printed == summary_lines)
+        guest, events, row['guest_journal'] = verified_guest_journal(out / 'k113-attempt')
+        row['compatibility_facts'] = compatibility_facts(row, guest, summary_value, events)
+        row['not_measured'] = COMPATIBILITY_PENDING
+    if token:
+        # The parsed vendor result is captured before output redaction. It too
+        # must never export a value the agent happened to print in its result.
+        row = redact_value(row, token)
     harness.write_json(out / 'k113-claude.json', row)
     print(json.dumps({'facts': facts, 'outcome': outcome}))
     return 0 if outcome == 'PASS' else 1

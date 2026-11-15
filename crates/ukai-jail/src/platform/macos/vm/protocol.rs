@@ -26,6 +26,32 @@ pub const SCHEMA_CONTROL: &str = "ukai.jail.vm-control/1";
 /// The attempt protocol's identifier, as `ready` reports it.
 pub const SCHEMA_ATTEMPT: &str = "ukai.jail.vm-attempt/1";
 
+/// The guest source-removal and exact-ID acknowledgement contract.
+pub const SECRET_REVOCATION_CONTRACT: &str = "ukai.vm.secret-revocation/1";
+/// The bounded, receipt-bound guest journal manifest and parts contract.
+pub const JOURNAL_EXPORT_CONTRACT: &str = "ukai.vm.guest-journal/1";
+
+/// Contracts the running guest declared in its Session reply. Optional fields
+/// keep old noncredential guests usable; absent or unknown versions never
+/// authorize sending credential values. The service forwards these facts,
+/// rather than substituting the contracts its own executable implements.
+#[derive(Clone, Default, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct GuestContracts {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub secret_revocation: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub journal_export: Option<String>,
+}
+
+impl GuestContracts {
+    /// Both contracts are required before any credential-bearing Prepare.
+    #[must_use]
+    pub fn supports_credentials(&self) -> bool {
+        self.secret_revocation.as_deref() == Some(SECRET_REVOCATION_CONTRACT)
+            && self.journal_export.as_deref() == Some(JOURNAL_EXPORT_CONTRACT)
+    }
+}
+
 /// The most bytes one frame (one NDJSON line) may take. A `put` carries at
 /// most [`MAX_FILE`] payload bytes, which base64 expands by a third; the
 /// receipt frame carries a whole receipt, whose bound this covers four
@@ -257,6 +283,9 @@ pub enum ToVm {
     /// Release: run the jail. The frames before this stage; this one starts
     /// the guest attempt.
     Run,
+    /// Revoke the already-staged sources of this released attempt. No value
+    /// or replacement crosses; the guest removes them and acknowledges IDs.
+    RevokeSecrets { ids: Vec<String> },
 }
 
 /// A guest-controller statement connecting a guest jail receipt to this host run.
@@ -289,6 +318,10 @@ pub enum FromVm {
         seed_sha256: String,
         /// The vsock port the guest controller listens on.
         vsock_port: u32,
+        /// What this boot's guest Session actually declared, not a capability
+        /// inferred from the service version or an image manifest label.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        guest_contracts: Option<GuestContracts>,
     },
     /// The guest accepted the staging: workspace reset, files and ephemeral
     /// credentials held. Carries the guest kernel, which the receipt's
@@ -308,6 +341,8 @@ pub enum FromVm {
         /// The guest supervisor's pid, as the guest reported it.
         supervisor_pid: u32,
     },
+    /// Every named staged source was removed from this attempt's tmpfs.
+    SecretsRevoked { ids: Vec<String> },
     /// A chunk of the target's stdout, base64.
     Stdout {
         /// The bytes, base64.
@@ -533,6 +568,10 @@ mod tests {
                 custodian_sha256: "c".repeat(64),
                 seed_sha256: "s".repeat(64),
                 vsock_port: 1024,
+                guest_contracts: Some(GuestContracts {
+                    secret_revocation: Some(SECRET_REVOCATION_CONTRACT.into()),
+                    journal_export: Some(JOURNAL_EXPORT_CONTRACT.into()),
+                }),
             },
             FromVm::Prepared {
                 kernel: "6.14.0".to_owned(),

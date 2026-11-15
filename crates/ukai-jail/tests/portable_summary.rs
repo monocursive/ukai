@@ -1886,6 +1886,208 @@ fn k53_uses_count_the_results_that_carried_the_credential() {
     );
 }
 
+// A VM has two receipts and two journals. Only the guest journal can count
+// guest operations; the host's outcome and cleanup still describe transport.
+mod vm_export {
+    use super::*;
+    use sha2::{Digest as _, Sha256};
+    use std::os::unix::fs::symlink;
+
+    fn sha(bytes: &[u8]) -> String {
+        format!("{:x}", Sha256::digest(bytes))
+    }
+
+    fn write(path: &Path, value: &Value) {
+        std::fs::write(path, serde_json::to_vec(value).unwrap()).unwrap();
+    }
+
+    fn attempt(fixture: &Fixture, journal: &[u8]) -> (tempfile::TempDir, PathBuf, Value) {
+        let temp = common::private_tempdir();
+        let path = temp.path().join("attempt");
+        let evidence = path.join("evidence");
+        std::fs::create_dir_all(&evidence).unwrap();
+        let guest_bytes = serde_json::to_vec(&fixture.receipt).unwrap();
+        std::fs::write(evidence.join("jail.json"), &guest_bytes).unwrap();
+        let mut host = fixture.receipt.clone();
+        host["attempt_id"] = json!("att_00000000-0000-4000-8000-000000000002");
+        host["credentials"] = json!([]);
+        host["applied"]["limits"][0]["hit"] = json!(true);
+        host["state_cleanup"] = json!("pending");
+        host["applied"]["terminal"]["restored"] = json!({"foreground": false});
+        host["lifetime"]["native"] = json!({"os":"linux", "details":{
+            "transport": summary::VM_TRANSPORT_SCHEMA,
+            "guest_receipt_sha256": format!("sha256:{}", sha(&guest_bytes)),
+        }});
+        write(&path.join("jail.json"), &host);
+        write(
+            &path.join(summary::VM_TRANSPORT_FILE),
+            &json!({
+                "guest_receipt_sha256": sha(&guest_bytes), "boot_id":"guest-boot",
+            }),
+        );
+        export(&path, &fixture.receipt, journal);
+        (temp, path, host)
+    }
+
+    fn export(path: &Path, guest: &Value, bytes: &[u8]) {
+        let root = path.join("evidence/guest-journal");
+        if root.exists() {
+            std::fs::remove_dir_all(&root).unwrap();
+        }
+        std::fs::create_dir(&root).unwrap();
+        let chunks: Vec<_> = bytes.chunks(512 * 1024).collect();
+        for (index, part) in chunks.iter().enumerate() {
+            std::fs::write(root.join(format!("{index:04}.part")), part).unwrap();
+        }
+        write(
+            &root.join("manifest.json"),
+            &json!({
+                "schema":"ukai.vm.guest-journal/1", "guest_attempt_id":guest["attempt_id"],
+                "guest_receipt_sha256":sha(&std::fs::read(path.join("evidence/jail.json")).unwrap()),
+                "state":"exported", "bytes":bytes.len(), "parts":chunks.len(), "sha256":sha(bytes),
+            }),
+        );
+    }
+
+    #[test]
+    fn counts_guest_credential_uses_and_preserves_host_identity_and_limits() {
+        let fixture = clean_agent();
+        let (_temp, path, host) = attempt(&fixture, &fixture.journal());
+        // A perfectly valid but unrelated host journal must never be used.
+        std::fs::write(path.join("trace.ndjson"), b"not guest evidence\n").unwrap();
+        let result = summary::summarize_attempt(&path).unwrap();
+        assert_eq!(result.attempt_id, host["attempt_id"]);
+        assert_eq!(result.receipt_digest, Some(digest(&host)));
+        assert_eq!(result.journal, JournalState::Complete);
+        let credential = &facts(&result, "credentials")["credentials"][0];
+        assert_eq!(credential["uses"], 3);
+        assert_eq!(credential["uses_bound"], "exact");
+        assert_eq!(credential["never_staged"], true);
+        let original = summary::summary(&host, Journal::Guest);
+        for line in ["status", "limits", "cleanup"] {
+            assert_eq!(facts(&result, line), facts(&original, line), "{line}");
+        }
+        assert!(result.transport.is_some());
+        assert!(result.terminal(&path.join("jail.json")).len() <= summary::MAX_TERMINAL_LINES);
+    }
+
+    #[test]
+    fn a_guest_journal_crossing_multiple_transport_parts_keeps_exact_counts() {
+        let mut fixture = clean_agent();
+        for _ in 0..2000 {
+            fixture.proxy(
+                Some("api.example.test:443"),
+                true,
+                true,
+                "relayed",
+                &["api"],
+            );
+        }
+        fixture.sync();
+        let journal = fixture.journal();
+        assert!(journal.len() > 512 * 1024);
+        let (_temp, path, _) = attempt(&fixture, &journal);
+        let result = summary::summarize_attempt(&path).unwrap();
+        assert_eq!(result.journal, JournalState::Complete);
+        let credential = &facts(&result, "credentials")["credentials"][0];
+        assert_eq!(credential["uses"], 2003);
+        assert_eq!(credential["uses_bound"], "exact");
+    }
+
+    #[test]
+    fn rejects_transport_tampering_and_unbound_or_incomplete_source_journals() {
+        for mutation in [
+            "part",
+            "extra",
+            "missing",
+            "symlink",
+            "directory_link",
+            "identity",
+            "receipt",
+            "torn",
+            "no_note",
+            "foreign",
+            "duplicate",
+        ] {
+            let mut fixture = clean_agent();
+            let (_temp, path, _) = attempt(&fixture, &fixture.journal());
+            let root = path.join("evidence/guest-journal");
+            match mutation {
+                "part" => std::fs::write(root.join("0000.part"), b"changed").unwrap(),
+                "extra" => std::fs::write(root.join("0001.part"), b"extra").unwrap(),
+                "missing" => std::fs::remove_file(root.join("0000.part")).unwrap(),
+                "symlink" => {
+                    std::fs::rename(root.join("0000.part"), path.join("outside")).unwrap();
+                    symlink(path.join("outside"), root.join("0000.part")).unwrap();
+                }
+                "directory_link" => {
+                    std::fs::rename(&root, path.join("outside")).unwrap();
+                    symlink(path.join("outside"), &root).unwrap();
+                }
+                "identity" | "receipt" => {
+                    let mut manifest: Value =
+                        serde_json::from_slice(&std::fs::read(root.join("manifest.json")).unwrap())
+                            .unwrap();
+                    manifest[if mutation == "identity" {
+                        "guest_attempt_id"
+                    } else {
+                        "guest_receipt_sha256"
+                    }] = json!("different");
+                    write(&root.join("manifest.json"), &manifest);
+                }
+                "torn" => {
+                    let mut bytes = fixture.journal();
+                    bytes.pop();
+                    export(&path, &fixture.receipt, &bytes);
+                }
+                "no_note" => export(&path, &fixture.receipt, &fixture.journal_without_note()),
+                "foreign" => {
+                    fixture.events[0]["attempt_id"] = json!("another-attempt");
+                    export(&path, &fixture.receipt, &fixture.journal());
+                }
+                "duplicate" => {
+                    fixture.events.insert(1, fixture.events[0].clone());
+                    export(&path, &fixture.receipt, &fixture.journal());
+                }
+                _ => unreachable!(),
+            }
+            assert!(summary::summarize_attempt(&path).is_err(), "{mutation}");
+        }
+    }
+
+    #[test]
+    fn unavailable_or_disagreeing_guest_evidence_never_invents_a_use_count() {
+        for state in ["absent", "unreadable", "not_scanned"] {
+            let fixture = clean_agent();
+            let (_temp, path, _) = attempt(&fixture, &fixture.journal());
+            let root = path.join("evidence/guest-journal");
+            std::fs::remove_file(root.join("0000.part")).unwrap();
+            write(
+                &root.join("manifest.json"),
+                &json!({
+                    "schema":"ukai.vm.guest-journal/1", "guest_attempt_id":fixture.receipt["attempt_id"],
+                    "guest_receipt_sha256":sha(&std::fs::read(path.join("evidence/jail.json")).unwrap()),
+                    "state":state, "bytes":if state == "not_scanned" { json!(summary::SCAN_CAP + 1) } else { Value::Null },
+                    "parts":0, "sha256":null,
+                }),
+            );
+            let result = summary::summarize_attempt(&path).unwrap();
+            let credential = &facts(&result, "credentials")["credentials"][0];
+            assert!(credential["uses"].is_null(), "{state}");
+            assert_eq!(credential["uses_bound"], "unavailable", "{state}");
+        }
+        let mut fixture = clean_agent();
+        fixture.receipt["coverage"]["proxy.net"]["observed_count"] = json!(999);
+        let (_temp, path, _) = attempt(&fixture, &fixture.journal());
+        let result = summary::summarize_attempt(&path).unwrap();
+        assert!(facts(&result, "credentials")["credentials"][0]["uses"].is_null());
+        assert_eq!(
+            facts(&result, "credentials")["credentials"][0]["uses_bound"],
+            "disagree"
+        );
+    }
+}
+
 // ===========================================================================
 // The binary: a private state root, and a pseudo-terminal for stderr
 // ===========================================================================

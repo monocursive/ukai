@@ -1,0 +1,11 @@
+{
+  "schema": "ukai.warm-vm.handshake-lifecycle/1",
+  "checked_at": "2026-11-15T13:55:38.774619+00:00",
+  "raw_service_exit": 0,
+  "capability_service_exit": 0,
+  "owned_guest_processes_remaining": [],
+  "dmg_detached": true,
+  "workspace_volume_retained": true,
+  "source_image_package_and_raw_evidence_retained": true,
+  "capability_admission": false
+}
