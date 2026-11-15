@@ -330,6 +330,58 @@ filename and stopped before compilation. That harness error is retained under
 `source-rebuild-e8d0c2b07/`; no source-rebuild pass is claimed for this package.
 The independently verified archive and extracted source remain available.
 
+The config-directory fix at `23e18ef2b` grants the marker-listing permission
+while preserving the private credential directory and file modes. A real
+dropped-UID Linux regression reproduces the earlier refusal and verifies the
+corrected listing/read behavior without granting writes, rename or unlink.
+The next native version/help probes executed successfully, but exposed a
+separate sampler defect: the jail supervisor and its launched workload have
+different process identities. The earlier report incorrectly equated them.
+
+Clean source `9fdf7edc89d010e2acfce31cd640b5d1bc24b321` corrects that binding
+with sampled-exposure contract `/2`. It retains the actual Released supervisor
+PID and captured birth separately from the receipt workload, and requires
+positive environment/argv reads of that exact catalog workload before reporting
+complete coverage. Another process cannot supply those observations. Invalid,
+unavailable or incomplete sampling does not rewrite a verified execution
+outcome. Targeted guest, Rust, independent-reader and service checks passed;
+the actual Linux sampler/control run passed 43 cases without skips.
+
+The fresh [native-v4 component proof](results/macos-vm-admission-2026-11-15/native-v4/README.md)
+binds the new image to ten capability rows, 121 boundary facts, 24 raw-vault
+facts and 24 executable-binding facts. Its 76 retained files include the
+integrity manifest; 54 derivation checks, 29 focused tests and 18 relocation/
+tamper controls passed. The original image proof and native-v2 history remain
+unchanged. No v3 measurement is inherited by v4.
+
+The private 9fdf DMG has SHA-256
+`70ff6d702fd9d5b13498a7f5f6498563be9ad617331935c3d5e9923990390540`.
+Six strict Developer ID signatures and seven actual installer cases passed.
+Independent mounted-DMG review matched every installed file/mode, all 679
+archived source files and modes against the clean commit, and the exact
+prepared guest/catalog/detector inputs. This intermediate package does not
+yet admit its new image through the normal installed native route.
+
+Its raw native version probe passed all 19 execution checks and exported a
+valid `/2` report. Sampling was honestly **incomplete**, with no hits or scan
+errors and no positive vendor-process reads. The complete guest journal
+records only 17.807167 ms between that workload's exec and exit, shorter than
+the 100 ms sampling period; this permits a missed observation and does not
+prove continuous coverage. The original diagnostic FAIL is retained under
+`guest-native-raw-version-9fdf7edc8/`. All owned VM processes stopped and the
+task workspace volume was detached after the component runs. No provider
+credential has been read or used by these measurements.
+
+Hosted [contracts/website](https://github.com/monocursive/ukai/actions/runs/43747310959)
+and [fleet](https://github.com/monocursive/ukai/actions/runs/43747310962) passed
+at 9fdf. The [Rust run](https://github.com/monocursive/ukai/actions/runs/43747310984)
+passed its Linux and dependency lanes but **failed on macOS**: the byte-relay
+test delivered its entire 49,163-byte request without forwarding the half-close
+within 20 seconds. The unchanged bridge reproduced that failure locally.
+The failed CI log is retained; this source has no all-checks-pass claim.
+Diagnosis, final admitted-host validation, source-archive rebuilding and
+provider qualification remain open.
+
 ## Remaining release limits
 
 No usable Endpoint Security provisioning profile was found among the 17 local

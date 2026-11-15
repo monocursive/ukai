@@ -1,0 +1,56 @@
+{
+  "schema": "ukai.vm.installer-check/3",
+  "artifact": {
+    "volume": "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-9fdf7edc8",
+    "version": "0.1.0-preview.2",
+    "manifest_sha256": "7d89bf776b1b6e62e2f1d572559d1e33e8bdd1977b8fc5fc8351fc84892bb66b",
+    "installer_sha256": "1f1e72b4b1fe925502734dfddef38046d8eb887f545e4612e66561acf54b03c3",
+    "dmg": "ukai-vm-0.1.0-preview.2-macos-arm64.dmg",
+    "dmg_sha256": "70ff6d702fd9d5b13498a7f5f6498563be9ad617331935c3d5e9923990390540"
+  },
+  "results": [
+    {
+      "case": "install",
+      "exit_code": 0,
+      "passed": true,
+      "failed_checks": []
+    },
+    {
+      "case": "repeat-refused",
+      "exit_code": 2,
+      "passed": true,
+      "failed_checks": []
+    },
+    {
+      "case": "unrelated-refused",
+      "exit_code": 2,
+      "passed": true,
+      "failed_checks": []
+    },
+    {
+      "case": "unrelated-client-refused",
+      "exit_code": 2,
+      "passed": true,
+      "failed_checks": []
+    },
+    {
+      "case": "manifest-tamper",
+      "exit_code": 1,
+      "passed": true,
+      "failed_checks": []
+    },
+    {
+      "case": "payload-tamper",
+      "exit_code": 1,
+      "passed": true,
+      "failed_checks": []
+    },
+    {
+      "case": "payload-extra",
+      "exit_code": 1,
+      "passed": true,
+      "failed_checks": []
+    }
+  ],
+  "passed": true
+}

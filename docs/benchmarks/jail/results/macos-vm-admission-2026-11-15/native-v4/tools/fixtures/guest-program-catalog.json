@@ -1,0 +1,42 @@
+{
+  "schema": "ukai.vm.guest-program-catalog/1",
+  "entries": [
+    {
+      "id": "example-1.2.3-linux-arm64",
+      "alias": "example",
+      "version": "1.2.3",
+      "format": "elf64-aarch64",
+      "executable": "/opt/ukai/programs/example/1.2.3/example",
+      "install_root": "/opt/ukai/programs/example/1.2.3",
+      "program_root": 1,
+      "argv_prefix": [
+        "/opt/ukai/programs/example/1.2.3/example"
+      ],
+      "executable_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "executable_size": 4096,
+      "profile_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "guest_jail_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "supported_states": [
+        "attempt"
+      ],
+      "interpreter": "/lib/ld-linux-aarch64.so.1",
+      "tree": [
+        {
+          "path": ".",
+          "kind": "directory",
+          "mode": 365,
+          "uid": 0,
+          "gid": 0
+        },
+        {
+          "path": "example",
+          "kind": "file",
+          "mode": 365,
+          "uid": 0,
+          "gid": 0,
+          "nlink": 1
+        }
+      ]
+    }
+  ]
+}
