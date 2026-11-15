@@ -150,6 +150,15 @@ component and portable checks, not native Endpoint Security acceptance.
 
 Normal installed-client source revocation, vendor compatibility, full K113,
 independent installed-host acceptance and notarization remain separate gates.
+K113 still needs guest-native program resolution and `@program` binding,
+the bundled profile's attempt-state/environment carry, independent summary
+recomputation and sampled-environment exposure checks. A specifically named
+headless `--state attempt` combination can be qualified without implementing
+the separate interactive/persistent-session matrix; that does not qualify the
+default persistent alias. The required two authentication modes remain part
+of the headless row. Metadata inspection found the configured `anthropic`
+source file present, regular, private and operator-owned, but `claude-oauth`
+absent. No source value or provider validity was inspected by that check.
 
 ## Remaining release limits
 

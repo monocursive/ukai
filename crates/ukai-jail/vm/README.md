@@ -204,9 +204,11 @@ files, the toolchain pin, every crate, the build inputs outside
 text proof used by the admission table tests and offline replay. No other
 top-level docs/results tree, local `evidence/`, VM disk or signing key is
 selected. This is meant to be enough to rebuild `ukai-vm`, `ukai-jail`, the VZ client, the
-custodian and the installer helper. No rebuild from such an archive under
-the pinned toolchain has been verified: the fix wave's one rebuild check
-of an archive probably ran under rustc 1.96.0, not the pin. The
+custodian and the installer helper. The `fa1d3392d` baseline archive was
+independently rebuilt under Rust 1.98.1 for all five shipped components;
+that establishes source rebuildability for that baseline, not byte
+reproducibility or qualification of a later archive. The later admission
+package still needs its own archive rebuild check. The
 `0.1.0-preview.2` candidate built on 2026-11-03
 and the published `0.1.0-preview.1` were built by the earlier script: no
 `source_revision`, and a source archive of `crates/ukai-jail/vm` only. No
@@ -275,8 +277,9 @@ commands select the same version directory, the installed tree is exactly the
 manifest's payload, and every installed mode is the normalized one
 (`installed-modes-normalized`). `summary.json` binds the manifest and
 installer
-digests, and the DMG's with `--dmg`. It has not been run against a package
-yet.
+digests, and the DMG's with `--dmg`. All seven cases passed against the
+actual mounted signed `53e5605fd` DMG. A rebuilt package requires its own
+installed-byte and installer checks.
 
 Run the warm harnesses against the installed package (the binary the
 package ships, not a repository build). A harness deletes its workspace's
@@ -410,10 +413,11 @@ Apple references: [Virtualization](https://developer.apple.com/documentation/vir
 
 ## J18: the warm service and measured guest admission (unreleased)
 
-The current local signed warm package ships both `ukai-vm` and the native
-macOS `ukai-jail` client. The existing public cold-boot preview and older
-candidates did not ship that client. This does not enable native macOS
-Endpoint Security execution or establish a public warm-service release.
+The current local signed warm package includes both `ukai-vm` and the native
+macOS `ukai-jail` client. No macOS `ukai-jail` client ships in the existing
+public cold-boot preview or older candidates; those need a client built from
+source for `ukai-jail run --vm`. The local package does not enable native
+macOS Endpoint Security execution or establish a public warm-service release.
 
 `GUEST_MEASUREMENTS` has twelve rows backed by the
 [2026-11-15 installed-package evidence](../../../docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/README.md).
@@ -669,9 +673,10 @@ prerelease identifiers sort numerically, so `preview.10` follows `preview.9`.
 
 The service holds an exclusive runtime lock before removing stale sockets. It
 copies the installed artifacts to a private boot directory and verifies the
-copies before executing them. The `run --vm` client hashes nothing itself:
-it checks that `image.json` is `prepared` and refuses a serve status or a
-`ready` whose disk, helper, custodian or seed digest differs from it. A boot has one session handshake. Each attempt
+copies before executing them. The `run --vm` client hashes no image artifact
+itself: it checks that `image.json` is `prepared`, requires the measured
+disk/seed pair at probing, and refuses a serve status or a `ready` whose
+disk, helper, custodian or seed digest differs from the selected manifest. A boot has one session handshake. Each attempt
 resets its directories, stages files, releases, relays output and returns its
 receipt. Client EOF cancels only that attempt; an unacknowledged cancellation
 ends the service. The custody heartbeat validates acknowledgement bytes and
@@ -706,16 +711,15 @@ at `/run/ukai-vm/credentials/<id>`. After the run the host derives the
 policy snapshot the guest jail resolves for this attempt (the share mount
 `/mnt/workspace` as workspace, the fixed guest limits and the wall, the
 crossing allow rules, the generated launch declaration, `LANG` only) and
-refuses a guest receipt whose `policy.digest` differs. Nothing checks the
-guest jail's version before the run: that would need it pinned in
-`image.json`, and it is not, so a guest jail of another version still runs
-the attempt and only its receipt is refused. These checks are covered by unit tests against stand-in guest replies (the
-policy prediction against the real supervisor's plan for `tool`, `agent` and
-`agent` with a vault credential). Against a booted guest they have run only
-for `tool` attempts that exited 0: the 20 real attempts of the
-[evening record](../../../docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/README.md),
-each settled with its guest receipt verified. The signaled branch, `agent`
-and a vault credential have run only against stand-ins.
+refuses a guest receipt whose `policy.digest` differs. The admitted disk/seed
+pair pins the guest jail and controller before the run. For credentials the
+actual guest Session must also advertise both exact contracts before any
+secret crosses. The existing unit tests compare policy prediction with the
+real supervisor's plans for `tool`, `agent` and an agent vault declaration.
+The retained November 4 record covers twenty successful real tool-client
+attempts. The November 15 admission record separately covers raw guest/service
+agent, signaled resource/tree and vault paths; it does not qualify those paths
+through the newly admitted host client.
 
 Once the guest receipt is verified and the guest's `done` agrees with it,
 the settled host receipt takes `platform.kernel`, `platform.arch`,
@@ -730,11 +734,13 @@ both the digest `vm-transport.json` records and the host receipt's
 `guest_receipt_sha256`. A broken link is an error; so is a host receipt
 that names a guest receipt while `vm-transport.json` is absent. A host
 receipt that names no guest receipt (the K113 record predates D5) is
-summarized as itself. The summary counts nothing from the host journal,
-and `run` and `tail --summary` print the same lines. This is tested in unit tests on the recorded K113 attempt and receipts
-derived from it, and on 2026-11-04 `ukai-jail tail --summary` printed the
-host summary and the transport line for one of the evening record's 20 new
-attempts (by hand, not by a test).
+summarized as itself. Current summaries verify the exported guest journal's
+manifest, parts, digest and final canonical receipt before using its proxy
+and credential counts. The host journal does not substitute for guest
+observations. `run` and `tail --summary` print the same lines. Older records
+without an exported journal retain that explicit absence; the November 15
+synthetic raw proof verifies the full guest journal separately. A complete
+independent K113 summary recomputation is still required.
 
 From the repository root, build and run the stand-in tests without a VM:
 
