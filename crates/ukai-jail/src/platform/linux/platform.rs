@@ -499,6 +499,7 @@ pub(super) mod tests {
         super::PlanRequest {
             snapshot,
             requirements,
+            guest_program: None,
         }
     }
 
