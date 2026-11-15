@@ -23,6 +23,10 @@ unmeasured requirement refuses with `vm:not-measured:<requirement>` before any
 connection or boot (§6). The measured signed package is built from source
 `53e5605fd`; its guest component evidence does not qualify the rebuilt host
 client, normal source monitoring, vendor compatibility or full K113.
+The separate [signed `9ceada861` host candidate](../benchmarks/jail/production-qualification-2026-11-15.md#corrected-signed-host-candidate)
+records fresh installed synthetic source-watch, warm-workflow, bounded wall
+termination and source-rebuild checks. Its private unnotarized status and
+remaining vendor/release gates are explicit; no acceptance row is promoted.
 The [2026-11-01 measurement spike](../benchmarks/jail/results/macos-custody-spike-2026-11-01/README.md)
 runs this implementation with live Endpoint Security in an isolated,
 SIP-disabled development VM. It exposes a K90 class-2 blocker: an existing

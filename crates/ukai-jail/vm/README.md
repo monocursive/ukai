@@ -777,11 +777,15 @@ against a stand-in VZ client; it never boots a VM.
 
 ## What remains
 
-The twelve guest admission rows are a bounded prerequisite. The rebuilt
-host client and service still need their current installed source-watch and
-revocation proof, current installed workflow/fault checks, and a K113
-compatibility record satisfying both auth modes and the imported Linux-row
-conditions. The synthetic raw proof does not substitute for those runs.
+The twelve guest admission rows are a bounded prerequisite. The separate
+[clean `9ceada861` signed host candidate](../../../docs/benchmarks/jail/production-qualification-2026-11-15.md#corrected-signed-host-candidate)
+has current installed synthetic source-watch/revocation, warm workflow and
+source-rebuild evidence. Its wall-expiry host hang is fixed; a cancelled
+attempt without a bound final guest receipt still reports unknown termination.
+The ledger distinguishes each source-specific result and failed predecessor.
+A K113 compatibility record satisfying both auth modes and the imported
+Linux-row conditions remains required. Neither synthetic mode substitutes
+for that vendor record or the complete installed release checks.
 Owner-loss termination remains unsupported. Native macOS execution remains
 separately unqualified and is not enabled by the warm VM package.
 

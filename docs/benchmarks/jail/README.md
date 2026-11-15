@@ -186,6 +186,11 @@ The proof uses the installed, Developer-ID-signed package built from source
 `53e5605fd`. It does not qualify a rebuilt host client, normal host source
 monitoring, vendor compatibility or full K113. K108–K113 remain `untested`.
 
+The separate [signed `9ceada861` host candidate](production-qualification-2026-11-15.md#corrected-signed-host-candidate)
+records fresh installed synthetic source-watch, warm-workflow, bounded wall
+termination and source-rebuild checks. It remains private and unnotarized;
+those results do not establish vendor compatibility or full release acceptance.
+
 | Lane | Covers |
 | --- | --- |
 | `macos_custody_core` | Synthetic custody-event sequences: membership, root-entry prerequisites, custodian registration, handshake replay, exec-token changes, gap/integrity vetoes, freeze/kill/drain state transitions, budgets and preallocation. Also live unentitled-client refusal, clock reads and the test process audit token. No start/release or receipt integration proof. |
