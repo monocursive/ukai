@@ -157,6 +157,13 @@ except urllib.error.HTTPError as error:
 '''
 
 
+def successful_outcome(outcome):
+    """Match the complete records::Outcome schema without accepting faults."""
+    return (type(outcome) is dict
+            and outcome == {'kind': 'exited', 'code': 0, 'signal': None, 'cause': None, 'error': None}
+            and type(outcome['code']) is int)
+
+
 def judge(observed, guest, events, summary):
     try:
         return _judge(observed, guest, events, summary)
@@ -209,7 +216,7 @@ def _judge(observed, guest, events, summary):
         'settled_clean_guest': guest.get('phase') == 'settled' and guest.get('errors') == []
             and guest.get('containment') == 'enforced' and guest.get('child_protection') == 'enforced'
             and guest.get('exec_observed') is True
-            and guest.get('outcome') == {'kind': 'exited', 'code': 0}
+            and successful_outcome(guest.get('outcome'))
             and guest.get('state_cleanup') == 'complete' and guest.get('cleanup_error') is None
             and (guest.get('lifetime') or {}).get('tree_empty') is True
             and (guest.get('lifetime') or {}).get('integrity') == 'verified',
@@ -822,7 +829,7 @@ def main(argv=None):
             observed['host_receipt_contradictions'] = harness.receipt_contradictions(host, guest)
             observed['host_clean'] = (host.get('phase') == 'settled' and host.get('errors') == []
                 and host.get('state_cleanup') == 'complete' and host.get('cleanup_error') is None
-                and host.get('outcome') == {'kind': 'exited', 'code': 0}
+                and successful_outcome(host.get('outcome'))
                 and (host.get('lifetime') or {}).get('tree_empty') is True)
             for json_mode in (False, True):
                 printed = subprocess.run([str(jail), 'tail', '--summary', *(['--json'] if json_mode else []),

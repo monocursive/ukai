@@ -132,7 +132,7 @@ class JudgeTests(unittest.TestCase):
                  'policy': {'name': 'agent'},
                  'containment': 'enforced', 'child_protection': 'enforced', 'exec_observed': True,
                  'process': {'identity': {'value': {'boot_id': 'guest-boot'}}},
-                 'outcome': {'kind': 'exited', 'code': 0}, 'state_cleanup': 'complete', 'cleanup_error': None,
+                 'outcome': {'kind': 'exited', 'code': 0, 'signal': None, 'cause': None, 'error': None}, 'state_cleanup': 'complete', 'cleanup_error': None,
                  'lifetime': {'tree_empty': True, 'integrity': 'verified'},
                  'credentials': [{'id': 'test', 'mode': 'vault', 'never_staged': True}],
                  'coverage': {name: {'status': 'active', 'gaps': []} for name in harness.SUMMARY_CLASSES}}
@@ -184,6 +184,25 @@ class JudgeTests(unittest.TestCase):
             elif target == 'receipt': fixture[1]['coverage']['proxy.net']['observed_count'] = change
             else: fixture[3]['lines'][0]['facts']['credentials'][0]['uses_bound'] = change
             self.assertFalse(all(measurement.judge(*fixture).values()))
+
+    def test_real_outcome_shape_requires_success_and_all_error_fields_null(self):
+        outcome = self.fixture()[1]['outcome']
+        self.assertEqual(set(outcome), {'kind', 'code', 'signal', 'cause', 'error'})
+        self.assertTrue(measurement.successful_outcome(outcome))
+        for key, value in [('kind', 'signaled'), ('code', 1), ('code', False), ('code', '0'), ('code', None),
+                           ('signal', 9), ('cause', 'deadline'), ('error', {'code': 'evidence_lost'}),
+                           ('extra', None)]:
+            with self.subTest(key=key, value=value):
+                fixture = self.fixture(); fixture[1]['outcome'][key] = value
+                self.assertFalse(measurement.successful_outcome(fixture[1]['outcome']))
+                self.assertFalse(measurement.judge(*fixture)['settled_clean_guest'])
+        for wrong_shape in (None, [], 'exited', 0):
+            self.assertFalse(measurement.successful_outcome(wrong_shape))
+        for key in outcome:
+            with self.subTest(missing=key):
+                fixture = self.fixture(); del fixture[1]['outcome'][key]
+                self.assertFalse(measurement.successful_outcome(fixture[1]['outcome']))
+                self.assertFalse(measurement.judge(*fixture)['settled_clean_guest'])
 
     def test_leak_cleanup_binding_and_settlement_failures_remain_failures(self):
         changes = {'leaks': ['private-file'], 'files_scanned': 0, 'output_leak': True,
