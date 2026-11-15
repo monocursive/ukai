@@ -12,6 +12,7 @@ from pathlib import Path
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -191,6 +192,7 @@ class JudgeTests(unittest.TestCase):
                     'client_thread_settled': True, 'source_removed_before_stop': True,
                     'post_revocation_hold': {'started_ns': 100, 'finished_ns': 2_500_000_100},
                     'normal_identity_bound': True, 'exact_normal_inputs_retained': True,
+                    'service_shutdown': {'complete': True},
                     'leaks': [], 'files_scanned': 5, 'output_leak': False, 'same_boot': True,
                     'disk_scan': 'clean', 'sync_exit': 0, 'stop_exit': 0}
         guest = {'attempt_id': guest_id, 'phase': 'settled', 'errors': [],
@@ -277,6 +279,7 @@ class JudgeTests(unittest.TestCase):
                    'stop_exit': 1, 'run_exit': 1, 'tail_exit': 1, 'tail_json_exit': 1,
                    'tail_agrees': False, 'after_refused': False, 'client_thread_settled': False}
         changes.update(normal_identity_bound=False, exact_normal_inputs_retained=False)
+        changes['service_shutdown'] = {'complete': False}
         for key, value in changes.items():
             with self.subTest(key=key):
                 fixture = self.fixture(); fixture[0][key] = value
@@ -539,6 +542,101 @@ class NormalInputsTests(unittest.TestCase):
             self.assertEqual(measurement.retain_normal_attempt(attempt, destination, {secret.decode()}), expected)
         self.assertEqual(measurement.normal_attempt_hashes(destination), expected)
         self.assertEqual((destination / 'jail.json').read_text(), '{}')
+
+
+class ServiceShutdownTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.data = Path(temporary.name).resolve()
+        self.runtime = self.data / 'vm'; self.runtime.mkdir()
+        self.path = self.runtime / 'serve.lock'; self.path.write_bytes(b'')
+
+    def test_stop_ack_and_missing_sockets_do_not_release_scanner_before_actual_cleanup(self):
+        boot = self.runtime / 'vm-owned'; boot.mkdir()
+        for name in ('custodian', 'seed.iso'): (boot / name).write_bytes(b'fixture')
+        for name in ('control.sock', 'attempt.sock'): (self.runtime / name).touch()
+        script = '''import fcntl, pathlib, sys, time
+root = pathlib.Path(sys.argv[1])
+with (root / 'serve.lock').open('rb') as lock:
+ fcntl.flock(lock, fcntl.LOCK_EX)
+ print('locked', flush=True)
+ sys.stdin.readline()
+ for name in ('control.sock', 'attempt.sock'): (root / name).unlink()
+ print('stopping-ack', flush=True)
+ sys.stdin.readline()
+ for name in ('custodian', 'seed.iso'):
+  (root / 'vm-owned' / name).unlink()
+  time.sleep(.05)
+ (root / 'vm-owned').rmdir()
+'''
+        child = subprocess.Popen([sys.executable, '-c', script, str(self.runtime)],
+                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        def stop():
+            if child.poll() is None: child.kill()
+            child.communicate(timeout=3)
+        self.addCleanup(stop)
+        self.assertEqual(child.stdout.readline().strip(), 'locked')
+        lease = measurement.running_service_lock(self.data)
+        self.addCleanup(lease.close)
+        child.stdin.write('stop\n'); child.stdin.flush()
+        self.assertEqual(child.stdout.readline().strip(), 'stopping-ack')
+        result = []; completed = threading.Event()
+        def acquire():
+            try: result.append(measurement.stopped_service_lock(self.data, lease, timeout=3))
+            except Exception as error: result.append(error)
+            finally: completed.set()
+        waiter = threading.Thread(target=acquire); waiter.start()
+        self.assertFalse(completed.wait(.1), 'stop acknowledgement was treated as cleanup completion')
+        child.stdin.write('finish\n'); child.stdin.flush()
+        self.assertTrue(completed.wait(3)); waiter.join(3)
+        self.assertEqual(child.wait(timeout=3), 0)
+        self.assertIsInstance(result[0], dict)
+        record = result[0]
+        with lease:
+            self.assertTrue(record['complete']); self.assertTrue(record['held_before_stop'])
+            self.assertFalse(record['process_reaped']); self.assertFalse(boot.exists())
+            # A new server cannot mutate this runtime during the scan.
+            with self.path.open('rb') as other:
+                with self.assertRaises(BlockingIOError):
+                    measurement.fcntl.flock(other, measurement.fcntl.LOCK_EX | measurement.fcntl.LOCK_NB)
+            findings, count = measurement.vault_measurement.leak_scan([self.data], b'synthetic-absent')
+            self.assertEqual(findings, []); self.assertGreater(count, 0)
+        with self.path.open('rb') as other:
+            measurement.fcntl.flock(other, measurement.fcntl.LOCK_EX | measurement.fcntl.LOCK_NB)
+
+    def test_timeout_missing_lock_and_incomplete_cleanup_fail_closed(self):
+        with self.assertRaises(harness.HarnessError): measurement.running_service_lock(self.data)
+        with self.path.open('rb') as held:
+            measurement.fcntl.flock(held, measurement.fcntl.LOCK_EX)
+            with measurement.running_service_lock(self.data) as lease:
+                with self.assertRaises(TimeoutError): measurement.stopped_service_lock(self.data, lease, timeout=.01)
+        with self.path.open('rb') as held:
+            measurement.fcntl.flock(held, measurement.fcntl.LOCK_EX)
+            lease = measurement.running_service_lock(self.data)
+        (self.runtime / 'vm-retained').mkdir()
+        with lease:
+            with self.assertRaises(harness.HarnessError): measurement.stopped_service_lock(self.data, lease)
+        (self.runtime / 'vm-retained').rmdir(); self.path.unlink()
+        with self.assertRaises(FileNotFoundError): measurement.running_service_lock(self.data)
+        self.assertFalse(self.path.exists(), 'the observer must not create its own service lock')
+
+    def test_replaced_unlocked_path_cannot_stand_in_for_the_pinned_service_inode(self):
+        with self.path.open('rb') as held:
+            measurement.fcntl.flock(held, measurement.fcntl.LOCK_EX)
+            lease = measurement.running_service_lock(self.data)
+            self.path.rename(self.runtime / 'original-lock')
+            self.path.write_bytes(b'')
+            # Replacement is unlocked, yet we still wait on the old held fd.
+            with self.assertRaises(TimeoutError): measurement.stopped_service_lock(self.data, lease, timeout=.01)
+        # A separately pinned, now-unlocked inode also must match its pathname.
+        self.path.unlink(); (self.runtime / 'original-lock').rename(self.path)
+        with self.path.open('rb') as held:
+            measurement.fcntl.flock(held, measurement.fcntl.LOCK_EX)
+            lease = measurement.running_service_lock(self.data)
+        self.path.rename(self.runtime / 'old-lock'); self.path.write_bytes(b'')
+        with lease:
+            with self.assertRaises(harness.HarnessError): measurement.stopped_service_lock(self.data, lease)
 
 
 class RefusalTests(unittest.TestCase):

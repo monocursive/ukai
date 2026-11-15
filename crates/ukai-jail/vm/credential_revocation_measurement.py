@@ -7,6 +7,8 @@ qualify TLS/vendor compatibility, or promote K113. A refused run is retained.
 """
 import argparse
 import base64
+import contextlib
+import fcntl
 import hashlib
 import http.server
 import json
@@ -268,6 +270,7 @@ def _judge(observed, guest, events, summary):
         'post_revocation_hold_exceeds_ack_budget': held_past_ack_window(observed.get('post_revocation_hold')),
         'normal_identity_bound': observed.get('normal_identity_bound') is True,
         'exact_normal_inputs_retained': observed.get('exact_normal_inputs_retained') is True,
+        'service_shutdown_complete': (observed.get('service_shutdown') or {}).get('complete') is True,
         'all_exported_bytes_scanned': observed.get('leaks') == [] and observed.get('files_scanned', 0) > 0
             and observed.get('output_leak') is False,
         'same_boot_disk_scanned': observed.get('same_boot') is True and observed.get('disk_scan') == 'clean'
@@ -430,7 +433,8 @@ def _raw_judge(observed, guest, events, summary, record):
     component['peer']['deleted_at'] = component['peer'].get('revocation_sent_at')
     facts = judge(component, guest, events, summary)
     for name in ('host_binding_and_settlement', 'client_and_summary_succeeded', 'source_removed_before_stop',
-                 'post_revocation_hold_exceeds_ack_budget', 'normal_identity_bound', 'exact_normal_inputs_retained'):
+                 'post_revocation_hold_exceeds_ack_budget', 'normal_identity_bound', 'exact_normal_inputs_retained',
+                 'service_shutdown_complete'):
         facts.pop(name, None)
     facts['explicit_revoke_after_peer_accept_then_disconnect'] = facts.pop(
         'independent_stream_before_delete_then_prompt_disconnect', False)
@@ -515,6 +519,71 @@ def normal_identity(home, jail):
             'service': fingerprint(Path(home) / 'bin/ukai-vm', 128 * 1024 * 1024),
             'client': fingerprint(jail, 128 * 1024 * 1024),
             'measurement': fingerprint(__file__, 1024 * 1024)}
+
+
+def running_service_lock(data):
+    """Pin the existing exact inode while its service lease is demonstrably held."""
+    path = Path(data) / 'vm/serve.lock'
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    stream = os.fdopen(fd, 'rb', buffering=0)
+    try:
+        before = os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+            raise harness.HarnessError('service lock is not a private regular file')
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            current = path.lstat()
+            if (current.st_dev, current.st_ino) != (before.st_dev, before.st_ino):
+                raise harness.HarnessError('service lock identity changed before stop')
+            return stream
+        raise harness.HarnessError('service lock was not held before stop')
+    except BaseException:
+        stream.close()
+        raise
+
+
+def stopped_service_lock(data, stream, timeout=10):
+    """Acquire the pinned service lease only after its teardown has finished.
+
+    serve() holds this flock through helper/thread joins and boot removal.
+    Its stop acknowledgement and socket removal happen earlier. The caller
+    keeps the pre-stop handle open throughout scanning to exclude a new serve.
+    This proves cleanup returned, not that the OS reaped the service process.
+    No lock or runtime path is created or rewritten here.
+    """
+    runtime = Path(data) / 'vm'
+    path = runtime / 'serve.lock'
+    fd = stream.fileno()
+    started = time.monotonic()
+    try:
+        before = os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+            raise harness.HarnessError('service lock is not a private regular file')
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                remaining = timeout - (time.monotonic() - started)
+                if remaining <= 0:
+                    raise TimeoutError('service cleanup lock deadline')
+                time.sleep(min(0.05, remaining))
+        current = path.lstat()
+        if (current.st_dev, current.st_ino) != (before.st_dev, before.st_ino) or not stat.S_ISREG(current.st_mode):
+            raise harness.HarnessError('service lock identity changed')
+        sockets_absent = all(not os.path.lexists(runtime / name) for name in ('control.sock', 'attempt.sock'))
+        boot_entries = [entry.name for entry in runtime.iterdir() if entry.name.startswith('vm-')]
+        if not sockets_absent or boot_entries:
+            raise harness.HarnessError('service stopped without complete runtime cleanup')
+        return {'complete': True, 'method': 'pinned-pre-stop-runtime-lock-after-serve-cleanup',
+                        'lock_device': before.st_dev, 'lock_inode': before.st_ino,
+                        'wait_ms': round((time.monotonic() - started) * 1000, 3),
+                        'held_before_stop': True, 'process_reaped': False,
+                        'sockets_absent': True, 'boot_entries_remaining': []}
+    except BaseException:
+        stream.close()
+        raise
 
 
 def source_generation(source):
@@ -923,6 +992,11 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.raw_transport:
         return raw_main(args)
+    with contextlib.ExitStack() as cleanup:
+        return normal_main(args, cleanup)
+
+
+def normal_main(args, cleanup):
     home = args.home.resolve(strict=True)
     jail = harness.required_binary('UKAI_JAIL_BINARY', str(args.jail))
     workspace = harness.guarded_workspace(args.workspace)
@@ -955,6 +1029,7 @@ def main(argv=None):
     guest, events, summary = {}, None, {}
     attempt = None
     worker = None
+    shutdown_lock = None
     identity_before, identity_after, source_before, source_after = {}, {}, {}, {}
     def run():
         try:
@@ -1029,6 +1104,11 @@ def main(argv=None):
         witness.stop.set()
         server.shutdown(); server.server_close()
         try:
+            shutdown_lock = running_service_lock(data)
+            cleanup.enter_context(shutdown_lock)
+        except (OSError, ValueError, harness.HarnessError) as error:
+            observed['service_shutdown'] = {'complete': False, 'error_type': type(error).__name__}
+        try:
             stopped = subprocess.run([str(home / 'bin/ukai-vm'), 'stop'], env=env, capture_output=True, text=True, timeout=60)
             observed['stop_exit'] = stopped.returncode
             auxiliary_output.extend([stopped.stdout, stopped.stderr])
@@ -1037,6 +1117,11 @@ def main(argv=None):
         if worker is not None:
             worker.join(timeout=5)
             observed['client_thread_settled'] = not worker.is_alive()
+        if shutdown_lock is not None:
+            try:
+                observed['service_shutdown'] = stopped_service_lock(data, shutdown_lock)
+            except (OSError, ValueError, harness.HarnessError) as error:
+                observed['service_shutdown'] = {'complete': False, 'error_type': type(error).__name__}
         try:
             identity_after = normal_identity(home, jail)
         except (OSError, ValueError, harness.HarnessError) as error:
@@ -1047,7 +1132,9 @@ def main(argv=None):
     observed['post_revocation_hold'] = normal_hold(stdout)
     observed['output_leak'] = any(value in stdout + stderr + tail + tail_json + tail_error
                                  + ''.join(auxiliary_output) for value in spellings)
-    scans = [vault_measurement.leak_scan([data, workspace], value.encode()) for value in spellings]
+    scans = ([vault_measurement.leak_scan([data, workspace], value.encode()) for value in spellings]
+             if observed['service_shutdown']['complete'] and observed.get('client_thread_settled') is True
+             else [(['scan-error:service-shutdown-unverified'], 0)])
     observed['leaks'] = sorted({path for hits, _ in scans for path in hits})
     observed['files_scanned'] = max(scanned for _, scanned in scans)
     refusals = harness.vm_refusals(stdout + '\n' + stderr)
@@ -1065,7 +1152,8 @@ def main(argv=None):
               'identity_before': identity_before, 'identity_after': identity_after,
               'profile': 'agent', 'argv': command, 'argv_digest': harness.argv_digest(command),
               'launch_toml': profile, 'launch_sha256': hashlib.sha256(profile.encode()).hexdigest(),
-              'source_before': source_before, 'source_after': source_after}
+              'source_before': source_before, 'source_after': source_after,
+              'service_shutdown': observed['service_shutdown']}
     observed['normal_identity_bound'] = normal_identity_bound(inputs)
     if attempt is not None and not observed['leaks'] and not observed['output_leak']:
         try:
