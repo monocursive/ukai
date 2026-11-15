@@ -163,7 +163,7 @@ absent. No source value or provider validity was inspected by that check.
 
 ## Corrected signed host candidate
 
-The latest private warm package is built from clean source
+The separately qualified warm-host baseline is built from clean source
 `9ceada86135895ba7e2ea84a2cdea6b7022d9b39`. Its DMG SHA-256 is
 `900c3707c0244ce60cf6d8c0b70c74800c12cb6cd656e17fca18847d1f145d7e`;
 the host runtime inputs are
@@ -267,6 +267,68 @@ The earlier failed package, setup failures and corrected offline-judge records
 remain separate and unchanged. [Draft PR #52](https://github.com/monocursive/ukai/pull/52)
 is stacked on the frozen Linux candidate; neither candidate inherits the
 other's runtime qualification.
+
+## Guest-native implementation and retained startup failure
+
+[Draft PR #53](https://github.com/monocursive/ukai/pull/53), stacked on #52,
+adds image-bound guest program resolution, source-only credential forwarding,
+the unchanged bundled launch profile and explicit attempt state, full guest
+journal/summary verification, and separately reported environment/argv sampling.
+It does not qualify native macOS Endpoint Security containment or a vendor
+authentication mode. The guest still runs the frozen signed Linux candidate
+at `6ffff05dc`; the host and guest controller changes have separate identities.
+
+The [native-v2 component proof](results/macos-vm-admission-2026-11-15/native-v2/README.md)
+retains 81 bounded text/source files. Its relocated offline replay passed with
+access to original evidence paths, process execution, networking and writes
+denied. It binds ten guest capability rows, 121 execution-boundary facts,
+24 synthetic raw-vault facts and 24 actual program-binding facts. The latter
+allowed an original executable to use a synthetic credential while denying a
+byte-identical copied executable with a distinct inode. The independent
+upstream observed exactly one substituted request. These are component
+measurements; they do not prove the native alias or host source watcher.
+
+That proof admits the exact v2 disk/seed pair separately from the original
+image. A second native-program predicate also pins the catalog, entry,
+unchanged profile and executable. The bootstrap sampler control detected its
+owned public canary in both environment and argv, reaped the child and
+reported zero scan errors. This detector control is not vendor sampling or a
+jail execution receipt.
+
+Clean source `e8d0c2b074d8c02cf2f33c2e58db75769c7f7884` produced private DMG
+`4263d036dd87395aa790a6a83e208c1cf669c98000280a20d8c6e4815d220bbe`.
+All six strict Developer ID signatures and seven actual mounted-DMG installer
+cases passed. Independent review matched every installed file and mode,
+all 677 archived source files against that commit, and the exact prepared
+guest/catalog/control inputs. These checks establish artifact consistency;
+they do not inherit runtime qualification from the earlier warm-host baseline.
+
+All six hosted jobs at e8d0 passed: [Rust and dependency policy](https://github.com/monocursive/ukai/actions/runs/43742239906),
+[contracts and website](https://github.com/monocursive/ukai/actions/runs/43742239889),
+and [fleet](https://github.com/monocursive/ukai/actions/runs/43742239957).
+The Linux test runner reported 3,057 successes and 18 deliberate ignores,
+including 512 explicit runtime skips; the macOS runner reported 2,486
+successes, seven ignores and no runtime skips. Both had zero failures.
+The Python contract job ran 693 cases with 77 explicit platform/test-seam
+skips. Hosted Linux lacked bubblewrap and did not execute the contained D2
+check. These results are not strict reference-host conformance.
+
+The first normal installed `--from-path --launch claude --state attempt --
+--version` attempt **failed before execution**. The guest config directory's
+0710 mode allowed traversal but prevented the frozen Linux supervisor from
+listing uncontained-run markers. The retained error is `unsafe_state_path` at
+resolving, followed by an unknown host lifetime outcome. No guest receipt or
+journal was available, sampling was unavailable, and the shutdown-lock witness
+and disk/export scans did not qualify. Its private synthetic source was
+removed. No provider source was read or provider call requested. The failure
+is retained under `guest-native-version-e8d0c2b07/`; correcting the guest
+requires new image measurements and a fresh installed native result. The
+failed package is not a qualified native candidate.
+
+The e8d0 archive rebuild preflight separately used an incorrect legacy replay
+filename and stopped before compilation. That harness error is retained under
+`source-rebuild-e8d0c2b07/`; no source-rebuild pass is claimed for this package.
+The independently verified archive and extracted source remain available.
 
 ## Remaining release limits
 
