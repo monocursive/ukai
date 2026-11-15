@@ -178,6 +178,21 @@ class ReleaseTests(unittest.TestCase):
             [f'ukai-jail-9.9.9-rc.1-{target}.tar.gz' for target in TARGETS]
             + ['install.sh', 'bootstrap.sh', 'release-plan.json', 'RELEASE_NOTES.md']))
 
+    def test_native_artifacts_do_not_inherit_historical_host_qualification(self):
+        stages = [self.fixture(t) for t in TARGETS]
+        out = self.root / 'out'
+        plan = assemble(stages, REVISION, INPUTS, '9.9.9-rc.1', out)
+        self.assertEqual(set(plan['support']), {'x86_64', 'aarch64'})
+        for claim in plan['support'].values():
+            self.assertIn('native installation alone does not establish runtime host qualification', claim)
+            self.assertIn('matching candidate revision and build-input digest', claim)
+            self.assertNotIn('Raspberry Pi', claim)
+        self.assertIn('operator_review_of_host_support_and_validation_required', plan['publication_blockers'])
+        notes = (out / 'RELEASE_NOTES.md').read_text()
+        self.assertIn('developer preview', notes)
+        self.assertIn('Previously documented host limitations remain in force', notes)
+        self.assertNotIn('Pi memory ceilings', notes)
+
     @unittest.skipUnless(shutil.which('minisign'), 'minisign is required for actual signature checks')
     def test_real_signature_and_wrong_key_rejection(self):
         stages = [self.fixture(t) for t in TARGETS]
@@ -188,6 +203,7 @@ class ReleaseTests(unittest.TestCase):
         plan = assemble(stages, REVISION, INPUTS, '9.9.9-rc.1', self.root / 'signed',
                         self.root / 'test.key', key)
         self.assertTrue(plan['signature_verified']); self.assertFalse(plan['published'])
+        self.assertIn('operator_review_of_host_support_and_validation_required', plan['publication_blockers'])
         wrong = (self.root / 'wrong.pub').read_text().splitlines()[1]
         with self.assertRaises(subprocess.CalledProcessError):
             assemble(stages, REVISION, INPUTS, '9.9.9-rc.1', self.root / 'refused',

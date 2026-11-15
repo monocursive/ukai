@@ -128,9 +128,14 @@ def assemble(stages, revision, inputs, version, out, signing_key=None, public_ke
             'publication_blockers': ([] if signing_key else ['production_signing_identity_not_configured'])
                 + ['operator_review_of_host_support_and_validation_required'],
             'artifacts': records,
-            'support': {'x86_64': 'Ubuntu 26.04 reference host; other hosts require their own doctor result',
-                        'aarch64': 'Debian 13 Raspberry Pi with matching Unix diagnostics support; memory cgroups and Landlock unavailable; the default build profile refuses'},
-            'native_records_are_attestations': 'Review the native builder and validation evidence before signing.'}
+            'support': {
+                architecture: f'Linux {architecture} binary and installer target; native installation alone '
+                'does not establish runtime host qualification. Attach validation for the matching candidate '
+                'revision and build-input digest, then complete operator review for each claimed host.'
+                for architecture in ('x86_64', 'aarch64')},
+            'native_records_are_attestations': 'Native version execution establishes artifact provenance, '
+                'not installation or runtime host qualification. Review the native builder and attached '
+                'matching validation evidence before signing or publishing.'}
     (out / 'release-plan.json').write_text(json.dumps(plan, indent=2) + '\n')
     (out / 'RELEASE_NOTES.md').write_text(
         '# Ukai Jail ' + version + ' — developer preview\n\n'
@@ -145,8 +150,12 @@ def assemble(stages, revision, inputs, version, out, signing_key=None, public_ke
         'The GNU/Linux binaries require glibc 2.39 or newer; Alpine/musl is unsupported. '
         'Installs to `~/.local/bin`; no sudo or Rust compiler. '
         'Install bubblewrap separately before running contained commands.\n\n'
-        'Linux x86_64 and ARM64 packages; host enforcement depends on `ukai-jail doctor`.\n'
-        'Ubuntu 24 stock execution remains refused. Pi memory ceilings and Landlock remain unavailable; the default build profile refuses.\n'
+        'Linux x86_64 and ARM64 binary and installer targets; native installation alone does not establish '
+        'runtime host qualification. Host enforcement depends on `ukai-jail doctor`; attach validation '
+        'matching this candidate\'s revision and build-input digest and complete operator review before '
+        'claiming support for a host.\n'
+        'Ubuntu 24 stock execution remains refused. Previously documented host limitations remain in force '
+        'unless superseded by matching validation; architecture or installation does not waive them.\n'
         'Real-agent reliability remains experimental: attach the completed compatibility record before changing that claim.\n'
         'Maintainers can also verify the signed SHA256SUMS with an independently trusted public key.\n')
     # Bind provenance and support notes to the signature as well as executable
