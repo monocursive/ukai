@@ -621,13 +621,19 @@ class WarmServiceTests(unittest.TestCase):
 
     def test_custom_prefix_serves_the_same_adjacent_image_as_doctor(self):
         binary = self.installed_binary()
+        link = self.root / 'custom/bin/ukai-vm'
+        link.parent.mkdir(parents=True)
+        link.symlink_to(binary)
         environment = dict(self.env, HOME=str(self.root / 'empty-home'))
         environment.pop('UKAI_VM_HOME')
-        doctor = subprocess.run([str(binary), 'doctor'], env=environment, capture_output=True, timeout=10)
-        report = json.loads(doctor.stdout)
-        for name in ('base.raw', 'seed.iso', 'vz', 'custodian'):
-            self.assertTrue(report['checks'][name], report)
-        child = subprocess.Popen([str(binary), 'serve'], env=environment,
+        for command in (binary, link):
+            with self.subTest(command=str(command)):
+                doctor = subprocess.run([str(command), 'doctor'], env=environment,
+                                        capture_output=True, timeout=10)
+                report = json.loads(doctor.stdout)
+                for name in ('base.raw', 'seed.iso', 'vz', 'custodian'):
+                    self.assertTrue(report['checks'][name], report)
+        child = subprocess.Popen([str(link), 'serve'], env=environment,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         self.children.append(child)
         self.assertEqual(self.control('status')['event'], 'status')
@@ -642,6 +648,26 @@ class WarmServiceTests(unittest.TestCase):
         self.assertEqual(doctor.returncode, 125)
         self.assertIn(str(explicit), doctor.stderr.decode())
         self.assertEqual(doctor.stdout, b'')
+
+    def test_missing_installed_image_never_uses_a_ready_home_installation(self):
+        installed = self.root / 'custom/share/ukai-vm/0.1.0-preview.2'
+        binary = installed / 'bin/ukai-vm'
+        binary.parent.mkdir(parents=True)
+        shutil.copy2(BINARY, binary)
+        home = self.root / 'home'
+        shutil.copytree(self.install, home / '.local/share/ukai-vm/99.0.0')
+        link = self.root / 'custom/bin/ukai-vm'
+        link.parent.mkdir()
+        link.symlink_to(binary)
+        environment = dict(self.env, HOME=str(home))
+        environment.pop('UKAI_VM_HOME')
+        for command in (binary, link):
+            with self.subTest(command=str(command)):
+                doctor = subprocess.run([str(command), 'doctor'], env=environment,
+                                        capture_output=True, timeout=10)
+                self.assertEqual(doctor.returncode, 125)
+                self.assertIn(str(installed), doctor.stderr.decode())
+                self.assertEqual(doctor.stdout, b'')
 
     def test_doctor_refuses_an_unprepared_manifest_before_reporting_ready(self):
         path = self.install / 'image' / 'image.json'

@@ -114,11 +114,25 @@ impl Install {
     /// # Errors
     /// [`Refusal`] when no installation is found.
     pub fn discover() -> Result<Self, Refusal> {
+        let override_root = std::env::var_os("UKAI_VM_HOME").map(PathBuf::from);
+        // On macOS current_exe can retain the installer's prefix/bin
+        // symlink. Resolve it to the versioned package before finding the
+        // adjacent image; otherwise a custom prefix can borrow HOME's image.
+        let executable = if override_root.is_none() {
+            std::env::current_exe()
+                .ok()
+                .map(|path| {
+                    path.canonicalize().map_err(|error| {
+                        refusal(format!("{} cannot be resolved: {error}", path.display()))
+                    })
+                })
+                .transpose()?
+        } else {
+            None
+        };
         Self::discover_from(
-            std::env::var_os("UKAI_VM_HOME")
-                .map(PathBuf::from)
-                .as_deref(),
-            std::env::current_exe().ok().as_deref(),
+            override_root.as_deref(),
+            executable.as_deref(),
             std::env::var_os("HOME").map(PathBuf::from).as_deref(),
         )
     }
@@ -139,7 +153,7 @@ impl Install {
             .and_then(Path::parent)
             .filter(|bin| bin.file_name().is_some_and(|name| name == "bin"))
             .and_then(Path::parent)
-            .filter(|root| root.join("image").symlink_metadata().is_ok())
+            .filter(|root| is_installation_root(root))
         {
             return Self::from_root(root.to_path_buf());
         }
@@ -301,6 +315,31 @@ impl Install {
     pub fn base_disk(&self) -> PathBuf {
         self.root.join("image").join("base.raw")
     }
+}
+
+/// Recognize an installed or staged package independently of its image's
+/// health. A missing image is a damaged installation, not permission to
+/// borrow another version from HOME. Source builds (target/debug or
+/// target/release) do not pass the caller's `bin` check.
+fn is_installation_root(root: &Path) -> bool {
+    let installed_layout = root.parent().is_some_and(|versions| {
+        versions.file_name().is_some_and(|name| name == "ukai-vm")
+            && versions
+                .parent()
+                .and_then(Path::file_name)
+                .is_some_and(|name| name == "share")
+    });
+    // The expansion helper is present in the installer's staged payload
+    // before that payload reaches share/ukai-vm/<version>.
+    let present_or_inaccessible = |path: PathBuf| {
+        !matches!(
+            path.symlink_metadata(),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound
+        )
+    };
+    installed_layout
+        || present_or_inaccessible(root.join("bin/ukai-vm-install"))
+        || present_or_inaccessible(root.join("image"))
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -966,9 +1005,38 @@ mod regression_tests {
         for version in ["0.9.0", "0.10.0"] {
             installed_at(&dir.path().join(".local/share/ukai-vm").join(version));
         }
-        let executable = dir.path().join("source/target/debug/ukai-vm");
-        let found = Install::discover_from(None, Some(&executable), Some(dir.path())).unwrap();
-        assert_eq!(found.root, dir.path().join(".local/share/ukai-vm/0.10.0"));
+        for profile in ["debug", "release"] {
+            let executable = dir
+                .path()
+                .join("source/target")
+                .join(profile)
+                .join("ukai-vm");
+            let found = Install::discover_from(None, Some(&executable), Some(dir.path())).unwrap();
+            assert_eq!(found.root, dir.path().join(".local/share/ukai-vm/0.10.0"));
+        }
+    }
+
+    #[test]
+    fn installed_or_staged_packages_with_no_image_never_borrow_a_home_image() {
+        let dir = tempfile::tempdir().unwrap();
+        installed_at(&dir.path().join(".local/share/ukai-vm/99.0.0"));
+        let installed = dir.path().join("custom/share/ukai-vm/0.1.0-preview.2");
+        let staged = dir
+            .path()
+            .join("custom/share/ukai-vm/.install.fixture/payload");
+        for root in [&installed, &staged] {
+            std::fs::create_dir_all(root.join("bin")).unwrap();
+        }
+        std::fs::write(staged.join("bin/ukai-vm-install"), b"installer marker").unwrap();
+        for root in [&installed, &staged] {
+            let error =
+                Install::discover_from(None, Some(&root.join("bin/ukai-vm")), Some(dir.path()))
+                    .unwrap_err();
+            assert!(
+                error.to_string().contains(&root.display().to_string()),
+                "{error}"
+            );
+        }
     }
 
     #[test]
