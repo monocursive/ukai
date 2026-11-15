@@ -392,8 +392,100 @@ candidate; no Linux release artifact change follows from this test fix.
 All eight bridge tests, 400 fixed-binary repetitions and 135 VM tests passed,
 along with strict lint and formatting. The original local and hosted failures
 remain retained under `bridge-half-close-9fdf/` and `guest-native-ci-9fdf7edc8/`.
-A fresh hosted run, final admitted-host validation, source-archive rebuilding
-and provider qualification remain open.
+A fresh hosted run and the admitted-host checks below supersede the pending
+status for those checks. Provider qualification remains separate.
+
+## Admitted native guest candidate
+
+Clean source `aedc1003dfe5f5e70d2a3891447fd2e528f9c31d` admits the exact
+native-v4 disk/seed pair and its six component-admission pins. It refuses the
+intermediate native-v2 pair while preserving that historical proof unchanged.
+The original legacy-image admission table remains unchanged.
+
+The private signed DMG is
+`b3c3c25d9f199b5e50d59b5889636ba209bf5c0ae22e9fd377acaf088e8fa580`.
+All six strict Apple Developer ID signature checks and seven actual installer
+cases passed. Independent mounted-DMG review verified all installed bytes and
+modes, all 755 archived Git files and modes, and the exact prepared image,
+catalog and detector inputs. All five components rebuilt as ARM64 from that
+archive using pinned Rust 1.98.1 and locked Python dependencies; the source
+remained unchanged and the rebuilt client's provenance matched the package.
+This is source-build verification, not byte reproducibility or notarization.
+
+The first archive preflight stopped on a stale whole-object comparison in the
+historical legacy replay recipe. The current derivation adds one contract
+observation field. The corrected preflight verifies that exact additive field
+separately, then compares every original field with the untouched historical
+record. Eight mutation controls passed. Both the original failure and the
+corrected preflight/rebuild remain retained under `source-rebuild-aedc1003d/`
+and `source-rebuild-aedc1003d-v2/`; the historical README command is not claimed
+to pass unchanged.
+
+All six hosted jobs passed for this source: [Rust and dependency policy](https://github.com/monocursive/ukai/actions/runs/43749751698),
+[contracts and website](https://github.com/monocursive/ukai/actions/runs/43749751688),
+and [fleet](https://github.com/monocursive/ukai/actions/runs/43749751662).
+The tested PR merge commit and candidate have the same tree. Linux reported
+3,058 test successes, 18 ignores and 519 runtime skip diagnostics; macOS
+reported 2,491 successes, seven ignores and no runtime skip diagnostics.
+Both reported zero failures. Python suites ran 1,002 cases with 79 explicit
+skips. The hosted macOS acceptance report still leaves specification gates
+unsupported or unproved; green CI does not replace live release acceptance.
+Exact logs, merge binding and counts are in `guest-native-ci-aedc1003d/`.
+
+The normal installed native `--version` route passed 27 execution, provenance
+and cleanup checks with the expected CLI version and no provider call.
+Its valid `/2` sampling report remained incomplete: five ticks, no vendor
+process observations, no secret hits and one vanished-inventory scan error.
+This is not complete workload sampling or K113 qualification.
+
+On the primary Mac, 20 service attempts and 20 actual installed-client attempts
+passed on one warm guest boot. Maximum release latency was 99.7 ms and maximum
+client-exec-to-first-write latency was 343.6 ms, each below the one-second
+bound. All 11 failure lanes passed, including actual client termination and
+suspension, service/custodian/VM loss, all-process suspension, EOF and service
+group stop. Fresh K109, K111 and K112 rows passed; K113 remained unjudged.
+The normal installed synthetic source-watch test passed all 21 facts, with
+one upstream substitution, stream termination after source removal and a
+later denied request without another substitution. These are synthetic
+plaintext measurements, not vendor/TLS compatibility evidence.
+
+Records are retained under `guest-native-version-aedc1003d/`,
+`guest-native-warm-aedc1003d/`, `guest-native-faults-aedc1003d/`,
+`guest-native-gates-aedc1003d/` and `guest-native-source-watch-aedc1003d/`.
+On the second Apple Silicon Mac (macOS 27.2), the exact DMG passed six Apple
+Developer ID signature checks, installation and repeat-install refusal. Both
+agent and tool workloads passed containment and independently recomputed
+receipt/journal summaries. The first cold workload took 79.74 seconds; the
+next warm tool workload took 0.355 seconds. A three-second wall limit returned
+in 3.168 seconds with an explicit unknown/lost, unverified outcome and no late
+marker. That bounded-cancellation check does not prove a clean guest drain.
+The normal installed synthetic source-watch lane passed 22 facts using the
+explicit Apple Python peer. Offline replay independently verified its full
+guest journal, use counts, summaries and retained input bindings. These
+second-machine records are in `spare-mac-aedc1003d/`; they do not establish
+vendor compatibility or notarized release acceptance.
+All 14 installed files and modes remained unchanged, no owned processes
+remained, and both task mounts were detached. The first offline driver failure
+is retained; the corrected replay accounts for the harness's exact portable
+helper-path rendering and does not alter workload evidence.
+
+The first bounded native API-key A01 measurement used that exact installed
+candidate and its archived helper. The prior missing-source control passed
+all six facts, returned `credential_unavailable` with both bundled hints and
+created no workload. The paid A01 task created `greeting.txt` containing
+`hello` and a newline. The vendor reported two turns on `claude-sonnet-5-5`
+and USD 0.0060354, below the requested USD 0.25 budget. All execution,
+containment, credential-use accounting, summary, export and cleanup facts
+passed. The original credential source's generation remained unchanged.
+
+The A01 measurement nevertheless **failed overall**: 27 of 28 facts passed,
+but its `/2` sampler retained one `inventory_vanished` error. It recorded
+192 ticks and 188 positive environment and argv reads of the exact receipt
+workload, with no secret hits. The error counter does not retain the vanished
+process identity, so this run cannot establish whether the missing inventory
+entry was inside or outside the measured workload. It is not waived. The
+failed record is retained under `guest-native-api-a01-aedc1003d/`; no automatic
+paid retry or repetition followed it. Later provider rows remain unmeasured.
 
 ## Remaining release limits
 
