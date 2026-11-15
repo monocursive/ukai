@@ -67,6 +67,155 @@ def verify_build(version, revision, inputs=None):
         raise ValueError('The artifact does not match the expected Jail source inputs.')
 
 
+class Workflow:
+    """Record each command's own attempts before evaluating its outcome."""
+
+    def __init__(self, binary, out, env, result, save):
+        self.binary, self.out, self.env = binary, out, env
+        self.result, self.save = result, save
+        self.data = pathlib.Path(env['UKAI_DATA_DIR'])
+        self.attempts = {}
+
+    def attempt_dirs(self):
+        root = self.data / 'attempts'
+        return {path.name: path for path in root.iterdir()
+                if path.is_dir() and not path.is_symlink()} if root.is_dir() else {}
+
+    def vendor_logs(self):
+        logs = {}
+        # Only diagnostic files: never copy vendor databases, credentials or
+        # arbitrary state. Do not follow a vendor-created symlink outside it.
+        for root in (self.data / 'state', self.data / 'attempts'):
+            if root.is_symlink():
+                continue
+            for directory, children, files in os.walk(root, followlinks=False):
+                children[:] = [name for name in children
+                               if not (pathlib.Path(directory) / name).is_symlink()]
+                relative = pathlib.Path(directory).relative_to(self.data)
+                if 'opencode' not in relative.parts or not {'log', 'logs'}.intersection(relative.parts):
+                    continue
+                for name in files:
+                    path = pathlib.Path(directory) / name
+                    if path.is_file() and not path.is_symlink():
+                        stat = path.stat()
+                        logs[path] = (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+        return logs
+
+    def collect(self, name, before, logs_before, row):
+        current = self.attempt_dirs()
+        new = [current[key] for key in sorted(current.keys() - before.keys())]
+        self.attempts[name] = new
+        row['attempt_ids'] = [path.name for path in new]
+        row['artifacts'] = [f'{name}.stdout', f'{name}.stderr']
+        for attempt in new:
+            destination = self.out / f'{name}-attempts' / attempt.name
+            destination.mkdir(parents=True)
+            for filename in ('jail.json', 'trace.ndjson', 'policy.json'):
+                source = attempt / filename
+                if source.is_file() and not source.is_symlink():
+                    shutil.copyfile(source, destination / filename)
+                    if len(new) == 1:
+                        # Keep the existing names used by receipt consumers,
+                        # but never guess between multiple/new-zero attempts.
+                        output = f'{name}-{filename}'
+                        shutil.copyfile(source, self.out / output)
+                        row['artifacts'].append(output)
+        if new:
+            row['artifacts'].append(f'{name}-attempts')
+        changed = []
+        for path, identity in self.vendor_logs().items():
+            if logs_before.get(path) == identity:
+                continue
+            relative = path.relative_to(self.data)
+            destination = self.out / f'{name}-vendor-logs' / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, destination)
+            changed.append(str(relative))
+        row['new_or_changed_vendor_logs'] = changed
+        if changed:
+            row['artifacts'].append(f'{name}-vendor-logs')
+
+    def run(self, name, argv, *, check=True, timeout=300, cwd=None):
+        started = time.monotonic()
+        jailed = len(argv) > 1 and str(argv[0]) == str(self.binary) and argv[1] in ('run', 'learn')
+        before = self.attempt_dirs() if jailed else {}
+        logs_before = self.vendor_logs() if jailed else {}
+        error = None
+        try:
+            done = subprocess.run([str(a) for a in argv], env=self.env, stdin=subprocess.DEVNULL,
+                                  capture_output=True, timeout=timeout, cwd=cwd)
+        except subprocess.TimeoutExpired as failure:
+            error = failure
+            done = subprocess.CompletedProcess(argv, None, failure.stdout or b'', failure.stderr or b'')
+        except OSError as failure:
+            error = failure
+            done = subprocess.CompletedProcess(argv, None, b'', str(failure).encode())
+        (self.out / f'{name}.stdout').write_bytes(done.stdout)
+        (self.out / f'{name}.stderr').write_bytes(done.stderr)
+        row = {'name': name, 'argv': [str(a) for a in argv],
+               'seconds': time.monotonic() - started, 'exit': done.returncode}
+        if error is not None:
+            row['execution_error'] = str(error)
+        self.result['rows'].append(row)
+        if jailed:
+            try:
+                self.collect(name, before, logs_before, row)
+            except (OSError, ValueError) as failure:
+                row['evidence_error'] = str(failure)
+                self.save()
+                raise
+        self.save()
+        if error is not None:
+            raise error
+        if check and done.returncode:
+            raise RuntimeError(f'{name} refused with exit {done.returncode}; see {name}.stderr')
+        return done
+
+    def receipt(self, name):
+        attempts = self.attempts.get(name, [])
+        assert len(attempts) == 1, f'{name} created {len(attempts)} attempts; cannot identify its receipt'
+        data = json.loads((self.out / f'{name}-jail.json').read_text())
+        assert data['phase'] == 'settled', data['phase']
+        assert data['containment'] == 'enforced', data['containment']
+        assert data['exec_observed'] is True
+        assert data['lifetime']['tree_empty'] is True
+        assert data['lifetime']['integrity'] == 'verified'
+        assert data['outcome']['kind'] == 'exited' and data['outcome']['code'] == 0
+        assert data['state_cleanup'] == 'complete'
+        return data
+
+    def vendor(self, name, argv, outputs):
+        # Preserve the same single Bad Request retry. Evidence is collected
+        # before this decision for all failures, including refusals/timeouts.
+        for attempt in range(2):
+            done = self.run(name, argv, check=False, timeout=330)
+            if done.returncode == 0:
+                return done
+            row = self.result['rows'][-1]
+            for path in outputs:
+                if path.is_file() and not path.is_symlink():
+                    destination = f'{name}-failed-output-{path.name}'
+                    shutil.copyfile(path, self.out / destination)
+                    row['artifacts'].append(destination)
+            self.save()
+            if attempt or b'Bad Request:' not in done.stderr or b'ukai-jail: error' in done.stderr:
+                raise RuntimeError(f'{name} failed with exit {done.returncode}; see {name}.stderr')
+            label = name + '-provider-failure'
+            row['name'] = label
+            renamed = []
+            for artifact in row['artifacts']:
+                destination = label + artifact[len(name):]
+                (self.out / artifact).rename(self.out / destination)
+                renamed.append(destination)
+            row['artifacts'] = renamed
+            self.attempts[label] = self.attempts.pop(name)
+            for path in outputs:
+                if path.exists():
+                    path.unlink()
+            self.result.setdefault('provider_retries', []).append(label)
+            self.save()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--artifacts', type=pathlib.Path, required=True)
@@ -99,63 +248,8 @@ def main():
     def save():
         (out / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
 
-    def run(name, argv, *, check=True, timeout=300, cwd=None):
-        started = time.monotonic()
-        done = subprocess.run([str(a) for a in argv], env=env, stdin=subprocess.DEVNULL,
-                              capture_output=True, timeout=timeout, cwd=cwd)
-        (out / f'{name}.stdout').write_bytes(done.stdout)
-        (out / f'{name}.stderr').write_bytes(done.stderr)
-        result['rows'].append({'name': name, 'argv': [str(a) for a in argv],
-                               'seconds': time.monotonic() - started, 'exit': done.returncode})
-        save()
-        if check and done.returncode:
-            if len(argv) > 1 and str(argv[0]) == str(binary) and argv[1] == 'run':
-                try:
-                    receipt(name)
-                except (AssertionError, OSError, ValueError) as error:
-                    result['receipt_validation_error'] = str(error) or repr(error)
-            raise RuntimeError(f'{name} refused with exit {done.returncode}; see {name}.stderr')
-        return done
-
-    def receipt(name):
-        attempt = max((home / 'ouro-data/attempts').iterdir(), key=lambda p: p.stat().st_mtime_ns)
-        for filename in ['jail.json', 'trace.ndjson', 'policy.json']:
-            source = attempt / filename
-            if source.is_file():
-                shutil.copyfile(source, out / f'{name}-{filename}')
-        data = json.loads((attempt / 'jail.json').read_text())
-        assert data['phase'] == 'settled', data['phase']
-        assert data['containment'] == 'enforced', data['containment']
-        assert data['exec_observed'] is True
-        assert data['lifetime']['tree_empty'] is True
-        assert data['lifetime']['integrity'] == 'verified'
-        assert data['outcome']['kind'] == 'exited' and data['outcome']['code'] == 0
-        assert data['state_cleanup'] == 'complete'
-        return data
-
-    def vendor(name, argv, outputs):
-        # One bounded retry for an observed provider Bad Request, retaining
-        # the failed row and artifacts. Jail errors never qualify. The
-        # onboarding clock includes both attempts; this is no reliability claim.
-        for attempt in range(2):
-            done = run(name, argv, check=False, timeout=330)
-            if done.returncode == 0:
-                return done
-            if attempt or b'Bad Request:' not in done.stderr or b'ukai-jail: error' in done.stderr:
-                raise RuntimeError(f'{name} failed with exit {done.returncode}; see {name}.stderr')
-            label = name + '-provider-failure'
-            result['rows'][-1]['name'] = label
-            for suffix in ['stdout', 'stderr']:
-                (out / f'{name}.{suffix}').rename(out / f'{label}.{suffix}')
-            current = max((home / 'ouro-data/attempts').iterdir(), key=lambda p: p.stat().st_mtime_ns)
-            for filename in ['jail.json', 'trace.ndjson', 'policy.json']:
-                shutil.copyfile(current / filename, out / f'{label}-{filename}')
-            for path in outputs:
-                if path.exists():
-                    shutil.copyfile(path, out / f'{label}-{path.name}')
-                    path.unlink()
-            result.setdefault('provider_retries', []).append(label)
-            save()
+    workflow = Workflow(binary, out, env, result, save)
+    run, receipt, vendor = workflow.run, workflow.receipt, workflow.vendor
 
     def distribution_checks():
         result['distribution_checks'] = 'started'
@@ -267,7 +361,7 @@ def main():
         (workspace / 'task.txt').write_text('hello\n')
         vendor('opencode', [binary, 'run', '--launch', launch, '--workspace', workspace,
                          '--ro', agent_dir, '--limit', 'wall=300s', '--', agent, 'run',
-                         '--model', args.model,
+                         '--print-logs', '--log-level', 'DEBUG', '--model', args.model,
                          'Use your glob tool to find task.txt, read it, then create greeting.txt '
                          'with exactly the same contents. Do not use the network yourself.'], [workspace / 'greeting.txt'])
         data = receipt('opencode')
@@ -294,7 +388,7 @@ def main():
         proposal = out / 'opencode-learned.toml'
         vendor('opencode-learn', [binary, 'learn', '--launch', launch, '--workspace', workspace,
                               '--ro', agent_dir, '--limit', 'wall=300s', '--out', proposal,
-                              '--', agent, 'run', '--model', args.model,
+                              '--', agent, 'run', '--print-logs', '--log-level', 'DEBUG', '--model', args.model,
                               f'Use the bash tool once to run exactly `cat {needed}; '
                               'cp task.txt learned-greeting.txt`. The cat is expected to fail; still '
                               'run cp after it. Do not retry, change permissions, or use the network '
