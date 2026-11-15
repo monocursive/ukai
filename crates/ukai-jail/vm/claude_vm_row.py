@@ -42,6 +42,7 @@ its value is never supplied in argv or the child environment.
 Usage: claude_vm_row.py <installed-root> <workspace> <out> <ukai-jail> [options]
 """
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -70,7 +71,6 @@ PROMPT = ('In the current directory, create a file named k113-marker.txt '
 NOT_MEASURED = ['A01 fixture', 'ten repetitions', 'no-source refusal', 'revocation',
                 'six active classes', 'credential use count']
 COMPATIBILITY_PENDING = ['revocation mid-stream', 'full independent summary recomputation',
-                         'guest journal / independently matched credential use count',
                          'sampled child environments', 'alias-derived executable grants',
                          'installed notarized candidate qualification']
 A01_PROMPT = 'Create a file named greeting.txt containing the single word hello.'
@@ -146,8 +146,164 @@ def missing_source_facts(row, text, attempts):
             'not_a_vm_capability_refusal': not harness.vm_refusals(text)}
 
 
+JOURNAL_MAX = 16 * 1024 * 1024
+JOURNAL_PART = 512 * 1024
+RECEIPT_MAX = 4 * 1024 * 1024
+
+
+def strict_json(data):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError('duplicate JSON member')
+            result[key] = value
+        return result
+    def invalid(_):
+        raise ValueError('non-JSON constant')
+    return json.loads(data, object_pairs_hook=pairs, parse_constant=invalid)
+
+
+def canonical_receipt(value):
+    """The receipt's integer-only JCS domain, including UTF-16 member order."""
+    if value is None or type(value) in (bool, str):
+        return json.dumps(value, ensure_ascii=False, separators=(',', ':'))
+    if type(value) is int and -(2 ** 63) <= value < 2 ** 64:
+        return str(value)
+    if type(value) is list:
+        return '[' + ','.join(canonical_receipt(item) for item in value) + ']'
+    if type(value) is dict:
+        return '{' + ','.join(canonical_receipt(key) + ':' + canonical_receipt(value[key])
+                              for key in sorted(value, key=lambda key: key.encode('utf-16-be'))) + '}'
+    raise ValueError('unsupported canonical receipt value')
+
+
+def verified_guest_journal(attempt):
+    """Bounded, anchored independent evidence reads; no host journal fallback.
+
+    A malformed/new unavailable export yields no events. Error text and journal
+    values never enter the diagnostic, which can be retained before a leak scan.
+    This qualification judge intentionally rejects all source-sequence holes,
+    even a documented loss that the general summary can describe as a lower bound.
+    """
+    result = {'state': 'invalid', 'verified': False}
+    guest = {}
+    try:
+        with contextlib.ExitStack() as stack:
+            def directory(path, parent=None):
+                fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+                stack.callback(os.close, fd)
+                return fd
+            def read(parent, name, cap):
+                fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+                with os.fdopen(fd, 'rb') as stream:
+                    before = os.fstat(fd)
+                    if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_size > cap:
+                        raise ValueError('invalid evidence file')
+                    value = stream.read(cap + 1)
+                    after = os.fstat(fd)
+                identity = lambda info: (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+                if len(value) != before.st_size or identity(before) != identity(after):
+                    raise ValueError('evidence changed while reading')
+                return value
+            root = directory(attempt)
+            evidence = directory('evidence', root)
+            receipt_bytes = read(evidence, 'jail.json', RECEIPT_MAX)
+            guest = strict_json(receipt_bytes)
+            if type(guest) is not dict or re.fullmatch(
+                    r'att_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}',
+                    guest.get('attempt_id', '')) is None:
+                raise ValueError('invalid guest identity')
+            receipt_hash = hashlib.sha256(receipt_bytes).hexdigest()
+            result.update(guest_attempt_id=guest['attempt_id'], guest_receipt_sha256=receipt_hash)
+            try:
+                journal = directory('guest-journal', evidence)
+            except FileNotFoundError:
+                result['state'] = 'absent'
+                return guest, None, result
+            manifest = strict_json(read(journal, 'manifest.json', 4096))
+            keys = {'schema', 'guest_attempt_id', 'guest_receipt_sha256', 'state', 'bytes', 'parts', 'sha256'}
+            if (type(manifest) is not dict or set(manifest) != keys
+                    or manifest['schema'] != 'ukai.vm.guest-journal/1'
+                    or manifest['guest_attempt_id'] != guest['attempt_id']
+                    or manifest['guest_receipt_sha256'] != receipt_hash
+                    or type(manifest['parts']) is not int or not 0 <= manifest['parts'] <= JOURNAL_MAX // JOURNAL_PART):
+                raise ValueError('invalid journal manifest')
+            expected = {'manifest.json'} | {f'{index:04}.part' for index in range(manifest['parts'])}
+            with os.scandir(journal) as listing:
+                names = []
+                for entry in listing:
+                    names.append(entry.name)
+                    if len(names) > len(expected):
+                        raise ValueError('unexpected journal entry')
+            if set(names) != expected or len(names) != len(expected):
+                raise ValueError('journal parts disagree')
+            if manifest['state'] != 'exported':
+                if (manifest['parts'] != 0 or manifest['sha256'] is not None
+                        or not ((manifest['state'] == 'absent' and manifest['bytes'] is None)
+                                or (manifest['state'] == 'unreadable' and (manifest['bytes'] is None
+                                    or type(manifest['bytes']) is int and manifest['bytes'] >= 0))
+                                or (manifest['state'] == 'not_scanned' and type(manifest['bytes']) is int
+                                    and manifest['bytes'] > JOURNAL_MAX))):
+                    raise ValueError('invalid unavailable journal')
+                result['state'] = manifest['state']
+                return guest, None, result
+            size = manifest['bytes']
+            if (type(size) is not int or not 0 < size <= JOURNAL_MAX
+                    or (size + JOURNAL_PART - 1) // JOURNAL_PART != manifest['parts']):
+                raise ValueError('invalid journal size')
+            payload = bytearray()
+            for index in range(manifest['parts']):
+                part = read(journal, f'{index:04}.part', JOURNAL_PART)
+                if len(part) != min(JOURNAL_PART, size - len(payload)):
+                    raise ValueError('invalid journal part size')
+                payload.extend(part)
+            digest = hashlib.sha256(payload).hexdigest()
+            if digest != manifest['sha256'] or not payload.endswith(b'\n'):
+                raise ValueError('invalid journal bytes')
+            events, sequences = [], {}
+            for line in payload.splitlines():
+                if not 0 < len(line) <= 65536:
+                    raise ValueError('invalid journal frame size')
+                event = strict_json(line)
+                if (type(event) is not dict or event.get('attempt_id') != guest['attempt_id']
+                        or type(event.get('source')) is not str or not event['source']
+                        or type(event.get('source_seq')) is not int
+                        or event['source_seq'] != sequences.get(event['source'], 0) + 1
+                        or type(event.get('fields', {})) is not dict):
+                    raise ValueError('invalid journal frame')
+                sequences[event['source']] = event['source_seq']
+                if event['source'] == 'proxy' and event.get('operation') == 'net.connect':
+                    fields = event.get('fields', {})
+                    if (event.get('stage') != 'result' or event.get('decision') not in ('allow', 'deny')
+                            or any(type(fields.get(key, [])) is not list
+                                   or any(type(item) is not str for item in fields.get(key, []))
+                                   for key in ('credentials', 'credentials_unconfirmed'))):
+                        raise ValueError('invalid proxy result')
+                events.append(event)
+            last = events[-1]
+            canonical_hash = 'sha256:' + hashlib.sha256(canonical_receipt(guest).encode()).hexdigest()
+            if (guest.get('phase') != 'settled' or last['source'] != 'wrapper'
+                    or last.get('operation') != 'jail.receipt'
+                    or last.get('fields', {}).get('phase') != 'settled'
+                    or last['fields'].get('receipt_digest') != canonical_hash):
+                raise ValueError('journal does not settle this receipt')
+            result.update(state='complete', verified=True, bytes=size, parts=manifest['parts'],
+                          sha256=digest, events=len(events), receipt_digest=canonical_hash)
+            return guest, events, result
+    except (OSError, ValueError, TypeError, KeyError, IndexError, RecursionError, UnicodeError):
+        return guest if type(guest) is dict else {}, None, result
+
+
 def compatibility_facts(row, guest, summary, events):
     """Required per-run facts; absent guest journal/counts fail, never become zero."""
+    try:
+        return _compatibility_facts(row, guest, summary, events)
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return {'evidence_well_formed': False}
+
+
+def _compatibility_facts(row, guest, summary, events):
     lines = {line.get('line'): line for line in summary.get('lines', [])}
     evidence = (lines.get('evidence') or {}).get('facts') or {}
     credentials = guest.get('credentials') or []
@@ -156,11 +312,15 @@ def compatibility_facts(row, guest, summary, events):
         event.get('source') == 'proxy' and event.get('operation') == 'net.connect'
         and event.get('stage') == 'result' and row['credential_id'] in ((event.get('fields') or {}).get('credentials') or [])
         for event in events)
+    proxy_results = [] if events is None else [event for event in events
+        if event.get('source') == 'proxy' and event.get('operation') == 'net.connect']
     coverage = guest.get('coverage') or {}
     return {'strict_observation': evidence.get('observe') == 'on' and evidence.get('evidence') == 'strict',
             'six_active_classes_no_gaps': set(coverage) == set(harness.SUMMARY_CLASSES)
             and all(value.get('status') == 'active' and value.get('gaps') == [] for value in coverage.values()),
             'guest_settled_clean': guest.get('phase') == 'settled' and guest.get('errors') == []
+            and guest.get('containment') == 'enforced' and guest.get('child_protection') == 'enforced'
+            and guest.get('exec_observed') is True
             and (guest.get('outcome') or {}).get('kind') == 'exited'
             and (guest.get('outcome') or {}).get('code') == 0
             and guest.get('state_cleanup') == 'complete' and guest.get('cleanup_error') is None
@@ -170,6 +330,14 @@ def compatibility_facts(row, guest, summary, events):
             and credentials[0].get('id') == row['credential_id'] and credentials[0].get('mode') == 'vault'
             and credentials[0].get('never_staged') is True,
             'guest_journal_available': events is not None,
+            'guest_proxy_count_matches_receipt': events is not None
+            and type((coverage.get('proxy.net') or {}).get('observed_count')) is int
+            and coverage['proxy.net']['observed_count'] == len(proxy_results),
+            'credential_use_recording_confirmed': events is not None and any(
+                event.get('source') == 'wrapper' and event.get('operation') == 'note'
+                and (event.get('fields') or {}).get('kind') == 'credential'
+                and event['fields'].get('credential_id') == row['credential_id']
+                and event['fields'].get('uses_recorded') is True for event in events),
             'exact_credential_uses_match': uses is not None and uses > 0 and len(counted) == 1
             and counted[0].get('id') == row['credential_id'] and counted[0].get('uses_bound') == 'exact'
             and counted[0].get('uses') == uses,
@@ -512,6 +680,8 @@ def main(argv=None, now=time.time, candidates=credential_candidates, run=subproc
     if args.case in ('a01', 'small-task'):
         try:
             summary_value = json.loads(tail_json)
+            if type(summary_value) is not dict:
+                raise ValueError('summary shape')
         except ValueError:
             summary_value = {}
         summary_lines = [f"ukai-jail: {line.get('text', '')}" for line in summary_value.get('lines', [])]
@@ -520,10 +690,8 @@ def main(argv=None, now=time.time, candidates=credential_candidates, run=subproc
                    and not line.startswith('ukai-jail: vm: ')]
         row['tail_json_text_matches_text'] = (row.get('tail_summary_json_exit') == 0
                                             and bool(summary_lines) and printed == summary_lines)
-        # Current VM transport exports no guest journal. Never count the host's
-        # unrelated lifecycle journal as credential uses or invent zero uses.
-        row['compatibility_facts'] = compatibility_facts(row, read_json(out / 'k113-attempt/evidence/jail.json'),
-                                                       summary_value, None)
+        guest, events, row['guest_journal'] = verified_guest_journal(out / 'k113-attempt')
+        row['compatibility_facts'] = compatibility_facts(row, guest, summary_value, events)
         row['not_measured'] = COMPATIBILITY_PENDING
     if token:
         # The parsed vendor result is captured before output redaction. It too

@@ -74,6 +74,7 @@ class CompatibilityTests(unittest.TestCase):
         observed = {'credential_id': 'anthropic', 'tail_json_text_matches_text': True,
                     'task_passed': True, 'outcome': 'PASS'}
         guest = {'phase': 'settled', 'errors': [], 'state_cleanup': 'complete', 'cleanup_error': None,
+                 'containment': 'enforced', 'child_protection': 'enforced', 'exec_observed': True,
                  'outcome': {'kind': 'exited', 'code': 0},
                  'lifetime': {'tree_empty': True, 'integrity': 'verified'},
                  'coverage': {name: {'status': 'active', 'gaps': []} for name in harness.SUMMARY_CLASSES},
@@ -82,7 +83,10 @@ class CompatibilityTests(unittest.TestCase):
                             {'line': 'credentials', 'facts': {'credentials': [
                                 {'id': 'anthropic', 'uses': 1, 'uses_bound': 'exact'}]}}]}
         events = [{'source': 'proxy', 'operation': 'net.connect', 'stage': 'result',
-                   'fields': {'credentials': ['anthropic']}}]
+                   'fields': {'credentials': ['anthropic']}},
+                  {'source': 'wrapper', 'operation': 'note', 'fields': {
+                      'kind': 'credential', 'credential_id': 'anthropic', 'uses_recorded': True}}]
+        guest['coverage']['proxy.net']['observed_count'] = 1
         return observed, guest, summary, events
 
     def test_strict_facts_require_all_six_classes_and_real_uses(self):
@@ -101,6 +105,9 @@ class CompatibilityTests(unittest.TestCase):
         self.assertFalse(row.compatibility_facts(observed, guest, changed, events)['exact_credential_uses_match'])
         changed['lines'][1]['facts']['credentials'][0].update(uses_bound='exact', uses=2)
         self.assertFalse(row.compatibility_facts(observed, guest, changed, events)['exact_credential_uses_match'])
+        guest['coverage']['proxy.net']['observed_count'] = 999
+        self.assertFalse(row.compatibility_facts(observed, guest, summary, events)['guest_proxy_count_matches_receipt'])
+        self.assertFalse(row.compatibility_facts(observed, guest, summary, events[:1])['credential_use_recording_confirmed'])
 
     def test_matrix_retains_all_failures_and_never_qualifies(self):
         workspace = self.root / 'workspace'
@@ -216,6 +223,126 @@ class ApiSourceRunTests(unittest.TestCase):
         self.token = 'synthetic-"quoted"-\\backslash-é-key'
         report = self.result_secret_check()
         self.assertEqual(report['token_in_outputs'], ['stdout'])
+
+
+class GuestJournalTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.attempt = Path(temporary.name) / 'attempt'
+        self.root = self.attempt / 'evidence/guest-journal'
+        self.root.mkdir(parents=True)
+        self.guest = {'attempt_id': 'att_00000000-0000-4000-8000-000000000001', 'phase': 'settled'}
+        self.events = [{'attempt_id': self.guest['attempt_id'], 'source': 'proxy', 'source_seq': 1,
+                        'operation': 'net.connect', 'decision': 'allow', 'stage': 'result',
+                        'fields': {'credentials': ['anthropic']}}]
+        self.note()
+        self.write()
+
+    def note(self):
+        self.events.append({'attempt_id': self.guest['attempt_id'], 'source': 'wrapper', 'source_seq': 1,
+                            'operation': 'jail.receipt', 'fields': {'phase': 'settled',
+                            'receipt_digest': 'sha256:' + hashlib.sha256(row.canonical_receipt(self.guest).encode()).hexdigest()}})
+
+    def write(self, payload=None):
+        for child in self.root.iterdir():
+            if child.is_file() or child.is_symlink(): child.unlink()
+        raw = json.dumps(self.guest).encode()
+        (self.attempt / 'evidence/jail.json').write_bytes(raw)
+        self.payload = payload if payload is not None else b''.join(json.dumps(e).encode() + b'\n' for e in self.events)
+        parts = [self.payload[index:index + row.JOURNAL_PART] for index in range(0, len(self.payload), row.JOURNAL_PART)]
+        for index, part in enumerate(parts): (self.root / f'{index:04}.part').write_bytes(part)
+        self.manifest = {'schema': 'ukai.vm.guest-journal/1', 'guest_attempt_id': self.guest['attempt_id'],
+                         'guest_receipt_sha256': hashlib.sha256(raw).hexdigest(), 'state': 'exported',
+                         'bytes': len(self.payload), 'parts': len(parts), 'sha256': hashlib.sha256(self.payload).hexdigest()}
+        self.manifest_write()
+
+    def manifest_write(self):
+        (self.root / 'manifest.json').write_text(json.dumps(self.manifest))
+
+    def invalid(self):
+        guest, events, info = row.verified_guest_journal(self.attempt)
+        self.assertIsNone(events)
+        self.assertFalse(info['verified'])
+        self.assertIsInstance(guest, dict)
+
+    def test_complete_journal_is_independently_bound_to_exact_guest_receipt(self):
+        guest, events, info = row.verified_guest_journal(self.attempt)
+        self.assertEqual(guest, self.guest)
+        self.assertEqual(events, self.events)
+        self.assertTrue(info['verified'])
+        self.assertEqual(info['sha256'], hashlib.sha256(self.payload).hexdigest())
+        (self.attempt / 'trace.ndjson').write_bytes(b'not guest evidence')
+        self.assertEqual(row.verified_guest_journal(self.attempt)[1], self.events)
+
+    def test_multi_part_journal_keeps_exact_events(self):
+        self.events = [dict(self.events[0], source_seq=index, padding='x' * 4000) for index in range(1, 145)]
+        self.note(); self.write()
+        self.assertGreater(self.manifest['parts'], 1)
+        self.assertEqual(row.verified_guest_journal(self.attempt)[1], self.events)
+
+    def test_manifest_size_identity_hash_part_set_and_unexpected_keys_refuse(self):
+        for key, value in [('schema', 'other'), ('guest_attempt_id', 'other'), ('guest_receipt_sha256', '0' * 64),
+                           ('bytes', True), ('bytes', row.JOURNAL_MAX + 1), ('bytes', 0),
+                           ('parts', True), ('parts', 33), ('sha256', '0' * 64), ('unexpected', 1)]:
+            with self.subTest(key=key, value=value):
+                self.write(); self.manifest[key] = value; self.manifest_write(); self.invalid()
+        for mutation in ('missing', 'extra', 'changed', 'receipt'):
+            with self.subTest(mutation=mutation):
+                self.write()
+                if mutation == 'missing': (self.root / '0000.part').unlink()
+                elif mutation == 'extra': (self.root / '0001.part').write_bytes(b'extra')
+                elif mutation == 'changed': (self.root / '0000.part').write_bytes(b'changed')
+                else: (self.attempt / 'evidence/jail.json').write_text(json.dumps(self.guest) + ' ')
+                self.invalid()
+
+    def test_torn_foreign_duplicate_hole_and_wrong_receipt_notes_refuse(self):
+        original = copy.deepcopy(self.events)
+        for mutation in ('torn', 'foreign', 'duplicate', 'hole', 'no-note', 'wrong-note', 'not-settled', 'bad-ids', 'constant', 'duplicate-json'):
+            with self.subTest(mutation=mutation):
+                self.events = copy.deepcopy(original)
+                payload = None
+                if mutation == 'torn': payload = self.payload.rstrip(b'\n')
+                elif mutation == 'foreign': self.events[0]['attempt_id'] = 'another'
+                elif mutation == 'duplicate': self.events.insert(1, copy.deepcopy(self.events[0]))
+                elif mutation == 'hole': self.events[0]['source_seq'] = 2
+                elif mutation == 'no-note': self.events.pop()
+                elif mutation == 'wrong-note': self.events[-1]['fields']['receipt_digest'] = 'sha256:' + '0' * 64
+                elif mutation == 'not-settled': self.events[-1]['fields']['phase'] = 'running'
+                elif mutation == 'bad-ids': self.events[0]['fields']['credentials'] = 'anthropic'
+                elif mutation == 'constant': payload = b'{"x":NaN}\n'
+                elif mutation == 'duplicate-json': payload = b'{"source":"proxy","source":"wrapper"}\n'
+                self.write(payload); self.invalid()
+
+    def test_absent_unreadable_and_over_cap_states_provide_no_events(self):
+        for state, size in [('absent', None), ('unreadable', None), ('not_scanned', row.JOURNAL_MAX + 1)]:
+            self.write(); (self.root / '0000.part').unlink()
+            self.manifest.update(state=state, bytes=size, parts=0, sha256=None); self.manifest_write()
+            self.invalid()
+            self.assertEqual(row.verified_guest_journal(self.attempt)[2]['state'], state)
+        shutil.rmtree(self.root)
+        self.invalid()
+        self.assertEqual(row.verified_guest_journal(self.attempt)[2]['state'], 'absent')
+
+    def test_links_fifo_and_directory_replacement_are_refused(self):
+        part = self.root / '0000.part'
+        original = self.attempt / 'original'
+        original.write_bytes(part.read_bytes())
+        for kind in ('symlink', 'hardlink', 'fifo'):
+            self.write(); part.unlink()
+            if kind == 'symlink': part.symlink_to(original)
+            elif kind == 'hardlink': os.link(original, part)
+            else: os.mkfifo(part)
+            self.invalid(); part.unlink()
+        self.write()
+        self.root.rename(self.attempt / 'outside')
+        self.root.symlink_to(self.attempt / 'outside', target_is_directory=True)
+        self.invalid()
+
+    def test_canonicalization_uses_utf16_order_and_rejects_float_domain(self):
+        self.assertEqual(row.canonical_receipt({'\ue000': 2, '\U00010000': 1}), '{"\U00010000":1,"\ue000":2}')
+        for value in (1.25, 2 ** 64, -(2 ** 63) - 1):
+            with self.assertRaises(ValueError): row.canonical_receipt(value)
 
 
 if __name__ == '__main__':
