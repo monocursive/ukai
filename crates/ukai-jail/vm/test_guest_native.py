@@ -10,12 +10,15 @@ import hashlib
 import os
 from pathlib import Path
 import stat
+import subprocess
+import sys
+import tempfile
 import types
 import unittest
 from unittest import mock
 
 import guest_program as gp
-from guest_harness import GuestHarness, hold
+from guest_harness import GuestHarness, hold, load_guest
 from test_guest_program import intent_for, verified_catalog
 
 
@@ -73,8 +76,8 @@ class NativeControllerTests(unittest.TestCase):
         h = self.create(scenarios=[hold()]); self.prepare(h); self.secret(h)
         config = h.guest.NATIVE_CONFIG
         self.assertEqual(sorted(p.name for p in config.iterdir()), ['credentials'])
-        for p in [config, config/'credentials']:
-            self.assertEqual(stat.S_IMODE(p.stat().st_mode), 0o710)
+        for p, mode in [(config, 0o750), (config/'credentials', 0o710)]:
+            self.assertEqual(stat.S_IMODE(p.stat().st_mode), mode)
             self.assertEqual((p.stat().st_uid, p.stat().st_gid), (os.geteuid(), h.gid))
         source = config/'credentials/token'
         self.assertEqual(stat.S_IMODE(source.stat().st_mode), 0o600)
@@ -92,6 +95,72 @@ class NativeControllerTests(unittest.TestCase):
         self.assertFalse(source.exists())
         h.send(op='cancel2'); h.expect('cancelled')
         self.assertFalse(config.exists())
+
+    @unittest.skipUnless(sys.platform.startswith('linux') and os.geteuid() == 0
+                         and Path('/dev/shm').is_dir(),
+                         'requires Linux root to exercise a distinct workload UID on real tmpfs')
+    def test_native_config_marker_listing_as_actual_unprivileged_workload(self):
+        # This is an actual kernel DAC check, not the same-UID controller
+        # model above. No mount, global account or security setting changes.
+        import pwd
+        account = pwd.getpwnam('nobody')
+        self.assertNotEqual(account.pw_uid, 0)
+        guest = load_guest()
+        with tempfile.TemporaryDirectory(prefix='ukai-native-dac-', dir='/dev/shm') as temporary:
+            root = Path(temporary)
+            root.chmod(0o755)
+            guest.NATIVE_CONFIG = root / 'run/ukai-vm/native-config'
+            for ancestor in [root/'run', guest.NATIVE_CONFIG.parent]:
+                ancestor.mkdir(mode=0o755)
+                ancestor.chmod(0o755)
+            guest.prepare_native_config(account)
+            config = guest.NATIVE_CONFIG
+            source = guest.stage_secret('token', b'synthetic-dac-control',
+                                        secrets=config/'credentials', account=account)
+            self.assertEqual((config.stat().st_uid, config.stat().st_gid), (0, account.pw_gid))
+            self.assertEqual(stat.S_IMODE(config.stat().st_mode), 0o750)
+            self.assertEqual(stat.S_IMODE((config/'credentials').stat().st_mode), 0o710)
+            self.assertEqual((source.stat().st_uid, source.stat().st_gid),
+                             (account.pw_uid, account.pw_gid))
+            self.assertEqual((stat.S_IMODE(source.stat().st_mode), source.stat().st_nlink), (0o600, 1))
+            script = '''import json,os,sys
+from pathlib import Path
+config=Path(sys.argv[1])
+def denied(action):
+    try: action()
+    except PermissionError: return True
+    return False
+if sys.argv[2]=='negative':
+    checks={'old_search_only_config_cannot_enumerate':denied(lambda:os.listdir(config))}
+else:
+    checks={'config_enumerated':os.listdir(config)==['credentials'],
+        'no_supplementary_groups':os.getgroups()==[],
+        'distinct_unprivileged_uid':os.geteuid()!=0,
+        'selected_file_readable':(config/'credentials/token').read_bytes()==b'synthetic-dac-control',
+        'credentials_not_enumerable':denied(lambda:os.listdir(config/'credentials')),
+        'marker_create_denied':denied(lambda:(config/'uncontained.att_test.live').write_bytes(b'')),
+        'config_create_denied':denied(lambda:(config/'config.toml').write_bytes(b'')),
+        'launch_create_denied':denied(lambda:(config/'launch').mkdir()),
+        'credentials_rename_denied':denied(lambda:(config/'credentials').rename(config/'moved')),
+        'source_unlink_denied':denied(lambda:(config/'credentials/token').unlink()),
+        'source_rename_denied':denied(lambda:(config/'credentials/token').rename(config/'credentials/moved'))}
+print(json.dumps(checks))
+raise SystemExit(0 if all(value is True for value in checks.values()) else 1)
+'''
+            def run(mode):
+                return subprocess.run([sys.executable, '-I', '-c', script, str(config), mode],
+                    user=account.pw_uid, group=account.pw_gid, extra_groups=[], cwd='/',
+                    stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=10)
+            # The previous mode must really reproduce the guest failure.
+            config.chmod(0o710)
+            negative = run('negative')
+            self.assertEqual(negative.returncode, 0, negative.stderr)
+            self.assertEqual(json.loads(negative.stdout), {'old_search_only_config_cannot_enumerate': True})
+            config.chmod(0o750)
+            positive = run('positive')
+            self.assertEqual(positive.returncode, 0, positive.stderr)
+            self.assertEqual(len(json.loads(positive.stdout)), 11)
+            self.assertTrue(all(value is True for value in json.loads(positive.stdout).values()))
 
     def test_non_tmpfs_config_refuses_before_secret(self):
         h = self.create(); p = h.guest.PROC_ROOT/'self/mountinfo'; p.write_text(p.read_text().replace('tmpfs', 'ext4'))

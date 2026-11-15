@@ -129,7 +129,11 @@ private configuration root; it does not claim the jail has executed policy.
 
 Native configuration is `/run/ukai-vm/native-config` on the guest tmpfs, with
 the source at `credentials/<selected_credential_id>`. The controller owns the
-configuration and credentials directories as root:workload-group, mode 0710.
+configuration directory as root:workload-group, mode 0750. The Linux jail must
+enumerate uncontained-run markers there before launch resolution; the workload
+group may read and traverse this directory, but cannot change it. The credentials
+directory remains root:workload-group, mode 0710, allowing only traversal to the
+selected source rather than directory listing.
 The selected single-link file is workload-UID:GID, mode 0600. Only native runs
 receive this `UKAI_CONFIG_DIR`. No launch override is written. Revocation
 removes the exact staged source before the existing exact-ID acknowledgement.

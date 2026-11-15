@@ -999,6 +999,11 @@ def prepare_native_config(account):
         try:
             if os.listdir(directory):
                 raise ValueError('native config is not empty')
+            # The frozen Linux jail enumerates uncontained-run markers in
+            # UKAI_CONFIG_DIR before resolving its launch. The workload group
+            # needs read+search here, but no write authority. Credential
+            # directories remain 0710; their known files need only traversal.
+            os.fchmod(directory, 0o750)
         finally:
             os.close(directory)
     finally:
