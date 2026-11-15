@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -73,7 +74,13 @@ class ReleaseTests(unittest.TestCase):
         binary = self.root / 'binary'
         binary.write_bytes(b'fixed test payload')
         target = next(iter(TARGETS))
-        first = create_archive(binary, target, self.root / 'first', '9.9.9-rc.1').read_bytes()
+        first_archive = create_archive(binary, target, self.root / 'first', '9.9.9-rc.1')
+        first = first_archive.read_bytes()
+        with tarfile.open(first_archive, 'r:gz') as archive:
+            notices = archive.extractfile('ukai-jail.LICENSES.txt').read()
+        self.assertIn(b'webpki-roots, Mozilla CA certificate data', notices)
+        self.assertNotRegex(notices, rb'webpki-roots\s+[0-9]')
+        self.assertTrue(notices.endswith(Path(__file__).with_name('WEBPKI_ROOTS_LICENSE').read_bytes()))
         os.utime(binary, (1234567, 1234567))
         other = self.root / 'other'; shutil.copyfile(binary, other)
         second = create_archive(other, target, self.root / 'second', '9.9.9-rc.1').read_bytes()
