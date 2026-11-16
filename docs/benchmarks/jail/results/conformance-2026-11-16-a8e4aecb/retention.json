@@ -1,0 +1,76 @@
+{
+  "schema": "ukai.conformance-retained-artifact/1",
+  "workflow_run": 43817218080,
+  "workflow_attempt": 1,
+  "source_commit": "a8e4aecb071a0367001f309a659897d6aa336600",
+  "source_tree": "dd24eac9cda05e1d4a4fc9f5c14bdfcd7f013c5f",
+  "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+  "artifact_files": {
+    "binaries-check.txt": {
+      "bytes": 92,
+      "sha256": "82677281109685693ec944186504eb619e2b552b745c7a27d74899d0ad73f58e"
+    },
+    "binaries.sha256": {
+      "bytes": 278,
+      "sha256": "511ed0a592b2d547776e24373c577fb5024be61a7b76e0a16fcdc0d41a46dc56"
+    },
+    "build.log": {
+      "bytes": 16624,
+      "sha256": "b501125a97859685fb48448fe0d784fe88ad7f55c504a26890379e0b03d77b5a"
+    },
+    "contract-validation.txt": {
+      "bytes": 387,
+      "sha256": "8d57b7ccd00e2398ec2db14ad1e52b80a31e7523b3f85046ce6c78e0699f3db1"
+    },
+    "doctor.json": {
+      "bytes": 12741,
+      "sha256": "e77f754bf0a10d8210d45979cb3b2563c229f2dbdd5b79938e992ba71a4eab4f"
+    },
+    "gates.json": {
+      "bytes": 291607,
+      "sha256": "514f8e1d672f15fed99610574ea0945b2d9b96f599f4f3c219a13d6864872943"
+    },
+    "gates.txt": {
+      "bytes": 14143,
+      "sha256": "e7928fd9959cefb2a990bceda3b4c9d7c5184ab55ee9c530ce7a9b9169becf85"
+    },
+    "host-manifest.txt": {
+      "bytes": 1536,
+      "sha256": "3e2c36aa51368b1cba3b4d1d9243fafeda716d33518a85ddfe8d66a8e4e59fd0"
+    },
+    "i01.txt": {
+      "bytes": 830,
+      "sha256": "b7d8e00114315455d4890fc9da378e172a83f91ba3dc0b8f5b44fa9da04674c7"
+    },
+    "smoke-doctor.json": {
+      "bytes": 12814,
+      "sha256": "b177e7d56f534bb1520cce2626fe47a3eeb39ed3e162844ba859a1e90b0f8522"
+    },
+    "smoke-none-receipt.json": {
+      "bytes": 4770,
+      "sha256": "8b120dc13140c1a24a02acef426e623f9b90f347f0869e25e52b8cf783137c15"
+    },
+    "smoke-tool-receipt.json": {
+      "bytes": 8192,
+      "sha256": "e775b17c7dad7f1df03cc6aa7ce33c065902967fc1e6b7759995932ad72a0db7"
+    },
+    "smoke-transcript.txt": {
+      "bytes": 105,
+      "sha256": "e39a8099b6da42157fa866b943757b9de5a1c4d2d5858f157b6d7443052d1ac1"
+    },
+    "source-files.nul": {
+      "bytes": 182043,
+      "sha256": "fd18029e0a2d1d5a8f07ed9abc9b9733deba310f00ba3eb80c0c812a121b9f88"
+    },
+    "summary.txt": {
+      "bytes": 47,
+      "sha256": "6caf58427534bb820c49a7e844504b9f8b27b8b02e99423f3943c30fbdb6623a"
+    },
+    "test.log": {
+      "bytes": 271413,
+      "sha256": "217c971787833fa2c0f38a68368a052bf1c85b004b589588623adfcd4d1628ae"
+    }
+  },
+  "raw_files_unchanged": true,
+  "scope": "linux-preview; not full-specification or macOS qualification"
+}

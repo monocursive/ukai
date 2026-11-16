@@ -18,8 +18,8 @@ contains the isolated Linux candidate, excluding unrelated local Arena work.
 | Claude API-key qualification on `bef699262` | All 14 distinct lanes collected: eight strict passes and six failures. Seven of ten repetitions passed fully; three failed sampling. A01, the small task and vendor revocation also failed qualification. OAuth remains deferred. |
 | Source fixes through `c25c297fc` | Terminal-error interpretation, small-task evidence retention, macOS test socket paths, sampler birth-identity comparisons and installer storage corrected. All six hosted jobs passed. Frozen candidate results are unchanged. |
 | Provisional native-v6 package at `c25c297fc` | Six signatures, seven actual installer cases and 848 archived source files verified; 44 independent checks passed. Fresh component measurements and source admission passed; a rebuilt host still needs installed native runtime qualification. |
-| Managed native sampling through `264e85a84` | Version-3 gate and readers implemented; all six current-head hosted jobs passed. Actual Linux managed-gate and D2 tests passed with zero skips. No version-3 guest image or installed host is qualified. |
-| Current-input Linux K11/K27 | Fresh rc.7-labelled onboarding and learning passed using the exact `f745bfbfc` binary and `dce53219b` harness. Both independent evidence verifiers passed; full strict conformance and a new release candidate remain pending. |
+| Managed native sampling through `a8e4aecb0` | Version-3 gate and readers implemented; all six hosted jobs and strict Linux reference conformance passed. Actual managed-gate and D2 tests executed with zero runtime skips. No version-3 guest image or installed host is qualified. |
+| Current-input Linux K11/K27 | Fresh rc.7-labelled onboarding and learning passed using the exact `f745bfbfc` binary and `dce53219b` harness. Both independent evidence verifiers and the strict `a8e4aecb0` conformance replay passed; a new release candidate remains pending. |
 | Next Mac image and package | Stable Ubuntu 26.10 image/snapshot metadata authenticated, but image bytes and compatibility are untested. Available Mac storage is below the measured build/install requirement; no historical artifacts were deleted. |
 | `bef699262` fault matrix | All 11 lanes passed; 118 facts independently recomputed, with complete owned cleanup. |
 | OAuth, notarization, native macOS Endpoint Security | Pending. OAuth is deferred at the user's request; no usable local notarization credential or ES profile was established. |
@@ -1354,8 +1354,36 @@ including both unchanged `verify_preview_evidence.py` checks. Records are
 
 The package used an ephemeral test signing key. These current-input K11/K27
 results do not qualify an ARM image, native Mac vendor execution, earlier
-failed API lanes, OAuth, production signing or public release. Full strict
-reference conformance and a new tested freeze remain necessary.
+failed API lanes, OAuth, production signing or public release. The subsequent
+strict reference result is recorded below.
+
+## Strict current-input reference conformance
+
+Commit `a8e4aecb071a0367001f309a659897d6aa336600` passed all six first-attempt
+hosted checks: [Rust and dependency policy](https://github.com/monocursive/ukai/actions/runs/43817037176),
+[contracts and website](https://github.com/monocursive/ukai/actions/runs/43817037136),
+and [fleet](https://github.com/monocursive/ukai/actions/runs/43817037155).
+Its PR merge tree exactly equals the source tree. Ordinary hosted Linux
+retains 520 runtime-skip diagnostics and is distinct from strict conformance.
+
+The exact-source [reference run](https://github.com/monocursive/ukai/actions/runs/43817218080)
+passed 3,073 tests, zero failures, 18 explicitly ignored tests and zero
+runtime capability skips across 117 groups. Both D2 integration checks,
+managed native gate checks and K11/K27 release-evidence checks executed and
+passed. Its own doctor reports the clean optimized source and input digest
+`sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae`.
+
+The `linux-preview` gate report has no problems or warnings. Unsupported,
+elsewhere and credential rows remain explicit; full-specification acceptance
+is not established. The [retained bundle](results/conformance-2026-11-16-a8e4aecb/README.md)
+preserves all 16 raw artifact files unchanged, including the gate report's
+stale descriptive notes about older K11/K27 evidence. The source notes now
+refer to the verified current evidence index; no clause or test was changed.
+The run's own compiled `xtask` generated the tested freeze from its own doctor,
+and `freeze --check` passed. Only the tested build identity, input digest,
+executable hash and supervisor scope changed; the frozen policy and toolchain
+sections stayed byte-identical. Candidate builds and final-commit checks remain
+pending.
 
 ## Next guest-image prerequisites
 
@@ -1394,6 +1422,18 @@ short for preparation and 5.86 GB short for the combined package/install work.
 `managed-v3-arm-storage-feasibility-H.json` and
 `compiler-cache-feasibility-H-review.json` retain those bounds. Historical
 images, executables, sources and proof records remain preserved.
+
+The pinned Mac toolchain's stripping warning was traced to a missing LLVM
+library path. A private clone of Rust 1.98.1 with one internal relative library
+symlink passed the unchanged packager environment filter, exact compiler
+selection, a tiny offline Rust release build and real debug-info stripping
+without warnings. All 350 original and copied toolchain file hashes and modes,
+global settings and packager inputs stayed unchanged. The initial probe's
+overbroad refusal of unrelated Android emulators is retained separately;
+those processes were untouched. Evidence is in
+`toolchain-rpath-plan-1.98.1/attempt-v3/execution/result.json`. Actual Ukai
+compilation and package qualification remain pending; the small probe does
+not resolve the disk-capacity constraint.
 
 ## Remaining release limits
 
