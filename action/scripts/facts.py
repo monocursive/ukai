@@ -11,7 +11,7 @@ messages; it never prints a credential (none reaches it).
   event FILE                print pr=NUMBER and same_repository=true|false
                             for a pull_request event payload
   find-comment FILE MARKER  print the id of the first comment by
-                            github-actions[bot] whose body holds MARKER
+                            github-actions[bot] whose body holds the complete <!-- MARKER -->
   comment-body MARKDOWN     print {"body": ...} for the GitHub API
 """
 
@@ -107,7 +107,7 @@ def find_comment(path, marker):
     comments = [c for page in pages for c in page] if pages and isinstance(pages[0], list) else pages
     for comment in comments:
         user = comment.get("user") or {}
-        if user.get("login") == "github-actions[bot]" and marker in (comment.get("body") or ""):
+        if user.get("login") == "github-actions[bot]" and f"<!-- {marker} -->" in (comment.get("body") or ""):
             print(comment["id"])
             return 0
     return 0
