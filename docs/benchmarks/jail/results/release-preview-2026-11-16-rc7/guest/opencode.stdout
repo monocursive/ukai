@@ -1,0 +1,2 @@
+The file contains "hello" followed by a trailing newline.
+I found `task.txt` with glob and read it. It contains `hello` plus a trailing newline. I created `greeting.txt` with the same contents, and `cmp` confirms the two files are byte-identical. I didn't use the network.

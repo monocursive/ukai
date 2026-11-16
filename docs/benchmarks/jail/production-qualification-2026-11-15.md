@@ -18,11 +18,14 @@ contains the isolated Linux candidate, excluding unrelated local Arena work.
 | Claude API-key qualification on `bef699262` | All 14 distinct lanes collected: eight strict passes and six failures. Seven of ten repetitions passed fully; three failed sampling. A01, the small task and vendor revocation also failed qualification. OAuth remains deferred. |
 | Source fixes through `c25c297fc` | Terminal-error interpretation, small-task evidence retention, macOS test socket paths, sampler birth-identity comparisons and installer storage corrected. All six hosted jobs passed. Frozen candidate results are unchanged. |
 | Provisional native-v6 package at `c25c297fc` | Six signatures, seven actual installer cases and 848 archived source files verified; 44 independent checks passed. Fresh component measurements and source admission passed; a rebuilt host still needs installed native runtime qualification. |
+| Managed native sampling through `264e85a84` | Version-3 gate and readers implemented; all six current-head hosted jobs passed. Actual Linux managed-gate and D2 tests passed with zero skips. No version-3 guest image or installed host is qualified. |
+| Current-input Linux K11/K27 | Fresh rc.7-labelled onboarding and learning passed using the exact `f745bfbfc` binary and `dce53219b` harness. Both independent evidence verifiers passed; full strict conformance and a new release candidate remain pending. |
+| Next Mac image and package | Stable Ubuntu 26.10 image/snapshot metadata authenticated, but image bytes and compatibility are untested. Available Mac storage is below the measured build/install requirement; no historical artifacts were deleted. |
 | `bef699262` fault matrix | All 11 lanes passed; 118 facts independently recomputed, with complete owned cleanup. |
 | OAuth, notarization, native macOS Endpoint Security | Pending. OAuth is deferred at the user's request; no usable local notarization credential or ES profile was established. |
 
-The API failures remain failures. Synthetic diagnostics are investigating
-sampling gaps without provider calls. The original sequence and first
+The earlier native API failures remain failures. Synthetic diagnostic records
+retain incomplete sampling and an unattributed kernel failure. The original sequence and first
 continuation stopped at their failures; a separately scoped continuation
 collected the remaining distinct lanes without retrying a completed lane.
 Full production readiness and public release are not established.
@@ -1181,9 +1184,9 @@ ids, label-only mode, persistent state and profile `none` remain refused.
 All 55 portable native-path tests, nine gate tests and 72 acceptance-map
 tests passed. New map clause I03.5 requires the actual Linux boundary test;
 the focused reference execution recorded below subsequently passed it.
-Exact-input onboarding/learning evidence and the
-tested freeze must be refreshed before a new Linux release candidate; older
-records do not qualify the changed inputs. A new image remains required.
+The fresh onboarding/learning record below now covers the changed Linux inputs.
+Full strict conformance and the tested freeze still need refreshing before a
+new Linux release candidate. A new image remains required.
 
 ## Managed native sampling integration
 
@@ -1288,7 +1291,7 @@ source identity blocks the result.
 All 22 synthetic harness tests and independent review passed. CI now discovers
 both the guest and outer-VM test modules. The retained-output scan covers raw
 key bytes in regular files; it is not encoded-secret or guest-memory coverage.
-No fresh onboarding VM or provider workload ran for these source changes.
+These source-validation checks themselves ran no VM or provider workload.
 
 Hosted checks at `dce53219b` passed both onboarding modules but exposed a
 separate simulated-jail publication race. The fixture marked a jail started
@@ -1300,8 +1303,97 @@ affected guest tests ran normally and with optimized Python: 104 passed and
 13 had explicit platform skips in each run. Independent review passed.
 Production guest code and the real Linux gate results are unchanged; the
 original failed hosted result remains retained in
-`onboarding-harness-ci-dce53219b/`. Fresh hosted verification of the correction
-remains required.
+`onboarding-harness-ci-dce53219b/`.
+
+All six first-attempt hosted jobs at `264e85a84` subsequently passed. The tested
+merge `76e614318bc25f062fb3c97c720df042d6a84722` has the identical source tree.
+macOS reported 2,512 Rust passes and seven ignores; Ubuntu reported 3,073 passes,
+18 ignores and 520 explicit runtime skips. Contracts ran 1,159 cases with
+82 platform skips, including 872 VM cases and all 22 onboarding tests. The
+native-v6 offline replay and all downstream stages passed. Full logs and
+bindings are in `guest-harness-publication-ci-264e85a84/`; ordinary hosted
+checks still do not replace strict reference conformance.
+
+## Current-input Linux onboarding and learning
+
+The [fresh rc.7-labelled record](results/release-preview-2026-11-16-rc7/README.md)
+was collected once in a disposable x86_64 QEMU VM on the reference host. It ran
+the exact clean optimized `f745bfbfc` binary, SHA-256
+`348e4c2b9ade7d0d5109a9c78c275be322da76524ba70763f9a7945c153c295a`,
+with build inputs
+`sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae`.
+The host and guest harnesses are exact committed `dce53219b` bytes; later
+fixture/documentation changes do not relabel the executed binary.
+
+Signed installation through the first contained OpenCode result took
+152.032 seconds, including its download and excluding the 460.846-second
+VM/package bootstrap. OpenCode 1.18.32 used `anthropic/claude-sonnet-5-5` and
+the API-key vault. Exactly two vendor CLI rows ran, each with attempt one of
+one; there was no retry. This is not an API-request, token or billing cap.
+Installation, contained `true`, the agent task, learning, upgrade, archive
+corruption rejection and signature corruption rejection passed.
+
+Both agent receipts settled with enforced containment, observed execution,
+verified empty process trees, exit zero and all six coverage classes active
+without gaps. The learning proposal grants only `/etc/nsswitch.conf` from
+its own denied-read evidence. The intended learning fixture was not proposed;
+15 unresolved reads remain ungranted, and no network grant was proposed.
+This supports the recorded narrow proposal, not blanket path attribution.
+
+The entire invocation completed in 773.324 seconds. The VM, scratch data and
+temporary credential source were removed; the original primary source's
+generation was unchanged. Held-byte scans of retained outputs completed with
+zero key matches. The final copy verified all 100 retained files and their
+remote before/after generations; no credential source was reread for copying.
+The owning summary passed 28 checks and the independent review passed 274,
+including both unchanged `verify_preview_evidence.py` checks. Records are
+`reference-onboarding-plan-G/coordinator/final-summary.json` (SHA-256
+`a697cec41faf8eaccf1bab53099a7789f68da357f4367c264519e02c2f216dd3`) and
+`reference-onboarding-independent-GF/review.json` (SHA-256
+`e7a7b82957a4917d12ddb201ec0fc0dedb0687407f9308d956493a524e370043`).
+
+The package used an ephemeral test signing key. These current-input K11/K27
+results do not qualify an ARM image, native Mac vendor execution, earlier
+failed API lanes, OAuth, production signing or public release. Full strict
+reference conformance and a new tested freeze remain necessary.
+
+## Next guest-image prerequisites
+
+A read-only security follow-up found that Ubuntu lists
+[CVE-2026-99103](https://ubuntu.com/security/CVE-2026-99103) as pending for
+Resolute, with its fix in `7.0.0-44.44`. The observed Security/Updates packages
+were still `43.43`; `44.44` was available only in Proposed. Exact `43.43`
+workqueue source retains the affected ordering, while `44.44` contains the
+upstream fix. The measured ARM guest is `38.38`; its exact source tag resolved,
+but bounded source-byte requests failed, so no direct inspection of that
+version is claimed. This finding does not attribute the earlier kernel Oops.
+The report is `ubuntu-kernel-cve-2026-99103-readonly/review.json`.
+
+An alternative stable Ubuntu 26.10 ARM64 minimal image has authenticated
+checksum metadata for `release-20261105`, with expected SHA-256
+`bac15af78c37fec8e9474a9a784041c13ddb2603b9095435b7e4269e3faf3064`.
+Its authenticated manifest names kernel `7.3.0-10.10`; Ubuntu lists this release
+as unaffected by that CVE. The image checksum signature and matching
+`20261106T000000Z` Stonking, Updates and Security snapshot metadata verified
+against fingerprints independently published by Ubuntu. The isolated keyring
+did not change system trust. `ubuntu-2610-authentication-2026-11-16/review.json`
+retains the records. No image or package payload was downloaded, no image was
+selected, and layout, boot, userland and containment compatibility remain
+unqualified. A future builder must pin matching suites and the actual new
+signed ARM executable before collecting fresh admission evidence.
+
+Measured prior allocations require about 16.64 GB free to prepare a comparable
+image, and 21.59 GB for the fresh image plus bounded package/installer checks,
+while preserving the 12 GiB reserve. The primary Mac had about 15.19 GB free;
+the last spare-Mac measurement was also insufficient. A bounded APFS audit
+found only 26.3 MB of private disposable objects in the original target and
+512.1 MB in the protected current build cache. Most other reported allocation
+is shared with unselected clones and cannot be counted as reclaimable space.
+Neither set was deleted. Even the known private total leaves about 914 MB
+short for preparation and 5.86 GB short for the combined package/install work.
+`managed-v3-arm-storage-feasibility-H.json` and
+`compiler-cache-feasibility-H-review.json` retain those bounds. Historical
+images, executables, sources and proof records remain preserved.
 
 ## Remaining release limits
 

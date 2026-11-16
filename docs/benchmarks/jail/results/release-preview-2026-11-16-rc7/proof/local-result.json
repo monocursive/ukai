@@ -1,0 +1,1205 @@
+{
+  "outcome": "PASS",
+  "plan_sha256": "847b8256fa01135e4af8501b52c62cf4c5746a09093504b0a00d67aadecbad01",
+  "cleanup_errors": [],
+  "provider_retry": false,
+  "oauth": false,
+  "primary_before": {
+    "st_dev": 16777234,
+    "st_ino": 287313688,
+    "st_mode": 33152,
+    "st_uid": 501,
+    "st_nlink": 1,
+    "st_size": 106,
+    "st_mtime_ns": 1792331632974865600,
+    "st_ctime_ns": 1792331632974865600
+  },
+  "run": {
+    "argv": [
+      "ssh",
+      "-T",
+      "-o",
+      "BatchMode=yes",
+      "-o",
+      "StrictHostKeyChecking=yes",
+      "-o",
+      "ConnectTimeout=10",
+      "-o",
+      "IdentitiesOnly=yes",
+      "-i",
+      "/Users/monocursive/.ssh/ouroboros_vps",
+      "ouro-ci@37.59.114.70",
+      "/usr/bin/python3 -B /home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/coordinator.py 847b8256fa01135e4af8501b52c62cf4c5746a09093504b0a00d67aadecbad01"
+    ],
+    "timeout_seconds": 2819.9994782500435,
+    "private_stdin_supplied": true,
+    "returncode": 0,
+    "elapsed_seconds": 772.4869437911548,
+    "error_type": null,
+    "cleanup": {
+      "process_started": true,
+      "leader_reaped": true,
+      "group_absent": true
+    },
+    "outcome": "PASS"
+  },
+  "remote_result": {
+    "outcome": "PASS",
+    "plan_sha256": "847b8256fa01135e4af8501b52c62cf4c5746a09093504b0a00d67aadecbad01",
+    "errors": [],
+    "provider_retry": false,
+    "preflight": {
+      "resource": {
+        "memory_bytes": {
+          "MemTotal": 3999318016,
+          "MemAvailable": 3218640896,
+          "SwapTotal": 8589930496,
+          "SwapFree": 7114108928
+        },
+        "free_bytes": 26521649152,
+        "cpus": 4
+      },
+      "runtime_mount": {
+        "target": "/run/user/1001",
+        "fstype": "tmpfs",
+        "options": "rw,nosuid,nodev,relatime,size=390556k,nr_inodes=97639,mode=700,uid=1001,gid=1001,inode64"
+      },
+      "competing": [],
+      "input_generations": {
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/base.img": {
+          "st_dev": 2049,
+          "st_ino": 4071880,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 865115136,
+          "st_mtime_ns": 1794809011368364446,
+          "st_ctime_ns": 1794809011368364446
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/ukai-jail-F": {
+          "st_dev": 2049,
+          "st_ino": 4071879,
+          "st_mode": 33261,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 13184440,
+          "st_mtime_ns": 1794808965631635627,
+          "st_ctime_ns": 1794808965631635627
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/coordinator.py": {
+          "st_dev": 2049,
+          "st_ino": 4071877,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 27582,
+          "st_mtime_ns": 1794808963882607757,
+          "st_ctime_ns": 1794808963882607757
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/Cargo.lock": {
+          "st_dev": 2049,
+          "st_ino": 4071882,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 45082,
+          "st_mtime_ns": 1794809011842229264,
+          "st_ctime_ns": 1794809011842229264
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/Cargo.toml": {
+          "st_dev": 2049,
+          "st_ino": 4071883,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 1409,
+          "st_mtime_ns": 1794809011842386077,
+          "st_ctime_ns": 1794809011842386077
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/LICENSE": {
+          "st_dev": 2049,
+          "st_ino": 4071884,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 1068,
+          "st_mtime_ns": 1794809011842475608,
+          "st_ctime_ns": 1794809011842475608
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/crates/ukai-jail/Cargo.toml": {
+          "st_dev": 2049,
+          "st_ino": 4071887,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 2247,
+          "st_mtime_ns": 1794809011842646521,
+          "st_ctime_ns": 1794809011842646521
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/crates/ukai-jail/data/uts46_unicode17_tables.rs": {
+          "st_dev": 2049,
+          "st_ino": 4071889,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 452094,
+          "st_mtime_ns": 1794809011842735262,
+          "st_ctime_ns": 1794809011842735262
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/crates/ukai-jail/dist/THIRD_PARTY_NOTICES.txt": {
+          "st_dev": 2049,
+          "st_ino": 4071891,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 2290545,
+          "st_mtime_ns": 1794809011842957756,
+          "st_ctime_ns": 1794809011843372015
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/crates/ukai-jail/dist/UNICODE_LICENSE": {
+          "st_dev": 2049,
+          "st_ino": 4071892,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 1995,
+          "st_mtime_ns": 1794809011844087465,
+          "st_ctime_ns": 1794809011844087465
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/crates/ukai-jail/dist/WEBPKI_ROOTS_LICENSE": {
+          "st_dev": 2049,
+          "st_ino": 4071893,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 2371,
+          "st_mtime_ns": 1794809011844182676,
+          "st_ctime_ns": 1794809011844182676
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/crates/ukai-jail/dist/coordinates.py": {
+          "st_dev": 2049,
+          "st_ino": 4071894,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 2809,
+          "st_mtime_ns": 1794809011844246337,
+          "st_ctime_ns": 1794809011844246337
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/crates/ukai-jail/dist/install.sh": {
+          "st_dev": 2049,
+          "st_ino": 4071895,
+          "st_mode": 33261,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 10085,
+          "st_mtime_ns": 1794809011844306068,
+          "st_ctime_ns": 1794809011844306068
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/crates/ukai-jail/dist/notices.py": {
+          "st_dev": 2049,
+          "st_ino": 4071896,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 16347,
+          "st_mtime_ns": 1794809011844393120,
+          "st_ctime_ns": 1794809011844393120
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/crates/ukai-jail/dist/package.py": {
+          "st_dev": 2049,
+          "st_ino": 4071897,
+          "st_mode": 33261,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 3182,
+          "st_mtime_ns": 1794809011844460831,
+          "st_ctime_ns": 1794809011844460831
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/crates/ukai-jail/dist/release.json": {
+          "st_dev": 2049,
+          "st_ino": 4071898,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 3067,
+          "st_mtime_ns": 1794809011844519072,
+          "st_ctime_ns": 1794809011844519072
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/crates/ukai-jail/dist/third-party-notices.json": {
+          "st_dev": 2049,
+          "st_ino": 4071899,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 118266,
+          "st_mtime_ns": 1794809011844581773,
+          "st_ctime_ns": 1794809011844581773
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/crates/ukai-records/Cargo.toml": {
+          "st_dev": 2049,
+          "st_ino": 4071901,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 392,
+          "st_mtime_ns": 1794809011844696294,
+          "st_ctime_ns": 1794809011844696294
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/docs/benchmarks/jail/onboarding_guest.py": {
+          "st_dev": 2049,
+          "st_ino": 4071905,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 27652,
+          "st_mtime_ns": 1794809011844865567,
+          "st_ctime_ns": 1794809011844865567
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/docs/benchmarks/jail/onboarding_vm.py": {
+          "st_dev": 2049,
+          "st_ino": 4071906,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 22661,
+          "st_mtime_ns": 1794809011844948798,
+          "st_ctime_ns": 1794809011844948798
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/install.sh": {
+          "st_dev": 2049,
+          "st_ino": 4071907,
+          "st_mode": 33261,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 16747,
+          "st_mtime_ns": 1794809011845019869,
+          "st_ctime_ns": 1794809011845019869
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/source/rust-toolchain.toml": {
+          "st_dev": 2049,
+          "st_ino": 4071908,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 173,
+          "st_mtime_ns": 1794809011845111621,
+          "st_ctime_ns": 1794809011845111621
+        },
+        "/usr/lib/x86_64-linux-gnu/libgnutls.so.30.41.1": {
+          "st_dev": 2049,
+          "st_ino": 6552,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 2148528,
+          "st_mtime_ns": 1778249491000000000,
+          "st_ctime_ns": 1784565173014083594
+        },
+        "/usr/lib/x86_64-linux-gnu/libpixman-1.so.0.46.4": {
+          "st_dev": 2049,
+          "st_ino": 49057,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 747768,
+          "st_mtime_ns": 1759136094000000000,
+          "st_ctime_ns": 1788765432435363047
+        },
+        "/usr/lib/x86_64-linux-gnu/libpng16.so.16.57.0": {
+          "st_dev": 2049,
+          "st_ino": 22891,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 231648,
+          "st_mtime_ns": 1791235764000000000,
+          "st_ctime_ns": 1791526437595811876
+        },
+        "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1": {
+          "st_dev": 2049,
+          "st_ino": 36137,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 121272,
+          "st_mtime_ns": 1792616180000000000,
+          "st_ctime_ns": 1792737886725877397
+        },
+        "/usr/lib/x86_64-linux-gnu/libjpeg.so.8.2.2": {
+          "st_dev": 2049,
+          "st_ino": 58880,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 616592,
+          "st_mtime_ns": 1775479638000000000,
+          "st_ctime_ns": 1788765434530388090
+        },
+        "/usr/lib/x86_64-linux-gnu/libsasl2.so.2.0.25": {
+          "st_dev": 2049,
+          "st_ino": 7125,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 105352,
+          "st_mtime_ns": 1771612989000000000,
+          "st_ctime_ns": 1784565173138084148
+        },
+        "/usr/lib/x86_64-linux-gnu/libudev.so.1.7.12": {
+          "st_dev": 2049,
+          "st_ino": 4612,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 289288,
+          "st_mtime_ns": 1785185042000000000,
+          "st_ctime_ns": 1787669971122700801
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/libpmem.so.1.0.0": {
+          "st_dev": 2049,
+          "st_ino": 4071305,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 358760,
+          "st_mtime_ns": 1794807540718799079,
+          "st_ctime_ns": 1794807540718799079
+        },
+        "/usr/lib/x86_64-linux-gnu/libseccomp.so.2.6.0": {
+          "st_dev": 2049,
+          "st_ino": 6691,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 186888,
+          "st_mtime_ns": 1774002657000000000,
+          "st_ctime_ns": 1784565173051083759
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/libfdt.so.1.7.2": {
+          "st_dev": 2049,
+          "st_ino": 4071300,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 39136,
+          "st_mtime_ns": 1794807540716513412,
+          "st_ctime_ns": 1794807540716513412
+        },
+        "/usr/lib/x86_64-linux-gnu/libnuma.so.1.0.0": {
+          "st_dev": 2049,
+          "st_ino": 7026,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 52328,
+          "st_mtime_ns": 1770064268000000000,
+          "st_ctime_ns": 1784565173109084018
+        },
+        "/usr/lib/x86_64-linux-gnu/libgio-2.0.so.0.8800.0": {
+          "st_dev": 2049,
+          "st_ino": 22728,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 1941032,
+          "st_mtime_ns": 1788887266000000000,
+          "st_ctime_ns": 1790047827786314162
+        },
+        "/usr/lib/x86_64-linux-gnu/libgobject-2.0.so.0.8800.0": {
+          "st_dev": 2049,
+          "st_ino": 22732,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 403928,
+          "st_mtime_ns": 1788887266000000000,
+          "st_ctime_ns": 1790047827787314178
+        },
+        "/usr/lib/x86_64-linux-gnu/libglib-2.0.so.0.8800.0": {
+          "st_dev": 2049,
+          "st_ino": 22729,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 1404616,
+          "st_mtime_ns": 1788887266000000000,
+          "st_ctime_ns": 1790047827787314178
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/librdmacm.so.1.4.61.0": {
+          "st_dev": 2049,
+          "st_ino": 4071310,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 126352,
+          "st_mtime_ns": 1794807540720663579,
+          "st_ctime_ns": 1794807540720663579
+        },
+        "/usr/lib/x86_64-linux-gnu/libibverbs.so.1.15.61.0": {
+          "st_dev": 2049,
+          "st_ino": 6836,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 150440,
+          "st_mtime_ns": 1770206179000000000,
+          "st_ctime_ns": 1784565173087083920
+        },
+        "/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7": {
+          "st_dev": 2049,
+          "st_ino": 6531,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 796824,
+          "st_mtime_ns": 1767619824000000000,
+          "st_ctime_ns": 1784565173001083536
+        },
+        "/usr/lib/x86_64-linux-gnu/libslirp.so.0.4.0": {
+          "st_dev": 2049,
+          "st_ino": 73305,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 149608,
+          "st_mtime_ns": 1783715436000000000,
+          "st_ctime_ns": 1791720387764628843
+        },
+        "/usr/lib/x86_64-linux-gnu/libbpf.so.1.6.3": {
+          "st_dev": 2049,
+          "st_ino": 6572,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 432456,
+          "st_mtime_ns": 1773669490000000000,
+          "st_ctime_ns": 1784565173023083634
+        },
+        "/usr/lib/x86_64-linux-gnu/libfuse3.so.3.18.2": {
+          "st_dev": 2049,
+          "st_ino": 6826,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 276784,
+          "st_mtime_ns": 1774077403000000000,
+          "st_ctime_ns": 1784565173084083906
+        },
+        "/usr/lib/x86_64-linux-gnu/libaio.so.1t64.0.2": {
+          "st_dev": 2049,
+          "st_ino": 7327,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 14416,
+          "st_mtime_ns": 1765016119000000000,
+          "st_ctime_ns": 1784565173445085518
+        },
+        "/usr/lib/x86_64-linux-gnu/liburing.so.2.14": {
+          "st_dev": 2049,
+          "st_ino": 6636,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 31032,
+          "st_mtime_ns": 1770937026000000000,
+          "st_ctime_ns": 1785552889072812289
+        },
+        "/usr/lib/x86_64-linux-gnu/libgmodule-2.0.so.0.8800.0": {
+          "st_dev": 2049,
+          "st_ino": 22730,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 22816,
+          "st_mtime_ns": 1788887266000000000,
+          "st_ctime_ns": 1790047827787314178
+        },
+        "/usr/lib/x86_64-linux-gnu/libm.so.6": {
+          "st_dev": 2049,
+          "st_ino": 52641,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 1198376,
+          "st_mtime_ns": 1793899106000000000,
+          "st_ctime_ns": 1794636117983243085
+        },
+        "/usr/lib/x86_64-linux-gnu/libc.so.6": {
+          "st_dev": 2049,
+          "st_ino": 52637,
+          "st_mode": 33261,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 2190608,
+          "st_mtime_ns": 1793899106000000000,
+          "st_ctime_ns": 1794636117983243085
+        },
+        "/usr/lib/x86_64-linux-gnu/libp11-kit.so.0.4.8": {
+          "st_dev": 2049,
+          "st_ino": 6684,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 1937960,
+          "st_mtime_ns": 1771678733000000000,
+          "st_ctime_ns": 1784565173050083755
+        },
+        "/usr/lib/x86_64-linux-gnu/libidn2.so.0.4.0": {
+          "st_dev": 2049,
+          "st_ino": 6620,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 133272,
+          "st_mtime_ns": 1770064626000000000,
+          "st_ctime_ns": 1784565173038083701
+        },
+        "/usr/lib/x86_64-linux-gnu/libunistring.so.5.2.0": {
+          "st_dev": 2049,
+          "st_ino": 6541,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 1988864,
+          "st_mtime_ns": 1770064977000000000,
+          "st_ctime_ns": 1784565173009083572
+        },
+        "/usr/lib/x86_64-linux-gnu/libtasn1.so.6.6.5": {
+          "st_dev": 2049,
+          "st_ino": 6697,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 92384,
+          "st_mtime_ns": 1768740332000000000,
+          "st_ctime_ns": 1784565173058083790
+        },
+        "/usr/lib/x86_64-linux-gnu/libhogweed.so.6.11": {
+          "st_dev": 2049,
+          "st_ino": 6618,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 301280,
+          "st_mtime_ns": 1758374068000000000,
+          "st_ctime_ns": 1784565173037083697
+        },
+        "/usr/lib/x86_64-linux-gnu/libnettle.so.8.11": {
+          "st_dev": 2049,
+          "st_ino": 6679,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 354640,
+          "st_mtime_ns": 1758374068000000000,
+          "st_ctime_ns": 1784565173046083737
+        },
+        "/usr/lib/x86_64-linux-gnu/libgmp.so.10.5.0": {
+          "st_dev": 2049,
+          "st_ino": 5702,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 543168,
+          "st_mtime_ns": 1770409108000000000,
+          "st_ctime_ns": 1784565172904083102
+        },
+        "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2": {
+          "st_dev": 2049,
+          "st_ino": 52509,
+          "st_mode": 33261,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 254864,
+          "st_mtime_ns": 1793899106000000000,
+          "st_ctime_ns": 1794636117983243085
+        },
+        "/usr/lib/x86_64-linux-gnu/libcrypto.so.3": {
+          "st_dev": 2049,
+          "st_ino": 28304,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 6386528,
+          "st_mtime_ns": 1790793990000000000,
+          "st_ctime_ns": 1790922113730353670
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/libndctl.so.6.4.21": {
+          "st_dev": 2049,
+          "st_ino": 4071303,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 168208,
+          "st_mtime_ns": 1794807540717573799,
+          "st_ctime_ns": 1794807540717573799
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/libdaxctl.so.1.1.6": {
+          "st_dev": 2049,
+          "st_ino": 4071297,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 51424,
+          "st_mtime_ns": 1794807540715462154,
+          "st_ctime_ns": 1794807540715462154
+        },
+        "/usr/lib/x86_64-linux-gnu/libmount.so.1.1.0": {
+          "st_dev": 2049,
+          "st_ino": 2297,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 338728,
+          "st_mtime_ns": 1787149416000000000,
+          "st_ctime_ns": 1788329118497291105
+        },
+        "/usr/lib/x86_64-linux-gnu/libselinux.so.1": {
+          "st_dev": 2049,
+          "st_ino": 5777,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 2,
+          "st_size": 199120,
+          "st_mtime_ns": 1774004723000000000,
+          "st_ctime_ns": 1791452301281210425
+        },
+        "/usr/lib/x86_64-linux-gnu/libffi.so.8.2.0": {
+          "st_dev": 2049,
+          "st_ino": 6592,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 64184,
+          "st_mtime_ns": 1774599998000000000,
+          "st_ctime_ns": 1784565173028083656
+        },
+        "/usr/lib/x86_64-linux-gnu/libatomic.so.1.2.0": {
+          "st_dev": 2049,
+          "st_ino": 6570,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 35120,
+          "st_mtime_ns": 1774168304000000000,
+          "st_ctime_ns": 1784565173022083630
+        },
+        "/usr/lib/x86_64-linux-gnu/libpcre2-8.so.0.14.0": {
+          "st_dev": 2049,
+          "st_ino": 2685,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 699056,
+          "st_mtime_ns": 1792098922000000000,
+          "st_ctime_ns": 1793773843079612716
+        },
+        "/usr/lib/x86_64-linux-gnu/libnl-3.so.200.26.0": {
+          "st_dev": 2049,
+          "st_ino": 6832,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 137576,
+          "st_mtime_ns": 1767659377000000000,
+          "st_ctime_ns": 1784565173085083911
+        },
+        "/usr/lib/x86_64-linux-gnu/libnl-route-3.so.200.26.0": {
+          "st_dev": 2049,
+          "st_ino": 6834,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 624512,
+          "st_mtime_ns": 1767659377000000000,
+          "st_ctime_ns": 1784565173086083915
+        },
+        "/usr/lib/x86_64-linux-gnu/libelf-0.194.so": {
+          "st_dev": 2049,
+          "st_ino": 6586,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 133928,
+          "st_mtime_ns": 1773757535000000000,
+          "st_ctime_ns": 1784565173027083652
+        },
+        "/usr/lib/x86_64-linux-gnu/libuuid.so.1.3.0": {
+          "st_dev": 2049,
+          "st_ino": 31948,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 35112,
+          "st_mtime_ns": 1787149416000000000,
+          "st_ctime_ns": 1788329118796295533
+        },
+        "/usr/lib/x86_64-linux-gnu/libkmod.so.2.5.1": {
+          "st_dev": 2049,
+          "st_ino": 6628,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 108848,
+          "st_mtime_ns": 1770064153000000000,
+          "st_ctime_ns": 1784565173039083706
+        },
+        "/usr/lib/x86_64-linux-gnu/libblkid.so.1.1.0": {
+          "st_dev": 2049,
+          "st_ino": 35211,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 240696,
+          "st_mtime_ns": 1787149416000000000,
+          "st_ctime_ns": 1788329118375289298
+        },
+        "/usr/lib/x86_64-linux-gnu/libmagic.so.1.0.0": {
+          "st_dev": 2049,
+          "st_ino": 6822,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 182728,
+          "st_mtime_ns": 1770064657000000000,
+          "st_ctime_ns": 1784565173083083902
+        },
+        "/usr/lib/x86_64-linux-gnu/libbz2.so.1.0.4": {
+          "st_dev": 2049,
+          "st_ino": 2063,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 83120,
+          "st_mtime_ns": 1787803474000000000,
+          "st_ctime_ns": 1788329152648796895
+        },
+        "/usr/lib/x86_64-linux-gnu/liblzma.so.5.8.3": {
+          "st_dev": 2049,
+          "st_ino": 80776,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 215448,
+          "st_mtime_ns": 1791561255000000000,
+          "st_ctime_ns": 1792563838494892853
+        },
+        "/usr/lib/x86_64-linux-gnu/libasound.so.2.0.0": {
+          "st_dev": 2049,
+          "st_ino": 58851,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 1174336,
+          "st_mtime_ns": 1783691354000000000,
+          "st_ctime_ns": 1788765434206384217
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/libbrlapi.so.0.8.6": {
+          "st_dev": 2049,
+          "st_ino": 4071291,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 67912,
+          "st_mtime_ns": 1794807540713204657,
+          "st_ctime_ns": 1794807540713204657
+        },
+        "/usr/lib/x86_64-linux-gnu/libsystemd.so.0.42.0": {
+          "st_dev": 2049,
+          "st_ino": 33217,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 1127960,
+          "st_mtime_ns": 1785185042000000000,
+          "st_ctime_ns": 1787669969944686304
+        },
+        "/usr/lib/x86_64-linux-gnu/libusb-1.0.so.0.5.0": {
+          "st_dev": 2049,
+          "st_ino": 6816,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 129272,
+          "st_mtime_ns": 1770064987000000000,
+          "st_ctime_ns": 1784565173081083893
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/libusbredirparser.so.1.2.1": {
+          "st_dev": 2049,
+          "st_ino": 4071314,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 34968,
+          "st_mtime_ns": 1794807540722106023,
+          "st_ctime_ns": 1794807540722106023
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/libcacard.so.0.0.0": {
+          "st_dev": 2049,
+          "st_ino": 4071294,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 91544,
+          "st_mtime_ns": 1794807540714365256,
+          "st_ctime_ns": 1794807540714365256
+        },
+        "/usr/lib/x86_64-linux-gnu/libnss3.so": {
+          "st_dev": 2049,
+          "st_ino": 36147,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 1291288,
+          "st_mtime_ns": 1792537291000000000,
+          "st_ctime_ns": 1792737897010011603
+        },
+        "/usr/lib/x86_64-linux-gnu/libnspr4.so": {
+          "st_dev": 2049,
+          "st_ino": 7932,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 250440,
+          "st_mtime_ns": 1765376400000000000,
+          "st_ctime_ns": 1784565173614086273
+        },
+        "/usr/lib/x86_64-linux-gnu/libpcsclite.so.1": {
+          "st_dev": 2049,
+          "st_ino": 58929,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 14800,
+          "st_mtime_ns": 1767796099000000000,
+          "st_ctime_ns": 1788765434603388963
+        },
+        "/usr/lib/x86_64-linux-gnu/libnssutil3.so": {
+          "st_dev": 2049,
+          "st_ino": 36151,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 211496,
+          "st_mtime_ns": 1792537291000000000,
+          "st_ctime_ns": 1792737897011011616
+        },
+        "/usr/lib/x86_64-linux-gnu/libplc4.so": {
+          "st_dev": 2049,
+          "st_ino": 7933,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 22864,
+          "st_mtime_ns": 1765376400000000000,
+          "st_ctime_ns": 1784565173614086273
+        },
+        "/usr/lib/x86_64-linux-gnu/libplds4.so": {
+          "st_dev": 2049,
+          "st_ino": 7934,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 14712,
+          "st_mtime_ns": 1765376400000000000,
+          "st_ctime_ns": 1784565173614086273
+        },
+        "/usr/lib/x86_64-linux-gnu/libncursesw.so.6.6": {
+          "st_dev": 2049,
+          "st_ino": 5712,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 243944,
+          "st_mtime_ns": 1767426838000000000,
+          "st_ctime_ns": 1784565172906083111
+        },
+        "/usr/lib/x86_64-linux-gnu/libtinfo.so.6.6": {
+          "st_dev": 2049,
+          "st_ino": 5791,
+          "st_mode": 33188,
+          "st_uid": 0,
+          "st_nlink": 1,
+          "st_size": 212504,
+          "st_mtime_ns": 1767426838000000000,
+          "st_ctime_ns": 1784565172922083182
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/bin/qemu-system-x86_64": {
+          "st_dev": 2049,
+          "st_ino": 4071643,
+          "st_mode": 33261,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 31328048,
+          "st_mtime_ns": 1794807540977305973,
+          "st_ctime_ns": 1794807540978305989
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/bin/qemu-img": {
+          "st_dev": 2049,
+          "st_ino": 4071650,
+          "st_mode": 33261,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 2554392,
+          "st_mtime_ns": 1794807541024306725,
+          "st_ctime_ns": 1794807541024306725
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/bin/genisoimage": {
+          "st_dev": 2049,
+          "st_ino": 4071257,
+          "st_mode": 33261,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 554896,
+          "st_mtime_ns": 1794807540696186949,
+          "st_ctime_ns": 1794807540696301475
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/qemu/audio-alsa.so": {
+          "st_dev": 2049,
+          "st_ino": 4071327,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 31224,
+          "st_mtime_ns": 1794807540732881160,
+          "st_ctime_ns": 1794807540732881160
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/qemu/audio-oss.so": {
+          "st_dev": 2049,
+          "st_ino": 4071328,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 18936,
+          "st_mtime_ns": 1794807540733069863,
+          "st_ctime_ns": 1794807540733069863
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/qemu/chardev-baum.so": {
+          "st_dev": 2049,
+          "st_ino": 4071329,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 18744,
+          "st_mtime_ns": 1794807540733266046,
+          "st_ctime_ns": 1794807540733266046
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-gpu-pci.so": {
+          "st_dev": 2049,
+          "st_ino": 4071330,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 14496,
+          "st_mtime_ns": 1794807540733459239,
+          "st_ctime_ns": 1794807540733459239
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-gpu.so": {
+          "st_dev": 2049,
+          "st_ino": 4071331,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 71992,
+          "st_mtime_ns": 1794807540733669322,
+          "st_ctime_ns": 1794807540733669322
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/qemu/hw-display-virtio-vga.so": {
+          "st_dev": 2049,
+          "st_ino": 4071332,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 18704,
+          "st_mtime_ns": 1794807540733905476,
+          "st_ctime_ns": 1794807540733905476
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/qemu/hw-s390x-virtio-gpu-ccw.so": {
+          "st_dev": 2049,
+          "st_ino": 4071333,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 14496,
+          "st_mtime_ns": 1794807540734049218,
+          "st_ctime_ns": 1794807540734049218
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/qemu/hw-uefi-vars.so": {
+          "st_dev": 2049,
+          "st_ino": 4071334,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 59296,
+          "st_mtime_ns": 1794807540734194841,
+          "st_ctime_ns": 1794807540734194841
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/qemu/hw-usb-host.so": {
+          "st_dev": 2049,
+          "st_ino": 4071335,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 51536,
+          "st_mtime_ns": 1794807540734426146,
+          "st_ctime_ns": 1794807540734426146
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/qemu/hw-usb-redirect.so": {
+          "st_dev": 2049,
+          "st_ino": 4071336,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 67896,
+          "st_mtime_ns": 1794807540734644629,
+          "st_ctime_ns": 1794807540734644629
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/qemu/hw-usb-smartcard.so": {
+          "st_dev": 2049,
+          "st_ino": 4071337,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 31032,
+          "st_mtime_ns": 1794807540734831651,
+          "st_ctime_ns": 1794807540734831651
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/lib/x86_64-linux-gnu/qemu/ui-curses.so": {
+          "st_dev": 2049,
+          "st_ino": 4071338,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 47480,
+          "st_mtime_ns": 1794807540735001374,
+          "st_ctime_ns": 1794807540735001374
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/share/seabios/bios-256k.bin": {
+          "st_dev": 2049,
+          "st_ino": 4071667,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 262144,
+          "st_mtime_ns": 1794807541047307093,
+          "st_ctime_ns": 1794807541047307093
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/share/seabios/vgabios-stdvga.bin": {
+          "st_dev": 2049,
+          "st_ino": 4071676,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 39424,
+          "st_mtime_ns": 1794807541049266292,
+          "st_ctime_ns": 1794807541049266292
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-20261116/prefix/usr/share/qemu/efi-virtio.rom": {
+          "st_dev": 2049,
+          "st_ino": 4071281,
+          "st_mode": 33188,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 524288,
+          "st_mtime_ns": 1794807540709106040,
+          "st_ctime_ns": 1794807540709106040
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-smoke-20261116/bin/genisoimage": {
+          "st_dev": 2049,
+          "st_ino": 4071837,
+          "st_mode": 33216,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 234,
+          "st_mtime_ns": 1794808110343141672,
+          "st_ctime_ns": 1794808110343141672
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-smoke-20261116/bin/qemu-img": {
+          "st_dev": 2049,
+          "st_ino": 4071836,
+          "st_mode": 33216,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 357,
+          "st_mtime_ns": 1794808110342994899,
+          "st_ctime_ns": 1794808110342994899
+        },
+        "/home/ouro-ci/ukai-ci/runs/onboarding-tools-g-dce53219-smoke-20261116/bin/qemu-system-x86_64": {
+          "st_dev": 2049,
+          "st_ino": 4071838,
+          "st_mode": 33216,
+          "st_uid": 1001,
+          "st_nlink": 1,
+          "st_size": 552,
+          "st_mtime_ns": 1794808110343298294,
+          "st_ctime_ns": 1794808110343298294
+        }
+      }
+    },
+    "child": {
+      "pid": 2195418,
+      "starttime": 476118552
+    },
+    "child_exit": 0,
+    "cleanup": {
+      "client_reaped": true,
+      "unit_empty": true,
+      "errors": [],
+      "state": {
+        "LoadState": "not-found",
+        "ActiveState": "inactive",
+        "ControlGroup": ""
+      },
+      "complete": true
+    },
+    "scans": {
+      "control": {
+        "complete": true,
+        "files_scanned": 7,
+        "bytes_scanned": 843,
+        "files_with_key": []
+      },
+      "evidence": {
+        "complete": true,
+        "files_scanned": 92,
+        "bytes_scanned": 3241695,
+        "files_with_key": []
+      }
+    },
+    "stage_removed": true,
+    "owning_vm": {
+      "status": "passed",
+      "vm_destroyed": true,
+      "temporary_removed": true,
+      "credential_source_unchanged": true,
+      "cleanup_errors": [],
+      "retention_errors": [],
+      "max_vendor_invocations": 2
+    },
+    "owning_vm_sha256": "c97ee0b6c50dc63f95410a51ce0ad4e8a56c797acbfeb5b5ecfa109bfa6c26f7",
+    "owning_pass": true,
+    "inputs_preserved": true,
+    "seconds": 772.0518227079883
+  },
+  "remote_cleanup_verified": true,
+  "primary_after": {
+    "st_dev": 16777234,
+    "st_ino": 287313688,
+    "st_mode": 33152,
+    "st_uid": 501,
+    "st_nlink": 1,
+    "st_size": 106,
+    "st_mtime_ns": 1792331632974865600,
+    "st_ctime_ns": 1792331632974865600
+  },
+  "primary_unchanged": true,
+  "local_scan": {
+    "complete": true,
+    "files_scanned": 6,
+    "bytes_scanned": 38221,
+    "files_with_key": []
+  },
+  "seconds": 773.2658167909831
+}
