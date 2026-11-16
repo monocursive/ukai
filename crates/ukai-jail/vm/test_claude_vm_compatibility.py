@@ -1,4 +1,5 @@
 """Focused negative controls for scoped K113 measurements; no provider calls."""
+import ast
 import copy
 import base64
 import hashlib
@@ -591,6 +592,47 @@ class NativeModeTests(unittest.TestCase):
         self.metadata['guest_program_catalog_sha256'] = hashlib.sha256(data).hexdigest()
         (self.image / 'image.json').write_text(json.dumps(self.metadata))
         with self.assertRaises(harness.HarnessError): row.native_context(self.home, self.jail)
+
+    def test_native_guest_binary_pin_matches_image_builder(self):
+        builder = ast.parse(Path(row.__file__).with_name('prepare.py').read_text())
+        pins = [ast.literal_eval(node.value) for node in builder.body
+                if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name)
+                    and target.id == 'NATIVE_JAIL_SHA256' for target in node.targets)]
+        self.assertEqual(pins, [row.NATIVE_GUEST_JAIL_SHA256])
+
+    def test_native_context_accepts_signed_rc7_and_refuses_old_candidate_pins(self):
+        # Independent signed-candidate values: deriving these from row's constants
+        # would let an obsolete qualification pin silently keep passing this test.
+        current = ('c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f',
+                   '0be9d1e820b0d47493883053253491bbd2196ba3',
+                   'sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae')
+        old = ('118c8bdda8c7bd5b5957bce15171ff418fb7df0350de795770532beaee2e3462',
+               '6ffff05dc6ae08602a39630b947c704bf9cf05a9',
+               'sha256:efdc169e8e09f514c908e02bb6f972bc8761d2efc9af94d9b53d914a436f14e6')
+        cases = [('signed-rc7', current, True), ('old-rc6', old, False)]
+        for index, name in enumerate(('binary', 'revision', 'inputs')):
+            mixed = list(current); mixed[index] = old[index]
+            cases.append(('old-' + name, mixed, False))
+        for name, (binary, revision, inputs), accepted in cases:
+            with self.subTest(candidate=name):
+                metadata = copy.deepcopy(self.metadata)
+                catalog = copy.deepcopy(self.catalog)
+                catalog['entries'][0]['guest_jail_sha256'] = binary
+                raw = json.dumps(catalog).encode()
+                (self.image / 'guest-program-catalog.json').write_bytes(raw)
+                metadata['guest_program_catalog_sha256'] = hashlib.sha256(raw).hexdigest()
+                candidate = metadata['jail_candidate']
+                candidate.update(binary_sha256=binary, source_revision=revision, build_inputs=inputs)
+                candidate['version']['build'].update(revision=revision, inputs=inputs)
+                (self.image / 'image.json').write_text(json.dumps(metadata))
+                with mock.patch.object(subprocess, 'Popen', side_effect=AssertionError('metadata only')):
+                    if accepted:
+                        context = row.native_context(self.home, self.jail)
+                        self.assertEqual(context['entry']['guest_jail_sha256'], current[0])
+                        self.assertEqual(context['sampled_exposure_contract'], 'ukai.vm.sampled-exposure/3')
+                    else:
+                        with self.assertRaisesRegex(harness.HarnessError, 'pinned native measurement artifact'):
+                            row.native_context(self.home, self.jail)
 
     def test_native_command_is_direct_with_explicit_attempt_state(self):
         command, suffix = row.native_argv(self.jail, self.workspace, 'small-task')

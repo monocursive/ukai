@@ -82,9 +82,9 @@ CLAUDE_SHA256 = ('2e2496c9a8065df93acb0fca2d341f59'
 CLAUDE_HELP_SHA256 = 'fc9af56f65f8a84a9e7e98cd538ccac13f57d1cc0e22099666508198ba88d64d'
 # Exact signed Linux guest candidate used by the native image preparation.
 # A self-consistent catalog alone cannot select another jail artifact.
-NATIVE_GUEST_JAIL_SHA256 = '118c8bdda8c7bd5b5957bce15171ff418fb7df0350de795770532beaee2e3462'
-NATIVE_GUEST_REVISION = '6ffff05dc6ae08602a39630b947c704bf9cf05a9'
-NATIVE_GUEST_INPUTS = 'sha256:efdc169e8e09f514c908e02bb6f972bc8761d2efc9af94d9b53d914a436f14e6'
+NATIVE_GUEST_JAIL_SHA256 = 'c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f'
+NATIVE_GUEST_REVISION = '0be9d1e820b0d47493883053253491bbd2196ba3'
+NATIVE_GUEST_INPUTS = 'sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae'
 RUN_TIMEOUT_SECONDS = 420
 EXPIRY_MARGIN_SECONDS = 30 * 60   # the run's timeout and the summary, with room
 PROMPT = ('In the current directory, create a file named k113-marker.txt '
