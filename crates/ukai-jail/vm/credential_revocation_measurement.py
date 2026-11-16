@@ -989,7 +989,11 @@ def main(argv=None):
     for name in ('home', 'workspace', 'out', 'jail'): parser.add_argument(name, type=Path)
     parser.add_argument('--raw-transport', action='store_true',
                         help='explicit guest/service component probe, without the host client/source watcher')
+    parser.add_argument('--peer-python', type=Path,
+                        help='explicit absolute Python 3.9+ peer interpreter (normal lane only)')
     args = parser.parse_args(argv)
+    if args.peer_python is not None and (args.raw_transport or not args.peer_python.is_absolute()):
+        parser.error('--peer-python requires an absolute interpreter path and the normal lane')
     if args.raw_transport:
         return raw_main(args)
     with contextlib.ExitStack() as cleanup:
@@ -1005,11 +1009,17 @@ def normal_main(args, cleanup):
     secret = ('ukai-revocation-' + os.urandom(24).hex()).encode()
     spellings = vault_measurement.value_spellings(secret)
     address = vault_measurement.mac_address()
-    witness = StreamWitness(secret)
-    server = http.server.ThreadingHTTPServer(('0.0.0.0', 0), StreamingPeer)
-    server.daemon_threads = True
-    server.witness = witness
-    threading.Thread(target=server.serve_forever, daemon=True).start()
+    explicit_peer = getattr(args, 'peer_python', None) is not None
+    if explicit_peer:
+        from stream_peer import PeerProcess
+        witness = server = PeerProcess(args.peer_python, secret)
+        cleanup.callback(witness.shutdown)
+    else:
+        witness = StreamWitness(secret)
+        server = http.server.ThreadingHTTPServer(('0.0.0.0', 0), StreamingPeer)
+        server.daemon_threads = True
+        server.witness = witness
+        threading.Thread(target=server.serve_forever, daemon=True).start()
     port = server.server_address[1]
     source_dir = Path(tempfile.mkdtemp(prefix='ukai-revoke-source-')).resolve()
     source = source_dir / 'token'
@@ -1127,6 +1137,8 @@ def normal_main(args, cleanup):
         except (OSError, ValueError, harness.HarnessError) as error:
             observed['identity_error_type'] = type(error).__name__
     observed['peer'] = witness.snapshot()
+    if explicit_peer:
+        observed['peer_process'] = witness.provenance()
     observed['placeholder'] = vault_measurement.placeholder(stdout)
     observed['after_refused'] = 'AFTER_ATTEMPT' in stdout and 'AFTER_REFUSED 403' in stdout and 'AFTER_ALLOWED' not in stdout
     observed['post_revocation_hold'] = normal_hold(stdout)
@@ -1154,6 +1166,8 @@ def normal_main(args, cleanup):
               'launch_toml': profile, 'launch_sha256': hashlib.sha256(profile.encode()).hexdigest(),
               'source_before': source_before, 'source_after': source_after,
               'service_shutdown': observed['service_shutdown']}
+    if explicit_peer:
+        inputs['peer_process'] = observed['peer_process']
     observed['normal_identity_bound'] = normal_identity_bound(inputs)
     if attempt is not None and not observed['leaks'] and not observed['output_leak']:
         try:
@@ -1164,6 +1178,8 @@ def normal_main(args, cleanup):
             observed['input_retention_error_type'] = type(error).__name__
     observed['exact_normal_inputs_retained'] = exact_inputs is not None
     facts = judge(observed, guest, events, summary)
+    if explicit_peer:
+        facts['explicit_peer_process_verified'] = observed['peer_process']['complete'] is True
     outcome = 'REFUSED' if refusals else ('PASS' if all(facts.values()) else 'FAIL')
     report = {'schema': 'ukai.vm.credential-revocation/1', 'outcome': outcome, 'qualified': False,
               'scope': 'Synthetic plaintext stream on installed VM client; no vendor/TLS/K113 qualification.',

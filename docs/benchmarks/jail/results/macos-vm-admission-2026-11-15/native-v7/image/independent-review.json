@@ -1,0 +1,141 @@
+{
+  "schema": "ukai.Q-prepared-kernel-journal-review/1",
+  "outcome": "PASS",
+  "scope": "Read-only fresh bootstrap journal prerequisite for subsequent capabilities; no runtime Session or release qualification claim.",
+  "source_revision": "44b5ac4fa65880abe369652ed0110162088a0cd9",
+  "image_manifest_sha256": "03a9b0f3a23da3c435e3e5273ba701c88b3b3807fc2237935bf7d9e5e5054366",
+  "disk_sha256": "7008344b64f7d9f5fed9492e11f4a94579a2ad701472a8ed915ee323b357174e",
+  "generation": [
+    16777234,
+    375131773,
+    6442450944,
+    1794839792529883121,
+    1794839792529883121
+  ],
+  "hash_basis": "Previously hashed by owning completion, bound to explicit stopped-generation handoff; no duplicate full disk hash.",
+  "owning_completion_sha256": "c4136d8a18a6bb57131a348929f2375f6ada510226b694419f14b6b17a36d8a2",
+  "handoff_sha256": "633ad221f85bbd7ca363a49cf9327526b98d2bd6b44cb7f7dd8c2ca9add4ca9a",
+  "extractor_sha256": "b5ea5a636ede6ee544e69218af382954ae29cc6ccd514876d6f19804a27fbab9",
+  "checks": {
+    "extraction_observations": true,
+    "generation_unchanged": true,
+    "owning_digest_bound": true,
+    "primary_clean": true,
+    "journal_verified": true,
+    "all_records_same_exact_boot": true,
+    "kernel_present": true,
+    "no_kernel_error_priority": true,
+    "no_corruption_patterns": true,
+    "manager_started": true,
+    "manager_stopped": true,
+    "poweroff_reached": true,
+    "journal_stopped": true
+  },
+  "record_count": 982,
+  "kernel_record_count": 479,
+  "kernel_priority_0_to_3_count": 0,
+  "corruption_pattern": "BUG:|Oops:|kernel panic|bad rss|pgtables_bytes|EXT4-fs error|corrupt|unable to handle kernel|bad page|general protection fault|synchronous external abort",
+  "corruption_hits": [],
+  "kernel_boot": "2340931ab39b4de9a9bff189fb61a842",
+  "selected_messages": [
+    {
+      "monotonic_us": "590816",
+      "message": "Linux version 7.3.0-10-generic (buildd@bos03-arm64-087) (aarch64-linux-gnu-gcc (Ubuntu 15.3.0-4ubuntu1) 15.3.0, GNU ld (GNU Binutils for Ubuntu) 2.47) #10-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 22 07:54:48 UTC 2026 (Ubuntu 7.3.0-10.10-generic 7.3.0)"
+    },
+    {
+      "monotonic_us": "117419760",
+      "message": "Starting user@1001.service - User Manager for UID 1001..."
+    },
+    {
+      "monotonic_us": "117492941",
+      "message": "Started user@1001.service - User Manager for UID 1001."
+    },
+    {
+      "monotonic_us": "118563313",
+      "message": "Stopping user@1001.service - User Manager for UID 1001..."
+    },
+    {
+      "monotonic_us": "118908824",
+      "message": "user@1001.service: Deactivated successfully."
+    },
+    {
+      "monotonic_us": "118909155",
+      "message": "Stopped user@1001.service - User Manager for UID 1001."
+    },
+    {
+      "monotonic_us": "118980200",
+      "message": "Shutting down."
+    },
+    {
+      "monotonic_us": "119020866",
+      "message": "Journal stopped"
+    }
+  ],
+  "limitations": [
+    "The retained journal is structurally valid and contains this bootstrap through journal shutdown; it is not an exhaustive proof against all kernel defects.",
+    "The next runtime boot remains separately gated and requires its own stopped-disk journal review.",
+    "No disk mount/replay/repair/fullraw conversion or new boot was performed."
+  ],
+  "evidence": {
+    "request.json": {
+      "sha256": "8bef6292eac68f233746b1f86f90ff35a183dc4ccf4a8ee6328fc52312d177fb",
+      "bytes": 611
+    },
+    "transfer-0.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "inventory.stdout": {
+      "sha256": "653c4cec9031b2b0b922256a1d2659f2854d47cdc3ab90d719a62cd806608464",
+      "bytes": 169
+    },
+    "inventory-command.json": {
+      "sha256": "ce4a2a112974424feecc106a5fe3b50056dada12211a3bc783e1bbcd0c1f7cf0",
+      "bytes": 878
+    },
+    "boot.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "transfer-0.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "inventory.stderr": {
+      "sha256": "3c745f5e1fffc6c882d0a52cb46acf66cd6950ce4c322187f8be9bf38e59ea9c",
+      "bytes": 79
+    },
+    "boot-command.json": {
+      "sha256": "893623089aa4aa844d93ec9ebddc2855750c8707b4bc2b3ab99f3af7cb2013f8",
+      "bytes": 470
+    },
+    "system.journal": {
+      "sha256": "0a84855eec9850fdf4d400dab7927c966df079cc0bf1310954d316f65d38ac1c",
+      "bytes": 8388608
+    },
+    "boot.jsonl": {
+      "sha256": "1a1611a978e936ca511563b9e3a89d9010f4dc62a23a1923f6a2685695208ac4",
+      "bytes": 880324
+    },
+    "transfer-1.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "extraction.json": {
+      "sha256": "cb33988592d9f735a5ff3fea2b5b72461ba758826602eb95fe841f6092140ce7",
+      "bytes": 11322989
+    },
+    "transfer-1.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "transfer-0.json": {
+      "sha256": "8cb439896e103edb5730196425ecb1b3ed0b5233fc126ed3c95ba37cce9dca27",
+      "bytes": 489
+    },
+    "transfer-1.json": {
+      "sha256": "10fcb1f73d3f047232917d63a54184c49bd784141455d8e09167a0212a49ad5e",
+      "bytes": 524
+    }
+  }
+}

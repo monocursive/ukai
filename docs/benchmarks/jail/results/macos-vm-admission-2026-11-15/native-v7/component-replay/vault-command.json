@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/build-env/bin/python",
+    "-B",
+    "/Users/monocursive/.cache/ukai-distribution-modes-20261116/crates/ukai-jail/vm/credential_revocation_measurement.py",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-Q-44b5ac4fa/prefix with spaces/share/ukai-vm/0.1.0-preview.2",
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/workspace-volume/guest-native-Q-44b5ac4fa-vault",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-Q-44b5ac4fa",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-Q-44b5ac4fa/prefix with spaces/share/ukai-vm/0.1.0-preview.2/bin/ukai-jail",
+    "--raw-transport"
+  ],
+  "environment": {
+    "HOME": "/private/tmp/ukai-gn-Q-44b5ac4fa/home",
+    "LANG": "C.UTF-8",
+    "PATH": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-Q-44b5ac4fa/prefix with spaces/share/ukai-vm/0.1.0-preview.2/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "TMPDIR": "/private/tmp/ukai-gn-Q-44b5ac4fa",
+    "UKAI_JAIL_BINARY": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-Q-44b5ac4fa/prefix with spaces/share/ukai-vm/0.1.0-preview.2/bin/ukai-jail",
+    "UKAI_VM_BINARY": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-Q-44b5ac4fa/prefix with spaces/share/ukai-vm/0.1.0-preview.2/bin/ukai-vm"
+  },
+  "source_revision": "44b5ac4fa65880abe369652ed0110162088a0cd9",
+  "plan_sha256": "770e7f6ef713e30d9988c3fe09ebc44b8d51a6224344562ff2b525610aa895cc",
+  "wrapper_sha256": "15ff3907e4784540e512a4009d87feb1b0bbca0d83a3a8f269cef6062deb5832",
+  "timeout_seconds": 900
+}

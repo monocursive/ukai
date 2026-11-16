@@ -1,0 +1,157 @@
+{
+  "schema": "ukai.export-fix-prepared-kernel-journal-review/1",
+  "outcome": "PASS",
+  "scope": "Read-only fresh934 bootstrap journal review only; no post-stop export workload, warm Session, signed installation, component admission or release qualification claim.",
+  "source_revision": "934ad33acc5efb2843de8ee9fd5ea3181b6790b3",
+  "image_manifest_sha256": "c57db83c92bdac161d053ff8eea818d18f002bfdc776ad9d6a370d615cbe631e",
+  "disk_sha256": "22ff8df581c05809cf516ab66a56d6655d46f324d7ff3ab61929e77742a0a681",
+  "generation": [
+    16777234,
+    375385605,
+    6442450944,
+    1794853218262687615,
+    1794853218262687615
+  ],
+  "hash_basis": "Previously hashed by owning completion, bound to explicit stopped-generation handoff; no duplicate full disk hash.",
+  "owning_completion_sha256": "eb1077d3eb03dbed717a11a84fc4bd16d19dbc13b7f62bdf7fdcc7fcc54a790f",
+  "handoff_sha256": "9f2800ff393d9ff1c112051986ddc5bef60b4f5590cd026a37a7365b17171011",
+  "extractor_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-Q-journal-review/extract_journal.py",
+  "extractor_sha256": "b5ea5a636ede6ee544e69218af382954ae29cc6ccd514876d6f19804a27fbab9",
+  "checks": {
+    "owning_prepare_pass": true,
+    "owning_completion_pin": true,
+    "handoff_pin": true,
+    "image_manifest_pin": true,
+    "new_guest_source_bound": true,
+    "disk_digest_bound": true,
+    "extraction_complete": true,
+    "generation_unchanged_through_decode": true,
+    "regular_disk": true,
+    "primary_clean": true,
+    "journal_verified": true,
+    "decode_success": true,
+    "all_records_exact_canary_boot": true,
+    "kernel_present": true,
+    "no_kernel_priority_0_to_3": true,
+    "no_corruption_patterns": true,
+    "manager_started": true,
+    "manager_stopped": true,
+    "shutdown_present": true,
+    "journal_stopped": true
+  },
+  "record_count": 986,
+  "kernel_record_count": 466,
+  "kernel_priority_0_to_3_count": 0,
+  "corruption_pattern": "BUG:|Oops:|kernel panic|bad rss|pgtables_bytes|EXT4-fs error|corrupt|unable to handle kernel|bad page|general protection fault|synchronous external abort",
+  "corruption_hits": [],
+  "kernel_boot": "b62f3022fbec4d63b5eb786533f6bc28",
+  "selected_messages": [
+    {
+      "monotonic_us": "580890",
+      "message": "Linux version 7.3.0-10-generic (buildd@bos03-arm64-087) (aarch64-linux-gnu-gcc (Ubuntu 15.3.0-4ubuntu1) 15.3.0, GNU ld (GNU Binutils for Ubuntu) 2.47) #10-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 22 07:54:48 UTC 2026 (Ubuntu 7.3.0-10.10-generic 7.3.0)"
+    },
+    {
+      "monotonic_us": "63078017",
+      "message": "Starting user@1001.service - User Manager for UID 1001..."
+    },
+    {
+      "monotonic_us": "63147543",
+      "message": "Started user@1001.service - User Manager for UID 1001."
+    },
+    {
+      "monotonic_us": "64277439",
+      "message": "Stopping user@1001.service - User Manager for UID 1001..."
+    },
+    {
+      "monotonic_us": "64635605",
+      "message": "user@1001.service: Deactivated successfully."
+    },
+    {
+      "monotonic_us": "64635775",
+      "message": "Stopped user@1001.service - User Manager for UID 1001."
+    },
+    {
+      "monotonic_us": "64708785",
+      "message": "Shutting down."
+    },
+    {
+      "monotonic_us": "64754371",
+      "message": "Journal stopped"
+    }
+  ],
+  "limits": [
+    "The structurally verified journal covers this bootstrap through journal shutdown; it is not an exhaustive proof against kernel defects.",
+    "No mount, disk repair/replay, full-disk rehash, guest execution, VM retry, provider request or source edit performed.",
+    "Frozen R suspension/API failures are unchanged; the bounded export repair still requires a separate actual runtime qualification."
+  ],
+  "evidence": {
+    "boot-command.json": {
+      "bytes": 528,
+      "sha256": "d79e9d4c5572331cfc65557c75c9f28a6f9f34881a315c6b2e879fb4437230e7"
+    },
+    "boot.jsonl": {
+      "bytes": 890155,
+      "sha256": "add18457bff6affa09a29a2bf26ad7ca8a6002c3e739d3631b6007a3a14cfe52"
+    },
+    "boot.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "extraction-command.json": {
+      "bytes": 480,
+      "sha256": "605699e6b2b7716c2e839dcc0bdb1805a3f3e9298da1cb8f25da016a5a842b08"
+    },
+    "extraction.json": {
+      "bytes": 11323291,
+      "sha256": "8f577ee6f8030b7efa7c31479ad0a6db5e95a069758a81bfea7eb24a9526d46c"
+    },
+    "extraction.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "inventory-command.json": {
+      "bytes": 973,
+      "sha256": "d5a9832bccd271ca0933d37809dc13a761d3a219c0687fc19f5c008cf23ccba3"
+    },
+    "inventory.stderr": {
+      "bytes": 87,
+      "sha256": "f47069756eb23c1fc62c74dd5c060d8d0890dfcce027b40e85ac64b10686187e"
+    },
+    "inventory.stdout": {
+      "bytes": 169,
+      "sha256": "671b1d0efcb9c15d8bd908e658dfa2fb24546a97b3491186cad65e2ee4340d84"
+    },
+    "request.json": {
+      "bytes": 607,
+      "sha256": "75aafd31e73dbbf01b17cb740bf6d8a0e7eaaccbbe9e2f5d36b497496a6948d8"
+    },
+    "system.journal": {
+      "bytes": 8388608,
+      "sha256": "8ca967be69816aa3cd0ad0f7e1b51d9186ca9177f9d86987b58f33b2e37c8ded"
+    },
+    "transfer-0-command.json": {
+      "bytes": 505,
+      "sha256": "5acd1357b86f60adde559bd409523d3522493712afca378f01c897f0317865fe"
+    },
+    "transfer-0.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "transfer-0.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "transfer-1-command.json": {
+      "bytes": 547,
+      "sha256": "449a0fb061aca03991cff84cce36253910b8af58da8039851faabe4f7cdea35f"
+    },
+    "transfer-1.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "transfer-1.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

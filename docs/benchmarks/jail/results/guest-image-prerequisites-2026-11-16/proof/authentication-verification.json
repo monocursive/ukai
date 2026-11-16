@@ -1,0 +1,348 @@
+{
+  "schema": "ukai.task.ubuntu-signature-verification/1",
+  "root": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605",
+  "uid": 1001,
+  "started_at": "2026-11-16T06:05:50.926520+00:00",
+  "input_sha256": "12dd39721532ecd81f92b81c19bd0c4eb22fcdf0ff0c20fc92690ef46abc44fd",
+  "commands": [
+    {
+      "label": "version",
+      "argv": [
+        "/usr/bin/gpg",
+        "--no-options",
+        "--homedir",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/gnupg",
+        "--batch",
+        "--no-tty",
+        "--no-autostart",
+        "--no-auto-key-retrieve",
+        "--no-auto-check-trustdb",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/version.stdout",
+        "bytes": 604,
+        "sha256": "d642394a2fd9e2e089a1810e7e0bffe90a25095f123ae5a29f8d5f0d8cae948e",
+        "text": "gpg (GnuPG) 2.4.8\nlibgcrypt 1.12.0\nCopyright (C) 2025 g10 Code GmbH\nLicense GNU GPL-3.0-or-later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n\nHome: /home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/gnupg\nSupported algorithms:\nPubkey: RSA, ELG, DSA, ECDH, ECDSA, EDDSA\nCipher: IDEA, 3DES, CAST5, BLOWFISH, AES, AES192, AES256, TWOFISH,\n        CAMELLIA128, CAMELLIA192, CAMELLIA256\nHash: SHA1, RIPEMD160, SHA256, SHA384, SHA512, SHA224\nCompression: Uncompressed, ZIP, ZLIB, BZIP2\n"
+      },
+      "stderr": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/version.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "text": ""
+      }
+    },
+    {
+      "label": "inspect-ubuntu-cloud-signing-key.asc",
+      "argv": [
+        "/usr/bin/gpg",
+        "--no-options",
+        "--homedir",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/gnupg",
+        "--batch",
+        "--no-tty",
+        "--no-autostart",
+        "--no-auto-key-retrieve",
+        "--no-auto-check-trustdb",
+        "--with-colons",
+        "--import-options",
+        "show-only",
+        "--import",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/ubuntu-cloud-signing-key.asc"
+      ],
+      "exit_code": 0,
+      "stdout": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/inspect-ubuntu-cloud-signing-key.asc.stdout",
+        "bytes": 246,
+        "sha256": "c5679b9d13814de098d844d6e56bad387f4288abc872d9921f8a48a94c056386",
+        "text": "pub:-:4096:1:1A5D6C4C7DB87C81:1253058869:::-:::scSC::::::23::0:\nfpr:::::::::D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81:\nuid:-::::1756358123::67BF62AAD4C9A52B6C68869D6D8C0EAF7E98CCE1::UEC Image Automatic Signing Key <cdimage@ubuntu.com>::::::::::0:\n"
+      },
+      "stderr": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/inspect-ubuntu-cloud-signing-key.asc.stderr",
+        "bytes": 276,
+        "sha256": "d96386593f1edbbd9156cfede67f0abaf650db90be7f1868a411f88d9cd5a613",
+        "text": "gpg: keybox '/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/gnupg/pubring.kbx' created\ngpg: key 1A5D6C4C7DB87C81: 2 signatures not checked due to missing keys\ngpg: /home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/gnupg/trustdb.gpg: trustdb created\n"
+      }
+    },
+    {
+      "label": "import-ubuntu-cloud-signing-key.asc",
+      "argv": [
+        "/usr/bin/gpg",
+        "--no-options",
+        "--homedir",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/gnupg",
+        "--batch",
+        "--no-tty",
+        "--no-autostart",
+        "--no-auto-key-retrieve",
+        "--no-auto-check-trustdb",
+        "--import",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/ubuntu-cloud-signing-key.asc"
+      ],
+      "exit_code": 0,
+      "stdout": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/import-ubuntu-cloud-signing-key.asc.stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "text": ""
+      },
+      "stderr": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/import-ubuntu-cloud-signing-key.asc.stderr",
+        "bytes": 278,
+        "sha256": "6c9fb08ce65bebdfbe5df448301abf883bf69a6c7a7d1e71da920d40ece8e52a",
+        "text": "gpg: key 1A5D6C4C7DB87C81: 2 signatures not checked due to missing keys\ngpg: key 1A5D6C4C7DB87C81: public key \"UEC Image Automatic Signing Key <cdimage@ubuntu.com>\" imported\ngpg: no gpg-agent running in this session\ngpg: Total number processed: 1\ngpg:               imported: 1\n"
+      }
+    },
+    {
+      "label": "inspect-ubuntu-archive-signing-key.asc",
+      "argv": [
+        "/usr/bin/gpg",
+        "--no-options",
+        "--homedir",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/gnupg",
+        "--batch",
+        "--no-tty",
+        "--no-autostart",
+        "--no-auto-key-retrieve",
+        "--no-auto-check-trustdb",
+        "--with-colons",
+        "--import-options",
+        "show-only",
+        "--import",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/ubuntu-archive-signing-key.asc"
+      ],
+      "exit_code": 0,
+      "stdout": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/inspect-ubuntu-archive-signing-key.asc.stdout",
+        "bytes": 260,
+        "sha256": "8f8af119e796b19c83da6b3070c100285cbd8de02f5e2707cf62df2702f23e52",
+        "text": "pub:-:4096:1:871920D1991BC93C:1537196506:::-:::scSC::::::23::0:\nfpr:::::::::F6ECB3762474EDA9D21B7022871920D1991BC93C:\nuid:-::::1537196506::BE438F08F546424C0EA810FD722053597EB5127B::Ubuntu Archive Automatic Signing Key (2018) <ftpmaster@ubuntu.com>::::::::::0:\n"
+      },
+      "stderr": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/inspect-ubuntu-archive-signing-key.asc.stderr",
+        "bytes": 105,
+        "sha256": "9a86a0b2aa8299f4d8ef7a96c4ab3f2ba27d88c3ec86b514cd89298dde599e81",
+        "text": "gpg: key 871920D1991BC93C: 6 signatures not checked due to missing keys\ngpg: please do a --check-trustdb\n"
+      }
+    },
+    {
+      "label": "import-ubuntu-archive-signing-key.asc",
+      "argv": [
+        "/usr/bin/gpg",
+        "--no-options",
+        "--homedir",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/gnupg",
+        "--batch",
+        "--no-tty",
+        "--no-autostart",
+        "--no-auto-key-retrieve",
+        "--no-auto-check-trustdb",
+        "--import",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/ubuntu-archive-signing-key.asc"
+      ],
+      "exit_code": 0,
+      "stdout": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/import-ubuntu-archive-signing-key.asc.stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "text": ""
+      },
+      "stderr": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/import-ubuntu-archive-signing-key.asc.stderr",
+        "bytes": 292,
+        "sha256": "a0e72f6587951823881d0c0da821cf6999b177584fac3bab617ed99e5bef4f74",
+        "text": "gpg: key 871920D1991BC93C: 6 signatures not checked due to missing keys\ngpg: key 871920D1991BC93C: public key \"Ubuntu Archive Automatic Signing Key (2018) <ftpmaster@ubuntu.com>\" imported\ngpg: no gpg-agent running in this session\ngpg: Total number processed: 1\ngpg:               imported: 1\n"
+      }
+    },
+    {
+      "label": "verify-cloud-checksums",
+      "argv": [
+        "/usr/bin/gpg",
+        "--no-options",
+        "--homedir",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/gnupg",
+        "--batch",
+        "--no-tty",
+        "--no-autostart",
+        "--no-auto-key-retrieve",
+        "--no-auto-check-trustdb",
+        "--status-fd",
+        "1",
+        "--verify",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/SHA256SUMS.gpg",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/SHA256SUMS"
+      ],
+      "exit_code": 0,
+      "stdout": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/verify-cloud-checksums.stdout",
+        "bytes": 403,
+        "sha256": "c6d9059b5cf1dce0551e55e99566856f70901503ec2ebc35c3d200e199dd751f",
+        "text": "[GNUPG:] NEWSIG\n[GNUPG:] KEY_CONSIDERED D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81 0\n[GNUPG:] SIG_ID McqJAHU3R36dF1PEb6+qreIrfh0 2026-11-06 1793980894\n[GNUPG:] GOODSIG 1A5D6C4C7DB87C81 UEC Image Automatic Signing Key <cdimage@ubuntu.com>\n[GNUPG:] VALIDSIG D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81 2026-11-06 1793980894 0 4 0 1 10 00 D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81\n[GNUPG:] TRUST_UNDEFINED 0 pgp\n"
+      },
+      "stderr": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/verify-cloud-checksums.stderr",
+        "bytes": 467,
+        "sha256": "427e1351cc469c9001e13ab5808233a617ca98897a6870b2c3812c5f7fb32919",
+        "text": "gpg: Signature made Fri Nov  6 16:01:34 2026 UTC\ngpg:                using RSA key D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81\ngpg: please do a --check-trustdb\ngpg: Good signature from \"UEC Image Automatic Signing Key <cdimage@ubuntu.com>\" [unknown]\ngpg: WARNING: This key is not certified with a trusted signature!\ngpg:          There is no indication that the signature belongs to the owner.\nPrimary key fingerprint: D2EB 4462 6FDD C30B 513D  5BB7 1A5D 6C4C 7DB8 7C81\n"
+      }
+    },
+    {
+      "label": "verify-stonking",
+      "argv": [
+        "/usr/bin/gpg",
+        "--no-options",
+        "--homedir",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/gnupg",
+        "--batch",
+        "--no-tty",
+        "--no-autostart",
+        "--no-auto-key-retrieve",
+        "--no-auto-check-trustdb",
+        "--status-fd",
+        "1",
+        "--verify",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/stonking-InRelease"
+      ],
+      "exit_code": 0,
+      "stdout": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/verify-stonking.stdout",
+        "bytes": 417,
+        "sha256": "a4cf178a35795a06a41a052a64beef97841de9f438f9270c5db2228e89e40a69",
+        "text": "[GNUPG:] NEWSIG\n[GNUPG:] KEY_CONSIDERED F6ECB3762474EDA9D21B7022871920D1991BC93C 0\n[GNUPG:] SIG_ID VOxokm4E8Fayila6IJxcp+bp4lU 2026-10-15 1792066752\n[GNUPG:] GOODSIG 871920D1991BC93C Ubuntu Archive Automatic Signing Key (2018) <ftpmaster@ubuntu.com>\n[GNUPG:] VALIDSIG F6ECB3762474EDA9D21B7022871920D1991BC93C 2026-10-15 1792066752 0 4 0 1 10 01 F6ECB3762474EDA9D21B7022871920D1991BC93C\n[GNUPG:] TRUST_UNDEFINED 0 pgp\n"
+      },
+      "stderr": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/verify-stonking.stderr",
+        "bytes": 481,
+        "sha256": "e0bebb24ba4ed64038f57301a76e991142e1935e22134d10218dea83d9cad1bb",
+        "text": "gpg: Signature made Thu Oct 15 12:19:12 2026 UTC\ngpg:                using RSA key F6ECB3762474EDA9D21B7022871920D1991BC93C\ngpg: please do a --check-trustdb\ngpg: Good signature from \"Ubuntu Archive Automatic Signing Key (2018) <ftpmaster@ubuntu.com>\" [unknown]\ngpg: WARNING: This key is not certified with a trusted signature!\ngpg:          There is no indication that the signature belongs to the owner.\nPrimary key fingerprint: F6EC B376 2474 EDA9 D21B  7022 8719 20D1 991B C93C\n"
+      }
+    },
+    {
+      "label": "verify-stonking-updates",
+      "argv": [
+        "/usr/bin/gpg",
+        "--no-options",
+        "--homedir",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/gnupg",
+        "--batch",
+        "--no-tty",
+        "--no-autostart",
+        "--no-auto-key-retrieve",
+        "--no-auto-check-trustdb",
+        "--status-fd",
+        "1",
+        "--verify",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/stonking-updates-InRelease"
+      ],
+      "exit_code": 0,
+      "stdout": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/verify-stonking-updates.stdout",
+        "bytes": 417,
+        "sha256": "c1a89fa6c154efa25ae903b8fbd91dba26be7d6bf32d603d5003b04a89440b23",
+        "text": "[GNUPG:] NEWSIG\n[GNUPG:] KEY_CONSIDERED F6ECB3762474EDA9D21B7022871920D1991BC93C 0\n[GNUPG:] SIG_ID PmciHQuQ7KtnH3jrQxqPbLNM9L8 2026-11-05 1793912470\n[GNUPG:] GOODSIG 871920D1991BC93C Ubuntu Archive Automatic Signing Key (2018) <ftpmaster@ubuntu.com>\n[GNUPG:] VALIDSIG F6ECB3762474EDA9D21B7022871920D1991BC93C 2026-11-05 1793912470 0 4 0 1 10 01 F6ECB3762474EDA9D21B7022871920D1991BC93C\n[GNUPG:] TRUST_UNDEFINED 0 pgp\n"
+      },
+      "stderr": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/verify-stonking-updates.stderr",
+        "bytes": 481,
+        "sha256": "eda11369510e9941c481603c61a222f4c2919a7c577bcd0ffdd0339790aaad34",
+        "text": "gpg: Signature made Thu Nov  5 21:01:10 2026 UTC\ngpg:                using RSA key F6ECB3762474EDA9D21B7022871920D1991BC93C\ngpg: please do a --check-trustdb\ngpg: Good signature from \"Ubuntu Archive Automatic Signing Key (2018) <ftpmaster@ubuntu.com>\" [unknown]\ngpg: WARNING: This key is not certified with a trusted signature!\ngpg:          There is no indication that the signature belongs to the owner.\nPrimary key fingerprint: F6EC B376 2474 EDA9 D21B  7022 8719 20D1 991B C93C\n"
+      }
+    },
+    {
+      "label": "verify-stonking-security",
+      "argv": [
+        "/usr/bin/gpg",
+        "--no-options",
+        "--homedir",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/gnupg",
+        "--batch",
+        "--no-tty",
+        "--no-autostart",
+        "--no-auto-key-retrieve",
+        "--no-auto-check-trustdb",
+        "--status-fd",
+        "1",
+        "--verify",
+        "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/stonking-security-InRelease"
+      ],
+      "exit_code": 0,
+      "stdout": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/verify-stonking-security.stdout",
+        "bytes": 417,
+        "sha256": "80f1bf4de56e50704475e58b2336694d4d42651606d8ca961b769e213ed6e166",
+        "text": "[GNUPG:] NEWSIG\n[GNUPG:] KEY_CONSIDERED F6ECB3762474EDA9D21B7022871920D1991BC93C 0\n[GNUPG:] SIG_ID J40OXml5VNb0rwOmj8BhkRkC1Iw 2026-11-05 1793890589\n[GNUPG:] GOODSIG 871920D1991BC93C Ubuntu Archive Automatic Signing Key (2018) <ftpmaster@ubuntu.com>\n[GNUPG:] VALIDSIG F6ECB3762474EDA9D21B7022871920D1991BC93C 2026-11-05 1793890589 0 4 0 1 10 01 F6ECB3762474EDA9D21B7022871920D1991BC93C\n[GNUPG:] TRUST_UNDEFINED 0 pgp\n"
+      },
+      "stderr": {
+        "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/verify-stonking-security.stderr",
+        "bytes": 481,
+        "sha256": "72c76b095ebcdaf2f86d555a90bc48cfcdda5b7d6b33011427fef76999306c94",
+        "text": "gpg: Signature made Thu Nov  5 14:56:29 2026 UTC\ngpg:                using RSA key F6ECB3762474EDA9D21B7022871920D1991BC93C\ngpg: please do a --check-trustdb\ngpg: Good signature from \"Ubuntu Archive Automatic Signing Key (2018) <ftpmaster@ubuntu.com>\" [unknown]\ngpg: WARNING: This key is not certified with a trusted signature!\ngpg:          There is no indication that the signature belongs to the owner.\nPrimary key fingerprint: F6EC B376 2474 EDA9 D21B  7022 8719 20D1 991B C93C\n"
+      }
+    }
+  ],
+  "files": {
+    "SHA256SUMS": {
+      "bytes": 3279,
+      "sha256": "da27c899fe43c33b1a784b797cdfbf5059759b390a912bbb4a797410b6806767"
+    },
+    "SHA256SUMS.gpg": {
+      "bytes": 833,
+      "sha256": "fe9617b5b46857db3f5c90856642fdc916ea9025998f22263a20cd182c4599f6"
+    },
+    "stonking-InRelease": {
+      "bytes": 170213,
+      "sha256": "432b0f2ad42b2a997e2b373f5b61cabb3e80b3c5348cd0ff4b9cfc4df2e3d8fb"
+    },
+    "stonking-security-InRelease": {
+      "bytes": 60615,
+      "sha256": "0d45a67b772ab03a0f90e9eeb36b49f34a329b86a7caf7c95f3feb11bc7c8a29"
+    },
+    "stonking-updates-InRelease": {
+      "bytes": 60613,
+      "sha256": "92c428ee251cdfbdf5dd51e7762713dd036be802952d733c999d84a2b517533b"
+    },
+    "ubuntu-26.10-minimal-cloudimg-arm64.manifest": {
+      "bytes": 8236,
+      "sha256": "fa24afca89f1a8d737819df8f6eb25f728a902364ca6aadfa13d67dcee7dd5ef"
+    },
+    "ubuntu-archive-signing-key.asc": {
+      "bytes": 4747,
+      "sha256": "85309b698b7bdac6f21de64aa1eaa998470bbd9c8c853ea274d0c27a95013210"
+    },
+    "ubuntu-cloud-signing-key.asc": {
+      "bytes": 3325,
+      "sha256": "927138de292fac4d861105a052cf56e9c5921987da385c844d88f34d19b39ab0"
+    }
+  },
+  "outcome": "PASS",
+  "gpg_binary": {
+    "path": "/usr/bin/gpg",
+    "sha256": "c8f3dc07a34ab0a0a081368b482724b79a2a6d6b7aa856741c09edf7af854754"
+  },
+  "signature_checks": {
+    "cloud-checksums": {
+      "valid": true,
+      "signing_fingerprint": "D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81"
+    },
+    "stonking": {
+      "valid": true,
+      "signing_fingerprint": "F6ECB3762474EDA9D21B7022871920D1991BC93C"
+    },
+    "stonking-updates": {
+      "valid": true,
+      "signing_fingerprint": "F6ECB3762474EDA9D21B7022871920D1991BC93C"
+    },
+    "stonking-security": {
+      "valid": true,
+      "signing_fingerprint": "F6ECB3762474EDA9D21B7022871920D1991BC93C"
+    }
+  },
+  "image_expected_sha256": "bac15af78c37fec8e9474a9a784041c13ddb2603b9095435b7e4269e3faf3064",
+  "image_downloaded": false,
+  "manifest_authenticated": true,
+  "system_keyrings_modified": false,
+  "task_gnupg_mode": "0o700",
+  "finished_at": "2026-11-16T06:05:50.972286+00:00",
+  "input_files_unchanged": true
+}

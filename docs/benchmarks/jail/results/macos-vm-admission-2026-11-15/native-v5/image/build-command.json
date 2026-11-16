@@ -1,0 +1,65 @@
+{
+  "schema": "ukai.gate-image-resolved-plan/1",
+  "status": "RESOLVED_NOT_EXECUTED",
+  "plan_version": 2,
+  "created_at": "2026-11-15T21:05:49.174899+00:00",
+  "source_revision": "b54086a3e31d1097954448e2bd37278f20beab7c",
+  "source_checkout": "/Users/monocursive/.cache/ukai-guest-gate-source-b54086a3e-2026-11-15",
+  "source_sha256": {
+    "guest.py": "06dad8f602567645a1d7992a72f27d0da7b9cb1a4a62707c8cf556646fcddfdc",
+    "guest_program.py": "fc73abbf2189a6216595da25b9b69aa03cc38735249c45d0e70e064020eb29bf",
+    "guest_exposure.py": "9257817c42baf6d7af0717a8f7b1a31017501fdc3caab71f818d1ad38416f94b",
+    "guest_exposure_control.py": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f",
+    "vz.swift": "d1d3c87ad70bf770ab0d9c1f250fe2f64b5baee162f2b28dcf3f2cb89f0df32a",
+    "custodian.c": "d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab",
+    "prepare.py": "d9aef47dff24192e690ec8a479a127d02f8e443182e25461709cd07a438e7e5a",
+    "test_guest_gate.py": "c4602af535f1b2e6ac852691080fd92b15ef6e249be4338e43737be786eb572c"
+  },
+  "input_sha256": {
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v4/cache/ubuntu.img": "4e86a7819b4cc7b4a9c2e719dec3e0a723c4a2788dc3f23f17641cba7f5ca216",
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/claude-2.1.311/claude": "2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/RELEASE_NOTES.md": "c45f4e1bc341ed6d36f3d523406304e91823968463fbcc4efe25ac9807810f18",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/SHA256SUMS": "c8b7ee8c72d0819d1d9bcfe14b2e85352f8c377c0076a2a6b6483803938b9560",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/SHA256SUMS.minisig": "c15d929fffe558c23dab8c094e71926e08b3ad09c47effa966adeee3f99c4015",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/bootstrap.sh": "13b16d849dfd1ceb92fe707624b67f595f9002eac858b7153acdbac38b468af7",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/install.sh": "9c49ea8a0d7c2633b446d1912d9def945bb10dad325de6542320dd185a13f012",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/release-plan.json": "909d79a88c18f194075bd9c4f5e83d0ba757187ff599c5044a91f9fcef141e88",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/ukai-jail-0.1.0-rc.6-aarch64-unknown-linux-gnu.tar.gz": "bef11e6e96ac3a980f5a4e084cb7008439e246446aa4b99e933746377c53c7ce",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/ukai-jail-0.1.0-rc.6-x86_64-unknown-linux-gnu.tar.gz": "c074b81a3cacb69090544b64e45b44b1268f3f4ff06a452969501dd5f4d9b962"
+  },
+  "image": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v5",
+  "build_record": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-build-v5",
+  "command": [
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/build-env/bin/python",
+    "-B",
+    "/Users/monocursive/.cache/ukai-guest-gate-source-b54086a3e-2026-11-15/crates/ukai-jail/vm/prepare.py",
+    "--out",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v5",
+    "--jail-candidate",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate",
+    "--native-claude",
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/claude-2.1.311/claude"
+  ],
+  "runner_sha256": "f34756d3a08f0992a0b7302137a1be02a213ecb21c0a2a9d904c3a6fad9583f0",
+  "resources": {
+    "cpus": 2,
+    "memory_mib": 2048,
+    "sparse_disk_bytes": 6442450944,
+    "minimum_available_bytes": 12884901888,
+    "observed_available_bytes": 26566422528
+  },
+  "tools": {
+    "swiftc": "/usr/bin/swiftc",
+    "clang": "/usr/bin/clang",
+    "codesign": "/usr/bin/codesign",
+    "qemu-img": "/opt/homebrew/bin/qemu-img",
+    "hdiutil": "/usr/bin/hdiutil"
+  },
+  "outer_timeout_seconds": 1200,
+  "terminate_wait_seconds": 10,
+  "kill_wait_seconds": 10,
+  "original_artifacts_removed": false,
+  "automatic_retry": false,
+  "package_or_provider_execution": false,
+  "next_gate": "Root review of this exact plan SHA before build; no package/admission follows automatically."
+}

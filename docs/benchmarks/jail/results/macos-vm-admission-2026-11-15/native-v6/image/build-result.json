@@ -1,0 +1,31 @@
+{
+  "schema": "ukai.gate-image-execution/1",
+  "plan_sha256": "9ada57f6ed50894ebafe0dcecf868656e790fb762bfe6673836ff378ed428c1c",
+  "source_revision": "e82209aa8fc33c88b984bb7b1c5a193e56e2b68e",
+  "command": [
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/build-env/bin/python",
+    "-B",
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/prepare.py",
+    "--out",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v6",
+    "--jail-candidate",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate",
+    "--native-claude",
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/claude-2.1.311/claude"
+  ],
+  "automatic_retry": false,
+  "provider_calls": false,
+  "pid": 36591,
+  "image_manifest_sha256": "79fef747cd312cad12742cdaf2d79ae55ba631b6b692fb4ab7e154d7f8d26f2e",
+  "disk_sha256": "35154ce2c3ad62725b5dffb595062f167a6896e1c5b840c2de514a61e8fa7957",
+  "seed_sha256": "26800da8b107139f3d4b01cf1114c44ba4c01731588a3ca86ed86683e2556526",
+  "returncode": 0,
+  "elapsed_seconds": 51.50243666698225,
+  "error_type": null,
+  "cleanup": {
+    "process_started": true,
+    "leader_reaped": true,
+    "group_absent": true
+  },
+  "outcome": "PASS"
+}

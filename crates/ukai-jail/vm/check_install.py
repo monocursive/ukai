@@ -11,13 +11,17 @@ and no symlink — AND every installed mode is normalized (directories 0755,
 files 0644, or 0755 where the volume's file is executable; never a
 world-writable or setuid bit, which the manifest does not cover). The tamper
 cases include an unlisted payload file, which the installer must refuse
-rather than install.
+rather than install. A passed tamper case retains its mutation, output and
+postcondition proof before removing only its generated copy of the volume.
+Unexpected failures retain their fixture for diagnosis.
 """
 import argparse
 import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
+import stat
 import subprocess
 
 if not __debug__:
@@ -30,6 +34,104 @@ CASES = ('install', 'repeat-refused', 'unrelated-refused', 'unrelated-client-ref
 
 class CaseFailed(RuntimeError):
     pass
+
+
+def identity(info):
+    return [info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode), info.st_uid]
+
+
+def fixture_snapshot(descriptor):
+    """Metadata of a small generated volume, anchored to its open directory."""
+    entries = {}
+    for directory, names, files, current in os.fwalk('.', dir_fd=descriptor, follow_symlinks=False):
+        for name in ['.', *names, *files]:
+            relative = str(Path(directory) / name)
+            info = os.stat(name, dir_fd=current, follow_symlinks=False)
+            if not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode)):
+                raise CaseFailed('unexpected generated fixture entry')
+            entries[relative] = [*identity(info), info.st_mode, info.st_size,
+                                 info.st_mtime_ns, info.st_ctime_ns, info.st_nlink]
+            if len(entries) > 4096:
+                raise CaseFailed('generated fixture inventory exceeds bound')
+    return entries
+
+
+def capture_fixture(root, name):
+    if name not in CASES[-3:]:
+        raise CaseFailed('not a generated tamper fixture')
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    parent = os.open(root, flags)
+    try:
+        child = os.open(name, flags, dir_fd=parent)
+        try:
+            return {'parent_identity': identity(os.fstat(parent)),
+                    'entries': fixture_snapshot(child)}
+        finally:
+            os.close(child)
+    finally:
+        os.close(parent)
+
+
+def remove_owned_fixture(root, name, captured):
+    """Remove only a still-identical fixture through its pinned directory FD."""
+    if name not in CASES[-3:] or not shutil.rmtree.avoids_symlink_attacks:
+        raise CaseFailed('safe generated fixture removal unavailable')
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    parent = os.open(root, flags)
+    try:
+        if identity(os.fstat(parent)) != captured['parent_identity']:
+            raise CaseFailed('fixture parent changed')
+        child = os.open(name, flags, dir_fd=parent)
+        try:
+            if fixture_snapshot(child) != captured['entries']:
+                raise CaseFailed('generated fixture changed')
+            # Use the pinned child, not its pathname, for every descendant.
+            # A replaced top-level name is checked again before removing it.
+            with os.scandir(child) as entries:
+                for entry in entries:
+                    if entry.is_dir(follow_symlinks=False):
+                        shutil.rmtree(entry.name, dir_fd=child)
+                    else:
+                        os.unlink(entry.name, dir_fd=child)
+            if identity(os.stat(name, dir_fd=parent, follow_symlinks=False)) != captured['entries']['.'][:4]:
+                raise CaseFailed('generated fixture name changed')
+            os.rmdir(name, dir_fd=parent)
+        finally:
+            os.close(child)
+        if os.path.lexists(root / name):
+            raise CaseFailed('generated fixture remains')
+    finally:
+        os.close(parent)
+
+
+def persist_fixture_record(path, value):
+    with path.open('x') as output:
+        json.dump(value, output, indent=2)
+        output.write('\n')
+        output.flush()
+        os.fsync(output.fileno())
+
+
+def retire_passed_fixture(results, root, name, captured, artifact, mutation):
+    """A proof-write or cleanup failure fails the case and stops the sequence."""
+    row = results[-1]
+    if row['case'] != name or row['passed'] is not True or row['failed_checks']:
+        raise CaseFailed('only a passed expected-negative fixture may be removed')
+    check = 'generated-fixture-proof-retained'
+    try:
+        proof = {'schema': 'ukai.vm.installer-fixture-proof/1', 'case': row.copy(),
+                 'artifact': artifact, 'fixture': captured, 'mutation': mutation,
+                 'postconditions': {'nothing-installed': True},
+                 'stdout_sha256': sha256(root / (name + '.stdout')),
+                 'stderr_sha256': sha256(root / (name + '.stderr'))}
+        persist_fixture_record(root / (name + '.fixture.json'), proof)
+        check = 'generated-fixture-cleanup'
+        remove_owned_fixture(root, name, captured)
+        persist_fixture_record(root / (name + '.cleanup.json'), {'case': name, 'removed': True})
+    except BaseException:
+        row['passed'] = False
+        row['failed_checks'].append(check)
+        raise
 
 
 def sha256(path):
@@ -229,11 +331,17 @@ def main(argv=None):
             clone = root / case
             subprocess.run(['/bin/cp', '-cR', str(source), str(clone)], check=True)
             target = clone / filename
+            original_sha256 = sha256(target) if append else None
             with target.open('ab' if append else 'xb') as output:
                 output.write(b'tampered')
+            mutation = {'path': filename, 'operation': 'append' if append else 'exclusive-create',
+                        'bytes_hex': b'tampered'.hex(), 'original_sha256': original_sha256,
+                        'mutated_sha256': sha256(target)}
+            captured = capture_fixture(root, case)
             destination = root / (case + '-prefix')
             invoke(case, clone, destination, 1, expected,
                    [('nothing-installed', lambda destination=destination: not os.path.lexists(destination))])
+            retire_passed_fixture(results, root, case, captured, artifact, mutation)
     finally:
         (root / 'summary.json').write_text(json.dumps(summary(results, artifact), indent=2) + '\n')
 

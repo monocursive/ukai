@@ -26,6 +26,7 @@ rebuild ukai-vm, ukai-jail, the VZ client, the custodian and the installer helpe
 """
 import argparse
 import ast
+from contextlib import ExitStack
 import gzip
 import hashlib
 import importlib.metadata
@@ -35,12 +36,14 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
 
 from cli import VERSION
-from run import digest
+from run import CATALOG_FILENAME, digest, optional_program_catalog
 
 SOURCE = Path(__file__).resolve().parent
 REPO = SOURCE.parents[2]
@@ -56,10 +59,13 @@ INPUTS_LIST = REPO / 'crates' / 'ukai-jail' / 'profiles' / 'inputs.rs'
 # binary: ukai-vm and ukai-jail (cargo), vz (swiftc), custodian (clang), ukai-vm-install
 # (PyInstaller over vm/cli.py). The one bounded admission proof directory
 # also ships so the table evidence tests and offline judges can be replayed;
-# no general docs/, evidence/, VM disk or signing material is selected.
+# the exact portable-tail compile-time fixture also ships. The root installer
+# supplies the public Linux archive pin read by the exported image builder.
+# No general docs/, evidence/, VM disk or signing material is selected.
 ADMISSION_PROOF = 'docs/benchmarks/jail/results/macos-vm-admission-2026-11-15'
-SOURCE_PATHS = ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'LICENSE', '.cargo/config.toml',
-                'crates', ADMISSION_PROOF)
+SOURCE_PATHS = ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'LICENSE', '.cargo/config.toml', 'install.sh',
+                'crates', ADMISSION_PROOF,
+                'docs/specs/jail-v1/examples/event-note-learning-read.json')
 # The cargo build's whole environment: what finds the tools and the user's
 # rustup and cargo installation, nothing that selects a toolchain or
 # changes how it compiles (RUSTUP_TOOLCHAIN overrides rust-toolchain.toml;
@@ -174,8 +180,19 @@ def require_clean(repo, paths):
             committed[os.fsdecode(name)] = meta.split()[2].decode()
     if committed:
         names = sorted(committed)
-        hashed = subprocess.run(['git', '--no-optional-locks', '-C', str(repo), 'hash-object', '--stdin-paths'],
-                                input='\n'.join(names) + '\n', capture_output=True, text=True)
+        # A large inventory must not require feeding a pipe while Git fills
+        # its output pipe. Keep the same ordered path list and blob comparison,
+        # with seekable input so communicate only has output pipes to drain.
+        with tempfile.TemporaryFile(mode='w+') as source_names:
+            source_names.write('\n'.join(names) + '\n')
+            source_names.seek(0)
+            try:
+                hashed = subprocess.run(
+                    ['git', '--no-optional-locks', '-C', str(repo), 'hash-object', '--stdin-paths'],
+                    stdin=source_names, capture_output=True, text=True, timeout=30)
+            except subprocess.TimeoutExpired as error:
+                # run() kills and reaps its exact child before raising.
+                raise SourceError('git hash-object timed out') from error
         blobs = hashed.stdout.split()
         if hashed.returncode != 0 or len(blobs) != len(names):
             raise SourceError('git hash-object failed: ' + hashed.stderr.strip()[-200:])
@@ -252,6 +269,50 @@ def write_source_archive(path, directory, sources, prefix='vm/'):
             if len(data) != info.size or hashlib.sha256(data).hexdigest() != expected:
                 raise SourceError('preview source changed while packaging: ' + name)
             archive.addfile(info, io.BytesIO(data))
+
+
+def normalize_distribution_modes(volume):
+    """Normalize only the newly owned stage, without following links or clearing metadata.
+
+    The DMG must be readable independently of the builder's umask or mount owner.
+    Hold every entry before chmod so a rejected link/special file leaves the stage
+    unchanged, and never chmod a hardlink that could also name an original input.
+    File contents, archive member modes, ACLs and extended attributes are untouched.
+    """
+    held = []
+    descriptors = ExitStack()
+
+    def retain(name, parent=None):
+        before = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        directory = stat.S_ISDIR(before.st_mode)
+        if not directory and not stat.S_ISREG(before.st_mode):
+            raise SourceError('distribution stage contains a link or special file')
+        flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+        if directory:
+            flags |= os.O_DIRECTORY
+        fd = os.open(name, flags, dir_fd=parent)
+        descriptors.callback(os.close, fd)
+        held.append((fd, 0o755 if directory or before.st_mode & 0o111 else 0o644))
+        current = os.fstat(fd)
+        if (current.st_dev, current.st_ino, current.st_mode) != (before.st_dev, before.st_ino, before.st_mode):
+            raise SourceError('distribution stage changed while opening')
+        if not directory and current.st_nlink != 1:
+            raise SourceError('distribution stage contains a multiply linked file')
+        if directory:
+            for child in sorted(os.listdir(fd)):
+                retain(child, fd)
+
+    try:
+        if not stat.S_ISDIR(Path(volume).lstat().st_mode):
+            raise SourceError('distribution stage root is not a directory')
+        retain(volume)
+        for fd, mode in held:
+            info = os.fstat(fd)
+            if stat.S_ISREG(info.st_mode) and info.st_nlink != 1:
+                raise SourceError('distribution stage acquired a multiply linked file')
+            os.fchmod(fd, mode)
+    finally:
+        descriptors.close()
 
 
 def package_metadata(metadata, sources, **artifacts):
@@ -406,6 +467,10 @@ def main():
             or digest(prepared / 'seed.iso') != metadata['seed_sha256']
             or digest(args.jail_archive) != metadata['jail_archive_sha256']):
         parser.error('prepared disk, seed, or Linux archive does not match provenance')
+    try:
+        catalog_bytes = optional_program_catalog(prepared, metadata)
+    except (OSError, ValueError) as error:
+        parser.error(f'prepared guest program catalog is invalid: {error}')
     # Refuse stale attribution before compiling or signing any candidate byte.
     host_license_bytes = host_notices()
     out = args.out.resolve()
@@ -442,6 +507,11 @@ def main():
             SOURCE / 'cli.py')
     shutil.move(out / 'dist' / 'ukai-vm-install', binaries / 'ukai-vm-install')
     shutil.copy2(prepared / 'seed.iso', image / 'seed.iso')
+    if catalog_bytes is not None:
+        # Copy the validated snapshot, never reopen an input that may have
+        # changed since verification. SHA256SUMS also binds this package file.
+        with (image / CATALOG_FILENAME).open('xb') as output:
+            output.write(catalog_bytes)
     print('Compressing verified guest image', flush=True)
     with (prepared / 'base.raw').open('rb') as source, (image / 'base.raw.gz').open('wb') as output:
         with gzip.GzipFile(filename='', mode='wb', compresslevel=6, fileobj=output, mtime=0) as compressed:
@@ -483,6 +553,7 @@ def main():
     (volume / 'install.sh').write_text(installer)
     (volume / 'install.sh').chmod(0o755)
     command('bash', '-n', volume / 'install.sh')
+    normalize_distribution_modes(volume)
     dmg = out / f'ukai-vm-{VERSION}-macos-arm64.dmg'
     command('hdiutil', 'create', '-quiet', '-fs', 'APFS', '-volname', 'Ukai VM Preview',
             '-srcfolder', volume, '-format', 'UDRO', dmg)

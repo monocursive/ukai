@@ -1,0 +1,77 @@
+{
+  "schema": "ukai.source-P-independent-source-review/1",
+  "outcome": "PASS_SOURCE_AND_HOST_FIXTURES_ONLY",
+  "base_head": "fd0e0e52c44e36bc866f3c53112c365b9fe43d9a",
+  "sources": {
+    "crates/ukai-jail/vm/prepare.py": "b3967a84f54b3f1c469b75a482b62dfe90542ab2a05bde9b178678d72bc20739",
+    "crates/ukai-jail/vm/test_prepare.py": "9a87edd19d0644dfb579438aaa9b823cf246da851741ba22633337f8f108382a"
+  },
+  "checks": {
+    "source:crates/ukai-jail/vm/prepare.py": true,
+    "source:crates/ukai-jail/vm/test_prepare.py": true,
+    "validation_pin": true,
+    "validation_source_binding": true,
+    "exact_two_file_scope": true,
+    "head_unchanged": true,
+    "diff_pin": true,
+    "exact_current_diff": true,
+    "diff_check": true,
+    "test_exit:0": true,
+    "test_log:focused-final-normal.stdout": true,
+    "test_log:focused-final-normal.stderr": true,
+    "34_pass_no_skips:0": true,
+    "test_exit:1": true,
+    "test_log:focused-final-optimized.stdout": true,
+    "test_log:focused-final-optimized.stderr": true,
+    "34_pass_no_skips:1": true,
+    "normal_and_optimized": true,
+    "exact_230_owning_input_set": true,
+    "all_230_bytes_unchanged": true,
+    "compiled_input_digest": true,
+    "builder_not_compiled_input": true,
+    "unchanged_guard:load_coordinates": true,
+    "unchanged_guard:verify_candidate": true,
+    "unchanged_guard:stage_candidate": true,
+    "unchanged_guard:native_install_script": true,
+    "unchanged_guard:seed": true,
+    "unchanged_guard:pinned_from_console": true,
+    "unchanged_guard:pinned_digest": true,
+    "unchanged_guard:exposure_control_from_console": true,
+    "native_stage_only_error_text_changed": true,
+    "historical_test_classes_unchanged": true,
+    "image_native_profile_pins": true,
+    "unit_pins_exact_authenticated_payload": true
+  },
+  "check_count": 34,
+  "validation_sha256": "8755df18c9d07ec54dd76207b64523dde43218ffa7fd0821c1555c7be2026c97",
+  "public_prerequisite_review_sha256": "cd99d1af1d81d96735f5300d43d7250e1ad80c41b07ca31b98ef0031bd89c7f1",
+  "diff_sha256": "829b239f07c7281a0a24d488115719ff8552c4a1f4750b0513673b73df7395d9",
+  "compiled_inputs": {
+    "count": 230,
+    "sha256": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+    "owning_rule": "build_provenance.rs INPUT_DIR plus profiles/inputs.rs, sorted path NUL u64LE(length) bytes",
+    "baseline_sha256": "26c7fec08b087f89a4c499c087b5483b991ebf8931fa1a812b11a6c892b9fa67",
+    "all_rows_unchanged": true,
+    "no_new_linux_candidate_required_for_this_builder_change": true
+  },
+  "manual_review": [
+    "Only prepare.py/test_prepare.py changed; exact image/native pins and matching suite/snapshot coherent.",
+    "Standard APT source guard is anchored/no-follow, count/byte bounded, closes errors without content logging, and runs before first update. It deliberately excludes arbitrary APT configuration/hooks.",
+    "Exact packaged unit hashes and unexpected alias/override/drop-in refusals precede global user broker disable. No system-bus change and no guest infrastructure policy expansion.",
+    "All package configuration finishes before provider selection; selection precedes user creation/manager start. Effective daemon properties and MainPID are checked on both sides of anchored proc birth/executable/argv/four-UID reads before controller enable.",
+    "Commands run as the direct account identity with empty supplementary groups, fixed environment/cwd, DEVNULL stdin and 30-second timeout. The 16KiB command output cap is post-capture, not a hard allocation bound.",
+    "Original candidate signature/copy checks, profile/catalog authority and native payload checks retain their behavior.",
+    "Existing signed-candidate/native tests unchanged; 19 new source/provider fixtures plus existing15 pass normal and optimized,34 each/zero skips; no live systemctl or VM."
+  ],
+  "no_new_execution": {
+    "vm": true,
+    "provider": true,
+    "package_install": true,
+    "image_prepare": true,
+    "signature_or_candidate_change": true
+  },
+  "limits": [
+    "Review and host fixtures do not prove dependency resolution, actual D-Bus provider startup, boot/userland/containment or managed-native /3 qualification.",
+    "No current admission, historical evidence, frozen J signed artifact or tested-I freeze changes."
+  ]
+}

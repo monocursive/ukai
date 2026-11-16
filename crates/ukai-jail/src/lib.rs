@@ -67,6 +67,7 @@ pub mod credential_store;
 pub mod credentials;
 pub(crate) mod environment;
 pub mod gc;
+pub mod guest_program;
 pub mod journal;
 pub mod launch_profile;
 pub mod learn;

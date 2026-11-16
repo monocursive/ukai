@@ -1,0 +1,10 @@
+{
+  "schema": "ukai.component-phase-lifecycle/1",
+  "phase": "capabilities",
+  "service_exit": 0,
+  "owned_processes": [],
+  "boot_directories": [],
+  "sockets_absent": true,
+  "record_sha256": "d400061f9d8ea5ea83b9ee7e111239f688307eb4f4933f242688e7dca3c12084",
+  "outcome": "PASS"
+}

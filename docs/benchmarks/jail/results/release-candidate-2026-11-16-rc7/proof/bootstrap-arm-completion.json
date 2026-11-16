@@ -1,0 +1,40 @@
+{
+  "schema": "ukai.rc7-arm-bootstrap-completion/1",
+  "outcome": "PASS",
+  "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+  "workflow_run": 43822535195,
+  "actual_boots": 1,
+  "phases": [
+    "bootstrap"
+  ],
+  "outer_elapsed_seconds": 26.555868417024612,
+  "proof_regular_files": 112,
+  "proof_regular_guest_files": 40,
+  "utility_symlinks_retained_as_metadata_and_rawtar": 15,
+  "candidate_signature_fresh_repeat_modified_archive_checks": "PASS",
+  "independent_retained_checks": 179,
+  "only_new_two_pass_fixtures_removed": true,
+  "original_five_and_all_other_paths_preserved": true,
+  "allocation_only_cleanup_refusal_preserved": true,
+  "free_delta_bytes": 137940992,
+  "free_after_cleanup": 14872162304,
+  "files_sha256": {
+    "arm-plan.json": "661fd43385f1dd77be904a763ead1ca62fb3e312477d736bf8550b7ce8c09055",
+    "native-plan.json": "45f3b684d18b755c75a24058d33d3dc85efafd2e6d478f310b9ba5a173f25a45",
+    "command.json": "94ba197fa245501b5f12091172ccf399f3fbe9247330f07c0e85c892bd4838af",
+    "outer-result.json": "abb7887d2ef842cc969f42eab4510f4a388691837189d86ac071b78a288abb55",
+    "independent-runtime-plan-review.json": "0fb4df78053bd1b611b8db9fcc44623967bb5468f1cdf0f06ed2d605fdd5ac0a",
+    "preflight-capacity-refusal.json": "9a39a86d1a32821881b7e670c412ed57b5b6710d96c5b6cc7cfbf46f66838edf",
+    "preflight-after-reclaim.json": "85c121cd7bde2b7d7d111d324b0c6396053ecfaabfd4bc095ea498ab81a12813",
+    "retention-observer-refusal.json": "e07d95d8ad172884d0115318dc2a38fa53ee88ee3217d0ce6b228dc171ef20c7",
+    "retention.json": "88f0985b47f610c2ad7332687f735ea0f9ada03aa1c08c2a4819073befb0b2cd",
+    "independent-runtime-retained-review.json": "d680eb47d6dae99ea2e2d9570f8beb9a4edb937fd02780d2821ca8f6bc85370e",
+    "disposable-fixtures-plan.json": "9097f675a64842ec7619c06e525d3473e0f5a07467efec1c332356c364a511de",
+    "fixture-cleanup-result.json": "fb585bd969852829ec23093ba09d5372a3863a116d6e7047370efe86a1415b25",
+    "cleanup-refusal-diagnosis.json": "bfd6ca54574c134dcc4bd5585a284ee385d73c044166a027f761beb4f012882c",
+    "disposable-fixtures-plan-v2.json": "4cd09825b32d70532f5d89f36ca2dd68c046f8923f04bf784cb35dca593e0343",
+    "fixture-cleanup-result-v2.json": "85f0933e79b69c97858fc19746433c7c8b50cc3b0a656fec55cc491916498ab8"
+  },
+  "summary_sha256": "35cbff9e18d0a8314c17f98c363337f94f3ce1459cac99cb1e4f00efc9eae646",
+  "scope": "Signed candidate local ARM bootstrap validation only. No provider, OAuth, publication, native rerun or historical qualification claim; all failures/refusals remain retained."
+}

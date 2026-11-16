@@ -1,0 +1,26 @@
+{
+  "scope": "Prepared native guest image and actual detector control only; no workload or production qualification",
+  "facts": {
+    "disk_sha256": true,
+    "seed_sha256": true,
+    "helper_sha256": true,
+    "custodian_sha256": true,
+    "prepared": true,
+    "exact_catalog": true,
+    "independent_control_valid": true,
+    "control_no_scan_errors": true,
+    "exact_control_file": true,
+    "source_unchanged": true
+  },
+  "outcome": "PASS",
+  "image_metadata_sha256": "41a38852103798e370180470c106c2ee56c2a92ebb3e0763cedd308449fe20d6",
+  "disk_sha256": "f4fafa35c0dc4ee6e174f125eea0a8d13873f6b58f83b23683542c35fbe87c31",
+  "seed_sha256": "3676179232ceec91aa32ca0dcbc1aaff944733d1fad2281319bdc03e32825cd1",
+  "catalog_sha256": "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244",
+  "control": {
+    "verified": true,
+    "sha256": "6e07ed3aeb2591892d880fa7d38bc3f315efb630bca8d63069dc6f6ded351fdd",
+    "guest_kernel": "7.0.0-38-generic",
+    "scope": "owned-public-canary-process-detector-control"
+  }
+}

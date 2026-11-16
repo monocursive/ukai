@@ -1,0 +1,17 @@
+{
+  "schema": "ukai.vm.component-proof-replay/1",
+  "outcome": "PASS",
+  "bundle_files_verified": 87,
+  "capability_rows": 10,
+  "boundary_facts": 121,
+  "raw_credential_facts": 24,
+  "literal_program_binding_facts": 24,
+  "native_component_admission_pins": 6,
+  "native_component_evidence_references": 24,
+  "source_record_sha256": "289b3960af57f7f58379269574efe8787d9877e6c6427262e4ca6ba156b1b4e0",
+  "catalog_sha256": "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244",
+  "native_launch_or_sampling_qualified": false,
+  "vendor_qualified": false,
+  "k113_qualified": false,
+  "scope": "Relocated retained component evidence replay; no fresh VM, process/disk leak scan, Apple signature verification or release qualification."
+}

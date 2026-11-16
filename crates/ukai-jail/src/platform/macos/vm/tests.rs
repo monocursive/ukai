@@ -14,6 +14,8 @@ use crate::records::NativeString;
 
 fn binding() -> protocol::ReceiptBinding {
     protocol::ReceiptBinding {
+        sampled_exposure_sha256: None,
+        native_program: None,
         attempt_id: "host-attempt".into(),
         boot_id: "host-boot".into(),
         guest_attempt_id: "guest-attempt".into(),
@@ -273,7 +275,7 @@ fn vm_revokes_a_removed_source_once_and_requires_the_exact_acknowledgement() {
     for wrong_ack in [false, true] {
         let (mut run, mut peer, root) = running();
         let (source, secret) = staged_test_source(root.path());
-        run.inner.vault_lease = secret.staged_source_lease().unwrap();
+        run.inner.vault_lease = secret.staged_source_lease().unwrap().into();
         run.revocation = Some(
             revocation::Watch::start(&run.inner.connection, run.inner.vault_lease.clone()).unwrap(),
         );
@@ -329,7 +331,7 @@ fn vm_unsolicited_revocation_ack_refuses() {
 fn vm_revoked_source_refuses_before_sending_run() {
     let (mut run, mut peer, root) = running();
     let (source, secret) = staged_test_source(root.path());
-    run.inner.vault_lease = secret.staged_source_lease().unwrap();
+    run.inner.vault_lease = secret.staged_source_lease().unwrap().into();
     std::fs::remove_file(source).unwrap();
     assert!(Box::new(run.inner).release().is_err());
     assert_eq!(
@@ -346,7 +348,7 @@ fn vm_revocation_survives_blocked_stdout_and_stderr_without_changing_output_flag
     for stderr in [false, true] {
         let (mut run, mut peer, root) = running();
         let (source, secret) = staged_test_source(root.path());
-        run.inner.vault_lease = secret.staged_source_lease().unwrap();
+        run.inner.vault_lease = secret.staged_source_lease().unwrap().into();
         run.revocation = Some(
             revocation::Watch::start(&run.inner.connection, run.inner.vault_lease.clone()).unwrap(),
         );
@@ -450,7 +452,7 @@ fn vm_verified_completion_without_a_revocation_ack_is_settlement_not_acknowledge
     use std::io::{BufRead as _, BufReader};
     let (mut run, mut peer, root) = running();
     let (source, secret) = staged_test_source(root.path());
-    run.inner.vault_lease = secret.staged_source_lease().unwrap();
+    run.inner.vault_lease = secret.staged_source_lease().unwrap().into();
     run.revocation = Some(
         revocation::Watch::start(&run.inner.connection, run.inner.vault_lease.clone()).unwrap(),
     );
@@ -495,10 +497,12 @@ fn running_with(network: image::GuestNetwork) -> (VmRunning, UnixStream, tempfil
         boot_id: "host-boot".into(),
         guest_kernel: "guest-kernel".into(),
         image: record::ImageDigests {
+            sampler_sha256: None,
             disk_sha256: "d".repeat(64),
             helper_sha256: "h".repeat(64),
             custodian_sha256: "c".repeat(64),
             seed_sha256: "s".repeat(64),
+            guest_program_catalog_sha256: None,
         },
         vsock_port: 1024,
         started: Instant::now(),
@@ -512,14 +516,20 @@ fn running_with(network: image::GuestNetwork) -> (VmRunning, UnixStream, tempfil
         .unwrap(),
         network,
         guest_policy_digest: GUEST_POLICY.into(),
-        vault_lease: crate::vault::lifecycle::Lease::default(),
+        vault_lease: revocation::Sources::default(),
+        native_program: None,
+        native_binding: None,
         stdout: std::fs::File::create(dir.path().join("stdout")).unwrap(),
         stderr: std::fs::File::create(dir.path().join("stderr")).unwrap(),
     };
     (
         VmRunning {
             inner: execution,
+            supervisor_pid: 10,
             receipt: None,
+            receipt_binding: None,
+            sampling_exports: 0,
+            sampling_export_error: None,
             guest: None,
             stop: None,
             termination_deadline: None,
@@ -905,13 +915,16 @@ fn unbound_receipt_never_becomes_verified_on_the_cleanup_path() {
 #[test]
 fn ready_must_match_locally_verified_digests() {
     let manifest = image::ImageManifest {
+        source_sha256: Default::default(),
         status: "prepared".into(),
         disk_sha256: "d".repeat(64),
         helper_sha256: "h".repeat(64),
         custodian_sha256: "c".repeat(64),
         seed_sha256: "s".repeat(64),
+        guest_program_catalog_sha256: None,
     };
     let fresh = || ReadyFrame {
+        guest_program_catalog_sha256: None,
         guest_contracts: None,
         boot_id: "boot".into(),
         disk_sha256: manifest.disk_sha256.clone(),
@@ -1132,10 +1145,12 @@ fn the_summary_reads_the_transport_record_this_tier_writes() {
         "vm-boot\nforged",
         "7.0.0",
         record::ImageDigests {
+            sampler_sha256: None,
             disk_sha256: "0123456789abcdef".repeat(4),
             helper_sha256: "h".repeat(64),
             custodian_sha256: "c".repeat(64),
             seed_sha256: "s".repeat(64),
+            guest_program_catalog_sha256: None,
         },
         1024,
         "/data/vm/control.sock",
@@ -1151,6 +1166,61 @@ fn the_summary_reads_the_transport_record_this_tier_writes() {
         "vm: guest-reported facts in evidence/jail.json · boot vm-boot<U+000A>forged · image \
          0123456789abcdef · vsock 2048 · receipt sha256:ffffffffffffffff"
     );
+}
+
+#[test]
+fn released_supervisor_pid_is_retained_without_replacing_the_workload_identity() {
+    let (run, mut peer, root) = running();
+    let writer = std::thread::spawn(move || {
+        let request = read_line(&mut peer);
+        assert_eq!(
+            protocol::decode::<protocol::ToVm>(&request).unwrap(),
+            protocol::ToVm::Run
+        );
+        peer.write_all(
+            &protocol::encode(&protocol::FromVm::Released {
+                supervisor_pid: 640,
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        let mut value = receipt();
+        value["process"]["identity"] = serde_json::json!({
+            "kind":"linux_boot_start",
+            "value":{"boot_id":"guest-boot","pid":672,"start_time_ticks":2673}
+        });
+        let (sha256, data) = encoded(&value);
+        peer.write_all(
+            &protocol::encode(&protocol::FromVm::BoundReceipt {
+                sha256,
+                data,
+                binding: binding(),
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        peer.write_all(&protocol::encode(&done(0)).unwrap())
+            .unwrap();
+    });
+    let mut released = match Box::new(run.inner).release() {
+        Ok(released) => released,
+        Err(_) => panic!("valid release refused"),
+    };
+    assert!(matches!(
+        released.wait(soon()),
+        RunEvent::TargetExited { code: 0 }
+    ));
+    assert_eq!(released.wait_tree(Duration::ZERO).tree_empty, Some(true));
+    let transport = record::TransportRecord::read_in(root.path()).unwrap();
+    assert_eq!(transport.supervisor_pid, Some(640));
+    let guest: Value =
+        serde_json::from_slice(&std::fs::read(root.path().join("evidence/jail.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        guest.pointer("/process/identity/value/pid"),
+        Some(&Value::from(672))
+    );
+    writer.join().unwrap();
 }
 
 // ---------------------------------------------------------------------------
@@ -1664,11 +1734,13 @@ fn platform(data_dir: &Path) -> VmPlatform {
         install: Install {
             root: data_dir.join("install"),
             manifest: image::ImageManifest {
+                source_sha256: Default::default(),
                 status: "prepared".into(),
                 disk_sha256: "d".repeat(64),
                 helper_sha256: "h".repeat(64),
                 custodian_sha256: "c".repeat(64),
                 seed_sha256: "s".repeat(64),
+                guest_program_catalog_sha256: None,
             },
         },
     }
@@ -1691,6 +1763,7 @@ fn the_client_refuses_an_install_that_is_not_prepared_without_hashing_it() {
 fn request(snapshot: PolicySnapshot) -> PlanRequest {
     let requirements = crate::capability::requirements(&snapshot);
     PlanRequest {
+        guest_program: None,
         snapshot,
         requirements,
     }
@@ -1832,117 +1905,477 @@ fn measured_guest_identity_is_required_before_any_capability_is_available() {
     );
 }
 
+fn native_measured_platform() -> VmPlatform {
+    let mut result = platform(Path::new("/unused"));
+    result.install.manifest.disk_sha256 = NATIVE_GUEST_MEASURED_DISK_SHA256.into();
+    result.install.manifest.seed_sha256 = NATIVE_GUEST_MEASURED_SEED_SHA256.into();
+    result.install.manifest.guest_program_catalog_sha256 =
+        Some(NATIVE_PROGRAM_ADMISSION.catalog_sha256.into());
+    result
+}
+
+#[test]
+fn second_measured_image_has_its_own_rows_and_mixed_images_have_none() {
+    let measured = native_measured_platform();
+    for snapshot in [tool(), agent(), agent_with_launch(VAULT_LAUNCH)] {
+        let plan = request(snapshot);
+        for row in measured.probe(&plan) {
+            assert!(row.satisfies(), "{row:?}");
+            let proof = NATIVE_GUEST_MEASUREMENTS
+                .iter()
+                .find(|item| item.requirement == row.name)
+                .unwrap();
+            assert_eq!(row.evidence_ref.as_deref(), Some(proof.record));
+            assert_eq!(row.measured_at.as_deref(), Some(proof.measured_at));
+        }
+        for (disk, seed) in [
+            (
+                GUEST_MEASURED_DISK_SHA256,
+                NATIVE_GUEST_MEASURED_SEED_SHA256,
+            ),
+            (
+                NATIVE_GUEST_MEASURED_DISK_SHA256,
+                GUEST_MEASURED_SEED_SHA256,
+            ),
+        ] {
+            let mut mixed = measured.clone();
+            mixed.install.manifest.disk_sha256 = disk.into();
+            mixed.install.manifest.seed_sha256 = seed.into();
+            assert!(
+                mixed
+                    .probe(&plan)
+                    .iter()
+                    .all(|row| !row.satisfies() && row.evidence_ref.is_none())
+            );
+        }
+    }
+}
+
+#[test]
+fn superseded_intermediate_images_no_longer_admit_literal_or_native_runs() {
+    for version in [
+        "native-v2",
+        "native-v4",
+        "native-v5",
+        "native-v6",
+        "native-v7",
+    ] {
+        let bundle = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "../../docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/{version}"
+        ));
+        let image: Value =
+            serde_json::from_slice(&std::fs::read(bundle.join("raw-vault/image.json")).unwrap())
+                .unwrap();
+        let old_disk = image["disk_sha256"].as_str().unwrap();
+        let old_seed = image["seed_sha256"].as_str().unwrap();
+        assert_ne!(old_disk, NATIVE_GUEST_MEASURED_DISK_SHA256);
+        assert_ne!(old_seed, NATIVE_GUEST_MEASURED_SEED_SHA256);
+        let old_catalog_sha256 = image["guest_program_catalog_sha256"].as_str().unwrap();
+        let catalog = crate::guest_program::Catalog::parse(
+            &std::fs::read(bundle.join("image/guest-program-catalog.json")).unwrap(),
+            old_catalog_sha256,
+        )
+        .unwrap();
+        let entry = catalog
+            .entries
+            .into_iter()
+            .find(|entry| {
+                crate::guest_program::sha256(entry.id.as_bytes())
+                    == NATIVE_PROGRAM_ADMISSION.entry_id_sha256
+            })
+            .unwrap();
+        for (disk, seed) in [
+            (old_disk, old_seed),
+            (old_disk, NATIVE_GUEST_MEASURED_SEED_SHA256),
+            (NATIVE_GUEST_MEASURED_DISK_SHA256, old_seed),
+        ] {
+            let mut platform = native_measured_platform();
+            platform.install.manifest.disk_sha256 = disk.into();
+            platform.install.manifest.seed_sha256 = seed.into();
+            for snapshot in [tool(), agent(), agent_with_launch(VAULT_LAUNCH)] {
+                assert!(
+                    platform
+                        .probe(&request(snapshot))
+                        .iter()
+                        .all(|row| { !row.satisfies() && row.evidence_ref.is_none() })
+                );
+            }
+            let program = crate::guest_program::GuestProgram::new(
+                old_catalog_sha256.into(),
+                disk.into(),
+                seed.into(),
+                entry.clone(),
+            )
+            .unwrap();
+            assert!(!native_program_admitted(
+                &platform.install.manifest,
+                &program
+            ));
+        }
+    }
+}
+
+#[test]
+fn native_admission_requires_every_pin_before_source_staging() {
+    let (_dir, mut context, args) = native::tests::context();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let bytes = std::fs::read(root.join("docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/image/guest-program-catalog.json")).unwrap();
+    let mut platform = native_measured_platform();
+    platform.data_dir = context.env_settings.data_dir.clone().unwrap();
+    platform.install.root = context.cwd.parent().unwrap().join("install");
+    std::fs::write(
+        platform
+            .install
+            .root
+            .join("image/guest-program-catalog.json"),
+        bytes,
+    )
+    .unwrap();
+    context.platform = Box::new(platform.clone());
+    let plan = crate::supervisor::resolve_plan(&context, &args).unwrap();
+    let request = PlanRequest {
+        guest_program: plan.guest_program,
+        snapshot: plan.resolved.snapshot,
+        requirements: plan.resolved.requirements,
+    };
+    let program = request.guest_program.as_ref().unwrap();
+    assert!(native_program_admitted(&platform.install.manifest, program));
+    assert!(platform.probe(&request).iter().all(Capability::satisfies));
+    for index in 0..9 {
+        let mut altered = platform.clone();
+        let mut request = request.clone();
+        let program = request.guest_program.as_mut().unwrap();
+        match index {
+            0 => altered.install.manifest.disk_sha256 = GUEST_MEASURED_DISK_SHA256.into(),
+            1 => altered.install.manifest.seed_sha256 = GUEST_MEASURED_SEED_SHA256.into(),
+            2 => altered.install.manifest.guest_program_catalog_sha256 = None,
+            3 => program.disk_sha256 = GUEST_MEASURED_DISK_SHA256.into(),
+            4 => program.seed_sha256 = GUEST_MEASURED_SEED_SHA256.into(),
+            5 => program.catalog_sha256 = "0".repeat(64),
+            6 => program.entry.id.push_str("-other"),
+            7 => program.entry.profile_sha256 = "0".repeat(64),
+            8 => program.entry.executable_sha256 = "0".repeat(64),
+            _ => unreachable!(),
+        }
+        assert!(
+            !native_program_admitted(&altered.install.manifest, program),
+            "pin {index}"
+        );
+        assert!(
+            altered.probe(&request).iter().all(|row| !row.satisfies()),
+            "pin {index}"
+        );
+    }
+    let old = measured_platform();
+    assert!(old.probe(&request).iter().all(|row| !row.satisfies()));
+    let mut narrowing = request.clone();
+    narrowing
+        .snapshot
+        .filesystem
+        .deny_read
+        .push(crate::policy::PathRef::host(NativeString::Text(
+            "/private".into(),
+        )));
+    assert!(
+        platform
+            .probe(&narrowing)
+            .iter()
+            .all(|row| row.reason_code.as_deref() == Some("vm:not-carried:filesystem.deny_read"))
+    );
+    let mut owner_loss = request.clone();
+    owner_loss.snapshot.lifetime_boundary = Some(crate::policy::LifetimeBoundary::KernelBound);
+    owner_loss.requirements = crate::capability::requirements(&owner_loss.snapshot);
+    let rows = platform.probe(&owner_loss);
+    assert!(rows.iter().all(|row| !row.satisfies()));
+    assert_eq!(
+        rows.iter()
+            .find(|row| row.name == "owner_loss_termination")
+            .unwrap()
+            .reason_code
+            .as_deref(),
+        Some(REASON_VM_OWNER_LOSS_NOT_PROVIDED)
+    );
+    assert!(!platform.data_dir.join("attempts").exists());
+}
+
 /// Follow each schema's evidence linkage, rather than treating every derived
 /// admission as a capabilities.py row or trusting a stored PASS alone.
 #[test]
 fn every_measurement_row_resolves_in_its_record() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let bundle = root.join("docs/benchmarks/jail/results/macos-vm-admission-2026-11-15");
-    let read = |path: &Path| -> (Vec<u8>, serde_json::Value) {
-        let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        let record = serde_json::from_slice(&bytes).unwrap();
-        (bytes, record)
-    };
-    let (cap_bytes, capabilities) = read(&bundle.join("handshake-capabilities/capabilities.json"));
-    let (raw_bytes, raw) = read(&bundle.join("handshake-raw-credential/raw-inputs.json"));
-    let (_, measured_image) = read(&bundle.join("handshake-raw-credential/image.json"));
-    assert_eq!(measured_image["disk_sha256"], GUEST_MEASURED_DISK_SHA256);
-    assert_eq!(measured_image["seed_sha256"], GUEST_MEASURED_SEED_SHA256);
-    assert_eq!(
-        capabilities["status"]["disk_sha256"],
-        GUEST_MEASURED_DISK_SHA256
-    );
-    assert_eq!(
-        capabilities["status"]["seed_sha256"],
-        GUEST_MEASURED_SEED_SHA256
-    );
-    for row in GUEST_MEASUREMENTS {
-        let (path, pointer) = row.record.split_once('#').expect("path#pointer");
-        let (_, record) = read(&root.join(path));
+    for (subdir, cap_path, raw_path, disk, seed, table) in [
+        (
+            "",
+            "handshake-capabilities/capabilities.json",
+            "handshake-raw-credential",
+            GUEST_MEASURED_DISK_SHA256,
+            GUEST_MEASURED_SEED_SHA256,
+            GUEST_MEASUREMENTS,
+        ),
+        (
+            "native-v8",
+            "capabilities/capabilities.json",
+            "raw-vault",
+            NATIVE_GUEST_MEASURED_DISK_SHA256,
+            NATIVE_GUEST_MEASURED_SEED_SHA256,
+            NATIVE_GUEST_MEASUREMENTS,
+        ),
+    ] {
         assert_eq!(
-            record.pointer(pointer),
-            Some(&serde_json::Value::Bool(true)),
-            "{}",
-            row.record
+            table.iter().map(|row| row.requirement).collect::<Vec<_>>(),
+            LIVE_MEASURED
         );
-        let entry_pointer = pointer.strip_suffix("/verdict").expect("verdict pointer");
-        assert_eq!(entry_pointer, format!("/measurements/{}", row.requirement));
-        let entry = record.pointer(entry_pointer).unwrap();
-        assert_eq!(entry["measured_at"], row.measured_at, "{}", row.record);
-        assert!(!entry["attempt_id"].as_str().unwrap().is_empty());
-        match record["schema"].as_str().unwrap() {
-            "ukai.vm.capabilities/2" => {
-                let capability = entry["capability"].as_str().expect("capability name");
-                let attempt = &record["results"][capability];
-                assert_eq!(attempt["started_at"], row.measured_at);
-                assert_eq!(attempt["attempt_id"], entry["attempt_id"]);
-                assert_eq!(record["summary"][capability], true);
-                assert_eq!(record["summary"]["outcome"], "PASS");
-            }
-            "ukai.vm.execution-boundary-measurement/1" => {
-                assert_eq!(row.requirement, "execution_boundary");
-                assert_eq!(record["outcome"], "PASS");
-                assert_eq!(
-                    record["source_record_sha256"],
-                    format!("{:x}", sha2::Sha256::digest(&cap_bytes))
-                );
-                let names = ["pids", "mem", "tree_termination", "tree_wall"];
-                let attempts: Vec<_> = names
-                    .iter()
-                    .map(|name| capabilities["results"][name]["attempt_id"].clone())
-                    .collect();
-                assert_eq!(entry["attempt_ids"], serde_json::json!(attempts));
-                assert_eq!(entry["attempt_id"], attempts[0]);
-                assert_eq!(
-                    entry["measured_at"],
-                    capabilities["results"]["pids"]["started_at"]
-                );
-                let facts = record["facts"].as_object().unwrap();
-                assert!(!facts.is_empty() && facts.values().all(|value| value == true));
-                assert_eq!(record["status"], capabilities["status"]);
-            }
-            "ukai.vm.credential-staging-measurement/2" => {
-                assert_eq!(row.requirement, "credential_staging");
-                assert_eq!(record["outcome"], "PASS");
-                assert_eq!(record["qualified"], false);
-                assert_eq!(
-                    record["source_record_sha256"],
-                    format!("{:x}", sha2::Sha256::digest(&raw_bytes))
-                );
-                assert_eq!(entry["attempt_id"], raw["record"]["attempt_id"]);
-                assert_eq!(
-                    entry["guest_attempt_id"],
-                    raw["record"]["receipt"]["attempt_id"]
-                );
-                assert_eq!(entry["measured_at"], raw["record"]["started_at"]);
-                assert_eq!(record["installation"]["image"], measured_image);
-                assert_eq!(
-                    record["compatibility"]["required_guest_image"],
-                    serde_json::json!({
-                        "disk_sha256": GUEST_MEASURED_DISK_SHA256,
-                        "seed_sha256": GUEST_MEASURED_SEED_SHA256,
-                    })
-                );
-                assert_eq!(
-                    raw["record"]["ready"]["guest_contracts"],
-                    serde_json::json!({
-                        "secret_revocation": protocol::SECRET_REVOCATION_CONTRACT,
-                        "journal_export": protocol::JOURNAL_EXPORT_CONTRACT,
-                    })
-                );
-                let facts = record["recomputed_facts"].as_object().unwrap();
-                assert!(!facts.is_empty() && facts.values().all(|value| value == true));
-                assert!(
-                    entry["not_measured"]
-                        .as_array()
-                        .unwrap()
+        let bundle = root
+            .join("docs/benchmarks/jail/results/macos-vm-admission-2026-11-15")
+            .join(subdir);
+        let read = |path: &Path| -> (Vec<u8>, serde_json::Value) {
+            let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            let record = serde_json::from_slice(&bytes).unwrap();
+            (bytes, record)
+        };
+        let (cap_bytes, capabilities) = read(&bundle.join(cap_path));
+        let (raw_bytes, raw) = read(&bundle.join(raw_path).join("raw-inputs.json"));
+        let (_, measured_image) = read(&bundle.join(raw_path).join("image.json"));
+        assert_eq!(measured_image["disk_sha256"], disk);
+        assert_eq!(measured_image["seed_sha256"], seed);
+        assert_eq!(capabilities["status"]["disk_sha256"], disk);
+        assert_eq!(capabilities["status"]["seed_sha256"], seed);
+        for row in table {
+            let (path, pointer) = row.record.split_once('#').expect("path#pointer");
+            let (_, record) = read(&root.join(path));
+            assert_eq!(
+                record.pointer(pointer),
+                Some(&serde_json::Value::Bool(true)),
+                "{}",
+                row.record
+            );
+            let entry_pointer = pointer.strip_suffix("/verdict").expect("verdict pointer");
+            assert_eq!(entry_pointer, format!("/measurements/{}", row.requirement));
+            let entry = record.pointer(entry_pointer).unwrap();
+            assert_eq!(entry["measured_at"], row.measured_at, "{}", row.record);
+            assert!(!entry["attempt_id"].as_str().unwrap().is_empty());
+            match record["schema"].as_str().unwrap() {
+                "ukai.vm.capabilities/2" => {
+                    let capability = entry["capability"].as_str().expect("capability name");
+                    let attempt = &record["results"][capability];
+                    assert_eq!(attempt["started_at"], row.measured_at);
+                    assert_eq!(attempt["attempt_id"], entry["attempt_id"]);
+                    assert_eq!(record["summary"][capability], true);
+                    assert_eq!(record["summary"]["outcome"], "PASS");
+                }
+                "ukai.vm.execution-boundary-measurement/1" => {
+                    assert_eq!(row.requirement, "execution_boundary");
+                    assert_eq!(record["outcome"], "PASS");
+                    assert_eq!(
+                        record["source_record_sha256"],
+                        format!("{:x}", sha2::Sha256::digest(&cap_bytes))
+                    );
+                    let names = ["pids", "mem", "tree_termination", "tree_wall"];
+                    let attempts: Vec<_> = names
                         .iter()
-                        .any(|value| value == "normal installed-client host-source watch")
-                );
+                        .map(|name| capabilities["results"][name]["attempt_id"].clone())
+                        .collect();
+                    assert_eq!(entry["attempt_ids"], serde_json::json!(attempts));
+                    assert_eq!(entry["attempt_id"], attempts[0]);
+                    assert_eq!(
+                        entry["measured_at"],
+                        capabilities["results"]["pids"]["started_at"]
+                    );
+                    let facts = record["facts"].as_object().unwrap();
+                    assert!(!facts.is_empty() && facts.values().all(|value| value == true));
+                    assert_eq!(record["status"], capabilities["status"]);
+                }
+                "ukai.vm.credential-staging-measurement/2" => {
+                    assert_eq!(row.requirement, "credential_staging");
+                    assert_eq!(record["outcome"], "PASS");
+                    assert_eq!(record["qualified"], false);
+                    assert_eq!(
+                        record["source_record_sha256"],
+                        format!("{:x}", sha2::Sha256::digest(&raw_bytes))
+                    );
+                    assert_eq!(entry["attempt_id"], raw["record"]["attempt_id"]);
+                    assert_eq!(
+                        entry["guest_attempt_id"],
+                        raw["record"]["receipt"]["attempt_id"]
+                    );
+                    assert_eq!(entry["measured_at"], raw["record"]["started_at"]);
+                    assert_eq!(record["installation"]["image"], measured_image);
+                    assert_eq!(
+                        record["compatibility"]["required_guest_image"],
+                        serde_json::json!({
+                            "disk_sha256": disk,
+                            "seed_sha256": seed,
+                        })
+                    );
+                    assert_eq!(
+                        raw["record"]["ready"]["guest_contracts"],
+                        if subdir.is_empty() {
+                            serde_json::json!({
+                                "secret_revocation": protocol::SECRET_REVOCATION_CONTRACT,
+                                "journal_export": protocol::JOURNAL_EXPORT_CONTRACT,
+                            })
+                        } else {
+                            serde_json::json!({
+                                "secret_revocation": protocol::SECRET_REVOCATION_CONTRACT,
+                                "journal_export": protocol::JOURNAL_EXPORT_CONTRACT,
+                                "native_program": protocol::NATIVE_PROGRAM_CONTRACT,
+                                // Current component evidence advertises managed /3;
+                                // this does not qualify native workload sampling.
+                                "sampled_exposure": protocol::SAMPLED_EXPOSURE_CONTRACT,
+                            })
+                        }
+                    );
+                    let facts = record["recomputed_facts"].as_object().unwrap();
+                    assert!(!facts.is_empty() && facts.values().all(|value| value == true));
+                    assert!(
+                        entry["not_measured"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .any(|value| value == "normal installed-client host-source watch")
+                    );
+                }
+                schema => panic!("unrecognized measurement schema {schema}"),
             }
-            schema => panic!("unrecognized measurement schema {schema}"),
         }
     }
+}
+
+#[test]
+fn native_admission_pins_resolve_to_the_exact_retained_component_evidence() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let (path, pointer) = NATIVE_PROGRAM_ADMISSION_RECORD.split_once('#').unwrap();
+    let path = root.join(path);
+    let bundle = path.parent().unwrap();
+    let admission: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    assert_eq!(admission["schema"], "ukai.vm.native-program-admission/1");
+    assert_eq!(admission.pointer(pointer).unwrap(), "PASS");
+    assert_eq!(
+        admission["required_guest_image"],
+        serde_json::json!({
+            "disk_sha256": NATIVE_GUEST_MEASURED_DISK_SHA256,
+            "seed_sha256": NATIVE_GUEST_MEASURED_SEED_SHA256,
+        })
+    );
+    let pin = &NATIVE_PROGRAM_ADMISSION;
+    assert_eq!(
+        admission["native_program"],
+        serde_json::json!({
+            "catalog_sha256": pin.catalog_sha256,
+            "entry_id_sha256": pin.entry_id_sha256,
+            "profile_sha256": pin.profile_sha256,
+            "executable_sha256": pin.executable_sha256,
+        })
+    );
+    assert_eq!(
+        admission["qualification"],
+        serde_json::json!({
+            "native_vendor": false, "k113": false, "release": false, "new_host_runtime": false,
+        })
+    );
+    assert_eq!(
+        admission["compatibility"]["older_or_changed_guest_images_inherit_admission"],
+        false
+    );
+    let evidence = admission["evidence"].as_object().unwrap();
+    assert_eq!(evidence.len(), 24);
+    let mut files = BTreeMap::new();
+    for (name, entry) in evidence {
+        let relative = Path::new(entry["path"].as_str().unwrap());
+        assert!(
+            relative
+                .components()
+                .all(|part| matches!(part, std::path::Component::Normal(_))),
+            "{name}"
+        );
+        let bytes = std::fs::read(bundle.join(relative)).unwrap();
+        assert_eq!(
+            entry["sha256"],
+            crate::guest_program::sha256(&bytes),
+            "{name}"
+        );
+        files.insert(name.as_str(), bytes);
+    }
+    let json = |name: &str| -> Value { serde_json::from_slice(files.get(name).unwrap()).unwrap() };
+    let catalog =
+        crate::guest_program::Catalog::parse(files.get("catalog").unwrap(), pin.catalog_sha256)
+            .unwrap();
+    let entry = catalog
+        .entries
+        .iter()
+        .find(|entry| crate::guest_program::sha256(entry.id.as_bytes()) == pin.entry_id_sha256)
+        .unwrap();
+    assert_eq!(entry.profile_sha256, pin.profile_sha256);
+    assert_eq!(entry.executable_sha256, pin.executable_sha256);
+    let profile = crate::launch_profile::bundled_profile(&entry.alias).unwrap();
+    assert_eq!(
+        files.get("bundled_profile").unwrap().as_slice(),
+        profile.as_bytes()
+    );
+    assert_eq!(
+        crate::guest_program::sha256(profile.as_bytes()),
+        pin.profile_sha256
+    );
+    for name in ["prepared_image", "signed_image_manifest"] {
+        let image = json(name);
+        assert_eq!(image["disk_sha256"], NATIVE_GUEST_MEASURED_DISK_SHA256);
+        assert_eq!(image["seed_sha256"], NATIVE_GUEST_MEASURED_SEED_SHA256);
+        assert_eq!(image["guest_program_catalog_sha256"], pin.catalog_sha256);
+    }
+    let package = json("package");
+    assert_eq!(
+        admission["compatibility"]["measured_host_source"],
+        package["source_revision"]
+    );
+    assert_eq!(
+        package["source_revision"],
+        "934ad33acc5efb2843de8ee9fd5ea3181b6790b3"
+    );
+    assert_eq!(
+        package["image"]["ukai_jail_version"]["build"]["dirty"],
+        false
+    );
+    let inputs = json("program_inputs");
+    assert_eq!(inputs["identity_before"]["image"], package["image"]);
+    let measurement = &admission["measurements"]["native_program"];
+    assert_eq!(measurement["attempt_id"], inputs["record"]["attempt_id"]);
+    assert_eq!(
+        measurement["guest_attempt_id"],
+        inputs["record"]["receipt"]["attempt_id"]
+    );
+    assert_eq!(admission["measured_at"], inputs["record"]["started_at"]);
+    for name in [
+        "program_measurement",
+        "program_result",
+        "program_offline_replay",
+    ] {
+        let report = json(name);
+        assert_eq!(
+            report["inputs_sha256"],
+            evidence["program_inputs"]["sha256"]
+        );
+        assert_eq!(report["qualified"], false);
+        if name != "program_measurement" {
+            assert_eq!(report["outcome"], "PASS");
+            let facts = report["facts"].as_object().unwrap();
+            assert!(!facts.is_empty() && facts.values().all(|value| value == true));
+            assert_eq!(measurement["program_binding_facts"], facts.len());
+        }
+    }
+    let staging = json("generic_credential_staging");
+    assert_eq!(
+        staging["source_record_sha256"],
+        evidence["generic_vault_inputs"]["sha256"]
+    );
+    assert_eq!(
+        staging["compatibility"]["required_guest_image"],
+        admission["required_guest_image"]
+    );
+    assert_eq!(staging["outcome"], "PASS");
+    assert_eq!(staging["qualified"], false);
+    let facts = staging["recomputed_facts"].as_object().unwrap();
+    assert!(!facts.is_empty() && facts.values().all(|value| value == true));
+    assert_eq!(measurement["vault_staging_facts"], facts.len());
 }
 
 /// The table is the one source of `available`: a listed requirement answers
@@ -2011,6 +2444,7 @@ fn prepared_plan(
     vault: Vec<Arc<crate::vault::Secret>>,
 ) -> PreparedPlan {
     PreparedPlan {
+        guest_launch: None,
         attempt_id: "att_00000000-0000-4000-8000-000000000001".into(),
         attempt_dir: PathBuf::from("/unused-attempt"),
         request: request(snapshot),
@@ -3013,6 +3447,7 @@ fn shareable_workspace() -> (share::TestVolume, PathBuf) {
 
 fn ready(boot_id: &str) -> protocol::FromVm {
     protocol::FromVm::Ready {
+        guest_program_catalog_sha256: None,
         schema: protocol::SCHEMA_ATTEMPT.into(),
         boot_id: boot_id.into(),
         disk_sha256: "d".repeat(64),
@@ -3021,6 +3456,8 @@ fn ready(boot_id: &str) -> protocol::FromVm {
         seed_sha256: "s".repeat(64),
         vsock_port: 1024,
         guest_contracts: Some(protocol::GuestContracts {
+            sampled_exposure: None,
+            native_program: None,
             secret_revocation: Some(protocol::SECRET_REVOCATION_CONTRACT.into()),
             journal_export: Some(protocol::JOURNAL_EXPORT_CONTRACT.into()),
         }),
@@ -3217,6 +3654,8 @@ fn missing_or_unknown_guest_contracts_refuse_before_secret_prepare_but_allow_pla
     let snapshot = agent_with_launch(VAULT_LAUNCH);
     let secret = staged_secret(&snapshot, b"must-not-cross-legacy-transport");
     let required = protocol::GuestContracts {
+        sampled_exposure: None,
+        native_program: None,
         secret_revocation: Some(protocol::SECRET_REVOCATION_CONTRACT.into()),
         journal_export: Some(protocol::JOURNAL_EXPORT_CONTRACT.into()),
     };
@@ -3224,18 +3663,26 @@ fn missing_or_unknown_guest_contracts_refuse_before_secret_prepare_but_allow_pla
         None,
         Some(protocol::GuestContracts::default()),
         Some(protocol::GuestContracts {
+            sampled_exposure: None,
+            native_program: None,
             journal_export: None,
             ..required.clone()
         }),
         Some(protocol::GuestContracts {
+            sampled_exposure: None,
+            native_program: None,
             secret_revocation: None,
             ..required.clone()
         }),
         Some(protocol::GuestContracts {
+            sampled_exposure: None,
+            native_program: None,
             secret_revocation: Some("ukai.vm.secret-revocation/2".into()),
             ..required.clone()
         }),
         Some(protocol::GuestContracts {
+            sampled_exposure: None,
+            native_program: None,
             journal_export: Some("ukai.vm.guest-journal/2".into()),
             ..required
         }),
@@ -3787,5 +4234,441 @@ fn a_ceiling_that_is_not_a_number_is_not_carried() {
             "{}",
             refusal.detail
         );
+    }
+}
+
+#[test]
+fn native_client_contract_gate_and_exact_source_ack_precede_release() {
+    let (_volume, workspace) = shareable_workspace();
+    for variant in [
+        "missing",
+        "wrong-catalog",
+        "wrong-version",
+        "missing-sampling",
+        "old-sampling",
+        "v2-sampling",
+        "future-sampling",
+        "wrong-source",
+        "valid",
+    ] {
+        let (_dir, mut context, mut args) = native::tests::context();
+        context.cwd = workspace.clone();
+        args.selection.workspace = Some(workspace.clone());
+        let plan = crate::supervisor::resolve_plan(&context, &args).unwrap();
+        let program = plan.guest_program.clone().unwrap();
+        let (handoff, _) = crate::credentials::stage_guest_within(
+            plan.resolved.snapshot.launch.as_ref().unwrap(),
+            &program,
+            &[],
+            &|| Duration::from_secs(2),
+        )
+        .unwrap();
+        let data = common_temp();
+        let platform = VmPlatform {
+            data_dir: data.path().to_path_buf(),
+            install: Install {
+                root: context
+                    .env_settings
+                    .config_dir
+                    .as_ref()
+                    .unwrap()
+                    .parent()
+                    .unwrap()
+                    .join("install"),
+                manifest: image::ImageManifest {
+                    source_sha256: Default::default(),
+                    status: "prepared".into(),
+                    disk_sha256: program.disk_sha256.clone(),
+                    helper_sha256: "a".repeat(64),
+                    custodian_sha256: "c".repeat(64),
+                    seed_sha256: program.seed_sha256.clone(),
+                    guest_program_catalog_sha256: Some(program.catalog_sha256.clone()),
+                },
+            },
+        };
+        let mut service_status = status(Some(&workspace), true);
+        if let protocol::FromControl::Status {
+            helper_sha256,
+            seed_sha256,
+            ..
+        } = &mut service_status
+        {
+            *helper_sha256 = "a".repeat(64);
+            *seed_sha256 = program.seed_sha256.clone();
+        }
+        let control_socket = platform.control_socket();
+        let server = fake_control(control_socket.clone(), Duration::ZERO, service_status);
+        while !control::is_listening(&control_socket) {
+            std::thread::yield_now();
+        }
+        let listener = UnixListener::bind(control::attempt_socket(data.path())).unwrap();
+        let (sent, observed) = std::sync::mpsc::channel();
+        let catalog = program.catalog_sha256.clone();
+        let seed = program.seed_sha256.clone();
+        let peer = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut greeting = ready("vm-test");
+            if let protocol::FromVm::Ready {
+                helper_sha256,
+                seed_sha256,
+                guest_contracts,
+                guest_program_catalog_sha256,
+                ..
+            } = &mut greeting
+            {
+                *helper_sha256 = "a".repeat(64);
+                *seed_sha256 = seed;
+                *guest_program_catalog_sha256 = Some(if variant == "wrong-catalog" {
+                    "f".repeat(64)
+                } else {
+                    catalog
+                });
+                guest_contracts.as_mut().unwrap().sampled_exposure = match variant {
+                    "missing-sampling" => None,
+                    "old-sampling" => Some("ukai.vm.sampled-exposure/1".into()),
+                    "v2-sampling" => Some(protocol::SAMPLED_EXPOSURE_CONTRACT_V2.into()),
+                    "future-sampling" => Some("ukai.vm.sampled-exposure/4".into()),
+                    _ => Some(protocol::SAMPLED_EXPOSURE_CONTRACT.into()),
+                };
+                guest_contracts.as_mut().unwrap().native_program = match variant {
+                    "missing" => None,
+                    "wrong-version" => Some("ukai.vm.guest-native-launch/2".into()),
+                    _ => Some(protocol::NATIVE_PROGRAM_CONTRACT.into()),
+                };
+            }
+            stream
+                .write_all(&protocol::encode(&greeting).unwrap())
+                .unwrap();
+            let request = read_line(&mut stream);
+            sent.send(request.clone()).unwrap();
+            if !request.is_empty() {
+                let source = if variant == "wrong-source" {
+                    format!(
+                        "/run/ukai-vm/credentials/{}",
+                        native::tests::input("primary_credential_id")
+                    )
+                } else {
+                    format!(
+                        "/run/ukai-vm/native-config/credentials/{}",
+                        native::tests::input("primary_credential_id")
+                    )
+                };
+                stream
+                    .write_all(
+                        &protocol::encode(&protocol::FromVm::Prepared {
+                            kernel: "guest".into(),
+                            staged_secrets: vec![(
+                                native::tests::input("primary_credential_id"),
+                                source,
+                            )],
+                        })
+                        .unwrap(),
+                    )
+                    .unwrap();
+            }
+        });
+        let attempt_dir = data.path().join("attempt");
+        std::fs::create_dir(&attempt_dir).unwrap();
+        let mut prepared = prepared_plan(
+            plan.resolved.snapshot,
+            Some(&native::tests::input("alias")),
+            vec![],
+        );
+        prepared.attempt_dir = attempt_dir.clone();
+        prepared.workspace = workspace.clone();
+        prepared.launch = None;
+        prepared.guest_launch = Some(handoff);
+        prepared.request.guest_program = Some(program.clone());
+        prepared.argv = vec![
+            program.executable.as_bytes().to_vec(),
+            b"-p".to_vec(),
+            vec![0xff, b'x'],
+        ];
+        let result = VmExecution::prepare(&platform, prepared, Sinks { trace: None }, None);
+        let request = observed.recv_timeout(Duration::from_secs(5)).unwrap();
+        if matches!(
+            variant,
+            "missing"
+                | "wrong-catalog"
+                | "wrong-version"
+                | "missing-sampling"
+                | "old-sampling"
+                | "v2-sampling"
+                | "future-sampling"
+        ) {
+            assert!(result.is_err());
+            assert!(
+                request.is_empty(),
+                "native secret Prepare crossed an incompatible Session"
+            );
+        } else if variant == "wrong-source" {
+            assert!(result.is_err());
+        } else {
+            let execution = result.unwrap_or_else(|error| panic!("{error}"));
+            let protocol::ToVm::Prepare {
+                native_program: Some(intent),
+                launch,
+                argv,
+                secrets,
+                allow_hosts,
+                ..
+            } = protocol::decode(&request).unwrap()
+            else {
+                panic!("not native prepare")
+            };
+            assert!(launch.is_none());
+            assert!(allow_hosts.is_empty());
+            assert_eq!(secrets.len(), 1);
+            assert_eq!(
+                protocol::decode_data(&intent.argv_suffix[1]).unwrap(),
+                [0xff, b'x']
+            );
+            assert_eq!(intent.resolved_argv_digest, execution.argv_digest);
+            assert_ne!(intent.request_argv_digest, intent.resolved_argv_digest);
+            assert_eq!(
+                argv[0],
+                protocol::encode_data(program.executable.as_bytes())
+            );
+            assert_eq!(
+                crate::guest_program::sha256(
+                    &std::fs::read(attempt_dir.join("guest-native-catalog.json")).unwrap()
+                ),
+                program.catalog_sha256
+            );
+        }
+        peer.join().unwrap();
+        join_control(server, &control_socket);
+    }
+}
+
+#[test]
+fn native_source_only_handoff_uses_the_independent_revocation_watch() {
+    use std::io::{BufRead as _, BufReader};
+    let (_dir, context, args) = native::tests::context();
+    let plan = crate::supervisor::resolve_plan(&context, &args).unwrap();
+    let (handoff, _) = crate::credentials::stage_guest_within(
+        plan.resolved.snapshot.launch.as_ref().unwrap(),
+        plan.guest_program.as_ref().unwrap(),
+        &[],
+        &|| Duration::from_secs(2),
+    )
+    .unwrap();
+    let (mut run, mut peer, _root) = running();
+    run.inner.vault_lease =
+        revocation::Sources::Guest(crate::vault::transport::SourceLease(handoff.sources));
+    let watch =
+        revocation::Watch::start(&run.inner.connection, run.inner.vault_lease.clone()).unwrap();
+    std::fs::remove_file(
+        context
+            .env_settings
+            .config_dir
+            .as_ref()
+            .unwrap()
+            .join("credentials")
+            .join(native::tests::input("primary_credential_id")),
+    )
+    .unwrap();
+    peer.set_read_timeout(Some(Duration::from_secs(4))).unwrap();
+    let mut line = Vec::new();
+    BufReader::new(&mut peer)
+        .read_until(b'\n', &mut line)
+        .unwrap();
+    assert_eq!(
+        protocol::decode::<protocol::ToVm>(&line).unwrap(),
+        protocol::ToVm::RevokeSecrets {
+            ids: vec![native::tests::input("primary_credential_id")]
+        }
+    );
+    watch
+        .acknowledge(&[native::tests::input("primary_credential_id")])
+        .unwrap();
+    assert!(watch.acknowledged());
+    assert!(run.inner.vault_lease.check().is_err());
+}
+
+#[test]
+fn native_receipt_binding_cannot_be_omitted_or_replaced_by_literal_receipt() {
+    let (mut run, _peer, _root) = running();
+    let expected = protocol::NativeProgramBinding {
+        catalog_sha256: "a".repeat(64),
+        entry_id: "entry".into(),
+        profile_sha256: "b".repeat(64),
+        executable_sha256: "c".repeat(64),
+        selected_credential_id: native::tests::input("primary_credential_id"),
+        state: "attempt".into(),
+        request_argv_digest: "sha256:request".into(),
+        resolved_argv_digest: run.inner.argv_digest.clone(),
+        policy_digest: run.inner.guest_policy_digest.clone(),
+    };
+    run.inner.native_binding = Some(expected.clone());
+    let (hash, data) = encoded(&receipt());
+    assert!(run.store_receipt(&hash, &data, &binding()).is_err());
+    let mut bound = binding();
+    bound.native_program = Some(expected.clone());
+    bound
+        .native_program
+        .as_mut()
+        .unwrap()
+        .selected_credential_id = "other".into();
+    assert!(run.store_receipt(&hash, &data, &bound).is_err());
+    bound.native_program = Some(expected);
+    run.store_receipt(&hash, &data, &bound).unwrap();
+}
+
+#[test]
+fn sampling_data_failure_does_not_replace_the_verified_guest_execution_outcome() {
+    for variant in [
+        "missing",
+        "malformed",
+        "duplicate",
+        "executable",
+        "oversize",
+        "incomplete",
+        "wrong-supervisor",
+        "wrong-receipt-process",
+        "complete",
+    ] {
+        let (mut run, mut peer, root) = running();
+        let native = protocol::NativeProgramBinding {
+            catalog_sha256: "a".repeat(64),
+            entry_id: "entry".into(),
+            profile_sha256: "b".repeat(64),
+            executable_sha256: "c".repeat(64),
+            selected_credential_id: "token".into(),
+            state: "attempt".into(),
+            request_argv_digest: "sha256:request".into(),
+            resolved_argv_digest: run.inner.argv_digest.clone(),
+            policy_digest: run.inner.guest_policy_digest.clone(),
+        };
+        run.inner.native_binding = Some(native.clone());
+        run.inner.image.sampler_sha256 = Some("e".repeat(64));
+        let mut binding = binding();
+        binding.native_program = Some(native);
+        let mut guest_receipt = receipt();
+        guest_receipt["process"]["identity"] = serde_json::json!({"kind":"linux_boot_start", "value":{"boot_id":binding.guest_boot_id,"pid":11,"start_time_ticks":101}});
+        let payload = if matches!(
+            variant,
+            "incomplete" | "wrong-supervisor" | "wrong-receipt-process" | "complete"
+        ) {
+            let mut report: Value = serde_json::from_slice(include_bytes!(
+                "../../../../vm/fixtures/sampled-exposure-report.json"
+            ))
+            .unwrap();
+            report["host_attempt_id"] = Value::String(binding.attempt_id.clone());
+            report["service_boot_id"] = Value::String(binding.boot_id.clone());
+            report["guest_attempt_id"] = Value::String(binding.guest_attempt_id.clone());
+            report["guest_boot_id"] = Value::String(binding.guest_boot_id.clone());
+            report["catalog_sha256"] = Value::String("a".repeat(64));
+            report["executable_sha256"] = Value::String("c".repeat(64));
+            report["sampler_sha256"] = Value::String("e".repeat(64));
+            report["guest_receipt_sha256"] = Value::String(encoded(&guest_receipt).0);
+            report["supervisor"] = serde_json::json!({"pid":run.supervisor_pid,"starttime":100});
+            report["receipt_process"] = serde_json::json!({"pid":11,"starttime":101});
+            if variant == "wrong-supervisor" {
+                report["supervisor"]["pid"] = Value::from(11);
+            } else if variant == "wrong-receipt-process" {
+                report["receipt_process"]["pid"] = Value::from(10);
+            }
+            if variant == "incomplete" {
+                report["catalog_executable_identity"] = serde_json::json!({"dev":0,"ino":0});
+                report["supervisor"]["starttime"] = Value::Null;
+                for key in ["reads", "verified_program_reads", "receipt_program_reads"] {
+                    for channel in ["environment", "argv"] {
+                        for count in report[key][channel].as_object_mut().unwrap().values_mut() {
+                            *count = Value::from(0);
+                        }
+                    }
+                }
+                for key in [
+                    "tick_count",
+                    "observed_interval_ns",
+                    "maximum_gap_ns",
+                    "maximum_tick_duration_ns",
+                    "late_poll_count",
+                    "missed_tick_count",
+                ] {
+                    report[key] = Value::from(0);
+                }
+                report["first_ns"] = Value::Null;
+                report["last_ns"] = Value::Null;
+                report["processes"] = serde_json::json!([]);
+                report["verified_program_observed"] = Value::Bool(false);
+                report["receipt_program_observed"] = Value::Bool(false);
+                report["observation_incomplete"] = Value::Bool(true);
+                report["scan_errors"] = serde_json::json!({"monitor_initialization_failed":1});
+                report["lifecycle"] = serde_json::json!({"started_ns":0,"stopped_ns":1,"supervisor_exit_observed_ns":2,"stop_reason":"worker_failed"});
+            }
+            serde_json::to_vec(&report).unwrap()
+        } else if variant == "oversize" {
+            vec![b'x'; protocol::MAX_FILE + 1]
+        } else {
+            b"{}".to_vec()
+        };
+        let writer = std::thread::spawn(move || {
+            if variant != "missing" {
+                binding.sampled_exposure_sha256 = Some(crate::guest_program::sha256(&payload));
+                for _ in 0..if variant == "duplicate" { 2 } else { 1 } {
+                    peer.write_all(
+                        &protocol::encode(&protocol::FromVm::File {
+                            group: "evidence".into(),
+                            path: sampled::FILE.into(),
+                            executable: variant == "executable",
+                            data: protocol::encode_data(&payload),
+                        })
+                        .unwrap(),
+                    )
+                    .unwrap();
+                }
+            }
+            let (sha256, data) = encoded(&guest_receipt);
+            peer.write_all(
+                &protocol::encode(&protocol::FromVm::BoundReceipt {
+                    sha256,
+                    data,
+                    binding,
+                })
+                .unwrap(),
+            )
+            .unwrap();
+            peer.write_all(&protocol::encode(&done(0)).unwrap())
+                .unwrap();
+        });
+        assert!(
+            matches!(run.wait(soon()), RunEvent::TargetExited { code: 0 }),
+            "{variant}"
+        );
+        assert_eq!(
+            run.wait_tree(Duration::ZERO).tree_empty,
+            Some(true),
+            "{variant}"
+        );
+        let transport: Value = serde_json::from_slice(
+            &std::fs::read(root.path().join(record::TRANSPORT_FILE)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            transport["supervisor_pid"], 10,
+            "Released PID is retained independently of receipt workload PID 11"
+        );
+        assert_eq!(
+            transport["sampled_exposure"]["status"],
+            if variant == "missing" {
+                "unavailable"
+            } else {
+                // The live native Session requires /3, including when this
+                // otherwise well-formed historical /2 report says complete.
+                "invalid"
+            },
+            "{variant}"
+        );
+        assert_eq!(
+            transport["sampled_exposure_contract"],
+            protocol::SAMPLED_EXPOSURE_CONTRACT
+        );
+        assert!(!run.failed);
+        writer.join().unwrap();
     }
 }

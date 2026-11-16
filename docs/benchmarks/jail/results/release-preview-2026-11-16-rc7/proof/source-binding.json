@@ -1,0 +1,82 @@
+{
+  "binary_sha256": "348e4c2b9ade7d0d5109a9c78c275be322da76524ba70763f9a7945c153c295a",
+  "binary_source_F": "f745bfbfc5bfe4945cf5fc7c5d88e497db9e6768",
+  "copied_proofs": {
+    "F-G-runtime-input-equality.json": {
+      "original_path": "evidence/production-2026-11-15/warm-vm-current/managed-native-cli-gate-8aaff8e4b/F-G-runtime-input-equality.json",
+      "sha256": "7a519df2744137fa715514a58d76e7d3164b7222aa6f4bd21b9a4bbd248fbd99"
+    },
+    "coordinator-result.json": {
+      "original_path": "evidence/production-2026-11-15/warm-vm-current/reference-onboarding-plan-G/coordinator/retained/control/result.json",
+      "sha256": "156b491a4af259ea04b2e2c6f0d9448224f62d20708277fbc11bb9e5ef4ba711"
+    },
+    "final-summary.json": {
+      "original_path": "evidence/production-2026-11-15/warm-vm-current/reference-onboarding-plan-G/coordinator/final-summary.json",
+      "sha256": "a697cec41faf8eaccf1bab53099a7789f68da357f4367c264519e02c2f216dd3"
+    },
+    "independent-review.json": {
+      "original_path": "evidence/production-2026-11-15/warm-vm-current/reference-onboarding-independent-GF/review.json",
+      "sha256": "e7a7b82957a4917d12ddb201ec0fc0dedb0687407f9308d956493a524e370043"
+    },
+    "local-result.json": {
+      "original_path": "evidence/production-2026-11-15/warm-vm-current/reference-onboarding-plan-G/coordinator/execution/result.json",
+      "sha256": "c4817351f3064dbc0efc3085f23c06a6272ed07fff5134e57b28c799f4622001"
+    },
+    "source-inventory.json": {
+      "original_path": "evidence/production-2026-11-15/warm-vm-current/reference-onboarding-plan-G/coordinator/inventory.json",
+      "sha256": "c36bc5277245225f3120248e3c5ea035e50f34644bf5fcfb036620d7a362f867"
+    }
+  },
+  "harness_sha256": "ec15077bbce86bfbe51243e21433910baddfd6f958c0f167679c026965a799cd",
+  "harness_source_G": "dce53219bb8cb0ecf89047dd9820404da9a51c26",
+  "harness_source_bytes": 3018192,
+  "harness_source_files": 19,
+  "ignored_records": {
+    "commands": {
+      "path": "evidence/production-2026-11-15/warm-vm-current/reference-onboarding-plan-G/coordinator/commands.json",
+      "sha256": "c0ce80faf1efffeea596fffbbad1101f91a370b55fa71eb4c2567766a761e329"
+    },
+    "coordinator": {
+      "path": "evidence/production-2026-11-15/warm-vm-current/reference-onboarding-plan-G/coordinator/coordinator.py",
+      "sha256": "a6794186bac8bf069695b6ce40ab6fec1053d555d1fc0da89d6d66be30450ffb"
+    },
+    "focused_linux": {
+      "path": "evidence/production-2026-11-15/warm-vm-current/managed-native-cli-gate-8aaff8e4b/focused-f745bfbfc-v3/final-summary.json",
+      "sha256": "755168f3b815481e2773ba96b64bc0f118e3ec400200a7b480ad07bfea1d4e08"
+    },
+    "full_final_summary": {
+      "path": "evidence/production-2026-11-15/warm-vm-current/reference-onboarding-plan-G/coordinator/final-summary.json",
+      "sha256": "a697cec41faf8eaccf1bab53099a7789f68da357f4367c264519e02c2f216dd3"
+    },
+    "full_retained_inventory": {
+      "path": "evidence/production-2026-11-15/warm-vm-current/reference-onboarding-plan-G/coordinator/retention-execution/summary.json",
+      "sha256": "3a2d58332e16a1e7125bec3e7d8c0110774dab24222a2820ce9551e310b6e545"
+    },
+    "independent_review": {
+      "path": "evidence/production-2026-11-15/warm-vm-current/reference-onboarding-independent-GF/review.json",
+      "sha256": "e7a7b82957a4917d12ddb201ec0fc0dedb0687407f9308d956493a524e370043"
+    },
+    "local_wrapper": {
+      "path": "evidence/production-2026-11-15/warm-vm-current/reference-onboarding-plan-G/coordinator/local.py",
+      "sha256": "f874ce81ee449a698104700f5ea690320663fd798c3245808d3ff16c0d1ae3a5"
+    },
+    "outer_execution": {
+      "path": "evidence/production-2026-11-15/warm-vm-current/reference-onboarding-plan-G/coordinator/provider-launch.json",
+      "sha256": "9fd70abb2a11cc3db0537534e01f533af4b76bc33b0489fa234ee3327b43f0f5"
+    },
+    "plan": {
+      "path": "evidence/production-2026-11-15/warm-vm-current/reference-onboarding-plan-G/coordinator/plan-ready.json",
+      "sha256": "847b8256fa01135e4af8501b52c62cf4c5746a09093504b0a00d67aadecbad01"
+    },
+    "source_archive": {
+      "path": "evidence/production-2026-11-15/warm-vm-current/reference-onboarding-plan-G/coordinator/source.tar",
+      "sha256": "bcb7d0ac9e50fefbeeb5b4b3a58b56fd544027205c3d728da44c5a2d02d69ef9"
+    }
+  },
+  "model": "anthropic/claude-sonnet-5-5",
+  "release_version": "0.1.0-rc.7",
+  "runtime_inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+  "schema": "ukai.release-preview-source-binding/1",
+  "scope": "Exact raw evidence copied unchanged; small proof reports are copies, not new live measurements. Full tooling logs and source/binary artifacts stay in the pinned ignored run.",
+  "source_tar_sha256": "bcb7d0ac9e50fefbeeb5b4b3a58b56fd544027205c3d728da44c5a2d02d69ef9"
+}

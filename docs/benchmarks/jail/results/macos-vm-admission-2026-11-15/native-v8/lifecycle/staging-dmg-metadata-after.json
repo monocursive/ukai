@@ -1,0 +1,31 @@
+{
+  "added_xattr_names": [
+    "com.apple.diskimages.recentcksum"
+  ],
+  "changed_metadata_keys": [
+    "ctime_ns"
+  ],
+  "command": [
+    "/usr/bin/xattr",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/ukai-vm-0.1.0-preview.2-macos-arm64.dmg"
+  ],
+  "metadata": {
+    "ctime_ns": 1794855339009055847,
+    "dev": 16777234,
+    "gid": 20,
+    "ino": 375390399,
+    "mode": 33152,
+    "mtime_ns": 1794854249552592125,
+    "nlink": 1,
+    "size": 977360414,
+    "uid": 501
+  },
+  "observed_at": "2026-11-16T18:56:01.035615+00:00",
+  "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/ukai-vm-0.1.0-preview.2-macos-arm64.dmg",
+  "scope": "After frozen staging default readonly attach/detach; metadata-only observation, full byte verification is owning staging and finalizer.",
+  "xattr_names": [
+    "com.apple.FinderInfo",
+    "com.apple.diskimages.recentcksum",
+    "com.apple.provenance"
+  ]
+}

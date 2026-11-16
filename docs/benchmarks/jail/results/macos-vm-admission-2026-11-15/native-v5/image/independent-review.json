@@ -1,0 +1,211 @@
+{
+  "schema": "ukai.vm.v5-prepared-independent-review/1",
+  "outcome": "PASS",
+  "facts": {
+    "exact_requested_manifest": true,
+    "clean_detached_b540": true,
+    "exact_completed_plan": true,
+    "prepared_clean_build_and_cleanup": true,
+    "record_artifact_identity": true,
+    "exact_seven_source_paths": true,
+    "source_guest.py": true,
+    "source_guest_program.py": true,
+    "source_guest_exposure.py": true,
+    "source_guest_exposure_control.py": true,
+    "source_vz.swift": true,
+    "source_custodian.c": true,
+    "source_prepare.py": true,
+    "only_gate_source_changed": true,
+    "actual_base.raw": true,
+    "actual_seed.iso": true,
+    "actual_vz": true,
+    "actual_custodian": true,
+    "new_disk_and_seed": true,
+    "unchanged_image_url": true,
+    "unchanged_image_sha256": true,
+    "unchanged_apt_snapshot": true,
+    "unchanged_apt_snapshot_url": true,
+    "unchanged_jail_archive_sha256": true,
+    "unchanged_jail_candidate": true,
+    "unchanged_guest_program_catalog_sha256": true,
+    "unchanged_guest_program_inputs": true,
+    "unchanged_guest_pinned_versions": true,
+    "unchanged_guest_pinned_digest": true,
+    "official_cache_bytes": true,
+    "retained_linux_RELEASE_NOTES.md": true,
+    "retained_linux_SHA256SUMS": true,
+    "retained_linux_SHA256SUMS.minisig": true,
+    "retained_linux_bootstrap.sh": true,
+    "retained_linux_install.sh": true,
+    "retained_linux_release-plan.json": true,
+    "retained_linux_ukai-jail-0.1.0-rc.6-aarch64-unknown-linux-gnu.tar.gz": true,
+    "retained_linux_ukai-jail-0.1.0-rc.6-x86_64-unknown-linux-gnu.tar.gz": true,
+    "release_trust_root": true,
+    "fresh_signed_linux_verification": true,
+    "fresh_catalog_exact": true,
+    "catalog_input_fields": true,
+    "native_payload_bytes": true,
+    "seed_user_data_retained": true,
+    "cloud_config_prefix": true,
+    "seed_unique_paths": true,
+    "seed_all_base64": true,
+    "seed_source_guest.py": true,
+    "seed_source_guest_program.py": true,
+    "seed_source_guest_exposure.py": true,
+    "seed_source_guest_exposure_control.py": true,
+    "seed_linux_binary": true,
+    "seed_catalog": true,
+    "seed_unchanged_profile": true,
+    "seed_native_payload": true,
+    "actual_control_exact_bytes": true,
+    "fresh_detector_all_seven": true,
+    "fresh_detector_identity": true,
+    "bootstrap_finished": true,
+    "pinned_package_markers": true,
+    "lifecycle_bound": true,
+    "owned_pids_and_group_still_absent": true,
+    "no_image_mount": true,
+    "all_183_prior_proof_files_unchanged": true,
+    "source_and_manifest_unchanged_after_review": true
+  },
+  "details": {
+    "runner_review_records": [
+      {
+        "schema": "ukai.gate-image-runner-independent-review/1",
+        "outcome": "PASS",
+        "runner_sha256": "f34756d3a08f0992a0b7302137a1be02a213ecb21c0a2a9d904c3a6fad9583f0",
+        "test_sha256": "1ad940b29be36cf504ea6749f1020e7e7c361029bdf4343386d9ac65e406c680",
+        "plan_sha256": "dfdc62fba3a29f05dcd17fffa453ec6be4e055b9a6d6d4566459f9a40080fac1",
+        "prior_plan_sha256": "7ec0d82806f2e5ab34c998ca2c908bb06c8dac964c96d742b3b812a4b68837be",
+        "source_revision": "b54086a3e31d1097954448e2bd37278f20beab7c",
+        "reviewed": [
+          "full committed revision and ancestry with exact detached clean source bytes",
+          "exact original guest/source inputs and narrowly changed guest.py",
+          "fresh task-only image/output paths and no implicit retries or deletion",
+          "one bounded preparation process group with closed standard input",
+          "per-signal-phase leader poll and immediate residual-group refusal once reaped",
+          "primary and cleanup failures retained without replacement",
+          "no package, signing, provider, or admission action"
+        ],
+        "synthetic_tests": {
+          "returncode": 0,
+          "tests": 6,
+          "log": "independent-runner-tests-v2.log",
+          "log_sha256": "10f24d801f8f751a791c5467949ce90db4f0aca824569e074f405b05460a174c"
+        },
+        "prepare_stdin_devnull": true,
+        "resolver_or_build_executed_by_reviewer": false,
+        "production_qualified": false
+      },
+      {
+        "facts": {
+          "plan": true,
+          "runner": true,
+          "review": true,
+          "source": true,
+          "inputs": true,
+          "clean": true,
+          "head": true,
+          "fresh": true
+        },
+        "outcome": "PASS",
+        "scope": "One exact new guest-image preparation only; package/admission/provider not authorized by this record."
+      }
+    ],
+    "seed_rows": [
+      {
+        "path": "/usr/local/bin/ukai-jail",
+        "permissions": "0755",
+        "sha256": "118c8bdda8c7bd5b5957bce15171ff418fb7df0350de795770532beaee2e3462"
+      },
+      {
+        "path": "/usr/local/lib/ukai-vm/guest_program.py",
+        "permissions": "0644",
+        "sha256": "fc73abbf2189a6216595da25b9b69aa03cc38735249c45d0e70e064020eb29bf"
+      },
+      {
+        "path": "/usr/local/lib/ukai-vm/guest_exposure.py",
+        "permissions": "0644",
+        "sha256": "9257817c42baf6d7af0717a8f7b1a31017501fdc3caab71f818d1ad38416f94b"
+      },
+      {
+        "path": "/usr/local/lib/ukai-vm/guest_exposure_control.py",
+        "permissions": "0644",
+        "sha256": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f"
+      },
+      {
+        "path": "/usr/local/lib/ukai-vm/guest.py",
+        "permissions": "0644",
+        "sha256": "06dad8f602567645a1d7992a72f27d0da7b9cb1a4a62707c8cf556646fcddfdc"
+      },
+      {
+        "path": "/etc/systemd/system/ukai-vm.service",
+        "permissions": "0644",
+        "sha256": "ce89c0e7b13b0f66a2b38a9f7a227aec124067baa8a5b9bb4fb3bb9c72f30433"
+      },
+      {
+        "path": "/usr/local/lib/ukai-vm/setup.sh",
+        "permissions": "0700",
+        "sha256": "1bd10f6c7d1cc1087fc86e8343564a1233a89597762635433f5b45c72357bc5e"
+      },
+      {
+        "path": "/usr/local/lib/ukai-vm/trace.sh",
+        "permissions": "0700",
+        "sha256": "704a4f21b0023d001857352bc855b653a5d1f8eb80df5d7c151311b318964405"
+      },
+      {
+        "path": "/usr/local/share/ukai-vm/guest-program-catalog.json",
+        "permissions": "0644",
+        "sha256": "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244"
+      },
+      {
+        "path": "/usr/local/share/ukai-vm/guest-program-profiles/claude.toml",
+        "permissions": "0644",
+        "sha256": "e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24"
+      }
+    ],
+    "source_revision": "b54086a3e31d1097954448e2bd37278f20beab7c",
+    "required_guest_image": {
+      "disk_sha256": "9c38aa12509ca597ab6798be5466c17ec80e72f2a2a8995b56ab1f52fc2c5446",
+      "seed_sha256": "358cf538c43748b0092da65d5c0759dae91974d23485db45a3160de4cd6e7f45"
+    },
+    "native_program": {
+      "catalog_sha256": "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244",
+      "entry_id_sha256": "52aecf2264a738f1a16899c7536da1cf26034c440a62348b402db682e0a550aa",
+      "profile_sha256": "e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24",
+      "executable_sha256": "2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3"
+    },
+    "guest_boot_id": "7f0513a4-6f08-4edd-83c8-9ad58f8d7afe",
+    "guest_kernel": "7.0.0-38-generic",
+    "detector_process": {
+      "executable_dev": 64769,
+      "executable_ino": 1637,
+      "pid": 991,
+      "starttime": 3778
+    }
+  },
+  "evidence_sha256": {
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v5/image.json": "efc627639a27b2dd23afd5679f818f83d056447a718dc5850dacf55db7cc5a6e",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v4/image.json": "fff2bb7ab5c96223909ce9103a7d972dd81730111ecd516159ef349c7ea75fe1",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-build-v5/result.json": "b6a0ec695160153cffa24a0d9b0680372780b45e80a7380c555f987b678190e3",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-build-v5/lifecycle.json": "100999815eb1ee65aa0fcc5ec0a11e524a4f5a7b1edf980f40e945e52a8f7dad",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-build-v5/command.json": "dfdc62fba3a29f05dcd17fffa453ec6be4e055b9a6d6d4566459f9a40080fac1",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/gate-qualification-plan-406a91a66/independent-runner-review-v2.json": "bf6f3c5e113062bb8ad0fda9e99fae70e067adbcef5ca6fbf4174835cd56b956",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/gate-qualification-plan-406a91a66/root-prepare-review-v2.json": "f309af932430725687fc04f1c7a0ff05444d8bc664d334082654de475da3908e",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v5/base.raw": "9c38aa12509ca597ab6798be5466c17ec80e72f2a2a8995b56ab1f52fc2c5446",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v5/seed.iso": "358cf538c43748b0092da65d5c0759dae91974d23485db45a3160de4cd6e7f45",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v5/vz": "7b0a0896fd39711ffa5fc30431b0de20d1da085e8b2d28352fba172ffa0f3a7f",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v5/custodian": "15bf47847e0c48913b6bb342443bffa9adfc02f4d4ebaf86e65bbcee6e34df6e",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/native-v5-independent-review/prior-proof-baseline.json": "586af256a4d0824ce515a4399f8275a0eafd3f2f84456347db5bcbda7fb085c3"
+  },
+  "failure": null,
+  "elapsed_seconds": 4.780333375092596,
+  "reviewer_source_sha256": "7d4c73e06346241a3b577b5741da1f469b77dcb172269b013c954d8c84b5c575",
+  "qualification": {
+    "native_vendor": false,
+    "k113": false,
+    "release": false,
+    "new_host_runtime": false
+  },
+  "scope": "Actual fresh prepared bytes, exact source/seed payload, signed Linux inputs, detector positive control and cleanup only. No VM run/signing/provider; no A01-cause claim or native vendor admission."
+}

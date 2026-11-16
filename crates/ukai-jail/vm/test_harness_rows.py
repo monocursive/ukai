@@ -12,6 +12,7 @@ import base64
 import contextlib
 import copy
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -2065,10 +2066,12 @@ class VmClientStandardInput(unittest.TestCase):
         tree = ast.parse(source)
         constants = [node for node in ast.walk(tree)
                      if isinstance(node, ast.Constant) and node.value == '--vm']
-        spawns, covered = {}, set()
-        for function in ast.walk(tree):
-            if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
+        functions = {}
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                functions.setdefault(node.name, []).append(node)
+
+        def assignments(function):
             assigned = {}
             for node in ast.walk(function):
                 targets = node.targets if isinstance(node, ast.Assign) else (
@@ -2076,24 +2079,84 @@ class VmClientStandardInput(unittest.TestCase):
                 for target in targets:
                     if isinstance(target, ast.Name) and node.value is not None:
                         assigned.setdefault(target.id, []).append(node.value)
+                    elif isinstance(target, ast.Tuple) and isinstance(node.value, ast.Call):
+                        # A bounded argv producer can return (command, suffix).
+                        producer = functions.get(getattr(node.value.func, 'id', None), [])
+                        if len(producer) == 1:
+                            for result in (r.value for r in ast.walk(producer[0]) if isinstance(r, ast.Return)):
+                                if isinstance(result, ast.Tuple) and len(result.elts) == len(target.elts):
+                                    local = assignments(producer[0])
+                                    for name, value in zip(target.elts, result.elts):
+                                        if isinstance(name, ast.Name):
+                                            assigned.setdefault(name.id, []).extend(
+                                                local.get(value.id, []) if isinstance(value, ast.Name) else [value])
+            return assigned
+
+        def spawn_name(call):
+            return call.func.id if isinstance(call.func, ast.Name) else (
+                call.func.attr if isinstance(call.func, ast.Attribute) else None)
+
+        def forwarded_spawn(name, visiting=frozenset()):
+            """Trace one argv-forwarding spawn, including bounded wrapper chains.
+
+            A lowercase injected spawner is recognized only when its default
+            is explicitly subprocess.Popen/run/etc. Cycles, ambiguous wrappers
+            and transformed argv parameters remain uncovered and fail closed.
+            """
+            found = functions.get(name, [])
+            if len(found) != 1 or name in visiting:
+                return None
+            wrapper = found[0]
+            aliases = set()
+            positional = wrapper.args.posonlyargs + wrapper.args.args
+            defaults = list(zip(positional[-len(wrapper.args.defaults):], wrapper.args.defaults)) if wrapper.args.defaults else []
+            defaults += list(zip(wrapper.args.kwonlyargs, wrapper.args.kw_defaults))
+            for parameter, default in defaults:
+                if (isinstance(default, ast.Attribute) and isinstance(default.value, ast.Name)
+                        and default.value.id == 'subprocess' and default.attr in self.SPAWNERS):
+                    aliases.add(parameter.arg)
+            parameters = [arg.arg for arg in positional]
+            children = []
+            for call in (n for n in ast.walk(wrapper) if isinstance(n, ast.Call)):
+                called = spawn_name(call)
+                if called in self.SPAWNERS | aliases:
+                    forwarded = (call, 0)
+                else:
+                    forwarded = forwarded_spawn(called, visiting | {name})
+                if forwarded is None or len(call.args) <= forwarded[1]:
+                    continue
+                command = call.args[forwarded[1]]
+                if isinstance(command, ast.Name) and command.id in parameters:
+                    children.append((forwarded[0], parameters.index(command.id)))
+            return children[0] if len(children) == 1 else None
+
+        spawns, covered = {}, set()
+        for function in ast.walk(tree):
+            if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            assigned = assignments(function)
             for call in ast.walk(function):
                 if not isinstance(call, ast.Call):
                     continue
-                func = call.func
-                name = func.id if isinstance(func, ast.Name) else (
-                    func.attr if isinstance(func, ast.Attribute) else None)
-                if name not in self.SPAWNERS:
-                    continue
-                command = call.args[0] if call.args else next(
-                    (k.value for k in call.keywords if k.arg == 'args'), None)
+                name = spawn_name(call)
+                spawn = call
+                if name in self.SPAWNERS:
+                    command = call.args[0] if call.args else next(
+                        (k.value for k in call.keywords if k.arg == 'args'), None)
+                else:
+                    forwarded = forwarded_spawn(name)
+                    if forwarded is None or len(call.args) <= forwarded[1]:
+                        continue
+                    spawn, position = forwarded
+                    command = call.args[position]
                 if command is None:
                     continue
                 parts = [command] + (assigned.get(command.id, []) if isinstance(command, ast.Name) else [])
                 held = {id(node) for part in parts for node in ast.walk(part)
                         if isinstance(node, ast.Constant) and node.value == '--vm'}
                 if held:
-                    stdin = next((k.value for k in call.keywords if k.arg == 'stdin'), None)
-                    spawns[id(call)] = (call.lineno, stdin is not None and ast.unparse(stdin))
+                    stdin = next((k.value for k in spawn.keywords if k.arg == 'stdin'), None)
+                    spawns[id(spawn)] = (spawn.lineno, stdin is not None and ast.unparse(stdin))
                     covered |= held
         return list(spawns.values()), constants, covered
 
@@ -2112,9 +2175,59 @@ class VmClientStandardInput(unittest.TestCase):
                     self.assertEqual(stdin, 'subprocess.DEVNULL', f'{module}.py:{line}')
                 sites += len(spawns)
         # fault_matrix 1, proxy_measurement 1, vault_measurement 2, warm_live 1,
-        # gate_rows 2 (K111 under script(1), K112 both lanes), claude_vm_row 1,
-        # credential_revocation_measurement 2 (normal client and sync).
-        self.assertEqual(sites, 10)
+        # gate_rows 2 (K111 under script(1), K112 both lanes), claude_vm_row 2
+        # (literal plus the shared native run/task-check process wrapper),
+        # credential_revocation_measurement 2 (normal client and sync),
+        # claude_vm_revocation 1 (one bounded collector for vendor and sync).
+        self.assertEqual(sites, 12)
+
+    def test_factored_argv_and_spawn_still_check_actual_stdin(self):
+        template = """def argv(j):
+    command = [j, 'run', '--vm']
+    return command, ['suffix']
+def main(j, run):
+    def execute(label, command):
+        return run(command{stdin})
+    command, suffix = argv(j)
+    execute('run', command)
+    execute('check', [j, 'run', '--vm', '--', 'true'])
+"""
+        for argument, expected in [('', False), (', stdin=sys.stdin', 'sys.stdin'),
+                                   (', stdin=subprocess.DEVNULL', 'subprocess.DEVNULL')]:
+            with self.subTest(stdin=argument):
+                spawns, constants, covered = self.spawns(template.format(stdin=argument))
+                self.assertEqual(spawns, [(6, expected)])
+                self.assertEqual(len(covered), len(constants))
+
+    def test_injected_collector_and_nested_forwarder_check_real_stdin(self):
+        template = """def argv(j):
+    return [j, 'run', '--vm'], ['suffix']
+def collect(command, *, popen=subprocess.Popen):
+    return popen(command{stdin})
+def main(j):
+    def execute(label, command):
+        return collect(command)
+    command, suffix = argv(j)
+    collect(command)
+    execute('sync', [j, 'run', '--vm', '--', '/bin/sync'])
+"""
+        for argument, expected in [('', False), (', stdin=sys.stdin', 'sys.stdin'),
+                                   (', stdin=subprocess.DEVNULL', 'subprocess.DEVNULL')]:
+            spawns, constants, covered = self.spawns(template.format(stdin=argument))
+            self.assertEqual(spawns, [(4, expected)])
+            self.assertEqual(len(covered), len(constants))
+        # A name alone is not proof that the injected callable is a spawner.
+        changed = template.format(stdin=', stdin=subprocess.DEVNULL').replace('subprocess.Popen', 'other.Popen')
+        spawns, constants, covered = self.spawns(changed)
+        self.assertEqual(spawns, []); self.assertEqual(covered, set()); self.assertEqual(len(constants), 2)
+
+    def test_recursive_or_multiple_spawn_wrapper_stays_uncovered(self):
+        for helpers in [
+            'def first(command):\n    return second(command)\ndef second(command):\n    return first(command)\n',
+            'def first(command):\n    subprocess.run(command, stdin=subprocess.DEVNULL)\n    subprocess.Popen(command, stdin=subprocess.DEVNULL)\n',
+        ]:
+            spawns, constants, covered = self.spawns(helpers + "def main(j):\n    first([j, '--vm'])\n")
+            self.assertEqual(spawns, []); self.assertEqual(covered, set()); self.assertEqual(len(constants), 1)
 
     def test_the_check_sees_a_missing_or_other_stdin(self):
         for text, expected in [
@@ -2812,6 +2925,56 @@ FAULT_MUTATIONS['vz-kill'] = FAULT_MUTATIONS['serve-kill']
 
 
 class FaultMatrixTables(unittest.TestCase):
+    def test_operator_interruption_cleans_up_current_case_and_propagates(self):
+        cleaned = []
+
+        class FakeRun:
+            def __init__(self, context, case):
+                self.cleanup = {}
+
+            def tear_down(self):
+                cleaned.append(True)
+
+        with mock.patch.object(fault_matrix, 'Run', FakeRun), \
+                mock.patch.object(fault_matrix, 'case_eof', side_effect=KeyboardInterrupt), \
+                mock.patch.object(fault_matrix, 'judge') as judge:
+            with self.assertRaises(KeyboardInterrupt):
+                fault_matrix.run_case({}, 'eof')
+        self.assertEqual(cleaned, [True])
+        judge.assert_not_called()
+
+    def test_interrupted_real_client_lane_preserves_completed_result_without_matrix_pass(self):
+        for outcome in ('PASS', 'ERROR'):
+            with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                out = root / 'results'
+                completed = {'outcome': outcome, 'checked_before_cleanup': True,
+                             'observations': {'case': 'client-kill'},
+                             'cleanup': {'service_exit': 0}}
+
+                def next_lane(context, case, variant=None):
+                    self.assertEqual(case, 'client-kill')
+                    if variant is None:
+                        return completed
+                    # The stand-in's result must be durable before execution
+                    # of the actual-client lane, even when that lane aborts.
+                    saved = json.loads((out / 'fault-progress-01.json').read_text())
+                    self.assertEqual(saved['cases']['client-kill'], completed)
+                    self.assertEqual(saved['outcome'], 'INCOMPLETE')
+                    self.assertEqual(saved['pending_cases'], ['client-kill:ukai-jail', 'eof'])
+                    raise KeyboardInterrupt('interrupted next lane')
+
+                with mock.patch.object(harness, 'guarded_workspace', return_value=root), \
+                        mock.patch.object(harness, 'required_binary', return_value=root / 'fake-binary'), \
+                        mock.patch.object(harness, 'fingerprint', return_value={'test': True}), \
+                        mock.patch.object(fault_matrix, 'real_client', return_value=object()), \
+                        mock.patch.object(fault_matrix, 'run_case', side_effect=next_lane), \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    with self.assertRaises(KeyboardInterrupt):
+                        fault_matrix.main([str(root), str(root), str(out), 'client-kill,eof',
+                                           '--ukai-jail', str(root / 'fake-binary')])
+                self.assertEqual([p.name for p in out.iterdir()], ['fault-progress-01.json'])
+
     def test_every_case_passes_on_its_good_observation(self):
         self.assertEqual(sorted(FAULT_GOOD), sorted(fault_matrix.CASES))
         for case in fault_matrix.CASES:

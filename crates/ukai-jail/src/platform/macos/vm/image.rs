@@ -20,7 +20,7 @@
 
 use std::fs::{File, OpenOptions};
 use std::io::Read as _;
-use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
+use std::os::unix::fs::{MetadataExt as _, OpenOptionsExt as _, PermissionsExt as _};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -92,6 +92,36 @@ pub struct ImageManifest {
     pub custodian_sha256: String,
     /// The seed ISO's digest.
     pub seed_sha256: String,
+    /// Optional catalog identity; absence preserves ordinary legacy runs.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "present_catalog_digest"
+    )]
+    pub guest_program_catalog_sha256: Option<String>,
+    /// Captured prepared-image source pins, including the optional sampler.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub source_sha256: std::collections::BTreeMap<String, String>,
+}
+
+fn present_catalog_digest<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<String>, D::Error> {
+    String::deserialize(deserializer).map(Some)
+}
+
+fn same_file_generation(a: &std::fs::Metadata, b: &std::fs::Metadata) -> bool {
+    a.dev() == b.dev()
+        && a.ino() == b.ino()
+        && a.mode() == b.mode()
+        && a.uid() == b.uid()
+        && a.gid() == b.gid()
+        && a.nlink() == b.nlink()
+        && a.len() == b.len()
+        && a.mtime() == b.mtime()
+        && a.mtime_nsec() == b.mtime_nsec()
+        && a.ctime() == b.ctime()
+        && a.ctime_nsec() == b.ctime_nsec()
 }
 
 /// One installed preview: the directory `install.sh.in` laid down, with the
@@ -215,6 +245,60 @@ impl Install {
         Ok(())
     }
 
+    /// Read the catalog as bounded no-follow bytes and verify its exact identity.
+    pub fn catalog(&self) -> Result<Option<(crate::guest_program::Catalog, String)>, Refusal> {
+        self.catalog_exact()
+            .map(|value| value.map(|(catalog, digest, _)| (catalog, digest)))
+    }
+
+    pub fn catalog_exact(
+        &self,
+    ) -> Result<Option<(crate::guest_program::Catalog, String, Vec<u8>)>, Refusal> {
+        let path = self.root.join("image/guest-program-catalog.json");
+        let Some(expected) = &self.manifest.guest_program_catalog_sha256 else {
+            return match std::fs::symlink_metadata(&path) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                _ => Err(refusal(
+                    "unbound guest program catalog is present or cannot be inspected",
+                )),
+            };
+        };
+        let mut file = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC)
+            .open(&path)
+            .map_err(|_| refusal("guest program catalog cannot be opened"))?;
+        let metadata = file
+            .metadata()
+            .map_err(|_| refusal("guest program catalog cannot be inspected"))?;
+        if !metadata.is_file()
+            || metadata.nlink() != 1
+            || metadata.len() > crate::guest_program::CATALOG_MAX as u64
+        {
+            return Err(refusal(
+                "guest program catalog is not a bounded regular file",
+            ));
+        }
+        let mut bytes = Vec::new();
+        file.by_ref()
+            .take(crate::guest_program::CATALOG_MAX as u64 + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|_| refusal("guest program catalog cannot be read"))?;
+        let after = file
+            .metadata()
+            .map_err(|_| refusal("guest catalog descriptor disappeared"))?;
+        let current = std::fs::symlink_metadata(&path)
+            .map_err(|_| refusal("guest catalog path disappeared"))?;
+        if !same_file_generation(&metadata, &after)
+            || !same_file_generation(&metadata, &current)
+            || bytes.len() as u64 != metadata.len()
+        {
+            return Err(refusal("guest program catalog changed while read"));
+        }
+        let catalog = crate::guest_program::Catalog::parse(&bytes, expected).map_err(refusal)?;
+        Ok(Some((catalog, expected.clone(), bytes)))
+    }
+
     /// Verifies every artifact against the manifest, `run.py`'s
     /// `load_image`. The digests are then the facts `ready` frames carry.
     ///
@@ -223,6 +307,7 @@ impl Install {
     /// or any artifact is missing or its hash differs.
     pub fn verify(&self) -> Result<(), Refusal> {
         self.prepared()?;
+        self.catalog()?;
         let image = self.root.join("image");
         for (name, recorded) in [
             ("base.raw", &self.manifest.disk_sha256),
@@ -250,7 +335,11 @@ impl Install {
         std::fs::create_dir(&image).map_err(|e| refusal(e.to_string()))?;
         std::fs::set_permissions(&image, std::fs::Permissions::from_mode(0o700))
             .map_err(|e| refusal(e.to_string()))?;
-        for name in ["base.raw", "vz", "custodian", "seed.iso"] {
+        let mut names = vec!["base.raw", "vz", "custodian", "seed.iso"];
+        if self.manifest.guest_program_catalog_sha256.is_some() {
+            names.push("guest-program-catalog.json");
+        }
+        for name in names {
             let source = self.root.join("image").join(name);
             let destination = image.join(name);
             let metadata =
@@ -414,6 +503,8 @@ pub struct BoundExpectation<'a> {
     pub argv_digest: &'a str,
     /// The requested network shape.
     pub network: &'a GuestNetwork,
+    /// Exact native-program binding, absent for ordinary literal programs.
+    pub native_program: Option<&'a super::protocol::NativeProgramBinding>,
 }
 
 /// Validate both the receipt and the controller's statement binding it to this run.
@@ -428,7 +519,8 @@ pub fn verify_bound_guest_receipt(
     expected: &BoundExpectation<'_>,
 ) -> Result<(), Refusal> {
     verify_guest_receipt(receipt, expected.profile, expected.network)?;
-    if binding.attempt_id != expected.attempt_id
+    if binding.native_program.as_ref() != expected.native_program
+        || binding.attempt_id != expected.attempt_id
         || binding.boot_id != expected.boot_id
         || binding.profile != expected.profile
         || binding.argv_digest != expected.argv_digest
@@ -677,11 +769,13 @@ mod tests {
     fn manifest_for(root: &Path) -> ImageManifest {
         let image = root.join("image");
         ImageManifest {
+            source_sha256: Default::default(),
             status: "prepared".to_owned(),
             disk_sha256: digest(&image.join("base.raw")).expect("digests"),
             helper_sha256: digest(&image.join("vz")).expect("digests"),
             custodian_sha256: digest(&image.join("custodian")).expect("digests"),
             seed_sha256: digest(&image.join("seed.iso")).expect("digests"),
+            guest_program_catalog_sha256: None,
         }
     }
 
@@ -947,11 +1041,13 @@ mod regression_tests {
     fn installed_at(root: &Path) {
         std::fs::create_dir_all(root.join("image")).unwrap();
         let manifest = ImageManifest {
+            source_sha256: Default::default(),
             status: "prepared".into(),
             disk_sha256: "a".repeat(64),
             helper_sha256: "b".repeat(64),
             custodian_sha256: "c".repeat(64),
             seed_sha256: "d".repeat(64),
+            guest_program_catalog_sha256: None,
         };
         std::fs::write(
             root.join("image/image.json"),
@@ -1069,11 +1165,13 @@ mod regression_tests {
         let install = Install {
             root: dir.path().to_path_buf(),
             manifest: ImageManifest {
+                source_sha256: Default::default(),
                 status: "prepared".into(),
                 disk_sha256: digest(&image.join("base.raw")).unwrap(),
                 helper_sha256: digest(&image.join("vz")).unwrap(),
                 seed_sha256: digest(&image.join("seed.iso")).unwrap(),
                 custodian_sha256: digest(&image.join("custodian")).unwrap(),
+                guest_program_catalog_sha256: None,
             },
         };
         install.verify().unwrap();
@@ -1081,4 +1179,46 @@ mod regression_tests {
         let boot = tempfile::tempdir().unwrap();
         assert!(install.verified_copy(boot.path()).is_err());
     }
+}
+
+#[cfg(test)]
+#[test]
+fn catalog_authority_is_explicit_bounded_regular_and_exact() {
+    use std::os::unix::fs::symlink;
+    let directory = tempfile::tempdir().unwrap();
+    let image = directory.path().join("image");
+    std::fs::create_dir(&image).unwrap();
+    let path = image.join("guest-program-catalog.json");
+    let bytes = include_bytes!("../../../../vm/fixtures/guest-program-catalog.json");
+    let mut install = Install {
+        root: directory.path().to_path_buf(),
+        manifest: ImageManifest {
+            source_sha256: Default::default(),
+            status: "prepared".into(),
+            disk_sha256: "a".repeat(64),
+            helper_sha256: "b".repeat(64),
+            custodian_sha256: "c".repeat(64),
+            seed_sha256: "d".repeat(64),
+            guest_program_catalog_sha256: None,
+        },
+    };
+    assert!(install.catalog().unwrap().is_none());
+    std::fs::write(&path, bytes).unwrap();
+    assert!(
+        install.catalog().is_err(),
+        "unbound file cannot masquerade as legacy"
+    );
+    install.manifest.guest_program_catalog_sha256 = Some(crate::guest_program::sha256(bytes));
+    assert_eq!(install.catalog_exact().unwrap().unwrap().2, bytes);
+    std::fs::hard_link(&path, image.join("alias")).unwrap();
+    assert!(install.catalog().is_err());
+    std::fs::remove_file(image.join("alias")).unwrap();
+    std::fs::remove_file(&path).unwrap();
+    symlink(image.join("missing"), &path).unwrap();
+    assert!(install.catalog().is_err());
+    install.manifest.guest_program_catalog_sha256 = None;
+    assert!(install.catalog().is_err());
+    let mut value = serde_json::to_value(&install.manifest).unwrap();
+    value["guest_program_catalog_sha256"] = serde_json::Value::Null;
+    assert!(serde_json::from_value::<ImageManifest>(value).is_err());
 }

@@ -31,6 +31,11 @@ pub struct ImageDigests {
     pub custodian_sha256: String,
     /// The seed ISO's SHA-256.
     pub seed_sha256: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guest_program_catalog_sha256: Option<String>,
+    /// The sampler source pin captured from prepared image metadata.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampler_sha256: Option<String>,
 }
 
 /// The host-side transport facts of one `--vm` attempt.
@@ -65,6 +70,31 @@ pub struct TransportRecord {
     /// that found nothing the guest jail left behind in any of them.
     #[serde(default)]
     pub guest_stop_boundaries: Vec<String>,
+    /// Exact checked native request; absent for the literal-program route.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_program: Option<super::protocol::GuestLaunchIntent>,
+    /// The controller's supervisor PID from this attempt's Released frame.
+    /// This is distinct from the workload process identified by the Linux receipt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supervisor_pid: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampled_exposure: Option<SampledExposure>,
+    /// The checked native Session contract; absent in historical transports.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampled_exposure_contract: Option<String>,
+}
+
+/// Sampling evidence is independent of the verified execution outcome.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SampledExposure {
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 impl TransportRecord {
@@ -97,6 +127,10 @@ impl TransportRecord {
             elapsed_seconds,
             guest_receipt_sha256: guest_receipt_sha256.into(),
             guest_stop_boundaries: Vec::new(),
+            native_program: None,
+            supervisor_pid: None,
+            sampled_exposure: None,
+            sampled_exposure_contract: None,
         }
     }
 
@@ -134,10 +168,12 @@ mod tests {
             "vm-boot-7f3a",
             "6.14.0-1010-aws",
             ImageDigests {
+                sampler_sha256: None,
                 disk_sha256: "d".repeat(64),
                 helper_sha256: "h".repeat(64),
                 custodian_sha256: "c".repeat(64),
                 seed_sha256: "s".repeat(64),
+                guest_program_catalog_sha256: None,
             },
             1024,
             "/data/vm/control.sock",

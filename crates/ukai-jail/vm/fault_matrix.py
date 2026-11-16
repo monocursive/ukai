@@ -654,6 +654,12 @@ def run_case(context, case, variant=None):
         result.update({'outcome': 'REFUSED', 'refusals': refusal.refusals, 'error': str(refusal)})
     except Exception as error:  # a case failure is a result, not the end of the matrix
         result.update({'outcome': 'ERROR', 'error': f'{type(error).__name__}: {error}'})
+    except BaseException:
+        # Operator interruption must still release this case's owned children
+        # and resume any suspended controllers before propagating cancellation.
+        # It cannot manufacture a measured verdict for an interrupted case.
+        run.tear_down()
+        raise
     result['checked_at'] = time.monotonic()
     result['observations'] = obs
     try:
@@ -687,11 +693,29 @@ def main(argv=None):
     out = harness.fresh_out_dir(args.out)
     verdict = {'schema': 'ukai.vm.fault-matrix/2', 'binary': harness.fingerprint(context['binary']),
                'real_client': harness.fingerprint(jail) if jail else None, 'cases': {}}
+    lanes = [label for case in requested for label in
+             ([case, case + ':ukai-jail'] if jail is not None and case in ('client-kill', 'client-ctrl-z')
+              else [case])]
+    progress_sequence = 0
+
+    def retain_case(label, result):
+        # A later interruption must not erase already judged observations and
+        # cleanup. Each exclusive snapshot is deliberately incomplete, even
+        # after the last lane; only the final matrix can claim its verdict.
+        nonlocal progress_sequence
+        verdict['cases'][label] = result
+        progress_sequence += 1
+        harness.write_json(out / f'fault-progress-{progress_sequence:02}.json', {
+            **verdict, 'schema': 'ukai.vm.fault-progress/1', 'outcome': 'INCOMPLETE',
+            'pending_cases': [name for name in lanes if name not in verdict['cases']],
+        })
+        print(f'result: {label}: {result.get("outcome", "ERROR")}', flush=True)
+
     for case in requested:
         print(f'case: {case}', flush=True)
-        verdict['cases'][case] = run_case(context, case)
+        retain_case(case, run_case(context, case))
         if jail is not None and case in ('client-kill', 'client-ctrl-z'):
-            verdict['cases'][case + ':ukai-jail'] = run_case(context, case, real_client(jail))
+            retain_case(case + ':ukai-jail', run_case(context, case, real_client(jail)))
     verdict['not_run'] = {case: 'not requested' for case in CASES if case not in requested}
     if jail is None:
         verdict['not_run'].update({f'{case}:ukai-jail': 'no --ukai-jail given; the python stand-in ran'

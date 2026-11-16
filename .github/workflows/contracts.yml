@@ -36,7 +36,7 @@ jobs:
       - run: python3 -m unittest discover -s docs/benchmarks/jail -p test_agent_matrix.py
       - run: python3 -m unittest discover -s docs/benchmarks/jail -p test_observer_pair.py
       - run: python3 -m unittest discover -s docs/benchmarks/jail -p test_preview_evidence.py
-      - run: python3 -m unittest discover -s docs/benchmarks/jail -p test_onboarding_guest.py
+      - run: python3 -m unittest discover -s docs/benchmarks/jail -p 'test_onboarding*.py'
       - run: python3 -m unittest discover -s docs/benchmarks/sandboxes -p test_summarize.py
       - run: python3 -m unittest discover -s docs/benchmarks -p test_retired_archives.py
       - name: Evidence store size and bundle guard
@@ -45,6 +45,8 @@ jobs:
           python3 -m unittest discover -s docs/benchmarks -p test_check_evidence_store.py
       - name: VM transport boundary regressions (no live VM)
         run: python3 -m unittest discover -s crates/ukai-jail/vm -p 'test_*.py'
+      - name: Replay the current native VM component proof (offline)
+        run: python3 -B docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/replay.py
       - name: Native macOS candidate tooling (synthetic signing and installation)
         run: python3 -m unittest discover -s crates/ukai-jail/dist/macos -p 'test_*.py'
       - name: Locked runtime attribution

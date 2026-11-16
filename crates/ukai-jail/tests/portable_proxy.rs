@@ -2648,47 +2648,46 @@ fn proxy_limits_helper() {
             // One free: the client takes it, the accept fails and backs off.
             let mut files = hog();
             files.truncate(files.len() - 1);
-            let mut client = helper_connect(&path).expect("connects");
-            client.write_all(connect.as_bytes()).expect("writes");
-            // Give descriptors back once the proxy has seen the pending
-            // connection and failed to accept it; it then serves it.
-            drop(files);
             #[cfg(target_os = "macos")]
-            let status = {
-                let mut head = Vec::new();
+            let (mut client, status) = {
+                use std::os::fd::AsRawFd as _;
+                use ukai_fixture::bounded::{Deadline, read_some};
+
+                // Darwin discards the queued peer when accept hits EMFILE.
+                // Setting SO_RCVTIMEO after that discard can return EINVAL,
+                // so use nonblocking I/O and the existing bounded poll helper.
+                // Keep the descriptors exhausted until empty EOF proves the
+                // failed accept happened; no HTTP request has been sent yet.
+                let rejected = UnixStream::connect(&path).expect("connects");
+                rejected.set_nonblocking(true).expect("nonblocking");
                 let mut byte = [0_u8; 1];
-                while !head.ends_with(b"\r\n\r\n") {
-                    match client.read(&mut byte) {
-                        Ok(0) if head.is_empty() => break,
-                        Ok(1) => head.push(byte[0]),
-                        Ok(_) => panic!("EOF within a response head: {head:?}"),
-                        Err(error) => panic!("reading a response head: {error}"),
-                    }
-                    assert!(head.len() < 8192, "an oversized response head");
-                }
-                if head.is_empty() {
-                    // Darwin's failed accept discarded this client. Only an
-                    // empty EOF permits a new request; malformed replies fail.
-                    drop(client);
-                    client = helper_connect(&path).expect("reconnects after EMFILE");
-                    client
-                        .write_all(connect.as_bytes())
-                        .expect("retries CONNECT");
-                    let (status, head) = read_head(&mut client);
-                    assert!(head.starts_with("HTTP/1.1 "), "an HTTP/1.1 response");
-                    status
-                } else {
-                    let text = String::from_utf8(head).expect("an ASCII response head");
-                    text.strip_prefix("HTTP/1.1 ")
-                        .expect("an HTTP/1.1 response")
-                        .split(' ')
-                        .next()
-                        .and_then(|code| code.parse::<u16>().ok())
-                        .expect("a status code")
-                }
+                assert_eq!(
+                    read_some(
+                        rejected.as_raw_fd(),
+                        &mut byte,
+                        Deadline::after_ms(u64::try_from(WAIT.as_millis()).unwrap()),
+                    ),
+                    Ok(0),
+                    "the exhausted accept discards the client without a response"
+                );
+                assert_eq!(sink.snapshot().len(), 2, "nothing was admitted");
+                drop(files);
+                drop(rejected);
+                let mut client = helper_connect(&path).expect("connects after EMFILE");
+                client.write_all(connect.as_bytes()).expect("writes");
+                let (status, head) = read_head(&mut client);
+                assert!(head.starts_with("HTTP/1.1 "), "an HTTP/1.1 response");
+                (client, status)
             };
             #[cfg(not(target_os = "macos"))]
-            let (status, _) = read_head(&mut client);
+            let (mut client, status) = {
+                let mut client = helper_connect(&path).expect("connects");
+                client.write_all(connect.as_bytes()).expect("writes");
+                // Linux retains the queued connection after EMFILE.
+                drop(files);
+                let (status, _) = read_head(&mut client);
+                (client, status)
+            };
             println!("HELPER free1_status={status}");
             client.shutdown(Shutdown::Write).expect("half-closes");
             read_to_eof(&mut client);

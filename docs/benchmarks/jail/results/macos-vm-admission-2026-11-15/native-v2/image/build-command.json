@@ -1,0 +1,25 @@
+{
+  "command": [
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/build-env/bin/python",
+    "/Users/monocursive/.cache/ukai-guest-native-launch-2026-11-15/crates/ukai-jail/vm/prepare.py",
+    "--out",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v2",
+    "--jail-candidate",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate",
+    "--native-claude",
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/claude-2.1.311/claude"
+  ],
+  "cwd": "/Users/monocursive/.cache/ukai-guest-native-launch-2026-11-15",
+  "started_at": "2026-11-15T17:00:47.570652+00:00",
+  "source_sha256": {
+    "crates/ukai-jail/vm/prepare.py": "d9aef47dff24192e690ec8a479a127d02f8e443182e25461709cd07a438e7e5a",
+    "crates/ukai-jail/vm/guest.py": "d0e023dd29a4343702369c5b406534cfa6777c0f00f7d10bfb85927359956a7f",
+    "crates/ukai-jail/vm/guest_program.py": "fc73abbf2189a6216595da25b9b69aa03cc38735249c45d0e70e064020eb29bf",
+    "crates/ukai-jail/vm/guest_exposure.py": "4834d227be5e6ce8b3d7d14e1c42cbee161f19e7f19015de9c88264603d076f4",
+    "crates/ukai-jail/vm/guest_exposure_control.py": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f",
+    "crates/ukai-jail/vm/vz.swift": "d1d3c87ad70bf770ab0d9c1f250fe2f64b5baee162f2b28dcf3f2cb89f0df32a",
+    "crates/ukai-jail/vm/custodian.c": "d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab"
+  },
+  "private_development_image": true,
+  "reason": "Accept valid zero-tick kernel-thread inventory without relaxing selected supervisor identity"
+}

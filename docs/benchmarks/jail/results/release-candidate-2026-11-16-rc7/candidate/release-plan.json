@@ -1,0 +1,145 @@
+{
+  "schema": "ukai.jail.release-candidate/1",
+  "repository": "monocursive/ukai",
+  "tag": "ukai-jail-v0.1.0-rc.7",
+  "target_commit": "0be9d1e820b0d47493883053253491bbd2196ba3",
+  "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+  "publication_scope": "linux-preview",
+  "unsupported_clauses": [
+    "K22.2",
+    "K23.1",
+    "K24.1",
+    "K26.1",
+    "K29.1",
+    "L02.12",
+    "M01.4",
+    "K87.1",
+    "K88.1",
+    "K89.1",
+    "K90.1",
+    "K91.1",
+    "K92.1",
+    "K93.1",
+    "K94.1",
+    "K95.1",
+    "K96.1",
+    "K97.1",
+    "K98.1",
+    "K99.1",
+    "K100.1",
+    "K101.1",
+    "K102.1",
+    "K103.1",
+    "K104.1",
+    "K105.1",
+    "K106.1",
+    "K107.1",
+    "K108.1",
+    "K109.1",
+    "K110.1",
+    "K111.1",
+    "K112.1",
+    "K113.1"
+  ],
+  "draft": true,
+  "published": false,
+  "signature_verified": true,
+  "publication_blockers": [
+    "operator_review_of_host_support_and_validation_required"
+  ],
+  "artifacts": [
+    {
+      "schema": "ukai.jail.release-artifact/1",
+      "target": "x86_64-unknown-linux-gnu",
+      "version": {
+        "build": {
+          "debug_assertions": false,
+          "dirty": false,
+          "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+          "opt_level": "3",
+          "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+          "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+          "target": "x86_64-unknown-linux-gnu"
+        },
+        "component": "ukai-jail",
+        "frozen": true,
+        "observation": {
+          "closed_set": "linux-closed-v1"
+        },
+        "platform": {
+          "arch": "x86_64",
+          "kernel": "Linux 7.0.0-1017-azure",
+          "os": "linux"
+        },
+        "schemas": {
+          "control": "ukai.jail.control/1",
+          "doctor": "ukai.jail.doctor/1",
+          "event": "ukai.event/1",
+          "gate": "ukai.jail.gate/1",
+          "learned_policy": "ukai.jail.learned-policy/1",
+          "network": "ukai.jail.network/1",
+          "policy": "ukai.jail.policy/1",
+          "policy_file": "ukai.jail.policy-file/1",
+          "policy_snapshot": "ukai.jail.policy-snapshot/1",
+          "receipt": "ukai.jail.receipt/1",
+          "summary": "ukai.jail.summary/1"
+        },
+        "version": "0.1.0"
+      },
+      "release": "0.1.0-rc.7",
+      "binary_sha256": "7df9db3caefc09965b6ca2578ca75af21a214548963caedb4215895ca047ec8a",
+      "archive": "ukai-jail-0.1.0-rc.7-x86_64-unknown-linux-gnu.tar.gz",
+      "archive_sha256": "a9eb6b07b4925cc3828fa2a264cbc5d0208aea1b1ed2929f67ec0d5f1436c7a1",
+      "provenance": "version queried by executing this binary on its native host"
+    },
+    {
+      "schema": "ukai.jail.release-artifact/1",
+      "target": "aarch64-unknown-linux-gnu",
+      "version": {
+        "build": {
+          "debug_assertions": false,
+          "dirty": false,
+          "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+          "opt_level": "3",
+          "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+          "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+          "target": "aarch64-unknown-linux-gnu"
+        },
+        "component": "ukai-jail",
+        "frozen": true,
+        "observation": {
+          "closed_set": "linux-closed-v1"
+        },
+        "platform": {
+          "arch": "aarch64",
+          "kernel": "Linux 7.0.0-1017-azure",
+          "os": "linux"
+        },
+        "schemas": {
+          "control": "ukai.jail.control/1",
+          "doctor": "ukai.jail.doctor/1",
+          "event": "ukai.event/1",
+          "gate": "ukai.jail.gate/1",
+          "learned_policy": "ukai.jail.learned-policy/1",
+          "network": "ukai.jail.network/1",
+          "policy": "ukai.jail.policy/1",
+          "policy_file": "ukai.jail.policy-file/1",
+          "policy_snapshot": "ukai.jail.policy-snapshot/1",
+          "receipt": "ukai.jail.receipt/1",
+          "summary": "ukai.jail.summary/1"
+        },
+        "version": "0.1.0"
+      },
+      "release": "0.1.0-rc.7",
+      "binary_sha256": "c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f",
+      "archive": "ukai-jail-0.1.0-rc.7-aarch64-unknown-linux-gnu.tar.gz",
+      "archive_sha256": "15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6",
+      "provenance": "version queried by executing this binary on its native host"
+    }
+  ],
+  "support": {
+    "x86_64": "Linux x86_64 binary and installer target; native installation alone does not establish runtime host qualification. Attach validation for the matching candidate revision and build-input digest, then complete operator review for each claimed host.",
+    "aarch64": "Linux aarch64 binary and installer target; native installation alone does not establish runtime host qualification. Attach validation for the matching candidate revision and build-input digest, then complete operator review for each claimed host."
+  },
+  "native_records_are_attestations": "Native version execution establishes artifact provenance, not installation or runtime host qualification. Review the native builder and attached matching validation evidence before signing or publishing."
+}

@@ -1,0 +1,621 @@
+{
+  "schema": "ukai.task.current-input-k11-k27-independent-review/1",
+  "outcome": "PASS",
+  "observed_at": "2026-11-16T06:22:57.998920+00:00",
+  "checks": {
+    "exact_approved_plan": true,
+    "retained:control/child.json": true,
+    "retained:control/coordinator.json": true,
+    "retained:control/harness.stderr": true,
+    "retained:control/harness.stdout": true,
+    "retained:control/launch.json": true,
+    "retained:control/lock": true,
+    "retained:control/result.json": true,
+    "retained:control/stage.json": true,
+    "retained:evidence/artifacts/SHA256SUMS": true,
+    "retained:evidence/artifacts/SHA256SUMS.minisig": true,
+    "retained:evidence/bootstrap.log": true,
+    "retained:evidence/bootstrap_evidence.stderr": true,
+    "retained:evidence/console.log": true,
+    "retained:evidence/guest/corrupt-archive.stderr": true,
+    "retained:evidence/guest/corrupt-archive.stdout": true,
+    "retained:evidence/guest/corrupt-signature.stderr": true,
+    "retained:evidence/guest/corrupt-signature.stdout": true,
+    "retained:evidence/guest/credential-set.stderr": true,
+    "retained:evidence/guest/credential-set.stdout": true,
+    "retained:evidence/guest/doctor-aider.stderr": true,
+    "retained:evidence/guest/doctor-aider.stdout": true,
+    "retained:evidence/guest/doctor-amp.stderr": true,
+    "retained:evidence/guest/doctor-amp.stdout": true,
+    "retained:evidence/guest/doctor-auggie.stderr": true,
+    "retained:evidence/guest/doctor-auggie.stdout": true,
+    "retained:evidence/guest/doctor-claude.stderr": true,
+    "retained:evidence/guest/doctor-claude.stdout": true,
+    "retained:evidence/guest/doctor-cline.stderr": true,
+    "retained:evidence/guest/doctor-cline.stdout": true,
+    "retained:evidence/guest/doctor-codex.stderr": true,
+    "retained:evidence/guest/doctor-codex.stdout": true,
+    "retained:evidence/guest/doctor-copilot.stderr": true,
+    "retained:evidence/guest/doctor-copilot.stdout": true,
+    "retained:evidence/guest/doctor-cursor.stderr": true,
+    "retained:evidence/guest/doctor-cursor.stdout": true,
+    "retained:evidence/guest/doctor-droid.stderr": true,
+    "retained:evidence/guest/doctor-droid.stdout": true,
+    "retained:evidence/guest/doctor-gemini.stderr": true,
+    "retained:evidence/guest/doctor-gemini.stdout": true,
+    "retained:evidence/guest/doctor-goose.stderr": true,
+    "retained:evidence/guest/doctor-goose.stdout": true,
+    "retained:evidence/guest/doctor-kilo.stderr": true,
+    "retained:evidence/guest/doctor-kilo.stdout": true,
+    "retained:evidence/guest/doctor-opencode.stderr": true,
+    "retained:evidence/guest/doctor-opencode.stdout": true,
+    "retained:evidence/guest/doctor-pi.stderr": true,
+    "retained:evidence/guest/doctor-pi.stdout": true,
+    "retained:evidence/guest/git-init.stderr": true,
+    "retained:evidence/guest/git-init.stdout": true,
+    "retained:evidence/guest/greeting.txt": true,
+    "retained:evidence/guest/host.stderr": true,
+    "retained:evidence/guest/host.stdout": true,
+    "retained:evidence/guest/install.stderr": true,
+    "retained:evidence/guest/install.stdout": true,
+    "retained:evidence/guest/opencode-attempts/att_0ee0a67d-0ca8-465d-8508-da2f1364c254/jail.json": true,
+    "retained:evidence/guest/opencode-attempts/att_0ee0a67d-0ca8-465d-8508-da2f1364c254/policy.json": true,
+    "retained:evidence/guest/opencode-attempts/att_0ee0a67d-0ca8-465d-8508-da2f1364c254/trace.ndjson": true,
+    "retained:evidence/guest/opencode-download.stderr": true,
+    "retained:evidence/guest/opencode-download.stdout": true,
+    "retained:evidence/guest/opencode-jail.json": true,
+    "retained:evidence/guest/opencode-learn-attempts/att_6859c9f5-3ff1-43a3-bd02-127e33fc6196/jail.json": true,
+    "retained:evidence/guest/opencode-learn-attempts/att_6859c9f5-3ff1-43a3-bd02-127e33fc6196/policy.json": true,
+    "retained:evidence/guest/opencode-learn-attempts/att_6859c9f5-3ff1-43a3-bd02-127e33fc6196/trace.ndjson": true,
+    "retained:evidence/guest/opencode-learn-jail.json": true,
+    "retained:evidence/guest/opencode-learn-policy.json": true,
+    "retained:evidence/guest/opencode-learn-trace.ndjson": true,
+    "retained:evidence/guest/opencode-learn.stderr": true,
+    "retained:evidence/guest/opencode-learn.stdout": true,
+    "retained:evidence/guest/opencode-learned.toml": true,
+    "retained:evidence/guest/opencode-policy.json": true,
+    "retained:evidence/guest/opencode-trace.ndjson": true,
+    "retained:evidence/guest/opencode-version.stderr": true,
+    "retained:evidence/guest/opencode-version.stdout": true,
+    "retained:evidence/guest/opencode.stderr": true,
+    "retained:evidence/guest/opencode.stdout": true,
+    "retained:evidence/guest/result.json": true,
+    "retained:evidence/guest/ripgrep-version.stderr": true,
+    "retained:evidence/guest/ripgrep-version.stdout": true,
+    "retained:evidence/guest/true-attempts/att_32595127-99cc-4532-8b98-ba7d8b657a39/jail.json": true,
+    "retained:evidence/guest/true-attempts/att_32595127-99cc-4532-8b98-ba7d8b657a39/policy.json": true,
+    "retained:evidence/guest/true-attempts/att_32595127-99cc-4532-8b98-ba7d8b657a39/trace.ndjson": true,
+    "retained:evidence/guest/true-jail.json": true,
+    "retained:evidence/guest/true-policy.json": true,
+    "retained:evidence/guest/true-trace.ndjson": true,
+    "retained:evidence/guest/true.stderr": true,
+    "retained:evidence/guest/true.stdout": true,
+    "retained:evidence/guest/upgrade.stderr": true,
+    "retained:evidence/guest/upgrade.stdout": true,
+    "retained:evidence/guest/version.stderr": true,
+    "retained:evidence/guest/version.stdout": true,
+    "retained:evidence/guest/virtualization.stderr": true,
+    "retained:evidence/guest/virtualization.stdout": true,
+    "retained:evidence/guest_evidence.stderr": true,
+    "retained:evidence/qemu.stderr": true,
+    "retained:evidence/seed/meta-data": true,
+    "retained:evidence/seed/network-config": true,
+    "retained:evidence/seed/user-data": true,
+    "retained:evidence/setup.log": true,
+    "retained:evidence/vm.json": true,
+    "retained:evidence/workflow.log": true,
+    "inventory_exact_actual_names": true,
+    "owning_verifier_exact": true,
+    "both_owning_checks_pass": true,
+    "onboarding:logs_bound": true,
+    "onboarding:exact_inputs_and_directory": true,
+    "learning:logs_bound": true,
+    "learning:exact_inputs_and_directory": true,
+    "source:Cargo.lock": true,
+    "source:Cargo.toml": true,
+    "source:LICENSE": true,
+    "source:crates/ukai-jail/Cargo.toml": true,
+    "source:crates/ukai-jail/data/uts46_unicode17_tables.rs": true,
+    "source:crates/ukai-jail/dist/THIRD_PARTY_NOTICES.txt": true,
+    "source:crates/ukai-jail/dist/UNICODE_LICENSE": true,
+    "source:crates/ukai-jail/dist/WEBPKI_ROOTS_LICENSE": true,
+    "source:crates/ukai-jail/dist/coordinates.py": true,
+    "source:crates/ukai-jail/dist/install.sh": true,
+    "source:crates/ukai-jail/dist/notices.py": true,
+    "source:crates/ukai-jail/dist/package.py": true,
+    "source:crates/ukai-jail/dist/release.json": true,
+    "source:crates/ukai-jail/dist/third-party-notices.json": true,
+    "source:crates/ukai-records/Cargo.toml": true,
+    "source:docs/benchmarks/jail/onboarding_guest.py": true,
+    "source:docs/benchmarks/jail/onboarding_vm.py": true,
+    "source:install.sh": true,
+    "source:rust-toolchain.toml": true,
+    "closure:coordinator.py": true,
+    "closure:local.py": true,
+    "closure:source.tar": true,
+    "local_and_remote_plan": true,
+    "exact_remote_result": true,
+    "outer_local_remote_success": true,
+    "bounded_outer": true,
+    "no_outer_failure_or_retry": true,
+    "process_cleanup": true,
+    "local_ssh_and_outer_groups_clean": true,
+    "primary_unchanged_historical": true,
+    "stage_removed_and_inputs_preserved": true,
+    "vm_result_bound": true,
+    "vm_cleanup": true,
+    "raw_scan:local": true,
+    "raw_scan:control": true,
+    "raw_scan:evidence": true,
+    "raw_scan:owning_vm": true,
+    "retention_binding": true,
+    "remote_generations_stable": true,
+    "remote_retained:control/child.json": true,
+    "remote_retained:control/coordinator.json": true,
+    "remote_retained:control/harness.stderr": true,
+    "remote_retained:control/harness.stdout": true,
+    "remote_retained:control/launch.json": true,
+    "remote_retained:control/lock": true,
+    "remote_retained:control/result.json": true,
+    "remote_retained:control/stage.json": true,
+    "remote_retained:evidence/artifacts/SHA256SUMS": true,
+    "remote_retained:evidence/artifacts/SHA256SUMS.minisig": true,
+    "remote_retained:evidence/bootstrap.log": true,
+    "remote_retained:evidence/bootstrap_evidence.stderr": true,
+    "remote_retained:evidence/console.log": true,
+    "remote_retained:evidence/guest/corrupt-archive.stderr": true,
+    "remote_retained:evidence/guest/corrupt-archive.stdout": true,
+    "remote_retained:evidence/guest/corrupt-signature.stderr": true,
+    "remote_retained:evidence/guest/corrupt-signature.stdout": true,
+    "remote_retained:evidence/guest/credential-set.stderr": true,
+    "remote_retained:evidence/guest/credential-set.stdout": true,
+    "remote_retained:evidence/guest/doctor-aider.stderr": true,
+    "remote_retained:evidence/guest/doctor-aider.stdout": true,
+    "remote_retained:evidence/guest/doctor-amp.stderr": true,
+    "remote_retained:evidence/guest/doctor-amp.stdout": true,
+    "remote_retained:evidence/guest/doctor-auggie.stderr": true,
+    "remote_retained:evidence/guest/doctor-auggie.stdout": true,
+    "remote_retained:evidence/guest/doctor-claude.stderr": true,
+    "remote_retained:evidence/guest/doctor-claude.stdout": true,
+    "remote_retained:evidence/guest/doctor-cline.stderr": true,
+    "remote_retained:evidence/guest/doctor-cline.stdout": true,
+    "remote_retained:evidence/guest/doctor-codex.stderr": true,
+    "remote_retained:evidence/guest/doctor-codex.stdout": true,
+    "remote_retained:evidence/guest/doctor-copilot.stderr": true,
+    "remote_retained:evidence/guest/doctor-copilot.stdout": true,
+    "remote_retained:evidence/guest/doctor-cursor.stderr": true,
+    "remote_retained:evidence/guest/doctor-cursor.stdout": true,
+    "remote_retained:evidence/guest/doctor-droid.stderr": true,
+    "remote_retained:evidence/guest/doctor-droid.stdout": true,
+    "remote_retained:evidence/guest/doctor-gemini.stderr": true,
+    "remote_retained:evidence/guest/doctor-gemini.stdout": true,
+    "remote_retained:evidence/guest/doctor-goose.stderr": true,
+    "remote_retained:evidence/guest/doctor-goose.stdout": true,
+    "remote_retained:evidence/guest/doctor-kilo.stderr": true,
+    "remote_retained:evidence/guest/doctor-kilo.stdout": true,
+    "remote_retained:evidence/guest/doctor-opencode.stderr": true,
+    "remote_retained:evidence/guest/doctor-opencode.stdout": true,
+    "remote_retained:evidence/guest/doctor-pi.stderr": true,
+    "remote_retained:evidence/guest/doctor-pi.stdout": true,
+    "remote_retained:evidence/guest/git-init.stderr": true,
+    "remote_retained:evidence/guest/git-init.stdout": true,
+    "remote_retained:evidence/guest/greeting.txt": true,
+    "remote_retained:evidence/guest/host.stderr": true,
+    "remote_retained:evidence/guest/host.stdout": true,
+    "remote_retained:evidence/guest/install.stderr": true,
+    "remote_retained:evidence/guest/install.stdout": true,
+    "remote_retained:evidence/guest/opencode-attempts/att_0ee0a67d-0ca8-465d-8508-da2f1364c254/jail.json": true,
+    "remote_retained:evidence/guest/opencode-attempts/att_0ee0a67d-0ca8-465d-8508-da2f1364c254/policy.json": true,
+    "remote_retained:evidence/guest/opencode-attempts/att_0ee0a67d-0ca8-465d-8508-da2f1364c254/trace.ndjson": true,
+    "remote_retained:evidence/guest/opencode-download.stderr": true,
+    "remote_retained:evidence/guest/opencode-download.stdout": true,
+    "remote_retained:evidence/guest/opencode-jail.json": true,
+    "remote_retained:evidence/guest/opencode-learn-attempts/att_6859c9f5-3ff1-43a3-bd02-127e33fc6196/jail.json": true,
+    "remote_retained:evidence/guest/opencode-learn-attempts/att_6859c9f5-3ff1-43a3-bd02-127e33fc6196/policy.json": true,
+    "remote_retained:evidence/guest/opencode-learn-attempts/att_6859c9f5-3ff1-43a3-bd02-127e33fc6196/trace.ndjson": true,
+    "remote_retained:evidence/guest/opencode-learn-jail.json": true,
+    "remote_retained:evidence/guest/opencode-learn-policy.json": true,
+    "remote_retained:evidence/guest/opencode-learn-trace.ndjson": true,
+    "remote_retained:evidence/guest/opencode-learn.stderr": true,
+    "remote_retained:evidence/guest/opencode-learn.stdout": true,
+    "remote_retained:evidence/guest/opencode-learned.toml": true,
+    "remote_retained:evidence/guest/opencode-policy.json": true,
+    "remote_retained:evidence/guest/opencode-trace.ndjson": true,
+    "remote_retained:evidence/guest/opencode-version.stderr": true,
+    "remote_retained:evidence/guest/opencode-version.stdout": true,
+    "remote_retained:evidence/guest/opencode.stderr": true,
+    "remote_retained:evidence/guest/opencode.stdout": true,
+    "remote_retained:evidence/guest/result.json": true,
+    "remote_retained:evidence/guest/ripgrep-version.stderr": true,
+    "remote_retained:evidence/guest/ripgrep-version.stdout": true,
+    "remote_retained:evidence/guest/true-attempts/att_32595127-99cc-4532-8b98-ba7d8b657a39/jail.json": true,
+    "remote_retained:evidence/guest/true-attempts/att_32595127-99cc-4532-8b98-ba7d8b657a39/policy.json": true,
+    "remote_retained:evidence/guest/true-attempts/att_32595127-99cc-4532-8b98-ba7d8b657a39/trace.ndjson": true,
+    "remote_retained:evidence/guest/true-jail.json": true,
+    "remote_retained:evidence/guest/true-policy.json": true,
+    "remote_retained:evidence/guest/true-trace.ndjson": true,
+    "remote_retained:evidence/guest/true.stderr": true,
+    "remote_retained:evidence/guest/true.stdout": true,
+    "remote_retained:evidence/guest/upgrade.stderr": true,
+    "remote_retained:evidence/guest/upgrade.stdout": true,
+    "remote_retained:evidence/guest/version.stderr": true,
+    "remote_retained:evidence/guest/version.stdout": true,
+    "remote_retained:evidence/guest/virtualization.stderr": true,
+    "remote_retained:evidence/guest/virtualization.stdout": true,
+    "remote_retained:evidence/guest_evidence.stderr": true,
+    "remote_retained:evidence/qemu.stderr": true,
+    "remote_retained:evidence/seed/meta-data": true,
+    "remote_retained:evidence/seed/network-config": true,
+    "remote_retained:evidence/seed/user-data": true,
+    "remote_retained:evidence/setup.log": true,
+    "remote_retained:evidence/vm.json": true,
+    "remote_retained:evidence/workflow.log": true,
+    "post_retention_cleanup": true,
+    "exact_f_binary_and_input": true,
+    "clean_release_build": true,
+    "exact_base_and_model": true,
+    "ephemeral_unpublished": true,
+    "max_two_cli": true,
+    "unique_command_rows": true,
+    "exact_two_vendor_rows": true,
+    "true:single_exact_attempt": true,
+    "true:retained_jail.json": true,
+    "true:retained_trace.ndjson": true,
+    "true:retained_policy.json": true,
+    "true:settled": true,
+    "opencode:single_exact_attempt": true,
+    "opencode:retained_jail.json": true,
+    "opencode:retained_trace.ndjson": true,
+    "opencode:retained_policy.json": true,
+    "opencode:settled": true,
+    "opencode:six_active_gap_free": true,
+    "opencode-learn:single_exact_attempt": true,
+    "opencode-learn:retained_jail.json": true,
+    "opencode-learn:retained_trace.ndjson": true,
+    "opencode-learn:retained_policy.json": true,
+    "opencode-learn:settled": true,
+    "opencode-learn:six_active_gap_free": true,
+    "actual_learning_subset_retained": true,
+    "no_unresolved_read_promotion": true
+  },
+  "check_count": 274,
+  "source": {
+    "harness_revision": "dce53219bb8cb0ecf89047dd9820404da9a51c26",
+    "binary_revision": "f745bfbfc5bfe4945cf5fc7c5d88e497db9e6768",
+    "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+    "binary_sha256": "348e4c2b9ade7d0d5109a9c78c275be322da76524ba70763f9a7945c153c295a",
+    "plan_sha256": "847b8256fa01135e4af8501b52c62cf4c5746a09093504b0a00d67aadecbad01",
+    "source_files": 19,
+    "verifier_sha256": "1e6ae72d295d3897eb90bb2b73e3750e96851ffb2eaf557ffe4ed8fccfcddb3c"
+  },
+  "owning_verifiers": [
+    {
+      "check": "onboarding",
+      "argv": [
+        "python3",
+        "-B",
+        "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/reference-onboarding-independent-GF/verify_preview_evidence.py",
+        "--directory",
+        "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/reference-onboarding-plan-G/coordinator/retained/evidence",
+        "--inputs",
+        "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+        "--check",
+        "onboarding"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "fb98b8a2df97015999d4791912f80d9576b809c88888c3e0a818efd488969d3e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "timeout_seconds": 30
+    },
+    {
+      "check": "learning",
+      "argv": [
+        "python3",
+        "-B",
+        "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/reference-onboarding-independent-GF/verify_preview_evidence.py",
+        "--directory",
+        "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/reference-onboarding-plan-G/coordinator/retained/evidence",
+        "--inputs",
+        "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+        "--check",
+        "learning"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "9cd404bba9202a4323e78a38cbee49374d4c2d8028ad33c10e31f6a9d3d0e2b5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "timeout_seconds": 30
+    }
+  ],
+  "inventory": {
+    "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/reference-onboarding-independent-GF/artifact-inventory.json",
+    "sha256": "b021ab7652d5a3ab575bd3e2e2b1af17eb7168bd46b59837417b307fb120d352",
+    "files": 100,
+    "bytes": 3279407,
+    "evidence_files": 92,
+    "control_files": 8
+  },
+  "run": {
+    "single_outer_invocation": true,
+    "retries": false,
+    "maximum_vendor_cli_invocations": 2,
+    "actual_vendor_cli_rows": 2,
+    "hard_token_dollar_or_provider_request_cap": false,
+    "outer_seconds": 773.3236403749324,
+    "bootstrap_seconds": 460.8464334215969,
+    "workflow_seconds": 152.03164380399994,
+    "workflow_timer_scope": "signed install through first sandboxed OpenCode result; includes agent download, excludes VM/dependency bootstrap",
+    "vendor_seconds": {
+      "opencode": 117.08221639500005,
+      "opencode-learn": 97.80991869600007
+    }
+  },
+  "receipts": {
+    "true": {
+      "attempt_id": "att_32595127-99cc-4532-8b98-ba7d8b657a39",
+      "sha256": "aeefa36f651ea3210256cd2b9fa30d125fcaddea0a24d3da41da858db950903b",
+      "journal_sha256": "e30f5676b5af7dec46727157887ceeb4cad0f7a7483ec66f1b6917e2b3a65220",
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      },
+      "coverage": {
+        "exec": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 2,
+          "gaps": []
+        },
+        "fs.write": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "fs.deny": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "net": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "limits": {
+          "status": "active",
+          "sources": [
+            "wrapper"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "proxy.net": {
+          "status": "unsupported",
+          "sources": [],
+          "observed_count": null,
+          "gaps": []
+        }
+      }
+    },
+    "opencode": {
+      "attempt_id": "att_0ee0a67d-0ca8-465d-8508-da2f1364c254",
+      "sha256": "e915cfa118afb82828f993204328903f5bb15c9730fc51c8e77b3cd92a80bdd0",
+      "journal_sha256": "944b9b58d1ef69769d3d46a7c4822ff0dfa8b4616eb582a9ea08029b36740203",
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      },
+      "coverage": {
+        "exec": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 277,
+          "gaps": []
+        },
+        "fs.write": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 410,
+          "gaps": []
+        },
+        "fs.deny": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "net": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 14,
+          "gaps": []
+        },
+        "limits": {
+          "status": "active",
+          "sources": [
+            "wrapper"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "proxy.net": {
+          "status": "active",
+          "sources": [
+            "proxy"
+          ],
+          "observed_count": 10,
+          "gaps": []
+        }
+      }
+    },
+    "opencode-learn": {
+      "attempt_id": "att_6859c9f5-3ff1-43a3-bd02-127e33fc6196",
+      "sha256": "af893954dfe818124ee74ea8c23e1d3c2beb98728495ee5514cc8c4cf3e2ef05",
+      "journal_sha256": "c995ebbdd67b7c7f100bf50f14f8ef09c6a0ec7aa18a2da161acab043ea6fd68",
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      },
+      "coverage": {
+        "exec": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 139,
+          "gaps": []
+        },
+        "fs.write": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 247,
+          "gaps": []
+        },
+        "fs.deny": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "net": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 7,
+          "gaps": []
+        },
+        "limits": {
+          "status": "active",
+          "sources": [
+            "wrapper"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "proxy.net": {
+          "status": "active",
+          "sources": [
+            "proxy"
+          ],
+          "observed_count": 5,
+          "gaps": []
+        }
+      }
+    }
+  },
+  "learning": {
+    "read_only": [
+      "/etc/nsswitch.conf"
+    ],
+    "network_allow": [],
+    "unresolved_reads": [
+      "/$bunfs/locales/en_US.json",
+      "/$bunfs/npmrc",
+      "/$bunfs/root/src/index.js",
+      "/etc/gitattributes",
+      "/home/ubuntu/.opencode/etc/npmrc",
+      "/sys/devices/system/cpu/online",
+      "/sys/fs/cgroup//cpu.max",
+      "/sys/fs/cgroup//memory.high",
+      "/sys/fs/cgroup//memory.max",
+      "/sys/fs/cgroup/cpu.max",
+      "/sys/fs/cgroup/memory.high",
+      "/sys/fs/cgroup/memory.max",
+      "/sys/kernel/mm/transparent_hugepage/enabled",
+      "/usr/share/coreutils/locales/cat/en-US.ftl",
+      "/usr/share/git-core/templates/config"
+    ],
+    "intended_fixture": "/home/ubuntu/learning-needed.txt",
+    "intended_fixture_proposed": false,
+    "parent_not_granted": true,
+    "supported_subset_only": true,
+    "does_not_establish_all_program_needs_or_blanket_path_coverage": true
+  },
+  "custody": {
+    "historical_scans": {
+      "local": {
+        "complete": true,
+        "files_scanned": 6,
+        "bytes_scanned": 38221,
+        "files_with_key": []
+      },
+      "control": {
+        "complete": true,
+        "files_scanned": 7,
+        "bytes_scanned": 843,
+        "files_with_key": []
+      },
+      "evidence": {
+        "complete": true,
+        "files_scanned": 92,
+        "bytes_scanned": 3241695,
+        "files_with_key": []
+      },
+      "owning_vm": {
+        "complete": true,
+        "files_scanned": 92,
+        "bytes_scanned": 3241330,
+        "files_with_key": []
+      }
+    },
+    "independent_secret_rescan": false,
+    "primary_source_stat_or_read_by_review": false,
+    "scope": "Owning scans used held original raw bytes. No encoded-secret, swap, guest-memory, or universal absence claim. Counts are recorded scan-time scopes; final summary records are written after scans.",
+    "primary_generation_preserved": true,
+    "stage_removed": true,
+    "unit_absent": true,
+    "vm_destroyed": true,
+    "temporary_removed": true,
+    "post_retention_scratch_empty": true
+  },
+  "record_recommendation": {
+    "status": "Suitable for a new rc.7 current-input K11/K27 evidence record with exact inventory and source/binary distinctions.",
+    "preserve_learning_limitation": "Intended fixture was not proposed. Actual learned supported subset is only /etc/nsswitch.conf, no network grants;15 unresolved reads remain ungranted.",
+    "signature_scope": "Ephemeral test signing identity and unpublished candidate. Retained checksums/signature and actual install/upgrade/tamper outcomes; no production release/signing claim.",
+    "no_new_qualification": "Does not qualify unrelated agents, OAuth, general reliability, current ARM guest base or production readiness."
+  },
+  "evidence_pins": {
+    "plan-ready.json": "847b8256fa01135e4af8501b52c62cf4c5746a09093504b0a00d67aadecbad01",
+    "provider-launch.json": "9fd70abb2a11cc3db0537534e01f533af4b76bc33b0489fa234ee3327b43f0f5",
+    "execution/result.json": "c4817351f3064dbc0efc3085f23c06a6272ed07fff5134e57b28c799f4622001",
+    "retained/control/result.json": "156b491a4af259ea04b2e2c6f0d9448224f62d20708277fbc11bb9e5ef4ba711",
+    "retained/evidence/vm.json": "c97ee0b6c50dc63f95410a51ce0ad4e8a56c797acbfeb5b5ecfa109bfa6c26f7",
+    "retained/evidence/guest/result.json": "e27bb7765ab5dccbd792145945b6aa2601efa367365cfc3045dfb07b041f526d",
+    "retention-execution/summary.json": "3a2d58332e16a1e7125bec3e7d8c0110774dab24222a2820ce9551e310b6e545",
+    "retention-execution/before.stdout": "d9d98153f4a1aa387c6c78016a05da137a20fce26370a706dc581fad973a1141",
+    "retention-execution/after.stdout": "7c6c2f7557e4dfcb5ecad5dc49edf8bd509f83dab5efa5dabcfb25dc27f005ab"
+  },
+  "review_source_sha256": "f960b32192004b44d9e78a353893d3a99b8c22df6d72838902e7ae7c05477121"
+}

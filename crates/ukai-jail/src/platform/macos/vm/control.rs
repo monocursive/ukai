@@ -254,6 +254,7 @@ pub struct AttemptConnection {
 
 /// What one bounded read established.
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)] // One bounded decoded frame, never a queued array.
 pub enum Within {
     /// One complete frame.
     Frame(FromVm),
@@ -500,6 +501,7 @@ mod tests {
             let frame = decode::<ToVm>(&buffer).expect("the host spoke the protocol");
             assert_eq!(frame, ToVm::Run);
             let ready = FromVm::Ready {
+                guest_program_catalog_sha256: None,
                 schema: protocol::SCHEMA_ATTEMPT.to_owned(),
                 boot_id: "boot-1".to_owned(),
                 disk_sha256: "d".repeat(64),
@@ -508,6 +510,8 @@ mod tests {
                 seed_sha256: "s".repeat(64),
                 vsock_port: 1024,
                 guest_contracts: Some(protocol::GuestContracts {
+                    sampled_exposure: None,
+                    native_program: None,
                     secret_revocation: Some(protocol::SECRET_REVOCATION_CONTRACT.into()),
                     journal_export: Some(protocol::JOURNAL_EXPORT_CONTRACT.into()),
                 }),

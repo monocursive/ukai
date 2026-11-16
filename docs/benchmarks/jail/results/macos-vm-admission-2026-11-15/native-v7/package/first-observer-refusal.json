@@ -1,0 +1,214 @@
+{
+  "source_revision": "44b5ac4fa65880abe369652ed0110162088a0cd9",
+  "scope": "Source-Q package proof only: actual read-only DMG, source976, public POSIX modes and duplicate-stage equality. No installation, stage deletion, managed image admission, runtime qualification, provider or VM action.",
+  "facts": {
+    "clean_exact_source_before": true,
+    "settled_package_metadata_pin": true,
+    "package_source_and_scope": true,
+    "upstream_wrapper_result_pinned": true,
+    "owning_package_completed_PASS": true,
+    "dmg_hash": true,
+    "no_preexisting_exact_dmg_attachment": true,
+    "image_metadata_exact": true,
+    "all_manifest_files_exact": true,
+    "exact_payload_inventory": true,
+    "manifest_and_installer_hashes": true,
+    "six_signatures": true,
+    "payload_component_identities": true,
+    "payload_public_distribution_modes": true,
+    "source_archive_hash": true,
+    "complete_source_bytes_and_modes": true,
+    "exact_original_prepared_manifest": true,
+    "exact_Q_disk_seed": true,
+    "all_guest_source_pins_match_host_revision": true,
+    "native_catalog_exact": true,
+    "same_prepared_guest_and_detector": true,
+    "actual_client_provenance": true,
+    "actual_service_version": true,
+    "current_host_notices": true,
+    "portable_tail_compile_fixture_in_archive": true,
+    "root_installer_and_network_fixture_in_archive": true,
+    "managed_gate_source_fixture_in_archive": true,
+    "new_stage_exact_signed_dmg_inventory": true,
+    "whole_distribution_public_modes": true,
+    "retained_copy_preview-source.tar.gz": true,
+    "retained_copy_SHA256SUMS": true,
+    "retained_copy_install.sh": true,
+    "retained_copy_READ-ME.txt": true,
+    "new_stage_preserved": true,
+    "prepared_image_and_package_records_preserved": false,
+    "owned_dmg_detached": true
+  },
+  "signatures": [
+    {
+      "name": "ukai-vm-0.1.0-preview.2-macos-arm64.dmg",
+      "sha256": "437a548580ed1ad8f9e38b27c3d4be726ff01594ab40c40ec39e14286979e953",
+      "valid": true
+    },
+    {
+      "name": "payload/bin/ukai-jail",
+      "sha256": "9414dc35706651768b369fbec58cee320b95bdec0f6ef01cc0c649327d439fe7",
+      "valid": true
+    },
+    {
+      "name": "payload/bin/ukai-vm",
+      "sha256": "4f0466084311b9e886c6a7dc80a3973d7f144d4e88367729999ef6f022dfbd31",
+      "valid": true
+    },
+    {
+      "name": "payload/bin/ukai-vm-install",
+      "sha256": "7b12dc9bc7904b1d8cbdaf3d31d029e1cde18a97ea87b1f4db28aedd17d0c066",
+      "valid": true
+    },
+    {
+      "name": "payload/image/vz",
+      "sha256": "9b0a5b8fc8e972b92b44c6c244aa87f5c1d3a799c8f360c1972474b4b167f882",
+      "valid": true
+    },
+    {
+      "name": "payload/image/custodian",
+      "sha256": "d4140527cbde5fbce84c7e48c67093e35d8400b0d9fc9c23f0f3825dc475d4ce",
+      "valid": true
+    }
+  ],
+  "upstream_wrapper_result": {
+    "automatic_retry": false,
+    "capacity_actual": {
+      "D": 993669120,
+      "G": 831488,
+      "S": 983330816,
+      "Y": 14311424
+    },
+    "cargo_allocated_before": 580411392,
+    "cleanup_errors": [],
+    "dmg_sha256": "437a548580ed1ad8f9e38b27c3d4be726ff01594ab40c40ec39e14286979e953",
+    "elapsed_seconds": 70.40375075000338,
+    "free_after": 16269062144,
+    "historical_diagnostic_replay_count": 0,
+    "image_preserved": true,
+    "new_strip_or_dyld_warning": false,
+    "outcome": "PASS",
+    "package_json_sha256": "05b2ff289ceaa8f73baa51329c996160e330e9710e1d09f004af78c6de4c4e1e",
+    "plan_sha256": "edd0a370fe90f38a1db486fc916b8a95de78b793b48a43dd85631507f6733193",
+    "preflight": {
+      "active": [],
+      "free_bytes": 18272399360,
+      "memory_free_inactive_speculative_bytes": 19591528448,
+      "memory_scope": "reclaimable estimate, excludes active/wired/compressed/swap"
+    },
+    "prior_binaries_preserved": true,
+    "private_toolchain_preserved": true,
+    "public_stage_modes": {
+      ".": 493,
+      "READ-ME.txt": 420,
+      "SHA256SUMS": 420,
+      "install.sh": 493,
+      "payload": 493,
+      "payload/bin": 493,
+      "payload/bin/ukai-jail": 493,
+      "payload/bin/ukai-vm": 493,
+      "payload/bin/ukai-vm-install": 493,
+      "payload/image": 493,
+      "payload/image/base.raw.gz": 420,
+      "payload/image/custodian": 493,
+      "payload/image/guest-program-catalog.json": 420,
+      "payload/image/image.json": 420,
+      "payload/image/seed.iso": 420,
+      "payload/image/vz": 493,
+      "payload/licenses": 493,
+      "payload/licenses/Linux-Jail-LICENSES.txt": 420,
+      "payload/licenses/Native-Host-LICENSES.txt": 420,
+      "payload/licenses/Python-LICENSE.txt": 420,
+      "payload/licenses/Ukai-LICENSE.txt": 420,
+      "payload/licenses/pyinstaller-COPYING.txt": 420,
+      "preview-source.tar.gz": 420
+    },
+    "runner_sha256": "12fb40164117a8acb6d14925e32e431bdb32ddd2f336b9ca07f827fb6256b441",
+    "schema": "ukai.Q-normalized-package-execution/1",
+    "scope": {
+      "installer_execution": false,
+      "native_admission": false,
+      "normalized_distribution_package_only": true,
+      "notarization": false,
+      "oauth": false,
+      "old_evidence_reclassified": false,
+      "post_runtime_kernel_journal": "UNAVAILABLE; successful capability boot deleted by existing host normal cleanup.",
+      "provider": false,
+      "publication": false
+    },
+    "source_archive_sha256": "d372af085a81aebc910c4c742130cff3a19aa3aeaaf53314d90578cb70a41500",
+    "source_preserved": true
+  },
+  "upstream_wrapper_result_scope": "Exact Q owning result retained. Historical P wrapper and observer FAILs remain unchanged in their original records.",
+  "mode_scope": "New owned Q stage and mounted distribution entries must have directories/executables0755 and data0644 regardless of caller umask; this does not establish ACL/Gatekeeper or foreign-UID execution qualification.",
+  "dmg_sha256": "437a548580ed1ad8f9e38b27c3d4be726ff01594ab40c40ec39e14286979e953",
+  "mounted_ownership_observation": {
+    "diskutil_fields": {
+      "GlobalPermissionsEnabled": false,
+      "FilesystemType": "apfs",
+      "FilesystemName": "APFS",
+      "MountPoint": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-Q-44b5ac4fa/attempt/mounted-dmg"
+    },
+    "statvfs_flags": 3,
+    "uid_gid_modes": {
+      ".": {
+        "uid": 501,
+        "gid": 20,
+        "mode": "0o755"
+      },
+      "payload": {
+        "uid": 501,
+        "gid": 20,
+        "mode": "0o755"
+      },
+      "payload/bin": {
+        "uid": 501,
+        "gid": 20,
+        "mode": "0o755"
+      },
+      "payload/bin/ukai-jail": {
+        "uid": 501,
+        "gid": 20,
+        "mode": "0o755"
+      },
+      "payload/bin/ukai-vm": {
+        "uid": 501,
+        "gid": 20,
+        "mode": "0o755"
+      },
+      "payload/image": {
+        "uid": 501,
+        "gid": 20,
+        "mode": "0o755"
+      },
+      "payload/image/image.json": {
+        "uid": 501,
+        "gid": 20,
+        "mode": "0o644"
+      }
+    },
+    "scope": "Actual current-user mount observation only; no foreign-UID or shared-attachment test."
+  },
+  "cross_uid_distribution_qualified": false,
+  "source_file_count": 976,
+  "client_version": {
+    "component": "ukai-jail",
+    "version": "0.1.0",
+    "build": {
+      "debug_assertions": false,
+      "dirty": false,
+      "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+      "opt_level": "3",
+      "revision": "44b5ac4fa65880abe369652ed0110162088a0cd9",
+      "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+      "target": "aarch64-apple-darwin"
+    }
+  },
+  "error": {
+    "type": "ValueError",
+    "message": "prepared_image_and_package_records_preserved"
+  },
+  "completed": false,
+  "outcome": "FAIL",
+  "reviewer_sha256": "bf716c1a2e4d878bbbfb371c05d2aadd9805a1e3484c22988de5cd7b46c803cd"
+}

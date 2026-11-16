@@ -14,6 +14,7 @@ import json
 import os
 import pathlib
 import shutil
+import stat
 import subprocess
 import tarfile
 import time
@@ -67,14 +68,44 @@ def verify_build(version, revision, inputs=None):
         raise ValueError('The artifact does not match the expected Jail source inputs.')
 
 
+def credential_identity(info):
+    return tuple(getattr(info, name) for name in
+                 ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_nlink', 'st_size',
+                  'st_mtime_ns', 'st_ctime_ns'))
+
+
+def store_credential(binary, path, env):
+    """Remove only the exact owned staging file, including command timeout."""
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+    with os.fdopen(os.open(path, flags), 'rb') as key:
+        info = os.fstat(key.fileno())
+        if (not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600
+                or info.st_uid != os.getuid()):
+            raise RuntimeError('credential staging file must be owned, regular and private')
+        expected = credential_identity(info)
+        if credential_identity(path.lstat()) != expected:
+            raise RuntimeError('credential staging file identity changed')
+        try:
+            return subprocess.run([str(binary), 'credential', 'set', 'anthropic'],
+                                  env=env, stdin=key, capture_output=True, timeout=60)
+        finally:
+            if (credential_identity(os.fstat(key.fileno())) != expected
+                    or credential_identity(path.lstat()) != expected):
+                raise RuntimeError('credential staging file changed; substituted path retained')
+            path.unlink()
+
+
 class Workflow:
     """Record each command's own attempts before evaluating its outcome."""
 
-    def __init__(self, binary, out, env, result, save):
+    def __init__(self, binary, out, env, result, save, *, vendor_attempts=2):
+        if type(vendor_attempts) is not int or vendor_attempts not in (1, 2):
+            raise ValueError('vendor_attempts must be 1 or 2')
         self.binary, self.out, self.env = binary, out, env
         self.result, self.save = result, save
         self.data = pathlib.Path(env['UKAI_DATA_DIR'])
         self.attempts = {}
+        self.vendor_attempts = vendor_attempts
 
     def attempt_dirs(self):
         root = self.data / 'attempts'
@@ -185,20 +216,28 @@ class Workflow:
         return data
 
     def vendor(self, name, argv, outputs):
-        # Preserve the same single Bad Request retry. Evidence is collected
-        # before this decision for all failures, including refusals/timeouts.
-        for attempt in range(2):
-            done = self.run(name, argv, check=False, timeout=330)
+        # The default preserves one Bad Request retry; 1 disables it. This
+        # bounds CLI launches, not the vendor's internal API requests or cost.
+        for attempt in range(self.vendor_attempts):
+            before = len(self.result['rows'])
+            try:
+                done = self.run(name, argv, check=False, timeout=330)
+            finally:
+                if len(self.result['rows']) > before:
+                    row = self.result['rows'][-1]
+                    row['vendor_attempt'] = attempt + 1
+                    row['vendor_attempt_limit'] = self.vendor_attempts
+                    self.save()
             if done.returncode == 0:
                 return done
-            row = self.result['rows'][-1]
             for path in outputs:
                 if path.is_file() and not path.is_symlink():
                     destination = f'{name}-failed-output-{path.name}'
                     shutil.copyfile(path, self.out / destination)
                     row['artifacts'].append(destination)
             self.save()
-            if attempt or b'Bad Request:' not in done.stderr or b'ukai-jail: error' in done.stderr:
+            if (attempt + 1 >= self.vendor_attempts or b'Bad Request:' not in done.stderr
+                    or b'ukai-jail: error' in done.stderr):
                 raise RuntimeError(f'{name} failed with exit {done.returncode}; see {name}.stderr')
             label = name + '-provider-failure'
             row['name'] = label
@@ -227,6 +266,8 @@ def main():
     parser.add_argument('--credential-file', type=pathlib.Path,
                         help='An Anthropic API key the runner copied in; deleted once stored.')
     parser.add_argument('--model', default='opencode/big-pickle')
+    parser.add_argument('--vendor-attempts', type=int, choices=[1, 2], default=2,
+                        help='Maximum CLI invocations per workload; not an API or billing cap.')
     args = parser.parse_args()
     os.umask(0o077)
     out = args.out.resolve()
@@ -240,6 +281,8 @@ def main():
     result = {'schema': 'ouro.jail.onboarding/1', 'status': 'blocked',
               'expected_revision': args.revision, 'rows': [],
               'expected_inputs': args.inputs,
+              'vendor_attempts': args.vendor_attempts,
+              'max_vendor_invocations': 2 * args.vendor_attempts,
               'timer_scope': 'signed install through first sandboxed OpenCode result; '
                              'includes agent download, excludes VM/dependency bootstrap',
               'publication': 'deferred', 'signing_identity': 'ephemeral test key'}
@@ -248,7 +291,7 @@ def main():
     def save():
         (out / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
 
-    workflow = Workflow(binary, out, env, result, save)
+    workflow = Workflow(binary, out, env, result, save, vendor_attempts=args.vendor_attempts)
     run, receipt, vendor = workflow.run, workflow.receipt, workflow.vendor
 
     def distribution_checks():
@@ -334,17 +377,26 @@ def main():
             # copy the runner placed here: from now on only the jail's config
             # directory holds it, and the agent sees a placeholder.
             started = time.monotonic()
-            with args.credential_file.open('rb') as key:
-                stored = subprocess.run([str(binary), 'credential', 'set', 'anthropic'],
-                                        env=env, stdin=key, capture_output=True, timeout=60)
-            args.credential_file.unlink()
+            store_error = None
+            try:
+                stored = store_credential(binary, args.credential_file, env)
+            except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+                store_error = error
+                stored = subprocess.CompletedProcess([], None,
+                         getattr(error, 'stdout', None) or b'', getattr(error, 'stderr', None) or b'')
             (out / 'credential-set.stdout').write_bytes(stored.stdout)
             (out / 'credential-set.stderr').write_bytes(stored.stderr)
             result['rows'].append({'name': 'credential-set',
                                    'argv': [str(binary), 'credential', 'set', 'anthropic'],
                                    'seconds': time.monotonic() - started,
-                                   'exit': stored.returncode})
+                                   'exit': stored.returncode,
+                                   'runner_copy_removed': not os.path.lexists(args.credential_file),
+                                   'execution_error_type': None if store_error is None else type(store_error).__name__,
+                                   'prior_error_type': None if store_error is None or store_error.__context__ is None
+                                   else type(store_error.__context__).__name__})
             save()
+            if store_error is not None:
+                raise store_error
             assert stored.returncode == 0, 'credential set refused; see credential-set.stderr'
             launch_dir = home / 'ouro-config/launch'
             launch_dir.mkdir(mode=0o700, exist_ok=True)

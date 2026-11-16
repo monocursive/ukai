@@ -1,0 +1,39 @@
+{
+  "schema": "ukai.task.lifecycle/1",
+  "time": "2026-11-15T18:42:17.443373+00:00",
+  "source_revision": "9fdf7edc89d010e2acfce31cd640b5d1bc24b321",
+  "scope": "Fresh9fdf/v4 generic components and separately scoped raw native version diagnostic; no prior evidence changed",
+  "owned_processes": [],
+  "workspace_backing_image": "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/workspaces.sparseimage",
+  "backing_image_preserved": true,
+  "detached_device": "/dev/disk4",
+  "detach_exit": 0,
+  "detach_stdout": "\"disk4\" ejected.\n",
+  "detach_stderr": "hdiutil: WARNING: 'hdiutil detach ...' is deprecated. Please use 'diskutil eject ...' instead.\n",
+  "attachment_remaining": false,
+  "source_images_and_outputs_preserved": true,
+  "phase_results": {
+    "capabilities": {
+      "exit_code": 0,
+      "error_type": null,
+      "elapsed_seconds": 77.82904429198243
+    },
+    "boundary": {
+      "exit_code": 0,
+      "error_type": null,
+      "elapsed_seconds": 0.022138333995826542
+    },
+    "vault": {
+      "exit_code": 0,
+      "error_type": null,
+      "elapsed_seconds": 54.82881674997043
+    },
+    "program": {
+      "exit_code": 0,
+      "error_type": null,
+      "elapsed_seconds": 57.652950415969826
+    }
+  },
+  "raw_native_execution": "PASS",
+  "raw_native_sampling": "incomplete; workload not observed; original diagnostic FAIL retained"
+}

@@ -28,9 +28,13 @@ import base64
 import os
 from pathlib import Path
 import stat
+import subprocess
+import sys
+import textwrap
 import threading
 import types
 import unittest
+from unittest import mock
 
 from guest_harness import GuestHarness, complete, hold, within
 
@@ -40,6 +44,102 @@ def b64(data):
 
 
 LAUNCH = '[credentials.api]\nsource = "/run/ukai-vm/credentials/api/token"\n'
+
+
+class HarnessDescriptorTests(unittest.TestCase):
+    def test_started_waits_for_scenario_initialization_in_both_gate_paths(self):
+        from guest_harness import FakeJail
+
+        for managed in (False, True):
+            with self.subTest(managed=managed):
+                jail = FakeJail.__new__(FakeJail)
+                jail.pid, jail.started, jail.children = 101, False, []
+                jail.process = types.SimpleNamespace(alive=True)
+                jail.kernel = types.SimpleNamespace(
+                    delegated='user.slice/test', relative=lambda path: 'attempt',
+                    move=lambda *args: None)
+                attempt = mock.MagicMock()
+                (attempt / 'cgroup.procs').read_text.return_value = '101'
+                jail.attempt_cgroup = lambda: attempt
+                jail.managed_gate = None
+                entered, finish = threading.Event(), threading.Event()
+                errors = []
+
+                def scenario(current):
+                    entered.set()
+                    if not finish.wait(10):
+                        raise AssertionError('scenario initialization was not released')
+                    current.children.append(types.SimpleNamespace(alive=True))
+
+                jail.scenario = scenario
+                run = jail.first_poll
+                if managed:
+                    import json
+                    reader, writer = os.pipe()
+                    jail.managed_gate = reader
+                    jail.released = jail.initialized = True
+                    jail.returncode = None
+                    jail.prepared_receipt = dict(attempt_id='test', policy=dict(digest='digest'))
+                    try:
+                        os.write(writer, json.dumps(dict(schema='ukai.jail.gate/1', action='release',
+                            attempt_id='test', policy_digest='digest')).encode() + b'\n')
+                    finally:
+                        os.close(writer)
+                    run = jail.poll
+
+                def worker():
+                    try:
+                        run()
+                    except BaseException as error:
+                        errors.append(error)
+
+                thread = threading.Thread(target=worker)
+                thread.start()
+                try:
+                    self.assertTrue(entered.wait(10), 'scenario initialization did not start')
+                    self.assertFalse(jail.started, 'started published an uninitialized scenario')
+                    self.assertEqual(jail.children, [])
+                finally:
+                    finish.set()
+                    thread.join(10)
+                    if jail.managed_gate is not None:
+                        os.close(jail.managed_gate)
+                        jail.managed_gate = None
+                self.assertFalse(thread.is_alive(), 'scenario worker was not reaped')
+                self.assertEqual(errors, [])
+                self.assertTrue(jail.started)
+                self.assertTrue(jail.children[0].alive)
+
+    def test_repeated_jail_cleanup_does_not_close_reused_writer_descriptors(self):
+        # Force descriptor reuse in a separate process so the negative control
+        # cannot close another test's socket or a live controller's descriptors.
+        script = textwrap.dedent("""
+            import os
+            from guest_harness import FakeJail
+            jail = FakeJail.__new__(FakeJail)
+            _, jail.out_write = os.pipe()
+            _, jail.err_write = os.pipe()
+            out, err = jail.out_write, jail.err_write
+            jail.close_streams()
+            reader, writer = os.pipe()
+            reader = os.dup(reader)
+            os.dup2(writer, out)
+            os.dup2(writer, err)
+            jail.close_streams()
+            os.write(out, b'a')
+            os.write(err, b'b')
+            if os.read(reader, 2) != b'ab':
+                raise AssertionError('replacement pipe was damaged')
+            try:
+                jail.write('stdout', b'must not reach replacement pipe')
+            except ValueError:
+                pass
+            else:
+                raise AssertionError('closed fake-jail output remained writable')
+        """)
+        result = subprocess.run([sys.executable, '-c', script], cwd=Path(__file__).parent,
+                                capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 class BootTests(unittest.TestCase):

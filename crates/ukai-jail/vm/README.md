@@ -200,8 +200,13 @@ client's digest and build report are recorded as `ukai_jail_sha256` and
 `source_revision` in `package.json` and `image.json`, and
 `preview-source.tar.gz` holds the workspace at that revision: the Cargo
 files, the toolchain pin, every crate, the build inputs outside
-`crates/`, and the bounded `docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/`
-text proof used by the admission table tests and offline replay. No other
+`crates/`, the root `install.sh` containing the public Linux archive pins,
+the exact portable-tail compile fixture, and the bounded
+`docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/`
+text proof used by the admission table tests and offline replay. The exported
+image builder reads those installer pins during import; archive regression
+coverage imports it from an isolated extraction without starting a build or
+using the network. No other
 top-level docs/results tree, local `evidence/`, VM disk or signing key is
 selected. This is meant to be enough to rebuild `ukai-vm`, `ukai-jail`, the VZ client, the
 custodian and the installer helper. The `fa1d3392d` baseline archive was
@@ -412,6 +417,16 @@ Apple references: [Virtualization](https://developer.apple.com/documentation/vir
 [unconditional stop](https://developer.apple.com/documentation/virtualization/vzvirtualmachine/stop(completionhandler:)).
 
 ## J18: the warm service and measured guest admission (unreleased)
+
+The opt-in [guest-native launch contract](GUEST-NATIVE.md) describes the
+catalog-installed program path. It preserves the bundled profile and actual
+Linux launcher. The [native image component proof](../../../docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v2/README.md)
+backs a separate exact image/catalog admission guard; installed native-client
+and vendor qualification remain required, and K113 is not promoted.
+`vm_summary_check.py` independently checks retained VM evidence against both
+JSON and terminal summaries, including complete guest journal bindings. Its
+PASS means the summaries match those bytes, not that the attempt or package
+has passed production qualification.
 
 The current local signed warm package includes both `ukai-vm` and the native
 macOS `ukai-jail` client. No macOS `ukai-jail` client ships in the existing

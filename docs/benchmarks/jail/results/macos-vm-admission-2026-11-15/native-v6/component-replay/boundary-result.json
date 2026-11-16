@@ -1,0 +1,8 @@
+{
+  "exit_code": 0,
+  "error_type": null,
+  "elapsed_seconds": 0.020797790959477425,
+  "automatic_retry": false,
+  "plan_sha256": "1c97fb8110577a6223c1aab18eec5029cfc19c9b965e9f59a8f0f73c78944c89",
+  "wrapper_sha256": "d094906f6ab7846365eb820d9cf738851dbeb7306b90cdaddcb1bf2dc14320ff"
+}

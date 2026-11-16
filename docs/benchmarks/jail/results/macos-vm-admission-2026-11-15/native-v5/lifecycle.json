@@ -1,0 +1,24 @@
+{
+  "schema": "ukai.gate-component-lifecycle/1",
+  "recorded_at": "2026-11-15T21:33:31.972308+00:00",
+  "plan_sha256": "7b8b421fa9e194aa571fc256165e4259f6a2c3a118e673901e5404e5f88fdd4d",
+  "source_revision": "b54086a3e31d1097954448e2bd37278f20beab7c",
+  "owned_processes": [],
+  "owned_mounts": [],
+  "workspace_detached": true,
+  "workspace_backing_preserved": true,
+  "source_clean": true,
+  "helper_pins_unchanged": true,
+  "installed_pins_unchanged": true,
+  "remaining_free_bytes": 23547863040,
+  "outcome": "PASS",
+  "native_catalog_qualified": false,
+  "vendor_qualified": false,
+  "K113_qualified": false,
+  "provider_calls": false,
+  "phase_lifecycle_sha256": {
+    "capabilities-lifecycle.json": "eeee2391c58d921277a5944d8c85991e17cd37d057c26f7643bc61d437e2692c",
+    "program-lifecycle.json": "6a282666ab79e4d2cd0452179b086b8fc4c83ee28b2ad069e5ae0c85623a5cf0",
+    "vault-lifecycle.json": "d048d709f81431581d84b96a7b13f1439c568a44cc9a216d4332957e5a7bf818"
+  }
+}

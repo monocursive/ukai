@@ -179,6 +179,167 @@ const PROBE: &[u8] = b"#!/bin/sh\npwd\n\
 if touch \"$(dirname \"$0\")/written\" 2>/dev/null; then echo wrote; else echo refused; fi\n\
 echo made > ./made\necho child-output >&2\n";
 
+/// K33: the managed native target is blocked at Prepared, and its owner
+/// authorizes independently resolved authority before releasing. Exercise
+/// the actual Linux launcher as well as the portable scripted boundary.
+#[test]
+fn managed_native_gate_blocks_exec_and_rechecks_the_held_program() {
+    use harness::gate::{ExpectedPlan, Release};
+
+    if !common::live() {
+        return;
+    }
+    let fixture = harness::fixture_path();
+    for variant in [
+        "release",
+        "wrong-digest",
+        "eof",
+        "replace-program",
+        "replace-root",
+    ] {
+        let live = Live::new();
+        live.profile("probe", "name = \"probe\"\njail = \"tool\"\n");
+        let program = live.bin.join("probe");
+        std::fs::copy(&fixture, &program).unwrap();
+        std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let marker = live.repo.join("target-ran");
+        let explained = live.output(
+            &live.repo,
+            &[
+                os("explain"),
+                os("--launch"),
+                os("probe"),
+                os("--from-path"),
+                os("--state"),
+                os("attempt"),
+                os("--workspace"),
+                live.repo.as_os_str(),
+                os("--json"),
+            ],
+        );
+        assert_eq!(explained.status.code(), Some(0), "{}", report(&explained));
+        let explained: Value = serde_json::from_slice(&explained.stdout).unwrap();
+        let policy = explained["policy"]["digest"].as_str().unwrap();
+        let argv = ukai_jail::canonical::argv_digest(&[
+            program.as_os_str().as_bytes().to_vec(),
+            b"open".to_vec(),
+            marker.as_os_str().as_bytes().to_vec(),
+            b"--create".to_vec(),
+            b"--write".to_vec(),
+        ]);
+        let mut running = harness::Jail::with_program(env!("CARGO_BIN_EXE_ukai-jail"))
+            .unwrap()
+            .args([
+                "run",
+                "--launch",
+                "probe",
+                "--from-path",
+                "--state",
+                "attempt",
+                "--workspace",
+            ])
+            .arg(&live.repo)
+            .env("PATH", &live.path)
+            .env("HOME", &live.home)
+            .env("UKAI_CONFIG_DIR", &live.config)
+            .env("UKAI_DATA_DIR", &live.data)
+            .control()
+            .gate()
+            .receipt()
+            .timeout(Duration::from_secs(30))
+            .target([
+                os("open"),
+                marker.as_os_str(),
+                os("--create"),
+                os("--write"),
+            ])
+            .spawn()
+            .unwrap();
+        let control = running.owner().await_prepared().unwrap();
+        let prepared = running.receipt_value().unwrap();
+        let id = control["attempt_id"].as_str().unwrap();
+        let expected = ExpectedPlan::complete(
+            id,
+            policy,
+            argv,
+            explained["requirements"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|requirement| requirement["name"].as_str().unwrap()),
+        );
+        running
+            .owner()
+            .authorise(&control, Some(&prepared), &expected)
+            .unwrap();
+        assert_eq!(
+            control["receipt_digest"],
+            ukai_jail::canonical::sha256_prefixed(
+                &ukai_jail::canonical::to_jcs(&prepared).unwrap()
+            )
+        );
+        assert_eq!(prepared["exec_observed"], false);
+        assert!(!marker.exists(), "{variant}: target must remain blocked");
+        if variant == "replace-program" {
+            std::fs::rename(&program, live.root.join("tools/old-probe")).unwrap();
+            std::fs::copy(&fixture, &program).unwrap();
+            std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+        } else if variant == "replace-root" {
+            std::fs::rename(&live.bin, live.root.join("tools/old-bin")).unwrap();
+            mkdir(&live.bin, 0o755);
+            std::fs::copy(&fixture, &program).unwrap();
+            std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let release = match variant {
+            "wrong-digest" => Release::WrongDigest(format!("sha256:{}", "0".repeat(64))),
+            "eof" => Release::EmptyEof,
+            _ => Release::Valid,
+        };
+        running.owner().release(&release, id, policy).unwrap();
+        let result = running.wait().unwrap();
+        result.assert_channels_complete();
+        common::assert_run_records(&result);
+        let receipt = live.receipt();
+        assert_eq!(receipt["policy"]["digest"], policy, "{variant}");
+        assert_eq!(
+            receipt["lifetime"]["tree_empty"], true,
+            "{variant}: {receipt:#}"
+        );
+        if variant == "release" {
+            assert_eq!(
+                result.status.code(),
+                Some(0),
+                "{}",
+                String::from_utf8_lossy(&result.stderr)
+            );
+            assert!(marker.exists());
+            assert_eq!(receipt["exec_observed"], true);
+        } else {
+            assert_eq!(
+                result.status.code(),
+                Some(125),
+                "{}",
+                String::from_utf8_lossy(&result.stderr)
+            );
+            assert!(!marker.exists());
+            assert_eq!(receipt["exec_observed"], false);
+            let code = match variant {
+                "wrong-digest" => "gate_invalid",
+                "eof" => "gate_closed",
+                _ => "policy_widening",
+            };
+            assert!(
+                receipt["errors"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|error| error["code"] == code),
+                "{variant}: {receipt:#}"
+            );
+        }
+    }
+}
+
 /// K35, K36: `ukai-jail probe` from `repo/src` starts the child in
 /// `repo/src`; the program's directory is bound read-only (its write fails
 /// and is journaled as `fs.deny`) and recorded as a `program_resolution`

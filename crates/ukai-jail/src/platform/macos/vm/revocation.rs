@@ -10,6 +10,37 @@ use std::time::{Duration, Instant};
 use super::{POLL_STEP, control, protocol};
 use crate::vault::lifecycle::Lease;
 
+#[derive(Clone)]
+pub(super) enum Sources {
+    Local(Lease),
+    Guest(crate::vault::transport::SourceLease),
+}
+impl Default for Sources {
+    fn default() -> Self {
+        Self::Local(Lease::default())
+    }
+}
+impl From<Lease> for Sources {
+    fn from(value: Lease) -> Self {
+        Self::Local(value)
+    }
+}
+impl Sources {
+    pub(super) fn check(&self) -> Result<(), ()> {
+        let valid = match self {
+            Self::Local(lease) => lease.check().is_ok(),
+            Self::Guest(lease) => lease.check(),
+        };
+        if valid { Ok(()) } else { Err(()) }
+    }
+    fn ids(&self) -> Vec<String> {
+        match self {
+            Self::Local(lease) => lease.ids(),
+            Self::Guest(lease) => lease.ids(),
+        }
+    }
+}
+
 const WATCHING: u8 = 0;
 const REQUESTED: u8 = 1;
 const ACKNOWLEDGED: u8 = 2;
@@ -58,7 +89,7 @@ impl Drop for FailClosed<'_> {
 impl Watch {
     pub(super) fn start(
         connection: &control::AttemptConnection,
-        lease: Lease,
+        lease: Sources,
     ) -> Result<Self, String> {
         Self::start_check(
             connection.clone_writer().map_err(|e| e.to_string())?,

@@ -542,6 +542,65 @@ mod tests {
         Ok(stream)
     }
 
+    /// Reads real EOF within one monotonic budget. On macOS a blocking
+    /// SO_RCVTIMEO read can time out even though a half-close was successfully
+    /// sent much earlier and POLLIN|POLLHUP plus read(0) are already available.
+    /// Polling a nonblocking peer avoids that missed blocking-read wakeup;
+    /// neither the payload length nor a timeout stands in for EOF.
+    fn read_to_eof_within(
+        stream: &mut UnixStream,
+        bytes: &mut Vec<u8>,
+        within: Duration,
+    ) -> io::Result<()> {
+        stream.set_nonblocking(true)?;
+        let deadline = Instant::now() + within;
+        let result = (|| {
+            let mut buffer = [0u8; BUFFER];
+            loop {
+                if Instant::now() >= deadline {
+                    return Err(io::ErrorKind::TimedOut.into());
+                }
+                match stream.read(&mut buffer) {
+                    Ok(0) => return Ok(()),
+                    Ok(count) => {
+                        bytes.extend_from_slice(&buffer[..count]);
+                        continue;
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
+                    Err(error) => return Err(error),
+                }
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                match crate::sys::poll(&[Some((stream.as_fd(), libc::POLLIN))], Some(remaining)) {
+                    Ok(events) if events[0] & libc::POLLNVAL != 0 => {
+                        return Err(io::ErrorKind::BrokenPipe.into());
+                    }
+                    Ok(_) => {}
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                    Err(error) => return Err(error),
+                }
+            }
+        })();
+        let restored = stream.set_nonblocking(false);
+        result.and(restored)
+    }
+
+    #[test]
+    fn a_complete_payload_without_half_close_still_times_out() {
+        let (mut peer, mut reader) = UnixStream::pair().unwrap();
+        let payload = b"all request bytes, but no EOF";
+        peer.write_all(payload).unwrap();
+        let mut received = Vec::new();
+        let error =
+            read_to_eof_within(&mut reader, &mut received, Duration::from_millis(30)).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+        assert_eq!(received, payload);
+        // Only an actual half-close satisfies the same reader afterward.
+        peer.shutdown(Shutdown::Write).unwrap();
+        read_to_eof_within(&mut reader, &mut received, PATIENCE).unwrap();
+        assert_eq!(received, payload);
+    }
+
     /// A bridge on an ephemeral loopback port, relaying to a Unix listener
     /// this test owns, on a thread that lives for the test process; with the
     /// count of clients it turned away.
@@ -669,7 +728,7 @@ mod tests {
             let mut stream = accept_within(&upstream, PATIENCE)
                 .map_err(|error| format!("the bridge never connected to the proxy: {error}"))?;
             let mut request = Vec::new();
-            stream.read_to_end(&mut request).map_err(|error| {
+            read_to_eof_within(&mut stream, &mut request, PATIENCE).map_err(|error| {
                 format!(
                     "the proxy got {} bytes and no half-close: {error}",
                     request.len()

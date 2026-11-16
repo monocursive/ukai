@@ -1,0 +1,81 @@
+{
+  "schema": "ukai.task.component-acceptance/1",
+  "phase": "vault",
+  "plan_sha256": "16c5bb54edaad40515c721d7cf5ce9cd44ac678e1b527f3a02f358fa2033ff2b",
+  "replayer_sha256": "5bc736c58c163785ff301110546f8f3b7b3f504648005228d6ddfd161cf0fa06",
+  "outcome": "PASS",
+  "qualified": false,
+  "native_vendor_or_k113_qualified": false,
+  "checks": {
+    "owning_process_succeeded": true,
+    "owned_group_reaped_absent": true,
+    "raw_24_facts_recomputed": true,
+    "successful_executed_clean_same_boot_sync": true,
+    "qualification_false": true,
+    "no_vm_or_compiler": true,
+    "private_tmp_holders_absent": true,
+    "capabilities_holders_absent": true,
+    "program_holders_absent": true,
+    "vault_holders_absent": true,
+    "frozen_source_clean": true,
+    "runtime_capacity_preserved": true
+  },
+  "files": {
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-export-934ad33ac/vault-outer.json": "4b0daa264270a668cfd4407834ef753ce96bea448e164d78387f690d0ef204c0",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-export-934ad33ac/vault-result.json": "f7387ac8f089df673e17140918e9ba75687e6d8a4dae049f7810caccf17c48fa",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-export-934ad33ac/raw-credential-revocation.json": "4f61991f97bbac4af38fe4d1334b6ff4fdd4ae451300e35c09c44a8552f38947",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-export-934ad33ac/raw-inputs.json": "0203c6b08098355e594903c8f4d3facfd86c7e50517df37694497330f7719797"
+  },
+  "facts": {
+    "exactly_one_upstream_substitution": true,
+    "bound_complete_guest_journal": true,
+    "allowed_stream_ended_credential_revoked": true,
+    "later_request_denied_without_substitution": true,
+    "guest_revocation_note": true,
+    "receipt_and_tail_use_count_match": true,
+    "vault_never_staged": true,
+    "child_placeholder_bound": true,
+    "strict_six_class_coverage": true,
+    "settled_clean_guest": true,
+    "all_exported_bytes_scanned": true,
+    "same_boot_disk_scanned": true,
+    "service_stopped": true,
+    "explicit_revoke_after_peer_accept_then_disconnect": true,
+    "exact_revocation_ack": true,
+    "bound_guest_component": true,
+    "guest_controller_cleanup": true,
+    "offline_guest_tail": true,
+    "image_and_service_bound": true,
+    "exact_probe_declaration_and_argv": true,
+    "offline_guest_summary_identity": true,
+    "raw_protocol_identity": true,
+    "exact_guest_staging_ack": true,
+    "guest_receipt_schema_linux": true
+  },
+  "inputs_sha256": "0203c6b08098355e594903c8f4d3facfd86c7e50517df37694497330f7719797",
+  "attempt_id": "k113-raw-832feb9fa3d67eaf",
+  "guest_attempt_id": "att_658e81c3-3ed1-4ffe-bf8f-536e62eaa8c3",
+  "holder_checks": {
+    "private_tmp": {
+      "returncode": 1,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0
+    },
+    "capabilities": {
+      "returncode": 1,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0
+    },
+    "program": {
+      "returncode": 1,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0
+    },
+    "vault": {
+      "returncode": 1,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0
+    }
+  },
+  "free_bytes": 31332044800
+}

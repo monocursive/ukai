@@ -1,0 +1,89 @@
+{
+  "schema": "ukai.source-P-independent-public-prerequisite-review/1",
+  "outcome": "PASS_RETAINED_PUBLIC_EVIDENCE_AND_BUILDER_PROPOSAL",
+  "checks": {
+    "pin:ubuntu-2610-authentication-2026-11-16/review.json": true,
+    "pin:ubuntu-2610-arm-bytes-2026-11-16/review.json": true,
+    "pin:ubuntu-2610-arm-bytes-2026-11-16/image-layout-review.json": true,
+    "pin:ubuntu-2610-dbus-selection-2026-11-16/review.json": true,
+    "pin:source-P-builder-pin-plan-J/provider-amendment.json": true,
+    "same_authenticated_image": true,
+    "image_actual_bytes": true,
+    "standalone_unencrypted": true,
+    "layout_gpt_and_preservation": true,
+    "layout_bounded": true,
+    "indexes:typed_checks": true,
+    "layout:typed_checks": true,
+    "dbus:typed_checks": true,
+    "actual_partition_set": true,
+    "arm_root_guid": true,
+    "xbootldr_guid": true,
+    "efi_guid": true,
+    "ext4_primary_flags:1": true,
+    "ext4_primary_flags:13": true,
+    "exact_six_indexes": true,
+    "inrelease_hash:stonking": true,
+    "signed_index:stonking:main": true,
+    "signed_index:stonking:universe": true,
+    "inrelease_hash:stonking-updates": true,
+    "signed_index:stonking-updates:main": true,
+    "signed_index:stonking-updates:universe": true,
+    "inrelease_hash:stonking-security": true,
+    "signed_index:stonking-security:main": true,
+    "signed_index:stonking-security:universe": true,
+    "package_text:dbus-broker/control:control": true,
+    "package_text:dbus-broker/control:postinst": true,
+    "package_text:dbus-broker/control:postrm": true,
+    "package_text:dbus-broker/control:prerm": true,
+    "package_text:dbus-broker/control:triggers": true,
+    "package_text:dbus-broker/data:usr/lib/systemd/user/dbus-broker.service": true,
+    "package_text:dbus-session-bus-common/control:control": true,
+    "package_text:dbus-user-session/control:conffiles": true,
+    "package_text:dbus-user-session/control:control": true,
+    "package_text:dbus-user-session/data:usr/lib/systemd/user/dbus.service": true,
+    "package_text:dbus-user-session/data:usr/lib/systemd/user/dbus.socket": true,
+    "package_metadata:dbus-user-session/data:usr/lib/systemd/user/sockets.target.wants": true,
+    "package_metadata:dbus-user-session/data:usr/lib/systemd/user/sockets.target.wants/dbus.socket": true,
+    "package_text:dbus-daemon/control:control": true,
+    "package_text:dbus-daemon/control:postinst": true,
+    "package_text:dbus-daemon/control:postrm": true,
+    "daemon_exact_unit": true,
+    "broker_alias": true,
+    "four_payloads_bounded": true,
+    "public_payload_scope": true
+  },
+  "check_count": 49,
+  "sources": {
+    "ubuntu-2610-authentication-2026-11-16/review.json": {
+      "sha256": "21879184fec414614f6cae0b41b34a004e6fd660adaa68fb44af91130354258a",
+      "bytes": 12338
+    },
+    "ubuntu-2610-arm-bytes-2026-11-16/review.json": {
+      "sha256": "83b1e9b66116acc0eca68f298100961240b2fe936c5033e85cf49dca5b8544cc",
+      "bytes": 34116
+    },
+    "ubuntu-2610-arm-bytes-2026-11-16/image-layout-review.json": {
+      "sha256": "7f195d6070b528e714b648f55773453803cff6d581afed7a9171413633482771",
+      "bytes": 28140
+    },
+    "ubuntu-2610-dbus-selection-2026-11-16/review.json": {
+      "sha256": "53cd27356c87e1c3216c1a417c872136130c95fca1df4a1eff6386c7dd8dc22e",
+      "bytes": 25725
+    },
+    "source-P-builder-pin-plan-J/provider-amendment.json": {
+      "sha256": "2dfe8ba982678729fcd2ef2aba05c9cbc82a86d28b4a272ad2f18c323e98a53f",
+      "bytes": 2387
+    }
+  },
+  "review_scope": "Read-only retained reports, signed-index metadata crossbindings, actual layout result and complete package unit/maintainer text hashes; no remote commands, payload redownload, signature rerun, mount, install or VM.",
+  "compatibility_inference": "Existing guest infrastructure retains only the session-bus MainPID and a bounded manager helper. The authenticated broker user unit starts a launcher with an independently managed child and installs a dbus.service alias. Explicit future daemon selection before the new user manager is appropriate; no actual broker failure has been observed.",
+  "geometry": "Whole qcow2 conversion and six-GiB extension preserve the GPT layout; no one-ext4/root-index assumption exists in prepare.py. EFI, cloud-init, partition growth, userland and containment compatibility remain untested.",
+  "compiled_input_conclusion": "prepare.py and test_prepare.py are outside the owning 230 compiled input closure; independent baseline is compiled-input-baseline.json. Final source equality will be checked after implementation.",
+  "limitations": [
+    "No actual image filesystem source inventory; future standard APT source guard is limited to standard .list/.sources paths.",
+    "Primary ext4 flags are not fsck or boot verification.",
+    "Index and four package metadata inspections do not resolve or install dependencies.",
+    "Final builder implementation and tests remain pending."
+  ],
+  "observer_note": "Initial transient inspection expected text in every package member and stopped on the directory entry. Corrected inspection retains typed directory/symlink metadata and hashes text only for regular members; no evidence changed."
+}

@@ -1,0 +1,27 @@
+{
+  "phase": "prepare",
+  "argv": [
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/build-env/bin/python",
+    "-B",
+    "/Users/monocursive/.cache/ukai-distribution-modes-20261116/crates/ukai-jail/vm/prepare.py",
+    "--out",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image",
+    "--jail-candidate",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/rc7-candidate-final/signed-candidate",
+    "--native-claude",
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/claude-2.1.311/claude"
+  ],
+  "timeout_seconds": 1200,
+  "automatic_retry": false,
+  "pid": 22089,
+  "minimum_free_bytes": 18410233856,
+  "returncode": 0,
+  "elapsed_seconds": 126.83310762490146,
+  "error_type": null,
+  "cleanup": {
+    "process_started": true,
+    "leader_reaped": true,
+    "group_absent": true
+  },
+  "outcome": "PASS"
+}

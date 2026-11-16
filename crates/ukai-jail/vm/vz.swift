@@ -7,6 +7,14 @@ import Foundation
 import Virtualization
 import Darwin
 
+func diskAttachment(url: URL, readOnly: Bool) throws -> VZDiskImageStorageDeviceAttachment {
+    // Linux virtio disks need explicit host caching to avoid the corruption
+    // addressed by https://github.com/apple/container/pull/1041.
+    // Keep full guest-flush durability, including for the writable boot disk.
+    try VZDiskImageStorageDeviceAttachment(url: url, readOnly: readOnly,
+        cachingMode: .cached, synchronizationMode: .full)
+}
+
 func event(_ value: [String: Any]) {
     let data = try! JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
     FileHandle.standardOutput.write(data + Data([10]))
@@ -47,7 +55,7 @@ final class Runner: NSObject, VZVirtualMachineDelegate {
         boot.variableStore = try VZEFIVariableStore(creatingVariableStoreAt: nvram)
         config.bootLoader = boot
         config.storageDevices = try [arguments[0], arguments[1]].enumerated().map { index, path in
-            VZVirtioBlockDeviceConfiguration(attachment: try VZDiskImageStorageDeviceAttachment(
+            VZVirtioBlockDeviceConfiguration(attachment: try diskAttachment(
                 url: URL(fileURLWithPath: path), readOnly: index == 1))
         }
         config.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]

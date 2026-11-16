@@ -30,20 +30,85 @@ pub const SCHEMA_ATTEMPT: &str = "ukai.jail.vm-attempt/1";
 pub const SECRET_REVOCATION_CONTRACT: &str = "ukai.vm.secret-revocation/1";
 /// The bounded, receipt-bound guest journal manifest and parts contract.
 pub const JOURNAL_EXPORT_CONTRACT: &str = "ukai.vm.guest-journal/1";
+/// Image-bound native program resolution with unchanged bundled profiles.
+pub const NATIVE_PROGRAM_CONTRACT: &str = "ukai.vm.guest-native-launch/1";
+pub const SAMPLED_EXPOSURE_CONTRACT_V2: &str = "ukai.vm.sampled-exposure/2";
+pub const SAMPLED_EXPOSURE_CONTRACT: &str = "ukai.vm.sampled-exposure/3";
 
 /// Contracts the running guest declared in its Session reply. Optional fields
 /// keep old noncredential guests usable; absent or unknown versions never
 /// authorize sending credential values. The service forwards these facts,
 /// rather than substituting the contracts its own executable implements.
 #[derive(Clone, Default, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GuestContracts {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub secret_revocation: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub journal_export: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_program: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampled_exposure: Option<String>,
+}
+
+/// Value-free native launch request. Paths come from the bound catalog, never
+/// the operator's host PATH. The suffix and resolved argv are independently bound.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GuestLaunchIntent {
+    pub schema: String,
+    pub catalog_sha256: String,
+    pub entry_id: String,
+    pub launch_name: String,
+    pub profile_sha256: String,
+    pub state: String,
+    pub selected_credential_id: String,
+    pub argv_suffix: Vec<String>,
+    pub request_argv_digest: String,
+    pub resolved_argv_digest: String,
+    pub expected_policy_digest: String,
+}
+
+/// Guest-reported binding of an actual native execution to its checked request.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NativeProgramBinding {
+    pub catalog_sha256: String,
+    pub entry_id: String,
+    pub profile_sha256: String,
+    pub executable_sha256: String,
+    pub selected_credential_id: String,
+    pub state: String,
+    pub request_argv_digest: String,
+    pub resolved_argv_digest: String,
+    pub policy_digest: String,
 }
 
 impl GuestContracts {
+    /// A catalog-absent literal Session may advertise only the known base pair.
+    #[must_use]
+    pub fn supports_literal_session(&self) -> bool {
+        self.supports_credentials()
+            && self.native_program.is_none()
+            && self.sampled_exposure.is_none()
+    }
+
+    /// Known metadata permits literal service use, not a current native Run.
+    #[must_use]
+    pub fn supports_native_session(&self) -> bool {
+        self.supports_credentials()
+            && self.native_program.as_deref() == Some(NATIVE_PROGRAM_CONTRACT)
+            && matches!(
+                self.sampled_exposure.as_deref(),
+                Some(
+                    "ukai.vm.sampled-exposure/1"
+                        | SAMPLED_EXPOSURE_CONTRACT_V2
+                        | SAMPLED_EXPOSURE_CONTRACT
+                )
+            )
+    }
+
     /// Both contracts are required before any credential-bearing Prepare.
     #[must_use]
     pub fn supports_credentials(&self) -> bool {
@@ -248,6 +313,7 @@ pub struct LiveShareFacts {
 /// Host → vm, one attempt session.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)] // Bounded control frames are handled one at a time.
 pub enum ToVm {
     /// Stage the attempt: reset the guest workspace and evidence, receive
     /// the files and the ephemeral credentials, hold.
@@ -277,6 +343,9 @@ pub enum ToVm {
         /// `None` runs without a launch profile.
         #[serde(default)]
         launch: Option<LaunchDeclaration>,
+        /// A catalog-native launch is mutually exclusive with generated TOML.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        native_program: Option<GuestLaunchIntent>,
     },
     /// One workspace file.
     Put(Put),
@@ -299,6 +368,10 @@ pub struct ReceiptBinding {
     pub guest_boot_id: String,
     pub profile: String,
     pub argv_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_program: Option<NativeProgramBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampled_exposure_sha256: Option<String>,
 }
 
 /// vm → host, one attempt session.
@@ -322,6 +395,9 @@ pub enum FromVm {
         /// inferred from the service version or an image manifest label.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         guest_contracts: Option<GuestContracts>,
+        /// Catalog actually verified by the Session's guest, for this boot.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        guest_program_catalog_sha256: Option<String>,
     },
     /// The guest accepted the staging: workspace reset, files and ephemeral
     /// credentials held. Carries the guest kernel, which the receipt's
@@ -534,9 +610,80 @@ mod tests {
     use super::*;
 
     #[test]
+    fn literal_contract_object_requires_the_exact_supported_base_pair() {
+        let base = GuestContracts {
+            secret_revocation: Some(SECRET_REVOCATION_CONTRACT.into()),
+            journal_export: Some(JOURNAL_EXPORT_CONTRACT.into()),
+            ..GuestContracts::default()
+        };
+        assert!(base.supports_literal_session());
+        assert!(!GuestContracts::default().supports_literal_session());
+        for change in 0..6 {
+            let mut contracts = base.clone();
+            match change {
+                0 => contracts.secret_revocation = None,
+                1 => contracts.journal_export = None,
+                2 => contracts.secret_revocation = Some("unknown".into()),
+                3 => contracts.journal_export = Some("unknown".into()),
+                4 => contracts.native_program = Some(NATIVE_PROGRAM_CONTRACT.into()),
+                _ => contracts.sampled_exposure = Some(SAMPLED_EXPOSURE_CONTRACT.into()),
+            }
+            assert!(!contracts.supports_literal_session(), "{change}");
+        }
+    }
+    #[test]
+    fn known_native_sessions_do_not_upgrade_historical_sampling_contracts() {
+        for sampling in [
+            "ukai.vm.sampled-exposure/1",
+            SAMPLED_EXPOSURE_CONTRACT_V2,
+            SAMPLED_EXPOSURE_CONTRACT,
+        ] {
+            let contracts = GuestContracts {
+                secret_revocation: Some(SECRET_REVOCATION_CONTRACT.into()),
+                journal_export: Some(JOURNAL_EXPORT_CONTRACT.into()),
+                native_program: Some(NATIVE_PROGRAM_CONTRACT.into()),
+                sampled_exposure: Some(sampling.into()),
+            };
+            assert!(contracts.supports_native_session());
+            assert_eq!(contracts.sampled_exposure.as_deref(), Some(sampling));
+            for broken in [
+                GuestContracts {
+                    native_program: None,
+                    ..contracts.clone()
+                },
+                GuestContracts {
+                    sampled_exposure: None,
+                    ..contracts.clone()
+                },
+                GuestContracts {
+                    journal_export: None,
+                    ..contracts.clone()
+                },
+                GuestContracts {
+                    sampled_exposure: Some("ukai.vm.sampled-exposure/4".into()),
+                    ..contracts.clone()
+                },
+                GuestContracts {
+                    native_program: Some("ukai.vm.guest-native-launch/2".into()),
+                    ..contracts
+                },
+            ] {
+                assert!(!broken.supports_native_session());
+            }
+        }
+        assert!(
+            serde_json::from_value::<GuestContracts>(serde_json::json!({
+                "unknown": "future/1"
+            }))
+            .is_err()
+        );
+    }
+
+    #[test]
     fn frames_round_trip_through_their_line_form() {
         let frames = [
             ToVm::Prepare {
+                native_program: None,
                 attempt_id: "att_00000000-0000-4000-8000-000000000001".to_owned(),
                 profile: "tool".to_owned(),
                 wall_seconds: 30,
@@ -561,6 +708,7 @@ mod tests {
         }
         let frames = [
             FromVm::Ready {
+                guest_program_catalog_sha256: None,
                 schema: SCHEMA_ATTEMPT.to_owned(),
                 boot_id: "boot-1".to_owned(),
                 disk_sha256: "d".repeat(64),
@@ -569,6 +717,8 @@ mod tests {
                 seed_sha256: "s".repeat(64),
                 vsock_port: 1024,
                 guest_contracts: Some(GuestContracts {
+                    sampled_exposure: None,
+                    native_program: None,
                     secret_revocation: Some(SECRET_REVOCATION_CONTRACT.into()),
                     journal_export: Some(JOURNAL_EXPORT_CONTRACT.into()),
                 }),

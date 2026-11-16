@@ -1,0 +1,23 @@
+{
+  "status": "passed signed candidate bootstrap checks without Minisign on bootstrap PATH",
+  "target": "aarch64-unknown-linux-gnu",
+  "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+  "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+  "workflow_run": 43822535195,
+  "archive_sha256": "15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6",
+  "binary_sha256": "c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f",
+  "notices_sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd",
+  "notices_bytes": 2291615,
+  "candidate_signature_verified_first": true,
+  "public_key_file_sha256": "218b3005a943bf9641f42ece53e6a3ee2a8b3a12510db04d26477abefc8cfbd1",
+  "bootstrap_sha256": "f7a1aa423f8f87d9bb4b50e9a9d7c4716a336ef30a259d793c1b7cdb67bfb4bb",
+  "bootstrap_minisign_available": false,
+  "native_uname_getconf_used": true,
+  "fresh_install": "passed",
+  "repeat_install": "passed",
+  "modified_archive_refused": true,
+  "existing_install_preserved_on_refusal": true,
+  "original_signed_candidate_unchanged": true,
+  "published": false,
+  "scope": "Local supplied candidate; no network release download or public publication."
+}

@@ -1,0 +1,1171 @@
+{
+  "outcome": "PASS",
+  "binary_source_F": "f745bfbfc5bfe4945cf5fc7c5d88e497db9e6768",
+  "later_harness_source_G": "dce53219bb8cb0ecf89047dd9820404da9a51c26",
+  "F_inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+  "G_inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+  "identical_input_files": 230,
+  "input_blob_modes_sizes_equal": true,
+  "G_changed_paths": [
+    ".github/workflows/contracts.yml",
+    "docs/benchmarks/jail/onboarding_guest.py",
+    "docs/benchmarks/jail/onboarding_vm.py",
+    "docs/benchmarks/jail/production-qualification-2026-11-15.md",
+    "docs/benchmarks/jail/test_onboarding_guest.py",
+    "docs/benchmarks/jail/test_onboarding_vm.py"
+  ],
+  "source_claim": "Focused archive/binary remains exactF. Later harnessG is separately hash-bound; equal runtime inputs do not relabel F binary revision asG.",
+  "owning_algorithm": "build_provenance::input_files/digest, exact Git blobs sorted path + NUL + u64LElength + bytes",
+  "files": {
+    "Cargo.lock": {
+      "mode": "100644",
+      "git_blob": "c7ebfadb7635ed30942305cc36b3305475073dec",
+      "bytes": 45082
+    },
+    "Cargo.toml": {
+      "mode": "100644",
+      "git_blob": "26962c177e9bcc84bbec1052f5359883733d0877",
+      "bytes": 1409
+    },
+    "crates/ukai-jail/Cargo.toml": {
+      "mode": "100644",
+      "git_blob": "662ed66a798c0a55533fe7bbf42f8c422a6a74c2",
+      "bytes": 2247
+    },
+    "crates/ukai-jail/build.rs": {
+      "mode": "100644",
+      "git_blob": "78c40e9031b33a56947ba2b3ede2ce1e0086f5a5",
+      "bytes": 11245
+    },
+    "crates/ukai-jail/data/uts46_unicode17_tables.rs": {
+      "mode": "100644",
+      "git_blob": "a6729fac6cffcd4b15aee6e7b7a916df7c5ff165",
+      "bytes": 452094
+    },
+    "crates/ukai-jail/profiles/bundles/containers.toml": {
+      "mode": "100644",
+      "git_blob": "1a033441d651caabd98ff2461188987c493d7f96",
+      "bytes": 136
+    },
+    "crates/ukai-jail/profiles/bundles/go.toml": {
+      "mode": "100644",
+      "git_blob": "80b867a6b846ec6fa1521aff433f19ed5887e1a6",
+      "bytes": 125
+    },
+    "crates/ukai-jail/profiles/bundles/java.toml": {
+      "mode": "100644",
+      "git_blob": "da76d4315cb3c368866ce49c52624eb8a28abb7d",
+      "bytes": 138
+    },
+    "crates/ukai-jail/profiles/bundles/node.toml": {
+      "mode": "100644",
+      "git_blob": "a093ec983c884010d2a2ec5d1d240155fabc91cc",
+      "bytes": 135
+    },
+    "crates/ukai-jail/profiles/bundles/python.toml": {
+      "mode": "100644",
+      "git_blob": "410331232e58d8eec1984ea980eb18b8c116e661",
+      "bytes": 132
+    },
+    "crates/ukai-jail/profiles/bundles/ruby.toml": {
+      "mode": "100644",
+      "git_blob": "2d5c6a06b19a1a628390e84c39358c4ad697ea3b",
+      "bytes": 128
+    },
+    "crates/ukai-jail/profiles/bundles/rust.toml": {
+      "mode": "100644",
+      "git_blob": "e20d74860a3e175f39907580f126c8a3a634919b",
+      "bytes": 131
+    },
+    "crates/ukai-jail/profiles/bundles/scm.toml": {
+      "mode": "100644",
+      "git_blob": "54ab6caac26d60550d8ecda9ab0a274b11b8196a",
+      "bytes": 143
+    },
+    "crates/ukai-jail/profiles/embedded.rs": {
+      "mode": "100644",
+      "git_blob": "edb6ea401a2839438c22af310a087cbe68e57c07",
+      "bytes": 1624
+    },
+    "crates/ukai-jail/profiles/inputs.rs": {
+      "mode": "100644",
+      "git_blob": "619786ca911a3d3daafeae6477d81acac630f183",
+      "bytes": 2346
+    },
+    "crates/ukai-jail/profiles/launch/aider.toml": {
+      "mode": "100644",
+      "git_blob": "baa21676b2f4bf11d302da2c4bc307a0a8bba04a",
+      "bytes": 424
+    },
+    "crates/ukai-jail/profiles/launch/amp.toml": {
+      "mode": "100644",
+      "git_blob": "1edff244b7353824768d1d1d1cd55f18694bbf02",
+      "bytes": 422
+    },
+    "crates/ukai-jail/profiles/launch/auggie.toml": {
+      "mode": "100644",
+      "git_blob": "7af04573dd6fda272bbc943c086484300e6597f5",
+      "bytes": 425
+    },
+    "crates/ukai-jail/profiles/launch/claude-vault.toml": {
+      "mode": "100644",
+      "git_blob": "f7f59836f616e39f683622d8a90c85a73f9db276",
+      "bytes": 887
+    },
+    "crates/ukai-jail/profiles/launch/claude.toml": {
+      "mode": "100644",
+      "git_blob": "e1e8695556c530f9d28665d2f1199233d6d715f6",
+      "bytes": 4014
+    },
+    "crates/ukai-jail/profiles/launch/cline.toml": {
+      "mode": "100644",
+      "git_blob": "9c1e9769360853131e24168114cfcbca9072aa1c",
+      "bytes": 424
+    },
+    "crates/ukai-jail/profiles/launch/codex.toml": {
+      "mode": "100644",
+      "git_blob": "c166cdd4f18ae76e8946e37f2ace3133d2cd9e81",
+      "bytes": 1075
+    },
+    "crates/ukai-jail/profiles/launch/copilot.toml": {
+      "mode": "100644",
+      "git_blob": "c4e1b7f6c94c09dad53569c665d10c05d8dc5016",
+      "bytes": 426
+    },
+    "crates/ukai-jail/profiles/launch/cursor.toml": {
+      "mode": "100644",
+      "git_blob": "3abac0086baafbc281b34a6cd4011874bf5102f0",
+      "bytes": 425
+    },
+    "crates/ukai-jail/profiles/launch/droid.toml": {
+      "mode": "100644",
+      "git_blob": "3aef91c7f2f66fef2d07a343ad5f2b6a62b9dd85",
+      "bytes": 424
+    },
+    "crates/ukai-jail/profiles/launch/gemini.toml": {
+      "mode": "100644",
+      "git_blob": "64361662e937f420d1aa8d4c62b1a4c3affe72fc",
+      "bytes": 425
+    },
+    "crates/ukai-jail/profiles/launch/goose.toml": {
+      "mode": "100644",
+      "git_blob": "568be4dee821e946810b54e79d757db396bb9ffc",
+      "bytes": 424
+    },
+    "crates/ukai-jail/profiles/launch/kilo.toml": {
+      "mode": "100644",
+      "git_blob": "d1f23f2324e20d4f045935fa12b780ba7781ea25",
+      "bytes": 423
+    },
+    "crates/ukai-jail/profiles/launch/opencode-vault.toml": {
+      "mode": "100644",
+      "git_blob": "66a692670f24e7759b026a2544ad90267d14a917",
+      "bytes": 1112
+    },
+    "crates/ukai-jail/profiles/launch/opencode.toml": {
+      "mode": "100644",
+      "git_blob": "4dca58edfd222c8366f012a02bb69529d33dc405",
+      "bytes": 2044
+    },
+    "crates/ukai-jail/profiles/launch/pi.toml": {
+      "mode": "100644",
+      "git_blob": "e047081e6c854e202c461c3021e9e99cc010c297",
+      "bytes": 421
+    },
+    "crates/ukai-jail/src/bin/ukai-vm.rs": {
+      "mode": "100644",
+      "git_blob": "413bc056cb7d95b9a1be405f1dfbe931f203eba1",
+      "bytes": 126329
+    },
+    "crates/ukai-jail/src/build_provenance.rs": {
+      "mode": "100644",
+      "git_blob": "467c691cec5eeca7b1e85083cc38119d38e209e2",
+      "bytes": 5892
+    },
+    "crates/ukai-jail/src/canonical.rs": {
+      "mode": "100644",
+      "git_blob": "1b704ac2e8a0433bbe023fddf707e3e6b7d33299",
+      "bytes": 114
+    },
+    "crates/ukai-jail/src/capability.rs": {
+      "mode": "100644",
+      "git_blob": "2f42279dd4cd9c1f67d997b51519fc430512be2f",
+      "bytes": 20071
+    },
+    "crates/ukai-jail/src/cleanup.rs": {
+      "mode": "100644",
+      "git_blob": "c9259a2b774636db7a77b480395874c124adce2a",
+      "bytes": 75442
+    },
+    "crates/ukai-jail/src/cleanup/receipt_note.rs": {
+      "mode": "100644",
+      "git_blob": "b48f6f7ec51d848013584452f3ce489e15fd53a4",
+      "bytes": 12232
+    },
+    "crates/ukai-jail/src/cli.rs": {
+      "mode": "100644",
+      "git_blob": "e5ed55353eab814a8108416588932fb25ae4813c",
+      "bytes": 23680
+    },
+    "crates/ukai-jail/src/commands.rs": {
+      "mode": "100644",
+      "git_blob": "e964454154b07f6b7dbccb5770006ca920837e53",
+      "bytes": 13995
+    },
+    "crates/ukai-jail/src/config.rs": {
+      "mode": "100644",
+      "git_blob": "b192a2ff89a7758981b03eae4c7a45337400e649",
+      "bytes": 40082
+    },
+    "crates/ukai-jail/src/credential_store.rs": {
+      "mode": "100644",
+      "git_blob": "3cbe440c2b3dc96879b9c870874f539727e265f9",
+      "bytes": 25034
+    },
+    "crates/ukai-jail/src/credentials.rs": {
+      "mode": "100644",
+      "git_blob": "e664c7da1865d9f73a49980ebb393b0278591415",
+      "bytes": 81259
+    },
+    "crates/ukai-jail/src/environment.rs": {
+      "mode": "100644",
+      "git_blob": "0705b7fecea17c80bca3a85471fd47f625b8d946",
+      "bytes": 6221
+    },
+    "crates/ukai-jail/src/gc.rs": {
+      "mode": "100644",
+      "git_blob": "e82385d9355cd1b6749fab194a27fc0d983c491e",
+      "bytes": 8349
+    },
+    "crates/ukai-jail/src/gc/decide.rs": {
+      "mode": "100644",
+      "git_blob": "779231de6a4378c5352eba4497a59cf9df7eb334",
+      "bytes": 59828
+    },
+    "crates/ukai-jail/src/gc/host.rs": {
+      "mode": "100644",
+      "git_blob": "3570efa33a5f3f31d5b0dac90202c80d7bdbd584",
+      "bytes": 21339
+    },
+    "crates/ukai-jail/src/gc/orphans.rs": {
+      "mode": "100644",
+      "git_blob": "ec0a9743e3a826a3eb0d7d640456e185cdc02e87",
+      "bytes": 5964
+    },
+    "crates/ukai-jail/src/gc/view.rs": {
+      "mode": "100644",
+      "git_blob": "064da857aeab268e988aec7c9c3e21c0d1fc2ff9",
+      "bytes": 30861
+    },
+    "crates/ukai-jail/src/gc/walk.rs": {
+      "mode": "100644",
+      "git_blob": "24cdc58101394ab68b143ba9fc26e2a59a380fa8",
+      "bytes": 60163
+    },
+    "crates/ukai-jail/src/guest_program.rs": {
+      "mode": "100644",
+      "git_blob": "9508e2f1c36c8602f8cffb8b12b41910a8db2be1",
+      "bytes": 7999
+    },
+    "crates/ukai-jail/src/journal.rs": {
+      "mode": "100644",
+      "git_blob": "6f489ade6a8d03a9177b440c901da3d10ab2be1c",
+      "bytes": 14570
+    },
+    "crates/ukai-jail/src/launch_profile.rs": {
+      "mode": "100644",
+      "git_blob": "d45a60398c800726e37f728e3d52dc1ce7bae447",
+      "bytes": 79553
+    },
+    "crates/ukai-jail/src/learn.rs": {
+      "mode": "100644",
+      "git_blob": "6cc5066e9a169f28ef062a96e9e4d1ad4a457670",
+      "bytes": 23152
+    },
+    "crates/ukai-jail/src/lib.rs": {
+      "mode": "100644",
+      "git_blob": "2c302552b87213523126e56eb044af7a00e6adc4",
+      "bytes": 3287
+    },
+    "crates/ukai-jail/src/lifecycle.rs": {
+      "mode": "100644",
+      "git_blob": "deb8fa8f28358849828ee0030aa88678b17c57e7",
+      "bytes": 6033
+    },
+    "crates/ukai-jail/src/main.rs": {
+      "mode": "100644",
+      "git_blob": "13a4a7eb4a7b7b4e744ffe3ae50a1cf40a6f0d7d",
+      "bytes": 91479
+    },
+    "crates/ukai-jail/src/network.rs": {
+      "mode": "100644",
+      "git_blob": "c9cee6bad81228dde8123bdcec7f7d67051b8276",
+      "bytes": 27261
+    },
+    "crates/ukai-jail/src/network/address.rs": {
+      "mode": "100644",
+      "git_blob": "be6a81561532392a8f8d8a450415d21dc4aa31d5",
+      "bytes": 10910
+    },
+    "crates/ukai-jail/src/network/idna.rs": {
+      "mode": "100644",
+      "git_blob": "0673c0551593b6287736f3e8b626e83c7861a554",
+      "bytes": 26198
+    },
+    "crates/ukai-jail/src/network/unicode.rs": {
+      "mode": "100644",
+      "git_blob": "533739e1a10b80f623dd388021797c828f634e2c",
+      "bytes": 11346
+    },
+    "crates/ukai-jail/src/observer.rs": {
+      "mode": "100644",
+      "git_blob": "3ef144f148a94d88a94724781883c153d54e37ad",
+      "bytes": 12731
+    },
+    "crates/ukai-jail/src/persistent.rs": {
+      "mode": "100644",
+      "git_blob": "9cded89dd2f7c1f24450797880219e810e933f54",
+      "bytes": 77587
+    },
+    "crates/ukai-jail/src/platform/linux/abi.rs": {
+      "mode": "100644",
+      "git_blob": "80d167bb45ecc59a90f8d56d690c6ec90489285f",
+      "bytes": 2514
+    },
+    "crates/ukai-jail/src/platform/linux/agent.rs": {
+      "mode": "100644",
+      "git_blob": "8b0ef48c078192aeaf7dd51ca5e965a93f846a24",
+      "bytes": 58485
+    },
+    "crates/ukai-jail/src/platform/linux/audit.rs": {
+      "mode": "100644",
+      "git_blob": "b3616ce5f570848986d8af59b7ec3359109f4d2d",
+      "bytes": 112628
+    },
+    "crates/ukai-jail/src/platform/linux/boundary.rs": {
+      "mode": "100644",
+      "git_blob": "5468f340e3bb0116271bebef42c223e4c7ee13e3",
+      "bytes": 131816
+    },
+    "crates/ukai-jail/src/platform/linux/bpf.rs": {
+      "mode": "100644",
+      "git_blob": "f9d35a7adba9b92c2617395445de2a2905440172",
+      "bytes": 19510
+    },
+    "crates/ukai-jail/src/platform/linux/bridge.rs": {
+      "mode": "100644",
+      "git_blob": "b4891c16ecca040e784ba5cfe72472c67ca3ab7b",
+      "bytes": 37800
+    },
+    "crates/ukai-jail/src/platform/linux/bwrap.rs": {
+      "mode": "100644",
+      "git_blob": "e18bd695613fc7b609cf4cb38af7f5a1c17f5f77",
+      "bytes": 85818
+    },
+    "crates/ukai-jail/src/platform/linux/cgroup.rs": {
+      "mode": "100644",
+      "git_blob": "1e0cea7e6da36a3633529258d56f18e9caf8af94",
+      "bytes": 42641
+    },
+    "crates/ukai-jail/src/platform/linux/clock.rs": {
+      "mode": "100644",
+      "git_blob": "3df966099084087fd58ab018bdd8c552aa617e78",
+      "bytes": 8479
+    },
+    "crates/ukai-jail/src/platform/linux/exec.rs": {
+      "mode": "100644",
+      "git_blob": "b3aaf014063de3269bbb5d1b07d11e8cfa59d799",
+      "bytes": 25252
+    },
+    "crates/ukai-jail/src/platform/linux/exec/bootstrap.rs": {
+      "mode": "100644",
+      "git_blob": "c2bcab540cfdd535a4ad3b13da3fa380a96fbd1f",
+      "bytes": 21749
+    },
+    "crates/ukai-jail/src/platform/linux/fds.rs": {
+      "mode": "100644",
+      "git_blob": "c22e59fce7fbb70df210cf231b151c897bcd04e2",
+      "bytes": 4905
+    },
+    "crates/ukai-jail/src/platform/linux/freeze.rs": {
+      "mode": "100644",
+      "git_blob": "bbcc6131d6905f43c57c38c81e3a4378cc87af0d",
+      "bytes": 9520
+    },
+    "crates/ukai-jail/src/platform/linux/fs.rs": {
+      "mode": "100644",
+      "git_blob": "5d822d16ac7a7d5f8bb199ffa6f1a9e9b124f9ab",
+      "bytes": 47277
+    },
+    "crates/ukai-jail/src/platform/linux/host.rs": {
+      "mode": "100644",
+      "git_blob": "d723afbc5f946c9ee1f776ae97e548db4b964b35",
+      "bytes": 34157
+    },
+    "crates/ukai-jail/src/platform/linux/identity.rs": {
+      "mode": "100644",
+      "git_blob": "b4c597e32c78ebc0830d9e4af71b9b0c885bf0f4",
+      "bytes": 24732
+    },
+    "crates/ukai-jail/src/platform/linux/launch.rs": {
+      "mode": "100644",
+      "git_blob": "9682cd5229e80178645ebd57f13f9226a2919bba",
+      "bytes": 73769
+    },
+    "crates/ukai-jail/src/platform/linux/mod.rs": {
+      "mode": "100644",
+      "git_blob": "9aaae8ca683bcfaa6c629603fd8c79a33d52fba9",
+      "bytes": 2279
+    },
+    "crates/ukai-jail/src/platform/linux/mounts.rs": {
+      "mode": "100644",
+      "git_blob": "5ab7c365276ec702f104ace0b312665443f04d27",
+      "bytes": 85682
+    },
+    "crates/ukai-jail/src/platform/linux/observed.rs": {
+      "mode": "100644",
+      "git_blob": "524a9543be1763281fd5a941f1c0f16cc7326518",
+      "bytes": 61727
+    },
+    "crates/ukai-jail/src/platform/linux/platform.rs": {
+      "mode": "100644",
+      "git_blob": "c2d1f6bbc2e9d01b06a5b9043a66d120b193086a",
+      "bytes": 22996
+    },
+    "crates/ukai-jail/src/platform/linux/probe.rs": {
+      "mode": "100644",
+      "git_blob": "697e6d888329048aba4f860f61cd19be02fce6cc",
+      "bytes": 82063
+    },
+    "crates/ukai-jail/src/platform/linux/probe/agent.rs": {
+      "mode": "100644",
+      "git_blob": "cbb7a841e507b1a69a65f77a66d2f0c57b047831",
+      "bytes": 25909
+    },
+    "crates/ukai-jail/src/platform/linux/reconcile.rs": {
+      "mode": "100644",
+      "git_blob": "6a978e43d525c1e74e690711f2bfedc1fa92f12a",
+      "bytes": 27363
+    },
+    "crates/ukai-jail/src/platform/linux/requirements.rs": {
+      "mode": "100644",
+      "git_blob": "326583d765298823807848a790551cabbbbb8ae0",
+      "bytes": 18034
+    },
+    "crates/ukai-jail/src/platform/linux/running.rs": {
+      "mode": "100644",
+      "git_blob": "590f9f99ec8931cfce3d761017883b0a34aefc42",
+      "bytes": 44481
+    },
+    "crates/ukai-jail/src/platform/linux/scope.rs": {
+      "mode": "100644",
+      "git_blob": "39bf79c1458e55d2c85bcb4ea4a672b97e95b661",
+      "bytes": 59722
+    },
+    "crates/ukai-jail/src/platform/linux/seccomp.rs": {
+      "mode": "100644",
+      "git_blob": "756920e44e7943f36cae16faa7532b2f059433cd",
+      "bytes": 75710
+    },
+    "crates/ukai-jail/src/platform/linux/sockdiag.rs": {
+      "mode": "100644",
+      "git_blob": "a204e4cc0ac38a62b9a95369288393033be0c076",
+      "bytes": 26031
+    },
+    "crates/ukai-jail/src/platform/linux/stdio.rs": {
+      "mode": "100644",
+      "git_blob": "4ef98e43fc0d852ecb78f9c26e7a74ffccc14e9d",
+      "bytes": 29124
+    },
+    "crates/ukai-jail/src/platform/linux/storage.rs": {
+      "mode": "100644",
+      "git_blob": "82dac45ba6de0bc687fbc35a818b527d0e3a2ad3",
+      "bytes": 37618
+    },
+    "crates/ukai-jail/src/platform/linux/storage/quota.rs": {
+      "mode": "100644",
+      "git_blob": "cb41199e3335a8857d4e78bc47664d4b41162e4e",
+      "bytes": 9643
+    },
+    "crates/ukai-jail/src/platform/linux/sys.rs": {
+      "mode": "100644",
+      "git_blob": "ae25426403e77ff09286b48d8374d5c641ef5d74",
+      "bytes": 16707
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/closed_set.rs": {
+      "mode": "100644",
+      "git_blob": "cb68d55c09d4861f8483a2589bd49dc0a64e80c1",
+      "bytes": 20204
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/filter.rs": {
+      "mode": "100644",
+      "git_blob": "47d8d1443f4430f2f3ec362eff4abbb66f693b04",
+      "bytes": 32863
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/mod.rs": {
+      "mode": "100644",
+      "git_blob": "3f045dec08409227508f7aa4fb90ba3b0e50a4ae",
+      "bytes": 82762
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/proc.rs": {
+      "mode": "100644",
+      "git_blob": "dd569e6834bfcdb34d5cecf350c2e4febb276cd3",
+      "bytes": 35920
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/session/args.rs": {
+      "mode": "100644",
+      "git_blob": "cfd8fd200e10262c19317f843221be120dd8f65c",
+      "bytes": 15695
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/session/entry.rs": {
+      "mode": "100644",
+      "git_blob": "4a3c17d0134e757f9368289480fe0b3e916e02a8",
+      "bytes": 26118
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/session/evidence.rs": {
+      "mode": "100644",
+      "git_blob": "bb7c0bf72c03fded6a5eb7f1e00c5be5b9657237",
+      "bytes": 18103
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/session/exec.rs": {
+      "mode": "100644",
+      "git_blob": "22a52629bef5f881ebb288022e049f1483d81f25",
+      "bytes": 19069
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/session/exit.rs": {
+      "mode": "100644",
+      "git_blob": "fd2feb6752fc448be9f940a5490651ba0d97e10c",
+      "bytes": 52951
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/session/mod.rs": {
+      "mode": "100644",
+      "git_blob": "11c6f9b2ee28a8ff68bb271a64698d10234a64b5",
+      "bytes": 40735
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/session/outbox.rs": {
+      "mode": "100644",
+      "git_blob": "f561b04273ad67010d02be511b6c411ed1cdd8eb",
+      "bytes": 20140
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/session/owed.rs": {
+      "mode": "100644",
+      "git_blob": "66868371e9929c362ab87871f26c0fa862cf488a",
+      "bytes": 11621
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/session/restart.rs": {
+      "mode": "100644",
+      "git_blob": "32b5126d6ae4d592ce82ce4452c03d7d141bca6a",
+      "bytes": 33665
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/session/seams.rs": {
+      "mode": "100644",
+      "git_blob": "2617935c67b0d28e5beb60be932adc9330c011e2",
+      "bytes": 6449
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/session/tasks.rs": {
+      "mode": "100644",
+      "git_blob": "136618b978071be390e6e401c032434513c712f2",
+      "bytes": 26153
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/session/testkit.rs": {
+      "mode": "100644",
+      "git_blob": "3d268872a084da8023e2af25c9560f0fab68f064",
+      "bytes": 14587
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/sys.rs": {
+      "mode": "100644",
+      "git_blob": "b731b4f3cdaeee984efb4607db6e22eb0a19bdc1",
+      "bytes": 34463
+    },
+    "crates/ukai-jail/src/platform/linux/tracer/table.rs": {
+      "mode": "100644",
+      "git_blob": "5f197fa9e8375eecacea64270db297a0fb8ba1e6",
+      "bytes": 16393
+    },
+    "crates/ukai-jail/src/platform/linux/uncontained.rs": {
+      "mode": "100644",
+      "git_blob": "fbf09fe110c899e0b02336eeb1dd72157b7536e1",
+      "bytes": 80931
+    },
+    "crates/ukai-jail/src/platform/linux/unixpeer.rs": {
+      "mode": "100644",
+      "git_blob": "a37f9be523b908d34158ba1ccbfdb63cb4a6b429",
+      "bytes": 21603
+    },
+    "crates/ukai-jail/src/platform/linux/unixpeer/live.rs": {
+      "mode": "100644",
+      "git_blob": "6ab7d8bdea5e30ecf84a7d40b5fec781421c99da",
+      "bytes": 41724
+    },
+    "crates/ukai-jail/src/platform/linux/verdict.rs": {
+      "mode": "100644",
+      "git_blob": "0054a2fa83dd4365e526fb55f2e00880f5cb5f47",
+      "bytes": 16039
+    },
+    "crates/ukai-jail/src/platform/linux/watch.rs": {
+      "mode": "100644",
+      "git_blob": "9a8ed2913ad9c1005499757500c7a506db8dc2a4",
+      "bytes": 18262
+    },
+    "crates/ukai-jail/src/platform/macos/boundary.rs": {
+      "mode": "100644",
+      "git_blob": "12aa0f0e4781d298c012467f3a833762eb2bd4eb",
+      "bytes": 270659
+    },
+    "crates/ukai-jail/src/platform/macos/bridge.rs": {
+      "mode": "100644",
+      "git_blob": "861b6b5a7a507aa2c724b86c18ed552ec82369da",
+      "bytes": 20170
+    },
+    "crates/ukai-jail/src/platform/macos/custody/mod.rs": {
+      "mode": "100644",
+      "git_blob": "279953e4cf6a4222ed62221d97e52c899c84ddce",
+      "bytes": 12266
+    },
+    "crates/ukai-jail/src/platform/macos/custody/seq.rs": {
+      "mode": "100644",
+      "git_blob": "4780dd505a7ac005ad201b25ca287ed9ab03c0e4",
+      "bytes": 5401
+    },
+    "crates/ukai-jail/src/platform/macos/custody/stop.rs": {
+      "mode": "100644",
+      "git_blob": "728538f2f301496cbfa4760249f564cb7bc72c38",
+      "bytes": 17901
+    },
+    "crates/ukai-jail/src/platform/macos/custody/table.rs": {
+      "mode": "100644",
+      "git_blob": "8aa758ca391cc802b4c831e788b523c238620760",
+      "bytes": 12600
+    },
+    "crates/ukai-jail/src/platform/macos/custody_io.rs": {
+      "mode": "100644",
+      "git_blob": "d4900642944465400cd50b23b458ebd14e5d0008",
+      "bytes": 6999
+    },
+    "crates/ukai-jail/src/platform/macos/es/absent.rs": {
+      "mode": "100644",
+      "git_blob": "d9c5d6e262a079639437a2a1cdcb8cebc8e6a356",
+      "bytes": 1041
+    },
+    "crates/ukai-jail/src/platform/macos/es/client.rs": {
+      "mode": "100644",
+      "git_blob": "6b12414fad13f6a445143016d3f7a1d0a3f4578e",
+      "bytes": 7974
+    },
+    "crates/ukai-jail/src/platform/macos/es/mod.rs": {
+      "mode": "100644",
+      "git_blob": "806d7fade40697c493d32fbfe6069cafbb63dbc6",
+      "bytes": 3504
+    },
+    "crates/ukai-jail/src/platform/macos/es/sdk_probe.c": {
+      "mode": "100644",
+      "git_blob": "bd7d1975a8856719f086cad8ff27958db500af35",
+      "bytes": 1951
+    },
+    "crates/ukai-jail/src/platform/macos/es/shim.c": {
+      "mode": "100644",
+      "git_blob": "3a1715e6b289d6b24e57280540d3fa418274014b",
+      "bytes": 12765
+    },
+    "crates/ukai-jail/src/platform/macos/es/shim.h": {
+      "mode": "100644",
+      "git_blob": "85b20cb0feb64f89b22f37ce0235b196cf266a71",
+      "bytes": 3844
+    },
+    "crates/ukai-jail/src/platform/macos/es/shim_tests.c": {
+      "mode": "100644",
+      "git_blob": "c3cf997772c0f5fd30ee4788845e8d6a50ae6509",
+      "bytes": 6505
+    },
+    "crates/ukai-jail/src/platform/macos/es/system.rs": {
+      "mode": "100644",
+      "git_blob": "2ce9538fba010f5ebb42f0d10b07faa69398242b",
+      "bytes": 2782
+    },
+    "crates/ukai-jail/src/platform/macos/es_probe.rs": {
+      "mode": "100644",
+      "git_blob": "424b7472ed720b3ec808d71f0e4478c81b022b0d",
+      "bytes": 4376
+    },
+    "crates/ukai-jail/src/platform/macos/guardian.rs": {
+      "mode": "100644",
+      "git_blob": "7498ae075fd2d4c7438bfc9141e3a3a71df57309",
+      "bytes": 21843
+    },
+    "crates/ukai-jail/src/platform/macos/guardian/frames.rs": {
+      "mode": "100644",
+      "git_blob": "d59ab97ea127f2db41f7fc3397ef97036d2cc6c6",
+      "bytes": 11646
+    },
+    "crates/ukai-jail/src/platform/macos/guardian/launch_block.rs": {
+      "mode": "100644",
+      "git_blob": "1a551f8dcdc040cbdf98efafd464105871024d71",
+      "bytes": 14063
+    },
+    "crates/ukai-jail/src/platform/macos/guardian/record.rs": {
+      "mode": "100644",
+      "git_blob": "2723e37533d396141e382e92af93d8d7df414f6b",
+      "bytes": 12847
+    },
+    "crates/ukai-jail/src/platform/macos/guardian/rlimit.rs": {
+      "mode": "100644",
+      "git_blob": "48d007413da3681ef702353d0832771187aa98a4",
+      "bytes": 33878
+    },
+    "crates/ukai-jail/src/platform/macos/guardian/spawn.rs": {
+      "mode": "100644",
+      "git_blob": "10eef71e40e1d4b91c4cdc69433c3c4377cab85a",
+      "bytes": 12093
+    },
+    "crates/ukai-jail/src/platform/macos/guardian/stop.rs": {
+      "mode": "100644",
+      "git_blob": "f05f4b975491fdc0d82fe2ab3f08338ab232cc5e",
+      "bytes": 6247
+    },
+    "crates/ukai-jail/src/platform/macos/launcher.rs": {
+      "mode": "100644",
+      "git_blob": "0f1ab1fd25ea4380c82894ee5b94304cdd9e310e",
+      "bytes": 31832
+    },
+    "crates/ukai-jail/src/platform/macos/mod.rs": {
+      "mode": "100644",
+      "git_blob": "49d0f6a57698dfa3e1cb721ddd638832e730c168",
+      "bytes": 11872
+    },
+    "crates/ukai-jail/src/platform/macos/observe.rs": {
+      "mode": "100644",
+      "git_blob": "1493e7f0be9d3b9538ca0b6fa0af8e6f5eedd289",
+      "bytes": 23343
+    },
+    "crates/ukai-jail/src/platform/macos/observe/absent.rs": {
+      "mode": "100644",
+      "git_blob": "51c60f5df2c9d72dfd73ffa6203930dd0e6975da",
+      "bytes": 1142
+    },
+    "crates/ukai-jail/src/platform/macos/observe/client.rs": {
+      "mode": "100644",
+      "git_blob": "c35fd1d184089e263c58414a1dc706a02c4a3353",
+      "bytes": 6024
+    },
+    "crates/ukai-jail/src/platform/macos/observe/closed_set.def": {
+      "mode": "100644",
+      "git_blob": "1e6dae41d3454c8e6b9479e1aa6bdce1566a1a85",
+      "bytes": 1351
+    },
+    "crates/ukai-jail/src/platform/macos/observe/obs_shim.c": {
+      "mode": "100644",
+      "git_blob": "d26b2be6ae47fb8005bd261aa40a7d8edb0ea29c",
+      "bytes": 12515
+    },
+    "crates/ukai-jail/src/platform/macos/observe/obs_shim.h": {
+      "mode": "100644",
+      "git_blob": "da3aa7d2a66d78ebf7f673d6bf7edfb67ef2560e",
+      "bytes": 2266
+    },
+    "crates/ukai-jail/src/platform/macos/observe/run.rs": {
+      "mode": "100644",
+      "git_blob": "87016a5ef4959279345a918f3fcf378b72571350",
+      "bytes": 17914
+    },
+    "crates/ukai-jail/src/platform/macos/observe/synthetic.c": {
+      "mode": "100644",
+      "git_blob": "1123b94f176f796db59a359251fc815464901eb8",
+      "bytes": 10917
+    },
+    "crates/ukai-jail/src/platform/macos/relay.rs": {
+      "mode": "100644",
+      "git_blob": "90d935570d2589599a839044704e9f6d537743bd",
+      "bytes": 32323
+    },
+    "crates/ukai-jail/src/platform/macos/requirements.rs": {
+      "mode": "100644",
+      "git_blob": "65b7307278a397696895b61c2175afeb97ae88b2",
+      "bytes": 29071
+    },
+    "crates/ukai-jail/src/platform/macos/sandbox.rs": {
+      "mode": "100644",
+      "git_blob": "49d971d187adb049404f568f743ff7744e66c00a",
+      "bytes": 36503
+    },
+    "crates/ukai-jail/src/platform/macos/setuid.rs": {
+      "mode": "100644",
+      "git_blob": "f1f3600f559f99fac18f2599cf761aa0d2b600a6",
+      "bytes": 10095
+    },
+    "crates/ukai-jail/src/platform/macos/stdio.rs": {
+      "mode": "100644",
+      "git_blob": "8f2ccf2fc32a92ceca511ab2bd83748e1febe6b8",
+      "bytes": 56702
+    },
+    "crates/ukai-jail/src/platform/macos/vm.rs": {
+      "mode": "100644",
+      "git_blob": "4941c8fc7824ad77adad4b32fd42707da8586fe0",
+      "bytes": 131429
+    },
+    "crates/ukai-jail/src/platform/macos/vm/control.rs": {
+      "mode": "100644",
+      "git_blob": "c985de22c07f29adb3de0e0c5f4dccda6e68a1b9",
+      "bytes": 24609
+    },
+    "crates/ukai-jail/src/platform/macos/vm/image.rs": {
+      "mode": "100644",
+      "git_blob": "38b60f5ced908f9a1ece33c15c8b421c6c13d97d",
+      "bytes": 49663
+    },
+    "crates/ukai-jail/src/platform/macos/vm/native.rs": {
+      "mode": "100644",
+      "git_blob": "b7d0f518c615ae510811164a294470d7e04e6df2",
+      "bytes": 17615
+    },
+    "crates/ukai-jail/src/platform/macos/vm/protocol.rs": {
+      "mode": "100644",
+      "git_blob": "fd6eb9440fa016d27f6f21165515a32c3e2a92bd",
+      "bytes": 37292
+    },
+    "crates/ukai-jail/src/platform/macos/vm/record.rs": {
+      "mode": "100644",
+      "git_blob": "417d8607fdd6376e512417d14f42b415ba7f4805",
+      "bytes": 7749
+    },
+    "crates/ukai-jail/src/platform/macos/vm/revocation.rs": {
+      "mode": "100644",
+      "git_blob": "e4597a6638c1b6949bcc3d5d8c05fa706bb605b3",
+      "bytes": 18237
+    },
+    "crates/ukai-jail/src/platform/macos/vm/sampled.rs": {
+      "mode": "100644",
+      "git_blob": "c53ef053f8cdd618b8a400526d467ba8ce45c7d0",
+      "bytes": 59885
+    },
+    "crates/ukai-jail/src/platform/macos/vm/share.rs": {
+      "mode": "100644",
+      "git_blob": "01662badf8d412a0c11e9b3b3cbca8139b121e67",
+      "bytes": 25434
+    },
+    "crates/ukai-jail/src/platform/macos/vm/tests.rs": {
+      "mode": "100644",
+      "git_blob": "e7f19026da73343d7357ed8f93178a418d6e96e6",
+      "bytes": 174506
+    },
+    "crates/ukai-jail/src/platform/mod.rs": {
+      "mode": "100644",
+      "git_blob": "5f32c9ac3d0a17e87b82bde2828579e71b98eebc",
+      "bytes": 34931
+    },
+    "crates/ukai-jail/src/policy.rs": {
+      "mode": "100644",
+      "git_blob": "cf4f4e8a465e5454d0384c9a145cecb48b592d6a",
+      "bytes": 89772
+    },
+    "crates/ukai-jail/src/policy/path.rs": {
+      "mode": "100644",
+      "git_blob": "f807714a9dcdb0c39c97746c1c12164e4afbf854",
+      "bytes": 6469
+    },
+    "crates/ukai-jail/src/profiles.rs": {
+      "mode": "100644",
+      "git_blob": "9bb26285fc73f519309b991b5db7be0012336c43",
+      "bytes": 15466
+    },
+    "crates/ukai-jail/src/program.rs": {
+      "mode": "100644",
+      "git_blob": "290acc170e5771446e818eccdfde46035b0bc781",
+      "bytes": 142323
+    },
+    "crates/ukai-jail/src/proxy/conn.rs": {
+      "mode": "100644",
+      "git_blob": "0a6fc32c6478ffadd27d1a00bea942eae0cd8a28",
+      "bytes": 28633
+    },
+    "crates/ukai-jail/src/proxy/coverage.rs": {
+      "mode": "100644",
+      "git_blob": "44518e072d86d54f87880e9ac4c6fd8b74d512c9",
+      "bytes": 8484
+    },
+    "crates/ukai-jail/src/proxy/event.rs": {
+      "mode": "100644",
+      "git_blob": "a599d57dc37194c9321e64c5c88bf35838acb067",
+      "bytes": 5337
+    },
+    "crates/ukai-jail/src/proxy/http.rs": {
+      "mode": "100644",
+      "git_blob": "8902112de3c655aa8a677a6018fee0596e426533",
+      "bytes": 34399
+    },
+    "crates/ukai-jail/src/proxy/mod.rs": {
+      "mode": "100644",
+      "git_blob": "386c2d0faeada54547c9f9f51eb66d1450a9e1db",
+      "bytes": 3534
+    },
+    "crates/ukai-jail/src/proxy/origin.rs": {
+      "mode": "100644",
+      "git_blob": "982ea25660ec020c156faa8176ae511031159e61",
+      "bytes": 11768
+    },
+    "crates/ukai-jail/src/proxy/relay.rs": {
+      "mode": "100644",
+      "git_blob": "4dc559ad3d2869802181fa7faad8e089a0973936",
+      "bytes": 24957
+    },
+    "crates/ukai-jail/src/proxy/resolve.rs": {
+      "mode": "100644",
+      "git_blob": "b3dcc31b3184ecd585c06b27cc379c293929b455",
+      "bytes": 14439
+    },
+    "crates/ukai-jail/src/proxy/server.rs": {
+      "mode": "100644",
+      "git_blob": "e0dd42d5d929cec215aa71cae2f9cd4e580da99d",
+      "bytes": 19563
+    },
+    "crates/ukai-jail/src/proxy/socks.rs": {
+      "mode": "100644",
+      "git_blob": "35b7b5179653f80f12eb8bd10d252ef1dea9da32",
+      "bytes": 10352
+    },
+    "crates/ukai-jail/src/proxy/sys.rs": {
+      "mode": "100644",
+      "git_blob": "f608e8f57bb92a7481406ad02157038733e2158e",
+      "bytes": 7264
+    },
+    "crates/ukai-jail/src/proxy/tls.rs": {
+      "mode": "100644",
+      "git_blob": "a13a4b50d5b1c1f5f9e9752b51bea7d626bf7ef7",
+      "bytes": 42017
+    },
+    "crates/ukai-jail/src/proxy/types.rs": {
+      "mode": "100644",
+      "git_blob": "77e5ba24a68b6921867a31279c1eb3543f9d0e04",
+      "bytes": 21747
+    },
+    "crates/ukai-jail/src/records.rs": {
+      "mode": "100644",
+      "git_blob": "eb3863a9d5b4fa484c8a0a5b034579039327ec31",
+      "bytes": 105
+    },
+    "crates/ukai-jail/src/state.rs": {
+      "mode": "100644",
+      "git_blob": "f388714b0886a5ccf5468527c8d17a43d24500e7",
+      "bytes": 5811
+    },
+    "crates/ukai-jail/src/state/accounts.rs": {
+      "mode": "100644",
+      "git_blob": "23b81426059f42cae6bc9ce574147359530dd7c3",
+      "bytes": 9787
+    },
+    "crates/ukai-jail/src/state/anchored.rs": {
+      "mode": "100644",
+      "git_blob": "4123be6cbb9fc6f52d50635173c3e92b154cf906",
+      "bytes": 51929
+    },
+    "crates/ukai-jail/src/state/durable.rs": {
+      "mode": "100644",
+      "git_blob": "b5097f28d0d85841b9182b28008e7ab825257122",
+      "bytes": 11408
+    },
+    "crates/ukai-jail/src/state/layout.rs": {
+      "mode": "100644",
+      "git_blob": "7da8a98080ccb7876a2a68e4cedaaaec4569599e",
+      "bytes": 12354
+    },
+    "crates/ukai-jail/src/state/lease.rs": {
+      "mode": "100644",
+      "git_blob": "cfd6d4a229513166bec90f64e81a05d6a243bfe2",
+      "bytes": 5782
+    },
+    "crates/ukai-jail/src/state/mount_alias.rs": {
+      "mode": "100644",
+      "git_blob": "451fdd69abce19cb83d2e659b415e2f354c3aff5",
+      "bytes": 14824
+    },
+    "crates/ukai-jail/src/state/mountinfo.rs": {
+      "mode": "100644",
+      "git_blob": "76713ad71757f7748fcfb5da2f0f65b8628f2301",
+      "bytes": 8630
+    },
+    "crates/ukai-jail/src/state/persist.rs": {
+      "mode": "100644",
+      "git_blob": "7646cecc18498764e0156b2db9f12e579b8175b2",
+      "bytes": 35451
+    },
+    "crates/ukai-jail/src/state/proxy_dir.rs": {
+      "mode": "100644",
+      "git_blob": "607eec8f9f56a165f6dbe4f618b97e45c644a4c3",
+      "bytes": 25437
+    },
+    "crates/ukai-jail/src/state/record.rs": {
+      "mode": "100644",
+      "git_blob": "547389614c3649264287122df375e42ba7db0322",
+      "bytes": 25288
+    },
+    "crates/ukai-jail/src/state/registration.rs": {
+      "mode": "100644",
+      "git_blob": "6571d9c51bcfcfd6e9d77a009ea5070cd4a5c565",
+      "bytes": 15864
+    },
+    "crates/ukai-jail/src/state/safety.rs": {
+      "mode": "100644",
+      "git_blob": "e74f00f18c85b9cc9e403c7ae181794e07346461",
+      "bytes": 15311
+    },
+    "crates/ukai-jail/src/state/uncontained.rs": {
+      "mode": "100644",
+      "git_blob": "f8429763e092a17a6caf5b3a85667c5860db8e83",
+      "bytes": 36996
+    },
+    "crates/ukai-jail/src/summary.rs": {
+      "mode": "100644",
+      "git_blob": "93ebeef7539df8d5d60e8fc3b43ec4186fea0b43",
+      "bytes": 104450
+    },
+    "crates/ukai-jail/src/supervisor.rs": {
+      "mode": "100644",
+      "git_blob": "034f30356bfd4313543b80aeda0753de9728aab2",
+      "bytes": 296019
+    },
+    "crates/ukai-jail/src/supervisor/amend.rs": {
+      "mode": "100644",
+      "git_blob": "8c79a3d105b4a12e9318bae5a70e1656712917e4",
+      "bytes": 5471
+    },
+    "crates/ukai-jail/src/supervisor/attempt.rs": {
+      "mode": "100644",
+      "git_blob": "13bc1b413f4253f4d3bac02f148a15064815111c",
+      "bytes": 99018
+    },
+    "crates/ukai-jail/src/supervisor/from_path.rs": {
+      "mode": "100644",
+      "git_blob": "582b44483cf0f659f8b2defe3508a262cccf3bfb",
+      "bytes": 45050
+    },
+    "crates/ukai-jail/src/sync.rs": {
+      "mode": "100644",
+      "git_blob": "9045a47f028c2d84aba6d352b451e6630d10e49c",
+      "bytes": 3365
+    },
+    "crates/ukai-jail/src/sys.rs": {
+      "mode": "100644",
+      "git_blob": "cd867c206ea3f3a5c8b5c156a45a0b3ab4f0ac36",
+      "bytes": 8124
+    },
+    "crates/ukai-jail/src/terminal.rs": {
+      "mode": "100644",
+      "git_blob": "e4047a6ff70e70278b5a7565cfe056b3e4710557",
+      "bytes": 39826
+    },
+    "crates/ukai-jail/src/test_evidence.rs": {
+      "mode": "100644",
+      "git_blob": "f1bc66253fd1f429dd09ab81b7d4d75dc8f12777",
+      "bytes": 1823
+    },
+    "crates/ukai-jail/src/trace.rs": {
+      "mode": "100644",
+      "git_blob": "61580216b4b080756f0a6e413fedb37ca9b75d2b",
+      "bytes": 58251
+    },
+    "crates/ukai-jail/src/trace/readback.rs": {
+      "mode": "100644",
+      "git_blob": "cf62a529d7b314b736d959803e31a8c02198e626",
+      "bytes": 4983
+    },
+    "crates/ukai-jail/src/vault.rs": {
+      "mode": "100644",
+      "git_blob": "ddfbea60ccf8a834c6dd966ad82b33481e91e906",
+      "bytes": 66648
+    },
+    "crates/ukai-jail/src/vault/lifecycle.rs": {
+      "mode": "100644",
+      "git_blob": "37e630e963d247627c01573876cef26951a48510",
+      "bytes": 63450
+    },
+    "crates/ukai-jail/src/vault/origin.rs": {
+      "mode": "100644",
+      "git_blob": "ee441ce4897d7d6c1439f4d9d61fe57934a6afee",
+      "bytes": 76183
+    },
+    "crates/ukai-jail/src/vault/transport.rs": {
+      "mode": "100644",
+      "git_blob": "3623686455b646babc343180a1527c092cf64851",
+      "bytes": 6480
+    },
+    "crates/ukai-jail/vm/fixtures/guest-native-profile-inputs.json": {
+      "mode": "100644",
+      "git_blob": "018b94dbd79efebf2d36abd71d3582b931659d73",
+      "bytes": 290
+    },
+    "crates/ukai-jail/vm/fixtures/guest-program-catalog-vectors.json": {
+      "mode": "100644",
+      "git_blob": "f2b5239e2ec931d866befaab4d92f0caff5f3f18",
+      "bytes": 36254
+    },
+    "crates/ukai-jail/vm/fixtures/guest-program-catalog.json": {
+      "mode": "100644",
+      "git_blob": "baed3939a9d8b39ac9d3b5516aaa588ff52fad41",
+      "bytes": 1177
+    },
+    "crates/ukai-jail/vm/fixtures/managed-sampled-exposure.json": {
+      "mode": "100644",
+      "git_blob": "a5695bbfc9ee808bec19cfb8ba8f866f1d6cfbac",
+      "bytes": 17353
+    },
+    "crates/ukai-jail/vm/fixtures/sampled-exposure-context.json": {
+      "mode": "100644",
+      "git_blob": "b7550bedabf54cfdb974287ee49884989948fa60",
+      "bytes": 458
+    },
+    "crates/ukai-jail/vm/fixtures/sampled-exposure-receipt.json": {
+      "mode": "100644",
+      "git_blob": "c957ef28d220776eb82ab3dfcc88e72140827c5c",
+      "bytes": 182
+    },
+    "crates/ukai-jail/vm/fixtures/sampled-exposure-report.json": {
+      "mode": "100644",
+      "git_blob": "d9fc6dab6c0b054d7bdda5e6aa83b9e8adcad7f4",
+      "bytes": 2955
+    },
+    "crates/ukai-records/Cargo.toml": {
+      "mode": "100644",
+      "git_blob": "22ffeb400c6581a170b2006f209ed65132379537",
+      "bytes": 392
+    },
+    "crates/ukai-records/src/canonical.rs": {
+      "mode": "100644",
+      "git_blob": "f6b977fdcbf0d07f74f7d012b24d19f8483a5914",
+      "bytes": 4738
+    },
+    "crates/ukai-records/src/canonical/jcs.rs": {
+      "mode": "100644",
+      "git_blob": "611359352dcda703152d6a76e406d42232ec8c54",
+      "bytes": 5659
+    },
+    "crates/ukai-records/src/lib.rs": {
+      "mode": "100644",
+      "git_blob": "ef72b725aae9da798b6d71ff02de3bdb6040de51",
+      "bytes": 143
+    },
+    "crates/ukai-records/src/records.rs": {
+      "mode": "100644",
+      "git_blob": "f0a815179cff1ccf3cc0061e8e24f439fba61eb8",
+      "bytes": 88966
+    },
+    "crates/ukai-records/src/records/semantic.rs": {
+      "mode": "100644",
+      "git_blob": "b1ee73dc849917f5e289c4af8dfcbbd5d7dcc67b",
+      "bytes": 31064
+    },
+    "crates/ukai-records/src/retention.rs": {
+      "mode": "100644",
+      "git_blob": "284c1fa22a853b50a891eeede8fe87f7a2049d32",
+      "bytes": 2085
+    },
+    "docs/specs/jail-v1/network-addresses.json": {
+      "mode": "100644",
+      "git_blob": "bead5b71c2392ce753a7cf92a4d73de322e589f8",
+      "bytes": 1344
+    },
+    "rust-toolchain.toml": {
+      "mode": "100644",
+      "git_blob": "69184456ae8ccca9d18c009317bc8763749a41b0",
+      "bytes": 173
+    }
+  }
+}

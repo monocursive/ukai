@@ -1,0 +1,736 @@
+{
+  "artifact_review": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-export-934ad33ac/attempt/verification.json",
+  "capacity_record": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-plan-export-934ad33ac/capacity.json",
+  "capacity_scope": "Actual934 full-fallback floor22422933504 B =12GiB reserve+768MiB working margin+max(full6GiB expansion+ditto, full fallback installed+one full negative volume+ditto). No sparse/COW savings. Runtime12GiB+256MiB stop margin; fresh full floor before attachment and checker. Stage retained; no deletion credit.",
+  "checker": "/Users/monocursive/.cache/ukai-guest-export-source-934ad33ac-20261116/crates/ukai-jail/vm/check_install.py",
+  "checksum_verification": "Explicit checked90s hdiutil verify -nocache, retained stdout/stderr/exit; verify unchanged generations, then readonly attach -noverify. Full DMG SHA/signatures/payload checks retained.",
+  "cleanup": "Only exact fresh-owned read-only attachment is detached, including partial attach device; exact-image absence checked independently after detach failure. Owned child groups use frozenf347. Preserve installed/failure artifacts; checker may retire its own passed negative fixtures. No new stage or historical cleanup.",
+  "cleanup_runner": {
+    "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/gate-qualification-plan-406a91a66/candidate_runner.py",
+    "sha256": "f34756d3a08f0992a0b7302137a1be02a213ecb21c0a2a9d904c3a6fad9583f0"
+  },
+  "command": [
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/build-env/bin/python",
+    "-B",
+    "/Users/monocursive/.cache/ukai-guest-export-source-934ad33ac-20261116/crates/ukai-jail/vm/check_install.py",
+    "--volume",
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-export-934ad33ac",
+    "--out",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-export-934ad33ac",
+    "--dmg",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/ukai-vm-0.1.0-preview.2-macos-arm64.dmg"
+  ],
+  "cwd": "/Users/monocursive/.cache/ukai-guest-export-source-934ad33ac-20261116",
+  "dmg": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/ukai-vm-0.1.0-preview.2-macos-arm64.dmg",
+  "dmg_sha256": "9f83b8ad3f41e19f5d3e7ca6f6319cc56915a5d85d5d2096d223254a745de1ca",
+  "evidence_pins": {
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-export-journal-review-934ad33ac/review.json": "26040a5f58a306870ebc2609d8a400dcbe96bb1610fd5b93437899ba43f39f21",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-export-plan-934ad33ac/source-manifest.json": "bc0cee39eb64b802b694249450b7e4a5f9d7fbdb44175769d69bcf1f62d4e9ee",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-export-prepare-934ad33ac/completion.json": "eb1077d3eb03dbed717a11a84fc4bd16d19dbc13b7f62bdf7fdcc7fcc54a790f",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-plan-export-934ad33ac/capacity.json": "055744263dc380aa273d9227d90316c00b2497a48fb0fd9456fc9512bb6e2455",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/package.json": "50442a8e7468e0ef59cd763a60d32b4a21a6872292e86a50a11d957a29fccb5b",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-export-934ad33ac/attempt/verification.json": "3a711dd442079c09072bbaaf2f80864ab37875d5aeacb8bcc1be7361478544f5",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-export-934ad33ac/summary.json": "71af539e2ce425c667291ec0f9a34ca023651522284269e8ff5cede8a6297b63",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-plan-export-934ad33ac/completion.json": "f4a62f53c0508fa7c7c405db856ceaed6c0abd4f94af66f545d67bd38e33f322"
+  },
+  "free_observed": 33326256128,
+  "guards": {
+    "available_host_memory_min_bytes": 4294967296,
+    "hard_runtime_reserve_bytes": 12884901888,
+    "minimum_start_available_bytes": 22422933504,
+    "stop_margin_bytes": 268435456
+  },
+  "installer_out": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-export-934ad33ac",
+  "limits": {
+    "attach_seconds": 60,
+    "attachment_query_seconds": 15,
+    "checksum_verify_seconds": 90,
+    "cleanup_global_seconds": 120,
+    "detach_seconds": 45,
+    "installer_seconds": 300,
+    "once_only": true,
+    "work_global_seconds": 480
+  },
+  "mode_scope": "Exact public0755/0644 stage and DMG modes required by independent proof, then existing installed normalization; record ownership, no cross-UID installation claim.",
+  "mountpoint": "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-export-934ad33ac",
+  "new_stage": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume",
+  "original_generations": {
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/base.raw": {
+      "st_ctime_ns": 1794839792529883121,
+      "st_dev": 16777234,
+      "st_ino": 375131773,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794839792529883121,
+      "st_nlink": 1,
+      "st_size": 6442450944
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/bootstrap-console.log": {
+      "st_ctime_ns": 1794839792352147131,
+      "st_dev": 16777234,
+      "st_ino": 375131796,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794839792352147131,
+      "st_nlink": 1,
+      "st_size": 25370
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/bootstrap-events.ndjson": {
+      "st_ctime_ns": 1794839792677625945,
+      "st_dev": 16777234,
+      "st_ino": 375131792,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794839792677625945,
+      "st_nlink": 1,
+      "st_size": 158
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/bootstrap-stderr.log": {
+      "st_ctime_ns": 1794839672519996864,
+      "st_dev": 16777234,
+      "st_ino": 375131793,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794839672519985781,
+      "st_nlink": 1,
+      "st_size": 0
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/bootstrap.nvram": {
+      "st_ctime_ns": 1794839792677195818,
+      "st_dev": 16777234,
+      "st_ino": 375131794,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794839672715689846,
+      "st_nlink": 1,
+      "st_size": 131072
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/custodian": {
+      "st_ctime_ns": 1794839670885575850,
+      "st_dev": 16777234,
+      "st_ino": 375131770,
+      "st_mode": 33216,
+      "st_mtime_ns": 1794839670885575850,
+      "st_nlink": 1,
+      "st_size": 34760
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/guest-exposure-control.json": {
+      "st_ctime_ns": 1794839792693250802,
+      "st_dev": 16777234,
+      "st_ino": 375132373,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794839792693250802,
+      "st_nlink": 1,
+      "st_size": 1027
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/guest-program-catalog.json": {
+      "st_ctime_ns": 1794839672092164083,
+      "st_dev": 16777234,
+      "st_ino": 375131783,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794839672092164083,
+      "st_nlink": 1,
+      "st_size": 1184
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/image.json": {
+      "st_ctime_ns": 1794839795501981124,
+      "st_dev": 16777234,
+      "st_ino": 375131791,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794839795501981124,
+      "st_nlink": 1,
+      "st_size": 6773
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/seed.iso": {
+      "st_ctime_ns": 1794839672517920939,
+      "st_dev": 16777234,
+      "st_ino": 375131790,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794839672517920939,
+      "st_nlink": 1,
+      "st_size": 310435840
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/vz": {
+      "st_ctime_ns": 1794839670895684350,
+      "st_dev": 16777234,
+      "st_ino": 375131771,
+      "st_mode": 33216,
+      "st_mtime_ns": 1794839670895629725,
+      "st_nlink": 1,
+      "st_size": 120768
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-export-home-934ad33ac/image/base.raw": {
+      "st_ctime_ns": 1794853218262687615,
+      "st_dev": 16777234,
+      "st_ino": 375385605,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794853218262687615,
+      "st_nlink": 1,
+      "st_size": 6442450944
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-export-home-934ad33ac/image/guest-exposure-control.json": {
+      "st_ctime_ns": 1794853218432789388,
+      "st_dev": 16777234,
+      "st_ino": 375385958,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794853218432789388,
+      "st_nlink": 1,
+      "st_size": 1026
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-export-home-934ad33ac/image/guest-program-catalog.json": {
+      "st_ctime_ns": 1794853152372783012,
+      "st_dev": 16777234,
+      "st_ino": 375385609,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794853152372783012,
+      "st_nlink": 1,
+      "st_size": 1184
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-export-home-934ad33ac/image/image.json": {
+      "st_ctime_ns": 1794853221121802950,
+      "st_dev": 16777234,
+      "st_ino": 375385618,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794853221121802950,
+      "st_nlink": 1,
+      "st_size": 6772
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-export-home-934ad33ac/image/seed.iso": {
+      "st_ctime_ns": 1794853152855304045,
+      "st_dev": 16777234,
+      "st_ino": 375385616,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794853152855304045,
+      "st_nlink": 1,
+      "st_size": 310437888
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-export-journal-review-934ad33ac/review.json": {
+      "st_ctime_ns": 1794853398708820156,
+      "st_dev": 16777234,
+      "st_ino": 375386729,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794853398708820156,
+      "st_nlink": 1,
+      "st_size": 6081
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-export-plan-934ad33ac/source-manifest.json": {
+      "st_ctime_ns": 1794852664554911878,
+      "st_dev": 16777234,
+      "st_ino": 375383106,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794852664554911878,
+      "st_nlink": 1,
+      "st_size": 242294
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-export-prepare-934ad33ac/completion.json": {
+      "st_ctime_ns": 1794853224209293600,
+      "st_dev": 16777234,
+      "st_ino": 375385990,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794853224209293600,
+      "st_nlink": 1,
+      "st_size": 1787
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-P-d03a2256f/base.raw": {
+      "st_ctime_ns": 1794835599262012062,
+      "st_dev": 16777234,
+      "st_ino": 375104109,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794835599262012062,
+      "st_nlink": 1,
+      "st_size": 6442450944
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-plan-R-8db910892/capacity.json": {
+      "st_ctime_ns": 1794844807465450901,
+      "st_dev": 16777234,
+      "st_ino": 375193489,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794844807465450901,
+      "st_nlink": 1,
+      "st_size": 8108
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-plan-export-934ad33ac/capacity.json": {
+      "st_ctime_ns": 1794854562497320459,
+      "st_dev": 16777234,
+      "st_ino": 375391697,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794854562497320459,
+      "st_nlink": 1,
+      "st_size": 9698
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-retirement-Q-pending/result.json": {
+      "st_ctime_ns": 1794843891756762568,
+      "st_dev": 16777234,
+      "st_ino": 375189404,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794843891756762568,
+      "st_nlink": 1,
+      "st_size": 1732
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-P-d03a2256f/package.json": {
+      "st_ctime_ns": 1794836437855953994,
+      "st_dev": 16777234,
+      "st_ino": 375109490,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794836437855953994,
+      "st_nlink": 1,
+      "st_size": 18091
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-Q-44b5ac4fa/package.json": {
+      "st_ctime_ns": 1794841126592078842,
+      "st_dev": 16777234,
+      "st_ino": 375143015,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794841126592078842,
+      "st_nlink": 1,
+      "st_size": 18091
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-Q-44b5ac4fa/ukai-vm-0.1.0-preview.2-macos-arm64.dmg": {
+      "st_ctime_ns": 1794841237004414898,
+      "st_dev": 16777234,
+      "st_ino": 375142992,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794841126239317245,
+      "st_nlink": 1,
+      "st_size": 976901194
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-R-8db910892/package.json": {
+      "st_ctime_ns": 1794844640826766025,
+      "st_dev": 16777234,
+      "st_ino": 375192629,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794844640826766025,
+      "st_nlink": 1,
+      "st_size": 18092
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-R-8db910892/ukai-vm-0.1.0-preview.2-macos-arm64.dmg": {
+      "st_ctime_ns": 1794844640451242814,
+      "st_dev": 16777234,
+      "st_ino": 375192595,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794844640451242814,
+      "st_nlink": 1,
+      "st_size": 977347658
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/package.json": {
+      "st_ctime_ns": 1794854249906091728,
+      "st_dev": 16777234,
+      "st_ino": 375390443,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794854249906091728,
+      "st_nlink": 1,
+      "st_size": 18189
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/ukai-vm-0.1.0-preview.2-macos-arm64.dmg": {
+      "st_ctime_ns": 1794854249552592125,
+      "st_dev": 16777234,
+      "st_ino": 375390399,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794854249552592125,
+      "st_nlink": 1,
+      "st_size": 977360414
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume": {
+      "st_ctime_ns": 1794854241760287994,
+      "st_dev": 16777234,
+      "st_ino": 375389944,
+      "st_mode": 16877,
+      "st_mtime_ns": 1794854241719596111,
+      "st_nlink": 7,
+      "st_size": 224
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/READ-ME.txt": {
+      "st_ctime_ns": 1794854241760305661,
+      "st_dev": 16777234,
+      "st_ino": 375390393,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794852635097745165,
+      "st_nlink": 1,
+      "st_size": 8096
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/SHA256SUMS": {
+      "st_ctime_ns": 1794854241760316411,
+      "st_dev": 16777234,
+      "st_ino": 375390395,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794854241719257484,
+      "st_nlink": 1,
+      "st_size": 1510
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/install.sh": {
+      "st_ctime_ns": 1794854241760325453,
+      "st_dev": 16777234,
+      "st_ino": 375390396,
+      "st_mode": 33261,
+      "st_mtime_ns": 1794854241719656944,
+      "st_nlink": 1,
+      "st_size": 7092
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload": {
+      "st_ctime_ns": 1794854241760334119,
+      "st_dev": 16777234,
+      "st_ino": 375389945,
+      "st_mode": 16877,
+      "st_mtime_ns": 1794854241315482874,
+      "st_nlink": 5,
+      "st_size": 160
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/bin": {
+      "st_ctime_ns": 1794854241760345286,
+      "st_dev": 16777234,
+      "st_ino": 375389947,
+      "st_mode": 16877,
+      "st_mtime_ns": 1794854204536584984,
+      "st_nlink": 5,
+      "st_size": 160
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/bin/ukai-jail": {
+      "st_ctime_ns": 1794854241760353869,
+      "st_dev": 16777234,
+      "st_ino": 375390146,
+      "st_mode": 33261,
+      "st_mtime_ns": 1794854200634351080,
+      "st_nlink": 1,
+      "st_size": 10154064
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/bin/ukai-vm": {
+      "st_ctime_ns": 1794854241760364494,
+      "st_dev": 16777234,
+      "st_ino": 375390144,
+      "st_mode": 33261,
+      "st_mtime_ns": 1794854200335090210,
+      "st_nlink": 1,
+      "st_size": 3210224
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/bin/ukai-vm-install": {
+      "st_ctime_ns": 1794854241760372911,
+      "st_dev": 16777234,
+      "st_ino": 375390201,
+      "st_mode": 33261,
+      "st_mtime_ns": 1794854204498405861,
+      "st_nlink": 1,
+      "st_size": 9843584
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/image": {
+      "st_ctime_ns": 1794854241760382078,
+      "st_dev": 16777234,
+      "st_ino": 375389946,
+      "st_mode": 16877,
+      "st_mtime_ns": 1794854241315299915,
+      "st_nlink": 8,
+      "st_size": 256
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/image/base.raw.gz": {
+      "st_ctime_ns": 1794854241760390328,
+      "st_dev": 16777234,
+      "st_ino": 375390205,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794854239702009936,
+      "st_nlink": 1,
+      "st_size": 634309914
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/image/custodian": {
+      "st_ctime_ns": 1794854241760398620,
+      "st_dev": 16777234,
+      "st_ino": 375389967,
+      "st_mode": 33261,
+      "st_mtime_ns": 1794854185229290091,
+      "st_nlink": 1,
+      "st_size": 52848
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/image/guest-program-catalog.json": {
+      "st_ctime_ns": 1794854241760407745,
+      "st_dev": 16777234,
+      "st_ino": 375390204,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794854204577485743,
+      "st_nlink": 1,
+      "st_size": 1184
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/image/image.json": {
+      "st_ctime_ns": 1794854241760416036,
+      "st_dev": 16777234,
+      "st_ino": 375390386,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794854241315408373,
+      "st_nlink": 1,
+      "st_size": 15685
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/image/seed.iso": {
+      "st_ctime_ns": 1794854241760424245,
+      "st_dev": 16777234,
+      "st_ino": 375390203,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794853152855304045,
+      "st_nlink": 1,
+      "st_size": 310437888
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/image/vz": {
+      "st_ctime_ns": 1794854241760432578,
+      "st_dev": 16777234,
+      "st_ino": 375389962,
+      "st_mode": 33261,
+      "st_mtime_ns": 1794854184920664347,
+      "st_nlink": 1,
+      "st_size": 138896
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/licenses": {
+      "st_ctime_ns": 1794854241760440537,
+      "st_dev": 16777234,
+      "st_ino": 375390387,
+      "st_mode": 16877,
+      "st_mtime_ns": 1794854241377121431,
+      "st_nlink": 7,
+      "st_size": 224
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/licenses/Linux-Jail-LICENSES.txt": {
+      "st_ctime_ns": 1794854241760451995,
+      "st_dev": 16777234,
+      "st_ino": 375390390,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794854241351719946,
+      "st_nlink": 1,
+      "st_size": 2291615
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/licenses/Native-Host-LICENSES.txt": {
+      "st_ctime_ns": 1794854241760459912,
+      "st_dev": 16777234,
+      "st_ino": 375390389,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794854241317913676,
+      "st_nlink": 1,
+      "st_size": 2291615
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/licenses/Python-LICENSE.txt": {
+      "st_ctime_ns": 1794854241760473078,
+      "st_dev": 16777234,
+      "st_ino": 375390392,
+      "st_mode": 33188,
+      "st_mtime_ns": 1780589451142496510,
+      "st_nlink": 1,
+      "st_size": 13809
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/licenses/Ukai-LICENSE.txt": {
+      "st_ctime_ns": 1794854241760482495,
+      "st_dev": 16777234,
+      "st_ino": 375390388,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794852635014492138,
+      "st_nlink": 1,
+      "st_size": 1068
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/payload/licenses/pyinstaller-COPYING.txt": {
+      "st_ctime_ns": 1794854241760492454,
+      "st_dev": 16777234,
+      "st_ino": 375390391,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794746671732966321,
+      "st_nlink": 1,
+      "st_size": 32604
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/volume/preview-source.tar.gz": {
+      "st_ctime_ns": 1794854241760501745,
+      "st_dev": 16777234,
+      "st_ino": 375390377,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794854241083569460,
+      "st_nlink": 1,
+      "st_size": 6094566
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-R-8db910892/attempt/retained-package/READ-ME.txt": {
+      "st_ctime_ns": 1794844748354676289,
+      "st_dev": 16777234,
+      "st_ino": 375193040,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794844748354657622,
+      "st_nlink": 1,
+      "st_size": 8096
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-R-8db910892/attempt/retained-package/SHA256SUMS": {
+      "st_ctime_ns": 1794844748354389663,
+      "st_dev": 16777234,
+      "st_ino": 375193038,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794844748354366746,
+      "st_nlink": 1,
+      "st_size": 1510
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-R-8db910892/attempt/retained-package/install.sh": {
+      "st_ctime_ns": 1794844748354538164,
+      "st_dev": 16777234,
+      "st_ino": 375193039,
+      "st_mode": 33261,
+      "st_mtime_ns": 1794844748354517872,
+      "st_nlink": 1,
+      "st_size": 7092
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-R-8db910892/attempt/retained-package/preview-source.tar.gz": {
+      "st_ctime_ns": 1794844748352029157,
+      "st_dev": 16777234,
+      "st_ino": 375193037,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794844748351809115,
+      "st_nlink": 1,
+      "st_size": 6092189
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-R-8db910892/attempt/verification.json": {
+      "st_ctime_ns": 1794844749455086768,
+      "st_dev": 16777234,
+      "st_ino": 375193046,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794844749455086768,
+      "st_nlink": 1,
+      "st_size": 29616
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-R-8db910892/review.py": {
+      "st_ctime_ns": 1794844578159678465,
+      "st_dev": 16777234,
+      "st_ino": 375190936,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794844578159678465,
+      "st_nlink": 1,
+      "st_size": 21846
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-R-8db910892/stage-cleanup/result.json": {
+      "st_ctime_ns": 1794844951541440017,
+      "st_dev": 16777234,
+      "st_ino": 375196511,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794844951541440017,
+      "st_nlink": 1,
+      "st_size": 1497
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-R-8db910892/summary.json": {
+      "st_ctime_ns": 1794844788387649644,
+      "st_dev": 16777234,
+      "st_ino": 375193236,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794844788387649644,
+      "st_nlink": 1,
+      "st_size": 3370
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-export-934ad33ac/attempt/retained-package/READ-ME.txt": {
+      "st_ctime_ns": 1794854384329611304,
+      "st_dev": 16777234,
+      "st_ino": 375390972,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794854384329593513,
+      "st_nlink": 1,
+      "st_size": 8096
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-export-934ad33ac/attempt/retained-package/SHA256SUMS": {
+      "st_ctime_ns": 1794854384329341358,
+      "st_dev": 16777234,
+      "st_ino": 375390970,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794854384329312484,
+      "st_nlink": 1,
+      "st_size": 1510
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-export-934ad33ac/attempt/retained-package/install.sh": {
+      "st_ctime_ns": 1794854384329483185,
+      "st_dev": 16777234,
+      "st_ino": 375390971,
+      "st_mode": 33261,
+      "st_mtime_ns": 1794854384329466436,
+      "st_nlink": 1,
+      "st_size": 7092
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-export-934ad33ac/attempt/retained-package/preview-source.tar.gz": {
+      "st_ctime_ns": 1794854384327079290,
+      "st_dev": 16777234,
+      "st_ino": 375390969,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794854384326645476,
+      "st_nlink": 1,
+      "st_size": 6094566
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-export-934ad33ac/attempt/verification.json": {
+      "st_ctime_ns": 1794854384617961858,
+      "st_dev": 16777234,
+      "st_ino": 375390984,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794854384617961858,
+      "st_nlink": 1,
+      "st_size": 30583
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-export-934ad33ac/summary.json": {
+      "st_ctime_ns": 1794854422368345335,
+      "st_dev": 16777234,
+      "st_ino": 375391133,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794854422368345335,
+      "st_nlink": 1,
+      "st_size": 3812
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-plan-Q-44b5ac4fa/reclaim-audit/result.json": {
+      "st_ctime_ns": 1794843277823288667,
+      "st_dev": 16777234,
+      "st_ino": 375163341,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794843277823288667,
+      "st_nlink": 1,
+      "st_size": 2264
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-plan-R-8db910892-attempt2/completion.json": {
+      "st_ctime_ns": 1794844642818669260,
+      "st_dev": 16777234,
+      "st_ino": 375192637,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794844642818669260,
+      "st_nlink": 1,
+      "st_size": 2649
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-plan-R-8db910892/completion.json": {
+      "st_ctime_ns": 1794844221667340878,
+      "st_dev": 16777234,
+      "st_ino": 375190737,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794844221667340878,
+      "st_nlink": 1,
+      "st_size": 1193
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-plan-R-8db910892/preflight-refusal-diagnosis.json": {
+      "st_ctime_ns": 1794844286569341410,
+      "st_dev": 16777234,
+      "st_ino": 375191028,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794844286569341410,
+      "st_nlink": 1,
+      "st_size": 4881
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-plan-R-8db910892/source-manifest.json": {
+      "st_ctime_ns": 1794843957234135588,
+      "st_dev": 16777234,
+      "st_ino": 375189663,
+      "st_mode": 33188,
+      "st_mtime_ns": 1794843957234135588,
+      "st_nlink": 1,
+      "st_size": 216196
+    },
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-plan-export-934ad33ac/completion.json": {
+      "st_ctime_ns": 1794854250158943815,
+      "st_dev": 16777234,
+      "st_ino": 375390448,
+      "st_mode": 33152,
+      "st_mtime_ns": 1794854250158943815,
+      "st_nlink": 1,
+      "st_size": 2737
+    }
+  },
+  "package_json": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/package.json",
+  "prerequisites": "Actual934 provisional source1094/public modes/six-signature DMG proof PASS38, no-cache checksum verification and exact stage equality. Retain stage and all historical failures. Fresh full fallback capacity before attachment and checker. No inherited component/admission qualification.",
+  "record": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-execution-export-934ad33ac",
+  "schema": "ukai.export-repair.installer-plan/1",
+  "scope": "Seven cases install/repeat-refused/unrelated-refused/unrelated-client-refused/manifest-tamper/payload-tamper/payload-extra once. No VM/native-admission/provider/OAuth/build/signing. Existing checker runs service/client version and doctor only.",
+  "source_archive_files": 1094,
+  "source_checkout": "/Users/monocursive/.cache/ukai-guest-export-source-934ad33ac-20261116",
+  "source_manifest": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-export-plan-934ad33ac/source-manifest.json",
+  "source_revision": "934ad33acc5efb2843de8ee9fd5ea3181b6790b3",
+  "stage_policy": "retained_verified_stage",
+  "status": "READY",
+  "tool_pins": {
+    "/Users/monocursive/.cache/ukai-guest-export-source-934ad33ac-20261116/crates/ukai-jail/vm/check_install.py": "d1c4cdecf12d13f7b5a2f54c3b3db8d26a56d143d7a325ca96bdcd7efca1ef69",
+    "/Users/monocursive/.cache/ukai-guest-export-source-934ad33ac-20261116/crates/ukai-jail/vm/cli.py": "b5b8c1726ad8f667becb5f89f5dfb63691f470f2a339c0f726477faf4c9f9afb",
+    "/Users/monocursive/.cache/ukai-guest-export-source-934ad33ac-20261116/crates/ukai-jail/vm/install.sh.in": "df5fddd7711fb76037b0a7a39e431f4638c14b2a0c9a0dd29be7abe053e63654",
+    "/Users/monocursive/.cache/ukai-guest-export-source-934ad33ac-20261116/crates/ukai-jail/vm/run.py": "4a68643b43950a80788d113feebb841f9ab90890735e235081041b123a835412",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/gate-qualification-plan-406a91a66/candidate_runner.py": "f34756d3a08f0992a0b7302137a1be02a213ecb21c0a2a9d904c3a6fad9583f0",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/source-P-builder-pin-plan-J/cache-recovery-2026-11-16/continuation-plan/prepare_phase.py": "539d33f581b0620b723ca8daa9d44fdc0bf270242a6444699a63d2fe99a68b28"
+  },
+  "wrapper_sha256": "faf098cffc5c5c86431c3b04ddc91559de3647710b36c78cafb1a11757deb15c"
+}

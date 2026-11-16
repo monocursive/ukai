@@ -17,6 +17,7 @@ import time
 # The transport limits are guest.py's: it is installed alone in the guest, so it
 # cannot import them from here. MAX_LINE bounds one protocol line.
 from guest import MAX_BYTES, MAX_FILE, MAX_FILES, MAX_LINE
+from guest_program import CATALOG_FILENAME, MAX_CATALOG_BYTES, parse_catalog
 
 EXCLUDED = {'.git', 'target', 'node_modules', '.venv', '__pycache__', '.DS_Store'}
 # Exact field types per event: `type(value) is int` keeps JSON booleans out of
@@ -240,6 +241,46 @@ TERMINAL = ('completed', 'failed', 'cancelled')
 EXPECTED_FAILURES = (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError)
 
 
+def optional_program_catalog(image, metadata):
+    """Return exact image-bound catalog bytes; absence is legacy-only.
+
+    A catalog is small metadata, not an authority to access its guest paths on
+    this host. Never open a program path named by it here. The guest checks the
+    installed tree; the native host validates its typed execution plan.
+    """
+    name = image / CATALOG_FILENAME
+    key = 'guest_program_catalog_sha256'
+    if key not in metadata:
+        try:
+            name.lstat()
+        except FileNotFoundError:
+            return None
+        raise ValueError('guest program catalog is present without an image binding')
+    expected = metadata[key]
+    if (type(expected) is not str or len(expected) != 64
+            or any(character not in '0123456789abcdef' for character in expected)):
+        raise ValueError('invalid guest program catalog digest')
+    descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(descriptor, 'rb') as stream:
+        before = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1
+                or not 0 < before.st_size <= MAX_CATALOG_BYTES):
+            raise ValueError('guest program catalog is not a bounded single-link regular file')
+        data = stream.read(MAX_CATALOG_BYTES + 1)
+        after = os.fstat(stream.fileno())
+        current = name.lstat()
+    def generation(info):
+        return (info.st_dev, info.st_ino, info.st_mode, info.st_nlink, info.st_uid,
+                info.st_gid, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+    if (len(data) != before.st_size or generation(before) != generation(after)
+            or generation(after) != generation(current)):
+        raise ValueError('guest program catalog changed while reading')
+    if hashlib.sha256(data).hexdigest() != expected:
+        raise ValueError('guest program catalog does not match prepared metadata')
+    parse_catalog(data)
+    return data
+
+
 def load_image(image):
     """The prepared image's metadata, refused unless every artifact matches its recorded hash."""
     metadata = json.loads((image / 'image.json').read_text())
@@ -248,6 +289,7 @@ def load_image(image):
     if (not isinstance(metadata, dict) or metadata.get('status') != 'prepared'
             or any(digest(image / name) != metadata.get(key) for name, key in pinned.items())):
         raise ValueError('image/helper does not match prepared metadata')
+    optional_program_catalog(image, metadata)
     return metadata
 
 

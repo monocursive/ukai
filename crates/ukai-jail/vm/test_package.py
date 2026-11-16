@@ -3,7 +3,10 @@ import os
 from pathlib import Path
 import re
 import shutil
+import signal
+import stat
 import subprocess
+import sys
 import tarfile
 import tempfile
 import types
@@ -41,7 +44,7 @@ class CommittedSourceTests(unittest.TestCase):
         self.git('-c', 'user.name=test', '-c', 'user.email=test@example.invalid', 'commit', '-q', '-m', 'sources')
 
     def git(self, *args):
-        subprocess.run(['git', '-C', str(self.repo), *args], check=True, capture_output=True)
+        subprocess.run(['git', '-C', str(self.repo), *args], check=True, capture_output=True, timeout=30)
 
     def test_lists_only_committed_files_under_the_directory(self):
         (self.vm / '__pycache__').mkdir()
@@ -137,6 +140,49 @@ class CommittedSourceTests(unittest.TestCase):
         self.assertEqual(sorted(sources), ['crates/vm/guest.py', 'crates/vm/run.py', 'crates/vm/sub/notes.txt'])
         self.assertEqual(sources['crates/vm/run.py'], sha256(b'run.py\n'))
         self.assertRegex(package.head_revision(self.repo), '^[0-9a-f]{40}$')
+
+    def test_require_clean_large_inventory_finishes_with_exact_blobs(self):
+        # Exceed both sides of the observed 89,660-byte path inventory and
+        # 49,692-byte hash response. Exercise real Git, not a mocked hash list.
+        for number in range(2048):
+            name = f'{number:04d}-' + 'long-committed-source-name-' * 5 + '.txt'
+            (self.vm / name).write_text(f'committed source {number}\n')
+        self.git('add', '.')
+        self.git('-c', 'user.name=test', '-c', 'user.email=test@example.invalid',
+                 'commit', '-q', '-m', 'large source inventory')
+        names = package.listed_sources(self.repo, ['crates/vm'])
+        self.assertGreater(len(('\n'.join(names) + '\n').encode()), 89660)
+        self.assertGreater(len(names) * 41, 49692)
+        script = ('import sys; sys.path.insert(0, sys.argv[1]); import package; '
+                  'package.require_clean(package.Path(sys.argv[2]), ["crates/vm"]); '
+                  'print("verified")')
+        optimized = ['-' + 'O' * sys.flags.optimize] if sys.flags.optimize else []
+        child = subprocess.Popen(
+            [sys.executable, '-B', *optimized, '-c', script, str(package.SOURCE), str(self.repo)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, start_new_session=True)
+        try:
+            out, err = child.communicate(timeout=45)
+            self.assertEqual(child.returncode, 0, err)
+            self.assertEqual(out, 'verified\n')
+        finally:
+            # A regression to the blocked exchange must not leave either the
+            # test driver or its exact Git child running after the test fails.
+            if child.poll() is None:
+                os.killpg(child.pid, signal.SIGKILL)
+                child.communicate(timeout=10)
+
+    def test_require_clean_hash_timeout_refuses(self):
+        real = subprocess.run
+
+        def timed_out(args, **kwargs):
+            if 'hash-object' in args:
+                raise subprocess.TimeoutExpired(args, kwargs['timeout'])
+            return real(args, **kwargs)
+
+        with mock.patch.object(package.subprocess, 'run', side_effect=timed_out):
+            with self.assertRaisesRegex(package.SourceError, 'git hash-object timed out'):
+                package.require_clean(self.repo, ['crates/vm'])
 
 
 class ReleaseCoordinateTests(unittest.TestCase):
@@ -323,10 +369,14 @@ class BuildTests(unittest.TestCase):
     def test_the_build_inputs_are_build_provenance_rs_list(self):
         inputs = package.build_inputs()
         self.assertEqual(inputs[0], 'crates/ukai-jail/src')
-        self.assertEqual(len(inputs), 41)
+        self.assertEqual(len(inputs), 48)
         for name in ('Cargo.lock', 'Cargo.toml', 'rust-toolchain.toml', 'crates/ukai-jail/build.rs',
                      'docs/specs/jail-v1/network-addresses.json'):
             self.assertIn(name, inputs)
+        for name in ('guest-native-profile-inputs.json', 'guest-program-catalog.json',
+                     'guest-program-catalog-vectors.json', 'sampled-exposure-context.json',
+                     'sampled-exposure-receipt.json', 'sampled-exposure-report.json', 'managed-sampled-exposure.json'):
+            self.assertIn('crates/ukai-jail/vm/fixtures/' + name, inputs)
 
 
 @unittest.skipUnless(shutil.which('git'), 'git is required to list committed sources')
@@ -342,21 +392,55 @@ class SourceArchiveCoverageTests(unittest.TestCase):
                   'crates/ukai-jail/vm/vz.swift', 'crates/ukai-jail/vm/custodian.c',
                   'crates/ukai-jail/vm/entitlements.plist', 'crates/ukai-jail/vm/cli.py',
                   'crates/ukai-jail/vm/run.py', 'crates/ukai-jail/vm/guest.py',
+                  'docs/specs/jail-v1/examples/event-note-learning-read.json',
                   *(member + '/Cargo.toml' for member in members), *package.build_inputs()[1:]}
         self.assertEqual(sorted(needed - listed), [])
         self.assertTrue(any(name.startswith('crates/ukai-jail/src/') for name in listed))
 
+    def test_extracted_source_imports_image_preparation_without_the_checkout(self):
+        names = package.listed_sources(package.REPO, package.archive_paths())
+        sources = {name: package.digest(package.REPO / name) for name in names}
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive_path = root / 'source.tar.gz'
+            package.write_source_archive(archive_path, package.REPO, sources)
+            with tarfile.open(archive_path) as archive:
+                archive.extractall(root / 'extracted', filter='data')
+            exported = root / 'extracted' / 'vm'
+            # Isolated Python cannot borrow the checkout or a caller's PYTHONPATH.
+            # Importing the exported builder must resolve its public installer pin
+            # without starting a build, invoking a process or contacting a service.
+            script = '''import sys
+def audit(event, args):
+    if event.startswith(('subprocess.', 'socket.', 'os.exec', 'os.spawn')) or event == 'os.system':
+        raise RuntimeError('unexpected import side effect: ' + event)
+sys.addaudithook(audit)
+sys.path.insert(0, sys.argv[1])
+import prepare
+print(prepare.JAIL_SHA256)
+'''
+            result = subprocess.run([sys.executable, '-I', '-B', '-c', script,
+                                     str(exported / 'crates/ukai-jail/vm')],
+                                    cwd=root, capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertRegex(result.stdout, r'\A[0-9a-f]{64}\n\Z')
+            self.assertEqual((exported / 'install.sh').read_bytes(),
+                             (package.REPO / 'install.sh').read_bytes())
 
-    def test_only_the_bounded_admission_proof_is_added_to_the_source_archive(self):
+
+    def test_only_the_bounded_proof_and_exact_compile_fixture_are_archived(self):
         proof = 'docs/benchmarks/jail/results/macos-vm-admission-2026-11-15'
         self.assertEqual(package.ADMISSION_PROOF, proof)
         docs = {name for name in package.archive_paths() if name.startswith('docs')}
-        self.assertEqual(docs, {proof, 'docs/specs/jail-v1/network-addresses.json'})
+        fixture = 'docs/specs/jail-v1/examples/event-note-learning-read.json'
+        self.assertEqual(docs, {proof, 'docs/specs/jail-v1/network-addresses.json', fixture})
         with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, GIT_ENVIRONMENT, clear=True):
             repo = Path(temporary) / 'repo'; repo.mkdir()
-            included = {proof + '/handshake-capabilities/capabilities.json': b'{"fixture":true}\n',
+            included = {fixture: b'{"event":"note"}\n',
+                        proof + '/handshake-capabilities/capabilities.json': b'{"fixture":true}\n',
                         proof + '/handshake-raw-credential/guest-artifact/evidence/guest-journal/0000.part': b'exact journal bytes\n'}
-            excluded = {'docs/unrelated.json': b'not selected', 'docs/benchmarks/jail/results/other/binary.dmg': b'not selected',
+            excluded = {'docs/specs/jail-v1/examples/unrelated.json': b'not selected',
+                        'docs/unrelated.json': b'not selected', 'docs/benchmarks/jail/results/other/binary.dmg': b'not selected',
                         'evidence/private-key.pem': b'not selected', 'vm-disks/base.raw': b'not selected'}
             for name, data in {**included, **excluded}.items():
                 path = repo / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(data)
@@ -434,6 +518,111 @@ class SourceArchiveTests(unittest.TestCase):
         with self.assertRaisesRegex(package.SourceError, 'not a regular file: link'):
             package.write_source_archive(self.root / 'out.tar.gz', self.source,
                                          dict(self.sources, link=self.sources['run.py']))
+
+
+class DistributionModeTests(unittest.TestCase):
+    def test_private_umask_stage_is_readable_without_changing_originals_or_archive_modes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / 'source'; source.mkdir()
+            for name, mode in [('client', 0o750), ('data', 0o640)]:
+                (source / name).write_bytes(name.encode())
+                (source / name).chmod(mode)
+            originals = {p.name: (p.read_bytes(), p.stat().st_mode) for p in source.iterdir()}
+            previous = os.umask(0o077)
+            try:
+                stage = root / 'volume'; (stage / 'payload').mkdir(parents=True)
+                for name in originals:
+                    shutil.copy2(source / name, stage / 'payload' / name)
+                (stage / 'install.sh').write_bytes(b'#!/bin/sh\n')
+                (stage / 'install.sh').chmod(0o700)
+                (stage / 'SHA256SUMS').write_bytes(b'exact manifest\n')
+                archive = stage / 'preview-source.tar.gz'
+                package.write_source_archive(archive, source,
+                                             {name: sha256(data) for name, (data, _) in originals.items()})
+                before = {p.relative_to(stage): p.read_bytes() for p in stage.rglob('*') if p.is_file()}
+                self.assertEqual(stat.S_IMODE(stage.stat().st_mode), 0o700)
+                self.assertEqual(stat.S_IMODE(archive.stat().st_mode), 0o600)
+                package.normalize_distribution_modes(stage)
+            finally:
+                os.umask(previous)
+            self.assertEqual({p.relative_to(stage).as_posix(): stat.S_IMODE(p.stat().st_mode)
+                              for p in [stage, *stage.rglob('*')]},
+                             {'.': 0o755, 'payload': 0o755, 'payload/client': 0o755,
+                              'payload/data': 0o644, 'install.sh': 0o755,
+                              'SHA256SUMS': 0o644, 'preview-source.tar.gz': 0o644})
+            self.assertEqual({p.relative_to(stage): p.read_bytes() for p in stage.rglob('*') if p.is_file()}, before)
+            self.assertEqual({p.name: (p.read_bytes(), p.stat().st_mode) for p in source.iterdir()}, originals)
+            with tarfile.open(archive) as held:
+                self.assertEqual({m.name: m.mode for m in held}, {'vm/client': 0o750, 'vm/data': 0o640})
+
+    def test_links_and_special_files_refuse_before_chmod_and_do_not_touch_outside(self):
+        for kind in ('file-link', 'directory-link', 'fifo', 'hardlink', 'root-link'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                outside = root / 'outside'; outside.mkdir(mode=0o700)
+                original = outside / 'original'; original.write_bytes(b'outside'); original.chmod(0o600)
+                stage = root / 'volume'; stage.mkdir(mode=0o700)
+                normal = stage / 'a-data'; normal.write_bytes(b'owned'); normal.chmod(0o600)
+                if kind == 'file-link':
+                    (stage / 'z-bad').symlink_to(original)
+                elif kind == 'directory-link':
+                    (stage / 'z-bad').symlink_to(outside, target_is_directory=True)
+                elif kind == 'fifo':
+                    os.mkfifo(stage / 'z-bad')
+                elif kind == 'hardlink':
+                    os.link(original, stage / 'z-bad')
+                else:
+                    link = root / 'volume-link'; link.symlink_to(stage, target_is_directory=True)
+                def metadata(path):
+                    info = path.stat()
+                    return (info.st_dev, info.st_ino, info.st_mode, info.st_nlink,
+                            info.st_mtime_ns, info.st_ctime_ns)
+
+                before = (original.read_bytes(), metadata(original), metadata(outside))
+                opened = []
+                real_open = os.open
+
+                def record_open(*args, **kwargs):
+                    fd = real_open(*args, **kwargs); opened.append(fd); return fd
+
+                with mock.patch.object(package.os, 'open', side_effect=record_open):
+                    with self.assertRaises(package.SourceError):
+                        package.normalize_distribution_modes(link if kind == 'root-link' else stage)
+                self.assertEqual(stat.S_IMODE(stage.stat().st_mode), 0o700)
+                self.assertEqual(stat.S_IMODE(normal.stat().st_mode), 0o600)
+                self.assertEqual((original.read_bytes(), metadata(original), metadata(outside)), before)
+                for fd in opened:
+                    with self.assertRaises(OSError):
+                        os.fstat(fd)
+
+    def test_stage_permissions_clear_special_and_write_bits_preserving_executability(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            stage = Path(temporary) / 'volume'; stage.mkdir(); stage.chmod(0o2777)
+            for name, mode in [('data', 0o666), ('executable', 0o4751)]:
+                (stage / name).write_bytes(name.encode()); (stage / name).chmod(mode)
+            package.normalize_distribution_modes(stage)
+            self.assertEqual([stat.S_IMODE(p.stat().st_mode) for p in
+                              (stage, stage / 'data', stage / 'executable')], [0o755, 0o644, 0o755])
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'macOS quarantine and ACL preservation')
+    def test_normalization_preserves_quarantine_and_acl(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            stage = Path(temporary) / 'volume'; stage.mkdir(mode=0o700)
+            data = stage / 'data'; data.write_bytes(b'public fixture'); data.chmod(0o600)
+            quarantine = b'0081;00000000;ukai-stage-test;'
+            subprocess.run(['/usr/bin/xattr', '-wx', 'com.apple.quarantine', quarantine.hex(), str(data)],
+                           check=True, capture_output=True)
+            subprocess.run(['/bin/chmod', '+a', 'everyone allow read', str(data)], check=True, capture_output=True)
+            acl = subprocess.run(['/bin/ls', '-le', str(data)], check=True, capture_output=True).stdout.splitlines()[1:]
+            self.assertTrue(acl)
+            package.normalize_distribution_modes(stage)
+            found = subprocess.run(['/usr/bin/xattr', '-px', 'com.apple.quarantine', str(data)],
+                                   check=True, capture_output=True).stdout.decode()
+            self.assertEqual(bytes.fromhex(found), quarantine)
+            self.assertEqual(subprocess.run(['/bin/ls', '-le', str(data)], check=True,
+                                            capture_output=True).stdout.splitlines()[1:], acl)
+            self.assertEqual(stat.S_IMODE(data.stat().st_mode), 0o644)
 
 
 class PackageMetadataTests(unittest.TestCase):

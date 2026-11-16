@@ -1,0 +1,55 @@
+{
+  "source_revision": "160a9bf51823ae552f55ae2c02c34019567c0dbf",
+  "scope": "Independent actual DMG, installed bytes, catalog/control and archived source consistency; not notarization or execution qualification",
+  "facts": {
+    "dmg_hash": true,
+    "image_metadata_exact": true,
+    "all_manifest_files_exact": true,
+    "exact_payload_inventory": true,
+    "manifest_and_installer_hashes": true,
+    "six_signatures": true,
+    "installed_exact_files": true,
+    "installed_exact_hashes": true,
+    "installed_normal_modes": true,
+    "source_archive_hash": true,
+    "complete_source_bytes_and_modes": true,
+    "native_catalog_exact": true,
+    "same_prepared_guest_and_detector": true,
+    "owned_dmg_detached": true
+  },
+  "signatures": [
+    {
+      "name": "ukai-vm-0.1.0-preview.2-macos-arm64.dmg",
+      "sha256": "1b891e55dad41ef13b428b729b77250f4ce92ff05cca8f55258d77836adfb928",
+      "valid": true
+    },
+    {
+      "name": "payload/bin/ukai-jail",
+      "sha256": "3221956596563c5f8f9a304093214a53b06e0ea77ffd28b81a3cd5513353fcbc",
+      "valid": true
+    },
+    {
+      "name": "payload/bin/ukai-vm",
+      "sha256": "b5e25dc482b4651f786ee4e26d5314af72b3575516748c4a40553831dc458f28",
+      "valid": true
+    },
+    {
+      "name": "payload/bin/ukai-vm-install",
+      "sha256": "fbae60b7d0d01dcaa133729d1a06805f69266187176a206a6d7310201fed27a6",
+      "valid": true
+    },
+    {
+      "name": "payload/image/vz",
+      "sha256": "25c55cb42b7f6c4347da6678a4fe361fb7311dfd5ff90cb1da32771b399f9467",
+      "valid": true
+    },
+    {
+      "name": "payload/image/custodian",
+      "sha256": "62524098ea6f9962cd7139b815f038e43cfbab319eaffac6a5543566aa5ce00e",
+      "valid": true
+    }
+  ],
+  "source_file_count": 594,
+  "dmg_sha256": "1b891e55dad41ef13b428b729b77250f4ce92ff05cca8f55258d77836adfb928",
+  "outcome": "PASS"
+}

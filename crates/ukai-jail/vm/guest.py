@@ -17,11 +17,16 @@ import socket
 import stat
 import subprocess
 import time
+import threading
+from time import monotonic as managed_clock, monotonic_ns as managed_ns
+
+import guest_program
+import guest_exposure
 
 PORT = 1024
 LEASE = 2.0
-# The transport limits live here because this file is installed alone in the
-# guest; run.py imports them, so both ends enforce the same values.
+# The transport limits live here; bundled helpers are guest_program and guest_exposure.
+# run.py imports these limits, so both ends enforce the same values.
 MAX_LINE = 2 * 1024 * 1024
 MAX_BYTES = 32 * 1024 * 1024
 MAX_FILE = 512 * 1024
@@ -30,10 +35,14 @@ MAX_FILES = 5000
 # whole journal has the host summary's scan bound; over-bound evidence is
 # reported as unavailable rather than truncated or an execution failure.
 MAX_JOURNAL = 16 * 1024 * 1024
+# Only the warm session's post-stop file export and terminal frame use this
+# aggregate write budget. Live traffic and legacy attempts keep their lease.
+EXPORT_WRITE_SECONDS = 20.0
 JOURNAL_DIR = 'guest-journal'
 JOURNAL_SCHEMA = 'ukai.vm.guest-journal/1'
 SECRET_REVOCATION_CONTRACT = 'ukai.vm.secret-revocation/1'
 CONFIG_DIR = Path(os.environ.get('UKAI_VM_CONFIG_DIR', '/var/lib/ukai-vm/config'))
+NATIVE_CONFIG = guest_program.NATIVE_CONFIG
 WORKSPACE = Path('/home/ukai/workspace')
 EVIDENCE = Path('/home/ukai/evidence')
 # J18 (jail-macos.md §6): where an attempt's ephemeral credentials stage.
@@ -553,28 +562,121 @@ def prepare_attempt_cgroup(account):
     return child
 
 
-# The join wrapper runs as the workload user, before the jail execs: a
-# failure names the cgroup and errno on stderr (relayed to the host by the
-# controller) instead of dying inside preexec_fn where the reason is lost.
-# The wrapper waits until its own pid appears in the attempt cgroup's
-# cgroup.procs; the controller (root) performs the move, because moving a
-# process out of the root-owned service cgroup needs the source-side
-# permission only root has (measured: uid 1001 writing cgroup.procs gets
-# EIO). Waiting (not writing) keeps the join race-free: the jail execs
-# only after the move, and a controller death times out loudly.
-_JOIN_CGROUP_WRAPPER = [
-    '/bin/sh', '-c',
-    'i=0; while ! grep -qx "$$" "$1/cgroup.procs" 2>/dev/null; do '
-    'i=$((i+1)); [ "$i" -gt 500 ] && { echo "CGROUP_JOIN_TIMEOUT:$1" >&2; exit 124; }; '
-    'sleep 0.02; done; shift; exec "$@"', 'join-cgroup',
-]
+# One process waits for the root controller's cgroup move, then execs the
+# jail with the same PID. External grep/sleep polling would create avoidable
+# short-lived descendants during sampling. The gate carries one fixed byte,
+# never a source value; EOF/timeout/error cannot authorize exec. Python is
+# isolated from workspace/user imports, and byte argv/environment survive via
+# the filesystem codec's surrogateescape and os.environb.
+_JOIN_GATE_CODE = r'''
+import os, select, sys, time
+try:
+    if sys.argv[1] != 'join-cgroup' or len(sys.argv) < 4:
+        raise ValueError()
+    gate = int(sys.argv[2])
+    if gate < 3:
+        raise ValueError()
+    os.set_inheritable(gate, False)
+    deadline = time.monotonic() + 10.0
+    while True:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError()
+        try:
+            ready, _, _ = select.select([gate], [], [], left)
+            if not ready:
+                continue
+            if time.monotonic() >= deadline:
+                raise TimeoutError()
+            if os.read(gate, 2) != b'R':
+                raise ValueError()
+            if time.monotonic() >= deadline:
+                raise TimeoutError()
+            break
+        except InterruptedError:
+            continue
+    os.close(gate)
+    argv = [os.fsencode(value) for value in sys.argv[3:]]
+    if not argv[0].startswith(b'/'):
+        raise ValueError()
+    os.execve(argv[0], argv, os.environb)
+except BaseException:
+    try:
+        os.write(2, b'UKAI_CGROUP_JOIN_REFUSED\n')
+    except BaseException:
+        pass
+    os._exit(125)
+'''
 
 
-def _join_attempt_cgroup(child):
-    """The argv prefix whose process waits for its move into the attempt's
-    delegated cgroup; the controller completes it with
-    [`move_into_attempt_cgroup`] before the jail execs."""
-    return [*_JOIN_CGROUP_WRAPPER, str(child)]
+class AttemptProcessPin:
+    """Pin the unreaped gated child before Monitor can poll/reap it."""
+    def __init__(self, process):
+        self.fd = os.pidfd_open(process.pid)
+
+    def kill(self):
+        try:
+            signal.pidfd_send_signal(self.fd, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+    def close(self):
+        descriptor, self.fd = self.fd, None
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+class AttemptGate:
+    """Own all launch-gate descriptors and bounded failure cleanup."""
+    def __init__(self):
+        self.reader, self.writer = os.pipe()  # Both non-inheritable (PEP 446).
+        self.process = self.pin = None
+        self.released = False
+        try:
+            os.set_blocking(self.writer, False)
+        except BaseException:
+            self.close('reader'); self.close('writer')
+            raise
+
+    def close(self, name):
+        descriptor = getattr(self, name)
+        setattr(self, name, None)
+        if descriptor is not None:
+            os.close(descriptor)
+
+    def command(self, command):
+        return [b'/usr/bin/python3', b'-I', b'-S', b'-c', _JOIN_GATE_CODE.encode(),
+                b'join-cgroup', str(self.reader).encode(), *command]
+
+    def attach(self, process):
+        self.process = process
+        self.close('reader')
+        self.pin = AttemptProcessPin(process)
+
+    def release(self):
+        if self.process is None or self.pin is None or self.released:
+            raise Refusal('attempt_gate_invalid')
+        if os.write(self.writer, b'R') != 1:
+            raise Refusal('attempt_gate_write_failed')
+        self.released = True
+        self.close('writer')
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, kind, value, traceback):
+        try:
+            self.close('reader'); self.close('writer')
+            if self.process is not None and (kind is not None or not self.released):
+                if self.pin is not None:
+                    self.pin.kill()
+                # If pinning failed, closing the sole writer refuses exec.
+                # Never fall back to a numeric PID signal after concurrent
+                # Monitor polling; an unverified reap powers off the guest.
+                reap(self.process)
+        finally:
+            if self.pin is not None:
+                self.pin.close()
 
 
 def move_into_attempt_cgroup(child, pid):
@@ -967,13 +1069,74 @@ def revoke_secrets(ids, staged, revoked, secrets=None):
         revoked.add(key)
 
 
+def prepare_native_config(account):
+    """A separate empty tmpfs config; no operator launch override can exist."""
+    # /run is a tmpfs on the prepared image. Verify the actual longest mount
+    # ancestor instead of assuming that a pathname makes storage ephemeral.
+    with (PROC_ROOT / 'self/mountinfo').open('rb') as source:
+        raw = source.read(1024 * 1024 + 1)
+    if len(raw) > 1024 * 1024:
+        raise ValueError('native mount inventory limit')
+    target = str(NATIVE_CONFIG)
+    candidates = []
+    for line in raw.decode().splitlines():
+        before, after = line.split(' - ', 1)
+        point = before.split()[4]
+        point = re.sub(r'\\([0-7]{3})', lambda m: chr(int(m[1], 8)), point)
+        if target == point or target.startswith(point.rstrip('/') + '/'):
+            candidates.append((len(point), after.split()[0]))
+    if not candidates or max(candidates)[1] != 'tmpfs':
+        raise ValueError('native configuration is not tmpfs')
+    NATIVE_CONFIG.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+    parent = os.open(NATIVE_CONFIG.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        info = os.fstat(parent)
+        if info.st_uid != os.geteuid() or info.st_mode & 0o022:
+            raise ValueError('native config parent ownership')
+        directory = _private_level(parent, NATIVE_CONFIG.name, os.geteuid(), account.pw_gid)
+        try:
+            if os.listdir(directory):
+                raise ValueError('native config is not empty')
+            # The frozen Linux jail enumerates uncontained-run markers in
+            # UKAI_CONFIG_DIR before resolving its launch. The workload group
+            # needs read+search here, but no write authority. Credential
+            # directories remain 0710; their known files need only traversal.
+            os.fchmod(directory, 0o750)
+        finally:
+            os.close(directory)
+    finally:
+        os.close(parent)
+
+
+def clear_native_config():
+    try:
+        parent = os.open(NATIVE_CONFIG.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        return
+    try:
+        try:
+            info = os.stat(NATIVE_CONFIG.name, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            return
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o022:
+            raise OSError('native config ownership changed')
+        if not shutil.rmtree.avoids_symlink_attacks:
+            raise OSError('fd-relative safe rmtree required')
+        shutil.rmtree(NATIVE_CONFIG.name, dir_fd=parent)
+        if os.path.lexists(NATIVE_CONFIG):
+            raise OSError('native config not removed')
+    finally:
+        os.close(parent)
+
+
 def clear_attempt_files():
     """Everything one attempt staged outside its directories."""
     clear_secrets()
     clear_launch_profile()
+    clear_native_config()
 
 
-def run_command(profile, argv, wall, workspace=None, evidence=None, allow_hosts=(), launch=None):
+def run_command(profile, argv, wall, workspace=None, evidence=None, allow_hosts=(), launch=None, native_program=None, managed_fds=None):
     """The jail command one attempt runs, in either mode. The single-run
     `run` op builds exactly this list, and `run2` shares it, so the warm
     design changes nothing about what the jail is asked to do. The paths
@@ -998,7 +1161,13 @@ def run_command(profile, argv, wall, workspace=None, evidence=None, allow_hosts=
     # (credential sources at the tmpfs staging root) under the attempt's
     # config directory; the jail resolves `--launch` from there and its
     # vault proxy injects the staged values into admitted requests.
-    if launch is not None:
+    if native_program is not None:
+        command += [b'--from-path', b'--launch', native_program['launch_name'].encode(), b'--state', b'attempt']
+        if managed_fds is not None:
+            reader, writer = managed_fds
+            command += [b'--gate-fd', str(reader).encode(), b'--control-fd', str(writer).encode()]
+        argv = guest_program.decode_argv(native_program['argv_suffix'])
+    elif launch is not None:
         command += [b'--launch', os.fsencode(launch)]
     command += [b'--', *argv]
     return command
@@ -1037,17 +1206,18 @@ def validate_run(request, live_share):
     return profile, wall, argv, allow_hosts, launch
 
 
-def attempt_environment(account):
+def attempt_environment(account, native_entry=None):
     """The environment one guest jail runs under, in either mode."""
     return {'HOME': account.pw_dir, 'USER': 'ukai', 'LOGNAME': 'ukai',
-            'PATH': '/usr/local/bin:/usr/bin:/bin', 'LANG': 'C.UTF-8',
+            'PATH': ((native_entry['install_root'] + ':') if native_entry else '') + '/usr/local/bin:/usr/bin:/bin',
+            'LANG': 'C.UTF-8',
             'XDG_RUNTIME_DIR': f'/run/user/{account.pw_uid}',
             # The controller stages the vaulted launch profile (if any) under
             # this directory; the jail resolves `--launch` from it.
-            'UKAI_CONFIG_DIR': str(CONFIG_DIR)}
+            'UKAI_CONFIG_DIR': str(NATIVE_CONFIG if native_entry else CONFIG_DIR)}
 
 
-def receipt_binding(request, receipt, guest_boot_id):
+def receipt_binding(request, receipt, guest_boot_id, native_entry=None):
     """Keep the raw jail receipt unchanged; bind its identity in a separate envelope.
 
     These are controller reports. The host verifies consistency, not kernel
@@ -1061,9 +1231,17 @@ def receipt_binding(request, receipt, guest_boot_id):
         raise ValueError('receipt argv/profile mismatch')
     if receipt['process']['identity']['value']['boot_id'] != guest_boot_id:
         raise ValueError('receipt boot mismatch')
-    return dict(attempt_id=request['attempt_id'], boot_id=request['boot_id'],
-                guest_attempt_id=receipt['attempt_id'], guest_boot_id=guest_boot_id,
-                profile=request['profile'], argv_digest=digest)
+    binding = dict(attempt_id=request['attempt_id'], boot_id=request['boot_id'],
+                   guest_attempt_id=receipt['attempt_id'], guest_boot_id=guest_boot_id,
+                   profile=request['profile'], argv_digest=digest)
+    native = request.get('native_program')
+    if native is not None:
+        if native_entry is None or native['resolved_argv_digest'] != digest:
+            raise ValueError('native receipt argv/entry mismatch')
+        binding['native_program'] = guest_program.native_binding(native, native_entry, receipt['policy']['digest'])
+    elif native_entry is not None:
+        raise ValueError('unexpected native receipt entry')
+    return binding
 
 
 def journal_export(receipt_bytes, data_dir):
@@ -1135,7 +1313,52 @@ def journal_export(receipt_bytes, data_dir):
     return files
 
 
-def export_outputs(send, in_session, run_request, guest_boot_id, data_dir=None):
+def export_sender(conn):
+    """Finish each post-stop frame exactly once under one export deadline.
+
+    Receive polling's short timeout is not a whole-frame write deadline.
+    Keep the watchdog alive during backpressure and resume only the unsent
+    suffix. A failed sender cannot append another frame to a partial line.
+    Queued controls remain unread until the existing session loop resumes;
+    this is a write budget, not a filesystem or cancellation deadline.
+    """
+    deadline = clock() + EXPORT_WRITE_SECONDS
+    failed = False
+
+    def send(value):
+        nonlocal failed
+        if failed:
+            raise Refusal('export_transport_failed')
+        previous_timeout = conn.gettimeout()
+        try:
+            try:
+                payload = memoryview(json.dumps(value, separators=(',', ':')).encode() + b'\n')
+                offset = 0
+                while offset < len(payload):
+                    notify()
+                    remaining = deadline - clock()
+                    if remaining <= 0:
+                        raise Refusal('export_write_timeout')
+                    conn.settimeout(min(.25, remaining))
+                    try:
+                        written = conn.send(payload[offset:])
+                    except socket.timeout:
+                        continue
+                    if written == 0:
+                        raise Refusal('export_transport_closed')
+                    offset += written
+                if clock() > deadline:
+                    raise Refusal('export_write_timeout')
+            finally:
+                conn.settimeout(previous_timeout)
+        except BaseException:
+            failed = True
+            raise
+
+    return send
+
+
+def export_outputs(send, in_session, run_request, guest_boot_id, data_dir=None, native_entry=None, sampled_exposure=None, prepared_receipt=None):
     """Send the finished attempt's regular files to the host and return the
     bound receipt's binding (None outside a session).
 
@@ -1166,6 +1389,12 @@ def export_outputs(send, in_session, run_request, guest_boot_id, data_dir=None):
         if not root.exists():
             continue
         for directory, dirs, names in os.walk(root, onerror=unlistable, followlinks=False):
+            if label == 'evidence' and Path(directory) == EVIDENCE and native_entry is not None:
+                # This reserved artifact is sent only from controller-produced
+                # bytes below. A workload collision is never adopted or walked.
+                reserved = {'sampled-exposure.json', guest_program.PREPARED_FILE}
+                dirs[:] = [name for name in dirs if name not in reserved]
+                names = [name for name in names if name not in reserved]
             if any((Path(directory) / d).is_symlink() for d in dirs):
                 raise Refusal('export_nonregular')
             for name in names:
@@ -1194,7 +1423,7 @@ def export_outputs(send, in_session, run_request, guest_boot_id, data_dir=None):
                     receipt_bytes = payload
                 if in_session and label == 'evidence' and path.name == 'jail.json' and path.parent == EVIDENCE:
                     try:
-                        binding = receipt_binding(run_request, json.loads(payload), guest_boot_id)
+                        binding = receipt_binding(run_request, json.loads(payload), guest_boot_id, native_entry)
                     except (ValueError, KeyError, TypeError):
                         raise Refusal('receipt_unbound') from None
                 send({'event': 'file', 'group': label, 'path': str(path.relative_to(root)),
@@ -1209,7 +1438,70 @@ def export_outputs(send, in_session, run_request, guest_boot_id, data_dir=None):
                 raise Refusal('export_limit')
             send({'event': 'file', 'group': 'evidence', 'path': path,
                   'executable': False, 'data': base64.b64encode(payload).decode()})
+    if prepared_receipt is not None and binding is not None:
+        count += 1
+        total += len(prepared_receipt)
+        if count > MAX_FILES or total > MAX_BYTES or len(prepared_receipt) > MAX_FILE:
+            raise Refusal('export_limit')
+        send({'event': 'file', 'group': 'evidence', 'path': guest_program.PREPARED_FILE,
+              'executable': False, 'data': base64.b64encode(prepared_receipt).decode()})
+    if sampled_exposure is not None and binding is not None:
+        count += 1
+        total += len(sampled_exposure)
+        if count <= MAX_FILES and total <= MAX_BYTES and len(sampled_exposure) <= MAX_FILE:
+            send({'event': 'file', 'group': 'evidence', 'path': 'sampled-exposure.json',
+                  'executable': False, 'data': base64.b64encode(sampled_exposure).decode()})
+            binding['sampled_exposure_sha256'] = hashlib.sha256(sampled_exposure).hexdigest()
     return binding
+
+
+def retain_sampled_exposure(monitor, request, guest_boot_id, native_entry, managed_gate=None):
+    """After verified stop, create only our own safe report; failure is sampling-only."""
+    if monitor is None or request is None or native_entry is None:
+        return None
+    descriptors = []
+    try:
+        root = os.open(EVIDENCE, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        descriptors.append(root)
+        source = os.open('jail.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=root)
+        descriptors.append(source)
+        info = os.fstat(source)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_FILE:
+            return None
+        with os.fdopen(os.dup(source), 'rb') as stream:
+            raw = stream.read(MAX_FILE + 1)
+        after = os.fstat(source)
+        if len(raw) != info.st_size or (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns) != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+            return None
+        bound = receipt_binding(request, json.loads(raw), guest_boot_id, native_entry)
+        metadata = dict(host_attempt_id=bound['attempt_id'], service_boot_id=bound['boot_id'],
+                        guest_attempt_id=bound['guest_attempt_id'], guest_boot_id=bound['guest_boot_id'],
+                        catalog_sha256=request['native_program']['catalog_sha256'],
+                        executable_sha256=native_entry['executable_sha256'],
+                        sampler_sha256=monitor.source_digest)
+        report = monitor.finish(raw, metadata, managed_gate)
+        payload = json.dumps(report, sort_keys=True, separators=(',', ':')).encode()
+        if len(payload) > MAX_FILE:
+            return None
+        destination = os.open('sampled-exposure.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=root)
+        descriptors.append(destination)
+        with os.fdopen(os.dup(destination), 'wb') as output:
+            output.write(payload)
+        final = os.fstat(destination)
+        if not stat.S_ISREG(final.st_mode) or final.st_uid != os.geteuid() or final.st_nlink != 1 or stat.S_IMODE(final.st_mode) != 0o600 or final.st_size != len(payload):
+            return None
+        return payload
+    except (OSError, ValueError, TypeError, KeyError, RuntimeError):
+        # No exception strings or protected values enter diagnostic output. A
+        # missing hash/report is explicitly unavailable to the host's verifier.
+        return None
+    finally:
+        try:
+            monitor.discard()
+        except Exception:
+            pass  # Sampling cleanup cannot rewrite the actual jail outcome.
+        for fd in reversed(descriptors):
+            os.close(fd)
 
 
 def vsock_listener():
@@ -1218,6 +1510,241 @@ def vsock_listener():
     server.listen(1)
     server.settimeout(.2)
     return server
+
+
+class ManagedNativeGate:
+    """Private Linux gate/control lifetime. Only the controller writes release.
+
+    The arm worker validates a held Prepared receipt and starts sampling; it
+    cannot release the workload. Host cancellation and the original wall clock
+    remain serviced by the main selector while immutable image checks run.
+    """
+    JOIN_SECONDS = 1.0
+    ARM_SECONDS = 1.0
+
+    def __init__(self, account, request, entry, catalog, infrastructure, boot_id,
+                 protected_values, source_check):
+        self.account, self.request, self.entry = account, request, entry
+        self.catalog, self.infrastructure, self.boot_id = catalog, infrastructure, boot_id
+        self.values, self.source_check = list(protected_values), source_check
+        self.child_gate = self.writer = self.reader_fd = self.child_control = None
+        self.reader = None
+        self.worker = self.monitor = self.process = None
+        self.cancelled = threading.Event()
+        self.ready = threading.Event()
+        self.failure = self.prepared = self.context = None
+        self.buffer = b''
+        self.total = self.sequence = 0
+        self.attempt = self.last_kind = None
+        try:
+            self.child_gate, self.writer = os.pipe()
+            self.reader_fd, self.child_control = os.pipe()
+            os.set_blocking(self.writer, False)
+            os.set_blocking(self.reader_fd, False)
+            self.reader = os.fdopen(self.reader_fd, 'rb', buffering=0)
+            self.reader_fd = None
+        except BaseException:
+            self.close()
+            raise
+
+    def close_fd(self, name):
+        descriptor = getattr(self, name)
+        setattr(self, name, None)
+        if descriptor is not None:
+            os.close(descriptor)
+
+    @property
+    def pass_fds(self):
+        return (self.child_gate, self.child_control)
+
+    def attach(self, process):
+        self.process = process
+        self.close_fd('child_gate'); self.close_fd('child_control')
+
+    def refuse(self, reason):
+        if self.failure is None:
+            self.failure = reason
+        self.cancelled.set()
+        self.close_fd('writer')
+
+    def receive(self, data):
+        if not data:
+            if (self.buffer or self.sequence == 0 or self.context is None
+                    or self.context['release_completed_ns'] is None):
+                self.refuse('control_invalid')
+            return
+        self.total += len(data)
+        self.buffer += data
+        try:
+            if self.total > MAX_FILE:
+                raise ValueError('managed control bound')
+            while b'\n' in self.buffer:
+                raw, self.buffer = self.buffer.split(b'\n', 1)
+                frame = guest_program.control_message(raw)
+                if frame['seq'] != self.sequence + 1 or frame['seq'] > 8:
+                    raise ValueError('managed control sequence')
+                if self.sequence == 0:
+                    if frame['kind'] != 'prepared':
+                        raise ValueError('managed first control')
+                    self.attempt = frame['attempt_id']
+                    observed = managed_ns()
+                    self.worker = threading.Thread(target=self.arm, args=(frame, observed),
+                                                   name='ukai-native-arm', daemon=True)
+                    self.worker.start()
+                elif (frame['attempt_id'] != self.attempt or
+                      frame['kind'] not in ({'prepared': ('exec_confirmed', 'refused', 'settled', 'unsettled'),
+                                             'exec_confirmed': ('settled', 'unsettled')}.get(self.last_kind, ()))):
+                    raise ValueError('managed control identity')
+                if self.sequence:
+                    released = self.context is not None and self.context['release_completed_ns'] is not None
+                    if not released and frame['kind'] in ('exec_confirmed', 'settled'):
+                        raise ValueError('managed positive control before release')
+                    if frame['kind'] in ('refused', 'unsettled'):
+                        # A terminal refusal/lost tree is never an invitation to
+                        # release, even if the private reader remains open.
+                        self.refuse('early_stop')
+                self.sequence = frame['seq']
+                self.last_kind = frame['kind']
+            if len(self.buffer) >= guest_program.CONTROL_MAX:
+                raise ValueError('managed unfinished control bound')
+        except (OSError, ValueError, TypeError, KeyError, RuntimeError, RecursionError):
+            self.refuse('control_invalid')
+
+    def read_prepared(self):
+        root = Path(self.account.pw_dir) / '.local/share/ukai'
+        descriptors = []
+        try:
+            descriptor = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            descriptors.append(descriptor)
+            for part in (*root.parts[1:], 'attempts', self.attempt):
+                descriptor = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                                     dir_fd=descriptor)
+                descriptors.append(descriptor)
+            descriptor = os.open('jail.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                                 dir_fd=descriptor)
+            descriptors.append(descriptor)
+            before = os.fstat(descriptor)
+            if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1
+                    or before.st_uid != self.account.pw_uid or not 0 < before.st_size <= MAX_FILE):
+                raise ValueError('managed Prepared file')
+            with os.fdopen(os.dup(descriptor), 'rb') as source:
+                raw = source.read(MAX_FILE + 1)
+            after = os.fstat(descriptor)
+            fields = ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink',
+                      'st_size', 'st_mtime_ns', 'st_ctime_ns')
+            named = os.stat('jail.json', dir_fd=descriptors[-2], follow_symlinks=False)
+            if (len(raw) != before.st_size or len(raw) > MAX_FILE
+                    or any(getattr(before, key) != getattr(after, key) or
+                           getattr(before, key) != getattr(named, key) for key in fields)):
+                raise ValueError('managed Prepared changed')
+            return raw
+        finally:
+            for descriptor in reversed(descriptors):
+                os.close(descriptor)
+
+    def arm(self, frame, observed):
+        stage = 'prepared_invalid'
+        try:
+            if self.cancelled.is_set():
+                return
+            raw = self.read_prepared()
+            if any(pattern in raw for _, pattern in guest_exposure._patterns(self.values)):
+                raise ValueError('managed Prepared unsafe')
+            profile = guest_program._read(guest_program.PROFILE_DIRECTORY / (self.entry['alias'] + '.toml'),
+                guest_program.MAX_CATALOG_BYTES, Path('/'), 0, 0)
+            _, identity = guest_program.validate_prepared(raw, frame, self.request, self.entry,
+                                                          profile, self.boot_id, WORKSPACE)
+            validated = managed_ns()
+            context = dict(schema=guest_program.GATE_SCHEMA,
+                prepared_receipt_sha256=hashlib.sha256(raw).hexdigest(),
+                prepared_receipt_digest=frame['receipt_digest'], prepared_process=identity,
+                prepared_observed_ns=observed, prepared_validated_ns=validated,
+                armed_observed_ns=None, release_started_ns=None, release_completed_ns=None, failure=None)
+            self.prepared, self.context = raw, context
+            stage = 'source_changed'
+            deadline = managed_clock() + guest_program.VERIFY_SECONDS
+            def checkpoint():
+                if self.cancelled.is_set() or managed_clock() > deadline:
+                    raise ValueError('managed verification cancelled')
+            checkpoint()
+            if guest_program.verify_catalog(notify=checkpoint) != self.catalog:
+                raise ValueError('managed catalog changed')
+            self.source_check()
+            checkpoint()
+            stage = 'arming_failed'
+            self.monitor = guest_exposure.Monitor(PROC_ROOT, self.boot_id, self.process, self.account.pw_uid,
+                list(self.infrastructure.pids.items()), self.entry['executable'], self.values,
+                prepared_process=(identity['pid'], identity['starttime']))
+            deadline = managed_clock() + self.ARM_SECONDS
+            while not self.monitor.armed_event.wait(.01):
+                if self.cancelled.is_set() or managed_clock() > deadline:
+                    raise ValueError('managed arming timeout')
+            if self.monitor.arm_failed or self.cancelled.is_set():
+                raise ValueError('managed arming failed')
+            context['armed_observed_ns'] = self.monitor.armed_observed_ns
+        except BaseException:
+            # The worker has no release authority and never exposes exception text.
+            if self.failure is None:
+                self.failure = stage
+        finally:
+            self.values.clear()
+            self.ready.set()
+
+    def progress(self):
+        if self.failure is not None:
+            self.refuse(self.failure)
+            return
+        if not self.ready.is_set() or self.writer is None:
+            return
+        try:
+            if self.context is None or self.monitor is None or self.monitor.arm_failed:
+                raise ValueError('managed arm unavailable')
+            self.source_check()
+        except (OSError, ValueError, TypeError, KeyError):
+            self.refuse('source_changed')
+            return
+        if self.cancelled.is_set() or not self.monitor.ready_for_release():
+            self.refuse('arming_failed')
+            return
+        wire = json.dumps(dict(schema='ukai.jail.gate/1', action='release', attempt_id=self.attempt,
+            policy_digest=self.request['native_program']['expected_policy_digest']),
+            separators=(',', ':')).encode() + b'\n'
+        self.context['release_started_ns'] = managed_ns()
+        try:
+            if len(wire) > 1024 or os.write(self.writer, wire) != len(wire):
+                raise ValueError('managed release short write')
+            self.close_fd('writer')
+            self.context['release_completed_ns'] = managed_ns()
+        except (OSError, ValueError):
+            self.refuse('release_failed')
+
+    def stop(self, normal=False):
+        if not normal or self.context is None or self.context['release_completed_ns'] is None:
+            self.refuse('early_stop' if normal else 'cancelled')
+        else:
+            self.close_fd('writer')
+        self.cancelled.set()
+        if self.worker is not None:
+            self.worker.join(self.JOIN_SECONDS)
+            if self.worker.is_alive():
+                raise RuntimeError('managed arm worker did not join')
+        if self.context is not None:
+            self.context['failure'] = self.failure
+        if self.monitor is not None:
+            try:
+                joined = self.monitor.stop()
+            except Exception:
+                raise RuntimeError('managed sampler stop failed') from None
+            if not joined:
+                raise RuntimeError('managed sampler did not join')
+        self.values.clear()
+
+    def close(self):
+        for name in ('child_gate', 'child_control', 'writer', 'reader_fd'):
+            self.close_fd(name)
+        if self.reader is not None:
+            self.reader.close()
+        self.values.clear()
 
 
 def main():
@@ -1274,16 +1801,43 @@ def main():
     staged_secrets = {}
     revoked_secrets = set()
     attempt_started = False
+    native_catalog = native_intent = native_entry = None
+    active_secrets = None
+    protected_values = []
+    exposure_monitor = None
+    managed = None
     guest_boot_id = (PROC_ROOT / 'sys/kernel/random/boot_id').read_text().strip()
 
-    def end_attempt():
+    def shutdown(reason):
+        if managed is not None:
+            try:
+                managed.stop()
+            except (OSError, RuntimeError):
+                reason = 'managed_observer_unverified'
+            finally:
+                managed.close()
+        poweroff(reason)
+
+    def end_attempt(normal=False):
         """D6: the one stop every warm path takes (done, cancel2, reset, the
         outer-wall backstop). Kill and verify every boundary the attempt can
         occupy, reap the supervisor, remove the attempt's staged files —
         each bounded, each failure a named poweroff rather than a starved
         watchdog. Returns the stop's report (stop_attempt), which `done`
         carries."""
+        nonlocal exposure_monitor
         report = None
+        if managed is not None:
+            try:
+                managed.stop(normal)
+                exposure_monitor = managed.monitor
+            except (OSError, RuntimeError):
+                shutdown('managed_observer_unverified')
+        if exposure_monitor is not None:
+            try:
+                exposure_monitor.stop()
+            except Exception:
+                exposure_monitor = None  # No report can certify this observer.
         try:
             report = stop_attempt(account, infrastructure)
             drop_attempt_cgroups(account.pw_uid)
@@ -1301,11 +1855,21 @@ def main():
     def discard_attempt():
         """Closes one attempt's streams and counters, after its tree has
         been ended: the next attempt stages from scratch."""
-        nonlocal process, stream_count, uploaded, files, output_bytes, wall_deadline
+        nonlocal process, stream_count, uploaded, files, output_bytes, wall_deadline, exposure_monitor, managed
+        if exposure_monitor is not None:
+            try:
+                exposure_monitor.discard()
+            except Exception:
+                pass
+            exposure_monitor = None
+        protected_values.clear()
         for key in list(selector.get_map().values()):
             if key.data != 'control':
                 selector.unregister(key.fileobj)
                 key.fileobj.close()
+        if managed is not None:
+            managed.close()
+            managed = None
         process = None
         stream_count = 0
         uploaded = files = output_bytes = 0
@@ -1313,10 +1877,37 @@ def main():
 
     def start(request):
         """Starts the jail for a validated `run` or `run2` request."""
-        nonlocal process, stream_count, wall_deadline, attempt_started
+        nonlocal process, stream_count, wall_deadline, attempt_started, native_entry, exposure_monitor, managed
         profile, wall, argv, allow_hosts, launch = validate_run(request, WORKSPACE == SHARE_MOUNT)
-        command = run_command(profile, argv, wall, allow_hosts=allow_hosts, launch=launch)
-        env = attempt_environment(account)
+        native = request.get('native_program')
+        if native is not None or native_intent is not None:
+            try:
+                if (set(request) - {'op', 'attempt_id', 'boot_id', 'profile', 'wall_seconds', 'argv',
+                                    'allow_hosts', 'launch', 'native_program'}
+                        or native != native_intent or native is None or profile != 'agent'
+                        or launch is not None or globals()['launch_toml'] is not None
+                        or set(staged_secrets) != {native['selected_credential_id']}):
+                    raise ValueError('native release shape')
+                fresh = guest_program.verify_catalog(notify=notify)
+                if fresh != native_catalog:
+                    raise ValueError('native catalog changed before release')
+                native_entry, _ = guest_program.validate_intent(native, request['argv'], fresh)
+                # The root is controller-owned; verify exactly the selected
+                # source and no profile override immediately before launch.
+                if sorted(os.listdir(NATIVE_CONFIG)) != ['credentials'] or sorted(os.listdir(active_secrets)) != [native['selected_credential_id']]:
+                    raise ValueError('native configuration changed')
+                if staged_secret_identity(native['selected_credential_id'], active_secrets) != staged_secrets[native['selected_credential_id']]:
+                    raise ValueError('native credential identity changed')
+            except (OSError, ValueError, TypeError, KeyError):
+                raise Refusal('native_release_refused') from None
+        if native is not None:
+            def source_check():
+                if (sorted(os.listdir(NATIVE_CONFIG)) != ['credentials']
+                        or sorted(os.listdir(active_secrets)) != [native['selected_credential_id']]
+                        or staged_secret_identity(native['selected_credential_id'], active_secrets)
+                           != staged_secrets[native['selected_credential_id']]):
+                    raise ValueError('native source generation changed')
+        env = attempt_environment(account, native_entry if native is not None else None)
         if launch is not None:
             try:
                 _stage_launch_profile(launch, account)
@@ -1325,26 +1916,46 @@ def main():
                 # unwritable directory: never written through.
                 raise Refusal('launch_profile_unstageable') from None
         attempt_cgroup = prepare_attempt_cgroup(account)
-        joined = [os.fsencode(part) for part in _join_attempt_cgroup(attempt_cgroup)]
-        process = subprocess.Popen([*joined, *command], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE, cwd=WORKSPACE, env=env,
-                                   user=account.pw_uid, group=account.pw_gid, extra_groups=[])
-        move_into_attempt_cgroup(attempt_cgroup, process.pid)
-        attempt_started = True
-        for stream, name in [(process.stdout, 'stdout'), (process.stderr, 'stderr')]:
-            selector.register(stream, selectors.EVENT_READ, name)
-        stream_count = 2
-        wall_deadline = clock() + wall + 10
-        audit('running', supervisor_pid=process.pid)
-        send({'event': 'running', 'supervisor_pid': process.pid})
+        try:
+            if native is not None:
+                managed = ManagedNativeGate(account, request, native_entry, native_catalog, infrastructure,
+                                            guest_boot_id, protected_values, source_check)
+            command = run_command(profile, argv, wall, allow_hosts=allow_hosts, launch=launch, native_program=native,
+                                  managed_fds=None if managed is None else managed.pass_fds)
+            with AttemptGate() as gate:
+                process = subprocess.Popen(gate.command(command), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE, cwd=WORKSPACE, env=env, close_fds=True,
+                                           pass_fds=(gate.reader,) + (() if managed is None else managed.pass_fds), user=account.pw_uid,
+                                           group=account.pw_gid, extra_groups=[])
+                gate.attach(process)
+                move_into_attempt_cgroup(attempt_cgroup, process.pid)
+                if managed is not None:
+                    managed.attach(process)
+                    selector.register(managed.reader, selectors.EVENT_READ, 'managed_control')
+                    protected_values.clear()
+                gate.release()
+                attempt_started = True
+                for stream, name in [(process.stdout, 'stdout'), (process.stderr, 'stderr')]:
+                    selector.register(stream, selectors.EVENT_READ, name)
+                stream_count = 2
+                wall_deadline = clock() + wall + 10
+                audit('running', supervisor_pid=process.pid)
+                send({'event': 'running', 'supervisor_pid': process.pid})
+        except BaseException:
+            if managed is not None:
+                try:
+                    managed.stop()
+                finally:
+                    managed.close()
+            raise
 
     while True:
         notify()
         if not in_session and clock() - last_ping > LEASE:
-            poweroff('lease_expired')
+            shutdown('lease_expired')
         if wall_deadline is not None and clock() > wall_deadline:
             if not in_session:
-                poweroff('outer_wall_expired')
+                shutdown('outer_wall_expired')
             # The backstop ends the attempt, not the warm VM (§6: the guest
             # jail's own wall still ends it first when the jail can act).
             end_attempt()
@@ -1352,12 +1963,22 @@ def main():
             discard_attempt()
             send({'event': 'error', 'message': 'outer_wall_expired'})
         for key, _ in selector.select(.1):
+            if key.data == 'managed_control':
+                try:
+                    data = os.read(key.fd, 16384)
+                except BlockingIOError:
+                    continue
+                managed.receive(data)
+                if not data:
+                    selector.unregister(key.fileobj)
+                    key.fileobj.close()
+                continue
             if key.data != 'control':
                 data = os.read(key.fd, 16384)
                 if data:
                     output_bytes += len(data)
                     if output_bytes > MAX_BYTES:
-                        poweroff('output_limit')
+                        shutdown('output_limit')
                     send({'event': key.data, 'data': base64.b64encode(data).decode()})
                 else:
                     selector.unregister(key.fileobj)
@@ -1366,23 +1987,30 @@ def main():
                 continue
             data = conn.recv(65536)
             if not data:
-                poweroff('host_eof')
+                shutdown('host_eof')
             buffer += data
             if len(buffer) > MAX_LINE:
-                poweroff('input_limit')
+                shutdown('input_limit')
             while b'\n' in buffer:
                 line, buffer = buffer.split(b'\n', 1)
-                request = json.loads(line)
+                try:
+                    request = json.loads(line, object_pairs_hook=guest_program._object)
+                    if type(request) is not dict or type(request.get('op')) is not str:
+                        raise ValueError('request shape')
+                except (ValueError, TypeError, RecursionError):
+                    shutdown('invalid_json')
                 op = request['op']
                 try:
                     if op == 'ping':
                         sequence = request['sequence']
                         if type(sequence) is not int or sequence != last_sequence + 1:
-                            poweroff('invalid_lease_sequence')
+                            shutdown('invalid_lease_sequence')
                         last_sequence = sequence
                         last_ping = clock()
                         send({'event': 'pong', 'sequence': sequence})
                     elif op == 'launch_toml' and process is None and in_session:
+                        if native_intent is not None:
+                            raise Refusal('native_launch_override')
                         # The vaulted launch profile's TOML: it carries no
                         # value (sources point at /run/ukai-vm/credentials),
                         # so writing it under the config dir keeps the guest
@@ -1391,7 +2019,7 @@ def main():
                         # attempt's end removes it.
                         text = request['toml']
                         if type(text) is not str or not text or '\0' in text or len(text) > 65536:
-                            poweroff('invalid_launch_toml')
+                            shutdown('invalid_launch_toml')
                         globals()['launch_toml'] = text
                         send({'event': 'launch_toml'})
                     elif op == 'put' and process is None:
@@ -1399,14 +2027,14 @@ def main():
                             # Live share: staging is the host's side of the
                             # mount; a put would write through to the host
                             # workspace.
-                            poweroff('live_share_no_staging')
+                            shutdown('live_share_no_staging')
                         parts = relative(request['path'])
                         path = WORKSPACE.joinpath(*parts)
                         payload = base64.b64decode(request['data'], validate=True)
                         uploaded += len(payload)
                         files += 1
                         if uploaded > MAX_BYTES or files > MAX_FILES:
-                            poweroff('workspace_limit')
+                            shutdown('workspace_limit')
                         path.parent.mkdir(parents=True, exist_ok=True)
                         with path.open('xb') as output:
                             output.write(payload)
@@ -1424,9 +2052,25 @@ def main():
                         # completion. The host staged a fresh workspace
                         # (reset op) before the puts.
                         if not request.get('attempt_id') or not request.get('boot_id'):
-                            poweroff('missing_attempt_binding')
+                            shutdown('missing_attempt_binding')
                         run_request = request
                         start(request)
+                    elif op == 'native_prepare' and process is None and in_session and not attempt_started:
+                        try:
+                            if (set(request) != {'op', 'native_program', 'argv'}
+                                    or native_intent is not None or staged_secrets or globals()['launch_toml'] is not None):
+                                raise ValueError('mixed native preparation')
+                            fresh = guest_program.verify_catalog(notify=notify)
+                            if native_catalog is None or fresh != native_catalog:
+                                raise ValueError('native catalog unavailable or changed')
+                            native = request.get('native_program')
+                            entry, _ = guest_program.validate_intent(native, request.get('argv'), fresh)
+                            prepare_native_config(account)
+                            native_intent, native_entry = native, entry
+                            active_secrets = NATIVE_CONFIG / 'credentials'
+                        except (OSError, ValueError, TypeError, KeyError):
+                            raise Refusal('native_prepare_refused') from None
+                        send({'event': 'native_prepared', 'native_program': native_intent})
                     elif op == 'session' and process is None and not in_session:
                         # J18: the warm session's handshake. After this the
                         # ping lease no longer applies: the attempt's lease
@@ -1439,17 +2083,29 @@ def main():
                             infrastructure = learn_infrastructure(account)
                         except InfrastructureUnknown as error:
                             audit('infrastructure_unknown', error=str(error))
-                            poweroff('infrastructure_unknown')
+                            shutdown('infrastructure_unknown')
+                        try:
+                            native_catalog = guest_program.verify_catalog(notify=notify)
+                        except (OSError, ValueError, TypeError, KeyError):
+                            raise Refusal('native_catalog_invalid') from None
+                        contracts = {'secret_revocation': SECRET_REVOCATION_CONTRACT,
+                                     'journal_export': JOURNAL_SCHEMA}
+                        extra = {}
+                        if native_catalog is not None:
+                            contracts['native_program'] = guest_program.CONTRACT
+                            contracts['sampled_exposure'] = guest_exposure.SCHEMA
+                            extra['guest_program_catalog_sha256'] = native_catalog['sha256']
                         audit('session_opened', live_share=live_share)
                         send({'event': 'session', 'kernel': os.uname().release, 'live_share': live_share,
-                              'guest_contracts': {'secret_revocation': SECRET_REVOCATION_CONTRACT,
-                                                  'journal_export': JOURNAL_SCHEMA}})
+                              'guest_contracts': contracts, **extra})
                     elif op == 'reset' and process is None and in_session:
                         globals()['launch_toml'] = None
                         end_attempt()
                         reset_attempt(account)
                         staged_secrets.clear()
+                        protected_values.clear()
                         revoked_secrets.clear()
+                        native_intent = native_entry = active_secrets = None
                         attempt_started = False
                         uploaded = files = output_bytes = 0
                         send({'event': 'reset'})
@@ -1463,18 +2119,25 @@ def main():
                         secret_id, data = request.get('id'), request.get('data')
                         try:
                             if (type(secret_id) is not str or type(data) is not str
-                                    or secret_id in staged_secrets):
+                                    or secret_id in staged_secrets
+                                    or (native_intent is not None and secret_id != native_intent['selected_credential_id'])):
                                 raise ValueError('ill-typed secret frame')
-                            path = stage_secret(secret_id, base64.b64decode(data, validate=True),
-                                                account=account)
-                            staged_secrets[secret_id] = staged_secret_identity(secret_id)
+                            decoded = base64.b64decode(data, validate=True)
+                            path = stage_secret(secret_id, decoded, account=account, secrets=active_secrets)
+                            staged_secrets[secret_id] = staged_secret_identity(secret_id, active_secrets)
+                            if native_intent is not None:
+                                protected_values.append(decoded)
+                            del decoded
                         except (ValueError, OSError) as error:
                             send({'event': 'error', 'message': 'secret_refused:' + type(error).__name__})
                             continue
                         send({'event': 'secret', 'id': secret_id, 'path': str(path)})
                     elif op == 'revoke_secrets' and in_session and process is not None:
                         ids = request.get('ids')
-                        revoke_secrets(ids, staged_secrets, revoked_secrets)
+                        if managed is not None and (managed.context is None or
+                                managed.context['release_completed_ns'] is None):
+                            managed.refuse('cancelled')
+                        revoke_secrets(ids, staged_secrets, revoked_secrets, active_secrets)
                         send({'event': 'secrets_revoked', 'ids': ids})
                     elif op == 'cancel2' and in_session:
                         # The attempt lease's end-of-file reached the host's
@@ -1483,17 +2146,21 @@ def main():
                         end_attempt()
                         reset_attempt(account)
                         staged_secrets.clear()
+                        protected_values.clear()
                         revoked_secrets.clear()
+                        native_intent = native_entry = active_secrets = None
                         attempt_started = False
                         discard_attempt()
                         audit('attempt_cancelled')
                         send({'event': 'cancelled'})
                     elif op == 'cancel':
-                        poweroff('cancelled')
+                        shutdown('cancelled')
                     else:
-                        poweroff('invalid_operation')
+                        shutdown('invalid_operation')
                 except Refusal as refusal:
-                    poweroff(refusal.reason)
+                    shutdown(refusal.reason)
+        if managed is not None:
+            managed.progress()
         if process is not None and process.poll() is not None and stream_count == 0:
             stop = None
             if in_session:
@@ -1502,21 +2169,32 @@ def main():
                 # value outlives the attempt that `done` reports. The stop's
                 # report travels with `done`: the host checks the guest
                 # jail's own tree verdict against it.
-                stop = end_attempt()
+                stop = end_attempt(normal=True)
+            context = managed.context if managed is not None else None
+            prepared = managed.prepared if managed is not None else None
+            if prepared is not None and hashlib.sha256(prepared).hexdigest() != context['prepared_receipt_sha256']:
+                shutdown('managed_prepared_changed')
+            sample = (retain_sampled_exposure(exposure_monitor, run_request, guest_boot_id, native_entry, context)
+                      if context is not None else None)
+            # end_attempt(normal=True) has already verified tree stop and
+            # removed credentials. Share one deadline across all exported
+            # frames and Done; leave live/legacy sends and queued Cancel2's
+            # existing drain/reset handshake unchanged.
+            finished_send = export_sender(conn) if in_session else send
             try:
-                binding = export_outputs(send, in_session, run_request, guest_boot_id,
-                                         Path(account.pw_dir) / '.local/share/ukai')
+                binding = export_outputs(finished_send, in_session, run_request, guest_boot_id,
+                                         Path(account.pw_dir) / '.local/share/ukai', native_entry, sample, prepared)
+                finished_send({'event': 'done', 'exit_code': process.returncode,
+                               **({'binding': binding, 'stop': stop} if in_session else {})})
             except Refusal as refusal:
-                poweroff(refusal.reason)
-            send({'event': 'done', 'exit_code': process.returncode,
-                  **({'binding': binding, 'stop': stop} if in_session else {})})
+                shutdown(refusal.reason)
             audit('done', exit_code=process.returncode)
             if not in_session:
                 # No new run and no reboot/resume. Host tears down this VM.
                 while clock() - last_ping <= LEASE:
                     notify()
                     time.sleep(.1)
-                poweroff('completed')
+                shutdown('completed')
             # J18: the warm session carries on — the next attempt stages its
             # own workspace, and the VM stays up until the host asks it to
             # stop.

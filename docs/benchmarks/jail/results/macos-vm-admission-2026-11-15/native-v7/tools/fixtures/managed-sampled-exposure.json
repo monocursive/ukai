@@ -1,0 +1,210 @@
+{
+  "binding": {
+    "argv_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "attempt_id": "att_host",
+    "boot_id": "vm_service",
+    "guest_attempt_id": "att_12345678-1234-4234-8234-123456789abc",
+    "guest_boot_id": "01234567-89ab-4cde-8012-3456789abcde",
+    "native_program": {
+      "catalog_sha256": "9a56a990eed8464b96e79aed0ac8061c71fb50c6047653edf3c517740e504843",
+      "entry_id": "example-native-v1",
+      "executable_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "policy_digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "profile_sha256": "18485fdc4f4ff5e80a97639e76b4d32e050038c72076cc72b2b44763d2dfaf05",
+      "request_argv_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "resolved_argv_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "selected_credential_id": "token",
+      "state": "attempt"
+    },
+    "profile": "agent",
+    "sampled_exposure_sha256": "72f662f5f281a9d0518dbb74fb481fc39543b5275ee4954ca03a7f33ae7a42f4"
+  },
+  "catalog_raw": "{\n  \"entries\": [\n    {\n      \"alias\": \"example\",\n      \"argv_prefix\": [\n        \"/opt/ukai/programs/example/1.0/example\"\n      ],\n      \"executable\": \"/opt/ukai/programs/example/1.0/example\",\n      \"executable_sha256\": \"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\n      \"executable_size\": 4096,\n      \"format\": \"elf64-aarch64\",\n      \"guest_jail_sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n      \"id\": \"example-native-v1\",\n      \"install_root\": \"/opt/ukai/programs/example/1.0\",\n      \"interpreter\": \"/lib/ld-linux-aarch64.so.1\",\n      \"profile_sha256\": \"18485fdc4f4ff5e80a97639e76b4d32e050038c72076cc72b2b44763d2dfaf05\",\n      \"program_root\": 1,\n      \"supported_states\": [\n        \"attempt\"\n      ],\n      \"tree\": [\n        {\n          \"gid\": 0,\n          \"kind\": \"directory\",\n          \"mode\": 365,\n          \"path\": \".\",\n          \"uid\": 0\n        },\n        {\n          \"gid\": 0,\n          \"kind\": \"file\",\n          \"mode\": 365,\n          \"nlink\": 1,\n          \"path\": \"example\",\n          \"uid\": 0\n        }\n      ],\n      \"version\": \"1.0\"\n    }\n  ],\n  \"schema\": \"ukai.vm.guest-program-catalog/1\"\n}\n",
+  "control": {
+    "attempt_id": "att_12345678-1234-4234-8234-123456789abc",
+    "error": null,
+    "kind": "prepared",
+    "outcome": {
+      "cause": null,
+      "code": null,
+      "error": null,
+      "kind": "pending",
+      "signal": null
+    },
+    "receipt_digest": "sha256:e88573059ecc84f94e1c2c95151a2f4f501d0d85e6b628063125cc8ea42117be",
+    "receipt_phase": "prepared",
+    "schema": "ukai.jail.control/1",
+    "seq": 1
+  },
+  "native": {
+    "catalog_sha256": "9a56a990eed8464b96e79aed0ac8061c71fb50c6047653edf3c517740e504843",
+    "entry_id": "example-native-v1",
+    "executable_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "policy_digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "profile_sha256": "18485fdc4f4ff5e80a97639e76b4d32e050038c72076cc72b2b44763d2dfaf05",
+    "request_argv_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "resolved_argv_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "selected_credential_id": "token",
+    "state": "attempt"
+  },
+  "prepared_raw": "{\n  \"applied\": {\n    \"environment_names\": [\n      \"PATH\",\n      \"HOME\"\n    ],\n    \"filesystem\": {\n      \"mechanism\": \"bubblewrap-binds\",\n      \"mounts\": [\n        {\n          \"mode\": \"ro\",\n          \"path\": \"/opt/ukai/programs/example/1.0\"\n        },\n        {\n          \"mode\": \"rw\",\n          \"path\": \"/mnt/workspace\"\n        }\n      ],\n      \"protected_coverage\": \"existing_and_root\"\n    },\n    \"limits\": [\n      {\n        \"applied\": true,\n        \"hit\": false,\n        \"key\": \"wall\",\n        \"mechanism\": \"boottime-deadline\",\n        \"requested\": \"20000\",\n        \"required\": true,\n        \"scope\": \"tree\"\n      },\n      {\n        \"applied\": true,\n        \"hit\": false,\n        \"key\": \"pids\",\n        \"mechanism\": \"pids.max\",\n        \"requested\": \"64\",\n        \"required\": true,\n        \"scope\": \"tree\"\n      },\n      {\n        \"applied\": true,\n        \"hit\": false,\n        \"key\": \"mem\",\n        \"mechanism\": \"memory.max\",\n        \"requested\": \"536870912\",\n        \"required\": true,\n        \"scope\": \"tree\"\n      },\n      {\n        \"applied\": true,\n        \"hit\": false,\n        \"key\": \"swap\",\n        \"mechanism\": \"memory.swap.max\",\n        \"requested\": \"0\",\n        \"required\": true,\n        \"scope\": \"tree\"\n      }\n    ],\n    \"network\": {\n      \"allowed_hosts\": [\n        \"api.example.com:443\"\n      ],\n      \"mechanism\": \"network-namespace+outside-http-proxy+loopback-bridge+unix-peer-mediation\",\n      \"mode\": \"proxy\",\n      \"tls_only\": [\n        \"api.example.com:443\"\n      ]\n    },\n    \"removed_environment_names\": [],\n    \"syscalls\": {\n      \"digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n      \"mechanism\": \"seccomp-bpf+seccomp-user-notification\"\n    },\n    \"terminal\": null\n  },\n  \"argv_digest\": \"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\n  \"attempt_id\": \"att_12345678-1234-4234-8234-123456789abc\",\n  \"child_protection\": \"enforced\",\n  \"cleanup_error\": null,\n  \"containment\": \"enforced\",\n  \"credentials\": [\n    {\n      \"digest\": null,\n      \"digest_unavailable_reason\": \"never_staged\",\n      \"id\": \"token\",\n      \"mode\": \"vault\",\n      \"never_staged\": true\n    }\n  ],\n  \"errors\": [],\n  \"exec_observed\": false,\n  \"jail\": {\n    \"backend\": \"bubblewrap\",\n    \"component\": \"ukai-jail\",\n    \"version\": \"0.1.0\"\n  },\n  \"lifetime\": {\n    \"boundary\": \"pid_namespace\",\n    \"integrity\": \"verified\",\n    \"tree_empty\": null,\n    \"verification_scope\": \"attempt_tree\"\n  },\n  \"observer\": {\n    \"attached\": false,\n    \"backend\": null,\n    \"gaps\": [],\n    \"set\": null,\n    \"sources\": {\n      \"audit\": \"unsupported\",\n      \"proxy\": \"unsupported\",\n      \"wrapper\": \"supported\"\n    }\n  },\n  \"outcome\": {\n    \"cause\": null,\n    \"code\": null,\n    \"error\": null,\n    \"kind\": \"pending\",\n    \"signal\": null\n  },\n  \"phase\": \"prepared\",\n  \"platform\": {\n    \"arch\": \"aarch64\",\n    \"kernel\": \"Linux 7.0.0-fixture\",\n    \"os\": \"linux\"\n  },\n  \"policy\": {\n    \"digest\": \"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\n    \"evidence\": \"strict\",\n    \"grants\": [\n      {\n        \"by\": \"program_resolution\",\n        \"kind\": \"read_only\",\n        \"value\": \"/opt/ukai/programs/example/1.0\"\n      },\n      {\n        \"by\": \"operator\",\n        \"kind\": \"allow_host\",\n        \"value\": \"api.example.com:443\"\n      }\n    ],\n    \"name\": \"agent\",\n    \"observe\": \"on\",\n    \"requirements\": [\n      \"tree_termination\",\n      \"closed_set_observation\",\n      \"filesystem_containment\",\n      \"syscall_filter\",\n      \"network_proxy\",\n      \"protected_coverage:existing_and_root\",\n      \"limit:wall\",\n      \"limit:pids\",\n      \"limit:mem\",\n      \"limit:swap\",\n      \"execution_boundary\",\n      \"credential_staging\"\n    ]\n  },\n  \"process\": {\n    \"identity\": {\n      \"kind\": \"linux_boot_start\",\n      \"value\": {\n        \"boot_id\": \"01234567-89ab-4cde-8012-3456789abcde\",\n        \"pid\": 11,\n        \"start_time_ticks\": 101\n      }\n    },\n    \"pid\": 11\n  },\n  \"schema\": \"ukai.jail.receipt/1\",\n  \"vendor_state\": null\n}\n",
+  "profile_raw": "[network]\nallow = [\"api.example.com\"]\n",
+  "provenance": "Manually specified from the owning Linux Prepared and managed gate interface. No producer or reader code generated the expected objects. ASCII-only canonical digest vectors; three ticks include one pre-exec arm tick and two exact catalog workload observations.",
+  "receipt_raw": "{\n  \"applied\": {\n    \"environment_names\": [\n      \"PATH\",\n      \"HOME\"\n    ],\n    \"filesystem\": {\n      \"mechanism\": \"bubblewrap-binds\",\n      \"mounts\": [\n        {\n          \"mode\": \"ro\",\n          \"path\": \"/opt/ukai/programs/example/1.0\"\n        },\n        {\n          \"mode\": \"rw\",\n          \"path\": \"/mnt/workspace\"\n        }\n      ],\n      \"protected_coverage\": \"existing_and_root\"\n    },\n    \"limits\": [\n      {\n        \"applied\": true,\n        \"hit\": false,\n        \"key\": \"wall\",\n        \"mechanism\": \"boottime-deadline\",\n        \"requested\": \"20000\",\n        \"required\": true,\n        \"scope\": \"tree\"\n      },\n      {\n        \"applied\": true,\n        \"hit\": false,\n        \"key\": \"pids\",\n        \"mechanism\": \"pids.max\",\n        \"requested\": \"64\",\n        \"required\": true,\n        \"scope\": \"tree\"\n      },\n      {\n        \"applied\": true,\n        \"hit\": false,\n        \"key\": \"mem\",\n        \"mechanism\": \"memory.max\",\n        \"requested\": \"536870912\",\n        \"required\": true,\n        \"scope\": \"tree\"\n      },\n      {\n        \"applied\": true,\n        \"hit\": false,\n        \"key\": \"swap\",\n        \"mechanism\": \"memory.swap.max\",\n        \"requested\": \"0\",\n        \"required\": true,\n        \"scope\": \"tree\"\n      }\n    ],\n    \"network\": {\n      \"allowed_hosts\": [\n        \"api.example.com:443\"\n      ],\n      \"mechanism\": \"network-namespace+outside-http-proxy+loopback-bridge+unix-peer-mediation\",\n      \"mode\": \"proxy\",\n      \"tls_only\": [\n        \"api.example.com:443\"\n      ]\n    },\n    \"removed_environment_names\": [],\n    \"syscalls\": {\n      \"digest\": \"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\n      \"mechanism\": \"seccomp-bpf+seccomp-user-notification\"\n    },\n    \"terminal\": null\n  },\n  \"argv_digest\": \"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\n  \"attempt_id\": \"att_12345678-1234-4234-8234-123456789abc\",\n  \"child_protection\": \"enforced\",\n  \"cleanup_error\": null,\n  \"containment\": \"enforced\",\n  \"credentials\": [\n    {\n      \"digest\": null,\n      \"digest_unavailable_reason\": \"never_staged\",\n      \"id\": \"token\",\n      \"mode\": \"vault\",\n      \"never_staged\": true\n    }\n  ],\n  \"errors\": [],\n  \"exec_observed\": true,\n  \"jail\": {\n    \"backend\": \"bubblewrap\",\n    \"component\": \"ukai-jail\",\n    \"version\": \"0.1.0\"\n  },\n  \"lifetime\": {\n    \"boundary\": \"pid_namespace\",\n    \"integrity\": \"verified\",\n    \"tree_empty\": true,\n    \"verification_scope\": \"attempt_tree\"\n  },\n  \"observer\": {\n    \"attached\": true,\n    \"backend\": \"ptrace\",\n    \"gaps\": [],\n    \"set\": \"closed\",\n    \"sources\": {\n      \"audit\": \"unsupported\",\n      \"proxy\": \"unsupported\",\n      \"wrapper\": \"supported\"\n    }\n  },\n  \"outcome\": {\n    \"cause\": null,\n    \"code\": 0,\n    \"error\": null,\n    \"kind\": \"exited\",\n    \"signal\": null\n  },\n  \"phase\": \"settled\",\n  \"platform\": {\n    \"arch\": \"aarch64\",\n    \"kernel\": \"Linux 7.0.0-fixture\",\n    \"os\": \"linux\"\n  },\n  \"policy\": {\n    \"digest\": \"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\n    \"evidence\": \"strict\",\n    \"grants\": [\n      {\n        \"by\": \"program_resolution\",\n        \"kind\": \"read_only\",\n        \"value\": \"/opt/ukai/programs/example/1.0\"\n      },\n      {\n        \"by\": \"operator\",\n        \"kind\": \"allow_host\",\n        \"value\": \"api.example.com:443\"\n      }\n    ],\n    \"name\": \"agent\",\n    \"observe\": \"on\",\n    \"requirements\": [\n      \"tree_termination\",\n      \"closed_set_observation\",\n      \"filesystem_containment\",\n      \"syscall_filter\",\n      \"network_proxy\",\n      \"protected_coverage:existing_and_root\",\n      \"limit:wall\",\n      \"limit:pids\",\n      \"limit:mem\",\n      \"limit:swap\",\n      \"execution_boundary\",\n      \"credential_staging\"\n    ]\n  },\n  \"process\": {\n    \"identity\": {\n      \"kind\": \"linux_boot_start\",\n      \"value\": {\n        \"boot_id\": \"01234567-89ab-4cde-8012-3456789abcde\",\n        \"pid\": 11,\n        \"start_time_ticks\": 101\n      }\n    },\n    \"pid\": 11\n  },\n  \"schema\": \"ukai.jail.receipt/1\",\n  \"vendor_state\": null\n}\n",
+  "report": {
+    "actual_values_retained": false,
+    "arbitrary_memory_examined": false,
+    "catalog_executable_identity": {
+      "dev": 10,
+      "ino": 1000
+    },
+    "catalog_sha256": "9a56a990eed8464b96e79aed0ac8061c71fb50c6047653edf3c517740e504843",
+    "continuous_coverage_claimed": false,
+    "executable_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "finished": true,
+    "first_ns": 300,
+    "guest_attempt_id": "att_12345678-1234-4234-8234-123456789abc",
+    "guest_boot_id": "01234567-89ab-4cde-8012-3456789abcde",
+    "guest_receipt_sha256": "f9de320e7c74560283e4316c9b93c6118471a3434277521ce972fc2384a63b70",
+    "hits": [],
+    "host_attempt_id": "att_host",
+    "last_ns": 200000300,
+    "late_poll_count": 0,
+    "lifecycle": {
+      "started_ns": 200,
+      "stop_reason": "supervisor_exit",
+      "stopped_ns": 200000900,
+      "supervisor_exit_observed_ns": 200000800
+    },
+    "limits": {
+      "hit_count": 4096,
+      "process_count": 4096,
+      "read_bytes": 2097152,
+      "tick_bytes": 16777216,
+      "tick_ns": 50000000
+    },
+    "managed_gate": {
+      "armed_observed_ns": 400,
+      "failure": null,
+      "prepared_observed_ns": 100,
+      "prepared_process": {
+        "pid": 11,
+        "starttime": 101
+      },
+      "prepared_receipt_digest": "sha256:e88573059ecc84f94e1c2c95151a2f4f501d0d85e6b628063125cc8ea42117be",
+      "prepared_receipt_sha256": "77d514858fa6a256577e546f19a24462c068937b522df09c41a96a0750fbf337",
+      "prepared_validated_ns": 150,
+      "release_completed_ns": 600,
+      "release_started_ns": 500,
+      "schema": "ukai.vm.managed-native-gate/1"
+    },
+    "maximum_gap_ns": 100000000,
+    "maximum_tick_duration_ns": 500000,
+    "missed_tick_count": 0,
+    "observation_incomplete": false,
+    "observed_interval_ns": 200000000,
+    "period_ns": 100000000,
+    "processes": [
+      {
+        "pid": 10,
+        "roles": [
+          "supervisor",
+          "workload_uid"
+        ],
+        "starttime": 100
+      },
+      {
+        "pid": 11,
+        "roles": [
+          "catalog_program",
+          "descendant",
+          "workload_uid"
+        ],
+        "starttime": 101
+      }
+    ],
+    "reads": {
+      "argv": {
+        "capped": 0,
+        "oversize": 0,
+        "readable": 6,
+        "unreadable": 0,
+        "unstable": 0,
+        "vanished": 0
+      },
+      "environment": {
+        "capped": 0,
+        "oversize": 0,
+        "readable": 6,
+        "unreadable": 0,
+        "unstable": 0,
+        "vanished": 0
+      }
+    },
+    "receipt_process": {
+      "pid": 11,
+      "starttime": 101
+    },
+    "receipt_program_observed": true,
+    "receipt_program_reads": {
+      "argv": {
+        "capped": 0,
+        "oversize": 0,
+        "readable": 2,
+        "unreadable": 0,
+        "unstable": 0,
+        "vanished": 0
+      },
+      "environment": {
+        "capped": 0,
+        "oversize": 0,
+        "readable": 2,
+        "unreadable": 0,
+        "unstable": 0,
+        "vanished": 0
+      }
+    },
+    "sampler_sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+    "scan_errors": {},
+    "schema": "ukai.vm.sampled-exposure/3",
+    "scope": "managed-native-periodic-readable-environment-and-argv-only",
+    "service_boot_id": "vm_service",
+    "supervisor": {
+      "pid": 10,
+      "starttime": 100
+    },
+    "tick_count": 3,
+    "verified_program_observed": true,
+    "verified_program_reads": {
+      "argv": {
+        "capped": 0,
+        "oversize": 0,
+        "readable": 2,
+        "unreadable": 0,
+        "unstable": 0,
+        "vanished": 0
+      },
+      "environment": {
+        "capped": 0,
+        "oversize": 0,
+        "readable": 2,
+        "unreadable": 0,
+        "unstable": 0,
+        "vanished": 0
+      }
+    },
+    "workload_uid": 1000
+  },
+  "request": {
+    "allow_hosts": [],
+    "native_program": {
+      "expected_policy_digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "resolved_argv_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "selected_credential_id": "token"
+    },
+    "wall_seconds": 20
+  },
+  "sampler_sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+  "schema": "ukai.test.managed-sampling-vector/1",
+  "supervisor_pid": 10
+}

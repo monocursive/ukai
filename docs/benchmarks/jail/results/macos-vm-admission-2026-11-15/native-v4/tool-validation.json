@@ -1,0 +1,19 @@
+{
+  "schema": "ukai.task.copied-component-tools/1",
+  "source_revision": "9fdf7edc89d010e2acfce31cd640b5d1bc24b321",
+  "command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "test_credential_staging_measurement",
+    "test_program_binding_measurement"
+  ],
+  "outcome": "PASS",
+  "tests": 29,
+  "failures": 0,
+  "errors": 0,
+  "skips": 0,
+  "log_sha256": "71c973549c7b0553d64a665a17aa3190ab3264e00607866456f03d29056c01cc",
+  "scope": "Synthetic/offline tests of exact copied modules; no VM or provider."
+}

@@ -38,5 +38,12 @@
     "crates/ukai-jail/profiles/launch/pi.toml",
     "crates/ukai-jail/profiles/embedded.rs",
     "crates/ukai-jail/profiles/inputs.rs",
+    "crates/ukai-jail/vm/fixtures/guest-native-profile-inputs.json",
+    "crates/ukai-jail/vm/fixtures/guest-program-catalog.json",
+    "crates/ukai-jail/vm/fixtures/guest-program-catalog-vectors.json",
+    "crates/ukai-jail/vm/fixtures/sampled-exposure-context.json",
+    "crates/ukai-jail/vm/fixtures/sampled-exposure-receipt.json",
+    "crates/ukai-jail/vm/fixtures/sampled-exposure-report.json",
+    "crates/ukai-jail/vm/fixtures/managed-sampled-exposure.json",
     "docs/specs/jail-v1/network-addresses.json",
 ]

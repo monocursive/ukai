@@ -1379,16 +1379,16 @@ sha256 = "e9004dad9c5aeb9d6abfa088dbd092a5d112af64cff76c95f5d7a77da8dc45b7"
 [tested]
 debug_assertions = false
 dirty = false
-inputs = "sha256:efdc169e8e09f514c908e02bb6f972bc8761d2efc9af94d9b53d914a436f14e6"
+inputs = "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae"
 opt_level = "3"
 platform_arch = "x86_64"
 platform_kernel = "Linux 7.0.0-31-generic"
 platform_os = "linux"
 ready = true
-revision = "34c11f5208998f48a285eb62f239f1df7eebcdee"
+revision = "a8e4aecb071a0367001f309a659897d6aa336600"
 rustc = "rustc 1.98.1 (48a229cea 2026-09-01)"
 target = "x86_64-unknown-linux-gnu"
-ukai_jail_sha256 = "d90712619196dcf6a22950d5be790c492bb9d2da3e6c3777020cb53df87f7f64"
+ukai_jail_sha256 = "f1df6de09d84940fce14af4bbc533d636965763895382659340b264b80a4bf33"
 unknown = ["supervisor_scope.reason", "supervisor_scope.reason_code", "supervisor_scope.unit"]
 verification = ["inputs_match_tree", "revision_is_ancestor_of_head", "inputs_match_revision", "frozen_inputs_unchanged_since_revision"]
 
@@ -1434,5 +1434,5 @@ swap_total_kib = 8388604
 "user.max_user_namespaces" = "11829"
 
 [tested.supervisor_scope]
-cgroup = "/user.slice/user-1001.slice/user@1001.service/app.slice/run-p1894126-i35437949.scope"
+cgroup = "/user.slice/user-1001.slice/user@1001.service/app.slice/run-p2214275-i35768325.scope"
 state = "already_delegated"

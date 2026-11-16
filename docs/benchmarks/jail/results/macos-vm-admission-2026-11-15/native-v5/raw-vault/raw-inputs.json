@@ -1,0 +1,1071 @@
+{
+  "schema": "ukai.vm.raw-credential-revocation-inputs/1",
+  "identity": {
+    "binary": {
+      "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-b54086a3e/prefix with spaces/share/ukai-vm/0.1.0-preview.2/bin/ukai-vm",
+      "sha256": "775aca4a32220172d9749e2f78373a0802b973f453cf907d0a17753229fb1143"
+    },
+    "summary_binary": {
+      "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-b54086a3e/prefix with spaces/share/ukai-vm/0.1.0-preview.2/bin/ukai-jail",
+      "sha256": "f4547b149ccc65b661a6e7e4bf875f4778aef2edaacd24369cd7374f5d776fc6"
+    },
+    "image_manifest_sha256": "c34c9e100d5da156ead717c09a3f2c54b5cc066f278da76f15f4f6fbd38483e3"
+  },
+  "record": {
+    "attempt_id": "k113-raw-8f53437e1693d7a4",
+    "profile": "agent",
+    "argv_digest": "sha256:71d5efbe0fe4a51d0e1170e2557bac1d720aa33f6c1d3ea553866e0eabcfb030",
+    "started_at": "2026-11-15T21:29:07Z",
+    "events": [
+      "released",
+      "stdout",
+      "secrets_revoked",
+      "stdout",
+      "stdout",
+      "file",
+      "file",
+      "bound_receipt",
+      "done"
+    ],
+    "error": null,
+    "stdout": "PLACEHOLDER 10214e1701023ff5989fcecd513c3aeeb0052d82df6f97be68de2d4ab4ab8d1e 51 vault:att_263b7391-d441-4ba5-b797-fcc3ef7699f5:test\nSTREAM_INTERRUPTED IncompleteRead\nAFTER_ATTEMPT\nAFTER_REFUSED 403\n",
+    "stderr": "",
+    "exit_code": 0,
+    "revocation_ack": true,
+    "ready": {
+      "event": "ready",
+      "schema": "ukai.jail.vm-attempt/1",
+      "boot_id": "vm-7de6520f-082d-4444-a7bb-d05553c30d20",
+      "disk_sha256": "9c38aa12509ca597ab6798be5466c17ec80e72f2a2a8995b56ab1f52fc2c5446",
+      "helper_sha256": "842308de1450445c9de2413166a0666568c284f1fea413dbb4bce07016d664d8",
+      "custodian_sha256": "947c548bbec27c211e3423e3f17f0aa7f29c18becc92f7e847549d4debbbb205",
+      "seed_sha256": "358cf538c43748b0092da65d5c0759dae91974d23485db45a3160de4cd6e7f45",
+      "vsock_port": 1024,
+      "guest_contracts": {
+        "secret_revocation": "ukai.vm.secret-revocation/1",
+        "journal_export": "ukai.vm.guest-journal/1",
+        "native_program": "ukai.vm.guest-native-launch/1",
+        "sampled_exposure": "ukai.vm.sampled-exposure/2"
+      },
+      "guest_program_catalog_sha256": "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244"
+    },
+    "boot_id": "vm-7de6520f-082d-4444-a7bb-d05553c30d20",
+    "prepared": {
+      "event": "prepared",
+      "kernel": "7.0.0-38-generic",
+      "staged_secrets": [
+        [
+          "test",
+          "/run/ukai-vm/credentials/test"
+        ]
+      ]
+    },
+    "supervisor_pid": 637,
+    "revocation_sent_ids": [
+      "test"
+    ],
+    "revocation_ack_ids": [
+      "test"
+    ],
+    "revocation_ack_at": 1055374.827777416,
+    "receipt_sha256": "e9af53d62324d46824a33de29fd37e486a428e36b63bc24b3e4b0522e43a74e4",
+    "receipt_digest_ok": true,
+    "receipt": {
+      "schema": "ukai.jail.receipt/1",
+      "attempt_id": "att_263b7391-d441-4ba5-b797-fcc3ef7699f5",
+      "revision": 4,
+      "phase": "settled",
+      "platform": {
+        "os": "linux",
+        "arch": "aarch64",
+        "kernel": "Linux 7.0.0-38-generic"
+      },
+      "jail": {
+        "component": "ukai-jail",
+        "version": "0.1.0",
+        "backend": "bubblewrap",
+        "backend_version": "bubblewrap 0.11.1"
+      },
+      "policy": {
+        "name": "agent",
+        "digest": "sha256:90b84807ba2ce377e76f3345cef45beaf9460f1f841920e6ba981a46a42be799",
+        "observe": "on",
+        "evidence": "strict",
+        "requirements": [
+          "tree_termination",
+          "closed_set_observation",
+          "filesystem_containment",
+          "syscall_filter",
+          "network_proxy",
+          "protected_coverage:existing_and_root",
+          "limit:wall",
+          "limit:pids",
+          "limit:mem",
+          "limit:swap",
+          "execution_boundary",
+          "credential_staging"
+        ],
+        "grants": [
+          {
+            "kind": "allow_host",
+            "value": "192.168.1.6:63515",
+            "by": "operator"
+          },
+          {
+            "kind": "allow_host",
+            "value": "192.168.1.6:63515",
+            "by": "operator"
+          }
+        ]
+      },
+      "containment": "enforced",
+      "child_protection": "enforced",
+      "exec_observed": true,
+      "argv_digest": "sha256:71d5efbe0fe4a51d0e1170e2557bac1d720aa33f6c1d3ea553866e0eabcfb030",
+      "applied": {
+        "filesystem": {
+          "mechanism": "bubblewrap-binds",
+          "protected_coverage": "existing_and_root",
+          "mounts": [
+            {
+              "path": "/",
+              "mode": "ro"
+            },
+            {
+              "path": "/usr",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/ssl",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/resolv.conf",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/passwd",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/group",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/hosts",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/localtime",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/ld.so.cache",
+              "mode": "ro"
+            },
+            {
+              "path": "/proc",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/null",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/zero",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/full",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/random",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/urandom",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/tty",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/pts",
+              "mode": "rw"
+            },
+            {
+              "path": "/tmp",
+              "mode": "rw"
+            },
+            {
+              "path": "/mnt/workspace",
+              "mode": "rw"
+            },
+            {
+              "path": "/run/ukai/vault-ca.pem",
+              "mode": "ro"
+            },
+            {
+              "path": "/run/ukai/state",
+              "mode": "rw"
+            },
+            {
+              "path": "/run/ukai/proxy",
+              "mode": "ro"
+            },
+            {
+              "path": "/run/ukai/jail",
+              "mode": "ro"
+            }
+          ]
+        },
+        "network": {
+          "mode": "proxy",
+          "mechanism": "network-namespace+outside-http-proxy+loopback-bridge+unix-peer-mediation",
+          "allowed_hosts": [
+            "192.168.1.6:63515",
+            "192.168.1.6:63515"
+          ]
+        },
+        "syscalls": {
+          "mechanism": "seccomp-bpf+seccomp-user-notification",
+          "digest": "sha256:cc46d9a2a2971889fc33e71d2911ff22b8231e63461008594a7f501092db0041"
+        },
+        "limits": [
+          {
+            "key": "wall",
+            "requested": "50000",
+            "required": true,
+            "applied": true,
+            "mechanism": "boottime-deadline",
+            "scope": "tree",
+            "hit": false
+          },
+          {
+            "key": "pids",
+            "requested": "64",
+            "required": true,
+            "applied": true,
+            "mechanism": "pids.max",
+            "scope": "tree",
+            "hit": false
+          },
+          {
+            "key": "mem",
+            "requested": "536870912",
+            "required": true,
+            "applied": true,
+            "mechanism": "memory.max",
+            "scope": "tree",
+            "hit": false
+          },
+          {
+            "key": "swap",
+            "requested": "0",
+            "required": true,
+            "applied": true,
+            "mechanism": "memory.swap.max",
+            "scope": "tree",
+            "hit": null
+          }
+        ],
+        "environment_names": [
+          "AGENT_TOKEN",
+          "ALL_PROXY",
+          "HTTPS_PROXY",
+          "HTTP_PROXY",
+          "LANG",
+          "NODE_EXTRA_CA_CERTS",
+          "NO_PROXY",
+          "PATH",
+          "PWD",
+          "REQUESTS_CA_BUNDLE",
+          "SSL_CERT_FILE",
+          "TMPDIR",
+          "all_proxy",
+          "http_proxy",
+          "https_proxy",
+          "no_proxy"
+        ],
+        "removed_environment_names": []
+      },
+      "observer": {
+        "backend": "ptrace",
+        "set": "linux-closed-v1",
+        "attached": true,
+        "sources": {
+          "wrapper": "active",
+          "audit": "active",
+          "proxy": "active"
+        },
+        "gaps": []
+      },
+      "coverage": {
+        "exec": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 2,
+          "gaps": []
+        },
+        "fs.write": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "fs.deny": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "net": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 4,
+          "gaps": []
+        },
+        "limits": {
+          "status": "active",
+          "sources": [
+            "wrapper"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "proxy.net": {
+          "status": "active",
+          "sources": [
+            "proxy"
+          ],
+          "observed_count": 2,
+          "gaps": []
+        }
+      },
+      "process": {
+        "pid": 665,
+        "identity": {
+          "kind": "linux_boot_start",
+          "value": {
+            "boot_id": "eb949d36-1be8-4f01-b197-1af2e3c724d1",
+            "pid": 665,
+            "start_time_ticks": 2607
+          }
+        }
+      },
+      "lifetime": {
+        "boundary": "pid_namespace",
+        "native": {
+          "os": "linux",
+          "details": {
+            "agent": {
+              "allowed_setup_operations": [
+                "prctl(PR_SET_NO_NEW_PRIVS)",
+                "seccomp",
+                "landlock_create_ruleset",
+                "landlock_add_rule",
+                "landlock_restrict_self"
+              ],
+              "baseline_filter_digest": "sha256:cc46d9a2a2971889fc33e71d2911ff22b8231e63461008594a7f501092db0041",
+              "filter_variant": "unprivileged_inner",
+              "first_flight_bytes_max": 8192,
+              "first_flight_timeout_ms": 5000,
+              "mediation_filter_digest": "sha256:33063c21492671bcf0a73a39a2a51af680cb9482443fb5ab8be82ba019aa4136",
+              "mediation_record_queue": 4096,
+              "nested_user_namespace": "unavailable",
+              "nested_user_namespace_evidence": "a nested bubblewrap exited Some(1): bwrap: No permissions to create a new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.; bare unshare(CLONE_NEWUSER) inside: ok",
+              "origin_verification": "http_host_and_mitm_http_host",
+              "proxy_socket": "/run/ukai/proxy/proxy.sock",
+              "socks5_listen": "127.0.0.1:3129",
+              "tls_application_authority_verified": true,
+              "udp_egress": false,
+              "unix_peer_mediation": "seccomp_user_notification",
+              "vault_authority": {
+                "lease_poll_ms": 100,
+                "path_binding": "exact_or_unescaped_segment_prefix",
+                "path_bound_credentials": 0,
+                "peer_authority": "mediator_connect_for_pinned_sealed_bridge",
+                "process_binding": "kernel_connection_initiator_executable",
+                "process_bound_credentials": 0,
+                "refresh": "bounded_oauth2_persist_before_publish_no_uncertain_retry",
+                "refresh_credentials": 0,
+                "source_lifecycle": "private_nofollow_live_file",
+                "tls_websocket": "verified_rfc6455_upgrade"
+              }
+            },
+            "backend_exec_by": "descriptor",
+            "bootstrap_spawn": {
+              "mechanism": "clone3_into_cgroup"
+            },
+            "bwrap_pid": 661,
+            "cgroup_namespace": 4026532371,
+            "command_rules": {
+              "deny": 0,
+              "forbid": 0
+            },
+            "credential_injection": "mitm_ca",
+            "execution_cgroup": {
+              "charged_helpers": [
+                {
+                  "pid": 661,
+                  "role": "bubblewrap"
+                },
+                {
+                  "pid": 664,
+                  "role": "namespace_init"
+                },
+                {
+                  "pid": 667,
+                  "role": "bridge"
+                }
+              ],
+              "device": 31,
+              "inode": 3988,
+              "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_263b7391-d441-4ba5-b797-fcc3ef7699f5.leaf",
+              "scope": "target_descendants_and_listed_helpers"
+            },
+            "filtered_readonly_opens": 0,
+            "helpers": [
+              {
+                "charged_to_attempt": true,
+                "kind": "bridge",
+                "listen": "127.0.0.1:3128",
+                "mediated_connects": 2,
+                "pid": 667,
+                "rejected_at_capacity": 0,
+                "seccomp_filters": 2
+              }
+            ],
+            "launcher_pid": 665,
+            "mnt_namespace": 4026532310,
+            "namespace_init_pid": 664,
+            "narrowing_filter_digest": "sha256:f5353e3a8e29beeca5edb0e19952196e8c1b8b575c4d5aab1698a7017fefb56e",
+            "narrowing_filter_digest_installed": "sha256:59b49fa590310ac4b11002113525aa739c13d2ec5ebf21565438a2540e21144a",
+            "net_namespace": 4026532425,
+            "observer_plan": {
+              "backend": "ptrace",
+              "event_bytes_max": 65536,
+              "in_flight_max": 16384,
+              "kernel_ring_bytes": null,
+              "path_snapshot_max": 4096,
+              "queue_bytes_max": 4194304,
+              "queue_events_max": 16384,
+              "queue_lifecycle_reserve_bytes": 65536,
+              "queue_result_bytes_max": 4128768,
+              "test_seams": {}
+            },
+            "path_anchors_unverified": 0,
+            "path_claims_unverified": 0,
+            "pid_namespace": 4026532366,
+            "readonly_open_fast_path": true,
+            "requested_by_other_filters": 0,
+            "resolv_sanitization": "nameservers_only",
+            "seccomp_filters": {
+              "expected": 3,
+              "observed": 3
+            },
+            "supervisor_scope": {
+              "cgroup": "/user.slice/user-1001.slice/user@1001.service/app.slice/ukai-jail-637-bf843807f6244bab.scope",
+              "reason": null,
+              "reason_code": null,
+              "state": "entered",
+              "unit": "ukai-jail-637-bf843807f6244bab.scope"
+            },
+            "user_namespace": 4026532369,
+            "watcher_pid": 662
+          }
+        },
+        "tree_empty": true,
+        "verified_at": "2026-11-15T21:29:08Z",
+        "verification_scope": "attempt_tree",
+        "integrity": "verified"
+      },
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      },
+      "state_cleanup": "complete",
+      "cleanup_error": null,
+      "created_at": "2026-11-15T21:29:08Z",
+      "updated_at": "2026-11-15T21:29:08Z",
+      "errors": [],
+      "credentials": [
+        {
+          "never_staged": true,
+          "id": "test",
+          "mode": "vault",
+          "digest": null,
+          "digest_unavailable_reason": "never_staged"
+        }
+      ]
+    },
+    "binding": {
+      "attempt_id": "k113-raw-8f53437e1693d7a4",
+      "boot_id": "vm-7de6520f-082d-4444-a7bb-d05553c30d20",
+      "guest_attempt_id": "att_263b7391-d441-4ba5-b797-fcc3ef7699f5",
+      "guest_boot_id": "eb949d36-1be8-4f01-b197-1af2e3c724d1",
+      "profile": "agent",
+      "argv_digest": "sha256:71d5efbe0fe4a51d0e1170e2557bac1d720aa33f6c1d3ea553866e0eabcfb030"
+    },
+    "guest_stop": {
+      "boundaries": [
+        "ukai-attempts.slice/attempt-1",
+        "user.slice/user-1001.slice/user@1001.service/app.slice"
+      ],
+      "populated_before_kill": [],
+      "live_before_kill": [],
+      "strays_killed": []
+    }
+  },
+  "argv": [
+    "/usr/bin/python3",
+    "-c",
+    "import hashlib, os, re, urllib.error, urllib.request\ntoken = os.environ.get('AGENT_TOKEN', '')\nshown = token if re.fullmatch('vault:[A-Za-z0-9_.-]+:test', token) else '-'\nprint('PLACEHOLDER', hashlib.sha256(token.encode()).hexdigest(), len(token), shown, flush=True)\ndef request(path):\n    return urllib.request.Request('http://192.168.1.6:63515' + path, headers={'x-test-token': token})\ntry:\n    with urllib.request.urlopen(request('/stream'), timeout=30) as response:\n        response.read()\n    print('STREAM_ENDED', flush=True)\nexcept Exception as error:\n    print('STREAM_INTERRUPTED', type(error).__name__, flush=True)\nprint('AFTER_ATTEMPT', flush=True)\ntry:\n    with urllib.request.urlopen(request('/after'), timeout=10) as response:\n        response.read()\n    print('AFTER_ALLOWED', flush=True)\n    raise SystemExit(1)\nexcept urllib.error.HTTPError as error:\n    print('AFTER_REFUSED', error.code, flush=True)\n    raise SystemExit(0 if error.code == 403 else 2)\n"
+  ],
+  "launch_toml": "name = \"revocation-measurement\"\njail = \"agent\"\ncredentials_one_of = [\"test\"]\n[credentials.test]\nmode = \"vault\"\nsource = \"/run/ukai-vm/credentials/test\"\nhosts = [\"http://192.168.1.6:63515\"]\nallow_plaintext = true\nheader = { name = \"x-test-token\" }\nenv = \"AGENT_TOKEN\"\n[network]\nallow = [\"192.168.1.6:63515\"]\n",
+  "capture": {
+    "peer": {
+      "requests": [
+        {
+          "path": "/stream",
+          "credential_matches": true,
+          "credential_sha256": "057e170999433f9cf6d36cae72398cdbd9b51fccb97a3f82d414dd297c722d66",
+          "at": 1055374.704530125
+        }
+      ],
+      "accepted_at": 1055374.70461525,
+      "deleted_at": null,
+      "disconnected_at": 1055374.908323375,
+      "revocation_sent_at": 1055374.708588041,
+      "expired": false
+    },
+    "secret_sha256": "057e170999433f9cf6d36cae72398cdbd9b51fccb97a3f82d414dd297c722d66",
+    "upstream": {
+      "address": "192.168.1.6",
+      "port": 63515
+    },
+    "service_status": {
+      "event": "status",
+      "schema": "ukai.jail.vm-control/1",
+      "boot_id": "vm-7de6520f-082d-4444-a7bb-d05553c30d20",
+      "warm": true,
+      "ready": true,
+      "attempt_live": false,
+      "kernel": "7.0.0-38-generic",
+      "disk_sha256": "9c38aa12509ca597ab6798be5466c17ec80e72f2a2a8995b56ab1f52fc2c5446",
+      "helper_sha256": "842308de1450445c9de2413166a0666568c284f1fea413dbb4bce07016d664d8",
+      "custodian_sha256": "947c548bbec27c211e3423e3f17f0aa7f29c18becc92f7e847549d4debbbb205",
+      "seed_sha256": "358cf538c43748b0092da65d5c0759dae91974d23485db45a3160de4cd6e7f45",
+      "vsock_port": 1024,
+      "idle_seconds": 0,
+      "live_workspace": "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/workspace-volume/guest-native-b54086a3e-vault",
+      "live_workspace_facts": {
+        "case_fold": false,
+        "normalization_fold": true
+      },
+      "guest_nat": true
+    },
+    "tail": {
+      "text": "ukai-jail: settled · exited 0 · 382ms exec→settled · survivors: none (verified)\nukai-jail: workspace: 0 paths opened for writing\nukai-jail: network: allowed 192.168.1.6:63515 (1) · denied 192.168.1.6:63515 (1)\nukai-jail: credential test: vault, never staged · used on 1 proxy result · revoked · 1 credential refusal\nukai-jail: evidence: 6/6 classes active, no gaps · reads and file contents are not observed\nukai-jail: receipt /private/tmp/ukai-gn-b54086a3e/ukai-raw-revoke-76tkof10/attempts/att_263b7391-d441-4ba5-b797-fcc3ef7699f5/jail.json\n",
+      "json": "{\n  \"attempt_id\": \"att_263b7391-d441-4ba5-b797-fcc3ef7699f5\",\n  \"journal\": \"complete\",\n  \"lines\": [\n    {\n      \"facts\": {\n        \"attempt_wall_ms\": null,\n        \"cause\": null,\n        \"code\": 0,\n        \"errors\": [],\n        \"exec_to_settled_ms\": 382,\n        \"integrity\": \"verified\",\n        \"outcome\": \"exited\",\n        \"phase\": \"settled\",\n        \"signal\": null,\n        \"survivors\": \"none_verified\"\n      },\n      \"line\": \"status\",\n      \"text\": \"settled · exited 0 · 382ms exec→settled · survivors: none (verified)\"\n    },\n    {\n      \"facts\": {\n        \"bound\": \"exact\",\n        \"omitted\": 0,\n        \"opened_for_writing\": 0,\n        \"paths\": [],\n        \"refused\": 0,\n        \"refused_bound\": \"exact\",\n        \"removed\": 0,\n        \"renamed\": 0,\n        \"unnamed\": 0\n      },\n      \"line\": \"workspace\",\n      \"text\": \"workspace: 0 paths opened for writing\"\n    },\n    {\n      \"facts\": {\n        \"allowed\": [\n          {\n            \"connect_failed\": 0,\n            \"destination\": \"192.168.1.6:63515\",\n            \"results\": 1\n          }\n        ],\n        \"bound\": \"exact\",\n        \"denied\": [\n          {\n            \"destination\": \"192.168.1.6:63515\",\n            \"reason\": \"credential_revoked\",\n            \"results\": 1\n          }\n        ],\n        \"mode\": \"proxy\",\n        \"omitted\": 0,\n        \"resolver_refused\": null\n      },\n      \"line\": \"network\",\n      \"text\": \"network: allowed 192.168.1.6:63515 (1) · denied 192.168.1.6:63515 (1)\"\n    },\n    {\n      \"facts\": {\n        \"credentials\": [\n          {\n            \"id\": \"test\",\n            \"mode\": \"vault\",\n            \"never_staged\": true,\n            \"transitions\": [\n              \"loaded\",\n              \"revoked\"\n            ],\n            \"unconfirmed\": 0,\n            \"uses\": 1,\n            \"uses_bound\": \"exact\"\n          }\n        ],\n        \"omitted\": 0,\n        \"refusals\": 1,\n        \"refusals_bound\": \"exact\"\n      },\n      \"line\": \"credentials\",\n      \"text\": \"credential test: vault, never staged · used on 1 proxy result · revoked · 1 credential refusal\"\n    },\n    {\n      \"facts\": {\n        \"attached\": true,\n        \"classes\": {\n          \"exec\": \"active\",\n          \"fs.deny\": \"active\",\n          \"fs.write\": \"active\",\n          \"limits\": \"active\",\n          \"net\": \"active\",\n          \"proxy.net\": \"active\"\n        },\n        \"disagree\": [],\n        \"evidence\": \"strict\",\n        \"gaps\": [],\n        \"observe\": \"on\"\n      },\n      \"line\": \"evidence\",\n      \"text\": \"evidence: 6/6 classes active, no gaps · reads and file contents are not observed\"\n    }\n  ],\n  \"receipt_digest\": \"sha256:201823478ed8bc562b259819644f227c7fb0d067ce954e93f9441a6b8f5b60f5\",\n  \"schema\": \"ukai.jail.summary/1\"\n}\n",
+      "stderr": "",
+      "exit": 0,
+      "json_exit": 0
+    },
+    "sync": {
+      "attempt_id": "k113-sync-f77fc3a4dc4f9665",
+      "profile": "tool",
+      "wall_seconds": 20,
+      "argv_digest": "sha256:0e4582236f33e679d4088e45781e064729d52c4bebc4dcc178ca88a1aa833b03",
+      "started_at": "2026-11-15T21:29:08Z",
+      "stdout": "",
+      "stderr": "",
+      "exit_code": 0,
+      "error": null,
+      "events": [
+        "prepared",
+        "released",
+        "file",
+        "file",
+        "bound_receipt",
+        "done"
+      ],
+      "files": [
+        {
+          "group": "evidence",
+          "path": "guest-journal/0000.part",
+          "executable": false,
+          "sha256": "d4cb16097f3fc8a3acec93492c05a0eada5018a1cb13af44828f82e684667bff",
+          "text": "{\"schema\":\"ukai.event/1\",\"attempt_id\":\"att_bb046600-532a-40d5-9d06-a0fb2bdacc52\",\"source\":\"wrapper\",\"source_seq\":1,\"observed_at\":\"2026-11-15T21:29:09Z\",\"monotonic_ns\":\"101239500\",\"operation\":\"note\",\"stage\":\"result\",\"decision\":null,\"outcome\":{\"ok\":true,\"return_value\":null,\"errno\":null,\"completion\":\"wrapper\"},\"fields\":{\"kind\":\"lifecycle\",\"transition\":\"prepared\"}}\n{\"schema\":\"ukai.event/1\",\"attempt_id\":\"att_bb046600-532a-40d5-9d06-a0fb2bdacc52\",\"source\":\"wrapper\",\"source_seq\":2,\"observed_at\":\"2026-11-15T21:29:09Z\",\"monotonic_ns\":\"130409417\",\"operation\":\"jail.receipt\",\"stage\":\"result\",\"decision\":null,\"outcome\":{\"ok\":true,\"return_value\":null,\"errno\":null,\"completion\":\"wrapper\"},\"fields\":{\"phase\":\"prepared\",\"receipt_digest\":\"sha256:58db57ba0a9aa52559d21e5b503f2269490df465ebbbb6dc1af55278bdb4e672\"}}\n{\"schema\":\"ukai.event/1\",\"attempt_id\":\"att_bb046600-532a-40d5-9d06-a0fb2bdacc52\",\"source\":\"audit\",\"source_seq\":1,\"observed_at\":\"2026-11-15T21:29:09Z\",\"monotonic_ns\":\"130950792\",\"operation\":\"proc.exec\",\"stage\":\"result\",\"decision\":null,\"outcome\":{\"ok\":true,\"return_value\":null,\"errno\":null,\"completion\":\"exec_transition\"},\"fields\":{\"argv_digest\":null,\"argv_digest_reason\":\"descendant_argv_not_captured\",\"path\":{\"kind\":\"root_relative\",\"root\":\"system\",\"value\":\"sync\"},\"path_basis\":\"argument_snapshot\",\"path_complete\":true,\"pid\":696,\"pid_start_ticks\":2670,\"syscall\":\"execve\"}}\n{\"schema\":\"ukai.event/1\",\"attempt_id\":\"att_bb046600-532a-40d5-9d06-a0fb2bdacc52\",\"source\":\"wrapper\",\"source_seq\":3,\"observed_at\":\"2026-11-15T21:29:09Z\",\"monotonic_ns\":\"130965792\",\"operation\":\"note\",\"stage\":\"result\",\"decision\":null,\"outcome\":{\"ok\":true,\"return_value\":null,\"errno\":null,\"completion\":\"wrapper\"},\"fields\":{\"kind\":\"lifecycle\",\"transition\":\"exec_confirmed\"}}\n{\"schema\":\"ukai.event/1\",\"attempt_id\":\"att_bb046600-532a-40d5-9d06-a0fb2bdacc52\",\"source\":\"audit\",\"source_seq\":2,\"observed_at\":\"2026-11-15T21:29:09Z\",\"monotonic_ns\":\"164054334\",\"operation\":\"proc.exit\",\"stage\":\"result\",\"decision\":null,\"outcome\":{\"ok\":true,\"return_value\":0,\"errno\":null,\"completion\":\"process_exit\"},\"fields\":{\"exit_code\":0,\"pid\":696,\"pid_start_ticks\":2670,\"signal\":null,\"termination\":\"exited\"}}\n{\"schema\":\"ukai.event/1\",\"attempt_id\":\"att_bb046600-532a-40d5-9d06-a0fb2bdacc52\",\"source\":\"wrapper\",\"source_seq\":4,\"observed_at\":\"2026-11-15T21:29:09Z\",\"monotonic_ns\":\"176070584\",\"operation\":\"jail.receipt\",\"stage\":\"result\",\"decision\":null,\"outcome\":{\"ok\":true,\"return_value\":null,\"errno\":null,\"completion\":\"wrapper\"},\"fields\":{\"phase\":\"enforced\",\"receipt_digest\":\"sha256:840042b0dc2317b4218b1e8ed3bff8687a625023a75722fb03b3fb6a6d06f67e\"}}\n{\"schema\":\"ukai.event/1\",\"attempt_id\":\"att_bb046600-532a-40d5-9d06-a0fb2bdacc52\",\"source\":\"wrapper\",\"source_seq\":5,\"observed_at\":\"2026-11-15T21:29:09Z\",\"monotonic_ns\":\"222347292\",\"operation\":\"jail.receipt\",\"stage\":\"result\",\"decision\":null,\"outcome\":{\"ok\":true,\"return_value\":null,\"errno\":null,\"completion\":\"wrapper\"},\"fields\":{\"phase\":\"settled\",\"receipt_digest\":\"sha256:4942684a71f74ae9a0ae0f40cab7524f1b96f3cd628c7d5f6d78947aadc0951a\"}}\n"
+        },
+        {
+          "group": "evidence",
+          "path": "guest-journal/manifest.json",
+          "executable": false,
+          "sha256": "5130a7fc169fd24eb7f57ed818d7629dec3f4290e6730cc92eb39359939e58bd",
+          "text": "{\"bytes\": 3032, \"guest_attempt_id\": \"att_bb046600-532a-40d5-9d06-a0fb2bdacc52\", \"guest_receipt_sha256\": \"bbbbad905a0f3ce2cc9d7730fad64e4b14921fdd0efa3cf8fca3c4a46b397e06\", \"parts\": 1, \"schema\": \"ukai.vm.guest-journal/1\", \"sha256\": \"d4cb16097f3fc8a3acec93492c05a0eada5018a1cb13af44828f82e684667bff\", \"state\": \"exported\"}"
+        }
+      ],
+      "guest_stop": {
+        "boundaries": [
+          "ukai-attempts.slice/attempt-2",
+          "user.slice/user-1001.slice/user@1001.service/app.slice"
+        ],
+        "populated_before_kill": [],
+        "live_before_kill": [],
+        "strays_killed": []
+      },
+      "ready": {
+        "event": "ready",
+        "schema": "ukai.jail.vm-attempt/1",
+        "boot_id": "vm-7de6520f-082d-4444-a7bb-d05553c30d20",
+        "disk_sha256": "9c38aa12509ca597ab6798be5466c17ec80e72f2a2a8995b56ab1f52fc2c5446",
+        "helper_sha256": "842308de1450445c9de2413166a0666568c284f1fea413dbb4bce07016d664d8",
+        "custodian_sha256": "947c548bbec27c211e3423e3f17f0aa7f29c18becc92f7e847549d4debbbb205",
+        "seed_sha256": "358cf538c43748b0092da65d5c0759dae91974d23485db45a3160de4cd6e7f45",
+        "vsock_port": 1024,
+        "guest_contracts": {
+          "secret_revocation": "ukai.vm.secret-revocation/1",
+          "journal_export": "ukai.vm.guest-journal/1",
+          "native_program": "ukai.vm.guest-native-launch/1",
+          "sampled_exposure": "ukai.vm.sampled-exposure/2"
+        },
+        "guest_program_catalog_sha256": "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244"
+      },
+      "boot_id": "vm-7de6520f-082d-4444-a7bb-d05553c30d20",
+      "staged_secrets": [],
+      "kernel": "7.0.0-38-generic",
+      "supervisor_pid": 678,
+      "receipt_sha256": "bbbbad905a0f3ce2cc9d7730fad64e4b14921fdd0efa3cf8fca3c4a46b397e06",
+      "receipt_digest_ok": true,
+      "binding": {
+        "attempt_id": "k113-sync-f77fc3a4dc4f9665",
+        "boot_id": "vm-7de6520f-082d-4444-a7bb-d05553c30d20",
+        "guest_attempt_id": "att_bb046600-532a-40d5-9d06-a0fb2bdacc52",
+        "guest_boot_id": "eb949d36-1be8-4f01-b197-1af2e3c724d1",
+        "profile": "tool",
+        "argv_digest": "sha256:0e4582236f33e679d4088e45781e064729d52c4bebc4dcc178ca88a1aa833b03"
+      },
+      "receipt": {
+        "schema": "ukai.jail.receipt/1",
+        "attempt_id": "att_bb046600-532a-40d5-9d06-a0fb2bdacc52",
+        "revision": 3,
+        "phase": "settled",
+        "platform": {
+          "os": "linux",
+          "arch": "aarch64",
+          "kernel": "Linux 7.0.0-38-generic"
+        },
+        "jail": {
+          "component": "ukai-jail",
+          "version": "0.1.0",
+          "backend": "bubblewrap",
+          "backend_version": "bubblewrap 0.11.1"
+        },
+        "policy": {
+          "name": "tool",
+          "digest": "sha256:d33dd6ea5386ce51f9f0a9be8de194c5cca617487a5e078310fab3def67fd56e",
+          "observe": "on",
+          "evidence": "strict",
+          "requirements": [
+            "tree_termination",
+            "closed_set_observation",
+            "filesystem_containment",
+            "syscall_filter",
+            "network_none",
+            "protected_coverage:existing_and_root",
+            "limit:wall",
+            "limit:pids",
+            "limit:mem",
+            "limit:swap",
+            "execution_boundary"
+          ],
+          "grants": []
+        },
+        "containment": "enforced",
+        "child_protection": "enforced",
+        "exec_observed": true,
+        "argv_digest": "sha256:0e4582236f33e679d4088e45781e064729d52c4bebc4dcc178ca88a1aa833b03",
+        "applied": {
+          "filesystem": {
+            "mechanism": "bubblewrap-binds",
+            "protected_coverage": "existing_and_root",
+            "mounts": [
+              {
+                "path": "/",
+                "mode": "ro"
+              },
+              {
+                "path": "/usr",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/ssl",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/resolv.conf",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/passwd",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/group",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/hosts",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/localtime",
+                "mode": "ro"
+              },
+              {
+                "path": "/etc/ld.so.cache",
+                "mode": "ro"
+              },
+              {
+                "path": "/proc",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/null",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/zero",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/full",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/random",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/urandom",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/tty",
+                "mode": "rw"
+              },
+              {
+                "path": "/dev/pts",
+                "mode": "rw"
+              },
+              {
+                "path": "/tmp",
+                "mode": "rw"
+              },
+              {
+                "path": "/mnt/workspace",
+                "mode": "rw"
+              },
+              {
+                "path": "/tmp/.git",
+                "mode": "ro"
+              },
+              {
+                "path": "/tmp/.ukai",
+                "mode": "ro"
+              },
+              {
+                "path": "/mnt/workspace/.git",
+                "mode": "ro"
+              },
+              {
+                "path": "/mnt/workspace/.ukai",
+                "mode": "ro"
+              },
+              {
+                "path": "/run/ukai/jail",
+                "mode": "ro"
+              }
+            ]
+          },
+          "network": {
+            "mode": "none",
+            "mechanism": "network-namespace",
+            "allowed_hosts": []
+          },
+          "syscalls": {
+            "mechanism": "seccomp-bpf",
+            "digest": "sha256:a7ad5b28fcec61783859752d3fbd4fe653a259cf76531862aabdf8e2ce89ec2b"
+          },
+          "limits": [
+            {
+              "key": "wall",
+              "requested": "20000",
+              "required": true,
+              "applied": true,
+              "mechanism": "boottime-deadline",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "pids",
+              "requested": "64",
+              "required": true,
+              "applied": true,
+              "mechanism": "pids.max",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "mem",
+              "requested": "536870912",
+              "required": true,
+              "applied": true,
+              "mechanism": "memory.max",
+              "scope": "tree",
+              "hit": false
+            },
+            {
+              "key": "swap",
+              "requested": "0",
+              "required": true,
+              "applied": true,
+              "mechanism": "memory.swap.max",
+              "scope": "tree",
+              "hit": null
+            }
+          ],
+          "environment_names": [
+            "LANG",
+            "PATH",
+            "PWD",
+            "TMPDIR"
+          ],
+          "removed_environment_names": []
+        },
+        "observer": {
+          "backend": "ptrace",
+          "set": "linux-closed-v1",
+          "attached": true,
+          "sources": {
+            "wrapper": "active",
+            "audit": "active",
+            "proxy": "unsupported"
+          },
+          "gaps": []
+        },
+        "coverage": {
+          "exec": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 2,
+            "gaps": []
+          },
+          "fs.write": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "fs.deny": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "net": {
+            "status": "active",
+            "sources": [
+              "audit"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "limits": {
+            "status": "active",
+            "sources": [
+              "wrapper"
+            ],
+            "observed_count": 0,
+            "gaps": []
+          },
+          "proxy.net": {
+            "status": "unsupported",
+            "sources": [],
+            "observed_count": null,
+            "gaps": []
+          }
+        },
+        "process": {
+          "pid": 696,
+          "identity": {
+            "kind": "linux_boot_start",
+            "value": {
+              "boot_id": "eb949d36-1be8-4f01-b197-1af2e3c724d1",
+              "pid": 696,
+              "start_time_ticks": 2670
+            }
+          }
+        },
+        "lifetime": {
+          "boundary": "pid_namespace",
+          "native": {
+            "os": "linux",
+            "details": {
+              "backend_exec_by": "descriptor",
+              "bootstrap_spawn": {
+                "mechanism": "clone3_into_cgroup"
+              },
+              "bwrap_pid": 693,
+              "cgroup_namespace": 4026532313,
+              "command_rules": {
+                "deny": 0,
+                "forbid": 0
+              },
+              "execution_cgroup": {
+                "charged_helpers": [
+                  {
+                    "pid": 693,
+                    "role": "bubblewrap"
+                  },
+                  {
+                    "pid": 695,
+                    "role": "namespace_init"
+                  }
+                ],
+                "device": 31,
+                "inode": 4338,
+                "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_bb046600-532a-40d5-9d06-a0fb2bdacc52.leaf",
+                "scope": "target_descendants_and_listed_helpers"
+              },
+              "filtered_readonly_opens": 0,
+              "launcher_pid": 696,
+              "mnt_namespace": 4026532309,
+              "namespace_init_pid": 695,
+              "narrowing_filter_digest": "sha256:f5353e3a8e29beeca5edb0e19952196e8c1b8b575c4d5aab1698a7017fefb56e",
+              "narrowing_filter_digest_installed": "sha256:d42e7a943c6fc03854fedaa2313b18a5706ebdf97b1da1a13c694162fe4054e4",
+              "net_namespace": 4026532314,
+              "observer_plan": {
+                "backend": "ptrace",
+                "event_bytes_max": 65536,
+                "in_flight_max": 16384,
+                "kernel_ring_bytes": null,
+                "path_snapshot_max": 4096,
+                "queue_bytes_max": 4194304,
+                "queue_events_max": 16384,
+                "queue_lifecycle_reserve_bytes": 65536,
+                "queue_result_bytes_max": 4128768,
+                "test_seams": {}
+              },
+              "path_anchors_unverified": 0,
+              "path_claims_unverified": 0,
+              "pid_namespace": 4026532312,
+              "readonly_open_fast_path": true,
+              "requested_by_other_filters": 0,
+              "resolv_sanitization": "nameservers_only",
+              "seccomp_filters": {
+                "expected": 2,
+                "observed": 2
+              },
+              "supervisor_scope": {
+                "cgroup": "/user.slice/user-1001.slice/user@1001.service/app.slice/ukai-jail-678-48aed6f657184ce7.scope",
+                "reason": null,
+                "reason_code": null,
+                "state": "entered",
+                "unit": "ukai-jail-678-48aed6f657184ce7.scope"
+              },
+              "user_namespace": 4026532368,
+              "watcher_pid": 694
+            }
+          },
+          "tree_empty": true,
+          "verified_at": "2026-11-15T21:29:09Z",
+          "verification_scope": "attempt_tree",
+          "integrity": "verified"
+        },
+        "outcome": {
+          "kind": "exited",
+          "code": 0,
+          "signal": null,
+          "cause": null,
+          "error": null
+        },
+        "state_cleanup": "complete",
+        "cleanup_error": null,
+        "created_at": "2026-11-15T21:29:09Z",
+        "updated_at": "2026-11-15T21:29:09Z",
+        "errors": [],
+        "credentials": []
+      },
+      "timings_ms": {
+        "connect_to_ready": 12.8,
+        "prepare_to_prepared": 12.4,
+        "run_to_released": 12.5,
+        "prepare_to_released": 24.9,
+        "connect_to_released": 37.7,
+        "released_to_done": 248.3
+      }
+    },
+    "scans": {
+      "spellings": [
+        {
+          "encoding": "raw",
+          "sha256": "057e170999433f9cf6d36cae72398cdbd9b51fccb97a3f82d414dd297c722d66",
+          "files_scanned": 9,
+          "file_hits": [],
+          "output_hits": [],
+          "disk_bytes": 6442450944,
+          "disk_hits": 0
+        },
+        {
+          "encoding": "base64",
+          "sha256": "be844c605e3403529c5ef00cb4be4927ec8fc77a9e21cc8ba3af31ddf4b3985c",
+          "files_scanned": 9,
+          "file_hits": [],
+          "output_hits": [],
+          "disk_bytes": 6442450944,
+          "disk_hits": 0
+        },
+        {
+          "encoding": "hex",
+          "sha256": "aebcf8e0c2197770180dcd4385e95e95faad2944ba7865cbb0eb9c4000bb1404",
+          "files_scanned": 9,
+          "file_hits": [],
+          "output_hits": [],
+          "disk_bytes": 6442450944,
+          "disk_hits": 0
+        }
+      ]
+    },
+    "service_exit": 0,
+    "error_type": null
+  }
+}

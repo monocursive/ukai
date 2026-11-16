@@ -29,6 +29,7 @@ use std::io::{Read as _, Write as _};
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
 use std::process::{Command, Output};
+use ukai_jail::guest_program;
 
 mod common;
 
@@ -379,6 +380,7 @@ fn plan_for(profile: ukai_jail::policy::ProfileName) -> ukai_jail::platform::Pla
     resolved.snapshot.lifetime_boundary = Some(ukai_jail::policy::LifetimeBoundary::KernelBound);
     resolved.requirements = ukai_jail::capability::requirements(&resolved.snapshot);
     ukai_jail::platform::PlanRequest {
+        guest_program: None,
         snapshot: resolved.snapshot,
         requirements: resolved.requirements,
     }
@@ -482,10 +484,12 @@ fn the_transport_record_carries_the_recorded_facts() {
         "vm-42",
         "6.14.0",
         record::ImageDigests {
+            sampler_sha256: None,
             disk_sha256: "d".repeat(64),
             helper_sha256: "h".repeat(64),
             custodian_sha256: "c".repeat(64),
             seed_sha256: "s".repeat(64),
+            guest_program_catalog_sha256: None,
         },
         1024,
         "/data/vm/control.sock",
@@ -591,6 +595,7 @@ fn an_attempt_session_frames_both_ways_against_the_stand_in() {
             secrets,
             allow_hosts: _,
             launch: _,
+            native_program: None,
         } = staged
         else {
             panic!("the host opened with {staged:?}");
@@ -605,6 +610,7 @@ fn an_attempt_session_frames_both_ways_against_the_stand_in() {
             stream.write_all(&line).expect("writes");
         };
         reply(&FromVm::Ready {
+            guest_program_catalog_sha256: None,
             schema: protocol::SCHEMA_ATTEMPT.to_owned(),
             boot_id: "vm-7".to_owned(),
             disk_sha256: "d".repeat(64),
@@ -613,6 +619,8 @@ fn an_attempt_session_frames_both_ways_against_the_stand_in() {
             seed_sha256: "s".repeat(64),
             vsock_port: 1024,
             guest_contracts: Some(protocol::GuestContracts {
+                sampled_exposure: None,
+                native_program: None,
                 secret_revocation: Some(protocol::SECRET_REVOCATION_CONTRACT.into()),
                 journal_export: Some(protocol::JOURNAL_EXPORT_CONTRACT.into()),
             }),
@@ -626,6 +634,7 @@ fn an_attempt_session_frames_both_ways_against_the_stand_in() {
     let mut connection = control::AttemptConnection::connect(&path).expect("connects");
     connection
         .send(&ToVm::Prepare {
+            native_program: None,
             attempt_id: "att_00000000-0000-4000-8000-000000000001".to_owned(),
             profile: "tool".to_owned(),
             wall_seconds: 30,
@@ -654,10 +663,12 @@ fn the_transport_line_renders_one_escaped_line() {
         "boot\nnewline",
         "6.14.0",
         record::ImageDigests {
+            sampler_sha256: None,
             disk_sha256: "0123456789abcdef0123456789abcdef".to_owned(),
             helper_sha256: "h".repeat(64),
             custodian_sha256: "c".repeat(64),
             seed_sha256: "s".repeat(64),
+            guest_program_catalog_sha256: None,
         },
         1024,
         "/data/vm/control.sock",
@@ -687,11 +698,13 @@ impl Harness {
             std::fs::write(root.join(name), name).unwrap();
         }
         let manifest = image::ImageManifest {
+            source_sha256: Default::default(),
             status: "prepared".into(),
             disk_sha256: image::digest(&root.join("base.raw")).unwrap(),
             helper_sha256: image::digest(&root.join("vz")).unwrap(),
             custodian_sha256: image::digest(&root.join("custodian")).unwrap(),
             seed_sha256: image::digest(&root.join("seed.iso")).unwrap(),
+            guest_program_catalog_sha256: None,
         };
         std::fs::write(
             root.join("image.json"),
@@ -931,11 +944,13 @@ fn installation_discovery_uses_numeric_versions_end_to_end() {
     std::fs::write(
         old.join("image.json"),
         serde_json::to_vec(&image::ImageManifest {
+            source_sha256: Default::default(),
             status: "preparing".into(),
             disk_sha256: "old".into(),
             helper_sha256: "old".into(),
             custodian_sha256: "old".into(),
             seed_sha256: "old".into(),
+            guest_program_catalog_sha256: None,
         })
         .unwrap(),
     )

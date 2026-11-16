@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import plistlib
 import re
 import stat
 import subprocess
@@ -17,6 +18,7 @@ import tempfile
 
 import claude_vm_row as compatibility
 import credential_revocation_measurement as revocation
+import guest_program
 import harness
 
 SCHEMA = 'ukai.vm.credential-staging-measurement/2'
@@ -27,6 +29,13 @@ IMAGE_KEYS = ('disk_sha256', 'helper_sha256', 'custodian_sha256', 'seed_sha256')
 GUEST_IMAGE_KEYS = ('disk_sha256', 'seed_sha256')
 GUEST_CONTRACTS = {'secret_revocation': 'ukai.vm.secret-revocation/1',
                    'journal_export': 'ukai.vm.guest-journal/1'}
+OPTIONAL_NATIVE_CONTRACTS = {'native_program': 'ukai.vm.guest-native-launch/1',
+                             'sampled_exposure': 'ukai.vm.sampled-exposure/1'}
+CURRENT_NATIVE_CONTRACTS = {'native_program': 'ukai.vm.guest-native-launch/1',
+                            'sampled_exposure': 'ukai.vm.sampled-exposure/2'}
+MANAGED_NATIVE_CONTRACTS = {'native_program': 'ukai.vm.guest-native-launch/1',
+                            'sampled_exposure': 'ukai.vm.sampled-exposure/3'}
+CATALOG_KEY = 'guest_program_catalog_sha256'
 
 
 class AdmissionError(ValueError):
@@ -42,13 +51,47 @@ def valid_sha(value):
     return type(value) is str and SHA.fullmatch(value) is not None
 
 
+def guest_contract_observation(ready, image):
+    """Admit exact historical/current shapes, without qualifying native use."""
+    require(type(ready) is dict, 'guest Ready record absent')
+    contracts = ready.get('guest_contracts')
+    require(type(contracts) is dict and contracts in (
+        GUEST_CONTRACTS, GUEST_CONTRACTS | OPTIONAL_NATIVE_CONTRACTS,
+        GUEST_CONTRACTS | CURRENT_NATIVE_CONTRACTS, GUEST_CONTRACTS | MANAGED_NATIVE_CONTRACTS),
+        'guest credential contracts are missing, unknown or incompatible')
+    catalog = ready.get(CATALOG_KEY)
+    if 'native_program' in contracts:
+        require(valid_sha(catalog) and valid_sha(image.get(CATALOG_KEY))
+                and catalog == image[CATALOG_KEY],
+                'native guest catalog is absent or differs from the signed image')
+    else:
+        require(catalog is None and CATALOG_KEY not in image,
+                'legacy credential contracts cannot advertise a native catalog')
+    return {'contracts': dict(contracts), CATALOG_KEY: catalog,
+            'native_launch_or_sampling_qualified': False}
+
+
+def verify_catalog_manifest(volume, image, manifest):
+    """Bind optional native metadata to the authenticated payload, not host paths."""
+    name = 'payload/image/' + guest_program.CATALOG_FILENAME
+    if CATALOG_KEY not in image:
+        require(name not in manifest, 'unbound guest program catalog in signed payload')
+        return
+    digest = image[CATALOG_KEY]
+    require(valid_sha(digest) and manifest.get(name) == digest,
+            'guest program catalog differs from signed image metadata')
+    data = revocation.bounded_file(volume / name, guest_program.MAX_CATALOG_BYTES)
+    require(sha(data) == digest, 'guest program catalog bytes changed')
+    guest_program.parse_catalog(data)
+
+
 def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def run_tool(argv):
+def run_tool(argv, *, timeout=120):
     return subprocess.run([str(value) for value in argv], check=True, capture_output=True,
-                          timeout=120, env={'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'LC_ALL': 'C'})
+                          timeout=timeout, env={'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'LC_ALL': 'C'})
 
 
 def digest_file(path, cap=FILE_MAX):
@@ -167,6 +210,7 @@ def inspect_volume(home, volume, team):
     image_bytes = revocation.bounded_file(volume / 'payload/image/image.json', 1024 * 1024)
     image = compatibility.strict_json(image_bytes)
     expected_version = clean_image(image)
+    verify_catalog_manifest(volume, image, manifest)
     expected = {name[len('payload/'):]: value for name, value in manifest.items() if name.startswith('payload/')}
     require(expected.get('image/base.raw.gz') == image['compressed_disk_sha256'], 'compressed image is not bound')
     expected.pop('image/base.raw.gz')
@@ -201,23 +245,105 @@ def inspect_volume(home, volume, team):
             'service_sha256': image['ukai_vm_sha256'], 'client_sha256': image['ukai_jail_sha256']}
 
 
+def attachment_snapshot():
+    """Bound the local image inventory before choosing any cleanup target."""
+    raw = run_tool(['/usr/bin/hdiutil', 'info', '-plist'], timeout=15).stdout
+    require(type(raw) is bytes and len(raw) <= 4 * 1024 * 1024, 'image inventory exceeds bound')
+    try:
+        inventory = plistlib.loads(raw)
+    except Exception as error:
+        raise AdmissionError('invalid image inventory plist') from error
+    require(type(inventory) is dict and type(inventory.get('images')) is list
+            and len(inventory['images']) <= 4096, 'invalid image inventory')
+    images, count = [], 0
+    for image in inventory['images']:
+        require(type(image) is dict and type(image.get('image-path')) is str
+                and Path(image['image-path']).is_absolute()
+                and type(image.get('system-entities')) is list, 'invalid image attachment')
+        entities = []
+        for entity in image['system-entities']:
+            count += 1
+            require(count <= 4096 and type(entity) is dict
+                    and type(entity.get('dev-entry')) is str
+                    and re.fullmatch(r'/dev/disk[0-9]+(?:s[0-9]+)*', entity['dev-entry']) is not None,
+                    'invalid image device inventory')
+            mount = entity.get('mount-point')
+            require(mount is None or (type(mount) is str and Path(mount).is_absolute()),
+                    'invalid image mount inventory')
+            entities.append({'device': entity['dev-entry'],
+                             'mount': None if mount is None else os.path.realpath(mount)})
+        images.append({'image': os.path.realpath(image['image-path']), 'entities': entities})
+    return images
+
+
+def owned_attachment_target(images, dmg, mount, previous_devices):
+    matches = [image for image in images if image['image'] == str(dmg)]
+    require(len(matches) <= 1, 'ambiguous signed image attachment')
+    require(not any(entity['mount'] == str(mount) for image in images if image not in matches
+                    for entity in image['entities']), 'private mount belongs to another image')
+    if not matches:
+        require(not mount.is_mount(), 'private mount remains without image ownership')
+        return None
+    entities = matches[0]['entities']
+    devices = {entity['device'] for entity in entities}
+    require(bool(devices) and not devices.intersection(previous_devices)
+            and not any(entity['device'] in devices for image in images if image not in matches
+                        for entity in image['entities']), 'image device ownership is uncertain')
+    mounts = [entity['mount'] for entity in entities if entity['mount'] is not None]
+    require(not mounts or mounts == [str(mount)], 'signed image has an unexpected mount')
+    if mounts:
+        return str(mount)
+    # Failed attach can leave an unmounted whole disk, with no mountpoint to detach.
+    disks = [device for device in devices if re.fullmatch(r'/dev/disk[0-9]+', device)]
+    require(len(disks) == 1, 'unmounted image device is ambiguous')
+    return disks[0]
+
+
+def cleanup_attachment(dmg, mount, temporary, directory_identity, previous_devices):
+    try:
+        target = owned_attachment_target(attachment_snapshot(), dmg, mount, previous_devices)
+        if target is not None:
+            run_tool(['/usr/bin/hdiutil', 'detach', target], timeout=60)
+            require(owned_attachment_target(attachment_snapshot(), dmg, mount, previous_devices) is None,
+                    'signed image remains attached')
+        # Never recursively remove a directory which may still be a mount. Only
+        # remove our original empty directories after authoritative absence.
+        for path, expected in zip((mount, temporary), directory_identity):
+            info = path.lstat()
+            require(stat.S_ISDIR(info.st_mode) and (info.st_dev, info.st_ino) == expected
+                    and not path.is_mount(), 'owned temporary directory changed')
+        mount.rmdir()
+        temporary.rmdir()
+    except (OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError) as error:
+        raise AdmissionError('signed image cleanup uncertain; owned temporary directory retained: '
+                             + str(temporary) + ' (' + type(error).__name__ + ')') from error
+
+
 def verify_signed_install(home, dmg, team):
     home, dmg = Path(home).resolve(strict=True), Path(dmg).resolve(strict=True)
     digest = digest_file(dmg)
     verify_signature(dmg, team)
-    with tempfile.TemporaryDirectory(prefix='ukai-credential-admission-') as temporary:
-        # Darwin's default temporary directory is reached through /var,
-        # a symlink; anchored evidence readers require the canonical parents.
-        mount = Path(temporary).resolve(strict=True) / 'volume'
-        mount.mkdir()
-        mounted = False
-        try:
-            run_tool(['/usr/bin/hdiutil', 'attach', '-readonly', '-nobrowse', '-mountpoint', mount, dmg])
-            mounted = True
-            identity = inspect_volume(home, mount, team)
-        finally:
-            if mounted:
-                run_tool(['/usr/bin/hdiutil', 'detach', mount])
+    before = attachment_snapshot()
+    require(not any(image['image'] == str(dmg) for image in before), 'signed image is already attached')
+    previous_devices = {entity['device'] for image in before for entity in image['entities']}
+    # No TemporaryDirectory finalizer: an uncertain mount must be retained,
+    # never recursively deleted. Canonicalize Darwin's /var temporary path.
+    temporary = Path(tempfile.mkdtemp(prefix='ukai-credential-admission-')).resolve(strict=True)
+    mount = temporary / 'volume'
+    try:
+        mount.mkdir(mode=0o700)
+    except OSError:
+        temporary.rmdir()
+        raise
+    directory_identity = [(path.stat().st_dev, path.stat().st_ino) for path in (mount, temporary)]
+    try:
+        run_tool(['/usr/bin/hdiutil', 'attach', '-readonly', '-nobrowse', '-mountpoint', mount, dmg])
+        require(owned_attachment_target(attachment_snapshot(), dmg, mount, previous_devices) == str(mount),
+                'signed image did not attach at its owned mount')
+        identity = inspect_volume(home, mount, team)
+    finally:
+        # Attach timeout/nonzero is not proof that no device or mount was created.
+        cleanup_attachment(dmg, mount, temporary, directory_identity, previous_devices)
     require(digest_file(dmg) == digest, 'signed DMG changed during verification')
     return dict(identity, dmg_sha256=digest, signing='verified-developer-id',
                 notarization='not-established-by-this-measurement')
@@ -229,8 +355,7 @@ def derive(replayed, installation):
             and all(value is True for value in replayed['facts'].values())
             and not replayed.get('errors'), 'raw evidence does not replay as PASS')
     record, image = replayed['record'], replayed['image']
-    require((record.get('ready') or {}).get('guest_contracts') == GUEST_CONTRACTS,
-            'the actual guest did not declare the required credential contracts')
+    observation = guest_contract_observation(record.get('ready'), image)
     require(image == installation['image'], 'raw attempt used another image')
     identity = replayed['identity']
     require(identity['binary']['sha256'] == installation['service_sha256']
@@ -260,6 +385,7 @@ def derive(replayed, installation):
                                  'credential refresh', 'copied/bound credentials', 'TLS/vendor compatibility',
                                  'K113/release qualification']}},
             'installation': installation, 'recomputed_facts': replayed['facts'],
+            'guest_contract_observation': observation,
             'scope': 'Guest admission evidence only; no capability-table change, host-source-watch or release qualification.',
             'compatibility': {'measured_image': {key: image[key] for key in IMAGE_KEYS},
                               'required_guest_image': {key: image[key] for key in GUEST_IMAGE_KEYS},
