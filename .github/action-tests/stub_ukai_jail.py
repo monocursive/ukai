@@ -28,6 +28,7 @@ if argv[:2] == ["credential", "set"]:
     record["stdin_sha256"] = hashlib.sha256(value).hexdigest()
     (config / "credentials").mkdir(parents=True, exist_ok=True)
     (config / "credentials" / argv[-1]).write_bytes(value)
+    status = int(os.environ.get("STUB_CREDENTIAL_EXIT", "0"))
 elif argv[:2] == ["credential", "rm"]:
     (config / "credentials" / argv[-1]).unlink()
 elif argv[:1] == ["version"]:

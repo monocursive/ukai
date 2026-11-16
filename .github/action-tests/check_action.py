@@ -52,6 +52,11 @@ for step in steps:
         check(PINNED.match(step["uses"]) is not None,
               f"action.yml step {step.get('id')}: `{step['uses']}` is not pinned by commit SHA")
 for name, workflow in ((w.name, yaml.safe_load(w.read_text())) for w in WORKFLOWS if w.exists()):
+    for job_name, job in (workflow.get("jobs") or {}).items():
+        version = (job.get("env") or {}).get("UKAI_ACTION_VERSION")
+        if version is not None:
+            check(str(version) == str(action["inputs"]["version"]["default"]),
+                  f"{name} job {job_name}: simulator version {version} differs from action.yml")
     for uses in uses_of(workflow):
         check(uses == "./action" or PINNED.match(uses) is not None,
               f"{name}: `{uses}` is not pinned by commit SHA")

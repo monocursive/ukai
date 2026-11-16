@@ -66,7 +66,7 @@ class Scripts(unittest.TestCase):
             "GITHUB_REPOSITORY": "owner/repo", "GITHUB_RUN_ID": "7", "GITHUB_WORKFLOW": "wf",
             "GITHUB_JOB": "job", "GITHUB_SERVER_URL": "https://github.com",
             "STUB_LOG": str(self.log),
-            "UKAI_ACTION_VERSION": "0.1.0-rc.4", "UKAI_ACTION_FAIL_ON": "unsettled,survivors",
+            "UKAI_ACTION_VERSION": "0.1.0-rc.5", "UKAI_ACTION_FAIL_ON": "unsettled,survivors",
             "UKAI_ACTION_PR_COMMENT": "false", "UKAI_ACTION_ARTIFACT_NAME": "ukai-jail-receipt",
             "UKAI_ACTION_ALLOW_CHECKOUT_TOKEN": "false",
         }
@@ -181,6 +181,32 @@ class Scripts(unittest.TestCase):
         self.assertEqual(call["argv"], ["credential", "set", "--force", "api"])
         self.assertEqual(call["stdin_sha256"], hashlib.sha256(TOKEN.encode()).hexdigest())
         self.assertNotIn("SELFTEST_VALUE", call["env_names"])
+
+    def test_credentials_mask_escapes_literal_workflow_command_sequences(self):
+        self.report_dir()
+        value = TOKEN + "%0A%0D%25"
+        result = self.script("credentials.sh", UKAI_ACTION_CREDENTIALS="api=SELFTEST_VALUE",
+                             SELFTEST_VALUE=value)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        masks = [line for line in result.stdout.splitlines() if line.startswith("::add-mask::")]
+        self.assertEqual(masks, ["::add-mask::" + value.replace("%", "%25")])
+        [call] = self.calls()
+        self.assertEqual(call["stdin_sha256"], hashlib.sha256(value.encode()).hexdigest())
+        self.assertNotIn("SELFTEST_VALUE", call["env_names"])
+
+    def test_cleanup_removes_credential_when_store_writes_then_fails(self):
+        directory = self.report_dir()
+        result = self.script("credentials.sh", UKAI_ACTION_CREDENTIALS="api=SELFTEST_VALUE",
+                             SELFTEST_VALUE=TOKEN, STUB_CREDENTIAL_EXIT="1")
+        self.assertNotEqual(result.returncode, 0)
+        vault = self.runner_temp / "ukai/config/credentials/api"
+        self.assertEqual(vault.read_text(), TOKEN)
+        self.assertEqual((directory / "credential-ids").read_text(), "api\n")
+        cleaned = self.script("cleanup.sh", UKAI_ACTION_CREDENTIALS="api=SELFTEST_VALUE")
+        self.assertEqual(cleaned.returncode, 0, cleaned.stdout + cleaned.stderr)
+        self.assertFalse(vault.exists())
+        self.assertEqual([call["argv"] for call in self.calls()],
+                         [["credential", "set", "--force", "api"], ["credential", "rm", "api"]])
 
     def test_credentials_empty_fails_naming_the_line(self):
         self.report_dir()

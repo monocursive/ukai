@@ -481,7 +481,7 @@ jail grants.
    on spaces (and commas for `fail-on`). `launch` must be a plain name and
    `profile` one of `tool`, `build` and `agent` (a policy file is not
    accepted); `artifact-name` must avoid the characters artifacts refuse.
-   The default `version` is a literal in `action.yml`, 0.1.0-rc.4 today; the
+   The default `version` is a literal in `action.yml`, 0.1.0-rc.5 after integration; the
    self-test's static check keeps it equal to the root installer's default,
    and the RELEASING step sets both in the rollout commit.
 8. **`gaps` is literal.** Under `tool` and `build`, which have no proxy, the

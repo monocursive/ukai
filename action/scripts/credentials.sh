@@ -26,11 +26,13 @@ for id in ${CREDENTIAL_IDS[@]+"${CREDENTIAL_IDS[@]}"}; do
     if [ "${#value}" -gt 8192 ] || [[ "$value" == *[^[:print:]]* ]]; then
         fail "$line: \$$var is not 1 to 8192 printable ASCII bytes (a line break or control character); nothing of it was stored"
     fi
-    printf '::add-mask::%s\n' "$value"
+    printf '::add-mask::%s\n' "$(escape_data "$value")"
+    # A store may fail after creating the file (for example, directory sync).
+    # Own the attempted ID before calling it so always-cleanup still removes it.
+    printf '%s\n' "$id" >> "$dir/credential-ids"
     printf '%s' "$value" | jail credential set --force "$id" > /dev/null ||
         fail "$line: \`ukai-jail credential set $id\` refused the value"
     unset -v value
-    printf '%s\n' "$id" >> "$dir/credential-ids"
     fact "credential $id: from \$$var, stored with \`ukai-jail credential set $id\` (stdin), masked in the log"
 done
 [ "$index" -gt 0 ] || fact "credentials: none"
