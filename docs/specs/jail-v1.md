@@ -1,7 +1,11 @@
 # Jail v1: first implementation specification
 
-Status: implementation specification, revision 26, 2026-10-19. No implementation
-or backend conformance is claimed by this document. Revision 26 applies J14,
+Status: implementation specification, revision 27, 2026-10-21. No implementation
+or backend conformance is claimed by this document. Revision 27 clarifies §3.2's
+"no host configuration" for the GitHub Action of J15
+([jail-ci-action.md](jail-ci-action.md) §5): it holds for `ukai-jail`; the
+action is a separate component that makes two disclosed changes on a
+GitHub-hosted runner only. Revision 26 applies J14,
 interactive agent sessions ([jail-interactive-sessions.md](jail-interactive-sessions.md),
 §5 row by row): terminal mode runs an attached command in the caller's
 session in its own process group, made the terminal's foreground group, with
@@ -302,6 +306,14 @@ stock so that conformance proves it. Nested user namespaces are therefore a
 measured, optional host capability (§9.2), never a requirement. `doctor` names
 the host-specific change that would enable them, as an optional remediation. All of
 these are host policy: the tools report the state and change none of them.
+This holds for `ukai-jail` unchanged. The GitHub Action (J15,
+[jail-ci-action.md](jail-ci-action.md)) is a separate component, not a jail
+build input: on a GitHub-hosted runner only, a disposable host the workflow
+owns, it builds bubblewrap 0.11.1 into `/usr/local/bin/bwrap` and loads one
+AppArmor profile that allows user namespaces for that binary when
+`kernel.apparmor_restrict_unprivileged_userns` reads 1 (jail-ci-action.md
+§3.3), and says so in the job summary; it never writes the sysctl, and on
+any other host it changes nothing.
 
 The backend is the bubblewrap the operator's `PATH` provides, resolved once per
 process: the first absolute entry holding an executable regular file named
