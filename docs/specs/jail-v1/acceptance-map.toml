@@ -3139,6 +3139,16 @@ tests = [
 ]
 note = "The untrusted request's argv (operator-flag look-alikes after --) leaves the owner's planned policy unchanged; its project file selecting a profile refuses before prepared; one that only narrows is caught by the owner's plan and nothing runs."
 
+[[clause]]
+id = "I03.5"
+gate = "I03"
+clause = "A managed native from-path launch stays blocked until the owner authorizes its resolved plan; release does not bypass program or install-root rechecks"
+tag = "live-cli"
+tests = [
+  "ukai-jail/tests/from_path_linux.rs::managed_native_gate_blocks_exec_and_rechecks_the_held_program",
+]
+note = "The owner independently derives policy, resolved argv and requirements, then binds the generated attempt id from its private Prepared control/receipt. Wrong digest, EOF, and program/install-root replacement during the gate wait refuse without a target marker; the matching unchanged plan executes."
+
 # ------------------------------------------------------------------ A01
 
 [[gate]]

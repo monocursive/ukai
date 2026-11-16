@@ -1200,6 +1200,9 @@ never reused. Standalone execution generates it. Managed composition may pass
 `--attempt-id ID` only together with `--gate-fd`; this lets a future launch
 owner bind a pre-existing reservation to the jail's receipts. Validate the id
 grammar before deriving any path. It is not an arbitrary directory argument.
+`--from-path` accepts a managed gate but refuses `--attempt-id`: the owner
+binds the jail-generated id from that invocation's private Prepared control
+message and canonical receipt instead of supplying a reservation.
 Managed caller-supplied IDs use the same version/variant grammar. IDs identify
 attempts; possession of an ID grants no authority.
 Local attempts are not deduplicated operator requests.
@@ -1333,6 +1336,15 @@ and business authorization outside the jail. A matching digest proves identity
 of the snapshot, not that its permissions were authorized. Withhold/close the
 gate on any mismatch; possession of the gate is trusted process authority only.
 The generic gate schema remains independent of business identity and fleet.
+
+For `--launch NAME --from-path`, the authorized plan includes the independently
+resolved argv and derived install-root grants. The owner must not learn its
+expected policy or argv digest from the Prepared receipt. The resolved program
+and install-root descriptors remain held across the wait; a valid gate frame
+does not bypass the subsequent native path/ownership and launcher executable
+rechecks, or `@program` credential restrictions. This combination still
+refuses externally supplied attempt ids, persistent state, label-only mode
+and profile `none`.
 
 The inherited gate is a private pipe readable only by the supervisor. Its sole
 valid release is one UTF-8 NDJSON frame, followed by writer close:
