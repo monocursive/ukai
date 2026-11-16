@@ -9,6 +9,21 @@ The [earlier readiness snapshot](production-readiness-2026-11-15.md) retains
 the implementation history and failed runs. [Draft PR #51](https://github.com/monocursive/ukai/pull/51)
 contains the isolated Linux candidate, excluding unrelated local Arena work.
 
+## Current status — 16 November 2026
+
+| Candidate or gate | Current result |
+| --- | --- |
+| Linux `6ffff05dc`, `0.1.0-rc.6` | Signed private candidate; strict reference conformance and both native installers passed; unpublished. |
+| Warm-VM `bef699262`, `0.1.0-preview.2` | Signed private candidate; all six CI jobs, source rebuild, package/installer verification, primary runtime checks and second-Mac checks passed. |
+| Claude API-key qualification on `bef699262` | Missing-source control passed. First paid task settled successfully but qualification failed: 27/28 facts, with two unattributed sampling inventory losses. Remaining 12 paid lanes stopped. |
+| Final-candidate fault matrix | Pending; the earlier candidate's passing matrix does not qualify these bytes. |
+| OAuth, notarization, native macOS Endpoint Security | Pending. OAuth is deferred at the user's request; no usable local notarization credential or ES profile was established. |
+
+The latest API failure remains a failure. Synthetic diagnostics are investigating
+the inventory race without further provider calls or changing its recorded
+verdict. Full production readiness and public release are not established.
+The sections below retain the source identities, evidence and earlier failures.
+
 ## Frozen Linux candidate
 
 | Identity | Value |
@@ -668,8 +683,92 @@ failed both Rust lanes before tests: three test-only standard-library reader
 type names matched the existing I02 vendor-token ban. The other four jobs
 passed. That failure remains in `guest-gate-ci-57d6a68dd/`; no rerun or package
 was produced from that revision. The correction uses borrowed byte slices in
-those three tests without changing production code. Fresh CI and a signed
-installed candidate are still required for the corrected source.
+those three tests without changing production code. The following candidate
+provides fresh CI and installed evidence for that correction.
+
+## Corrected diagnostics candidate
+
+Clean source `bef6992628f19e870ca15b264c7c02db74b1a81e` produced private signed
+DMG `b8b25b6c978d608771ee66e4ddc149bb1692b8cfb30cc691b9feeaf16fba286f`.
+All six Developer ID signatures and seven actual mounted-DMG installer cases
+passed. Independent review passed 25 checks against every installed file and
+mode, all 847 archived Git files and modes, the exact portable-tail fixture,
+and the unchanged native-v5 guest inputs. The source archive SHA-256 is
+`369777187d92d2a06d223eeee07620063e7079e2bd265732d0817433c791b1ef`.
+
+All five native components rebuilt from that archive in a fresh no-Git source
+tree. A separate fresh extraction on the spare Mac passed an offline,
+all-target compile using its existing task-owned compiler cache. This
+confirms the archive contains the previously omitted compile-time fixture;
+it is not a byte-reproducibility claim. Records are under
+`source-rebuild-bef699262/` and `guest-native-package-independent-bef699262/`.
+
+All six hosted jobs passed on the first attempt, with the tested merge tree
+identical to the candidate tree. macOS reported 2,497 passes, seven deliberate
+ignores and no runtime skips; Ubuntu reported 3,064 passes, 18 ignores and
+519 runtime skip diagnostics. Python suites ran 1,055 cases with 81 explicit
+skips. Exact logs and source binding are in `guest-gate-ci-bef699262/`.
+The ordinary hosted Linux lane remains distinct from strict reference
+conformance of the frozen Linux release candidate.
+
+On the primary Mac, K109, K111 and K112 passed. K111 completed in 52.2 seconds
+with a verified empty tree and no host/guest receipt contradictions. This is
+a new successful measurement; the earlier intermittent startup failure and
+its unknown cause remain recorded. K112 still establishes correct refusal
+of unsupported owner-loss requests, not that unavailable guarantee.
+
+The normal installed version route passed all 27 execution facts. Its valid
+sampling report was incomplete: five ticks, no exact workload reads, one
+`inventory_vanished` and one `supervisor_unobserved` error. These errors are
+retained; the short version probe contributes no API exposure qualification.
+Independent replay passed 48 checks while preserving that distinction.
+
+Synthetic source-watch revocation passed all 21 facts and 47 independent
+replay checks, including a 2.500580-second post-refusal child hold. On one
+warm boot, all 20 service and 20 actual-client attempts passed. Maximum
+release latency was 100.4 ms, and maximum installed-client exec to first
+workspace write was 318.3 ms, each within the one-second bound. All 51 final
+lifecycle checks passed; owned processes were absent and the workspace was
+detached before the API workspaces were prepared.
+
+These results are retained under `guest-native-gates-bef699262/`,
+`guest-native-version-bef699262/`, `guest-native-source-watch-bef699262/`,
+`guest-native-warm-bef699262/`, `guest-native-measurements-bef699262/` and
+`guest-native-runtime-independent-bef699262/`.
+
+The second Mac passed the same signed package's six signature checks,
+installation and repeat-install refusal. Cold agent and warm tool work took
+80.338 seconds and 0.378 seconds respectively. A three-second wall limit
+returned in 3.217 seconds with an explicit unknown/unverified outcome.
+Synthetic source-watch revocation passed all 22 facts, and four complete
+summaries independently recomputed. All 14 installed files and modes were
+unchanged, owned processes were absent and both task mounts were detached.
+The retained bundle contains 147 files; independent bounded review passed
+171 checks. These results are in `spare-mac-bef699262/`.
+
+The final-candidate API-key sequence began with a successful missing-source
+control: all six facts passed, without a workload or credential-source read.
+Exactly one paid A01 then created the requested public `hello` file and
+settled cleanly, but **failed qualification with 27 of 28 facts passing**.
+Its sampler recorded 42 ticks, 37 exact workload environment and argv reads,
+zero secret hits and two `inventory_vanished` errors. Those errors lack process
+attribution; complete periodic sampling is not established. The original
+counter values and failed verdict remain unchanged.
+
+Independent diagnostic replay reproduced all 28 facts, the complete 161-frame
+guest journal, four exact credential uses, both summaries and native bindings.
+The vendor reported two turns on `claude-sonnet-5-5` and USD 0.0062354.
+A separate bounded public-file witness confirms the task output after clean
+settlement; it does not change the failed sampling verdict. All 38 final
+lifecycle checks passed, with the original credential source generation
+unchanged, the private copy removed and the owned workspace detached.
+
+The remaining 12 paid lanes (small task, ten repetitions and vendor revocation)
+were not run. The full final-candidate fault matrix also remains pending.
+Evidence is in `guest-native-api-completion-bef699262/` and
+`guest-native-api-control-bef699262/`. OAuth, notarization and publication
+remain pending. Later documentation-only changes do not change the frozen
+artifact's source identity above.
 
 ## Remaining release limits
 
