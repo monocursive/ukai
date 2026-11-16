@@ -11,8 +11,17 @@
     "snapshot_date": "2026-10-25",
     "note": "The immutable archive describes its unpublished preparation-time state. This website publication is a subsequent step; the archive and all original scores remain unchanged."
   },
-  "inventory": {"agent_attempts": 12, "scripted_controls": 22, "fixture_checks": 20},
-  "interpretations": {"original_scores": "preserved", "offline_m1_scorer": "m1/3", "offline_exposure_checker": "full-frozen-file/2", "m0_rescored": false},
+  "inventory": {
+    "agent_attempts": 12,
+    "scripted_controls": 22,
+    "fixture_checks": 20
+  },
+  "interpretations": {
+    "original_scores": "preserved",
+    "offline_m1_scorer": "m1/3",
+    "offline_exposure_checker": "full-frozen-file/2",
+    "m0_rescored": false
+  },
   "verification_scope": "Public file integrity and selected transcript-exposure replay; public excerpts do not independently reproduce complete containment or policy proof.",
   "ukai_runtime_changed_for_publication": false,
   "additional_paid_agent_tests_for_publication": 0,
@@ -30,8 +39,19 @@
         "snapshot_date": "2026-10-26",
         "note": "The immutable archive describes its unpublished preparation-time state. It was first served by the website deployment of commit 9788506c8 on 26 October 2026, and this entry was added afterwards; the archive and all original scores remain unchanged."
       },
-      "inventory": {"agent_boundary_probes": 2, "agent_workflow_attempts": 0, "scripted_controls": 15},
-      "interpretations": {"original_scores": "preserved", "scorers": ["boundary-probe/1", "boundary-suite/1"], "attribution": "attempt-level; no tool-to-proxy process link"},
+      "inventory": {
+        "agent_boundary_probes": 2,
+        "agent_workflow_attempts": 0,
+        "scripted_controls": 15
+      },
+      "interpretations": {
+        "original_scores": "preserved",
+        "scorers": [
+          "boundary-probe/1",
+          "boundary-suite/1"
+        ],
+        "attribution": "attempt-level; no tool-to-proxy process link"
+      },
       "verification_scope": "Public file integrity and a narrow consistency replay of curated excerpts (verify.py); public excerpts do not independently reproduce complete containment or policy proof, which needs the private originals.",
       "ukai_runtime_changed_for_publication": false,
       "additional_paid_agent_tests_for_publication": 0
@@ -48,8 +68,21 @@
         "snapshot_date": "2026-10-26",
         "note": "The immutable archive describes its unpublished preparation-time state. It was first served by the website deployment of commit 9788506c8 on 26 October 2026, and this entry was added afterwards; the archive and all original scores remain unchanged."
       },
-      "inventory": {"agent_boundary_probes": 2, "agent_workflow_attempts": 2, "scripted_controls": 18},
-      "interpretations": {"original_scores": "preserved", "scorers": ["boundary-probe/1", "boundary-suite/1", "install-boundary/2"], "attribution": "attempt-level; no tool-to-proxy process link", "install_boundary_2": "additive offline rescore; reproduces both install-boundary/1 verdicts, which stay preserved"},
+      "inventory": {
+        "agent_boundary_probes": 2,
+        "agent_workflow_attempts": 2,
+        "scripted_controls": 18
+      },
+      "interpretations": {
+        "original_scores": "preserved",
+        "scorers": [
+          "boundary-probe/1",
+          "boundary-suite/1",
+          "install-boundary/2"
+        ],
+        "attribution": "attempt-level; no tool-to-proxy process link",
+        "install_boundary_2": "additive offline rescore; reproduces both install-boundary/1 verdicts, which stay preserved"
+      },
       "verification_scope": "Public file integrity and a narrow consistency replay of curated excerpts (verify.py); public excerpts do not independently reproduce complete containment or policy proof, which needs the private originals.",
       "ukai_runtime_changed_for_publication": false,
       "additional_paid_agent_tests_for_publication": 0
@@ -66,8 +99,15 @@
         "snapshot_date": "2026-11-01",
         "note": "First served on 1 November 2026 by a website deployment built from an uncommitted working tree; this entry was added on 3 November. The archive remains unchanged."
       },
-      "inventory": {"files": 32, "scripted_cases": 13, "model_sessions": 0},
-      "interpretations": {"verifier": "verify.py checks the downloaded bytes against manifest.json", "lab_run_record": "The 1 November run of these thirteen cases is in the reader evidence archive below; the record that it used these exact archive bytes is private."},
+      "inventory": {
+        "files": 32,
+        "scripted_cases": 13,
+        "model_sessions": 0
+      },
+      "interpretations": {
+        "verifier": "verify.py checks the downloaded bytes against manifest.json",
+        "lab_run_record": "The 1 November run of these thirteen cases is in the reader evidence archive below; the record that it used these exact archive bytes is private."
+      },
       "verification_scope": "Source integrity only (verify.py); results come from running the lab on your own worker.",
       "ukai_runtime_changed_for_publication": false,
       "additional_paid_agent_tests_for_publication": 0
@@ -84,11 +124,89 @@
         "snapshot_date": "2026-11-01",
         "note": "First served on 1 November 2026 by a website deployment built from an uncommitted working tree; this entry was added on 3 November. Its zip entries carry a 26 October timestamp from the exporter, not the snapshot date. The archive and all original scores remain unchanged."
       },
-      "inventory": {"agent_boundary_probes": 0, "agent_workflow_attempts": 5, "scripted_controls": 19, "nested_cli_logs": 1, "completed_pairs": 1},
-      "interpretations": {"original_scores": "preserved", "scorers": ["boundary-suite/1", "install-boundary/2", "twin-exposure/1", "s1ngularity-replay/1"], "attribution": "attempt-level; no tool-to-proxy process link; the bare lane has no Ukai trace", "replay": "stopped before its bare slot; the original inconclusive verdict is preserved; no pair", "nested_cli_log": "initialization and nine API retry events, no terminal result; not a completed model session", "parser_diagnostic": "separate offline file /arena/evidence/2026-11-01-parser-diagnostic.json, not in this archive"},
+      "inventory": {
+        "agent_boundary_probes": 0,
+        "agent_workflow_attempts": 5,
+        "scripted_controls": 19,
+        "nested_cli_logs": 1,
+        "completed_pairs": 1
+      },
+      "interpretations": {
+        "original_scores": "preserved",
+        "scorers": [
+          "boundary-suite/1",
+          "install-boundary/2",
+          "twin-exposure/1",
+          "s1ngularity-replay/1"
+        ],
+        "attribution": "attempt-level; no tool-to-proxy process link; the bare lane has no Ukai trace",
+        "replay": "stopped before its bare slot; the original inconclusive verdict is preserved; no pair",
+        "nested_cli_log": "initialization and nine API retry events, no terminal result; not a completed model session",
+        "parser_diagnostic": "separate offline file /arena/evidence/2026-11-01-parser-diagnostic.json, not in this archive"
+      },
       "verification_scope": "Public file integrity and consistency of the included observations and completed pair (verify.py); it does not rescore private originals or establish process attribution.",
       "ukai_runtime_changed_for_publication": false,
       "additional_paid_agent_tests_for_publication": 0
+    },
+    {
+      "publication_date": "2026-11-08",
+      "canonical_url": "https://ukai.sh/arena/field-notes/vendor-sandbox/",
+      "edition": "Field note 005",
+      "scope": "Vendor-sandbox qualification finding: one model session measured Claude Code 2.1.302's sandbox unable to run any sandboxed command on the pinned Ubuntu worker (AppArmor unpriv_bwrap denies CAP_SYS_ADMIN). Stopped by design at the first slot; no workflow lane, no containment claim, no vendor rating.",
+      "inventory": {
+        "model_sessions": 1,
+        "workflow_slots": 0,
+        "scripted_controls_retained_privately": 9
+      },
+      "evidence_url": "https://ukai.sh/arena/evidence/2026-11-08-vendor/results.json",
+      "interpretations": {
+        "original_scores": "preserved",
+        "vq_scorer_hardened_same_day": "twin-exposure-vendor/1 (retry-tolerant probes); the failed verdict stands either way"
+      },
+      "ukai_runtime_changed_for_publication": false,
+      "additional_paid_agent_tests_for_publication": 1,
+      "note": "Additive entry. The three stopped launch records and their private originals are preserved; the index counts 112 unique records = 22 agent sessions + 90 scripted controls."
+    },
+    {
+      "publication_date": "2026-11-09",
+      "canonical_url": "https://ukai.sh/arena/field-notes/incident-replay/",
+      "edition": "Field note 004, measured 9 November update",
+      "scope": "The Arena's first complete incident-replay pair: the frozen s1ngularity-mechanism fixture delivered twice bare (hook route and nested agent route) and was stopped twice contained (collector denied host_not_allowed; the nested agent's inherited key refused 21 times, credential_process_denied). One configuration, one scenario version; no rate, no ranking.",
+      "inventory": {
+        "model_sessions": 3,
+        "nested_logs": 2,
+        "nested_completed": 1,
+        "scripted_controls_retained_privately": 3
+      },
+      "evidence_url": "https://ukai.sh/arena/evidence/2026-11-09-replay/results.json",
+      "interpretations": {
+        "original_scores": "preserved",
+        "scorer": "s1ngularity-replay/2 (credential_denials additive; verdicts reproduced on the preserved November bundles modulo the recorded parser repair)"
+      },
+      "ukai_runtime_changed_for_publication": false,
+      "additional_paid_agent_tests_for_publication": 3,
+      "note": "Additive entry. The 1 November stopped attempt and its record remain unchanged; the retry ran under the amended C11 shape pre-registered in NESTED-CLI-QUALIFICATION-2026-11-09. Index counts 118 unique records = 25 agent sessions + 93 scripted controls."
+    },
+    {
+      "publication_date": "2026-11-12",
+      "canonical_url": "https://ukai.sh/arena/field-notes/release-report/",
+      "edition": "Field note 006",
+      "scope": "The release-report study v1-v4: one repair task run unattended in six sessions across four protocol versions. Corrected on 12 November before first serving: the consistent 8/9 and the 4/9 follow from five defects in the task (an unstated numeric version-ordering rule in the hidden checker, a mounted test file that could not run, a README contradicting the task prompt, an unsatisfiable version 1 assertion, an announce step unreachable inside the boundary), not from the sessions. The five-lane permission matrix was never measured; no rate, no ranking.",
+      "inventory": {
+        "model_sessions": 6,
+        "launches": 8,
+        "matrix_measured": false
+      },
+      "evidence_url": "https://ukai.sh/arena/evidence/2026-11-12-release-report/results.json",
+      "interpretations": {
+        "original_scores": "preserved",
+        "study": "pre-registered per version; first interpretation withdrawn",
+        "correction": "offline, from preserved transcripts, workspaces and traces"
+      },
+      "ukai_runtime_changed_for_publication": false,
+      "additional_paid_agent_tests_for_publication": 6,
+      "note": "Additive entry, rewritten on 12 November before it was first served; the first wording is in the repository history. Index counts 124 unique records = 31 agent sessions + 93 scripted controls.",
+      "correction_url": "https://ukai.sh/arena/evidence/2026-11-12-release-report/correction.json"
     }
   ]
 }

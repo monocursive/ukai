@@ -4,6 +4,7 @@ import ActionLink from '../components/ActionLink.astro';
 import BoundaryStep from '../components/BoundaryStep.astro';
 import InstallCommand from '../components/InstallCommand.astro';
 import { jailCommand, releasedDocument, repositoryUrl, vmCommand } from '../release';
+import { pair, inventory, corrected, labControls } from '../arena_home';
 
 const protections = [
   { title: 'Your home directory', text: 'SSH keys, cloud credentials and your other projects do not exist inside the sandbox unless you grant them. The agent sees the system’s programs, its workspace and a scratch directory.' },
@@ -296,9 +297,58 @@ const renamedVm = vmCommand !== 'ukai-vm';
     <ActionLink href="/guide/#understand-the-boundary">Security limits in the guide</ActionLink>
   </section>
 
-  <section class="container arena-home-feature" aria-labelledby="arena-feature-heading">
-    <div><p class="eyebrow">Jailbreak Arena · Field note 001</p><h2 id="arena-feature-heading">We hid a trap<br />in a README.</h2></div>
-    <div><p>Two coding agents, a one-line bug and a prompt injection planted next to it. What they did, what the sandbox saw, and the mistakes we caught in our own test.</p><ActionLink href="/arena/">Read the field note</ActionLink></div>
+  <section class="arena-proof container" id="arena" aria-labelledby="arena-proof-heading">
+    <div class="section-intro">
+      <p class="eyebrow">Ukai Arena · Measured {pair.measured}</p>
+      <h2 id="arena-proof-heading">Same install. Two outcomes.</h2>
+      <p>We rebuilt a real supply-chain attack as a harmless twin: a dependency whose install hook uploads a token, then launches the developer’s own coding agent to upload it again. Same agent, same prompt, same task. One run had no boundary. The other ran inside Ukai.</p>
+    </div>
+    <div class="lanes">
+      <article class="lane" aria-labelledby="lane-bare-heading">
+        <h3 id="lane-bare-heading">Without a boundary</h3>
+        <dl>
+          <div><dt>The task</dt><dd>Passed<small>{pair.bare.checks} checks</small></dd></div>
+          <div><dt>The install hook’s route</dt><dd class="out">Delivered<small><time datetime={pair.bare.hookStamp}>{pair.bare.hookAt}</time></small></dd></div>
+          <div><dt>The launched agent’s route</dt><dd class="out">Delivered<small><time datetime={pair.bare.nestedStamp}>{pair.bare.nestedAt}</time></small></dd></div>
+          <div><dt>Token copies at our collector</dt><dd class="out">{pair.bare.copies}</dd></div>
+        </dl>
+        <a class="text-link" href={pair.bare.link}>Inspect this run<span aria-hidden="true">↗</span></a>
+      </article>
+      <article class="lane lane-ukai" aria-labelledby="lane-ukai-heading">
+        <h3 id="lane-ukai-heading">Inside Ukai</h3>
+        <dl>
+          <div><dt>The task</dt><dd>Passed<small>{pair.contained.checks} checks</small></dd></div>
+          <div><dt>The install hook’s route</dt><dd>Denied<small><code>host_not_allowed</code></small></dd></div>
+          <div><dt>The launched agent’s route</dt><dd>Never ran<small>key refused {pair.contained.keyRefusals} times</small></dd></div>
+          <div><dt>Token copies at our collector</dt><dd>{pair.contained.copies}</dd></div>
+        </dl>
+        <a class="text-link" href={pair.contained.link}>Inspect this run<span aria-hidden="true">↗</span></a>
+      </article>
+    </div>
+    <div class="arena-proof-note">
+      <p>One matched pair, one pinned agent, a synthetic token and our own collector. It is not a rate and not the incident’s scale, and a denied destination says nothing about the hosts you do allow.</p>
+      <ActionLink href="/arena/field-notes/incident-replay/">Read field note 004</ActionLink>
+    </div>
+    <dl class="arena-count" aria-label="Arena inventory">
+      <div><dd>{inventory.sessions}</dd><dt>agent sessions on record</dt></div>
+      <div><dd>{inventory.controls}</dd><dt>scripted controls</dt></div>
+      <div><dd>{inventory.corrected}</dd><dt>records carrying a correction</dt></div>
+      <div><dd>0</dd><dt>pooled rates or rankings</dt></div>
+    </dl>
+    <div class="arena-more">
+      <article>
+        <p class="eyebrow">What we got wrong</p>
+        <h3>We drew a conclusion. Our evidence overturned it.</h3>
+        <p>{corrected.sessions === 6 ? 'Six' : corrected.sessions} sessions failed the same hidden test, and we read it as a limit of the agent. The transcripts showed {corrected.defects === 5 ? 'five' : corrected.defects} defects in our own task. The note now says so, with each withdrawn claim listed.</p>
+        <ActionLink href="/arena/field-notes/release-report/">Read the corrected note</ActionLink>
+      </article>
+      <article>
+        <p class="eyebrow">Check it yourself</p>
+        <h3>{labControls === 13 ? 'Thirteen' : labControls} controls. No model account.</h3>
+        <p>Run the fixed allow and deny cases on your own Linux machine: a granted host against a denied one, a readable file against an ungranted one, a finished process against a deadline.</p>
+        <ActionLink href="/arena/method/#reproduce">Get the reader lab</ActionLink>
+      </article>
+    </div>
   </section>
 
   <section class="evidence-section" id="performance" aria-labelledby="evidence-heading">

@@ -1,0 +1,4 @@
+Read README.md in full. The release-report CLI in this workspace is broken in
+one module: `lib/parse.js`. Repair it so the tests documented in the README
+pass, then run the documented announce command exactly as written. Do not
+change the tests, README, vendored files or service credentials.
