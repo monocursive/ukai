@@ -15,14 +15,15 @@ contains the isolated Linux candidate, excluding unrelated local Arena work.
 | --- | --- |
 | Linux `6ffff05dc`, `0.1.0-rc.6` | Signed private candidate; strict reference conformance and both native installers passed; unpublished. |
 | Warm-VM `bef699262`, `0.1.0-preview.2` | Signed private candidate; all six CI jobs, source rebuild, package/installer verification, primary runtime checks and second-Mac checks passed. |
-| Claude API-key qualification on `bef699262` | Missing-source control passed. A01 failed sampling qualification (27/28 facts). A later small task passed its task check but failed sampling and retention checks (25/28 facts). Ten repetitions and vendor revocation remain unrun. |
+| Claude API-key qualification on `bef699262` | All 14 distinct lanes collected: eight strict passes and six failures. Seven of ten repetitions passed fully; three failed sampling. A01, the small task and vendor revocation also failed qualification. OAuth remains deferred. |
 | Final-candidate fault matrix | All 11 lanes passed; 118 facts independently recomputed, with complete owned cleanup. |
 | OAuth, notarization, native macOS Endpoint Security | Pending. OAuth is deferred at the user's request; no usable local notarization credential or ES profile was established. |
 
 The API failures remain failures. Synthetic diagnostics are investigating
-the inventory race without provider calls. A separate bounded API collection
-continuation stopped at the small-task failure described below. Full production
-readiness and public release are not established.
+sampling gaps without provider calls. The original sequence and first
+continuation stopped at their failures; a separately scoped continuation
+collected the remaining distinct lanes without retrying a completed lane.
+Full production readiness and public release are not established.
 The sections below retain the source identities, evidence and earlier failures.
 
 ## Frozen Linux candidate
@@ -799,10 +800,80 @@ to create `task-check.stdout` and `task-check.stderr` after the owning helper
 had already written them, raising `FileExistsError` before full vendor-attempt
 retention. This is a harness defect, not evidence that the missing records
 were retained. The original failure is preserved while a repair is tested
-offline. The ten repetition lanes and real vendor revocation did not run.
+offline. The ten repetition lanes and real vendor revocation did not run
+in this stopped continuation.
 Owned cleanup and exact-volume detach completed; no retry occurred. Records
 are under `guest-native-api-continuation-bef699262/` and the existing API
 completion/control directories.
+
+## Completed API-key collection
+
+A separate finite continuation collected the ten remaining repetitions and
+one real vendor-stream revocation, once each. It allowed collection to proceed
+after a well-formed incomplete sampling report only when independent replay
+confirmed every other owning fact, positive exact workload observations,
+ordered supervisor exit, no detected hits and clean source/process lifecycle.
+It did not change the qualification criteria or any earlier result.
+
+All ten repetition tasks succeeded. Repetitions 02, 04, 05, 06, 07, 08 and 10
+passed all 28 facts. Repetition 01 failed sampling with one
+`inventory_vanished` error; repetition 03 recorded one `identity_changed` and
+three `selected_process_vanished` errors; repetition 09 recorded ten
+`inventory_vanished` errors. Those three results remain 27/28 failures.
+All ten retained positive exact workload environment/argv observations and
+no detected hits. This does not establish complete coverage for failed rows.
+
+The real revocation lane completed in 238.25 seconds without collector
+intervention. An actual content delta preceded removal of the pinned private
+credential copy. The journal records three credential uses, termination of
+active request 3 with `credential_revoked`, and denial of retries 4–14.
+The client and both bound receipts exited with code 1 and settled cleanly.
+Its original verdict failed two of 36 facts: sampling was incomplete
+(1,864 ticks, 1,859 exact reads per channel, nine `inventory_vanished` and one
+`selected_process_vanished` error), and the vendor-failure predicate rejected
+the terminal subtype. No hits were detected.
+
+The exact terminal fields are `type=result`, `subtype=success`, `is_error=true`,
+`terminal_reason=api_error` and two turns. The predicate incorrectly required
+an `error_` subtype. Anthropic's
+[SDK error contract](https://github.com/anthropics/claude-agent-sdk-python/blob/main/src/claude_agent_sdk/_errors.py)
+explicitly permits the observed shape when the loop completes with a final
+API error. The source predicate now accepts it while still requiring the
+literal error flag and separate matching nonzero receipts. A full persisted
+replay regression reproduced the original rejection; all 29 revocation tests
+then passed, including non-error and malformed-terminal rejection. This is a
+tooling correction, not a rewrite of the frozen live result or a sampling pass.
+Independent evaluation of the retained terminal and receipts first reproduced
+all 36 original facts, then confirmed that the corrected adapter changes only
+`vendor_reported_failure`. Its derived result still fails sampling. The separate
+record is `guest-native-api-continuation-bef699262/corrected-terminal-fact.json`;
+the original report and aggregate remain unchanged.
+
+Across this candidate's 13 provider-capable invocations, the vendor reported
+30 turns and USD 0.04277980 in total; these are reported usage values, not
+independent billing measurements. The original source generation and frozen
+artifacts remained unchanged. Private copies/configurations were removed,
+owned processes and disk holders were absent, and the exact workspace volume
+was detached. A final observer used the wrong cleanup-record shape; its
+failure is retained alongside the corrected lifecycle record. Per-lane
+workspace witnesses are available, but no final directory rescan is claimed.
+The complete matrix is `guest-native-api-continuation-bef699262/api-matrix-aggregate.json`,
+SHA-256 `921ab02326f3628e0832b08357039e74fd0adeabb975fa7b7d4329fdf8340eac`.
+All 14 requested rows have been collected; the matrix and full K113 remain
+unqualified. No completed paid lane was repeated and OAuth was not accessed.
+
+The source harness now owns small-task checker retention directly. It retains
+the vendor attempt and inputs first, then separately exports the checker
+journal, receipts, both summaries and fixed task files without recreating
+already-written output files. Offline replay binds exact input hashes to the
+owning report, verifies distinct attempts on the same boot, and requires host
+and guest enforcement for a successful checker verdict. A well-formed nonzero
+checker result is retained and replays as FAIL; malformed receipt outcomes
+are refused. Checker export failure cannot discard the vendor export.
+Eleven focused controls passed independently, including the actual order of
+output and retention, changed input hashes, unprotected host receipts, malformed
+exit-code types and retained failed checkers. No paid small task was rerun,
+and this repair cannot reconstruct the original missing vendor export.
 
 ## Source archive follow-up
 
@@ -817,6 +888,40 @@ archive now has 848 source files. This packaging correction has not produced
 a new signed candidate and does not change the frozen `bef699262` artifact
 or its recorded qualification.
 
+All six hosted jobs passed at follow-up head `277d09a33`. The tested merge
+commit `fe7809e9966aedc45be3d92c8d7552870aea5b88` has the same source tree,
+`7404b9a2f793c09914a1b33587e16de24b273b3d`. macOS reported 2,497 passes,
+seven ignores and no runtime skips; ordinary Ubuntu reported 3,064 passes,
+18 ignores and 519 runtime skip diagnostics. Python suites ran 1,056 cases
+with 81 explicit skips, and 535 documents had no broken links or anchors.
+The exact logs and checkout bindings are in `guest-gate-ci-277d09a33/`.
+
+## Separate diagnostic guest build failure
+
+A synthetic diagnostic image build on the second Mac failed before its
+planned cold/warm measurement pair. The corrected 848-file source overlay
+imported successfully, but the guest's `sync` command hit a kernel Oops on
+`7.0.0-38-generic`. The retained stack enters `_raw_spin_lock_irq` through
+`flush_workqueue_prep_pwqs`, `__flush_workqueue` and `ext4_sync_fs`.
+The VM helper reached its existing boot timeout after 601.408 seconds.
+The image remains unqualified; neither a provider call nor the diagnostic
+pair ran.
+
+Read-only inspection also found a `systemd-journald` segmentation fault and
+a damaged primary ext4 superblock. Two consistent backup superblocks allowed
+bounded in-memory interpretation of the filesystem without repairing it or
+replaying its journal. Both retained journal files passed `journalctl --verify`.
+The `sync` executable, libc and loader match the original prepared guest.
+The initiating kernel, virtualization, memory or storage cause is not known;
+these observations do not attribute the earlier API sampling or startup failures.
+
+The failed disk was not repaired or rebooted. Its hash remained
+`4858535cf177884795ffeb62e59fed06714c92894b713ae5a03de4303fa2d83e`.
+The original prepared image, frozen sources and installed files remained
+unchanged, with no owned VM processes, disk holders or mounts left behind.
+The diagnosis and preservation records are under
+`sampler-inventory-attribution-bef699262/v3/`.
+
 ## Remaining release limits
 
 No usable Endpoint Security provisioning profile was found among the 17 local
@@ -827,9 +932,10 @@ acceptance. The actual unsigned native candidate at the frozen Linux source
 passed staging/install/upgrade/removal checks and correctly refused production
 distribution and native workload admission.
 
-The warm-VM route does not require Endpoint Security, but still needs the
-remaining API-key checks, OAuth qualification, resolution of the retained
-startup failure, complete installed release acceptance on notarized/stapled
+The warm-VM route does not require Endpoint Security, but still needs resolution
+of the failed API sampling and small-task retention qualification, OAuth
+qualification, investigation of the retained startup and diagnostic kernel
+failures, complete installed release acceptance on notarized/stapled
 bytes, and notarization. The API-key pilot does not satisfy the complete
 vendor matrix; OAuth remains pending at the user's request. No usable
 notarization credential was located in
