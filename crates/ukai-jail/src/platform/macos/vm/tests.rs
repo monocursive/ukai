@@ -1953,7 +1953,13 @@ fn second_measured_image_has_its_own_rows_and_mixed_images_have_none() {
 
 #[test]
 fn superseded_intermediate_images_no_longer_admit_literal_or_native_runs() {
-    for version in ["native-v2", "native-v4", "native-v5", "native-v6", "native-v7"] {
+    for version in [
+        "native-v2",
+        "native-v4",
+        "native-v5",
+        "native-v6",
+        "native-v7",
+    ] {
         let bundle = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
             "../../docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/{version}"
         ));
