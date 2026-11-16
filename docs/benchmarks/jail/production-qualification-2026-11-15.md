@@ -15,14 +15,15 @@ contains the isolated Linux candidate, excluding unrelated local Arena work.
 | Candidate or gate | Current result |
 | --- | --- |
 | Linux `0be9d1e82`, `0.1.0-rc.7` | Signed private candidate. Hosted and release jobs, exact-J strict conformance, actual native archives and production-signed bootstraps passed. Unpublished. |
-| Mac runtime `8db910892` (R), `0.1.0-preview.2` | Signed private package, independent artifact review, seven installer cases and five-output archived source rebuild passed. It admits the newly measured cached-disk image through native-v7 evidence. Unnotarized and unpublished. |
+| Earlier Mac runtime `8db910892` (R), `0.1.0-preview.2` | Signed private package, independent artifact review, seven installer cases and five-output archived source rebuild passed. It admits the cached-disk image through native-v7 evidence. Unnotarized and unpublished. |
 | Qualification tools `2c7d894d1` (S) | Corrected stale guest measurement constants; all six hosted jobs passed. Separate from the frozen R binaries and original R source archive. |
 | Installed R native version | Corrected S harness passed the managed `/3` version/sync experiment and independent replay with synthetic credentials. No provider request. |
 | Fresh installed R API-key checks | Missing-source and A01 passed. The coding task passed its functional checker but failed sampling. The sequence stopped: two passes, one failure, eleven unrun. No retry. |
 | Fresh installed R operations | K109/K111/K112 owning rows passed; collection stopped on a five-second holder-check timeout. Separate longer-bound cleanup passed. Fresh source-watch and warm passed. Fault collection stopped: three lanes passed, both client-suspension variants failed, six lanes unrun. Cleanup passed. |
 | Earlier `bef699262` API sequence | Eight passes and six failures remain unchanged. Later source changes and fresh partial results do not relabel those failures. |
 | Storage | Disposable cache and proven task-duplicate recovery completed; source code, signed artifacts and qualification/failure evidence preserved. |
-| Post-stop export repair `d8290c287`, prepared source `934ad33ac` | All six hosted jobs, fresh image preparation, bootstrap journal review, private signed package review, seven installer cases and five independently replayed components passed. Native-v8 component proof and admission source are ready; the rebuilt host and fresh installed suspension/warm qualification remain pending. Frozen R is unchanged. |
+| Post-stop export repair `d8290c287`, prepared source `934ad33ac` | All six hosted jobs, fresh image preparation, bootstrap journal review, private signed package review, seven installer cases and five independently replayed components passed. Native-v8 proof admits the new image; fresh installed qualification of the admitting host remains pending. Frozen R is unchanged. |
+| Admitting host `03456ef92`, `0.1.0-preview.2` | All six hosted jobs, clean private package, independent signatures/source/payload review, seven installer cases and five-output archived-source rebuild passed. Native version execution and same-boot reuse passed, with incomplete exposure sampling. Operational qualification is deferred at the user's session pause. |
 | OAuth | Deliberately pending at the user's request. |
 | Notarization and native macOS Endpoint Security | Pending; usable local notarization credentials and an exact Ukai ES profile were not established. |
 
@@ -30,7 +31,7 @@ Full production readiness and public release are not established. The current
 installed results and their limits follow; earlier sections retain their
 original candidate and failure history.
 
-## Current installed Mac candidate — R with S qualification tools
+## Earlier installed Mac candidate — R with S qualification tools
 
 The runtime candidate is `8db910892527dec5d331f5c8f8753bbb048c53ab` (R).
 Its private Developer-ID-signed DMG is unnotarized and unpublished. The image
@@ -146,8 +147,8 @@ drain, finite stall, peer closure, interrupted partial frames, one budget across
 frames and `done`, correct cancellation ordering and subsequent warm reuse.
 Independent review found no remaining patch issue. The repair was not inserted
 into R. The fresh image and provisional package described below contain it;
-new admission evidence and fresh installed suspension/warm-session
-qualification are still required.
+the native-v8 proof and admitting host have their own evidence below. Fresh
+installed suspension/warm-session qualification remains pending.
 The API sampling failure and all unrun lanes remain open.
 
 The user-authorized storage recovery removed disposable compiled caches and
@@ -243,8 +244,8 @@ replay passed 53 controls normally and in actual optimized Python, including
 rehashed omissions and transplanted old-image evidence. The copied tool suite
 passed 89 tests; 45 source/reference checks passed. The original evidence,
 installation and source directories were unavailable to relocated replay.
-All four qualification flags remain false: a clean rebuilt host and fresh
-installed native qualification are still required.
+All four component-proof qualification flags remain false. The admitting host
+has its own build and installed qualification below.
 
 The focused Rust VM suite passed all 77 tests on a separate final invocation.
 Its first invocation exposed a stale expected package revision in one test;
@@ -286,6 +287,122 @@ Records are relative to `evidence/production-2026-11-15/warm-vm-current/`:
 - `native-v8-focused-rust-tests/exact-test-process-cleanup.json` — SHA-256 `34ecb8484623afa8c170f68f48e060547bf722d217a1d14f0572c45db41fd14d`.
 - `native-v8-focused-rust-tests-attempt2/completion.json` — SHA-256 `70ec7b9d955072f4b972f3c2a6c5877da3f725cbc1d734015aaff1dd3c8b0d4f`.
 - `native-v8-focused-rust-tests-attempt3/completion.json` — SHA-256 `3baf786080041aa7bd0b7e190a56d5040a08e5828fc393bfd8c0359b830deea8`.
+
+## Admitting host — source `03456ef92`
+
+Admission commit `729e6f22e7aba67bcbf0ca1886266eaac3c0472b` retained the new
+component proof and passed the final 77-test local Rust VM suite. Its first
+hosted run passed four jobs and failed both Rust jobs at formatting, before
+Rust tests ran. Successor `908b9144aba4ccd62340941fe6f9fbd7616d4cc3` changed
+only the historical-image array layout and passed all six hosted jobs on
+their first attempts. macOS recorded 2,512 passes, zero failures and seven
+ignored tests; Ubuntu recorded 3,073 passes, zero failures and 18 ignored
+tests, with 520 separate runtime-skip diagnostic lines. Python recorded
+1,111 passes and 84 skips. Those hosted skips do not provide strict Linux
+reference conformance. Both source/merge-tree bindings and all logs are retained.
+
+The larger 1,212-file source closure then exposed a stalled Git hash exchange
+in the package's source-verification prerequisite. No package build had
+started. The exact owned processes were stopped and the refusal retained.
+An independent file-based exchange verified every committed blob and mode.
+Source `03456ef9236b6577735d8d9752bd8297caa311db` gives that same owning
+Git command a regular temporary input file and a 30-second timeout. It keeps
+the sorted inventory, status/index checks, output-count check and exact blob
+comparison. The observations do not establish a general Python root cause.
+
+All 44 package tests passed normally and with optimized Python. The two final
+controls also passed with optimization propagated into the real Git driver,
+and the actual 1,212-file source check completed in 0.642 seconds. Independent
+review found no remaining issue. All 230 compiled inputs and modes equal
+`908b9144a`; all seven prepared guest-source hashes and the native-v8 proof are
+unchanged. The host compiled-input digest is
+`sha256:e995064da2bb966eb5019e98992044571f04933507fc8111d5d5e5d5d1bee805`.
+
+The clean `03456ef92` private package built in 80.627 seconds without compiler
+or signing warnings. Independent inspection passed all 38 checks, including
+six strict Developer ID signatures, all 1,212 archived source files and modes,
+public payload modes, exact stage-to-DMG equality and owned detach. Its DMG
+is `83ce644560e252618d8ce5c0f46bf5804f8cce910ade93f9518eb9ebaed24fd8`;
+its source archive is
+`09835b4d27e4b52aa8f83cfb421d2ffd72384e3ae48036692e2e13846dca0ce0`.
+All seven installer cases passed in 82.206 seconds. Fourteen installed files
+retain exact package identity; negative fixtures were retired, the exact DMG
+detached and all protected originals preserved. All six hosted jobs passed on
+their first attempts, with the same Rust totals as `908b9144a`. Python recorded
+1,113 passes and 84 skips across 1,197 cases, including 910 VM cases; the two
+additional package tests were discovered. The exact tested merge tree equals
+the `03456ef92` source tree. The original 1,212-file archive then rebuilt all
+five outputs in a fresh directory without Git ancestry, in 68.356 seconds.
+Its sources, installed artifacts, image, private toolchain and prior binaries
+were preserved. This establishes rebuildability, not byte reproducibility.
+The installed native version command and same-boot sync then passed all
+27 execution and eight sync facts. The 169.841-second outer run preserved the
+source and installed artifacts, removed its synthetic credential copies,
+stopped owned processes and detached the workspace. Independent relocated
+replay agreed normally and in optimized Python and rejected a rehashed
+Prepared-receipt mutation with original paths unavailable. Exposure sampling
+remains explicitly `INCOMPLETE`: three ticks, one selected process vanished
+and no observed program sample. The unchanged version-only judge reports
+execution separately from sampling; `qualified` and `k113_qualified` remain
+false. This is not API, K113 or release qualification. The user then asked to
+wrap up the session. All four fresh operational phases for this installed
+host remain unrun: ownership gates, source-watch, warm reuse and the fault
+sequence. Their final plan is reviewed, but resumption must satisfy fresh
+disk, memory and idle-process guards. No provider request, OAuth check,
+notarization or public release has been performed for this host.
+
+After those proofs, the duplicate provisional and current package staging
+directories were retired. Each cleanup removed exactly 18 files and five
+directories while preserving all 108 protected paths, signed DMGs, source
+archives and qualification evidence. Their observed free-space increases
+were 978,915,328 and 979,398,656 bytes, separate from the earlier cache recovery.
+The first current-stage attempt refused before deleting anything because the
+installed raw disk's allocated-block count changed while its file identity,
+size and timestamps remained unchanged. A separately reviewed plan refreshed
+only that allocation observation and passed; the original refusal remains
+retained. Historical stage-preservation observations have not been rewritten.
+
+The last in-flight cleanup completed during the session wrap-up. It removed
+exactly 1,188 disposable cache files, preserved 26,163 retained entries and
+36,876 directory identities, and closed all held file descriptors. No
+directory or process was removed. Observed free space increased by
+831,664,128 bytes to 28,086,099,968 bytes; the selected files had 829,845,504
+private allocated bytes. The free-space change is a shared-filesystem
+observation. No operational VM phase started. The owned workspace is detached,
+no task VM or compiler remains, and the reviewed next-step plan is retained
+in the session handoff.
+
+A read-only check found the available second Mac to be an M2 Pro with 16 GiB
+RAM and macOS 27.2. Its 14,845,267,968 free bytes are 8,555,861,066 bytes short
+of this package's full-copy installer requirement plus DMG transfer, before
+any additional workspace or tools. Its available-memory estimate is only
+about 203 MB above the 4 GiB admission floor. No transfer, cleanup, installation,
+VM run or background-process change was attempted there. Qualification of this
+current candidate on that Mac remains pending; historical runs do not supply it.
+
+Records are relative to `evidence/production-2026-11-15/warm-vm-current/`:
+
+- `source-native-v8-ci-729e6f22e/summary.json` — SHA-256 `d3dd43b9e474b3b3b7597b91a5c8744173440b65fb62fc6a6b76431363791797`.
+- `source-native-v8-ci-908b9144a/summary.json` — SHA-256 `5bb6f7cb65b9b9e5915febfc4abf1da89bfb915945487901abc8033bb57ae2bc`.
+- `source-packager-ci-03456ef92/summary.json` — SHA-256 `142a40d065e99d82dddb8676667e6dd81593623a18cff0c5e7bf665d3f74fa5e`.
+- `package-source-hash-file-io-20261116/validation-final.json` — SHA-256 `a0c8790b4e66e3ae5fb78719908c5fdfbca38e3f51145835acb9610d449a55e4`.
+- `package-source-hash-file-io-20261116/independent-release-review.json` — SHA-256 `bde0750b723cfc72837015590bd2b1a4ab3e58e3c2e09b14835db8bf2aefa17b`.
+- `guest-native-package-plan-admitted-03456ef92/completion.json` — SHA-256 `eaee75aef3e02a5d3081a150a4bf832956be78feb77a9cc37122e60428fa1bac`.
+- `guest-native-package-admitted-03456ef92/package.json` — SHA-256 `63c67e9a063f4a0d630ac79c7aaef0c3474b318e14f50e86ea579252d5549b0a`.
+- `guest-native-package-independent-admitted-03456ef92/summary.json` — SHA-256 `d670b2b06b8f331aaa20353348ed98cf268f5b2d3c29c9fa366a15f6365ba82f`.
+- `guest-native-installer-execution-admitted-03456ef92/completion.json` — SHA-256 `e61453caeab09a130cb38f177c1f02355c4e65f0d2eb77258b6490ce115169bf`.
+- `guest-native-installer-execution-admitted-03456ef92/installed-identity.json` — SHA-256 `a4bb506ddbe454eea726b083447556f23f9b146f385d79dfeaccd10b62b866be`.
+- `source-rebuild-admitted-03456ef92/completion.json` — SHA-256 `e92269ac58f1457f95d8dcb483dc53871f417f6d868061555123e2d016094602`.
+- `guest-native-version-control-admitted-03456ef92/native-version/final.json` — SHA-256 `26d42b0103facf95378de436e4852ea5369fce59ce67d7da7839c6c78ef15817`.
+- `guest-native-version-admitted-03456ef92/result.json` — SHA-256 `ce4f72ae3f4ea20fc285bc6755182d28eca9f48e7e56be503d97473cf2851f3a`.
+- `guest-native-version-independent-admitted-03456ef92/settled-review/review.json` — SHA-256 `fed76d71accdfa8be88ca446af50bfb78cd3272fed5074689e449252891977b7`.
+- `guest-native-package-independent-export-934ad33ac/stage-retirement-after-v8/result.json` — SHA-256 `5a05b0b54c2af4bb6f5c7e16139e23021261b1c2a2b3e22a116ead0f1d5754b3`.
+- `guest-native-package-independent-admitted-03456ef92/stage-retirement-after-install/result.json` — SHA-256 `e664cb4405dec8a1317450c03fcf2f9df1623676c0e625e151a4ca7880faee03`.
+- `guest-native-package-independent-admitted-03456ef92/stage-retirement-after-install-allocation-refresh/result.json` — SHA-256 `82b5260e6ebc63d213938ed05a8ac5d3e9b1a06b745b04f068da9542cd1a54d6`.
+- `primary-additional-cache-headroom-03456ef92/cleanup/execution/result.json` — SHA-256 `809f1ed13f05b39748091e00a57d935693d940d034f79a41f4b9689d759a902b`.
+- `guest-native-operational-admitted-03456ef92-plan/user-wrap-up-handoff.json` — SHA-256 `bcb05b697f57196afae74e12b772cd55292814230bfc4e2d63d1ac6ede99fdad`.
+- `guest-native-version-independent-admitted-03456ef92/session-handoff.json` — SHA-256 `e1b1236d944a12c70db4b5d127f62fb365c2d19ae4e8a6eb8f17cb369747c93d`.
+- `second-mac-feasibility-03456ef92/summary.json` — SHA-256 `1873959d0791200d41a1f005ca713ece405f3afe4729f8067812b4c0fd2f7835`.
 
 ## Earlier frozen Linux candidate — rc.6
 
