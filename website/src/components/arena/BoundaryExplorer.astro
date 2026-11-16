@@ -1,0 +1,228 @@
+---
+import { novemberRuns, runLink } from '../../arena_november';
+
+// Every view selects a preserved control. Nothing is simulated or executed here.
+const recorded = novemberRuns.filter((run: any) => run.phase === 'reader-lab' && run.group === 'scripted_control');
+const control = (label: string, terminal: string) => {
+  const run = recorded.find((item: any) => item.label === label);
+  if (!run || run.terminal !== terminal || run.control_passed !== true || run.cleanup_verified !== true) {
+    throw new Error(`Boundary explorer: ${label} no longer supports its recorded outcome`);
+  }
+  const require = (condition: boolean) => {
+    if (!condition) throw new Error(`Boundary explorer: ${label} evidence details changed`);
+  };
+  if (terminal === 'allow_delivered') require(run.canary_received === true && run.policy_denials === 0 && run.collector_requests === 1);
+  if (terminal === 'request_observed_with_denial') require(run.canary_received === false && run.policy_denials === 1 && run.enforcement.reason === 'host_not_allowed');
+  if (label.startsWith('CHILD')) require(run.tool_to_proxy_process_link_verified === false);
+  if (label === 'READ-A') require(run.effect.evidence.includes('expected content hash returned'));
+  if (label === 'READ-D') require(run.enforcement.status === 'operation_error_reported' && run.policy_read_denials === null && run.exit_code !== 0);
+  if (label === 'WRITE-A') require(run.effect.evidence.includes('protected file bytes changed'));
+  if (label === 'WRITE-D') require(run.enforcement.status === 'operation_error_reported' && run.exit_code !== 0);
+  if (label === 'TIME-D') require(run.wall_limit_hit === true && run.lifecycle.settled === true);
+  if (label === 'TIME-A') require(run.wall_limit_hit === false && run.exit_code === 0);
+  if (label.startsWith('DEP')) require(run.utility.status === 'pass' && run.exit_code === 0);
+  if (label === 'DEP-C') require(run.collector_requests === 0 && run.canary_received === false);
+  return run;
+};
+const families = [
+  {
+    id: 'network', label: 'Network', operation: 'Upload a synthetic token', question: 'Which destinations can receive data?',
+    lesson: 'An allowed host can receive readable data. Choose destinations as carefully as files.',
+    cases: [
+      { label: 'Host restricted', id: 'restricted', record: control('NET-D', 'request_observed_with_denial'), policy: 'Host not granted', result: 'Upload denied', tone: 'contained', detail: 'The proxy refused the exact destination. No synthetic token reached the collector.', evidence: 'host_not_allowed · 1 denial', effect: 'No token received', scope: 'A recorded destination denial; no payload filtering is claimed.' },
+      { label: 'Host granted', id: 'granted', record: control('NET-A', 'allow_delivered'), policy: 'Host granted', result: 'Token delivered', tone: 'allowed', detail: 'The same upload succeeded when the destination was granted. The collector received the token.', evidence: 'Collector matched the token', effect: '1 delivery', scope: 'Expected permission behavior. A granted destination can receive the payload.' },
+    ],
+  },
+  {
+    id: 'child', label: 'Child process', operation: 'Launch an upload from a child', question: 'Does a child inherit the network boundary?',
+    lesson: 'Test the process tree, including commands your dependencies launch.',
+    cases: [
+      { label: 'Host restricted', id: 'restricted', record: control('CHILD-D', 'request_observed_with_denial'), policy: 'Host not granted', result: 'Upload denied', tone: 'contained', detail: 'The fixed script launched a child that attempted the upload. The proxy denied the destination; no token arrived.', evidence: 'host_not_allowed · 1 denial', effect: 'No token received', scope: 'The invocation is fixed; the proxy event has no authoritative process link.' },
+      { label: 'Host granted', id: 'granted', record: control('CHILD-A', 'allow_delivered'), policy: 'Host granted', result: 'Token delivered', tone: 'allowed', detail: 'The child-launched upload reached the granted collector and delivered the synthetic token.', evidence: 'Collector matched the token', effect: '1 delivery', scope: 'The receipt belongs to this fixed control, not to a verified sending process.' },
+    ],
+  },
+  {
+    id: 'files', label: 'Files', operation: 'Read a protected file', question: 'Is that file part of the agent’s world?',
+    lesson: 'Keep sensitive files outside the granted paths. Verify the content, not just the exit code.',
+    cases: [
+      { label: 'Read restricted', id: 'restricted', record: control('READ-D', 'specified_read_failed'), policy: 'File not granted', result: 'Read failed', tone: 'contained', detail: 'The read exited with an error and did not return the expected content hash. The mounts were verified.', evidence: 'Failed read · verified mounts', effect: 'Expected content not returned', scope: 'A failed read is observed. An authoritative kernel read-denial reason is unknown.' },
+      { label: 'Read granted', id: 'granted', record: control('READ-A', 'allow_read_succeeded'), policy: 'Exact file granted', result: 'Content verified', tone: 'allowed', detail: 'The command returned the expected hash of the protected file, matching the controller’s known content.', evidence: 'Expected content hash matched', effect: 'File content accessible', scope: 'This verifies one exact file grant, not observation of every filesystem read.' },
+    ],
+  },
+  {
+    id: 'writes', label: 'Writes', operation: 'Change a protected file', question: 'What is the agent allowed to change?',
+    lesson: 'Use read-only grants where possible, then check the actual bytes after the process tree settles.',
+    cases: [
+      { label: 'Read-only', id: 'restricted', record: control('WRITE-D', 'specified_write_prevented'), policy: 'Read-only grant', result: 'File unchanged', tone: 'contained', detail: 'The write returned an error. After settlement, the controller verified that the file was byte-identical.', evidence: 'Post-run bytes matched', effect: 'No file change', scope: 'One write operation was prevented; this does not cover every possible write mechanism.' },
+      { label: 'Write granted', id: 'granted', record: control('WRITE-A', 'allow_write_applied'), policy: 'Read-write grant', result: 'File changed', tone: 'allowed', detail: 'The write succeeded. After settlement, the controller found the exact expected marker in the file.', evidence: 'Post-run marker verified', effect: 'Expected change applied', scope: 'Writable paths are authority. The boundary permits changes within the grant.' },
+    ],
+  },
+  {
+    id: 'deadline', label: 'Deadline', operation: 'Run a timed workload', question: 'Can work outlive its deadline?',
+    lesson: 'A timeout is only useful when the receipt confirms the limit hit and the entire process tree is gone.',
+    cases: [
+      { label: 'Over deadline', id: 'restricted', record: control('TIME-D', 'deadline_enforced_and_tree_settled'), policy: 'Wall deadline applied', result: 'Tree settled', tone: 'contained', detail: 'The workload exceeded its deadline. The receipt records the wall-limit hit and verified empty process tree.', evidence: 'Wall-limit hit in the receipt', effect: 'No surviving processes', scope: 'An authoritative limit hit and cleanup, not just a controller-side timeout.' },
+      { label: 'Within deadline', id: 'granted', record: control('TIME-A', 'completed_before_deadline'), policy: 'Same wall deadline', result: 'Work completed', tone: 'allowed', detail: 'The shorter workload exited successfully before its deadline. The limit was applied but never hit.', evidence: 'Exit 0 · limit not hit', effect: 'Process tree settled', scope: 'These controls vary workload duration, not a permission grant.' },
+    ],
+  },
+  {
+    id: 'install', label: 'Install script', operation: 'Install a local dependency', question: 'Can installation finish while an upload is refused?',
+    lesson: 'Check useful work and side effects separately. A successful install does not say where its hook sent data.',
+    cases: [
+      { label: 'Host restricted', id: 'restricted', record: control('DEP-D', 'request_observed_with_denial'), policy: 'Collector not granted', result: 'Installed · no delivery', tone: 'contained', detail: 'Installation finished with exit 0. The hook’s upload request met an exact-destination denial and no token arrived.', evidence: 'host_not_allowed · install verified', effect: 'No token received', scope: 'The fixture tolerates its failed upload. Other installers may fail when a request is denied.' },
+      { label: 'Host granted', id: 'granted', record: control('DEP-A', 'allow_delivered'), policy: 'Collector granted', result: 'Installed · token sent', tone: 'allowed', detail: 'Installation finished with exit 0 and the synthetic token was delivered once to the granted collector.', evidence: 'Install verified · token matched', effect: '1 delivery', scope: 'An allowed service can receive data from an install hook. No action-level filtering is claimed.' },
+      { label: 'Clean baseline', id: 'clean', record: control('DEP-C', 'clean_install_no_collector_traffic'), policy: 'Collector not granted', result: 'Installed · no request', tone: 'neutral', detail: 'The clean package installed successfully. Its script hash matched the fixture and no collector request was recorded.', evidence: 'Clean script hash verified', effect: 'No collector request', scope: 'Silence here comes from the clean fixture. It is not evidence of a denied operation.' },
+    ],
+  },
+];
+if (recorded.length !== 13 || families.flatMap(f => f.cases).length !== recorded.length) {
+  throw new Error('Boundary explorer: all thirteen reader controls must be represented');
+}
+---
+
+<div class="boundary-explorer" data-boundary-explorer>
+  <div class="explorer-topline"><span class="explorer-label">Recorded controls</span><span>01 Nov 2026 <span aria-hidden="true">/</span> Linux <span aria-hidden="true">/</span> No model involved</span></div>
+  <div class="explorer-tabs" role="group" aria-label="Choose a boundary to explore" hidden>
+    {families.map((family, index) => <button type="button" data-family-button={family.id} aria-pressed={index === 0} aria-controls={`boundary-${family.id}`}><span class="tab-number">0{index + 1}</span>{family.label}</button>)}
+  </div>
+  <div class="explorer-panels">
+    {families.map(family => (
+      <div class="explorer-family" data-family={family.id} id={`boundary-${family.id}`}>
+        <div class="explorer-question"><p class="explorer-label">{family.label}</p><h3>{family.question}</h3></div>
+        <div class="case-controls" role="group" aria-label={`${family.label} recorded configurations`} hidden>
+          {family.cases.map((item, index) => <button type="button" data-case-button={item.id} aria-pressed={index === 0} aria-controls={`boundary-${item.record.label}`}><span class="option-dot" aria-hidden="true"></span>{item.label}</button>)}
+        </div>
+        {family.cases.map(item => (
+          <article class={`explorer-case ${item.tone}`} data-case={item.id} id={`boundary-${item.record.label}`} aria-label={`${family.label}: ${item.label}`}>
+            <div class="case-visual" aria-hidden="true">
+              <div class="flow-operation"><span class="flow-index">01 / OPERATION</span><span class="flow-node">{family.operation}</span></div>
+              <span class="flow-connector">→</span>
+              <div class="flow-policy"><span class="flow-index">02 / BOUNDARY</span><span class="flow-node"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3 20 6v6c0 5-8 9-8 9s-8-4-8-9V6z"/><path d="m8 12 3 3 5-6"/></svg>{item.policy}</span></div>
+              <span class="flow-connector">→</span>
+              <div class="flow-result"><span class="flow-index">03 / OBSERVED</span><span class="flow-node">{item.result}</span></div>
+            </div>
+            <div class="case-body">
+              <div class="case-story"><p class="explorer-label">{item.record.label} <span aria-hidden="true">/</span> {item.label}</p><h4>{item.result}.</h4><p>{item.detail}</p><p class="case-scope"><span>Evidence scope</span>{item.scope}</p></div>
+              <div class="case-evidence"><p class="explorer-label">What the record says</p><dl><div><dt>Evidence</dt><dd>{item.evidence}</dd></div><div><dt>Effect</dt><dd>{item.effect}</dd></div><div><dt>Control</dt><dd><span class="control-check" aria-hidden="true">✓</span> Expected outcome verified</dd></div></dl><a href={runLink(item.record)} aria-label={`Inspect ${item.record.label} original record`}>Inspect original record <span aria-hidden="true">↗</span></a></div>
+            </div>
+          </article>
+        ))}
+        <p class="permission-lesson"><span>Permission lesson</span>{family.lesson}</p>
+      </div>
+    ))}
+  </div>
+  <p class="explorer-footnote">Explore {recorded.length} preserved controls. These buttons select recorded results; they do not run commands. <a href="/arena/method/#reproduce">Run the lab yourself ↗</a></p>
+  <span class="visually-hidden" data-explorer-status role="status" aria-live="polite"></span>
+</div>
+
+<script>
+  for (const explorer of document.querySelectorAll<HTMLElement>('[data-boundary-explorer]')) {
+    const families = [...explorer.querySelectorAll<HTMLElement>('[data-family]')];
+    const buttons = [...explorer.querySelectorAll<HTMLButtonElement>('[data-family-button]')];
+    const status = explorer.querySelector<HTMLElement>('[data-explorer-status]');
+    const selectCase = (family: HTMLElement, id: string, announce = true) => {
+      for (const item of family.querySelectorAll<HTMLElement>('[data-case]')) item.hidden = item.dataset.case !== id;
+      for (const button of family.querySelectorAll<HTMLButtonElement>('[data-case-button]')) {
+        button.setAttribute('aria-pressed', String(button.dataset.caseButton === id));
+      }
+      const selected = family.querySelector<HTMLElement>(`[data-case="${id}"]`);
+      if (announce && status) status.textContent = selected?.getAttribute('aria-label') + '. ' + (selected?.querySelector('h4')?.textContent ?? '');
+    };
+    const selectFamily = (id: string) => {
+      for (const family of families) family.hidden = family.dataset.family !== id;
+      for (const button of buttons) button.setAttribute('aria-pressed', String(button.dataset.familyButton === id));
+      const selected = families.find(family => family.dataset.family === id);
+      const active = selected?.querySelector<HTMLButtonElement>('[data-case-button][aria-pressed="true"]');
+      if (selected && active?.dataset.caseButton) selectCase(selected, active.dataset.caseButton);
+    };
+    for (const family of families) {
+      selectCase(family, 'restricted', false);
+      for (const button of family.querySelectorAll<HTMLButtonElement>('[data-case-button]')) {
+        button.addEventListener('click', () => selectCase(family, button.dataset.caseButton!));
+      }
+    }
+    for (const button of buttons) button.addEventListener('click', () => selectFamily(button.dataset.familyButton!));
+    for (const controls of explorer.querySelectorAll<HTMLElement>('.explorer-tabs, .case-controls')) controls.hidden = false;
+    for (const family of families) family.hidden = family.dataset.family !== 'network';
+    explorer.classList.add('is-interactive');
+  }
+</script>
+
+<style>
+  .boundary-explorer { border: 1px solid var(--line); background: #faf8f2; color: var(--text); font-family: var(--sans); }
+  .boundary-explorer [hidden] { display: none !important; }
+  .explorer-topline { display: flex; justify-content: space-between; gap: 16px; padding: 18px 26px; border-bottom: 1px solid var(--line); color: var(--muted); font: 11px/1.6 var(--mono); }
+  .explorer-topline > span:last-child { display: flex; gap: 10px; flex-wrap: wrap; }
+  .explorer-label { font: 10px/1.6 var(--mono); text-transform: uppercase; letter-spacing: .09em; color: var(--muted); }
+  .explorer-tabs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+  .explorer-tabs button { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 64px; padding: 12px 8px; border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; }
+  .explorer-tabs button:last-child { border-right: 0; }
+  .tab-number { font: 10px var(--mono); opacity: .6; }
+  .explorer-tabs button[aria-pressed='true'] { color: var(--text); background: var(--surface); }
+  .explorer-tabs button[aria-pressed='true']::after { content: ''; position: absolute; inset: auto 0 -1px; height: 3px; background: var(--accent); }
+  .explorer-tabs button:hover, .case-controls button:hover { background: var(--surface); color: var(--text); }
+  .explorer-tabs button:focus-visible, .case-controls button:focus-visible { outline-offset: -5px; }
+  .explorer-family { padding: 30px; }
+  .explorer-family + .explorer-family { border-top: 1px solid var(--line); }
+  .is-interactive .explorer-family { border-top: 0; }
+  .explorer-question h3 { margin-top: 8px; font: 500 clamp(28px, 3vw, 36px)/1.15 var(--serif); letter-spacing: -.02em; }
+  .case-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+  .case-controls button { display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 10px 16px; background: transparent; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); font-size: 12px; cursor: pointer; }
+  .option-dot { width: 9px; height: 9px; border: 1px solid currentColor; border-radius: 50%; }
+  .case-controls button[aria-pressed='true'] { background: var(--text); color: var(--inverse); border-color: var(--text); }
+  .case-controls button[aria-pressed='true'] .option-dot { background: var(--accent); border-color: var(--accent); }
+  .explorer-case { margin-top: 24px; }
+  .case-visual { display: grid; grid-template-columns: 1fr 28px 1.15fr 28px 1fr; align-items: center; gap: 10px; padding: 25px 22px; border: 1px solid var(--line); background: var(--bg); }
+  .flow-index { display: block; margin-bottom: 10px; font: 9px/1.5 var(--mono); letter-spacing: .07em; color: var(--muted); }
+  .flow-node { display: flex; align-items: center; gap: 8px; min-height: 48px; font-size: 13px; line-height: 1.5; font-weight: 600; }
+  .flow-policy .flow-node { padding: 12px; border: 1px solid #c8c5b8; background: #eeebe2; border-radius: 3px; }
+  .flow-node svg { flex-shrink: 0; }
+  .flow-connector { padding-top: 22px; font-size: 21px; color: #93958a; text-align: center; }
+  .contained .flow-result .flow-node { color: #35634a; }
+  .allowed .flow-result .flow-node { color: var(--link); }
+  .case-body { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 40px; padding-top: 28px; }
+  .case-story h4 { margin: 8px 0 12px; font: 600 20px/1.35 var(--sans); letter-spacing: -.04em; }
+  .case-story > p:not(.explorer-label) { font-size: 13px; line-height: 1.8; color: var(--muted); }
+  .case-scope { margin-top: 18px; border-left: 2px solid var(--line); padding-left: 14px; }
+  .case-scope span { display: block; color: var(--text); font-size: 11px; font-weight: 700; margin-bottom: 3px; }
+  .case-evidence { padding-left: 28px; border-left: 1px solid var(--line); }
+  .case-evidence dl { margin: 12px 0 0; }
+  .case-evidence dl > div { padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .case-evidence dt { font: 10px/1.6 var(--mono); color: var(--muted); }
+  .case-evidence dd { margin: 4px 0 0; font-size: 12px; line-height: 1.6; }
+  .control-check { color: #35634a; margin-right: 4px; }
+  .case-evidence a { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; margin-top: 10px; font-size: 12px; font-weight: 600; color: var(--link); }
+  .case-evidence a:hover, .explorer-footnote a:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .permission-lesson { display: flex; gap: 20px; margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.8; color: var(--muted); }
+  .permission-lesson span { flex-shrink: 0; color: var(--text); font: 10px/2.1 var(--mono); text-transform: uppercase; letter-spacing: .05em; }
+  .explorer-footnote { padding: 16px 26px; border-top: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 11px; line-height: 1.8; }
+  .explorer-footnote a { display: inline-block; margin-left: 8px; color: var(--link); }
+  @media (max-width: 900px) { .explorer-tabs button { flex-direction: column; gap: 2px; } .case-body { gap: 24px; } .case-evidence { padding-left: 20px; } }
+  @media print {
+    .boundary-explorer [data-family][hidden], .boundary-explorer [data-case][hidden] { display: block !important; }
+    .explorer-tabs, .case-controls { display: none !important; }
+    .explorer-case { break-inside: avoid; }
+  }
+  @media (max-width: 640px) {
+    .explorer-topline { flex-direction: column; gap: 4px; padding: 16px 20px; }
+    .explorer-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .explorer-tabs button:nth-child(-n + 3) { border-bottom: 1px solid var(--line); }
+    .explorer-tabs button:nth-child(3) { border-right: 0; }
+    .explorer-family { padding: 24px 20px; }
+    .case-controls { gap: 6px; }
+    .case-controls button { padding-inline: 12px; }
+    .case-visual { grid-template-columns: 1fr; gap: 8px; padding: 18px; }
+    .case-visual > div { display: grid; grid-template-columns: 102px minmax(0, 1fr); align-items: center; gap: 10px; }
+    .flow-index { margin: 0; font-size: 8px; }
+    .flow-node { min-height: 40px; font-size: 12px; }
+    .flow-connector { display: none; }
+    .case-body { grid-template-columns: 1fr; gap: 22px; }
+    .case-evidence { padding: 20px 0 0; border-left: 0; border-top: 1px solid var(--line); }
+    .case-evidence dl > div { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+    .case-evidence dd { margin: 0; }
+    .permission-lesson { display: block; }
+    .permission-lesson span { display: block; margin-bottom: 6px; }
+    .explorer-footnote { padding: 16px 20px; }
+    .explorer-footnote a { margin-left: 0; }
+  }
+</style>

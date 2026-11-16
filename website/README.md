@@ -46,7 +46,20 @@ runtime's releases as the jail installer.
 
 ## Arena field notes
 
-The Arena navigation now opens `/arena/field-notes/`, a reader index.
+The Arena navigation opens `/arena/`, an interactive overview of the recorded
+experiments. It combines a four-step incident replay, thirteen recorded permission
+controls, a searchable field-note index, and the evaluation method.
+`src/arena_home.ts` and the individual study modules guard the overview’s claims
+at build time; `components/arena/BoundaryExplorer.astro` additionally checks each
+control. No browser interaction launches a command or a model.
+
+`src/scripts/arena-overview.ts` progressively enhances the overview: without
+JavaScript all replay steps, controls, and field notes remain readable. Playback
+is opt-in and pauses when the tab is hidden or focus enters the changing content.
+The overview supports reduced motion and prints the complete evidence explorer.
+The share card is `public/arena/arena-social.png` with editable SVG source beside it.
+
+`/arena/field-notes/` remains the full reader index.
 `/arena/field-notes/dependency-install/` presents the measured 26 October
 workflows with separate task/effect observations and practical permission
 lessons. `src/arena_readers.ts` checks those statements against the preserved
@@ -89,7 +102,7 @@ edition for source changes after release. Its explicit source allowlist never
 packages private evidence or account configuration. The README inside describes
 the pinned Linux dependencies and the thirteen-case unpaid run.
 
-`/arena/` is an illustrated field note in nine chapters (how agents work, the
+`/arena/field-notes/poisoned-readme/` preserves the original illustrated field note in nine chapters (how agents work, the
 traps, what to measure, the sandbox, controls, the day's episodes, results, the
 26 October boundary evaluation, lessons), followed by a board of all 25 October
 runs. `/arena/runs/[id]/` renders each of the 34 preserved 25 October records,
@@ -105,9 +118,10 @@ checks fail the build the same way. `public/arena/evidence/2026-10-26/` is the
 earlier 17-record boundary export, kept unchanged next to its archive.
 
 Quotes, tool-call strips, counts and fixture excerpts are read from the export
-at build time. `must()` checks in `src/pages/arena/index.astro` and `quote()` in
+at build time. `must()` checks in `src/pages/arena/field-notes/poisoned-readme.astro` and `quote()` in
 `src/arena.ts` fail the build if the export stops supporting a claim the story
-makes. Animations are CSS or SVG, start on scroll, and stop under reduced motion;
+makes. Legacy `/arena/` chapter hashes redirect to the corresponding archived
+note section. The original note’s animations are CSS or SVG, start on scroll, and stop under reduced motion;
 without JavaScript every section, and every quiz answer, is visible.
 
 The 25 October ZIP under `public/arena/downloads/` is the unchanged preparation

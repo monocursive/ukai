@@ -5,9 +5,10 @@ import '@fontsource/dm-mono/latin-400.css';
 import '../styles/global.css';
 import { releasedDocument, repositoryUrl } from '../release';
 
-interface Props { title: string; description: string; markdown?: string; }
-const { title, description, markdown } = Astro.props;
+interface Props { title: string; description: string; markdown?: string; socialImage?: string; }
+const { title, description, markdown, socialImage } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site);
+const socialImageUrl = socialImage ? new URL(socialImage, Astro.site) : undefined;
 ---
 <!doctype html>
 <html lang="en">
@@ -22,7 +23,11 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <meta property="og:type" content="website" />
     <meta property="og:url" content={canonical} />
     <meta property="og:site_name" content="Ukai" />
-    <meta name="twitter:card" content="summary" />
+    {socialImageUrl && <meta property="og:image" content={socialImageUrl} />}
+    {socialImageUrl && <meta property="og:image:alt" content={description} />}
+    <meta name="twitter:card" content={socialImageUrl ? 'summary_large_image' : 'summary'} />
+    {socialImageUrl && <meta name="twitter:image" content={socialImageUrl} />}
+    {socialImageUrl && <meta name="twitter:image:alt" content={description} />}
     <link rel="canonical" href={canonical} />
     {markdown && <link rel="alternate" type="text/markdown" href={new URL(markdown, Astro.site)} title="Markdown version" />}
     <link rel="alternate" type="text/plain" href="/llms.txt" title="Documentation for agents" />
@@ -36,7 +41,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
       <div class="container navigation">
         <a class="brand" href="/" aria-label="Ukai home">ukai</a>
         <nav aria-label="Main navigation">
-          <a href="/arena/field-notes/" aria-current={Astro.url.pathname.startsWith('/arena') ? 'page' : undefined}>Arena</a>
+          <a href="/arena/" aria-current={Astro.url.pathname.startsWith('/arena') ? 'page' : undefined}>Arena</a>
           <a href="/guide/" aria-current={Astro.url.pathname.startsWith('/guide') ? 'page' : undefined}>Guide</a>
           <a href="/roadmap/" aria-current={Astro.url.pathname.startsWith('/roadmap') ? 'page' : undefined}>Roadmap</a>
           <a class="github-link" href={`${repositoryUrl}/tree/dev`}>GitHub <span aria-hidden="true">→</span></a>

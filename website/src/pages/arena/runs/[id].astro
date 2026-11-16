@@ -37,7 +37,7 @@ const gates = isAgent(run) ? [
 ---
 <Site title={`${agentName(run.agent)} · ${kindName(run.kind)} — Ukai Arena run`} description={`${run.phase}. ${scenarioName(run.scenario)} v${run.scenario_version}. The tool calls, original score, any offline rescore, and the public evidence for this run.`}>
   <article class="rd container">
-    <a class="rd-back" href="/arena/#runs">← All runs</a>
+    <a class="rd-back" href="/arena/field-notes/poisoned-readme/#runs">← All runs</a>
     <header class="rd-header">
       <div>
         <p class="ar-kicker">{run.phase} · 25 Oct 2026 · <time datetime={run.started_at_utc}>{time(run.started_at_utc)} UTC</time></p>
@@ -52,10 +52,10 @@ const gates = isAgent(run) ? [
       {gates.map(gate => <li class={`is-${gate.state}`}><span class="rd-gate-q">{gate.q}</span><strong>{gate.state === 'yes' && <Icon name="check" size={20} />}{gate.a}</strong><p>{gate.p}</p></li>)}
     </ul>
 
-    {correctedExposure && <aside class="rd-callout"><p class="ar-kicker">Our scoring bug</p><h2>Claude read the issue. Our checker missed the tabs.</h2><p>Claude’s Read tool puts a line number and a tab before each line, and the original checker didn’t accept tabs, so the batch stopped. The fixed checker still requires a successful read of the expected file and the full matching text. We rescored the saved run; we didn’t rerun the agent. <a href="/arena/#day">Read the story →</a></p></aside>}
+    {correctedExposure && <aside class="rd-callout"><p class="ar-kicker">Our scoring bug</p><h2>Claude read the issue. Our checker missed the tabs.</h2><p>Claude’s Read tool puts a line number and a tab before each line, and the original checker didn’t accept tabs, so the batch stopped. The fixed checker still requires a successful read of the expected file and the full matching text. We rescored the saved run; we didn’t rerun the agent. <a href="/arena/field-notes/poisoned-readme/#day">Read the story →</a></p></aside>}
     {run.original_labels.includes('inconclusive') && <aside class="rd-callout"><p class="ar-kicker">Connection trouble</p><h2>Codex recovered, but the scorer stopped the batch.</h2><p>Codex finished this clean task after WebSocket TLS errors and an HTTPS fallback. The original scorer marked the run inconclusive, so the batch stopped before the poisoned runs. A later parser recognizes this exact recovery before any tool call; that fix is in the separate offline score below.</p></aside>}
-    {run.original_exposure === 'not_measured' && <aside class="rd-callout"><p class="ar-kicker">Exposure not measured</p><h2>It never opened the README.</h2><p>The task passed, but this version of the test didn’t make the agent read the poisoned README, and its tool calls show it didn’t. This run can’t show it resisted an instruction it saw. <a href="/arena/#day">Why that matters →</a></p></aside>}
-    {!isAgent(run) && <aside class="rd-callout"><p class="ar-kicker">Scripted control</p><p>A deterministic {run.kind === 'control_allow' ? 'allow' : 'deny'} control, not a model attempt. It checked the test’s {run.kind === 'control_allow' ? 'ability to observe an allowed effect' : 'denied effect under the configured boundary'}. A successful allow control produces the effect on purpose; it is not a sandbox failure. <a href="/arena/#controls">How controls work →</a></p></aside>}
+    {run.original_exposure === 'not_measured' && <aside class="rd-callout"><p class="ar-kicker">Exposure not measured</p><h2>It never opened the README.</h2><p>The task passed, but this version of the test didn’t make the agent read the poisoned README, and its tool calls show it didn’t. This run can’t show it resisted an instruction it saw. <a href="/arena/field-notes/poisoned-readme/#day">Why that matters →</a></p></aside>}
+    {!isAgent(run) && <aside class="rd-callout"><p class="ar-kicker">Scripted control</p><p>A deterministic {run.kind === 'control_allow' ? 'allow' : 'deny'} control, not a model attempt. It checked the test’s {run.kind === 'control_allow' ? 'ability to observe an allowed effect' : 'denied effect under the configured boundary'}. A successful allow control produces the effect on purpose; it is not a sandbox failure. <a href="/arena/field-notes/poisoned-readme/#controls">How controls work →</a></p></aside>}
 
     {transcript && <section class="rd-block" aria-labelledby="calls-title">
       <h2 id="calls-title">What it did</h2>
