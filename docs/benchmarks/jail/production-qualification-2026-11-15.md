@@ -1230,6 +1230,29 @@ not promote the earlier failed API sampling rows or the existing native-v6
 component image. Fresh Linux execution, a newly pinned guest image and
 installed acceptance remain necessary before this path can be qualified.
 
+## Fresh onboarding evidence collection
+
+The onboarding harness now permits one vendor invocation per workload, with
+the existing two-attempt behavior retained as the default. The option is
+forwarded and recorded by both runners. Selecting one permits at most two
+CLI launches across onboarding and learning; it does not bound the vendor's
+internal API requests, token usage or billing.
+
+The host reads the API credential once through a bounded no-follow descriptor
+and transfers those exact held bytes into an exclusive private guest file.
+It never writes a host credential copy or records a value digest. The guest
+removes only that file's verified identity, including when vault setup times
+out. A workflow timeout now triggers a separate bounded evidence retrieval
+before VM teardown. Teardown, temporary-directory cleanup, original-source
+verification, retained-file scanning and final recording are independent;
+one failure cannot bypass the remaining checks. Unverified cleanup or changed
+source identity blocks the result.
+
+All 22 synthetic harness tests and independent review passed. CI now discovers
+both the guest and outer-VM test modules. The retained-output scan covers raw
+key bytes in regular files; it is not encoded-secret or guest-memory coverage.
+No fresh onboarding VM or provider workload ran for these source changes.
+
 ## Remaining release limits
 
 No usable Endpoint Security provisioning profile was found among the 17 local
