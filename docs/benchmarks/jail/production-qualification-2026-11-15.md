@@ -14,23 +14,191 @@ contains the isolated Linux candidate, excluding unrelated local Arena work.
 
 | Candidate or gate | Current result |
 | --- | --- |
-| Linux `0be9d1e82`, `0.1.0-rc.7` | Signed private candidate; six hosted jobs, four release jobs, exact-J strict conformance, both actual native archives and both production-signed bootstraps passed. Unpublished; the earlier rc.6 record remains below. |
-| Warm-VM `bef699262`, `0.1.0-preview.2` | Signed private candidate; all six CI jobs, source rebuild, package/installer verification, primary runtime checks and second-Mac checks passed. |
-| Claude API-key qualification on `bef699262` | All 14 distinct lanes collected: eight strict passes and six failures. Seven of ten repetitions passed fully; three failed sampling. A01, the small task and vendor revocation also failed qualification. OAuth remains deferred. |
-| Source fixes through `c25c297fc` | Terminal-error interpretation, small-task evidence retention, macOS test socket paths, sampler birth-identity comparisons and installer storage corrected. All six hosted jobs passed. Frozen candidate results are unchanged. |
-| Provisional native-v6 package at `c25c297fc` | Six signatures, seven actual installer cases and 848 archived source files verified; 44 independent checks passed. Fresh component measurements and source admission passed; a rebuilt host still needs installed native runtime qualification. |
-| Managed native sampling through `0be9d1e82` | Version-3 gate and readers implemented; exact-J hosted and strict Linux reference checks passed. Actual managed-gate and D2 tests executed with zero runtime skips. No version-3 guest image or installed Mac host is qualified. |
-| Current-input Linux K11/K27 | Fresh onboarding and learning passed using the exact `f745bfbfc` binary and `dce53219b` harness. Their input digest matches J; both owning evidence checks passed in exact-J release and strict conformance. Learning scope remains the supported subset recorded below. |
-| Next Mac image and package | Exact Ubuntu 26.10 image bytes, GPT/filesystem-header layout and six authenticated snapshot indexes verified; builder pins now match signed J; 34 focused tests passed normally and optimized. No new image boot or compatibility qualification; available Mac storage remains below the measured combined build/install requirement. |
-| `bef699262` fault matrix | All 11 lanes passed; 118 facts independently recomputed, with complete owned cleanup. |
-| OAuth, notarization, native macOS Endpoint Security | Pending. OAuth is deferred at the user's request; no usable local notarization credential or ES profile was established. |
+| Linux `0be9d1e82`, `0.1.0-rc.7` | Signed private candidate. Hosted and release jobs, exact-J strict conformance, actual native archives and production-signed bootstraps passed. Unpublished. |
+| Mac runtime `8db910892` (R), `0.1.0-preview.2` | Signed private package, independent artifact review, seven installer cases and five-output archived source rebuild passed. It admits the newly measured cached-disk image through native-v7 evidence. Unnotarized and unpublished. |
+| Qualification tools `2c7d894d1` (S) | Corrected stale guest measurement constants; all six hosted jobs passed. Separate from the frozen R binaries and original R source archive. |
+| Installed R native version | Corrected S harness passed the managed `/3` version/sync experiment and independent replay with synthetic credentials. No provider request. |
+| Fresh installed R API-key checks | Missing-source and A01 passed. The coding task passed its functional checker but failed sampling. The sequence stopped: two passes, one failure, eleven unrun. No retry. |
+| Fresh installed R operations | K109/K111/K112 owning rows passed; collection stopped on a five-second holder-check timeout. Separate longer-bound cleanup passed. Fresh source-watch and warm passed. Fault collection stopped: three lanes passed, both client-suspension variants failed, six lanes unrun. Cleanup passed. |
+| Earlier `bef699262` API sequence | Eight passes and six failures remain unchanged. Later source changes and fresh partial results do not relabel those failures. |
+| Storage | Disposable cache and proven task-duplicate recovery completed; source code, signed artifacts and qualification/failure evidence preserved. |
+| Post-stop export repair `d8290c287` | Source repair and focused regressions passed; absent from frozen R. A fresh image and installed qualification remain required. |
+| OAuth | Deliberately pending at the user's request. |
+| Notarization and native macOS Endpoint Security | Pending; usable local notarization credentials and an exact Ukai ES profile were not established. |
 
-The earlier native API failures remain failures. Synthetic diagnostic records
-retain incomplete sampling and an unattributed kernel failure. The original sequence and first
-continuation stopped at their failures; a separately scoped continuation
-collected the remaining distinct lanes without retrying a completed lane.
-Full production readiness and public release are not established.
-The sections below retain the source identities, evidence and earlier failures.
+Full production readiness and public release are not established. The current
+installed results and their limits follow; earlier sections retain their
+original candidate and failure history.
+
+## Current installed Mac candidate — R with S qualification tools
+
+The runtime candidate is `8db910892527dec5d331f5c8f8753bbb048c53ab` (R).
+Its private Developer-ID-signed DMG is unnotarized and unpublished. The image
+contains the unchanged signed Linux rc.7 candidate J. R admits the measured
+cached-disk image; `.cached` with `.full` synchronization is a mitigation for
+the earlier guest failure, not proof of its underlying cause or all future
+kernel health.
+
+The separate qualification harness is
+`2c7d894d119a73472a5a20b7cfb570a037f09788` (S). Its only changes from R are
+three stale candidate constants and their regression tests. S is not shipped
+inside the R source archive. The first R native probe refused at those stale
+harness pins before creating a credential source, VM or workload. That refusal
+is retained; the corrected experiment has its own source and evidence identity.
+
+| Check | Result and scope |
+| --- | --- |
+| R hosted CI | All six jobs passed. macOS: 2,512 passes; Ubuntu: 3,073 passes. Python: 1,183 cases, 84 explicit skips, zero failures. |
+| S hosted CI | All six jobs passed. Rust counts unchanged; Python: 1,185 cases, 84 explicit skips, zero failures. All 230 compiled input blobs and modes equal R. Hosted capability skips are not strict Linux reference conformance. |
+| R package | 38 independent checks passed, including six signatures, all 1,093 source files and exact payload bytes/modes. |
+| R installed cases | All seven cases passed. Fourteen installed files retained exact identity; negative fixtures were cleaned up and the DMG detached. |
+| R archived source rebuild | All five outputs rebuilt from the original archive in an isolated directory. This establishes rebuildability, not byte reproducibility. |
+| Corrected native version probe | 27 execution and eight sync facts passed; independent normal and optimized replay agreed. Complete contract `/3` sampling recorded three ticks, no scan errors or hits, and one late poll. Synthetic credential only; no provider request. |
+| Fresh API-key sequence | Two passes, one failure, eleven unrun. Missing-source and A01 passed. The coding task passed its independent 11-fact checker but failed complete periodic sampling. |
+| Fresh operational checks | All three owning K109/K111/K112 rows passed. The original collector and finalizer failed their five-second holder-check limit; separate cleanup recovered. The fresh continuation passed source-watch and warm; faults stopped at three passes, two failures and six unrun lanes, with successful final cleanup. |
+
+The coding-task report retains 92 sampling ticks and 90 readable exact-program
+argv and environment observations each, with `inventory_vanished: 15`. Its
+remaining 28 facts passed, including the correct task result, exact retained
+checker evidence, source preservation and complete cleanup. No secret hit was
+reported, but incomplete sampling cannot establish absence of exposure. The
+report has no per-error PID, tick or read-stage attribution, so the cause of
+those 15 entries remains unassigned. The original strict failure remains a
+failure.
+
+An isolated local fake-proc diagnostic used the unchanged sampler and passed
+eight cases normally and optimized. Removing a known unrelated or relevant
+synthetic process at directory-open, stat or status read produced identical
+anonymous counters and strict incomplete results. This demonstrates lost
+attribution, not the cause of the real 15 errors or grounds to waive incomplete
+coverage. No VM, provider or production-source change occurred. Bounded numeric
+diagnostics could improve future attribution; they would not make missing
+observations complete. Capturing short-lived relevant processes requires a
+separate observation design, precise contract and fresh image qualification.
+
+The API sequence stopped immediately, with the ten repetitions and vendor
+revocation unrun. There were two provider-capable CLI invocations and no
+retry. Their vendor-reported cost totals approximately USD 0.0146826; this is
+not an independent billing measurement. The requested USD 0.50 across invoked
+lanes is a vendor budget setting, not an independently enforced billing ceiling.
+The private source/config copies were removed, the service and owned process
+groups stopped, and the exact workspace image detached. The original API-key
+source remained unchanged. OAuth remains deliberately pending.
+
+The independent gate replay confirmed all three owning K109/K111/K112 passes.
+The outer operational collector then stopped because its five-second `lsof`
+check timed out; its failure and the same timeout in its finalizer remain
+unchanged. A separately reviewed cleanup supplement used the existing
+30-second holder-check bound. All five calls completed with empty output and
+exit 1, the exact owned workspace image detached, and no process, holder or
+answering socket remained. That supplement does not rewrite the original
+collector failure or create its missing acceptance. K112 tests refusal of the
+unsupported owner-loss bound; it does not provide that guarantee.
+
+A fresh continuation omits those completed gate measurements and retains the
+original collection failure as a prerequisite alongside its recovered cleanup.
+Its synthetic source-watch experiment passed all 21 facts and independent
+replay: source removal disconnected the local plaintext stream, blocked the
+later request and left clean exports and service state. It does not qualify
+TLS, vendor revocation or K113.
+
+The same installed R candidate then passed 20 service and 20 actual-client warm
+attempts, plus one route control, on one guest/service boot. All timed attempts
+met the existing 1,000 ms budget. Observed maxima were 189.9 ms from service
+connect to release and 480.8 ms from client execution to first host workspace
+write. Independent replay agreed with the retained per-attempt facts and
+timings. These measurements describe this cohort, not a guaranteed latency.
+Fault collection stopped at the third group: secrets and both client-kill
+lanes passed; both client-suspension variants failed; six later lanes are
+unrun. The partial group reports keep their original missing-coverage FAIL
+status, and the requested suspension failures remain actual failures. Both
+clients were observed stopped, their workloads continued and finished, but
+receipt completion and same-boot follow-up failed. Both guest console traces
+identify the same call: journal-file export through `conn.sendall` timed out
+under the connection's 250 ms timeout, after verified workload-tree stop.
+The collector stopped rather than running later groups. Final cleanup passed,
+the exact workspace image detached and both failed disks were retained. The
+settled free-space observation was 38,314,934,272 bytes.
+
+Independent replay confirmed the exact failed predicates. Both retained 8 MiB
+system journals verify structurally and show no observed kernel-corruption
+signatures, but neither reaches shutdown and both filesystems need journal
+recovery; this is not a clean-runtime result. A bounded local socket-pair
+probe using the unchanged send closure reproduced its 250 ms timeout after
+only a 4,096-byte prefix of an allowed journal frame. That diagnostic changes
+no frozen source or failed result.
+
+Source commit `d8290c287bece36a09cf07465eebb5dca0e62755` addresses that
+transmission defect separately from R. After verified warm-session tree stop,
+one sender continues exact unsent byte suffixes across short socket timeouts,
+refreshes the watchdog, and shares a 20-second write budget across exported
+frames and `done`. Failure poisons the sender so no new frame can be appended
+to an incomplete one. Live and legacy sending, frame/file/journal caps and
+existing queued cancellation handling are unchanged. The budget does not
+promise a hard filesystem-I/O or whole-cancellation deadline, and the existing
+post-stop two-second revocation-ACK race remains unqualified.
+
+Local main/journal/warm/export regressions recorded 127 passes and two existing
+Linux-only skips in normal and optimized runs. After strengthening the
+queued-cancellation test to interrupt an actual five-byte partial frame, all
+ten final export controls passed again in both modes. The controls cover slow
+drain, finite stall, peer closure, interrupted partial frames, one budget across
+frames and `done`, correct cancellation ordering and subsequent warm reuse.
+Independent review found no remaining patch issue. This source-only repair
+was not inserted into R: a new image containing it, new admission evidence and
+fresh installed suspension/warm-session qualification are still required.
+The API sampling failure and all unrun lanes remain open.
+
+The user-authorized storage recovery removed disposable compiled caches and
+proven duplicate task installations/staging. Observed free-space increases
+were 14,898,229,248 bytes for pre-existing Gradle/Xcode caches and 3,120,893,952
+bytes for exact task duplicates. These shared-filesystem observations are not
+exclusive allocation measurements. Routine retirement of newly created
+package stages is excluded. A later roughly 23 GB increase was unattributed
+and is not credited to this cleanup. Source checkouts, prepared images,
+original vendor executable, signed artifacts, source archives and all unique
+qualification and failure evidence were preserved.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| R DMG | `ed24b0fb762858aa660d71fcb652022366d1c633dc33e241365e9cc1725746c2` |
+| Original R source archive | `9bfc41a1204b736523004ea2d11f5405f412b3fbd266522b143b7362726b5fab` |
+| R runtime build inputs | `2c0def0696f2230a0ec69c3b640a09bf7904c6372e2acdaca702aac268081583` |
+| Separate S harness source archive | `df49e773dca906539646866dd5b4f3a7764faa09fc1a4e25e93853c1f3693eb7` |
+
+All records below are relative to
+`evidence/production-2026-11-15/warm-vm-current/` and retain the earlier
+results unchanged:
+
+- `cache-recovery-summary-2026-11-16.json` — SHA-256 `9511188fb5856142bb553a662f94832ee2eaf1f66c3bfe8b553c1abe9a4e2051`.
+- `source-R-ci-8db910892/summary.json` — SHA-256 `8107a8a82c70b19af77760b057af7a54eb6afa67aa2fa0e60541367241f79652`.
+- `source-S-ci-2c7d894d1/summary.json` — SHA-256 `eaab4341c9a99dda8b3e77244cea224d2c07bf79100f08646588e64865e96f86`.
+- `guest-native-package-independent-R-8db910892/attempt/verification.json` — SHA-256 `f1cdb994f766b64fc60ed013f66086406a22351f2f26e05505e8ae3cdaefa19a`.
+- `guest-native-installer-execution-R-8db910892/completion.json` — SHA-256 `9021cfdfad23d46c4943d9ea09543d3f6bec1d9071e6fe0c599250e886d8276b`.
+- `source-rebuild-R-plan-8db910892/completion.json` — SHA-256 `7a7de0190036b327c71df07c147695efa76c2129918861418603b43bb8e610b6`.
+- `guest-native-version-independent-R-S2c7d894d/settled-review/review.json` — SHA-256 `6dcfc80453dfb0a57dd005e806aa70a4b69c821a4169326a0baaf4f1c767d799`.
+- `guest-native-api-control-R-8db910892/api-sequence-summary.json` — SHA-256 `01d1747968258532912f2e1e7fd53a8a0a7c8556714867ba63b2408eb296b4ac`.
+- `guest-native-api-independent-R-S2c7d894d/small-task-failure-diagnosis.json` — SHA-256 `0fcb9ba3ff0b6b7ffc250ad291b55f2bb349fd825b78bca219b724095482fbd4`.
+- `guest-native-api-independent-R-S2c7d894d/stopped-sequence-review.json` — SHA-256 `eeb17e7558ce95355a38cc13ccf5d3c05404bd3438e52e453d1ee27c7435ce37`.
+- `managed-sampler-inventory-R-S2c7d894d/diagnosis.json` — SHA-256 `0b47dfa176b666c6880d3a2915b0d1bfc49f62b4c1a091ab59d496a5bf215a72`.
+- `guest-native-operational-independent-R-S2c7d894d/gates-incomplete-collection-review.json` — SHA-256 `cf6c7ac0631483780c32476cc95c456fa5256862b8242bde5fa1831e2e4f429a`.
+- `guest-native-operational-control-R-S2c7d894d/cleanup-supplement-1.json` — SHA-256 `92d7ec3075b35804767e4ec98813ac0e5b99b48417d4a141f8233ab1ad03da17`.
+- `guest-native-operational-independent-R-S2c7d894d/gates-cleanup-supplement-review.json` — SHA-256 `ca59e89252de87977015594a6adbfc2ec50435b9a33015d3adc41df8ce1e2153`.
+- `guest-native-operational-independent-R-S2c7d894d/source-watch-review.json` — SHA-256 `d753bdb884863d6954ec17130ec0d2abb98bd2e01cf0a86eee1bb013c8371270`.
+- `guest-native-operational-independent-R-S2c7d894d/warm-review.json` — SHA-256 `d91fe9e064e9744e8e5233fd52e622c600b4e6f6df792bb910df9a98f01dd653`.
+- `guest-native-operational-control-R-S2c7d894d-continuation6/completion.json` — SHA-256 `883bae8fb34a0c0e4d1631a3c273542f77e216b8644918ff6f3a86fcb9de5662`.
+- `guest-native-operational-control-R-S2c7d894d-continuation6/faults-collection.json` — SHA-256 `f41d441e93745e628ebdba7f534c9491a1d9ea2dcaeabb9b1a1b3927f6180f32`.
+- `guest-native-operational-control-R-S2c7d894d-continuation6/fault-final-lifecycle.json` — SHA-256 `eca88ac3b4a61e6b1f2a996e084327fda65526087a9c14d215fb955967e59a68`.
+- `guest-native-operational-independent-R-S2c7d894d/faults-failure-diagnosis.json` — SHA-256 `6255e41b7484f940ecd2e19a08900e5600f2b343c781f7f2fb1ae03714531f2f`.
+- `guest-native-operational-independent-R-S2c7d894d/export-backpressure-probe.json` — SHA-256 `4757d28c1959e4349311e47eb4811522ff3e10e68e2e2980ad7838b7811833cf`.
+- `guest-native-operational-R-S2c7d894d-continuation6/readonly-journals/review.json` — SHA-256 `34b8fe48803843af31a6026a55acb33bf2830d6309291b4827d61e64f123fc5c`.
+- `bounded-evidence-export-S2c7d894d/validation.json` — SHA-256 `a809bd534942c7a3191558e58769b26f2730d5cac6b9155a7c8e6350c90400b9`.
+
+Full production readiness remains unproven. The fresh sampling and suspension failures,
+unrun API/fault lanes, notarization and usable Ukai Endpoint Security provisioning
+remain open. Vendor-binary redistribution authority and cross-UID distribution
+are not established. No merge, public tag, release or deployment is implied by
+these private results.
 
 ## Earlier frozen Linux candidate — rc.6
 
@@ -1443,6 +1611,10 @@ and tested-I freeze unchanged.
 
 ## Next guest-image prerequisites
 
+This is the earlier prerequisite and storage snapshot. The current R/S results
+above supersede its pending image, package, source-rebuild and capacity status;
+the observations and failures below retain their original scope.
+
 A read-only security follow-up found that Ubuntu lists
 [CVE-2026-99103](https://ubuntu.com/security/CVE-2026-99103) as pending for
 Resolute, with its fix in `7.0.0-44.44`. The observed Security/Updates packages
@@ -1541,20 +1713,28 @@ not resolve the disk-capacity constraint.
 
 ## Remaining release limits
 
-No usable Endpoint Security provisioning profile was found among the 17 local
-profiles decoded for this task. This does not establish Apple's account-side
-approval status. Native macOS release still requires that authority, remaining
-native workflow engineering, a signed/notarized candidate and protected-Mac
-acceptance. The actual unsigned native candidate at the frozen Linux source
-passed staging/install/upgrade/removal checks and correctly refused production
-distribution and native workload admission.
+Local inspections did not establish usable Ukai Endpoint Security provisioning
+or notarization credentials. They do not establish Apple's account-side
+approval status. Native macOS containment remains separate from the warm-VM
+route and still requires the relevant authority, remaining native workflow
+engineering, a signed/notarized candidate and protected-Mac acceptance. The
+earlier unsigned native candidate passed its scoped staging/install/upgrade/
+removal checks and correctly refused production distribution and native
+workload admission.
 
-The warm-VM route does not require Endpoint Security, but still needs resolution
-of the failed API sampling and small-task retention qualification, OAuth
-qualification, investigation of the retained startup and diagnostic kernel
-failures, complete installed release acceptance on notarized/stapled
-bytes, and notarization. The API-key pilot does not satisfy the complete
-vendor matrix; OAuth remains pending at the user's request. No usable
-notarization credential was located in
-the inspected local metadata; no notarization submission was made. Existing
-scope limits, including unsupported owner-loss guarantees, remain explicit.
+The warm-VM route does not require Endpoint Security. Its current R API-key
+sequence is incomplete: the coding task passed its functional and evidence
+retention checks but failed sampling, leaving ten repetitions and revocation
+unrun. The historical failures remain unchanged. OAuth is deliberately pending
+at the user's request. The two failed suspension lanes and six unrun fault lanes also remain open.
+The source-only export fix requires a fresh image and live qualification before
+it can address those candidate failures.
+Complete vendor qualification, installed release
+acceptance on notarized/stapled bytes, cross-UID distribution and vendor-binary
+redistribution authority remain unestablished. No notarization submission or
+public release occurred.
+
+The original guest kernel failure's cause remains unassigned. Successful
+cached-disk image measurements do not establish universal runtime health.
+Unsupported owner-loss guarantees remain explicit; passing their refusal test
+does not provide those guarantees. Full production readiness is not claimed.
