@@ -249,6 +249,13 @@ impl Runtime {
         (state.seen.clone(), !state.seen_overflow)
     }
 
+    /// Capture the already-staged generation without reading or replacing it.
+    /// A transport must not adopt a changed source as a new credential lease.
+    #[cfg(target_os = "macos")]
+    pub(super) fn staged_generation(&self) -> u64 {
+        lock(&self.state).generation
+    }
+
     pub(super) fn current(&self) -> Result<(Zeroizing<Vec<u8>>, u64), Reason> {
         let Some((path, forbidden)) = &self.source else {
             let state = lock(&self.state);
@@ -687,7 +694,7 @@ fn form(out: &mut String, value: &str) {
         }
     }
 }
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Lease {
     entries: Vec<(Arc<Secret>, u64)>,
     /// The connection's initiator, which every process-bound entry needs.

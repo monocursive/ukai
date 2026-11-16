@@ -10,21 +10,23 @@ anywhere under the jail's build inputs (build_provenance.rs's INPUT_DIR and
 profiles/inputs.rs) or the archived source paths — a change staged or not,
 an untracked or ignored file (bytecode caches excepted), an index entry
 marked assume-unchanged or skip-worktree, or any file whose bytes are not
-HEAD's blob. It builds `ukai-vm` with `--locked` into an explicit
-`--target-dir` (copied from there, never from a default target/), from the
+HEAD's blob. It builds `ukai-vm` and its `ukai-jail` client with `--locked`
+into an explicit `--target-dir` (copied from there, never from a default target/), from the
 repository root (so rustup honours rust-toolchain.toml) in a scrubbed
 environment (no RUSTUP_TOOLCHAIN, RUSTFLAGS, RUSTC* or CARGO_* but
 CARGO_HOME), with UKAI_BUILD_REVISION=<HEAD>, UKAI_BUILD_DIRTY=false
 (build.rs re-checks the tree) and
 UKAI_VM_PACKAGE_VERSION=<release.json vm.candidate_version> (D8/D11). It
 refuses a toolchain whose `rustc -vV` / `cargo -V` is not the pinned
-release (both recorded in package.json), and a binary whose `version`
-reports anything but the candidate. preview-source.tar.gz holds the
-workspace at that revision: enough to rebuild ukai-vm, the VZ client, the
-custodian and the installer helper.
+release (both recorded in package.json), a service whose `version` reports
+anything but the candidate, or a client whose build record is not clean,
+optimized, native Apple Silicon and from that revision and toolchain.
+preview-source.tar.gz holds the workspace at that revision: enough to
+rebuild ukai-vm, ukai-jail, the VZ client, the custodian and the installer helper.
 """
 import argparse
 import ast
+from contextlib import ExitStack
 import gzip
 import hashlib
 import importlib.metadata
@@ -34,12 +36,14 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
 
 from cli import VERSION
-from run import digest
+from run import CATALOG_FILENAME, digest, optional_program_catalog
 
 SOURCE = Path(__file__).resolve().parent
 REPO = SOURCE.parents[2]
@@ -52,9 +56,16 @@ INPUTS_LIST = REPO / 'crates' / 'ukai-jail' / 'profiles' / 'inputs.rs'
 # What preview-source.tar.gz carries: the workspace (every crate, the lock
 # file, the toolchain pin and cargo config), the VM tooling under crates/,
 # and the build inputs outside crates/. Together they build every shipped
-# binary: ukai-vm (cargo), vz (swiftc), custodian (clang), ukai-vm-install
-# (PyInstaller over vm/cli.py).
-SOURCE_PATHS = ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'LICENSE', '.cargo/config.toml', 'crates')
+# binary: ukai-vm and ukai-jail (cargo), vz (swiftc), custodian (clang), ukai-vm-install
+# (PyInstaller over vm/cli.py). The one bounded admission proof directory
+# also ships so the table evidence tests and offline judges can be replayed;
+# the exact portable-tail compile-time fixture also ships. The root installer
+# supplies the public Linux archive pin read by the exported image builder.
+# No general docs/, evidence/, VM disk or signing material is selected.
+ADMISSION_PROOF = 'docs/benchmarks/jail/results/macos-vm-admission-2026-11-15'
+SOURCE_PATHS = ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'LICENSE', '.cargo/config.toml', 'install.sh',
+                'crates', ADMISSION_PROOF,
+                'docs/specs/jail-v1/examples/event-note-learning-read.json')
 # The cargo build's whole environment: what finds the tools and the user's
 # rustup and cargo installation, nothing that selects a toolchain or
 # changes how it compiles (RUSTUP_TOOLCHAIN overrides rust-toolchain.toml;
@@ -74,6 +85,13 @@ def command(*args, env=None, cwd=None):
 def capture(*args, env=None, cwd=None):
     return subprocess.run([str(arg) for arg in args], check=True, env=env, cwd=cwd,
                           capture_output=True, text=True).stdout
+
+
+def host_notices(repo=REPO):
+    # The guest archive can be an older public preview. Its notices cannot
+    # stand in for the client/service just built from the reviewed source.
+    return subprocess.check_output([sys.executable, str(repo / 'crates/ukai-jail/dist/notices.py'),
+                                    'print', '--source', str(repo)], timeout=120)
 
 
 def release_coordinates():
@@ -162,8 +180,19 @@ def require_clean(repo, paths):
             committed[os.fsdecode(name)] = meta.split()[2].decode()
     if committed:
         names = sorted(committed)
-        hashed = subprocess.run(['git', '--no-optional-locks', '-C', str(repo), 'hash-object', '--stdin-paths'],
-                                input='\n'.join(names) + '\n', capture_output=True, text=True)
+        # A large inventory must not require feeding a pipe while Git fills
+        # its output pipe. Keep the same ordered path list and blob comparison,
+        # with seekable input so communicate only has output pipes to drain.
+        with tempfile.TemporaryFile(mode='w+') as source_names:
+            source_names.write('\n'.join(names) + '\n')
+            source_names.seek(0)
+            try:
+                hashed = subprocess.run(
+                    ['git', '--no-optional-locks', '-C', str(repo), 'hash-object', '--stdin-paths'],
+                    stdin=source_names, capture_output=True, text=True, timeout=30)
+            except subprocess.TimeoutExpired as error:
+                # run() kills and reaps its exact child before raising.
+                raise SourceError('git hash-object timed out') from error
         blobs = hashed.stdout.split()
         if hashed.returncode != 0 or len(blobs) != len(names):
             raise SourceError('git hash-object failed: ' + hashed.stderr.strip()[-200:])
@@ -242,6 +271,50 @@ def write_source_archive(path, directory, sources, prefix='vm/'):
             archive.addfile(info, io.BytesIO(data))
 
 
+def normalize_distribution_modes(volume):
+    """Normalize only the newly owned stage, without following links or clearing metadata.
+
+    The DMG must be readable independently of the builder's umask or mount owner.
+    Hold every entry before chmod so a rejected link/special file leaves the stage
+    unchanged, and never chmod a hardlink that could also name an original input.
+    File contents, archive member modes, ACLs and extended attributes are untouched.
+    """
+    held = []
+    descriptors = ExitStack()
+
+    def retain(name, parent=None):
+        before = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        directory = stat.S_ISDIR(before.st_mode)
+        if not directory and not stat.S_ISREG(before.st_mode):
+            raise SourceError('distribution stage contains a link or special file')
+        flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+        if directory:
+            flags |= os.O_DIRECTORY
+        fd = os.open(name, flags, dir_fd=parent)
+        descriptors.callback(os.close, fd)
+        held.append((fd, 0o755 if directory or before.st_mode & 0o111 else 0o644))
+        current = os.fstat(fd)
+        if (current.st_dev, current.st_ino, current.st_mode) != (before.st_dev, before.st_ino, before.st_mode):
+            raise SourceError('distribution stage changed while opening')
+        if not directory and current.st_nlink != 1:
+            raise SourceError('distribution stage contains a multiply linked file')
+        if directory:
+            for child in sorted(os.listdir(fd)):
+                retain(child, fd)
+
+    try:
+        if not stat.S_ISDIR(Path(volume).lstat().st_mode):
+            raise SourceError('distribution stage root is not a directory')
+        retain(volume)
+        for fd, mode in held:
+            info = os.fstat(fd)
+            if stat.S_ISREG(info.st_mode) and info.st_nlink != 1:
+                raise SourceError('distribution stage acquired a multiply linked file')
+            os.fchmod(fd, mode)
+    finally:
+        descriptors.close()
+
+
 def package_metadata(metadata, sources, **artifacts):
     """Extend prepared-image provenance without changing what its fields mean.
 
@@ -291,7 +364,7 @@ def require_pinned_toolchain(versions, pin):
 
 
 def build_ukai_vm(target_dir, revision, version, run=command, versions=toolchain_versions, repo=REPO):
-    """cargo build --locked into an explicit target dir; returns the built binary.
+    """Build the service and client together; return the service and build record.
 
     From the repository root (rustup reads rust-toolchain.toml there) in a
     scrubbed environment; the toolchain must be the pinned release, and its
@@ -306,7 +379,8 @@ def build_ukai_vm(target_dir, revision, version, run=command, versions=toolchain
     require_pinned_toolchain(found, pin)
     environment.update(UKAI_BUILD_REVISION=revision, UKAI_BUILD_DIRTY='false',
                        UKAI_VM_PACKAGE_VERSION=version)
-    run('cargo', 'build', '--release', '--locked', '--package', 'ukai-jail', '--bin', 'ukai-vm',
+    run('cargo', 'build', '--release', '--locked', '--package', 'ukai-jail',
+        '--bin', 'ukai-vm', '--bin', 'ukai-jail',
         '--manifest-path', Path(repo) / 'Cargo.toml', '--target-dir', target_dir, env=environment, cwd=repo)
     return Path(target_dir) / 'release' / 'ukai-vm', {
         'cargo_target_dir': str(target_dir), 'locked': True, 'toolchain_pin': pin, **found,
@@ -333,6 +407,38 @@ def check_built(binary, version, revision, repo=REPO, reported=None):
     return reported
 
 
+def check_built_client(binary, revision, pin, reported=None):
+    """Require an optimized, clean Apple Silicon client from the same revision.
+
+    The client reports the Cargo package version, not the VM release coordinate.
+    Its full build record and signed digest bind it to this package instead.
+    """
+    if reported is None:
+        reported = json.loads(capture(binary, 'version', '--json', env=build_environment()))
+    build = reported.get('build', {})
+    if (reported.get('component') != 'ukai-jail'
+            or not isinstance(reported.get('version'), str)
+            or not reported['version']
+            or build.get('revision') != revision
+            or build.get('dirty') is not False
+            or build.get('target') != 'aarch64-apple-darwin'
+            or build.get('opt_level') != '3'
+            or build.get('debug_assertions') is not False
+            or not build.get('rustc', '').startswith(f'rustc {pin} ')
+            or not re.fullmatch(r'sha256:[0-9a-f]{64}', build.get('inputs', ''))):
+        raise SourceError('the ukai-jail client must report the same clean optimized Apple Silicon build')
+    return {'component': reported['component'], 'version': reported['version'], 'build': build}
+
+
+def sign_operator_binaries(built, destination, identity, run=command):
+    """Sign both sibling commands without native Endpoint Security entitlements."""
+    for name in ('ukai-vm', 'ukai-jail'):
+        binary = destination / name
+        shutil.copy2(built.with_name(name), binary)
+        run('codesign', '--force', '--options', 'runtime', '--timestamp', '--sign', identity, binary)
+        run('codesign', '--verify', '--strict', binary)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', required=True, type=Path)
@@ -340,7 +446,7 @@ def main():
     parser.add_argument('--identity', required=True, help='Developer ID Application identity')
     parser.add_argument('--jail-archive', required=True, type=Path)
     parser.add_argument('--target-dir', type=Path,
-                        help='cargo target dir to build ukai-vm in (default: a fresh one under --out)')
+                        help='cargo target dir for both operator commands (default: a fresh one under --out)')
     args = parser.parse_args()
     prepared = args.image.resolve()
     metadata = json.loads((prepared / 'image.json').read_text())
@@ -361,6 +467,12 @@ def main():
             or digest(prepared / 'seed.iso') != metadata['seed_sha256']
             or digest(args.jail_archive) != metadata['jail_archive_sha256']):
         parser.error('prepared disk, seed, or Linux archive does not match provenance')
+    try:
+        catalog_bytes = optional_program_catalog(prepared, metadata)
+    except (OSError, ValueError) as error:
+        parser.error(f'prepared guest program catalog is invalid: {error}')
+    # Refuse stale attribution before compiling or signing any candidate byte.
+    host_license_bytes = host_notices()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     volume = out / 'volume'
@@ -375,19 +487,16 @@ def main():
         flags = ['--entitlements', SOURCE / 'entitlements.plist'] if name == 'vz' else []
         command('codesign', '--force', '--options', 'runtime', '--timestamp', '--sign', args.identity, *flags, image / name)
         command('codesign', '--verify', '--strict', image / name)
-    # The operator surface is the warm service (`ukai-vm serve`, the program
-    # `ukai-jail run --vm` starts), built from the committed Rust sources at
-    # `revision` into an explicit target dir, and copied from exactly there.
+    # The service and its native client come from one committed Rust build
+    # at `revision`, copied from this explicit target directory.
     target_dir = (args.target_dir or out / 'cargo-target').resolve()
     try:
         built, build = build_ukai_vm(target_dir, revision, version)
         reported = check_built(built, version, revision)
+        client = check_built_client(built.with_name('ukai-jail'), revision, build['toolchain_pin'])
     except SourceError as error:
         parser.error(str(error))
-    shutil.copy2(built, binaries / 'ukai-vm')
-    command('codesign', '--force', '--options', 'runtime', '--timestamp',
-            '--sign', args.identity, binaries / 'ukai-vm')
-    command('codesign', '--verify', '--strict', binaries / 'ukai-vm')
+    sign_operator_binaries(built, binaries, args.identity)
     # The installer helper keeps the preview's install-time verbs
     # (`expand-image`, `doctor`, `version`); only install.sh calls it. A
     # onefile build keeps `bin/` free of a second `_internal` tree beside
@@ -398,6 +507,11 @@ def main():
             SOURCE / 'cli.py')
     shutil.move(out / 'dist' / 'ukai-vm-install', binaries / 'ukai-vm-install')
     shutil.copy2(prepared / 'seed.iso', image / 'seed.iso')
+    if catalog_bytes is not None:
+        # Copy the validated snapshot, never reopen an input that may have
+        # changed since verification. SHA256SUMS also binds this package file.
+        with (image / CATALOG_FILENAME).open('xb') as output:
+            output.write(catalog_bytes)
     print('Compressing verified guest image', flush=True)
     with (prepared / 'base.raw').open('rb') as source, (image / 'base.raw.gz').open('wb') as output:
         with gzip.GzipFile(filename='', mode='wb', compresslevel=6, fileobj=output, mtime=0) as compressed:
@@ -407,6 +521,8 @@ def main():
     metadata = package_metadata(metadata, sources, helper_sha256=digest(image / 'vz'),
                                 custodian_sha256=digest(image / 'custodian'),
                                 ukai_vm_sha256=digest(binaries / 'ukai-vm'),
+                                ukai_jail_sha256=digest(binaries / 'ukai-jail'),
+                                ukai_jail_version=client,
                                 compressed_disk_sha256=digest(image / 'base.raw.gz'),
                                 source_revision=revision, source_archive_sha256=digest(source_archive),
                                 source_archive_files=len(archived))
@@ -414,6 +530,7 @@ def main():
     notices = payload / 'licenses'
     notices.mkdir()
     shutil.copy2(REPO / 'LICENSE', notices / 'Ukai-LICENSE.txt')
+    (notices / 'Native-Host-LICENSES.txt').write_bytes(host_license_bytes)
     with tarfile.open(args.jail_archive) as archive:
         for member in archive.getmembers():
             if member.isfile() and member.name.endswith('LICENSES.txt'):
@@ -436,12 +553,14 @@ def main():
     (volume / 'install.sh').write_text(installer)
     (volume / 'install.sh').chmod(0o755)
     command('bash', '-n', volume / 'install.sh')
+    normalize_distribution_modes(volume)
     dmg = out / f'ukai-vm-{VERSION}-macos-arm64.dmg'
     command('hdiutil', 'create', '-quiet', '-fs', 'APFS', '-volname', 'Ukai VM Preview',
             '-srcfolder', volume, '-format', 'UDRO', dmg)
     command('codesign', '--force', '--timestamp', '--sign', args.identity, dmg)
     report = {'schema': 'ukai.vm.package/1', 'version': VERSION, 'dmg': dmg.name,
-              'source_revision': revision, 'build': {**build, 'ukai_vm_version': reported},
+              'source_revision': revision, 'build': {**build, 'ukai_vm_version': reported,
+                                                   'ukai_jail_version': client},
               'dmg_sha256_before_notarization': digest(dmg), 'manifest_sha256': digest(manifest),
               'installer_sha256': digest(volume / 'install.sh'), 'image': metadata,
               'python_version': sys.version, 'pyinstaller_version': importlib.metadata.version('pyinstaller'),

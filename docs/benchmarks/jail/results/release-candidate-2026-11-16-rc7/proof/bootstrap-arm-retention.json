@@ -1,0 +1,661 @@
+{
+  "schema": "ukai.rc7-arm-bootstrap-retention/1",
+  "outcome": "PASS",
+  "plan_sha256": "661fd43385f1dd77be904a763ead1ca62fb3e312477d736bf8550b7ce8c09055",
+  "outer_result_sha256": "abb7887d2ef842cc969f42eab4510f4a388691837189d86ac071b78a288abb55",
+  "host_final_sha256": "757c2ae783c872de080953d103386506ead667f3cdcb23d9ae451ae51f027f57",
+  "export_sha256": "8787c7da8508e945fd42c963b971e1176b3305ef1de903c44a76132011f00bcb",
+  "files": {
+    "host/transfer-14.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-6.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/qemu-final.json": {
+      "bytes": 206,
+      "sha256": "cf1b03d17327224b979f4539bd02123f8caf32d33b4091e1537875a946241b67",
+      "mode": 420
+    },
+    "host/transfer-2.json": {
+      "bytes": 901,
+      "sha256": "bd016cfd67cd7bae266af943b1823f2c818dfcfc89922137a1ff8ea3c78f00b4",
+      "mode": 420
+    },
+    "host/transfer-2.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/bootstrap.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-10.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-0.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/remote-root.json": {
+      "bytes": 995,
+      "sha256": "d301dfed86efe8042dffb8ec4e4d6bc50ff0af0e0968435d1854bbc73e2b629e",
+      "mode": 420
+    },
+    "host/overlay.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-16.json": {
+      "bytes": 911,
+      "sha256": "440da0dff6794ec7b7d1e575eda7918c24a6b37cfe48f9c6e70ae2c76f4a0229",
+      "mode": 420
+    },
+    "host/export.json": {
+      "bytes": 861,
+      "sha256": "76fc5171d6b57738b75a1ef5794d09b284077ddc50214637dc6c8df5b1a33b94",
+      "mode": 420
+    },
+    "host/transfer-12.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-3.json": {
+      "bytes": 909,
+      "sha256": "734668cd9ca5513cee378622b4ca17f2960ebb82c820a9d5cfce8e08b9221e28",
+      "mode": 420
+    },
+    "host/overlay-info.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-16.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-4.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/overlay.json": {
+      "bytes": 493,
+      "sha256": "f76020cff3ab71366e65fac0c6ab3015364a142bbbcf87516a2e55a137e13168",
+      "mode": 420
+    },
+    "host/transfer-8.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-16.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-4.json": {
+      "bytes": 915,
+      "sha256": "62c83a8f39c185e030de0444ec20c1ed0755f7245873509815eaf5af646ed529",
+      "mode": 420
+    },
+    "host/overlay-info.json": {
+      "bytes": 387,
+      "sha256": "72de8a635eca18b63022bd7bd7b221d44095c98e495a0580c68fab640328e19c",
+      "mode": 420
+    },
+    "host/transfer-11.json": {
+      "bytes": 894,
+      "sha256": "533de09981fcd64ca67ed4be45756180fc345e40b9dbd9315a91016d2c5cadfb",
+      "mode": 420
+    },
+    "host/transfer-8.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/qemu-start.json": {
+      "bytes": 1730,
+      "sha256": "cf6368b405ce535f4b9ee839feef976fcbbe55f88ae5a7f0be6bba28e3939607",
+      "mode": 420
+    },
+    "host/transfer-4.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/overlay.stdout": {
+      "bytes": 317,
+      "sha256": "b3975f2e79f637c5b539e697c6ee5654296b25dc9f71a2e71af1516b94c0c959",
+      "mode": 420
+    },
+    "host/transfer-8.json": {
+      "bytes": 893,
+      "sha256": "1579f7dedeac86bd6f6f10957877da0dea76479c112bf7a3242532a69c5d44cb",
+      "mode": 420
+    },
+    "host/transfer-0.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/overlay-info.stdout": {
+      "bytes": 1329,
+      "sha256": "f4ee716da6be76390865c9f1f59f7f277218531d3095eb7bb4b4f8741a252987",
+      "mode": 420
+    },
+    "host/transfer-12.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/console.log": {
+      "bytes": 88206,
+      "sha256": "ff0b7e4131f20a82e7539735ff8c97ad1ff7fc856befba9cc6170967b27143d7",
+      "mode": 420
+    },
+    "host/bootstrap.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-2.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-9.json": {
+      "bytes": 910,
+      "sha256": "8658bd09adcad6defda548631ba44c17ee013c134b7fb5ac2b01d6fe48667d0a",
+      "mode": 420
+    },
+    "host/transfer-10.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-14.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-10.json": {
+      "bytes": 897,
+      "sha256": "81d0572596e88102d1f2743a2fea7e3e763ce6b86e390ebb2e953b0118c35e60",
+      "mode": 420
+    },
+    "host/transfer-6.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-5.json": {
+      "bytes": 912,
+      "sha256": "c15cfad7c0e8c062309f6654ac770b85dfb5509cfaf52d030f638daabd73ff9a",
+      "mode": 420
+    },
+    "host/transfer-11.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/qemu.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-13.json": {
+      "bytes": 980,
+      "sha256": "47fa4699644746105e3f965467f738668ba8cff50f8dc1f44c90f647c76ca18a",
+      "mode": 420
+    },
+    "host/transfer-6.json": {
+      "bytes": 992,
+      "sha256": "72dc069cc2ecb0a780a2533eeb3d110dab88cf08405eed4f4cd64a87a520a8c7",
+      "mode": 420
+    },
+    "host/transfer-3.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-7.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-15.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-5.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/remote-root.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-9.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/export.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-13.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-7.json": {
+      "bytes": 906,
+      "sha256": "2e154d84dfd83d7dec3364ff1c5e56a13715b012220e52357f4b006de3983f0e",
+      "mode": 420
+    },
+    "host/transfer-12.json": {
+      "bytes": 908,
+      "sha256": "7bcd0ca5d18fd818297678d0ca73d26f9fa09421d5292c516ff80efc5ecdff03",
+      "mode": 420
+    },
+    "host/transfer-1.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-13.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-1.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/final.json": {
+      "bytes": 427,
+      "sha256": "757c2ae783c872de080953d103386506ead667f3cdcb23d9ae451ae51f027f57",
+      "mode": 420
+    },
+    "host/transfer-9.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-5.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/remote-root.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-15.json": {
+      "bytes": 852,
+      "sha256": "a7e467c6f4feb412b046d397596e0fb75d836bcaf35ead3c11e1e2229018cdc3",
+      "mode": 420
+    },
+    "host/export.stdout": {
+      "bytes": 9384275,
+      "sha256": "8787c7da8508e945fd42c963b971e1176b3305ef1de903c44a76132011f00bcb",
+      "mode": 420
+    },
+    "host/transfer-0.json": {
+      "bytes": 906,
+      "sha256": "75bc7f147de7078080ac64ce115aca4b8ee719d2b3d2c5a5d6a95732045b130a",
+      "mode": 420
+    },
+    "host/transfer-7.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-1.json": {
+      "bytes": 894,
+      "sha256": "25f36657f69204f77151a0ca011188ddd3b6d2193fc69416525ef23eb0ff5c84",
+      "mode": 420
+    },
+    "host/transfer-14.json": {
+      "bytes": 978,
+      "sha256": "514c870792054465c10efef74e9b23d77f47362303d278f7bdb289db35170039",
+      "mode": 420
+    },
+    "host/transfer-15.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/qemu.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-11.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/bootstrap.json": {
+      "bytes": 972,
+      "sha256": "c54b1698ca97ad886673bb6e05919c87cfe76b02dda7b305774d25227cc05aba",
+      "mode": 420
+    },
+    "host/transfer-3.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "guest/evidence/bootstrap-command.json": {
+      "bytes": 629,
+      "sha256": "7f05a568c526a9d2bc8438fb2934be5c9367426a706cd8c900ed29a4857cd59e",
+      "mode": 436
+    },
+    "guest/evidence/bootstrap-final.json": {
+      "bytes": 240,
+      "sha256": "f010756c240274f5d1405deb9c6c7c38d12c48768c491f0867c8b3d7ff53bd84",
+      "mode": 436
+    },
+    "guest/evidence/bootstrap.log": {
+      "bytes": 1216,
+      "sha256": "35cbff9e18d0a8314c17f98c363337f94f3ce1459cac99cb1e4f00efc9eae646",
+      "mode": 436
+    },
+    "guest/evidence/bootstrap-scope.json": {
+      "bytes": 863,
+      "sha256": "94e8b9ed6291a3918bb4f6c0f04658cc6e6eee1aae126227b1f9f4188fdc1e56",
+      "mode": 436
+    },
+    "guest/evidence/bootstrap-scope.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/evidence/bootstrap-preflight.json": {
+      "bytes": 85,
+      "sha256": "42df8b8bd859d86704b5b767d878f3d8e7ceb26b9d371da5da82d3feb38783cf",
+      "mode": 436
+    },
+    "guest/work/bootstrap/minisign-unavailable.result.json": {
+      "bytes": 17,
+      "sha256": "5cc319f54b05a38799195a491c303aa686eab7caccfdbbf1e8b8c07405cb7392",
+      "mode": 436
+    },
+    "guest/work/bootstrap/minisign-unavailable.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/bootstrap/modified-archive-refusal.result.json": {
+      "bytes": 17,
+      "sha256": "5cc319f54b05a38799195a491c303aa686eab7caccfdbbf1e8b8c07405cb7392",
+      "mode": 436
+    },
+    "guest/work/bootstrap/candidate-signature.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "guest/work/bootstrap/candidate-signature.command.json": {
+      "bytes": 338,
+      "sha256": "389895a22c3edc3c5f07119266ef03a36288bbcd3330f1bf9ebd539dd41757b5",
+      "mode": 436
+    },
+    "guest/work/bootstrap/modified-archive-refusal.command.json": {
+      "bytes": 355,
+      "sha256": "2d6d3f437d8e8c3598179623e07313465bfa0c090cf99ed633a7870c14b2bff5",
+      "mode": 436
+    },
+    "guest/work/bootstrap/bootstrap-repeat-install.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/bootstrap/summary.json": {
+      "bytes": 1216,
+      "sha256": "35cbff9e18d0a8314c17f98c363337f94f3ce1459cac99cb1e4f00efc9eae646",
+      "mode": 436
+    },
+    "guest/work/bootstrap/bootstrap-repeat-install.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "guest/work/bootstrap/native-platform.command.json": {
+      "bytes": 105,
+      "sha256": "6828c11cde61a297b649a77a698c5fa39507bc9d082e6d6e201e21ef45efed65",
+      "mode": 436
+    },
+    "guest/work/bootstrap/minisign-unavailable.command.json": {
+      "bytes": 80,
+      "sha256": "65bb0f4cfe2a7c6e4cbdcc34128760fad934349c55cbf3e32b5bed3d063033bb",
+      "mode": 436
+    },
+    "guest/work/bootstrap/bootstrap-install.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "guest/work/bootstrap/bootstrap-install.stdout": {
+      "bytes": 1262,
+      "sha256": "8a34edb2823bfb68ace341c2219dee84b83f79b00e351dfb257e48eedf9a86b8",
+      "mode": 436
+    },
+    "guest/work/bootstrap/minisign-unavailable.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/bootstrap/installed-version.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/bootstrap/installed-version.command.json": {
+      "bytes": 142,
+      "sha256": "722d42b6dc733a413459d24dc75b0fcde7ecd59e0a72b918f6a4f82fdd8d9db0",
+      "mode": 436
+    },
+    "guest/work/bootstrap/installed-version.stdout": {
+      "bytes": 1023,
+      "sha256": "4a98e21c7a09231dc505e2dd5c6791d013d92b01bfe01ded443f1278852ae879",
+      "mode": 436
+    },
+    "guest/work/bootstrap/native-platform.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/bootstrap/isolated-path.json": {
+      "bytes": 775,
+      "sha256": "21b0c40cc3363d64fa70af36ccb2d4b6b6649999a95803072c832db97fe2be8b",
+      "mode": 436
+    },
+    "guest/work/bootstrap/candidate-signature.stdout": {
+      "bytes": 102,
+      "sha256": "b2daa21e5d9b1c7474feb67504e0a6a557bdfd55c573a75edca2cfcdfbfeee76",
+      "mode": 436
+    },
+    "guest/work/bootstrap/bootstrap-install.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/bootstrap/candidate-signature.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/bootstrap/modified-archive-refusal.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/bootstrap/bootstrap-repeat-install.stdout": {
+      "bytes": 1262,
+      "sha256": "8a34edb2823bfb68ace341c2219dee84b83f79b00e351dfb257e48eedf9a86b8",
+      "mode": 436
+    },
+    "guest/work/bootstrap/native-platform.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "guest/work/bootstrap/modified-archive-refusal.stderr": {
+      "bytes": 100,
+      "sha256": "78f8938f6a2207edd78b7a29fc3bfa44cab4e39f80b1a70ec28c5b7a020e0473",
+      "mode": 436
+    },
+    "guest/work/bootstrap/native-platform.stdout": {
+      "bytes": 25,
+      "sha256": "3c0f5e59646eafe946612815cbf0e7392cb5f346c6130d8aab22ebacd835cfd9",
+      "mode": 436
+    },
+    "guest/work/bootstrap/installed-version.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "guest/work/bootstrap/modified-copy/ukai-jail-0.1.0-rc.7-aarch64-unknown-linux-gnu.tar.gz": {
+      "bytes": 4691206,
+      "sha256": "88c22143f96fa4cfdafa593bbd3eb92d2956b7a46b8603d06dcc15e5f0032f0e",
+      "mode": 384
+    },
+    "guest/work/bootstrap/bootstrap-repeat-install.command.json": {
+      "bytes": 336,
+      "sha256": "667e85f7faed74dc9eb7b9595620c56838e170e4dea0fda575386b5a396ff445",
+      "mode": 436
+    },
+    "guest/work/bootstrap/installed bin/ukai-jail.release": {
+      "bytes": 76,
+      "sha256": "e014d2dc36cb74edf93c6fadec1b06901935c446e67e4431de3be7b31611b0f5",
+      "mode": 420
+    },
+    "guest/work/bootstrap/installed bin/ukai-jail.LICENSES.txt": {
+      "bytes": 2291615,
+      "sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd",
+      "mode": 420
+    },
+    "guest/work/bootstrap/installed bin/ukai-jail": {
+      "bytes": 12333808,
+      "sha256": "c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f",
+      "mode": 493
+    },
+    "guest/work/bootstrap/bootstrap-install.command.json": {
+      "bytes": 336,
+      "sha256": "667e85f7faed74dc9eb7b9595620c56838e170e4dea0fda575386b5a396ff445",
+      "mode": 436
+    }
+  },
+  "file_count": 112,
+  "regular_guest_files": 40,
+  "guest_regular_bytes": 19327314,
+  "private_tmp_excluded": true,
+  "original_generations_unchanged": true,
+  "owned_image_holders_absent": true,
+  "host_port_available": true,
+  "qemu_clean_exit": true,
+  "guest_scope_empty_client_reaped": true,
+  "ephemeral_test_key_cleanup_applicable": false,
+  "free_after": 14716915712,
+  "elapsed_seconds": 0.48902025003917515,
+  "retention_script_sha256": "05e7dcc8f332c556f2c8e3734708c6bd6a7e8e60781a09a92eb82f70e8931a06",
+  "symlinks_preserved_in_raw_export_only": {
+    "work/bootstrap/tools-without-minisign/getconf": {
+      "target": "/usr/bin/getconf",
+      "mode": 511,
+      "retention": "metadata only; exact raw tar preserved, no filesystem link created"
+    },
+    "work/bootstrap/tools-without-minisign/mktemp": {
+      "target": "/usr/lib/cargo/bin/coreutils/mktemp",
+      "mode": 511,
+      "retention": "metadata only; exact raw tar preserved, no filesystem link created"
+    },
+    "work/bootstrap/tools-without-minisign/mv": {
+      "target": "/usr/bin/gnumv",
+      "mode": 511,
+      "retention": "metadata only; exact raw tar preserved, no filesystem link created"
+    },
+    "work/bootstrap/tools-without-minisign/uname": {
+      "target": "/usr/lib/cargo/bin/coreutils/uname",
+      "mode": 511,
+      "retention": "metadata only; exact raw tar preserved, no filesystem link created"
+    },
+    "work/bootstrap/tools-without-minisign/sha256sum": {
+      "target": "/usr/lib/cargo/bin/coreutils/sha256sum",
+      "mode": 511,
+      "retention": "metadata only; exact raw tar preserved, no filesystem link created"
+    },
+    "work/bootstrap/tools-without-minisign/awk": {
+      "target": "/usr/bin/gawk",
+      "mode": 511,
+      "retention": "metadata only; exact raw tar preserved, no filesystem link created"
+    },
+    "work/bootstrap/tools-without-minisign/gzip": {
+      "target": "/usr/bin/gzip",
+      "mode": 511,
+      "retention": "metadata only; exact raw tar preserved, no filesystem link created"
+    },
+    "work/bootstrap/tools-without-minisign/bash": {
+      "target": "/usr/bin/bash",
+      "mode": 511,
+      "retention": "metadata only; exact raw tar preserved, no filesystem link created"
+    },
+    "work/bootstrap/tools-without-minisign/mkdir": {
+      "target": "/usr/lib/cargo/bin/coreutils/mkdir",
+      "mode": 511,
+      "retention": "metadata only; exact raw tar preserved, no filesystem link created"
+    },
+    "work/bootstrap/tools-without-minisign/cp": {
+      "target": "/usr/bin/gnucp",
+      "mode": 511,
+      "retention": "metadata only; exact raw tar preserved, no filesystem link created"
+    },
+    "work/bootstrap/tools-without-minisign/cat": {
+      "target": "/usr/lib/cargo/bin/coreutils/cat",
+      "mode": 511,
+      "retention": "metadata only; exact raw tar preserved, no filesystem link created"
+    },
+    "work/bootstrap/tools-without-minisign/sed": {
+      "target": "/usr/bin/sed",
+      "mode": 511,
+      "retention": "metadata only; exact raw tar preserved, no filesystem link created"
+    },
+    "work/bootstrap/tools-without-minisign/chmod": {
+      "target": "/usr/lib/cargo/bin/coreutils/chmod",
+      "mode": 511,
+      "retention": "metadata only; exact raw tar preserved, no filesystem link created"
+    },
+    "work/bootstrap/tools-without-minisign/rm": {
+      "target": "/usr/bin/gnurm",
+      "mode": 511,
+      "retention": "metadata only; exact raw tar preserved, no filesystem link created"
+    },
+    "work/bootstrap/tools-without-minisign/tar": {
+      "target": "/usr/bin/tar",
+      "mode": 511,
+      "retention": "metadata only; exact raw tar preserved, no filesystem link created"
+    }
+  },
+  "prior_observer_refusal_sha256": "e07d95d8ad172884d0115318dc2a38fa53ee88ee3217d0ce6b228dc171ef20c7"
+}

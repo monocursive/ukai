@@ -361,7 +361,7 @@ fn k33_the_alias_and_the_long_form_have_identical_digests() {
 }
 
 /// K33: built-in verbs win, an unknown word exits 2 naming both readings,
-/// and `--from-path` refuses the managed gate and `none` with exit 2.
+/// and `--from-path` keeps the reserved-id, label-only and `none` refusals.
 #[test]
 fn k33_verbs_win_unknown_words_and_conflicts_exit_2() {
     let fixture = Fixture::new();
@@ -403,6 +403,7 @@ fn k33_verbs_win_unknown_words_and_conflicts_exit_2() {
             "--from-path",
             "--gate-fd",
             "7",
+            "--label-only",
             "--",
             "x",
         ][..],
@@ -439,6 +440,236 @@ fn k33_verbs_win_unknown_words_and_conflicts_exit_2() {
             text(&output.stderr)
         );
     }
+}
+
+/// Drive the real native resolver/supervisor and managed pipe protocol over
+/// the scripted boundary. The owner's policy and argv are computed before
+/// the attempt; only its newly allocated id comes from the Prepared receipt.
+fn managed_from_path(
+    fixture: &Fixture,
+    variant: &ukai_fixture::harness::gate::Release,
+    before_release: impl FnOnce(),
+) -> (supervisor::RunReport, serde_json::Value, common::sim::Calls) {
+    use std::os::fd::IntoRawFd as _;
+    use std::time::Duration;
+    use ukai_fixture::harness::gate::{ExpectedPlan, GateOwner};
+    use ukai_fixture::harness::pipes::{GateWriter, LineReader, cloexec_pipe};
+
+    common::hold_records();
+    let expected = fixture
+        .plan(
+            &fixture.repo,
+            &["--launch", "agent", "--from-path", "--state", "attempt"],
+        )
+        .unwrap();
+    let argv = ukai_jail::canonical::argv_digest(&[
+        fixture.bin.join("agent").as_os_str().as_bytes().to_vec(),
+        b"probe".to_vec(),
+    ]);
+    assert_eq!(
+        bound_binaries(&expected),
+        [fixture.bin.join("agent").to_str().unwrap()]
+    );
+    let (gate, writer) = cloexec_pipe().unwrap();
+    let (reader, control) = cloexec_pipe().unwrap();
+    let gate = gate.into_raw_fd().to_string();
+    let control = control.into_raw_fd().to_string();
+    let platform = platform().abort_tree(sim::verified_tree(
+        ukai_jail::lifecycle::VerificationScope::AttemptTree,
+    ));
+    let calls = platform.calls.clone();
+    std::thread::scope(|scope| {
+        let running = scope.spawn(|| {
+            fixture.run(
+                platform,
+                &fixture.repo,
+                &[
+                    "run",
+                    "--launch",
+                    "agent",
+                    "--from-path",
+                    "--state",
+                    "attempt",
+                    "--gate-fd",
+                    &gate,
+                    "--control-fd",
+                    &control,
+                    "--",
+                    "probe",
+                ],
+            )
+        });
+        // These owner ends drop on assertion failure, closing the gate before
+        // the scope joins the supervisor instead of leaving a 60s silent wait.
+        let mut writer = Some(GateWriter::new(writer));
+        let mut reader = LineReader::new(reader);
+        reader.timeout = Duration::from_secs(5);
+        let mut seen = Vec::new();
+        let mut owner = GateOwner::new(&mut reader, &mut writer, &mut seen);
+        let control = owner.await_prepared().expect("native managed preparation");
+        let id = control["attempt_id"].as_str().unwrap();
+        let prepared =
+            common::read_receipt(&fixture.data.join("attempts").join(id).join("jail.json"));
+        assert_eq!(prepared["exec_observed"], false);
+        assert!(!running.is_finished(), "the managed gate has not released");
+        let authorized = ExpectedPlan::complete(
+            id,
+            &expected.resolved.digest,
+            &argv,
+            expected
+                .resolved
+                .requirements
+                .iter()
+                .map(ToString::to_string),
+        );
+        owner
+            .authorise(&control, Some(&prepared), &authorized)
+            .unwrap_or_else(|error| panic!("native prepared authority mismatch: {error:?}"));
+        assert_eq!(
+            control["receipt_digest"],
+            ukai_jail::canonical::sha256_prefixed(
+                &ukai_jail::canonical::to_jcs(&prepared).unwrap()
+            )
+        );
+        before_release();
+        owner
+            .release(variant, id, &expected.resolved.digest)
+            .unwrap();
+        let report = running.join().unwrap();
+        (report, prepared, calls)
+    })
+}
+
+#[test]
+fn managed_native_gate_preserves_policy_argv_and_program_bound_credentials() {
+    let fixture = Fixture::new();
+    fixture.credential("first", b"public-test-value");
+    let ordinary = fixture.run(
+        platform(),
+        &fixture.repo,
+        &[
+            "run",
+            "--launch",
+            "agent",
+            "--from-path",
+            "--state",
+            "attempt",
+            "--",
+            "probe",
+        ],
+    );
+    assert!(ordinary.error.is_none(), "{:?}", ordinary.error);
+    let (managed, prepared, calls) = managed_from_path(
+        &fixture,
+        &ukai_fixture::harness::gate::Release::Valid,
+        || {},
+    );
+    assert!(managed.error.is_none(), "{:?}", managed.error);
+    let ordinary = receipt(&ordinary);
+    let managed = receipt(&managed);
+    assert_eq!(prepared["policy"], ordinary["policy"]);
+    assert_eq!(prepared["argv_digest"], ordinary["argv_digest"]);
+    assert_eq!(managed["policy"], ordinary["policy"]);
+    assert_eq!(managed["argv_digest"], ordinary["argv_digest"]);
+    assert_eq!(managed["credentials"], ordinary["credentials"]);
+    assert_eq!(managed["credentials"].as_array().unwrap().len(), 1);
+    assert_eq!(managed["credentials"][0]["id"], "first");
+    assert_ne!(managed["attempt_id"], ordinary["attempt_id"]);
+    assert_eq!(managed["phase"], "settled");
+    assert_eq!(managed["exec_observed"], true);
+    assert_eq!(*calls.aborts.lock().unwrap(), 0);
+}
+
+#[test]
+fn managed_native_gate_rejects_wrong_identity_and_closed_release() {
+    use ukai_fixture::harness::gate::Release;
+    for (variant, code) in [
+        (
+            Release::WrongDigest(format!("sha256:{}", "0".repeat(64))),
+            ErrorCode::GateInvalid,
+        ),
+        (
+            Release::WrongAttemptId("att_00000000-0000-4000-8000-000000000001".into()),
+            ErrorCode::GateInvalid,
+        ),
+        (Release::EmptyEof, ErrorCode::GateClosed),
+    ] {
+        let fixture = Fixture::new();
+        fixture.credential("first", b"public-test-value");
+        let (report, _, calls) = managed_from_path(&fixture, &variant, || {});
+        assert_eq!(report.error.as_ref().map(|error| error.code), Some(code));
+        assert_eq!(receipt(&report)["exec_observed"], false);
+        assert_eq!(receipt(&report)["lifetime"]["tree_empty"], true);
+        assert_eq!(*calls.aborts.lock().unwrap(), 1);
+        assert!(calls.stops.lock().unwrap().is_empty());
+    }
+}
+
+#[test]
+fn managed_native_gate_rechecks_program_and_install_root_after_wait() {
+    for replace_root in [false, true] {
+        let fixture = Fixture::new();
+        fixture.credential("first", b"public-test-value");
+        let (report, _, calls) = managed_from_path(
+            &fixture,
+            &ukai_fixture::harness::gate::Release::Valid,
+            || {
+                if replace_root {
+                    std::fs::rename(&fixture.bin, fixture.root.join("tools/old-bin")).unwrap();
+                    mkdir(&fixture.bin, 0o755);
+                } else {
+                    std::fs::rename(
+                        fixture.bin.join("agent"),
+                        fixture.root.join("tools/old-agent"),
+                    )
+                    .unwrap();
+                }
+                write(&fixture.bin.join("agent"), &static_elf(), 0o755);
+            },
+        );
+        let error = report
+            .error
+            .as_ref()
+            .expect("changed native program refuses");
+        assert_eq!(error.code, ErrorCode::PolicyWidening);
+        assert_eq!(error.key_path.as_deref(), Some("--from-path"));
+        assert_eq!(receipt(&report)["exec_observed"], false);
+        assert_eq!(*calls.aborts.lock().unwrap(), 1);
+    }
+}
+
+#[test]
+fn managed_native_gate_still_refuses_persistent_state() {
+    use std::os::fd::IntoRawFd as _;
+    let fixture = Fixture::new();
+    fixture.credential("first", b"public-test-value");
+    let (gate, writer) = std::io::pipe().unwrap();
+    drop(writer);
+    let gate = gate.into_raw_fd().to_string();
+    let report = fixture.run(
+        platform(),
+        &fixture.repo,
+        &[
+            "run",
+            "--launch",
+            "agent",
+            "--from-path",
+            "--state",
+            "persistent",
+            "--gate-fd",
+            &gate,
+            "--",
+            "probe",
+        ],
+    );
+    let error = report.error.as_ref().expect("persistent state refuses");
+    assert_eq!(error.exit_code(), 2);
+    assert_eq!(error.key_path.as_deref(), Some("--gate-fd"));
+    assert!(error.message.contains("refuses persistent state"));
+    assert!(
+        !fixture.data.join("attempts").exists(),
+        "no attempt was allocated"
+    );
 }
 
 // ---------------------------------------------------------------------------

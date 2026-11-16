@@ -3624,9 +3624,18 @@ fn review_every_contained_profile_refuses_a_socket_family_outside_the_list() {
     for family in ["AF_VSOCK", "AF_ALG", "AF_QIPCRTR", "AF_NETLINK_ROUTE"] {
         assert_eq!(host[family], "created", "host {family}: {host}");
     }
-    assert_eq!(
-        host["gai_localhost_addrconfig"],
-        serde_json::json!(["127.0.0.1"])
+    // AI_ADDRCONFIG also includes ::1 when the host has a usable IPv6
+    // interface. The uncontained control must preserve that exact result;
+    // it need not have the reference VPS's IPv4-only network topology.
+    let localhost = host["gai_localhost_addrconfig"]
+        .as_array()
+        .expect("host localhost resolution succeeds");
+    assert!(
+        localhost.contains(&serde_json::json!("127.0.0.1"))
+            && localhost
+                .iter()
+                .all(|address| matches!(address.as_str(), Some("127.0.0.1" | "::1"))),
+        "host localhost resolves only to loopback: {host}"
     );
     let c = case("none");
     let run = c.jail.target(py(FAMILIES, &[])).run().unwrap();

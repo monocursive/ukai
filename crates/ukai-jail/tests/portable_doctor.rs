@@ -112,6 +112,13 @@ fn build_inputs_digest() -> String {
         "Cargo.toml",
         "Cargo.lock",
         "rust-toolchain.toml",
+        "crates/ukai-jail/vm/fixtures/guest-native-profile-inputs.json",
+        "crates/ukai-jail/vm/fixtures/guest-program-catalog.json",
+        "crates/ukai-jail/vm/fixtures/guest-program-catalog-vectors.json",
+        "crates/ukai-jail/vm/fixtures/sampled-exposure-context.json",
+        "crates/ukai-jail/vm/fixtures/sampled-exposure-receipt.json",
+        "crates/ukai-jail/vm/fixtures/sampled-exposure-report.json",
+        "crates/ukai-jail/vm/fixtures/managed-sampled-exposure.json",
     ]
     .map(str::to_owned)
     .to_vec();

@@ -1,0 +1,373 @@
+{
+  "schema": "ukai.next-guest-image-prerequisite-record/1",
+  "outcome": "PASS_SOURCE_AND_INPUT_PREREQUISITES_ONLY",
+  "observed_date": "2026-11-16",
+  "source_base_revision": "fd0e0e52c44e36bc866f3c53112c365b9fe43d9a",
+  "builder_source_sha256": {
+    "crates/ukai-jail/vm/prepare.py": "b3967a84f54b3f1c469b75a482b62dfe90542ab2a05bde9b178678d72bc20739",
+    "crates/ukai-jail/vm/test_prepare.py": "9a87edd19d0644dfb579438aaa9b823cf246da851741ba22633337f8f108382a"
+  },
+  "compiled_inputs": {
+    "count": 230,
+    "sha256": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+    "owning_rule": "build_provenance.rs INPUT_DIR plus profiles/inputs.rs, sorted path NUL u64LE(length) bytes",
+    "baseline_sha256": "26c7fec08b087f89a4c499c087b5483b991ebf8931fa1a812b11a6c892b9fa67",
+    "all_rows_unchanged": true,
+    "no_new_linux_candidate_required_for_this_builder_change": true
+  },
+  "linux_candidate": {
+    "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+    "version": "0.1.0-rc.7",
+    "arm_elf_sha256": "c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f",
+    "profile_sha256": "e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24",
+    "signed_candidate_unchanged": true,
+    "published": false,
+    "tested_I_freeze_sha256": "39fafd8684997a3414a6a530df50fd5b3796de91356f8a39bb55e0c3b10fa2be",
+    "freeze_unchanged": true,
+    "new_linux_candidate_created": false
+  },
+  "image": {
+    "url": "https://cloud-images.ubuntu.com/minimal/releases/stonking/release-20261105/ubuntu-26.10-minimal-cloudimg-arm64.img",
+    "bytes": 413204480,
+    "sha256": "bac15af78c37fec8e9474a9a784041c13ddb2603b9095435b7e4269e3faf3064",
+    "format": "qcow2",
+    "virtual_bytes": 4831838208,
+    "backing_file": null,
+    "encrypted": false,
+    "actual_bytes_verified": true,
+    "gpt_primary_backup_crc_and_entries_verified": true,
+    "bounded_sector_bytes": 46592,
+    "partitions": [
+      {
+        "index": 1,
+        "type_guid": "b921b045-1df0-41c3-af44-4c6f280d3fae",
+        "unique_guid": "5e000fe8-26bc-498c-8ec7-1c9e5560f455",
+        "first_lba": 2099200,
+        "last_lba": 9437150,
+        "offset": 1074790400,
+        "bytes": 3757030912,
+        "attributes": 0,
+        "name": "cloudimg-rootfs",
+        "filesystem": {
+          "kind": "ext4",
+          "magic": "53ef",
+          "state": 1,
+          "feature_compat": 4156,
+          "feature_incompat": 8898,
+          "feature_ro_compat": 1131,
+          "needs_recovery": false,
+          "last_orphan": 0,
+          "error_count": 0,
+          "block_size": 4096,
+          "uuid": "972de265-8b5b-492b-a604-176bda72d5b2",
+          "label": "cloudimg-rootfs"
+        }
+      },
+      {
+        "index": 13,
+        "type_guid": "bc13c2ff-59e6-4262-a352-b275fd6f7172",
+        "unique_guid": "8ba62687-752c-463f-9363-0a98a10e9951",
+        "first_lba": 206848,
+        "last_lba": 2097152,
+        "offset": 105906176,
+        "bytes": 967836160,
+        "attributes": 0,
+        "name": "",
+        "filesystem": {
+          "kind": "ext4",
+          "magic": "53ef",
+          "state": 1,
+          "feature_compat": 4156,
+          "feature_incompat": 8898,
+          "feature_ro_compat": 1131,
+          "needs_recovery": false,
+          "last_orphan": 0,
+          "error_count": 0,
+          "block_size": 4096,
+          "uuid": "8042c434-7095-4f73-b4d0-99d5e67fa4fe",
+          "label": "BOOT"
+        }
+      },
+      {
+        "index": 15,
+        "type_guid": "c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
+        "unique_guid": "9c8f3919-0066-4d9c-b3eb-69d278b1e816",
+        "first_lba": 2048,
+        "last_lba": 204800,
+        "offset": 1048576,
+        "bytes": 103809536,
+        "attributes": 0,
+        "name": "",
+        "filesystem": {
+          "kind": "FAT",
+          "bytes_per_sector": 512,
+          "type_label": "FAT32"
+        }
+      }
+    ],
+    "image_generation_unchanged_after_inspection": true,
+    "full_filesystem_check": false,
+    "booted": false
+  },
+  "authentication": {
+    "cloud_fingerprint": "D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81",
+    "archive_fingerprint": "F6ECB3762474EDA9D21B7022871920D1991BC93C",
+    "image_manifest_sha256": "fa24afca89f1a8d737819df8f6eb25f728a902364ca6aadfa13d67dcee7dd5ef",
+    "kernel_in_authenticated_manifest": "7.3.0-10.10",
+    "snapshot_id": "20261106T000000Z",
+    "snapshot_url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z",
+    "suites": [
+      "stonking",
+      "stonking-updates",
+      "stonking-security"
+    ],
+    "six_index_sha512_verified": [
+      {
+        "suite": "stonking",
+        "component": "main",
+        "index_bytes": 991592,
+        "index_sha512": "1d3d92d823a4a8b26c820a5e22e22b77443c2052d5c19831923592e0d64c874d525f6207efd1b6d3a21d17cf389989b49d8a94d72081fc59e93f8b9a99602964",
+        "expanded_bytes": 6520091
+      },
+      {
+        "suite": "stonking",
+        "component": "universe",
+        "index_bytes": 11085928,
+        "index_sha512": "4286152b533881c42a2736e6e49a0bf05b6af8f6da0a27fb67e06d6d6212b3d17da3310bb485216088342268a1b4a3eac6666e4a082df5e3a87e75ca32d08edf",
+        "expanded_bytes": 67962155
+      },
+      {
+        "suite": "stonking-updates",
+        "component": "main",
+        "index_bytes": 76652,
+        "index_sha512": "0afc30c9cfae2710b267d75581fd262f659c4406aff1df2cc69a922fb39b8399ec663be131b288d451bbdf3f0f4755d7c0ecb2f01c46d7e6ef539f5a4e320221",
+        "expanded_bytes": 515311
+      },
+      {
+        "suite": "stonking-updates",
+        "component": "universe",
+        "index_bytes": 13476,
+        "index_sha512": "fad05c731fadf74e7a88274a8cbf80f754fd0e67d1197d7f22374fde9f80f085047dfcb0e012c93e28bcf304b11d2c06fde74e824709dd0e4a38ddd7dde1dfea",
+        "expanded_bytes": 65440
+      },
+      {
+        "suite": "stonking-security",
+        "component": "main",
+        "index_bytes": 68776,
+        "index_sha512": "0cfa7820b3e8c16cd58fb813f25eab976da16dab3fcc0bb79f7cca154b31b92e4fc4a140b68aa40f7fa014e22472194122aa087756b7a112901fdf42b0d3d92e",
+        "expanded_bytes": 458601
+      },
+      {
+        "suite": "stonking-security",
+        "component": "universe",
+        "index_bytes": 13476,
+        "index_sha512": "fad05c731fadf74e7a88274a8cbf80f754fd0e67d1197d7f22374fde9f80f085047dfcb0e012c93e28bcf304b11d2c06fde74e824709dd0e4a38ddd7dde1dfea",
+        "expanded_bytes": 65440
+      }
+    ],
+    "isolated_keyring_only": true,
+    "system_trust_modified": false
+  },
+  "package_candidates": [
+    {
+      "Package": "bubblewrap",
+      "Version": "0.12.0-1",
+      "Architecture": "arm64",
+      "Filename": "pool/main/b/bubblewrap/bubblewrap_0.12.0-1_arm64.deb",
+      "Size": "50400",
+      "SHA512": "7c596ffafa7e409b75f5e3238647b49683a22d3e897088847aed2603f1ea21cf1dde6fb208bd99730097ff3b843143d682d219538f4073a6c7078cc5bcb6d9d1",
+      "Depends": "libc6 (>= 2.38), libcap2 (>= 1:2.10), libselinux1 (>= 3.1~)"
+    },
+    {
+      "Package": "dbus-user-session",
+      "Version": "1.16.2-5ubuntu2",
+      "Architecture": "arm64",
+      "Filename": "pool/main/d/dbus/dbus-user-session_1.16.2-5ubuntu2_arm64.deb",
+      "Size": "50246",
+      "SHA512": "77e7ccab720fcccf370fd7608f3167689a8272e1992870ab964302de164d4ee2606425e2d57046eafd6bf3d17395f9f7d2018e61616fa7ace0380412957644be",
+      "Depends": "dbus-broker | dbus-daemon (= 1.16.2-5ubuntu2), dbus-session-bus-common (>= 1.16.2-5ubuntu2), libpam-systemd, systemd"
+    }
+  ],
+  "dbus_selection": {
+    "authenticated_payload_count": 4,
+    "authenticated_payload_bytes": 366464,
+    "packages": [
+      {
+        "package": "dbus-broker",
+        "version": "37-5ubuntu5",
+        "bytes": 152082,
+        "sha512": "2d7bbfbe56794c7edf6f7506905e9f7c7c76d492f2a9ae30f6b05002551069998fafe7f4c253ee62cbff8f03743d2e48df2a5bf178f6acf6eb57c3cb5f6d5564",
+        "url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z/pool/main/d/dbus-broker/dbus-broker_37-5ubuntu5_arm64.deb"
+      },
+      {
+        "package": "dbus-session-bus-common",
+        "version": "1.16.2-5ubuntu2",
+        "bytes": 50308,
+        "sha512": "8cdbf5871de9628d8083fae2c18dfb66916e00863ab8c938be0975e7ac423e514a9d938807586ce45bd7a260bec0ad71a97db819e93c8a18e397c3540236498d",
+        "url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z/pool/main/d/dbus/dbus-session-bus-common_1.16.2-5ubuntu2_all.deb"
+      },
+      {
+        "package": "dbus-user-session",
+        "version": "1.16.2-5ubuntu2",
+        "bytes": 50246,
+        "sha512": "77e7ccab720fcccf370fd7608f3167689a8272e1992870ab964302de164d4ee2606425e2d57046eafd6bf3d17395f9f7d2018e61616fa7ace0380412957644be",
+        "url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z/pool/main/d/dbus/dbus-user-session_1.16.2-5ubuntu2_arm64.deb"
+      },
+      {
+        "package": "dbus-daemon",
+        "version": "1.16.2-5ubuntu2",
+        "bytes": 113828,
+        "sha512": "d520b94de2b2413827f297b1f20b2539d247d4ee4097948c68beb09225ffa11d06166ebf385c4a0b78bae26669384efda598a389ec93180bb7efed1c5bdf0326",
+        "url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z/pool/universe/d/dbus/dbus-daemon_1.16.2-5ubuntu2_arm64.deb"
+      }
+    ],
+    "broker_alias_and_daemon_unit_metadata_verified": true,
+    "builder_explicitly_selects_global_user_daemon_before_new_manager": true,
+    "effective_unit_and_stable_pid_birth_executable_argv_four_uids_checked_before_controller": true,
+    "system_bus_provider_unchanged": true,
+    "guest_infrastructure_policy_unchanged": true,
+    "actual_provider_failure_observed": false,
+    "independent_operational_review": {
+      "outcome": "PASS",
+      "checks": 13,
+      "focused_provider_tests": 9,
+      "source_sha256_unchanged": true,
+      "review_sha256": "336ce716eebbddde3b5d9bd9167452f5847ffe73664fa66964b899e4323287f9"
+    },
+    "reference_format_observation": {
+      "outcome": "PASS_ACTUAL_FORMAT",
+      "sha256": "b23d005a8f21050227849232238053b64d7c6eb7bfac9629838fbcf8063f612d",
+      "existing_reference_user_bus_only": true,
+      "show_only_no_start_reload_or_selection": true,
+      "no_process_reads": true,
+      "frozen_parser_accepted_unmodified_properties": true,
+      "new_image_qualification": false
+    }
+  },
+  "builder_guards": {
+    "coherent_stonking_snapshot_stanza": true,
+    "unexpected_standard_APT_sources_refused_before_update": true,
+    "APT_guard_scope": "Only /etc/apt/sources.list and direct .list/.sources files in sources.list.d; no arbitrary apt.conf/hooks policy.",
+    "APT_guard_limits": {
+      "directory_entries": 64,
+      "recognized_files": 64,
+      "per_file_bytes": 65536,
+      "total_bytes": 1048576
+    },
+    "original_signature_profile_catalog_native_guards_preserved": true,
+    "command_timeout_seconds": 30,
+    "systemctl_accepted_output_bytes_each_stream": 16384,
+    "hard_pipe_allocation_cap": false
+  },
+  "source_validation": {
+    "normal": {
+      "tests": 34,
+      "passed": 34,
+      "skipped": 0,
+      "test_seconds": 2.323
+    },
+    "optimized": {
+      "tests": 34,
+      "passed": 34,
+      "skipped": 0,
+      "test_seconds": 2.534
+    },
+    "independent_source_checks": 34,
+    "independent_public_prerequisite_checks": 49,
+    "new_tests_execute_real_systemctl": false
+  },
+  "capacity": {
+    "measured_comparable_image_start_floor_bytes": 16643129344,
+    "measured_combined_image_package_installer_floor_bytes": 21589106688,
+    "required_reserve_bytes": 12884901888,
+    "validation_observed_primary_free_bytes": 14781452288,
+    "combined_model_satisfied_at_observation": false,
+    "external_storage_route_approved": false
+  },
+  "historical_scope_preserved": {
+    "API_lanes": 14,
+    "strict_pass": 8,
+    "strict_fail": 6,
+    "OAuth": "deferred",
+    "native_macos_ES": "pending",
+    "notarization": "pending",
+    "historical_failures_relabelled": false
+  },
+  "qualification": {
+    "new_guest_image_prepared": false,
+    "boot_userland_compatibility": false,
+    "dependency_resolution_or_installation": false,
+    "managed_native_v3_guest_image": false,
+    "fresh_component_proof_admission": false,
+    "installed_Mac_runtime": false,
+    "production_release": false
+  },
+  "retention_scope": "Selected small authority/result/source records only. Large public image/index/package bytes, original command outputs and observer refusals remain retained in their original task locations. No full raw replay bundle or binary payload is duplicated here.",
+  "proof": {
+    "proof/authentication-review.json": {
+      "sha256": "21879184fec414614f6cae0b41b34a004e6fd660adaa68fb44af91130354258a",
+      "bytes": 12338,
+      "mode": "0o644"
+    },
+    "proof/authentication-verification.json": {
+      "sha256": "d1242fd99d90215c7518113c28d3eb4d5faccb927d78acbd98c03bc66dfa2d6b",
+      "bytes": 17865,
+      "mode": "0o644"
+    },
+    "proof/image-manifest.txt": {
+      "sha256": "fa24afca89f1a8d737819df8f6eb25f728a902364ca6aadfa13d67dcee7dd5ef",
+      "bytes": 8236,
+      "mode": "0o644"
+    },
+    "proof/image-layout-review.json": {
+      "sha256": "7f195d6070b528e714b648f55773453803cff6d581afed7a9171413633482771",
+      "bytes": 28140,
+      "mode": "0o644"
+    },
+    "proof/image-index-review.json": {
+      "sha256": "83b1e9b66116acc0eca68f298100961240b2fe936c5033e85cf49dca5b8544cc",
+      "bytes": 34116,
+      "mode": "0o644"
+    },
+    "proof/dbus-package-review.json": {
+      "sha256": "53cd27356c87e1c3216c1a417c872136130c95fca1df4a1eff6386c7dd8dc22e",
+      "bytes": 25725,
+      "mode": "0o644"
+    },
+    "proof/public-prerequisite-independent-review.json": {
+      "sha256": "cd99d1af1d81d96735f5300d43d7250e1ad80c41b07ca31b98ef0031bd89c7f1",
+      "bytes": 5181,
+      "mode": "0o644"
+    },
+    "proof/source-validation.json": {
+      "sha256": "8755df18c9d07ec54dd76207b64523dde43218ffa7fd0821c1555c7be2026c97",
+      "bytes": 3037,
+      "mode": "0o644"
+    },
+    "proof/source-independent-review.json": {
+      "sha256": "c22bb9d16076fa33e41b4db9908a49dbe25749758e8587996db7559c105aba74",
+      "bytes": 4300,
+      "mode": "0o644"
+    },
+    "proof/source-normal.log": {
+      "sha256": "9c95a5589e3e32d88e9dc98e6c23a6ddee60c0d59bde3c6d46bfee210a73fa11",
+      "bytes": 5563,
+      "mode": "0o644"
+    },
+    "proof/source-optimized.log": {
+      "sha256": "6b89f7b1c1f2b16c717e80e891ca4c5e89073356d865906384347f82b9297c0d",
+      "bytes": 5563,
+      "mode": "0o644"
+    },
+    "proof/provider-operational-review.json": {
+      "sha256": "336ce716eebbddde3b5d9bd9167452f5847ffe73664fa66964b899e4323287f9",
+      "bytes": 2831,
+      "mode": "0o644"
+    },
+    "proof/provider-format-observation.json": {
+      "sha256": "b23d005a8f21050227849232238053b64d7c6eb7bfac9629838fbcf8063f612d",
+      "bytes": 1720,
+      "mode": "0o644"
+    }
+  }
+}

@@ -513,6 +513,93 @@ mod tests {
     use super::*;
     use std::io::{Read as _, Write as _};
     use std::os::unix::net::UnixListener;
+    use std::time::{Duration, Instant};
+
+    /// How long a test waits on the bridge before it fails instead of
+    /// hanging the suite: a lost relay must be a failure that says where it
+    /// stopped, not a CI timeout (2026-11-04, macOS leg).
+    const PATIENCE: Duration = Duration::from_secs(20);
+
+    /// The stand-in proxy's next connection, or an error once `within` has
+    /// passed: a bridge that never connected fails the test, never hangs it.
+    fn accept_within(listener: &UnixListener, within: Duration) -> io::Result<UnixStream> {
+        listener.set_nonblocking(true)?;
+        let deadline = Instant::now() + within;
+        let accepted = loop {
+            match listener.accept() {
+                Ok((stream, _)) => break Ok(stream),
+                Err(error) if would_block(&error) && Instant::now() < deadline => {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(error) => break Err(error),
+            }
+        };
+        listener.set_nonblocking(false)?;
+        let stream = accepted?;
+        stream.set_nonblocking(false)?;
+        stream.set_read_timeout(Some(within))?;
+        stream.set_write_timeout(Some(within))?;
+        Ok(stream)
+    }
+
+    /// Reads real EOF within one monotonic budget. On macOS a blocking
+    /// SO_RCVTIMEO read can time out even though a half-close was successfully
+    /// sent much earlier and POLLIN|POLLHUP plus read(0) are already available.
+    /// Polling a nonblocking peer avoids that missed blocking-read wakeup;
+    /// neither the payload length nor a timeout stands in for EOF.
+    fn read_to_eof_within(
+        stream: &mut UnixStream,
+        bytes: &mut Vec<u8>,
+        within: Duration,
+    ) -> io::Result<()> {
+        stream.set_nonblocking(true)?;
+        let deadline = Instant::now() + within;
+        let result = (|| {
+            let mut buffer = [0u8; BUFFER];
+            loop {
+                if Instant::now() >= deadline {
+                    return Err(io::ErrorKind::TimedOut.into());
+                }
+                match stream.read(&mut buffer) {
+                    Ok(0) => return Ok(()),
+                    Ok(count) => {
+                        bytes.extend_from_slice(&buffer[..count]);
+                        continue;
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
+                    Err(error) => return Err(error),
+                }
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                match crate::sys::poll(&[Some((stream.as_fd(), libc::POLLIN))], Some(remaining)) {
+                    Ok(events) if events[0] & libc::POLLNVAL != 0 => {
+                        return Err(io::ErrorKind::BrokenPipe.into());
+                    }
+                    Ok(_) => {}
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                    Err(error) => return Err(error),
+                }
+            }
+        })();
+        let restored = stream.set_nonblocking(false);
+        result.and(restored)
+    }
+
+    #[test]
+    fn a_complete_payload_without_half_close_still_times_out() {
+        let (mut peer, mut reader) = UnixStream::pair().unwrap();
+        let payload = b"all request bytes, but no EOF";
+        peer.write_all(payload).unwrap();
+        let mut received = Vec::new();
+        let error =
+            read_to_eof_within(&mut reader, &mut received, Duration::from_millis(30)).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+        assert_eq!(received, payload);
+        // Only an actual half-close satisfies the same reader afterward.
+        peer.shutdown(Shutdown::Write).unwrap();
+        read_to_eof_within(&mut reader, &mut received, PATIENCE).unwrap();
+        assert_eq!(received, payload);
+    }
 
     /// A bridge on an ephemeral loopback port, relaying to a Unix listener
     /// this test owns, on a thread that lives for the test process; with the
@@ -533,6 +620,9 @@ mod tests {
             serve(&listener, &|| UnixStream::connect(&path), &|| {
                 count.fetch_add(1, Ordering::SeqCst);
             });
+            // `serve` returns only when its poll fails: say so, or a test
+            // waiting on this bridge could not tell why nothing arrived.
+            panic!("the test bridge's serve loop returned: its poll failed");
         });
         (address, rejected)
     }
@@ -566,6 +656,7 @@ mod tests {
                 },
                 true,
             );
+            panic!("the test vault bridge's serve loop returned: its poll failed");
         });
         (connects, rejected)
     }
@@ -633,20 +724,37 @@ mod tests {
         let path = dir.path().join("proxy.sock");
         let upstream = UnixListener::bind(&path).unwrap();
         let (address, _) = bridge_to(path);
-        let server = std::thread::spawn(move || {
-            let (mut stream, _) = upstream.accept().unwrap();
+        let server = std::thread::spawn(move || -> Result<(), String> {
+            let mut stream = accept_within(&upstream, PATIENCE)
+                .map_err(|error| format!("the bridge never connected to the proxy: {error}"))?;
             let mut request = Vec::new();
-            stream.read_to_end(&mut request).unwrap();
-            stream.write_all(b"reply:").unwrap();
-            stream.write_all(&request).unwrap();
+            read_to_eof_within(&mut stream, &mut request, PATIENCE).map_err(|error| {
+                format!(
+                    "the proxy got {} bytes and no half-close: {error}",
+                    request.len()
+                )
+            })?;
+            stream
+                .write_all(b"reply:")
+                .and_then(|()| stream.write_all(&request))
+                .map_err(|error| format!("the proxy could not reply: {error}"))
         });
         let mut client = TcpStream::connect(address).unwrap();
+        // Longer than the proxy's own patience, so its account comes first.
+        client.set_read_timeout(Some(2 * PATIENCE)).unwrap();
+        client.set_write_timeout(Some(2 * PATIENCE)).unwrap();
         let payload = vec![7u8; 3 * BUFFER + 11];
         client.write_all(&payload).unwrap();
         client.shutdown(Shutdown::Write).unwrap();
         let mut reply = Vec::new();
-        client.read_to_end(&mut reply).unwrap();
-        server.join().unwrap();
+        let read = client.read_to_end(&mut reply);
+        server
+            .join()
+            .expect("the stand-in proxy did not panic")
+            .unwrap();
+        read.unwrap_or_else(|error| {
+            panic!("the client got {} bytes and no EOF: {error}", reply.len())
+        });
         assert_eq!(&reply[..6], b"reply:");
         assert_eq!(&reply[6..], &payload[..]);
     }

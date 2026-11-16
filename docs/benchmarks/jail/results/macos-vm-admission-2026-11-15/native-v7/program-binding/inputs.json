@@ -1,0 +1,1584 @@
+{
+  "schema": "ukai.vm.program-binding-inputs/1",
+  "argv": [
+    "/usr/bin/python3",
+    "-I",
+    "-c",
+    "import hashlib,json,os,re,stat,subprocess,sys,urllib.error,urllib.request\nCOPY='program-binding-copy'\nORIGIN='http://192.168.1.6:50117'\nCHILD=\"import json,os,urllib.error,urllib.request\\nrequest=urllib.request.Request('http://192.168.1.6:50117'+'/other',headers={'x-test-token':os.environ['AGENT_TOKEN']})\\ntry:\\n    with urllib.request.urlopen(request,timeout=10) as response:\\n        result={'status':response.status,'reason':None}\\nexcept urllib.error.HTTPError as error:\\n    result={'status':error.code,'reason':error.headers.get('X-Ukai-Proxy-Reason')}\\nprint(json.dumps(result,sort_keys=True))\\n\"\nout={}\ncreated=False\ndef identity(info): return {'device':info.st_dev,'inode':info.st_ino,'size':info.st_size}\ntry:\n    token=os.environ['AGENT_TOKEN']\n    out['placeholder']={'sha256':hashlib.sha256(token.encode()).hexdigest(),'bytes':len(token.encode()),\n                        'shape':re.fullmatch(r'vault:att_[0-9a-f-]+:test',token) is not None}\n    with urllib.request.urlopen(urllib.request.Request(ORIGIN+'/own',headers={'x-test-token':token}),timeout=10) as response:\n        out['own']={'status':response.status,'body_ok':response.read(16)==b'accepted'}\n    source=os.open('/proc/self/exe',os.O_RDONLY)\n    try:\n        before=os.fstat(source)\n        if not stat.S_ISREG(before.st_mode) or not 0<before.st_size<=32*1024*1024: raise ValueError()\n        target=os.open(COPY,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o700)\n        created=True\n        digest=hashlib.sha256(); size=0\n        with os.fdopen(target,'wb') as output:\n            while data:=os.read(source,1024*1024):\n                size+=len(data)\n                if size>32*1024*1024: raise ValueError()\n                digest.update(data);output.write(data)\n        after=os.fstat(source)\n        if identity(before)!=identity(after) or size!=before.st_size: raise ValueError()\n    finally: os.close(source)\n    other=os.stat(COPY,follow_symlinks=False)\n    with open(COPY,'rb') as stream: copied=hashlib.file_digest(stream,'sha256').hexdigest()\n    out['original']=identity(before);out['copy']=identity(other)\n    out['original_sha256']=digest.hexdigest();out['copy_sha256']=copied\n    done=subprocess.run([os.path.abspath(COPY),'-I','-c',CHILD],stdin=subprocess.DEVNULL,\n                        capture_output=True,text=True,timeout=15)\n    out['other_exit']=done.returncode;out['other']=json.loads(done.stdout)\n    out['other_stderr_empty']=done.stderr==''\nexcept Exception as error:\n    out['error_type']=type(error).__name__\nfinally:\n    if created:\n        try: os.unlink(COPY)\n        except OSError: out['cleanup_error']=True\n    out['copy_absent']=not os.path.lexists(COPY)\nprint('PROGRAM_BINDING '+json.dumps(out,sort_keys=True),flush=True)\nsys.exit(0 if 'error_type' not in out and 'cleanup_error' not in out else 1)\n"
+  ],
+  "launch_toml": "name = \"program-binding-measurement\"\njail = \"agent\"\ncredentials_one_of = [\"test\"]\n[credentials.test]\nmode = \"vault\"\nsource = \"/run/ukai-vm/credentials/test\"\nenv = \"AGENT_TOKEN\"\nhosts = [\"http://192.168.1.6:50117\"]\nallow_plaintext = true\nheader = { name = \"x-test-token\" }\nbinaries = [\"@program\"]\n[network]\nallow = [\"192.168.1.6:50117\"]\n",
+  "upstream": {
+    "address": "192.168.1.6",
+    "port": 50117
+  },
+  "identity_before": {
+    "home": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-Q-44b5ac4fa/prefix with spaces/share/ukai-vm/0.1.0-preview.2",
+    "image_manifest_sha256": "a9f0bcc9ef47aba98cdb0dae0f18c830b8a42d7878aa1a3409f05cd0906b6f23",
+    "image_manifest_json": "{\n  \"schema\": \"ukai.vm.image-build/1\",\n  \"status\": \"prepared\",\n  \"image_url\": \"https://cloud-images.ubuntu.com/minimal/releases/stonking/release-20261105/ubuntu-26.10-minimal-cloudimg-arm64.img\",\n  \"image_sha256\": \"bac15af78c37fec8e9474a9a784041c13ddb2603b9095435b7e4269e3faf3064\",\n  \"jail_url\": null,\n  \"jail_archive_sha256\": \"15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6\",\n  \"apt_snapshot\": \"20261106T000000Z\",\n  \"apt_snapshot_url\": \"https://snapshot.ubuntu.com/ubuntu/20261106T000000Z\",\n  \"source_sha256\": {\n    \"guest.py\": \"cc5fe7d00d4eafd6dbba2c5140d7589c7b40d8f42ce2ca3537d9fd5dde2013ba\",\n    \"guest_program.py\": \"706d490f6faa459d657def6c0f1ced96ac2e79855d2e3253e39f507dea653758\",\n    \"guest_exposure.py\": \"19339c71d18d93ec32b00509360c01f7cb9fe3ec0d0d432c858432822d578a0b\",\n    \"guest_exposure_control.py\": \"1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f\",\n    \"vz.swift\": \"fb1ef83cdb8b74abf7855375dbfd0d5be8cbaa80b89cb53ff2b41cd0ee203ab6\",\n    \"custodian.c\": \"d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab\",\n    \"prepare.py\": \"b3967a84f54b3f1c469b75a482b62dfe90542ab2a05bde9b178678d72bc20739\"\n  },\n  \"jail_candidate\": {\n    \"kind\": \"signed-local-candidate\",\n    \"signature_verified\": true,\n    \"verifier\": \"publish_release.check\",\n    \"trusted_key\": \"crates/ukai-jail/dist/release.pub\",\n    \"trusted_key_sha256\": \"218b3005a943bf9641f42ece53e6a3ee2a8b3a12510db04d26477abefc8cfbd1\",\n    \"target\": \"aarch64-unknown-linux-gnu\",\n    \"release\": \"0.1.0-rc.7\",\n    \"tag\": \"ukai-jail-v0.1.0-rc.7\",\n    \"source_revision\": \"0be9d1e820b0d47493883053253491bbd2196ba3\",\n    \"build_inputs\": \"sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae\",\n    \"archive\": \"ukai-jail-0.1.0-rc.7-aarch64-unknown-linux-gnu.tar.gz\",\n    \"archive_sha256\": \"15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6\",\n    \"binary_sha256\": \"c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f\",\n    \"version\": {\n      \"build\": {\n        \"debug_assertions\": false,\n        \"dirty\": false,\n        \"inputs\": \"sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae\",\n        \"opt_level\": \"3\",\n        \"revision\": \"0be9d1e820b0d47493883053253491bbd2196ba3\",\n        \"rustc\": \"rustc 1.98.1 (48a229cea 2026-09-01)\",\n        \"target\": \"aarch64-unknown-linux-gnu\"\n      },\n      \"component\": \"ukai-jail\",\n      \"frozen\": true,\n      \"observation\": {\n        \"closed_set\": \"linux-closed-v1\"\n      },\n      \"platform\": {\n        \"arch\": \"aarch64\",\n        \"kernel\": \"Linux 7.0.0-1017-azure\",\n        \"os\": \"linux\"\n      },\n      \"schemas\": {\n        \"control\": \"ukai.jail.control/1\",\n        \"doctor\": \"ukai.jail.doctor/1\",\n        \"event\": \"ukai.event/1\",\n        \"gate\": \"ukai.jail.gate/1\",\n        \"learned_policy\": \"ukai.jail.learned-policy/1\",\n        \"network\": \"ukai.jail.network/1\",\n        \"policy\": \"ukai.jail.policy/1\",\n        \"policy_file\": \"ukai.jail.policy-file/1\",\n        \"policy_snapshot\": \"ukai.jail.policy-snapshot/1\",\n        \"receipt\": \"ukai.jail.receipt/1\",\n        \"summary\": \"ukai.jail.summary/1\"\n      },\n      \"version\": \"0.1.0\"\n    },\n    \"retained_directory\": \"cache/signed-jail-candidate\",\n    \"verified_assets_sha256\": {\n      \"RELEASE_NOTES.md\": \"2f431194c09aac228d55532c2d6a00c9e50af7d3781dd39e2cfce09a878c4907\",\n      \"SHA256SUMS\": \"3d4a3bafb239fb8719b90ed33334438c9b68b90184efeedd005d4a7d33053d51\",\n      \"SHA256SUMS.minisig\": \"cf36ceec8dbc6aae5adf2bc326cfdf98dcf79e80f6b8ed2aa87a15e3959f20ee\",\n      \"bootstrap.sh\": \"f7a1aa423f8f87d9bb4b50e9a9d7c4716a336ef30a259d793c1b7cdb67bfb4bb\",\n      \"install.sh\": \"9c49ea8a0d7c2633b446d1912d9def945bb10dad325de6542320dd185a13f012\",\n      \"release-plan.json\": \"3b469443904b059a1b090b6823e5829df203e52c77b0cb393f03c87a45f933c0\",\n      \"ukai-jail-0.1.0-rc.7-aarch64-unknown-linux-gnu.tar.gz\": \"15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6\",\n      \"ukai-jail-0.1.0-rc.7-x86_64-unknown-linux-gnu.tar.gz\": \"a9eb6b07b4925cc3828fa2a264cbc5d0208aea1b1ed2929f67ec0d5f1436c7a1\"\n    },\n    \"publication\": \"local input verification only; no publication performed\"\n  },\n  \"guest_program_catalog_sha256\": \"53de4dff6cc76d8bdfe9cf7939a76313ffec1106c3f6f76ab5d74c4c16f5fc06\",\n  \"guest_program_inputs\": {\n    \"id\": \"claude-2.1.311-linux-arm64\",\n    \"version\": \"2.1.311\",\n    \"executable_sha256\": \"2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3\",\n    \"executable_size\": 293658808,\n    \"profile_sha256\": \"e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24\",\n    \"guest_jail_sha256\": \"c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f\"\n  },\n  \"guest_exposure_control\": {\n    \"actual_values_retained\": false,\n    \"control_source_sha256\": \"1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f\",\n    \"errors\": [],\n    \"facts\": {\n      \"argv_canary_detected\": true,\n      \"environment_canary_detected\": true,\n      \"only_owned_child_observed\": true,\n      \"owned_child_reaped\": true,\n      \"sampler_source_unchanged\": true,\n      \"verified_program_argv_read\": true,\n      \"verified_program_environment_read\": true\n    },\n    \"guest_boot_id\": \"2340931a-b39b-4de9-a9bf-f189fb61a842\",\n    \"guest_kernel\": \"7.3.0-10-generic\",\n    \"jail_execution_claimed\": false,\n    \"passed\": true,\n    \"process\": {\n      \"executable_dev\": 64769,\n      \"executable_ino\": 1287,\n      \"pid\": 888,\n      \"starttime\": 11818\n    },\n    \"sampler_sha256\": \"19339c71d18d93ec32b00509360c01f7cb9fe3ec0d0d432c858432822d578a0b\",\n    \"sampling\": {\n      \"scan_errors\": {},\n      \"ticks\": 1,\n      \"verified_program_reads\": {\n        \"argv\": {\n          \"capped\": 0,\n          \"oversize\": 0,\n          \"readable\": 1,\n          \"unreadable\": 0,\n          \"unstable\": 0,\n          \"vanished\": 0\n        },\n        \"environment\": {\n          \"capped\": 0,\n          \"oversize\": 0,\n          \"readable\": 1,\n          \"unreadable\": 0,\n          \"unstable\": 0,\n          \"vanished\": 0\n        }\n      }\n    },\n    \"schema\": \"ukai.vm.sampled-exposure-control/1\",\n    \"scope\": \"owned-public-canary-process-detector-control\"\n  },\n  \"guest_exposure_control_sha256\": \"1873038356957e97451b21b00f5b505e38055521ea33ef01ec33a285b6daae9a\",\n  \"guest_pinned_versions\": [\n    \"bubblewrap=0.12.0-1\",\n    \"dbus-daemon=1.16.2-5ubuntu2\",\n    \"dbus-user-session=1.16.2-5ubuntu2\"\n  ],\n  \"guest_pinned_digest\": \"60ce89c267b3cb6c03b2669195387c870a35ab672f9093f5d86dce6f37517ca7\",\n  \"disk_sha256\": \"7008344b64f7d9f5fed9492e11f4a94579a2ad701472a8ed915ee323b357174e\",\n  \"helper_sha256\": \"9b0a5b8fc8e972b92b44c6c244aa87f5c1d3a799c8f360c1972474b4b167f882\",\n  \"custodian_sha256\": \"d4140527cbde5fbce84c7e48c67093e35d8400b0d9fc9c23f0f3825dc475d4ce\",\n  \"seed_sha256\": \"fab538c6530dccfe062da428b663709162c29de5f0959b6e20c36e0ba964ffc7\",\n  \"preview_version\": \"0.1.0-preview.2\",\n  \"host_minimum\": \"macOS 27; Apple Silicon\",\n  \"ukai_vm_sha256\": \"4f0466084311b9e886c6a7dc80a3973d7f144d4e88367729999ef6f022dfbd31\",\n  \"ukai_jail_sha256\": \"9414dc35706651768b369fbec58cee320b95bdec0f6ef01cc0c649327d439fe7\",\n  \"ukai_jail_version\": {\n    \"component\": \"ukai-jail\",\n    \"version\": \"0.1.0\",\n    \"build\": {\n      \"debug_assertions\": false,\n      \"dirty\": false,\n      \"inputs\": \"sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae\",\n      \"opt_level\": \"3\",\n      \"revision\": \"44b5ac4fa65880abe369652ed0110162088a0cd9\",\n      \"rustc\": \"rustc 1.98.1 (48a229cea 2026-09-01)\",\n      \"target\": \"aarch64-apple-darwin\"\n    }\n  },\n  \"compressed_disk_sha256\": \"34e0c6c28c827cc9fb25b30fc58f7243de482c5523b5823a8c1196df71db6c28\",\n  \"source_revision\": \"44b5ac4fa65880abe369652ed0110162088a0cd9\",\n  \"source_archive_sha256\": \"d372af085a81aebc910c4c742130cff3a19aa3aeaaf53314d90578cb70a41500\",\n  \"source_archive_files\": 976,\n  \"package_source_sha256\": {\n    \"GUEST-NATIVE.md\": \"700647db23d1e9e278a87de4316b0ff4ace15d34c8998519a7ce558273938936\",\n    \"K113.md\": \"d75694b51d6fe3b4e9b68d5612d0981ad01b9fee4a8c263dd53eb0832e781a87\",\n    \"PREVIEW.txt\": \"95cab2b79d835c1af2e8f4ea470d0731d06d00ec40685c6a571ee373d87d2206\",\n    \"README.md\": \"71a8d2ba60c0a216c3113951bc24a33d7bd0f46551176d64b2db5c12a786d668\",\n    \"capabilities.py\": \"f49038c154933d64497bd3ceb1b94d173fb711f506bd4cc39250ee07e43f86c5\",\n    \"check.py\": \"34ca4fd7c9bd5f3125394b45f36b4ce16d0e23333e3fbc4160578af5c56a7b22\",\n    \"check_install.py\": \"d1c4cdecf12d13f7b5a2f54c3b3db8d26a56d143d7a325ca96bdcd7efca1ef69\",\n    \"claude_vm_revocation.py\": \"c7553d63ef6b23056a4ec46a27a49a398eedcb47985442080d276769c5179df8\",\n    \"claude_vm_row.py\": \"9173de94979d24012683073d6161ad6aeb4a1095e5b3d8fe247db6de8acfb805\",\n    \"cli.py\": \"b5b8c1726ad8f667becb5f89f5dfb63691f470f2a339c0f726477faf4c9f9afb\",\n    \"credential_revocation_measurement.py\": \"117ca2da3d9572d75613a4a4048a82995d01d5f7691feeeeb65bb759883a9710\",\n    \"credential_staging_measurement.py\": \"d63f0c42e66440d02e1cace219fe482ba11f59060a5ac7744e6a3876a0f7b4a8\",\n    \"custodian.c\": \"d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab\",\n    \"docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/run-vm-cli/jail.json\": \"3ac5356bb1176e0145c171ddcb8fdeb96a35844ede91629ec7d0eee3ece904df\",\n    \"docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/run-vm-cli/vm-binding.json\": \"b85b85e8e1e2df480fde751c3495185dadebe6bbac65b0c13f044c0631c6d3b0\",\n    \"docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/run-vm-cli/vm-transport.json\": \"8864114435f9184eb917d5bcc72f317128a399f579d798e3cce58c21f175eeb0\",\n    \"entitlements.plist\": \"915e2b39357ecf8d211dc7fac43195c9cdcf55a0a1ecdbf931c116a4eac421f3\",\n    \"execution_boundary_measurement.py\": \"98087e09c93a54fc08effd2f365fc6b90034946206330ee75dc3c816c82024eb\",\n    \"fault_matrix.py\": \"99b359cfb368e5d4b978bc7eda4ca2bef1921feb0c2f3cafddd244dc2474b0cf\",\n    \"fixtures/guest-native-profile-inputs.json\": \"23916c8432ef203503b753baf5c38a3977a35cdc0c4082c02565d29dc324499f\",\n    \"fixtures/guest-program-catalog-vectors.json\": \"1d95c2b9e03f188ae6a7de4368225b5aecc95ba397a174a6f6e21ebd9a5a229e\",\n    \"fixtures/guest-program-catalog.json\": \"7d2537a8b780252d16303344c27957f3bc322290767d3d5f7b11cf27d8053d48\",\n    \"fixtures/managed-sampled-exposure.json\": \"9caf3a277bbd06cf63c91faf2af04eb9086848a52d0c6bab29edf1919b714823\",\n    \"fixtures/sampled-exposure-context.json\": \"f7eee64c6c458b1616a4a9e81b26ded7b9de321768c1f7793df27b0a79f8f6d6\",\n    \"fixtures/sampled-exposure-receipt.json\": \"b5be8a2fbfa5974acb76093f18fe97d93d01f9dc098a0c49fafc904d37ce1e58\",\n    \"fixtures/sampled-exposure-report.json\": \"69ec82eb3dd3cd74be8a2b02cb4773671d06ef42763cb98800eadc56b0cab464\",\n    \"gate_rows.py\": \"72729f44b66883de4d38cf18b4c60f7789f1fc5c8798acd65dd60d1d75007419\",\n    \"guest.py\": \"cc5fe7d00d4eafd6dbba2c5140d7589c7b40d8f42ce2ca3537d9fd5dde2013ba\",\n    \"guest_exposure.py\": \"19339c71d18d93ec32b00509360c01f7cb9fe3ec0d0d432c858432822d578a0b\",\n    \"guest_exposure_control.py\": \"1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f\",\n    \"guest_harness.py\": \"a89a4b9ecefbc5ca76bf0a2e0ec718b08f8a49ff93b34a8b3a1c35de47354764\",\n    \"guest_program.py\": \"706d490f6faa459d657def6c0f1ced96ac2e79855d2e3253e39f507dea653758\",\n    \"harness.py\": \"bfef94a3d631dcf54f0d4ef169546ad1ef0b9f9ca33ef942c35aa6580e8b8ccd\",\n    \"install.sh.in\": \"df5fddd7711fb76037b0a7a39e431f4638c14b2a0c9a0dd29be7abe053e63654\",\n    \"notarize.py\": \"b94bb2f6f5ceba8684625ba7dd47f95201f5ef0fd8e77beda6d8bbdff7666f19\",\n    \"package.py\": \"156f7d0f794b01e20782da2a876374e804c8b2f3416e25d355942d18f969de73\",\n    \"prepare.py\": \"b3967a84f54b3f1c469b75a482b62dfe90542ab2a05bde9b178678d72bc20739\",\n    \"program_binding_measurement.py\": \"a335a1bb70663b99edf06391baad42c13977bdfbe05310057e92ebe458b4bce5\",\n    \"proxy_measurement.py\": \"3a3ad00065a492638528f7b11cc931d30a2780f06a5ca189fcdb1fbe955bf6ee\",\n    \"requirements-build.in\": \"4439c693c19271e4b0bdc56c641c36b3b06010b1b22eae6733cd244d752e85d5\",\n    \"requirements-build.txt\": \"15dcf9beb2127eb52cad1c700b040514242fa4a9da4a799cbde18ca0d362cb93\",\n    \"run.py\": \"4a68643b43950a80788d113feebb841f9ab90890735e235081041b123a835412\",\n    \"stream_peer.py\": \"8a082a0708833def269a54d55095f404e0ffa83b7b21643563bedfdc6d6a632f\",\n    \"test_attempt.py\": \"87882e2bd34ebfab878a8472e7c7881a1b042caf36155174cb799ecb38c97166\",\n    \"test_check_install.py\": \"646f352df143e48e02ac909f08f602a8d35016949936d73582ae2072603a6b77\",\n    \"test_claude_vm_compatibility.py\": \"ed921364604d0ae5b2563142f80d306b33c2514fedd3721f85d2a0c4174657ba\",\n    \"test_claude_vm_revocation.py\": \"4eeff7d152954193d00cbfe44bb865d7677c05c2b0a6f41661dfc0f4d3d27f79\",\n    \"test_coordinates.py\": \"f909fadfac1f687213b84aabd87337fe4660aa81cfec76eb171aa4a00f98480f\",\n    \"test_credential_revocation_measurement.py\": \"0d2f0f99d638751b52ad9def0526314f3d35c0ae19506d00d213a14f19162478\",\n    \"test_credential_staging_measurement.py\": \"fbb534488d4a46bf58dc4c15c770c66d7eac79f3bb62fc35ea3a5fe568d31cad\",\n    \"test_custodian.py\": \"313aea548b2935632c45b1a775f22a995787864005f44d890dfefbbd2ae78c93\",\n    \"test_execution_boundary_measurement.py\": \"5691d00c85d7cc7dca9bfba2ce101ae246a5d4a081adec0770cb87ddb824417f\",\n    \"test_guest_exposure.py\": \"d0244cd3f9d9c2d7983c98b078f53281f5c00e6c3bd644c201d22a4df3ffd197\",\n    \"test_guest_exposure_control.py\": \"f9af3417ee2997fe81f19eeab48430c8e1254cdf69614823a2915a77d85bdb6f\",\n    \"test_guest_gate.py\": \"fcdcde52295cfa81dd05dbe3458aed2c8fba39440526d39b546e3ccf251ae2f8\",\n    \"test_guest_journal.py\": \"f47ed06d763f926fb476dc4e5292b9e587f27f608fe8c1bbbfab4c71017e3a38\",\n    \"test_guest_main.py\": \"f49a642759a847860f502d81ec1c6e139d9ee3f9086950e8e9d911d3919790be\",\n    \"test_guest_managed.py\": \"e0ccaf141be592bb4fba04331931c568cee2fc968058d8039036f7220a09ff40\",\n    \"test_guest_native.py\": \"482596f6b189d30ad4c2888fcbd015f74e2ac08bcf4c50aa2863442e9f5de322\",\n    \"test_guest_program.py\": \"bdaba906a657f52765040b71a97066723fffcd13623230538e831410ca02f2ec\",\n    \"test_guest_revocation.py\": \"51fcef3c8fa2ab530dc2e48a95ee00c2bbdf835303234cfb5e65df545c1c9efa\",\n    \"test_guest_warm.py\": \"8ea38e0c1e450fe64dc4b721e4fa27a568e1a5fd7189f74e32361f0e434c8a5e\",\n    \"test_harness.py\": \"3c7404bdeb680592a9ec47362d10ce9eeb7e1cea6059654c38655746e4aa48cb\",\n    \"test_harness_rows.py\": \"2fc02a7f65d87a7d4db8efbdc05c06b8426cb86c67585fd8df5babb21662b8e8\",\n    \"test_image_catalog.py\": \"22e7138a0fc4deb67ec4b6ef45a3e4ee0b5859b4f05ff453208f44c8c9e0f721\",\n    \"test_notarize.py\": \"637440753b18a76e274888d5051da3e2e21a6d1c76856cccf50ee47fc0d8975d\",\n    \"test_package.py\": \"ba0e88f44f0bf0872dca17b662dc486b810f8ad8f7304910bd6254ace40677f9\",\n    \"test_prepare.py\": \"9a1e82aa4a4da79fb7495749ddad064b91d9be53f8e34d755c4f984c62019135\",\n    \"test_program_binding_measurement.py\": \"842c70dda4a8a79775d9d72bb932bbb8bddac23ea7a74a6fe4773dcab9135fc3\",\n    \"test_share.py\": \"05b7978a1f14a5ed1ee7cd0d5277d24871a6a3b66c9c23c4a765abe026e0f1e6\",\n    \"test_stream_peer.py\": \"c03cc20be6b7a5998696a7e2e93b9542a5c62fc842ac7c03d8773c0c8c2b6766\",\n    \"test_vm.py\": \"60bff82295e29b6dde75d4d51e7c21bf0467406374bea326bdce7314617acd68\",\n    \"test_vm_summary_check.py\": \"6d4a3f4cbf6e5309b0be6a257555ebdc12a6b272a5b73bf9972f42f5b004e5b1\",\n    \"test_warm_service.py\": \"4c7532f0361492d2b0b0c7d029c030c64abc7879337c6d355b3564d4ffa413af\",\n    \"vault_measurement.py\": \"7febfe5d834d9624e81d56d1d7e72a328b641a9c2feb98f6689164e55d6055f6\",\n    \"vm_summary_check.py\": \"ee75599e0f6cc5f3da23303e8c9fc858f34b595fb176f0588eaa300f67b7febe\",\n    \"vz.swift\": \"fb1ef83cdb8b74abf7855375dbfd0d5be8cbaa80b89cb53ff2b41cd0ee203ab6\",\n    \"warm_live.py\": \"09f7cd572890da4c06d55ce7e48171fa8ef0021e952991b03873f5d583564b83\"\n  },\n  \"guest_source_sha256\": \"cc5fe7d00d4eafd6dbba2c5140d7589c7b40d8f42ce2ca3537d9fd5dde2013ba\"\n}\n",
+    "image": {
+      "schema": "ukai.vm.image-build/1",
+      "status": "prepared",
+      "image_url": "https://cloud-images.ubuntu.com/minimal/releases/stonking/release-20261105/ubuntu-26.10-minimal-cloudimg-arm64.img",
+      "image_sha256": "bac15af78c37fec8e9474a9a784041c13ddb2603b9095435b7e4269e3faf3064",
+      "jail_url": null,
+      "jail_archive_sha256": "15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6",
+      "apt_snapshot": "20261106T000000Z",
+      "apt_snapshot_url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z",
+      "source_sha256": {
+        "guest.py": "cc5fe7d00d4eafd6dbba2c5140d7589c7b40d8f42ce2ca3537d9fd5dde2013ba",
+        "guest_program.py": "706d490f6faa459d657def6c0f1ced96ac2e79855d2e3253e39f507dea653758",
+        "guest_exposure.py": "19339c71d18d93ec32b00509360c01f7cb9fe3ec0d0d432c858432822d578a0b",
+        "guest_exposure_control.py": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f",
+        "vz.swift": "fb1ef83cdb8b74abf7855375dbfd0d5be8cbaa80b89cb53ff2b41cd0ee203ab6",
+        "custodian.c": "d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab",
+        "prepare.py": "b3967a84f54b3f1c469b75a482b62dfe90542ab2a05bde9b178678d72bc20739"
+      },
+      "jail_candidate": {
+        "kind": "signed-local-candidate",
+        "signature_verified": true,
+        "verifier": "publish_release.check",
+        "trusted_key": "crates/ukai-jail/dist/release.pub",
+        "trusted_key_sha256": "218b3005a943bf9641f42ece53e6a3ee2a8b3a12510db04d26477abefc8cfbd1",
+        "target": "aarch64-unknown-linux-gnu",
+        "release": "0.1.0-rc.7",
+        "tag": "ukai-jail-v0.1.0-rc.7",
+        "source_revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+        "build_inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+        "archive": "ukai-jail-0.1.0-rc.7-aarch64-unknown-linux-gnu.tar.gz",
+        "archive_sha256": "15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6",
+        "binary_sha256": "c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f",
+        "version": {
+          "build": {
+            "debug_assertions": false,
+            "dirty": false,
+            "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+            "opt_level": "3",
+            "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+            "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+            "target": "aarch64-unknown-linux-gnu"
+          },
+          "component": "ukai-jail",
+          "frozen": true,
+          "observation": {
+            "closed_set": "linux-closed-v1"
+          },
+          "platform": {
+            "arch": "aarch64",
+            "kernel": "Linux 7.0.0-1017-azure",
+            "os": "linux"
+          },
+          "schemas": {
+            "control": "ukai.jail.control/1",
+            "doctor": "ukai.jail.doctor/1",
+            "event": "ukai.event/1",
+            "gate": "ukai.jail.gate/1",
+            "learned_policy": "ukai.jail.learned-policy/1",
+            "network": "ukai.jail.network/1",
+            "policy": "ukai.jail.policy/1",
+            "policy_file": "ukai.jail.policy-file/1",
+            "policy_snapshot": "ukai.jail.policy-snapshot/1",
+            "receipt": "ukai.jail.receipt/1",
+            "summary": "ukai.jail.summary/1"
+          },
+          "version": "0.1.0"
+        },
+        "retained_directory": "cache/signed-jail-candidate",
+        "verified_assets_sha256": {
+          "RELEASE_NOTES.md": "2f431194c09aac228d55532c2d6a00c9e50af7d3781dd39e2cfce09a878c4907",
+          "SHA256SUMS": "3d4a3bafb239fb8719b90ed33334438c9b68b90184efeedd005d4a7d33053d51",
+          "SHA256SUMS.minisig": "cf36ceec8dbc6aae5adf2bc326cfdf98dcf79e80f6b8ed2aa87a15e3959f20ee",
+          "bootstrap.sh": "f7a1aa423f8f87d9bb4b50e9a9d7c4716a336ef30a259d793c1b7cdb67bfb4bb",
+          "install.sh": "9c49ea8a0d7c2633b446d1912d9def945bb10dad325de6542320dd185a13f012",
+          "release-plan.json": "3b469443904b059a1b090b6823e5829df203e52c77b0cb393f03c87a45f933c0",
+          "ukai-jail-0.1.0-rc.7-aarch64-unknown-linux-gnu.tar.gz": "15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6",
+          "ukai-jail-0.1.0-rc.7-x86_64-unknown-linux-gnu.tar.gz": "a9eb6b07b4925cc3828fa2a264cbc5d0208aea1b1ed2929f67ec0d5f1436c7a1"
+        },
+        "publication": "local input verification only; no publication performed"
+      },
+      "guest_program_catalog_sha256": "53de4dff6cc76d8bdfe9cf7939a76313ffec1106c3f6f76ab5d74c4c16f5fc06",
+      "guest_program_inputs": {
+        "id": "claude-2.1.311-linux-arm64",
+        "version": "2.1.311",
+        "executable_sha256": "2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3",
+        "executable_size": 293658808,
+        "profile_sha256": "e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24",
+        "guest_jail_sha256": "c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f"
+      },
+      "guest_exposure_control": {
+        "actual_values_retained": false,
+        "control_source_sha256": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f",
+        "errors": [],
+        "facts": {
+          "argv_canary_detected": true,
+          "environment_canary_detected": true,
+          "only_owned_child_observed": true,
+          "owned_child_reaped": true,
+          "sampler_source_unchanged": true,
+          "verified_program_argv_read": true,
+          "verified_program_environment_read": true
+        },
+        "guest_boot_id": "2340931a-b39b-4de9-a9bf-f189fb61a842",
+        "guest_kernel": "7.3.0-10-generic",
+        "jail_execution_claimed": false,
+        "passed": true,
+        "process": {
+          "executable_dev": 64769,
+          "executable_ino": 1287,
+          "pid": 888,
+          "starttime": 11818
+        },
+        "sampler_sha256": "19339c71d18d93ec32b00509360c01f7cb9fe3ec0d0d432c858432822d578a0b",
+        "sampling": {
+          "scan_errors": {},
+          "ticks": 1,
+          "verified_program_reads": {
+            "argv": {
+              "capped": 0,
+              "oversize": 0,
+              "readable": 1,
+              "unreadable": 0,
+              "unstable": 0,
+              "vanished": 0
+            },
+            "environment": {
+              "capped": 0,
+              "oversize": 0,
+              "readable": 1,
+              "unreadable": 0,
+              "unstable": 0,
+              "vanished": 0
+            }
+          }
+        },
+        "schema": "ukai.vm.sampled-exposure-control/1",
+        "scope": "owned-public-canary-process-detector-control"
+      },
+      "guest_exposure_control_sha256": "1873038356957e97451b21b00f5b505e38055521ea33ef01ec33a285b6daae9a",
+      "guest_pinned_versions": [
+        "bubblewrap=0.12.0-1",
+        "dbus-daemon=1.16.2-5ubuntu2",
+        "dbus-user-session=1.16.2-5ubuntu2"
+      ],
+      "guest_pinned_digest": "60ce89c267b3cb6c03b2669195387c870a35ab672f9093f5d86dce6f37517ca7",
+      "disk_sha256": "7008344b64f7d9f5fed9492e11f4a94579a2ad701472a8ed915ee323b357174e",
+      "helper_sha256": "9b0a5b8fc8e972b92b44c6c244aa87f5c1d3a799c8f360c1972474b4b167f882",
+      "custodian_sha256": "d4140527cbde5fbce84c7e48c67093e35d8400b0d9fc9c23f0f3825dc475d4ce",
+      "seed_sha256": "fab538c6530dccfe062da428b663709162c29de5f0959b6e20c36e0ba964ffc7",
+      "preview_version": "0.1.0-preview.2",
+      "host_minimum": "macOS 27; Apple Silicon",
+      "ukai_vm_sha256": "4f0466084311b9e886c6a7dc80a3973d7f144d4e88367729999ef6f022dfbd31",
+      "ukai_jail_sha256": "9414dc35706651768b369fbec58cee320b95bdec0f6ef01cc0c649327d439fe7",
+      "ukai_jail_version": {
+        "component": "ukai-jail",
+        "version": "0.1.0",
+        "build": {
+          "debug_assertions": false,
+          "dirty": false,
+          "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+          "opt_level": "3",
+          "revision": "44b5ac4fa65880abe369652ed0110162088a0cd9",
+          "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+          "target": "aarch64-apple-darwin"
+        }
+      },
+      "compressed_disk_sha256": "34e0c6c28c827cc9fb25b30fc58f7243de482c5523b5823a8c1196df71db6c28",
+      "source_revision": "44b5ac4fa65880abe369652ed0110162088a0cd9",
+      "source_archive_sha256": "d372af085a81aebc910c4c742130cff3a19aa3aeaaf53314d90578cb70a41500",
+      "source_archive_files": 976,
+      "package_source_sha256": {
+        "GUEST-NATIVE.md": "700647db23d1e9e278a87de4316b0ff4ace15d34c8998519a7ce558273938936",
+        "K113.md": "d75694b51d6fe3b4e9b68d5612d0981ad01b9fee4a8c263dd53eb0832e781a87",
+        "PREVIEW.txt": "95cab2b79d835c1af2e8f4ea470d0731d06d00ec40685c6a571ee373d87d2206",
+        "README.md": "71a8d2ba60c0a216c3113951bc24a33d7bd0f46551176d64b2db5c12a786d668",
+        "capabilities.py": "f49038c154933d64497bd3ceb1b94d173fb711f506bd4cc39250ee07e43f86c5",
+        "check.py": "34ca4fd7c9bd5f3125394b45f36b4ce16d0e23333e3fbc4160578af5c56a7b22",
+        "check_install.py": "d1c4cdecf12d13f7b5a2f54c3b3db8d26a56d143d7a325ca96bdcd7efca1ef69",
+        "claude_vm_revocation.py": "c7553d63ef6b23056a4ec46a27a49a398eedcb47985442080d276769c5179df8",
+        "claude_vm_row.py": "9173de94979d24012683073d6161ad6aeb4a1095e5b3d8fe247db6de8acfb805",
+        "cli.py": "b5b8c1726ad8f667becb5f89f5dfb63691f470f2a339c0f726477faf4c9f9afb",
+        "credential_revocation_measurement.py": "117ca2da3d9572d75613a4a4048a82995d01d5f7691feeeeb65bb759883a9710",
+        "credential_staging_measurement.py": "d63f0c42e66440d02e1cace219fe482ba11f59060a5ac7744e6a3876a0f7b4a8",
+        "custodian.c": "d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab",
+        "docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/run-vm-cli/jail.json": "3ac5356bb1176e0145c171ddcb8fdeb96a35844ede91629ec7d0eee3ece904df",
+        "docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/run-vm-cli/vm-binding.json": "b85b85e8e1e2df480fde751c3495185dadebe6bbac65b0c13f044c0631c6d3b0",
+        "docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/run-vm-cli/vm-transport.json": "8864114435f9184eb917d5bcc72f317128a399f579d798e3cce58c21f175eeb0",
+        "entitlements.plist": "915e2b39357ecf8d211dc7fac43195c9cdcf55a0a1ecdbf931c116a4eac421f3",
+        "execution_boundary_measurement.py": "98087e09c93a54fc08effd2f365fc6b90034946206330ee75dc3c816c82024eb",
+        "fault_matrix.py": "99b359cfb368e5d4b978bc7eda4ca2bef1921feb0c2f3cafddd244dc2474b0cf",
+        "fixtures/guest-native-profile-inputs.json": "23916c8432ef203503b753baf5c38a3977a35cdc0c4082c02565d29dc324499f",
+        "fixtures/guest-program-catalog-vectors.json": "1d95c2b9e03f188ae6a7de4368225b5aecc95ba397a174a6f6e21ebd9a5a229e",
+        "fixtures/guest-program-catalog.json": "7d2537a8b780252d16303344c27957f3bc322290767d3d5f7b11cf27d8053d48",
+        "fixtures/managed-sampled-exposure.json": "9caf3a277bbd06cf63c91faf2af04eb9086848a52d0c6bab29edf1919b714823",
+        "fixtures/sampled-exposure-context.json": "f7eee64c6c458b1616a4a9e81b26ded7b9de321768c1f7793df27b0a79f8f6d6",
+        "fixtures/sampled-exposure-receipt.json": "b5be8a2fbfa5974acb76093f18fe97d93d01f9dc098a0c49fafc904d37ce1e58",
+        "fixtures/sampled-exposure-report.json": "69ec82eb3dd3cd74be8a2b02cb4773671d06ef42763cb98800eadc56b0cab464",
+        "gate_rows.py": "72729f44b66883de4d38cf18b4c60f7789f1fc5c8798acd65dd60d1d75007419",
+        "guest.py": "cc5fe7d00d4eafd6dbba2c5140d7589c7b40d8f42ce2ca3537d9fd5dde2013ba",
+        "guest_exposure.py": "19339c71d18d93ec32b00509360c01f7cb9fe3ec0d0d432c858432822d578a0b",
+        "guest_exposure_control.py": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f",
+        "guest_harness.py": "a89a4b9ecefbc5ca76bf0a2e0ec718b08f8a49ff93b34a8b3a1c35de47354764",
+        "guest_program.py": "706d490f6faa459d657def6c0f1ced96ac2e79855d2e3253e39f507dea653758",
+        "harness.py": "bfef94a3d631dcf54f0d4ef169546ad1ef0b9f9ca33ef942c35aa6580e8b8ccd",
+        "install.sh.in": "df5fddd7711fb76037b0a7a39e431f4638c14b2a0c9a0dd29be7abe053e63654",
+        "notarize.py": "b94bb2f6f5ceba8684625ba7dd47f95201f5ef0fd8e77beda6d8bbdff7666f19",
+        "package.py": "156f7d0f794b01e20782da2a876374e804c8b2f3416e25d355942d18f969de73",
+        "prepare.py": "b3967a84f54b3f1c469b75a482b62dfe90542ab2a05bde9b178678d72bc20739",
+        "program_binding_measurement.py": "a335a1bb70663b99edf06391baad42c13977bdfbe05310057e92ebe458b4bce5",
+        "proxy_measurement.py": "3a3ad00065a492638528f7b11cc931d30a2780f06a5ca189fcdb1fbe955bf6ee",
+        "requirements-build.in": "4439c693c19271e4b0bdc56c641c36b3b06010b1b22eae6733cd244d752e85d5",
+        "requirements-build.txt": "15dcf9beb2127eb52cad1c700b040514242fa4a9da4a799cbde18ca0d362cb93",
+        "run.py": "4a68643b43950a80788d113feebb841f9ab90890735e235081041b123a835412",
+        "stream_peer.py": "8a082a0708833def269a54d55095f404e0ffa83b7b21643563bedfdc6d6a632f",
+        "test_attempt.py": "87882e2bd34ebfab878a8472e7c7881a1b042caf36155174cb799ecb38c97166",
+        "test_check_install.py": "646f352df143e48e02ac909f08f602a8d35016949936d73582ae2072603a6b77",
+        "test_claude_vm_compatibility.py": "ed921364604d0ae5b2563142f80d306b33c2514fedd3721f85d2a0c4174657ba",
+        "test_claude_vm_revocation.py": "4eeff7d152954193d00cbfe44bb865d7677c05c2b0a6f41661dfc0f4d3d27f79",
+        "test_coordinates.py": "f909fadfac1f687213b84aabd87337fe4660aa81cfec76eb171aa4a00f98480f",
+        "test_credential_revocation_measurement.py": "0d2f0f99d638751b52ad9def0526314f3d35c0ae19506d00d213a14f19162478",
+        "test_credential_staging_measurement.py": "fbb534488d4a46bf58dc4c15c770c66d7eac79f3bb62fc35ea3a5fe568d31cad",
+        "test_custodian.py": "313aea548b2935632c45b1a775f22a995787864005f44d890dfefbbd2ae78c93",
+        "test_execution_boundary_measurement.py": "5691d00c85d7cc7dca9bfba2ce101ae246a5d4a081adec0770cb87ddb824417f",
+        "test_guest_exposure.py": "d0244cd3f9d9c2d7983c98b078f53281f5c00e6c3bd644c201d22a4df3ffd197",
+        "test_guest_exposure_control.py": "f9af3417ee2997fe81f19eeab48430c8e1254cdf69614823a2915a77d85bdb6f",
+        "test_guest_gate.py": "fcdcde52295cfa81dd05dbe3458aed2c8fba39440526d39b546e3ccf251ae2f8",
+        "test_guest_journal.py": "f47ed06d763f926fb476dc4e5292b9e587f27f608fe8c1bbbfab4c71017e3a38",
+        "test_guest_main.py": "f49a642759a847860f502d81ec1c6e139d9ee3f9086950e8e9d911d3919790be",
+        "test_guest_managed.py": "e0ccaf141be592bb4fba04331931c568cee2fc968058d8039036f7220a09ff40",
+        "test_guest_native.py": "482596f6b189d30ad4c2888fcbd015f74e2ac08bcf4c50aa2863442e9f5de322",
+        "test_guest_program.py": "bdaba906a657f52765040b71a97066723fffcd13623230538e831410ca02f2ec",
+        "test_guest_revocation.py": "51fcef3c8fa2ab530dc2e48a95ee00c2bbdf835303234cfb5e65df545c1c9efa",
+        "test_guest_warm.py": "8ea38e0c1e450fe64dc4b721e4fa27a568e1a5fd7189f74e32361f0e434c8a5e",
+        "test_harness.py": "3c7404bdeb680592a9ec47362d10ce9eeb7e1cea6059654c38655746e4aa48cb",
+        "test_harness_rows.py": "2fc02a7f65d87a7d4db8efbdc05c06b8426cb86c67585fd8df5babb21662b8e8",
+        "test_image_catalog.py": "22e7138a0fc4deb67ec4b6ef45a3e4ee0b5859b4f05ff453208f44c8c9e0f721",
+        "test_notarize.py": "637440753b18a76e274888d5051da3e2e21a6d1c76856cccf50ee47fc0d8975d",
+        "test_package.py": "ba0e88f44f0bf0872dca17b662dc486b810f8ad8f7304910bd6254ace40677f9",
+        "test_prepare.py": "9a1e82aa4a4da79fb7495749ddad064b91d9be53f8e34d755c4f984c62019135",
+        "test_program_binding_measurement.py": "842c70dda4a8a79775d9d72bb932bbb8bddac23ea7a74a6fe4773dcab9135fc3",
+        "test_share.py": "05b7978a1f14a5ed1ee7cd0d5277d24871a6a3b66c9c23c4a765abe026e0f1e6",
+        "test_stream_peer.py": "c03cc20be6b7a5998696a7e2e93b9542a5c62fc842ac7c03d8773c0c8c2b6766",
+        "test_vm.py": "60bff82295e29b6dde75d4d51e7c21bf0467406374bea326bdce7314617acd68",
+        "test_vm_summary_check.py": "6d4a3f4cbf6e5309b0be6a257555ebdc12a6b272a5b73bf9972f42f5b004e5b1",
+        "test_warm_service.py": "4c7532f0361492d2b0b0c7d029c030c64abc7879337c6d355b3564d4ffa413af",
+        "vault_measurement.py": "7febfe5d834d9624e81d56d1d7e72a328b641a9c2feb98f6689164e55d6055f6",
+        "vm_summary_check.py": "ee75599e0f6cc5f3da23303e8c9fc858f34b595fb176f0588eaa300f67b7febe",
+        "vz.swift": "fb1ef83cdb8b74abf7855375dbfd0d5be8cbaa80b89cb53ff2b41cd0ee203ab6",
+        "warm_live.py": "09f7cd572890da4c06d55ce7e48171fa8ef0021e952991b03873f5d583564b83"
+      },
+      "guest_source_sha256": "cc5fe7d00d4eafd6dbba2c5140d7589c7b40d8f42ce2ca3537d9fd5dde2013ba"
+    },
+    "service": {
+      "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-Q-44b5ac4fa/prefix with spaces/share/ukai-vm/0.1.0-preview.2/bin/ukai-vm",
+      "sha256": "4f0466084311b9e886c6a7dc80a3973d7f144d4e88367729999ef6f022dfbd31"
+    },
+    "client": {
+      "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-Q-44b5ac4fa/prefix with spaces/share/ukai-vm/0.1.0-preview.2/bin/ukai-jail",
+      "sha256": "9414dc35706651768b369fbec58cee320b95bdec0f6ef01cc0c649327d439fe7"
+    },
+    "measurement": {
+      "path": "crates/ukai-jail/vm/program_binding_measurement.py",
+      "sha256": "a335a1bb70663b99edf06391baad42c13977bdfbe05310057e92ebe458b4bce5"
+    }
+  },
+  "service_status": {
+    "event": "status",
+    "schema": "ukai.jail.vm-control/1",
+    "boot_id": "vm-09884817-e7b2-442b-b8c5-5c34b5b34f01",
+    "warm": true,
+    "ready": true,
+    "attempt_live": false,
+    "kernel": "7.3.0-10-generic",
+    "disk_sha256": "7008344b64f7d9f5fed9492e11f4a94579a2ad701472a8ed915ee323b357174e",
+    "helper_sha256": "9b0a5b8fc8e972b92b44c6c244aa87f5c1d3a799c8f360c1972474b4b167f882",
+    "custodian_sha256": "d4140527cbde5fbce84c7e48c67093e35d8400b0d9fc9c23f0f3825dc475d4ce",
+    "seed_sha256": "fab538c6530dccfe062da428b663709162c29de5f0959b6e20c36e0ba964ffc7",
+    "vsock_port": 1024,
+    "idle_seconds": 0,
+    "live_workspace": "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/workspace-volume/guest-native-Q-44b5ac4fa-program",
+    "live_workspace_facts": {
+      "case_fold": false,
+      "normalization_fold": true
+    },
+    "guest_nat": true
+  },
+  "sync": {
+    "attempt_id": "program-binding-f24d1c724e8d5a6c",
+    "profile": "tool",
+    "argv_digest": "sha256:0e4582236f33e679d4088e45781e064729d52c4bebc4dcc178ca88a1aa833b03",
+    "started_at": "2026-11-16T15:24:19Z",
+    "events": [
+      "released",
+      "file",
+      "file",
+      "bound_receipt",
+      "done"
+    ],
+    "error": null,
+    "stdout": "",
+    "stderr": "",
+    "exit_code": 0,
+    "ready": {
+      "event": "ready",
+      "schema": "ukai.jail.vm-attempt/1",
+      "boot_id": "vm-09884817-e7b2-442b-b8c5-5c34b5b34f01",
+      "disk_sha256": "7008344b64f7d9f5fed9492e11f4a94579a2ad701472a8ed915ee323b357174e",
+      "helper_sha256": "9b0a5b8fc8e972b92b44c6c244aa87f5c1d3a799c8f360c1972474b4b167f882",
+      "custodian_sha256": "d4140527cbde5fbce84c7e48c67093e35d8400b0d9fc9c23f0f3825dc475d4ce",
+      "seed_sha256": "fab538c6530dccfe062da428b663709162c29de5f0959b6e20c36e0ba964ffc7",
+      "vsock_port": 1024,
+      "guest_contracts": {
+        "secret_revocation": "ukai.vm.secret-revocation/1",
+        "journal_export": "ukai.vm.guest-journal/1",
+        "native_program": "ukai.vm.guest-native-launch/1",
+        "sampled_exposure": "ukai.vm.sampled-exposure/3"
+      },
+      "guest_program_catalog_sha256": "53de4dff6cc76d8bdfe9cf7939a76313ffec1106c3f6f76ab5d74c4c16f5fc06"
+    },
+    "boot_id": "vm-09884817-e7b2-442b-b8c5-5c34b5b34f01",
+    "prepared": {
+      "event": "prepared",
+      "kernel": "7.3.0-10-generic",
+      "staged_secrets": []
+    },
+    "supervisor_pid": 667,
+    "receipt": {
+      "schema": "ukai.jail.receipt/1",
+      "attempt_id": "att_4548edbb-ee0d-4771-8a0d-70891f11fae7",
+      "revision": 3,
+      "phase": "settled",
+      "platform": {
+        "os": "linux",
+        "arch": "aarch64",
+        "kernel": "Linux 7.3.0-10-generic"
+      },
+      "jail": {
+        "component": "ukai-jail",
+        "version": "0.1.0",
+        "backend": "bubblewrap",
+        "backend_version": "bubblewrap 0.12.0"
+      },
+      "policy": {
+        "name": "tool",
+        "digest": "sha256:750d3966d85bbea5ad2d674d4863aed7f95811221aed4258bf46dd9ba94ae9b0",
+        "observe": "on",
+        "evidence": "strict",
+        "requirements": [
+          "tree_termination",
+          "closed_set_observation",
+          "filesystem_containment",
+          "syscall_filter",
+          "network_none",
+          "protected_coverage:existing_and_root",
+          "limit:wall",
+          "limit:pids",
+          "limit:mem",
+          "limit:swap",
+          "execution_boundary"
+        ],
+        "grants": []
+      },
+      "containment": "enforced",
+      "child_protection": "enforced",
+      "exec_observed": true,
+      "argv_digest": "sha256:0e4582236f33e679d4088e45781e064729d52c4bebc4dcc178ca88a1aa833b03",
+      "applied": {
+        "filesystem": {
+          "mechanism": "bubblewrap-binds",
+          "protected_coverage": "existing_and_root",
+          "mounts": [
+            {
+              "path": "/",
+              "mode": "ro"
+            },
+            {
+              "path": "/usr",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/ssl",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/resolv.conf",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/passwd",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/group",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/hosts",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/localtime",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/ld.so.cache",
+              "mode": "ro"
+            },
+            {
+              "path": "/proc",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/null",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/zero",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/full",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/random",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/urandom",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/tty",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/pts",
+              "mode": "rw"
+            },
+            {
+              "path": "/tmp",
+              "mode": "rw"
+            },
+            {
+              "path": "/mnt/workspace",
+              "mode": "rw"
+            },
+            {
+              "path": "/tmp/.git",
+              "mode": "ro"
+            },
+            {
+              "path": "/tmp/.ukai",
+              "mode": "ro"
+            },
+            {
+              "path": "/mnt/workspace/.git",
+              "mode": "ro"
+            },
+            {
+              "path": "/mnt/workspace/.ukai",
+              "mode": "ro"
+            },
+            {
+              "path": "/run/ukai/jail",
+              "mode": "ro"
+            }
+          ]
+        },
+        "network": {
+          "mode": "none",
+          "mechanism": "network-namespace",
+          "allowed_hosts": []
+        },
+        "syscalls": {
+          "mechanism": "seccomp-bpf",
+          "digest": "sha256:a7ad5b28fcec61783859752d3fbd4fe653a259cf76531862aabdf8e2ce89ec2b"
+        },
+        "limits": [
+          {
+            "key": "wall",
+            "requested": "50000",
+            "required": true,
+            "applied": true,
+            "mechanism": "boottime-deadline",
+            "scope": "tree",
+            "hit": false
+          },
+          {
+            "key": "pids",
+            "requested": "64",
+            "required": true,
+            "applied": true,
+            "mechanism": "pids.max",
+            "scope": "tree",
+            "hit": false
+          },
+          {
+            "key": "mem",
+            "requested": "536870912",
+            "required": true,
+            "applied": true,
+            "mechanism": "memory.max",
+            "scope": "tree",
+            "hit": false
+          },
+          {
+            "key": "swap",
+            "requested": "0",
+            "required": true,
+            "applied": true,
+            "mechanism": "memory.swap.max",
+            "scope": "tree",
+            "hit": null
+          }
+        ],
+        "environment_names": [
+          "LANG",
+          "PATH",
+          "PWD",
+          "TMPDIR"
+        ],
+        "removed_environment_names": []
+      },
+      "observer": {
+        "backend": "ptrace",
+        "set": "linux-closed-v1",
+        "attached": true,
+        "sources": {
+          "wrapper": "active",
+          "audit": "active",
+          "proxy": "unsupported"
+        },
+        "gaps": []
+      },
+      "coverage": {
+        "exec": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 2,
+          "gaps": []
+        },
+        "fs.write": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "fs.deny": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "net": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "limits": {
+          "status": "active",
+          "sources": [
+            "wrapper"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "proxy.net": {
+          "status": "unsupported",
+          "sources": [],
+          "observed_count": null,
+          "gaps": []
+        }
+      },
+      "process": {
+        "pid": 685,
+        "identity": {
+          "kind": "linux_boot_start",
+          "value": {
+            "boot_id": "f194429f-ca59-4417-8862-e7372274a666",
+            "pid": 685,
+            "start_time_ticks": 2769
+          }
+        }
+      },
+      "lifetime": {
+        "boundary": "pid_namespace",
+        "native": {
+          "os": "linux",
+          "details": {
+            "backend_exec_by": "descriptor",
+            "bootstrap_spawn": {
+              "mechanism": "clone3_into_cgroup"
+            },
+            "bwrap_pid": 682,
+            "cgroup_namespace": 4026532312,
+            "command_rules": {
+              "deny": 0,
+              "forbid": 0
+            },
+            "execution_cgroup": {
+              "charged_helpers": [
+                {
+                  "pid": 682,
+                  "role": "bubblewrap"
+                },
+                {
+                  "pid": 684,
+                  "role": "namespace_init"
+                }
+              ],
+              "device": 32,
+              "inode": 4338,
+              "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_4548edbb-ee0d-4771-8a0d-70891f11fae7.leaf",
+              "scope": "target_descendants_and_listed_helpers"
+            },
+            "filtered_readonly_opens": 0,
+            "launcher_pid": 685,
+            "mnt_namespace": 4026532307,
+            "namespace_init_pid": 684,
+            "narrowing_filter_digest": "sha256:f5353e3a8e29beeca5edb0e19952196e8c1b8b575c4d5aab1698a7017fefb56e",
+            "narrowing_filter_digest_installed": "sha256:b205ce3ed00ceb7fa5117128d1ea2b9d0bae183c21816ffd3c9bd5f5dcda3f4f",
+            "net_namespace": 4026532313,
+            "observer_plan": {
+              "backend": "ptrace",
+              "event_bytes_max": 65536,
+              "in_flight_max": 16384,
+              "kernel_ring_bytes": null,
+              "path_snapshot_max": 4096,
+              "queue_bytes_max": 4194304,
+              "queue_events_max": 16384,
+              "queue_lifecycle_reserve_bytes": 65536,
+              "queue_result_bytes_max": 4128768,
+              "test_seams": {}
+            },
+            "path_anchors_unverified": 0,
+            "path_claims_unverified": 0,
+            "pid_namespace": 4026532311,
+            "readonly_open_fast_path": true,
+            "requested_by_other_filters": 0,
+            "resolv_sanitization": "nameservers_only",
+            "seccomp_filters": {
+              "expected": 2,
+              "observed": 2
+            },
+            "supervisor_scope": {
+              "cgroup": "/user.slice/user-1001.slice/user@1001.service/app.slice/ukai-jail-667-8630b86ea4744a9c.scope",
+              "reason": null,
+              "reason_code": null,
+              "state": "entered",
+              "unit": "ukai-jail-667-8630b86ea4744a9c.scope"
+            },
+            "user_namespace": 4026532366,
+            "watcher_pid": 683
+          }
+        },
+        "tree_empty": true,
+        "verified_at": "2026-11-16T15:24:20Z",
+        "verification_scope": "attempt_tree",
+        "integrity": "verified"
+      },
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      },
+      "state_cleanup": "complete",
+      "cleanup_error": null,
+      "created_at": "2026-11-16T15:24:20Z",
+      "updated_at": "2026-11-16T15:24:20Z",
+      "errors": [],
+      "credentials": []
+    },
+    "receipt_sha256": "a5657df449b1ad1f37371308e9dfd70c54c80efbceaf6e93d3885eaf8a5f77c5",
+    "receipt_digest_ok": true,
+    "binding": {
+      "attempt_id": "program-binding-f24d1c724e8d5a6c",
+      "boot_id": "vm-09884817-e7b2-442b-b8c5-5c34b5b34f01",
+      "guest_attempt_id": "att_4548edbb-ee0d-4771-8a0d-70891f11fae7",
+      "guest_boot_id": "f194429f-ca59-4417-8862-e7372274a666",
+      "profile": "tool",
+      "argv_digest": "sha256:0e4582236f33e679d4088e45781e064729d52c4bebc4dcc178ca88a1aa833b03"
+    },
+    "guest_stop": {
+      "boundaries": [
+        "ukai-attempts.slice/attempt-2",
+        "user.slice/user-1001.slice/user@1001.service/app.slice"
+      ],
+      "populated_before_kill": [],
+      "live_before_kill": [],
+      "strays_killed": []
+    }
+  },
+  "service_exit": 0,
+  "shutdown": {
+    "complete": true,
+    "method": "pinned-pre-stop-runtime-lock-after-serve-cleanup",
+    "lock_device": 16777234,
+    "lock_inode": 375154882,
+    "wait_ms": 0.126,
+    "held_before_stop": true,
+    "process_reaped": false,
+    "sockets_absent": true,
+    "boot_entries_remaining": []
+  },
+  "record": {
+    "attempt_id": "program-binding-6b130f359d30cb0e",
+    "profile": "agent",
+    "argv_digest": "sha256:6fb0ff518ff80ed7afaeb5263fdb25b17d497fd548185d300452fea1cb94a5fc",
+    "started_at": "2026-11-16T15:24:18Z",
+    "events": [
+      "released",
+      "stdout",
+      "file",
+      "file",
+      "bound_receipt",
+      "done"
+    ],
+    "error": null,
+    "stdout": "PROGRAM_BINDING {\"copy\": {\"device\": 56, \"inode\": 3, \"size\": 7503352}, \"copy_absent\": true, \"copy_sha256\": \"ebc90acfd308bcf602e5131b0a9bbf5b1ccdc53b4ecbacbbf4a3ba063f37e581\", \"original\": {\"device\": 64769, \"inode\": 1287, \"size\": 7503352}, \"original_sha256\": \"ebc90acfd308bcf602e5131b0a9bbf5b1ccdc53b4ecbacbbf4a3ba063f37e581\", \"other\": {\"reason\": \"credential_process_denied\", \"status\": 403}, \"other_exit\": 0, \"other_stderr_empty\": true, \"own\": {\"body_ok\": true, \"status\": 200}, \"placeholder\": {\"bytes\": 51, \"sha256\": \"57f7233f7d4f6524b67ec2c0292e99d06259e14d3312ac4785e4659956173147\", \"shape\": true}}\n",
+    "stderr": "",
+    "exit_code": 0,
+    "ready": {
+      "event": "ready",
+      "schema": "ukai.jail.vm-attempt/1",
+      "boot_id": "vm-09884817-e7b2-442b-b8c5-5c34b5b34f01",
+      "disk_sha256": "7008344b64f7d9f5fed9492e11f4a94579a2ad701472a8ed915ee323b357174e",
+      "helper_sha256": "9b0a5b8fc8e972b92b44c6c244aa87f5c1d3a799c8f360c1972474b4b167f882",
+      "custodian_sha256": "d4140527cbde5fbce84c7e48c67093e35d8400b0d9fc9c23f0f3825dc475d4ce",
+      "seed_sha256": "fab538c6530dccfe062da428b663709162c29de5f0959b6e20c36e0ba964ffc7",
+      "vsock_port": 1024,
+      "guest_contracts": {
+        "secret_revocation": "ukai.vm.secret-revocation/1",
+        "journal_export": "ukai.vm.guest-journal/1",
+        "native_program": "ukai.vm.guest-native-launch/1",
+        "sampled_exposure": "ukai.vm.sampled-exposure/3"
+      },
+      "guest_program_catalog_sha256": "53de4dff6cc76d8bdfe9cf7939a76313ffec1106c3f6f76ab5d74c4c16f5fc06"
+    },
+    "boot_id": "vm-09884817-e7b2-442b-b8c5-5c34b5b34f01",
+    "prepared": {
+      "event": "prepared",
+      "kernel": "7.3.0-10-generic",
+      "staged_secrets": [
+        [
+          "test",
+          "/run/ukai-vm/credentials/test"
+        ]
+      ]
+    },
+    "supervisor_pid": 624,
+    "receipt": {
+      "schema": "ukai.jail.receipt/1",
+      "attempt_id": "att_c6cc3390-a140-4b33-bc21-3156840212cd",
+      "revision": 4,
+      "phase": "settled",
+      "platform": {
+        "os": "linux",
+        "arch": "aarch64",
+        "kernel": "Linux 7.3.0-10-generic"
+      },
+      "jail": {
+        "component": "ukai-jail",
+        "version": "0.1.0",
+        "backend": "bubblewrap",
+        "backend_version": "bubblewrap 0.12.0"
+      },
+      "policy": {
+        "name": "agent",
+        "digest": "sha256:41ff3d7d13dad26bd1ca9cda457e0ebc17b24cbce2b0b53ca2f12e9c8583b307",
+        "observe": "on",
+        "evidence": "strict",
+        "requirements": [
+          "tree_termination",
+          "closed_set_observation",
+          "filesystem_containment",
+          "syscall_filter",
+          "network_proxy",
+          "protected_coverage:existing_and_root",
+          "limit:wall",
+          "limit:pids",
+          "limit:mem",
+          "limit:swap",
+          "execution_boundary",
+          "credential_staging"
+        ],
+        "grants": [
+          {
+            "kind": "allow_host",
+            "value": "192.168.1.6:50117",
+            "by": "operator"
+          },
+          {
+            "kind": "allow_host",
+            "value": "192.168.1.6:50117",
+            "by": "operator"
+          }
+        ]
+      },
+      "containment": "enforced",
+      "child_protection": "enforced",
+      "exec_observed": true,
+      "argv_digest": "sha256:6fb0ff518ff80ed7afaeb5263fdb25b17d497fd548185d300452fea1cb94a5fc",
+      "applied": {
+        "filesystem": {
+          "mechanism": "bubblewrap-binds",
+          "protected_coverage": "existing_and_root",
+          "mounts": [
+            {
+              "path": "/",
+              "mode": "ro"
+            },
+            {
+              "path": "/usr",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/ssl",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/resolv.conf",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/passwd",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/group",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/hosts",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/localtime",
+              "mode": "ro"
+            },
+            {
+              "path": "/etc/ld.so.cache",
+              "mode": "ro"
+            },
+            {
+              "path": "/proc",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/null",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/zero",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/full",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/random",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/urandom",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/tty",
+              "mode": "rw"
+            },
+            {
+              "path": "/dev/pts",
+              "mode": "rw"
+            },
+            {
+              "path": "/tmp",
+              "mode": "rw"
+            },
+            {
+              "path": "/mnt/workspace",
+              "mode": "rw"
+            },
+            {
+              "path": "/run/ukai/vault-ca.pem",
+              "mode": "ro"
+            },
+            {
+              "path": "/run/ukai/state",
+              "mode": "rw"
+            },
+            {
+              "path": "/run/ukai/proxy",
+              "mode": "ro"
+            },
+            {
+              "path": "/run/ukai/jail",
+              "mode": "ro"
+            }
+          ]
+        },
+        "network": {
+          "mode": "proxy",
+          "mechanism": "network-namespace+outside-http-proxy+loopback-bridge+unix-peer-mediation",
+          "allowed_hosts": [
+            "192.168.1.6:50117",
+            "192.168.1.6:50117"
+          ]
+        },
+        "syscalls": {
+          "mechanism": "seccomp-bpf+seccomp-user-notification",
+          "digest": "sha256:cc46d9a2a2971889fc33e71d2911ff22b8231e63461008594a7f501092db0041"
+        },
+        "limits": [
+          {
+            "key": "wall",
+            "requested": "50000",
+            "required": true,
+            "applied": true,
+            "mechanism": "boottime-deadline",
+            "scope": "tree",
+            "hit": false
+          },
+          {
+            "key": "pids",
+            "requested": "64",
+            "required": true,
+            "applied": true,
+            "mechanism": "pids.max",
+            "scope": "tree",
+            "hit": false
+          },
+          {
+            "key": "mem",
+            "requested": "536870912",
+            "required": true,
+            "applied": true,
+            "mechanism": "memory.max",
+            "scope": "tree",
+            "hit": false
+          },
+          {
+            "key": "swap",
+            "requested": "0",
+            "required": true,
+            "applied": true,
+            "mechanism": "memory.swap.max",
+            "scope": "tree",
+            "hit": null
+          }
+        ],
+        "environment_names": [
+          "AGENT_TOKEN",
+          "ALL_PROXY",
+          "HTTPS_PROXY",
+          "HTTP_PROXY",
+          "LANG",
+          "NODE_EXTRA_CA_CERTS",
+          "NO_PROXY",
+          "PATH",
+          "PWD",
+          "REQUESTS_CA_BUNDLE",
+          "SSL_CERT_FILE",
+          "TMPDIR",
+          "all_proxy",
+          "http_proxy",
+          "https_proxy",
+          "no_proxy"
+        ],
+        "removed_environment_names": []
+      },
+      "observer": {
+        "backend": "ptrace",
+        "set": "linux-closed-v1",
+        "attached": true,
+        "sources": {
+          "wrapper": "active",
+          "audit": "active",
+          "proxy": "active"
+        },
+        "gaps": []
+      },
+      "coverage": {
+        "exec": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 4,
+          "gaps": []
+        },
+        "fs.write": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 3,
+          "gaps": []
+        },
+        "fs.deny": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "net": {
+          "status": "active",
+          "sources": [
+            "audit"
+          ],
+          "observed_count": 6,
+          "gaps": []
+        },
+        "limits": {
+          "status": "active",
+          "sources": [
+            "wrapper"
+          ],
+          "observed_count": 0,
+          "gaps": []
+        },
+        "proxy.net": {
+          "status": "active",
+          "sources": [
+            "proxy"
+          ],
+          "observed_count": 2,
+          "gaps": []
+        }
+      },
+      "process": {
+        "pid": 652,
+        "identity": {
+          "kind": "linux_boot_start",
+          "value": {
+            "boot_id": "f194429f-ca59-4417-8862-e7372274a666",
+            "pid": 652,
+            "start_time_ticks": 2721
+          }
+        }
+      },
+      "lifetime": {
+        "boundary": "pid_namespace",
+        "native": {
+          "os": "linux",
+          "details": {
+            "agent": {
+              "allowed_setup_operations": [
+                "prctl(PR_SET_NO_NEW_PRIVS)",
+                "seccomp",
+                "landlock_create_ruleset",
+                "landlock_add_rule",
+                "landlock_restrict_self"
+              ],
+              "baseline_filter_digest": "sha256:cc46d9a2a2971889fc33e71d2911ff22b8231e63461008594a7f501092db0041",
+              "filter_variant": "unprivileged_inner",
+              "first_flight_bytes_max": 8192,
+              "first_flight_timeout_ms": 5000,
+              "mediation_filter_digest": "sha256:33063c21492671bcf0a73a39a2a51af680cb9482443fb5ab8be82ba019aa4136",
+              "mediation_record_queue": 4096,
+              "nested_user_namespace": "unavailable",
+              "nested_user_namespace_evidence": "a nested bubblewrap exited Some(1): bwrap: No permissions to create a new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.; bare unshare(CLONE_NEWUSER) inside: ok",
+              "origin_verification": "http_host_and_mitm_http_host",
+              "proxy_socket": "/run/ukai/proxy/proxy.sock",
+              "socks5_listen": "127.0.0.1:3129",
+              "tls_application_authority_verified": true,
+              "udp_egress": false,
+              "unix_peer_mediation": "seccomp_user_notification",
+              "vault_authority": {
+                "lease_poll_ms": 100,
+                "path_binding": "exact_or_unescaped_segment_prefix",
+                "path_bound_credentials": 0,
+                "peer_authority": "mediator_connect_for_pinned_sealed_bridge",
+                "process_binding": "kernel_connection_initiator_executable",
+                "process_bound_credentials": 1,
+                "refresh": "bounded_oauth2_persist_before_publish_no_uncertain_retry",
+                "refresh_credentials": 0,
+                "source_lifecycle": "private_nofollow_live_file",
+                "tls_websocket": "verified_rfc6455_upgrade"
+              }
+            },
+            "backend_exec_by": "descriptor",
+            "bootstrap_spawn": {
+              "mechanism": "clone3_into_cgroup"
+            },
+            "bwrap_pid": 648,
+            "cgroup_namespace": 4026532312,
+            "command_rules": {
+              "deny": 0,
+              "forbid": 0
+            },
+            "credential_injection": "mitm_ca",
+            "execution_cgroup": {
+              "charged_helpers": [
+                {
+                  "pid": 648,
+                  "role": "bubblewrap"
+                },
+                {
+                  "pid": 651,
+                  "role": "namespace_init"
+                },
+                {
+                  "pid": 654,
+                  "role": "bridge"
+                }
+              ],
+              "device": 32,
+              "inode": 3988,
+              "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_c6cc3390-a140-4b33-bc21-3156840212cd.leaf",
+              "scope": "target_descendants_and_listed_helpers"
+            },
+            "filtered_readonly_opens": 0,
+            "helpers": [
+              {
+                "charged_to_attempt": true,
+                "kind": "bridge",
+                "listen": "127.0.0.1:3128",
+                "mediated_connects": 2,
+                "pid": 654,
+                "rejected_at_capacity": 0,
+                "seccomp_filters": 2
+              }
+            ],
+            "launcher_pid": 652,
+            "mnt_namespace": 4026532307,
+            "namespace_init_pid": 651,
+            "narrowing_filter_digest": "sha256:f5353e3a8e29beeca5edb0e19952196e8c1b8b575c4d5aab1698a7017fefb56e",
+            "narrowing_filter_digest_installed": "sha256:2da215cd335839aeb3ea4fc942bb9034cc79e26b5fa3bfd974453ca3437cb4eb",
+            "net_namespace": 4026532313,
+            "observer_plan": {
+              "backend": "ptrace",
+              "event_bytes_max": 65536,
+              "in_flight_max": 16384,
+              "kernel_ring_bytes": null,
+              "path_snapshot_max": 4096,
+              "queue_bytes_max": 4194304,
+              "queue_events_max": 16384,
+              "queue_lifecycle_reserve_bytes": 65536,
+              "queue_result_bytes_max": 4128768,
+              "test_seams": {}
+            },
+            "path_anchors_unverified": 0,
+            "path_claims_unverified": 0,
+            "pid_namespace": 4026532311,
+            "readonly_open_fast_path": true,
+            "requested_by_other_filters": 0,
+            "resolv_sanitization": "nameservers_only",
+            "seccomp_filters": {
+              "expected": 3,
+              "observed": 3
+            },
+            "supervisor_scope": {
+              "cgroup": "/user.slice/user-1001.slice/user@1001.service/app.slice/ukai-jail-624-4c9583f978154690.scope",
+              "reason": null,
+              "reason_code": null,
+              "state": "entered",
+              "unit": "ukai-jail-624-4c9583f978154690.scope"
+            },
+            "user_namespace": 4026532367,
+            "watcher_pid": 649
+          }
+        },
+        "tree_empty": true,
+        "verified_at": "2026-11-16T15:24:19Z",
+        "verification_scope": "attempt_tree",
+        "integrity": "verified"
+      },
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      },
+      "state_cleanup": "complete",
+      "cleanup_error": null,
+      "created_at": "2026-11-16T15:24:19Z",
+      "updated_at": "2026-11-16T15:24:19Z",
+      "errors": [],
+      "credentials": [
+        {
+          "never_staged": true,
+          "id": "test",
+          "mode": "vault",
+          "digest": null,
+          "digest_unavailable_reason": "never_staged"
+        }
+      ]
+    },
+    "receipt_sha256": "53ab230bde48dc52a6147d55bd973cae29f80487865c18ee1eb2c46e74f43e40",
+    "receipt_digest_ok": true,
+    "binding": {
+      "attempt_id": "program-binding-6b130f359d30cb0e",
+      "boot_id": "vm-09884817-e7b2-442b-b8c5-5c34b5b34f01",
+      "guest_attempt_id": "att_c6cc3390-a140-4b33-bc21-3156840212cd",
+      "guest_boot_id": "f194429f-ca59-4417-8862-e7372274a666",
+      "profile": "agent",
+      "argv_digest": "sha256:6fb0ff518ff80ed7afaeb5263fdb25b17d497fd548185d300452fea1cb94a5fc"
+    },
+    "guest_stop": {
+      "boundaries": [
+        "ukai-attempts.slice/attempt-1",
+        "user.slice/user-1001.slice/user@1001.service/app.slice"
+      ],
+      "populated_before_kill": [],
+      "live_before_kill": [],
+      "strays_killed": []
+    }
+  },
+  "peer": {
+    "requests": [
+      {
+        "path": "/own",
+        "credential_matches": true
+      }
+    ],
+    "overflow": false
+  },
+  "tail": {
+    "text": "ukai-jail: settled · exited 0 · 215ms exec→settled · survivors: none (verified)\nukai-jail: workspace: 1 path opened for writing, 1 removed\nukai-jail: network: allowed 192.168.1.6:50117 (1) · denied 192.168.1.6:50117 (1)\nukai-jail: credential test: vault, never staged · used on 1 proxy result · 1 credential refusal\nukai-jail: evidence: 6/6 classes active, no gaps · reads and file contents are not observed\nukai-jail: receipt /private/tmp/ukpbind-ef6xbiss/attempts/att_c6cc3390-a140-4b33-bc21-3156840212cd/jail.json\n",
+    "exit": 0,
+    "json": "{\n  \"attempt_id\": \"att_c6cc3390-a140-4b33-bc21-3156840212cd\",\n  \"journal\": \"complete\",\n  \"lines\": [\n    {\n      \"facts\": {\n        \"attempt_wall_ms\": null,\n        \"cause\": null,\n        \"code\": 0,\n        \"errors\": [],\n        \"exec_to_settled_ms\": 215,\n        \"integrity\": \"verified\",\n        \"outcome\": \"exited\",\n        \"phase\": \"settled\",\n        \"signal\": null,\n        \"survivors\": \"none_verified\"\n      },\n      \"line\": \"status\",\n      \"text\": \"settled · exited 0 · 215ms exec→settled · survivors: none (verified)\"\n    },\n    {\n      \"facts\": {\n        \"bound\": \"exact\",\n        \"omitted\": 0,\n        \"opened_for_writing\": 1,\n        \"paths\": [\n          {\n            \"kind\": \"workspace_relative\",\n            \"value\": \"program-binding-copy\"\n          }\n        ],\n        \"refused\": 0,\n        \"refused_bound\": \"exact\",\n        \"removed\": 1,\n        \"renamed\": 0,\n        \"unnamed\": 0\n      },\n      \"line\": \"workspace\",\n      \"text\": \"workspace: 1 path opened for writing, 1 removed\"\n    },\n    {\n      \"facts\": {\n        \"allowed\": [\n          {\n            \"connect_failed\": 0,\n            \"destination\": \"192.168.1.6:50117\",\n            \"results\": 1\n          }\n        ],\n        \"bound\": \"exact\",\n        \"denied\": [\n          {\n            \"destination\": \"192.168.1.6:50117\",\n            \"reason\": \"credential_process_denied\",\n            \"results\": 1\n          }\n        ],\n        \"mode\": \"proxy\",\n        \"omitted\": 0,\n        \"resolver_refused\": null\n      },\n      \"line\": \"network\",\n      \"text\": \"network: allowed 192.168.1.6:50117 (1) · denied 192.168.1.6:50117 (1)\"\n    },\n    {\n      \"facts\": {\n        \"credentials\": [\n          {\n            \"id\": \"test\",\n            \"mode\": \"vault\",\n            \"never_staged\": true,\n            \"transitions\": [\n              \"loaded\"\n            ],\n            \"unconfirmed\": 0,\n            \"uses\": 1,\n            \"uses_bound\": \"exact\"\n          }\n        ],\n        \"omitted\": 0,\n        \"refusals\": 1,\n        \"refusals_bound\": \"exact\"\n      },\n      \"line\": \"credentials\",\n      \"text\": \"credential test: vault, never staged · used on 1 proxy result · 1 credential refusal\"\n    },\n    {\n      \"facts\": {\n        \"attached\": true,\n        \"classes\": {\n          \"exec\": \"active\",\n          \"fs.deny\": \"active\",\n          \"fs.write\": \"active\",\n          \"limits\": \"active\",\n          \"net\": \"active\",\n          \"proxy.net\": \"active\"\n        },\n        \"disagree\": [],\n        \"evidence\": \"strict\",\n        \"gaps\": [],\n        \"observe\": \"on\"\n      },\n      \"line\": \"evidence\",\n      \"text\": \"evidence: 6/6 classes active, no gaps · reads and file contents are not observed\"\n    }\n  ],\n  \"receipt_digest\": \"sha256:1d8db58d08acbcccd3e9316186a5e896bd6d9533187ee91402a13999f3fef89b\",\n  \"schema\": \"ukai.jail.summary/1\"\n}\n",
+    "json_exit": 0
+  },
+  "auxiliary": [
+    "",
+    "",
+    ""
+  ],
+  "offline_attempt": "/private/tmp/ukpbind-ef6xbiss/attempts/att_c6cc3390-a140-4b33-bc21-3156840212cd",
+  "identity_after": {
+    "home": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-Q-44b5ac4fa/prefix with spaces/share/ukai-vm/0.1.0-preview.2",
+    "image_manifest_sha256": "a9f0bcc9ef47aba98cdb0dae0f18c830b8a42d7878aa1a3409f05cd0906b6f23",
+    "image_manifest_json": "{\n  \"schema\": \"ukai.vm.image-build/1\",\n  \"status\": \"prepared\",\n  \"image_url\": \"https://cloud-images.ubuntu.com/minimal/releases/stonking/release-20261105/ubuntu-26.10-minimal-cloudimg-arm64.img\",\n  \"image_sha256\": \"bac15af78c37fec8e9474a9a784041c13ddb2603b9095435b7e4269e3faf3064\",\n  \"jail_url\": null,\n  \"jail_archive_sha256\": \"15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6\",\n  \"apt_snapshot\": \"20261106T000000Z\",\n  \"apt_snapshot_url\": \"https://snapshot.ubuntu.com/ubuntu/20261106T000000Z\",\n  \"source_sha256\": {\n    \"guest.py\": \"cc5fe7d00d4eafd6dbba2c5140d7589c7b40d8f42ce2ca3537d9fd5dde2013ba\",\n    \"guest_program.py\": \"706d490f6faa459d657def6c0f1ced96ac2e79855d2e3253e39f507dea653758\",\n    \"guest_exposure.py\": \"19339c71d18d93ec32b00509360c01f7cb9fe3ec0d0d432c858432822d578a0b\",\n    \"guest_exposure_control.py\": \"1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f\",\n    \"vz.swift\": \"fb1ef83cdb8b74abf7855375dbfd0d5be8cbaa80b89cb53ff2b41cd0ee203ab6\",\n    \"custodian.c\": \"d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab\",\n    \"prepare.py\": \"b3967a84f54b3f1c469b75a482b62dfe90542ab2a05bde9b178678d72bc20739\"\n  },\n  \"jail_candidate\": {\n    \"kind\": \"signed-local-candidate\",\n    \"signature_verified\": true,\n    \"verifier\": \"publish_release.check\",\n    \"trusted_key\": \"crates/ukai-jail/dist/release.pub\",\n    \"trusted_key_sha256\": \"218b3005a943bf9641f42ece53e6a3ee2a8b3a12510db04d26477abefc8cfbd1\",\n    \"target\": \"aarch64-unknown-linux-gnu\",\n    \"release\": \"0.1.0-rc.7\",\n    \"tag\": \"ukai-jail-v0.1.0-rc.7\",\n    \"source_revision\": \"0be9d1e820b0d47493883053253491bbd2196ba3\",\n    \"build_inputs\": \"sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae\",\n    \"archive\": \"ukai-jail-0.1.0-rc.7-aarch64-unknown-linux-gnu.tar.gz\",\n    \"archive_sha256\": \"15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6\",\n    \"binary_sha256\": \"c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f\",\n    \"version\": {\n      \"build\": {\n        \"debug_assertions\": false,\n        \"dirty\": false,\n        \"inputs\": \"sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae\",\n        \"opt_level\": \"3\",\n        \"revision\": \"0be9d1e820b0d47493883053253491bbd2196ba3\",\n        \"rustc\": \"rustc 1.98.1 (48a229cea 2026-09-01)\",\n        \"target\": \"aarch64-unknown-linux-gnu\"\n      },\n      \"component\": \"ukai-jail\",\n      \"frozen\": true,\n      \"observation\": {\n        \"closed_set\": \"linux-closed-v1\"\n      },\n      \"platform\": {\n        \"arch\": \"aarch64\",\n        \"kernel\": \"Linux 7.0.0-1017-azure\",\n        \"os\": \"linux\"\n      },\n      \"schemas\": {\n        \"control\": \"ukai.jail.control/1\",\n        \"doctor\": \"ukai.jail.doctor/1\",\n        \"event\": \"ukai.event/1\",\n        \"gate\": \"ukai.jail.gate/1\",\n        \"learned_policy\": \"ukai.jail.learned-policy/1\",\n        \"network\": \"ukai.jail.network/1\",\n        \"policy\": \"ukai.jail.policy/1\",\n        \"policy_file\": \"ukai.jail.policy-file/1\",\n        \"policy_snapshot\": \"ukai.jail.policy-snapshot/1\",\n        \"receipt\": \"ukai.jail.receipt/1\",\n        \"summary\": \"ukai.jail.summary/1\"\n      },\n      \"version\": \"0.1.0\"\n    },\n    \"retained_directory\": \"cache/signed-jail-candidate\",\n    \"verified_assets_sha256\": {\n      \"RELEASE_NOTES.md\": \"2f431194c09aac228d55532c2d6a00c9e50af7d3781dd39e2cfce09a878c4907\",\n      \"SHA256SUMS\": \"3d4a3bafb239fb8719b90ed33334438c9b68b90184efeedd005d4a7d33053d51\",\n      \"SHA256SUMS.minisig\": \"cf36ceec8dbc6aae5adf2bc326cfdf98dcf79e80f6b8ed2aa87a15e3959f20ee\",\n      \"bootstrap.sh\": \"f7a1aa423f8f87d9bb4b50e9a9d7c4716a336ef30a259d793c1b7cdb67bfb4bb\",\n      \"install.sh\": \"9c49ea8a0d7c2633b446d1912d9def945bb10dad325de6542320dd185a13f012\",\n      \"release-plan.json\": \"3b469443904b059a1b090b6823e5829df203e52c77b0cb393f03c87a45f933c0\",\n      \"ukai-jail-0.1.0-rc.7-aarch64-unknown-linux-gnu.tar.gz\": \"15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6\",\n      \"ukai-jail-0.1.0-rc.7-x86_64-unknown-linux-gnu.tar.gz\": \"a9eb6b07b4925cc3828fa2a264cbc5d0208aea1b1ed2929f67ec0d5f1436c7a1\"\n    },\n    \"publication\": \"local input verification only; no publication performed\"\n  },\n  \"guest_program_catalog_sha256\": \"53de4dff6cc76d8bdfe9cf7939a76313ffec1106c3f6f76ab5d74c4c16f5fc06\",\n  \"guest_program_inputs\": {\n    \"id\": \"claude-2.1.311-linux-arm64\",\n    \"version\": \"2.1.311\",\n    \"executable_sha256\": \"2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3\",\n    \"executable_size\": 293658808,\n    \"profile_sha256\": \"e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24\",\n    \"guest_jail_sha256\": \"c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f\"\n  },\n  \"guest_exposure_control\": {\n    \"actual_values_retained\": false,\n    \"control_source_sha256\": \"1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f\",\n    \"errors\": [],\n    \"facts\": {\n      \"argv_canary_detected\": true,\n      \"environment_canary_detected\": true,\n      \"only_owned_child_observed\": true,\n      \"owned_child_reaped\": true,\n      \"sampler_source_unchanged\": true,\n      \"verified_program_argv_read\": true,\n      \"verified_program_environment_read\": true\n    },\n    \"guest_boot_id\": \"2340931a-b39b-4de9-a9bf-f189fb61a842\",\n    \"guest_kernel\": \"7.3.0-10-generic\",\n    \"jail_execution_claimed\": false,\n    \"passed\": true,\n    \"process\": {\n      \"executable_dev\": 64769,\n      \"executable_ino\": 1287,\n      \"pid\": 888,\n      \"starttime\": 11818\n    },\n    \"sampler_sha256\": \"19339c71d18d93ec32b00509360c01f7cb9fe3ec0d0d432c858432822d578a0b\",\n    \"sampling\": {\n      \"scan_errors\": {},\n      \"ticks\": 1,\n      \"verified_program_reads\": {\n        \"argv\": {\n          \"capped\": 0,\n          \"oversize\": 0,\n          \"readable\": 1,\n          \"unreadable\": 0,\n          \"unstable\": 0,\n          \"vanished\": 0\n        },\n        \"environment\": {\n          \"capped\": 0,\n          \"oversize\": 0,\n          \"readable\": 1,\n          \"unreadable\": 0,\n          \"unstable\": 0,\n          \"vanished\": 0\n        }\n      }\n    },\n    \"schema\": \"ukai.vm.sampled-exposure-control/1\",\n    \"scope\": \"owned-public-canary-process-detector-control\"\n  },\n  \"guest_exposure_control_sha256\": \"1873038356957e97451b21b00f5b505e38055521ea33ef01ec33a285b6daae9a\",\n  \"guest_pinned_versions\": [\n    \"bubblewrap=0.12.0-1\",\n    \"dbus-daemon=1.16.2-5ubuntu2\",\n    \"dbus-user-session=1.16.2-5ubuntu2\"\n  ],\n  \"guest_pinned_digest\": \"60ce89c267b3cb6c03b2669195387c870a35ab672f9093f5d86dce6f37517ca7\",\n  \"disk_sha256\": \"7008344b64f7d9f5fed9492e11f4a94579a2ad701472a8ed915ee323b357174e\",\n  \"helper_sha256\": \"9b0a5b8fc8e972b92b44c6c244aa87f5c1d3a799c8f360c1972474b4b167f882\",\n  \"custodian_sha256\": \"d4140527cbde5fbce84c7e48c67093e35d8400b0d9fc9c23f0f3825dc475d4ce\",\n  \"seed_sha256\": \"fab538c6530dccfe062da428b663709162c29de5f0959b6e20c36e0ba964ffc7\",\n  \"preview_version\": \"0.1.0-preview.2\",\n  \"host_minimum\": \"macOS 27; Apple Silicon\",\n  \"ukai_vm_sha256\": \"4f0466084311b9e886c6a7dc80a3973d7f144d4e88367729999ef6f022dfbd31\",\n  \"ukai_jail_sha256\": \"9414dc35706651768b369fbec58cee320b95bdec0f6ef01cc0c649327d439fe7\",\n  \"ukai_jail_version\": {\n    \"component\": \"ukai-jail\",\n    \"version\": \"0.1.0\",\n    \"build\": {\n      \"debug_assertions\": false,\n      \"dirty\": false,\n      \"inputs\": \"sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae\",\n      \"opt_level\": \"3\",\n      \"revision\": \"44b5ac4fa65880abe369652ed0110162088a0cd9\",\n      \"rustc\": \"rustc 1.98.1 (48a229cea 2026-09-01)\",\n      \"target\": \"aarch64-apple-darwin\"\n    }\n  },\n  \"compressed_disk_sha256\": \"34e0c6c28c827cc9fb25b30fc58f7243de482c5523b5823a8c1196df71db6c28\",\n  \"source_revision\": \"44b5ac4fa65880abe369652ed0110162088a0cd9\",\n  \"source_archive_sha256\": \"d372af085a81aebc910c4c742130cff3a19aa3aeaaf53314d90578cb70a41500\",\n  \"source_archive_files\": 976,\n  \"package_source_sha256\": {\n    \"GUEST-NATIVE.md\": \"700647db23d1e9e278a87de4316b0ff4ace15d34c8998519a7ce558273938936\",\n    \"K113.md\": \"d75694b51d6fe3b4e9b68d5612d0981ad01b9fee4a8c263dd53eb0832e781a87\",\n    \"PREVIEW.txt\": \"95cab2b79d835c1af2e8f4ea470d0731d06d00ec40685c6a571ee373d87d2206\",\n    \"README.md\": \"71a8d2ba60c0a216c3113951bc24a33d7bd0f46551176d64b2db5c12a786d668\",\n    \"capabilities.py\": \"f49038c154933d64497bd3ceb1b94d173fb711f506bd4cc39250ee07e43f86c5\",\n    \"check.py\": \"34ca4fd7c9bd5f3125394b45f36b4ce16d0e23333e3fbc4160578af5c56a7b22\",\n    \"check_install.py\": \"d1c4cdecf12d13f7b5a2f54c3b3db8d26a56d143d7a325ca96bdcd7efca1ef69\",\n    \"claude_vm_revocation.py\": \"c7553d63ef6b23056a4ec46a27a49a398eedcb47985442080d276769c5179df8\",\n    \"claude_vm_row.py\": \"9173de94979d24012683073d6161ad6aeb4a1095e5b3d8fe247db6de8acfb805\",\n    \"cli.py\": \"b5b8c1726ad8f667becb5f89f5dfb63691f470f2a339c0f726477faf4c9f9afb\",\n    \"credential_revocation_measurement.py\": \"117ca2da3d9572d75613a4a4048a82995d01d5f7691feeeeb65bb759883a9710\",\n    \"credential_staging_measurement.py\": \"d63f0c42e66440d02e1cace219fe482ba11f59060a5ac7744e6a3876a0f7b4a8\",\n    \"custodian.c\": \"d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab\",\n    \"docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/run-vm-cli/jail.json\": \"3ac5356bb1176e0145c171ddcb8fdeb96a35844ede91629ec7d0eee3ece904df\",\n    \"docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/run-vm-cli/vm-binding.json\": \"b85b85e8e1e2df480fde751c3495185dadebe6bbac65b0c13f044c0631c6d3b0\",\n    \"docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/run-vm-cli/vm-transport.json\": \"8864114435f9184eb917d5bcc72f317128a399f579d798e3cce58c21f175eeb0\",\n    \"entitlements.plist\": \"915e2b39357ecf8d211dc7fac43195c9cdcf55a0a1ecdbf931c116a4eac421f3\",\n    \"execution_boundary_measurement.py\": \"98087e09c93a54fc08effd2f365fc6b90034946206330ee75dc3c816c82024eb\",\n    \"fault_matrix.py\": \"99b359cfb368e5d4b978bc7eda4ca2bef1921feb0c2f3cafddd244dc2474b0cf\",\n    \"fixtures/guest-native-profile-inputs.json\": \"23916c8432ef203503b753baf5c38a3977a35cdc0c4082c02565d29dc324499f\",\n    \"fixtures/guest-program-catalog-vectors.json\": \"1d95c2b9e03f188ae6a7de4368225b5aecc95ba397a174a6f6e21ebd9a5a229e\",\n    \"fixtures/guest-program-catalog.json\": \"7d2537a8b780252d16303344c27957f3bc322290767d3d5f7b11cf27d8053d48\",\n    \"fixtures/managed-sampled-exposure.json\": \"9caf3a277bbd06cf63c91faf2af04eb9086848a52d0c6bab29edf1919b714823\",\n    \"fixtures/sampled-exposure-context.json\": \"f7eee64c6c458b1616a4a9e81b26ded7b9de321768c1f7793df27b0a79f8f6d6\",\n    \"fixtures/sampled-exposure-receipt.json\": \"b5be8a2fbfa5974acb76093f18fe97d93d01f9dc098a0c49fafc904d37ce1e58\",\n    \"fixtures/sampled-exposure-report.json\": \"69ec82eb3dd3cd74be8a2b02cb4773671d06ef42763cb98800eadc56b0cab464\",\n    \"gate_rows.py\": \"72729f44b66883de4d38cf18b4c60f7789f1fc5c8798acd65dd60d1d75007419\",\n    \"guest.py\": \"cc5fe7d00d4eafd6dbba2c5140d7589c7b40d8f42ce2ca3537d9fd5dde2013ba\",\n    \"guest_exposure.py\": \"19339c71d18d93ec32b00509360c01f7cb9fe3ec0d0d432c858432822d578a0b\",\n    \"guest_exposure_control.py\": \"1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f\",\n    \"guest_harness.py\": \"a89a4b9ecefbc5ca76bf0a2e0ec718b08f8a49ff93b34a8b3a1c35de47354764\",\n    \"guest_program.py\": \"706d490f6faa459d657def6c0f1ced96ac2e79855d2e3253e39f507dea653758\",\n    \"harness.py\": \"bfef94a3d631dcf54f0d4ef169546ad1ef0b9f9ca33ef942c35aa6580e8b8ccd\",\n    \"install.sh.in\": \"df5fddd7711fb76037b0a7a39e431f4638c14b2a0c9a0dd29be7abe053e63654\",\n    \"notarize.py\": \"b94bb2f6f5ceba8684625ba7dd47f95201f5ef0fd8e77beda6d8bbdff7666f19\",\n    \"package.py\": \"156f7d0f794b01e20782da2a876374e804c8b2f3416e25d355942d18f969de73\",\n    \"prepare.py\": \"b3967a84f54b3f1c469b75a482b62dfe90542ab2a05bde9b178678d72bc20739\",\n    \"program_binding_measurement.py\": \"a335a1bb70663b99edf06391baad42c13977bdfbe05310057e92ebe458b4bce5\",\n    \"proxy_measurement.py\": \"3a3ad00065a492638528f7b11cc931d30a2780f06a5ca189fcdb1fbe955bf6ee\",\n    \"requirements-build.in\": \"4439c693c19271e4b0bdc56c641c36b3b06010b1b22eae6733cd244d752e85d5\",\n    \"requirements-build.txt\": \"15dcf9beb2127eb52cad1c700b040514242fa4a9da4a799cbde18ca0d362cb93\",\n    \"run.py\": \"4a68643b43950a80788d113feebb841f9ab90890735e235081041b123a835412\",\n    \"stream_peer.py\": \"8a082a0708833def269a54d55095f404e0ffa83b7b21643563bedfdc6d6a632f\",\n    \"test_attempt.py\": \"87882e2bd34ebfab878a8472e7c7881a1b042caf36155174cb799ecb38c97166\",\n    \"test_check_install.py\": \"646f352df143e48e02ac909f08f602a8d35016949936d73582ae2072603a6b77\",\n    \"test_claude_vm_compatibility.py\": \"ed921364604d0ae5b2563142f80d306b33c2514fedd3721f85d2a0c4174657ba\",\n    \"test_claude_vm_revocation.py\": \"4eeff7d152954193d00cbfe44bb865d7677c05c2b0a6f41661dfc0f4d3d27f79\",\n    \"test_coordinates.py\": \"f909fadfac1f687213b84aabd87337fe4660aa81cfec76eb171aa4a00f98480f\",\n    \"test_credential_revocation_measurement.py\": \"0d2f0f99d638751b52ad9def0526314f3d35c0ae19506d00d213a14f19162478\",\n    \"test_credential_staging_measurement.py\": \"fbb534488d4a46bf58dc4c15c770c66d7eac79f3bb62fc35ea3a5fe568d31cad\",\n    \"test_custodian.py\": \"313aea548b2935632c45b1a775f22a995787864005f44d890dfefbbd2ae78c93\",\n    \"test_execution_boundary_measurement.py\": \"5691d00c85d7cc7dca9bfba2ce101ae246a5d4a081adec0770cb87ddb824417f\",\n    \"test_guest_exposure.py\": \"d0244cd3f9d9c2d7983c98b078f53281f5c00e6c3bd644c201d22a4df3ffd197\",\n    \"test_guest_exposure_control.py\": \"f9af3417ee2997fe81f19eeab48430c8e1254cdf69614823a2915a77d85bdb6f\",\n    \"test_guest_gate.py\": \"fcdcde52295cfa81dd05dbe3458aed2c8fba39440526d39b546e3ccf251ae2f8\",\n    \"test_guest_journal.py\": \"f47ed06d763f926fb476dc4e5292b9e587f27f608fe8c1bbbfab4c71017e3a38\",\n    \"test_guest_main.py\": \"f49a642759a847860f502d81ec1c6e139d9ee3f9086950e8e9d911d3919790be\",\n    \"test_guest_managed.py\": \"e0ccaf141be592bb4fba04331931c568cee2fc968058d8039036f7220a09ff40\",\n    \"test_guest_native.py\": \"482596f6b189d30ad4c2888fcbd015f74e2ac08bcf4c50aa2863442e9f5de322\",\n    \"test_guest_program.py\": \"bdaba906a657f52765040b71a97066723fffcd13623230538e831410ca02f2ec\",\n    \"test_guest_revocation.py\": \"51fcef3c8fa2ab530dc2e48a95ee00c2bbdf835303234cfb5e65df545c1c9efa\",\n    \"test_guest_warm.py\": \"8ea38e0c1e450fe64dc4b721e4fa27a568e1a5fd7189f74e32361f0e434c8a5e\",\n    \"test_harness.py\": \"3c7404bdeb680592a9ec47362d10ce9eeb7e1cea6059654c38655746e4aa48cb\",\n    \"test_harness_rows.py\": \"2fc02a7f65d87a7d4db8efbdc05c06b8426cb86c67585fd8df5babb21662b8e8\",\n    \"test_image_catalog.py\": \"22e7138a0fc4deb67ec4b6ef45a3e4ee0b5859b4f05ff453208f44c8c9e0f721\",\n    \"test_notarize.py\": \"637440753b18a76e274888d5051da3e2e21a6d1c76856cccf50ee47fc0d8975d\",\n    \"test_package.py\": \"ba0e88f44f0bf0872dca17b662dc486b810f8ad8f7304910bd6254ace40677f9\",\n    \"test_prepare.py\": \"9a1e82aa4a4da79fb7495749ddad064b91d9be53f8e34d755c4f984c62019135\",\n    \"test_program_binding_measurement.py\": \"842c70dda4a8a79775d9d72bb932bbb8bddac23ea7a74a6fe4773dcab9135fc3\",\n    \"test_share.py\": \"05b7978a1f14a5ed1ee7cd0d5277d24871a6a3b66c9c23c4a765abe026e0f1e6\",\n    \"test_stream_peer.py\": \"c03cc20be6b7a5998696a7e2e93b9542a5c62fc842ac7c03d8773c0c8c2b6766\",\n    \"test_vm.py\": \"60bff82295e29b6dde75d4d51e7c21bf0467406374bea326bdce7314617acd68\",\n    \"test_vm_summary_check.py\": \"6d4a3f4cbf6e5309b0be6a257555ebdc12a6b272a5b73bf9972f42f5b004e5b1\",\n    \"test_warm_service.py\": \"4c7532f0361492d2b0b0c7d029c030c64abc7879337c6d355b3564d4ffa413af\",\n    \"vault_measurement.py\": \"7febfe5d834d9624e81d56d1d7e72a328b641a9c2feb98f6689164e55d6055f6\",\n    \"vm_summary_check.py\": \"ee75599e0f6cc5f3da23303e8c9fc858f34b595fb176f0588eaa300f67b7febe\",\n    \"vz.swift\": \"fb1ef83cdb8b74abf7855375dbfd0d5be8cbaa80b89cb53ff2b41cd0ee203ab6\",\n    \"warm_live.py\": \"09f7cd572890da4c06d55ce7e48171fa8ef0021e952991b03873f5d583564b83\"\n  },\n  \"guest_source_sha256\": \"cc5fe7d00d4eafd6dbba2c5140d7589c7b40d8f42ce2ca3537d9fd5dde2013ba\"\n}\n",
+    "image": {
+      "schema": "ukai.vm.image-build/1",
+      "status": "prepared",
+      "image_url": "https://cloud-images.ubuntu.com/minimal/releases/stonking/release-20261105/ubuntu-26.10-minimal-cloudimg-arm64.img",
+      "image_sha256": "bac15af78c37fec8e9474a9a784041c13ddb2603b9095435b7e4269e3faf3064",
+      "jail_url": null,
+      "jail_archive_sha256": "15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6",
+      "apt_snapshot": "20261106T000000Z",
+      "apt_snapshot_url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z",
+      "source_sha256": {
+        "guest.py": "cc5fe7d00d4eafd6dbba2c5140d7589c7b40d8f42ce2ca3537d9fd5dde2013ba",
+        "guest_program.py": "706d490f6faa459d657def6c0f1ced96ac2e79855d2e3253e39f507dea653758",
+        "guest_exposure.py": "19339c71d18d93ec32b00509360c01f7cb9fe3ec0d0d432c858432822d578a0b",
+        "guest_exposure_control.py": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f",
+        "vz.swift": "fb1ef83cdb8b74abf7855375dbfd0d5be8cbaa80b89cb53ff2b41cd0ee203ab6",
+        "custodian.c": "d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab",
+        "prepare.py": "b3967a84f54b3f1c469b75a482b62dfe90542ab2a05bde9b178678d72bc20739"
+      },
+      "jail_candidate": {
+        "kind": "signed-local-candidate",
+        "signature_verified": true,
+        "verifier": "publish_release.check",
+        "trusted_key": "crates/ukai-jail/dist/release.pub",
+        "trusted_key_sha256": "218b3005a943bf9641f42ece53e6a3ee2a8b3a12510db04d26477abefc8cfbd1",
+        "target": "aarch64-unknown-linux-gnu",
+        "release": "0.1.0-rc.7",
+        "tag": "ukai-jail-v0.1.0-rc.7",
+        "source_revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+        "build_inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+        "archive": "ukai-jail-0.1.0-rc.7-aarch64-unknown-linux-gnu.tar.gz",
+        "archive_sha256": "15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6",
+        "binary_sha256": "c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f",
+        "version": {
+          "build": {
+            "debug_assertions": false,
+            "dirty": false,
+            "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+            "opt_level": "3",
+            "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+            "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+            "target": "aarch64-unknown-linux-gnu"
+          },
+          "component": "ukai-jail",
+          "frozen": true,
+          "observation": {
+            "closed_set": "linux-closed-v1"
+          },
+          "platform": {
+            "arch": "aarch64",
+            "kernel": "Linux 7.0.0-1017-azure",
+            "os": "linux"
+          },
+          "schemas": {
+            "control": "ukai.jail.control/1",
+            "doctor": "ukai.jail.doctor/1",
+            "event": "ukai.event/1",
+            "gate": "ukai.jail.gate/1",
+            "learned_policy": "ukai.jail.learned-policy/1",
+            "network": "ukai.jail.network/1",
+            "policy": "ukai.jail.policy/1",
+            "policy_file": "ukai.jail.policy-file/1",
+            "policy_snapshot": "ukai.jail.policy-snapshot/1",
+            "receipt": "ukai.jail.receipt/1",
+            "summary": "ukai.jail.summary/1"
+          },
+          "version": "0.1.0"
+        },
+        "retained_directory": "cache/signed-jail-candidate",
+        "verified_assets_sha256": {
+          "RELEASE_NOTES.md": "2f431194c09aac228d55532c2d6a00c9e50af7d3781dd39e2cfce09a878c4907",
+          "SHA256SUMS": "3d4a3bafb239fb8719b90ed33334438c9b68b90184efeedd005d4a7d33053d51",
+          "SHA256SUMS.minisig": "cf36ceec8dbc6aae5adf2bc326cfdf98dcf79e80f6b8ed2aa87a15e3959f20ee",
+          "bootstrap.sh": "f7a1aa423f8f87d9bb4b50e9a9d7c4716a336ef30a259d793c1b7cdb67bfb4bb",
+          "install.sh": "9c49ea8a0d7c2633b446d1912d9def945bb10dad325de6542320dd185a13f012",
+          "release-plan.json": "3b469443904b059a1b090b6823e5829df203e52c77b0cb393f03c87a45f933c0",
+          "ukai-jail-0.1.0-rc.7-aarch64-unknown-linux-gnu.tar.gz": "15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6",
+          "ukai-jail-0.1.0-rc.7-x86_64-unknown-linux-gnu.tar.gz": "a9eb6b07b4925cc3828fa2a264cbc5d0208aea1b1ed2929f67ec0d5f1436c7a1"
+        },
+        "publication": "local input verification only; no publication performed"
+      },
+      "guest_program_catalog_sha256": "53de4dff6cc76d8bdfe9cf7939a76313ffec1106c3f6f76ab5d74c4c16f5fc06",
+      "guest_program_inputs": {
+        "id": "claude-2.1.311-linux-arm64",
+        "version": "2.1.311",
+        "executable_sha256": "2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3",
+        "executable_size": 293658808,
+        "profile_sha256": "e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24",
+        "guest_jail_sha256": "c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f"
+      },
+      "guest_exposure_control": {
+        "actual_values_retained": false,
+        "control_source_sha256": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f",
+        "errors": [],
+        "facts": {
+          "argv_canary_detected": true,
+          "environment_canary_detected": true,
+          "only_owned_child_observed": true,
+          "owned_child_reaped": true,
+          "sampler_source_unchanged": true,
+          "verified_program_argv_read": true,
+          "verified_program_environment_read": true
+        },
+        "guest_boot_id": "2340931a-b39b-4de9-a9bf-f189fb61a842",
+        "guest_kernel": "7.3.0-10-generic",
+        "jail_execution_claimed": false,
+        "passed": true,
+        "process": {
+          "executable_dev": 64769,
+          "executable_ino": 1287,
+          "pid": 888,
+          "starttime": 11818
+        },
+        "sampler_sha256": "19339c71d18d93ec32b00509360c01f7cb9fe3ec0d0d432c858432822d578a0b",
+        "sampling": {
+          "scan_errors": {},
+          "ticks": 1,
+          "verified_program_reads": {
+            "argv": {
+              "capped": 0,
+              "oversize": 0,
+              "readable": 1,
+              "unreadable": 0,
+              "unstable": 0,
+              "vanished": 0
+            },
+            "environment": {
+              "capped": 0,
+              "oversize": 0,
+              "readable": 1,
+              "unreadable": 0,
+              "unstable": 0,
+              "vanished": 0
+            }
+          }
+        },
+        "schema": "ukai.vm.sampled-exposure-control/1",
+        "scope": "owned-public-canary-process-detector-control"
+      },
+      "guest_exposure_control_sha256": "1873038356957e97451b21b00f5b505e38055521ea33ef01ec33a285b6daae9a",
+      "guest_pinned_versions": [
+        "bubblewrap=0.12.0-1",
+        "dbus-daemon=1.16.2-5ubuntu2",
+        "dbus-user-session=1.16.2-5ubuntu2"
+      ],
+      "guest_pinned_digest": "60ce89c267b3cb6c03b2669195387c870a35ab672f9093f5d86dce6f37517ca7",
+      "disk_sha256": "7008344b64f7d9f5fed9492e11f4a94579a2ad701472a8ed915ee323b357174e",
+      "helper_sha256": "9b0a5b8fc8e972b92b44c6c244aa87f5c1d3a799c8f360c1972474b4b167f882",
+      "custodian_sha256": "d4140527cbde5fbce84c7e48c67093e35d8400b0d9fc9c23f0f3825dc475d4ce",
+      "seed_sha256": "fab538c6530dccfe062da428b663709162c29de5f0959b6e20c36e0ba964ffc7",
+      "preview_version": "0.1.0-preview.2",
+      "host_minimum": "macOS 27; Apple Silicon",
+      "ukai_vm_sha256": "4f0466084311b9e886c6a7dc80a3973d7f144d4e88367729999ef6f022dfbd31",
+      "ukai_jail_sha256": "9414dc35706651768b369fbec58cee320b95bdec0f6ef01cc0c649327d439fe7",
+      "ukai_jail_version": {
+        "component": "ukai-jail",
+        "version": "0.1.0",
+        "build": {
+          "debug_assertions": false,
+          "dirty": false,
+          "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+          "opt_level": "3",
+          "revision": "44b5ac4fa65880abe369652ed0110162088a0cd9",
+          "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+          "target": "aarch64-apple-darwin"
+        }
+      },
+      "compressed_disk_sha256": "34e0c6c28c827cc9fb25b30fc58f7243de482c5523b5823a8c1196df71db6c28",
+      "source_revision": "44b5ac4fa65880abe369652ed0110162088a0cd9",
+      "source_archive_sha256": "d372af085a81aebc910c4c742130cff3a19aa3aeaaf53314d90578cb70a41500",
+      "source_archive_files": 976,
+      "package_source_sha256": {
+        "GUEST-NATIVE.md": "700647db23d1e9e278a87de4316b0ff4ace15d34c8998519a7ce558273938936",
+        "K113.md": "d75694b51d6fe3b4e9b68d5612d0981ad01b9fee4a8c263dd53eb0832e781a87",
+        "PREVIEW.txt": "95cab2b79d835c1af2e8f4ea470d0731d06d00ec40685c6a571ee373d87d2206",
+        "README.md": "71a8d2ba60c0a216c3113951bc24a33d7bd0f46551176d64b2db5c12a786d668",
+        "capabilities.py": "f49038c154933d64497bd3ceb1b94d173fb711f506bd4cc39250ee07e43f86c5",
+        "check.py": "34ca4fd7c9bd5f3125394b45f36b4ce16d0e23333e3fbc4160578af5c56a7b22",
+        "check_install.py": "d1c4cdecf12d13f7b5a2f54c3b3db8d26a56d143d7a325ca96bdcd7efca1ef69",
+        "claude_vm_revocation.py": "c7553d63ef6b23056a4ec46a27a49a398eedcb47985442080d276769c5179df8",
+        "claude_vm_row.py": "9173de94979d24012683073d6161ad6aeb4a1095e5b3d8fe247db6de8acfb805",
+        "cli.py": "b5b8c1726ad8f667becb5f89f5dfb63691f470f2a339c0f726477faf4c9f9afb",
+        "credential_revocation_measurement.py": "117ca2da3d9572d75613a4a4048a82995d01d5f7691feeeeb65bb759883a9710",
+        "credential_staging_measurement.py": "d63f0c42e66440d02e1cace219fe482ba11f59060a5ac7744e6a3876a0f7b4a8",
+        "custodian.c": "d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab",
+        "docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/run-vm-cli/jail.json": "3ac5356bb1176e0145c171ddcb8fdeb96a35844ede91629ec7d0eee3ece904df",
+        "docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/run-vm-cli/vm-binding.json": "b85b85e8e1e2df480fde751c3495185dadebe6bbac65b0c13f044c0631c6d3b0",
+        "docs/benchmarks/jail/results/macos-vm-warm-2026-11-02/run-vm-cli/vm-transport.json": "8864114435f9184eb917d5bcc72f317128a399f579d798e3cce58c21f175eeb0",
+        "entitlements.plist": "915e2b39357ecf8d211dc7fac43195c9cdcf55a0a1ecdbf931c116a4eac421f3",
+        "execution_boundary_measurement.py": "98087e09c93a54fc08effd2f365fc6b90034946206330ee75dc3c816c82024eb",
+        "fault_matrix.py": "99b359cfb368e5d4b978bc7eda4ca2bef1921feb0c2f3cafddd244dc2474b0cf",
+        "fixtures/guest-native-profile-inputs.json": "23916c8432ef203503b753baf5c38a3977a35cdc0c4082c02565d29dc324499f",
+        "fixtures/guest-program-catalog-vectors.json": "1d95c2b9e03f188ae6a7de4368225b5aecc95ba397a174a6f6e21ebd9a5a229e",
+        "fixtures/guest-program-catalog.json": "7d2537a8b780252d16303344c27957f3bc322290767d3d5f7b11cf27d8053d48",
+        "fixtures/managed-sampled-exposure.json": "9caf3a277bbd06cf63c91faf2af04eb9086848a52d0c6bab29edf1919b714823",
+        "fixtures/sampled-exposure-context.json": "f7eee64c6c458b1616a4a9e81b26ded7b9de321768c1f7793df27b0a79f8f6d6",
+        "fixtures/sampled-exposure-receipt.json": "b5be8a2fbfa5974acb76093f18fe97d93d01f9dc098a0c49fafc904d37ce1e58",
+        "fixtures/sampled-exposure-report.json": "69ec82eb3dd3cd74be8a2b02cb4773671d06ef42763cb98800eadc56b0cab464",
+        "gate_rows.py": "72729f44b66883de4d38cf18b4c60f7789f1fc5c8798acd65dd60d1d75007419",
+        "guest.py": "cc5fe7d00d4eafd6dbba2c5140d7589c7b40d8f42ce2ca3537d9fd5dde2013ba",
+        "guest_exposure.py": "19339c71d18d93ec32b00509360c01f7cb9fe3ec0d0d432c858432822d578a0b",
+        "guest_exposure_control.py": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f",
+        "guest_harness.py": "a89a4b9ecefbc5ca76bf0a2e0ec718b08f8a49ff93b34a8b3a1c35de47354764",
+        "guest_program.py": "706d490f6faa459d657def6c0f1ced96ac2e79855d2e3253e39f507dea653758",
+        "harness.py": "bfef94a3d631dcf54f0d4ef169546ad1ef0b9f9ca33ef942c35aa6580e8b8ccd",
+        "install.sh.in": "df5fddd7711fb76037b0a7a39e431f4638c14b2a0c9a0dd29be7abe053e63654",
+        "notarize.py": "b94bb2f6f5ceba8684625ba7dd47f95201f5ef0fd8e77beda6d8bbdff7666f19",
+        "package.py": "156f7d0f794b01e20782da2a876374e804c8b2f3416e25d355942d18f969de73",
+        "prepare.py": "b3967a84f54b3f1c469b75a482b62dfe90542ab2a05bde9b178678d72bc20739",
+        "program_binding_measurement.py": "a335a1bb70663b99edf06391baad42c13977bdfbe05310057e92ebe458b4bce5",
+        "proxy_measurement.py": "3a3ad00065a492638528f7b11cc931d30a2780f06a5ca189fcdb1fbe955bf6ee",
+        "requirements-build.in": "4439c693c19271e4b0bdc56c641c36b3b06010b1b22eae6733cd244d752e85d5",
+        "requirements-build.txt": "15dcf9beb2127eb52cad1c700b040514242fa4a9da4a799cbde18ca0d362cb93",
+        "run.py": "4a68643b43950a80788d113feebb841f9ab90890735e235081041b123a835412",
+        "stream_peer.py": "8a082a0708833def269a54d55095f404e0ffa83b7b21643563bedfdc6d6a632f",
+        "test_attempt.py": "87882e2bd34ebfab878a8472e7c7881a1b042caf36155174cb799ecb38c97166",
+        "test_check_install.py": "646f352df143e48e02ac909f08f602a8d35016949936d73582ae2072603a6b77",
+        "test_claude_vm_compatibility.py": "ed921364604d0ae5b2563142f80d306b33c2514fedd3721f85d2a0c4174657ba",
+        "test_claude_vm_revocation.py": "4eeff7d152954193d00cbfe44bb865d7677c05c2b0a6f41661dfc0f4d3d27f79",
+        "test_coordinates.py": "f909fadfac1f687213b84aabd87337fe4660aa81cfec76eb171aa4a00f98480f",
+        "test_credential_revocation_measurement.py": "0d2f0f99d638751b52ad9def0526314f3d35c0ae19506d00d213a14f19162478",
+        "test_credential_staging_measurement.py": "fbb534488d4a46bf58dc4c15c770c66d7eac79f3bb62fc35ea3a5fe568d31cad",
+        "test_custodian.py": "313aea548b2935632c45b1a775f22a995787864005f44d890dfefbbd2ae78c93",
+        "test_execution_boundary_measurement.py": "5691d00c85d7cc7dca9bfba2ce101ae246a5d4a081adec0770cb87ddb824417f",
+        "test_guest_exposure.py": "d0244cd3f9d9c2d7983c98b078f53281f5c00e6c3bd644c201d22a4df3ffd197",
+        "test_guest_exposure_control.py": "f9af3417ee2997fe81f19eeab48430c8e1254cdf69614823a2915a77d85bdb6f",
+        "test_guest_gate.py": "fcdcde52295cfa81dd05dbe3458aed2c8fba39440526d39b546e3ccf251ae2f8",
+        "test_guest_journal.py": "f47ed06d763f926fb476dc4e5292b9e587f27f608fe8c1bbbfab4c71017e3a38",
+        "test_guest_main.py": "f49a642759a847860f502d81ec1c6e139d9ee3f9086950e8e9d911d3919790be",
+        "test_guest_managed.py": "e0ccaf141be592bb4fba04331931c568cee2fc968058d8039036f7220a09ff40",
+        "test_guest_native.py": "482596f6b189d30ad4c2888fcbd015f74e2ac08bcf4c50aa2863442e9f5de322",
+        "test_guest_program.py": "bdaba906a657f52765040b71a97066723fffcd13623230538e831410ca02f2ec",
+        "test_guest_revocation.py": "51fcef3c8fa2ab530dc2e48a95ee00c2bbdf835303234cfb5e65df545c1c9efa",
+        "test_guest_warm.py": "8ea38e0c1e450fe64dc4b721e4fa27a568e1a5fd7189f74e32361f0e434c8a5e",
+        "test_harness.py": "3c7404bdeb680592a9ec47362d10ce9eeb7e1cea6059654c38655746e4aa48cb",
+        "test_harness_rows.py": "2fc02a7f65d87a7d4db8efbdc05c06b8426cb86c67585fd8df5babb21662b8e8",
+        "test_image_catalog.py": "22e7138a0fc4deb67ec4b6ef45a3e4ee0b5859b4f05ff453208f44c8c9e0f721",
+        "test_notarize.py": "637440753b18a76e274888d5051da3e2e21a6d1c76856cccf50ee47fc0d8975d",
+        "test_package.py": "ba0e88f44f0bf0872dca17b662dc486b810f8ad8f7304910bd6254ace40677f9",
+        "test_prepare.py": "9a1e82aa4a4da79fb7495749ddad064b91d9be53f8e34d755c4f984c62019135",
+        "test_program_binding_measurement.py": "842c70dda4a8a79775d9d72bb932bbb8bddac23ea7a74a6fe4773dcab9135fc3",
+        "test_share.py": "05b7978a1f14a5ed1ee7cd0d5277d24871a6a3b66c9c23c4a765abe026e0f1e6",
+        "test_stream_peer.py": "c03cc20be6b7a5998696a7e2e93b9542a5c62fc842ac7c03d8773c0c8c2b6766",
+        "test_vm.py": "60bff82295e29b6dde75d4d51e7c21bf0467406374bea326bdce7314617acd68",
+        "test_vm_summary_check.py": "6d4a3f4cbf6e5309b0be6a257555ebdc12a6b272a5b73bf9972f42f5b004e5b1",
+        "test_warm_service.py": "4c7532f0361492d2b0b0c7d029c030c64abc7879337c6d355b3564d4ffa413af",
+        "vault_measurement.py": "7febfe5d834d9624e81d56d1d7e72a328b641a9c2feb98f6689164e55d6055f6",
+        "vm_summary_check.py": "ee75599e0f6cc5f3da23303e8c9fc858f34b595fb176f0588eaa300f67b7febe",
+        "vz.swift": "fb1ef83cdb8b74abf7855375dbfd0d5be8cbaa80b89cb53ff2b41cd0ee203ab6",
+        "warm_live.py": "09f7cd572890da4c06d55ce7e48171fa8ef0021e952991b03873f5d583564b83"
+      },
+      "guest_source_sha256": "cc5fe7d00d4eafd6dbba2c5140d7589c7b40d8f42ce2ca3537d9fd5dde2013ba"
+    },
+    "service": {
+      "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-Q-44b5ac4fa/prefix with spaces/share/ukai-vm/0.1.0-preview.2/bin/ukai-vm",
+      "sha256": "4f0466084311b9e886c6a7dc80a3973d7f144d4e88367729999ef6f022dfbd31"
+    },
+    "client": {
+      "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-Q-44b5ac4fa/prefix with spaces/share/ukai-vm/0.1.0-preview.2/bin/ukai-jail",
+      "sha256": "9414dc35706651768b369fbec58cee320b95bdec0f6ef01cc0c649327d439fe7"
+    },
+    "measurement": {
+      "path": "crates/ukai-jail/vm/program_binding_measurement.py",
+      "sha256": "a335a1bb70663b99edf06391baad42c13977bdfbe05310057e92ebe458b4bce5"
+    }
+  },
+  "scans": [
+    {
+      "encoding": "raw",
+      "file_hits": [],
+      "files_scanned": 11,
+      "disk_bytes": 6442450944,
+      "disk_hits": 0
+    },
+    {
+      "encoding": "base64",
+      "file_hits": [],
+      "files_scanned": 11,
+      "disk_bytes": 6442450944,
+      "disk_hits": 0
+    },
+    {
+      "encoding": "hex",
+      "file_hits": [],
+      "files_scanned": 11,
+      "disk_bytes": 6442450944,
+      "disk_hits": 0
+    },
+    {
+      "encoding": "base64url",
+      "file_hits": [],
+      "files_scanned": 11,
+      "disk_bytes": 6442450944,
+      "disk_hits": 0
+    },
+    {
+      "encoding": "url",
+      "file_hits": [],
+      "files_scanned": 11,
+      "disk_bytes": 6442450944,
+      "disk_hits": 0
+    },
+    {
+      "encoding": "json",
+      "file_hits": [],
+      "files_scanned": 11,
+      "disk_bytes": 6442450944,
+      "disk_hits": 0
+    }
+  ]
+}

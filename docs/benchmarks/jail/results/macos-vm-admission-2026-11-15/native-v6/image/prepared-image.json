@@ -1,0 +1,149 @@
+{
+  "schema": "ukai.vm.image-build/1",
+  "status": "prepared",
+  "image_url": "https://cloud-images.ubuntu.com/minimal/releases/resolute/release-20261009/ubuntu-26.04-minimal-cloudimg-arm64.img",
+  "image_sha256": "4e86a7819b4cc7b4a9c2e719dec3e0a723c4a2788dc3f23f17641cba7f5ca216",
+  "jail_url": null,
+  "jail_archive_sha256": "bef11e6e96ac3a980f5a4e084cb7008439e246446aa4b99e933746377c53c7ce",
+  "apt_snapshot": "20261020T000000Z",
+  "apt_snapshot_url": "https://snapshot.ubuntu.com/ubuntu/20261020T000000Z",
+  "source_sha256": {
+    "guest.py": "06dad8f602567645a1d7992a72f27d0da7b9cb1a4a62707c8cf556646fcddfdc",
+    "guest_program.py": "fc73abbf2189a6216595da25b9b69aa03cc38735249c45d0e70e064020eb29bf",
+    "guest_exposure.py": "369dd19420ef422b4cb51231f3e1f9119a2eaaf78d54b71d781f5ff9cf61c5ec",
+    "guest_exposure_control.py": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f",
+    "vz.swift": "d1d3c87ad70bf770ab0d9c1f250fe2f64b5baee162f2b28dcf3f2cb89f0df32a",
+    "custodian.c": "d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab",
+    "prepare.py": "d9aef47dff24192e690ec8a479a127d02f8e443182e25461709cd07a438e7e5a"
+  },
+  "jail_candidate": {
+    "kind": "signed-local-candidate",
+    "signature_verified": true,
+    "verifier": "publish_release.check",
+    "trusted_key": "crates/ukai-jail/dist/release.pub",
+    "trusted_key_sha256": "218b3005a943bf9641f42ece53e6a3ee2a8b3a12510db04d26477abefc8cfbd1",
+    "target": "aarch64-unknown-linux-gnu",
+    "release": "0.1.0-rc.6",
+    "tag": "ukai-jail-v0.1.0-rc.6",
+    "source_revision": "6ffff05dc6ae08602a39630b947c704bf9cf05a9",
+    "build_inputs": "sha256:efdc169e8e09f514c908e02bb6f972bc8761d2efc9af94d9b53d914a436f14e6",
+    "archive": "ukai-jail-0.1.0-rc.6-aarch64-unknown-linux-gnu.tar.gz",
+    "archive_sha256": "bef11e6e96ac3a980f5a4e084cb7008439e246446aa4b99e933746377c53c7ce",
+    "binary_sha256": "118c8bdda8c7bd5b5957bce15171ff418fb7df0350de795770532beaee2e3462",
+    "version": {
+      "build": {
+        "debug_assertions": false,
+        "dirty": false,
+        "inputs": "sha256:efdc169e8e09f514c908e02bb6f972bc8761d2efc9af94d9b53d914a436f14e6",
+        "opt_level": "3",
+        "revision": "6ffff05dc6ae08602a39630b947c704bf9cf05a9",
+        "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "target": "aarch64-unknown-linux-gnu"
+      },
+      "component": "ukai-jail",
+      "frozen": true,
+      "observation": {
+        "closed_set": "linux-closed-v1"
+      },
+      "platform": {
+        "arch": "aarch64",
+        "kernel": "Linux 7.0.0-1017-azure",
+        "os": "linux"
+      },
+      "schemas": {
+        "control": "ukai.jail.control/1",
+        "doctor": "ukai.jail.doctor/1",
+        "event": "ukai.event/1",
+        "gate": "ukai.jail.gate/1",
+        "learned_policy": "ukai.jail.learned-policy/1",
+        "network": "ukai.jail.network/1",
+        "policy": "ukai.jail.policy/1",
+        "policy_file": "ukai.jail.policy-file/1",
+        "policy_snapshot": "ukai.jail.policy-snapshot/1",
+        "receipt": "ukai.jail.receipt/1",
+        "summary": "ukai.jail.summary/1"
+      },
+      "version": "0.1.0"
+    },
+    "retained_directory": "cache/signed-jail-candidate",
+    "verified_assets_sha256": {
+      "RELEASE_NOTES.md": "c45f4e1bc341ed6d36f3d523406304e91823968463fbcc4efe25ac9807810f18",
+      "SHA256SUMS": "c8b7ee8c72d0819d1d9bcfe14b2e85352f8c377c0076a2a6b6483803938b9560",
+      "SHA256SUMS.minisig": "c15d929fffe558c23dab8c094e71926e08b3ad09c47effa966adeee3f99c4015",
+      "bootstrap.sh": "13b16d849dfd1ceb92fe707624b67f595f9002eac858b7153acdbac38b468af7",
+      "install.sh": "9c49ea8a0d7c2633b446d1912d9def945bb10dad325de6542320dd185a13f012",
+      "release-plan.json": "909d79a88c18f194075bd9c4f5e83d0ba757187ff599c5044a91f9fcef141e88",
+      "ukai-jail-0.1.0-rc.6-aarch64-unknown-linux-gnu.tar.gz": "bef11e6e96ac3a980f5a4e084cb7008439e246446aa4b99e933746377c53c7ce",
+      "ukai-jail-0.1.0-rc.6-x86_64-unknown-linux-gnu.tar.gz": "c074b81a3cacb69090544b64e45b44b1268f3f4ff06a452969501dd5f4d9b962"
+    },
+    "publication": "local input verification only; no publication performed"
+  },
+  "guest_program_catalog_sha256": "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244",
+  "guest_program_inputs": {
+    "id": "claude-2.1.311-linux-arm64",
+    "version": "2.1.311",
+    "executable_sha256": "2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3",
+    "executable_size": 293658808,
+    "profile_sha256": "e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24",
+    "guest_jail_sha256": "118c8bdda8c7bd5b5957bce15171ff418fb7df0350de795770532beaee2e3462"
+  },
+  "guest_exposure_control": {
+    "actual_values_retained": false,
+    "control_source_sha256": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f",
+    "errors": [],
+    "facts": {
+      "argv_canary_detected": true,
+      "environment_canary_detected": true,
+      "only_owned_child_observed": true,
+      "owned_child_reaped": true,
+      "sampler_source_unchanged": true,
+      "verified_program_argv_read": true,
+      "verified_program_environment_read": true
+    },
+    "guest_boot_id": "9bca1bac-4049-40f2-b0c5-bb64206feb6e",
+    "guest_kernel": "7.0.0-38-generic",
+    "jail_execution_claimed": false,
+    "passed": true,
+    "process": {
+      "executable_dev": 64769,
+      "executable_ino": 1637,
+      "pid": 991,
+      "starttime": 4082
+    },
+    "sampler_sha256": "369dd19420ef422b4cb51231f3e1f9119a2eaaf78d54b71d781f5ff9cf61c5ec",
+    "sampling": {
+      "scan_errors": {},
+      "ticks": 1,
+      "verified_program_reads": {
+        "argv": {
+          "capped": 0,
+          "oversize": 0,
+          "readable": 1,
+          "unreadable": 0,
+          "unstable": 0,
+          "vanished": 0
+        },
+        "environment": {
+          "capped": 0,
+          "oversize": 0,
+          "readable": 1,
+          "unreadable": 0,
+          "unstable": 0,
+          "vanished": 0
+        }
+      }
+    },
+    "schema": "ukai.vm.sampled-exposure-control/1",
+    "scope": "owned-public-canary-process-detector-control"
+  },
+  "guest_exposure_control_sha256": "55f8d826fbb9326151f09971d92787844b08e5d0cc86b4a0c835cbaa76c50057",
+  "guest_pinned_versions": [
+    "bubblewrap=0.11.1-1ubuntu0.3",
+    "dbus-user-session=1.16.2-2ubuntu4"
+  ],
+  "guest_pinned_digest": "26faa9a3062fc7b1eb983b97fa4630043c551d50e21ee78904d55a13231bf038",
+  "disk_sha256": "35154ce2c3ad62725b5dffb595062f167a6896e1c5b840c2de514a61e8fa7957",
+  "helper_sha256": "7b0a0896fd39711ffa5fc30431b0de20d1da085e8b2d28352fba172ffa0f3a7f",
+  "custodian_sha256": "15bf47847e0c48913b6bb342443bffa9adfc02f4d4ebaf86e65bbcee6e34df6e",
+  "seed_sha256": "26800da8b107139f3d4b01cf1114c44ba4c01731588a3ca86ed86683e2556526"
+}

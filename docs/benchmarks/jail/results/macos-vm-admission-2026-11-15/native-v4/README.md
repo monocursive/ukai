@@ -1,0 +1,25 @@
+# Native-image v4 component evidence
+
+Fresh component measurements passed on the private Developer ID package built from clean source `9fdf7edc89d010e2acfce31cd640b5d1bc24b321`: ten baseline capability rows, 121 derived execution-boundary facts, 24 independently replayed raw vault/revocation facts, and 24 separately measured literal Linux executable-binding facts. The live raw report includes one additional successful offline-replay check. Credential staging remains `qualified: false`.
+
+This bundle does **not** qualify native alias launch, native vendor exposure sampling, vendor compatibility, K113, normal installed-client source-watch, notarization, or public release. It changes no capability table. `native-admission.json` is a component-only guard derivation, pinning the exact image/catalog/entry/profile/executable from the same-image vault and literal executable-binding proofs. All four qualification flags remain false. The separate raw native development probes are excluded from this component bundle.
+
+`program-binding/` retains actual Linux `@program` enforcement: the original Python executable reached the independent peer (200); a byte-identical copy with a different inode actually executed and was refused (403, `credential_process_denied`). Exactly one upstream credential substitution occurred. This literal control does not execute the catalog vendor or exercise the unchanged bundled launch profile, native `--from-path`, a provider, or host source-watch.
+
+The image is bound to disk SHA-256 `9bf72af0939f7b187fd7841074e8a3091ff698139efe016ebca93adb35df49a6`, seed SHA-256 `a9abb87b1b75cc9984600c099a6de96701cbae8180624e11f9862c43b5ff1e28`, and catalog SHA-256 `2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244`. The bootstrap public-canary detector control passed seven facts with no scan errors. This is a detector control, not a vendor/jail receipt or continuous exposure proof. The v4 image uses sampled-exposure `/2`, binding the actual supervisor separately from the receipt workload and counting observations for that exact workload. It inherits no earlier image verdict. Generic staging accepts the exact known four-contract `/2` shape without qualifying native launch or sampling.
+
+The signed DMG SHA-256 is `70ff6d702fd9d5b13498a7f5f6498563be9ad617331935c3d5e9923990390540`. Six actual Apple requirement-based signature checks, seven actual-DMG installer cases, and an independent package/installed-byte/source review passed. `package/` preserves their original records. The DMG, disk, seed, binaries, source archive and full build logs are excluded; offline replay binds retained signature observations to exact payload hashes but cannot perform Apple verification or enforcement again.
+
+Raw receipts, complete exported journals, exact launch/argv/transport inputs, sync receipts and tail output are copied byte-for-byte. The original live scans report no generated synthetic-value hits in retained bytes and same-boot disk; offline replay checks these observations and scans this bundle for the generated synthetic-value format and its covered encodings. It cannot rescan a stopped VM or establish arbitrary-memory absence. No provider credential was used or retained. Each component's own stop and pinned-lock record is retained in its input. `lifecycle.json` records no owned processes and the task workspace volume detached after these runs; its separate raw-native diagnostic had successful execution and honestly incomplete sampling of a short workload. That diagnostic does not supply this component admission or a native/vendor qualification verdict.
+
+`tools/` holds exact frozen source and test dependencies from `9fdf7edc89d010e2acfce31cd640b5d1bc24b321`. The program-binding helper is also byte-identical to its original reviewed `eb13e8bfab991ff8c9b5adb62dddff271f03ae8d` commit. `provenance.json` identifies each copied file; recorded absolute paths are provenance, not replay inputs. `program-binding/offline-replay.json` and the admission/review records are new offline derivations from this fresh evidence. The original and `native-v2` bundles remain unchanged; v3 component proof remains separate ignored task evidence.
+
+With Python 3.11 or later, run:
+
+```sh
+python3 replay.py
+python3 -B -m unittest discover -s tools -p 'test_credential_staging_measurement.py'
+python3 -B -m unittest discover -s tools -p 'test_program_binding_measurement.py'
+```
+
+Replay verifies the exact inventory and byte hashes, recomputes all capability/boundary/raw/program facts, rederives credential staging, checks image/catalog/profile/source/package bindings, and checks the component admission's six pins, 24 evidence references, attempt, measurement time and unqualified scope. It never mounts, boots, invokes an installed binary, signs, or contacts a provider. The copied focused tests cover 29 cases. `replay-result.json` is the deterministic result, verified again after relocation with original reads, writes, network and subprocesses denied. `SHA256SUMS` and `inventory.json` provide integrity inventories, not independent authentication.

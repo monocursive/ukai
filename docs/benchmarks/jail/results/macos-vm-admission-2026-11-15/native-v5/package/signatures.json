@@ -1,0 +1,104 @@
+{
+  "schema": "ukai.task.signed-package-verification/1",
+  "source_revision": "b54086a3e31d1097954448e2bd37278f20beab7c",
+  "passed": true,
+  "checks": [
+    {
+      "name": "dmg",
+      "argv": [
+        "/usr/bin/codesign",
+        "--verify",
+        "--strict",
+        "-R",
+        "=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"64SGQ348QJ\"",
+        "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-b54086a3e/ukai-vm-0.1.0-preview.2-macos-arm64.dmg"
+      ],
+      "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-b54086a3e/ukai-vm-0.1.0-preview.2-macos-arm64.dmg",
+      "sha256": "74b63a94edfe6a3269d2cb876900c25a5a1c7d97459e39b4e0b927e0ee249cbc",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "installer",
+      "argv": [
+        "/usr/bin/codesign",
+        "--verify",
+        "--strict",
+        "-R",
+        "=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"64SGQ348QJ\"",
+        "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-b54086a3e/payload/bin/ukai-vm-install"
+      ],
+      "path": "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-b54086a3e/payload/bin/ukai-vm-install",
+      "sha256": "5feeab8dd4c39f5ca80c95f0120e3276309a88699232700da4f0d1a6d1498dd6",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "service",
+      "argv": [
+        "/usr/bin/codesign",
+        "--verify",
+        "--strict",
+        "-R",
+        "=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"64SGQ348QJ\"",
+        "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-b54086a3e/payload/bin/ukai-vm"
+      ],
+      "path": "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-b54086a3e/payload/bin/ukai-vm",
+      "sha256": "775aca4a32220172d9749e2f78373a0802b973f453cf907d0a17753229fb1143",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "client",
+      "argv": [
+        "/usr/bin/codesign",
+        "--verify",
+        "--strict",
+        "-R",
+        "=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"64SGQ348QJ\"",
+        "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-b54086a3e/payload/bin/ukai-jail"
+      ],
+      "path": "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-b54086a3e/payload/bin/ukai-jail",
+      "sha256": "f4547b149ccc65b661a6e7e4bf875f4778aef2edaacd24369cd7374f5d776fc6",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "vz",
+      "argv": [
+        "/usr/bin/codesign",
+        "--verify",
+        "--strict",
+        "-R",
+        "=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"64SGQ348QJ\"",
+        "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-b54086a3e/payload/image/vz"
+      ],
+      "path": "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-b54086a3e/payload/image/vz",
+      "sha256": "842308de1450445c9de2413166a0666568c284f1fea413dbb4bce07016d664d8",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "custodian",
+      "argv": [
+        "/usr/bin/codesign",
+        "--verify",
+        "--strict",
+        "-R",
+        "=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"64SGQ348QJ\"",
+        "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-b54086a3e/payload/image/custodian"
+      ],
+      "path": "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-b54086a3e/payload/image/custodian",
+      "sha256": "947c548bbec27c211e3423e3f17f0aa7f29c18becc92f7e847549d4debbbb205",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "scope": "Actual readonly attached DMG payload and DMG Developer ID signatures; no notarization or public release"
+}

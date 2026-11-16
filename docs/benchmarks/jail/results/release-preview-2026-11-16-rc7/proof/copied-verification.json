@@ -1,0 +1,42 @@
+{
+  "copy_report_sha256": "6d1d69f9f3329e4c539e89d9cf43725293875eee09b73de96b4d7c7acfcc1d5e",
+  "outcome": "PASS",
+  "raw_files_rechecked": 92,
+  "verifications": [
+    {
+      "argv": [
+        "python3",
+        "-B",
+        "docs/benchmarks/jail/verify_preview_evidence.py",
+        "--directory",
+        "docs/benchmarks/jail/results/release-preview-2026-11-16-rc7",
+        "--inputs",
+        "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+        "--check",
+        "onboarding"
+      ],
+      "check": "onboarding",
+      "exit": 0,
+      "stderr": "",
+      "stdout": "PASS recorded Linux preview evidence: onboarding\n"
+    },
+    {
+      "argv": [
+        "python3",
+        "-B",
+        "docs/benchmarks/jail/verify_preview_evidence.py",
+        "--directory",
+        "docs/benchmarks/jail/results/release-preview-2026-11-16-rc7",
+        "--inputs",
+        "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+        "--check",
+        "learning"
+      ],
+      "check": "learning",
+      "exit": 0,
+      "stderr": "",
+      "stdout": "PASS recorded Linux preview evidence: learning\n"
+    }
+  ],
+  "verifier_sha256": "1e6ae72d295d3897eb90bb2b73e3750e96851ffb2eaf557ffe4ed8fccfcddb3c"
+}

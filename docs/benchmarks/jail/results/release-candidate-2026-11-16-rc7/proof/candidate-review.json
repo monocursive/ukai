@@ -1,0 +1,222 @@
+{
+  "schema": "ukai.task.release-candidate-independent-review/1",
+  "outcome": "PASS",
+  "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+  "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+  "run_id": 43822535195,
+  "sources": {
+    "Cargo.lock": {
+      "bytes": 45082,
+      "sha256": "0ea5c6f32c427532e563313d3a6d0d8a8f1faf9759e24e0ff59a1b09a0ba45e3"
+    },
+    "Cargo.toml": {
+      "bytes": 1409,
+      "sha256": "3cc10c9a71a628d9f3183aa8dd58985de1278c1d2b4bf576aed41c3de81a031e"
+    },
+    "LICENSE": {
+      "bytes": 1068,
+      "sha256": "38184627dc06fbee992333e9d7009f4d9efdc724f00edf305067e266fa8cab11"
+    },
+    "crates/ukai-jail/Cargo.toml": {
+      "bytes": 2247,
+      "sha256": "5902562fd0ccc73560abf72e2bf6ff70501543e5ecea7767749fa3be571431e4"
+    },
+    "crates/ukai-jail/data/uts46_unicode17_tables.rs": {
+      "bytes": 452094,
+      "sha256": "645e9fef4c807e756ec42eb4b6e1eb12ab91a5e36f8602cbd827e82f6668f714"
+    },
+    "crates/ukai-jail/dist/THIRD_PARTY_NOTICES.txt": {
+      "bytes": 2290545,
+      "sha256": "a772fb84f80ac70eb07aeab1d66a5892dbd68a8d50f830ac0e840b7d9a292acf"
+    },
+    "crates/ukai-jail/dist/UNICODE_LICENSE": {
+      "bytes": 1995,
+      "sha256": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+    },
+    "crates/ukai-jail/dist/WEBPKI_ROOTS_LICENSE": {
+      "bytes": 2371,
+      "sha256": "e271993808fec50ab29350b39539cdec611a9103f827e0aa26d61da70e2d33f8"
+    },
+    "crates/ukai-jail/dist/bootstrap.py": {
+      "bytes": 2716,
+      "sha256": "5f56d26735e6521d2ce1ab637006a3b3f59293c9de795483af3278afd1acfc4e"
+    },
+    "crates/ukai-jail/dist/coordinates.py": {
+      "bytes": 2809,
+      "sha256": "88e6cc4e5a147b01bc0a17b51929b6e338c39511509e1c79056638c61fbd5de1"
+    },
+    "crates/ukai-jail/dist/install.sh": {
+      "bytes": 10085,
+      "sha256": "9c49ea8a0d7c2633b446d1912d9def945bb10dad325de6542320dd185a13f012"
+    },
+    "crates/ukai-jail/dist/notices.py": {
+      "bytes": 16347,
+      "sha256": "6f8ec489942893937769bc7fb1a1c2c641d58d826371f5ae39ceacd9077fd090"
+    },
+    "crates/ukai-jail/dist/package.py": {
+      "bytes": 3182,
+      "sha256": "3b9f5bb393b8e915ce4a9164a93b04c2fdc44aef76935e43a477dc68e6dbf106"
+    },
+    "crates/ukai-jail/dist/prepare_release.py": {
+      "bytes": 11692,
+      "sha256": "acdcd66fa6e9b83e3e653570bae1809f6890ff8855f1781acdc8378670b2d58b"
+    },
+    "crates/ukai-jail/dist/release.json": {
+      "bytes": 3067,
+      "sha256": "8b39e75c63e7ce7ca97a0a0f3918411a72f205d3e1f079ced9e503527b2f13f7"
+    },
+    "crates/ukai-jail/dist/third-party-notices.json": {
+      "bytes": 118266,
+      "sha256": "7167434ba5e39804390aa1f7373fec6ceb4b28c18e8fc6eced6bb5c6d7e9a0ba"
+    },
+    "crates/ukai-records/Cargo.toml": {
+      "bytes": 392,
+      "sha256": "c13609044b387af128792c8dcbc562d80cb08ef87c8c6404190de05744b4582e"
+    },
+    "install.sh": {
+      "bytes": 16747,
+      "sha256": "86fc3f0eb32b701e50ab984c3e7411df59898e7bce9287b62e815a5d9af6f7da"
+    },
+    "rust-toolchain.toml": {
+      "bytes": 173,
+      "sha256": "740e56dec60a3bf551dcecbc05811bb86fba460a57d9a7fe1e706d8a35de4543"
+    }
+  },
+  "reader": {
+    "bytes": 5040,
+    "sha256": "882f9493ecc7abfc19f4b958274619c21c2bf851b0ffdef2b1db6a1acd4f24d7"
+  },
+  "notices": {
+    "sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd",
+    "bytes": 2291615
+  },
+  "stages": [
+    {
+      "schema": "ukai.jail.release-artifact/1",
+      "target": "x86_64-unknown-linux-gnu",
+      "version": {
+        "build": {
+          "debug_assertions": false,
+          "dirty": false,
+          "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+          "opt_level": "3",
+          "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+          "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+          "target": "x86_64-unknown-linux-gnu"
+        },
+        "component": "ukai-jail",
+        "frozen": true,
+        "observation": {
+          "closed_set": "linux-closed-v1"
+        },
+        "platform": {
+          "arch": "x86_64",
+          "kernel": "Linux 7.0.0-1017-azure",
+          "os": "linux"
+        },
+        "schemas": {
+          "control": "ukai.jail.control/1",
+          "doctor": "ukai.jail.doctor/1",
+          "event": "ukai.event/1",
+          "gate": "ukai.jail.gate/1",
+          "learned_policy": "ukai.jail.learned-policy/1",
+          "network": "ukai.jail.network/1",
+          "policy": "ukai.jail.policy/1",
+          "policy_file": "ukai.jail.policy-file/1",
+          "policy_snapshot": "ukai.jail.policy-snapshot/1",
+          "receipt": "ukai.jail.receipt/1",
+          "summary": "ukai.jail.summary/1"
+        },
+        "version": "0.1.0"
+      },
+      "release": "0.1.0-rc.7",
+      "binary_sha256": "7df9db3caefc09965b6ca2578ca75af21a214548963caedb4215895ca047ec8a",
+      "archive": "ukai-jail-0.1.0-rc.7-x86_64-unknown-linux-gnu.tar.gz",
+      "archive_sha256": "a9eb6b07b4925cc3828fa2a264cbc5d0208aea1b1ed2929f67ec0d5f1436c7a1",
+      "provenance": "version queried by executing this binary on its native host"
+    },
+    {
+      "schema": "ukai.jail.release-artifact/1",
+      "target": "aarch64-unknown-linux-gnu",
+      "version": {
+        "build": {
+          "debug_assertions": false,
+          "dirty": false,
+          "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+          "opt_level": "3",
+          "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+          "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+          "target": "aarch64-unknown-linux-gnu"
+        },
+        "component": "ukai-jail",
+        "frozen": true,
+        "observation": {
+          "closed_set": "linux-closed-v1"
+        },
+        "platform": {
+          "arch": "aarch64",
+          "kernel": "Linux 7.0.0-1017-azure",
+          "os": "linux"
+        },
+        "schemas": {
+          "control": "ukai.jail.control/1",
+          "doctor": "ukai.jail.doctor/1",
+          "event": "ukai.event/1",
+          "gate": "ukai.jail.gate/1",
+          "learned_policy": "ukai.jail.learned-policy/1",
+          "network": "ukai.jail.network/1",
+          "policy": "ukai.jail.policy/1",
+          "policy_file": "ukai.jail.policy-file/1",
+          "policy_snapshot": "ukai.jail.policy-snapshot/1",
+          "receipt": "ukai.jail.receipt/1",
+          "summary": "ukai.jail.summary/1"
+        },
+        "version": "0.1.0"
+      },
+      "release": "0.1.0-rc.7",
+      "binary_sha256": "c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f",
+      "archive": "ukai-jail-0.1.0-rc.7-aarch64-unknown-linux-gnu.tar.gz",
+      "archive_sha256": "15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6",
+      "provenance": "version queried by executing this binary on its native host"
+    }
+  ],
+  "candidate_files": {
+    "release-plan.json": {
+      "bytes": 5261,
+      "sha256": "cc36923297d908fe182167e1eab7362e8693c12e591b983bb79f11fd9d954405"
+    },
+    "install.sh": {
+      "bytes": 10085,
+      "sha256": "9c49ea8a0d7c2633b446d1912d9def945bb10dad325de6542320dd185a13f012"
+    },
+    "bootstrap.sh": {
+      "bytes": 16996,
+      "sha256": "f7a1aa423f8f87d9bb4b50e9a9d7c4716a336ef30a259d793c1b7cdb67bfb4bb"
+    },
+    "ukai-jail-0.1.0-rc.7-aarch64-unknown-linux-gnu.tar.gz": {
+      "bytes": 4691180,
+      "sha256": "15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6"
+    },
+    "ukai-jail-0.1.0-rc.7-x86_64-unknown-linux-gnu.tar.gz": {
+      "bytes": 4745031,
+      "sha256": "a9eb6b07b4925cc3828fa2a264cbc5d0208aea1b1ed2929f67ec0d5f1436c7a1"
+    },
+    "RELEASE_NOTES.md": {
+      "bytes": 1402,
+      "sha256": "2f431194c09aac228d55532c2d6a00c9e50af7d3781dd39e2cfce09a878c4907"
+    },
+    "SHA256SUMS": {
+      "bytes": 562,
+      "sha256": "50ef98202ba39f10f5554c4f667b5a6bb24545d5a32a61bd957acd0cd621fedc"
+    }
+  },
+  "originals_unchanged": true,
+  "owning_verify_stage": true,
+  "owning_assemble_byte_exact_all_seven": true,
+  "signed_installer_tests": "passed on both native builders with ephemeral test identity",
+  "production_signature_present": false,
+  "published": false,
+  "runtime_host_qualification": "pending separate native validation and exact J conformance",
+  "local_binary_execution": false,
+  "network_process_during_replay": false
+}

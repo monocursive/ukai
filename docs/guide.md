@@ -83,15 +83,24 @@ ouro-vm doctor
 ### The warm service (development, not shipped)
 
 A warm backend with a **live workspace share** is under development on
-`dev` and is not part of the download. Its candidate package,
-0.1.0-preview.2, is signed but neither notarized nor published, and it
-carries only `ukai-vm` and `ukai-vm-install`: no macOS `ukai-jail` client
-ships, so `ukai-jail run --vm` needs a client built from source. Even then,
-every `run --vm` currently refuses at probing, before any connection or
-boot. The probe answers Available only for a requirement a measured guest
-record backs, and no requirement has one yet: every requirement answers
-`vm:not-measured:<requirement>` (`network_none`'s 2026-11-02 TCP probe, for
-one, was vacuous: `/dev/tcp` under the guest's `dash`). The guest carries
+`dev` and is not part of the public download. No macOS `ukai-jail` client
+ships in the public cold-boot preview; its warm-client experiments used a
+client built from source. The local 0.1.0-preview.2 package at source
+`53e5605fd` includes both `ukai-jail` and `ukai-vm`. It is Developer-ID-signed,
+but neither notarized nor published. Its `ukai-jail run --vm` command starts
+and reuses the sibling warm service.
+
+The [15 November signed-image proof](benchmarks/jail/results/macos-vm-admission-2026-11-15/README.md)
+backs twelve guest admissions, restricted to its exact disk and seed: ten
+direct capability rows plus derived `execution_boundary` and vault-only
+`credential_staging`. This allows required `pids=64` and `mem=512MiB` on that
+image; required swap remains unmeasured. Other images or requirements without
+a record refuse with `vm:not-measured:<requirement>` before any connection or
+boot. The owner-loss bound refuses with `vm:owner-loss-not-provided`.
+The wall must still be an explicit 1–300 s (`--limit wall=<n>s`); the
+profiles' own 30 m and 2 h walls are `vm:not-carried:limits.wall`.
+These guest component records do not qualify the rebuilt host command, normal
+source monitoring, vendor compatibility or full K113. The guest carries
 only the profile (`tool` or `agent`), the wall (whole seconds, 1–300), the
 argv, the network shape and vault-mode credentials; any other policy
 element that differs (deny-read, `--ro`/`--rw` grants, observation choices,
@@ -101,7 +110,7 @@ credentials, an attached terminal, and the rest) refuses with
 `LANG=C.UTF-8` with no `TERM` or `TZ`, so a terminal that sets `TERM`
 refuses as `environment.bindings` unless the run unsets it.
 
-The 2026-11-02/03 measurements on the development Mac
+The historical 2026-11-02/03 measurements on the development Mac
 ([warm record](benchmarks/jail/results/macos-vm-warm-2026-11-02/README.md),
 [share record](benchmarks/jail/results/macos-vm-share-2026-11-02/README.md),
 [installed-package rows](benchmarks/jail/results/macos-vm-installed-2026-11-03/README.md))
@@ -177,9 +186,12 @@ implementation is work in progress on `dev`, and
 ran on 2026-11-01 and found an open `launchctl kickstart` deputy route to both
 custodians; the route was closed and re-measured in the same VM on 2026-11-02
 ([kickstart-fix record](benchmarks/jail/results/macos-k90-kickstart-fix-2026-11-02/README.md)),
-and K90 and NC01 remain blocked pending full release qualification. J16 still
-needs packaging, Apple's entitlement and the protected-Mac acceptance run.
-J18's K108–K113 are `untested`, and its `run --vm` refuses at probing (below).
+and K90 and NC01 remain blocked pending full release qualification. J16 now has
+[native candidate packaging tools](../crates/ukai-jail/dist/macos/README.md) and
+an unsigned installation check. It still needs an approved ES provisioning
+profile, a signed/notarized candidate and the protected-Mac acceptance run.
+J18's K108–K113 are `untested`; a `run --vm` with an explicit 1–300 s wall
+passes probing on development evidence only (below).
 The following describes the intended contract.
 
 Current implementation: native execution is **off by default**. Setting
@@ -189,12 +201,25 @@ Current implementation: native execution is **off by default**. Setting
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
 receipts and development-VM observation smoke runs are tested; full live
-release acceptance remains pending. Every `run --vm` still refuses at probing,
-before any connection or boot. The 2026-11-04 live phase measured five guest
-requirements (the wall, pids and memory limits, filesystem containment and
-`network_none`), but `tree_termination`, which every plan requires, and the
-rest have no measured guest record, so they answer
-`vm:not-measured:<requirement>`.
+release acceptance remains pending.
+
+The current VM probe admits twelve requirements only for the exact disk and
+seed in the [15 November signed-image record](benchmarks/jail/results/macos-vm-admission-2026-11-15/README.md):
+ten direct guest capabilities plus derived `execution_boundary` and vault-only
+`credential_staging`. Required `pids=64` and `mem=512MiB` can pass admission;
+required swap remains unmeasured, and the owner-loss bound remains unsupported.
+An unmeasured requirement or another guest image refuses at probing with
+`vm:not-measured:<requirement>` before any connection or boot. A `tool` or
+`agent` plan still needs an explicit `--limit wall=<n>s` of 1–300 s; the
+profiles' own 30 m and 2 h walls refuse with `vm:not-carried:limits.wall`.
+The proof uses the installed, Developer-ID-signed package built from source
+`53e5605fd`. It does not qualify a rebuilt host client, normal host source
+monitoring, vendor compatibility or full K113. K108–K113 remain `untested`.
+
+The separate [signed `9ceada861` host candidate](benchmarks/jail/production-qualification-2026-11-15.md#corrected-signed-host-candidate)
+records fresh installed synthetic source-watch, warm-workflow, bounded wall
+termination and source-rebuild checks. It remains private and unnotarized;
+those results do not establish vendor compatibility or full release acceptance.
 A missing VM installation is exit 125 with `host_setup`. With native
 development enabled, a kernel-bound request explains that the VM tier is
 unavailable in this build; `--vm` is not a working remedy.
@@ -517,6 +542,20 @@ that needs authentication also needs explicit credential configuration in
 your launch profile; normal login state is not exposed automatically. See the
 [launch profile reference](https://github.com/monocursive/ukai/blob/dev/docs/specs/jail-v1/operating.md#launch-profiles-and-credentials)
 for the configuration format.
+
+For a recorded working provider configuration, see the
+[15 November candidate onboarding record](benchmarks/jail/results/release-preview-2026-11-15-rc6/README.md).
+It uses OpenCode 1.18.32, `anthropic/claude-sonnet-5-5`, and the
+[`opencode-vault` operator profile in the harness](benchmarks/jail/onboarding_guest.py)
+with an Anthropic API key stored by `ukai-jail credential set anthropic`.
+The profile maps a vault placeholder to `ANTHROPIC_API_KEY`; the real key stays
+outside the agent. Copy the `VAULT_PROFILE` TOML to your configuration directory's
+`launch/opencode-vault.toml`, set its mode to 0600, and use
+`--launch opencode-vault` and OpenCode's `--model anthropic/claude-sonnet-5-5`.
+Review it with `explain` first. The bundled profile does not select or authenticate
+a provider, and the historical free-tier examples do not establish current
+provider availability. This record covers one task and one learning run on the
+named Linux candidate; other versions and native macOS remain experimental.
 
 OpenCode 1.18.32 uses `rg` for file search. Without it, OpenCode attempts a
 GitHub download that the starter profile refuses. Provision the tool before

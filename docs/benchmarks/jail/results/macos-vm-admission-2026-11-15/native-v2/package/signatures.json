@@ -1,0 +1,50 @@
+{
+  "schema": "ukai.review.signed-artifacts/1",
+  "source_revision": "160a9bf51823ae552f55ae2c02c34019567c0dbf",
+  "passed": true,
+  "checks": [
+    {
+      "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-160a9bf51/ukai-vm-0.1.0-preview.2-macos-arm64.dmg",
+      "sha256": "1b891e55dad41ef13b428b729b77250f4ce92ff05cca8f55258d77836adfb928",
+      "exit_code": 0,
+      "verification": "",
+      "details": "Executable=/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-160a9bf51/ukai-vm-0.1.0-preview.2-macos-arm64.dmg\nIdentifier=ukai-vm-0.1.0-preview.2-macos-arm64\nFormat=disk image\nCodeDirectory v=20200 size=323 flags=0x0(none) hashes=1+6 location=embedded\nHash type=sha256 size=32\nCandidateCDHash sha256=6eb7ef3a4d62f5106e77e1e01bfffae11420522b\nCandidateCDHashFull sha256=6eb7ef3a4d62f5106e77e1e01bfffae11420522b00e9642957d3533429a669c5\nHash choices=sha256\nCMSDigest=6eb7ef3a4d62f5106e77e1e01bfffae11420522b00e9642957d3533429a669c5\nCMSDigestType=2\nPage size=none\nCDHash=6eb7ef3a4d62f5106e77e1e01bfffae11420522b\nSignature size=8972\nAuthority=Developer ID Application: Monocursive (64SGQ348QJ)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTimestamp=15 Nov 2026 at 18:07:17\nInfo.plist=not bound\nTeamIdentifier=64SGQ348QJ\nSealed Resources=none\nInternal requirements count=1 size=196\nTotal signatures=1\nChosen signature=1\n"
+    },
+    {
+      "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-160a9bf51/volume/payload/bin/ukai-vm-install",
+      "sha256": "fbae60b7d0d01dcaa133729d1a06805f69266187176a206a6d7310201fed27a6",
+      "exit_code": 0,
+      "verification": "",
+      "details": "Executable=/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-160a9bf51/volume/payload/bin/ukai-vm-install\nIdentifier=ukai-vm-install\nFormat=Mach-O thin (arm64)\nCodeDirectory v=20500 size=19291 flags=0x10000(runtime) hashes=597+2 location=embedded\nVersionPlatform=1\nVersionMin=720896\nVersionSDK=984320\nHash type=sha256 size=32\nCandidateCDHash sha256=3e8dbfc22ded78be6c13b3fe4a0627980791a463\nCandidateCDHashFull sha256=3e8dbfc22ded78be6c13b3fe4a0627980791a46322f3261fe3d301747f7059d2\nHash choices=sha256\nCMSDigest=3e8dbfc22ded78be6c13b3fe4a0627980791a46322f3261fe3d301747f7059d2\nCMSDigestType=2\nExecutable Segment base=0\nExecutable Segment limit=49152\nExecutable Segment flags=0x1\nPage size=16384\nCDHash=3e8dbfc22ded78be6c13b3fe4a0627980791a463\nSignature size=8972\nAuthority=Developer ID Application: Monocursive (64SGQ348QJ)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTimestamp=15 Nov 2026 at 18:06:33\nInfo.plist=not bound\nTeamIdentifier=64SGQ348QJ\nRuntime Version=15.5.0\nSealed Resources=none\nInternal requirements count=1 size=176\nTotal signatures=1\nChosen signature=1\n"
+    },
+    {
+      "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-160a9bf51/volume/payload/bin/ukai-vm",
+      "sha256": "b5e25dc482b4651f786ee4e26d5314af72b3575516748c4a40553831dc458f28",
+      "exit_code": 0,
+      "verification": "",
+      "details": "Executable=/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-160a9bf51/volume/payload/bin/ukai-vm\nIdentifier=ukai-vm\nFormat=Mach-O thin (arm64)\nCodeDirectory v=20500 size=6387 flags=0x10000(runtime) hashes=194+2 location=embedded\nVersionPlatform=1\nVersionMin=720896\nVersionSDK=1769472\nHash type=sha256 size=32\nCandidateCDHash sha256=5aac77a72df66024483440078fdefa49c89ae7c3\nCandidateCDHashFull sha256=5aac77a72df66024483440078fdefa49c89ae7c3fc09711c359eec92f2de6324\nHash choices=sha256\nCMSDigest=5aac77a72df66024483440078fdefa49c89ae7c3fc09711c359eec92f2de6324\nCMSDigestType=2\nExecutable Segment base=0\nExecutable Segment limit=2195456\nExecutable Segment flags=0x1\nPage size=16384\nCDHash=5aac77a72df66024483440078fdefa49c89ae7c3\nSignature size=8973\nAuthority=Developer ID Application: Monocursive (64SGQ348QJ)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTimestamp=15 Nov 2026 at 18:06:29\nInfo.plist=not bound\nTeamIdentifier=64SGQ348QJ\nRuntime Version=27.0.0\nSealed Resources=none\nInternal requirements count=1 size=168\nTotal signatures=1\nChosen signature=1\n"
+    },
+    {
+      "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-160a9bf51/volume/payload/bin/ukai-jail",
+      "sha256": "3221956596563c5f8f9a304093214a53b06e0ea77ffd28b81a3cd5513353fcbc",
+      "exit_code": 0,
+      "verification": "",
+      "details": "Executable=/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-160a9bf51/volume/payload/bin/ukai-jail\nIdentifier=ukai-jail\nFormat=Mach-O thin (arm64)\nCodeDirectory v=20500 size=19797 flags=0x10000(runtime) hashes=613+2 location=embedded\nVersionPlatform=1\nVersionMin=720896\nVersionSDK=1769472\nHash type=sha256 size=32\nCandidateCDHash sha256=bf5dc3f026e9ada4c6f4c8acda17f3874dc85041\nCandidateCDHashFull sha256=bf5dc3f026e9ada4c6f4c8acda17f3874dc850413ace43a79333f391c66ecff0\nHash choices=sha256\nCMSDigest=bf5dc3f026e9ada4c6f4c8acda17f3874dc850413ace43a79333f391c66ecff0\nCMSDigestType=2\nExecutable Segment base=0\nExecutable Segment limit=7421952\nExecutable Segment flags=0x1\nPage size=16384\nCDHash=bf5dc3f026e9ada4c6f4c8acda17f3874dc85041\nSignature size=8972\nAuthority=Developer ID Application: Monocursive (64SGQ348QJ)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTimestamp=15 Nov 2026 at 18:06:29\nInfo.plist=not bound\nTeamIdentifier=64SGQ348QJ\nRuntime Version=27.0.0\nSealed Resources=none\nInternal requirements count=1 size=172\nTotal signatures=1\nChosen signature=1\n"
+    },
+    {
+      "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-160a9bf51/volume/payload/image/vz",
+      "sha256": "25c55cb42b7f6c4347da6678a4fe361fb7311dfd5ff90cb1da32771b399f9467",
+      "exit_code": 0,
+      "verification": "",
+      "details": "Executable=/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-160a9bf51/volume/payload/image/vz\nIdentifier=vz\nFormat=Mach-O thin (arm64)\nCodeDirectory v=20500 size=590 flags=0x10000(runtime) hashes=8+7 location=embedded\nVersionPlatform=1\nVersionMin=1769472\nVersionSDK=1769472\nHash type=sha256 size=32\nCandidateCDHash sha256=33f07daaf9b413418ae79e265ea73fb0be5d884c\nCandidateCDHashFull sha256=33f07daaf9b413418ae79e265ea73fb0be5d884c9abdc578fed120e57261b572\nHash choices=sha256\nCMSDigest=33f07daaf9b413418ae79e265ea73fb0be5d884c9abdc578fed120e57261b572\nCMSDigestType=2\nExecutable Segment base=0\nExecutable Segment limit=49152\nExecutable Segment flags=0x1\nPage size=16384\nCDHash=33f07daaf9b413418ae79e265ea73fb0be5d884c\nSignature size=8972\nAuthority=Developer ID Application: Monocursive (64SGQ348QJ)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTimestamp=15 Nov 2026 at 18:06:13\nInfo.plist=not bound\nTeamIdentifier=64SGQ348QJ\nRuntime Version=27.0.0\nSealed Resources=none\nInternal requirements count=1 size=164\nTotal signatures=1\nChosen signature=1\n"
+    },
+    {
+      "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-160a9bf51/volume/payload/image/custodian",
+      "sha256": "62524098ea6f9962cd7139b815f038e43cfbab319eaffac6a5543566aa5ce00e",
+      "exit_code": 0,
+      "verification": "",
+      "details": "Executable=/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-160a9bf51/volume/payload/image/custodian\nIdentifier=custodian\nFormat=Mach-O thin (arm64)\nCodeDirectory v=20500 size=277 flags=0x10000(runtime) hashes=3+2 location=embedded\nVersionPlatform=1\nVersionMin=1769472\nVersionSDK=1769472\nHash type=sha256 size=32\nCandidateCDHash sha256=cc3e66e5cec1c7e9b2270b7c005061b5a91ff20d\nCandidateCDHashFull sha256=cc3e66e5cec1c7e9b2270b7c005061b5a91ff20df7ff456bbf081f496d3ea45d\nHash choices=sha256\nCMSDigest=cc3e66e5cec1c7e9b2270b7c005061b5a91ff20df7ff456bbf081f496d3ea45d\nCMSDigestType=2\nExecutable Segment base=0\nExecutable Segment limit=16384\nExecutable Segment flags=0x1\nPage size=16384\nCDHash=cc3e66e5cec1c7e9b2270b7c005061b5a91ff20d\nSignature size=8973\nAuthority=Developer ID Application: Monocursive (64SGQ348QJ)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTimestamp=15 Nov 2026 at 18:06:13\nInfo.plist=not bound\nTeamIdentifier=64SGQ348QJ\nRuntime Version=27.0.0\nSealed Resources=none\nInternal requirements count=1 size=172\nTotal signatures=1\nChosen signature=1\n"
+    }
+  ],
+  "scope": "Private Developer ID signed candidate; no notarization or public release."
+}

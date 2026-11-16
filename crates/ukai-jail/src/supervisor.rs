@@ -237,6 +237,8 @@ pub struct Plan {
     /// replaces `PROGRAM`, its install roots are bound by the handles held
     /// here, and it is rechecked before release.
     pub program: Option<crate::program::Program>,
+    /// Guest identity; its paths are never interpreted on the host.
+    pub guest_program: Option<crate::guest_program::GuestProgram>,
     /// The workspace a contained run would refuse (`/`, the operator's home
     /// or an ancestor of it), which `doctor` reports instead of refusing
     /// (jail-launch-and-summary.md §8 item 5). Only `doctor` resolves a plan
@@ -425,13 +427,37 @@ fn resolve(ctx: &Context, args: &PolicyArgs, purpose: Purpose<'_>) -> Result<Pla
     let placement_workspace = home_workspace.is_none().then_some(workspace.as_path());
     // J12 §3.3: the program, found on the supervisor's own `PATH` (read
     // here and never handed to the child) and pinned.
-    let program = match (&launch, from_path) {
-        (Some(launch), true) => Some(crate::program::resolve(
-            &launch.name,
-            (ctx.env_lookup)("PATH").as_deref(),
-            launch.program_root,
-        )?),
-        _ => None,
+    let (program, guest_program) = match (&launch, from_path) {
+        (Some(launch), true) => {
+            let target = ctx
+                .platform
+                .program_target(&crate::guest_program::ProgramRequest {
+                    launch_name: launch.name.clone(),
+                    bundled_profile_sha256: matches!(
+                        launch.source,
+                        launch_profile::LaunchSource::Bundled
+                    )
+                    .then(|| {
+                        launch_profile::bundled_profile(&launch.name)
+                            .map(|text| crate::guest_program::sha256(text.as_bytes()))
+                    })
+                    .flatten(),
+                    program_root: launch.program_root,
+                    attempt_state: args.state == Some(crate::cli::StateChoice::Attempt),
+                })?;
+            match target {
+                crate::guest_program::ProgramTarget::Local => (
+                    Some(crate::program::resolve(
+                        &launch.name,
+                        (ctx.env_lookup)("PATH").as_deref(),
+                        launch.program_root,
+                    )?),
+                    None,
+                ),
+                crate::guest_program::ProgramTarget::Guest(program) => (None, Some(*program)),
+            }
+        }
+        _ => (None, None),
     };
     let mut layers: Vec<Layer> = base.layer.into_iter().collect();
     // The operator's own `[jail]` table is a trusted layer: it may grant.
@@ -448,6 +474,7 @@ fn resolve(ctx: &Context, args: &PolicyArgs, purpose: Purpose<'_>) -> Result<Pla
     // J12: the derived install roots, an operator layer the project file
     // still narrows.
     layers.extend(program.as_ref().map(from_path::program_layer));
+    layers.extend(guest_program.as_ref().map(guest_program_layer));
     // 5. The workspace-root `ukai.toml`, which may only narrow.
     layers.extend(project_layer(&workspace)?);
 
@@ -500,7 +527,24 @@ fn resolve(ctx: &Context, args: &PolicyArgs, purpose: Purpose<'_>) -> Result<Pla
         if purpose.select_credentials {
             skipped = from_path::select_credentials(launch)?;
         }
-        from_path::bind_program_token(launch, program.as_ref(), purpose.argv0, purpose.executing)?;
+        if let Some(guest) = &guest_program {
+            for credential in &mut launch.credentials {
+                if let Some(vault) = &mut credential.vault {
+                    for binary in &mut vault.binaries {
+                        if binary == crate::vault::PROGRAM_TOKEN {
+                            *binary = guest.executable.as_str().to_owned();
+                        }
+                    }
+                }
+            }
+        } else {
+            from_path::bind_program_token(
+                launch,
+                program.as_ref(),
+                purpose.argv0,
+                purpose.executing,
+            )?;
+        }
     }
     // J14 §4: `--state` overrides the launch profile's state; persistent
     // state takes only vault credentials and no managed gate.
@@ -611,7 +655,11 @@ fn resolve(ctx: &Context, args: &PolicyArgs, purpose: Purpose<'_>) -> Result<Pla
         ));
     }
     if let Some(launch) = &launch {
-        check_launch_placement(&resolved, placement_workspace, launch)?;
+        if guest_program.is_some() {
+            check_guest_launch_placement(&workspace, launch)?;
+        } else {
+            check_launch_placement(&resolved, placement_workspace, launch)?;
+        }
     }
     if let Some(program) = &program {
         from_path::check_program_placement(
@@ -634,10 +682,12 @@ fn resolve(ctx: &Context, args: &PolicyArgs, purpose: Purpose<'_>) -> Result<Pla
         data_dir,
         quiet: operator_jail.summary == Some(false),
         program,
+        guest_program,
         home_workspace,
         terminal,
         run_terminal,
     };
+    ctx.platform.validate_guest_plan(&plan_request(&plan))?;
     check_record_bounds(ctx, &plan)?;
     Ok(plan)
 }
@@ -1862,6 +1912,7 @@ fn legacy_tiocsti() -> Option<String> {
 
 fn plan_request(plan: &Plan) -> PlanRequest {
     PlanRequest {
+        guest_program: plan.guest_program.clone(),
         snapshot: plan.resolved.snapshot.clone(),
         requirements: plan.resolved.requirements.clone(),
     }
@@ -2156,7 +2207,14 @@ fn run_inner(
             .into_iter()
             .chain(operator_argv)
             .collect(),
-        None => operator_argv,
+        None => match &plan.guest_program {
+            Some(program) => program
+                .argv_prefix()
+                .into_iter()
+                .chain(operator_argv)
+                .collect(),
+            None => operator_argv,
+        },
     };
     let argv_digest = (!argv.is_empty()).then(|| crate::canonical::argv_digest(&argv));
 
@@ -2173,6 +2231,19 @@ fn run_inner(
         && stderr_is_a_terminal()
     {
         crate::diag!("{}", from_path::program_line(program, &plan.resolved));
+    }
+
+    if let Some(program) = &plan.guest_program
+        && !(args.quiet || plan.quiet)
+        && stderr_is_a_terminal()
+    {
+        crate::diag!(
+            "program {} → {} (guest catalog {}): read-only {}",
+            program.entry.alias,
+            program.executable.as_str(),
+            &program.catalog_sha256[..16],
+            program.install_root.as_str()
+        );
     }
 
     // §8.2: "Initial preparation budget: 30 seconds". It covers steps 1 to 5
@@ -2502,6 +2573,42 @@ fn apply_boundary(record: &mut AttemptRecord, boundary: &BoundaryIdentity, profi
     }
 }
 
+fn guest_program_layer(program: &crate::guest_program::GuestProgram) -> Layer {
+    Layer {
+        origin: LayerOrigin::ProgramResolution,
+        base_dir: None,
+        delta: policy::PolicyDelta {
+            read_only: vec![program.install_root.as_bytes().to_vec()],
+            ..policy::PolicyDelta::default()
+        },
+    }
+}
+
+fn check_guest_launch_placement(
+    workspace: &Path,
+    launch: &launch_profile::LaunchProfile,
+) -> Result<(), JailError> {
+    launch_profile::check_outside_writable(launch, &[workspace.to_path_buf()])?;
+    let forbidden =
+        state::mount_alias::forbidden_identities(&[workspace.to_path_buf()]).map_err(|error| {
+            usage(
+                "launch.credentials",
+                format!("workspace cannot be inspected: {error}"),
+            )
+        })?;
+    for credential in &launch.credentials {
+        if let Ok(chain) = crate::credentials::source_chain(credential.source.as_bytes())
+            && chain.iter().any(|identity| forbidden.contains(identity))
+        {
+            return Err(usage(
+                &format!("launch.credentials.{}.source", credential.id),
+                "credential source lies inside the guest's host workspace",
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Whether either path is the other or one of its ancestors.
 ///
 /// Component-wise, so `/work/a` does not contain `/work/ab`.
@@ -2511,6 +2618,11 @@ fn overlaps(left: &Path, right: &Path) -> bool {
 
 /// Every root the child can see under the resolved policy (§7, §9.1).
 fn child_visible_roots(plan: &Plan) -> Vec<PathBuf> {
+    // A native guest plan is validated before staging. Only its live workspace
+    // crosses physically; guest runtime and catalog paths never name host roots.
+    if plan.guest_program.is_some() {
+        return vec![plan.workspace.clone()];
+    }
     let mut roots = vec![plan.workspace.clone()];
     let snapshot = &plan.resolved.snapshot;
     if let ScratchRoot::Host { path } = &snapshot.roots.scratch {
@@ -2552,7 +2664,11 @@ impl ChildRoots {
         };
         ChildRoots {
             visible: canonical(child_visible_roots(plan)),
-            writable: canonical(child_writable_roots(&plan.resolved, Some(&plan.workspace))),
+            writable: canonical(if plan.guest_program.is_some() {
+                vec![plan.workspace.clone()]
+            } else {
+                child_writable_roots(&plan.resolved, Some(&plan.workspace))
+            }),
         }
     }
 }
@@ -3264,6 +3380,8 @@ fn pending_applied(plan: &Plan) -> Applied {
 #[derive(Default)]
 struct LaunchPrepared {
     handoff: Option<crate::credentials::LaunchHandoff>,
+    #[cfg(target_os = "macos")]
+    guest_handoff: Option<crate::credentials::GuestLaunchHandoff>,
     persistent: Option<Box<crate::persistent::Held>>,
     secrets: Vec<Arc<crate::vault::Secret>>,
     state_line: Option<attempt::StateLine>,
@@ -3290,6 +3408,29 @@ fn prepare_launch(
     prepared: &mut LaunchPrepared,
 ) -> Result<(), JailError> {
     let snapshot = &plan.resolved.snapshot;
+    #[cfg(target_os = "macos")]
+    if let Some(program) = &plan.guest_program {
+        let launch = snapshot
+            .launch
+            .as_ref()
+            .ok_or_else(|| usage("launch", "guest launch is absent"))?;
+        let forbidden =
+            state::mount_alias::forbidden_identities(std::slice::from_ref(&plan.workspace))
+                .map_err(|error| {
+                    usage(
+                        "launch.credentials",
+                        format!("workspace cannot be inspected: {error}"),
+                    )
+                })?;
+        let (handoff, staged) =
+            crate::credentials::stage_guest_within(launch, program, &forbidden, &|| {
+                deadline.remaining()
+            })?;
+        record.credentials = receipt_credentials(std::slice::from_ref(&staged));
+        state::record_staged_credentials(attempt_dir, &private_provenance(&[staged]))?;
+        prepared.guest_handoff = Some(handoff);
+        return Ok(());
+    }
     let Some(root) = snapshot.roots.vendor_state.as_ref() else {
         if snapshot
             .launch
@@ -6689,6 +6830,7 @@ mod tests {
             data_dir: PathBuf::from("/data"),
             quiet: false,
             program: None,
+            guest_program: None,
             home_workspace: None,
             run_terminal: crate::terminal::Decision::Detached(None),
             terminal: crate::terminal::Decision::Detached(None),
@@ -6713,6 +6855,7 @@ mod tests {
             data_dir: root.path().join("data"),
             quiet: false,
             program: None,
+            guest_program: None,
             home_workspace: None,
             run_terminal: crate::terminal::Decision::Detached(None),
             terminal: crate::terminal::Decision::Detached(None),
@@ -6747,6 +6890,7 @@ mod tests {
             data_dir: root.path().join("data"),
             quiet: false,
             program: None,
+            guest_program: None,
             home_workspace: None,
             run_terminal: crate::terminal::Decision::Detached(None),
             terminal: crate::terminal::Decision::Detached(None),
@@ -6861,6 +7005,7 @@ mod tests {
             data_dir: data,
             quiet: false,
             program: None,
+            guest_program: None,
             home_workspace: None,
             run_terminal: crate::terminal::Decision::Detached(None),
             terminal: crate::terminal::Decision::Detached(None),

@@ -1,0 +1,3 @@
+   Compiling ukai-jail v0.1.0 (/Users/monocursive/code/ukai-live/crates/ukai-jail)
+    Finished `release` profile [optimized] target(s) in 20.64s
+cargo build --release --locked -p ukai-jail --bin ukai-vm --bin ukai-jail  85.33s user 2.07s system 415% cpu 21.058 total

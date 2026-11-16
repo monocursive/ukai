@@ -1,0 +1,41 @@
+{
+  "elapsed_seconds": 0.6879066249821335,
+  "limitations": [
+    "Read-only existing reference user bus; no start, reload, selection, process read, VM or provider action.",
+    "Existing host package/version is not the proposed new image and this is not new-image qualification."
+  ],
+  "outcome": "PASS_ACTUAL_FORMAT",
+  "parsed_main_pid": 753988,
+  "prepare_sha256": "b3967a84f54b3f1c469b75a482b62dfe90542ab2a05bde9b178678d72bc20739",
+  "remote": {
+    "argv": [
+      "/usr/bin/systemctl",
+      "--user",
+      "show",
+      "dbus.service",
+      "--property=FragmentPath",
+      "--property=DropInPaths",
+      "--property=ExecStart",
+      "--property=MainPID",
+      "--property=Type",
+      "--property=NotifyAccess",
+      "--property=ActiveState",
+      "--property=SubState"
+    ],
+    "elapsed_seconds": 0.012737054377794266,
+    "environment": {
+      "LANG": "C.UTF-8",
+      "PATH": "/usr/bin:/bin",
+      "XDG_RUNTIME_DIR": "/run/user/1001"
+    },
+    "outcome": "OBSERVED",
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "ActiveState=active\nSubState=running\nFragmentPath=/usr/lib/systemd/user/dbus.service\nDropInPaths=\nType=notify\nNotifyAccess=main\nMainPID=753988\nExecStart={ path=/usr/bin/dbus-daemon ; argv[]=/usr/bin/dbus-daemon --session --address=systemd: --nofork --nopidfile --systemd-activation --syslog-only ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }\n",
+    "uid": 1001
+  },
+  "returncode": 0,
+  "schema": "ukai.provider-systemctl-format-observation/1",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_sha256": "51b4ec89c1f8d6bd5ac732956228b7e23efe578f0ac175920a734e0b520dfa62"
+}

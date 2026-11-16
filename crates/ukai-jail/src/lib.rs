@@ -67,6 +67,7 @@ pub mod credential_store;
 pub mod credentials;
 pub(crate) mod environment;
 pub mod gc;
+pub mod guest_program;
 pub mod journal;
 pub mod launch_profile;
 pub mod learn;
@@ -86,5 +87,7 @@ pub mod supervisor;
 pub(crate) mod sync;
 pub(crate) mod sys;
 pub mod terminal;
+#[cfg(test)]
+pub(crate) mod test_evidence;
 pub mod trace;
 pub(crate) mod vault;

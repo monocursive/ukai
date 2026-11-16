@@ -73,9 +73,8 @@ pub enum Journal<'a> {
     Absent,
     /// A local journal exists and could not be read.
     Unreadable,
-    /// J18 (jail-macos.md §6): the attempt ran in the guest jail of a `--vm`
-    /// run, whose journal stays in the guest. The host's own journal holds
-    /// none of the guest's events, so it counts nothing.
+    /// An older `--vm` attempt that exported no guest journal. The host's
+    /// transport journal holds none of the guest's events and counts nothing.
     Guest,
 }
 
@@ -94,8 +93,8 @@ pub enum JournalState {
     Absent,
     /// A local journal that could not be read.
     Unreadable,
-    /// The guest journal of a `--vm` attempt, which is not exported; its
-    /// `journal` value is `absent`.
+    /// An older `--vm` attempt without a guest-journal export; its `journal`
+    /// value is `absent`.
     Guest,
 }
 
@@ -1074,6 +1073,35 @@ fn duration(ms: u128) -> String {
     }
 }
 
+/// The receipt's wall-clock span at the precision its timestamps carry.
+///
+/// Two stamps with milliseconds print like the journal's duration. The
+/// receipt's own writer keeps whole seconds (`rfc3339_utc`), and two stamps
+/// `n` whole seconds apart mean anything from just over `n - 1` to just under
+/// `n + 1` seconds: `0` prints `under 1s` and `n` prints `<n>s ±1s`, never a
+/// `0ms` the record cannot back (2026-11-04, the VM tier's host receipt).
+fn wall_duration(created: &str, updated: &str, ms: u128) -> String {
+    let millisecond = |stamp: &str| {
+        stamp
+            .get(19..stamp.len().saturating_sub(1))
+            .and_then(|fraction| fraction.strip_prefix('.'))
+            .is_some_and(|digits| digits.len() >= 3)
+    };
+    if millisecond(created) && millisecond(updated) {
+        return duration(ms);
+    }
+    let whole = |stamp: &str| epoch_ms(stamp).map(|ms| ms.div_euclid(1000));
+    let seconds = match (whole(created), whole(updated)) {
+        (Some(start), Some(end)) => u128::try_from(end - start).unwrap_or(0),
+        _ => ms / 1000,
+    };
+    match seconds {
+        0 => "under 1s".to_owned(),
+        1..60 => format!("{seconds}s ±1s"),
+        _ => format!("{} ±1s", duration(seconds * 1000)),
+    }
+}
+
 /// Milliseconds since the epoch of an RFC 3339 UTC timestamp as the receipt
 /// writes them (`YYYY-MM-DDTHH:MM:SS[.fraction]Z`).
 fn epoch_ms(timestamp: &str) -> Option<i128> {
@@ -1204,7 +1232,14 @@ impl View<'_> {
         if let Some(ms) = journal_ms {
             parts.push(format!("{} exec→settled", duration(ms)));
         } else if let Some(ms) = wall_ms {
-            parts.push(format!("{} attempt (wall clock)", duration(ms)));
+            let (created, updated) = (
+                self.text("/created_at").unwrap_or_default(),
+                self.text("/updated_at").unwrap_or_default(),
+            );
+            parts.push(format!(
+                "{} attempt (wall clock)",
+                wall_duration(created, updated, ms)
+            ));
         }
 
         let tree_empty = self
@@ -2030,9 +2065,9 @@ pub fn receipt_path(attempt: &Path) -> std::path::PathBuf {
 
 /// Reads an attempt's canonical receipt and journal and summarizes them.
 ///
-/// A `--vm` attempt ([`vm_attempt`]) is summarized from what its verified
-/// guest receipt reports the guest jail applied, without a journal to count
-/// from (the guest's stays in the guest), plus the transport line.
+/// A `--vm` attempt ([`vm_attempt`]) counts only a bounded guest journal whose
+/// export and final receipt note bind the verified guest receipt. The host
+/// retains its own outcome, limits, cleanup and summary identity.
 ///
 /// # Errors
 /// The receipt cannot be read, is too large, or is not JSON; or a `--vm`
@@ -2081,6 +2116,122 @@ pub const VM_TRANSPORT_SCHEMA: &str = "ukai.jail.vm-transport/1";
 /// The guest receipt's place beneath a `--vm` attempt directory.
 const VM_GUEST_DIR: &str = "evidence";
 
+/// The guest exports only a bounded journal, split into existing transport
+/// file frames. These constants match guest.py; no workspace-file or frame
+/// cap is enlarged to carry evidence.
+const VM_JOURNAL_DIR: &str = "guest-journal";
+const VM_JOURNAL_PART: u64 = 512 * 1024;
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VmJournalManifest {
+    schema: String,
+    guest_attempt_id: String,
+    guest_receipt_sha256: String,
+    state: String,
+    bytes: Option<u64>,
+    parts: usize,
+    sha256: Option<String>,
+}
+
+/// Verify a journal export against the already verified guest receipt, before
+/// a single event is counted. Missing old exports are distinct from malformed
+/// new exports. All reads and directory listings share anchored descriptors.
+fn vm_journal(
+    attempt: &Path,
+    guest: &Value,
+    guest_digest: &str,
+) -> Result<Option<crate::journal::Bounded>, String> {
+    use crate::journal::Bounded;
+    use crate::state::anchored::{Dir, Name};
+    use std::io::Read as _;
+
+    fn read(dir: &Dir, name: &str, cap: u64) -> Result<Vec<u8>, String> {
+        let file = dir
+            .open_read_at(
+                &Name::new(name.as_bytes()).map_err(|e| e.to_string())?,
+                None,
+            )
+            .map_err(|e| format!("guest journal {name}: {e}"))?;
+        let metadata = file.metadata().map_err(|e| e.to_string())?;
+        use std::os::unix::fs::MetadataExt as _;
+        if !metadata.is_file() || metadata.nlink() != 1 {
+            return Err("guest journal export is not one regular file".to_owned());
+        }
+        let mut bytes = Vec::new();
+        file.take(cap + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|e| format!("guest journal {name}: {e}"))?;
+        if bytes.len() as u64 > cap {
+            return Err("guest journal export exceeds its size bound".to_owned());
+        }
+        Ok(bytes)
+    }
+
+    let root = Dir::open_trusted(attempt).map_err(|e| e.to_string())?;
+    let evidence = root
+        .open_dir_at(&Name::new(VM_GUEST_DIR.as_bytes()).unwrap(), None)
+        .map_err(|e| e.to_string())?;
+    let journal = match evidence.open_dir_at(&Name::new(VM_JOURNAL_DIR.as_bytes()).unwrap(), None) {
+        Ok(dir) => dir,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(format!("guest journal directory: {e}")),
+    };
+    let manifest: VmJournalManifest =
+        serde_json::from_slice(&read(&journal, "manifest.json", 4096)?)
+            .map_err(|e| format!("guest journal manifest: {e}"))?;
+    if manifest.schema != "ukai.vm.guest-journal/1"
+        || Some(manifest.guest_attempt_id.as_str()) != text(guest, "/attempt_id")
+        || manifest.guest_receipt_sha256 != guest_digest
+    {
+        return Err("guest journal manifest does not bind the verified guest receipt".to_owned());
+    }
+    let max_parts = usize::try_from(SCAN_CAP / VM_JOURNAL_PART).unwrap();
+    if manifest.parts > max_parts {
+        return Err("guest journal has too many parts".to_owned());
+    }
+    let expected: BTreeSet<Vec<u8>> = std::iter::once(b"manifest.json".to_vec())
+        .chain((0..manifest.parts).map(|i| format!("{i:04}.part").into_bytes()))
+        .collect();
+    let listing = journal.names(max_parts + 2).map_err(|e| e.to_string())?;
+    let actual: BTreeSet<Vec<u8>> = listing
+        .names
+        .iter()
+        .map(|n| n.as_bytes().to_vec())
+        .collect();
+    if !listing.complete || actual != expected || actual.len() != listing.names.len() {
+        return Err("guest journal parts are missing, unexpected or duplicated".to_owned());
+    }
+    if manifest.state != "exported" {
+        if manifest.parts != 0 || manifest.sha256.is_some() {
+            return Err("unavailable guest journal carries data".to_owned());
+        }
+        return Ok(Some(match (manifest.state.as_str(), manifest.bytes) {
+            ("absent", None) => Bounded::Absent,
+            ("unreadable", _) => Bounded::Unreadable("guest journal unreadable".to_owned()),
+            ("not_scanned", Some(size)) if size > SCAN_CAP => Bounded::TooLarge(size),
+            _ => return Err("invalid guest journal availability state".to_owned()),
+        }));
+    }
+    let size = manifest.bytes.ok_or("guest journal has no byte count")?;
+    if size > SCAN_CAP || size.div_ceil(VM_JOURNAL_PART) != manifest.parts as u64 {
+        return Err("guest journal size and parts disagree".to_owned());
+    }
+    let mut bytes = Vec::new();
+    for i in 0..manifest.parts {
+        let part = read(&journal, &format!("{i:04}.part"), VM_JOURNAL_PART)?;
+        let expected = (size - bytes.len() as u64).min(VM_JOURNAL_PART);
+        if part.len() as u64 != expected {
+            return Err("guest journal part size disagrees".to_owned());
+        }
+        bytes.extend_from_slice(&part);
+    }
+    if manifest.sha256.as_deref() != Some(sha256_hex(&bytes).as_str()) {
+        return Err("guest journal digest does not match its bytes".to_owned());
+    }
+    Ok(Some(Bounded::Bytes(bytes)))
+}
+
 /// The summary of a `--vm` attempt, or `None` for any other attempt.
 ///
 /// A settled `--vm` host receipt mirrors what its verified guest receipt
@@ -2093,8 +2244,8 @@ const VM_GUEST_DIR: &str = "evidence";
 /// fallback to the mirrored claims. A host receipt that names no guest
 /// receipt mirrored nothing (its guest receipt never verified, or it
 /// predates D5) and is summarized as itself: it claims nothing of the
-/// guest. Nothing is counted: the host journal holds none of the guest's
-/// events ([`Journal::Guest`]).
+/// guest. Older records without a guest-journal export still count nothing:
+/// the host journal holds none of the guest's events ([`Journal::Guest`]).
 fn vm_attempt(attempt: &Path, receipt: &Value) -> Result<Option<Summary>, String> {
     use crate::journal::{Bounded, read_bounded};
     if text(receipt, "/lifetime/native/details/transport") != Some(VM_TRANSPORT_SCHEMA) {
@@ -2144,7 +2295,45 @@ fn vm_attempt(attempt: &Path, receipt: &Value) -> Result<Option<Summary>, String
             shown(named)
         ));
     }
+    let guest: Value = serde_json::from_slice(&guest_bytes)
+        .map_err(|e| format!("the verified guest receipt is not JSON: {e}"))?;
+    let exported = vm_journal(attempt, &guest, &digest)?;
+    let journal = match &exported {
+        None => Journal::Guest,
+        Some(Bounded::Bytes(bytes)) => Journal::Bytes(bytes),
+        Some(Bounded::TooLarge(size)) => Journal::NotScanned(*size),
+        Some(Bounded::Absent) => Journal::Absent,
+        Some(Bounded::Unreadable(_)) => Journal::Unreadable,
+    };
+    let guest_summary = summary(&guest, journal);
+    if matches!(journal, Journal::Bytes(_)) && guest_summary.journal != JournalState::Complete {
+        return Err(
+            "guest journal is incomplete or does not name the verified guest receipt".to_owned(),
+        );
+    }
+    // Host identity, outcome, state cleanup, terminal restoration and limits
+    // stay the host's. Guest event counts and vault facts come only from the
+    // bound guest receipt and its own complete journal, never the transport
+    // journal (which has a different attempt ID and receipt digest).
     let mut lines = summary(receipt, Journal::Guest);
+    lines.journal = guest_summary.journal;
+    for name in ["workspace", "network", "credentials", "evidence"] {
+        let replacement = guest_summary.lines.iter().find(|line| line.line == name);
+        if let Some(index) = lines.lines.iter().position(|line| line.line == name) {
+            if let Some(line) = replacement {
+                lines.lines[index] = line.clone();
+            } else {
+                lines.lines.remove(index);
+            }
+        } else if let Some(line) = replacement {
+            let index = lines
+                .lines
+                .iter()
+                .position(|line| line.line == "network")
+                .map_or(lines.lines.len(), |index| index + 1);
+            lines.lines.insert(index, line.clone());
+        }
+    }
     lines.transport = Some(vm_transport_line(&record));
     Ok(Some(lines))
 }
@@ -2190,10 +2379,9 @@ mod vm_tests {
     /// The K113 record (2026-11-03): a proxied, observed `--vm` attempt
     /// whose host receipt still said `pending` and `attached: false` (it
     /// predates decision D5).
-    const K113: &str = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/k113-attempt"
-    );
+    fn k113_recorded() -> std::path::PathBuf {
+        crate::test_evidence::k113_attempt()
+    }
 
     const FILES: [&str; 5] = [
         "jail.json",
@@ -2215,7 +2403,7 @@ mod vm_tests {
             std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
         }
         for file in FILES {
-            std::fs::copy(Path::new(K113).join(file), attempt.join(file)).unwrap();
+            std::fs::copy(k113_recorded().join(file), attempt.join(file)).unwrap();
         }
         (temp, attempt)
     }

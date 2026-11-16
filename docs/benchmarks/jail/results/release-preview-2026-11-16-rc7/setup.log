@@ -1,0 +1,14 @@
+Total translation table size: 0
+Total rockridge attributes bytes: 417
+Total directory bytes: 620
+Path table size(bytes): 10
+Max brk space used 0
+184 extents written (0 MB)
+Formatting '/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/scratch/ouro-k27-vm-1dy6m4wn/guest.qcow2', fmt=qcow2 cluster_size=65536 extended_l2=off compression_type=zlib size=12884901888 backing_file=/home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/base.img backing_fmt=qcow2 lazy_refcounts=off refcount_bits=16
+The secret key was saved as /home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/scratch/ouro-k27-vm-1dy6m4wn/test-signing.key - Keep it secret!
+The public key was saved as /home/ouro-ci/ukai-ci/runs/onboarding-g-dce53219-f745bfbfc-20261116/scratch/ouro-k27-vm-1dy6m4wn/test-signing.pub - That one can be public.
+
+Files signed using this key pair can be verified with the following command:
+
+minisign -Vm <file> -P RWTjQ/1Ppa+dvLvQck1AJsSHIXBwS+c1ukOGY8hkcKG/Rr1XxKQwM2SC
+

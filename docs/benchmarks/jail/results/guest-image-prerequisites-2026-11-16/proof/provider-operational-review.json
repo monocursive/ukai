@@ -1,0 +1,51 @@
+{
+  "actual_reference_format_observation_sha256": "b23d005a8f21050227849232238053b64d7c6eb7bfac9629838fbcf8063f612d",
+  "assessment": [
+    "birth() is a generation check, not a separate continuous-liveness claim; the guard requires active/running systemd observations plus matching executable/argv/four UIDs, then rechecks MainPID and birth on the held directory. No actionable ordering defect found.",
+    "systemctl output is capped after capture with a 30-second command deadline; this accurately avoids claiming a hard pipe-memory cap.",
+    "The actual reference user bus was already active. Only read-only show ran as UID1001; frozen properties() accepted its unmodified output. The reference version is not new-image qualification."
+  ],
+  "authenticated_package_payload_review_sha256": "53cd27356c87e1c3216c1a417c872136130c95fca1df4a1eff6386c7dd8dc22e",
+  "checks": {
+    "actual_reference_systemctl_format_accepted": true,
+    "effective_fragment_exec_and_single_command_exact": true,
+    "fixed_minimal_environment_and_command_timeout": true,
+    "fixed_uid_and_account_primary_gid_no_inherited_groups": true,
+    "held_directory_before_after_birth_prevents_pid_reuse": true,
+    "no_guest_controller_or_infrastructure_allowlist_change": true,
+    "proc_size_zero_supported_bounded_reads": true,
+    "second_effective_unit_mainpid_read_with_proc_directory_held": true,
+    "select_only_global_user_broker_alias": true,
+    "selection_after_all_apt_before_fresh_uid_manager": true,
+    "source_hashes_unchanged_after_focused_tests": true,
+    "stat_starttime_field22_index19_correct": true,
+    "vendor_unit_bytes_and_override_dropin_refusal": true
+  },
+  "findings": [],
+  "focused_test": {
+    "command": [
+      "/opt/homebrew/opt/python@3.15/bin/python3.15",
+      "-B",
+      "-m",
+      "unittest",
+      "-v",
+      "test_prepare.SessionBusPreparationTests"
+    ],
+    "elapsed_seconds": 0.3680677500087768,
+    "returncode": 0,
+    "stderr_sha256": "a8716686387b4995ee55c466aff604c4703a1e3afd19150c227cdf6900ff4f98",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "limits": [
+    "No new-image boot, mount, install, compiler, provider, credential access or source edit.",
+    "No runtime session bus selection/start/reload occurred in this review.",
+    "Package selection and new-image boot compatibility remain future actual validation."
+  ],
+  "outcome": "PASS",
+  "schema": "ukai.source-P-provider-operational-review/1",
+  "source_files_sha256": {
+    "crates/ukai-jail/vm/prepare.py": "b3967a84f54b3f1c469b75a482b62dfe90542ab2a05bde9b178678d72bc20739",
+    "crates/ukai-jail/vm/test_prepare.py": "9a87edd19d0644dfb579438aaa9b823cf246da851741ba22633337f8f108382a"
+  },
+  "validation_sha256": "8755df18c9d07ec54dd76207b64523dde43218ffa7fd0821c1555c7be2026c97"
+}

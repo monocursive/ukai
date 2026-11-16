@@ -15,7 +15,7 @@ jsonschema.workspace = true
 ukai-records.workspace = true
 clap = { workspace = true, features = ["derive"] }
 libc.workspace = true
-rusqlite = { version = "0.40.2", features = ["bundled", "limits"] }
+rusqlite = { version = "0.41.0", features = ["bundled", "limits"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 toml.workspace = true

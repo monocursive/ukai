@@ -38,6 +38,11 @@ use serde_json::Value;
 use sha2::Digest as _;
 use std::os::fd::{AsRawFd as _, FromRawFd as _};
 use std::os::unix::process::CommandExt as _;
+use ukai_jail::guest_program;
+
+#[path = "../../profiles/embedded.rs"]
+#[allow(dead_code)]
+mod embedded_profiles;
 
 #[path = "../platform/macos/vm/control.rs"]
 // Both ends include the wire modules by path; the bin drives the subset it
@@ -118,8 +123,9 @@ struct HelperEvent {
     event: String,
     #[serde(default)]
     data: Option<String>,
-    #[serde(default)]
-    error: Option<String>,
+    // Keep the existing decode contract; its arbitrary text is never retained.
+    #[serde(default, rename = "error")]
+    _error: Option<String>,
 }
 
 /// Host → guest, over vsock. `ready`, `put`, `ping`, `run` and `cancel`
@@ -137,10 +143,17 @@ enum GuestOp {
     /// launch profile's sources name these paths, the guest jail's vault
     /// reads them, and the guest removes them when the attempt ends.
     Secret { id: String, data: String },
+    /// Remove the released attempt's staged sources; never replace a value.
+    RevokeSecrets { ids: Vec<String> },
     /// Receive the vaulted launch profile's TOML for this attempt (the
     /// guest controller writes it under its config dir and runs the jail
     /// with `--launch NAME`).
     LaunchToml { toml: String },
+    /// Verify the catalog and establish isolated configuration before secrets.
+    NativePrepare {
+        native_program: protocol::GuestLaunchIntent,
+        argv: Vec<String>,
+    },
     /// One workspace file, the preview's frame.
     Put {
         path: String,
@@ -159,6 +172,8 @@ enum GuestOp {
         /// jail's `--launch` grammar. The guest synthesizes the TOML with
         /// credential sources at the tmpfs staging root.
         launch: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        native_program: Option<protocol::GuestLaunchIntent>,
     },
     /// Cancel one attempt; the session stays up.
     Cancel2,
@@ -183,6 +198,8 @@ struct GuestEvent {
     #[serde(default)]
     id: Option<String>,
     #[serde(default)]
+    ids: Option<Vec<String>>,
+    #[serde(default)]
     group: Option<String>,
     #[serde(default)]
     executable: Option<bool>,
@@ -198,10 +215,21 @@ struct GuestEvent {
     message: Option<String>,
     #[serde(default)]
     binding: Option<protocol::ReceiptBinding>,
+    /// D6: the guest controller's stop of a warm attempt, carried by `done`;
+    /// relayed as the guest reported it, and judged by the client.
+    #[serde(default)]
+    stop: Option<protocol::GuestStop>,
     /// D7: whether the guest mounted the live workspace share (`ready` and
     /// `session` state it).
     #[serde(default)]
     live_share: Option<bool>,
+    /// The current boot's guest contracts, learned from Session only.
+    #[serde(default)]
+    guest_contracts: Option<protocol::GuestContracts>,
+    #[serde(default)]
+    guest_program_catalog_sha256: Option<String>,
+    #[serde(default)]
+    native_program: Option<protocol::GuestLaunchIntent>,
 }
 
 // ---------------------------------------------------------------------------
@@ -215,6 +243,7 @@ struct Shared {
     attempt_live: AtomicBool,
     helper_alive: AtomicBool,
     failed: AtomicBool,
+    startup: Mutex<StartupDiagnostics>,
 }
 
 impl Shared {
@@ -222,6 +251,201 @@ impl Shared {
         // The signal handler can only set STOP. Every thread must observe
         // that request before interpreting teardown as a custody failure.
         STOP.load(AtomicOrdering::SeqCst) || self.stopping.load(AtomicOrdering::SeqCst)
+    }
+
+    fn startup(&self) -> std::sync::MutexGuard<'_, StartupDiagnostics> {
+        self.startup
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+/// Fixed-size observations, never helper text, guest payload, paths or credentials.
+/// Offsets start when the service creates its reader state, after spawning custody.
+/// `Instant` may exclude suspended time on the host platform: these offsets are
+/// observations, not the continuous-clock deadlines used by the startup waits.
+#[derive(Clone, Serialize)]
+struct StartupDiagnostics {
+    #[serde(skip)]
+    started: std::time::Instant,
+    owner_ms: Option<u64>,
+    booted_ms: Option<u64>,
+    connected_ms: Option<u64>,
+    guest_ready_ms: Option<u64>,
+    session_validated_ms: Option<u64>,
+    stopping_ms: Option<u64>,
+    stopping_reason: Option<&'static str>,
+    transport_end: Option<HelperEnd>,
+    first_failure: Option<&'static str>,
+    waiting_for: Option<&'static str>,
+    wait_end: Option<&'static str>,
+}
+
+impl Default for StartupDiagnostics {
+    fn default() -> Self {
+        Self {
+            started: std::time::Instant::now(),
+            owner_ms: None,
+            booted_ms: None,
+            connected_ms: None,
+            guest_ready_ms: None,
+            session_validated_ms: None,
+            stopping_ms: None,
+            stopping_reason: None,
+            transport_end: None,
+            first_failure: None,
+            waiting_for: None,
+            wait_end: None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum HelperEnd {
+    Eof,
+    ReadError,
+    HelperFraming,
+    HelperDecode,
+    MissingData,
+    InvalidData,
+    GuestFraming,
+    GuestDecode,
+    ReportedError,
+    Stopped,
+    GuestStopped,
+    UnknownEvent,
+    ConsumerClosed,
+    RequestedStop,
+}
+
+impl HelperEnd {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Eof => "helper_eof",
+            Self::ReadError => "helper_read_error",
+            Self::HelperFraming => "helper_framing_error",
+            Self::HelperDecode => "helper_decode_error",
+            Self::MissingData => "helper_missing_data",
+            Self::InvalidData => "helper_invalid_data",
+            Self::GuestFraming => "guest_framing_error",
+            Self::GuestDecode => "guest_decode_error",
+            Self::ReportedError => "helper_reported_error",
+            Self::Stopped => "helper_stopped",
+            Self::GuestStopped => "guest_stopped",
+            Self::UnknownEvent => "helper_unknown_event",
+            Self::ConsumerClosed => "guest_consumer_closed",
+            Self::RequestedStop => "requested_stop",
+        }
+    }
+}
+
+impl StartupDiagnostics {
+    fn observe(&mut self, event: &str, reason: Option<&str>) {
+        let elapsed = u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        let slot = match event {
+            "owner" => &mut self.owner_ms,
+            "booted" => &mut self.booted_ms,
+            "connected" => &mut self.connected_ms,
+            "ready" => &mut self.guest_ready_ms,
+            "session_validated" => &mut self.session_validated_ms,
+            "stopping" => &mut self.stopping_ms,
+            _ => return,
+        };
+        if slot.is_none() {
+            *slot = Some(elapsed);
+            if event == "stopping" {
+                self.stopping_reason = Some(match reason {
+                    Some("custodian_lost") => "custodian_lost",
+                    Some("signal") => "signal",
+                    Some("caller_eof") => "caller_eof",
+                    Some("input_limit") => "input_limit",
+                    Some("bad_request") => "bad_request",
+                    Some("caller_stop") => "caller_stop",
+                    Some("not_connected") => "not_connected",
+                    Some("socket_write_failed") => "socket_write_failed",
+                    Some("boot_timeout") => "boot_timeout",
+                    Some("guest_eof") => "guest_eof",
+                    Some(_) => "unrecognized",
+                    None => "omitted",
+                });
+            }
+        }
+    }
+
+    fn helper_ended(&mut self, end: HelperEnd, orderly_stop: bool) {
+        self.transport_end.get_or_insert(end);
+        if !orderly_stop {
+            self.first_failure.get_or_insert(end.label());
+        }
+    }
+
+    fn custody_failed(&mut self, error: &str) {
+        self.first_failure.get_or_insert(match error {
+            "the custody lease closed" => "custody_lease_closed",
+            "the custody acknowledgement closed" => "custody_acknowledgement_closed",
+            "invalid custody acknowledgement" => "custody_acknowledgement_invalid",
+            "the custody lease stopped being acknowledged" => "custody_acknowledgement_timeout",
+            _ => "custody_io_error",
+        });
+    }
+
+    fn interruption(&mut self, stopped: bool, expired: bool) -> Option<String> {
+        // The reader latches the cause before setting STOP. A stop cannot erase
+        // a transport failure merely because its channel notification is later.
+        if let Some(cause) = self.first_failure {
+            self.wait_end.get_or_insert("failure");
+            return Some(format!("VM startup failed: {cause}"));
+        }
+        if stopped || expired {
+            let cause = if stopped {
+                "requested_stop"
+            } else {
+                "deadline"
+            };
+            self.wait_end.get_or_insert(cause);
+            return Some(format!(
+                "VM startup waiting for {} ended: {cause}",
+                self.waiting_for.unwrap_or("ready")
+            ));
+        }
+        None
+    }
+
+    fn summary(&self) -> String {
+        format!(
+            "startup owner={} booted={} connected={} guest_ready={} session_validated={} stopping={} transport_end={} first_failure={}",
+            self.owner_ms.is_some(),
+            self.booted_ms.is_some(),
+            self.connected_ms.is_some(),
+            self.guest_ready_ms.is_some(),
+            self.session_validated_ms.is_some(),
+            self.stopping_reason.unwrap_or("not_observed"),
+            self.transport_end.map_or("not_observed", HelperEnd::label),
+            self.first_failure.unwrap_or("none"),
+        )
+    }
+
+    fn retain(&self, boot: &Path, boot_id: &str) -> Result<(), String> {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        let bytes = serde_json::to_vec(&serde_json::json!({
+            "schema": "ukai.vm.startup-diagnostics/1", "boot_id": boot_id,
+            "milestone_clock": "std::time::Instant; may exclude suspension; not the continuous deadline clock",
+            "observed": self,
+        }))
+        .map_err(|_| "startup diagnostic encoding failed")?;
+        if bytes.len() > 4096 {
+            return Err("startup diagnostic bound exceeded".to_owned());
+        }
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(boot.join("startup.json"))
+            .map_err(|_| "startup diagnostic creation failed")?;
+        file.write_all(&bytes)
+            .map_err(|_| "startup diagnostic write failed".to_owned())
     }
 }
 
@@ -297,6 +521,10 @@ struct Service {
     live_share: Option<(PathBuf, share::ShareFacts)>,
     /// Whether this guest booted with its NAT adapter.
     guest_nat: bool,
+    /// Set once by the actual guest Session before accepting any attempts.
+    guest_contracts: std::sync::OnceLock<Option<protocol::GuestContracts>>,
+    /// Actual verified Session catalog, never inferred from the service build.
+    guest_program_catalog_sha256: std::sync::OnceLock<Option<String>>,
 }
 
 /// One guest frame as the reader thread delivered it, or the transport's end.
@@ -314,6 +542,9 @@ fn write_helper(service: &Service, frame: &HelperWrite) -> Result<(), String> {
     let deadline = std::time::Instant::now() + Duration::from_secs(2);
     let mut pending = line.as_slice();
     while !pending.is_empty() {
+        if std::time::Instant::now() >= deadline {
+            return Err("the VZ client write timed out".to_owned());
+        }
         match stdin.write(pending) {
             Ok(0) => return Err("the VZ client stopped reading".to_owned()),
             Ok(n) => pending = &pending[n..],
@@ -389,43 +620,63 @@ fn nonblocking(fd: &impl std::os::fd::AsRawFd) -> Result<(), String> {
 }
 
 fn read_helper(
-    mut stdout: std::process::ChildStdout,
+    mut stdout: impl std::io::Read,
     sender: &std::sync::mpsc::Sender<GuestLine>,
     shared: &Shared,
-) -> Result<(), String> {
+) -> Result<(), HelperEnd> {
     let mut helper = protocol::LineSplitter::default();
     let mut guest = protocol::LineSplitter::default();
     let mut chunk = [0u8; 16384];
     while !shared.stop_requested() {
         let n = match stdout.read(&mut chunk) {
-            Ok(0) => return Err("helper EOF".to_owned()),
+            Ok(0) => return Err(HelperEnd::Eof),
             Ok(n) => n,
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                 std::thread::sleep(Duration::from_millis(10));
                 continue;
             }
             Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
-            Err(error) => return Err(error.to_string()),
+            Err(_) => return Err(HelperEnd::ReadError),
         };
-        for line in helper.push(&chunk[..n]).map_err(|e| e.to_string())? {
-            let event: HelperEvent = protocol::decode(&line).map_err(|e| e.to_string())?;
+        for line in helper
+            .push(&chunk[..n])
+            .map_err(|_| HelperEnd::HelperFraming)?
+        {
+            let event: HelperEvent =
+                protocol::decode(&line).map_err(|_| HelperEnd::HelperDecode)?;
             match event.event.as_str() {
                 "data" => {
                     let bytes =
-                        protocol::decode_data(event.data.as_deref().ok_or("missing helper data")?)
-                            .map_err(|e| e.to_string())?;
-                    for line in guest.push(&bytes).map_err(|e| e.to_string())? {
-                        let frame =
-                            protocol::decode::<GuestEvent>(&line).map_err(|e| e.to_string())?;
+                        protocol::decode_data(event.data.as_deref().ok_or(HelperEnd::MissingData)?)
+                            .map_err(|_| HelperEnd::InvalidData)?;
+                    for line in guest.push(&bytes).map_err(|_| HelperEnd::GuestFraming)? {
+                        let frame = protocol::decode::<GuestEvent>(&line)
+                            .map_err(|_| HelperEnd::GuestDecode)?;
+                        if frame.event == "ready" {
+                            shared.startup().observe("ready", None);
+                        }
                         sender
                             .send(GuestLine::Frame(Box::new(frame)))
-                            .map_err(|e| e.to_string())?;
+                            .map_err(|_| HelperEnd::ConsumerClosed)?;
                     }
                 }
-                "error" => return Err(event.error.unwrap_or_else(|| "helper error".to_owned())),
-                "stopped" | "guest_stopped" => return Err("helper stopped".to_owned()),
-                "owner" | "booted" | "connected" | "stopping" => {}
-                other => return Err(format!("unknown helper event: {other}")),
+                "error" => return Err(HelperEnd::ReportedError),
+                "stopped" => return Err(HelperEnd::Stopped),
+                "guest_stopped" => return Err(HelperEnd::GuestStopped),
+                "owner" | "booted" | "connected" | "stopping" => {
+                    // `reason` was an unconstrained extra field in this wire
+                    // grammar. Inspect it only for diagnostics, without making
+                    // its type or duplicate fields a new acceptance condition.
+                    let details = (event.event == "stopping")
+                        .then(|| serde_json::from_slice::<Value>(&line).ok())
+                        .flatten();
+                    let reason = details
+                        .as_ref()
+                        .and_then(|value| value.get("reason"))
+                        .map(|value| value.as_str().unwrap_or(""));
+                    shared.startup().observe(&event.event, reason);
+                }
+                _ => return Err(HelperEnd::UnknownEvent),
             }
         }
     }
@@ -562,7 +813,10 @@ fn serve(args: ServeArgs) -> Result<(), String> {
     let reader_shared = Arc::clone(&shared);
     let reader = std::thread::spawn(move || {
         let result = read_helper(helper_stdout, &guest_sender, &reader_shared);
-        if !reader_shared.stop_requested() {
+        let end = result.err().unwrap_or(HelperEnd::RequestedStop);
+        let orderly_stop = reader_shared.stop_requested();
+        reader_shared.startup().helper_ended(end, orderly_stop);
+        if !orderly_stop {
             reader_shared.failed.store(true, AtomicOrdering::SeqCst);
             STOP.store(true, AtomicOrdering::SeqCst);
         }
@@ -570,15 +824,13 @@ fn serve(args: ServeArgs) -> Result<(), String> {
             .helper_alive
             .store(false, AtomicOrdering::SeqCst);
         reader_shared.stopping.store(true, AtomicOrdering::SeqCst);
-        let _ = guest_sender.send(GuestLine::HelperEnded(
-            result.err().unwrap_or_else(|| "stopped".to_owned()),
-        ));
+        let _ = guest_sender.send(GuestLine::HelperEnded(end.label().to_owned()));
     });
     let lease_shared = Arc::clone(&shared);
     let lease = std::thread::spawn(move || {
         if let Err(error) = maintain_lease(lease_write, ack_read, &lease_shared) {
             if !lease_shared.stop_requested() {
-                eprintln!("ukai-vm: {error}");
+                lease_shared.startup().custody_failed(&error);
                 lease_shared.failed.store(true, AtomicOrdering::SeqCst);
             }
             STOP.store(true, AtomicOrdering::SeqCst);
@@ -593,6 +845,8 @@ fn serve(args: ServeArgs) -> Result<(), String> {
         sockets: (runtime.join("control.sock"), runtime.join("attempt.sock")),
         live_share,
         guest_nat: args.guest_nat,
+        guest_contracts: std::sync::OnceLock::new(),
+        guest_program_catalog_sha256: std::sync::OnceLock::new(),
     });
     let control_service = Arc::clone(&service);
     let control_thread = std::thread::spawn(move || {
@@ -600,12 +854,32 @@ fn serve(args: ServeArgs) -> Result<(), String> {
     });
     // Exactly one session handshake per boot, including the first kernel reply.
     let result = (|| {
-        expect_guest_within(&guest_frames, "ready", Duration::from_secs(150))?;
+        expect_startup_guest(
+            &guest_frames,
+            "ready",
+            Duration::from_secs(150),
+            &service.shared,
+        )?;
         guest_line(&service, &GuestOp::Session)?;
-        let session = expect_guest(&guest_frames, "session")?;
+        let session = expect_startup_guest(
+            &guest_frames,
+            "session",
+            Duration::from_secs(30),
+            &service.shared,
+        )?;
+        check_native_session(&service.install, &session)?;
         let kernel = session.kernel.ok_or("session omitted kernel")?;
         check_live_share(service.live_share.is_some(), session.live_share)?;
+        service
+            .guest_contracts
+            .set(session.guest_contracts)
+            .map_err(|_| "guest contracts were already established for this boot")?;
+        service
+            .guest_program_catalog_sha256
+            .set(session.guest_program_catalog_sha256)
+            .map_err(|_| "guest catalog was already established for this boot")?;
         *SHARED_GUEST_KERNEL.lock().map_err(|e| e.to_string())? = Some(kernel);
+        service.shared.startup().observe("session_validated", None);
         drive_attempts(
             &service,
             &guest_frames,
@@ -642,6 +916,11 @@ fn serve(args: ServeArgs) -> Result<(), String> {
         // failure becomes undiagnosable (measured 2026-11-02). The newest
         // [`KEPT_BOOT_DIRS`] are kept.
         eprintln!("ukai-vm: evidence retained at {}", boot.display());
+        let startup = service.shared.startup().clone();
+        eprintln!("ukai-vm: {}", startup.summary());
+        if startup.retain(&boot, &service.boot_id).is_err() {
+            eprintln!("ukai-vm: startup diagnostics could not be retained");
+        }
         if let Err(error) = prune_boot_dirs(&runtime, KEPT_BOOT_DIRS.saturating_sub(1), Some(&boot))
         {
             eprintln!("ukai-vm: earlier boot evidence could not be pruned: {error}");
@@ -653,9 +932,12 @@ fn serve(args: ServeArgs) -> Result<(), String> {
         std::fs::remove_dir_all(&boot).map_err(|e| e.to_string())?;
     }
     if failed {
+        let startup = service.shared.startup().summary();
         return Err(match powered_off {
-            Some(reason) => format!("VM custody or transport failed (guest poweroff: {reason})"),
-            None => "VM custody or transport failed".to_owned(),
+            Some(reason) => {
+                format!("VM custody or transport failed (guest poweroff: {reason}; {startup})")
+            }
+            None => format!("VM custody or transport failed ({startup})"),
         });
     }
     if stop_requested { Ok(()) } else { result }
@@ -681,31 +963,39 @@ fn serve_control(service: &Service, listener: &UnixListener, idle_seconds: u64) 
         };
         let manifest = &service.install.manifest;
         let reply = match request {
-            protocol::ToControl::Status => protocol::FromControl::Status {
-                schema: protocol::SCHEMA_CONTROL.to_owned(),
-                boot_id: service.boot_id.clone(),
-                warm: service.shared.helper_alive.load(AtomicOrdering::SeqCst)
-                    && !service.shared.stopping.load(AtomicOrdering::SeqCst),
-                attempt_live: service.shared.attempt_live.load(AtomicOrdering::SeqCst),
-                kernel: SHARED_GUEST_KERNEL.lock().ok().and_then(|g| g.clone()),
-                disk_sha256: manifest.disk_sha256.clone(),
-                helper_sha256: manifest.helper_sha256.clone(),
-                custodian_sha256: manifest.custodian_sha256.clone(),
-                seed_sha256: manifest.seed_sha256.clone(),
-                vsock_port: GUEST_PORT,
-                idle_seconds,
-                live_workspace: service
-                    .live_share
-                    .as_ref()
-                    .map(|(path, _)| path.display().to_string()),
-                live_workspace_facts: service.live_share.as_ref().map(|(_, facts)| {
-                    protocol::LiveShareFacts {
-                        case_fold: facts.case_fold,
-                        normalization_fold: facts.normalization_fold,
-                    }
-                }),
-                guest_nat: service.guest_nat,
-            },
+            protocol::ToControl::Status => {
+                let warm = service.shared.helper_alive.load(AtomicOrdering::SeqCst)
+                    && !service.shared.stopping.load(AtomicOrdering::SeqCst);
+                // The kernel is set once the session handshake completed: the
+                // guest booted, its controller answered, and the next attempt
+                // runs without waiting for a boot (`warm` holds from the start).
+                let kernel = SHARED_GUEST_KERNEL.lock().ok().and_then(|g| g.clone());
+                protocol::FromControl::Status {
+                    schema: protocol::SCHEMA_CONTROL.to_owned(),
+                    boot_id: service.boot_id.clone(),
+                    warm,
+                    ready: warm && kernel.is_some(),
+                    attempt_live: service.shared.attempt_live.load(AtomicOrdering::SeqCst),
+                    kernel,
+                    disk_sha256: manifest.disk_sha256.clone(),
+                    helper_sha256: manifest.helper_sha256.clone(),
+                    custodian_sha256: manifest.custodian_sha256.clone(),
+                    seed_sha256: manifest.seed_sha256.clone(),
+                    vsock_port: GUEST_PORT,
+                    idle_seconds,
+                    live_workspace: service
+                        .live_share
+                        .as_ref()
+                        .map(|(path, _)| path.display().to_string()),
+                    live_workspace_facts: service.live_share.as_ref().map(|(_, facts)| {
+                        protocol::LiveShareFacts {
+                            case_fold: facts.case_fold,
+                            normalization_fold: facts.normalization_fold,
+                        }
+                    }),
+                    guest_nat: service.guest_nat,
+                }
+            }
             protocol::ToControl::Stop => {
                 service.shared.stopping.store(true, AtomicOrdering::SeqCst);
                 STOP.store(true, AtomicOrdering::SeqCst);
@@ -773,6 +1063,223 @@ fn drive_attempts(
     }
 }
 
+fn check_native_session(install: &image::Install, session: &GuestEvent) -> Result<(), String> {
+    let installed = install.catalog().map_err(|error| error.to_string())?;
+    let contract = session
+        .guest_contracts
+        .as_ref()
+        .and_then(|contracts| contracts.native_program.as_deref());
+    match installed {
+        None if contract.is_none()
+            && session.guest_program_catalog_sha256.is_none()
+            && session
+                .guest_contracts
+                .as_ref()
+                .is_none_or(protocol::GuestContracts::supports_literal_session) =>
+        {
+            Ok(())
+        }
+        Some((_, digest))
+            if session
+                .guest_contracts
+                .as_ref()
+                .is_some_and(protocol::GuestContracts::supports_native_session)
+                && session.guest_program_catalog_sha256.as_deref() == Some(digest.as_str()) =>
+        {
+            Ok(())
+        }
+        _ => Err(
+            "guest native program Session does not match the installed image catalog".to_owned(),
+        ),
+    }
+}
+
+fn native_argv(encoded: &[String]) -> Result<Vec<Vec<u8>>, String> {
+    if encoded.len() > 4096 {
+        return Err("native argument count exceeds its bound".to_owned());
+    }
+    let mut total = 0usize;
+    encoded
+        .iter()
+        .map(|word| {
+            let bytes = protocol::decode_data(word)
+                .map_err(|_| "invalid native argument encoding".to_owned())?;
+            total = total.saturating_add(bytes.len());
+            if bytes.contains(&0) || protocol::encode_data(&bytes) != *word || total > 1024 * 1024 {
+                return Err("native arguments are not canonical bounded byte strings".to_owned());
+            }
+            Ok(bytes)
+        })
+        .collect()
+}
+
+fn check_native_intent(
+    catalog: &guest_program::Catalog,
+    catalog_digest: &str,
+    intent: &protocol::GuestLaunchIntent,
+    argv: &[String],
+    secrets: &[protocol::SecretEntry],
+) -> Result<protocol::NativeProgramBinding, String> {
+    if intent.schema != protocol::NATIVE_PROGRAM_CONTRACT
+        || intent.state != "attempt"
+        || intent.catalog_sha256 != catalog_digest
+        || !intent
+            .expected_policy_digest
+            .strip_prefix("sha256:")
+            .is_some_and(guest_program::is_sha256)
+    {
+        return Err("native launch contract, state, catalog or policy digest differs".to_owned());
+    }
+    let entry = catalog
+        .entries
+        .iter()
+        .find(|entry| entry.id == intent.entry_id)
+        .ok_or("native launch catalog entry is absent")?;
+    let text = embedded_profiles::bundled_profile(&intent.launch_name)
+        .ok_or("native launch is not a bundled profile")?;
+    if entry.alias != intent.launch_name
+        || entry.profile_sha256 != intent.profile_sha256
+        || guest_program::sha256(text.as_bytes()) != entry.profile_sha256
+    {
+        return Err("native launch bundled profile identity differs".to_owned());
+    }
+    // Parsing is lexical: these guest paths never enter a host filesystem API.
+    let profile = ukai_jail::launch_profile::parse_with(
+        text,
+        &intent.launch_name,
+        ukai_jail::launch_profile::LaunchSource::Bundled,
+        None,
+        Some(b"/run/ukai-vm/native-config"),
+    )
+    .map_err(|_| "native bundled profile cannot be resolved".to_owned())?;
+    let declared = profile
+        .credentials
+        .iter()
+        .find(|declaration| declaration.id == intent.selected_credential_id);
+    if profile.program_root != entry.program_root
+        || !profile
+            .credentials_one_of
+            .contains(&intent.selected_credential_id)
+        || !declared.is_some_and(|declaration| {
+            declaration.mode == ukai_jail::policy::CredentialMode::Vault
+                && declaration.vault.as_ref().is_some_and(|policy| {
+                    policy.binaries == ["@program"] && policy.refresh.is_none()
+                })
+        })
+        || secrets.len() != 1
+        || secrets[0].id != intent.selected_credential_id
+    {
+        return Err(
+            "native launch requires exactly its selected declared program-bound source".to_owned(),
+        );
+    }
+    let suffix = native_argv(&intent.argv_suffix)?;
+    let resolved = native_argv(argv)?;
+    let mut expected = vec![entry.executable.as_bytes().to_vec()];
+    expected.extend(suffix.iter().cloned());
+    let mut logical = vec![entry.alias.as_bytes().to_vec()];
+    logical.extend(suffix);
+    if resolved != expected
+        || ukai_jail::canonical::argv_digest(&logical) != intent.request_argv_digest
+        || ukai_jail::canonical::argv_digest(&resolved) != intent.resolved_argv_digest
+    {
+        return Err("native launch suffix, resolved argv or digest differs".to_owned());
+    }
+    Ok(protocol::NativeProgramBinding {
+        catalog_sha256: catalog_digest.to_owned(),
+        entry_id: entry.id.clone(),
+        profile_sha256: entry.profile_sha256.clone(),
+        executable_sha256: entry.executable_sha256.clone(),
+        selected_credential_id: intent.selected_credential_id.clone(),
+        state: intent.state.clone(),
+        request_argv_digest: intent.request_argv_digest.clone(),
+        resolved_argv_digest: intent.resolved_argv_digest.clone(),
+        policy_digest: intent.expected_policy_digest.clone(),
+    })
+}
+
+fn check_native_request(
+    service: &Service,
+    intent: &protocol::GuestLaunchIntent,
+    argv: &[String],
+    secrets: &[protocol::SecretEntry],
+) -> Result<protocol::NativeProgramBinding, String> {
+    if service
+        .guest_contracts
+        .get()
+        .and_then(Option::as_ref)
+        .and_then(|contracts| contracts.native_program.as_deref())
+        != Some(protocol::NATIVE_PROGRAM_CONTRACT)
+        || service
+            .guest_contracts
+            .get()
+            .and_then(Option::as_ref)
+            .and_then(|contracts| contracts.sampled_exposure.as_deref())
+            != Some(protocol::SAMPLED_EXPOSURE_CONTRACT)
+        || service
+            .guest_program_catalog_sha256
+            .get()
+            .and_then(Option::as_deref)
+            != Some(intent.catalog_sha256.as_str())
+    {
+        return Err(
+            "this guest did not verify the requested native launch contract and catalog".to_owned(),
+        );
+    }
+    let (catalog, digest) = service
+        .install
+        .catalog()
+        .map_err(|error| error.to_string())?
+        .ok_or("native launch image has no catalog")?;
+    check_native_intent(&catalog, &digest, intent, argv, secrets)
+}
+
+struct NativeExpectation {
+    program: protocol::NativeProgramBinding,
+    attempt_id: String,
+    boot_id: String,
+    profile: String,
+}
+
+fn check_native_receipt(
+    bytes: &[u8],
+    binding: &protocol::ReceiptBinding,
+    expected: Option<&NativeExpectation>,
+) -> Result<(), String> {
+    let Some(expected) = expected else {
+        return if binding.native_program.is_none() {
+            Ok(())
+        } else {
+            Err("literal launch received an unsolicited native binding".to_owned())
+        };
+    };
+    let receipt: Value =
+        serde_json::from_slice(bytes).map_err(|_| "native guest receipt is not JSON")?;
+    if binding.native_program.as_ref() != Some(&expected.program)
+        || binding.attempt_id != expected.attempt_id
+        || binding.boot_id != expected.boot_id
+        || binding.profile != expected.profile
+        || binding.argv_digest != expected.program.resolved_argv_digest
+        || binding.guest_attempt_id.is_empty()
+        || binding.guest_boot_id.is_empty()
+        || receipt.pointer("/attempt_id").and_then(Value::as_str)
+            != Some(binding.guest_attempt_id.as_str())
+        || receipt
+            .pointer("/process/identity/value/boot_id")
+            .and_then(Value::as_str)
+            != Some(binding.guest_boot_id.as_str())
+        || receipt.pointer("/policy/name").and_then(Value::as_str)
+            != Some(expected.profile.as_str())
+        || receipt.pointer("/policy/digest").and_then(Value::as_str)
+            != Some(expected.program.policy_digest.as_str())
+        || receipt.pointer("/argv_digest").and_then(Value::as_str)
+            != Some(expected.program.resolved_argv_digest.as_str())
+    {
+        return Err("native guest receipt does not bind to the exact prepared request".to_owned());
+    }
+    Ok(())
+}
+
 /// One attempt session: stage, release, relay, verdict. The connection is
 /// the lease; its end cancels the attempt (§6).
 fn run_attempt(
@@ -785,16 +1292,17 @@ fn run_attempt(
         .attempt_live
         .store(true, AtomicOrdering::SeqCst);
     let mut stream = stream;
-    stream.set_nonblocking(false).map_err(|e| e.to_string())?;
-    stream
-        .set_write_timeout(Some(Duration::from_secs(2)))
-        .map_err(|e| e.to_string())?;
+    stream.set_nonblocking(true).map_err(|e| e.to_string())?;
     let send = |stream: &mut UnixStream, frame: &protocol::FromVm| -> Result<(), String> {
         let mut line = serde_json::to_vec(frame).map_err(|error| error.to_string())?;
         line.push(b'\n');
-        stream
-            .write_all(&line)
-            .map_err(|error| format!("the attempt connection failed: {error}"))
+        control::write_before(
+            stream,
+            &line,
+            std::time::Instant::now() + Duration::from_secs(2),
+            || false,
+        )
+        .map_err(|error| format!("the attempt connection failed: {error}"))
     };
     let manifest = &service.install.manifest;
     send(
@@ -807,6 +1315,12 @@ fn run_attempt(
             custodian_sha256: manifest.custodian_sha256.clone(),
             seed_sha256: manifest.seed_sha256.clone(),
             vsock_port: GUEST_PORT,
+            guest_contracts: service.guest_contracts.get().cloned().flatten(),
+            guest_program_catalog_sha256: service
+                .guest_program_catalog_sha256
+                .get()
+                .cloned()
+                .flatten(),
         },
     )?;
     let prepared = match read_request(&mut stream)? {
@@ -818,6 +1332,7 @@ fn run_attempt(
             secrets,
             allow_hosts,
             launch,
+            native_program,
         } => {
             if !protocol::GUEST_PROFILES.contains(&profile.as_str()) {
                 return Err(format!(
@@ -867,16 +1382,66 @@ fn run_attempt(
                 secrets,
                 allow_hosts,
                 launch,
+                native_program,
             ))
         }
-        protocol::ToVm::Put(_) | protocol::ToVm::Run => {
+        protocol::ToVm::Put(_) | protocol::ToVm::Run | protocol::ToVm::RevokeSecrets { .. } => {
             Err("the attempt opened with staging frames instead of `prepare`".to_owned())
         }
     }?;
-    let (attempt_id, profile, wall_seconds, argv, secrets, allow_hosts, launch) = prepared;
+    let (attempt_id, profile, wall_seconds, argv, secrets, allow_hosts, launch, native_program) =
+        prepared;
+    if !secrets.is_empty()
+        && !service
+            .guest_contracts
+            .get()
+            .and_then(Option::as_ref)
+            .is_some_and(protocol::GuestContracts::supports_credentials)
+    {
+        return Err(
+            "this guest lacks credential revocation/journal contracts; no credential was forwarded"
+                .to_owned(),
+        );
+    }
     check_secret_ids(secrets.iter().map(|s| s.id.as_str()))?;
+    let native_expected = native_program
+        .as_ref()
+        .map(|intent| {
+            if launch.is_some() || profile != "agent" {
+                return Err(
+                    "native program requires the agent profile without a launch override"
+                        .to_owned(),
+                );
+            }
+            check_native_request(service, intent, &argv, &secrets).map(|program| {
+                NativeExpectation {
+                    program,
+                    attempt_id: attempt_id.clone(),
+                    boot_id: service.boot_id.clone(),
+                    profile: profile.clone(),
+                }
+            })
+        })
+        .transpose()?;
     guest_line(service, &GuestOp::Reset)?;
-    expect_guest(frames, "reset")?;
+    if native_program.is_some() {
+        expect_preparation_guest(frames, "reset", &stream)?;
+    } else {
+        expect_guest(frames, "reset")?;
+    }
+    if let Some(intent) = &native_program {
+        guest_line(
+            service,
+            &GuestOp::NativePrepare {
+                native_program: intent.clone(),
+                argv: argv.clone(),
+            },
+        )?;
+        let acknowledged = expect_preparation_guest(frames, "native_prepared", &stream)?;
+        if acknowledged.native_program.as_ref() != Some(intent) {
+            return Err("the guest acknowledged a different native program request".to_owned());
+        }
+    }
     if let Some(launch) = &launch {
         // The launch TOML crossed in Prepare as part of the declaration;
         // the guest controller keeps it for `--launch` (it holds no value:
@@ -891,6 +1456,9 @@ fn run_attempt(
     }
     let mut staged_secrets: Vec<(String, String)> = Vec::new();
     for secret in &secrets {
+        if native_program.is_some() {
+            check_preparation_lease(&stream)?;
+        }
         // The transport stages each value in the guest's tmpfs for this
         // attempt, where the launch profile's sources name it; the guest
         // removes every value when the attempt ends, and a value it refuses
@@ -902,7 +1470,11 @@ fn run_attempt(
                 data: secret.data.clone(),
             },
         )?;
-        let staged = expect_guest(frames, "secret")?;
+        let staged = if native_program.is_some() {
+            expect_preparation_guest(frames, "secret", &stream)?
+        } else {
+            expect_guest(frames, "secret")?
+        };
         if staged.id.as_deref() != Some(secret.id.as_str()) {
             return Err(format!(
                 "the guest acknowledged the wrong secret: {:?}",
@@ -954,6 +1526,11 @@ fn run_attempt(
             protocol::ToVm::Prepare { .. } => {
                 return Err("the attempt repeated `prepare`".to_owned());
             }
+            protocol::ToVm::RevokeSecrets { .. } => {
+                return Err(
+                    "credential revocation before release must cancel the attempt".to_owned(),
+                );
+            }
         }
     }
     guest_line(
@@ -966,9 +1543,19 @@ fn run_attempt(
             argv,
             allow_hosts: allow_hosts.clone(),
             launch: launch.as_ref().map(|decl| decl.name.clone()),
+            native_program,
         },
     )?;
-    let running = expect_guest(frames, "running")?;
+    let mut secret_ids: Vec<String> = secrets.iter().map(|secret| secret.id.clone()).collect();
+    secret_ids.sort_unstable();
+    let mut revocation_sent = None;
+    let running = await_running(
+        service,
+        frames,
+        &mut stream,
+        &secret_ids,
+        &mut revocation_sent,
+    )?;
     send(
         &mut stream,
         &protocol::FromVm::Released {
@@ -977,44 +1564,57 @@ fn run_attempt(
                 .ok_or("running omitted supervisor_pid")?,
         },
     )?;
-    relay_attempt(service, frames, &mut stream)
+    relay_attempt(
+        service,
+        frames,
+        &mut stream,
+        &secret_ids,
+        revocation_sent,
+        native_expected.as_ref(),
+    )
 }
 
-fn relay_attempt(
+/// The attempt lease and credential controls remain live while guest startup
+/// is pending, as well as during output relay. A delayed Running frame cannot
+/// defer cancellation until the ordinary 30-second handshake timeout.
+fn poll_attempt_control(
     service: &Service,
-    frames: &std::sync::mpsc::Receiver<GuestLine>,
     stream: &mut UnixStream,
+    secret_ids: &[String],
+    revocation_sent: &mut Option<u128>,
+    revocation_acknowledged: bool,
 ) -> Result<(), String> {
-    let deadline = continuous_ns() + u128::from(protocol::WALL_MAX + 90) * 1_000_000_000;
-    let mut receipt: Option<(String, Vec<u8>)> = None;
-    let send = |stream: &mut UnixStream, frame: &protocol::FromVm| -> Result<(), String> {
-        let mut line = serde_json::to_vec(frame).map_err(|error| error.to_string())?;
-        line.push(b'\n');
-        stream
-            .write_all(&line)
-            .map_err(|error| format!("the attempt connection failed: {error}"))
+    if STOP.load(AtomicOrdering::SeqCst) || service.shared.stopping.load(AtomicOrdering::SeqCst) {
+        return Err("service stopping".to_owned());
+    }
+    let mut byte = [0u8; 1];
+    // SAFETY: recv peeks into caller-owned memory without consuming protocol data.
+    let peer = unsafe {
+        libc::recv(
+            stream.as_raw_fd(),
+            byte.as_mut_ptr().cast(),
+            1,
+            libc::MSG_PEEK | libc::MSG_DONTWAIT,
+        )
     };
-    loop {
-        if STOP.load(AtomicOrdering::SeqCst) || service.shared.stopping.load(AtomicOrdering::SeqCst)
-        {
-            return Err("service stopping".to_owned());
+    if peer == 0 {
+        return Err("the attempt lease ended".to_owned());
+    }
+    if peer > 0 {
+        let line = read_line(stream, Duration::from_secs(2))?;
+        let request: protocol::ToVm = protocol::decode(&line).map_err(|error| error.to_string())?;
+        match request {
+            protocol::ToVm::RevokeSecrets { ids }
+                if revocation_sent.is_none() && !ids.is_empty() && ids == secret_ids =>
+            {
+                *revocation_sent = Some(continuous_ns());
+                guest_line(service, &GuestOp::RevokeSecrets { ids })?;
+            }
+            _ => {
+                return Err("unexpected or invalid credential control after release".to_owned());
+            }
         }
-        let mut byte = [0u8; 1];
-        // SAFETY: recv peeks into caller-owned memory without consuming protocol data.
-        let peer = unsafe {
-            libc::recv(
-                stream.as_raw_fd(),
-                byte.as_mut_ptr().cast(),
-                1,
-                libc::MSG_PEEK | libc::MSG_DONTWAIT,
-            )
-        };
-        if peer == 0 {
-            return Err("the attempt lease ended".to_owned());
-        }
-        if peer > 0 {
-            return Err("unexpected data after release".to_owned());
-        }
+    } else {
         let error = std::io::Error::last_os_error();
         if !matches!(
             error.kind(),
@@ -1022,6 +1622,77 @@ fn relay_attempt(
         ) {
             return Err(error.to_string());
         }
+    }
+    if !revocation_acknowledged
+        && revocation_sent.is_some_and(|sent| continuous_ns().saturating_sub(sent) >= 2_000_000_000)
+    {
+        return Err("guest credential revocation acknowledgement timed out".to_owned());
+    }
+    Ok(())
+}
+
+fn await_running(
+    service: &Service,
+    frames: &std::sync::mpsc::Receiver<GuestLine>,
+    stream: &mut UnixStream,
+    secret_ids: &[String],
+    revocation_sent: &mut Option<u128>,
+) -> Result<GuestEvent, String> {
+    let deadline = continuous_ns() + control::HANDSHAKE_TIMEOUT.as_nanos();
+    loop {
+        poll_attempt_control(service, stream, secret_ids, revocation_sent, false)?;
+        if continuous_ns() >= deadline {
+            return Err("the guest did not answer `running`".to_owned());
+        }
+        match frames.recv_timeout(Duration::from_millis(100)) {
+            Ok(GuestLine::Frame(frame)) if frame.event == "running" => return Ok(*frame),
+            Ok(GuestLine::Frame(frame)) if frame.event == "error" => {
+                return Err(frame.message.unwrap_or_else(|| "guest error".to_owned()));
+            }
+            Ok(GuestLine::Frame(_)) => {
+                return Err("the guest sent an unexpected frame before running".to_owned());
+            }
+            Ok(GuestLine::HelperEnded(reason)) => {
+                return Err(format!("the VM service ended: {reason}"));
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                return Err("the guest reader stopped".to_owned());
+            }
+        }
+    }
+}
+
+fn relay_attempt(
+    service: &Service,
+    frames: &std::sync::mpsc::Receiver<GuestLine>,
+    stream: &mut UnixStream,
+    secret_ids: &[String],
+    mut revocation_sent: Option<u128>,
+    native_expected: Option<&NativeExpectation>,
+) -> Result<(), String> {
+    let deadline = continuous_ns() + u128::from(protocol::WALL_MAX + 90) * 1_000_000_000;
+    let mut receipt: Option<(String, Vec<u8>)> = None;
+    let mut revocation_acknowledged = false;
+    let send = |stream: &mut UnixStream, frame: &protocol::FromVm| -> Result<(), String> {
+        let mut line = serde_json::to_vec(frame).map_err(|error| error.to_string())?;
+        line.push(b'\n');
+        control::write_before(
+            stream,
+            &line,
+            std::time::Instant::now() + Duration::from_secs(2),
+            || false,
+        )
+        .map_err(|error| format!("the attempt connection failed: {error}"))
+    };
+    loop {
+        poll_attempt_control(
+            service,
+            stream,
+            secret_ids,
+            &mut revocation_sent,
+            revocation_acknowledged,
+        )?;
         if continuous_ns() > deadline {
             return Err("the attempt ran past its host deadline".to_owned());
         }
@@ -1038,6 +1709,24 @@ fn relay_attempt(
             }
         };
         match frame.event.as_str() {
+            "secrets_revoked" => {
+                if revocation_sent
+                    .is_none_or(|sent| continuous_ns().saturating_sub(sent) >= 2_000_000_000)
+                    || revocation_acknowledged
+                    || frame.ids.as_deref() != Some(secret_ids)
+                {
+                    return Err(
+                        "the guest acknowledged unexpected credential revocation".to_owned()
+                    );
+                }
+                send(
+                    stream,
+                    &protocol::FromVm::SecretsRevoked {
+                        ids: secret_ids.to_vec(),
+                    },
+                )?;
+                revocation_acknowledged = true;
+            }
             "stdout" | "stderr" => {
                 let data = frame.data.clone().unwrap_or_default();
                 let line = if frame.event == "stdout" {
@@ -1078,15 +1767,23 @@ fn relay_attempt(
                     .take()
                     .ok_or("the guest completed without carrying its receipt")?;
                 let digest = image::hex(&sha2::Sha256::digest(&bytes));
+                let binding = frame.binding.ok_or("guest omitted receipt binding")?;
+                check_native_receipt(&bytes, &binding, native_expected)?;
                 send(
                     stream,
                     &protocol::FromVm::BoundReceipt {
                         sha256: digest,
                         data: sha256,
-                        binding: frame.binding.ok_or("guest omitted receipt binding")?,
+                        binding,
                     },
                 )?;
-                send(stream, &protocol::FromVm::Done { exit_code })?;
+                send(
+                    stream,
+                    &protocol::FromVm::Done {
+                        exit_code,
+                        stop: frame.stop.clone(),
+                    },
+                )?;
                 return Ok(());
             }
             "error" => {
@@ -1097,14 +1794,18 @@ fn relay_attempt(
                 let _ = send(stream, &protocol::FromVm::Error { message });
                 return Err("the guest reported an error".to_owned());
             }
+            "native_prepared" => {
+                return Err("unexpected repeated native preparation acknowledgement".to_owned());
+            }
             _ => {}
         }
     }
 }
 
 fn read_line(stream: &mut UnixStream, timeout: Duration) -> Result<Vec<u8>, String> {
-    // macOS accepted sockets inherit O_NONBLOCK from the listener.
-    stream.set_nonblocking(false).map_err(|e| e.to_string())?;
+    // Keep internal sockets nonblocking on every platform; output clones use
+    // absolute send deadlines, and no operator descriptor is involved.
+    stream.set_nonblocking(true).map_err(|e| e.to_string())?;
     let deadline = std::time::Instant::now() + timeout;
     let mut line = Vec::new();
     let mut chunk = [0u8; 16384];
@@ -1168,6 +1869,119 @@ fn expect_guest(
     expect_guest_within(frames, event, Duration::from_secs(30))
 }
 
+/// Initial boot diagnostics use the same deadlines and polling cadence as the
+/// ordinary wait. The separately latched reader cause survives its STOP signal.
+fn expect_startup_guest(
+    frames: &std::sync::mpsc::Receiver<GuestLine>,
+    event: &'static str,
+    budget: Duration,
+    shared: &Shared,
+) -> Result<GuestEvent, String> {
+    {
+        let mut startup = shared.startup();
+        startup.waiting_for = Some(event);
+        startup.wait_end = None;
+    }
+    let deadline = continuous_ns() + budget.as_nanos();
+    loop {
+        if let Some(error) = shared.startup().interruption(
+            STOP.load(AtomicOrdering::SeqCst),
+            continuous_ns() > deadline,
+        ) {
+            return Err(error);
+        }
+        match frames.recv_timeout(Duration::from_millis(100)) {
+            Ok(GuestLine::Frame(frame)) if frame.event == event => {
+                let mut startup = shared.startup();
+                startup.waiting_for = None;
+                startup.wait_end = Some("received");
+                return Ok(*frame);
+            }
+            Ok(GuestLine::Frame(frame)) if frame.event == "error" => {
+                shared
+                    .startup()
+                    .wait_end
+                    .get_or_insert("guest_reported_error");
+                return Err("VM startup guest reported an error".to_owned());
+            }
+            Ok(GuestLine::Frame(frame)) if frame.event == "native_prepared" => {
+                shared
+                    .startup()
+                    .wait_end
+                    .get_or_insert("unexpected_native_prepared");
+                return Err("unexpected native preparation acknowledgement".to_owned());
+            }
+            Ok(GuestLine::Frame(_)) => continue,
+            Ok(GuestLine::HelperEnded(_)) => {
+                shared.startup().wait_end.get_or_insert("transport_ended");
+                return Err(format!(
+                    "VM startup transport ended ({})",
+                    shared.startup().summary()
+                ));
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                shared
+                    .startup()
+                    .wait_end
+                    .get_or_insert("reader_disconnected");
+                return Err("VM startup guest reader stopped".to_owned());
+            }
+        }
+    }
+}
+
+/// Native catalog verification may take time. A caller whose source lease
+/// closes while it is pending must cancel before any subsequent secret send.
+fn check_preparation_lease(stream: &UnixStream) -> Result<(), String> {
+    let mut byte = 0u8;
+    // SAFETY: the socket is live and recv writes one caller-owned byte.
+    let result = unsafe {
+        libc::recv(
+            stream.as_raw_fd(),
+            (&raw mut byte).cast(),
+            1,
+            libc::MSG_PEEK | libc::MSG_DONTWAIT,
+        )
+    };
+    match result {
+        0 => Err("the native preparation connection closed".to_owned()),
+        value if value > 0 => {
+            Err("native preparation received a request before Prepared".to_owned())
+        }
+        _ if std::io::Error::last_os_error().kind() == std::io::ErrorKind::WouldBlock => Ok(()),
+        _ => Err("the native preparation connection failed".to_owned()),
+    }
+}
+
+fn expect_preparation_guest(
+    frames: &std::sync::mpsc::Receiver<GuestLine>,
+    event: &str,
+    stream: &UnixStream,
+) -> Result<GuestEvent, String> {
+    let deadline = continuous_ns() + control::HANDSHAKE_TIMEOUT.as_nanos();
+    loop {
+        check_preparation_lease(stream)?;
+        if STOP.load(AtomicOrdering::SeqCst) || continuous_ns() >= deadline {
+            return Err(format!("native preparation did not complete `{event}`"));
+        }
+        match frames.recv_timeout(Duration::from_millis(100)) {
+            Ok(GuestLine::Frame(frame)) if frame.event == event => {
+                check_preparation_lease(stream)?;
+                return Ok(*frame);
+            }
+            Ok(GuestLine::Frame(_)) => {
+                return Err("unexpected guest frame during native preparation".to_owned());
+            }
+            Ok(GuestLine::HelperEnded(_))
+            | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                return Err("guest transport ended during native preparation".to_owned());
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+        }
+    }
+}
+
 fn expect_guest_within(
     frames: &std::sync::mpsc::Receiver<GuestLine>,
     event: &str,
@@ -1185,6 +1999,9 @@ fn expect_guest_within(
             Ok(GuestLine::Frame(frame)) if frame.event == event => return Ok(*frame),
             Ok(GuestLine::Frame(frame)) if frame.event == "error" => {
                 return Err(frame.message.unwrap_or_else(|| "guest error".to_owned()));
+            }
+            Ok(GuestLine::Frame(frame)) if frame.event == "native_prepared" => {
+                return Err("unexpected native preparation acknowledgement".to_owned());
             }
             Ok(GuestLine::Frame(_)) => continue,
             Ok(GuestLine::HelperEnded(reason)) => {
@@ -1588,25 +2405,13 @@ fn control_socket() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("/nonexistent/vm/control.sock"))
 }
 
-/// The installer's readiness report, in the preview's schema: the image
-/// directory beside this executable (the staged installer runs the check
-/// before the install reaches its final location), otherwise the
-/// discovered installation. A real run still verifies the guest jail.
+/// The installer's readiness report, in the preview's schema. Discovery
+/// is identical to serve (including explicit overrides and staged installs),
+/// so the report checks the image an actual run will use.
 fn doctor() -> Result<(), String> {
-    let image_dir = std::env::current_exe()
-        .ok()
-        .and_then(|exe| {
-            exe.parent()
-                .and_then(|bin| bin.parent())
-                .map(|root| root.join("image"))
-        })
-        .filter(|dir| dir.join("image.json").is_file())
-        .or_else(|| {
-            image::Install::discover()
-                .ok()
-                .map(|install| install.root.join("image"))
-        })
-        .ok_or_else(|| "no installed ukai-vm image found".to_owned())?;
+    let install = image::Install::discover().map_err(|error| error.to_string())?;
+    install.prepared().map_err(|error| error.to_string())?;
+    let image_dir = install.root.join("image");
     let manifest: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(image_dir.join("image.json")).map_err(|e| e.to_string())?,
     )
@@ -1696,6 +2501,445 @@ fn qualified() -> Result<(), String> {
 #[cfg(test)]
 mod service_regressions {
     use super::*;
+
+    #[test]
+    fn startup_observations_are_bounded_and_never_retain_payload_text() {
+        let shared = Shared::default();
+        let (sender, _receiver) = std::sync::mpsc::channel();
+        let sentinel = "PRIVATE_PAYLOAD_PATH_OR_CREDENTIAL";
+        let mut bytes = Vec::new();
+        for _ in 0..1000 {
+            bytes.extend(
+                serde_json::to_vec(&serde_json::json!({
+                    "event":"owner", "audit_token":sentinel, "error":sentinel,
+                }))
+                .unwrap(),
+            );
+            bytes.push(b'\n');
+        }
+        for event in ["booted", "connected"] {
+            bytes.extend(format!("{{\"event\":\"{event}\"}}\n").as_bytes());
+        }
+        let guest = format!("{{\"event\":\"ready\",\"kernel\":\"{sentinel}\"}}\n");
+        bytes.extend(
+            serde_json::to_vec(&serde_json::json!({
+                "event":"data", "data":base64::engine::general_purpose::STANDARD.encode(guest),
+            }))
+            .unwrap(),
+        );
+        bytes.push(b'\n');
+        bytes.extend(format!("{{\"event\":\"stopping\",\"reason\":\"{sentinel}\"}}\n").as_bytes());
+        bytes.extend(format!("{{\"event\":\"error\",\"error\":\"{sentinel}\"}}\n").as_bytes());
+        let end = read_helper(bytes.as_slice(), &sender, &shared).unwrap_err();
+        assert_eq!(end.label(), "helper_reported_error");
+        let mut observed = shared.startup();
+        observed.helper_ended(end, false);
+        let owner = observed.owner_ms;
+        observed.observe("owner", None);
+        observed.observe("stopping", Some("caller_stop"));
+        assert_eq!(observed.owner_ms, owner);
+        assert_eq!(observed.stopping_reason, Some("unrecognized"));
+        assert!(
+            observed.owner_ms.is_some()
+                && observed.booted_ms.is_some()
+                && observed.connected_ms.is_some()
+                && observed.guest_ready_ms.is_some()
+        );
+        assert!(observed.session_validated_ms.is_none());
+        let retained = serde_json::to_string(&*observed).unwrap();
+        assert!(retained.len() < 1024);
+        assert!(!retained.contains(sentinel));
+        assert!(!observed.summary().contains(sentinel));
+    }
+
+    #[test]
+    fn startup_transport_cause_precedes_stop_and_is_not_overwritten() {
+        let mut observed = StartupDiagnostics {
+            waiting_for: Some("ready"),
+            ..StartupDiagnostics::default()
+        };
+        // Deterministic ordering: read failure is published, STOP becomes true,
+        // and HelperEnded has not reached the receiver yet.
+        observed.helper_ended(HelperEnd::Eof, false);
+        assert_eq!(
+            observed.interruption(true, true).unwrap(),
+            "VM startup failed: helper_eof"
+        );
+        observed.custody_failed("the custody lease closed");
+        observed.helper_ended(HelperEnd::RequestedStop, true);
+        assert_eq!(observed.first_failure, Some("helper_eof"));
+        assert_eq!(observed.transport_end.unwrap().label(), "helper_eof");
+
+        let mut orderly = StartupDiagnostics::default();
+        orderly.helper_ended(HelperEnd::RequestedStop, true);
+        assert!(orderly.first_failure.is_none());
+        assert!(
+            orderly
+                .interruption(true, false)
+                .unwrap()
+                .contains("requested_stop")
+        );
+        let mut custody = StartupDiagnostics::default();
+        custody.custody_failed("UNTRUSTED_IO_PATH");
+        assert_eq!(custody.first_failure, Some("custody_io_error"));
+    }
+
+    #[test]
+    fn startup_reason_inspection_does_not_change_helper_wire_acceptance() {
+        for reason in [
+            r#"42"#,
+            r#"{"private":"sentinel"}"#,
+            r#""first","reason":"boot_timeout""#,
+        ] {
+            let shared = Shared::default();
+            let (sender, _receiver) = std::sync::mpsc::channel();
+            let bytes = format!(
+                "{{\"event\":\"stopping\",\"reason\":{reason}}}\n{{\"event\":\"stopped\"}}\n"
+            );
+            let end = read_helper(bytes.as_bytes(), &sender, &shared).unwrap_err();
+            assert_eq!(end.label(), "helper_stopped");
+            assert!(shared.startup().stopping_ms.is_some());
+        }
+        let shared = Shared::default();
+        let (sender, _receiver) = std::sync::mpsc::channel();
+        // This was already rejected by HelperEvent's optional string field.
+        let end = read_helper(
+            b"{\"event\":\"owner\",\"error\":42}\n".as_slice(),
+            &sender,
+            &shared,
+        )
+        .unwrap_err();
+        assert_eq!(end.label(), "helper_decode_error");
+        assert!(shared.startup().owner_ms.is_none());
+    }
+
+    #[test]
+    fn startup_silence_distinguishes_each_observed_stage_without_extending_budget() {
+        let stages = ["owner", "booted", "connected", "ready"];
+        for count in 0..=stages.len() {
+            let shared = Shared::default();
+            for stage in &stages[..count] {
+                shared.startup().observe(stage, None);
+            }
+            let (_sender, receiver) = std::sync::mpsc::channel();
+            let start = std::time::Instant::now();
+            let error = expect_startup_guest(&receiver, "ready", Duration::ZERO, &shared)
+                .err()
+                .unwrap();
+            assert!(error.contains("deadline"), "{error}");
+            assert!(start.elapsed() < Duration::from_millis(250));
+            let observed = shared.startup();
+            assert_eq!(observed.owner_ms.is_some(), count >= 1);
+            assert_eq!(observed.booted_ms.is_some(), count >= 2);
+            assert_eq!(observed.connected_ms.is_some(), count >= 3);
+            assert_eq!(observed.guest_ready_ms.is_some(), count >= 4);
+            assert!(observed.session_validated_ms.is_none());
+        }
+    }
+
+    #[test]
+    fn startup_guest_error_does_not_copy_untrusted_message() {
+        let shared = Shared::default();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        sender
+            .send(GuestLine::Frame(Box::new(
+                serde_json::from_value(serde_json::json!({"event":"ready"})).unwrap(),
+            )))
+            .unwrap();
+        assert!(expect_startup_guest(&receiver, "ready", Duration::from_secs(1), &shared).is_ok());
+        assert_eq!(shared.startup().waiting_for, None);
+        assert_eq!(shared.startup().wait_end, Some("received"));
+        sender
+            .send(GuestLine::Frame(Box::new(
+                serde_json::from_value(
+                    serde_json::json!({"event":"error","message":"PRIVATE_SENTINEL"}),
+                )
+                .unwrap(),
+            )))
+            .unwrap();
+        let error = expect_startup_guest(&receiver, "session", Duration::from_secs(1), &shared)
+            .err()
+            .unwrap();
+        assert_eq!(error, "VM startup guest reported an error");
+        assert_eq!(shared.startup().waiting_for, Some("session"));
+        assert_eq!(shared.startup().wait_end, Some("guest_reported_error"));
+        assert!(
+            !serde_json::to_string(&*shared.startup())
+                .unwrap()
+                .contains("PRIVATE_SENTINEL")
+        );
+    }
+
+    #[test]
+    fn startup_retention_is_private_exclusive_and_does_not_follow_links() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let boot = tempfile::tempdir().unwrap();
+        let outside = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(outside.path(), "untouched").unwrap();
+        let path = boot.path().join("startup.json");
+        std::os::unix::fs::symlink(outside.path(), &path).unwrap();
+        let observed = StartupDiagnostics::default();
+        assert!(observed.retain(boot.path(), "vm-test").is_err());
+        assert_eq!(std::fs::read(outside.path()).unwrap(), b"untouched");
+        std::fs::remove_file(&path).unwrap();
+        observed.retain(boot.path(), "vm-test").unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        assert!(bytes.len() <= 4096);
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert!(observed.retain(boot.path(), "vm-other").is_err());
+        assert_eq!(std::fs::read(path).unwrap(), bytes);
+    }
+
+    fn profile_input(key: &str) -> String {
+        let inputs: Value = serde_json::from_slice(include_bytes!(
+            "../../vm/fixtures/guest-native-profile-inputs.json"
+        ))
+        .unwrap();
+        inputs[key].as_str().unwrap().to_owned()
+    }
+
+    fn native_fixture() -> (
+        guest_program::Catalog,
+        String,
+        protocol::GuestLaunchIntent,
+        Vec<String>,
+        Vec<protocol::SecretEntry>,
+    ) {
+        let mut catalog: guest_program::Catalog = serde_json::from_slice(include_bytes!(
+            "../../vm/fixtures/guest-program-catalog.json"
+        ))
+        .unwrap();
+        let alias = profile_input("alias");
+        let primary_id = profile_input("primary_credential_id");
+        let entry = &mut catalog.entries[0];
+        entry.id = format!("{alias}-{}-linux-arm64", entry.version);
+        entry.alias = alias.clone();
+        entry.install_root = format!("/opt/ukai/programs/{alias}/{}", entry.version);
+        entry.executable = format!("{}/{alias}", entry.install_root);
+        entry.argv_prefix = vec![entry.executable.clone()];
+        entry.tree[1].path = alias.clone();
+        entry.profile_sha256 = guest_program::sha256(
+            embedded_profiles::bundled_profile(&alias)
+                .unwrap()
+                .as_bytes(),
+        );
+        entry.validate().unwrap();
+        let argv = vec![
+            entry.executable.as_bytes().to_vec(),
+            b"--print".to_vec(),
+            b"hello".to_vec(),
+        ];
+        let intent = protocol::GuestLaunchIntent {
+            schema: protocol::NATIVE_PROGRAM_CONTRACT.into(),
+            catalog_sha256: "d".repeat(64),
+            entry_id: entry.id.clone(),
+            launch_name: entry.alias.clone(),
+            profile_sha256: entry.profile_sha256.clone(),
+            state: "attempt".into(),
+            selected_credential_id: primary_id.clone(),
+            argv_suffix: argv[1..]
+                .iter()
+                .map(|arg| protocol::encode_data(arg))
+                .collect(),
+            request_argv_digest: ukai_jail::canonical::argv_digest(&[
+                alias.as_bytes().to_vec(),
+                b"--print".to_vec(),
+                b"hello".to_vec(),
+            ]),
+            resolved_argv_digest: ukai_jail::canonical::argv_digest(&argv),
+            expected_policy_digest: format!("sha256:{}", "e".repeat(64)),
+        };
+        let secrets = vec![protocol::SecretEntry {
+            id: primary_id,
+            data: protocol::encode_data(b"synthetic-value"),
+        }];
+        (
+            catalog,
+            intent.catalog_sha256.clone(),
+            intent,
+            argv.iter().map(|arg| protocol::encode_data(arg)).collect(),
+            secrets,
+        )
+    }
+
+    #[test]
+    fn native_intent_preserves_bundled_profile_and_both_declared_auth_modes() {
+        let (catalog, digest, mut intent, argv, mut secrets) = native_fixture();
+        for id in [
+            profile_input("primary_credential_id"),
+            profile_input("secondary_credential_id"),
+        ] {
+            intent.selected_credential_id = id.clone();
+            secrets[0].id = id.clone();
+            let bound = check_native_intent(&catalog, &digest, &intent, &argv, &secrets).unwrap();
+            assert_eq!(bound.selected_credential_id, id);
+            assert_eq!(bound.request_argv_digest, intent.request_argv_digest);
+            assert_eq!(bound.resolved_argv_digest, intent.resolved_argv_digest);
+            assert_ne!(bound.request_argv_digest, bound.resolved_argv_digest);
+        }
+    }
+
+    #[test]
+    fn native_intent_rejects_identity_state_suffix_and_source_substitution() {
+        let (catalog, digest, intent, argv, secrets) = native_fixture();
+        let value = serde_json::to_value(&intent).unwrap();
+        for field in [
+            "schema",
+            "catalog_sha256",
+            "entry_id",
+            "launch_name",
+            "profile_sha256",
+            "state",
+            "selected_credential_id",
+            "request_argv_digest",
+            "resolved_argv_digest",
+            "expected_policy_digest",
+        ] {
+            let mut changed = value.clone();
+            changed[field] = Value::String("wrong".into());
+            let changed: protocol::GuestLaunchIntent = serde_json::from_value(changed).unwrap();
+            assert!(
+                check_native_intent(&catalog, &digest, &changed, &argv, &secrets).is_err(),
+                "{field}"
+            );
+        }
+        let mut changed = intent.clone();
+        changed.argv_suffix.push(protocol::encode_data(b"changed"));
+        assert!(check_native_intent(&catalog, &digest, &changed, &argv, &secrets).is_err());
+        let mut changed_argv = argv.clone();
+        changed_argv[0] = protocol::encode_data(b"/bin/sh");
+        assert!(check_native_intent(&catalog, &digest, &intent, &changed_argv, &secrets).is_err());
+        assert!(check_native_intent(&catalog, &digest, &intent, &argv, &[]).is_err());
+        let mut multiple = secrets.clone();
+        multiple.push(protocol::SecretEntry {
+            id: profile_input("secondary_credential_id"),
+            data: protocol::encode_data(b"second-synthetic"),
+        });
+        assert!(check_native_intent(&catalog, &digest, &intent, &argv, &multiple).is_err());
+    }
+
+    #[test]
+    fn native_arguments_require_canonical_encoding_and_exact_bounds() {
+        assert_eq!(
+            native_argv(&[protocol::encode_data(b""), protocol::encode_data(b"\xff")]).unwrap(),
+            [b"".to_vec(), b"\xff".to_vec()]
+        );
+        for bad in [
+            vec!["YQ".into()],
+            vec!["YR==".into()],
+            vec![protocol::encode_data(b"a\0b")],
+            vec![protocol::encode_data(&vec![b'x'; 1024 * 1024 + 1])],
+            vec![String::new(); 4097],
+        ] {
+            assert!(native_argv(&bad).is_err());
+        }
+    }
+
+    #[test]
+    fn native_preparation_observes_caller_eof_while_guest_is_silent() {
+        let (stream, peer) = UnixStream::pair().unwrap();
+        let (_sender, receiver) = std::sync::mpsc::channel();
+        let closer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(20));
+            drop(peer);
+        });
+        let started = std::time::Instant::now();
+        assert!(
+            expect_preparation_guest(&receiver, "native_prepared", &stream)
+                .err()
+                .unwrap()
+                .contains("connection closed")
+        );
+        assert!(started.elapsed() < Duration::from_secs(1));
+        closer.join().unwrap();
+    }
+
+    #[test]
+    fn native_preparation_rejects_early_requests_and_wrong_guest_ack() {
+        let (stream, mut peer) = UnixStream::pair().unwrap();
+        check_preparation_lease(&stream).unwrap();
+        peer.write_all(b"{\"op\":\"run\"}\n").unwrap();
+        assert!(check_preparation_lease(&stream).is_err());
+        let (stream, _peer) = UnixStream::pair().unwrap();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        sender
+            .send(GuestLine::Frame(Box::new(
+                serde_json::from_value(serde_json::json!({"event":"secret"})).unwrap(),
+            )))
+            .unwrap();
+        assert!(expect_preparation_guest(&receiver, "native_prepared", &stream).is_err());
+    }
+
+    #[test]
+    fn native_receipt_requires_prepared_binding_and_actual_guest_digests() {
+        let (catalog, digest, intent, argv, secrets) = native_fixture();
+        let program = check_native_intent(&catalog, &digest, &intent, &argv, &secrets).unwrap();
+        let expected = NativeExpectation {
+            program: program.clone(),
+            attempt_id: "host-attempt".into(),
+            boot_id: "service-boot".into(),
+            profile: "agent".into(),
+        };
+        let binding = protocol::ReceiptBinding {
+            attempt_id: expected.attempt_id.clone(),
+            boot_id: expected.boot_id.clone(),
+            guest_attempt_id: "guest-attempt".into(),
+            guest_boot_id: "guest-boot".into(),
+            profile: expected.profile.clone(),
+            argv_digest: intent.resolved_argv_digest.clone(),
+            native_program: Some(program),
+            sampled_exposure_sha256: None,
+        };
+        let receipt = serde_json::json!({"attempt_id":"guest-attempt","process":{"identity":{"value":{"boot_id":"guest-boot"}}},
+            "policy":{"name":"agent","digest":intent.expected_policy_digest},"argv_digest":intent.resolved_argv_digest});
+        let bytes = serde_json::to_vec(&receipt).unwrap();
+        check_native_receipt(&bytes, &binding, Some(&expected)).unwrap();
+        assert!(check_native_receipt(&bytes, &binding, None).is_err());
+        let mut absent = binding.clone();
+        absent.native_program = None;
+        assert!(check_native_receipt(&bytes, &absent, Some(&expected)).is_err());
+        for pointer in [
+            "/attempt_id",
+            "/process/identity/value/boot_id",
+            "/policy/name",
+            "/policy/digest",
+            "/argv_digest",
+        ] {
+            let mut changed = receipt.clone();
+            *changed.pointer_mut(pointer).unwrap() = Value::String("wrong".into());
+            assert!(
+                check_native_receipt(
+                    &serde_json::to_vec(&changed).unwrap(),
+                    &binding,
+                    Some(&expected)
+                )
+                .is_err(),
+                "{pointer}"
+            );
+        }
+        for field in [
+            "catalog_sha256",
+            "entry_id",
+            "profile_sha256",
+            "executable_sha256",
+            "selected_credential_id",
+            "state",
+            "request_argv_digest",
+            "resolved_argv_digest",
+            "policy_digest",
+        ] {
+            let mut changed = serde_json::to_value(&binding).unwrap();
+            changed["native_program"][field] = Value::String("wrong".into());
+            let changed = serde_json::from_value(changed).unwrap();
+            assert!(
+                check_native_receipt(&bytes, &changed, Some(&expected)).is_err(),
+                "{field}"
+            );
+        }
+    }
 
     #[test]
     fn request_bound_is_reached_before_json_decode_or_timeout() {

@@ -1,0 +1,62 @@
+{
+  "schema": "ukai.rc7-arm-native-completion/1",
+  "outcome": "PASS",
+  "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+  "workflow_run": 43822535195,
+  "target": "aarch64-unknown-linux-gnu",
+  "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+  "archive_sha256": "15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6",
+  "binary_sha256": "c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f",
+  "elapsed_seconds": 37.820894540986046,
+  "native_smoke": [
+    {
+      "case": "tool",
+      "exit_code": 0,
+      "passed": true,
+      "execution_cgroup_removed": true,
+      "execution_cgroup": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_56707fcc-3115-4ffe-9e71-20b07e41266e.leaf"
+    },
+    {
+      "case": "agent",
+      "exit_code": 0,
+      "passed": true,
+      "execution_cgroup_removed": true,
+      "execution_cgroup": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_f300b012-9f08-4436-93a3-9506557a646e.leaf"
+    },
+    {
+      "case": "deadline",
+      "exit_code": 143,
+      "passed": true,
+      "execution_cgroup_removed": true,
+      "execution_cgroup": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_09730dc4-139e-4020-8636-b8ca1769bc6d.leaf"
+    }
+  ],
+  "installer_regression": "passed",
+  "exact_archive_install": "passed with ephemeral test key",
+  "native_restage_matches_ci_archive": true,
+  "retained_files": 152,
+  "retained_guest_files": 107,
+  "independent_review": "PASS572",
+  "original_five_inputs_preserved": true,
+  "owned_process_group_scope_and_image_holders_absent": true,
+  "only_two_new_pass_fixtures_removed": true,
+  "fixture_cleanup_actual_free_delta": 235999232,
+  "free_after_cleanup": 14859743232,
+  "evidence_sha256": {
+    "arm-plan.json": "1f2de2a7cdac725f16f2593286aad47cc5dcd406f4563a22914a4d545cb51f51",
+    "native-plan.json": "46fa9186cf9c875756d2e777b557a80d7f94f79dc13cece7562a9621e39b8072",
+    "command.json": "f9f30aa9640008100f79e3a43103eb999c3fb94972644f530e62cfdfaa19bbb8",
+    "outer-result.json": "f469f5c550cf4671166ad8642059ad89e0cba7d9bb3091f2184c9990e6731ac0",
+    "retention.json": "b5fc2fb59759b0ebc8366dad8f3419b627b749f8462412ed2dec33cbec59abd3",
+    "independent-runtime-retained-review.json": "17b8f6b1e4d28f6923540b3b17bb28895c34e0766f1d3bac938354b1ab6b8bea",
+    "disposable-fixtures-plan.json": "d78f115178ae791ccb37fbd6f6314489e2b59180cda9e1f0ed71a85db31d0074",
+    "fixture-cleanup-result.json": "1032accd6cb8a6729db0401c1632f74c74f1c3063d07aaa98abb9c779c10f814",
+    "retained/host/final.json": "37867d5f872cb5d75bc5ea3e0732f209a4db01f9d35e13467046c0d458b38352",
+    "retained/host/native.json": "b98364af41a52c1203d180ad6c8c6a880e3395e0547ef2aa2790684832f77d94",
+    "retained/host/qemu-final.json": "be4d56d373c7a3060c6c7434594e91e7e59792a536b4478e1511013274d1e84f",
+    "retained/guest/evidence/native-final.json": "bc103a8e26759dc3938325a43aaf82111142ec23ad9a9168eccda4eb204a98b8",
+    "retained/guest/evidence/native-scope.json": "ba025d3a9398b2394c02bcbb5498d5880db64013d0138eedefe01bdeaee57fe9",
+    "retained/guest/work/native/summary.json": "0ab759baef4d32c5425373e701e845a2afeecfaa86b655dc7c6b32d5ff16a25d"
+  },
+  "scope": "One native ARM Linux artifact validation boot under HVF; unpublished archive, ephemeral test signing only. No production signing, bootstrap phase, provider, OAuth, guest image/admission or native macOS qualification. Historical images and every failure artifact remain retained."
+}

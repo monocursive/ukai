@@ -1,0 +1,105 @@
+{
+  "schema": "ukai.vm.program-binding-review/1",
+  "helper_revision": "eb13e8bfab991ff8c9b5adb62dddff271f03ae8d",
+  "helper_sha256": "a335a1bb70663b99edf06391baad42c13977bdfbe05310057e92ebe458b4bce5",
+  "package_source": "160a9bf51823ae552f55ae2c02c34019567c0dbf",
+  "image": {
+    "disk_sha256": "f4fafa35c0dc4ee6e174f125eea0a8d13873f6b58f83b23683542c35fbe87c31",
+    "seed_sha256": "3676179232ceec91aa32ca0dcbc1aaff944733d1fad2281319bdc03e32825cd1",
+    "helper_sha256": "25c55cb42b7f6c4347da6678a4fe361fb7311dfd5ff90cb1da32771b399f9467",
+    "custodian_sha256": "62524098ea6f9962cd7139b815f038e43cfbab319eaffac6a5543566aa5ce00e",
+    "guest_program_catalog_sha256": "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244"
+  },
+  "outcome": "PASS",
+  "facts_passed": 24,
+  "facts_total": 24,
+  "actual_guest_attempt": "att_60796c7b-aa40-4ce6-ba0f-9bafe462f8e3",
+  "actual_raw_attempt": "program-binding-81d632d6a0b92204",
+  "started_at": "2026-11-15T17:25:19Z",
+  "own": {
+    "body_ok": true,
+    "status": 200
+  },
+  "other": {
+    "reason": "credential_process_denied",
+    "status": 403
+  },
+  "original": {
+    "device": 64769,
+    "inode": 1637,
+    "size": 7503184
+  },
+  "copy": {
+    "device": 51,
+    "inode": 3,
+    "size": 7503184
+  },
+  "program_sha256": "d1b87c365d0cf5a985cfedfc227ff613a5bc6ff56e841202eb9330d263bbeee9",
+  "copied_program_sha256": "d1b87c365d0cf5a985cfedfc227ff613a5bc6ff56e841202eb9330d263bbeee9",
+  "independent_upstream": {
+    "requests": [
+      {
+        "path": "/own",
+        "credential_matches": true
+      }
+    ],
+    "overflow": false
+  },
+  "scans": [
+    {
+      "encoding": "raw",
+      "file_hits": [],
+      "files_scanned": 11,
+      "disk_bytes": 6442450944,
+      "disk_hits": 0
+    },
+    {
+      "encoding": "base64",
+      "file_hits": [],
+      "files_scanned": 11,
+      "disk_bytes": 6442450944,
+      "disk_hits": 0
+    },
+    {
+      "encoding": "hex",
+      "file_hits": [],
+      "files_scanned": 11,
+      "disk_bytes": 6442450944,
+      "disk_hits": 0
+    },
+    {
+      "encoding": "base64url",
+      "file_hits": [],
+      "files_scanned": 11,
+      "disk_bytes": 6442450944,
+      "disk_hits": 0
+    },
+    {
+      "encoding": "url",
+      "file_hits": [],
+      "files_scanned": 11,
+      "disk_bytes": 6442450944,
+      "disk_hits": 0
+    },
+    {
+      "encoding": "json",
+      "file_hits": [],
+      "files_scanned": 11,
+      "disk_bytes": 6442450944,
+      "disk_hits": 0
+    }
+  ],
+  "shutdown": {
+    "complete": true,
+    "method": "pinned-pre-stop-runtime-lock-after-serve-cleanup",
+    "lock_device": 16777234,
+    "lock_inode": 373173952,
+    "wait_ms": 0.16,
+    "held_before_stop": true,
+    "process_reaped": false,
+    "sockets_absent": true,
+    "boot_entries_remaining": []
+  },
+  "qualified": false,
+  "scope": "Actual Linux @program literal component on exact signed160a9/v2 image. Separate from native catalog admission, provider compatibility, host source-watch, and full K113."
+}

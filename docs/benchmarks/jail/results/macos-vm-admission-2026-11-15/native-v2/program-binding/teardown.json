@@ -1,0 +1,8 @@
+{
+  "vm_processes": [],
+  "task_volume_attached": [],
+  "detached_device": "/dev/disk4",
+  "detachment_exit": 0,
+  "private_data_retained": "/private/tmp/ukpbind-9u5yi0ak",
+  "unrelated_workspaces_preserved": true
+}

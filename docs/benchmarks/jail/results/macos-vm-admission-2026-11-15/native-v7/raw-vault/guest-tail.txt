@@ -1,0 +1,6 @@
+ukai-jail: settled · exited 0 · 364ms exec→settled · survivors: none (verified)
+ukai-jail: workspace: 0 paths opened for writing
+ukai-jail: network: allowed <mac-address>:49782 (1) · denied <mac-address>:49782 (1)
+ukai-jail: credential test: vault, never staged · used on 1 proxy result · revoked · 1 credential refusal
+ukai-jail: evidence: 6/6 classes active, no gaps · reads and file contents are not observed
+ukai-jail: receipt /private/tmp/ukai-gn-Q-44b5ac4fa/ukai-raw-revoke-8ms0z6qx/attempts/att_e5f95cf3-835c-4d12-a170-b28f6882fc3e/jail.json

@@ -1,0 +1,52 @@
+{
+  "source_revision": "160a9bf51823ae552f55ae2c02c34019567c0dbf",
+  "installed_root": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-160a9bf51/prefix with spaces/share/ukai-vm/0.1.0-preview.2",
+  "client": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-160a9bf51/prefix with spaces/share/ukai-vm/0.1.0-preview.2/bin/ukai-jail",
+  "service": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-160a9bf51/prefix with spaces/share/ukai-vm/0.1.0-preview.2/bin/ukai-vm",
+  "client_sha256": "3221956596563c5f8f9a304093214a53b06e0ea77ffd28b81a3cd5513353fcbc",
+  "service_sha256": "b5e25dc482b4651f786ee4e26d5314af72b3575516748c4a40553831dc458f28",
+  "client_version": {
+    "build": {
+      "debug_assertions": false,
+      "dirty": false,
+      "inputs": "sha256:06aa4f27bf78426ffbfc86543266cfba6d898f73ccc8396d09c9c3a813044d6c",
+      "opt_level": "3",
+      "revision": "160a9bf51823ae552f55ae2c02c34019567c0dbf",
+      "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+      "target": "aarch64-apple-darwin"
+    },
+    "component": "ukai-jail",
+    "frozen": true,
+    "observation": {
+      "closed_set": "macos-closed-v1"
+    },
+    "platform": {
+      "arch": "aarch64",
+      "kernel": "Darwin 27.0.0",
+      "os": "macos"
+    },
+    "schemas": {
+      "control": "ukai.jail.control/1",
+      "doctor": "ukai.jail.doctor/1",
+      "event": "ukai.event/1",
+      "gate": "ukai.jail.gate/1",
+      "learned_policy": "ukai.jail.learned-policy/1",
+      "network": "ukai.jail.network/1",
+      "policy": "ukai.jail.policy/1",
+      "policy_file": "ukai.jail.policy-file/1",
+      "policy_snapshot": "ukai.jail.policy-snapshot/1",
+      "receipt": "ukai.jail.receipt/1",
+      "summary": "ukai.jail.summary/1"
+    },
+    "version": "0.1.0"
+  },
+  "service_version": {
+    "attempt": "ukai.jail.vm-attempt/1",
+    "component": "ukai-vm",
+    "control": "ukai.jail.vm-control/1",
+    "execution": "linux-vm-warm",
+    "native_macos_execution": false,
+    "transport": "ukai.jail.vm-transport/1",
+    "version": "0.1.0-preview.2"
+  }
+}

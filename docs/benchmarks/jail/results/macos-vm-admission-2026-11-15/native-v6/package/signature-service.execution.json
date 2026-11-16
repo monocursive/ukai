@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/usr/bin/codesign",
+    "--verify",
+    "--strict",
+    "-R",
+    "=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"64SGQ348QJ\"",
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-c25c297fc/payload/bin/ukai-vm"
+  ],
+  "timeout_seconds": 60,
+  "allowed_returncodes": [
+    0
+  ],
+  "returncode_accepted": true,
+  "returncode": 0,
+  "elapsed_seconds": 0.0185248339548707,
+  "error_type": null,
+  "cleanup": {
+    "process_started": true,
+    "leader_reaped": true,
+    "group_absent": true
+  },
+  "outcome": "PASS"
+}

@@ -21,7 +21,9 @@ use std::path::Path;
 use std::time::Duration;
 
 use serde_json::Value;
-use ukai_fixture::harness::{self, Jail, Run};
+#[cfg(not(target_arch = "x86_64"))]
+use ukai_fixture::harness;
+use ukai_fixture::harness::{Jail, Run};
 use ukai_jail::platform::linux::tracer::{
     ClosedOp, GapReason, OpSet, TracerConfig, TracerEvent, narrowing_filter_bytes,
 };
@@ -45,18 +47,199 @@ fn setup(name: &str) -> Option<Work> {
     FIXTURE.setup(name, &[])
 }
 
-/// Whether this host has the foreign ABIs the fixture calls through (i386
-/// `int 0x80`, x32): only x86_64 does. Prints `skipped:` elsewhere, or fails
-/// under `UKAI_CONFORMANCE=1`.
 fn foreign_abis() -> bool {
-    if cfg!(target_arch = "x86_64") {
+    if cfg!(any(target_arch = "x86_64", target_arch = "aarch64")) {
         return true;
     }
-    harness::skip_or_fail(
-        "the i386 and x32 ABIs this check calls through exist only on x86_64; \
+    ukai_fixture::harness::skip_or_fail(
+        "the i386/x32 and ARM32 EABI fixtures require x86_64 or aarch64; \
          a 32-bit compat ABI on this architecture is not exercised by the fixture",
     );
     false
+}
+
+struct ForeignTarget {
+    argv: Vec<String>,
+    created: String,
+    native: String,
+}
+
+#[cfg(target_arch = "x86_64")]
+fn foreign_target(work: &Work) -> Option<ForeignTarget> {
+    let created = work.path("by-i386");
+    let native = work.path("native");
+    Some(ForeignTarget {
+        argv: vec![
+            work.helper_s(),
+            "foreign".into(),
+            created.clone(),
+            work.path("by-x32"),
+            native.clone(),
+        ],
+        created,
+        native,
+    })
+}
+
+/// AArch64 needs a different executable to enter AArch32. Build a static
+/// ELF32 EABI helper with no libc/loader, then require its sentinel under a
+/// direct exec before trusting any observer result. Missing cross-binutils or
+/// CPU/kernel compat support stays a named strict-conformance failure.
+#[cfg(target_arch = "aarch64")]
+fn foreign_target(work: &Work) -> Option<ForeignTarget> {
+    use std::process::Command;
+
+    let source = work.dir().join("arm32.S");
+    let object = work.dir().join("arm32.o");
+    let helper = work.dir().join("arm32");
+    std::fs::write(&source, include_str!("fixtures/observer_j4_arm32.S"))
+        .expect("write the ARM32 assembly");
+    let commands = [
+        (
+            "/usr/bin/arm-linux-gnueabihf-as",
+            vec![
+                OsString::from("-march=armv7-a"),
+                OsString::from("-o"),
+                object.clone().into(),
+                source.into(),
+            ],
+        ),
+        (
+            "/usr/bin/arm-linux-gnueabihf-ld",
+            vec![
+                OsString::from("-static"),
+                OsString::from("--build-id=none"),
+                OsString::from("-e"),
+                OsString::from("_start"),
+                OsString::from("-o"),
+                helper.clone().into(),
+                object.into(),
+            ],
+        ),
+    ];
+    for (tool, args) in commands {
+        if !Path::new(tool).exists() {
+            harness::skip_or_fail(&format!(
+                "ARM32 foreign-ABI fixture requires {tool} (cross-binutils)"
+            ));
+            return None;
+        }
+        let output = Command::new(tool)
+            .args(args)
+            .output()
+            .expect("run cross-binutils");
+        assert!(
+            output.status.success(),
+            "{tool}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    let elf = std::fs::read(&helper).expect("read ARM32 executable");
+    assert!(elf.len() >= 52, "complete ELF32 header");
+    assert_eq!(&elf[..7], b"\x7fELF\x01\x01\x01", "ELF32, little-endian");
+    let word = |at| u16::from_le_bytes([elf[at], elf[at + 1]]);
+    assert_eq!(word(16), 2, "ET_EXEC, not a wrapper script");
+    assert_eq!(word(18), 40, "EM_ARM, not AArch64");
+    assert_eq!(elf[39], 5, "ARM EABI version 5");
+    let phoff = u32::from_le_bytes(elf[28..32].try_into().unwrap()) as usize;
+    for index in 0..usize::from(word(44)) {
+        let at = phoff + index * usize::from(word(42));
+        let kind = u32::from_le_bytes(elf[at..at + 4].try_into().unwrap());
+        assert_ne!(kind, 3, "no PT_INTERP: the kernel executes ARM32 directly");
+    }
+    let direct = work.path("arm32-direct");
+    let mut child = match Command::new(&helper).arg(&direct).spawn() {
+        Ok(child) => child,
+        Err(error) if error.raw_os_error() == Some(libc::ENOEXEC) => {
+            harness::skip_or_fail(
+                "CPU/kernel cannot directly execute the ARM32 EABI positive control",
+            );
+            return None;
+        }
+        Err(error) => panic!("exec the ARM32 positive control: {error}"),
+    };
+    let mut status = None;
+    let finished = common::within(Duration::from_secs(20), || {
+        status = child.try_wait().expect("wait for ARM32 positive control");
+        status.is_some()
+    });
+    if !finished {
+        let _ = child.kill();
+        let _ = child.wait();
+        panic!("ARM32 positive control exceeded its 20-second watchdog");
+    }
+    assert!(
+        status.unwrap().success(),
+        "ARM32 syscall positive control failed: {status:?}"
+    );
+    assert_eq!(
+        std::fs::read(&direct).expect("direct ARM32 sentinel"),
+        b"arm32\n"
+    );
+    eprintln!("ARM32 ELF32 EABI direct execution created the exact sentinel");
+    let created = work.path("by-arm32");
+    let native = work.path("native");
+    Some(ForeignTarget {
+        argv: vec![
+            work.helper_s(),
+            "foreign-arm32".into(),
+            helper.to_string_lossy().into_owned(),
+            created.clone(),
+            native.clone(),
+        ],
+        created,
+        native,
+    })
+}
+
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+fn foreign_target(_: &Work) -> Option<ForeignTarget> {
+    harness::skip_or_fail("the foreign-ABI fixtures support only x86_64 and aarch64");
+    None
+}
+
+#[cfg(target_arch = "x86_64")]
+fn foreign_results(work: &Work, reports: &[Report], observed: &Observed) -> u64 {
+    let i386_open = Report::find(reports, "i386_open");
+    assert_eq!(i386_open.errno, 0, "the i386 open ran: {i386_open:?}");
+    let x32_open = Report::find(reports, "x32_openat");
+    assert_eq!(
+        Report::find(reports, "i386_no_such_call").errno,
+        libc::ENOSYS
+    );
+    assert!(
+        !observed.primaries().contains(&work.path("by-x32")),
+        "a foreign x32 call is never decoded from the native table"
+    );
+    [i386_open, x32_open]
+        .iter()
+        .filter(|r| r.errno != libc::ENOSYS)
+        .count() as u64
+}
+
+#[cfg(target_arch = "aarch64")]
+fn foreign_results(work: &Work, reports: &[Report], observed: &Observed) -> u64 {
+    assert_eq!(Report::find(reports, "arm32_exit").raw, 0);
+    assert_eq!(
+        std::fs::read(work.path("by-arm32")).expect("traced ARM32 sentinel"),
+        b"arm32\n"
+    );
+    assert_eq!(
+        observed.summary.foreign_rejected, 1,
+        "only the nonexistent ARM syscall is ENOSYS"
+    );
+    assert_eq!(
+        observed.summary.loss.foreign_abi, 3,
+        "ARM open/write/close each returned once"
+    );
+    // A user-mode binfmt emulator would make native calls and cannot satisfy
+    // this exact foreign-ABI account, even if its direct sentinel succeeded.
+    3
+}
+
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+fn foreign_results(_: &Work, _: &[Report], _: &Observed) -> u64 {
+    unreachable!("unsupported ABI was refused before launching")
 }
 
 impl Observed {
@@ -297,7 +480,7 @@ fn j4_d1_the_tool_baseline_refuses_a_notification_listener() {
 // D2: a call under another ABI in `none`
 // ===========================================================================
 
-/// D2. Without a containment baseline nothing refuses the i386 or x32 ABI,
+/// D2. Without a containment baseline nothing refuses a compat ABI,
 /// so the narrowing filter must stop on them, and the observer — which
 /// decodes only the native table — must record each one it cannot attribute
 /// as a gap in every class, labelled foreign, never as a native result. A
@@ -312,34 +495,27 @@ fn j4_d2_a_foreign_abi_call_without_a_baseline_is_a_gap() {
     let Some(work) = setup("d2-foreign") else {
         return;
     };
-    let helper = work.helper_s();
-    let i386 = work.path("by-i386");
-    let x32 = work.path("by-x32");
-    let native = work.path("native");
-    let (reports, observed) = observe(&work, &[&helper, "foreign", &i386, &x32, &native]);
-
-    let i386_open = Report::find(&reports, "i386_open");
-    assert_eq!(i386_open.errno, 0, "the i386 open ran: {i386_open:?}");
-    assert!(Path::new(&i386).exists(), "and created its file");
-    let x32_open = Report::find(&reports, "x32_openat");
-    let nonexistent = Report::find(&reports, "i386_no_such_call");
-    assert_eq!(nonexistent.errno, libc::ENOSYS);
+    let Some(target) = foreign_target(&work) else {
+        return;
+    };
+    let argv: Vec<_> = target.argv.iter().map(String::as_str).collect();
+    let (reports, observed) = observe(&work, &argv);
+    assert!(
+        Path::new(&target.created).exists(),
+        "the foreign call created its file"
+    );
+    let expected = foreign_results(&work, &reports, &observed);
     assert_eq!(Report::find(&reports, "native_open").errno, 0);
 
     let named = observed.primaries();
     assert!(
-        named.iter().any(|p| p == &native),
+        named.iter().any(|p| p == &target.native),
         "the native call is seen"
     );
     assert!(
-        !named.iter().any(|p| p == &i386 || p == &x32),
-        "a foreign call is never decoded from the x86_64 table: {named:?}"
+        !named.iter().any(|p| p == &target.created),
+        "a foreign call is never decoded from the native table: {named:?}"
     );
-    // Every foreign call the kernel did not refuse as nonexistent.
-    let expected: u64 = [i386_open, x32_open]
-        .iter()
-        .filter(|r| r.errno != libc::ENOSYS)
-        .count() as u64;
     let gaps = observed.gaps_named("foreign_abi");
     assert!(
         !gaps.is_empty(),
@@ -353,7 +529,7 @@ fn j4_d2_a_foreign_abi_call_without_a_baseline_is_a_gap() {
     assert_eq!(
         counted,
         expected,
-        "one per foreign call that ran; x32={x32_open:?}\n  {}",
+        "one per foreign call that returned something other than ENOSYS\n  {}",
         observed.describe()
     );
 }
@@ -515,7 +691,7 @@ fn j4_d1_none_a_child_listener_degrades_the_receipt_and_strict_stops() {
     );
 }
 
-/// D2 in a receipt: a `none` child making one i386 call, best-effort so the
+/// D2 in a receipt: a `none` child making compat calls, best-effort so the
 /// run completes. Every audit class is degraded and says why.
 #[test]
 fn j4_d2_none_a_foreign_abi_call_degrades_the_receipt() {
@@ -526,17 +702,18 @@ fn j4_d2_none_a_foreign_abi_call_degrades_the_receipt() {
     let Some(work) = setup("d2-none") else {
         return;
     };
-    let helper = work.helper_s();
-    let i386 = work.path("by-i386");
-    let x32 = work.path("by-x32");
-    let native = work.path("native");
-    let run = none_run(
-        &work,
-        "best-effort",
-        &[&helper, "foreign", &i386, &x32, &native],
-    );
+    let Some(target) = foreign_target(&work) else {
+        return;
+    };
+    let argv: Vec<_> = target.argv.iter().map(String::as_str).collect();
+    let run = none_run(&work, "best-effort", &argv);
     let receipt = common::settled(&run);
-    assert!(Path::new(&i386).exists(), "the i386 call ran");
+    assert!(Path::new(&target.created).exists(), "the foreign call ran");
+    #[cfg(target_arch = "aarch64")]
+    assert_eq!(
+        std::fs::read(&target.created).expect("jailed ARM32 sentinel"),
+        b"arm32\n"
+    );
     // Best-effort: the loss is an error of the run, not a stop of the child.
     assert_eq!(
         receipt["outcome"]["kind"], "exited",

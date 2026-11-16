@@ -143,8 +143,9 @@ ukai-jail version [--json]
   readings (`no verb or launch profile `claud``).
 - **`--from-path`** (with `--launch NAME`) turns on the zero-config defaults
   of [Zero-config launch](#zero-config-launch---from-path). It refuses
-  `--gate-fd`, `--attempt-id` and `--profile none` (exit 2): an owner
-  computes its own plan, and `none` has nothing to bound.
+  `--attempt-id` and `--profile none` (exit 2). A managed `--gate-fd` owner
+  may use it with attempt state and detached execution, independently
+  authorizing the resolved argv and derived grants as described below.
 - **A workspace that is `/`, your home directory or an ancestor of it is
   refused on every contained run** (`agent`, `tool`, `build`), however it
   was chosen: `--workspace`, the invocation directory, or `--from-path`
@@ -914,12 +915,20 @@ ukai-jail run --attempt-id att_<uuid> --gate-fd 3 --control-fd 4 \
 
 1. Allocate the attempt id: `att_` plus a lowercase, random UUIDv4 with the
    RFC 9562 variant. `--attempt-id` is accepted only with `--gate-fd`.
+   With `--launch NAME --from-path`, omit `--attempt-id`: the jail allocates
+   the id and the owner binds it from this invocation's private `prepared`
+   control message and canonical receipt. The owner cannot reserve that id
+   in advance.
 2. Compute your plan from your own inputs, never from the jail's output: the
    policy digest and requirement names from `ukai-jail explain --json` with the
    same profile, workspace and overrides you pass to `run`
    (`policy.digest`, `requirements[].name`), and the argv digest from the argv
    you asked for, framed as [canonicalization.md](canonicalization.md)
    specifies.
+   With `--from-path`, use the resolved program/interpreter argv, including
+   the requested suffix, and authorize the derived install-root grants.
+   The receipt is evidence to compare, never the source of an expected
+   policy or argv digest.
 3. Read the control stream: NDJSON `ukai.jail.control/1` messages numbered from
    1 (`seq`), each naming the receipt phase and its digest. Wait for
    `prepared`. Nothing of the command has run.
@@ -956,6 +965,15 @@ tree with it, while under `none` it leaves the accepted unknown case. A
 timed-out attempt is not retried by reusing its gate; reconcile it (`gc`) and
 start a new attempt. Matching digests prove the snapshot's identity, not that
 its permissions were authorized: authorization is yours.
+
+The managed `--from-path` route retains the resolved program and install-root
+file descriptors while waiting. After a valid release it repeats the native
+path/ownership checks, and the Linux launcher checks its executable pins
+before exec. Replacing the program or install root during the wait refuses;
+`@program` credential bindings and all ordinary source checks remain in force.
+Managed label-only and persistent-state runs remain refused, and
+`--from-path --profile none` remains refused. The gate is detached and adds no
+credential or filesystem authority.
 
 ## Reading a receipt
 

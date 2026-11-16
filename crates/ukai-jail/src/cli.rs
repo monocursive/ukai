@@ -279,11 +279,7 @@ pub struct RunArgs {
     #[arg(long = "control-fd", value_name = "N")]
     pub control_fd: Option<i32>,
     /// Inherited descriptor carrying the managed release frame.
-    #[arg(
-        long = "gate-fd",
-        value_name = "N",
-        conflicts_with_all = ["label_only", "from_path"]
-    )]
+    #[arg(long = "gate-fd", value_name = "N", conflicts_with = "label_only")]
     pub gate_fd: Option<i32>,
     /// Bind this attempt to an owner's pre-existing reservation.
     #[arg(

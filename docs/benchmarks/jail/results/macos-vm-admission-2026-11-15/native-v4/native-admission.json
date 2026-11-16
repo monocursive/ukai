@@ -1,0 +1,146 @@
+{
+  "schema": "ukai.vm.native-program-admission/1",
+  "required_guest_image": {
+    "disk_sha256": "9bf72af0939f7b187fd7841074e8a3091ff698139efe016ebca93adb35df49a6",
+    "seed_sha256": "a9abb87b1b75cc9984600c099a6de96701cbae8180624e11f9862c43b5ff1e28"
+  },
+  "native_program": {
+    "catalog_sha256": "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244",
+    "entry_id_sha256": "52aecf2264a738f1a16899c7536da1cf26034c440a62348b402db682e0a550aa",
+    "profile_sha256": "e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24",
+    "executable_sha256": "2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3"
+  },
+  "measured_at": "2026-11-15T18:41:34Z",
+  "measurements": {
+    "native_program": {
+      "verdict": "PASS",
+      "scope": "Component admission: same-image guest/service vault staging and actual Linux @program own/copy proxy enforcement, with a pinned catalog and unchanged bundled profile.",
+      "attempt_id": "program-binding-365fad4b8fbba8d0",
+      "guest_attempt_id": "att_a109b1ed-9a3c-48b2-b3d3-9182774cf0a9",
+      "program_binding_facts": 24,
+      "vault_staging_facts": 24,
+      "not_measured": [
+        "native catalog/alias launch execution and derived install-root grant",
+        "native vendor compatibility and either real credential kind",
+        "sampled native vendor environment/argv nonexposure",
+        "normal installed-client source-watch on a rebuilt host",
+        "full K113 and release qualification"
+      ]
+    }
+  },
+  "evidence": {
+    "generic_credential_staging": {
+      "path": "credential-staging/credential-staging.json",
+      "sha256": "857f968aff4261b5d02bb35ac158e834148034e19a19c0119a94bd568dd97a60"
+    },
+    "generic_vault_inputs": {
+      "path": "raw-vault/raw-inputs.json",
+      "sha256": "6b4ddbd4c9669c2f75e83e2f09dfafee1026abf80018db31c1d2d3d05404e4ce"
+    },
+    "program_measurement": {
+      "path": "program-binding/measurement.json",
+      "sha256": "f31fc5f98970137aa24950036cbbf6f013297b2e63b9757f9fe7c6afcec3c087"
+    },
+    "program_inputs": {
+      "path": "program-binding/inputs.json",
+      "sha256": "2136d99ee98a6eb385af07210e87571383ad43171a9ee4707f96332327cb77be"
+    },
+    "program_result": {
+      "path": "program-binding/result.json",
+      "sha256": "b2ff50adc0c134a2b373100a1b2ad422a32b6ca13d89d486e15a1a3eca3ad325"
+    },
+    "program_offline_replay": {
+      "path": "program-binding/offline-replay.json",
+      "sha256": "aaae35a9d81539075bd7d5ea0b3000ceca30d6c2ec400d10e057e3280cd073af"
+    },
+    "program_guest_receipt": {
+      "path": "program-binding/guest-artifact/evidence/jail.json",
+      "sha256": "091e6f37726fe587aa563d1fef13e4777c7c0bdef9f2a6b013d5b8b77b6c9563"
+    },
+    "program_guest_journal_manifest": {
+      "path": "program-binding/guest-artifact/evidence/guest-journal/manifest.json",
+      "sha256": "da1e8c88abe4f74acb0037f81ac74e924568cce30a815ef1e340fb7d96883ddf"
+    },
+    "program_guest_journal_part": {
+      "path": "program-binding/guest-artifact/evidence/guest-journal/0000.part",
+      "sha256": "3ec9957c7ed668f5e2d82b3b34aa97abfd4d8d5af7b98b83191ab0234b71b47c"
+    },
+    "sync_guest_receipt": {
+      "path": "program-binding/sync-artifact/evidence/jail.json",
+      "sha256": "06ec9e4bb46a82410f5d40bf264d474fc1507443f3fcc44151bc4579ffab684c"
+    },
+    "sync_guest_journal_manifest": {
+      "path": "program-binding/sync-artifact/evidence/guest-journal/manifest.json",
+      "sha256": "acfaf212fd4ef9b970f1d692e31fcc7d4c42580af7dde5732b1a54de505687c2"
+    },
+    "sync_guest_journal_part": {
+      "path": "program-binding/sync-artifact/evidence/guest-journal/0000.part",
+      "sha256": "f89624976e9014fec0c71238dd3c401d89c96b330048f26db5b5ff24e07d269c"
+    },
+    "catalog": {
+      "path": "image/guest-program-catalog.json",
+      "sha256": "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244"
+    },
+    "bundled_profile": {
+      "path": "image/profile-metadata/claude.toml",
+      "sha256": "e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24"
+    },
+    "prepared_image": {
+      "path": "image/prepared-image.json",
+      "sha256": "fff2bb7ab5c96223909ce9103a7d972dd81730111ecd516159ef349c7ea75fe1"
+    },
+    "signed_image_manifest": {
+      "path": "raw-vault/image.json",
+      "sha256": "2a6869af7ad79170f4b2f76d756e960b6c9f1356027caac6d60e477ffe28a1bc"
+    },
+    "package": {
+      "path": "package/package.json",
+      "sha256": "745d0ec99264246638459aec19beb33691f824a14878092c29221ba8dafed29a"
+    },
+    "signed_payload_manifest": {
+      "path": "package/SHA256SUMS",
+      "sha256": "7d89bf776b1b6e62e2f1d572559d1e33e8bdd1977b8fc5fc8351fc84892bb66b"
+    },
+    "installed_identity": {
+      "path": "package/installed-identity.json",
+      "sha256": "a242afacf1751fe535cd0382a8c3b55f6c6aa6eacf76a05300634a86350de370"
+    },
+    "package_independent_review": {
+      "path": "package/independent-review.json",
+      "sha256": "b018fe5335ac3b9adcce1666d56ea557fc80d5f8cebc9f05bc454149a5b1d560"
+    },
+    "signature_observations": {
+      "path": "package/signatures.json",
+      "sha256": "d83d9eebb8824999923a8a5c16df9f9a83abf15f9880e05d2f8c4e2f11c550d2"
+    },
+    "program_replay_tool": {
+      "path": "tools/program_binding_measurement.py",
+      "sha256": "a335a1bb70663b99edf06391baad42c13977bdfbe05310057e92ebe458b4bce5"
+    },
+    "independent_summary_tool": {
+      "path": "tools/vm_summary_check.py",
+      "sha256": "0dfd2881cc1c148023ec1c49f5b04eecb72c4a33dad61f275ace8edfa81f6d24"
+    },
+    "credential_derivation_tool": {
+      "path": "tools/credential_staging_measurement.py",
+      "sha256": "646eb2d6e3eaee50ee19ca7da938e81b8e6ff173c91809d6394354b5a5a2ce45"
+    }
+  },
+  "qualification": {
+    "native_vendor": false,
+    "k113": false,
+    "release": false,
+    "new_host_runtime": false
+  },
+  "compatibility": {
+    "measured_host_source": "9fdf7edc89d010e2acfce31cd640b5d1bc24b321",
+    "measured_guest_jail_source": "6ffff05dc6ae08602a39630b947c704bf9cf05a9",
+    "host_requalification_required": [
+      "clean-source rebuild",
+      "Developer ID signature and exact installed-byte verification",
+      "fresh installed-client live requalification"
+    ],
+    "older_or_changed_guest_images_inherit_admission": false
+  },
+  "scope": "This record supports a narrowly pinned native-program admission guard. The live program-binding control used the literal raw service route and synthetic credentials; it did not execute the catalog vendor or prove native alias/--from-path behavior. Existing policy, owner-loss, contract and sampling refusals remain required."
+}

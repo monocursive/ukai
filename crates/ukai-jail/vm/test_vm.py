@@ -1,11 +1,16 @@
 import ast
 import base64
 import copy
+import errno
+import gzip
+import hashlib
 import json
 from pathlib import Path
 import sys
+import struct
 import tempfile
 import unittest
+from unittest import mock
 
 import cli
 import guest
@@ -174,16 +179,23 @@ class TransportAgreementTests(unittest.TestCase):
     """guest.py runs alone in the guest image: the host imports its limits and repeats its path rule."""
 
     def test_guest_imports_only_the_standard_library(self):
-        # The image carries guest.py and nothing beside it, so the limits run.py takes
-        # from it must not come from a module the guest does not have.
-        imported = set()
-        for node in ast.walk(ast.parse(Path(guest.__file__).read_text())):
-            if isinstance(node, ast.Import):
-                imported.update(alias.name for alias in node.names)
-            elif isinstance(node, ast.ImportFrom):
-                imported.add('.' * node.level + (node.module or ''))
-        self.assertTrue(imported)
-        self.assertEqual({name for name in imported if name.split('.')[0] not in sys.stdlib_module_names}, set())
+        # The controller and its explicit helper are both seeded. Neither
+        # may depend on a host-only module or a third-party package.
+        for module, allowed in [(Path(guest.__file__), {'guest_program', 'guest_exposure'}),
+                                (Path(guest.__file__).with_name('guest_program.py'), set()),
+                                (Path(guest.__file__).with_name('guest_exposure.py'), set())]:
+            imported = set()
+            for node in ast.walk(ast.parse(module.read_text())):
+                if isinstance(node, ast.Import):
+                    imported.update(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom):
+                    imported.add('.' * node.level + (node.module or ''))
+            self.assertTrue(imported)
+            self.assertEqual({name for name in imported if name.split('.')[0] not in sys.stdlib_module_names}, allowed)
+        prepared = Path(guest.__file__).with_name('prepare.py').read_text()
+        self.assertIn("('/usr/local/lib/ukai-vm/guest_program.py'", prepared)
+        self.assertIn("('/usr/local/lib/ukai-vm/guest_exposure.py'", prepared)
+
 
     def test_host_and_guest_path_verdicts_agree(self):
         root = Path('/staging')
@@ -222,6 +234,162 @@ class TransportAgreementTests(unittest.TestCase):
 
 
 class PackageTests(unittest.TestCase):
+    def image_fixture(self, root, contents, digest=None):
+        (root / 'image.json').write_text(json.dumps({
+            'disk_sha256': digest or hashlib.sha256(contents).hexdigest()}))
+        (root / 'base.raw.gz').write_bytes(gzip.compress(contents))
+
+    def test_expansion_keeps_the_six_gibibyte_limit(self):
+        self.assertEqual(cli.IMAGE_BYTES, 6 * 1024**3)
+
+    def test_sparse_expansion_preserves_bytes_and_exact_length(self):
+        cases = {
+            'leading': bytes(8197) + b'data',
+            'interior_unaligned': b'prefix!' + bytes(32771) + b'suffix',
+            'trailing_unaligned': b'data' + bytes(12301),
+            'all_zero': bytes(20003),
+            'dense': bytes(range(1, 256)) * 97,
+            'mixed': bytes(9001) + b'a' * 513 + bytes(17777) + b'b' * 8193 + bytes(6001),
+        }
+        for name, contents in cases.items():
+            # A non-page-aligned gzip read also exercises holes across reads.
+            for read_size in (1024 * 1024, 5003):
+                with self.subTest(case=name, read_size=read_size), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    self.image_fixture(root, contents)
+                    with mock.patch.object(cli, 'IMAGE_BYTES', len(contents)), \
+                            mock.patch.object(cli, '_EXPAND_READ_BYTES', read_size):
+                        cli.expand_image(root)
+                    actual = (root / 'base.raw').read_bytes()
+                    self.assertEqual(actual, contents)
+                    self.assertEqual((root / 'base.raw').stat().st_size, len(contents))
+                    self.assertEqual(hashlib.sha256(actual).digest(), hashlib.sha256(contents).digest())
+
+    def test_mixed_megabyte_blocks_do_not_allocate_their_zero_pages(self):
+        contents = bytearray(4 * 1024 * 1024)
+        for offset in range(0, len(contents), 1024 * 1024):
+            contents[offset + 123] = 1
+        contents = bytes(contents)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.image_fixture(root, contents)
+            # Reproduce the previous whole-megabyte sparse decision on a real
+            # file: each megabyte has data, so all four megabytes get written.
+            baseline = root / 'previous.raw'
+            with baseline.open('xb') as output:
+                for offset in range(0, len(contents), 1024 * 1024):
+                    block = contents[offset:offset + 1024 * 1024]
+                    if block.count(0) == len(block):
+                        output.seek(len(block), 1)
+                    else:
+                        output.write(block)
+                output.truncate(len(contents))
+            with mock.patch.object(cli, 'IMAGE_BYTES', len(contents)):
+                cli.expand_image(root)
+            expanded = root / 'base.raw'
+            self.assertEqual(expanded.read_bytes(), baseline.read_bytes())
+            if not hasattr(expanded.stat(), 'st_blocks'):
+                self.skipTest('filesystem does not expose allocated block counts')
+            self.assertGreater(baseline.stat().st_blocks, 0)
+            self.assertLess(expanded.stat().st_blocks, baseline.stat().st_blocks // 4)
+
+    def test_expansion_bounds_and_checksum_failures_remove_partial_image(self):
+        for contents, expected_size, digest, message in [
+                (b'a' + bytes(8192), 8192, None, 'exceeds'),
+                (b'a' + bytes(8190), 8192, None, 'checksum'),
+                (b'a' + bytes(8191), 8192, '0' * 64, 'checksum')]:
+            with self.subTest(size=len(contents), digest=digest), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                self.image_fixture(root, contents, digest)
+                with mock.patch.object(cli, 'IMAGE_BYTES', expected_size), \
+                        self.assertRaisesRegex(ValueError, message):
+                    cli.expand_image(root)
+                self.assertFalse((root / 'base.raw').exists())
+
+    def test_corrupt_gzip_removes_partial_image(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.image_fixture(root, b'a' + bytes(8191))
+            compressed = (root / 'base.raw.gz').read_bytes()
+            (root / 'base.raw.gz').write_bytes(compressed[:-4])
+            with mock.patch.object(cli, 'IMAGE_BYTES', 8192), \
+                    self.assertRaises((OSError, EOFError)):
+                cli.expand_image(root)
+            self.assertFalse((root / 'base.raw').exists())
+
+    def test_unsupported_hole_punch_keeps_verified_bytes(self):
+        contents = b'prefix' + bytes(32768) + b'suffix'
+        for code in {errno.ENOTSUP, errno.EOPNOTSUPP, errno.ENOSYS}:
+            with self.subTest(errno=code), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                self.image_fixture(root, contents)
+                with mock.patch.object(cli, 'IMAGE_BYTES', len(contents)), \
+                        mock.patch.object(cli.sys, 'platform', 'darwin'), \
+                        mock.patch.object(cli.fcntl, 'fcntl', side_effect=OSError(code, 'unsupported')) as punch:
+                    cli.expand_image(root)
+                self.assertEqual((root / 'base.raw').read_bytes(), contents)
+                self.assertEqual(punch.call_count, 1)
+
+    def test_non_darwin_expansion_does_not_use_darwin_fcntl(self):
+        contents = b'prefix' + bytes(32768) + b'suffix'
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.image_fixture(root, contents)
+            with mock.patch.object(cli, 'IMAGE_BYTES', len(contents)), \
+                    mock.patch.object(cli.sys, 'platform', 'linux'), \
+                    mock.patch.object(cli.fcntl, 'fcntl') as punch:
+                cli.expand_image(root)
+            punch.assert_not_called()
+            self.assertEqual((root / 'base.raw').read_bytes(), contents)
+
+    def test_checksum_mismatch_never_punches_holes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.image_fixture(root, bytes(8192), '0' * 64)
+            with mock.patch.object(cli, 'IMAGE_BYTES', 8192), \
+                    mock.patch.object(cli.sys, 'platform', 'darwin'), \
+                    mock.patch.object(cli.fcntl, 'fcntl') as punch, \
+                    self.assertRaisesRegex(ValueError, 'checksum'):
+                cli.expand_image(root)
+            punch.assert_not_called()
+            self.assertFalse((root / 'base.raw').exists())
+
+    def test_hole_punch_io_failure_removes_partial_image(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.image_fixture(root, bytes(8192))
+            with mock.patch.object(cli, 'IMAGE_BYTES', 8192), \
+                    mock.patch.object(cli.sys, 'platform', 'darwin'), \
+                    mock.patch.object(cli.fcntl, 'fcntl', side_effect=OSError(errno.EIO, 'I/O failure')), \
+                    self.assertRaises(OSError):
+                cli.expand_image(root)
+            self.assertFalse((root / 'base.raw').exists())
+
+    def test_punch_ranges_are_aligned_inward_and_only_cover_zeros(self):
+        contents = b'prefix!' + bytes(32771) + b'suffix' + bytes(10003)
+        calls = []
+
+        def punch(fd, command, argument):
+            flags, reserved, offset, length = struct.unpack('=IIqq', argument)
+            self.assertEqual((command, flags, reserved), (99, 0, 0))
+            self.assertEqual(offset % 4096, 0)
+            self.assertEqual(length % 4096, 0)
+            self.assertGreater(length, 0)
+            self.assertEqual(contents[offset:offset + length], bytes(length))
+            calls.append((offset, length))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.image_fixture(root, contents)
+            with mock.patch.object(cli, 'IMAGE_BYTES', len(contents)), \
+                    mock.patch.object(cli, '_EXPAND_READ_BYTES', 5003), \
+                    mock.patch.object(cli.sys, 'platform', 'darwin'), \
+                    mock.patch.object(cli.os, 'fstatvfs', return_value=type('FS', (), {'f_frsize': 4096})()), \
+                    mock.patch.object(cli.fcntl, 'fcntl', side_effect=punch):
+                cli.expand_image(root)
+            self.assertTrue(calls)
+            self.assertEqual((root / 'base.raw').read_bytes(), contents)
+
     def test_expansion_does_not_delete_an_existing_image(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -232,7 +400,6 @@ class PackageTests(unittest.TestCase):
             self.assertEqual((root / 'base.raw').read_bytes(), b'existing image')
 
     def test_invalid_expansion_removes_partial_image(self):
-        import gzip
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / 'image.json').write_text('{"disk_sha256":"invalid"}')

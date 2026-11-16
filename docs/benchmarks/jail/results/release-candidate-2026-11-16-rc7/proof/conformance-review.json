@@ -1,0 +1,158 @@
+{
+  "schema": "ukai.task.conformance-independent-review/1",
+  "outcome": "PASS",
+  "created_at": "2026-11-16T07:51:40.969526+00:00",
+  "run_id": 43822530994,
+  "attempt": 1,
+  "head": "0be9d1e820b0d47493883053253491bbd2196ba3",
+  "head_tree": "245e70ec60791c1108186e360764fc7c38dc3d07",
+  "artifact": {
+    "artifact_id": 14207400129,
+    "zip_sha256": "24b0319e34a2701f4f69d2d795a99f7c29ce268ac86b5cad8ffc777e50803a13",
+    "zip_bytes": 158194,
+    "files": {
+      "binaries.sha256": {
+        "bytes": 278,
+        "sha256": "ce859f836ad5f55e4eba2b90b713540df7f6467b741d89a6b3abaf54b3646a20",
+        "zip_mode": 33188
+      },
+      "build.log": {
+        "bytes": 16624,
+        "sha256": "b003d5893c44e19e98785197920f6eea9ccf1514967d4ec4475249491a88ae78",
+        "zip_mode": 33188
+      },
+      "contract-validation.txt": {
+        "bytes": 387,
+        "sha256": "f9e9f4092c33bcecab11486a7c47421b5ed4d91bba3b918c9a6a123712246925",
+        "zip_mode": 33188
+      },
+      "binaries-check.txt": {
+        "bytes": 92,
+        "sha256": "82677281109685693ec944186504eb619e2b552b745c7a27d74899d0ad73f58e",
+        "zip_mode": 33188
+      },
+      "doctor.json": {
+        "bytes": 12741,
+        "sha256": "54afc835a7df3c20490ff781db894ea9c062c4a18f87a619a3fca0cc60578a84",
+        "zip_mode": 33188
+      },
+      "gates.json": {
+        "bytes": 291777,
+        "sha256": "db4f24081ad9bfc7e15f4dfce898b22191aa5ff3a5a477d8c518c2ee59ee949d",
+        "zip_mode": 33188
+      },
+      "gates.txt": {
+        "bytes": 14143,
+        "sha256": "392ddfb646ad32977104629fe1c291e345dbb1798d7246016c50ba2d1186ceac",
+        "zip_mode": 33188
+      },
+      "host-manifest.txt": {
+        "bytes": 1536,
+        "sha256": "83de2e9ef080eb6bfcb22456f86673e3564ba7be9dda9d9a4f95cfa5f44d6306",
+        "zip_mode": 33188
+      },
+      "i01.txt": {
+        "bytes": 830,
+        "sha256": "b7d8e00114315455d4890fc9da378e172a83f91ba3dc0b8f5b44fa9da04674c7",
+        "zip_mode": 33188
+      },
+      "smoke-doctor.json": {
+        "bytes": 12814,
+        "sha256": "277d17faefef1529306341c37a9f5b51b9512e49c63b41f6a6e890dd5d0110bb",
+        "zip_mode": 33188
+      },
+      "smoke-none-receipt.json": {
+        "bytes": 4770,
+        "sha256": "97f783d339d202e097d8fc0ec3394389ec936aa34ca1c22f24befebb3ea1c0a5",
+        "zip_mode": 33188
+      },
+      "smoke-tool-receipt.json": {
+        "bytes": 8192,
+        "sha256": "8d808ea2522fa435351a3052e408b74d3f403eb0df0e298b879b61de656fcd6d",
+        "zip_mode": 33188
+      },
+      "smoke-transcript.txt": {
+        "bytes": 105,
+        "sha256": "921e64590a9b0db1c997b571acf3c39bc07d1c61fe24416152730faaa69d5f5f",
+        "zip_mode": 33188
+      },
+      "source-files.nul": {
+        "bytes": 182043,
+        "sha256": "fd18029e0a2d1d5a8f07ed9abc9b9733deba310f00ba3eb80c0c812a121b9f88",
+        "zip_mode": 33188
+      },
+      "summary.txt": {
+        "bytes": 47,
+        "sha256": "090fdc0a9074137326db7a83d973b29ab0c1f47de8e4d67a6c2ed740a3206516",
+        "zip_mode": 33188
+      },
+      "test.log": {
+        "bytes": 271413,
+        "sha256": "29f1adc99773a4a6bbcf9293e8538e17c1980faa2257a49a0373e169e65e190d",
+        "zip_mode": 33188
+      }
+    },
+    "file_count": 16,
+    "bytes": 817792
+  },
+  "doctor_sha256": "54afc835a7df3c20490ff781db894ea9c062c4a18f87a619a3fca0cc60578a84",
+  "doctor_build": {
+    "debug_assertions": false,
+    "dirty": false,
+    "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+    "opt_level": "3",
+    "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "target": "x86_64-unknown-linux-gnu"
+  },
+  "doctor_ready": true,
+  "expected_capabilities_matched": 21,
+  "source_inventory_paths": 2721,
+  "required_compiled_inputs": 230,
+  "current_rc7_inventory_files": 102,
+  "git_source_binding": "Retained inventory lists exact J paths; 230 compiled Git blobs/modes equal pinned input set, and doctor binds actual compiled inputs. Artifact does not contain a second byte copy of all source files.",
+  "test_totals": {
+    "passed": 3073,
+    "failed": 0,
+    "ignored": 18
+  },
+  "test_groups": 117,
+  "runtime_capability_skips": 0,
+  "actual_named_tests": [
+    "k11_recorded_real_opencode_learning_proposes_only_evidence_supported_grants",
+    "k27_clean_vm_install_true_and_real_opencode_finish_within_ten_minutes",
+    "managed_native_gate_preserves_policy_argv_and_program_bound_credentials",
+    "managed_native_gate_blocks_exec_and_rechecks_the_held_program"
+  ],
+  "gate_counts": {
+    "credential": 1,
+    "elsewhere": 13,
+    "pass": 65,
+    "pass+limits": 7,
+    "pass+unsupported": 3,
+    "unsupported": 21
+  },
+  "full_spec_all_noncredential_gates_pass": false,
+  "publication_scope": "linux-preview",
+  "gates_problems": [],
+  "gates_warnings": [],
+  "binary_hashes": {
+    "target/release/ukai-jail": "e9db030dcdbbe75e8364eaa002efd0b33b0aac02f903b2f8d2fa7a66dd0f7322",
+    "target/release/ukai-fixture": "8cb7c1ca31289e77c16ee563d2cb46ca3b5c91482cb7026932ff56c65bfbe948",
+    "target/release/ukai-ledger": "16eb0d70dd7f7c2fb84161c4bd57ae971aaa29dff650085e83843925eedf3cec"
+  },
+  "remote_cleanup": "Owning successful workflow reports removal without removal warning; no independent live process inventory performed by this offline review.",
+  "freeze_regenerated": false,
+  "pins": {
+    "conformance-final-run.json": "34af7c942faf4dd6458f59398890a782d6124cf5260666a956421c9484c87268",
+    "conformance-final-jobs.json": "4ea84753bcf69105801803f02c353356b499cd49a88ed7835bb7be33d54f2798",
+    "conformance-final-artifacts.json": "67d49fa2c67636646bd8cb79c6058ac1b758473a83d10beea96d680bf0bf548d",
+    "conformance-artifact-inventory.json": "6376ff26c55a3badc0fae9dcb43fbfca90fb2b9d75698a08508457b5f19a5f98",
+    "conformance-test-counts.json": "a21fe8124eb53c24710dae6105873f9fcade4d38ddf83bff3630ccfb67466932",
+    "source-conformance-manifest.toml": "ec7448c8e7f0538702a73074c2cc6723576007ffeb09fb5f847c28730ccdf5e7",
+    "source-binding.json": "e79a7855f84c8893892274d202ce38cc4a52b51ede0e5c9484cb47f742c5da79",
+    "job-133148686979.log": "4676552f83ef567bc8cd7a9d3f855ac5cdea861e898d57641803362f046bed2e",
+    "review_conformance.py": "8e6131fbec882e47b799841ce79c5cc00aa4091945ffc959144753398df39f49"
+  },
+  "qualification": "Strict Linux-preview conformance only; all unsupported/elsewhere/credential limits preserved. Native release artifact validation is separate. No ARM guest, macOS native, OAuth or provider reliability promotion."
+}

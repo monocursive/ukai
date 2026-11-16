@@ -1,0 +1,62 @@
+{
+  "schema": "ukai.source-P-focused-validation/1",
+  "outcome": "PASS",
+  "base_head": "fd0e0e52c44e36bc866f3c53112c365b9fe43d9a",
+  "files_sha256": {
+    "crates/ukai-jail/vm/prepare.py": "b3967a84f54b3f1c469b75a482b62dfe90542ab2a05bde9b178678d72bc20739",
+    "crates/ukai-jail/vm/test_prepare.py": "9a87edd19d0644dfb579438aaa9b823cf246da851741ba22633337f8f108382a"
+  },
+  "tests": [
+    {
+      "command": [
+        "/opt/homebrew/opt/python@3.15/bin/python3.15",
+        "-B",
+        "-m",
+        "unittest",
+        "-v",
+        "test_prepare"
+      ],
+      "cwd": "/Users/monocursive/.cache/ukai-guest-native-launch-2026-11-15/crates/ukai-jail/vm",
+      "returncode": 0,
+      "elapsed_seconds": 2.5400966249872,
+      "logs_sha256": {
+        "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/source-P-builder-pin-plan-J/focused-final-normal.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/source-P-builder-pin-plan-J/focused-final-normal.stderr": "9c95a5589e3e32d88e9dc98e6c23a6ddee60c0d59bde3c6d46bfee210a73fa11"
+      }
+    },
+    {
+      "command": [
+        "/opt/homebrew/opt/python@3.15/bin/python3.15",
+        "-B",
+        "-O",
+        "-m",
+        "unittest",
+        "-v",
+        "test_prepare"
+      ],
+      "cwd": "/Users/monocursive/.cache/ukai-guest-native-launch-2026-11-15/crates/ukai-jail/vm",
+      "returncode": 0,
+      "elapsed_seconds": 2.759763834066689,
+      "logs_sha256": {
+        "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/source-P-builder-pin-plan-J/focused-final-optimized.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/source-P-builder-pin-plan-J/focused-final-optimized.stderr": "6b89f7b1c1f2b16c717e80e891ca4c5e89073356d865906384347f82b9297c0d"
+      }
+    }
+  ],
+  "diff_sha256": "829b239f07c7281a0a24d488115719ff8552c4a1f4750b0513673b73df7395d9",
+  "diff_check_returncode": 0,
+  "status_porcelain": " M crates/ukai-jail/vm/prepare.py\n M crates/ukai-jail/vm/test_prepare.py\n",
+  "free_bytes": 14781452288,
+  "limits": [
+    "Host fixtures only; no systemctl executed by tests.",
+    "No VM/image generation, compiler, provider, admission or signature publication.",
+    "16KiB systemctl accepted-output cap is checked after capture, with30s command timeout; it is not a hard pipe-allocation cap."
+  ],
+  "prerequisites_sha256": {
+    "plan_v2": "17e64fa9dfc6709433c97104b0c80a5797985b6ba79d36a6e1dc6bf181eaf6dc",
+    "provider_plan": "2dfe8ba982678729fcd2ef2aba05c9cbc82a86d28b4a272ad2f18c323e98a53f",
+    "image_layout": "7f195d6070b528e714b648f55773453803cff6d581afed7a9171413633482771",
+    "image_indexes": "83b1e9b66116acc0eca68f298100961240b2fe936c5033e85cf49dca5b8544cc",
+    "dbus_payload": "53cd27356c87e1c3216c1a417c872136130c95fca1df4a1eff6386c7dd8dc22e"
+  }
+}

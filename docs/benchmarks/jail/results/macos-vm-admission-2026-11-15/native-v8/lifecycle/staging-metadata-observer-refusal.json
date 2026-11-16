@@ -1,0 +1,8 @@
+{
+  "outcome": "OBSERVER_REFUSAL",
+  "error_type": "AttributeError",
+  "error": "system python os.listxattr unavailable",
+  "artifact_mutation": false,
+  "staging_started": false,
+  "correction": "Use existing /usr/bin/xattr without -l to list names only."
+}

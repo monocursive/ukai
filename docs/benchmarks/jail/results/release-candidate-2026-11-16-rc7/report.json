@@ -1,0 +1,456 @@
+{
+  "actual_native": {
+    "arm": {
+      "boot_phase_seconds": 37.820894540986046,
+      "guest_files": 107,
+      "independent_checks": 572,
+      "outcome": "PASS",
+      "retained_files": 152
+    },
+    "scope": "Exact downloaded archives: tool, agent and deadline cases; doctor, archive install, installer regression and deterministic restaging. This is not full ARM baseline conformance, a Mac VM product-image qualification or native macOS qualification.",
+    "x86": {
+      "command_seconds": 14.684820792,
+      "final_cleanup_checks": 15,
+      "guest_files": 107,
+      "outcome": "PASS",
+      "retained_reader_checks": 46
+    }
+  },
+  "actual_signed_bootstrap": {
+    "arm": {
+      "boot_phase_seconds": 26.555868417024612,
+      "independent_checks": 179,
+      "outcome": "PASS",
+      "raw_bootstrap_regular_files": 40,
+      "raw_link_metadata": 15,
+      "retained_host_and_guest_regular_files": 112,
+      "scope_seconds": 0.62
+    },
+    "checks": [
+      "production signature verified first with exact J public key",
+      "Minisign absent from bootstrap PATH",
+      "fresh installation",
+      "repeat installation",
+      "modified private archive refused",
+      "existing install preserved on refusal",
+      "exact signed candidate unchanged",
+      "owned process and task cleanup"
+    ],
+    "scope": "Local supplied candidate only; no public release download was tested.",
+    "x86": {
+      "command_seconds": 1.5210272919999999,
+      "independent_local_compressed_checks": 74,
+      "independent_remote_checks": 71,
+      "outcome": "PASS",
+      "raw_bootstrap_regular_files": 40,
+      "raw_link_metadata": 15
+    }
+  },
+  "candidate": {
+    "compiled_git_blob_mode_count": 230,
+    "compiled_inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+    "freeze_regenerated_after_J": false,
+    "freeze_sha256": "39fafd8684997a3414a6a530df50fd5b3796de91356f8a39bb55e0c3b10fa2be",
+    "freeze_tested_revision": "a8e4aecb071a0367001f309a659897d6aa336600",
+    "pr_merge": "f234c82add6549e4f203340aad54f92f33a26640",
+    "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+    "scope": "linux-preview",
+    "tree": "245e70ec60791c1108186e360764fc7c38dc3d07",
+    "version": "0.1.0-rc.7"
+  },
+  "capacity_and_cleanup": {
+    "arm_bootstrap_allocation_only_cleanup_refusal_preserved": true,
+    "arm_bootstrap_fixture_observed_free_delta": 137940992,
+    "arm_bootstrap_postcleanup_observed_free_bytes": 14872162304,
+    "arm_bootstrap_successful_fixture_overlay_and_vars_removed": 2,
+    "arm_native_fixture_observed_free_delta": 235999232,
+    "arm_native_successful_fixture_overlay_and_vars_removed": 2,
+    "deleted_fds_closed_before_measurement": true,
+    "external_storage": "pending; no new storage claim",
+    "historical_source_proof_original_artifact_or_executable_deletion": false,
+    "next_mac_build_install_measured_free_bytes_approx": 21590000000,
+    "practical_planning_floor_bytes": 22000000000,
+    "private_toolchain_probe": "tiny offline build and stripping only; not actual Ukai build/image qualification",
+    "reassembly_observed_free_delta": -12288,
+    "space_caveat": "Whole-filesystem availability is time-specific; allocation estimates are not guaranteed free-space gains.",
+    "successful_reassembly_archive_copies_removed": 2,
+    "task_cache_exact_rmeta_files_removed": 23,
+    "task_cache_immediate_observed_free_delta": 11853824,
+    "task_cache_later_observed_free_bytes": 14913376256,
+    "task_cache_proposed_private_bytes": 135421952,
+    "task_cache_remaining_metadata_unchanged": 2755
+  },
+  "evidence": {
+    "candidate/RELEASE_NOTES.md": {
+      "bytes": 1402,
+      "sha256": "2f431194c09aac228d55532c2d6a00c9e50af7d3781dd39e2cfce09a878c4907"
+    },
+    "candidate/SHA256SUMS": {
+      "bytes": 562,
+      "sha256": "3d4a3bafb239fb8719b90ed33334438c9b68b90184efeedd005d4a7d33053d51"
+    },
+    "candidate/SHA256SUMS.minisig": {
+      "bytes": 305,
+      "sha256": "cf36ceec8dbc6aae5adf2bc326cfdf98dcf79e80f6b8ed2aa87a15e3959f20ee"
+    },
+    "candidate/arm-stage.json": {
+      "bytes": 1544,
+      "sha256": "36693bdd9883f3552330163bcc5feea3420614184b69cb9148f17591767f382f"
+    },
+    "candidate/release-plan.json": {
+      "bytes": 5210,
+      "sha256": "3b469443904b059a1b090b6823e5829df203e52c77b0cb393f03c87a45f933c0"
+    },
+    "candidate/release.pub": {
+      "bytes": 140,
+      "sha256": "218b3005a943bf9641f42ece53e6a3ee2a8b3a12510db04d26477abefc8cfbd1"
+    },
+    "candidate/x86-stage.json": {
+      "bytes": 1540,
+      "sha256": "4a90c44aa6810f726c19661a44591c8b818d37c1f80507c2cf7a331b77f7f786"
+    },
+    "conformance/binaries-check.txt": {
+      "bytes": 92,
+      "sha256": "82677281109685693ec944186504eb619e2b552b745c7a27d74899d0ad73f58e"
+    },
+    "conformance/binaries.sha256": {
+      "bytes": 278,
+      "sha256": "ce859f836ad5f55e4eba2b90b713540df7f6467b741d89a6b3abaf54b3646a20"
+    },
+    "conformance/build.log": {
+      "bytes": 16624,
+      "sha256": "b003d5893c44e19e98785197920f6eea9ccf1514967d4ec4475249491a88ae78"
+    },
+    "conformance/contract-validation.txt": {
+      "bytes": 387,
+      "sha256": "f9e9f4092c33bcecab11486a7c47421b5ed4d91bba3b918c9a6a123712246925"
+    },
+    "conformance/doctor.json": {
+      "bytes": 12741,
+      "sha256": "54afc835a7df3c20490ff781db894ea9c062c4a18f87a619a3fca0cc60578a84"
+    },
+    "conformance/gates.json": {
+      "bytes": 291777,
+      "sha256": "db4f24081ad9bfc7e15f4dfce898b22191aa5ff3a5a477d8c518c2ee59ee949d"
+    },
+    "conformance/gates.txt": {
+      "bytes": 14143,
+      "sha256": "392ddfb646ad32977104629fe1c291e345dbb1798d7246016c50ba2d1186ceac"
+    },
+    "conformance/host-manifest.txt": {
+      "bytes": 1536,
+      "sha256": "83de2e9ef080eb6bfcb22456f86673e3564ba7be9dda9d9a4f95cfa5f44d6306"
+    },
+    "conformance/i01.txt": {
+      "bytes": 830,
+      "sha256": "b7d8e00114315455d4890fc9da378e172a83f91ba3dc0b8f5b44fa9da04674c7"
+    },
+    "conformance/smoke-doctor.json": {
+      "bytes": 12814,
+      "sha256": "277d17faefef1529306341c37a9f5b51b9512e49c63b41f6a6e890dd5d0110bb"
+    },
+    "conformance/smoke-none-receipt.json": {
+      "bytes": 4770,
+      "sha256": "97f783d339d202e097d8fc0ec3394389ec936aa34ca1c22f24befebb3ea1c0a5"
+    },
+    "conformance/smoke-tool-receipt.json": {
+      "bytes": 8192,
+      "sha256": "8d808ea2522fa435351a3052e408b74d3f403eb0df0e298b879b61de656fcd6d"
+    },
+    "conformance/smoke-transcript.txt": {
+      "bytes": 105,
+      "sha256": "921e64590a9b0db1c997b571acf3c39bc07d1c61fe24416152730faaa69d5f5f"
+    },
+    "conformance/source-files.nul": {
+      "bytes": 182043,
+      "sha256": "fd18029e0a2d1d5a8f07ed9abc9b9733deba310f00ba3eb80c0c812a121b9f88"
+    },
+    "conformance/summary.txt": {
+      "bytes": 47,
+      "sha256": "090fdc0a9074137326db7a83d973b29ab0c1f47de8e4d67a6c2ed740a3206516"
+    },
+    "conformance/test.log": {
+      "bytes": 271413,
+      "sha256": "29f1adc99773a4a6bbcf9293e8538e17c1980faa2257a49a0373e169e65e190d"
+    },
+    "proof/bootstrap-arm-completion.json": {
+      "bytes": 2548,
+      "sha256": "992b898e89eea5ad762c2f44444f4a178efdf6e8ea57b4fe8d02e5f3bf77c19c"
+    },
+    "proof/bootstrap-arm-fixture-cleanup.json": {
+      "bytes": 1869,
+      "sha256": "85f0933e79b69c97858fc19746433c7c8b50cc3b0a656fec55cc491916498ab8"
+    },
+    "proof/bootstrap-arm-retention.json": {
+      "bytes": 23158,
+      "sha256": "88f0985b47f610c2ad7332687f735ea0f9ada03aa1c08c2a4819073befb0b2cd"
+    },
+    "proof/bootstrap-arm-review.json": {
+      "bytes": 10919,
+      "sha256": "d680eb47d6dae99ea2e2d9570f8beb9a4edb937fd02780d2821ca8f6bc85370e"
+    },
+    "proof/bootstrap-arm-summary.json": {
+      "bytes": 1216,
+      "sha256": "35cbff9e18d0a8314c17f98c363337f94f3ce1459cac99cb1e4f00efc9eae646"
+    },
+    "proof/bootstrap-x86-final-review.json": {
+      "bytes": 6418,
+      "sha256": "bd9e725452230f83e70bc3b6085930dd1fa662ff65457de8bb06bcdf83183a2f"
+    },
+    "proof/bootstrap-x86-local-retention-review.json": {
+      "bytes": 5920,
+      "sha256": "8d3f7a5454a91bea01a3cde9cbf6041aabed29cf72f251fde051562d69fe9bae"
+    },
+    "proof/candidate-review.json": {
+      "bytes": 8340,
+      "sha256": "77c7a4af552f489fa1de4e7727d54c7e8d84a52b00e91380dda7c3a8ea93d2af"
+    },
+    "proof/ci-release-peer-review.json": {
+      "bytes": 3808,
+      "sha256": "047c2d6a859629ebeaf90c286ba00c679ef075a7a727f8dbfeaccfa94fefc77a"
+    },
+    "proof/compiler-cache-cleanup.json": {
+      "bytes": 3968,
+      "sha256": "f575e0a2eff596b8553260eeb2087a860e7bdf37555f47c33db9d8fbf74c16aa"
+    },
+    "proof/compiler-cache-postclose-space.json": {
+      "bytes": 144,
+      "sha256": "06c1bde7bf344b8ca1f2ec710a3d95c4dbe7fcf8cf31376881a0f7b04557b8fb"
+    },
+    "proof/conformance-review.json": {
+      "bytes": 6535,
+      "sha256": "1c60c15017b06fc3365fc6456ec7ad8968a74863e27c154d6e6c13c0187f2652"
+    },
+    "proof/hosted-summary.json": {
+      "bytes": 25626,
+      "sha256": "4710ac46ec201a7520140c10918b2428c000ea1bfb30a0fa3eb7249621cc6197"
+    },
+    "proof/native-arm-completion.json": {
+      "bytes": 3531,
+      "sha256": "0a177d68386a0b4e302ce6a2f7288eccf849b40f04d89606f561d0c2a56aad9a"
+    },
+    "proof/native-arm-fixture-cleanup.json": {
+      "bytes": 1848,
+      "sha256": "1032accd6cb8a6729db0401c1632f74c74f1c3063d07aaa98abb9c779c10f814"
+    },
+    "proof/native-arm-retention.json": {
+      "bytes": 28297,
+      "sha256": "b5fc2fb59759b0ebc8366dad8f3419b627b749f8462412ed2dec33cbec59abd3"
+    },
+    "proof/native-arm-review.json": {
+      "bytes": 39063,
+      "sha256": "17b8f6b1e4d28f6923540b3b17bb28895c34e0766f1d3bac938354b1ab6b8bea"
+    },
+    "proof/native-arm-summary.json": {
+      "bytes": 1982,
+      "sha256": "0ab759baef4d32c5425373e701e845a2afeecfaa86b655dc7c6b32d5ff16a25d"
+    },
+    "proof/native-x86-final-review.json": {
+      "bytes": 4715,
+      "sha256": "86ac2920f6b1bd83649c39fc83d4b513fc54d5f35f88fdb2faf83637f96b4025"
+    },
+    "proof/native-x86-local-retention-review.json": {
+      "bytes": 23797,
+      "sha256": "c8ca32912ccd6723ada038414083779a3f08706df8954e323a6bc95d3d02b73f"
+    },
+    "proof/reassembly-fixture-cleanup.json": {
+      "bytes": 1764,
+      "sha256": "a8dbdcfaa6fbed177b3031ec48ef5dccdd6a49309e234e6c75c7db0a6fdb5ebd"
+    },
+    "proof/release-summary.json": {
+      "bytes": 13840,
+      "sha256": "ef09eb66f7c701013ab2335b651af470ad21bed0aa3b4467a96017c95c96d7fb"
+    },
+    "proof/signed-archive-review.json": {
+      "bytes": 5470,
+      "sha256": "7a20ba071c321376155570519e08de805270ab3f004991cb7b92842d2e95ba09"
+    },
+    "proof/signed-archive-summary.json": {
+      "bytes": 2021,
+      "sha256": "a3a1237f632c6a1aa0fd72f84e00731d0da575afe532758325768317ccfcfbc3"
+    },
+    "proof/signed-candidate-review.json": {
+      "bytes": 4749,
+      "sha256": "7458d68130ce7f0e1bba2a122e0c0d0553c95028071cfb9b1793e1eb33f79032"
+    },
+    "proof/source-binding.json": {
+      "bytes": 2420,
+      "sha256": "e79a7855f84c8893892274d202ce38cc4a52b51ede0e5c9484cb47f742c5da79"
+    }
+  },
+  "hosted": {
+    "first_attempt": true,
+    "jobs_passed": 6,
+    "macos": {
+      "additional_probe_skip": "ROW 3 exec hardlink to sudo: ln failed",
+      "cargo_groups": 117,
+      "failed": 0,
+      "ignored": 7,
+      "passed": 2512,
+      "runtime_skip_diagnostics": 0
+    },
+    "python": {
+      "cases": 1159,
+      "errors": 0,
+      "failures": 0,
+      "onboarding_cases": 22,
+      "skipped": 82,
+      "vm_cases": 872
+    },
+    "run_ids": [
+      43822389786,
+      43822389760,
+      43822389837
+    ],
+    "ubuntu": {
+      "cargo_groups": 117,
+      "failed": 0,
+      "ignored": 18,
+      "passed": 3073,
+      "runtime_skip_diagnostics": 520
+    }
+  },
+  "integration": {
+    "active_worktree_modified_by_this_report": false,
+    "freeze_remains_tested_revision": "a8e4aecb071a0367001f309a659897d6aa336600",
+    "no_rerun_dispatch_publication_or_freeze_regeneration": true,
+    "previous_historical_checkpoints": "retained unchanged; their then-pending state is superseded by this report, not overwritten",
+    "raw_ci_and_native_binary_archives": "retained in ignored evidence/remote copies; excluded from the tracked proof record",
+    "recording_commit_scope": "documentation and evidence only",
+    "release_source_remains": "0be9d1e820b0d47493883053253491bbd2196ba3",
+    "tracked_directory": "docs/benchmarks/jail/results/release-candidate-2026-11-16-rc7"
+  },
+  "onboarding_learning": {
+    "attempts_per_workload": 1,
+    "binary_source": "f745bfbfc5bfe4945cf5fc7c5d88e497db9e6768",
+    "bootstrap_seconds": 460.8464,
+    "compiled_inputs_equal_J": true,
+    "harness_source": "dce53219bb8cb0ecf89047dd9820404da9a51c26",
+    "intended_fixture_proposed": false,
+    "learned_read_only": [
+      "/etc/nsswitch.conf"
+    ],
+    "network_allow": [],
+    "not_an_api_request_token_or_billing_cap": true,
+    "owning_verifiers_passed_in_J": true,
+    "prior_source_identities_preserved": true,
+    "unresolved_reads_ungranted": 15,
+    "vendor_cli_invocations": 2,
+    "workflow_seconds": 152.0316438
+  },
+  "outcome": "PASS_WITH_EXPLICIT_SCOPE_LIMITS",
+  "preserved_limits": {
+    "fresh_stable_guest_image_bytes_qualified": false,
+    "full_specification_production_ready": false,
+    "glibc_minimum": "2.39",
+    "historical_bef_api_lanes": 14,
+    "historical_bef_api_strict_fail": 6,
+    "historical_bef_api_strict_pass": 8,
+    "historical_repetitions_strict_pass": 7,
+    "historical_repetitions_total": 10,
+    "historical_startup_kernel_and_sampling_failures": "unchanged; no new causal attribution",
+    "managed_sampling_v3_guest_image_qualified": false,
+    "managed_sampling_v3_installed_mac_host_qualified": false,
+    "musl_supported": false,
+    "native_macos_endpoint_security_qualified": false,
+    "notarized_or_stapled_mac_release": false,
+    "oauth": "deferred at user request",
+    "pr_merged": false,
+    "public_release_published": false,
+    "real_agent_reliability": "experimental",
+    "stock_ubuntu_24_execution": "refused",
+    "tag_created": false
+  },
+  "production_signature": {
+    "files": {
+      "RELEASE_NOTES.md": {
+        "bytes": 1402,
+        "sha256": "2f431194c09aac228d55532c2d6a00c9e50af7d3781dd39e2cfce09a878c4907"
+      },
+      "SHA256SUMS": {
+        "bytes": 562,
+        "sha256": "3d4a3bafb239fb8719b90ed33334438c9b68b90184efeedd005d4a7d33053d51"
+      },
+      "SHA256SUMS.minisig": {
+        "bytes": 305,
+        "sha256": "cf36ceec8dbc6aae5adf2bc326cfdf98dcf79e80f6b8ed2aa87a15e3959f20ee"
+      },
+      "bootstrap.sh": {
+        "bytes": 16996,
+        "sha256": "f7a1aa423f8f87d9bb4b50e9a9d7c4716a336ef30a259d793c1b7cdb67bfb4bb"
+      },
+      "install.sh": {
+        "bytes": 10085,
+        "sha256": "9c49ea8a0d7c2633b446d1912d9def945bb10dad325de6542320dd185a13f012"
+      },
+      "release-plan.json": {
+        "bytes": 5210,
+        "sha256": "3b469443904b059a1b090b6823e5829df203e52c77b0cb393f03c87a45f933c0"
+      },
+      "ukai-jail-0.1.0-rc.7-aarch64-unknown-linux-gnu.tar.gz": {
+        "bytes": 4691180,
+        "sha256": "15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6"
+      },
+      "ukai-jail-0.1.0-rc.7-x86_64-unknown-linux-gnu.tar.gz": {
+        "bytes": 4745031,
+        "sha256": "a9eb6b07b4925cc3828fa2a264cbc5d0208aea1b1ed2929f67ec0d5f1436c7a1"
+      }
+    },
+    "manifest_sha256": "3d4a3bafb239fb8719b90ed33334438c9b68b90184efeedd005d4a7d33053d51",
+    "private_key_read_or_statted_by_this_review": false,
+    "public_key_sha256": "218b3005a943bf9641f42ece53e6a3ee2a8b3a12510db04d26477abefc8cfbd1",
+    "signature_sha256": "cf36ceec8dbc6aae5adf2bc326cfdf98dcf79e80f6b8ed2aa87a15e3959f20ee",
+    "signed_plan_sha256": "3b469443904b059a1b090b6823e5829df203e52c77b0cb393f03c87a45f933c0",
+    "signing_performed_by_root_once": true,
+    "verified": true
+  },
+  "release_workflow": {
+    "first_attempt": true,
+    "id": 43822535195,
+    "jobs_passed": 4,
+    "native_builder_signatures": "ephemeral test identity; production signing occurred separately",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu"
+    ]
+  },
+  "schema": "ukai.private-linux-preview-final-report/1",
+  "signed_zip": {
+    "bytes": 9378850,
+    "exact_eight_files": true,
+    "independent_checks": 56,
+    "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/rc7-candidate-final/ukai-jail-0.1.0-rc.7-signed-candidate.zip",
+    "private_key_included": false,
+    "sha256": "141a89bd3f22a9787b7cc3b757e2a24abe9bd17f225de215bb9bb2fbabb6a5fe",
+    "tracked_in_git": false
+  },
+  "status": "FINAL_RETAINED_EVIDENCE",
+  "strict_conformance": {
+    "all_noncredential_gates_pass": false,
+    "artifact_sha256": "24b0319e34a2701f4f69d2d795a99f7c29ce268ac86b5cad8ffc777e50803a13",
+    "cargo_groups": 117,
+    "current_rc7_evidence_paths": 102,
+    "doctor_ready": true,
+    "doctor_sha256": "54afc835a7df3c20490ff781db894ea9c062c4a18f87a619a3fca0cc60578a84",
+    "expected_capabilities_matched": 21,
+    "failed": 0,
+    "first_attempt": true,
+    "gate_counts": {
+      "credential": 1,
+      "elsewhere": 13,
+      "pass": 65,
+      "pass+limits": 7,
+      "pass+unsupported": 3,
+      "unsupported": 21
+    },
+    "gates_problems": [],
+    "gates_warnings": [],
+    "id": 43822530994,
+    "ignored": 18,
+    "passed": 3073,
+    "raw_bytes": 817792,
+    "raw_files": 16,
+    "runtime_capability_skips": 0,
+    "source_paths": 2721
+  }
+}

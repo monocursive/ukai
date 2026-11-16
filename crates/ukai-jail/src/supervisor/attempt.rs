@@ -364,7 +364,11 @@ impl<'a> Attempt<'a> {
         self.pre_exec_lines(&argv, prepared.state_line);
         // §10: the proxy directory is registered before it is created,
         // outside every shared root, for a proxy-mode profile only.
-        let proxy = prepare_proxy_dir(&self.attempt_dir, &self.plan)?;
+        let proxy = if self.plan.guest_program.is_some() {
+            None
+        } else {
+            prepare_proxy_dir(&self.attempt_dir, &self.plan)?
+        };
         // Steps 3 to 5: create the boundary and the blocked launcher.
         let execution = self.ctx.platform.prepare(
             PreparedPlan {
@@ -378,6 +382,8 @@ impl<'a> Attempt<'a> {
                 launch_name: self.args.policy.selection.launch.clone(),
                 // The staged objects, bound by descriptor.
                 launch,
+                #[cfg(target_os = "macos")]
+                guest_launch: prepared.guest_handoff,
                 proxy: proxy.clone(),
                 // J12: the install roots, bound by the handles resolution
                 // pinned them with.
@@ -2085,10 +2091,7 @@ mod guest_mirror_tests {
     /// The K113 guest receipt (2026-11-03): a proxied, observed attempt.
     /// Read at test time, so the evidence is no build input.
     fn guest_receipt() -> serde_json::Value {
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../docs/benchmarks/jail/results/macos-vm-claude-2026-11-03/k113-attempt/evidence/jail.json"
-        );
+        let path = crate::test_evidence::k113_attempt().join("evidence/jail.json");
         serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
     }
 

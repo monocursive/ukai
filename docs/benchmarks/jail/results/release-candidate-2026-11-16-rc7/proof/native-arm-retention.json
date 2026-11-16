@@ -1,0 +1,783 @@
+{
+  "schema": "ukai.rc7-arm-native-retention/1",
+  "outcome": "PASS",
+  "plan_sha256": "1f2de2a7cdac725f16f2593286aad47cc5dcd406f4563a22914a4d545cb51f51",
+  "outer_result_sha256": "f469f5c550cf4671166ad8642059ad89e0cba7d9bb3091f2184c9990e6731ac0",
+  "host_final_sha256": "37867d5f872cb5d75bc5ea3e0732f209a4db01f9d35e13467046c0d458b38352",
+  "export_sha256": "f56e30e03b85987cd454b9d5e87cbe02fbc63ebf80401d8a90cfbe0bc8626154",
+  "files": {
+    "host/transfer-6.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/qemu-final.json": {
+      "bytes": 206,
+      "sha256": "be4d56d373c7a3060c6c7434594e91e7e59792a536b4478e1511013274d1e84f",
+      "mode": 420
+    },
+    "host/transfer-2.json": {
+      "bytes": 884,
+      "sha256": "52ca2923161eccaf49ea6c7b0bdad75ea911dc430d34ecc28cdbd8e6b1b75df7",
+      "mode": 420
+    },
+    "host/transfer-2.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-0.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/remote-root.json": {
+      "bytes": 965,
+      "sha256": "4f40f9c7dbfa418b12638d28c1216d8b296dbb07fa6429fba9b637f25ebaff13",
+      "mode": 420
+    },
+    "host/overlay.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/export.json": {
+      "bytes": 850,
+      "sha256": "eb2224cfdee3ea1634a54763cfba47269f249ac8e87b0f32067a4cbee825938e",
+      "mode": 420
+    },
+    "host/transfer-3.json": {
+      "bytes": 892,
+      "sha256": "659042abb89dbba22370795a2b74367eb3a23359d9508e09b7391bd820d258d0",
+      "mode": 420
+    },
+    "host/overlay-info.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-4.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/overlay.json": {
+      "bytes": 484,
+      "sha256": "a0e67648b3025c6b5109ed3a3b6a528e8d0b0c6bf0e66a8d59a4c9846d0d4055",
+      "mode": 420
+    },
+    "host/transfer-4.json": {
+      "bytes": 899,
+      "sha256": "3a980b6b795a3364d56b4435582bd947f2b685fb936dbc5b4e5ea876ba115922",
+      "mode": 420
+    },
+    "host/overlay-info.json": {
+      "bytes": 377,
+      "sha256": "b68f91bc6b1712a5efd8165d8e01e0bd0f722d7cbd3541fb122c985634e476ac",
+      "mode": 420
+    },
+    "host/qemu-start.json": {
+      "bytes": 1680,
+      "sha256": "a9fda6e903707beed57d644c3c7073602af8951e627769aa284ff30e12b8d4c5",
+      "mode": 420
+    },
+    "host/transfer-4.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/overlay.stdout": {
+      "bytes": 307,
+      "sha256": "ea70c3c891b7a31c64827db3684e264baf58afb7fdf891715479db66e5d2eadf",
+      "mode": 420
+    },
+    "host/transfer-0.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/overlay-info.stdout": {
+      "bytes": 1309,
+      "sha256": "37ac15df05e88747c8cc5d0c397e12b44c227ac7d1d7d3568dd1397e8faaffda",
+      "mode": 420
+    },
+    "host/console.log": {
+      "bytes": 87892,
+      "sha256": "64bef1f4b83c47a19830bf63f1656905dd142decc47d19de330009b957eded51",
+      "mode": 420
+    },
+    "host/transfer-2.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-6.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-5.json": {
+      "bytes": 906,
+      "sha256": "84b68fdfe5aa63a0c714689f33a2bb965fadcf378c7e357d91734b1d93b44927",
+      "mode": 420
+    },
+    "host/native.json": {
+      "bytes": 948,
+      "sha256": "b98364af41a52c1203d180ad6c8c6a880e3395e0547ef2aa2790684832f77d94",
+      "mode": 420
+    },
+    "host/qemu.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/native.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-6.json": {
+      "bytes": 900,
+      "sha256": "944c518c122ddb55c74777873c4e1b10695c8a3294eacb5e13b6278f92abb6e5",
+      "mode": 420
+    },
+    "host/transfer-3.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-7.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-5.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/remote-root.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/export.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-7.json": {
+      "bytes": 982,
+      "sha256": "bdbc281904c3a049987bb73fdd8e706741f1484ffdb75344186951511b96c1db",
+      "mode": 420
+    },
+    "host/transfer-1.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-1.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/final.json": {
+      "bytes": 429,
+      "sha256": "37867d5f872cb5d75bc5ea3e0732f209a4db01f9d35e13467046c0d458b38352",
+      "mode": 420
+    },
+    "host/transfer-5.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/remote-root.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/export.stdout": {
+      "bytes": 14065702,
+      "sha256": "f56e30e03b85987cd454b9d5e87cbe02fbc63ebf80401d8a90cfbe0bc8626154",
+      "mode": 420
+    },
+    "host/transfer-0.json": {
+      "bytes": 901,
+      "sha256": "18757b9eeedfb4c0f0672e83eb4bae10315dd6f46a20b4fbd03d0e4ec229cc41",
+      "mode": 420
+    },
+    "host/transfer-7.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-1.json": {
+      "bytes": 897,
+      "sha256": "164686b37f98f3087058d8a059cbaa15b683f57ac4d3da999933fc2201b2ba9a",
+      "mode": 420
+    },
+    "host/qemu.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/transfer-3.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "host/native.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    "guest/evidence/native-scope.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/evidence/native.log": {
+      "bytes": 1982,
+      "sha256": "0ab759baef4d32c5425373e701e845a2afeecfaa86b655dc7c6b32d5ff16a25d",
+      "mode": 436
+    },
+    "guest/evidence/native-scope.json": {
+      "bytes": 814,
+      "sha256": "ba025d3a9398b2394c02bcbb5498d5880db64013d0138eedefe01bdeaee57fe9",
+      "mode": 436
+    },
+    "guest/evidence/native-command.json": {
+      "bytes": 561,
+      "sha256": "82120d596dfa442c3c856d13182307a25bfd2f1867e3affae33cb0617be75311",
+      "mode": 436
+    },
+    "guest/evidence/native-preflight.json": {
+      "bytes": 85,
+      "sha256": "c7368c84f4fbee53fcd6ff9b9292f59acd9288796c917b3674c98427d943db13",
+      "mode": 436
+    },
+    "guest/evidence/native-final.json": {
+      "bytes": 340,
+      "sha256": "bc103a8e26759dc3938325a43aaf82111142ec23ad9a9168eccda4eb204a98b8",
+      "mode": 436
+    },
+    "guest/work/native/elf-version-information.stdout": {
+      "bytes": 8641,
+      "sha256": "f6418fa8ef8dd98330b462b2f3916c5854cce0b26f57ed89b4cb79491bf22a07",
+      "mode": 436
+    },
+    "guest/work/native/test-key-sign.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/native/test-key-sign.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "guest/work/native/exact-archive-upgrade.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "guest/work/native/native-restage.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "guest/work/native/repeat-install-refusal.command.json": {
+      "bytes": 411,
+      "sha256": "1dbe5730383fcf925d34ed6e278d6d2ecf5661580fe0e4abf5be307814dd391a",
+      "mode": 436
+    },
+    "guest/work/native/elf-version-information.command.json": {
+      "bytes": 137,
+      "sha256": "0af59c6381776f0cd51a41444e0fb206e5f437f7e4e38fda3013e4a8d5b7b0b1",
+      "mode": 436
+    },
+    "guest/work/native/test-key-verify.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "guest/work/native/test-key-verify.stdout": {
+      "bytes": 102,
+      "sha256": "2c6941432af3aed2a2fee7f82743839b9613813c2860ba0bd4cccae8456d25fa",
+      "mode": 436
+    },
+    "guest/work/native/repeat-install-refusal.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/native/doctor-tool.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/native/doctor-agent.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/native/test-key-verify.command.json": {
+      "bytes": 203,
+      "sha256": "65eaacdb65ef26dd387f78481a5b4fc66924aff3211449c0e7af0329f8d5e075",
+      "mode": 436
+    },
+    "guest/work/native/test-key-verify.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/native/test-key-generate.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "guest/work/native/summary.json": {
+      "bytes": 1982,
+      "sha256": "0ab759baef4d32c5425373e701e845a2afeecfaa86b655dc7c6b32d5ff16a25d",
+      "mode": 436
+    },
+    "guest/work/native/test-key-sign.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/native/test-key-sign.command.json": {
+      "bytes": 249,
+      "sha256": "06f284c8b2046bd064a186f388117dd33cbc3dfc1a9fca85ed632850fb3fe4f7",
+      "mode": 436
+    },
+    "guest/work/native/native-restage.command.json": {
+      "bytes": 583,
+      "sha256": "6c64d1295672c2de3cb421847df7e81592d146140c4c06ec6abfa3c1e6d5e0c6",
+      "mode": 436
+    },
+    "guest/work/native/version.json": {
+      "bytes": 1023,
+      "sha256": "4a98e21c7a09231dc505e2dd5c6791d013d92b01bfe01ded443f1278852ae879",
+      "mode": 436
+    },
+    "guest/work/native/installer-regression.command.json": {
+      "bytes": 223,
+      "sha256": "d88e30ef3b35dbadaa75567b2af0b1bd6e80605ed0109eb1a9de745376fc59a6",
+      "mode": 436
+    },
+    "guest/work/native/native-restage/ukai-jail-0.1.0-rc.7-aarch64-unknown-linux-gnu.tar.gz": {
+      "bytes": 4691180,
+      "sha256": "15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6",
+      "mode": 384
+    },
+    "guest/work/native/native-restage/artifact.json": {
+      "bytes": 1544,
+      "sha256": "aa61afba24a5b776c0403d3916dc5d801ff2f91a4247ccf5e78efca3c6c0c476",
+      "mode": 384
+    },
+    "guest/work/native/version.stdout": {
+      "bytes": 1023,
+      "sha256": "4a98e21c7a09231dc505e2dd5c6791d013d92b01bfe01ded443f1278852ae879",
+      "mode": 436
+    },
+    "guest/work/native/version.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/native/native-restage.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/native/exact-archive-install.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/native/exact-archive-upgrade.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/native/repeat-install-refusal.stderr": {
+      "bytes": 48,
+      "sha256": "b1fbcf143a81e3338a080171f0e9e4849c36d4cb54c37ea683225b0704be8069",
+      "mode": 436
+    },
+    "guest/work/native/ephemeral-test-key.pub": {
+      "bytes": 113,
+      "sha256": "15013cac3bbfbc09342d8617828d0b86e2c3a0ab1252ce76271f01241d5851ee",
+      "mode": 436
+    },
+    "guest/work/native/version.command.json": {
+      "bytes": 125,
+      "sha256": "c37ad5f79c94e8b582f7794d8f55353d31e93ef7663b6996d7e08620c9705d59",
+      "mode": 436
+    },
+    "guest/work/native/version.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "guest/work/native/notices-binding.json": {
+      "bytes": 143,
+      "sha256": "94fd13750eec3c4f70022ecefe0a45b16363daf5a0307714260e24ccf5a3f291",
+      "mode": 436
+    },
+    "guest/work/native/elf-version-information.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/native/data/attempts/att_56707fcc-3115-4ffe-9e71-20b07e41266e/jail.json": {
+      "bytes": 8461,
+      "sha256": "256ff19bd41e94d9f1441fba0abc80a74e13d140d37d81b7fe643c491c46c068",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_56707fcc-3115-4ffe-9e71-20b07e41266e/policy.json": {
+      "bytes": 2807,
+      "sha256": "ec4c74fd0d9e9106f7c8de31921726fef65c586ae2ea4042cdf41d1805dcdd00",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_56707fcc-3115-4ffe-9e71-20b07e41266e/jail-state.json": {
+      "bytes": 1027,
+      "sha256": "5cf29f496706db49caecf5205fe8c4972cd84998c81cb7d9608c98a8455d7c01",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_56707fcc-3115-4ffe-9e71-20b07e41266e/jail.lock": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_56707fcc-3115-4ffe-9e71-20b07e41266e/trace.ndjson": {
+      "bytes": 5494,
+      "sha256": "c8ad63d54d8af25130b4edc157fce14bc5cb3aefc93b01276bdce7698e511e8b",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_56707fcc-3115-4ffe-9e71-20b07e41266e/resolv.conf": {
+      "bytes": 22,
+      "sha256": "192a7dd1559c24ebc312e3a10eea69bcb0e56f554b3059f1acfe63303bad0025",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_09730dc4-139e-4020-8636-b8ca1769bc6d/jail.json": {
+      "bytes": 8483,
+      "sha256": "f2a13344e3229f000ee8c12eaaacc4198a897568d62f217a6736a6e84fee828a",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_09730dc4-139e-4020-8636-b8ca1769bc6d/policy.json": {
+      "bytes": 2809,
+      "sha256": "2e69de23b0ad90d7f42cf5c98891ae3d96c8adf38116a8f319a096fbfd50af89",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_09730dc4-139e-4020-8636-b8ca1769bc6d/jail-state.json": {
+      "bytes": 1027,
+      "sha256": "30442e2a34c6e57c5b7283ab97d81f43f26f7ae26031c0e792941ef360b7c22b",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_09730dc4-139e-4020-8636-b8ca1769bc6d/jail.lock": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_09730dc4-139e-4020-8636-b8ca1769bc6d/trace.ndjson": {
+      "bytes": 4022,
+      "sha256": "5d3473cef58d8e528033654692871949b79481589c0b082f49dc144c34d2ba56",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_09730dc4-139e-4020-8636-b8ca1769bc6d/resolv.conf": {
+      "bytes": 22,
+      "sha256": "192a7dd1559c24ebc312e3a10eea69bcb0e56f554b3059f1acfe63303bad0025",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_f300b012-9f08-4436-93a3-9506557a646e/jail.json": {
+      "bytes": 10057,
+      "sha256": "67278b31a614cb81f9224a33fd0be8320e1fba16a32468f4c093f90748e3629c",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_f300b012-9f08-4436-93a3-9506557a646e/policy.json": {
+      "bytes": 2916,
+      "sha256": "217ecfbc98c0f7a33dbeb7dfcadbc5015ecc3758557db0816be7b8f5eeabcb70",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_f300b012-9f08-4436-93a3-9506557a646e/jail-state.json": {
+      "bytes": 1311,
+      "sha256": "7a94f79e259340d97db270211b5f5da3468453673a8e6c2603d987a6e0f0dc6b",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_f300b012-9f08-4436-93a3-9506557a646e/jail.lock": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_f300b012-9f08-4436-93a3-9506557a646e/trace.ndjson": {
+      "bytes": 5494,
+      "sha256": "ce24a3bbc0d4998a64bad5432f5824601bac9668397147883e017b552992e4be",
+      "mode": 384
+    },
+    "guest/work/native/data/attempts/att_f300b012-9f08-4436-93a3-9506557a646e/resolv.conf": {
+      "bytes": 22,
+      "sha256": "192a7dd1559c24ebc312e3a10eea69bcb0e56f554b3059f1acfe63303bad0025",
+      "mode": 384
+    },
+    "guest/work/native/repeat-install-refusal.result.json": {
+      "bytes": 17,
+      "sha256": "5cc319f54b05a38799195a491c303aa686eab7caccfdbbf1e8b8c07405cb7392",
+      "mode": 436
+    },
+    "guest/work/native/installed/ukai-jail.release": {
+      "bytes": 76,
+      "sha256": "e014d2dc36cb74edf93c6fadec1b06901935c446e67e4431de3be7b31611b0f5",
+      "mode": 420
+    },
+    "guest/work/native/installed/ukai-jail.LICENSES.txt": {
+      "bytes": 2291615,
+      "sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd",
+      "mode": 420
+    },
+    "guest/work/native/installed/ukai-jail": {
+      "bytes": 12333808,
+      "sha256": "c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f",
+      "mode": 493
+    },
+    "guest/work/native/test-key-generate.command.json": {
+      "bytes": 269,
+      "sha256": "312a83a5021de008fb1e797f9a7354f08b1dc4250831e9e28593ff8a1d5fab98",
+      "mode": 436
+    },
+    "guest/work/native/exact-archive-upgrade.stdout": {
+      "bytes": 946,
+      "sha256": "b8d15481a25ec40ff55909d9b16d6ddb049ae786179f726e9261984f65328cbb",
+      "mode": 436
+    },
+    "guest/work/native/installer-regression.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/native/doctor-tool.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "guest/work/native/native-restage.stdout": {
+      "bytes": 1544,
+      "sha256": "aa61afba24a5b776c0403d3916dc5d801ff2f91a4247ccf5e78efca3c6c0c476",
+      "mode": 436
+    },
+    "guest/work/native/doctor-agent.command.json": {
+      "bytes": 150,
+      "sha256": "b2e11420a41e7c5fed27ea069d5b0546b07c5b0a56327bfd3de9dd211dd4e6aa",
+      "mode": 436
+    },
+    "guest/work/native/exact-archive-install.command.json": {
+      "bytes": 411,
+      "sha256": "1dbe5730383fcf925d34ed6e278d6d2ecf5661580fe0e4abf5be307814dd391a",
+      "mode": 436
+    },
+    "guest/work/native/test-key-owner.json": {
+      "bytes": 168,
+      "sha256": "a161a28402f87ddaf3a7a5a3679aa3aad08ab679e393d6a4fb6d3f4c2db7e83d",
+      "mode": 436
+    },
+    "guest/work/native/exact-archive-install.stdout": {
+      "bytes": 946,
+      "sha256": "b8d15481a25ec40ff55909d9b16d6ddb049ae786179f726e9261984f65328cbb",
+      "mode": 436
+    },
+    "guest/work/native/installer-regression.stdout": {
+      "bytes": 197,
+      "sha256": "adcb8e950023688bfff3efd1733c48613b1758a5008b3a8515217a9bc7053c64",
+      "mode": 436
+    },
+    "guest/work/native/elf-version-information.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "guest/work/native/exact-archive-upgrade.command.json": {
+      "bytes": 426,
+      "sha256": "6737722f55864c0b6d788f3b251e654de7460c1a6ae410d0e8b995c74fb62d28",
+      "mode": 436
+    },
+    "guest/work/native/input-binding.json": {
+      "bytes": 2079,
+      "sha256": "82ed9803f286801e589171db348daca33e73594afc9a804fe0d5b12538b00d77",
+      "mode": 436
+    },
+    "guest/work/native/doctor-tool.command.json": {
+      "bytes": 149,
+      "sha256": "ba3ccb1491311fa30619fbbaf1419092cf118c3432cb63387202cd9af163224b",
+      "mode": 436
+    },
+    "guest/work/native/doctor-agent.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "guest/work/native/exact-archive-install.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "guest/work/native/doctor-tool.stdout": {
+      "bytes": 12631,
+      "sha256": "0f0b8c3cd46fc5c03eeb0b1c088fb7d787d8093a686c15be8681a355edf0cd19",
+      "mode": 436
+    },
+    "guest/work/native/test-key-generate.stdout": {
+      "bytes": 470,
+      "sha256": "0cdf08b6738823a7b2d52175a9d45190653dbff8fec3f04804dad8d3c82b1a44",
+      "mode": 436
+    },
+    "guest/work/native/test-key-generate.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/native/doctor-agent.stdout": {
+      "bytes": 12752,
+      "sha256": "1639db7b0efeccd5c6d3edb751ca52ea73b82aa70e4514633a1ebf2ea305acc9",
+      "mode": 436
+    },
+    "guest/work/native/test-signed-source/install.sh": {
+      "bytes": 10085,
+      "sha256": "9c49ea8a0d7c2633b446d1912d9def945bb10dad325de6542320dd185a13f012",
+      "mode": 493
+    },
+    "guest/work/native/test-signed-source/ukai-jail-0.1.0-rc.7-aarch64-unknown-linux-gnu.tar.gz": {
+      "bytes": 4691180,
+      "sha256": "15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6",
+      "mode": 420
+    },
+    "guest/work/native/test-signed-source/SHA256SUMS": {
+      "bytes": 197,
+      "sha256": "7d425ac0d6f1fc2dfc51b26851e9be0faed36de2e44584175801f2490f5f0869",
+      "mode": 436
+    },
+    "guest/work/native/test-signed-source/SHA256SUMS.minisig": {
+      "bytes": 305,
+      "sha256": "36b3fab658d8749c79170ba4557609a9ef6e9ea46a218931f2dddf2a1f6ff24a",
+      "mode": 436
+    },
+    "guest/work/native/smoke/tool/verification.json": {
+      "bytes": 229,
+      "sha256": "59cae80d92dfcf48aba1a28d52b873c47bdff9f17e4b9ca5dd2f6de4e8711242",
+      "mode": 436
+    },
+    "guest/work/native/smoke/tool/command.json": {
+      "bytes": 700,
+      "sha256": "1a5154429b2a559b44bbd6e51d7a932b40941b4df3b2832476388420ad6dafb6",
+      "mode": 436
+    },
+    "guest/work/native/smoke/tool/work/output.txt": {
+      "bytes": 8,
+      "sha256": "7a396dbac3c3a28fd13921f1ab5a687f97508a619a38f21b2cae09797fe8e199",
+      "mode": 436
+    },
+    "guest/work/native/smoke/tool/outside.txt": {
+      "bytes": 26,
+      "sha256": "fb99b6dded33f9f99e4442cb612d7364bf150b0aa99ad7a63c6383471b357de9",
+      "mode": 436
+    },
+    "guest/work/native/smoke/tool/stdout": {
+      "bytes": 14,
+      "sha256": "675d019bb478bb454e82cafbec99fc7ce65bdd2d6d567809a9af8db77e40e6a3",
+      "mode": 436
+    },
+    "guest/work/native/smoke/tool/stderr": {
+      "bytes": 127,
+      "sha256": "31081e49a4c3a699f205c265f6fa599ebfa6f5601181125b164824103901fe5d",
+      "mode": 436
+    },
+    "guest/work/native/smoke/tool/receipt.json": {
+      "bytes": 8461,
+      "sha256": "256ff19bd41e94d9f1441fba0abc80a74e13d140d37d81b7fe643c491c46c068",
+      "mode": 384
+    },
+    "guest/work/native/smoke/agent/verification.json": {
+      "bytes": 230,
+      "sha256": "61d03924accfb7919139c96276ae6ce801f6225b86fb3daa6424bd384e5a9d85",
+      "mode": 436
+    },
+    "guest/work/native/smoke/agent/command.json": {
+      "bytes": 705,
+      "sha256": "e060310d26b9e80df3ff81b41045b2c55e6b99daf2cfc9d07473ef8e375aed84",
+      "mode": 436
+    },
+    "guest/work/native/smoke/agent/work/output.txt": {
+      "bytes": 8,
+      "sha256": "7a396dbac3c3a28fd13921f1ab5a687f97508a619a38f21b2cae09797fe8e199",
+      "mode": 436
+    },
+    "guest/work/native/smoke/agent/outside.txt": {
+      "bytes": 26,
+      "sha256": "fb99b6dded33f9f99e4442cb612d7364bf150b0aa99ad7a63c6383471b357de9",
+      "mode": 436
+    },
+    "guest/work/native/smoke/agent/stdout": {
+      "bytes": 15,
+      "sha256": "af341faeaac4d033c39e1e011e6d8c737bb554dc1a025f441773c1bd19e5739a",
+      "mode": 436
+    },
+    "guest/work/native/smoke/agent/stderr": {
+      "bytes": 128,
+      "sha256": "3df0add27b3cbc734b0514e66de2521465851d44059d3e640c86d28c5f6bf0f0",
+      "mode": 436
+    },
+    "guest/work/native/smoke/agent/receipt.json": {
+      "bytes": 10057,
+      "sha256": "67278b31a614cb81f9224a33fd0be8320e1fba16a32468f4c093f90748e3629c",
+      "mode": 384
+    },
+    "guest/work/native/smoke/deadline/verification.json": {
+      "bytes": 235,
+      "sha256": "2d7745659b099de1ae3f21455826f8e8170c4d3ed5c50bb74c5c358441ccd868",
+      "mode": 436
+    },
+    "guest/work/native/smoke/deadline/command.json": {
+      "bytes": 499,
+      "sha256": "024610156fab2736a840952f2f6bc0e005df44575a746a411afb9f0fd8b437eb",
+      "mode": 436
+    },
+    "guest/work/native/smoke/deadline/outside.txt": {
+      "bytes": 26,
+      "sha256": "fb99b6dded33f9f99e4442cb612d7364bf150b0aa99ad7a63c6383471b357de9",
+      "mode": 436
+    },
+    "guest/work/native/smoke/deadline/stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/native/smoke/deadline/stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "guest/work/native/smoke/deadline/receipt.json": {
+      "bytes": 8483,
+      "sha256": "f2a13344e3229f000ee8c12eaaacc4198a897568d62f217a6736a6e84fee828a",
+      "mode": 384
+    },
+    "guest/work/native/installer-regression.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    }
+  },
+  "file_count": 152,
+  "regular_guest_files": 107,
+  "guest_regular_bytes": 24156071,
+  "private_tmp_excluded": true,
+  "original_generations_unchanged": true,
+  "owned_image_holders_absent": true,
+  "host_port_available": true,
+  "qemu_clean_exit": true,
+  "guest_scope_empty_client_reaped": true,
+  "ephemeral_test_keys_absent": true,
+  "free_after": 14650859520,
+  "elapsed_seconds": 1.7087160001974553,
+  "retention_script_sha256": "a6e6cd3183d8df8f3892c48631a2de49375b232553eaba47dc4591315772bedc"
+}

@@ -1,0 +1,615 @@
+{
+  "schema": "ukai.vm.component-proof-bundle/1",
+  "package_source_revision": "c25c297fc61b7d0edb71d929a1b067faeeb03b53",
+  "admission_tool_revision": "c25c297fc61b7d0edb71d929a1b067faeeb03b53",
+  "program_binding_helper_revision": "c25c297fc61b7d0edb71d929a1b067faeeb03b53",
+  "raw_evidence_copied_verbatim": true,
+  "sources": {
+    "capabilities/capabilities.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-capabilities-c25c297fc/capabilities.json",
+      "sha256": "dbc9c692488bb14b831848aeff848f334706992c41b56f8aeab1de4188cfac29",
+      "bytes": 634433
+    },
+    "component-replay/boundary-acceptance.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/boundary-acceptance.json",
+      "sha256": "7689868e9d0fe3bebb20476fe1756a003ddf1c4f55175667929b183d981dcdd6",
+      "bytes": 8624
+    },
+    "component-replay/boundary-command.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/boundary-command.json",
+      "sha256": "79fbf74f65a5fd653665e9943d2c77bc7b5c0c1f84ea90b7fd263c1740609149",
+      "bytes": 1593
+    },
+    "component-replay/boundary-outer.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/boundary-outer.json",
+      "sha256": "decc0b529f974cf84d6989699846239d994044f8124d81dbc69743e432da1d5a",
+      "bytes": 486
+    },
+    "component-replay/boundary-result.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/boundary-result.json",
+      "sha256": "7fe7f4097adfc78af5efd570593ee7f823a58f0767863b4533b355675c70cfef",
+      "bytes": 287
+    },
+    "component-replay/capabilities-acceptance-v1-schema-refusal.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/capabilities-acceptance-v1-schema-refusal.json",
+      "sha256": "1831f26e93ca77ad667ce3945ce7357521a28a4e86d87c684ebf5f0aed0b0c8b",
+      "bytes": 1320
+    },
+    "component-replay/capabilities-acceptance.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/capabilities-acceptance.json",
+      "sha256": "441a8f6d832a5eee0ee83c0324dd621c78ad9ffe9e419df64e16654261a05256",
+      "bytes": 23174
+    },
+    "component-replay/capabilities-command.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/capabilities-command.json",
+      "sha256": "f15011224aeefdc5718402606bd24f3de1280f210a87daf83fad09259d0c485d",
+      "bytes": 1694
+    },
+    "component-replay/capabilities-outer.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/capabilities-outer.json",
+      "sha256": "050ad54d8180a3a7e5c226922020a92b4ce5adc224394831ad927a5aa9324431",
+      "bytes": 490
+    },
+    "component-replay/capabilities-result.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/capabilities-result.json",
+      "sha256": "cbf09acf48aa6ad3e0bbc85e7a0d4c41d480bfc10ae85c485344519682cd3ce8",
+      "bytes": 283
+    },
+    "component-replay/program-acceptance.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/program-acceptance.json",
+      "sha256": "dea4681c957fc7c0bd88dd98fa83ffc85c8c612d780eee3ff4fa5a9e0146018f",
+      "bytes": 3203
+    },
+    "component-replay/program-command.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/program-command.json",
+      "sha256": "756876473be878539eaef7e34e45722114dc51bfdb6fa3cd0b74eab887a0e8ec",
+      "bytes": 1951
+    },
+    "component-replay/program-outer.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/program-outer.json",
+      "sha256": "3ac4dfffd8d4c6dac99d4b8dc11af59e73d9f32e5b497fe1b0641706a6abc601",
+      "bytes": 486
+    },
+    "component-replay/program-result.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/program-result.json",
+      "sha256": "4011dc9b879a98ce2af9701fb0727782480d4b7aac9cd1ad7af5c0d5f8b197ec",
+      "bytes": 285
+    },
+    "component-replay/staging-acceptance.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/staging-acceptance.json",
+      "sha256": "c7f96a29a0f8f515ddcad0ac0693df3570db9473a1965bfeaacab09da1317e42",
+      "bytes": 3722
+    },
+    "component-replay/staging-command.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/staging-command.json",
+      "sha256": "a1b689c5bd9001ca7e7ed060a4d38332139bb830a177f6e29a3633651066ac5b",
+      "bytes": 1977
+    },
+    "component-replay/staging-outer.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/staging-outer.json",
+      "sha256": "8f5f59c9827021543497b3723bf68eb8dcccbe56bef4bca3f1fac6e3cde3e854",
+      "bytes": 483
+    },
+    "component-replay/staging-result.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/staging-result.json",
+      "sha256": "24763adc2b4a4af93d0d058fcefdc92f9a4d2c510a2d33e13bc6c3cf35509a8f",
+      "bytes": 285
+    },
+    "component-replay/vault-acceptance-v1-schema-refusal.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/vault-acceptance-v1-schema-refusal.json",
+      "sha256": "bdb0e53e60d94a6357653756e306d0e6f0f98fd728d6a0b5a9f5557c4e40c288",
+      "bytes": 1467
+    },
+    "component-replay/vault-acceptance.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/vault-acceptance.json",
+      "sha256": "a19515794f50baed926ae1788f3aedab32105c9652d75bc96d3ccc0b182164e1",
+      "bytes": 3292
+    },
+    "component-replay/vault-command.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/vault-command.json",
+      "sha256": "7274c7f8c7bfe56b7859d68c07f9b3b539d79a42b40bcb5f058ec88733dac615",
+      "bytes": 1912
+    },
+    "component-replay/vault-outer.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/vault-outer.json",
+      "sha256": "6625cb57ab209d513ab4e9f904a204e806216e003bb6454fa32038addeef1be5",
+      "bytes": 484
+    },
+    "component-replay/vault-result.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/vault-result.json",
+      "sha256": "8219fd8299de4d567e5aeb825c545024ebeb28bf980718ac2a6248a484016082",
+      "bytes": 284
+    },
+    "credential-staging/credential-staging.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-credential-admission-c25c297fc/credential-staging.json",
+      "sha256": "42895ce9fd2e8b037d9b970ad115087bdb5a67c702920e61646b7c7d126522ca",
+      "bytes": 21117
+    },
+    "credential-staging/derivation.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-credential-admission-c25c297fc/derivation.json",
+      "sha256": "aa4210dd789e38a7665d9391dde5ee5ed81381225ba789d2721e8561ffd5b5c4",
+      "bytes": 4925
+    },
+    "execution-boundary/execution-boundary.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-boundary-c25c297fc/execution-boundary.json",
+      "sha256": "ee75db9180220f8cccdb004d946b54230877e891f3d3af70aaee0373823dbe77",
+      "bytes": 8026
+    },
+    "image/build-command.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-build-v6/command.json",
+      "sha256": "9ada57f6ed50894ebafe0dcecf868656e790fb762bfe6673836ff378ed428c1c",
+      "bytes": 5146
+    },
+    "image/build-result.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-build-v6/result.json",
+      "sha256": "5219ec2f94e29197504ad0d5d02db843649e3d0ed962b9bc976f442d6eb75977",
+      "bytes": 1317
+    },
+    "image/guest-exposure-control.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v6/guest-exposure-control.json",
+      "sha256": "55f8d826fbb9326151f09971d92787844b08e5d0cc86b4a0c835cbaa76c50057",
+      "bytes": 1026
+    },
+    "image/guest-program-catalog.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v6/guest-program-catalog.json",
+      "sha256": "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244",
+      "bytes": 1184
+    },
+    "image/independent-review.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/native-v6-independent-review/prepared-review-v2.json",
+      "sha256": "9dfc1779be9b6c55fef1fe25ebfe3da0ddfd203291f15a2e9229fabd0b25384a",
+      "bytes": 11622
+    },
+    "image/prepared-image.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v6/image.json",
+      "sha256": "79fef747cd312cad12742cdaf2d79ae55ba631b6b692fb4ab7e154d7f8d26f2e",
+      "bytes": 6746
+    },
+    "image/profile-metadata/claude.toml": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/profiles/launch/claude.toml",
+      "sha256": "e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24",
+      "bytes": 4014
+    },
+    "lifecycle.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/completion.json",
+      "sha256": "4ff325c51dfc94b7c40a95503ffb8512daec00cbde8acff224cebe9a7e90fea0",
+      "bytes": 17216
+    },
+    "lifecycle/staging-attachment.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/staging-attachment-lifecycle.json",
+      "sha256": "34c203444c481d76e6eab5fea195c006ac7c211f3219040d163e560f14634eb5",
+      "bytes": 223
+    },
+    "lifecycle/workspace.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/workspace-lifecycle.json",
+      "sha256": "0b0b1a0ca62badbfb7d58e7a70605a826a184af393625c3c14cb0eff1e5a0210",
+      "bytes": 200
+    },
+    "package/SHA256SUMS": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-build-c25c297fc/retained-package/SHA256SUMS",
+      "sha256": "4c786fbc7eb61db02eb47acc3d9b581161e149d94a51708a7009e5d87ac14f4f",
+      "bytes": 1510
+    },
+    "package/client-version.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc/client-version.json",
+      "sha256": "0504cb6f21d19fcdbf71e892faa5752e162c2b11aa7fe5f66ce93fd63c69a334",
+      "bytes": 1009
+    },
+    "package/independent-review.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-c25c297fc/verification.json",
+      "sha256": "f64ac5589ccad0b7636923ddfcfa8d29d41ef61351016027b92a0497b426b63f",
+      "bytes": 5046
+    },
+    "package/installed-identity.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-build-c25c297fc/installed-identity.json",
+      "sha256": "92eb5f5c526710c42cb5bde512f26260045d050ea12729f2300a74c38adbde3d",
+      "bytes": 4244
+    },
+    "package/installer-fixtures/manifest-tamper.cleanup.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc/manifest-tamper.cleanup.json",
+      "sha256": "320729abb34ddd6a6fa5acfdcd514f726993a2b1d88ce3cc0b54c0bda1936b88",
+      "bytes": 51
+    },
+    "package/installer-fixtures/manifest-tamper.fixture.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc/manifest-tamper.fixture.json",
+      "sha256": "5a733aba229c865eaffcf501ab29f7661163ac99f21bbeb8090ae050e13a6da3",
+      "bytes": 6044
+    },
+    "package/installer-fixtures/manifest-tamper.stderr": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc/manifest-tamper.stderr",
+      "sha256": "0e9c113591e2548edf39e8f91999ca083145047e4a48caf89352dbd6eee2c873",
+      "bytes": 36
+    },
+    "package/installer-fixtures/manifest-tamper.stdout": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc/manifest-tamper.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "package/installer-fixtures/payload-extra.cleanup.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc/payload-extra.cleanup.json",
+      "sha256": "86d405aec8ddf33ac8dd8c9ff5761ddff84102e310ad75ce2536d7bfea9825f9",
+      "bytes": 49
+    },
+    "package/installer-fixtures/payload-extra.fixture.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc/payload-extra.fixture.json",
+      "sha256": "d7257a7228fe0bafe52fb0fa7c63b1ae86c54d88e81e3778440ef4ca958afa64",
+      "bytes": 6200
+    },
+    "package/installer-fixtures/payload-extra.stderr": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc/payload-extra.stderr",
+      "sha256": "63792a494fd3978a9d2640c2c25751727fbe11422b31296db64eda95fb6dc0cc",
+      "bytes": 56
+    },
+    "package/installer-fixtures/payload-extra.stdout": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc/payload-extra.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "package/installer-fixtures/payload-tamper.cleanup.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc/payload-tamper.cleanup.json",
+      "sha256": "76bcb569fc08f9a228abceb9d945e2b7da5fd0965b20ef4d100f7d9b7cc12c8b",
+      "bytes": 50
+    },
+    "package/installer-fixtures/payload-tamper.fixture.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc/payload-tamper.fixture.json",
+      "sha256": "59380cfbb7ec5238fedd6cd2ad0a276bcbcf66153f5598992ced10d33f122900",
+      "bytes": 6049
+    },
+    "package/installer-fixtures/payload-tamper.stderr": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc/payload-tamper.stderr",
+      "sha256": "1a9bfcccd3fdb99302d46dc28c78722d71f7992c8629c30b7683661b4c796624",
+      "bytes": 27
+    },
+    "package/installer-fixtures/payload-tamper.stdout": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc/payload-tamper.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "package/installer-summary.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc/summary.json",
+      "sha256": "0a67bed6d29e6450eb81541ef8cd36bca2a635a31d6a44a99d14bf6a3772d347",
+      "bytes": 1375
+    },
+    "package/package.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-c25c297fc/package.json",
+      "sha256": "56f6432226032ae40d9b1731e2a18b7a81688992acb27679893fae6f1e397be7",
+      "bytes": 17847
+    },
+    "package/service-version.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc/version.json",
+      "sha256": "da14d9c19e00c24a7ef35dd81bcc829e14080fdb6db2cebc0d2d888c6bbd611b",
+      "bytes": 220
+    },
+    "package/signature-client.execution.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-build-c25c297fc/signature-client.execution.json",
+      "sha256": "9026983a2a63b7689d06940e4969a442d8c286b3a71b801e14b7fc767b1bfea3",
+      "bytes": 704
+    },
+    "package/signature-custodian.execution.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-build-c25c297fc/signature-custodian.execution.json",
+      "sha256": "bba0be36dd8364ebbfacd6f94802d2b6db443e5c4379b88848f08b86cd628b40",
+      "bytes": 706
+    },
+    "package/signature-dmg.execution.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-build-c25c297fc/signature-dmg.execution.json",
+      "sha256": "b554dceae5724d7ad0598b2a3e875d53247a3632633212d93e10ebd633cb31fc",
+      "bytes": 743
+    },
+    "package/signature-installer.execution.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-build-c25c297fc/signature-installer.execution.json",
+      "sha256": "e1c802f213b0dc4c71b96797cd0299bbc55797a143bdadb8881df75e40e3583a",
+      "bytes": 710
+    },
+    "package/signature-service.execution.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-build-c25c297fc/signature-service.execution.json",
+      "sha256": "20dba2abc1c66d5e82f9c52c745933ccdd85f2c40c5aa964c14e118847e48061",
+      "bytes": 700
+    },
+    "package/signature-vz.execution.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-build-c25c297fc/signature-vz.execution.json",
+      "sha256": "b1734331935f06f4b824bc2d092af42c010b3406605179be75bafe89bb37cfa0",
+      "bytes": 699
+    },
+    "package/signatures.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-build-c25c297fc/signatures.json",
+      "sha256": "1eebb9ab9450179f5961338fd7a86f8b63ac0e17c68c95fe2834b5b3224c9610",
+      "bytes": 795
+    },
+    "package/signing-plan.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-build-c25c297fc/plan.json",
+      "sha256": "79f98b24747fa75daf4dc9c48c2166e9582c309d5c2574c0562f199d30e8e78d",
+      "bytes": 18780
+    },
+    "package/stage-cleanup.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-build-c25c297fc/stage-cleanup.json",
+      "sha256": "d06e8717b91450d2cb66491ca45d00c7fa9454d4b82ae759e9438cad38197023",
+      "bytes": 321
+    },
+    "package/stage-verification.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-build-c25c297fc/stage-verification.json",
+      "sha256": "7b13568afc512fc48194541b93c6a8e1132184161d1f3c93b385cf71628b4cfd",
+      "bytes": 8929
+    },
+    "program-binding/guest-artifact/evidence/guest-journal/0000.part": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-program-binding-c25c297fc/guest-artifact/evidence/guest-journal/0000.part",
+      "sha256": "1f0a41739e1a69ba2e363a3fadefc56ac196f0fc30188bbdbbcc7490fda55c47",
+      "bytes": 11894
+    },
+    "program-binding/guest-artifact/evidence/guest-journal/manifest.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-program-binding-c25c297fc/guest-artifact/evidence/guest-journal/manifest.json",
+      "sha256": "3af506d263dbfb0b9d59fabc8c475b050435f3c9ab0abf16c2b469736e321b84",
+      "bytes": 320
+    },
+    "program-binding/guest-artifact/evidence/jail.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-program-binding-c25c297fc/guest-artifact/evidence/jail.json",
+      "sha256": "2cd75d5a090791b9151080d2872c9a1092df34be60cdad48b6f19fd31e81f5dc",
+      "bytes": 11628
+    },
+    "program-binding/guest-attempt/jail.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-program-binding-c25c297fc/guest-attempt/jail.json",
+      "sha256": "2cd75d5a090791b9151080d2872c9a1092df34be60cdad48b6f19fd31e81f5dc",
+      "bytes": 11628
+    },
+    "program-binding/guest-attempt/trace.ndjson": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-program-binding-c25c297fc/guest-attempt/trace.ndjson",
+      "sha256": "1f0a41739e1a69ba2e363a3fadefc56ac196f0fc30188bbdbbcc7490fda55c47",
+      "bytes": 11894
+    },
+    "program-binding/inputs.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-program-binding-c25c297fc/inputs.json",
+      "sha256": "d2876f3863fc38cad45dfe8cc4101a0b4ab54bef9cd9be0abc4ed5f73a5f087f",
+      "bytes": 105992
+    },
+    "program-binding/measurement.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-program-binding-c25c297fc/measurement.json",
+      "sha256": "a0d0d0c8cc3aa6ce9bb44dc5b107e97fcde08bc555757eaa316c0340693dc74a",
+      "bytes": 163
+    },
+    "program-binding/result.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-program-binding-c25c297fc/result.json",
+      "sha256": "ea05112407a29231f0a762d4c19037e57cc1bc8dab56547a6e1f1057879e850f",
+      "bytes": 2162
+    },
+    "program-binding/sync-artifact/evidence/guest-journal/0000.part": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-program-binding-c25c297fc/sync-artifact/evidence/guest-journal/0000.part",
+      "sha256": "917b7b569656892277f7da36b181f770a2285255fc065f0ce7ace34c1e6f6303",
+      "bytes": 3032
+    },
+    "program-binding/sync-artifact/evidence/guest-journal/manifest.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-program-binding-c25c297fc/sync-artifact/evidence/guest-journal/manifest.json",
+      "sha256": "12073c0f2a50974c87375a9120621a7fbd10312123e18edb64788f192cb61835",
+      "bytes": 319
+    },
+    "program-binding/sync-artifact/evidence/jail.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-program-binding-c25c297fc/sync-artifact/evidence/jail.json",
+      "sha256": "0d23d53e0d60c10098184d1395a722604f8e193815792204a84f94f22bdf3f1f",
+      "bytes": 8481
+    },
+    "raw-vault/auxiliary-output.txt": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-c25c297fc/auxiliary-output.txt",
+      "sha256": "75a11da44c802486bc6f65640aa48a730f0f684c5c07a42ba3cd1735eb3fb070",
+      "bytes": 2
+    },
+    "raw-vault/guest-artifact/evidence/guest-journal/0000.part": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-c25c297fc/guest-artifact/evidence/guest-journal/0000.part",
+      "sha256": "046e9efe08405be9e97a81cfa7c248c460932b34125b0811c4ae94851707ecb7",
+      "bytes": 8271
+    },
+    "raw-vault/guest-artifact/evidence/guest-journal/manifest.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-c25c297fc/guest-artifact/evidence/guest-journal/manifest.json",
+      "sha256": "850cb3f7ead4afb2ba3bc93fe2a94b2fb4fd2d2ea8480affdb6217e7e4c5f933",
+      "bytes": 319
+    },
+    "raw-vault/guest-artifact/evidence/jail.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-c25c297fc/guest-artifact/evidence/jail.json",
+      "sha256": "f422bfce027dba843597cbcc4547919f6addf6d011d33aa5d09b023e3a9398b5",
+      "bytes": 11628
+    },
+    "raw-vault/guest-tail.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-c25c297fc/guest-tail.json",
+      "sha256": "a68341ec36981661be644bab7c37d6e057542ec42b9e45bcefbe8acbb16096ff",
+      "bytes": 2701
+    },
+    "raw-vault/guest-tail.stderr": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-c25c297fc/guest-tail.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "raw-vault/guest-tail.txt": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-c25c297fc/guest-tail.txt",
+      "sha256": "4ce82aa8385266d071fbc96a96d2d5e1631a09944dfb77a260794dd48aa3c870",
+      "bytes": 557
+    },
+    "raw-vault/image.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-c25c297fc/image.json",
+      "sha256": "44fb8e11513fac74f1472f6315c3868c5c9d60034d828a97bbc913e8e13e1363",
+      "bytes": 15351
+    },
+    "raw-vault/raw-credential-revocation.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-c25c297fc/raw-credential-revocation.json",
+      "sha256": "10bb4db6dfe3d5b489812f5ad31206eccf9c01c84cb45cd0e06284f56d3b7073",
+      "bytes": 33703
+    },
+    "raw-vault/raw-inputs.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-c25c297fc/raw-inputs.json",
+      "sha256": "d9d4ebe11c1caa020ed97d864d8a60cd9833de805ccc734a3d42c6de047f1da7",
+      "bytes": 42222
+    },
+    "raw-vault/raw-launch.toml": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-c25c297fc/raw-launch.toml",
+      "sha256": "600ff703299fc87c932d6f23de0a737476ed9934887249e90bdb52aa25662375",
+      "bytes": 307
+    },
+    "raw-vault/raw-stderr.txt": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-c25c297fc/raw-stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "raw-vault/raw-stdout.txt": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-c25c297fc/raw-stdout.txt",
+      "sha256": "396783b1b0916485ac74df98307ca1eb2359228f3a1a3310c1f6d9038e7d4df2",
+      "bytes": 198
+    },
+    "raw-vault/sync-artifact/evidence/jail.json": {
+      "source_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-c25c297fc/sync-artifact/evidence/jail.json",
+      "sha256": "15143d44c9aeb4e1665b4f7ebc27c0a13bec0ae6e3c05a6106127741a3930ce0",
+      "bytes": 8481
+    },
+    "tools/capabilities.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/capabilities.py",
+      "sha256": "f49038c154933d64497bd3ceb1b94d173fb711f506bd4cc39250ee07e43f86c5",
+      "bytes": 92429
+    },
+    "tools/claude_vm_row.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/claude_vm_row.py",
+      "sha256": "3beada82a59f7e10b28b5a98874b193fb7d9cd0acc1a44043e798071d1afe5bd",
+      "bytes": 92958
+    },
+    "tools/credential_revocation_measurement.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/credential_revocation_measurement.py",
+      "sha256": "117ca2da3d9572d75613a4a4048a82995d01d5f7691feeeeb65bb759883a9710",
+      "bytes": 69295
+    },
+    "tools/credential_staging_measurement.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/credential_staging_measurement.py",
+      "sha256": "646eb2d6e3eaee50ee19ca7da938e81b8e6ff173c91809d6394354b5a5a2ce45",
+      "bytes": 18939
+    },
+    "tools/custodian.c": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/custodian.c",
+      "sha256": "d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab",
+      "bytes": 5304
+    },
+    "tools/execution_boundary_measurement.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/execution_boundary_measurement.py",
+      "sha256": "98087e09c93a54fc08effd2f365fc6b90034946206330ee75dc3c816c82024eb",
+      "bytes": 7261
+    },
+    "tools/fixtures/guest-program-catalog-vectors.json": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/fixtures/guest-program-catalog-vectors.json",
+      "sha256": "1d95c2b9e03f188ae6a7de4368225b5aecc95ba397a174a6f6e21ebd9a5a229e",
+      "bytes": 36254
+    },
+    "tools/fixtures/guest-program-catalog.json": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/fixtures/guest-program-catalog.json",
+      "sha256": "7d2537a8b780252d16303344c27957f3bc322290767d3d5f7b11cf27d8053d48",
+      "bytes": 1177
+    },
+    "tools/fixtures/sampled-exposure-context.json": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/fixtures/sampled-exposure-context.json",
+      "sha256": "f7eee64c6c458b1616a4a9e81b26ded7b9de321768c1f7793df27b0a79f8f6d6",
+      "bytes": 458
+    },
+    "tools/fixtures/sampled-exposure-receipt.json": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/fixtures/sampled-exposure-receipt.json",
+      "sha256": "b5be8a2fbfa5974acb76093f18fe97d93d01f9dc098a0c49fafc904d37ce1e58",
+      "bytes": 182
+    },
+    "tools/fixtures/sampled-exposure-report.json": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/fixtures/sampled-exposure-report.json",
+      "sha256": "69ec82eb3dd3cd74be8a2b02cb4773671d06ef42763cb98800eadc56b0cab464",
+      "bytes": 2955
+    },
+    "tools/guest.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/guest.py",
+      "sha256": "06dad8f602567645a1d7992a72f27d0da7b9cb1a4a62707c8cf556646fcddfdc",
+      "bytes": 88769
+    },
+    "tools/guest_exposure.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/guest_exposure.py",
+      "sha256": "369dd19420ef422b4cb51231f3e1f9119a2eaaf78d54b71d781f5ff9cf61c5ec",
+      "bytes": 32272
+    },
+    "tools/guest_exposure_control.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/guest_exposure_control.py",
+      "sha256": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f",
+      "bytes": 6369
+    },
+    "tools/guest_program.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/guest_program.py",
+      "sha256": "fc73abbf2189a6216595da25b9b69aa03cc38735249c45d0e70e064020eb29bf",
+      "bytes": 14815
+    },
+    "tools/harness.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/harness.py",
+      "sha256": "bfef94a3d631dcf54f0d4ef169546ad1ef0b9f9ca33ef942c35aa6580e8b8ccd",
+      "bytes": 57252
+    },
+    "tools/prepare.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/prepare.py",
+      "sha256": "d9aef47dff24192e690ec8a479a127d02f8e443182e25461709cd07a438e7e5a",
+      "bytes": 24440
+    },
+    "tools/program_binding_measurement.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/program_binding_measurement.py",
+      "sha256": "a335a1bb70663b99edf06391baad42c13977bdfbe05310057e92ebe458b4bce5",
+      "bytes": 32802
+    },
+    "tools/run.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/run.py",
+      "sha256": "4a68643b43950a80788d113feebb841f9ab90890735e235081041b123a835412",
+      "bytes": 33976
+    },
+    "tools/stream_peer.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/stream_peer.py",
+      "sha256": "8a082a0708833def269a54d55095f404e0ffa83b7b21643563bedfdc6d6a632f",
+      "bytes": 16757
+    },
+    "tools/test_credential_staging_measurement.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/test_credential_staging_measurement.py",
+      "sha256": "eeb70c785b89952183219572340913507530895c678171abccd8de6cfe72825d",
+      "bytes": 18344
+    },
+    "tools/test_program_binding_measurement.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/test_program_binding_measurement.py",
+      "sha256": "842c70dda4a8a79775d9d72bb932bbb8bddac23ea7a74a6fe4773dcab9135fc3",
+      "bytes": 22273
+    },
+    "tools/test_vm_summary_check.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/test_vm_summary_check.py",
+      "sha256": "207a2cc4a5d11124a9a64088a1e748889b27b03bb14f668775fa91aed42e95a0",
+      "bytes": 50160
+    },
+    "tools/vault_measurement.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/vault_measurement.py",
+      "sha256": "7febfe5d834d9624e81d56d1d7e72a328b641a9c2feb98f6689164e55d6055f6",
+      "bytes": 16595
+    },
+    "tools/vm_summary_check.py": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/vm_summary_check.py",
+      "sha256": "0dfd2881cc1c148023ec1c49f5b04eecb72c4a33dad61f275ace8edfa81f6d24",
+      "bytes": 81040
+    },
+    "tools/vz.swift": {
+      "source_path": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/vz.swift",
+      "sha256": "d1d3c87ad70bf770ab0d9c1f250fe2f64b5baee162f2b28dcf3f2cb89f0df32a",
+      "bytes": 9384
+    }
+  },
+  "derived_files": {
+    "program-binding/offline-replay.json": "Recomputed by exact copied c25 helper from fresh v6 evidence; no additional live run.",
+    "native-admission.json": "Fresh offline derivation from exact c25 components, with source Git blob comparison; four qualification flags false.",
+    "native-admission-review.json": "Checks and source bindings from the same offline derivation; retained external package/image reviews remain separate.",
+    "replay.py": "Versioned v6 reader adapting actual c25 signatures and installed disk schema, retaining exact component predicates.",
+    "tool-validation.json": "Actual 67 copied-tool offline test outcomes.",
+    "replay-result.json": "Deterministic replay result of the finalized retained bundle.",
+    "README.md": "Evidence scope and replay instructions.",
+    "inventory.json": "Sizes and SHA-256 of retained bundle files excluding the integrity manifests themselves.",
+    "SHA256SUMS": "All retained file SHA-256 values except this manifest."
+  },
+  "excluded": [
+    "DMG",
+    "raw disk",
+    "seed ISO",
+    "binaries",
+    "source archive",
+    "full build logs",
+    "provider credentials"
+  ],
+  "scope": "Fresh v6 generic guest and literal program-binding components. Native vendor, sampling, K113, rebuilt-host and release qualification remain false. Historical paths are provenance only.",
+  "derivation_tool_sha256": {
+    "assemble.py": "752b45f1f647883bf193a0b7366eaeb9fec2540b80d58ad23073af6098ec8f53",
+    "derive.py": "424abcb31663a88a5e3d884073e37d92aa5790ac3405e4a0678227f90a5fcee9",
+    "replay.py": "176b66fe39c56580ca0ad8199873ce8ca93ee84217ff48d9801fc67d1e724603"
+  }
+}

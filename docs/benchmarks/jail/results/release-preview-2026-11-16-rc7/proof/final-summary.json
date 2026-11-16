@@ -1,0 +1,107 @@
+{
+  "schema": "ukai.reference-onboarding-final/1",
+  "outcome": "PASS",
+  "checks": {
+    "plan_exact": true,
+    "local_remote_outer_pass": true,
+    "local_cleanup_verified": true,
+    "outer_reaped_and_absent": true,
+    "original_source_unchanged": true,
+    "remote_inputs_unchanged": true,
+    "vm_guest_pass": true,
+    "vm_destroyed_and_temporary_removed": true,
+    "guest_stage_source_unchanged": true,
+    "no_guest_cleanup_retention_errors": true,
+    "private_remote_stage_removed": true,
+    "remote_client_reaped_and_unit_empty": true,
+    "final_scope_absent": true,
+    "final_scratch_empty_and_no_vm_compiler": true,
+    "final_disk_reserve": true,
+    "exact_F_binary": true,
+    "exact_clean_F_source": true,
+    "exact_runtime_inputs": true,
+    "one_attempt_each_two_vendor_lanes": true,
+    "fixed_vendor_model": true,
+    "owning_workflows_pass": true,
+    "owning_onboarding_under600s": true,
+    "distribution_checks_pass": true,
+    "ephemeral_signing_only": true,
+    "raw_key_scans_complete_clean": true,
+    "retention_exact_stable": true,
+    "no_retry_oauth": true,
+    "outer_within3000s": true
+  },
+  "files": {
+    "plan-ready.json": "847b8256fa01135e4af8501b52c62cf4c5746a09093504b0a00d67aadecbad01",
+    "commands.json": "c0ce80faf1efffeea596fffbbad1101f91a370b55fa71eb4c2567766a761e329",
+    "coordinator.py": "a6794186bac8bf069695b6ce40ab6fec1053d555d1fc0da89d6d66be30450ffb",
+    "local.py": "f874ce81ee449a698104700f5ea690320663fd798c3245808d3ff16c0d1ae3a5",
+    "source.tar": "bcb7d0ac9e50fefbeeb5b4b3a58b56fd544027205c3d728da44c5a2d02d69ef9",
+    "inventory.json": "c36bc5277245225f3120248e3c5ea035e50f34644bf5fcfb036620d7a362f867",
+    "independent-runtime-review.json": "6217224fb37a17dcc99584df3bdbb0ce408934a5e0f77f49e27258fdf4750d54",
+    "transfer-execution/summary.json": "6e10f36d0594da696c7ae0178ac31f07e306a7ad64f974178ec1e6159bccc372",
+    "transfer-execution/prepared-verification.json": "45f9ba3c1f4d93d2d1ba72c415ea8be52739f1fce5551275915cfc158499d121",
+    "provider-launch.json": "9fd70abb2a11cc3db0537534e01f533af4b76bc33b0489fa234ee3327b43f0f5",
+    "execution/result.json": "c4817351f3064dbc0efc3085f23c06a6272ed07fff5134e57b28c799f4622001",
+    "retained/control/result.json": "156b491a4af259ea04b2e2c6f0d9448224f62d20708277fbc11bb9e5ef4ba711",
+    "retained/evidence/vm.json": "c97ee0b6c50dc63f95410a51ce0ad4e8a56c797acbfeb5b5ecfa109bfa6c26f7",
+    "retained/evidence/guest/result.json": "e27bb7765ab5dccbd792145945b6aa2601efa367365cfc3045dfb07b041f526d",
+    "retention-execution/summary.json": "3a2d58332e16a1e7125bec3e7d8c0110774dab24222a2820ce9551e310b6e545",
+    "retain-final.py": "fcb826b32c8733646121843cc4734c998c02e8ca54abccf885e41d3bdf14f307",
+    "finalize-summary.py": "55254505b0660ca301cd1e7375f813a7f397d46dce065eb03fe7db82f58aac4c"
+  },
+  "source_F": "f745bfbfc5bfe4945cf5fc7c5d88e497db9e6768",
+  "harness_G": "dce53219bb8cb0ecf89047dd9820404da9a51c26",
+  "runtime_inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+  "release_version": "0.1.0-rc.7",
+  "timing_seconds": {
+    "outer": 773.3236403749324,
+    "bootstrap": 460.8464334215969,
+    "owning_onboarding": 152.03164380399994
+  },
+  "vendor_attempts": [
+    {
+      "name": "opencode",
+      "seconds": 117.08221639500005,
+      "exit": 0,
+      "vendor_attempt": 1,
+      "vendor_attempt_limit": 1,
+      "attempt_ids": [
+        "att_0ee0a67d-0ca8-465d-8508-da2f1364c254"
+      ]
+    },
+    {
+      "name": "opencode-learn",
+      "seconds": 97.80991869600007,
+      "exit": 0,
+      "vendor_attempt": 1,
+      "vendor_attempt_limit": 1,
+      "attempt_ids": [
+        "att_6859c9f5-3ff1-43a3-bd02-127e33fc6196"
+      ]
+    }
+  ],
+  "cleanup": {
+    "scope": {
+      "ActiveState": "inactive",
+      "ControlGroup": "",
+      "LoadState": "not-found"
+    },
+    "stage_absent": true,
+    "scratch_empty": true,
+    "active": [],
+    "free_bytes": 26517651456
+  },
+  "retained_files": 100,
+  "retained_bytes": 3279407,
+  "scope": [
+    "fresh x86_64 Linux VM under TCG; F binary with exact G harness and unchanged compiled inputs",
+    "two actual API-key OpenCode CLI workloads, one launch each; no hard provider request/token/dollar cap",
+    "K27 owning timer excludes VM and dependency bootstrap",
+    "ephemeral test signatures only; no publication or production signing",
+    "complete raw-key retained-file scans; no encoded-spelling or memory absence claim",
+    "historical candidate/measurement failures remain unchanged"
+  ],
+  "independent_owning_replay": "release agent owns separate final record",
+  "summary_authoring_note": "Initial in-memory summary attempt referenced seconds instead of owning elapsed_seconds; no output file was written and no execution repeated."
+}

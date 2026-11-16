@@ -1,0 +1,926 @@
+{
+  "source_revision": "44b5ac4fa65880abe369652ed0110162088a0cd9",
+  "scope": "Source-Q package proof only: actual read-only DMG, source976, public POSIX modes and duplicate-stage equality. No installation, stage deletion, managed image admission, runtime qualification, provider or VM action.",
+  "facts": {
+    "clean_exact_source_before": true,
+    "settled_package_metadata_pin": true,
+    "package_source_and_scope": true,
+    "upstream_wrapper_result_pinned": true,
+    "owning_package_completed_PASS": true,
+    "dmg_hash": true,
+    "no_preexisting_exact_dmg_attachment": true,
+    "image_metadata_exact": true,
+    "all_manifest_files_exact": true,
+    "exact_payload_inventory": true,
+    "manifest_and_installer_hashes": true,
+    "six_signatures": true,
+    "payload_component_identities": true,
+    "payload_public_distribution_modes": true,
+    "source_archive_hash": true,
+    "complete_source_bytes_and_modes": true,
+    "exact_original_prepared_manifest": true,
+    "exact_Q_disk_seed": true,
+    "all_guest_source_pins_match_host_revision": true,
+    "native_catalog_exact": true,
+    "same_prepared_guest_and_detector": true,
+    "actual_client_provenance": true,
+    "actual_service_version": true,
+    "current_host_notices": true,
+    "portable_tail_compile_fixture_in_archive": true,
+    "root_installer_and_network_fixture_in_archive": true,
+    "managed_gate_source_fixture_in_archive": true,
+    "new_stage_exact_signed_dmg_inventory": true,
+    "whole_distribution_public_modes": true,
+    "retained_copy_preview-source.tar.gz": true,
+    "retained_copy_SHA256SUMS": true,
+    "retained_copy_install.sh": true,
+    "retained_copy_READ-ME.txt": true,
+    "new_stage_preserved": true,
+    "prepared_image_and_package_records_preserved": true,
+    "clean_exact_source_after": true,
+    "owned_dmg_detached": true
+  },
+  "signatures": [
+    {
+      "name": "ukai-vm-0.1.0-preview.2-macos-arm64.dmg",
+      "sha256": "437a548580ed1ad8f9e38b27c3d4be726ff01594ab40c40ec39e14286979e953",
+      "valid": true
+    },
+    {
+      "name": "payload/bin/ukai-jail",
+      "sha256": "9414dc35706651768b369fbec58cee320b95bdec0f6ef01cc0c649327d439fe7",
+      "valid": true
+    },
+    {
+      "name": "payload/bin/ukai-vm",
+      "sha256": "4f0466084311b9e886c6a7dc80a3973d7f144d4e88367729999ef6f022dfbd31",
+      "valid": true
+    },
+    {
+      "name": "payload/bin/ukai-vm-install",
+      "sha256": "7b12dc9bc7904b1d8cbdaf3d31d029e1cde18a97ea87b1f4db28aedd17d0c066",
+      "valid": true
+    },
+    {
+      "name": "payload/image/vz",
+      "sha256": "9b0a5b8fc8e972b92b44c6c244aa87f5c1d3a799c8f360c1972474b4b167f882",
+      "valid": true
+    },
+    {
+      "name": "payload/image/custodian",
+      "sha256": "d4140527cbde5fbce84c7e48c67093e35d8400b0d9fc9c23f0f3825dc475d4ce",
+      "valid": true
+    }
+  ],
+  "upstream_wrapper_result": {
+    "automatic_retry": false,
+    "capacity_actual": {
+      "D": 993669120,
+      "G": 831488,
+      "S": 983330816,
+      "Y": 14311424
+    },
+    "cargo_allocated_before": 580411392,
+    "cleanup_errors": [],
+    "dmg_sha256": "437a548580ed1ad8f9e38b27c3d4be726ff01594ab40c40ec39e14286979e953",
+    "elapsed_seconds": 70.40375075000338,
+    "free_after": 16269062144,
+    "historical_diagnostic_replay_count": 0,
+    "image_preserved": true,
+    "new_strip_or_dyld_warning": false,
+    "outcome": "PASS",
+    "package_json_sha256": "05b2ff289ceaa8f73baa51329c996160e330e9710e1d09f004af78c6de4c4e1e",
+    "plan_sha256": "edd0a370fe90f38a1db486fc916b8a95de78b793b48a43dd85631507f6733193",
+    "preflight": {
+      "active": [],
+      "free_bytes": 18272399360,
+      "memory_free_inactive_speculative_bytes": 19591528448,
+      "memory_scope": "reclaimable estimate, excludes active/wired/compressed/swap"
+    },
+    "prior_binaries_preserved": true,
+    "private_toolchain_preserved": true,
+    "public_stage_modes": {
+      ".": 493,
+      "READ-ME.txt": 420,
+      "SHA256SUMS": 420,
+      "install.sh": 493,
+      "payload": 493,
+      "payload/bin": 493,
+      "payload/bin/ukai-jail": 493,
+      "payload/bin/ukai-vm": 493,
+      "payload/bin/ukai-vm-install": 493,
+      "payload/image": 493,
+      "payload/image/base.raw.gz": 420,
+      "payload/image/custodian": 493,
+      "payload/image/guest-program-catalog.json": 420,
+      "payload/image/image.json": 420,
+      "payload/image/seed.iso": 420,
+      "payload/image/vz": 493,
+      "payload/licenses": 493,
+      "payload/licenses/Linux-Jail-LICENSES.txt": 420,
+      "payload/licenses/Native-Host-LICENSES.txt": 420,
+      "payload/licenses/Python-LICENSE.txt": 420,
+      "payload/licenses/Ukai-LICENSE.txt": 420,
+      "payload/licenses/pyinstaller-COPYING.txt": 420,
+      "preview-source.tar.gz": 420
+    },
+    "runner_sha256": "12fb40164117a8acb6d14925e32e431bdb32ddd2f336b9ca07f827fb6256b441",
+    "schema": "ukai.Q-normalized-package-execution/1",
+    "scope": {
+      "installer_execution": false,
+      "native_admission": false,
+      "normalized_distribution_package_only": true,
+      "notarization": false,
+      "oauth": false,
+      "old_evidence_reclassified": false,
+      "post_runtime_kernel_journal": "UNAVAILABLE; successful capability boot deleted by existing host normal cleanup.",
+      "provider": false,
+      "publication": false
+    },
+    "source_archive_sha256": "d372af085a81aebc910c4c742130cff3a19aa3aeaaf53314d90578cb70a41500",
+    "source_preserved": true
+  },
+  "upstream_wrapper_result_scope": "Exact Q owning result retained. Historical P wrapper and observer FAILs remain unchanged in their original records.",
+  "mode_scope": "New owned Q stage and mounted distribution entries must have directories/executables0755 and data0644 regardless of caller umask; this does not establish ACL/Gatekeeper or foreign-UID execution qualification.",
+  "preserved_generations_before": {
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-Q-44b5ac4fa/package.json": [
+      16777234,
+      375143015,
+      33152,
+      18091,
+      1794841126592078842,
+      1794841126592078842
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/base.raw": [
+      16777234,
+      375131773,
+      33152,
+      6442450944,
+      1794839792529883121,
+      1794839792529883121
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/bootstrap-console.log": [
+      16777234,
+      375131796,
+      33152,
+      25370,
+      1794839792352147131,
+      1794839792352147131
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/bootstrap-events.ndjson": [
+      16777234,
+      375131792,
+      33152,
+      158,
+      1794839792677625945,
+      1794839792677625945
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/bootstrap-stderr.log": [
+      16777234,
+      375131793,
+      33152,
+      0,
+      1794839672519985781,
+      1794839672519996864
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/bootstrap.nvram": [
+      16777234,
+      375131794,
+      33152,
+      131072,
+      1794839672715689846,
+      1794839792677195818
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/custodian": [
+      16777234,
+      375131770,
+      33216,
+      34760,
+      1794839670885575850,
+      1794839670885575850
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/guest-exposure-control.json": [
+      16777234,
+      375132373,
+      33152,
+      1027,
+      1794839792693250802,
+      1794839792693250802
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/guest-program-catalog.json": [
+      16777234,
+      375131783,
+      33152,
+      1184,
+      1794839672092164083,
+      1794839672092164083
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/image.json": [
+      16777234,
+      375131791,
+      33152,
+      6773,
+      1794839795501981124,
+      1794839795501981124
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/native-program-payload": [
+      16777234,
+      375131782,
+      33152,
+      293658808,
+      1794839671990342117,
+      1794839671990342117
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/seed.iso": [
+      16777234,
+      375131790,
+      33152,
+      310435840,
+      1794839672517920939,
+      1794839672517920939
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/vz": [
+      16777234,
+      375131771,
+      33216,
+      120768,
+      1794839670895629725,
+      1794839670895684350
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-Q-44b5ac4fa/ukai-vm-0.1.0-preview.2-macos-arm64.dmg": [
+      16777234,
+      375142992,
+      33152,
+      976901194,
+      1794841126239317245,
+      1794841237004414898
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-plan-Q-44b5ac4fa/completion.json": [
+      16777234,
+      375143029,
+      33152,
+      2429,
+      1794841126802155711,
+      1794841126802155711
+    ]
+  },
+  "dmg_xattr_names_before": [
+    "com.apple.FinderInfo",
+    "com.apple.diskimages.recentcksum",
+    "com.apple.provenance"
+  ],
+  "dmg_sha256": "437a548580ed1ad8f9e38b27c3d4be726ff01594ab40c40ec39e14286979e953",
+  "mounted_ownership_observation": {
+    "diskutil_fields": {
+      "GlobalPermissionsEnabled": false,
+      "FilesystemType": "apfs",
+      "FilesystemName": "APFS",
+      "MountPoint": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-Q-44b5ac4fa/attempt-v2/mounted-dmg"
+    },
+    "statvfs_flags": 3,
+    "uid_gid_modes": {
+      ".": {
+        "uid": 501,
+        "gid": 20,
+        "mode": "0o755"
+      },
+      "payload": {
+        "uid": 501,
+        "gid": 20,
+        "mode": "0o755"
+      },
+      "payload/bin": {
+        "uid": 501,
+        "gid": 20,
+        "mode": "0o755"
+      },
+      "payload/bin/ukai-jail": {
+        "uid": 501,
+        "gid": 20,
+        "mode": "0o755"
+      },
+      "payload/bin/ukai-vm": {
+        "uid": 501,
+        "gid": 20,
+        "mode": "0o755"
+      },
+      "payload/image": {
+        "uid": 501,
+        "gid": 20,
+        "mode": "0o755"
+      },
+      "payload/image/image.json": {
+        "uid": 501,
+        "gid": 20,
+        "mode": "0o644"
+      }
+    },
+    "scope": "Actual current-user mount observation only; no foreign-UID or shared-attachment test."
+  },
+  "cross_uid_distribution_qualified": false,
+  "source_file_count": 976,
+  "client_version": {
+    "component": "ukai-jail",
+    "version": "0.1.0",
+    "build": {
+      "debug_assertions": false,
+      "dirty": false,
+      "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+      "opt_level": "3",
+      "revision": "44b5ac4fa65880abe369652ed0110162088a0cd9",
+      "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+      "target": "aarch64-apple-darwin"
+    }
+  },
+  "preserved_generations_after": {
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-Q-44b5ac4fa/package.json": [
+      16777234,
+      375143015,
+      33152,
+      18091,
+      1794841126592078842,
+      1794841126592078842
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/base.raw": [
+      16777234,
+      375131773,
+      33152,
+      6442450944,
+      1794839792529883121,
+      1794839792529883121
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/bootstrap-console.log": [
+      16777234,
+      375131796,
+      33152,
+      25370,
+      1794839792352147131,
+      1794839792352147131
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/bootstrap-events.ndjson": [
+      16777234,
+      375131792,
+      33152,
+      158,
+      1794839792677625945,
+      1794839792677625945
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/bootstrap-stderr.log": [
+      16777234,
+      375131793,
+      33152,
+      0,
+      1794839672519985781,
+      1794839672519996864
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/bootstrap.nvram": [
+      16777234,
+      375131794,
+      33152,
+      131072,
+      1794839672715689846,
+      1794839792677195818
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/custodian": [
+      16777234,
+      375131770,
+      33216,
+      34760,
+      1794839670885575850,
+      1794839670885575850
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/guest-exposure-control.json": [
+      16777234,
+      375132373,
+      33152,
+      1027,
+      1794839792693250802,
+      1794839792693250802
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/guest-program-catalog.json": [
+      16777234,
+      375131783,
+      33152,
+      1184,
+      1794839672092164083,
+      1794839672092164083
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/image.json": [
+      16777234,
+      375131791,
+      33152,
+      6773,
+      1794839795501981124,
+      1794839795501981124
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/native-program-payload": [
+      16777234,
+      375131782,
+      33152,
+      293658808,
+      1794839671990342117,
+      1794839671990342117
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/seed.iso": [
+      16777234,
+      375131790,
+      33152,
+      310435840,
+      1794839672517920939,
+      1794839672517920939
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/vz": [
+      16777234,
+      375131771,
+      33216,
+      120768,
+      1794839670895629725,
+      1794839670895684350
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-Q-44b5ac4fa/ukai-vm-0.1.0-preview.2-macos-arm64.dmg": [
+      16777234,
+      375142992,
+      33152,
+      976901194,
+      1794841126239317245,
+      1794841237004414898
+    ],
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-plan-Q-44b5ac4fa/completion.json": [
+      16777234,
+      375143029,
+      33152,
+      2429,
+      1794841126802155711,
+      1794841126802155711
+    ]
+  },
+  "dmg_xattr_names_after": [
+    "com.apple.FinderInfo",
+    "com.apple.diskimages.recentcksum",
+    "com.apple.provenance"
+  ],
+  "stage_proof": {
+    "schema": "ukai.Q.signed-package-stage-equality/1",
+    "source_revision": "44b5ac4fa65880abe369652ed0110162088a0cd9",
+    "dmg_sha256": "437a548580ed1ad8f9e38b27c3d4be726ff01594ab40c40ec39e14286979e953",
+    "package_sha256": "05b2ff289ceaa8f73baa51329c996160e330e9710e1d09f004af78c6de4c4e1e",
+    "manifest_sha256": "4cd23e2e40a467f1e62f421eaa0fd0e34e6fab2172b6e158d4ed95c8078c4802",
+    "source_archive_sha256": "d372af085a81aebc910c4c742130cff3a19aa3aeaaf53314d90578cb70a41500",
+    "source_files": 976,
+    "six_signatures": true,
+    "stage_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-Q-44b5ac4fa/volume",
+    "inventory": {
+      "payload": {
+        "kind": "directory",
+        "mode": 493,
+        "bytes": null,
+        "sha256": null
+      },
+      "install.sh": {
+        "kind": "file",
+        "mode": 493,
+        "bytes": 7092,
+        "sha256": "de254ef7533a0ad6cd62c1c98b94e13b6d34d7e9d4e130608d0c88185ab256ff"
+      },
+      "READ-ME.txt": {
+        "kind": "file",
+        "mode": 420,
+        "bytes": 8096,
+        "sha256": "95cab2b79d835c1af2e8f4ea470d0731d06d00ec40685c6a571ee373d87d2206"
+      },
+      "preview-source.tar.gz": {
+        "kind": "file",
+        "mode": 420,
+        "bytes": 5645894,
+        "sha256": "d372af085a81aebc910c4c742130cff3a19aa3aeaaf53314d90578cb70a41500"
+      },
+      "SHA256SUMS": {
+        "kind": "file",
+        "mode": 420,
+        "bytes": 1510,
+        "sha256": "4cd23e2e40a467f1e62f421eaa0fd0e34e6fab2172b6e158d4ed95c8078c4802"
+      },
+      "payload/bin": {
+        "kind": "directory",
+        "mode": 493,
+        "bytes": null,
+        "sha256": null
+      },
+      "payload/licenses": {
+        "kind": "directory",
+        "mode": 493,
+        "bytes": null,
+        "sha256": null
+      },
+      "payload/image": {
+        "kind": "directory",
+        "mode": 493,
+        "bytes": null,
+        "sha256": null
+      },
+      "payload/bin/ukai-vm": {
+        "kind": "file",
+        "mode": 493,
+        "bytes": 3210224,
+        "sha256": "4f0466084311b9e886c6a7dc80a3973d7f144d4e88367729999ef6f022dfbd31"
+      },
+      "payload/bin/ukai-jail": {
+        "kind": "file",
+        "mode": 493,
+        "bytes": 10154064,
+        "sha256": "9414dc35706651768b369fbec58cee320b95bdec0f6ef01cc0c649327d439fe7"
+      },
+      "payload/bin/ukai-vm-install": {
+        "kind": "file",
+        "mode": 493,
+        "bytes": 9843072,
+        "sha256": "7b12dc9bc7904b1d8cbdaf3d31d029e1cde18a97ea87b1f4db28aedd17d0c066"
+      },
+      "payload/licenses/Native-Host-LICENSES.txt": {
+        "kind": "file",
+        "mode": 420,
+        "bytes": 2291615,
+        "sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd"
+      },
+      "payload/licenses/pyinstaller-COPYING.txt": {
+        "kind": "file",
+        "mode": 420,
+        "bytes": 32604,
+        "sha256": "0598064c7d2718e38d7914a7d08343b2fa008e3bea9ebba2aa7a6ffa5900dd64"
+      },
+      "payload/licenses/Ukai-LICENSE.txt": {
+        "kind": "file",
+        "mode": 420,
+        "bytes": 1068,
+        "sha256": "38184627dc06fbee992333e9d7009f4d9efdc724f00edf305067e266fa8cab11"
+      },
+      "payload/licenses/Python-LICENSE.txt": {
+        "kind": "file",
+        "mode": 420,
+        "bytes": 13809,
+        "sha256": "78b12c3a81360b357002334f0e70ea0e92eebf7a9b358805c03c48484945f3bb"
+      },
+      "payload/licenses/Linux-Jail-LICENSES.txt": {
+        "kind": "file",
+        "mode": 420,
+        "bytes": 2291615,
+        "sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd"
+      },
+      "payload/image/vz": {
+        "kind": "file",
+        "mode": 493,
+        "bytes": 138896,
+        "sha256": "9b0a5b8fc8e972b92b44c6c244aa87f5c1d3a799c8f360c1972474b4b167f882"
+      },
+      "payload/image/base.raw.gz": {
+        "kind": "file",
+        "mode": 420,
+        "bytes": 634252845,
+        "sha256": "34e0c6c28c827cc9fb25b30fc58f7243de482c5523b5823a8c1196df71db6c28"
+      },
+      "payload/image/guest-program-catalog.json": {
+        "kind": "file",
+        "mode": 420,
+        "bytes": 1184,
+        "sha256": "53de4dff6cc76d8bdfe9cf7939a76313ffec1106c3f6f76ab5d74c4c16f5fc06"
+      },
+      "payload/image/seed.iso": {
+        "kind": "file",
+        "mode": 420,
+        "bytes": 310435840,
+        "sha256": "fab538c6530dccfe062da428b663709162c29de5f0959b6e20c36e0ba964ffc7"
+      },
+      "payload/image/image.json": {
+        "kind": "file",
+        "mode": 420,
+        "bytes": 15589,
+        "sha256": "a9f0bcc9ef47aba98cdb0dae0f18c830b8a42d7878aa1a3409f05cd0906b6f23"
+      },
+      "payload/image/custodian": {
+        "kind": "file",
+        "mode": 493,
+        "bytes": 52848,
+        "sha256": "d4140527cbde5fbce84c7e48c67093e35d8400b0d9fc9c23f0f3825dc475d4ce"
+      }
+    },
+    "stage_generations": {
+      ".": [
+        16777234,
+        375142544,
+        16877,
+        224,
+        1794841119411409158,
+        1794841119441565235
+      ],
+      "payload": [
+        16777234,
+        375142545,
+        16877,
+        160,
+        1794841119008260529,
+        1794841119441607652
+      ],
+      "install.sh": [
+        16777234,
+        375142990,
+        33261,
+        7092,
+        1794841119411454033,
+        1794841119441597819
+      ],
+      "READ-ME.txt": [
+        16777234,
+        375142987,
+        33188,
+        8096,
+        1794837930281597857,
+        1794841119441580819
+      ],
+      "preview-source.tar.gz": [
+        16777234,
+        375142976,
+        33188,
+        5645894,
+        1794841118775636448,
+        1794841119441767195
+      ],
+      "SHA256SUMS": [
+        16777234,
+        375142989,
+        33188,
+        1510,
+        1794841119411073865,
+        1794841119441589319
+      ],
+      "payload/bin": [
+        16777234,
+        375142547,
+        16877,
+        160,
+        1794841081956262966,
+        1794841119441615985
+      ],
+      "payload/licenses": [
+        16777234,
+        375142981,
+        16877,
+        224,
+        1794841119071432070,
+        1794841119441713611
+      ],
+      "payload/image": [
+        16777234,
+        375142546,
+        16877,
+        256,
+        1794841119008097820,
+        1794841119441657319
+      ],
+      "payload/bin/ukai-vm": [
+        16777234,
+        375142745,
+        33261,
+        3210224,
+        1794841077825487497,
+        1794841119441634736
+      ],
+      "payload/bin/ukai-jail": [
+        16777234,
+        375142747,
+        33261,
+        10154064,
+        1794841078138795313,
+        1794841119441624319
+      ],
+      "payload/bin/ukai-vm-install": [
+        16777234,
+        375142800,
+        33261,
+        9843072,
+        1794841081930137155,
+        1794841119441649277
+      ],
+      "payload/licenses/Native-Host-LICENSES.txt": [
+        16777234,
+        375142983,
+        33188,
+        2291615,
+        1794841119008709156,
+        1794841119441733694
+      ],
+      "payload/licenses/pyinstaller-COPYING.txt": [
+        16777234,
+        375142985,
+        33188,
+        32604,
+        1794746671732966321,
+        1794841119441758694
+      ],
+      "payload/licenses/Ukai-LICENSE.txt": [
+        16777234,
+        375142982,
+        33188,
+        1068,
+        1794837930125375603,
+        1794841119441750278
+      ],
+      "payload/licenses/Python-LICENSE.txt": [
+        16777234,
+        375142986,
+        33188,
+        13809,
+        1780589451142496510,
+        1794841119441742153
+      ],
+      "payload/licenses/Linux-Jail-LICENSES.txt": [
+        16777234,
+        375142984,
+        33188,
+        2291615,
+        1794841119046061845,
+        1794841119441723611
+      ],
+      "payload/image/vz": [
+        16777234,
+        375142571,
+        33261,
+        138896,
+        1794841062647520040,
+        1794841119441705319
+      ],
+      "payload/image/base.raw.gz": [
+        16777234,
+        375142804,
+        33188,
+        634252845,
+        1794841117462874571,
+        1794841119441664861
+      ],
+      "payload/image/guest-program-catalog.json": [
+        16777234,
+        375142803,
+        33188,
+        1184,
+        1794841082031281885,
+        1794841119441682944
+      ],
+      "payload/image/seed.iso": [
+        16777234,
+        375142802,
+        33188,
+        310435840,
+        1794839672517920939,
+        1794841119441697819
+      ],
+      "payload/image/image.json": [
+        16777234,
+        375142980,
+        33188,
+        15589,
+        1794841119008192987,
+        1794841119441690611
+      ],
+      "payload/image/custodian": [
+        16777234,
+        375142574,
+        33261,
+        52848,
+        1794841062961880069,
+        1794841119441673986
+      ]
+    },
+    "mounted_filesystem_metadata_names": [],
+    "retained_copies": {
+      "preview-source.tar.gz": "d372af085a81aebc910c4c742130cff3a19aa3aeaaf53314d90578cb70a41500",
+      "SHA256SUMS": "4cd23e2e40a467f1e62f421eaa0fd0e34e6fab2172b6e158d4ed95c8078c4802",
+      "install.sh": "de254ef7533a0ad6cd62c1c98b94e13b6d34d7e9d4e130608d0c88185ab256ff",
+      "READ-ME.txt": "95cab2b79d835c1af2e8f4ea470d0731d06d00ec40685c6a571ee373d87d2206"
+    },
+    "prepared_input_generations": {
+      "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-Q-44b5ac4fa/package.json": [
+        16777234,
+        375143015,
+        33152,
+        18091,
+        1794841126592078842,
+        1794841126592078842
+      ],
+      "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/base.raw": [
+        16777234,
+        375131773,
+        33152,
+        6442450944,
+        1794839792529883121,
+        1794839792529883121
+      ],
+      "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/bootstrap-console.log": [
+        16777234,
+        375131796,
+        33152,
+        25370,
+        1794839792352147131,
+        1794839792352147131
+      ],
+      "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/bootstrap-events.ndjson": [
+        16777234,
+        375131792,
+        33152,
+        158,
+        1794839792677625945,
+        1794839792677625945
+      ],
+      "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/bootstrap-stderr.log": [
+        16777234,
+        375131793,
+        33152,
+        0,
+        1794839672519985781,
+        1794839672519996864
+      ],
+      "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/bootstrap.nvram": [
+        16777234,
+        375131794,
+        33152,
+        131072,
+        1794839672715689846,
+        1794839792677195818
+      ],
+      "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/custodian": [
+        16777234,
+        375131770,
+        33216,
+        34760,
+        1794839670885575850,
+        1794839670885575850
+      ],
+      "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/guest-exposure-control.json": [
+        16777234,
+        375132373,
+        33152,
+        1027,
+        1794839792693250802,
+        1794839792693250802
+      ],
+      "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/guest-program-catalog.json": [
+        16777234,
+        375131783,
+        33152,
+        1184,
+        1794839672092164083,
+        1794839672092164083
+      ],
+      "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/image.json": [
+        16777234,
+        375131791,
+        33152,
+        6773,
+        1794839795501981124,
+        1794839795501981124
+      ],
+      "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/native-program-payload": [
+        16777234,
+        375131782,
+        33152,
+        293658808,
+        1794839671990342117,
+        1794839671990342117
+      ],
+      "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/seed.iso": [
+        16777234,
+        375131790,
+        33152,
+        310435840,
+        1794839672517920939,
+        1794839672517920939
+      ],
+      "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-home-Q-44b5ac4fa/image/vz": [
+        16777234,
+        375131771,
+        33216,
+        120768,
+        1794839670895629725,
+        1794839670895684350
+      ],
+      "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-Q-44b5ac4fa/ukai-vm-0.1.0-preview.2-macos-arm64.dmg": [
+        16777234,
+        375142992,
+        33152,
+        976901194,
+        1794841126239317245,
+        1794841237004414898
+      ],
+      "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-plan-Q-44b5ac4fa/completion.json": [
+        16777234,
+        375143029,
+        33152,
+        2429,
+        1794841126802155711,
+        1794841126802155711
+      ]
+    },
+    "scope": "Proof only; no stage deletion or installed/runtime/admission claim."
+  },
+  "completed": true,
+  "outcome": "PASS",
+  "reviewer_sha256": "588e2ed6f9eee7839238c3ef8214044557e3e1f779ff6e96f2a47d673d85d860"
+}

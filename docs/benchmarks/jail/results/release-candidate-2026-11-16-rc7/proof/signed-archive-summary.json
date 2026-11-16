@@ -1,0 +1,52 @@
+{
+  "schema": "ukai.signed-candidate-archive/1",
+  "outcome": "PASS",
+  "created_at": "2026-11-16T08:27:14.636205+00:00",
+  "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+  "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+  "release": "0.1.0-rc.7",
+  "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/rc7-candidate-final/ukai-jail-0.1.0-rc.7-signed-candidate.zip",
+  "bytes": 9378850,
+  "sha256": "141a89bd3f22a9787b7cc3b757e2a24abe9bd17f225de215bb9bb2fbabb6a5fe",
+  "files": {
+    "release-plan.json": {
+      "bytes": 5210,
+      "sha256": "3b469443904b059a1b090b6823e5829df203e52c77b0cb393f03c87a45f933c0"
+    },
+    "install.sh": {
+      "bytes": 10085,
+      "sha256": "9c49ea8a0d7c2633b446d1912d9def945bb10dad325de6542320dd185a13f012"
+    },
+    "bootstrap.sh": {
+      "bytes": 16996,
+      "sha256": "f7a1aa423f8f87d9bb4b50e9a9d7c4716a336ef30a259d793c1b7cdb67bfb4bb"
+    },
+    "ukai-jail-0.1.0-rc.7-aarch64-unknown-linux-gnu.tar.gz": {
+      "bytes": 4691180,
+      "sha256": "15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6"
+    },
+    "ukai-jail-0.1.0-rc.7-x86_64-unknown-linux-gnu.tar.gz": {
+      "bytes": 4745031,
+      "sha256": "a9eb6b07b4925cc3828fa2a264cbc5d0208aea1b1ed2929f67ec0d5f1436c7a1"
+    },
+    "RELEASE_NOTES.md": {
+      "bytes": 1402,
+      "sha256": "2f431194c09aac228d55532c2d6a00c9e50af7d3781dd39e2cfce09a878c4907"
+    },
+    "SHA256SUMS": {
+      "bytes": 562,
+      "sha256": "3d4a3bafb239fb8719b90ed33334438c9b68b90184efeedd005d4a7d33053d51"
+    },
+    "SHA256SUMS.minisig": {
+      "bytes": 305,
+      "sha256": "cf36ceec8dbc6aae5adf2bc326cfdf98dcf79e80f6b8ed2aa87a15e3959f20ee"
+    }
+  },
+  "signed_independent_review_sha256": "7458d68130ce7f0e1bba2a122e0c0d0553c95028071cfb9b1793e1eb33f79032",
+  "exact_eight_files": true,
+  "source_generations_unchanged": true,
+  "private_key_in_archive": false,
+  "published": false,
+  "free_before": 14878937088,
+  "free_after": 14869536768
+}

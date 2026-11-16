@@ -1,0 +1,51 @@
+{
+  "schema": "ukai.rc7-arm-pass-fixture-cleanup/1",
+  "outcome": "PASS",
+  "removed": [
+    {
+      "path": "/Users/monocursive/.cache/ukai-rc7-native-arm-bootstrap-0be9d1e82-43822535195/disk.qcow2",
+      "metadata_before": {
+        "st_dev": 16777234,
+        "st_ino": 375005321,
+        "st_mode": 33188,
+        "st_size": 70844416,
+        "st_mtime_ns": 1794817003575272879,
+        "st_ctime_ns": 1794817003575272879,
+        "st_nlink": 1,
+        "st_uid": 501,
+        "st_blocks": 138368
+      },
+      "sha256_before": "f4bdf8b85a71babab03ab0df19a683a9a914dd87f3efd525838ed079c315d6ce"
+    },
+    {
+      "path": "/Users/monocursive/.cache/ukai-rc7-native-arm-bootstrap-0be9d1e82-43822535195/vars.fd",
+      "metadata_before": {
+        "st_dev": 16777234,
+        "st_ino": 375005326,
+        "st_mode": 33188,
+        "st_size": 67108864,
+        "st_mtime_ns": 1794816990043962685,
+        "st_ctime_ns": 1794816990043962685,
+        "st_nlink": 1,
+        "st_uid": 501,
+        "st_blocks": 131072
+      },
+      "sha256_before": "f747165ac1713979d032fd519c9148d8864c11a6f2a5c9f4c5f3fcae5a3a25a4"
+    }
+  ],
+  "errors": [],
+  "no_vm_or_bootstrap": true,
+  "proposal_sha256": "4cd09825b32d70532f5d89f36ca2dd68c046f8923f04bf784cb35dca593e0343",
+  "independent_review_sha256": "d680eb47d6dae99ea2e2d9570f8beb9a4edb937fd02780d2821ca8f6bc85370e",
+  "retention_sha256": "88f0985b47f610c2ad7332687f735ea0f9ada03aa1c08c2a4819073befb0b2cd",
+  "free_before": 14734221312,
+  "retained_files_verified": 112,
+  "only_two_exact_paths_removed": true,
+  "original_five_generations_unchanged": true,
+  "unselected_host_files_preserved": true,
+  "unselected_host_files": 72,
+  "free_after": 14872162304,
+  "free_delta_bytes": 137940992,
+  "elapsed_seconds": 0.48981579090468585,
+  "script_sha256": "5ddc7e3a35bfafb725659f3721e483a32e40e8843a427f144830301ac329df42"
+}

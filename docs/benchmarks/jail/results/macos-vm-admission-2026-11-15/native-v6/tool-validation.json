@@ -1,0 +1,21 @@
+{
+  "schema": "ukai.task.copied-component-tools/1",
+  "source_revision": "c25c297fc61b7d0edb71d929a1b067faeeb03b53",
+  "command": [
+    "/opt/homebrew/opt/python@3.15/bin/python3.15",
+    "-B",
+    "-m",
+    "unittest",
+    "-v",
+    "test_credential_staging_measurement",
+    "test_program_binding_measurement",
+    "test_vm_summary_check"
+  ],
+  "outcome": "PASS",
+  "tests": 67,
+  "failures": 0,
+  "errors": 0,
+  "skips": 0,
+  "log_sha256": "d5dd9cab93d3bb956a2f94cfbf974759653c029a27f30b90253282ba4249e055",
+  "scope": "Offline tests of exact copied modules and fixture closure; no VM/provider. Printed qualified:false FAIL is an intentional CLI refusal control."
+}

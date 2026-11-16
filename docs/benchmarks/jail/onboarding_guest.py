@@ -14,6 +14,7 @@ import json
 import os
 import pathlib
 import shutil
+import stat
 import subprocess
 import tarfile
 import time
@@ -67,6 +68,193 @@ def verify_build(version, revision, inputs=None):
         raise ValueError('The artifact does not match the expected Jail source inputs.')
 
 
+def credential_identity(info):
+    return tuple(getattr(info, name) for name in
+                 ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_nlink', 'st_size',
+                  'st_mtime_ns', 'st_ctime_ns'))
+
+
+def store_credential(binary, path, env):
+    """Remove only the exact owned staging file, including command timeout."""
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+    with os.fdopen(os.open(path, flags), 'rb') as key:
+        info = os.fstat(key.fileno())
+        if (not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600
+                or info.st_uid != os.getuid()):
+            raise RuntimeError('credential staging file must be owned, regular and private')
+        expected = credential_identity(info)
+        if credential_identity(path.lstat()) != expected:
+            raise RuntimeError('credential staging file identity changed')
+        try:
+            return subprocess.run([str(binary), 'credential', 'set', 'anthropic'],
+                                  env=env, stdin=key, capture_output=True, timeout=60)
+        finally:
+            if (credential_identity(os.fstat(key.fileno())) != expected
+                    or credential_identity(path.lstat()) != expected):
+                raise RuntimeError('credential staging file changed; substituted path retained')
+            path.unlink()
+
+
+class Workflow:
+    """Record each command's own attempts before evaluating its outcome."""
+
+    def __init__(self, binary, out, env, result, save, *, vendor_attempts=2):
+        if type(vendor_attempts) is not int or vendor_attempts not in (1, 2):
+            raise ValueError('vendor_attempts must be 1 or 2')
+        self.binary, self.out, self.env = binary, out, env
+        self.result, self.save = result, save
+        self.data = pathlib.Path(env['UKAI_DATA_DIR'])
+        self.attempts = {}
+        self.vendor_attempts = vendor_attempts
+
+    def attempt_dirs(self):
+        root = self.data / 'attempts'
+        return {path.name: path for path in root.iterdir()
+                if path.is_dir() and not path.is_symlink()} if root.is_dir() else {}
+
+    def vendor_logs(self):
+        logs = {}
+        # Only diagnostic files: never copy vendor databases, credentials or
+        # arbitrary state. Do not follow a vendor-created symlink outside it.
+        for root in (self.data / 'state', self.data / 'attempts'):
+            if root.is_symlink():
+                continue
+            for directory, children, files in os.walk(root, followlinks=False):
+                children[:] = [name for name in children
+                               if not (pathlib.Path(directory) / name).is_symlink()]
+                relative = pathlib.Path(directory).relative_to(self.data)
+                if 'opencode' not in relative.parts or not {'log', 'logs'}.intersection(relative.parts):
+                    continue
+                for name in files:
+                    path = pathlib.Path(directory) / name
+                    if path.is_file() and not path.is_symlink():
+                        stat = path.stat()
+                        logs[path] = (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+        return logs
+
+    def collect(self, name, before, logs_before, row):
+        current = self.attempt_dirs()
+        new = [current[key] for key in sorted(current.keys() - before.keys())]
+        self.attempts[name] = new
+        row['attempt_ids'] = [path.name for path in new]
+        row['artifacts'] = [f'{name}.stdout', f'{name}.stderr']
+        for attempt in new:
+            destination = self.out / f'{name}-attempts' / attempt.name
+            destination.mkdir(parents=True)
+            for filename in ('jail.json', 'trace.ndjson', 'policy.json'):
+                source = attempt / filename
+                if source.is_file() and not source.is_symlink():
+                    shutil.copyfile(source, destination / filename)
+                    if len(new) == 1:
+                        # Keep the existing names used by receipt consumers,
+                        # but never guess between multiple/new-zero attempts.
+                        output = f'{name}-{filename}'
+                        shutil.copyfile(source, self.out / output)
+                        row['artifacts'].append(output)
+        if new:
+            row['artifacts'].append(f'{name}-attempts')
+        changed = []
+        for path, identity in self.vendor_logs().items():
+            if logs_before.get(path) == identity:
+                continue
+            relative = path.relative_to(self.data)
+            destination = self.out / f'{name}-vendor-logs' / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, destination)
+            changed.append(str(relative))
+        row['new_or_changed_vendor_logs'] = changed
+        if changed:
+            row['artifacts'].append(f'{name}-vendor-logs')
+
+    def run(self, name, argv, *, check=True, timeout=300, cwd=None):
+        started = time.monotonic()
+        jailed = len(argv) > 1 and str(argv[0]) == str(self.binary) and argv[1] in ('run', 'learn')
+        before = self.attempt_dirs() if jailed else {}
+        logs_before = self.vendor_logs() if jailed else {}
+        error = None
+        try:
+            done = subprocess.run([str(a) for a in argv], env=self.env, stdin=subprocess.DEVNULL,
+                                  capture_output=True, timeout=timeout, cwd=cwd)
+        except subprocess.TimeoutExpired as failure:
+            error = failure
+            done = subprocess.CompletedProcess(argv, None, failure.stdout or b'', failure.stderr or b'')
+        except OSError as failure:
+            error = failure
+            done = subprocess.CompletedProcess(argv, None, b'', str(failure).encode())
+        (self.out / f'{name}.stdout').write_bytes(done.stdout)
+        (self.out / f'{name}.stderr').write_bytes(done.stderr)
+        row = {'name': name, 'argv': [str(a) for a in argv],
+               'seconds': time.monotonic() - started, 'exit': done.returncode}
+        if error is not None:
+            row['execution_error'] = str(error)
+        self.result['rows'].append(row)
+        if jailed:
+            try:
+                self.collect(name, before, logs_before, row)
+            except (OSError, ValueError) as failure:
+                row['evidence_error'] = str(failure)
+                self.save()
+                raise
+        self.save()
+        if error is not None:
+            raise error
+        if check and done.returncode:
+            raise RuntimeError(f'{name} refused with exit {done.returncode}; see {name}.stderr')
+        return done
+
+    def receipt(self, name):
+        attempts = self.attempts.get(name, [])
+        assert len(attempts) == 1, f'{name} created {len(attempts)} attempts; cannot identify its receipt'
+        data = json.loads((self.out / f'{name}-jail.json').read_text())
+        assert data['phase'] == 'settled', data['phase']
+        assert data['containment'] == 'enforced', data['containment']
+        assert data['exec_observed'] is True
+        assert data['lifetime']['tree_empty'] is True
+        assert data['lifetime']['integrity'] == 'verified'
+        assert data['outcome']['kind'] == 'exited' and data['outcome']['code'] == 0
+        assert data['state_cleanup'] == 'complete'
+        return data
+
+    def vendor(self, name, argv, outputs):
+        # The default preserves one Bad Request retry; 1 disables it. This
+        # bounds CLI launches, not the vendor's internal API requests or cost.
+        for attempt in range(self.vendor_attempts):
+            before = len(self.result['rows'])
+            try:
+                done = self.run(name, argv, check=False, timeout=330)
+            finally:
+                if len(self.result['rows']) > before:
+                    row = self.result['rows'][-1]
+                    row['vendor_attempt'] = attempt + 1
+                    row['vendor_attempt_limit'] = self.vendor_attempts
+                    self.save()
+            if done.returncode == 0:
+                return done
+            for path in outputs:
+                if path.is_file() and not path.is_symlink():
+                    destination = f'{name}-failed-output-{path.name}'
+                    shutil.copyfile(path, self.out / destination)
+                    row['artifacts'].append(destination)
+            self.save()
+            if (attempt + 1 >= self.vendor_attempts or b'Bad Request:' not in done.stderr
+                    or b'ukai-jail: error' in done.stderr):
+                raise RuntimeError(f'{name} failed with exit {done.returncode}; see {name}.stderr')
+            label = name + '-provider-failure'
+            row['name'] = label
+            renamed = []
+            for artifact in row['artifacts']:
+                destination = label + artifact[len(name):]
+                (self.out / artifact).rename(self.out / destination)
+                renamed.append(destination)
+            row['artifacts'] = renamed
+            self.attempts[label] = self.attempts.pop(name)
+            for path in outputs:
+                if path.exists():
+                    path.unlink()
+            self.result.setdefault('provider_retries', []).append(label)
+            self.save()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--artifacts', type=pathlib.Path, required=True)
@@ -78,6 +266,8 @@ def main():
     parser.add_argument('--credential-file', type=pathlib.Path,
                         help='An Anthropic API key the runner copied in; deleted once stored.')
     parser.add_argument('--model', default='opencode/big-pickle')
+    parser.add_argument('--vendor-attempts', type=int, choices=[1, 2], default=2,
+                        help='Maximum CLI invocations per workload; not an API or billing cap.')
     args = parser.parse_args()
     os.umask(0o077)
     out = args.out.resolve()
@@ -91,6 +281,8 @@ def main():
     result = {'schema': 'ouro.jail.onboarding/1', 'status': 'blocked',
               'expected_revision': args.revision, 'rows': [],
               'expected_inputs': args.inputs,
+              'vendor_attempts': args.vendor_attempts,
+              'max_vendor_invocations': 2 * args.vendor_attempts,
               'timer_scope': 'signed install through first sandboxed OpenCode result; '
                              'includes agent download, excludes VM/dependency bootstrap',
               'publication': 'deferred', 'signing_identity': 'ephemeral test key'}
@@ -99,63 +291,8 @@ def main():
     def save():
         (out / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
 
-    def run(name, argv, *, check=True, timeout=300, cwd=None):
-        started = time.monotonic()
-        done = subprocess.run([str(a) for a in argv], env=env, stdin=subprocess.DEVNULL,
-                              capture_output=True, timeout=timeout, cwd=cwd)
-        (out / f'{name}.stdout').write_bytes(done.stdout)
-        (out / f'{name}.stderr').write_bytes(done.stderr)
-        result['rows'].append({'name': name, 'argv': [str(a) for a in argv],
-                               'seconds': time.monotonic() - started, 'exit': done.returncode})
-        save()
-        if check and done.returncode:
-            if len(argv) > 1 and str(argv[0]) == str(binary) and argv[1] == 'run':
-                try:
-                    receipt(name)
-                except (AssertionError, OSError, ValueError) as error:
-                    result['receipt_validation_error'] = str(error) or repr(error)
-            raise RuntimeError(f'{name} refused with exit {done.returncode}; see {name}.stderr')
-        return done
-
-    def receipt(name):
-        attempt = max((home / 'ouro-data/attempts').iterdir(), key=lambda p: p.stat().st_mtime_ns)
-        for filename in ['jail.json', 'trace.ndjson', 'policy.json']:
-            source = attempt / filename
-            if source.is_file():
-                shutil.copyfile(source, out / f'{name}-{filename}')
-        data = json.loads((attempt / 'jail.json').read_text())
-        assert data['phase'] == 'settled', data['phase']
-        assert data['containment'] == 'enforced', data['containment']
-        assert data['exec_observed'] is True
-        assert data['lifetime']['tree_empty'] is True
-        assert data['lifetime']['integrity'] == 'verified'
-        assert data['outcome']['kind'] == 'exited' and data['outcome']['code'] == 0
-        assert data['state_cleanup'] == 'complete'
-        return data
-
-    def vendor(name, argv, outputs):
-        # One bounded retry for an observed provider Bad Request, retaining
-        # the failed row and artifacts. Jail errors never qualify. The
-        # onboarding clock includes both attempts; this is no reliability claim.
-        for attempt in range(2):
-            done = run(name, argv, check=False, timeout=330)
-            if done.returncode == 0:
-                return done
-            if attempt or b'Bad Request:' not in done.stderr or b'ukai-jail: error' in done.stderr:
-                raise RuntimeError(f'{name} failed with exit {done.returncode}; see {name}.stderr')
-            label = name + '-provider-failure'
-            result['rows'][-1]['name'] = label
-            for suffix in ['stdout', 'stderr']:
-                (out / f'{name}.{suffix}').rename(out / f'{label}.{suffix}')
-            current = max((home / 'ouro-data/attempts').iterdir(), key=lambda p: p.stat().st_mtime_ns)
-            for filename in ['jail.json', 'trace.ndjson', 'policy.json']:
-                shutil.copyfile(current / filename, out / f'{label}-{filename}')
-            for path in outputs:
-                if path.exists():
-                    shutil.copyfile(path, out / f'{label}-{path.name}')
-                    path.unlink()
-            result.setdefault('provider_retries', []).append(label)
-            save()
+    workflow = Workflow(binary, out, env, result, save, vendor_attempts=args.vendor_attempts)
+    run, receipt, vendor = workflow.run, workflow.receipt, workflow.vendor
 
     def distribution_checks():
         result['distribution_checks'] = 'started'
@@ -240,17 +377,26 @@ def main():
             # copy the runner placed here: from now on only the jail's config
             # directory holds it, and the agent sees a placeholder.
             started = time.monotonic()
-            with args.credential_file.open('rb') as key:
-                stored = subprocess.run([str(binary), 'credential', 'set', 'anthropic'],
-                                        env=env, stdin=key, capture_output=True, timeout=60)
-            args.credential_file.unlink()
+            store_error = None
+            try:
+                stored = store_credential(binary, args.credential_file, env)
+            except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+                store_error = error
+                stored = subprocess.CompletedProcess([], None,
+                         getattr(error, 'stdout', None) or b'', getattr(error, 'stderr', None) or b'')
             (out / 'credential-set.stdout').write_bytes(stored.stdout)
             (out / 'credential-set.stderr').write_bytes(stored.stderr)
             result['rows'].append({'name': 'credential-set',
                                    'argv': [str(binary), 'credential', 'set', 'anthropic'],
                                    'seconds': time.monotonic() - started,
-                                   'exit': stored.returncode})
+                                   'exit': stored.returncode,
+                                   'runner_copy_removed': not os.path.lexists(args.credential_file),
+                                   'execution_error_type': None if store_error is None else type(store_error).__name__,
+                                   'prior_error_type': None if store_error is None or store_error.__context__ is None
+                                   else type(store_error.__context__).__name__})
             save()
+            if store_error is not None:
+                raise store_error
             assert stored.returncode == 0, 'credential set refused; see credential-set.stderr'
             launch_dir = home / 'ouro-config/launch'
             launch_dir.mkdir(mode=0o700, exist_ok=True)
@@ -267,7 +413,7 @@ def main():
         (workspace / 'task.txt').write_text('hello\n')
         vendor('opencode', [binary, 'run', '--launch', launch, '--workspace', workspace,
                          '--ro', agent_dir, '--limit', 'wall=300s', '--', agent, 'run',
-                         '--model', args.model,
+                         '--print-logs', '--log-level', 'DEBUG', '--model', args.model,
                          'Use your glob tool to find task.txt, read it, then create greeting.txt '
                          'with exactly the same contents. Do not use the network yourself.'], [workspace / 'greeting.txt'])
         data = receipt('opencode')
@@ -294,7 +440,7 @@ def main():
         proposal = out / 'opencode-learned.toml'
         vendor('opencode-learn', [binary, 'learn', '--launch', launch, '--workspace', workspace,
                               '--ro', agent_dir, '--limit', 'wall=300s', '--out', proposal,
-                              '--', agent, 'run', '--model', args.model,
+                              '--', agent, 'run', '--print-logs', '--log-level', 'DEBUG', '--model', args.model,
                               f'Use the bash tool once to run exactly `cat {needed}; '
                               'cp task.txt learned-greeting.txt`. The cat is expected to fail; still '
                               'run cp after it. Do not retry, change permissions, or use the network '

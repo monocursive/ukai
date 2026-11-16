@@ -277,6 +277,22 @@ def duration(ms):
     return f"{seconds // 3600}h{(seconds % 3600) // 60:02d}m{seconds % 60:02d}s"
 
 
+def wall_duration(created, updated, ms):
+    # Mirrors summary.rs: milliseconds only when both stamps carry them;
+    # whole-second stamps n apart print `under 1s` (n = 0) or `<n>s ±1s`.
+    def millisecond(stamp):
+        match = STAMP.match(stamp)
+        return bool(match and match.group(7) and len(match.group(7)) >= 3)
+    if millisecond(created) and millisecond(updated):
+        return duration(ms)
+    seconds = max(epoch_ms(updated) // 1000 - epoch_ms(created) // 1000, 0)
+    if seconds == 0:
+        return "under 1s"
+    if seconds < 60:
+        return f"{seconds}s ±1s"
+    return f"{duration(seconds * 1000)} ±1s"
+
+
 STAMP = re.compile(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?Z$")
 
 
@@ -341,7 +357,8 @@ def status_line(receipt, frames, scanned):
     if journal_ms is not None:
         parts.append(f"{duration(journal_ms)} exec→settled")
     elif wall_ms is not None:
-        parts.append(f"{duration(wall_ms)} attempt (wall clock)")
+        parts.append(f"{wall_duration(string(receipt, 'created_at'), string(receipt, 'updated_at'), wall_ms)}"
+                     " attempt (wall clock)")
     tree_empty = pointer(receipt, "lifetime", "tree_empty")
     scope = string(receipt, "lifetime", "verification_scope")
     boundary = string(receipt, "lifetime", "boundary")

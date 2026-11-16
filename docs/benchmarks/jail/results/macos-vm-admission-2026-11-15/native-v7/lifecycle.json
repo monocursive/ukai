@@ -1,0 +1,456 @@
+{
+  "schema": "ukai.task.finite-component-completion/1",
+  "outcome": "PASS",
+  "plan_sha256": "770e7f6ef713e30d9988c3fe09ebc44b8d51a6224344562ff2b525610aa895cc",
+  "finalizer_sha256": "3bb7c627e0db60b0754293d85ce308d3d2d62f2ff0534cf2acb2d89f226e4145",
+  "source_revision": "44b5ac4fa65880abe369652ed0110162088a0cd9",
+  "checks": {
+    "installed:bin/ukai-jail": true,
+    "installed:bin/ukai-vm": true,
+    "installed:bin/ukai-vm-install": true,
+    "installed:image/base.raw": true,
+    "installed:image/custodian": true,
+    "installed:image/guest-program-catalog.json": true,
+    "installed:image/image.json": true,
+    "installed:image/seed.iso": true,
+    "installed:image/vz": true,
+    "installed:licenses/Linux-Jail-LICENSES.txt": true,
+    "installed:licenses/Native-Host-LICENSES.txt": true,
+    "installed:licenses/Python-LICENSE.txt": true,
+    "installed:licenses/Ukai-LICENSE.txt": true,
+    "installed:licenses/pyinstaller-COPYING.txt": true,
+    "artifact:guest-native-Q-journal-review/capabilities/review.json": true,
+    "artifact:guest-native-Q-journal-review/prepare/review.json": true,
+    "artifact:guest-native-direct-plan-Q-44b5ac4fa/source-manifest.json": true,
+    "artifact:guest-native-direct-prepare-Q-44b5ac4fa/completion.json": true,
+    "artifact:guest-native-installer-Q-44b5ac4fa/summary.json": true,
+    "artifact:guest-native-installer-execution-Q-44b5ac4fa/completion.json": true,
+    "artifact:guest-native-installer-execution-Q-44b5ac4fa/installed-identity.json": true,
+    "artifact:guest-native-installer-execution-Q-44b5ac4fa/installer-execution.json": true,
+    "artifact:guest-native-package-Q-44b5ac4fa/package.json": true,
+    "artifact:guest-native-package-Q-44b5ac4fa/ukai-vm-0.1.0-preview.2-macos-arm64.dmg": true,
+    "artifact:guest-native-package-independent-Q-44b5ac4fa/attempt-v2/retained-package/READ-ME.txt": true,
+    "artifact:guest-native-package-independent-Q-44b5ac4fa/attempt-v2/retained-package/SHA256SUMS": true,
+    "artifact:guest-native-package-independent-Q-44b5ac4fa/attempt-v2/retained-package/install.sh": true,
+    "artifact:guest-native-package-independent-Q-44b5ac4fa/attempt-v2/retained-package/preview-source.tar.gz": true,
+    "artifact:guest-native-package-independent-Q-44b5ac4fa/attempt-v2/verification.json": true,
+    "artifact:guest-native-package-independent-Q-44b5ac4fa/stage-cleanup/result.json": true,
+    "artifact:guest-native-package-plan-Q-44b5ac4fa/completion.json": true,
+    "helper:capabilities.py": true,
+    "helper:claude_vm_row.py": true,
+    "helper:credential_revocation_measurement.py": true,
+    "helper:credential_staging_measurement.py": true,
+    "helper:execution_boundary_measurement.py": true,
+    "helper:guest.py": true,
+    "helper:guest_exposure.py": true,
+    "helper:guest_program.py": true,
+    "helper:harness.py": true,
+    "helper:program_binding_measurement.py": true,
+    "helper:run.py": true,
+    "helper:stream_peer.py": true,
+    "helper:vault_measurement.py": true,
+    "helper:vm_summary_check.py": true,
+    "prepared:base.raw": true,
+    "prepared:seed.iso": true,
+    "prepared:guest-program-catalog.json": true,
+    "frozen_source_clean": true,
+    "capabilities:owning_replay_cleanup": true,
+    "boundary:owning_replay_cleanup": true,
+    "vault:owning_replay_cleanup": true,
+    "staging:owning_replay_cleanup": true,
+    "program:owning_replay_cleanup": true,
+    "exact_finite_attempts": true,
+    "exact_three_boots": true,
+    "workspace_detached": true,
+    "owned_dmg_and_workspace_attachments_absent": true,
+    "no_vm_or_compiler": true,
+    "new_redundant_stage_still_absent": true,
+    "reserve_preserved": true
+  },
+  "phases": {
+    "capabilities": {
+      "record": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-capabilities-Q-44b5ac4fa/capabilities.json",
+      "sha256": "ead8c004eb317241f213946b3d431eb1d26b15562e28c4a3e52d7bc9d96be33e",
+      "acceptance_sha256": "cf45547f84c962c4c26bf22055949fd9269d1cc2d45e9860a564b000746ed94f",
+      "outer_sha256": "7ce83459e5dc598615888f0812cc702f5dfd5d43760bac2647750d4b7333240a",
+      "elapsed_seconds": 79.33289287495427,
+      "minimum_free_bytes": 15175405568
+    },
+    "boundary": {
+      "record": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-boundary-Q-44b5ac4fa/execution-boundary.json",
+      "sha256": "14daa25ece6b5314a14c32ce0d8c95b7753d81217530ee6925e3d3ce789ce8fd",
+      "acceptance_sha256": "b9c3dd0bbe716a96921d54f512c71472672911b03051073f31c90acf1c3f94f5",
+      "outer_sha256": "a5c80cf896f2de3074d6d06e4747b93f4de2012bb2b99e13f46672474606a22f",
+      "elapsed_seconds": 3.01518258289434,
+      "minimum_free_bytes": 15331745792
+    },
+    "vault": {
+      "record": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-Q-44b5ac4fa/raw-credential-revocation.json",
+      "sha256": "3ac0909ca6a6dfa37423cc0859f34fb3b55b5ec4bc664b52572d88a98eeffd64",
+      "acceptance_sha256": "7ac53a01e84e6463b03ab19dce32038f6fac56e25e065806b0f3e2e956e75c27",
+      "outer_sha256": "4230c0ef3c20b2baabac0cad7d6579ba5760944c47228c3eb2a5867c099fc158",
+      "elapsed_seconds": 57.23124666698277,
+      "minimum_free_bytes": 15139995648
+    },
+    "staging": {
+      "record": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-credential-admission-Q-44b5ac4fa/credential-staging.json",
+      "sha256": "f0e0ea69959b3ef00f9185a32680ced378ee57ffacc9a63f70d21b43173f1b1c",
+      "acceptance_sha256": "6fc4b9217e9964f0918193a8a358d217a836db076fe8dfeb45f2197bb9f6447d",
+      "outer_sha256": "6f1dc93362cac83859fdadff732e6e030112d90d31b033eb68fded45db9b5863",
+      "elapsed_seconds": 9.075607625069097,
+      "minimum_free_bytes": 15335825408
+    },
+    "program": {
+      "record": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-program-binding-Q-44b5ac4fa/result.json",
+      "sha256": "dde057a0526cb89273784f4650486e57d43da38a316cad693078dc6555c13fee",
+      "acceptance_sha256": "4835422f3a08f4b0530dbe780d0b08314020cdf32435b421fd32ab540f8ba1c3",
+      "outer_sha256": "5aeb88c27c088be77c66b7365c115548a461baa37a0f76f41c58861064777b25",
+      "elapsed_seconds": 58.458855957956985,
+      "minimum_free_bytes": 15244914688
+    }
+  },
+  "qualified": false,
+  "native_vendor_or_k113_qualified": false,
+  "automatic_retry": false,
+  "installed": {
+    "bin/ukai-jail": {
+      "sha256": "9414dc35706651768b369fbec58cee320b95bdec0f6ef01cc0c649327d439fe7",
+      "generation": {
+        "ctime_ns": 1794841814285850000,
+        "dev": 16777234,
+        "ino": 375148394,
+        "mode": 33261,
+        "mtime_ns": 1794841078138795313,
+        "nlink": 1,
+        "size": 10154064
+      },
+      "allocated_bytes": 10158080
+    },
+    "bin/ukai-vm": {
+      "sha256": "4f0466084311b9e886c6a7dc80a3973d7f144d4e88367729999ef6f022dfbd31",
+      "generation": {
+        "ctime_ns": 1794841814281370857,
+        "dev": 16777234,
+        "ino": 375148392,
+        "mode": 33261,
+        "mtime_ns": 1794841077825487497,
+        "nlink": 1,
+        "size": 3210224
+      },
+      "allocated_bytes": 3211264
+    },
+    "bin/ukai-vm-install": {
+      "sha256": "7b12dc9bc7904b1d8cbdaf3d31d029e1cde18a97ea87b1f4db28aedd17d0c066",
+      "generation": {
+        "ctime_ns": 1794841814287561757,
+        "dev": 16777234,
+        "ino": 375148395,
+        "mode": 33261,
+        "mtime_ns": 1794841081930137155,
+        "nlink": 1,
+        "size": 9843072
+      },
+      "allocated_bytes": 9846784
+    },
+    "image/base.raw": {
+      "sha256": "7008344b64f7d9f5fed9492e11f4a94579a2ad701472a8ed915ee323b357174e",
+      "generation": {
+        "ctime_ns": 1794841824304276354,
+        "dev": 16777234,
+        "ino": 375148417,
+        "mode": 33188,
+        "mtime_ns": 1794841823974741558,
+        "nlink": 1,
+        "size": 6442450944
+      },
+      "allocated_bytes": 1574109184
+    },
+    "image/custodian": {
+      "sha256": "d4140527cbde5fbce84c7e48c67093e35d8400b0d9fc9c23f0f3825dc475d4ce",
+      "generation": {
+        "ctime_ns": 1794841814606358096,
+        "dev": 16777234,
+        "ino": 375148409,
+        "mode": 33261,
+        "mtime_ns": 1794841062961880069,
+        "nlink": 1,
+        "size": 52848
+      },
+      "allocated_bytes": 53248
+    },
+    "image/guest-program-catalog.json": {
+      "sha256": "53de4dff6cc76d8bdfe9cf7939a76313ffec1106c3f6f76ab5d74c4c16f5fc06",
+      "generation": {
+        "ctime_ns": 1794841814460794439,
+        "dev": 16777234,
+        "ino": 375148406,
+        "mode": 33188,
+        "mtime_ns": 1794841082031281885,
+        "nlink": 1,
+        "size": 1184
+      },
+      "allocated_bytes": 4096
+    },
+    "image/image.json": {
+      "sha256": "a9f0bcc9ef47aba98cdb0dae0f18c830b8a42d7878aa1a3409f05cd0906b6f23",
+      "generation": {
+        "ctime_ns": 1794841814606167136,
+        "dev": 16777234,
+        "ino": 375148408,
+        "mode": 33188,
+        "mtime_ns": 1794841119008192987,
+        "nlink": 1,
+        "size": 15589
+      },
+      "allocated_bytes": 16384
+    },
+    "image/seed.iso": {
+      "sha256": "fab538c6530dccfe062da428b663709162c29de5f0959b6e20c36e0ba964ffc7",
+      "generation": {
+        "ctime_ns": 1794841814605910177,
+        "dev": 16777234,
+        "ino": 375148407,
+        "mode": 33188,
+        "mtime_ns": 1794839672517920939,
+        "nlink": 1,
+        "size": 310435840
+      },
+      "allocated_bytes": 310435840
+    },
+    "image/vz": {
+      "sha256": "9b0a5b8fc8e972b92b44c6c244aa87f5c1d3a799c8f360c1972474b4b167f882",
+      "generation": {
+        "ctime_ns": 1794841814292489818,
+        "dev": 16777234,
+        "ino": 375148404,
+        "mode": 33261,
+        "mtime_ns": 1794841062647520040,
+        "nlink": 1,
+        "size": 138896
+      },
+      "allocated_bytes": 139264
+    },
+    "licenses/Linux-Jail-LICENSES.txt": {
+      "sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd",
+      "generation": {
+        "ctime_ns": 1794841814292121233,
+        "dev": 16777234,
+        "ino": 375148402,
+        "mode": 33188,
+        "mtime_ns": 1794841119046061845,
+        "nlink": 1,
+        "size": 2291615
+      },
+      "allocated_bytes": 2293760
+    },
+    "licenses/Native-Host-LICENSES.txt": {
+      "sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd",
+      "generation": {
+        "ctime_ns": 1794841814288321343,
+        "dev": 16777234,
+        "ino": 375148397,
+        "mode": 33188,
+        "mtime_ns": 1794841119008709156,
+        "nlink": 1,
+        "size": 2291615
+      },
+      "allocated_bytes": 2293760
+    },
+    "licenses/Python-LICENSE.txt": {
+      "sha256": "78b12c3a81360b357002334f0e70ea0e92eebf7a9b358805c03c48484945f3bb",
+      "generation": {
+        "ctime_ns": 1794841814289061638,
+        "dev": 16777234,
+        "ino": 375148401,
+        "mode": 33188,
+        "mtime_ns": 1780589451142496510,
+        "nlink": 1,
+        "size": 13809
+      },
+      "allocated_bytes": 16384
+    },
+    "licenses/Ukai-LICENSE.txt": {
+      "sha256": "38184627dc06fbee992333e9d7009f4d9efdc724f00edf305067e266fa8cab11",
+      "generation": {
+        "ctime_ns": 1794841814288778678,
+        "dev": 16777234,
+        "ino": 375148400,
+        "mode": 33188,
+        "mtime_ns": 1794837930125375603,
+        "nlink": 1,
+        "size": 1068
+      },
+      "allocated_bytes": 4096
+    },
+    "licenses/pyinstaller-COPYING.txt": {
+      "sha256": "0598064c7d2718e38d7914a7d08343b2fa008e3bea9ebba2aa7a6ffa5900dd64",
+      "generation": {
+        "ctime_ns": 1794841814288518094,
+        "dev": 16777234,
+        "ino": 375148399,
+        "mode": 33188,
+        "mtime_ns": 1794746671732966321,
+        "nlink": 1,
+        "size": 32604
+      },
+      "allocated_bytes": 32768
+    }
+  },
+  "artifact_sha256": {
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-Q-journal-review/capabilities/review.json": "9ea47ec7615f3dd5ddb386c6fa7b7b07c09330060812e1f281332015cadcead2",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-Q-journal-review/prepare/review.json": "e6b7347df7df84f5605f3e74e7cb91b8736de0a0010f1eec16331f11ed677a69",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-plan-Q-44b5ac4fa/source-manifest.json": "b33974abfdc5a29f23249ef6e1b6d4ffd163bc8b01b88b4511b96b55b1ebe832",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-direct-prepare-Q-44b5ac4fa/completion.json": "c4136d8a18a6bb57131a348929f2375f6ada510226b694419f14b6b17a36d8a2",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-Q-44b5ac4fa/summary.json": "440b3e2f2e26c7b0311d94779f1985047d3711fe343992bce696508114c8a70b",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-execution-Q-44b5ac4fa/completion.json": "52a8871b2c702510523503131762d0c5bde7e48641a8d83fd8d19e6edf70c84d",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-execution-Q-44b5ac4fa/installed-identity.json": "d8c9e4a971dea0d65fb6bbef12a4d33ed0b9b8b70dd6684c256a993b861eca85",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-execution-Q-44b5ac4fa/installer-execution.json": "9270293a9e87e65896bcf9f58a116f86c2b078ab97ddab5390c62b8e57353a43",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-Q-44b5ac4fa/package.json": "05b2ff289ceaa8f73baa51329c996160e330e9710e1d09f004af78c6de4c4e1e",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-Q-44b5ac4fa/ukai-vm-0.1.0-preview.2-macos-arm64.dmg": "437a548580ed1ad8f9e38b27c3d4be726ff01594ab40c40ec39e14286979e953",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-Q-44b5ac4fa/attempt-v2/retained-package/READ-ME.txt": "95cab2b79d835c1af2e8f4ea470d0731d06d00ec40685c6a571ee373d87d2206",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-Q-44b5ac4fa/attempt-v2/retained-package/SHA256SUMS": "4cd23e2e40a467f1e62f421eaa0fd0e34e6fab2172b6e158d4ed95c8078c4802",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-Q-44b5ac4fa/attempt-v2/retained-package/install.sh": "de254ef7533a0ad6cd62c1c98b94e13b6d34d7e9d4e130608d0c88185ab256ff",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-Q-44b5ac4fa/attempt-v2/retained-package/preview-source.tar.gz": "d372af085a81aebc910c4c742130cff3a19aa3aeaaf53314d90578cb70a41500",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-Q-44b5ac4fa/attempt-v2/verification.json": "9aaf6f925cbf19413d3232054080828c725e94831797fadb8d2b665740c85988",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-Q-44b5ac4fa/stage-cleanup/result.json": "d094c31cb30fca6aa978226d812882b39cf6db71c0b9206194563679b6afa6b4",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-plan-Q-44b5ac4fa/completion.json": "9e12e0b0e0f6c9c529e281745585e9d380559d0b06c87832b18841afb8f6319b"
+  },
+  "attempts": {
+    "capabilities": [
+      {
+        "host_attempt_id": "cap-wall-c3ad1b9d43f83681",
+        "guest_attempt_id": "att_5f75f6f0-27a6-4519-883f-1e97203fcd7c",
+        "service_boot_id": "vm-dbb97d20-217e-4122-ac73-59aaf324bce3",
+        "started_at": "2026-11-16T15:19:33Z"
+      },
+      {
+        "host_attempt_id": "cap-pids-c3ad1b9d43f83681",
+        "guest_attempt_id": "att_a0dfb4b3-4e65-4f6b-b972-1b4c287bdaf6",
+        "service_boot_id": "vm-dbb97d20-217e-4122-ac73-59aaf324bce3",
+        "started_at": "2026-11-16T15:19:39Z"
+      },
+      {
+        "host_attempt_id": "cap-mem-c3ad1b9d43f83681",
+        "guest_attempt_id": "att_c308f828-2bef-4da3-8788-74219c2d5374",
+        "service_boot_id": "vm-dbb97d20-217e-4122-ac73-59aaf324bce3",
+        "started_at": "2026-11-16T15:19:39Z"
+      },
+      {
+        "host_attempt_id": "cap-containment-c3ad1b9d43f83681",
+        "guest_attempt_id": "att_9940cbb8-7f3b-4a22-92fc-a9556d26fb6b",
+        "service_boot_id": "vm-dbb97d20-217e-4122-ac73-59aaf324bce3",
+        "started_at": "2026-11-16T15:19:39Z"
+      },
+      {
+        "host_attempt_id": "cap-network_none-c3ad1b9d43f83681",
+        "guest_attempt_id": "att_03aba2e3-518c-4bab-a99e-1bd412143219",
+        "service_boot_id": "vm-dbb97d20-217e-4122-ac73-59aaf324bce3",
+        "started_at": "2026-11-16T15:19:40Z"
+      },
+      {
+        "host_attempt_id": "cap-route_control-c3ad1b9d43f83681",
+        "guest_attempt_id": "att_abefd5f8-e1b9-4052-9483-76319b9e3d80",
+        "service_boot_id": "vm-dbb97d20-217e-4122-ac73-59aaf324bce3",
+        "started_at": "2026-11-16T15:19:40Z"
+      },
+      {
+        "host_attempt_id": "cap-workspace-c3ad1b9d43f83681",
+        "guest_attempt_id": "att_8d6aa1f1-f86e-4cd6-a3e3-87709ecf7bb7",
+        "service_boot_id": "vm-dbb97d20-217e-4122-ac73-59aaf324bce3",
+        "started_at": "2026-11-16T15:19:40Z"
+      },
+      {
+        "host_attempt_id": "cap-tree_termination-c3ad1b9d43f83681",
+        "guest_attempt_id": "att_b0e06c2b-a6ad-4392-b462-f7a401294026",
+        "service_boot_id": "vm-dbb97d20-217e-4122-ac73-59aaf324bce3",
+        "started_at": "2026-11-16T15:19:41Z"
+      },
+      {
+        "host_attempt_id": "cap-tree_wall-c3ad1b9d43f83681",
+        "guest_attempt_id": "att_d7e640eb-5826-44b8-ae4b-acf7d6c18826",
+        "service_boot_id": "vm-dbb97d20-217e-4122-ac73-59aaf324bce3",
+        "started_at": "2026-11-16T15:19:47Z"
+      },
+      {
+        "host_attempt_id": "cap-closed_set_observation-c3ad1b9d43f83681",
+        "guest_attempt_id": "att_3a3db9f7-f848-4ece-bc8a-7e215ab567cb",
+        "service_boot_id": "vm-dbb97d20-217e-4122-ac73-59aaf324bce3",
+        "started_at": "2026-11-16T15:19:57Z"
+      },
+      {
+        "host_attempt_id": "cap-observe_3-c3ad1b9d43f83681",
+        "guest_attempt_id": "att_38c1a4d1-c790-4524-9414-4f505c1c8103",
+        "service_boot_id": "vm-dbb97d20-217e-4122-ac73-59aaf324bce3",
+        "started_at": "2026-11-16T15:19:57Z"
+      },
+      {
+        "host_attempt_id": "cap-observe_background-c3ad1b9d43f83681",
+        "guest_attempt_id": "att_02dbad0d-efff-42cc-85a7-d8a5f2571b10",
+        "service_boot_id": "vm-dbb97d20-217e-4122-ac73-59aaf324bce3",
+        "started_at": "2026-11-16T15:19:57Z"
+      },
+      {
+        "host_attempt_id": "cap-syscall_filter-c3ad1b9d43f83681",
+        "guest_attempt_id": "att_05063e02-e07b-442d-8c93-26d3ba97d97a",
+        "service_boot_id": "vm-dbb97d20-217e-4122-ac73-59aaf324bce3",
+        "started_at": "2026-11-16T15:19:58Z"
+      },
+      {
+        "host_attempt_id": "cap-protected_coverage-c3ad1b9d43f83681",
+        "guest_attempt_id": "att_1cd0586a-bd5e-4768-9840-823a0a85831a",
+        "service_boot_id": "vm-dbb97d20-217e-4122-ac73-59aaf324bce3",
+        "started_at": "2026-11-16T15:19:58Z"
+      },
+      {
+        "host_attempt_id": "cap-protected_agent-c3ad1b9d43f83681",
+        "guest_attempt_id": "att_aa957b53-7d92-4d79-b322-c27a48ee0806",
+        "service_boot_id": "vm-dbb97d20-217e-4122-ac73-59aaf324bce3",
+        "started_at": "2026-11-16T15:19:58Z"
+      },
+      {
+        "host_attempt_id": "cap-network_proxy-c3ad1b9d43f83681",
+        "guest_attempt_id": "att_fa3a7d0a-55a1-4f31-b8ac-2a8eeda39c2c",
+        "service_boot_id": "vm-dbb97d20-217e-4122-ac73-59aaf324bce3",
+        "started_at": "2026-11-16T15:19:59Z"
+      }
+    ],
+    "vault": [
+      {
+        "host_attempt_id": "k113-raw-1cd31fac61773d19",
+        "guest_attempt_id": "att_e5f95cf3-835c-4d12-a170-b28f6882fc3e",
+        "service_boot_id": "vm-153dabc8-3290-4783-9fab-8755d734e9d3",
+        "started_at": "2026-11-16T15:21:40Z"
+      },
+      {
+        "host_attempt_id": "k113-sync-73f4a57772223b22",
+        "guest_attempt_id": "att_78ee34bf-9bea-45c3-8856-4703bd68b0c4",
+        "service_boot_id": "vm-153dabc8-3290-4783-9fab-8755d734e9d3",
+        "started_at": "2026-11-16T15:21:41Z"
+      }
+    ],
+    "program": [
+      {
+        "host_attempt_id": "program-binding-6b130f359d30cb0e",
+        "guest_attempt_id": "att_c6cc3390-a140-4b33-bc21-3156840212cd",
+        "service_boot_id": "vm-09884817-e7b2-442b-b8c5-5c34b5b34f01",
+        "started_at": "2026-11-16T15:24:18Z"
+      },
+      {
+        "host_attempt_id": "program-binding-f24d1c724e8d5a6c",
+        "guest_attempt_id": "att_4548edbb-ee0d-4771-8a0d-70891f11fae7",
+        "service_boot_id": "vm-09884817-e7b2-442b-b8c5-5c34b5b34f01",
+        "started_at": "2026-11-16T15:24:19Z"
+      }
+    ]
+  },
+  "boot_ids": [
+    "vm-09884817-e7b2-442b-b8c5-5c34b5b34f01",
+    "vm-153dabc8-3290-4783-9fab-8755d734e9d3",
+    "vm-dbb97d20-217e-4122-ac73-59aaf324bce3"
+  ],
+  "free_bytes": 15389782016,
+  "minimum_free_bytes": 15139995648,
+  "retained_offline_checker_refusals": {},
+  "scope": "Fresh provisional Q generic component evidence only; no native launch/vendor/API/sampling/K113 qualification and no admission mutation.",
+  "finished_at": "2026-11-16T15:25:40.027494+00:00"
+}

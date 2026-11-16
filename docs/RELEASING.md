@@ -144,18 +144,36 @@ from the inherited bootstrap port, the launcher now strips that port before
 the exec ([bootstrap-strip
 record](benchmarks/jail/results/macos-k90-bootstrap-strip-2026-11-02/README.md)).
 K90 and NC01 remain blocked pending full release qualification, and the
-protected-Mac release run (K104) stays explicitly blocked while Apple's
-entitlement request is pending. No release
-gate is promoted by these measurements.
-J16 still needs its bundle,
-Info.plist, entitlements and `~/Applications` installer. J18's K108–K113 are
+protected-Mac release run (K104) stays explicitly blocked without a usable
+approved ES profile and protected-host acceptance. The November 15 local
+provisioning inventory found no matching profile; Apple's account-side decision
+was not verified. No release gate is promoted by these measurements.
+J16 now has [native candidate tooling](../crates/ukai-jail/dist/macos/README.md)
+for the exact `Ukai.app` layout, macOS 27 Info.plist, clean-source provenance,
+profile-gated signing and per-user install/upgrade/removal with recovery.
+Unsigned staging is not runnable-workflow qualification; no approved Ukai ES
+profile was available locally, and no signed/notarized native candidate or
+protected-host acceptance was obtained. Signing and notarization are separate
+explicit maintainer actions.
+Native execution remains disabled by default and NC02/K104 remain blocked.
+J18's K108–K113 are
 `untested`, a policy element the guest jail does not carry refuses with
-`vm:not-carried:<field>`, and no macOS `ukai-jail` client ships: the VM
-candidate package carries only `ukai-vm` and `ukai-vm-install`, and the
-client is built from source.
+`vm:not-carried:<field>`, and no macOS `ukai-jail` client ships in the existing
+public preview or earlier candidate: those packages carry only `ukai-vm`
+and `ukai-vm-install`, so their client is built from source. The current
+packager builds, signs and installs `ukai-jail` with its sibling service
+from the same clean revision. The local Developer-ID-signed DMG at
+`53e5605fd` includes both commands and passed its bounded installer and guest
+component checks; [the retained proof](benchmarks/jail/results/macos-vm-admission-2026-11-15/README.md)
+names its exact bytes. It is neither notarized nor published. A rebuilt host
+runtime needs clean-source build, signing, installed-byte verification and
+fresh installed-client qualification; the guest admission record does not
+supply that proof. Notarization and the full installed K108–K113 release
+clauses remain requirements.
 Apple's Endpoint Security grant (request `S9YJTLLH28`, submitted 2026-09-29)
 is necessary, but does not by itself make the release run ready. The procedure
-below is a release requirement, not an implemented packaging workflow.
+below remains a release requirement; the candidate tooling implements packaging
+mechanics, not the entitlement grant or live acceptance.
 
 Current implementation: native execution is **off by default**. Setting
 `UKAI_JAIL_MACOS_NATIVE=dev` enables development only; a native receipt records
@@ -163,13 +181,26 @@ Current implementation: native execution is **off by default**. Setting
 `unsupported` and refuse. J17 is wired before release (`J17_OBSERVE=true`):
 `macos-closed-v1` declares the exact ES notification set; loss-free attached
 `exec` and `fs.write` coverage is active only over that set. Synthetic producer
-checks do not establish live acceptance. Every `run --vm` still refuses at
-probing, before any connection or boot. The 2026-11-04 live phase measured
-five guest requirements (the wall, pids and memory limits, filesystem
-containment and `network_none`), but `tree_termination`, which every plan
-requires, and the rest have no measured guest record, so they answer
-`vm:not-measured:<requirement>`. The released VM preview remains
-the only Mac deliverable.
+checks do not establish live acceptance.
+
+The current VM probe admits twelve requirements only for the exact disk and
+seed in the [15 November signed-image record](benchmarks/jail/results/macos-vm-admission-2026-11-15/README.md):
+ten direct guest capabilities plus derived `execution_boundary` and vault-only
+`credential_staging`. Required `pids=64` and `mem=512MiB` can pass admission;
+required swap remains unmeasured, and the owner-loss bound remains unsupported.
+An unmeasured requirement or another guest image refuses at probing with
+`vm:not-measured:<requirement>` before any connection or boot. A `tool` or
+`agent` plan still needs an explicit `--limit wall=<n>s` of 1–300 s; the
+profiles' own 30 m and 2 h walls refuse with `vm:not-carried:limits.wall`.
+The proof uses the installed, Developer-ID-signed package built from source
+`53e5605fd`. It does not qualify a rebuilt host client, normal host source
+monitoring, vendor compatibility or full K113. K108–K113 remain `untested`.
+
+The separate [signed `9ceada861` host candidate](benchmarks/jail/production-qualification-2026-11-15.md#corrected-signed-host-candidate)
+records fresh installed synthetic source-watch, warm-workflow, bounded wall
+termination and source-rebuild checks. It remains private and unnotarized;
+those results do not establish vendor compatibility or full release acceptance.
+The released cold-boot VM preview remains the only public Mac deliverable.
 
 After implementation, packaging and the measurement spike are complete and
 the entitlement is granted, prepare a Mac release bundle as follows:
@@ -214,13 +245,17 @@ needs at least 4 GiB free for a release build. Record successful conformance wit
 skipped reference host or an older passing run is insufficient. The next
 release needs a fresh reference conformance rerun on the VPS, followed by
 `cargo xtask freeze --doctor <successful-run>/doctor.json`. The current
-`milestone-1-freeze.toml` has no `[tested]` record: regenerating a tree-only
-freeze intentionally removes it and cannot establish release readiness.
+`milestone-1-freeze.toml` must describe the candidate's inputs. A historical
+`[tested]` record does not cover later source changes. Regenerating a tree-only
+freeze intentionally removes that record and cannot establish release readiness;
+only a successful matching reference run can restore it.
 
-Set the reviewed coordinates and production key:
+Set a new, reviewed candidate version and the production key. The example
+below names the unpublished rc.6 candidate; it does not change the published
+rc.5 release. Never reuse a published version for different bytes:
 
 ```sh
-release_version=0.1.0-rc.5
+release_version=0.1.0-rc.6
 release_revision=$(git rev-parse HEAD)
 release_public_key=$(sed -n '2p' crates/ukai-jail/dist/release.pub)
 release_private_key="$HOME/.config/ouroboros/release-keys/ouro-jail-2026-10-10.key"

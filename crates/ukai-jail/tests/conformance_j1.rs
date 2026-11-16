@@ -618,35 +618,20 @@ fn s11_observe_off() {
     }
 }
 
-/// The x86_64 syscall numbers this kernel's headers declare.
-fn kernel_syscall_numbers() -> BTreeMap<String, u32> {
-    const HEADER: &str = "/usr/include/x86_64-linux-gnu/asm/unistd_64.h";
-    let raw = std::fs::read_to_string(HEADER).unwrap_or_else(|error| {
-        panic!("{HEADER}: {error}; install libc6-dev so the closed set can be checked")
-    });
-    let mut table = BTreeMap::new();
-    for line in raw.lines() {
-        if let Some(rest) = line.strip_prefix("#define __NR_") {
-            let mut parts = rest.split_ascii_whitespace();
-            if let (Some(name), Some(number)) = (parts.next(), parts.next())
-                && let Ok(number) = number.parse::<u32>()
-            {
-                table.insert(name.to_owned(), number);
-            }
-        }
-    }
-    table
-}
-
 /// Whether the observer's narrowing filter actually traces this syscall.
 ///
 /// Read from the filter that is installed rather than from a restatement of
 /// the closed set, so a test's expectation follows the set as it grows
-/// instead of pinning a number that will change under it.
+/// instead of pinning a number that will change under it. Libc supplies the
+/// target ABI's syscall numbers independently of the jail's filter table.
 fn closed_set_traces(name: &str) -> bool {
-    let Some(number) = kernel_syscall_numbers().get(name).copied() else {
-        panic!("{name} is not in this kernel's syscall table");
+    let number = match name {
+        "mknodat" => libc::SYS_mknodat,
+        "truncate" => libc::SYS_truncate,
+        "ftruncate" => libc::SYS_ftruncate,
+        _ => panic!("the fixture does not name syscall {name}"),
     };
+    let number = u32::try_from(number).expect("Linux syscall numbers fit in u32");
     ukai_jail::platform::linux::tracer::narrowing_filter()
         .iter()
         .any(|insn| insn.code == 0x15 && insn.k == number)
@@ -846,7 +831,7 @@ MAP_PRIVATE_ANON = 0x22
 page = libc.mmap(None, 4096, PROT_NONE, MAP_PRIVATE_ANON, -1, 0)
 assert page not in (None, -1, ctypes.c_void_p(-1).value), "the page was not mapped"
 AT_FDCWD = -100
-NR_OPENAT = 257
+NR_OPENAT = __NR_OPENAT__
 faults = 0
 other = 0
 for _ in range(200):
@@ -869,13 +854,14 @@ fn o03_an_unreadable_argument_is_not_a_hole_in_coverage() {
         return;
     }
     let case = case();
+    let fixture = UNREADABLE_PATH_FIXTURE.replace("__NR_OPENAT__", &libc::SYS_openat.to_string());
     let run = case
         .jail
         .args(["--evidence", "strict"])
         .target([
             OsStr::new("/usr/bin/python3"),
             OsStr::new("-c"),
-            OsStr::new(UNREADABLE_PATH_FIXTURE),
+            OsStr::new(&fixture),
         ])
         .run()
         .expect("the jail runs");
@@ -1745,7 +1731,10 @@ fn doctor_reports_every_probe_and_the_manifest_agrees() {
 
 #[test]
 fn the_checked_in_seccomp_table_is_the_one_this_build_produces() {
-    let path = specs_dir().join("evidence/seccomp-table-tool-x86_64.txt");
+    let path = specs_dir().join(format!(
+        "evidence/seccomp-table-tool-{}.txt",
+        std::env::consts::ARCH
+    ));
     let checked_in = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("{} is missing: {error}", path.display()));
     let generated = ukai_jail::platform::linux::seccomp::tool_baseline_table();

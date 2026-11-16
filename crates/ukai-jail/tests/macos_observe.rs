@@ -176,6 +176,7 @@ fn j17_baseline_and_explicit_observe_on_use_the_declared_set() {
     assert_eq!(report["policy"]["snapshot"]["observation"]["mode"], "on");
     use ukai_jail::platform::{PlanRequest, Platform};
     let plan = PlanRequest {
+        guest_program: None,
         snapshot: ukai_jail::policy::resolve(&ukai_jail::policy::ResolveInputs {
             platform: Os::Macos,
             base_profile: ProfileName::Tool,

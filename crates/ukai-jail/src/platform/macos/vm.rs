@@ -9,9 +9,13 @@
 //! platform; a difference refuses with `vm:not-carried:<field>`
 //! ([`policy_refusal`]). The probe answers `available` only for a
 //! requirement a measured guest record backs (decision D2,
-//! [`GUEST_MEASUREMENTS`]). The 2026-11-04 live phase measured five; the
-//! rest (`tree_termination` first) have no probe yet, so every `tool` or
-//! `agent` `run --vm` still refuses at probing.
+//! [`GUEST_MEASUREMENTS`] and [`NATIVE_GUEST_MEASUREMENTS`]). The signed-image measurements back
+//! twelve requirements, including execution boundaries and vault credential
+//! staging. Each table applies only to its measured guest disk and seed. A
+//! native program additionally requires its exact catalog/entry admission. The guest
+//! must also advertise the exact revocation and journal contracts before
+//! any secret crosses. Owner-loss bounds and unsupported policy fields
+//! continue to refuse.
 //!
 //! The transport below is tested with stand-ins. Its guest reports are
 //! checked for consistency and binding; they are not independent host
@@ -52,8 +56,11 @@ use image::Install;
 
 pub mod control;
 pub mod image;
+mod native;
 pub mod protocol;
 pub mod record;
+mod revocation;
+mod sampled;
 pub mod share;
 
 /// How long starting `ukai-vm serve` may take before the run refuses: the
@@ -163,12 +170,15 @@ struct ReadyFrame {
     custodian_sha256: String,
     seed_sha256: String,
     vsock_port: u32,
+    guest_contracts: Option<protocol::GuestContracts>,
+    guest_program_catalog_sha256: Option<String>,
 }
 
 /// The `--vm` platform. It discovers the installed preview (the same paths
-/// `install.sh.in` writes, or `UKAI_VM_HOME`), verifies the image against
-/// its recorded hashes, and reuses the preview's custodian and VZ client
-/// binaries unmodified.
+/// `install.sh.in` writes, or `UKAI_VM_HOME`), checks that its manifest is
+/// `prepared`, and reuses the preview's custodian and VZ client binaries
+/// unmodified. It hashes nothing itself: the serve it starts or finds does
+/// (see [`VmPlatform::new`]).
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct VmPlatform {
     data_dir: PathBuf,
@@ -176,15 +186,35 @@ pub struct VmPlatform {
 }
 
 impl VmPlatform {
-    /// Discovers and verifies the installation for this operator.
+    /// Discovers the installation for this operator and checks that its
+    /// manifest is `prepared` ([`Install::prepared`]).
+    ///
+    /// The client does not hash the artifacts: it never runs them. The
+    /// serve it starts hashes every artifact before it listens
+    /// ([`Install::verify`]) and boots only a private copy hashed again after
+    /// the copy ([`Install::verified_copy`]); the client then refuses a serve
+    /// whose reported digests differ from this manifest. A `--vm` run so
+    /// still never boots an image whose bytes do not match `image.json`, and
+    /// a run that reuses a warm guest no longer hashes the disk for nothing.
+    /// The hash was not timed on its own: the morning record's `--vm`
+    /// refusals, which ran it, took about 18 s each on the 2026-11-04 spare
+    /// Mac, and the evening's real client, which does not, reached its
+    /// workload's first host write within 481 ms.
     ///
     /// # Errors
-    /// The discovery or verification refusal: a `--vm` run never boots an
-    /// image whose bytes do not match `image.json`.
+    /// The discovery refusal, or the manifest is not `prepared`.
     pub fn new(data_dir: &Path) -> Result<Self, JailError> {
         let install = Install::discover().map_err(|error| invalid(format!("--vm: {error}")))?;
+        Self::from_install(data_dir, install)
+    }
+
+    /// [`VmPlatform::new`] for an installation already found.
+    ///
+    /// # Errors
+    /// The manifest is not `prepared`.
+    pub fn from_install(data_dir: &Path, install: Install) -> Result<Self, JailError> {
         install
-            .verify()
+            .prepared()
             .map_err(|error| invalid(format!("--vm: {error}")))?;
         Ok(VmPlatform {
             data_dir: data_dir.to_path_buf(),
@@ -521,11 +551,93 @@ impl Platform for VmPlatform {
         }
     }
 
+    fn program_target(
+        &self,
+        request: &crate::guest_program::ProgramRequest,
+    ) -> Result<crate::guest_program::ProgramTarget, JailError> {
+        if !request.attempt_state {
+            return Err(refused(
+                "--vm --from-path requires explicit --state attempt",
+            ));
+        }
+        let (catalog, digest) = self
+            .install
+            .catalog()
+            .map_err(|error| refused(error.to_string()))?
+            .ok_or_else(|| {
+                refused("--vm: installed image has no guest program catalog; no host PATH fallback")
+            })?;
+        let entry = catalog
+            .entries
+            .into_iter()
+            .find(|entry| entry.alias == request.launch_name)
+            .ok_or_else(|| {
+                refused("--vm: launch alias is absent from the guest program catalog")
+            })?;
+        if request.bundled_profile_sha256.as_deref() != Some(&entry.profile_sha256)
+            || request.program_root != entry.program_root
+        {
+            return Err(refused(
+                "--vm: guest native launch requires the unchanged bundled profile and catalog root",
+            ));
+        }
+        crate::guest_program::GuestProgram::new(
+            digest,
+            self.install.manifest.disk_sha256.clone(),
+            self.install.manifest.seed_sha256.clone(),
+            entry,
+        )
+        .map(|program| crate::guest_program::ProgramTarget::Guest(Box::new(program)))
+        .map_err(refused)
+    }
+
+    fn validate_guest_plan(&self, plan: &PlanRequest) -> Result<(), JailError> {
+        if let Some(program) = &plan.guest_program {
+            let (catalog, digest) = self
+                .install
+                .catalog()
+                .map_err(|e| refused(e.to_string()))?
+                .ok_or_else(|| refused("guest native catalog disappeared"))?;
+            let entry = catalog
+                .entries
+                .into_iter()
+                .find(|entry| entry.id == program.entry.id)
+                .ok_or_else(|| refused("guest native catalog entry disappeared"))?;
+            let current = crate::guest_program::GuestProgram::new(
+                digest,
+                self.install.manifest.disk_sha256.clone(),
+                self.install.manifest.seed_sha256.clone(),
+                entry,
+            )
+            .map_err(refused)?;
+            if &current != program {
+                return Err(refused(
+                    "guest native plan and installed catalog/image differ",
+                ));
+            }
+        }
+        match native::refusal(plan) {
+            Some((_, message)) => Err(refused(message)),
+            None => Ok(()),
+        }
+    }
+
     fn probe(&self, plan: &PlanRequest) -> Vec<Capability> {
         probe_rows(
             &plan.requirements,
-            policy_refusal(&plan.snapshot).map(|(reason, _)| reason),
-            GUEST_MEASUREMENTS,
+            if plan.guest_program.is_some() {
+                native::refusal(plan)
+            } else {
+                policy_refusal(&plan.snapshot)
+            }
+            .map(|(reason, _)| reason)
+            .or_else(|| {
+                plan.guest_program.as_ref().and_then(|program| {
+                    (!native_program_admitted(&self.install.manifest, program))
+                        .then(|| format!("{REASON_VM_NOT_MEASURED}guest-native-program"))
+                })
+            }),
+            guest_measurements(&self.install.manifest),
         )
     }
 
@@ -556,58 +668,218 @@ pub struct GuestMeasurement {
     pub measured_at: &'static str,
 }
 
-/// The one table of guest measurements (decision D2): a requirement answers
-/// `available` only when a record here measured it inside the guest, through
-/// the guest jail command `--vm` issues. Every other requirement answers
-/// `unavailable` with `vm:not-measured:<requirement>`. The live phase
-/// re-measures the guest and updates this table, and nothing else.
+/// Guest image identities measured on 2026-11-15. The disk and seed pin
+/// the guest jail, controller and configuration. Host helpers may be rebuilt
+/// and re-signed without changing these bytes; they remain trusted host code
+/// requiring their own package and installed-client validation. The selected
+/// installation's full four-digest identity is still checked against status
+/// and Ready before use.
+pub const GUEST_MEASURED_DISK_SHA256: &str =
+    "81bc57865f7b9d1ea9b1fd579a3d5c1dfa69495e0d2024ff9e46a7a9c11367bf";
+/// Seed paired with [`GUEST_MEASURED_DISK_SHA256`]; neither alone admits a guest.
+pub const GUEST_MEASURED_SEED_SHA256: &str =
+    "7a9197f33bd205636279dee4d2435915270e12d55d6e97911a8e0837fca71653";
+
+/// The original table backing guest capability availability (decision D2).
+/// `probe` uses it only for the measured disk/seed pair above. Requirements or
+/// images outside both measured tables answer `vm:not-measured:<requirement>`; owner loss
+/// always refuses with its dedicated reason, and unsupported policy fields
+/// retain their carry refusal before any connection or boot.
 ///
-/// Its rows are the 2026-11-04 live phase (`macos-vm-live-2026-11-04/`):
-/// `capabilities.py` measured each requirement alone, by its own attempt, on
-/// one warm boot of an image `prepare.py` built from this tree's guest
-/// sources, through the published guest jail 0.1.0-rc.5. Each row points at
-/// that requirement's verdict and states that attempt's start time; a test
-/// reads the record and checks both. Development evidence: an unsigned
-/// source build on one M2 Pro host, not an installed package.
+/// The signed installed package at source 53e5605fd measured ten requirements
+/// with individual live probes, through the signed Linux jail 0.1.0-rc.6.
+/// Separate schema-specific records derive execution-boundary admission from
+/// four resource/tree attempts and vault-only credential staging from a
+/// replayable synthetic revocation run and verified signed installation.
+/// Credential preparation also requires the actual guest's exact revocation
+/// and journal contracts before transferring any secret.
 ///
-/// A `tool` plan also requires `tree_termination`, `closed_set_observation`,
-/// `syscall_filter` and `protected_coverage:existing_and_root`, and an
-/// `agent` plan the same with `network_proxy` for `network_none`; no live
-/// probe measures any of them yet, so every carried `run --vm` still
-/// refuses at probing. `limit:pids` and `limit:mem` become requirements
-/// only when the operator requires those ceilings. The 2026-11-02 records
-/// (`macos-vm-warm-2026-11-02/`) back nothing: they state no time of
-/// measurement, `wall` could not tell the guest jail's deadline from the
-/// controller's `wall + 10 s` backstop, `pids` passed whatever the limit,
-/// `mem` passed on any OOM kill, `containment` measured writes but not
-/// reads, and `network_none`'s TCP half was vacuous (`/dev/tcp` under dash).
+/// These records do not qualify the newly admitted host client, copied or
+/// program-bound credentials, refresh, vendor/TLS compatibility, owner-loss
+/// guarantees, or a release. Policy carry remains restricted to the measured
+/// guest shape: an explicit 1 to 300 second wall, fixed resource ceilings,
+/// supported network shape and vault declarations without binary bindings.
 pub const GUEST_MEASUREMENTS: &[GuestMeasurement] = &[
     GuestMeasurement {
         requirement: "limit:wall",
-        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/limit:wall/verdict",
-        measured_at: "2026-11-04T12:50:44Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/limit:wall/verdict",
+        measured_at: "2026-11-15T13:54:14Z",
     },
     GuestMeasurement {
         requirement: "limit:pids",
-        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/limit:pids/verdict",
-        measured_at: "2026-11-04T12:51:28Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/limit:pids/verdict",
+        measured_at: "2026-11-15T13:54:19Z",
     },
     GuestMeasurement {
         requirement: "limit:mem",
-        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/limit:mem/verdict",
-        measured_at: "2026-11-04T12:51:29Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/limit:mem/verdict",
+        measured_at: "2026-11-15T13:54:20Z",
     },
     GuestMeasurement {
         requirement: "filesystem_containment",
-        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/filesystem_containment/verdict",
-        measured_at: "2026-11-04T12:51:29Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/filesystem_containment/verdict",
+        measured_at: "2026-11-15T13:54:20Z",
     },
     GuestMeasurement {
         requirement: "network_none",
-        record: "docs/benchmarks/jail/results/macos-vm-live-2026-11-04/capabilities.json#/measurements/network_none/verdict",
-        measured_at: "2026-11-04T12:51:30Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/network_none/verdict",
+        measured_at: "2026-11-15T13:54:21Z",
+    },
+    GuestMeasurement {
+        requirement: "tree_termination",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/tree_termination/verdict",
+        measured_at: "2026-11-15T13:54:22Z",
+    },
+    GuestMeasurement {
+        requirement: "closed_set_observation",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/closed_set_observation/verdict",
+        measured_at: "2026-11-15T13:54:38Z",
+    },
+    GuestMeasurement {
+        requirement: "syscall_filter",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/syscall_filter/verdict",
+        measured_at: "2026-11-15T13:54:39Z",
+    },
+    GuestMeasurement {
+        requirement: "protected_coverage:existing_and_root",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/protected_coverage:existing_and_root/verdict",
+        measured_at: "2026-11-15T13:54:39Z",
+    },
+    GuestMeasurement {
+        requirement: "network_proxy",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-capabilities/capabilities.json#/measurements/network_proxy/verdict",
+        measured_at: "2026-11-15T13:54:40Z",
+    },
+    GuestMeasurement {
+        requirement: "execution_boundary",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-execution-boundary/execution-boundary.json#/measurements/execution_boundary/verdict",
+        measured_at: "2026-11-15T13:54:19Z",
+    },
+    GuestMeasurement {
+        requirement: "credential_staging",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/handshake-credential-admission-v2/credential-staging.json#/measurements/credential_staging/verdict",
+        measured_at: "2026-11-15T13:52:23Z",
     },
 ];
+
+/// The export-repaired guest replaces the unreleased native-v7 image; its historical
+/// records remain retained, but no longer admit that image. These
+/// rows admit the existing literal policy shape; native program requests also
+/// need the exact component admission below. Neither table qualifies a vendor,
+/// a rebuilt host, sampled exposure, or a release.
+pub const NATIVE_GUEST_MEASURED_DISK_SHA256: &str =
+    "22ff8df581c05809cf516ab66a56d6655d46f324d7ff3ab61929e77742a0a681";
+pub const NATIVE_GUEST_MEASURED_SEED_SHA256: &str =
+    "a60149d230084c5cc8987f63b39d87fb8062bc582ced57848480b92115b7ca28";
+pub const NATIVE_GUEST_MEASUREMENTS: &[GuestMeasurement] = &[
+    GuestMeasurement {
+        requirement: "limit:wall",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/capabilities/capabilities.json#/measurements/limit:wall/verdict",
+        measured_at: "2026-11-16T18:52:29Z",
+    },
+    GuestMeasurement {
+        requirement: "limit:pids",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/capabilities/capabilities.json#/measurements/limit:pids/verdict",
+        measured_at: "2026-11-16T18:52:35Z",
+    },
+    GuestMeasurement {
+        requirement: "limit:mem",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/capabilities/capabilities.json#/measurements/limit:mem/verdict",
+        measured_at: "2026-11-16T18:52:35Z",
+    },
+    GuestMeasurement {
+        requirement: "filesystem_containment",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/capabilities/capabilities.json#/measurements/filesystem_containment/verdict",
+        measured_at: "2026-11-16T18:52:35Z",
+    },
+    GuestMeasurement {
+        requirement: "network_none",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/capabilities/capabilities.json#/measurements/network_none/verdict",
+        measured_at: "2026-11-16T18:52:36Z",
+    },
+    GuestMeasurement {
+        requirement: "tree_termination",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/capabilities/capabilities.json#/measurements/tree_termination/verdict",
+        measured_at: "2026-11-16T18:52:37Z",
+    },
+    GuestMeasurement {
+        requirement: "closed_set_observation",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/capabilities/capabilities.json#/measurements/closed_set_observation/verdict",
+        measured_at: "2026-11-16T18:52:53Z",
+    },
+    GuestMeasurement {
+        requirement: "syscall_filter",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/capabilities/capabilities.json#/measurements/syscall_filter/verdict",
+        measured_at: "2026-11-16T18:52:54Z",
+    },
+    GuestMeasurement {
+        requirement: "protected_coverage:existing_and_root",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/capabilities/capabilities.json#/measurements/protected_coverage:existing_and_root/verdict",
+        measured_at: "2026-11-16T18:52:54Z",
+    },
+    GuestMeasurement {
+        requirement: "network_proxy",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/capabilities/capabilities.json#/measurements/network_proxy/verdict",
+        measured_at: "2026-11-16T18:52:55Z",
+    },
+    GuestMeasurement {
+        requirement: "execution_boundary",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/execution-boundary/execution-boundary.json#/measurements/execution_boundary/verdict",
+        measured_at: "2026-11-16T18:52:35Z",
+    },
+    GuestMeasurement {
+        requirement: "credential_staging",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/credential-staging/credential-staging.json#/measurements/credential_staging/verdict",
+        measured_at: "2026-11-16T18:54:44Z",
+    },
+];
+
+/// Additional, image-specific authorization for the guest program domain.
+/// Entry names remain data: the digest binds their exact UTF-8 bytes without
+/// teaching the execution core a vendor alias.
+struct NativeProgramAdmission {
+    catalog_sha256: &'static str,
+    entry_id_sha256: &'static str,
+    profile_sha256: &'static str,
+    executable_sha256: &'static str,
+}
+
+/// Component-only authorization; tests bind every pin to this retained proof.
+/// This record does not qualify a vendor, the new host client, or a release.
+pub const NATIVE_PROGRAM_ADMISSION_RECORD: &str = "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/native-admission.json#/measurements/native_program/verdict";
+
+const NATIVE_PROGRAM_ADMISSION: NativeProgramAdmission = NativeProgramAdmission {
+    catalog_sha256: "53de4dff6cc76d8bdfe9cf7939a76313ffec1106c3f6f76ab5d74c4c16f5fc06",
+    entry_id_sha256: "52aecf2264a738f1a16899c7536da1cf26034c440a62348b402db682e0a550aa",
+    profile_sha256: "e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24",
+    executable_sha256: "2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3",
+};
+
+fn guest_measurements(manifest: &image::ImageManifest) -> &'static [GuestMeasurement] {
+    match (manifest.disk_sha256.as_str(), manifest.seed_sha256.as_str()) {
+        (GUEST_MEASURED_DISK_SHA256, GUEST_MEASURED_SEED_SHA256) => GUEST_MEASUREMENTS,
+        (NATIVE_GUEST_MEASURED_DISK_SHA256, NATIVE_GUEST_MEASURED_SEED_SHA256) => {
+            NATIVE_GUEST_MEASUREMENTS
+        }
+        _ => &[],
+    }
+}
+
+fn native_program_admitted(
+    manifest: &image::ImageManifest,
+    program: &crate::guest_program::GuestProgram,
+) -> bool {
+    let pin = &NATIVE_PROGRAM_ADMISSION;
+    manifest.disk_sha256 == NATIVE_GUEST_MEASURED_DISK_SHA256
+        && manifest.seed_sha256 == NATIVE_GUEST_MEASURED_SEED_SHA256
+        && program.disk_sha256 == manifest.disk_sha256
+        && program.seed_sha256 == manifest.seed_sha256
+        && manifest.guest_program_catalog_sha256.as_deref() == Some(pin.catalog_sha256)
+        && program.catalog_sha256 == pin.catalog_sha256
+        && crate::guest_program::sha256(program.entry.id.as_bytes()) == pin.entry_id_sha256
+        && program.entry.profile_sha256 == pin.profile_sha256
+        && program.entry.executable_sha256 == pin.executable_sha256
+}
 
 /// The capability rows for `requirements`: the owner-loss row always refuses
 /// (K112), a policy `--vm` cannot carry refuses every other row with its
@@ -677,6 +949,10 @@ struct VmExecution {
     /// ([`guest_snapshot`]); the guest receipt's `policy.digest` is
     /// compared with it after the run.
     guest_policy_digest: String,
+    /// Captured before transport; replacements never become a new lease.
+    vault_lease: revocation::Sources,
+    native_program: Option<protocol::GuestLaunchIntent>,
+    native_binding: Option<protocol::NativeProgramBinding>,
     stdout: std::fs::File,
     stderr: std::fs::File,
 }
@@ -698,7 +974,11 @@ impl VmExecution {
         // guest-side, but a pre-existing hardlink writes through and a
         // case-folding volume bypasses every guest denial).
         let snapshot = &plan.request.snapshot;
-        validate_policy(snapshot)?;
+        if plan.request.guest_program.is_some() {
+            platform.validate_guest_plan(&plan.request)?;
+        } else {
+            validate_policy(snapshot)?;
+        }
         if let Some(kind) = stdin {
             return Err(JailError::new(
                 ErrorCode::InvalidConfig,
@@ -713,20 +993,66 @@ impl VmExecution {
         }
         let wall = guest_wall(snapshot)?;
         let profile = snapshot.profile.as_str().to_owned();
-        let vault = vault_launch(&plan)?;
-        let guest_policy_digest = guest_snapshot(
-            snapshot,
-            wall,
-            vault.parsed.as_ref(),
-            GUEST_SHARE_MOUNT.as_bytes(),
-        )
+        let vault = if plan.request.guest_program.is_some() {
+            native::vault(&plan)?
+        } else {
+            vault_launch(&plan)?
+        };
+        let mut vault_lease = crate::vault::lifecycle::Lease::default();
+        if let Some(launch) = &plan.launch {
+            for secret in &launch.vault {
+                vault_lease.extend(secret.staged_source_lease().map_err(|_| {
+                    refused("--vm: the staged credential source changed before transport")
+                })?);
+            }
+        }
+        let vault_lease = if let Some(handoff) = &plan.guest_launch {
+            revocation::Sources::Guest(crate::vault::transport::SourceLease(
+                handoff.sources.clone(),
+            ))
+        } else {
+            revocation::Sources::Local(vault_lease)
+        };
+        let guest_policy_digest = if plan.request.guest_program.is_some() {
+            resolve_side(
+                snapshot,
+                &Side::Guest { wall },
+                GUEST_SHARE_MOUNT.as_bytes(),
+                vault.parsed.as_ref(),
+                plan.request.guest_program.as_ref(),
+            )
+        } else {
+            guest_snapshot(
+                snapshot,
+                wall,
+                vault.parsed.as_ref(),
+                GUEST_SHARE_MOUNT.as_bytes(),
+            )
+        }
         .and_then(|guest| guest.digest().map_err(|error| error.message))
         .map_err(|error| {
             refused(format!(
                 "--vm: the policy the guest jail resolves cannot be derived: {error}"
             ))
         })?;
-        let allow_hosts = guest_allow_hosts(&snapshot.network);
+        let native_program = plan
+            .request
+            .guest_program
+            .as_ref()
+            .map(|program| native::intent(&plan, program, &guest_policy_digest))
+            .transpose()?;
+        let native_binding = native_program
+            .as_ref()
+            .zip(plan.request.guest_program.as_ref())
+            .map(|(intent, program)| native::binding(intent, program));
+        let allow_hosts = if plan.request.guest_program.is_some() {
+            native::additional_hosts(
+                snapshot,
+                vault.parsed.as_ref().expect("native launch validated"),
+            )
+        } else {
+            guest_allow_hosts(&snapshot.network)
+        };
         let network = image::GuestNetwork::requested(
             snapshot.network.mode.as_str(),
             snapshot.network.allow.iter().cloned(),
@@ -750,10 +1076,33 @@ impl VmExecution {
                 crate::records::escape_control(&ready.boot_id)
             )));
         }
-        let sent: Vec<String> = vault
-            .secrets
+        if let Some(intent) = &native_program
+            && (ready.guest_program_catalog_sha256.as_deref() != Some(&intent.catalog_sha256)
+                || !ready.guest_contracts.as_ref().is_some_and(|contracts| {
+                    contracts.native_program.as_deref() == Some(protocol::NATIVE_PROGRAM_CONTRACT)
+                        && contracts.sampled_exposure.as_deref()
+                            == Some(protocol::SAMPLED_EXPOSURE_CONTRACT)
+                }))
+        {
+            return Err(refused(
+                "--vm: current guest Session lacks the exact catalog/native launch contract; no credential was sent",
+            ));
+        }
+        if !vault.secrets.is_empty()
+            && !ready
+                .guest_contracts
+                .as_ref()
+                .is_some_and(protocol::GuestContracts::supports_credentials)
+        {
+            return Err(refused(
+                "--vm: this guest did not declare the required credential revocation and journal export contracts; no credential was sent",
+            ));
+        }
+        let expected_sources: Vec<(String, String)> = vault
+            .parsed
             .iter()
-            .map(|secret| secret.id.clone())
+            .flat_map(|launch| &launch.credentials)
+            .map(|credential| (credential.id.clone(), credential.source.to_display()))
             .collect();
         let staged = protocol::ToVm::Prepare {
             attempt_id: plan.attempt_id.clone(),
@@ -767,17 +1116,44 @@ impl VmExecution {
             secrets: vault.secrets,
             allow_hosts,
             launch: vault.declaration,
+            native_program: native_program.clone(),
         };
+        if vault_lease.check().is_err() {
+            return Err(refused(
+                "--vm: the staged credential source changed before transport",
+            ));
+        }
         connection
             .send_within(&staged, plan.prepare_deadline.remaining())
             .map_err(transport)?;
-        let guest_kernel = expect_prepared(&mut connection, plan.prepare_deadline, &sent)?;
+        let guest_kernel =
+            expect_prepared(&mut connection, plan.prepare_deadline, &expected_sources)?;
         // Live share: the workspace crosses as the virtio-fs device the
         // service attached; staging puts are refused by both ends, so none
         // are sent. The share's facts travel in the transport record below.
         debug_assert!(!share_facts.case_fold);
         for group in ["workspace", "evidence"] {
             std::fs::create_dir(plan.attempt_dir.join(group)).map_err(transport)?;
+        }
+        if let Some(program) = &plan.request.guest_program {
+            let (_, digest, bytes) = platform
+                .install
+                .catalog_exact()
+                .map_err(|e| refused(e.to_string()))?
+                .ok_or_else(|| {
+                    refused("guest native catalog disappeared before evidence retention")
+                })?;
+            if digest != program.catalog_sha256 {
+                return Err(refused("guest native catalog identity changed"));
+            }
+            use std::os::unix::fs::OpenOptionsExt as _;
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(plan.attempt_dir.join("guest-native-catalog.json"))
+                .map_err(transport)?;
+            std::io::Write::write_all(&mut file, &bytes).map_err(transport)?;
         }
         let stdout = duplicate_output(libc::STDOUT_FILENO)?;
         let stderr = duplicate_output(libc::STDERR_FILENO)?;
@@ -796,6 +1172,17 @@ impl VmExecution {
                 helper_sha256: platform.install.manifest.helper_sha256.clone(),
                 custodian_sha256: platform.install.manifest.custodian_sha256.clone(),
                 seed_sha256: platform.install.manifest.seed_sha256.clone(),
+                guest_program_catalog_sha256: platform
+                    .install
+                    .manifest
+                    .guest_program_catalog_sha256
+                    .clone(),
+                sampler_sha256: platform
+                    .install
+                    .manifest
+                    .source_sha256
+                    .get("guest_exposure.py")
+                    .cloned(),
             },
             vsock_port: ready.vsock_port,
             started: Instant::now(),
@@ -805,6 +1192,9 @@ impl VmExecution {
             limits: snapshot.limits.clone(),
             network,
             guest_policy_digest,
+            vault_lease,
+            native_program,
+            native_binding,
             stdout,
             stderr,
         })
@@ -1018,6 +1408,7 @@ fn carried_shape(snapshot: &PolicySnapshot) -> Result<PolicySnapshot, String> {
         &Side::Host,
         snapshot.roots.workspace.as_bytes(),
         launch.as_ref(),
+        None,
     )
 }
 
@@ -1045,7 +1436,7 @@ fn guest_snapshot(
     launch: Option<&crate::launch_profile::LaunchProfile>,
     workspace: &[u8],
 ) -> Result<PolicySnapshot, String> {
-    resolve_side(snapshot, &Side::Guest { wall }, workspace, launch)
+    resolve_side(snapshot, &Side::Guest { wall }, workspace, launch, None)
 }
 
 /// Which resolution of the carried inputs [`resolve_side`] performs.
@@ -1066,6 +1457,7 @@ fn resolve_side(
     side: &Side,
     workspace: &[u8],
     launch: Option<&crate::launch_profile::LaunchProfile>,
+    program: Option<&crate::guest_program::GuestProgram>,
 ) -> Result<PolicySnapshot, String> {
     use crate::policy::{Layer, LayerOrigin, PolicyDelta, ResolveInputs, ScratchRoot};
     let lookup = |name: &str| {
@@ -1088,15 +1480,22 @@ fn resolve_side(
         }
     };
     let delta = PolicyDelta {
-        network_allow: guest_allow_hosts(&snapshot.network),
+        network_allow: if program.is_some() {
+            launch.map_or_else(
+                || guest_allow_hosts(&snapshot.network),
+                |launch| native::additional_hosts(snapshot, launch),
+            )
+        } else {
+            guest_allow_hosts(&snapshot.network)
+        },
         limits,
         ..PolicyDelta::default()
     };
     // The guest jail's §6.2 order: the launch profile's own grants, then
     // the command line.
     let mut layers: Vec<Layer> = match side {
-        Side::Host => Vec::new(),
-        Side::Guest { .. } => launch
+        Side::Host if program.is_none() => Vec::new(),
+        _ => launch
             .and_then(crate::launch_profile::network_layer)
             .into_iter()
             .collect(),
@@ -1109,6 +1508,16 @@ fn resolve_side(
                 Side::Guest { .. } => Some(workspace.to_vec()),
             },
             delta,
+        });
+    }
+    if let Some(program) = program {
+        layers.push(Layer {
+            origin: LayerOrigin::ProgramResolution,
+            base_dir: None,
+            delta: PolicyDelta {
+                read_only: vec![program.install_root.as_bytes().to_vec()],
+                ..PolicyDelta::default()
+            },
         });
     }
     let inputs = ResolveInputs {
@@ -1963,6 +2372,8 @@ fn expect_ready(
             custodian_sha256,
             seed_sha256,
             vsock_port,
+            guest_contracts,
+            guest_program_catalog_sha256,
         }) => {
             if schema != protocol::SCHEMA_ATTEMPT {
                 return Err(refused(format!(
@@ -1977,6 +2388,8 @@ fn expect_ready(
                 custodian_sha256,
                 seed_sha256,
                 vsock_port,
+                guest_contracts,
+                guest_program_catalog_sha256,
             })
         }
         control::Within::Frame(protocol::FromVm::Error { message }) => {
@@ -1999,7 +2412,7 @@ fn expect_ready(
 fn expect_prepared(
     connection: &mut control::AttemptConnection,
     deadline: ContinuousDeadline,
-    sent: &[String],
+    sources: &[(String, String)],
 ) -> Result<String, JailError> {
     match connection
         .next_frame_within(control::HANDSHAKE_TIMEOUT.min(deadline.remaining()))
@@ -2011,10 +2424,7 @@ fn expect_prepared(
         }) => {
             let mut acknowledged = staged_secrets;
             acknowledged.sort();
-            let mut expected: Vec<(String, String)> = sent
-                .iter()
-                .map(|id| (id.clone(), format!("{GUEST_CREDENTIAL_ROOT}/{id}")))
-                .collect();
+            let mut expected = sources.to_vec();
             expected.sort();
             if acknowledged != expected {
                 return Err(refused(format!(
@@ -2024,7 +2434,7 @@ fn expect_prepared(
                         .iter()
                         .map(|(id, path)| format!("{id} at {path}"))
                         .collect::<Vec<_>>(),
-                    sent.len()
+                    sources.len()
                 )));
             }
             Ok(kernel)
@@ -2102,14 +2512,24 @@ impl PreparedExecution for VmExecution {
                 teardown: Some(Teardown { tree: None }),
             })
         };
+        if execution.vault_lease.check().is_err() {
+            return Err(fail(refused(
+                "--vm: the staged credential source changed before release",
+            )));
+        }
         if let Err(error) = execution.connection.send(&protocol::ToVm::Run) {
             return Err(fail(transport(error)));
         }
-        match execution
+        let revocation =
+            revocation::Watch::start(&execution.connection, execution.vault_lease.clone())
+                .map_err(|reason| fail(refused(reason)))?;
+        let supervisor_pid = match execution
             .connection
             .next_frame_within(control::HANDSHAKE_TIMEOUT)
         {
-            Ok(control::Within::Frame(protocol::FromVm::Released { .. })) => {}
+            Ok(control::Within::Frame(protocol::FromVm::Released { supervisor_pid })) => {
+                supervisor_pid
+            }
             Ok(control::Within::Frame(protocol::FromVm::Error { message })) => {
                 return Err(fail(refused(format!("--vm: {message}"))));
             }
@@ -2124,13 +2544,22 @@ impl PreparedExecution for VmExecution {
             Err(error) => {
                 return Err(fail(transport(error)));
             }
-        }
+        };
+        revocation.check().map_err(|reason| fail(refused(reason)))?;
         Ok(Box::new(VmRunning {
             inner: execution,
+            supervisor_pid,
             receipt: None,
+            receipt_binding: None,
+            sampling_exports: 0,
+            sampling_export_error: None,
             guest: None,
+            stop: None,
+            termination_deadline: None,
+            wall_reported: false,
             finished: false,
             failed: false,
+            revocation: Some(revocation),
         }))
     }
 
@@ -2143,12 +2572,62 @@ impl PreparedExecution for VmExecution {
 /// The released attempt: the guest jail runs, and this side relays.
 struct VmRunning {
     inner: VmExecution,
+    /// The controller process from Released, never the receipt workload PID.
+    supervisor_pid: u32,
     receipt: Option<Value>,
+    receipt_binding: Option<protocol::ReceiptBinding>,
+    sampling_exports: usize,
+    sampling_export_error: Option<&'static str>,
     /// What the verified guest receipt reports the guest jail applied, for
     /// the host receipt to mirror (decision D5).
     guest: Option<GuestFacts>,
+    /// The guest controller's own stop of the attempt, once `done` carried
+    /// one that found nothing the guest jail left behind (decision D6).
+    stop: Option<protocol::GuestStop>,
+    /// The first stop replaces the execution wall with one bounded drain.
+    /// Repeated stop requests must not extend it or prevent reading EOF.
+    termination_deadline: Option<Instant>,
+    wall_reported: bool,
     finished: bool,
     failed: bool,
+    revocation: Option<revocation::Watch>,
+}
+
+/// The cgroup the guest controller creates for each attempt
+/// (`guest.py` `prepare_attempt_cgroup`), as `ukai-attempts.slice/attempt-<n>`.
+const GUEST_ATTEMPT_CGROUP: &str = "ukai-attempts.slice/attempt-";
+
+/// The guest controller's stop that `done` carried (decision D6), accepted
+/// only when it covered the attempt's own cgroup and found nothing the guest
+/// jail left behind. It ran outside the guest jail, after the jail exited and
+/// verified its own tree, so a boundary still populated or a live process of
+/// the workload account then contradicts the receipt's `tree_empty`; a
+/// `done` without one, or a stop that covered no attempt cgroup, leaves that
+/// claim unchecked. Either way the host settles nothing as clean.
+fn checked_guest_stop(stop: Option<protocol::GuestStop>) -> Result<protocol::GuestStop, String> {
+    let stop = stop.ok_or(
+        "the guest reported `done` without its own stop of the attempt, so the guest jail's \
+         tree_empty has no check outside the jail",
+    )?;
+    let covered_the_attempt = stop.boundaries.iter().any(|boundary| {
+        boundary
+            .strip_prefix(GUEST_ATTEMPT_CGROUP)
+            .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+    });
+    if !covered_the_attempt {
+        return Err(format!(
+            "the guest controller's own stop covered no attempt cgroup \
+             ({GUEST_ATTEMPT_CGROUP}<n>), so it checked nothing the guest jail ran in: the \
+             guest receipt's tree_empty has no check outside the jail"
+        ));
+    }
+    if let Some(survivors) = stop.survivors() {
+        return Err(format!(
+            "the guest controller's own stop found what the guest jail left behind \
+             ({survivors}): the guest receipt's tree_empty is contradicted"
+        ));
+    }
+    Ok(stop)
 }
 
 impl VmRunning {
@@ -2322,6 +2801,7 @@ impl VmRunning {
                 profile: &self.inner.profile,
                 argv_digest: &self.inner.argv_digest,
                 network: &self.inner.network,
+                native_program: self.inner.native_binding.as_ref(),
             },
         )
         .map_err(|e| e.to_string())?;
@@ -2342,9 +2822,10 @@ impl VmRunning {
         let guest = guest_facts(&receipt, &digest)?;
         self.export("evidence", "jail.json", false, &bytes)
             .map_err(|e| e.message)?;
-        let binding = serde_json::to_vec(binding).map_err(|e| e.to_string())?;
-        self.export("evidence", "vm-binding.json", false, &binding)
+        let binding_bytes = serde_json::to_vec(binding).map_err(|e| e.to_string())?;
+        self.export("evidence", "vm-binding.json", false, &binding_bytes)
             .map_err(|e| e.message)?;
+        self.receipt_binding = Some(binding.clone());
         self.receipt = Some(receipt);
         self.guest = Some(guest);
         Ok(())
@@ -2410,7 +2891,7 @@ impl VmRunning {
         }
         let bytes = std::fs::read(self.inner.attempt_dir.join("evidence/jail.json"))
             .map_err(|e| format!("guest evidence read failed: {e}"))?;
-        let record = record::TransportRecord::new(
+        let mut record = record::TransportRecord::new(
             self.inner.attempt_id.clone(),
             self.inner.boot_id.clone(),
             self.inner.guest_kernel.clone(),
@@ -2422,6 +2903,29 @@ impl VmRunning {
             self.inner.started.elapsed().as_secs_f64(),
             image::hex(&sha2::Sha256::digest(&bytes)),
         );
+        record.native_program = self.inner.native_program.clone();
+        record.supervisor_pid = Some(self.supervisor_pid);
+        if let Some(native) = &self.inner.native_binding
+            && let (Some(receipt), Some(binding)) = (&self.receipt, &self.receipt_binding)
+        {
+            record.sampled_exposure_contract = Some(protocol::SAMPLED_EXPOSURE_CONTRACT.into());
+            record.sampled_exposure = Some(sampled::inspect(
+                &self.inner.attempt_dir,
+                receipt,
+                &crate::guest_program::sha256(&bytes),
+                binding,
+                native,
+                Some(self.supervisor_pid),
+                self.inner.image.sampler_sha256.as_deref(),
+                self.sampling_export_error,
+                Some(protocol::SAMPLED_EXPOSURE_CONTRACT),
+            ));
+        }
+        record.guest_stop_boundaries = self
+            .stop
+            .as_ref()
+            .map(|stop| stop.boundaries.clone())
+            .ok_or("no checked guest stop")?;
         record
             .write_in(&self.inner.attempt_dir)
             .map_err(|e| format!("transport record write failed: {e}"))
@@ -2431,6 +2935,9 @@ impl VmRunning {
 impl VmRunning {
     fn wait_frames(&mut self, deadline: Deadline) -> RunEvent {
         loop {
+            if let Some(Err(reason)) = self.revocation.as_ref().map(revocation::Watch::check) {
+                return RunEvent::Unknown { reason };
+            }
             let budget = deadline
                 .at
                 .map(|at| at.saturating_duration_since(Instant::now()))
@@ -2459,6 +2966,18 @@ impl VmRunning {
                 }
             };
             match frame {
+                protocol::FromVm::SecretsRevoked { ids } => {
+                    let result = self
+                        .revocation
+                        .as_ref()
+                        .ok_or_else(|| {
+                            "unexpected credential revocation acknowledgement".to_owned()
+                        })
+                        .and_then(|watch| watch.acknowledge(&ids));
+                    if let Err(reason) = result {
+                        return RunEvent::Unknown { reason };
+                    }
+                }
                 protocol::FromVm::Stdout { data } => {
                     let payload = match protocol::decode_data(&data) {
                         Ok(data) => data,
@@ -2497,6 +3016,27 @@ impl VmRunning {
                     executable,
                     data,
                 } => {
+                    if self.inner.native_binding.is_some()
+                        && group == "evidence"
+                        && path == sampled::FILE
+                    {
+                        self.sampling_exports += 1;
+                        let payload = protocol::decode_data(&data);
+                        if self.sampling_exports != 1 {
+                            self.sampling_export_error = Some("duplicate_report");
+                        } else if executable {
+                            self.sampling_export_error = Some("report_executable");
+                        } else if let Ok(payload) = payload {
+                            if payload.len() > protocol::MAX_FILE {
+                                self.sampling_export_error = Some("report_oversize");
+                            } else if self.export(&group, &path, false, &payload).is_err() {
+                                self.sampling_export_error = Some("report_export_failed");
+                            }
+                        } else {
+                            self.sampling_export_error = Some("report_encoding");
+                        }
+                        continue;
+                    }
                     let payload = match protocol::decode_data(&data) {
                         Ok(payload) => payload,
                         Err(error) => {
@@ -2536,8 +3076,15 @@ impl VmRunning {
                 protocol::FromVm::Error { message } => {
                     return RunEvent::Unknown { reason: message };
                 }
-                protocol::FromVm::Done { exit_code } => {
+                protocol::FromVm::Done { exit_code, stop } => {
                     self.finished = true;
+                    match checked_guest_stop(stop) {
+                        Ok(stop) => self.stop = Some(stop),
+                        Err(reason) => {
+                            self.failed = true;
+                            return RunEvent::Unknown { reason };
+                        }
+                    }
                     let event = match self.relayed_outcome(exit_code) {
                         Ok(event) => event,
                         Err(reason) => {
@@ -2546,6 +3093,12 @@ impl VmRunning {
                         }
                     };
                     if let Err(reason) = self.settle_record() {
+                        self.failed = true;
+                        return RunEvent::Unknown { reason };
+                    }
+                    if let Some(Err(reason)) =
+                        self.revocation.as_ref().map(revocation::Watch::settled)
+                    {
                         self.failed = true;
                         return RunEvent::Unknown { reason };
                     }
@@ -2603,7 +3156,31 @@ impl RunningExecution for VmRunning {
     }
 
     fn wait(&mut self, deadline: Deadline) -> RunEvent {
-        let event = self.wait_frames(deadline);
+        // The supervisor keeps the execution wall after requesting stop.
+        // Continue consuming the guest's final frames or EOF under the fixed
+        // termination budget instead of reporting that expired wall forever.
+        // Classify the selected deadline, not the clock after waiting: the
+        // host may resume after both deadlines elapsed, but the earlier
+        // unreported wall still needs its one hit before termination fails.
+        let (deadline, wall_timeout) = match (
+            self.termination_deadline,
+            deadline.at.filter(|_| !self.wall_reported),
+        ) {
+            (Some(stop), Some(wall)) if wall <= stop => (Deadline { at: Some(wall) }, true),
+            (Some(stop), _) => (Deadline { at: Some(stop) }, false),
+            (None, _) => (deadline, true),
+        };
+        let mut event = self.wait_frames(deadline);
+        if matches!(event, RunEvent::WallExpired) {
+            if wall_timeout {
+                self.wall_reported = true;
+            } else {
+                event = RunEvent::Unknown {
+                    reason: "the guest outcome was not observed within the termination budget"
+                        .to_owned(),
+                };
+            }
+        }
         if matches!(
             event,
             RunEvent::Unknown { .. } | RunEvent::StdioFailed { .. }
@@ -2614,6 +3191,10 @@ impl RunningExecution for VmRunning {
     }
 
     fn request_stop(&mut self, _reason: StopReason) {
+        if self.termination_deadline.is_some() {
+            return;
+        }
+        self.termination_deadline = Some(Instant::now() + crate::supervisor::TREE_BUDGET);
         // The lease is end-of-file: half-closing the write side cancels the
         // guest attempt, and the frames that remain are still read for the
         // outcome the guest reports on its way down.
@@ -2622,8 +3203,12 @@ impl RunningExecution for VmRunning {
 
     fn wait_tree(&mut self, budget: Duration) -> TreeObservation {
         if !self.finished && !self.failed {
-            let event = self.wait(Deadline {
-                at: Some(Instant::now() + budget),
+            let deadline = Instant::now() + budget;
+            let event = self.wait_frames(Deadline {
+                at: Some(
+                    self.termination_deadline
+                        .map_or(deadline, |at| at.min(deadline)),
+                ),
             });
             if !matches!(
                 event,
@@ -2662,11 +3247,13 @@ fn p2_vm_state_identity_is_the_mac_host_while_policy_identity_is_linux() {
         install: Install {
             root: PathBuf::from("unused-install"),
             manifest: image::ImageManifest {
+                source_sha256: Default::default(),
                 status: "prepared".into(),
                 disk_sha256: "d".repeat(64),
                 helper_sha256: "h".repeat(64),
                 custodian_sha256: "c".repeat(64),
                 seed_sha256: "s".repeat(64),
+                guest_program_catalog_sha256: None,
             },
         },
     };

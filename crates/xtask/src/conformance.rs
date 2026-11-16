@@ -104,10 +104,12 @@ pub fn rsh_string(target: &Target) -> String {
 /// What the remote suite needs from the tree, as git pathspecs: the
 /// workspace, the license the package test puts in every archive
 /// (`dist/package.py`), the specifications its tests read, and the benchmark
-/// scripts and fixtures the release tests run, and the three recorded
-/// attempts K47 replays (`portable_summary.rs`). Everything else (comparison
-/// corpora, retained results, the website, the fleet) stays local: the tree
-/// is copied on every run.
+/// scripts and fixtures the release tests run, the three recorded attempts
+/// K47 replays (`portable_summary.rs`), and the recorded K113 attempt the
+/// core's unit tests read back (`test_evidence.rs`), selected by its row as
+/// that lookup finds it, never by its directory's name. Everything else
+/// (comparison corpora, other retained results, the website, the fleet)
+/// stays local: the tree is copied on every run.
 pub const SOURCE_PATHSPECS: &[&str] = &[
     "Cargo.toml",
     "Cargo.lock",
@@ -121,6 +123,7 @@ pub const SOURCE_PATHSPECS: &[&str] = &[
     "docs/benchmarks/credentials/2026-10-13-next/validation/oauth-auto-ouro-01",
     "docs/benchmarks/jail/results/release-preview-2026-10-10/public-install",
     "docs/benchmarks/credentials/2026-10-13-next/validation/pi-clone3-pilot-fixed-02/31-vault-before",
+    ":(glob)docs/benchmarks/jail/results/*/k113-attempt/**",
 ];
 
 /// The index naming the retained release-preview evidence the release
@@ -3516,6 +3519,7 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
             "docs/benchmarks/jail/README.md",
             "docs/benchmarks/jail/fixtures/learn_access.c",
             "docs/benchmarks/jail/results/current/vm.json",
+            "docs/benchmarks/jail/results/any-record/k113-attempt/evidence/jail.json",
         ];
         let unwanted = [
             "README.md",
@@ -3523,6 +3527,7 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
             "fleet/mix.exs",
             "docs/RELEASING.md",
             "docs/benchmarks/jail/results/older/vm.json",
+            "docs/benchmarks/jail/results/any-record/k113-notes.json",
             "docs/benchmarks/competitors/results.json",
             "docs/benchmarks/credentials/results.json",
             "crates/a/target/debug/out",

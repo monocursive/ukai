@@ -202,6 +202,7 @@ mod tests {
         };
         let resolved = crate::policy::resolve(&inputs).expect("resolves");
         PlanRequest {
+            guest_program: None,
             snapshot: resolved.snapshot,
             requirements: resolved.requirements,
         }
@@ -286,6 +287,8 @@ mod tests {
                 config_dir: std::path::PathBuf::from("/nonexistent"),
                 launch_name: None,
                 launch: None,
+                #[cfg(target_os = "macos")]
+                guest_launch: None,
                 proxy: None,
                 pinned_roots: Vec::new(),
                 exec_pins: Vec::new(),

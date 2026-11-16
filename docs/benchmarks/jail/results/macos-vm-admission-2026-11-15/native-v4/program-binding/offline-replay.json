@@ -1,0 +1,52 @@
+{
+  "schema": "ukai.vm.program-binding-component/1",
+  "qualified": false,
+  "outcome": "PASS",
+  "facts": {
+    "literal_component_scope": true,
+    "bound_actual_guest_receipt": true,
+    "exact_staging_ack": true,
+    "placeholder_only_child_value": true,
+    "copied_executable_same_bytes_different_identity": true,
+    "copied_program_actually_exec_observed": true,
+    "own_request_succeeded": true,
+    "other_program_exact_proxy_refusal": true,
+    "one_substitution_and_one_later_program_denial": true,
+    "independent_upstream_received_only_authorized_request": true,
+    "bound_complete_journal": true,
+    "exact_summary_credential_count": true,
+    "strict_six_classes": true,
+    "vault_never_staged": true,
+    "settled_clean_guest": true,
+    "controller_cleanup": true,
+    "fixture_removed_without_error": true,
+    "exact_literal_declaration_and_argv": true,
+    "exact_installed_image_and_binaries": true,
+    "independent_complete_summary": true,
+    "same_boot_sync": true,
+    "stopped_and_quiescent": true,
+    "complete_spelling_scans": true,
+    "no_harness_error": true
+  },
+  "inputs_sha256": "2136d99ee98a6eb385af07210e87571383ad43171a9ee4707f96332327cb77be",
+  "independent_summary": {
+    "schema": "ukai.vm.summary-verification/1",
+    "outcome": "PASS",
+    "qualified": false,
+    "scope": "host_only",
+    "journal": "complete",
+    "journal_frames": 22,
+    "sampling": {
+      "state": "not_requested"
+    },
+    "lines": 5,
+    "display_mapping_applied": true,
+    "display_mapping_sha256": "3e5de35c2c3184ea6221a874a8ab73f7b92349e2eded57b162637ed2480475fb",
+    "evidence_sha256": {
+      "jail.json": "091e6f37726fe587aa563d1fef13e4777c7c0bdef9f2a6b013d5b8b77b6c9563",
+      "trace.ndjson": "3ec9957c7ed668f5e2d82b3b34aa97abfd4d8d5af7b98b83191ab0234b71b47c"
+    },
+    "summary_json_sha256": "ca7e0f3f95785b327b0a4fa117bebbf7dd6684276f1173127e3423f9685ccf27",
+    "summary_text_sha256": "857eda16e42bbc3a5a04b67fdd0750f7780fe418dfeabad47e33220a13bdd366"
+  }
+}

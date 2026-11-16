@@ -29,6 +29,7 @@ use std::io::{Read as _, Write as _};
 use std::os::unix::net::UnixListener;
 use std::path::PathBuf;
 use std::process::{Command, Output};
+use ukai_jail::guest_program;
 
 mod common;
 
@@ -167,6 +168,13 @@ fn the_kernel_bound_key_is_a_narrowing_none_refuses() {
 // The CLI grammar: the binary, on a private state root
 // ---------------------------------------------------------------------------
 
+/// The `ukai-jail` binary under test.
+fn test_binary() -> PathBuf {
+    std::env::var_os("UKAI_JAIL_TEST_BINARY")
+        .unwrap_or_else(|| env!("CARGO_BIN_EXE_ukai-jail").into())
+        .into()
+}
+
 struct Harness {
     #[allow(dead_code)]
     temp: tempfile::TempDir,
@@ -195,10 +203,11 @@ impl Harness {
     }
 
     fn command(&self, arguments: &[&str]) -> Command {
-        let mut command = Command::new(
-            std::env::var_os("UKAI_JAIL_TEST_BINARY")
-                .unwrap_or_else(|| env!("CARGO_BIN_EXE_ukai-jail").into()),
-        );
+        self.command_of(&test_binary(), arguments)
+    }
+
+    fn command_of(&self, program: &std::path::Path, arguments: &[&str]) -> Command {
+        let mut command = Command::new(program);
         command
             .env_clear()
             // The guest jail's admitted environment (guest.py): a `--vm`
@@ -371,6 +380,7 @@ fn plan_for(profile: ukai_jail::policy::ProfileName) -> ukai_jail::platform::Pla
     resolved.snapshot.lifetime_boundary = Some(ukai_jail::policy::LifetimeBoundary::KernelBound);
     resolved.requirements = ukai_jail::capability::requirements(&resolved.snapshot);
     ukai_jail::platform::PlanRequest {
+        guest_program: None,
         snapshot: resolved.snapshot,
         requirements: resolved.requirements,
     }
@@ -474,10 +484,12 @@ fn the_transport_record_carries_the_recorded_facts() {
         "vm-42",
         "6.14.0",
         record::ImageDigests {
+            sampler_sha256: None,
             disk_sha256: "d".repeat(64),
             helper_sha256: "h".repeat(64),
             custodian_sha256: "c".repeat(64),
             seed_sha256: "s".repeat(64),
+            guest_program_catalog_sha256: None,
         },
         1024,
         "/data/vm/control.sock",
@@ -583,6 +595,7 @@ fn an_attempt_session_frames_both_ways_against_the_stand_in() {
             secrets,
             allow_hosts: _,
             launch: _,
+            native_program: None,
         } = staged
         else {
             panic!("the host opened with {staged:?}");
@@ -597,6 +610,7 @@ fn an_attempt_session_frames_both_ways_against_the_stand_in() {
             stream.write_all(&line).expect("writes");
         };
         reply(&FromVm::Ready {
+            guest_program_catalog_sha256: None,
             schema: protocol::SCHEMA_ATTEMPT.to_owned(),
             boot_id: "vm-7".to_owned(),
             disk_sha256: "d".repeat(64),
@@ -604,6 +618,12 @@ fn an_attempt_session_frames_both_ways_against_the_stand_in() {
             custodian_sha256: "c".repeat(64),
             seed_sha256: "s".repeat(64),
             vsock_port: 1024,
+            guest_contracts: Some(protocol::GuestContracts {
+                sampled_exposure: None,
+                native_program: None,
+                secret_revocation: Some(protocol::SECRET_REVOCATION_CONTRACT.into()),
+                journal_export: Some(protocol::JOURNAL_EXPORT_CONTRACT.into()),
+            }),
         });
         reply(&FromVm::Prepared {
             kernel: "6.14.0".to_owned(),
@@ -614,6 +634,7 @@ fn an_attempt_session_frames_both_ways_against_the_stand_in() {
     let mut connection = control::AttemptConnection::connect(&path).expect("connects");
     connection
         .send(&ToVm::Prepare {
+            native_program: None,
             attempt_id: "att_00000000-0000-4000-8000-000000000001".to_owned(),
             profile: "tool".to_owned(),
             wall_seconds: 30,
@@ -642,10 +663,12 @@ fn the_transport_line_renders_one_escaped_line() {
         "boot\nnewline",
         "6.14.0",
         record::ImageDigests {
+            sampler_sha256: None,
             disk_sha256: "0123456789abcdef0123456789abcdef".to_owned(),
             helper_sha256: "h".repeat(64),
             custodian_sha256: "c".repeat(64),
             seed_sha256: "s".repeat(64),
+            guest_program_catalog_sha256: None,
         },
         1024,
         "/data/vm/control.sock",
@@ -675,11 +698,13 @@ impl Harness {
             std::fs::write(root.join(name), name).unwrap();
         }
         let manifest = image::ImageManifest {
+            source_sha256: Default::default(),
             status: "prepared".into(),
             disk_sha256: image::digest(&root.join("base.raw")).unwrap(),
             helper_sha256: image::digest(&root.join("vz")).unwrap(),
             custodian_sha256: image::digest(&root.join("custodian")).unwrap(),
             seed_sha256: image::digest(&root.join("seed.iso")).unwrap(),
+            guest_program_catalog_sha256: None,
         };
         std::fs::write(
             root.join("image.json"),
@@ -689,29 +714,19 @@ impl Harness {
     }
 }
 
-/// D1 and D2 at the CLI: every `run --vm` refuses at probing, before any
-/// connection or staging. A policy the guest jail would not apply as asked
-/// names its field (`vm:not-carried:<field>`); one it would apply names the
-/// first requirement no measured guest record backs (`vm:not-measured:`),
-/// which today is every one.
+/// D1 and D2 at the CLI: a `run --vm` the guest cannot honour refuses at
+/// probing, before any connection or staging. A policy the guest jail would
+/// not apply as asked names its field (`vm:not-carried:<field>`); one it
+/// would apply needs both a measured requirement and the matching guest image.
+/// Owner-loss bounds always refuse, regardless of measured capabilities.
 #[test]
 #[cfg(target_os = "macos")]
-fn every_vm_run_refuses_at_probing_with_the_reason_that_applies() {
+fn a_vm_run_the_guest_cannot_honour_refuses_at_probing_with_its_reason() {
     for (args, lang, expected) in [
         (
             vec!["--profile", "none", "--lifetime", "kernel-bound"],
             true,
             "--vm refuses --profile none",
-        ),
-        (
-            vec!["--profile", "agent", "--limit", "wall=5s"],
-            true,
-            "vm:not-measured:tree_termination",
-        ),
-        (
-            vec!["--profile", "tool", "--limit", "wall=5s"],
-            true,
-            "vm:not-measured:tree_termination",
         ),
         (
             vec![
@@ -822,6 +837,103 @@ fn every_vm_run_refuses_at_probing_with_the_reason_that_applies() {
     }
 }
 
+/// A prepared manifest for another image cannot borrow the measured rows.
+#[test]
+#[cfg(target_os = "macos")]
+fn an_unmeasured_vm_image_refuses_before_connection_or_staging() {
+    for extra in [Vec::new(), vec!["--limit", "mem=512MiB"]] {
+        let harness = Harness::new();
+        harness.install_stand_in();
+        let mut args = vec![
+            "run",
+            "--vm",
+            "--terminal",
+            "detach",
+            "--profile",
+            "tool",
+            "--limit",
+            "wall=5s",
+        ];
+        args.extend(extra);
+        args.extend(["--", "/bin/sh", "-c", "touch workload-ran"]);
+        let output = harness.run(&args);
+        assert_eq!(output.status.code(), Some(125), "{output:?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("vm:not-measured:"), "{stderr}");
+        assert!(stderr.contains(" at probing "), "{stderr}");
+        assert!(!harness.work.join("workload-ran").exists());
+        assert!(!harness.data.join("vm").exists());
+    }
+}
+
+/// A measured tool/agent plan, including explicit matching mem/pids limits,
+/// passes probing and reaches the share preflight or serve lookup. The manifest
+/// advertises the measured guest only in this no-boot stand-in; its payload is
+/// deliberately not usable and is never submitted to a VM service.
+#[test]
+#[cfg(target_os = "macos")]
+fn a_default_vm_run_passes_probing_and_stops_at_the_serve_lookup() {
+    let harness = Harness::new();
+    harness.install_stand_in();
+    let manifest_path = harness
+        .temp
+        .path()
+        .join(".local/share/ukai-vm/0.10.0/image/image.json");
+    let mut manifest: image::ImageManifest =
+        serde_json::from_slice(&std::fs::read(&manifest_path).unwrap()).unwrap();
+    manifest.disk_sha256 = ukai_jail::platform::macos::vm::GUEST_MEASURED_DISK_SHA256.into();
+    manifest.seed_sha256 = ukai_jail::platform::macos::vm::GUEST_MEASURED_SEED_SHA256.into();
+    std::fs::write(manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+    let lone = harness.temp.path().join("lone");
+    std::fs::create_dir(&lone).unwrap();
+    let binary = lone.join("ukai-jail");
+    std::fs::copy(test_binary(), &binary).expect("the copied binary");
+    std::fs::write(harness.work.join("Fold"), b"").unwrap();
+    let folds_case = harness.work.join("fold").exists();
+    std::fs::remove_file(harness.work.join("Fold")).unwrap();
+    for (profile, extra) in [
+        ("tool", Vec::new()),
+        ("agent", Vec::new()),
+        ("tool", vec!["--limit", "mem=512MiB"]),
+        ("tool", vec!["--limit", "pids=64"]),
+    ] {
+        let mut args = vec![
+            "run",
+            "--vm",
+            "--terminal",
+            "detach",
+            "--profile",
+            profile,
+            "--limit",
+            "wall=5s",
+        ];
+        args.extend(extra);
+        args.extend(["--", "/bin/sh", "-c", "touch workload-ran"]);
+        let output = harness
+            .command_of(&binary, &args)
+            .output()
+            .expect("the binary runs");
+        assert_eq!(output.status.code(), Some(125), "{profile}: {output:?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!stderr.contains("vm:not-measured:"), "{profile}: {stderr}");
+        assert!(!stderr.contains("vm:not-carried:"), "{profile}: {stderr}");
+        assert!(stderr.contains(" at preparing "), "{profile}: {stderr}");
+        // The live share's first check refuses a case-folding volume (the
+        // macOS default); a case-sensitive one reaches the serve lookup.
+        let expected = if folds_case {
+            "the workspace volume folds case in file names"
+        } else {
+            "no ukai-vm program found beside ukai-jail or on PATH"
+        };
+        assert!(stderr.contains(expected), "{profile}: {stderr}");
+        assert!(!harness.work.join("workload-ran").exists());
+        assert!(
+            !harness.data.join("vm").exists(),
+            "no VM runtime: {profile}: {stderr}"
+        );
+    }
+}
+
 #[test]
 #[cfg(target_os = "macos")]
 fn installation_discovery_uses_numeric_versions_end_to_end() {
@@ -832,11 +944,13 @@ fn installation_discovery_uses_numeric_versions_end_to_end() {
     std::fs::write(
         old.join("image.json"),
         serde_json::to_vec(&image::ImageManifest {
+            source_sha256: Default::default(),
             status: "preparing".into(),
             disk_sha256: "old".into(),
             helper_sha256: "old".into(),
             custodian_sha256: "old".into(),
             seed_sha256: "old".into(),
+            guest_program_catalog_sha256: None,
         })
         .unwrap(),
     )

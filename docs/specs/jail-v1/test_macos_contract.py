@@ -361,8 +361,8 @@ class MacosContract(unittest.TestCase):
     def test_d11_vm_docs_imply_no_shipped_client_and_no_passing_row(self):
         def flat(path):
             return " ".join(read(path).split())
-        # No macOS ukai-jail client ships (the DMG carries ukai-vm and
-        # ukai-vm-install): every doc that shows `ukai-jail run --vm` says so.
+        # The public cold-boot preview has no client. Current local signed
+        # candidates include one without establishing release qualification.
         for path in ["crates/ukai-jail/vm/PREVIEW.txt", "crates/ukai-jail/vm/README.md",
                      "docs/guide.md", "docs/specs/jail-macos.md"]:
             with self.subTest(path=path):
@@ -471,7 +471,8 @@ class MacosContract(unittest.TestCase):
                              "`nosuid,nodev`", "`init.scope`", "`test_guest_main.py`",
                              "`guest_harness.py`", "`test_custodian.py`",
                              "covered by unit and model tests only",
-                             "been confirmed on a booted guest",
+                             "kill paths have not run on a booted guest",
+                             "`populated_before_kill`" if path == "vm/README.md" else "verified its own tree",
                              # Round 4: the learned stop, the serve binding,
                              # standard input, exit, policy digest, summary.
                              "`infrastructure_unknown`", "`strays_killed`", "`members`",
@@ -480,11 +481,14 @@ class MacosContract(unittest.TestCase):
                              "and the guest jail's standard input is /dev/null: nothing written "
                              "to it would reach the target; run with `</dev/null`, or without --vm",
                              "128 + s", "`outcome.cause`", "`/mnt/workspace`", "staged_secrets",
-                             "pinned in `image.json`, and it is not", "is summarized as itself",
+                             "is summarized as itself",
                              "`vm-transport.json` is absent"]:
                     self.assertIn(fact, text)
                 self.assertNotIn("kernel_bound_requires_vm", text)
                 self.assertNotIn("measured floor", text)
+                self.assertNotIn("pinned in `image.json`, and it is not", text)
+                for fact in ["macos-vm-admission-2026-11-15", "disk", "seed"]:
+                    self.assertIn(fact, text)
                 # The stop no longer spares a fixed set of units.
                 for stale in ["INFRASTRUCTURE_UNITS",
                               "`session.slice/dbus.service` or `app.slice/dbus.service`",
@@ -499,9 +503,10 @@ class MacosContract(unittest.TestCase):
         paragraphs = [" ".join(p.split()) for p in read("crates/ukai-jail/vm/README.md").split("\n\n")]
         for marker, hedge in [("powers off with `live_share_mount_failed`. The guest's", "unit and model tests only"),
                               ("`<data>/vm/serve-failed.stderr`", "not against a real serve"),
-                              ("**The attempt stop (decision D6).**", "has not been confirmed on a booted guest"),
-                              ("gives 128 + s", "none has run against a booted guest"),
-                              ("is summarized as itself", "not yet on a new run")]:
+                              ("**The attempt stop (decision D6).**", "kill paths have not run on a booted guest"),
+                              ("`populated_before_kill`", "are covered by unit and model tests only"),
+                              ("gives 128 + s", "does not qualify those paths through the newly admitted host client"),
+                              ("is summarized as itself", "A complete independent K113 summary recomputation is still required")]:
             with self.subTest(paragraph=marker):
                 paragraph = next(p for p in paragraphs if marker in p)
                 self.assertIn(hedge, paragraph)
@@ -535,18 +540,44 @@ class MacosContract(unittest.TestCase):
         k112 = json.loads(read(results + "macos-vm-installed-2026-11-03/k112.json"))
         self.assertIn("native macOS does not provide", k112["vm_installed"]["stderr"])
 
+    def test_vm_probing_claims_name_the_wall_the_guest_carries(self):
+        """Review of 2026-11-05 (F1, F7c): the profiles' own walls (30 m, 2 h)
+        are `vm:not-carried:limits.wall`, so no doc may say a default plan
+        passes probing, and the spec's D5 lines say what the evening's real
+        client did."""
+        docs = ["docs/guide.md", "docs/roadmap.md", "docs/RELEASING.md", "docs/benchmarks/jail/README.md",
+                "docs/specs/jail-macos.md", "crates/ukai-jail/vm/README.md",
+                "docs/benchmarks/jail/results/macos-vm-probes-2026-11-04/README.md",
+                "crates/ukai-jail/src/platform/macos/vm.rs"]
+        for path in docs:
+            text = " ".join(read(path).replace("//!", " ").replace("///", " ").split())
+            with self.subTest(path):
+                self.assertNotIn("default `tool` or `agent` plan", text)
+                self.assertNotIn("default `tool` or `agent` `run --vm`", text)
+                self.assertNotIn("default `run --vm` passes probing", text)
+                self.assertNotIn("a required `pids`, `mem`, `swap` or `cpu` ceiling", text)
+        spec = " ".join(read("docs/specs/jail-macos.md").split())
+        for stale in ["no `run --vm` has relayed one yet", "no `run --vm` has produced such a receipt yet",
+                      "pre-kill report on every recorded attempt"]:
+            self.assertNotIn(stale, spec)
+        for fact in ["`vm:not-carried:limits.wall`", "relayed `exited` 0",
+                     "The client hashes no image artifact", "covered no `ukai-attempts.slice/attempt-<n>` cgroup",
+                     "**Residual:** the report of the stop that `reset` and `cancel2` run goes to the console only",
+                     "each `applied.limits` row's `required` is the guest jail's plan"]:
+            self.assertIn(fact, spec)
+
     def test_vm_harness_and_packaging_docs_describe_code_not_measurements(self):
-        """D9-D11 (harnesses, packaging): what the scripts do, and that none ran live."""
+        """D9-D11: scripts, source-specific measurements and remaining release gates."""
         readme = " ".join(read("crates/ukai-jail/vm/README.md").split())
         for fact in ["`harness.py mark`", "`UKAI_VM_BINARY`", "`--budget-ms`", "`--ukai-jail <client>`",
                      "Every output directory must be new", "No probe uses `/dev/tcp`",
                      "recorded as `REFUSED`, never `PASS`", "`fault_matrix.py`** has nine cases",
                      "`measurements[<requirement>]`",
                      "an upper bound on the overhead the clause limits, not the guest jail's own release time",
-                     "under `not_measured`", "none of it has run against a booted guest",
+                     "under `not_measured`", "also ran against a booted guest on the spare Mac",
                      "`cargo build --release --locked`", "`source_revision`",
-                     "No package has been built with the current script yet", "`notarization.2.json`",
-                     "`payload-extra`", "It has not been run against a package yet",
+                     "2026-11-15 local signed package at `53e5605fd`", "`notarization.2.json`",
+                     "`payload-extra`", "All seven cases passed against the actual mounted signed `53e5605fd` DMG",
                      # Round 4 (S3): the denial needs a route, receipts are
                      # bound, installed modes, the scrubbed pinned build.
                      "`ENETUNREACH`", "`1.1.1.1:443`", "the proxy answered 200",
@@ -557,10 +588,12 @@ class MacosContract(unittest.TestCase):
                      "directories 0755, files 0755", "`/dev/null` as standard input",
                      "assume-unchanged or skip-worktree", "`rustc -vV`", "`cargo -V`",
                      "K112 is `REFUSED` when a lane was refused for its standard input",
-                     "its live acceptance is pending",
+                     "twelve image-bound rows", "measured guest",
                      "refuses unless both report that file's exact release",
                      "never an absolute host path",
-                     "No rebuild from such an archive under the pinned toolchain has been verified"]:
+                     "independently rebuilt under Rust 1.98.1 for all five shipped components",
+                     "not byte reproducibility or qualification of a later archive",
+                     "The later admission package still needs its own archive rebuild check"]:
             self.assertIn(fact, readme)
         self.assertNotIn("the script refuses to run twice", readme)
         self.assertNotIn("`CARGO_TARGET_DIR` is dropped", readme)
@@ -569,7 +602,9 @@ class MacosContract(unittest.TestCase):
         for fact in ["source_revision in payload/image/image.json",
                      "cargo build --release --locked -p ukai-jail --bin ukai-vm",
                      "holds only the VM tooling (crates/ukai-jail/vm)",
-                     "a rebuild with that pinned toolchain has not been verified",
+                     "fa1d3392d baseline archive was rebuilt under Rust 1.98.1",
+                     "not a byte-reproducibility or later-archive claim",
+                     "public distribution requires the notarized and stapled build",
                      "the earlier published preview and this version's first candidate"]:
             self.assertIn(fact, preview)
         self.assertNotIn("The VM tooling's source (crates/ukai-jail/vm) is included", preview)

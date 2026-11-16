@@ -1,0 +1,41 @@
+{
+  "schema": "ukai.task.source-validation/1",
+  "recorded_at": "2026-11-15T17:21:38.159777+00:00",
+  "source_worktree": "/Users/monocursive/.cache/ukai-guest-native-launch-2026-11-15",
+  "base_revision": "f589c4235395860d3c196d00bcc06449101cde96",
+  "changes": "two-file admission evidence checker only; frozen installed package160a9bf51 unchanged",
+  "file_sha256": {
+    "crates/ukai-jail/vm/credential_staging_measurement.py": "0335e3d2a5693080c31de9d4f5ecdab1793804f2d0059deb8e81910e1551d272",
+    "crates/ukai-jail/vm/test_credential_staging_measurement.py": "185af2fb7a5f1d3370dc8dbc44a295a74d994a51394578ade4278c855ccfc1a9"
+  },
+  "diff_sha256": "8b1763f7ca7a9f811543171a2dc463573a0079b944312d30ddd27846fca0bb7a",
+  "commands": [
+    {
+      "argv": [
+        "/opt/homebrew/opt/python@3.15/bin/python3.15",
+        "-m",
+        "unittest",
+        "-v",
+        "test_credential_staging_measurement"
+      ],
+      "cwd": "/Users/monocursive/.cache/ukai-guest-native-launch-2026-11-15/crates/ukai-jail/vm",
+      "exit_code": 0,
+      "log": "normal.log"
+    },
+    {
+      "argv": [
+        "/opt/homebrew/opt/python@3.15/bin/python3.15",
+        "-O",
+        "-m",
+        "unittest",
+        "-v",
+        "test_credential_staging_measurement"
+      ],
+      "cwd": "/Users/monocursive/.cache/ukai-guest-native-launch-2026-11-15/crates/ukai-jail/vm",
+      "exit_code": 0,
+      "log": "optimized.log"
+    }
+  ],
+  "diff_check_exit_code": 0,
+  "passed": true
+}

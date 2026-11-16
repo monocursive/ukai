@@ -10,7 +10,9 @@ import json
 import os
 from pathlib import Path
 import signal
+import shutil
 import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -24,6 +26,9 @@ CUSTODIAN = r'''
 import os, select, signal, subprocess, sys, time
 lease, ack = map(int, sys.argv[1:3])
 child = subprocess.Popen(sys.argv[3:])
+if os.environ.get('STARTUP_DIAGNOSTIC') == 'no_owner':
+    # Only the helper may retain the output writer in this EOF fixture.
+    os.close(1)
 try:
     deadline = time.monotonic() + 3
     while child.poll() is None:
@@ -68,10 +73,37 @@ def guest(value, split=False):
     for offset in range(0, len(raw), 65536 if split else len(raw)):
         emit(dict(event='data', data=base64.b64encode(raw[offset:offset+65536] if split else raw).decode()))
 
+if mode := os.environ.get('STARTUP_DIAGNOSTIC'):
+    sentinel = 'PRIVATE_STARTUP_PAYLOAD_PATH_OR_CREDENTIAL'
+    if mode == 'no_owner':
+        os.close(1)
+    else:
+        emit(dict(event='owner', audit_token=sentinel))
+        emit(dict(event='booted', arbitrary=sentinel))
+        if mode == 'boot_timeout':
+            emit(dict(event='stopping', reason='boot_timeout'))
+            emit(dict(event='stopped', error=sentinel))
+        else:
+            emit(dict(event='connected'))
+            emit(dict(event='stopping', reason=sentinel))
+            emit(dict(event='error', error=sentinel))
+    # Keep custody alive until the host observes the terminal frame/EOF and
+    # requests teardown, so acknowledgement EOF cannot race this test's cause.
+    sys.stdin.readline()
+    sys.exit(0)
+
 if os.environ.get('BLOCK_READY') == '1':
     sys.stdin.read()
     sys.exit(0)
-guest(dict(event='ready', kernel='stand-in-kernel'))
+contracts = dict(secret_revocation='ukai.vm.secret-revocation/1', journal_export='ukai.vm.guest-journal/1')
+native_catalog = os.environ.get('NATIVE_CATALOG')
+if native_catalog:
+    contracts['native_program'] = 'ukai.vm.guest-native-launch/1'
+    contracts['sampled_exposure'] = 'ukai.vm.sampled-exposure/3'
+native_prepared = None
+# Ready deliberately advertises the current contracts even when Session
+# below omits them: the service must use the actual Session, not this frame.
+guest(dict(event='ready', kernel='stand-in-kernel', guest_contracts=contracts))
 sessions = 0
 for line in sys.stdin:
     message = json.loads(line)
@@ -91,6 +123,11 @@ for line in sys.stdin:
             # makes it lie, or (omit) say nothing like an old controller.
             live = os.environ.get('LIVE_SHARE', '1' if share else '0')
             reply = dict(event='session', kernel='stand-in-kernel')
+            declared = os.environ.get('GUEST_CONTRACTS')
+            if declared != 'omit':
+                reply['guest_contracts'] = contracts if declared is None else json.loads(declared)
+            if native_catalog and os.environ.get('SESSION_NATIVE_CATALOG') != 'omit':
+                reply['guest_program_catalog_sha256'] = os.environ.get('SESSION_NATIVE_CATALOG', native_catalog)
             if live != 'omit':
                 reply['live_share'] = live == '1'
             if os.environ.get('BAD_SESSION') == '1':
@@ -98,7 +135,18 @@ for line in sys.stdin:
             guest(reply)
             if os.environ.get('EXIT_AFTER_SESSION') == '1': sys.exit(1)
         elif op == 'reset':
+            native_prepared = None
             guest(dict(event='reset'))
+        elif op == 'native_prepare':
+            if os.environ.get('HOLD_NATIVE_PREPARE') == '1':
+                continue
+            native_prepared = request['native_program']
+            reply = dict(event='native_prepared', native_program=dict(native_prepared))
+            if os.environ.get('WRONG_NATIVE_ACK') == '1':
+                reply['native_program']['entry_id'] = 'wrong'
+            guest(reply)
+            if os.environ.get('DUPLICATE_NATIVE_ACK') == '1':
+                guest(reply)
         elif op == 'cancel2':
             guest(dict(event='cancelled'))
         elif op == 'put':
@@ -107,10 +155,17 @@ for line in sys.stdin:
             if os.environ.get('REFUSE_SECRET') == '1':
                 guest(dict(event='error', message='secret_refused:FileExistsError'))
             else:
-                guest(dict(event='secret', id=request['id'], path='/run/ukai-vm/credentials/' + request['id']))
+                directory = '/run/ukai-vm/native-config/credentials/' if native_prepared else '/run/ukai-vm/credentials/'
+                guest(dict(event='secret', id=request['id'], path=directory + request['id']))
         elif op == 'launch_toml':
             guest(dict(event='launch_toml'))
+        elif op == 'revoke_secrets':
+            if os.environ.get('HOLD_REVOKE') != '1':
+                ids = ['other'] if os.environ.get('WRONG_REVOKE') == '1' else request['ids']
+                guest(dict(event='secrets_revoked', ids=ids))
         elif op == 'run2':
+            if os.environ.get('HOLD_RUNNING') == '1':
+                continue
             guest(dict(event='running', supervisor_pid=os.getpid()))
             if os.environ.get('HOLD_RUN') == '1':
                 continue
@@ -128,12 +183,25 @@ for line in sys.stdin:
                            lifetime=dict(boundary='pid_namespace', tree_empty=True, integrity='verified'),
                            process=dict(identity=dict(value=dict(boot_id='guest-boot'))),
                            applied=dict(network=dict(mode='none'), limits=[dict(key=k, applied=True) for k in ['wall','mem','pids','swap']]))
+            if request.get('native_program'):
+                receipt['policy']['digest'] = request['native_program']['expected_policy_digest']
             guest(dict(event='file', group='evidence', path='jail.json', executable=False,
                        data=base64.b64encode(json.dumps(receipt).encode()).decode()))
             binding = dict(attempt_id=request.get('attempt_id'), boot_id=request.get('boot_id'),
                            guest_attempt_id='guest-attempt', guest_boot_id='guest-boot',
                            profile=request['profile'], argv_digest=digest)
-            guest(dict(event='done', exit_code=0, binding=binding))
+            if request.get('native_program'):
+                intent = request['native_program']
+                binding['native_program'] = {key:intent[key] for key in
+                    ('catalog_sha256','entry_id','profile_sha256','selected_credential_id','state','request_argv_digest','resolved_argv_digest')}
+                binding['native_program'].update(executable_sha256='a'*64,policy_digest=intent['expected_policy_digest'])
+                if os.environ.get('BAD_NATIVE_BINDING') == '1':
+                    binding['native_program']['request_argv_digest'] = 'sha256:' + '0'*64
+            done = dict(event='done', exit_code=0, binding=binding)
+            if os.environ.get('NO_STOP') != '1':
+                done['stop'] = dict(boundaries=['ukai-attempts.slice/attempt-1'], populated_before_kill=[],
+                                    live_before_kill=[[77, None]], strays_killed=[[77, '/user.slice/s']])
+            guest(done)
 '''
 
 
@@ -183,10 +251,10 @@ class WarmServiceTests(unittest.TestCase):
         path = self.root / 'record.ndjson'
         return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
 
-    def wait_recorded(self, predicate, timeout=5):
+    def wait_recorded(self, predicate, timeout=5, after=0):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            found = [frame for frame in self.recorded() if predicate(frame)]
+            found = [frame for frame in self.recorded()[after:] if predicate(frame)]
             if found:
                 return found
             time.sleep(.02)
@@ -246,6 +314,221 @@ class WarmServiceTests(unittest.TestCase):
         self.assertEqual(self.frame(stream)['event'], 'released')
         return stream, ready
 
+    def native_request(self):
+        """A catalog fixture, never a real VM or vendor binary."""
+        source = Path(__file__).parent
+        catalog = json.loads((source / 'fixtures/guest-program-catalog.json').read_bytes())
+        entry = catalog['entries'][0]
+        root = '/opt/ukai/programs/claude/2.1.311'
+        entry.update(id='claude-2.1.311-linux-arm64', alias='claude', version='2.1.311',
+                     install_root=root, executable=root + '/claude', argv_prefix=[root + '/claude'],
+                     profile_sha256=hashlib.sha256((source.parent / 'profiles/launch/claude.toml').read_bytes()).hexdigest())
+        entry['tree'][1]['path'] = 'claude'
+        data = json.dumps(catalog).encode()
+        image = self.install / 'image'
+        (image / 'guest-program-catalog.json').write_bytes(data)
+        digest = hashlib.sha256(data).hexdigest()
+        manifest = json.loads((image / 'image.json').read_bytes())
+        manifest['guest_program_catalog_sha256'] = digest
+        (image / 'image.json').write_text(json.dumps(manifest))
+        self.env['NATIVE_CATALOG'] = digest
+        def argv_digest(words):
+            data = b'ukai.jail.argv/1\0' + struct.pack('>Q', len(words))
+            data += b''.join(struct.pack('>Q', len(word)) + word for word in words)
+            return 'sha256:' + hashlib.sha256(data).hexdigest()
+        suffix = [b'--print', b'hello']
+        argv = [entry['executable'].encode(), *suffix]
+        native = dict(schema='ukai.vm.guest-native-launch/1', catalog_sha256=digest,
+                      entry_id=entry['id'], launch_name='claude', profile_sha256=entry['profile_sha256'],
+                      state='attempt', selected_credential_id='anthropic',
+                      argv_suffix=[base64.b64encode(word).decode() for word in suffix],
+                      request_argv_digest=argv_digest([b'claude', *suffix]),
+                      resolved_argv_digest=argv_digest(argv), expected_policy_digest='sha256:' + 'e'*64)
+        return dict(profile='agent', argv=[base64.b64encode(word).decode() for word in argv],
+                    secrets=[dict(id='anthropic', data=base64.b64encode(b'public-synthetic').decode())],
+                    native_program=native)
+
+    def send_native(self, request):
+        stream = self.socket('attempt')
+        ready = self.frame(stream)
+        self.send(stream, op='prepare', attempt_id='host-attempt', wall_seconds=30, **request)
+        return stream, ready
+
+    def test_native_prepare_ack_precedes_exact_selected_secret_and_run(self):
+        request = self.native_request()
+        child = self.launch(RECORD=str(self.root / 'record.ndjson'))
+        for identifier in ('anthropic', 'claude-oauth'):
+            request['native_program']['selected_credential_id'] = identifier
+            request['secrets'][0]['id'] = identifier
+            before = len(self.recorded())
+            stream, ready = self.attempt(**request)
+            self.assertEqual(ready['guest_program_catalog_sha256'], self.env['NATIVE_CATALOG'])
+            found = {}
+            while (frame := self.frame(stream))['event'] != 'done':
+                found[frame['event']] = frame
+            binding = found['bound_receipt']['binding']['native_program']
+            self.assertEqual(binding['selected_credential_id'], identifier)
+            self.assertEqual(binding['request_argv_digest'], request['native_program']['request_argv_digest'])
+            records = [item for item in self.recorded()[before:] if 'op' in item]
+            self.assertEqual([item['op'] for item in records if item['op'] != 'session'], ['reset','native_prepare','secret','run2'])
+            self.assertEqual(next(item for item in records if item['op'] == 'native_prepare')['native_program'], request['native_program'])
+            run = next(item for item in records if item['op'] == 'run2')
+            self.assertEqual(run['native_program'], request['native_program'])
+            self.assertEqual(run['argv'], request['argv'])
+            self.assertIsNone(run['launch'])
+        self.control('stop')
+        self.assert_exit(child, 0)
+
+    def test_native_invalid_intent_or_mixed_launch_refuses_before_guest_reset(self):
+        request = self.native_request()
+        child = self.launch(RECORD=str(self.root / 'record.ndjson'))
+        variants = []
+        for field in ('schema','catalog_sha256','entry_id','launch_name','profile_sha256','state','selected_credential_id','request_argv_digest','resolved_argv_digest','expected_policy_digest'):
+            variant = json.loads(json.dumps(request))
+            variant['native_program'][field] = 'wrong'
+            variants.append(variant)
+        variants += [dict(request, secrets=[]), dict(request, launch=dict(name='claude-vm', toml='name="claude-vm"'))]
+        for variant in variants:
+            before = len(self.recorded())
+            stream, _ = self.send_native(variant)
+            self.assertEqual(stream.recv(1), b'')
+            self.wait_recorded(lambda frame: frame.get('op') == 'cancel2', after=before)
+            self.assertFalse(any(frame.get('op') in ('reset','native_prepare','launch_toml','secret','run2') for frame in self.recorded()[before:]))
+        self.control('stop')
+        self.assert_exit(child, 0)
+
+    def test_native_bad_ack_and_client_eof_never_forward_a_secret(self):
+        request = self.native_request()
+        for mode in ('WRONG_NATIVE_ACK','HOLD_NATIVE_PREPARE'):
+            child = self.launch(RECORD=str(self.root / 'record.ndjson'), **{mode:'1'})
+            before = len(self.recorded())
+            stream, _ = self.send_native(request)
+            self.wait_recorded(lambda frame: frame.get('op') == 'native_prepare', after=before)
+            if mode == 'HOLD_NATIVE_PREPARE':
+                start = time.monotonic()
+                stream.close()
+            else:
+                self.assertEqual(stream.recv(1), b'')
+                start = time.monotonic()
+            self.wait_recorded(lambda frame: frame.get('op') == 'cancel2', after=before)
+            self.assertLess(time.monotonic()-start, 1.0)
+            self.assertFalse(any(frame.get('op') in ('secret','run2') for frame in self.recorded()[before:]))
+            self.control('stop')
+            self.assert_exit(child, 0)
+
+    def test_native_session_requires_exact_actual_catalog_and_contract(self):
+        self.native_request()
+        ordinary = dict(secret_revocation='ukai.vm.secret-revocation/1', journal_export='ukai.vm.guest-journal/1')
+        no_sampling = dict(ordinary, native_program='ukai.vm.guest-native-launch/1')
+        unknown_sampling = dict(no_sampling, sampled_exposure='ukai.vm.sampled-exposure/4')
+        for overrides in ({'SESSION_NATIVE_CATALOG':'omit'}, {'SESSION_NATIVE_CATALOG':'f'*64},
+                          {'GUEST_CONTRACTS':json.dumps(ordinary)}, {'GUEST_CONTRACTS':json.dumps(no_sampling)},
+                          {'GUEST_CONTRACTS':json.dumps(unknown_sampling)}):
+            child = self.launch(**overrides)
+            self.assertIn('Session does not match', self.assert_exit(child, 125))
+        image = self.install / 'image'
+        (image / 'guest-program-catalog.json').unlink()
+        manifest = json.loads((image / 'image.json').read_bytes())
+        del manifest['guest_program_catalog_sha256']
+        (image / 'image.json').write_text(json.dumps(manifest))
+        child = self.launch()
+        self.assertIn('Session does not match', self.assert_exit(child, 125))
+
+    def test_historical_native_contracts_serve_literal_but_refuse_native_before_secrets(self):
+        request = self.native_request()
+        for version in (1, 2):
+            contracts = dict(secret_revocation='ukai.vm.secret-revocation/1',
+                journal_export='ukai.vm.guest-journal/1', native_program='ukai.vm.guest-native-launch/1',
+                sampled_exposure=f'ukai.vm.sampled-exposure/{version}')
+            child = self.launch(GUEST_CONTRACTS=json.dumps(contracts), RECORD=str(self.root / 'record.ndjson'))
+            stream = self.socket('attempt')
+            self.assertEqual(self.frame(stream)['guest_contracts'], contracts)
+            before = len(self.recorded())
+            self.send(stream, **request)
+            self.assertEqual(stream.recv(1000), b'')
+            self.wait_recorded(lambda frame: frame.get('op') == 'cancel2', after=before)
+            self.assertFalse(any(frame.get('op') in ('reset', 'native_prepare', 'secret', 'run2')
+                                 for frame in self.recorded()[before:]))
+            plain, ready = self.attempt()
+            self.assertEqual(ready['guest_contracts'], contracts)
+            while self.frame(plain)['event'] != 'done':
+                pass
+            self.control('stop')
+            child.wait(timeout=6)
+
+    def test_native_duplicate_ack_cancels_before_run(self):
+        request = self.native_request()
+        child = self.launch(DUPLICATE_NATIVE_ACK='1', RECORD=str(self.root / 'record.ndjson'))
+        stream, _ = self.send_native(request)
+        self.assertEqual(stream.recv(1), b'')
+        self.wait_recorded(lambda frame: frame.get('op') == 'cancel2')
+        self.assertFalse(any(frame.get('op') == 'run2' for frame in self.recorded()))
+        self.control('stop')
+        self.assert_exit(child, 0)
+
+    def test_native_boot_catalog_changed_after_session_refuses_before_secret_or_reset(self):
+        request = self.native_request()
+        child = self.launch(RECORD=str(self.root / 'record.ndjson'))
+        stream = self.socket('attempt')
+        ready = self.frame(stream)  # Session verified the private boot copy.
+        before = len(self.recorded())
+        catalog = self.root / 'data/vm' / ready['boot_id'] / 'image/guest-program-catalog.json'
+        with catalog.open('ab') as output:
+            output.write(b' ')
+        self.send(stream, op='prepare', attempt_id='host-attempt', wall_seconds=30, **request)
+        self.assertEqual(stream.recv(1), b'')
+        self.wait_recorded(lambda frame: frame.get('op') == 'cancel2', after=before)
+        self.assertFalse(any(frame.get('op') in ('reset','native_prepare','secret','run2') for frame in self.recorded()[before:]))
+        self.control('stop')
+        self.assert_exit(child, 0)
+
+    def test_native_wrong_binding_never_reaches_the_client_as_bound(self):
+        request = self.native_request()
+        child = self.launch(BAD_NATIVE_BINDING='1', RECORD=str(self.root / 'record.ndjson'))
+        stream, _ = self.send_native(request)
+        self.assertEqual(self.frame(stream)['event'], 'prepared')
+        self.send(stream, op='run')
+        raw = self._buffers.pop(stream, b'')
+        while chunk := stream.recv(16384):
+            raw += chunk
+        frames = [json.loads(line) for line in raw.splitlines()]
+        self.assertIn('released', [frame['event'] for frame in frames])
+        self.assertFalse(any(frame['event'] in ('bound_receipt','done') for frame in frames))
+        self.wait_recorded(lambda frame: frame.get('op') == 'cancel2')
+        self.control('stop')
+        self.assert_exit(child, 0)
+
+    def test_a_done_without_a_stop_is_relayed_without_one(self):
+        child = self.launch(NO_STOP='1')
+        stream, _ = self.attempt()
+        while (frame := self.frame(stream))['event'] != 'done':
+            pass
+        self.assertNotIn('stop', frame)
+        self.control('stop')
+        child.wait(timeout=6)
+
+    def test_status_is_ready_only_once_the_guest_session_is_open(self):
+        # `warm` holds from the boot's start; `ready` waits for the session
+        # handshake, which a guest that never says `ready` never reaches.
+        child = self.launch(BLOCK_READY='1')
+        status = self.control('status')
+        self.assertTrue(status['warm'])
+        self.assertIs(status['ready'], False)
+        self.assertIsNone(status['kernel'])
+        self.control('stop')
+        child.wait(timeout=6)
+        child = self.launch()
+        deadline = time.monotonic() + 3
+        while not (status := self.control('status'))['ready']:
+            self.assertIsNone(status['kernel'], 'a kernel was known before the serve said ready')
+            if time.monotonic() >= deadline:
+                self.fail('the serve never said ready')
+            time.sleep(.01)
+        self.assertEqual(status['kernel'], 'stand-in-kernel')
+        self.assertTrue(status['warm'])
+        self.control('stop')
+        child.wait(timeout=6)
+
     def test_lease_refresh_survives_three_seconds_and_stop_exits(self):
         child = self.launch()
         first = self.control('status')
@@ -271,6 +554,11 @@ class WarmServiceTests(unittest.TestCase):
             binding = found['bound_receipt']['binding']
             self.assertEqual(binding['attempt_id'], 'host-attempt')
             self.assertEqual(binding['boot_id'], ready['boot_id'])
+            # D6: the serve relays the guest's stop as the guest reported it
+            # (the client, not the relay, judges it).
+            self.assertEqual(found['done']['stop'],
+                             dict(boundaries=['ukai-attempts.slice/attempt-1'], populated_before_kill=[],
+                                  live_before_kill=[[77, None]], strays_killed=[[77, '/user.slice/s']]))
             # Keep prior clients open: the service must not wait for their EOF.
         self.control('stop')
         child.wait(timeout=6)
@@ -338,6 +626,44 @@ class WarmServiceTests(unittest.TestCase):
         child = self.launch(BAD_SESSION='1')
         self.assertIn('session omitted kernel', self.assert_exit(child, 125))
 
+    def test_startup_failure_retains_safe_milestones_and_original_transport_cause(self):
+        for index, (mode, terminal, cause) in enumerate([('no_owner', 'eof', 'helper_eof'),
+                                      ('boot_timeout', 'stopped', 'helper_stopped'),
+                                      ('connected_error', 'reported_error', 'helper_reported_error')]):
+            with self.subTest(mode=mode):
+                # macOS's default temporary root leaves little AF_UNIX path space.
+                data = self.root / f's{index}'
+                runtime = data / 'vm'
+                before = set(runtime.glob('vm-*'))
+                child = self.launch(STARTUP_DIAGNOSTIC=mode, UKAI_DATA_DIR=str(data))
+                stderr = self.assert_exit(child, 125)
+                self.assertIn(cause, stderr)
+                self.assertNotIn('PRIVATE_STARTUP_PAYLOAD_PATH_OR_CREDENTIAL', stderr)
+                self.assertNotIn('the guest did not answer', stderr)
+                created = set(runtime.glob('vm-*')) - before
+                self.assertEqual(len(created), 1)
+                boot = created.pop()
+                path = boot / 'startup.json'
+                raw = path.read_bytes()
+                self.assertLessEqual(len(raw), 4096)
+                self.assertNotIn(b'PRIVATE_STARTUP_PAYLOAD_PATH_OR_CREDENTIAL', raw)
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                report = json.loads(raw)
+                self.assertEqual(report['boot_id'], boot.name)
+                observed = report['observed']
+                self.assertEqual(observed['transport_end'], terminal)
+                self.assertEqual(observed['first_failure'], cause)
+                self.assertEqual(observed['owner_ms'] is not None, mode != 'no_owner')
+                self.assertEqual(observed['booted_ms'] is not None, mode != 'no_owner')
+                self.assertEqual(observed['connected_ms'] is not None, mode == 'connected_error')
+                self.assertIsNone(observed['guest_ready_ms'])
+                self.assertIsNone(observed['session_validated_ms'])
+                self.assertEqual(observed['stopping_reason'],
+                                 {'no_owner': None, 'boot_timeout': 'boot_timeout',
+                                  'connected_error': 'unrecognized'}[mode])
+                self.assertFalse((runtime / 'control.sock').exists())
+                self.assertFalse((runtime / 'attempt.sock').exists())
+
     def test_helper_death_and_stop_during_silent_attempt_are_bounded(self):
         child = self.launch(EXIT_AFTER_SESSION='1')
         self.assert_exit(child, 125)
@@ -375,8 +701,11 @@ class WarmServiceTests(unittest.TestCase):
         listener = socket.socket(socket.AF_UNIX)
         listener.bind(str(runtime / 'control.sock'))
         listener.listen()
+        # Bounded and daemonic: when the binary never connects (it is absent,
+        # or fails first) the test fails instead of the suite never exiting.
+        listener.settimeout(6)
         reply = dict(event='status', schema='ukai.jail.vm-control/1', boot_id='actual-boot',
-                     warm=False, attempt_live=False, kernel=None, disk_sha256='d'*64,
+                     warm=False, ready=False, attempt_live=False, kernel=None, disk_sha256='d'*64,
                      helper_sha256='h'*64, custodian_sha256='c'*64, seed_sha256='s'*64,
                      vsock_port=1024, idle_seconds=600, guest_nat=False)
         def answer():
@@ -385,7 +714,7 @@ class WarmServiceTests(unittest.TestCase):
                 with stream:
                     stream.recv(1000)
                     stream.sendall((json.dumps(reply) + '\n').encode())
-        thread = threading.Thread(target=answer)
+        thread = threading.Thread(target=answer, daemon=True)
         thread.start()
         status = subprocess.run([str(BINARY), 'status'], env=self.env, capture_output=True, timeout=6)
         thread.join(timeout=1)
@@ -453,6 +782,117 @@ class WarmServiceTests(unittest.TestCase):
                   secrets=[dict(id='token', data=base64.b64encode(b'v').decode())])
         self.assertEqual(stream.recv(1000), b'')
         self.assertTrue(self.control('status')['warm'])
+        self.control('stop')
+        child.wait(timeout=6)
+
+    def test_released_credentials_revoke_exactly_once_and_keep_other_attempts_possible(self):
+        child = self.launch(HOLD_RUN='1', RECORD=str(self.root / 'record.ndjson'))
+        secrets = [dict(id='token', data=base64.b64encode(b'value').decode())]
+        stream, _ = self.attempt(secrets=secrets)
+        self.send(stream, op='revoke_secrets', ids=['token'])
+        self.assertEqual(self.frame(stream), dict(event='secrets_revoked', ids=['token']))
+        self.send(stream, op='revoke_secrets', ids=['token'])
+        self.assertEqual(stream.recv(1000), b'')
+        self.wait_recorded(lambda frame: frame.get('op') == 'cancel2')
+        self.assertEqual(sum(frame.get('op') == 'revoke_secrets' for frame in self.recorded()), 1)
+        self.assertTrue(self.control('status')['warm'])
+        following, _ = self.attempt(secrets=secrets)
+        self.send(following, op='revoke_secrets', ids=['token'])
+        self.assertEqual(self.frame(following)['ids'], ['token'])
+        following.close()
+        self.control('stop')
+        child.wait(timeout=6)
+
+    def test_session_contracts_forward_truthfully_and_refuse_credentials_before_guest_traffic(self):
+        required = dict(secret_revocation='ukai.vm.secret-revocation/1', journal_export='ukai.vm.guest-journal/1')
+        invalid = [{}, {'secret_revocation': required['secret_revocation']},
+                 {'journal_export': required['journal_export']},
+                 dict(required, secret_revocation='ukai.vm.secret-revocation/2'),
+                 dict(required, journal_export='ukai.vm.guest-journal/2')]
+        for declared in invalid:
+            with self.subTest(contracts=declared):
+                child = self.launch(GUEST_CONTRACTS=json.dumps(declared))
+                self.assertIn('Session does not match', self.assert_exit(child, 125))
+        for declared in (None,):
+            with self.subTest(contracts=declared):
+                child = self.launch(GUEST_CONTRACTS='omit' if declared is None else json.dumps(declared),
+                                    RECORD=str(self.root / 'record.ndjson'))
+                stream = self.socket('attempt')
+                ready = self.frame(stream)
+                self.assertEqual(ready.get('guest_contracts'), declared)
+                prior = len(self.recorded())
+                self.send(stream, op='prepare', attempt_id='legacy', profile='agent', wall_seconds=30,
+                          argv=[base64.b64encode(b'/bin/true').decode()],
+                          secrets=[dict(id='token', data=base64.b64encode(b'must-not-cross').decode())],
+                          launch=dict(name='probe', toml='name = "probe"\njail = "agent"\n'))
+                self.assertEqual(stream.recv(1000), b'')
+                self.wait_recorded(lambda frame: frame.get('op') == 'cancel2', after=prior)
+                self.assertEqual([frame['op'] for frame in self.recorded()[prior:]], ['cancel2'])
+                # This same legacy guest still serves an ordinary attempt.
+                plain, old_ready = self.attempt()
+                self.assertEqual(old_ready.get('guest_contracts'), declared)
+                while self.frame(plain)['event'] != 'done':
+                    pass
+                self.control('stop')
+                child.wait(timeout=6)
+        child = self.launch()
+        stream, ready = self.attempt(secrets=[dict(id='token', data=base64.b64encode(b'value').decode())])
+        self.assertEqual(ready['guest_contracts'], required)
+        while self.frame(stream)['event'] != 'done':
+            pass
+        self.control('stop')
+        child.wait(timeout=6)
+
+    def test_unknown_or_incomplete_revocation_never_reaches_guest(self):
+        child = self.launch(HOLD_RUN='1', RECORD=str(self.root / 'record.ndjson'))
+        secrets = [dict(id='token', data=base64.b64encode(b'value').decode())]
+        for ids in ([], ['unknown'], ['token', 'token']):
+            with self.subTest(ids=ids):
+                stream, _ = self.attempt(secrets=secrets)
+                self.send(stream, op='revoke_secrets', ids=ids)
+                self.assertEqual(stream.recv(1000), b'')
+        self.assertFalse(any(frame.get('op') == 'revoke_secrets' for frame in self.recorded()))
+        self.control('stop')
+        child.wait(timeout=6)
+
+    def test_wrong_or_absent_guest_revocation_acknowledgement_cancels(self):
+        for mode in ('WRONG_REVOKE', 'HOLD_REVOKE'):
+            with self.subTest(mode=mode):
+                child = self.launch(HOLD_RUN='1', **{mode: '1'})
+                stream, _ = self.attempt(secrets=[dict(id='token', data=base64.b64encode(b'value').decode())])
+                stream.settimeout(6)
+                self.send(stream, op='revoke_secrets', ids=['token'])
+                self.assertEqual(stream.recv(1000), b'')
+                self.assertTrue(self.control('status')['warm'])
+                self.control('stop')
+                child.wait(timeout=6)
+
+    def test_lease_cancellation_and_revocation_remain_live_before_running(self):
+        child = self.launch(HOLD_RUNNING='1', HOLD_REVOKE='1', RECORD=str(self.root / 'record.ndjson'))
+        for revoke in (False, True):
+            with self.subTest(revoke=revoke):
+                stream = self.socket('attempt')
+                self.assertEqual(self.frame(stream)['event'], 'ready')
+                self.send(stream, op='prepare', attempt_id='startup-attempt', profile='tool',
+                          wall_seconds=30, argv=[base64.b64encode(b'/bin/true').decode()],
+                          secrets=[dict(id='token', data=base64.b64encode(b'value').decode())])
+                self.assertEqual(self.frame(stream)['event'], 'prepared')
+                prior = len(self.recorded())
+                self.send(stream, op='run')
+                self.wait_recorded(lambda frame: frame.get('op') == 'run2', after=prior)
+                started = time.monotonic()
+                if revoke:
+                    self.send(stream, op='revoke_secrets', ids=['token'])
+                else:
+                    stream.shutdown(socket.SHUT_WR)
+                self.assertEqual(stream.recv(1000), b'')
+                self.wait_recorded(lambda frame: frame.get('op') == 'cancel2', timeout=3, after=prior)
+                self.assertLess(time.monotonic() - started, 3)
+                frames = self.recorded()[prior:]
+                self.assertTrue(any(frame.get('op') == 'cancel2' for frame in frames))
+                requests = [frame for frame in frames if frame.get('op') == 'revoke_secrets']
+                self.assertEqual(requests, [dict(op='revoke_secrets', ids=['token'])] if revoke else [])
+                self.assertTrue(self.control('status')['warm'])
         self.control('stop')
         child.wait(timeout=6)
 
@@ -568,6 +1008,72 @@ class WarmServiceTests(unittest.TestCase):
             self.assertTrue(version['version'].endswith('-dev'), version)
         doctor = subprocess.run([str(BINARY), 'doctor'], env=self.env, capture_output=True, timeout=10)
         self.assertEqual(json.loads(doctor.stdout)['version'], version['version'])
+
+    def installed_binary(self):
+        binary = self.install / 'bin' / 'ukai-vm'
+        binary.parent.mkdir()
+        shutil.copy2(BINARY, binary)
+        return binary
+
+    def test_custom_prefix_serves_the_same_adjacent_image_as_doctor(self):
+        binary = self.installed_binary()
+        link = self.root / 'custom/bin/ukai-vm'
+        link.parent.mkdir(parents=True)
+        link.symlink_to(binary)
+        environment = dict(self.env, HOME=str(self.root / 'empty-home'))
+        environment.pop('UKAI_VM_HOME')
+        for command in (binary, link):
+            with self.subTest(command=str(command)):
+                doctor = subprocess.run([str(command), 'doctor'], env=environment,
+                                        capture_output=True, timeout=10)
+                report = json.loads(doctor.stdout)
+                for name in ('base.raw', 'seed.iso', 'vz', 'custodian'):
+                    self.assertTrue(report['checks'][name], report)
+        child = subprocess.Popen([str(link), 'serve'], env=environment,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        self.children.append(child)
+        self.assertEqual(self.control('status')['event'], 'status')
+        self.control('stop')
+        self.assert_exit(child, 0)
+
+    def test_doctor_honors_an_explicit_invalid_image_over_its_adjacent_one(self):
+        binary = self.installed_binary()
+        explicit = self.root / 'missing-explicit-image'
+        doctor = subprocess.run([str(binary), 'doctor'], env=dict(self.env, UKAI_VM_HOME=str(explicit)),
+                                capture_output=True, timeout=10)
+        self.assertEqual(doctor.returncode, 125)
+        self.assertIn(str(explicit), doctor.stderr.decode())
+        self.assertEqual(doctor.stdout, b'')
+
+    def test_missing_installed_image_never_uses_a_ready_home_installation(self):
+        installed = self.root / 'custom/share/ukai-vm/0.1.0-preview.2'
+        binary = installed / 'bin/ukai-vm'
+        binary.parent.mkdir(parents=True)
+        shutil.copy2(BINARY, binary)
+        home = self.root / 'home'
+        shutil.copytree(self.install, home / '.local/share/ukai-vm/99.0.0')
+        link = self.root / 'custom/bin/ukai-vm'
+        link.parent.mkdir()
+        link.symlink_to(binary)
+        environment = dict(self.env, HOME=str(home))
+        environment.pop('UKAI_VM_HOME')
+        for command in (binary, link):
+            with self.subTest(command=str(command)):
+                doctor = subprocess.run([str(command), 'doctor'], env=environment,
+                                        capture_output=True, timeout=10)
+                self.assertEqual(doctor.returncode, 125)
+                self.assertIn(str(installed), doctor.stderr.decode())
+                self.assertEqual(doctor.stdout, b'')
+
+    def test_doctor_refuses_an_unprepared_manifest_before_reporting_ready(self):
+        path = self.install / 'image' / 'image.json'
+        manifest = json.loads(path.read_text())
+        manifest['status'] = 'preparing'
+        path.write_text(json.dumps(manifest))
+        doctor = subprocess.run([str(BINARY), 'doctor'], env=self.env, capture_output=True, timeout=10)
+        self.assertEqual(doctor.returncode, 125)
+        self.assertIn('not `prepared`', doctor.stderr.decode())
+        self.assertEqual(doctor.stdout, b'')
 
     def test_status_prints_object_and_absent_stop_prints_once(self):
         child = self.launch()

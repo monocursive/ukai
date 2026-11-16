@@ -81,9 +81,12 @@ Excluded, each for a stated reason:
   runtime does not discover and mount all files in an agent's home
   directory". The alias stages no file from `~/.claude`, `~/.codex` or
   `~/.local/share/opencode` on its own.
-- **The managed gate.** An owner computes its plan from its own inputs
-  (jail-v1 §8.2); `--from-path` derives argv and grants, so it refuses with
-  `--gate-fd` and `--attempt-id` (exit 2). Owners keep passing explicit argv.
+- **Externally reserved native attempt ids.** `--from-path` refuses
+  `--attempt-id` (exit 2). It accepts `--gate-fd` (jail-v1 §8.2): the owner
+  independently authorizes the resolved argv and derived grants, then binds
+  the jail-generated attempt id from the private Prepared control stream and
+  canonical receipt. The gate does not change policy, credential restrictions,
+  or executable rechecks.
 - **macOS**, which refuses execution until J11.
 
 ## 2. Invariants kept
@@ -131,7 +134,9 @@ ukai-jail doctor --launch NAME --from-path [--json]
   directory as workspace, `PROGRAM` resolved with the child's `PATH`), with
   one exception that applies to every `run`: the home-directory refusal of
   §3.2, step 3.
-- `--from-path` with `--gate-fd`, `--attempt-id` or `--profile none` exits 2.
+- `--from-path` with `--attempt-id` or `--profile none` exits 2. `--gate-fd`
+  is supported with attempt state and detached execution; its label-only and
+  persistent-state refusals remain in force.
 
 ### 3.2 Workspace default
 
@@ -419,7 +424,8 @@ directory or above it, on any contained run; an install root inside a writable
 grant, at `/` or at or above the home directory; a credential source inside
 a child-visible grant; any automatic read of `~/.claude/.credentials.json`,
 `~/.claude.json` or `~/.claude/settings.json`; inheriting the operator's
-environment or `PATH`; `--from-path` with the managed gate. Claude Code's own
+environment or `PATH`; an externally reserved `--attempt-id` with
+`--from-path`. Claude Code's own
 sandbox is off by default and, per its documentation, fails open when
 bubblewrap cannot start; inside `agent` on stock Ubuntu its nested user
 namespace is denied (operating.md, "Named limits"), so its commands run with
@@ -522,7 +528,7 @@ name [`ukai.event/1`](jail-v1/jail-event.schema.json) frames in the attempt's
 
 | Line | Shows | Source | Rule when evidence is missing or partial |
 |---|---|---|---|
-| Status | Phase, outcome, duration, survivors | `/phase`; `/outcome/kind`, `/code`, `/signal`, `/cause`; `/errors/*/code`; `/lifetime/tree_empty`, `/verification_scope`, `/integrity`. Duration: `monotonic_ns` of the note `{operation: "note", fields.kind: "lifecycle", fields.transition: "exec_confirmed"}` to that of the `{operation: "jail.receipt", fields.phase: "settled"}` note (one supervisor clock). | Not `settled`: `NOT settled (<phase>)` with the error codes and, for `tree_unknown`, "run `ukai-jail gc`". No `exec_confirmed` note: no duration. No journal: `/created_at` to `/updated_at`, labelled `attempt` (wall clock, can step). `tree_empty` true prints `survivors: none (verified)`, with `registered cgroup only` when the scope is `registered_boundary` (`none`); false or null prints `survivors: NOT verified`. `/integrity` `lost` prints `integrity lost: state retained`. |
+| Status | Phase, outcome, duration, survivors | `/phase`; `/outcome/kind`, `/code`, `/signal`, `/cause`; `/errors/*/code`; `/lifetime/tree_empty`, `/verification_scope`, `/integrity`. Duration: `monotonic_ns` of the note `{operation: "note", fields.kind: "lifecycle", fields.transition: "exec_confirmed"}` to that of the `{operation: "jail.receipt", fields.phase: "settled"}` note (one supervisor clock). | Not `settled`: `NOT settled (<phase>)` with the error codes and, for `tree_unknown`, "run `ukai-jail gc`". No `exec_confirmed` note: no duration. No journal: `/created_at` to `/updated_at`, labelled `attempt` (wall clock, can step), at the precision the two stamps carry: both with milliseconds print like the journal's duration; otherwise the whole-second difference `n` prints `under 1s` for 0 and `<n>s ±1s` from 1 (the receipt's writer keeps whole seconds, so the span is anything from just over `n - 1` to just under `n + 1` seconds). `tree_empty` true prints `survivors: none (verified)`, with `registered cgroup only` when the scope is `registered_boundary` (`none`); false or null prints `survivors: NOT verified`. `/integrity` `lost` prints `integrity lost: state retained`. |
 | Workspace | Distinct workspace paths opened for writing, renamed or removed; unnamed ones; refused writes | Journal: `source: "audit"`, `stage: "result"`, `outcome.ok: true`, `operation` in `fs.create`, `fs.write` (`fields.action` `opened_for_mutation` or `truncated`), `fs.rename`, `fs.unlink`; distinct `value`s of the paths each result wrote whose `kind` is `workspace_relative`. The paths a result wrote: `fields.path` and `fields.path2` of an `fs.rename`; of an `fs.create`, only the entry the call created, by `fields.syscall`: `fields.path2` of `link` and `linkat` (their `fields.path` is an existing file given a new name, not written), `fields.path` of `symlink` and `symlinkat` (their `fields.path2` is the target, a string the call stores without touching, jail-v1 §11.3); `fields.path` of every other result. An `fs.create` with a `fields.path2` and any other `fields.syscall` names neither path and is unnamed: which one it created is not established. Unnamed: the same events with a written path that is absent, of kind `unavailable`, or a `digest` with any reason but `vendor_state` or `standard_device` (a path below the agent's own vendor state, or an open the kernel said reached `/dev/null` or another standard device, jail-v1 §11.3, is no more a workspace path than a scratch one). Refused: `operation: "fs.deny"` with a file `fields.attempted_operation`. Gate: `/coverage/fs.write/status` (that class covers all four operations, jail-v1 §11.4), `/coverage/fs.deny/status`. | `active`: exact numbers. `degraded`, or an incomplete journal: every number prefixed `at least`. `unsupported` (observation off): `workspace: not observed (--observe off)`, never `0`. `fs.create` and `fs.write` are both printed as "opened for writing", never "created", "changed" or "written": jail-v1 §11.2 says such an event proves neither bytes written nor a newly created file. `fs.rename` prints "renamed", `fs.unlink` "removed". Refused writes outside known roots are recorded as a path digest (`outside_known_roots`), so they are counted, never named. |
 | Network | Destinations allowed and denied, with counts | Journal: `source: "proxy"`, `operation: "net.connect"`, `stage: "result"`, grouped by `fields.destination`; allowed is `decision: "allow"` (with `outcome.ok: false` counted as `connect failed`), denied is `decision: "deny"` with its `fields.reason`. `/coverage/proxy.net/resolver_refused` when present (capacity, not policy). Gate: `/applied/network/mode`, `/coverage/proxy.net/status`. | The unit is a proxy result (a tunnel, or one request on the vault's TLS lane), never "requests". Mode `none`: `network: none`. Mode `host` (`none` profile): `network: host, not observed`. `proxy.net` degraded: `at least`. |
 | Credentials | Per credential: mode, staging, uses, lifecycle, refusals | `/credentials/*/id`, `/mode`, `/never_staged`; uses: the number of proxy results whose new `fields.credentials` array contains the id (§4.3); journal notes `fields.kind: "credential"` with `credential_id` and `transition` (`loaded`, `refreshed`, `revoked`, `refresh_failed`); refusals: proxy results whose `fields.reason` begins `credential_`. | The unit is "proxy results that substituted it" (`used on N proxy results`), never "requests" or "calls". A use means the real value was placed into a request the proxy sent upstream, not that the upstream accepted it: response status is not recorded. `proxy.net` degraded or the journal incomplete: `at least`. A journal from a build that predates the field (decided by `/jail/version`) prints `uses not recorded`, never `0`. `copy_rw` and `bind_ro` credentials have no uses to count (the agent holds the value itself) and print `staged (readable by the agent)`, so the vault's difference is visible. |
@@ -645,7 +651,7 @@ in `frozen-schemas.toml` ship with it):
 
 | Change | Kind | Notes |
 |---|---|---|
-| `ukai-jail NAME`, `run/explain/doctor --from-path`, `run --quiet`, `credential set/rm`, `tail --summary [--json]` | CLI | `--from-path` refuses with the gate flags and `none`. `ukai NAME` is not forwarded. |
+| `ukai-jail NAME`, `run/explain/doctor --from-path`, `run --quiet`, `credential set/rm`, `tail --summary [--json]` | CLI | `--from-path` accepts `--gate-fd` with a jail-generated id; it refuses `--attempt-id` and `none`. `ukai NAME` is not forwarded. |
 | **Plain `run`**: a workspace that is `/`, the operator's home or an ancestor of it refuses on every contained run, `policy_widening`, key `--workspace` | Behaviour change for existing `run` invocations (jail-v1 §6.2 defaults the workspace to the invocation directory and has no such refusal) | Deliberate (§3.2, step 3; §7, decision 2). [operating.md](jail-v1/operating.md#commands) and the guide change with it; a script that ran from `~` now refuses with a message naming `--workspace`. |
 | Under `--from-path`, argv is the operator's words with the first resolved to an absolute path (and, for `#!/usr/bin/env X`, the interpreter made explicit) | Amends north star §4.5 ("`argv` is always the operator's `--` arguments") | Profile data still never names or rewrites a command; the expansion is the CLI's, shown by `explain`. |
 | A missing credential source is skipped when its id is in `credentials_one_of` and another listed source exists | Amends north star §4.5 ("A missing source refuses the launch") and jail-v1 §12 | Every other missing or unsafe source still refuses. |
@@ -663,7 +669,7 @@ in `frozen-schemas.toml` ship with it):
 
 | Row | Claim |
 |---|---|
-| K33 | The alias equals `run --launch NAME --from-path -- ARG...` (identical policy and argv digests); built-in verbs win; an unknown word exits 2; `--from-path` with `--gate-fd`, `--attempt-id` or `--profile none` exits 2. |
+| K33 | The alias equals `run --launch NAME --from-path -- ARG...` (identical policy and argv digests); built-in verbs win; an unknown word exits 2. `--from-path --gate-fd` preserves those bindings and releases only after a valid managed frame; wrong bindings/EOF refuse, and executable/install-root substitution during the wait still refuses. `--attempt-id`, `--profile none`, managed label-only and managed persistent state remain usage errors. |
 | K34 | Workspace discovery: a `.git` directory, a `.git` file (worktree, submodule), none (refusal naming `--workspace`), a mount boundary, a symlinked invocation directory; home, its ancestors and `/` refuse, from discovery, from `--workspace` and from the invocation directory of a plain `run` under `agent`, `tool` and `build` (and still run under `none`); a recording `git` placed first on `PATH` is never executed. |
 | K35 | The child starts in the invocation directory beneath the workspace; `roots.cwd` is in the snapshot and changes the digest. |
 | K36 | Resolution: first absolute `PATH` entry; empty and relative entries skipped; symlink chains canonicalized; the install root is read-only inside (a write fails and is journaled as `fs.deny`); every §3.3 refusal fires with its key and names the root. |

@@ -639,6 +639,11 @@ class Service:
         return self.control('status')
 
     def wait_warm(self, timeout=300.0):
+        """Waits until the serve reports `ready`: the guest booted and its
+        session handshake completed, so the next attempt runs on a booted
+        guest. `warm` alone holds from the boot's start (measured
+        2026-11-04: `warm` with `kernel` null, and a first attempt that
+        waited out the 40 s boot)."""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self.child.poll() is not None:
@@ -648,11 +653,11 @@ class Service:
                 status = self.status()
             except (OSError, StreamEnded, ValueError):
                 status = None
-            if status and status.get('warm') is True:
+            if status and status.get('warm') is True and status.get('ready') is True:
                 self.warm_status = status
                 return status
             time.sleep(0.2)
-        raise HarnessError('the service never became warm')
+        raise HarnessError('the service never became ready')
 
     def connect(self, timeout=120.0):
         return connect_unix(self.socket_path('attempt'), timeout=timeout)
@@ -708,7 +713,8 @@ def run_attempt(connect, attempt_id, argv, profile='tool', wall=30, secrets=(),
     """
     record = {'attempt_id': attempt_id, 'profile': profile, 'wall_seconds': wall,
               'argv_digest': argv_digest(argv), 'started_at': rfc3339_now(), 'stdout': '',
-              'stderr': '', 'exit_code': None, 'error': None, 'events': []}
+              'stderr': '', 'exit_code': None, 'error': None, 'events': [],
+              'files': [], 'guest_stop': None}
     marks = {}
     stdout, stderr = [], []
     channel = None
@@ -748,6 +754,18 @@ def run_attempt(connect, attempt_id, argv, profile='tool', wall=30, secrets=(),
                 stdout.append(base64.b64decode(message['data']))
             elif event == 'stderr':
                 stderr.append(base64.b64decode(message['data']))
+            elif event == 'file':
+                # A file the guest forwards: everything under its evidence
+                # directory (/home/ukai/evidence, which holds the jail's
+                # receipt, jail.json) and, without the live share, the
+                # workspace. The jail's trace stays in its attempt
+                # directory and never arrives. jail.json also arrives as
+                # bound_receipt.
+                raw = base64.b64decode(message.get('data') or '')
+                record['files'].append({
+                    'group': message.get('group'), 'path': message.get('path'),
+                    'executable': message.get('executable'),
+                    'sha256': hashlib.sha256(raw).hexdigest(), 'text': raw.decode(errors='replace')})
             elif event == 'bound_receipt':
                 raw = base64.b64decode(message['data'])
                 record['receipt_sha256'] = message.get('sha256')
@@ -760,6 +778,9 @@ def run_attempt(connect, attempt_id, argv, profile='tool', wall=30, secrets=(),
             elif event == 'done':
                 marks['done'] = clock()
                 record['exit_code'] = message.get('exit_code')
+                # The guest controller's own stop (D6), outside the guest
+                # jail: None when the guest sent none.
+                record['guest_stop'] = message.get('stop')
                 break
             elif event == 'error':
                 record['error'] = f"guest error: {message.get('message')}"
@@ -788,6 +809,24 @@ def timings(marks):
             'released_to_done': span('released', 'done')}
 
 
+def guest_binding_matches(binding, receipt):
+    """The envelope's guest identity must be the raw receipt's own identity.
+
+    A nonempty controller-supplied ID alone proves no binding. In particular,
+    two receipts with identical argv on different guest boots are not
+    interchangeable. This is consistency evidence, not kernel attestation.
+    """
+    try:
+        attempt = receipt.get('attempt_id')
+        boot = receipt['process']['identity']['value']['boot_id']
+        profile = receipt['policy']['name']
+        return (type(attempt) is str and bool(attempt) and binding.get('guest_attempt_id') == attempt
+                and type(boot) is str and bool(boot) and binding.get('guest_boot_id') == boot
+                and type(profile) is str and bool(profile) and binding.get('profile') == profile)
+    except (AttributeError, KeyError, TypeError):
+        return False
+
+
 def attempt_dir_bound(attempt, argv):
     """receipt_bound()'s checks for a `ukai-jail run --vm` attempt directory.
 
@@ -810,7 +849,20 @@ def attempt_dir_bound(attempt, argv):
             and sha256_file(guest_path) == transport['guest_receipt_sha256']
             and binding.get('attempt_id') == attempt.name and binding.get('argv_digest') == digest
             and guest.get('argv_digest') == digest and bool(binding.get('boot_id'))
-            and binding.get('boot_id') == transport.get('boot_id') and bool(binding.get('guest_boot_id')))
+            and binding.get('boot_id') == transport.get('boot_id') and guest_binding_matches(binding, guest))
+
+
+ATTEMPT_CGROUP = re.compile(r'ukai-attempts\.slice/attempt-[0-9]+')
+
+
+def stop_covered_the_attempt(stop):
+    """The guest stop's boundaries include the cgroup guest.py creates for
+    the attempt (`ukai-attempts.slice/attempt-<n>`): a stop that covered no
+    such cgroup found nothing because it looked at nothing (the host's
+    checked_guest_stop refuses it the same way; review of 2026-11-05)."""
+    boundaries = stop.get('boundaries') if isinstance(stop, dict) else None
+    return isinstance(boundaries, list) and any(
+        isinstance(name, str) and ATTEMPT_CGROUP.fullmatch(name) for name in boundaries)
 
 
 def guest_boot(record):
@@ -836,7 +888,7 @@ def receipt_bound(record):
             and bool(digest) and binding.get('argv_digest') == digest and receipt.get('argv_digest') == digest
             and bool(record.get('profile')) and binding.get('profile') == record.get('profile')
             and bool(record.get('boot_id')) and binding.get('boot_id') == record.get('boot_id')
-            and bool(binding.get('guest_boot_id')))
+            and guest_binding_matches(binding, receipt))
 
 
 def receipt_limit(receipt, key):
@@ -1203,7 +1255,7 @@ class ClientProcess:
         return receipt_bound({'attempt_id': self.attempt_id, 'argv_digest': self.argv_digest,
                               'profile': self.profile, 'boot_id': ready[0].get('boot_id'),
                               'binding': frame.get('binding'), 'receipt_digest_ok': frame.get('digest_ok'),
-                              'receipt': {'argv_digest': frame.get('receipt_argv_digest')}})
+                              'receipt': frame.get('receipt_identity')})
 
     def seen(self, name):
         with self._lock:
@@ -1269,12 +1321,14 @@ def client_main():
             elif event == 'bound_receipt':
                 raw = base64.b64decode(message['data'])
                 try:
-                    receipt_digest = (json.loads(raw) or {}).get('argv_digest')
+                    receipt = json.loads(raw) or {}
+                    identity = {key: receipt.get(key) for key in ('argv_digest', 'attempt_id', 'process')}
+                    identity['policy'] = {'name': (receipt.get('policy') or {}).get('name')}
                 except (ValueError, AttributeError):
-                    receipt_digest = None
+                    identity = {}
                 emit(event=event, binding=message.get('binding'),
                      digest_ok=hashlib.sha256(raw).hexdigest() == message.get('sha256'),
-                     receipt_argv_digest=receipt_digest)
+                     receipt_argv_digest=identity.get('argv_digest'), receipt_identity=identity)
             elif event == 'done':
                 emit(event='done', exit_code=message.get('exit_code'))
                 return 0

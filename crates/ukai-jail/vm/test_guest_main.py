@@ -28,7 +28,13 @@ import base64
 import os
 from pathlib import Path
 import stat
+import subprocess
+import sys
+import textwrap
+import threading
+import types
 import unittest
+from unittest import mock
 
 from guest_harness import GuestHarness, complete, hold, within
 
@@ -40,6 +46,102 @@ def b64(data):
 LAUNCH = '[credentials.api]\nsource = "/run/ukai-vm/credentials/api/token"\n'
 
 
+class HarnessDescriptorTests(unittest.TestCase):
+    def test_started_waits_for_scenario_initialization_in_both_gate_paths(self):
+        from guest_harness import FakeJail
+
+        for managed in (False, True):
+            with self.subTest(managed=managed):
+                jail = FakeJail.__new__(FakeJail)
+                jail.pid, jail.started, jail.children = 101, False, []
+                jail.process = types.SimpleNamespace(alive=True)
+                jail.kernel = types.SimpleNamespace(
+                    delegated='user.slice/test', relative=lambda path: 'attempt',
+                    move=lambda *args: None)
+                attempt = mock.MagicMock()
+                (attempt / 'cgroup.procs').read_text.return_value = '101'
+                jail.attempt_cgroup = lambda: attempt
+                jail.managed_gate = None
+                entered, finish = threading.Event(), threading.Event()
+                errors = []
+
+                def scenario(current):
+                    entered.set()
+                    if not finish.wait(10):
+                        raise AssertionError('scenario initialization was not released')
+                    current.children.append(types.SimpleNamespace(alive=True))
+
+                jail.scenario = scenario
+                run = jail.first_poll
+                if managed:
+                    import json
+                    reader, writer = os.pipe()
+                    jail.managed_gate = reader
+                    jail.released = jail.initialized = True
+                    jail.returncode = None
+                    jail.prepared_receipt = dict(attempt_id='test', policy=dict(digest='digest'))
+                    try:
+                        os.write(writer, json.dumps(dict(schema='ukai.jail.gate/1', action='release',
+                            attempt_id='test', policy_digest='digest')).encode() + b'\n')
+                    finally:
+                        os.close(writer)
+                    run = jail.poll
+
+                def worker():
+                    try:
+                        run()
+                    except BaseException as error:
+                        errors.append(error)
+
+                thread = threading.Thread(target=worker)
+                thread.start()
+                try:
+                    self.assertTrue(entered.wait(10), 'scenario initialization did not start')
+                    self.assertFalse(jail.started, 'started published an uninitialized scenario')
+                    self.assertEqual(jail.children, [])
+                finally:
+                    finish.set()
+                    thread.join(10)
+                    if jail.managed_gate is not None:
+                        os.close(jail.managed_gate)
+                        jail.managed_gate = None
+                self.assertFalse(thread.is_alive(), 'scenario worker was not reaped')
+                self.assertEqual(errors, [])
+                self.assertTrue(jail.started)
+                self.assertTrue(jail.children[0].alive)
+
+    def test_repeated_jail_cleanup_does_not_close_reused_writer_descriptors(self):
+        # Force descriptor reuse in a separate process so the negative control
+        # cannot close another test's socket or a live controller's descriptors.
+        script = textwrap.dedent("""
+            import os
+            from guest_harness import FakeJail
+            jail = FakeJail.__new__(FakeJail)
+            _, jail.out_write = os.pipe()
+            _, jail.err_write = os.pipe()
+            out, err = jail.out_write, jail.err_write
+            jail.close_streams()
+            reader, writer = os.pipe()
+            reader = os.dup(reader)
+            os.dup2(writer, out)
+            os.dup2(writer, err)
+            jail.close_streams()
+            os.write(out, b'a')
+            os.write(err, b'b')
+            if os.read(reader, 2) != b'ab':
+                raise AssertionError('replacement pipe was damaged')
+            try:
+                jail.write('stdout', b'must not reach replacement pipe')
+            except ValueError:
+                pass
+            else:
+                raise AssertionError('closed fake-jail output remained writable')
+        """)
+        result = subprocess.run([sys.executable, '-c', script], cwd=Path(__file__).parent,
+                                capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
 class BootTests(unittest.TestCase):
     def test_the_staged_mode_states_no_live_share(self):
         guest = GuestHarness(self)
@@ -47,6 +149,9 @@ class BootTests(unittest.TestCase):
         self.assertIs(ready['live_share'], False)
         self.assertIs(session['live_share'], False)
         self.assertEqual(session['kernel'], os.uname().release)
+        self.assertEqual(session['guest_contracts'], {
+            'secret_revocation': 'ukai.vm.secret-revocation/1',
+            'journal_export': 'ukai.vm.guest-journal/1'})
 
     def test_a_mounted_share_is_live_stated_and_nosuid_nodev(self):
         guest = GuestHarness(self, share='mounts')
@@ -92,10 +197,22 @@ class PreviewOpTests(unittest.TestCase):
         self.assertEqual(guest.ended(), 'invalid_lease_sequence')
 
     def test_the_ping_lease_expires_outside_a_session(self):
-        guest = GuestHarness(self)
+        guest = GuestHarness(self, start=False)
+        waiting = threading.Event()
+
+        class ObservedSelector(guest.guest.selectors.DefaultSelector):
+            def select(self, timeout=None):
+                waiting.set()
+                return super().select(timeout)
+
+        guest.guest.selectors = types.SimpleNamespace(
+            DefaultSelector=ObservedSelector, EVENT_READ=guest.guest.selectors.EVENT_READ)
+        guest.thread.start()
         guest.expect('ready')
-        # No ping: the loop's own turn (0.1 s at most) judges the lease. A
-        # ping sent now could be handled first and renew it.
+        # Ready precedes initialization of last_ping. Wait for the first
+        # real selector turn so the initial baseline exists before moving
+        # virtual time. Send no ping: this covers the initial idle lease.
+        self.assertTrue(waiting.wait(10), 'the controller did not enter its control loop')
         guest.clock.advance(3)
         self.assertEqual(guest.ended(), 'lease_expired')
 
@@ -111,6 +228,7 @@ class PreviewOpTests(unittest.TestCase):
         done = guest.expect('done')
         self.assertEqual(done['exit_code'], 3)
         self.assertNotIn('binding', done)
+        self.assertNotIn('stop', done, 'the single-run preview has no warm stop to report')
         exported = {(f['group'], f['path']) for f in done['_seen'] if f['event'] == 'file'}
         self.assertIn(('workspace', 'out.txt'), exported)
         self.assertIn(('workspace', 'dir/input.sh'), exported)
@@ -250,10 +368,25 @@ class AttemptStopTests(unittest.TestCase):
         guest = GuestHarness(self, scenarios=[complete(leftover='app.slice/run-u7.service')])
         guest.session()
         guest.run2()
-        guest.expect('done')
+        done = guest.expect('done')
         leftovers = guest.kernel.alive_in(f'{guest.kernel.delegated}/app.slice/run-u7.service')
         self.assertEqual(leftovers, [], 'an escaped daemon outlived the attempt that reported done')
         self.assert_infrastructure_alive(guest)
+        # `done` tells the host the guest jail left it: the host refuses
+        # the jail's own tree_empty on that report.
+        unit = f'{guest.kernel.delegated}/app.slice/run-u7.service'
+        populated = done['stop']['populated_before_kill']
+        self.assertTrue(any(unit == b or unit.startswith(b + '/') for b in populated), populated)
+        self.assertEqual([cgroup for _, cgroup in done['stop']['live_before_kill']], ['/' + unit])
+
+    def test_a_clean_completion_carries_an_empty_stop_witness_with_done(self):
+        guest = GuestHarness(self, scenarios=[complete()])
+        guest.session()
+        guest.run2()
+        stop = guest.expect('done')['stop']
+        self.assertEqual(sorted(stop), ['boundaries', 'live_before_kill', 'populated_before_kill', 'strays_killed'])
+        self.assertEqual((stop['populated_before_kill'], stop['live_before_kill'], stop['strays_killed']),
+                         ([], [], []))
 
     def test_reset_kills_a_stray_under_the_user_manager(self):
         guest = GuestHarness(self)
@@ -516,8 +649,125 @@ class CompletionTests(unittest.TestCase):
         guest = GuestHarness(self, scenarios=[wrong_profile])
         guest.session()
         guest.run2()
-        self.assertIsNone(guest.ended(raise_error=False))
-        self.assertIsInstance(guest.error, ValueError)
+        self.assertEqual(guest.ended(), 'receipt_unbound')
+        self.assertIsNone(guest.error, 'a named poweroff, not a controller crash')
+
+    def test_an_attempt_without_a_receipt_powers_off_named(self):
+        def no_receipt(jail):
+            jail.workload()
+            jail.exit(0)
+        guest = GuestHarness(self, scenarios=[no_receipt])
+        guest.session()
+        guest.run2()
+        self.assertEqual(guest.ended(), 'receipt_missing')
+        self.assertIsNone(guest.error)
+
+    def test_an_oversized_evidence_file_powers_off_named_and_sends_no_done(self):
+        def oversized(jail):
+            jail.workload()
+            jail.write_receipt()
+            receipt = Path(os.fsdecode(jail.option(b'--receipt')))
+            (receipt.parent / 'big.bin').write_bytes(b'x' * (guest.guest.MAX_FILE + 1))
+            jail.exit(0)
+        guest = GuestHarness(self, scenarios=[oversized])
+        guest.session()
+        guest.run2()
+        frames = []
+        while (frame := guest.frame()) is not None:
+            frames.append(frame['event'])
+        self.assertNotIn('done', frames)
+        self.assertEqual(guest.ended(), 'export_limit')
+        self.assertIsNone(guest.error)
+
+    def test_a_link_in_the_staged_workspace_powers_off_named(self):
+        def linked(jail):
+            jail.workload()
+            os.symlink('/etc/passwd', Path(jail.kwargs['cwd']) / 'link')
+            jail.write_receipt()
+            jail.exit(0)
+        guest = GuestHarness(self, scenarios=[linked])
+        guest.expect('ready')
+        guest.send(op='run', profile='tool', wall_seconds=30, argv=[b64(b'/bin/true')])
+        guest.expect('running')
+        self.assertEqual(guest.ended(), 'export_nonregular')
+        self.assertIsNone(guest.error)
+
+    def test_a_directory_link_in_the_staged_workspace_powers_off_named(self):
+        # Review 2026-11-05 F3: a link to a directory used to be dropped from
+        # the walk, so the export went out without it and the guest said
+        # `completed`.
+        def linked(jail):
+            jail.workload()
+            workspace = Path(jail.kwargs['cwd'])
+            (workspace / 'real').mkdir()
+            (workspace / 'real' / 'f.txt').write_text('kept')
+            os.symlink('real', workspace / 'dirlink')
+            jail.write_receipt()
+            jail.exit(0)
+        guest = GuestHarness(self, scenarios=[linked])
+        guest.expect('ready')
+        guest.send(op='run', profile='tool', wall_seconds=30, argv=[b64(b'/bin/true')])
+        guest.expect('running')
+        self.assertEqual(guest.ended(), 'export_nonregular')
+        self.assertIsNone(guest.error)
+
+    @unittest.skipIf(os.geteuid() == 0, 'root lists a mode-000 directory')
+    def test_a_directory_the_walk_cannot_list_powers_off_named(self):
+        closed = []
+
+        def unlistable(jail):
+            jail.workload()
+            directory = Path(jail.kwargs['cwd']) / 'closed'
+            directory.mkdir()
+            (directory / 'f.txt').write_text('hidden')
+            directory.chmod(0)
+            closed.append(directory)
+            jail.write_receipt()
+            jail.exit(0)
+        guest = GuestHarness(self, scenarios=[unlistable])
+        self.addCleanup(lambda: [path.chmod(0o700) for path in closed])
+        guest.expect('ready')
+        guest.send(op='run', profile='tool', wall_seconds=30, argv=[b64(b'/bin/true')])
+        guest.expect('running')
+        self.assertEqual(guest.ended(), 'export_unreadable')
+        self.assertIsNone(guest.error)
+
+    def test_a_fifo_in_the_staged_workspace_powers_off_named(self):
+        # O_NONBLOCK opens a FIFO for reading at once; only the S_ISREG check
+        # keeps it from being exported as an empty file.
+        def fifo(jail):
+            jail.workload()
+            os.mkfifo(Path(jail.kwargs['cwd']) / 'pipe')
+            jail.write_receipt()
+            jail.exit(0)
+        guest = GuestHarness(self, scenarios=[fifo])
+        guest.expect('ready')
+        guest.send(op='run', profile='tool', wall_seconds=30, argv=[b64(b'/bin/true')])
+        guest.expect('running')
+        self.assertEqual(guest.ended(), 'export_nonregular')
+        self.assertIsNone(guest.error)
+
+    def test_the_file_count_and_total_limits_power_off_named(self):
+        # Each file stays under MAX_FILE: only the count or the total trips.
+        for limit, value in [('MAX_FILES', 2), ('MAX_BYTES', 64)]:
+            with self.subTest(limit=limit):
+                def many(jail):
+                    jail.workload()
+                    jail.write_receipt()
+                    receipt = Path(os.fsdecode(jail.option(b'--receipt')))
+                    for index in range(3):
+                        (receipt.parent / f'extra-{index}.txt').write_bytes(b'x' * 40)
+                    jail.exit(0)
+                guest = GuestHarness(self, scenarios=[many])
+                setattr(guest.guest, limit, value)
+                guest.session()
+                guest.run2()
+                frames = []
+                while (frame := guest.frame()) is not None:
+                    frames.append(frame['event'])
+                self.assertNotIn('done', frames)
+                self.assertEqual(guest.ended(), 'export_limit')
+                self.assertIsNone(guest.error)
 
 
 if __name__ == '__main__':

@@ -1342,7 +1342,9 @@ fn h1_a_read_only_chain_past_the_hoist_depth_no_longer_outlives_the_attempt() {
     )
     .unwrap();
     let run = jail
-        .args(["--observe", "off"])
+        // This checks cleanup after the target ran. Observation off may
+        // legitimately leave a short-lived target's exec unconfirmed.
+        .args(["--observe", "on"])
         .target([OsString::from("/usr/bin/python3"), trap.into_os_string()])
         .run()
         .unwrap();
@@ -1350,6 +1352,7 @@ fn h1_a_read_only_chain_past_the_hoist_depth_no_longer_outlives_the_attempt() {
     let attempt = attempt_of(&run);
     let receipt = jail_json(&attempt);
     assert_eq!(receipt["phase"], "settled");
+    assert_eq!(receipt["exec_observed"], true);
     assert_eq!(receipt["state_cleanup"], "complete", "{receipt:#}");
     assert!(cleanup::absent(&attempt.join("vendor-state")));
 }

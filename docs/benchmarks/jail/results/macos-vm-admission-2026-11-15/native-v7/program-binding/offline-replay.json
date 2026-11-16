@@ -1,0 +1,52 @@
+{
+  "schema": "ukai.vm.program-binding-component/1",
+  "qualified": false,
+  "outcome": "PASS",
+  "facts": {
+    "literal_component_scope": true,
+    "bound_actual_guest_receipt": true,
+    "exact_staging_ack": true,
+    "placeholder_only_child_value": true,
+    "copied_executable_same_bytes_different_identity": true,
+    "copied_program_actually_exec_observed": true,
+    "own_request_succeeded": true,
+    "other_program_exact_proxy_refusal": true,
+    "one_substitution_and_one_later_program_denial": true,
+    "independent_upstream_received_only_authorized_request": true,
+    "bound_complete_journal": true,
+    "exact_summary_credential_count": true,
+    "strict_six_classes": true,
+    "vault_never_staged": true,
+    "settled_clean_guest": true,
+    "controller_cleanup": true,
+    "fixture_removed_without_error": true,
+    "exact_literal_declaration_and_argv": true,
+    "exact_installed_image_and_binaries": true,
+    "independent_complete_summary": true,
+    "same_boot_sync": true,
+    "stopped_and_quiescent": true,
+    "complete_spelling_scans": true,
+    "no_harness_error": true
+  },
+  "inputs_sha256": "ffd21dfe7f8ea9bd77fc5f7c1c1846c6caa302942a65da09c0dc36c306a23ead",
+  "independent_summary": {
+    "schema": "ukai.vm.summary-verification/1",
+    "outcome": "PASS",
+    "qualified": false,
+    "scope": "host_only",
+    "journal": "complete",
+    "journal_frames": 22,
+    "sampling": {
+      "state": "not_requested"
+    },
+    "lines": 5,
+    "display_mapping_applied": true,
+    "display_mapping_sha256": "f733f64bc56d213f56bc7106ddc8766e8b5e92fc1d28d736f8d1b80498b1fd11",
+    "evidence_sha256": {
+      "jail.json": "53ab230bde48dc52a6147d55bd973cae29f80487865c18ee1eb2c46e74f43e40",
+      "trace.ndjson": "46170146c66dbcff88327470a4794179cc5999409038972443f9f56227c406d1"
+    },
+    "summary_json_sha256": "0144b1cb0ae21113f60a7d8f6c73dfdaadd47d88c2129e51f76d565b0e70f281",
+    "summary_text_sha256": "8d157d135f9f746fa021445eb89f30aa97ec1b6fd23aa1562c2f35bb0f10bd9e"
+  }
+}

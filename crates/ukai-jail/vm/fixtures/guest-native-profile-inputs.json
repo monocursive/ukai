@@ -1,0 +1,11 @@
+{
+  "alias": "claude",
+  "primary_credential_id": "anthropic",
+  "secondary_credential_id": "claude-oauth",
+  "required_env": [
+    "DISABLE_AUTOUPDATER",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"
+  ],
+  "primary_host": "api.anthropic.com",
+  "secondary_host": "platform.claude.com"
+}

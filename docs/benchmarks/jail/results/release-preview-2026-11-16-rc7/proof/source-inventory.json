@@ -1,0 +1,119 @@
+{
+  "revision": "dce53219bb8cb0ecf89047dd9820404da9a51c26",
+  "files": {
+    "Cargo.lock": {
+      "sha256": "0ea5c6f32c427532e563313d3a6d0d8a8f1faf9759e24e0ff59a1b09a0ba45e3",
+      "mode": 420,
+      "bytes": 45082,
+      "git_blob": "c7ebfadb7635ed30942305cc36b3305475073dec"
+    },
+    "Cargo.toml": {
+      "sha256": "3cc10c9a71a628d9f3183aa8dd58985de1278c1d2b4bf576aed41c3de81a031e",
+      "mode": 420,
+      "bytes": 1409,
+      "git_blob": "26962c177e9bcc84bbec1052f5359883733d0877"
+    },
+    "LICENSE": {
+      "sha256": "38184627dc06fbee992333e9d7009f4d9efdc724f00edf305067e266fa8cab11",
+      "mode": 420,
+      "bytes": 1068,
+      "git_blob": "57ab3600370719420c2cb9775e93c729871d6aa9"
+    },
+    "crates/ukai-jail/Cargo.toml": {
+      "sha256": "5902562fd0ccc73560abf72e2bf6ff70501543e5ecea7767749fa3be571431e4",
+      "mode": 420,
+      "bytes": 2247,
+      "git_blob": "662ed66a798c0a55533fe7bbf42f8c422a6a74c2"
+    },
+    "crates/ukai-jail/data/uts46_unicode17_tables.rs": {
+      "sha256": "645e9fef4c807e756ec42eb4b6e1eb12ab91a5e36f8602cbd827e82f6668f714",
+      "mode": 420,
+      "bytes": 452094,
+      "git_blob": "a6729fac6cffcd4b15aee6e7b7a916df7c5ff165"
+    },
+    "crates/ukai-jail/dist/THIRD_PARTY_NOTICES.txt": {
+      "sha256": "a772fb84f80ac70eb07aeab1d66a5892dbd68a8d50f830ac0e840b7d9a292acf",
+      "mode": 420,
+      "bytes": 2290545,
+      "git_blob": "ae4926c11b687727ef94742fc5eb2501a50e9b65"
+    },
+    "crates/ukai-jail/dist/UNICODE_LICENSE": {
+      "sha256": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+      "mode": 420,
+      "bytes": 1995,
+      "git_blob": "56da58912807030b451a4700687d5bd02c72d6ed"
+    },
+    "crates/ukai-jail/dist/WEBPKI_ROOTS_LICENSE": {
+      "sha256": "e271993808fec50ab29350b39539cdec611a9103f827e0aa26d61da70e2d33f8",
+      "mode": 420,
+      "bytes": 2371,
+      "git_blob": "8e84169cf7b2fa0fa8b098acb63a758fa2dc460a"
+    },
+    "crates/ukai-jail/dist/coordinates.py": {
+      "sha256": "88e6cc4e5a147b01bc0a17b51929b6e338c39511509e1c79056638c61fbd5de1",
+      "mode": 420,
+      "bytes": 2809,
+      "git_blob": "d6a1c4637499200a32b9bbf5e23ed34dabd2ec58"
+    },
+    "crates/ukai-jail/dist/install.sh": {
+      "sha256": "9c49ea8a0d7c2633b446d1912d9def945bb10dad325de6542320dd185a13f012",
+      "mode": 493,
+      "bytes": 10085,
+      "git_blob": "18b72c3b41838154616658a0002a7943dbd62750"
+    },
+    "crates/ukai-jail/dist/notices.py": {
+      "sha256": "6f8ec489942893937769bc7fb1a1c2c641d58d826371f5ae39ceacd9077fd090",
+      "mode": 420,
+      "bytes": 16347,
+      "git_blob": "a49a1893dda6579fdb0dfc831b756a9df9800451"
+    },
+    "crates/ukai-jail/dist/package.py": {
+      "sha256": "3b9f5bb393b8e915ce4a9164a93b04c2fdc44aef76935e43a477dc68e6dbf106",
+      "mode": 493,
+      "bytes": 3182,
+      "git_blob": "bbeb0be86229e9e767c6a82f9a8dcb19a5af35ed"
+    },
+    "crates/ukai-jail/dist/release.json": {
+      "sha256": "8b39e75c63e7ce7ca97a0a0f3918411a72f205d3e1f079ced9e503527b2f13f7",
+      "mode": 420,
+      "bytes": 3067,
+      "git_blob": "376ab48a52242c040e8e71dc04c8dda4e24245bd"
+    },
+    "crates/ukai-jail/dist/third-party-notices.json": {
+      "sha256": "7167434ba5e39804390aa1f7373fec6ceb4b28c18e8fc6eced6bb5c6d7e9a0ba",
+      "mode": 420,
+      "bytes": 118266,
+      "git_blob": "723979eb7cb50b36e25f6566de9d0baeeed94e47"
+    },
+    "crates/ukai-records/Cargo.toml": {
+      "sha256": "c13609044b387af128792c8dcbc562d80cb08ef87c8c6404190de05744b4582e",
+      "mode": 420,
+      "bytes": 392,
+      "git_blob": "22ffeb400c6581a170b2006f209ed65132379537"
+    },
+    "docs/benchmarks/jail/onboarding_guest.py": {
+      "sha256": "cec76acdcf3b13d6f24595d8eeda6c721501b5c32b2cd2fdfc55336114b46c81",
+      "mode": 420,
+      "bytes": 27652,
+      "git_blob": "1d70e9cba314100d4095efed36ad8187ba1088cd"
+    },
+    "docs/benchmarks/jail/onboarding_vm.py": {
+      "sha256": "ec15077bbce86bfbe51243e21433910baddfd6f958c0f167679c026965a799cd",
+      "mode": 420,
+      "bytes": 22661,
+      "git_blob": "10927ee645b432f7d083762c787d0974502d505b"
+    },
+    "install.sh": {
+      "sha256": "86fc3f0eb32b701e50ab984c3e7411df59898e7bce9287b62e815a5d9af6f7da",
+      "mode": 493,
+      "bytes": 16747,
+      "git_blob": "351e61b6c78ea43cd845ea42d89fefafc4806329"
+    },
+    "rust-toolchain.toml": {
+      "sha256": "740e56dec60a3bf551dcecbc05811bb86fba460a57d9a7fe1e706d8a35de4543",
+      "mode": 420,
+      "bytes": 173,
+      "git_blob": "69184456ae8ccca9d18c009317bc8763749a41b0"
+    }
+  }
+}

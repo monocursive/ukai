@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/usr/bin/xattr",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/ukai-vm-0.1.0-preview.2-macos-arm64.dmg"
+  ],
+  "metadata": {
+    "ctime_ns": 1794854249552592125,
+    "dev": 16777234,
+    "gid": 20,
+    "ino": 375390399,
+    "mode": 33152,
+    "mtime_ns": 1794854249552592125,
+    "nlink": 1,
+    "size": 977360414,
+    "uid": 501
+  },
+  "observed_at": "2026-11-16T18:55:26.227758+00:00",
+  "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-export-934ad33ac/ukai-vm-0.1.0-preview.2-macos-arm64.dmg",
+  "scope": "Before frozen staging default readonly attach; metadata-only observation, no new fullhash or xattr value read.",
+  "xattr_names": [
+    "com.apple.FinderInfo",
+    "com.apple.provenance"
+  ]
+}

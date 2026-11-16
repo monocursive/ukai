@@ -37,7 +37,7 @@ pub const INPUT_DIR: &str = "crates/ukai-jail/src";
 /// The other build inputs, relative to the repository root. Dependencies
 /// are pinned by `Cargo.lock` (crates.io sources are immutable per version
 /// and checksum), the compiler by `rust-toolchain.toml`.
-pub const INPUT_FILES: [&str; 40] = include!("../profiles/inputs.rs");
+pub const INPUT_FILES: [&str; 47] = include!("../profiles/inputs.rs");
 
 /// A validated build environment.
 #[derive(Clone, Debug, PartialEq, Eq)]

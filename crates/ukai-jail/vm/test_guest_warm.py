@@ -448,6 +448,40 @@ class StopModelTests(unittest.TestCase):
         self.assertFalse((self.kernel.cgroups / self.delegated / 'ukai-att_9.leaf').exists())
         self.assertIn('workload_tree_empty', self.audits)
 
+    def test_the_report_names_what_the_stop_found_before_it_killed_anything(self):
+        # The witness the host checks: cgroup.kill ends the leaf's process
+        # without the stop recording it among strays_killed, so only the
+        # pre-kill snapshot says the guest jail left it behind.
+        leaf = f'{self.delegated}/ukai-att_9.leaf'
+        workload = self.kernel.spawn(1001, leaf, 'sleep')
+        report = self.stop()
+        self.assertFalse(workload.alive)
+        self.assertEqual(report['populated_before_kill'], [leaf])
+        self.assertEqual(report['live_before_kill'], [[workload.pid, '/' + leaf]])
+        self.assertIn(leaf, report['boundaries'])
+        self.assertEqual(self.fields['workload_tree_empty'], report)
+
+    def test_a_stray_elsewhere_is_in_the_witness_and_among_the_killed(self):
+        stray = self.kernel.spawn(1001, 'user.slice/user-1001.slice/session-1.scope', 'sh')
+        report = self.stop()
+        self.assertEqual(report['populated_before_kill'], [])
+        self.assertEqual(report['live_before_kill'], [[stray.pid, '/user.slice/user-1001.slice/session-1.scope']])
+        self.assertEqual(report['strays_killed'], [[stray.pid, '/user.slice/user-1001.slice/session-1.scope']])
+
+    def test_a_stop_after_a_clean_exit_reports_an_empty_witness(self):
+        report = self.stop()
+        self.assertEqual(sorted(report), ['boundaries', 'live_before_kill', 'populated_before_kill', 'strays_killed'])
+        self.assertEqual((report['populated_before_kill'], report['live_before_kill'], report['strays_killed']),
+                         ([], [], []))
+        self.assert_infrastructure_alive()
+
+    def test_the_infrastructure_is_never_in_the_witness(self):
+        # The manager, its helper and the bus are live account processes;
+        # they are the session's, not survivors of the guest jail.
+        report = self.stop()
+        pids = {pid for pid, _ in report['live_before_kill']}
+        self.assertFalse(pids & {self.kernel.manager.pid, self.kernel.sd_pam.pid, self.kernel.bus.pid})
+
     def test_intruders_inside_the_infrastructure_units_are_killed_and_it_survives(self):
         # The review's measured route (cgroup-exp): a direct cgroup.procs
         # write into init.scope or the bus's unit, or a sub-cgroup of one.

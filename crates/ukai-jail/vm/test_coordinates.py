@@ -30,6 +30,11 @@ class Coordinates(unittest.TestCase):
         # title and in the installed directory it tells users to remove.
         candidate = coordinates.VM_CANDIDATE_VERSION
         text = Path(__file__).with_name('PREVIEW.txt').read_text()
+        # A named Rust toolchain is a separate coordinate, not another VM
+        # release. Check it against the pin before excluding that exact label.
+        rust_versions = re.findall(r'\bRust (\d+\.\d+\.\d+)\b', text)
+        self.assertTrue(all(version == package.toolchain_pin() for version in rust_versions))
+        text = re.sub(r'\bRust \d+\.\d+\.\d+\b', 'Rust <pinned toolchain>', text)
         named = re.findall(r'\b\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?', text)
         self.assertTrue(text.startswith(f'Ukai VM {candidate} '))
         self.assertEqual(set(named), {candidate})

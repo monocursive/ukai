@@ -1,0 +1,459 @@
+{
+ "schema": "ukai.vm.route-diagnosis/1",
+ "binary": {
+  "path": "target/release/ukai-vm",
+  "sha256": "ea398416828f5969a8d927783ff610b295a35d7833007216c91703b3802969a7"
+ },
+ "status": {
+  "event": "status",
+  "schema": "ukai.jail.vm-control/1",
+  "boot_id": "vm-e95b8696-3d6d-4daf-9f94-51ff8a11c8b9",
+  "warm": true,
+  "ready": true,
+  "attempt_live": false,
+  "kernel": "7.0.0-38-generic",
+  "disk_sha256": "16867bb42f943d64576bed35acf3416a9056e0e1f80a18b099b1b967ca78f484",
+  "helper_sha256": "53c651628c426c5ed3a850a80632148c8527d156420e26bcb0a4348de0b71ee5",
+  "custodian_sha256": "bad693883c5258dd036f0c597e371d0e4eb6f258a7cafa6642ee53994970f5b2",
+  "seed_sha256": "3db28d5cb7307283fca6388739409a77300a0b3e214abe9515158e207ef65d05",
+  "vsock_port": 1024,
+  "idle_seconds": 0,
+  "live_workspace": "/Volumes/ukai-cs/ws/route",
+  "live_workspace_facts": {
+   "case_fold": false,
+   "normalization_fold": true
+  },
+  "guest_nat": true
+ },
+ "service_exit": 0,
+ "events": [
+  {
+   "label": "boot",
+   "target": [
+    "1.1.1.1",
+    443
+   ],
+   "attempt_id": "route-boot-1-1-1-1-6233a878eac1d5a4",
+   "since_boot_s": 76.0,
+   "attempt_s": 0.58,
+   "host_reachability": {
+    "target": [
+     "1.1.1.1",
+     443
+    ],
+    "result": "connected",
+    "answers": true,
+    "elapsed_ms": 28.8
+   },
+   "route": {
+    "verdict": "reached",
+    "reached": true,
+    "status_line": "HTTP/1.1 200 Connection established",
+    "error": null,
+    "target": [
+     "1.1.1.1",
+     443
+    ]
+   },
+   "probe_lines": [
+    "UKAI_ROUTE_CONTROL {\"nonce\": \"6233a878eac1d5a4-boot-1.1.1.1\", \"proxy\": \"http://127.0.0.1:3128\", \"status_line\": \"HTTP/1.1 200 Connection established\", \"target\": [\"1.1.1.1\", 443]}"
+   ],
+   "exit_code": 0,
+   "error": null,
+   "receipt_bound": true,
+   "stderr_tail": ""
+  },
+  {
+   "label": "boot",
+   "target": [
+    "8.8.8.8",
+    443
+   ],
+   "attempt_id": "route-boot-8-8-8-8-6233a878eac1d5a4",
+   "since_boot_s": 76.7,
+   "attempt_s": 0.77,
+   "host_reachability": {
+    "target": [
+     "8.8.8.8",
+     443
+    ],
+    "result": "connected",
+    "answers": true,
+    "elapsed_ms": 96.6
+   },
+   "route": {
+    "verdict": "reached",
+    "reached": true,
+    "status_line": "HTTP/1.1 200 Connection established",
+    "error": null,
+    "target": [
+     "8.8.8.8",
+     443
+    ]
+   },
+   "probe_lines": [
+    "UKAI_ROUTE_CONTROL {\"nonce\": \"6233a878eac1d5a4-boot-8.8.8.8\", \"proxy\": \"http://127.0.0.1:3128\", \"status_line\": \"HTTP/1.1 200 Connection established\", \"target\": [\"8.8.8.8\", 443]}"
+   ],
+   "exit_code": 0,
+   "error": null,
+   "receipt_bound": true,
+   "stderr_tail": ""
+  },
+  {
+   "label": "tool-0",
+   "since_boot_s": 77.5,
+   "attempt_s": 0.38,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-1",
+   "since_boot_s": 77.9,
+   "attempt_s": 0.38,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-2",
+   "since_boot_s": 78.2,
+   "attempt_s": 0.39,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-3",
+   "since_boot_s": 78.6,
+   "attempt_s": 0.37,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-4",
+   "since_boot_s": 79.0,
+   "attempt_s": 0.38,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-5",
+   "since_boot_s": 79.4,
+   "attempt_s": 0.37,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-6",
+   "since_boot_s": 79.8,
+   "attempt_s": 0.39,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-7",
+   "since_boot_s": 80.2,
+   "attempt_s": 0.4,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-8",
+   "since_boot_s": 80.6,
+   "attempt_s": 0.36,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-9",
+   "since_boot_s": 80.9,
+   "attempt_s": 0.39,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-10",
+   "since_boot_s": 81.3,
+   "attempt_s": 0.38,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-11",
+   "since_boot_s": 81.7,
+   "attempt_s": 0.4,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-12",
+   "since_boot_s": 82.1,
+   "attempt_s": 0.4,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-13",
+   "since_boot_s": 82.5,
+   "attempt_s": 0.38,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-14",
+   "since_boot_s": 82.9,
+   "attempt_s": 0.41,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-15",
+   "since_boot_s": 83.3,
+   "attempt_s": 0.4,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-16",
+   "since_boot_s": 83.7,
+   "attempt_s": 0.41,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-17",
+   "since_boot_s": 84.1,
+   "attempt_s": 0.36,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-18",
+   "since_boot_s": 84.4,
+   "attempt_s": 0.39,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "tool-19",
+   "since_boot_s": 84.8,
+   "attempt_s": 0.39,
+   "exit_code": 0,
+   "error": null
+  },
+  {
+   "label": "after-20",
+   "target": [
+    "1.1.1.1",
+    443
+   ],
+   "attempt_id": "route-after-20-1-1-1-1-6233a878eac1d5a4",
+   "since_boot_s": 85.2,
+   "attempt_s": 0.48,
+   "host_reachability": {
+    "target": [
+     "1.1.1.1",
+     443
+    ],
+    "result": "connected",
+    "answers": true,
+    "elapsed_ms": 24.7
+   },
+   "route": {
+    "verdict": "reached",
+    "reached": true,
+    "status_line": "HTTP/1.1 200 Connection established",
+    "error": null,
+    "target": [
+     "1.1.1.1",
+     443
+    ]
+   },
+   "probe_lines": [
+    "UKAI_ROUTE_CONTROL {\"nonce\": \"6233a878eac1d5a4-after-20-1.1.1.1\", \"proxy\": \"http://127.0.0.1:3128\", \"status_line\": \"HTTP/1.1 200 Connection established\", \"target\": [\"1.1.1.1\", 443]}"
+   ],
+   "exit_code": 0,
+   "error": null,
+   "receipt_bound": true,
+   "stderr_tail": ""
+  },
+  {
+   "label": "after-20",
+   "target": [
+    "8.8.8.8",
+    443
+   ],
+   "attempt_id": "route-after-20-8-8-8-8-6233a878eac1d5a4",
+   "since_boot_s": 85.7,
+   "attempt_s": 0.43,
+   "host_reachability": {
+    "target": [
+     "8.8.8.8",
+     443
+    ],
+    "result": "connected",
+    "answers": true,
+    "elapsed_ms": 17.8
+   },
+   "route": {
+    "verdict": "reached",
+    "reached": true,
+    "status_line": "HTTP/1.1 200 Connection established",
+    "error": null,
+    "target": [
+     "8.8.8.8",
+     443
+    ]
+   },
+   "probe_lines": [
+    "UKAI_ROUTE_CONTROL {\"nonce\": \"6233a878eac1d5a4-after-20-8.8.8.8\", \"proxy\": \"http://127.0.0.1:3128\", \"status_line\": \"HTTP/1.1 200 Connection established\", \"target\": [\"8.8.8.8\", 443]}"
+   ],
+   "exit_code": 0,
+   "error": null,
+   "receipt_bound": true,
+   "stderr_tail": ""
+  },
+  {
+   "label": "idle-300",
+   "target": [
+    "1.1.1.1",
+    443
+   ],
+   "attempt_id": "route-idle-300-1-1-1-1-6233a878eac1d5a4",
+   "since_boot_s": 386.2,
+   "attempt_s": 0.51,
+   "host_reachability": {
+    "target": [
+     "1.1.1.1",
+     443
+    ],
+    "result": "connected",
+    "answers": true,
+    "elapsed_ms": 10.6
+   },
+   "route": {
+    "verdict": "reached",
+    "reached": true,
+    "status_line": "HTTP/1.1 200 Connection established",
+    "error": null,
+    "target": [
+     "1.1.1.1",
+     443
+    ]
+   },
+   "probe_lines": [
+    "UKAI_ROUTE_CONTROL {\"nonce\": \"6233a878eac1d5a4-idle-300-1.1.1.1\", \"proxy\": \"http://127.0.0.1:3128\", \"status_line\": \"HTTP/1.1 200 Connection established\", \"target\": [\"1.1.1.1\", 443]}"
+   ],
+   "exit_code": 0,
+   "error": null,
+   "receipt_bound": true,
+   "stderr_tail": ""
+  },
+  {
+   "label": "idle-300",
+   "target": [
+    "8.8.8.8",
+    443
+   ],
+   "attempt_id": "route-idle-300-8-8-8-8-6233a878eac1d5a4",
+   "since_boot_s": 386.7,
+   "attempt_s": 0.47,
+   "host_reachability": {
+    "target": [
+     "8.8.8.8",
+     443
+    ],
+    "result": "connected",
+    "answers": true,
+    "elapsed_ms": 15.8
+   },
+   "route": {
+    "verdict": "reached",
+    "reached": true,
+    "status_line": "HTTP/1.1 200 Connection established",
+    "error": null,
+    "target": [
+     "8.8.8.8",
+     443
+    ]
+   },
+   "probe_lines": [
+    "UKAI_ROUTE_CONTROL {\"nonce\": \"6233a878eac1d5a4-idle-300-8.8.8.8\", \"proxy\": \"http://127.0.0.1:3128\", \"status_line\": \"HTTP/1.1 200 Connection established\", \"target\": [\"8.8.8.8\", 443]}"
+   ],
+   "exit_code": 0,
+   "error": null,
+   "receipt_bound": true,
+   "stderr_tail": ""
+  },
+  {
+   "label": "idle-300-again",
+   "target": [
+    "1.1.1.1",
+    443
+   ],
+   "attempt_id": "route-idle-300-again-1-1-1-1-6233a878eac1d5a4",
+   "since_boot_s": 387.2,
+   "attempt_s": 0.58,
+   "host_reachability": {
+    "target": [
+     "1.1.1.1",
+     443
+    ],
+    "result": "connected",
+    "answers": true,
+    "elapsed_ms": 10.4
+   },
+   "route": {
+    "verdict": "reached",
+    "reached": true,
+    "status_line": "HTTP/1.1 200 Connection established",
+    "error": null,
+    "target": [
+     "1.1.1.1",
+     443
+    ]
+   },
+   "probe_lines": [
+    "UKAI_ROUTE_CONTROL {\"nonce\": \"6233a878eac1d5a4-idle-300-again-1.1.1.1\", \"proxy\": \"http://127.0.0.1:3128\", \"status_line\": \"HTTP/1.1 200 Connection established\", \"target\": [\"1.1.1.1\", 443]}"
+   ],
+   "exit_code": 0,
+   "error": null,
+   "receipt_bound": true,
+   "stderr_tail": ""
+  },
+  {
+   "label": "idle-300-again",
+   "target": [
+    "8.8.8.8",
+    443
+   ],
+   "attempt_id": "route-idle-300-again-8-8-8-8-6233a878eac1d5a4",
+   "since_boot_s": 387.8,
+   "attempt_s": 0.45,
+   "host_reachability": {
+    "target": [
+     "8.8.8.8",
+     443
+    ],
+    "result": "connected",
+    "answers": true,
+    "elapsed_ms": 15.8
+   },
+   "route": {
+    "verdict": "reached",
+    "reached": true,
+    "status_line": "HTTP/1.1 200 Connection established",
+    "error": null,
+    "target": [
+     "8.8.8.8",
+     443
+    ]
+   },
+   "probe_lines": [
+    "UKAI_ROUTE_CONTROL {\"nonce\": \"6233a878eac1d5a4-idle-300-again-8.8.8.8\", \"proxy\": \"http://127.0.0.1:3128\", \"status_line\": \"HTTP/1.1 200 Connection established\", \"target\": [\"8.8.8.8\", 443]}"
+   ],
+   "exit_code": 0,
+   "error": null,
+   "receipt_bound": true,
+   "stderr_tail": ""
+  }
+ ]
+}

@@ -27,7 +27,7 @@ class ReleaseLookupTests(unittest.TestCase):
         url = 'https://api.github.com/repos/monocursive/ukai/releases/123'
         for draft in [True, False]:
             with self.subTest(draft=draft):
-                record = {'tag_name': 'ukai-jail-v0.1.0-rc.1', 'draft': draft}
+                record = {'tag_name': 'ukai-jail-v9.9.9-rc.1', 'draft': draft}
                 with patch('publish_release.gh_json', side_effect=[
                         {'apiUrl': url, 'tagName': record['tag_name']}, record]) as call:
                     self.assertEqual(release_info({'tag': record['tag_name']}), record)
@@ -63,10 +63,10 @@ class PublicationTests(unittest.TestCase):
             binary.write_bytes(contents)
             destination = self.root / ('stage-' + target)
             with patch('prepare_release.subprocess.check_output', return_value=json.dumps(version(target)).encode()):
-                stage(binary, target, REVISION, INPUTS, destination, '0.1.0-rc.1')
+                stage(binary, target, REVISION, INPUTS, destination, '9.9.9-rc.1')
             stages.append(destination)
         self.candidate = self.root / 'candidate'
-        self.plan = assemble(stages, REVISION, INPUTS, '0.1.0-rc.1', self.candidate,
+        self.plan = assemble(stages, REVISION, INPUTS, '9.9.9-rc.1', self.candidate,
                              self.root / 'key', self.key)
 
     def test_signed_candidate_and_pinned_bootstrap(self):
@@ -85,16 +85,16 @@ class PublicationTests(unittest.TestCase):
         bootstrap = (self.candidate / 'bootstrap.sh').read_text()
         pins = archive_pins(bootstrap)
         for record in self.plan['artifacts']:
-            self.assertEqual(pins['0.1.0-rc.1', record['target']], record['archive_sha256'])
+            self.assertEqual(pins['9.9.9-rc.1', record['target']], record['archive_sha256'])
         self.assertNotIn('minisign', bootstrap)
-        self.assertIn('version=0.1.0-rc.1', bootstrap)
+        self.assertIn('version=9.9.9-rc.1', bootstrap)
 
     def test_a_correct_signature_does_not_authorize_wrong_bootstrap_pins(self):
         bootstrap = self.candidate / 'bootstrap.sh'
         old_hash = self.plan['artifacts'][0]['archive_sha256']
         script = bootstrap.read_text()
-        legacy = BLOCK.sub('', script).replace('    version=0.1.0-rc.1\n',
-                                               f"    version=0.1.0-rc.1\n    public_key='{self.key}'\n")
+        legacy = BLOCK.sub('', script).replace('    version=9.9.9-rc.1\n',
+                                               f"    version=9.9.9-rc.1\n    public_key='{self.key}'\n")
         for bad_script in [script.replace(old_hash, '0' * 64), legacy]:
             bootstrap.write_text(bad_script)
             manifest = self.candidate / 'SHA256SUMS'

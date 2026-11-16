@@ -3,7 +3,7 @@
 
 `summary.json` names the artifact it judged: the volume's manifest and
 installer digests (and the DMG's, with --dmg). The `install` case passes only
-when the installed command runs and reports exactly the package version the
+when both installed commands run, the service reports the package version the
 installer names (D8: never a `-dev` build) AND the installed tree is exactly
 the manifest's payload: every file with its listed digest, `image/base.raw.gz`
 replaced by `image/base.raw` with image.json's `disk_sha256`, nothing extra
@@ -11,24 +11,127 @@ and no symlink — AND every installed mode is normalized (directories 0755,
 files 0644, or 0755 where the volume's file is executable; never a
 world-writable or setuid bit, which the manifest does not cover). The tamper
 cases include an unlisted payload file, which the installer must refuse
-rather than install.
+rather than install. A passed tamper case retains its mutation, output and
+postcondition proof before removing only its generated copy of the volume.
+Unexpected failures retain their fixture for diagnosis.
 """
 import argparse
 import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
+import stat
 import subprocess
 
 if not __debug__:
     raise SystemExit('check_install.py must not run with python -O: its checks are gates')
 
-SCHEMA = 'ukai.vm.installer-check/2'
-CASES = ('install', 'repeat-refused', 'unrelated-refused', 'manifest-tamper', 'payload-tamper', 'payload-extra')
+SCHEMA = 'ukai.vm.installer-check/3'
+CASES = ('install', 'repeat-refused', 'unrelated-refused', 'unrelated-client-refused',
+         'manifest-tamper', 'payload-tamper', 'payload-extra')
 
 
 class CaseFailed(RuntimeError):
     pass
+
+
+def identity(info):
+    return [info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode), info.st_uid]
+
+
+def fixture_snapshot(descriptor):
+    """Metadata of a small generated volume, anchored to its open directory."""
+    entries = {}
+    for directory, names, files, current in os.fwalk('.', dir_fd=descriptor, follow_symlinks=False):
+        for name in ['.', *names, *files]:
+            relative = str(Path(directory) / name)
+            info = os.stat(name, dir_fd=current, follow_symlinks=False)
+            if not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode)):
+                raise CaseFailed('unexpected generated fixture entry')
+            entries[relative] = [*identity(info), info.st_mode, info.st_size,
+                                 info.st_mtime_ns, info.st_ctime_ns, info.st_nlink]
+            if len(entries) > 4096:
+                raise CaseFailed('generated fixture inventory exceeds bound')
+    return entries
+
+
+def capture_fixture(root, name):
+    if name not in CASES[-3:]:
+        raise CaseFailed('not a generated tamper fixture')
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    parent = os.open(root, flags)
+    try:
+        child = os.open(name, flags, dir_fd=parent)
+        try:
+            return {'parent_identity': identity(os.fstat(parent)),
+                    'entries': fixture_snapshot(child)}
+        finally:
+            os.close(child)
+    finally:
+        os.close(parent)
+
+
+def remove_owned_fixture(root, name, captured):
+    """Remove only a still-identical fixture through its pinned directory FD."""
+    if name not in CASES[-3:] or not shutil.rmtree.avoids_symlink_attacks:
+        raise CaseFailed('safe generated fixture removal unavailable')
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    parent = os.open(root, flags)
+    try:
+        if identity(os.fstat(parent)) != captured['parent_identity']:
+            raise CaseFailed('fixture parent changed')
+        child = os.open(name, flags, dir_fd=parent)
+        try:
+            if fixture_snapshot(child) != captured['entries']:
+                raise CaseFailed('generated fixture changed')
+            # Use the pinned child, not its pathname, for every descendant.
+            # A replaced top-level name is checked again before removing it.
+            with os.scandir(child) as entries:
+                for entry in entries:
+                    if entry.is_dir(follow_symlinks=False):
+                        shutil.rmtree(entry.name, dir_fd=child)
+                    else:
+                        os.unlink(entry.name, dir_fd=child)
+            if identity(os.stat(name, dir_fd=parent, follow_symlinks=False)) != captured['entries']['.'][:4]:
+                raise CaseFailed('generated fixture name changed')
+            os.rmdir(name, dir_fd=parent)
+        finally:
+            os.close(child)
+        if os.path.lexists(root / name):
+            raise CaseFailed('generated fixture remains')
+    finally:
+        os.close(parent)
+
+
+def persist_fixture_record(path, value):
+    with path.open('x') as output:
+        json.dump(value, output, indent=2)
+        output.write('\n')
+        output.flush()
+        os.fsync(output.fileno())
+
+
+def retire_passed_fixture(results, root, name, captured, artifact, mutation):
+    """A proof-write or cleanup failure fails the case and stops the sequence."""
+    row = results[-1]
+    if row['case'] != name or row['passed'] is not True or row['failed_checks']:
+        raise CaseFailed('only a passed expected-negative fixture may be removed')
+    check = 'generated-fixture-proof-retained'
+    try:
+        proof = {'schema': 'ukai.vm.installer-fixture-proof/1', 'case': row.copy(),
+                 'artifact': artifact, 'fixture': captured, 'mutation': mutation,
+                 'postconditions': {'nothing-installed': True},
+                 'stdout_sha256': sha256(root / (name + '.stdout')),
+                 'stderr_sha256': sha256(root / (name + '.stderr'))}
+        persist_fixture_record(root / (name + '.fixture.json'), proof)
+        check = 'generated-fixture-cleanup'
+        remove_owned_fixture(root, name, captured)
+        persist_fixture_record(root / (name + '.cleanup.json'), {'case': name, 'removed': True})
+    except BaseException:
+        row['passed'] = False
+        row['failed_checks'].append(check)
+        raise
 
 
 def sha256(path):
@@ -127,6 +230,19 @@ def version_is_the_package(output, expected):
     return isinstance(reported, str) and reported == expected and not reported.endswith('-dev')
 
 
+def client_is_the_package(output, metadata):
+    """The client's immutable build report matches the package's source claim."""
+    reported = json.loads(output)
+    expected = metadata['ukai_jail_version']
+    build = reported.get('build', {})
+    return (reported.get('component') == expected.get('component') == 'ukai-jail'
+            and reported.get('version') == expected.get('version')
+            and build == expected.get('build')
+            and build.get('revision') == metadata.get('source_revision')
+            and build.get('dirty') is False
+            and build.get('target') == 'aarch64-apple-darwin')
+
+
 def installed_destination(link):
     """The installed version directory the command link names."""
     target = Path(os.readlink(link))
@@ -177,8 +293,20 @@ def main(argv=None):
             (root / 'version.json').write_text(version.stdout)
             return version.returncode == 0 and version_is_the_package(version.stdout, package_version(source))
 
+        def client_runs():
+            client = installed / 'bin' / 'ukai-jail'
+            destination = installed_destination(link)
+            if not client.is_symlink() or Path(os.readlink(client)) != destination / 'bin' / 'ukai-jail':
+                return False
+            version = subprocess.run([str(client), 'version', '--json'], env=environment,
+                                     capture_output=True, text=True)
+            (root / 'client-version.json').write_text(version.stdout)
+            metadata = json.loads((destination / 'image' / 'image.json').read_text())
+            return version.returncode == 0 and client_is_the_package(version.stdout, metadata)
+
         invoke('install', source, installed, 0, 'Installed ',
                [('installed-command-runs', version_runs),
+                ('installed-client-matches-package', client_runs),
                 ('installed-tree-is-the-manifest', lambda: installed_tree_matches(source, installed_destination(link))),
                 ('installed-modes-normalized', lambda: installed_modes_normal(source, installed_destination(link)))])
         invoke('repeat-refused', source, installed, 2, 'Already installed:')
@@ -188,6 +316,14 @@ def main(argv=None):
         marker.write_text('preserve me')
         invoke('unrelated-refused', source, unrelated, 2, 'unrelated command:',
                [('unrelated-command-preserved', lambda: marker.read_text() == 'preserve me')])
+        unrelated_client = root / 'unrelated-client'
+        (unrelated_client / 'bin').mkdir(parents=True)
+        client_marker = unrelated_client / 'bin' / 'ukai-jail'
+        client_marker.write_text('preserve client')
+        invoke('unrelated-client-refused', source, unrelated_client, 2, 'unrelated command:',
+               [('unrelated-client-preserved', lambda: client_marker.read_text() == 'preserve client'),
+                ('no-service-installed', lambda: not os.path.lexists(unrelated_client / 'bin' / 'ukai-vm')
+                 and not (unrelated_client / 'share').exists())])
         for case, filename, expected, append in [
                 ('manifest-tamper', 'SHA256SUMS', 'manifest checksum mismatch', True),
                 ('payload-tamper', 'payload/image/vz', 'Package checksum mismatch', True),
@@ -195,11 +331,17 @@ def main(argv=None):
             clone = root / case
             subprocess.run(['/bin/cp', '-cR', str(source), str(clone)], check=True)
             target = clone / filename
+            original_sha256 = sha256(target) if append else None
             with target.open('ab' if append else 'xb') as output:
                 output.write(b'tampered')
+            mutation = {'path': filename, 'operation': 'append' if append else 'exclusive-create',
+                        'bytes_hex': b'tampered'.hex(), 'original_sha256': original_sha256,
+                        'mutated_sha256': sha256(target)}
+            captured = capture_fixture(root, case)
             destination = root / (case + '-prefix')
             invoke(case, clone, destination, 1, expected,
                    [('nothing-installed', lambda destination=destination: not os.path.lexists(destination))])
+            retire_passed_fixture(results, root, case, captured, artifact, mutation)
     finally:
         (root / 'summary.json').write_text(json.dumps(summary(results, artifact), indent=2) + '\n')
 

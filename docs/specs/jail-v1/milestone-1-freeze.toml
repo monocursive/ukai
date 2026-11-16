@@ -13,7 +13,7 @@ rust_version = "1.98.1"
 
 # Cargo.lock, byte for byte
 [cargo_lock]
-sha256 = "4fd3cc81fadb73118e3ca86dd24ce180ea55d6f1eedc7d0e52635c368e534f38"
+sha256 = "0ea5c6f32c427532e563313d3a6d0d8a8f1faf9759e24e0ff59a1b09a0ba45e3"
 packages = 194
 
 # The seccomp programs' digests, from docs/specs/jail-v1/evidence/seccomp-table-*.txt
@@ -1202,7 +1202,7 @@ sections = '''
         "bundled",
         "limits"
       ],
-      "version": "0.40.2"
+      "version": "0.41.0"
     },
     "serde": {
       "features": [
@@ -1379,16 +1379,16 @@ sha256 = "e9004dad9c5aeb9d6abfa088dbd092a5d112af64cff76c95f5d7a77da8dc45b7"
 [tested]
 debug_assertions = false
 dirty = false
-inputs = "sha256:188328556e73ff58f3e8e47e54604f4bfa2a3fdb7cd9a3bc18bf53b9a379e140"
+inputs = "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae"
 opt_level = "3"
 platform_arch = "x86_64"
 platform_kernel = "Linux 7.0.0-31-generic"
 platform_os = "linux"
 ready = true
-revision = "4703d64c86dd34a2910b249040693efdd0463adb"
+revision = "a8e4aecb071a0367001f309a659897d6aa336600"
 rustc = "rustc 1.98.1 (48a229cea 2026-09-01)"
 target = "x86_64-unknown-linux-gnu"
-ukai_jail_sha256 = "f47177a1c0ed4b3b43d7a6677a42f1368a16fcb35c924df26089ecd81189b99f"
+ukai_jail_sha256 = "f1df6de09d84940fce14af4bbc533d636965763895382659340b264b80a4bf33"
 unknown = ["supervisor_scope.reason", "supervisor_scope.reason_code", "supervisor_scope.unit"]
 verification = ["inputs_match_tree", "revision_is_ancestor_of_head", "inputs_match_revision", "frozen_inputs_unchanged_since_revision"]
 
@@ -1434,5 +1434,5 @@ swap_total_kib = 8388604
 "user.max_user_namespaces" = "11829"
 
 [tested.supervisor_scope]
-cgroup = "/user.slice/user-1001.slice/user@1001.service/app.slice/run-p428655-i29784434.scope"
+cgroup = "/user.slice/user-1001.slice/user@1001.service/app.slice/run-p2214275-i35768325.scope"
 state = "already_delegated"

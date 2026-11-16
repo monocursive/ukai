@@ -26,6 +26,97 @@ pub const SCHEMA_CONTROL: &str = "ukai.jail.vm-control/1";
 /// The attempt protocol's identifier, as `ready` reports it.
 pub const SCHEMA_ATTEMPT: &str = "ukai.jail.vm-attempt/1";
 
+/// The guest source-removal and exact-ID acknowledgement contract.
+pub const SECRET_REVOCATION_CONTRACT: &str = "ukai.vm.secret-revocation/1";
+/// The bounded, receipt-bound guest journal manifest and parts contract.
+pub const JOURNAL_EXPORT_CONTRACT: &str = "ukai.vm.guest-journal/1";
+/// Image-bound native program resolution with unchanged bundled profiles.
+pub const NATIVE_PROGRAM_CONTRACT: &str = "ukai.vm.guest-native-launch/1";
+pub const SAMPLED_EXPOSURE_CONTRACT_V2: &str = "ukai.vm.sampled-exposure/2";
+pub const SAMPLED_EXPOSURE_CONTRACT: &str = "ukai.vm.sampled-exposure/3";
+
+/// Contracts the running guest declared in its Session reply. Optional fields
+/// keep old noncredential guests usable; absent or unknown versions never
+/// authorize sending credential values. The service forwards these facts,
+/// rather than substituting the contracts its own executable implements.
+#[derive(Clone, Default, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GuestContracts {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub secret_revocation: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub journal_export: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_program: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampled_exposure: Option<String>,
+}
+
+/// Value-free native launch request. Paths come from the bound catalog, never
+/// the operator's host PATH. The suffix and resolved argv are independently bound.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GuestLaunchIntent {
+    pub schema: String,
+    pub catalog_sha256: String,
+    pub entry_id: String,
+    pub launch_name: String,
+    pub profile_sha256: String,
+    pub state: String,
+    pub selected_credential_id: String,
+    pub argv_suffix: Vec<String>,
+    pub request_argv_digest: String,
+    pub resolved_argv_digest: String,
+    pub expected_policy_digest: String,
+}
+
+/// Guest-reported binding of an actual native execution to its checked request.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NativeProgramBinding {
+    pub catalog_sha256: String,
+    pub entry_id: String,
+    pub profile_sha256: String,
+    pub executable_sha256: String,
+    pub selected_credential_id: String,
+    pub state: String,
+    pub request_argv_digest: String,
+    pub resolved_argv_digest: String,
+    pub policy_digest: String,
+}
+
+impl GuestContracts {
+    /// A catalog-absent literal Session may advertise only the known base pair.
+    #[must_use]
+    pub fn supports_literal_session(&self) -> bool {
+        self.supports_credentials()
+            && self.native_program.is_none()
+            && self.sampled_exposure.is_none()
+    }
+
+    /// Known metadata permits literal service use, not a current native Run.
+    #[must_use]
+    pub fn supports_native_session(&self) -> bool {
+        self.supports_credentials()
+            && self.native_program.as_deref() == Some(NATIVE_PROGRAM_CONTRACT)
+            && matches!(
+                self.sampled_exposure.as_deref(),
+                Some(
+                    "ukai.vm.sampled-exposure/1"
+                        | SAMPLED_EXPOSURE_CONTRACT_V2
+                        | SAMPLED_EXPOSURE_CONTRACT
+                )
+            )
+    }
+
+    /// Both contracts are required before any credential-bearing Prepare.
+    #[must_use]
+    pub fn supports_credentials(&self) -> bool {
+        self.secret_revocation.as_deref() == Some(SECRET_REVOCATION_CONTRACT)
+            && self.journal_export.as_deref() == Some(JOURNAL_EXPORT_CONTRACT)
+    }
+}
+
 /// The most bytes one frame (one NDJSON line) may take. A `put` carries at
 /// most [`MAX_FILE`] payload bytes, which base64 expands by a third; the
 /// receipt frame carries a whole receipt, whose bound this covers four
@@ -222,6 +313,7 @@ pub struct LiveShareFacts {
 /// Host → vm, one attempt session.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)] // Bounded control frames are handled one at a time.
 pub enum ToVm {
     /// Stage the attempt: reset the guest workspace and evidence, receive
     /// the files and the ephemeral credentials, hold.
@@ -251,12 +343,18 @@ pub enum ToVm {
         /// `None` runs without a launch profile.
         #[serde(default)]
         launch: Option<LaunchDeclaration>,
+        /// A catalog-native launch is mutually exclusive with generated TOML.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        native_program: Option<GuestLaunchIntent>,
     },
     /// One workspace file.
     Put(Put),
     /// Release: run the jail. The frames before this stage; this one starts
     /// the guest attempt.
     Run,
+    /// Revoke the already-staged sources of this released attempt. No value
+    /// or replacement crosses; the guest removes them and acknowledges IDs.
+    RevokeSecrets { ids: Vec<String> },
 }
 
 /// A guest-controller statement connecting a guest jail receipt to this host run.
@@ -270,6 +368,10 @@ pub struct ReceiptBinding {
     pub guest_boot_id: String,
     pub profile: String,
     pub argv_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_program: Option<NativeProgramBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampled_exposure_sha256: Option<String>,
 }
 
 /// vm → host, one attempt session.
@@ -289,6 +391,13 @@ pub enum FromVm {
         seed_sha256: String,
         /// The vsock port the guest controller listens on.
         vsock_port: u32,
+        /// What this boot's guest Session actually declared, not a capability
+        /// inferred from the service version or an image manifest label.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        guest_contracts: Option<GuestContracts>,
+        /// Catalog actually verified by the Session's guest, for this boot.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        guest_program_catalog_sha256: Option<String>,
     },
     /// The guest accepted the staging: workspace reset, files and ephemeral
     /// credentials held. Carries the guest kernel, which the receipt's
@@ -308,6 +417,8 @@ pub enum FromVm {
         /// The guest supervisor's pid, as the guest reported it.
         supervisor_pid: u32,
     },
+    /// Every named staged source was removed from this attempt's tmpfs.
+    SecretsRevoked { ids: Vec<String> },
     /// A chunk of the target's stdout, base64.
     Stdout {
         /// The bytes, base64.
@@ -349,6 +460,11 @@ pub enum FromVm {
     Done {
         /// The guest jail's exit status.
         exit_code: i32,
+        /// The guest controller's own stop of the attempt (decision D6),
+        /// which a warm session runs before `done`. `None` when the guest
+        /// sent none; the host refuses such an attempt's outcome.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        stop: Option<GuestStop>,
     },
     /// The transport failed. The attempt ends failed; the host never
     /// invents a guest outcome.
@@ -356,6 +472,74 @@ pub enum FromVm {
         /// A safe reason.
         message: String,
     },
+}
+
+/// The guest controller's stop of one warm attempt (decision D6), taken
+/// outside the guest jail after the jail exited and verified its own tree.
+/// Guest-reported, like the binding: not a host measurement. Its pre-kill
+/// lists check the guest jail's `tree_empty`: a boundary still populated, or
+/// a live process of the workload account outside the session's learned
+/// infrastructure, when the stop began survived the guest jail. Its kills
+/// alone are no such check: the boundaries' `cgroup.kill` records nothing of
+/// what it ends.
+#[derive(Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub struct GuestStop {
+    /// Every cgroup the stop killed and verified empty, relative to the
+    /// guest's cgroup root.
+    pub boundaries: Vec<String>,
+    /// Those that held a process when the stop began, before it signalled
+    /// anything.
+    pub populated_before_kill: Vec<String>,
+    /// The workload account's live processes outside the learned
+    /// infrastructure when the stop began: guest pid and cgroup.
+    pub live_before_kill: Vec<(u32, Option<String>)>,
+    /// Every such process the stop killed by pid: guest pid and cgroup.
+    pub strays_killed: Vec<(u32, Option<String>)>,
+}
+
+impl GuestStop {
+    /// What the stop found the guest jail had left behind, worded for a
+    /// refusal; `None` when it found nothing.
+    #[must_use]
+    pub fn survivors(&self) -> Option<String> {
+        if self.populated_before_kill.is_empty()
+            && self.live_before_kill.is_empty()
+            && self.strays_killed.is_empty()
+        {
+            return None;
+        }
+        let processes = |list: &[(u32, Option<String>)]| {
+            list.iter()
+                .take(4)
+                .map(|(pid, cgroup)| format!("{pid} in {}", cgroup.as_deref().unwrap_or("?")))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        Some(format!(
+            "{} boundar{} still populated [{}], {} process{} live [{}], {} killed by pid [{}]",
+            self.populated_before_kill.len(),
+            if self.populated_before_kill.len() == 1 {
+                "y"
+            } else {
+                "ies"
+            },
+            self.populated_before_kill
+                .iter()
+                .take(4)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", "),
+            self.live_before_kill.len(),
+            if self.live_before_kill.len() == 1 {
+                ""
+            } else {
+                "es"
+            },
+            processes(&self.live_before_kill),
+            self.strays_killed.len(),
+            processes(&self.strays_killed),
+        ))
+    }
 }
 
 /// Client → vm, over the control socket.
@@ -378,8 +562,15 @@ pub enum FromControl {
         schema: String,
         /// The ukai-vm boot's identifier.
         boot_id: String,
-        /// Whether the guest is running.
+        /// Whether the guest is running: the helper is alive and no stop
+        /// was requested. It holds from the boot's start, while the guest
+        /// may still be booting; see `ready`.
         warm: bool,
+        /// Whether the guest completed its session handshake and reported
+        /// its kernel: an attempt that connects now runs on a booted guest
+        /// instead of waiting for the boot.
+        #[serde(default)]
+        ready: bool,
         /// Whether an attempt session is live.
         attempt_live: bool,
         /// The guest kernel, when the guest has reported one.
@@ -419,9 +610,80 @@ mod tests {
     use super::*;
 
     #[test]
+    fn literal_contract_object_requires_the_exact_supported_base_pair() {
+        let base = GuestContracts {
+            secret_revocation: Some(SECRET_REVOCATION_CONTRACT.into()),
+            journal_export: Some(JOURNAL_EXPORT_CONTRACT.into()),
+            ..GuestContracts::default()
+        };
+        assert!(base.supports_literal_session());
+        assert!(!GuestContracts::default().supports_literal_session());
+        for change in 0..6 {
+            let mut contracts = base.clone();
+            match change {
+                0 => contracts.secret_revocation = None,
+                1 => contracts.journal_export = None,
+                2 => contracts.secret_revocation = Some("unknown".into()),
+                3 => contracts.journal_export = Some("unknown".into()),
+                4 => contracts.native_program = Some(NATIVE_PROGRAM_CONTRACT.into()),
+                _ => contracts.sampled_exposure = Some(SAMPLED_EXPOSURE_CONTRACT.into()),
+            }
+            assert!(!contracts.supports_literal_session(), "{change}");
+        }
+    }
+    #[test]
+    fn known_native_sessions_do_not_upgrade_historical_sampling_contracts() {
+        for sampling in [
+            "ukai.vm.sampled-exposure/1",
+            SAMPLED_EXPOSURE_CONTRACT_V2,
+            SAMPLED_EXPOSURE_CONTRACT,
+        ] {
+            let contracts = GuestContracts {
+                secret_revocation: Some(SECRET_REVOCATION_CONTRACT.into()),
+                journal_export: Some(JOURNAL_EXPORT_CONTRACT.into()),
+                native_program: Some(NATIVE_PROGRAM_CONTRACT.into()),
+                sampled_exposure: Some(sampling.into()),
+            };
+            assert!(contracts.supports_native_session());
+            assert_eq!(contracts.sampled_exposure.as_deref(), Some(sampling));
+            for broken in [
+                GuestContracts {
+                    native_program: None,
+                    ..contracts.clone()
+                },
+                GuestContracts {
+                    sampled_exposure: None,
+                    ..contracts.clone()
+                },
+                GuestContracts {
+                    journal_export: None,
+                    ..contracts.clone()
+                },
+                GuestContracts {
+                    sampled_exposure: Some("ukai.vm.sampled-exposure/4".into()),
+                    ..contracts.clone()
+                },
+                GuestContracts {
+                    native_program: Some("ukai.vm.guest-native-launch/2".into()),
+                    ..contracts
+                },
+            ] {
+                assert!(!broken.supports_native_session());
+            }
+        }
+        assert!(
+            serde_json::from_value::<GuestContracts>(serde_json::json!({
+                "unknown": "future/1"
+            }))
+            .is_err()
+        );
+    }
+
+    #[test]
     fn frames_round_trip_through_their_line_form() {
         let frames = [
             ToVm::Prepare {
+                native_program: None,
                 attempt_id: "att_00000000-0000-4000-8000-000000000001".to_owned(),
                 profile: "tool".to_owned(),
                 wall_seconds: 30,
@@ -446,6 +708,7 @@ mod tests {
         }
         let frames = [
             FromVm::Ready {
+                guest_program_catalog_sha256: None,
                 schema: SCHEMA_ATTEMPT.to_owned(),
                 boot_id: "boot-1".to_owned(),
                 disk_sha256: "d".repeat(64),
@@ -453,6 +716,12 @@ mod tests {
                 custodian_sha256: "c".repeat(64),
                 seed_sha256: "s".repeat(64),
                 vsock_port: 1024,
+                guest_contracts: Some(GuestContracts {
+                    sampled_exposure: None,
+                    native_program: None,
+                    secret_revocation: Some(SECRET_REVOCATION_CONTRACT.into()),
+                    journal_export: Some(JOURNAL_EXPORT_CONTRACT.into()),
+                }),
             },
             FromVm::Prepared {
                 kernel: "6.14.0".to_owned(),
@@ -475,7 +744,19 @@ mod tests {
                 sha256: "a".repeat(64),
                 data: encode_data(b"{}"),
             },
-            FromVm::Done { exit_code: 3 },
+            FromVm::Done {
+                exit_code: 3,
+                stop: None,
+            },
+            FromVm::Done {
+                exit_code: 0,
+                stop: Some(GuestStop {
+                    boundaries: vec!["ukai-attempts.slice/attempt-1".to_owned()],
+                    populated_before_kill: Vec::new(),
+                    live_before_kill: vec![(7, None)],
+                    strays_killed: vec![(7, Some("/user.slice/x".to_owned()))],
+                }),
+            },
             FromVm::Error {
                 message: "guest lease lost".to_owned(),
             },
@@ -492,6 +773,7 @@ mod tests {
             schema: SCHEMA_CONTROL.to_owned(),
             boot_id: "boot-1".to_owned(),
             warm: true,
+            ready: true,
             attempt_live: false,
             kernel: Some("6.14.0".to_owned()),
             disk_sha256: "d".repeat(64),
@@ -511,6 +793,76 @@ mod tests {
         };
         let line = encode(&stopping).expect("encodes");
         assert_eq!(decode::<FromControl>(&line).as_ref(), Ok(&stopping));
+    }
+
+    #[test]
+    fn a_done_from_a_guest_without_a_stop_report_reads_as_none() {
+        let done = decode::<FromVm>(br#"{"event":"done","exit_code":0}"#).expect("decodes");
+        assert_eq!(
+            done,
+            FromVm::Done {
+                exit_code: 0,
+                stop: None
+            }
+        );
+        let done = decode::<FromVm>(
+            br#"{"event":"done","exit_code":0,"stop":{"boundaries":["a"],"populated_before_kill":[],"live_before_kill":[[9,null]],"strays_killed":[]}}"#,
+        )
+        .expect("decodes");
+        let FromVm::Done {
+            stop: Some(stop), ..
+        } = done
+        else {
+            panic!("no stop: {done:?}");
+        };
+        assert_eq!(stop.live_before_kill, vec![(9, None)]);
+    }
+
+    #[test]
+    fn a_stop_names_survivors_unless_every_list_is_empty() {
+        assert_eq!(GuestStop::default().survivors(), None);
+        let clean = GuestStop {
+            boundaries: vec!["ukai-attempts.slice/attempt-1".to_owned()],
+            ..GuestStop::default()
+        };
+        assert_eq!(
+            clean.survivors(),
+            None,
+            "boundaries alone are what was covered"
+        );
+        let cases = [
+            GuestStop {
+                populated_before_kill: vec!["app.slice".to_owned()],
+                ..GuestStop::default()
+            },
+            GuestStop {
+                live_before_kill: vec![(41, Some("/user.slice/s".to_owned()))],
+                ..GuestStop::default()
+            },
+            GuestStop {
+                strays_killed: vec![(42, None)],
+                ..GuestStop::default()
+            },
+        ];
+        for stop in cases {
+            let named = stop.survivors().expect("a survivor is named");
+            assert!(
+                named.contains("app.slice")
+                    || named.contains("41 in /user.slice/s")
+                    || named.contains("42 in ?"),
+                "{named}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_status_without_ready_is_not_ready() {
+        let line = br#"{"event":"status","schema":"ukai.jail.vm-control/1","boot_id":"b","warm":true,"attempt_live":false,"kernel":null,"disk_sha256":"d","helper_sha256":"h","custodian_sha256":"c","seed_sha256":"s","vsock_port":1024,"idle_seconds":0}"#;
+        let FromControl::Status { warm, ready, .. } = decode::<FromControl>(line).expect("decodes")
+        else {
+            panic!("not a status");
+        };
+        assert!(warm && !ready);
     }
 
     #[test]

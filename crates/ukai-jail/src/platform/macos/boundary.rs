@@ -4090,6 +4090,7 @@ mod tests {
             };
             let resolved = crate::policy::resolve(&inputs).expect("resolves");
             PlanRequest {
+                guest_program: None,
                 snapshot: resolved.snapshot,
                 requirements: resolved.requirements,
             }
@@ -4106,6 +4107,8 @@ mod tests {
             config_dir: dir.path().to_path_buf(),
             launch_name: None,
             launch: None,
+            #[cfg(target_os = "macos")]
+            guest_launch: None,
             proxy: None,
             pinned_roots: Vec::new(),
             exec_pins: Vec::new(),
@@ -4222,6 +4225,7 @@ os.write({}, (','.join(map(str, fds))).encode())
                 attempt_id: "att_00000000-0000-4000-8000-000000000001".into(),
                 attempt_dir: attempt,
                 request: crate::platform::PlanRequest {
+                    guest_program: None,
                     snapshot: resolved.snapshot,
                     requirements: resolved.requirements,
                 },
@@ -4231,6 +4235,8 @@ os.write({}, (','.join(map(str, fds))).encode())
                 config_dir: PathBuf::from("/unused"),
                 launch_name: None,
                 launch: None,
+                #[cfg(target_os = "macos")]
+                guest_launch: None,
                 proxy: None,
                 pinned_roots: Vec::new(),
                 exec_pins: Vec::new(),

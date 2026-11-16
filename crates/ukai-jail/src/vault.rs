@@ -6,6 +6,8 @@ use zeroize::Zeroizing;
 
 pub(crate) mod lifecycle;
 pub(crate) mod origin;
+#[cfg(target_os = "macos")]
+pub(crate) mod transport;
 pub(crate) use lifecycle::RefreshPolicy;
 
 #[derive(Clone, Default, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -218,6 +220,19 @@ impl Secret {
     /// release's secret scan of persistent state. Never printed.
     pub(crate) fn loaded_values(&self) -> (Vec<Zeroizing<Vec<u8>>>, bool) {
         self.runtime.loaded_values()
+    }
+
+    /// Keep a transported value bound to its staged source generation. This
+    /// never loads a replacement or refreshes a token. The VM carry rules
+    /// separately refuse refresh and executable bindings before using it.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn staged_source_lease(
+        self: &Arc<Self>,
+    ) -> Result<lifecycle::Lease, crate::proxy::Reason> {
+        let mut lease = lifecycle::Lease::default();
+        lease.add(Arc::clone(self), self.runtime.staged_generation());
+        lease.check()?;
+        Ok(lease)
     }
 
     /// The `(dev, ino)` of every executable this secret is bound to, as
