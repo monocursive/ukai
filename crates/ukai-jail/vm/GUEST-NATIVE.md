@@ -100,7 +100,11 @@ may omit these fields for literal commands; native requests require exact
 versions and the image-bound digest. Existing credential-revocation and
 full-journal contracts remain required as well.
 Native attempts also require the Session's
-`guest_contracts.sampled_exposure: "ukai.vm.sampled-exposure/2"` declaration.
+`guest_contracts.sampled_exposure: "ukai.vm.sampled-exposure/3"` declaration
+before Prepare stages the selected source. Known historical native `/1` with
+sampling `/1` or `/2` Sessions remain usable for literal commands; they cannot
+accept a current native request. Unknown or mixed contracts refuse. Historical
+`/2` reports keep their original offline parsing and completeness semantics.
 
 Prepare's optional `native_program` object has exactly these fields:
 
@@ -176,13 +180,45 @@ unverified wall termination remain unknown; they never synthesize cleanup.
 ## Sampled process exposure evidence
 
 The controller samples native attempts every 100 ms, independently of output
-relay. It follows supervisor descendants and the workload UID, excluding only
+relay. Version 3 arms the monitor while the actual workload is blocked at the
+Linux managed gate. The outer jail supervisor still starts and sends Released
+at the original point; wall and source-watch deadlines are not reset. The
+controller authenticates the private Prepared control frame and captures the
+exact, bounded Linux Prepared receipt as `evidence/managed-prepared.json`.
+It checks the expected policy, resolved argv, selected credential, program-root
+grant and enforced boundary/ceilings, then rechecks immutable inputs and awaits
+a healthy first tick observing both supervisor and prepared workload identities.
+Only the controller can then write the single release frame. Cancellation,
+revocation, invalid control or failed arming closes that gate without release.
+
+The `/3` report has the scope
+`managed-native-periodic-readable-environment-and-argv-only` and an exact
+`managed_gate` object. It binds both the raw and canonical Prepared digests and
+its workload PID/birth to the final receipt, plus controller-monotonic observed,
+validated, armed, release-start and release-completed timestamps. These bracket
+controller operations; they are not kernel exec timestamps. The host retains
+the checked Session contract in the transport, so a `/2` report cannot satisfy
+a `/3` native Session. No valid Prepared or no constructed monitor means
+sampling is unavailable. After valid Prepared, initialization/arming failure
+can produce an explicit incomplete `/3` report with null arm/release times.
+A fast exit observed before the post-write release-completed timestamp also
+remains incomplete rather than being treated as malformed chronology.
+
+This moves trusted setup before the monitored release. It does not excuse later
+inventory churn, missed reads, identity changes, caps, monitor failures or hits.
+Complete `/3` observations additionally require ordered release through observed
+supervisor exit and a settled, executed final receipt with verified empty tree
+and clean cleanup. Nonzero target exit alone does not invalidate observation
+completeness. No existing image or historical qualification acquires this scope;
+a new image and its separate component/admission evidence are still required.
+
+The sampler follows supervisor descendants and all four workload UID fields, excluding only
 the previously pinned infrastructure identities; the jail can move processes
 between cgroups. Each process read is anchored to its proc directory and birth
 identity. A sample counts as the catalog program only when its executable
 device/inode matches the verified installation. Environment and argv reads are
 bounded; unreadable, oversized, vanished, unstable, skipped, and late samples
-remain explicit. Version 2 distinguishes the controller's actual jail
+remain explicit. Versions 2 and 3 distinguish the controller's actual jail
 `supervisor` (PID and captured birth tick) from `receipt_process`, the workload
 PID and birth tick in the Linux receipt. The host retains the Released
 `supervisor_pid` and compares it with the report; it never equates the jail
@@ -226,7 +262,7 @@ argv using the same sampler source. Post-stop file/output scanning remains a
 separate requirement.
 
 The report distinguishes observation counts from monitor lifecycle. Pure
-sampler tests may emit a manual report with null lifecycle times; that report
+sampler tests may emit a historical `/2` manual report with null lifecycle times; that report
 cannot qualify a native attempt. Qualification requires an independently
 scheduled monitor, positive reads, no hits or scan errors, and ordered start,
 sample, supervisor-exit, and stop times. Scheduling gaps and missed ticks stay

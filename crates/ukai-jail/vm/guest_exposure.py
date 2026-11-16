@@ -16,7 +16,14 @@ import time
 import threading
 import urllib.parse
 
-SCHEMA = 'ukai.vm.sampled-exposure/2'
+SCHEMA = 'ukai.vm.sampled-exposure/3'
+LEGACY_SCHEMA = 'ukai.vm.sampled-exposure/2'
+MANAGED_SCHEMA = 'ukai.vm.managed-native-gate/1'
+MANAGED_FAILURES = frozenset(('control_invalid', 'prepared_invalid', 'source_changed',
+    'arming_failed', 'release_failed', 'cancelled', 'early_stop'))
+MANAGED_KEYS = frozenset(('schema', 'prepared_receipt_sha256', 'prepared_receipt_digest',
+    'prepared_process', 'prepared_observed_ns', 'prepared_validated_ns', 'armed_observed_ns',
+    'release_started_ns', 'release_completed_ns', 'failure'))
 MAX_READ_BYTES = 2 * 1024 * 1024
 MAX_PROCESS_COUNT = 4096
 MAX_TICK_BYTES = 16 * 1024 * 1024
@@ -448,7 +455,7 @@ class Sampler:
             if duration > MAX_TICK_NS:
                 self.errors['tick_time_cap'] += 1
 
-    def finish(self, receipt_bytes, binding):
+    def finish(self, receipt_bytes, binding, managed_gate=None):
         if self.finished or type(receipt_bytes) is not bytes or len(receipt_bytes) > MAX_RECEIPT_BYTES:
             raise ValueError('invalid terminal receipt or sampler state')
         if (type(binding) is not dict or set(binding) != BINDING_KEYS
@@ -490,9 +497,13 @@ class Sampler:
         supervisor_observed = 'supervisor' in self.identities.get(self.supervisor, set())
         incomplete = bool(self.errors) or not positive or not receipt_positive or not supervisor_observed or self.ticks == 0 or any(
             count for row in self.counts.values() for state, count in row.items() if state != 'readable')
-        report = dict(schema=SCHEMA, **binding, guest_receipt_sha256=hashlib.sha256(receipt_bytes).hexdigest(),
+        if managed_gate is not None:
+            incomplete |= self._managed_incomplete(managed_gate, receipt, receipt_identity)
+        report = dict(schema=SCHEMA if managed_gate is not None else LEGACY_SCHEMA,
+                      **binding, guest_receipt_sha256=hashlib.sha256(receipt_bytes).hexdigest(),
                       finished=True, actual_values_retained=False,
-                      scope='periodic-readable-environment-and-argv-only',
+                      scope=('managed-native-periodic-readable-environment-and-argv-only'
+                             if managed_gate is not None else 'periodic-readable-environment-and-argv-only'),
                       continuous_coverage_claimed=False, arbitrary_memory_examined=False,
                       period_ns=self.period, first_ns=self.first, last_ns=self.last,
                       observed_interval_ns=0 if self.first is None else self.last - self.first,
@@ -511,6 +522,8 @@ class Sampler:
                       workload_uid=self.uid,
                       limits=dict(read_bytes=MAX_READ_BYTES, process_count=MAX_PROCESS_COUNT,
                                   tick_bytes=MAX_TICK_BYTES, tick_ns=MAX_TICK_NS, hit_count=MAX_HITS))
+        if managed_gate is not None:
+            report['managed_gate'] = managed_gate
         if set(self.errors) - SCAN_ERROR_CODES or self.lifecycle['stop_reason'] not in STOP_REASONS:
             raise ValueError('unknown sampler status withheld')
         encoded = json.dumps(report, sort_keys=True, separators=(',', ':')).encode()
@@ -521,6 +534,41 @@ class Sampler:
         self.close()
         # Return a detached JSON value, so later mutation cannot alter sampler history.
         return json.loads(encoded)
+
+    def _managed_incomplete(self, gate, receipt, receipt_identity):
+        if (type(gate) is not dict or set(gate) != MANAGED_KEYS or gate['schema'] != MANAGED_SCHEMA
+                or not _digest(gate['prepared_receipt_sha256'])
+                or type(gate['prepared_receipt_digest']) is not str
+                or not gate['prepared_receipt_digest'].startswith('sha256:')
+                or not _digest(gate['prepared_receipt_digest'].removeprefix('sha256:'))
+                or gate['failure'] is not None and gate['failure'] not in MANAGED_FAILURES
+                or gate['prepared_process'] != dict(pid=receipt_identity[0], starttime=receipt_identity[1])
+                or any(type(gate['prepared_process'][name]) is not int for name in ('pid', 'starttime'))):
+            raise ValueError('invalid managed sampling binding')
+        observed, validated = gate['prepared_observed_ns'], gate['prepared_validated_ns']
+        started = self.lifecycle['started_ns']
+        armed, release, complete = (gate[name] for name in ('armed_observed_ns', 'release_started_ns', 'release_completed_ns'))
+        if (not all(_integer(value) for value in (observed, validated, started))
+                or not observed <= validated <= started
+                or any(value is not None and not _integer(value) for value in (armed, release, complete))
+                or self.first is not None and self.first < started
+                or armed is not None and (self.first is None or armed < self.first)
+                or release is not None and (armed is None or release < armed)
+                or complete is not None and (release is None or complete < release)):
+            raise ValueError('invalid managed sampling chronology')
+        exited, stopped = (self.lifecycle[name] for name in ('supervisor_exit_observed_ns', 'stopped_ns'))
+        # A scheduling delay after the write can place the exit observation
+        # before the post-close timestamp. Keep it truthful and incomplete.
+        terminal = (receipt.get('phase') == 'settled' and receipt.get('exec_observed') is True
+                    and type(receipt.get('lifetime')) is dict
+                    and receipt['lifetime'].get('tree_empty') is True
+                    and receipt['lifetime'].get('integrity') == 'verified'
+                    and receipt.get('cleanup_error') is None)
+        covered = (gate['failure'] is None and complete is not None and _integer(exited)
+                   and _integer(stopped) and complete <= exited <= stopped
+                   and self.lifecycle['stop_reason'] == 'supervisor_exit'
+                   and self.last is not None and self.last <= exited)
+        return not (terminal and covered)
 
 
 class Monitor:
@@ -533,12 +581,16 @@ class Monitor:
     JOIN_SECONDS = 1.0
 
     def __init__(self, proc_root, boot_id, process, workload_uid, infrastructure_identities,
-                 catalog_executable_path, protected_values):
+                 catalog_executable_path, protected_values, prepared_process=None):
         self.process, self.boot_id, self.uid = process, boot_id, workload_uid
         self.stop_event = threading.Event()
         self.abandoned = threading.Event()
         self.sampler = self.thread = None
         self.failure = None
+        self.prepared_process = None if prepared_process is None else _identity(prepared_process)
+        self.armed_event = threading.Event()
+        self.armed_observed_ns = None
+        self.arm_failed = False
         self.started = time.monotonic_ns()
         self.exit_observed = self.stopped = None
         self.reason = 'requested'
@@ -583,6 +635,8 @@ class Monitor:
             self.thread.start()
         except (OSError, ValueError, SamplingError):
             self.failure = 'monitor_initialization_failed'
+            self.arm_failed = True
+            self.armed_event.set()
             if self.sampler is not None:
                 self.sampler.close()
             self.sampler = None
@@ -596,6 +650,17 @@ class Monitor:
                     self.reason = 'supervisor_exit'
                     break
                 self.sampler.sample(time.monotonic_ns())
+                if self.prepared_process is not None and not self.armed_event.is_set():
+                    # Publish only immutable first-tick conclusions. The
+                    # controller never reads counters while the worker runs.
+                    self.arm_failed = (bool(self.sampler.errors) or bool(self.sampler.hits)
+                        or self.prepared_process not in self.sampler.identities
+                        or 'supervisor' not in self.sampler.identities.get(self.supervisor, set())
+                        or any(count for row in self.sampler.counts.values()
+                               for state, count in row.items() if state != 'readable'))
+                    if not self.arm_failed:
+                        self.armed_observed_ns = time.monotonic_ns()
+                    self.armed_event.set()
                 deadline += self.sampler.period
                 self.stop_event.wait(max(0, deadline - time.monotonic_ns()) / 1_000_000_000)
         except BaseException:
@@ -603,9 +668,19 @@ class Monitor:
             self.reason = 'worker_failed'
         finally:
             self.stopped = time.monotonic_ns()
+            if not self.armed_event.is_set():
+                self.arm_failed = True
+                self.armed_event.set()
             if self.abandoned.is_set():
                 self.sampler.patterns.clear()
                 self.sampler.close()
+
+    def ready_for_release(self):
+        """Current observer health, without racing mutable sample counters."""
+        return (self.armed_event.is_set() and not self.arm_failed
+                and self.armed_observed_ns is not None and self.failure is None
+                and not self.abandoned.is_set() and not self.stop_event.is_set()
+                and self.thread is not None and self.thread.is_alive())
 
     def stop(self):
         if self.abandoned.is_set():
@@ -637,7 +712,7 @@ class Monitor:
             self.stopped = time.monotonic_ns()
         return True
 
-    def finish(self, receipt_bytes, binding):
+    def finish(self, receipt_bytes, binding, managed_gate=None):
         joined = self.stop()
         sampler = self.sampler if joined else None
         if sampler is None:
@@ -657,7 +732,7 @@ class Monitor:
         sampler.lifecycle = dict(started_ns=self.started, supervisor_exit_observed_ns=self.exit_observed,
                                  stopped_ns=self.stopped, stop_reason=self.reason)
         try:
-            return sampler.finish(receipt_bytes, binding)
+            return sampler.finish(receipt_bytes, binding, managed_gate)
         finally:
             self.patterns.clear()
             if self.sampler is not None and (joined or (self.thread is not None and not self.thread.is_alive())):

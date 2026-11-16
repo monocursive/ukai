@@ -708,7 +708,9 @@ class NativeModeTests(unittest.TestCase):
             {'kind': 'allow_host', 'value': 'api.anthropic.com:443', 'by': 'operator'},
             {'kind': 'allow_host', 'value': 'platform.claude.com:443', 'by': 'operator'}]}
         observed.update(independent_summary={'outcome': 'PASS', 'scope': 'bound_guest', 'sampling': {
-                            'state': 'complete', 'verified_program_observed': True, 'receipt_program_observed': True,
+                            'state': 'complete', 'schema': 'ukai.vm.sampled-exposure/3',
+                            'scope': 'managed-native-periodic-readable-environment-and-argv-only',
+                            'verified_program_observed': True, 'receipt_program_observed': True,
                             'no_hits': True, 'scan_errors': {},
                             'sampler_sha256': self.metadata['source_sha256']['guest_exposure.py'], 'last_ns': 100,
                             'lifecycle': {'stop_reason': 'supervisor_exit', 'supervisor_exit_observed_ns': 110, 'stopped_ns': 120}}}, run_exit=0,
@@ -748,8 +750,14 @@ class NativeModeTests(unittest.TestCase):
             self.assertFalse(all(facts(h=changed).values()), key)
         changed = copy.deepcopy(host); changed['credentials'][0]['never_staged'] = 1
         self.assertFalse(all(facts(h=changed).values()))
+        wanted_contract = context['sampled_exposure_contract']
+        for invalid_contract in (None, 'ukai.vm.sampled-exposure/2', 'ukai.vm.sampled-exposure/4'):
+            context['sampled_exposure_contract'] = invalid_contract
+            self.assertFalse(facts()['complete_bound_periodic_guest_samples'])
+        context['sampled_exposure_contract'] = wanted_contract
         sample = observed['independent_summary']['sampling']
         for key, value in [('state', 'incomplete'), ('state', 'unavailable'), ('state', 'invalid'), ('no_hits', False),
+                           ('schema', 'ukai.vm.sampled-exposure/2'), ('scope', 'periodic-readable-environment-and-argv-only'),
                            ('verified_program_observed', False), ('receipt_program_observed', False),
                            ('scan_errors', {'unreadable': 1}), ('sampler_sha256', '0' * 64)]:
             prior = sample[key]; sample[key] = value
@@ -858,6 +866,8 @@ class NativeModeTests(unittest.TestCase):
         from test_vm_summary_check import Fixture, HOST_ID, install_exposure
         source = self.root / 'source'; source.write_bytes(b'synthetic-native-token'); source.chmod(0o600)
         context = row.native_context(self.home, self.jail)
+        # This retained roundtrip deliberately exercises the historical /2 fixture.
+        context.pop('sampled_exposure_contract')
         for corrupt in (False, True):
             with self.subTest(corrupt=corrupt):
                 self.out = self.root / ('out-bad' if corrupt else 'out-good')
@@ -912,7 +922,8 @@ class NativeModeTests(unittest.TestCase):
                     self.assertFalse((config / 'credentials/anthropic').exists())
                     return subprocess.CompletedProcess(command, 0, '', '')
                 with mock.patch.object(lifecycle, 'running_service_lock', side_effect=lambda data: (data / 'vm/serve.lock').open('rb')), \
-                     mock.patch.object(lifecycle, 'stopped_service_lock', return_value={'complete': True}):
+                     mock.patch.object(lifecycle, 'stopped_service_lock', return_value={'complete': True}), \
+                     mock.patch.object(row, 'native_context', return_value=context):
                     code = row.main(self.args('--execution-mode', 'guest-native', '--credential-kind', 'api-key',
                                              '--credential-source', str(source)), run=fake)
                 report = json.loads((self.out / 'k113-native.json').read_bytes())

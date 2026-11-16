@@ -853,7 +853,8 @@ def native_context(home, jail):
     identity['measurement'] = {'sha256': harness.sha256_file(__file__)}
     return {'identity': identity, 'entry': entries[0], 'catalog_sha256': hashlib.sha256(raw).hexdigest(),
             'catalog_json': raw.decode(), 'profile': tomllib.loads(profile_bytes.decode()),
-            'exposure_control': native_exposure_control(metadata)}
+            'exposure_control': native_exposure_control(metadata),
+            'sampled_exposure_contract': 'ukai.vm.sampled-exposure/3'}
 
 
 def native_api_controls(args):
@@ -1069,7 +1070,10 @@ def native_facts(observed, guest, events, summary, context, suffix, binding, hos
         exact_host_source_only_provenance=host_source_only and host.get('vendor_state') is None,
         independent_full_summary=(observed.get('independent_summary') or {}).get('outcome') == 'PASS'
             and (observed.get('independent_summary') or {}).get('scope') == 'bound_guest',
-        complete_bound_periodic_guest_samples=sampling.get('state') == 'complete'
+        complete_bound_periodic_guest_samples=('sampled_exposure_contract' not in context or (
+                context.get('sampled_exposure_contract') == sampling.get('schema') == 'ukai.vm.sampled-exposure/3'
+                and sampling.get('scope') == 'managed-native-periodic-readable-environment-and-argv-only'))
+            and sampling.get('state') == 'complete'
             and sampling.get('verified_program_observed') is True and sampling.get('no_hits') is True
             and sampling.get('receipt_program_observed') is True
             and sampling.get('scan_errors') == {}

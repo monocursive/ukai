@@ -255,7 +255,7 @@ class ControllerGateTests(unittest.TestCase):
         self.assertEqual(observed, [jail.pid]); self.assertTrue(jail.released)
         h.send(op='cancel2'); h.expect('cancelled')
 
-    def test_native_pin_move_monitor_release_order_uses_actual_gate(self):
+    def test_native_outer_gate_then_prepared_monitor_and_managed_release(self):
         from test_guest_native import NativeControllerTests
         h = NativeControllerTests.create(self, scenarios=[hold()])
         NativeControllerTests.prepare(self, h); NativeControllerTests.secret(self, h)
@@ -264,22 +264,26 @@ class ControllerGateTests(unittest.TestCase):
                                    h.guest.guest_exposure.Monitor, h.guest.AttemptGate)
         h.guest.AttemptProcessPin = lambda p: (order.append('pin'), pin(p))[1]
         h.guest.move_into_attempt_cgroup = lambda c,p: (order.append('move'), move(c,p))[1]
-        def observe(*args):
+        def observe(*args, **kwargs):
             jail = h.subprocess.jails[0]
-            self.assertIsNone(jail.poll()); self.assertFalse(jail.started)
-            self.assertTrue(jail.process.cgroup.startswith('ukai-attempts.slice/'))
+            self.assertTrue(jail.released); self.assertTrue(jail.initialized)
+            self.assertFalse(jail.started)
+            self.assertIn('/app.slice/ukai-jail-', jail.process.cgroup)
+            self.assertEqual(kwargs['prepared_process'],
+                             (jail.held_workload.pid, jail.held_workload.starttime))
             order.append('monitor')
-            return monitor(*args)
+            return monitor(*args, **kwargs)
         h.guest.guest_exposure = types.SimpleNamespace(**vars(h.guest.guest_exposure))
         h.guest.guest_exposure.Monitor = observe
         class OrderedGate(gate):
             def release(inner):
-                order.append('release')
+                order.append('outer_release')
                 return super().release()
         h.guest.AttemptGate = OrderedGate
         NativeControllerTests.launch(self, h); h.expect('running')
-        self.assertEqual(order, ['pin', 'move', 'monitor', 'release'])
+        self.assertEqual(order[:3], ['pin', 'move', 'outer_release'])
         self.assertTrue(h.started_jail().released)
+        self.assertEqual(order, ['pin', 'move', 'outer_release', 'monitor'])
         h.send(op='cancel2'); h.expect('cancelled')
 
     def test_failed_cgroup_move_never_releases_or_executes(self):

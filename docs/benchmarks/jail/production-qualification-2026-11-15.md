@@ -1167,6 +1167,13 @@ passed locally, with the one expected child-helper ignore. The separate
 socket controls and source review are retained in
 `macos-fd-exhaustion-8aaff8e4b/`; a fresh hosted result is still required.
 
+The subsequent first-attempt hosted checks at `5a176eaa0` passed all six
+jobs, including the macOS descriptor-exhaustion fixture. The tested merge
+`3dc2e422db56923f583989b5580c71942f72a99a` has the same tree as that source
+head. Exact job logs and source bindings are retained in
+`guest-gate-ci-5a176eaa0/`. These portable hosted checks do not replace
+the strict Linux reference lane or installed VM qualification.
+
 The isolated Linux CLI change at `61830dc2d` allows `--gate-fd` together with
 `--from-path`. The owner must independently authorize the resolved plan;
 program and install-root rechecks still run after release. Reserved attempt
@@ -1175,8 +1182,53 @@ All 55 portable native-path tests, nine gate tests and 72 acceptance-map
 tests passed. New map clause I03.5 requires the actual Linux boundary test,
 which remains pending. Exact-input onboarding/learning evidence and the
 tested freeze must be refreshed before a new Linux release candidate; older
-records do not qualify the changed inputs. VM managed-observation integration
-and a new image remain separate work.
+records do not qualify the changed inputs. A new image remains required.
+
+## Managed native sampling integration
+
+The current guest now holds native execution at the Linux managed gate until
+it has independently checked the Prepared receipt against the requested
+policy, arguments, limits, program and selected vault credential. It retains
+the exact Prepared bytes privately, rechecks the image inputs and credential
+source generation, and requires a successful first sample before releasing
+the workload. The main controller alone writes release; cancellation and the
+existing wall deadline remain active while the worker validates and samples.
+Early positive control messages refuse, and a terminal refusal closes the
+gate. Split and coalesced control frames retain their individual and total
+size bounds.
+
+The resulting `ukai.vm.sampled-exposure/3` report binds Prepared identity,
+validation, arming, release and terminal observation. Both host readers
+check those bindings and distinguish a valid incomplete observation from
+a complete one. Missing required nullable fields, changed Prepared bytes,
+wrong policy or process identity and current-session contract downgrades
+refuse. The live host still checks the final receipt against its independently
+planned network policy and limits before inspecting sampling evidence.
+The shared test vector is part of the checked build-input closure.
+
+The combined local VM suite ran 871 cases: 851 passed and 20 had explicit
+platform/parser skips. Its exact release-built service helper and all VM
+source bytes stayed unchanged; the owned process group exited and free space
+remained above 15.14 GB. The first combined invocation and its failures are
+retained: that command omitted the release helper path, and six current
+revocation fixtures still described version 2. Corrected current fixtures now
+exercise version 3 and explicitly reject downgrades; historical fixtures were
+not changed. The final record is
+`managed-native-v3-integration/python-suite-corrected.json`.
+
+Focused Rust VM, sampler, service and provenance checks, normal and optimized
+Python reader/guest tests, strict all-target Clippy, formatting and all 536
+document links also passed. Independent reviews covered the release boundary,
+the two readers and the shared fixture. Local release builds succeeded with
+the existing missing-`libLLVM.dylib` stripping warning retained; these builds
+are test helpers, not distribution qualification.
+
+Historical version-2 reports retain their original semantics and proof bytes.
+Known older guest Sessions remain usable for literal operations; current
+native credential-bearing execution requires version 3. The new source does
+not promote the earlier failed API sampling rows or the existing native-v6
+component image. Fresh Linux execution, a newly pinned guest image and
+installed acceptance remain necessary before this path can be qualified.
 
 ## Remaining release limits
 

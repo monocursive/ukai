@@ -19,7 +19,8 @@ from unittest import mock
 
 import guest_program as gp
 from guest_harness import GuestHarness, hold, load_guest
-from test_guest_program import intent_for, verified_catalog
+from test_guest_program import intent_for, verified_catalog, PROFILE
+from test_guest_managed import prepared_fixture
 
 
 def b64(data):
@@ -33,9 +34,42 @@ class NativeControllerTests(unittest.TestCase):
         parent = h.guest.PROC_ROOT / 'self'; parent.mkdir(exist_ok=True)
         (parent/'mountinfo').write_text(f'1 0 0:1 / {h.root}/run rw - tmpfs tmpfs rw\n')
         h.guest.guest_program = types.SimpleNamespace(**gp.__dict__)
-        h.verified = verified_catalog() if catalog else None
+        verified = verified_catalog()
+        verified['catalog']['entries'][0]['profile_sha256'] = hashlib.sha256(PROFILE).hexdigest()
+        h.verified = verified if catalog else None
         h.guest.guest_program.verify_catalog = mock.Mock(return_value=h.verified)
-        h.intent, h.argv = intent_for(verified_catalog())
+        h.guest.guest_program._read = mock.Mock(return_value=PROFILE)
+        h.intent, h.argv = intent_for(verified)
+        executable = h.root / 'modeled-native-executable'
+        executable.write_bytes(b'public modeled ELF identity')
+        h.kernel.observation_executable = executable
+        for process in h.kernel.processes.values():
+            h.kernel.write_proc(process)
+        exposure = h.guest.guest_exposure
+        h.guest.guest_exposure = types.SimpleNamespace(**vars(exposure))
+        def monitor(proc, boot, process, uid, infrastructure, catalog_path, values, **kwargs):
+            return exposure.Monitor(proc, boot, process, uid, infrastructure, executable, values, **kwargs)
+        h.guest.guest_exposure.Monitor = monitor
+        def prepared(jail):
+            receipt, _, _, _ = prepared_fixture()
+            entry = verified['catalog']['entries'][0]
+            child = jail.workload(); jail.held_workload = child
+            receipt.update(attempt_id='att_00000000-0000-4000-8000-000000000123',
+                           argv_digest=h.intent['resolved_argv_digest'])
+            receipt['policy'].update(digest=h.intent['expected_policy_digest'], grants=[
+                dict(kind='read_only', value=entry['install_root'], by='program_resolution')])
+            receipt['process'] = dict(pid=child.pid, identity=dict(kind='linux_boot_start',
+                value=dict(boot_id='guest-boot-0001', pid=child.pid, start_time_ticks=child.starttime)))
+            receipt['applied']['filesystem']['mounts'] = [dict(path=entry['install_root'], mode='ro'),
+                                                        dict(path=str(h.guest.WORKSPACE), mode='rw')]
+            receipt['applied']['network'].update(allowed_hosts=[], tls_only=[])
+            wall = next(value for value in jail.command() if value.startswith(b'wall='))
+            receipt['applied']['limits'][0]['requested'] = str(int(wall[5:-1]) * 1000)
+            root = h.home / '.local/share/ukai/attempts' / receipt['attempt_id']
+            root.mkdir(parents=True, exist_ok=True)
+            (root / 'jail.json').write_text(json.dumps(receipt))
+            return receipt
+        h.native_prepare = prepared
         h.thread.start()
         return h
 
@@ -55,7 +89,7 @@ class NativeControllerTests(unittest.TestCase):
     def test_session_native_contract_from_actual_catalog(self):
         h = self.create(); _, session = h.session()
         self.assertEqual(session['guest_contracts']['native_program'], gp.CONTRACT)
-        self.assertEqual(session['guest_contracts']['sampled_exposure'], 'ukai.vm.sampled-exposure/2')
+        self.assertEqual(session['guest_contracts']['sampled_exposure'], 'ukai.vm.sampled-exposure/3')
         self.assertEqual(session['guest_program_catalog_sha256'], h.verified['sha256'])
 
     def test_missing_catalog_keeps_legacy_but_refuses_native_prepare(self):
@@ -226,6 +260,69 @@ raise SystemExit(0 if all(value is True for value in checks.values()) else 1)
         h.host.sendall(b'{"op":"native_prepare","op":"reset"}\n')
         self.assertEqual(h.ended(), 'invalid_json')
 
+    def test_private_preparation_remains_responsive_to_ping_and_cancel(self):
+        import threading
+        h = self.create(scenarios=[hold()])
+        self.prepare(h); self.secret(h)
+        entered = threading.Event()
+        def verify(*, notify):
+            if notify.__name__ == 'checkpoint':
+                entered.set()
+                pause = threading.Event()
+                while True:
+                    pause.wait(.01)
+                    notify()  # Cancellation aborts the bounded arm worker.
+            return h.verified
+        h.guest.guest_program.verify_catalog.side_effect = verify
+        self.launch(h); h.expect('running')
+        self.assertTrue(entered.wait(1))
+        h.send(op='ping', sequence=0); self.assertEqual(h.expect('pong')['sequence'], 0)
+        self.assertFalse(h.subprocess.jails[0].started)
+        h.send(op='cancel2'); h.expect('cancelled')
+        self.assertFalse(h.subprocess.jails[0].started)
+        self.assertTrue(all(not p.alive for p in h.subprocess.jails[0].children))
+        self.assertFalse(any(t.name == 'ukai-native-arm' and t.is_alive() for t in threading.enumerate()))
+
+    def test_valid_prepared_monitor_init_failure_refuses_before_target_and_retains_prefix(self):
+        h = self.create(scenarios=[hold()])
+        import guest_exposure
+        def unavailable(proc, boot, process, uid, infrastructure, executable, values, **kwargs):
+            return guest_exposure.Monitor(proc, boot, process, uid, infrastructure,
+                                          h.root/'absent-executable', values, **kwargs)
+        h.guest.guest_exposure.Monitor = unavailable
+        self.prepare(h); self.secret(h); self.launch(h)
+        done = h.expect('done')
+        self.assertEqual(done['exit_code'], 125)
+        self.assertFalse(h.subprocess.jails[0].started)
+        files = {f['path']: base64.b64decode(f['data']) for f in done['_seen'] if f['event'] == 'file'}
+        report = json.loads(files['sampled-exposure.json'])
+        self.assertEqual(report['schema'], 'ukai.vm.sampled-exposure/3')
+        self.assertEqual(report['scan_errors'], {'monitor_initialization_failed': 1})
+        self.assertEqual(report['tick_count'], 0)
+        self.assertIsNone(report['managed_gate']['armed_observed_ns'])
+        self.assertIsNone(report['managed_gate']['release_started_ns'])
+        self.assertEqual(report['managed_gate']['failure'], 'arming_failed')
+        self.assertEqual(hashlib.sha256(files['managed-prepared.json']).hexdigest(),
+                         report['managed_gate']['prepared_receipt_sha256'])
+
+    def test_reserved_prepared_artifact_comes_only_from_pre_release_memory(self):
+        h = self.create()
+        def complete(jail):
+            child = jail.workload()
+            receipt = copy.deepcopy(jail.prepared_receipt)
+            receipt.update(phase='settled', exec_observed=True)
+            receipt['lifetime']['tree_empty'] = True
+            Path(os.fsdecode(jail.option(b'--receipt'))).write_text(json.dumps(receipt))
+            (h.guest.EVIDENCE/'managed-prepared.json').mkdir()
+            (h.guest.EVIDENCE/'managed-prepared.json'/'poison').write_text('workload-owned collision')
+            jail.exit(0)
+        h.scenarios.append(complete)
+        self.prepare(h); self.secret(h); self.launch(h); done = h.expect('done')
+        prepared = [f for f in done['_seen'] if f['event'] == 'file' and f['path'] == 'managed-prepared.json']
+        self.assertEqual(len(prepared), 1)
+        self.assertEqual(json.loads(base64.b64decode(prepared[0]['data'])), h.subprocess.jails[0].prepared_receipt)
+        self.assertFalse(any(f.get('path','').endswith('poison') for f in done['_seen']))
+
     def test_successful_native_receipt_binds_requested_and_resolved_argv(self):
         h = self.create()
         workload_identity = {}
@@ -249,12 +346,13 @@ raise SystemExit(0 if all(value is True for value in checks.values()) else 1)
         raw = base64.b64decode(samples[0]['data'])
         self.assertEqual(done['binding']['sampled_exposure_sha256'], hashlib.sha256(raw).hexdigest())
         report = json.loads(raw)
-        self.assertEqual(report['schema'], 'ukai.vm.sampled-exposure/2')
+        self.assertEqual(report['schema'], 'ukai.vm.sampled-exposure/3')
         self.assertEqual(report['receipt_process'], workload_identity)
         self.assertEqual(report['supervisor']['pid'], h.subprocess.jails[0].pid)
         self.assertNotEqual(report['supervisor']['pid'], report['receipt_process']['pid'])
-        self.assertTrue(report['observation_incomplete'])  # modeled catalog path is absent
-        self.assertEqual(report['scan_errors'], {'monitor_initialization_failed': 1})
+        self.assertTrue(report['observation_incomplete'])  # Minimal final fixture has no verified settled tree.
+        self.assertNotIn('monitor_initialization_failed', report['scan_errors'])
+        self.assertEqual(report['managed_gate']['prepared_process'], workload_identity)
         self.assertEqual(done['exit_code'], 0)  # sample failure never rewrites execution
         self.assertEqual(stat.S_IMODE((h.guest.EVIDENCE/'sampled-exposure.json').stat().st_mode), 0o600)
         h.send(op='reset'); h.expect('reset')
@@ -300,13 +398,21 @@ raise SystemExit(0 if all(value is True for value in checks.values()) else 1)
                                  'boot_id':'guest-boot-0001','pid':jail.pid,'start_time_ticks':jail.process.starttime}}}}
                     Path(os.fsdecode(jail.option(b'--receipt'))).write_text(json.dumps(receipt));jail.exit(0)
                 h.scenarios.append(complete)
-                monitor=mock.Mock(source_digest='f'*64)
-                monitor.finish.return_value={'oversized':'x'*(h.guest.MAX_FILE+1)}
-                if failure=='finish_error':monitor.finish.side_effect=ValueError('sampler failure')
-                if failure=='stop_error':monitor.stop.side_effect=ValueError('sampler stop failure')
-                if failure=='discard_error':monitor.discard.side_effect=ValueError('sampler discard failure')
-                with mock.patch.object(h.guest.guest_exposure,'Monitor',return_value=monitor):
-                    self.prepare(h);self.secret(h);self.launch(h);done=h.expect('done')
+                create_monitor = h.guest.guest_exposure.Monitor
+                def create(*args, **kwargs):
+                    monitor = create_monitor(*args, **kwargs)
+                    monitor.finish = mock.Mock(return_value={'oversized':'x'*(h.guest.MAX_FILE+1)})
+                    if failure == 'finish_error': monitor.finish.side_effect = ValueError('sampler failure')
+                    if failure == 'stop_error': monitor.stop = mock.Mock(side_effect=ValueError('sampler stop failure'))
+                    if failure == 'discard_error': monitor.discard = mock.Mock(side_effect=ValueError('sampler discard failure'))
+                    return monitor
+                with mock.patch.object(h.guest.guest_exposure, 'Monitor', side_effect=create):
+                    self.prepare(h); self.secret(h); self.launch(h)
+                    if failure == 'stop_error':
+                        self.assertEqual(h.ended(), 'managed_observer_unverified')
+                        self.assertEqual(h.subprocess.jails[0].returncode, 0)
+                        continue
+                    done = h.expect('done')
                 self.assertEqual(done['exit_code'],0)
                 self.assertNotIn('sampled_exposure_sha256',done['binding'])
                 self.assertFalse(any(f['event']=='file' and f['path']=='sampled-exposure.json' for f in done['_seen']))

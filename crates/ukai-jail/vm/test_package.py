@@ -324,13 +324,13 @@ class BuildTests(unittest.TestCase):
     def test_the_build_inputs_are_build_provenance_rs_list(self):
         inputs = package.build_inputs()
         self.assertEqual(inputs[0], 'crates/ukai-jail/src')
-        self.assertEqual(len(inputs), 47)
+        self.assertEqual(len(inputs), 48)
         for name in ('Cargo.lock', 'Cargo.toml', 'rust-toolchain.toml', 'crates/ukai-jail/build.rs',
                      'docs/specs/jail-v1/network-addresses.json'):
             self.assertIn(name, inputs)
         for name in ('guest-native-profile-inputs.json', 'guest-program-catalog.json',
                      'guest-program-catalog-vectors.json', 'sampled-exposure-context.json',
-                     'sampled-exposure-receipt.json', 'sampled-exposure-report.json'):
+                     'sampled-exposure-receipt.json', 'sampled-exposure-report.json', 'managed-sampled-exposure.json'):
             self.assertIn('crates/ukai-jail/vm/fixtures/' + name, inputs)
 
 

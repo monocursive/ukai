@@ -733,3 +733,172 @@ class VmSummaryTests(unittest.TestCase):
 
 
 if __name__ == '__main__':unittest.main()
+
+
+class ManagedSamplingTests(unittest.TestCase):
+    """Shared hand-specified vector and rehashed, semantically invalid variants."""
+    def setUp(self):
+        self.f = json.loads((Path(__file__).parent / 'fixtures/managed-sampled-exposure.json').read_text())
+        self.prepared = json.loads(self.f['prepared_raw'])
+        self.guest = json.loads(self.f['receipt_raw'])
+        self.report = self.f['report']
+        self.entry = json.loads(self.f['catalog_raw'])['entries'][0]
+
+    def judge(self, *, prepared=None, raw=None):
+        if prepared is not None:
+            raw = encoded(prepared)
+            self.report['managed_gate']['prepared_receipt_sha256'] = hashlib.sha256(raw).hexdigest()
+            self.report['managed_gate']['prepared_receipt_digest'] = canonical_hash(prepared)
+        return check.sampled_exposure_report(self.report, self.guest, self.report['guest_receipt_sha256'],
+            self.f['binding'], self.f['native'], self.f['sampler_sha256'], self.f['supervisor_pid'],
+            prepared_raw=self.f['prepared_raw'].encode() if raw is None else raw, native_entry=self.entry)
+
+    def test_manual_vector_and_nonzero_target_can_have_complete_observation(self):
+        self.assertEqual(self.judge()['state'], 'complete')
+        self.assertEqual(self.judge()['schema'], 'ukai.vm.sampled-exposure/3')
+        self.guest['outcome']['code'] = 1
+        self.assertEqual(self.judge()['state'], 'complete')
+
+    def test_duplicate_host_occurrences_and_explicit_port_keep_exact_authority(self):
+        for record in (self.prepared, self.guest):
+            record['policy']['grants'].append(copy.deepcopy(record['policy']['grants'][-1]))
+            record['applied']['network']['allowed_hosts'].append('api.example.com:443')
+            # A second explicit :443 occurrence removes the implicit TLS-only restriction.
+            record['applied']['network'].pop('tls_only')
+        self.assertEqual(self.judge(prepared=self.prepared)['state'], 'complete')
+        self.prepared['policy']['grants'].pop()
+        with self.assertRaises(check.VerificationError): self.judge(prepared=self.prepared)
+
+    def test_rehashed_prepared_authority_mutations_refuse(self):
+        for path, value in [
+            (('platform','os'), 'macos'), (('jail','backend'), 'fake'), (('phase',), 'running'), (('exec_observed',), True), (('outcome','kind'), 'unknown'),
+            (('outcome','code'), 0), (('containment',), 'unknown'), (('child_protection',), 'refused'),
+            (('errors',), ['not_ready']), (('cleanup_error',), {}), (('vendor_state',), {}),
+            (('process','pid'), 12), (('process','identity','value','start_time_ticks'), 102),
+            (('process','identity','value','boot_id'), 'other'), (('policy','digest'), 'sha256:'+'a'*64),
+            (('policy','requirements'), ['execution_boundary']), (('policy','grants'), []),
+            (('observer','attached'), True), (('credentials',0,'id'), 'other'), (('argv_digest',), 'sha256:'+'a'*64),
+            (('applied','filesystem','mounts'), []), (('applied','network','tls_only'), []),
+            (('applied','syscalls','digest'), 'unbound'), (('applied','limits',0,'requested'), '21000'),
+            (('applied','limits',1,'required'), 1), (('applied','limits',2,'hit'), True),
+            (('applied','environment_names'), ['TOKEN=secret']), (('applied','terminal'), {}),
+        ]:
+            with self.subTest(path=path):
+                changed = copy.deepcopy(self.prepared); node = changed
+                for key in path[:-1]: node = node[key]
+                node[path[-1]] = value
+                with self.assertRaises(check.VerificationError): self.judge(prepared=changed)
+
+    def test_required_prepared_null_fields_cannot_disappear_under_rehashed_bindings(self):
+        for parent, key in (((), 'cleanup_error'), (('lifetime',), 'tree_empty'), (('outcome',), 'error'),
+                            (('observer',), 'backend'), (('credentials',0), 'digest'), (('applied','limits',0), 'hit')):
+            with self.subTest(parent=parent,key=key):
+                changed = copy.deepcopy(self.prepared); node = changed
+                for field in parent: node = node[field]
+                del node[key]
+                with self.assertRaises(check.VerificationError): self.judge(prepared=changed)
+
+    def test_managed_shape_causal_time_and_positive_binding_refuse(self):
+        original = copy.deepcopy(self.report)
+        for key, value in [('schema','unknown'), ('prepared_observed_ns',True), ('prepared_validated_ns',99),
+                           ('armed_observed_ns',299), ('release_started_ns',399), ('release_completed_ns',499),
+                           ('failure','new_failure'), ('prepared_process',{'pid':10,'starttime':100})]:
+            with self.subTest(key=key):
+                self.report = copy.deepcopy(original); self.report['managed_gate'][key] = value
+                with self.assertRaises(check.VerificationError): self.judge()
+        for mutation in ('null', 'extra', 'missing', 'downgrade'):
+            self.report = copy.deepcopy(original)
+            if mutation == 'null': self.report['managed_gate'] = None
+            elif mutation == 'extra': self.report['managed_gate']['other'] = 0
+            elif mutation == 'missing': del self.report['managed_gate']['failure']
+            else: self.report['schema'] = 'ukai.vm.sampled-exposure/2'
+            with self.assertRaises(check.VerificationError): self.judge()
+
+    def test_fast_exit_and_partial_gate_are_incomplete_never_malformed_or_complete(self):
+        for failure in (None, 'early_stop', 'release_failed', 'cancelled'):
+            self.report['managed_gate']['failure'] = failure
+            self.report['managed_gate']['release_completed_ns'] = 200000850
+            self.report['observation_incomplete'] = True
+            self.assertEqual(self.judge()['state'], 'incomplete')
+            self.report['observation_incomplete'] = False
+            with self.assertRaises(check.VerificationError): self.judge()
+        self.report['managed_gate'].update(failure='arming_failed', armed_observed_ns=None,
+                                          release_started_ns=None, release_completed_ns=None)
+        self.report['observation_incomplete'] = True
+        self.assertEqual(self.judge()['state'], 'incomplete')
+
+    def test_zero_tick_valid_prepared_initialization_failure_is_explicit(self):
+        for key in ('reads', 'verified_program_reads', 'receipt_program_reads'):
+            for row in self.report[key].values():
+                for state in row: row[state] = 0
+        for key in ('tick_count','observed_interval_ns','maximum_gap_ns','maximum_tick_duration_ns','late_poll_count','missed_tick_count'):
+            self.report[key] = 0
+        self.report.update(first_ns=None,last_ns=None,processes=[],verified_program_observed=False,
+                           receipt_program_observed=False,observation_incomplete=True,
+                           scan_errors={'monitor_initialization_failed':1},catalog_executable_identity={'dev':0,'ino':0})
+        self.report['supervisor']['starttime'] = None
+        self.report['managed_gate'].update(failure='arming_failed',armed_observed_ns=None,release_started_ns=None,release_completed_ns=None)
+        self.report['lifecycle'].update(stop_reason='worker_failed',supervisor_exit_observed_ns=None,stopped_ns=201)
+        self.assertEqual(self.judge()['state'], 'incomplete')
+        self.report['observation_incomplete'] = False
+        with self.assertRaises(check.VerificationError): self.judge()
+
+    def test_prepared_duplicate_float_and_raw_digest_refuse(self):
+        raw = self.f['prepared_raw'].encode()
+        for changed in (raw+b' ', raw.replace(b'"phase": "prepared"',b'"phase": "prepared", "phase": "prepared"'),
+                        raw.replace(b'"pid": 11',b'"pid": 11.0',1)):
+            with self.assertRaises(check.VerificationError): self.judge(raw=changed)
+        # Even a correctly rehashed raw/canonical lookalike cannot introduce duplicate object keys.
+        changed = raw.replace(b'"phase": "prepared"',b'"phase": "prepared", "phase": "prepared"')
+        self.report['managed_gate']['prepared_receipt_sha256'] = hashlib.sha256(changed).hexdigest()
+        with self.assertRaises(check.VerificationError): self.judge(raw=changed)
+
+    def test_transport_contract_and_anchored_prepared_export_are_required(self):
+        import struct
+        def argv(words):
+            words = [word.encode() for word in words]
+            return 'sha256:' + hashlib.sha256(b'ukai.jail.argv/1\0' + struct.pack('>Q', len(words))
+                + b''.join(struct.pack('>Q', len(word)) + word for word in words)).hexdigest()
+        native = self.f['native']
+        native['request_argv_digest'] = argv([self.entry['alias'], '--version'])
+        native['resolved_argv_digest'] = argv([self.entry['executable'], '--version'])
+        self.f['binding']['native_program'] = native
+        self.f['binding']['argv_digest'] = native['resolved_argv_digest']
+        self.prepared['argv_digest'] = self.guest['argv_digest'] = native['resolved_argv_digest']
+        intent = {key: value for key, value in native.items() if key not in ('executable_sha256', 'policy_digest')}
+        intent.update(schema='ukai.vm.guest-native-launch/1', launch_name=self.entry['alias'],
+                      expected_policy_digest=native['policy_digest'], argv_suffix=[base64.b64encode(b'--version').decode()])
+        pin = hashlib.sha256(Path(check.__file__).with_name('guest_exposure.py').read_bytes()).hexdigest()
+        raw = encoded(self.prepared)
+        self.report['managed_gate'].update(prepared_receipt_sha256=hashlib.sha256(raw).hexdigest(),
+                                          prepared_receipt_digest=canonical_hash(self.prepared))
+        self.report.update(sampler_sha256=pin,guest_receipt_sha256=hashlib.sha256(encoded(self.guest)).hexdigest())
+        report_raw = encoded(self.report); report_sha = hashlib.sha256(report_raw).hexdigest()
+        self.f['binding']['sampled_exposure_sha256'] = report_sha
+        transport = {'native_program':intent, 'supervisor_pid':10, 'sampled_exposure_contract':check.MANAGED_SAMPLE_SCHEMA,
+                     'image':{'guest_program_catalog_sha256':native['catalog_sha256'], 'sampler_sha256':pin},
+                     'sampled_exposure':{'status':'complete','path':'evidence/sampled-exposure.json','sha256':report_sha}}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve(); (root / 'evidence').mkdir()
+            (root / 'guest-native-catalog.json').write_text(self.f['catalog_raw'])
+            (root / 'evidence/sampled-exposure.json').write_bytes(report_raw)
+            prepared_path = root / 'evidence/managed-prepared.json'; prepared_path.write_bytes(raw)
+            def verify():
+                with check.EvidenceReader(root) as reader:
+                    return check.sampled_exposure(reader,self.guest,transport,self.f['binding'],self.report['guest_receipt_sha256'])
+            self.assertEqual(verify()['state'],'complete')
+            for contract in (None,'ukai.vm.sampled-exposure/2','ukai.vm.sampled-exposure/4'):
+                transport['sampled_exposure_contract'] = contract
+                self.assertEqual(verify()['state'],'invalid')
+            transport['sampled_exposure_contract'] = check.MANAGED_SAMPLE_SCHEMA
+            prepared_path.unlink(); outside = root / 'outside'; outside.write_bytes(raw)
+            prepared_path.symlink_to(outside)
+            self.assertEqual(verify()['state'],'invalid')
+            prepared_path.unlink(); os.link(outside,prepared_path)
+            self.assertEqual(verify()['state'],'invalid')
+            prepared_path.unlink(); prepared_path.write_bytes(b'x' * (512*1024+1))
+            self.assertEqual(verify()['state'],'invalid')
+
+
+if __name__ == '__main__':
+    unittest.main()

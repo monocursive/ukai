@@ -118,6 +118,7 @@ fn build_inputs_digest() -> String {
         "crates/ukai-jail/vm/fixtures/sampled-exposure-context.json",
         "crates/ukai-jail/vm/fixtures/sampled-exposure-receipt.json",
         "crates/ukai-jail/vm/fixtures/sampled-exposure-report.json",
+        "crates/ukai-jail/vm/fixtures/managed-sampled-exposure.json",
     ]
     .map(str::to_owned)
     .to_vec();

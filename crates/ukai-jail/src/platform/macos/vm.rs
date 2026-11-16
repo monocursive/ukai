@@ -2908,6 +2908,7 @@ impl VmRunning {
         if let Some(native) = &self.inner.native_binding
             && let (Some(receipt), Some(binding)) = (&self.receipt, &self.receipt_binding)
         {
+            record.sampled_exposure_contract = Some(protocol::SAMPLED_EXPOSURE_CONTRACT.into());
             record.sampled_exposure = Some(sampled::inspect(
                 &self.inner.attempt_dir,
                 receipt,
@@ -2917,6 +2918,7 @@ impl VmRunning {
                 Some(self.supervisor_pid),
                 self.inner.image.sampler_sha256.as_deref(),
                 self.sampling_export_error,
+                Some(protocol::SAMPLED_EXPOSURE_CONTRACT),
             ));
         }
         record.guest_stop_boundaries = self

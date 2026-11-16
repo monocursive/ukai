@@ -1071,9 +1071,150 @@ def native_program_binding(reader, guest, transport, binding):
     expected = {key: intent[key] for key in binding_fields - {'executable_sha256', 'policy_digest'}}
     expected.update(executable_sha256=entry['executable_sha256'], policy_digest=policy)
     require(equal(native, expected), 'native program binding differs')
+    return entry
 
 
-def sampled_exposure_report(report, guest, receipt_hash, binding, native, sampler_hash, supervisor_pid):
+MANAGED_SAMPLE_SCHEMA = 'ukai.vm.sampled-exposure/3'
+MANAGED_REQUIREMENTS = {'tree_termination', 'closed_set_observation', 'filesystem_containment', 'syscall_filter',
+                        'network_proxy', 'protected_coverage:existing_and_root', 'limit:wall', 'limit:pids',
+                        'limit:mem', 'limit:swap', 'execution_boundary', 'credential_staging'}
+
+
+def managed_sampling_gate(report, guest, binding, native, prepared_raw, entry):
+    """Authenticate Prepared independently; return whether managed observation finished.
+
+    The final receipt has already passed retained native/transport binding.
+    This verifies record consistency, not policy reconstruction: the live host
+    checks final network/limits against its plan, and qualification tooling checks
+    grants against its pinned profile context. No executable path is read.
+    Controller timestamps bracket operations, not exact kernel exec instants.
+    """
+    gate = report['managed_gate']
+    fields = {'schema', 'prepared_receipt_sha256', 'prepared_receipt_digest', 'prepared_process',
+              'prepared_observed_ns', 'prepared_validated_ns', 'armed_observed_ns',
+              'release_started_ns', 'release_completed_ns', 'failure'}
+    uint = lambda value: type(value) is int and 0 <= value <= U64_MAX
+    require(type(gate) is dict and set(gate) == fields and gate['schema'] == 'ukai.vm.managed-native-gate/1',
+            'managed gate shape differs')
+    require(gate['failure'] in (None, 'control_invalid', 'prepared_invalid', 'source_changed',
+                               'arming_failed', 'release_failed', 'cancelled', 'early_stop'), 'managed gate failure differs')
+    require(type(prepared_raw) is bytes and 0 < len(prepared_raw) <= 512 * 1024 and type(entry) is dict,
+            'managed Prepared artifact/context missing')
+    prepared = receipt(prepared_raw)
+    require(gate['prepared_receipt_sha256'] == hashlib.sha256(prepared_raw).hexdigest()
+            and gate['prepared_receipt_digest'] == canonical_digest(prepared), 'managed Prepared digest differs')
+    process = report['receipt_process']
+    require(equal(gate['prepared_process'], process) and 0 < process['pid'] <= 2 ** 32 - 1,
+            'managed Prepared process differs')
+    identity = {'pid': process['pid'], 'identity': {'kind': 'linux_boot_start', 'value': {
+        'boot_id': binding['guest_boot_id'], 'pid': process['pid'], 'start_time_ticks': process['starttime']}}}
+    require(equal(prepared.get('process'), identity) and equal(guest.get('process'), identity)
+            and prepared.get('attempt_id') == binding['guest_attempt_id'] == guest.get('attempt_id')
+            and re.fullmatch(r'att_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}',
+                             prepared['attempt_id']) is not None, 'managed Prepared identity differs')
+    require(pointer(prepared, 'platform', 'os') == 'linux' and pointer(prepared, 'platform', 'arch') == 'aarch64'
+            and pointer(prepared, 'jail', 'component') == 'ukai-jail' and pointer(prepared, 'jail', 'backend') == 'bubblewrap'
+            and equal(prepared.get('platform'), guest.get('platform')) and equal(prepared.get('jail'), guest.get('jail')),
+            'managed Prepared platform differs')
+    require(prepared.get('phase') == 'prepared' and prepared.get('exec_observed') is False
+            and equal(prepared.get('outcome'), {'kind': 'pending', 'code': None, 'signal': None, 'cause': None, 'error': None})
+            and prepared.get('containment') == prepared.get('child_protection') == 'enforced'
+            and prepared.get('errors') == [] and 'cleanup_error' in prepared and prepared['cleanup_error'] is None
+            and prepared.get('vendor_state') is None, 'managed Prepared authority differs')
+    lifetime = prepared.get('lifetime') or {}
+    require(type(lifetime) is dict and lifetime.get('boundary') == 'pid_namespace'
+            and 'tree_empty' in lifetime and lifetime['tree_empty'] is None
+            and lifetime.get('integrity') == 'verified' and lifetime.get('verification_scope') == 'attempt_tree',
+            'managed Prepared lifetime differs')
+    require(equal(prepared.get('observer'), {'backend': None, 'set': None, 'attached': False,
+            'sources': {'wrapper': 'supported', 'audit': 'unsupported', 'proxy': 'unsupported'}, 'gaps': []}),
+            'managed Prepared observer differs')
+    require(equal(prepared.get('credentials'), [{'id': native['selected_credential_id'], 'mode': 'vault',
+            'never_staged': True, 'digest': None, 'digest_unavailable_reason': 'never_staged'}]),
+            'managed Prepared selected credential differs')
+    policy = prepared.get('policy') or {}
+    require(type(policy) is dict and set(policy) == {'name', 'digest', 'observe', 'evidence', 'requirements', 'grants'},
+            'managed Prepared policy shape differs')
+    requirements = policy.get('requirements')
+    require(policy.get('name') == 'agent' and policy.get('observe') == 'on' and policy.get('evidence') == 'strict'
+            and policy.get('digest') == native['policy_digest'] == pointer(guest, 'policy', 'digest')
+            and prepared.get('argv_digest') == native['resolved_argv_digest'] == guest.get('argv_digest')
+            and type(requirements) is list and all(type(value) is str for value in requirements)
+            and len(requirements) == len(MANAGED_REQUIREMENTS) and set(requirements) == MANAGED_REQUIREMENTS,
+            'managed Prepared policy differs')
+    grants = policy.get('grants')
+    require(type(grants) is list and all(type(row) is dict and set(row) == {'kind', 'value', 'by'} for row in grants),
+            'managed Prepared grants shape differs')
+    normalized = lambda rows: sorted(canonical_value(row) for row in rows)
+    require(normalized(grants) == normalized(pointer(guest, 'policy', 'grants')),
+            'managed Prepared grants differ from bound final policy')
+    roots = [row for row in grants if row['kind'] == 'read_only']
+    hosts = [row for row in grants if row['kind'] == 'allow_host']
+    require(roots == [{'kind': 'read_only', 'value': entry['install_root'], 'by': 'program_resolution'}]
+            and len(roots) + len(hosts) == len(grants)
+            and all(row['by'] == 'operator' and type(row['value']) is str for row in hosts), 'managed Prepared program grant differs')
+    applied, final_applied = prepared.get('applied') or {}, guest.get('applied') or {}
+    filesystem = applied.get('filesystem') or {}
+    mounts = filesystem.get('mounts')
+    require(filesystem.get('mechanism') == 'bubblewrap-binds' and filesystem.get('protected_coverage') == 'existing_and_root'
+            and type(mounts) is list and mounts and all(type(row) is dict and set(row) == {'path', 'mode'}
+            and type(row['path']) is str and row['mode'] in ('ro', 'rw', 'hidden') for row in mounts)
+            and {'path': entry['install_root'], 'mode': 'ro'} in mounts
+            and {'path': '/mnt/workspace', 'mode': 'rw'} in mounts, 'managed Prepared filesystem differs')
+    network = applied.get('network') or {}
+    require(network.get('mode') == 'proxy'
+            and network.get('mechanism') == 'network-namespace+outside-http-proxy+loopback-bridge+unix-peer-mediation'
+            and equal(network, final_applied.get('network')), 'managed Prepared network differs')
+    allowed, tls_only = network.get('allowed_hosts'), network.get('tls_only', [])
+    require(all(type(values) is list and all(type(value) is str for value in values)
+                for values in (allowed, tls_only)), 'managed Prepared network list differs')
+    require(sorted(allowed) == sorted(row['value'] for row in hosts)
+            and set(tls_only) <= set(allowed), 'managed Prepared network grants differ')
+    syscalls = applied.get('syscalls') or {}
+    require(syscalls.get('mechanism') == 'seccomp-bpf+seccomp-user-notification'
+            and type(syscalls.get('digest')) is str and re.fullmatch(r'sha256:[0-9a-f]{64}', syscalls['digest']) is not None,
+            'managed Prepared syscall filter differs')
+    for key in ('environment_names', 'removed_environment_names'):
+        require(type(applied.get(key)) is list and all(type(value) is str and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', value)
+                for value in applied[key]), 'managed Prepared environment names differ')
+    require(applied.get('terminal') is None, 'managed Prepared terminal differs')
+    limits, final_limits = applied.get('limits'), final_applied.get('limits')
+    require(type(limits) is list and type(final_limits) is list and len(limits) == len(final_limits) == 4,
+            'managed Prepared limit count differs')
+    mechanisms = {'wall': 'boottime-deadline', 'pids': 'pids.max', 'mem': 'memory.max', 'swap': 'memory.swap.max'}
+    seen = set()
+    for row in limits:
+        require(type(row) is dict and set(row) == {'key', 'requested', 'required', 'applied', 'mechanism', 'scope', 'hit'}
+                and type(row['key']) is str and row['key'] in mechanisms and row['key'] not in seen,
+                'managed Prepared limit shape differs')
+        seen.add(row['key'])
+        requested = row['requested']
+        require(type(requested) is str and re.fullmatch(r'0|[1-9][0-9]*', requested) is not None
+                and int(requested) <= U64_MAX and row['required'] is True and row['applied'] is True
+                and row['scope'] == 'tree' and row['mechanism'] == mechanisms[row['key']]
+                and (row['hit'] is False or row['hit'] is None), 'managed Prepared limit authority differs')
+        require((row['key'] == 'wall' and int(requested) > 0) or requested == {'pids': '64', 'mem': '536870912', 'swap': '0'}.get(row['key']),
+                'managed Prepared ceiling differs')
+        matching = [item for item in final_limits if item.get('key') == row['key']]
+        require(len(matching) == 1 and all(equal(matching[0].get(key), row[key]) for key in ('requested', 'required', 'applied', 'scope')),
+                'managed Prepared/final requested ceiling differs')
+    observed, validated, armed, release, completed = (gate[key] for key in
+        ('prepared_observed_ns', 'prepared_validated_ns', 'armed_observed_ns', 'release_started_ns', 'release_completed_ns'))
+    started, exited, stopped = (report['lifecycle'][key] for key in ('started_ns', 'supervisor_exit_observed_ns', 'stopped_ns'))
+    require(uint(observed) and uint(validated) and uint(started) and observed <= validated <= started,
+            'managed Prepared time order differs')
+    require(all(value is None or uint(value) for value in (armed, release, completed))
+            and (armed is None or (report['first_ns'] is not None and report['first_ns'] <= armed))
+            and (release is None or (armed is not None and armed <= release))
+            and (completed is None or (release is not None and release <= completed)), 'managed release causal order differs')
+    return (gate['failure'] is None and completed is not None and exited is not None and stopped is not None
+            and completed <= exited <= stopped and report['last_ns'] is not None and report['last_ns'] <= exited
+            and report['lifecycle']['stop_reason'] == 'supervisor_exit' and guest.get('exec_observed') is True
+            and guest.get('phase') == 'settled' and pointer(guest, 'lifetime', 'tree_empty') is True
+            and pointer(guest, 'lifetime', 'integrity') == 'verified' and guest.get('cleanup_error') is None)
+
+
+def sampled_exposure_report(report, guest, receipt_hash, binding, native, sampler_hash, supervisor_pid, *, prepared_raw=None, native_entry=None):
     """Independently validate bounded sampled observations, never memory absence."""
     keys = {'schema', 'host_attempt_id', 'service_boot_id', 'guest_attempt_id', 'guest_boot_id',
             'catalog_sha256', 'executable_sha256', 'sampler_sha256', 'guest_receipt_sha256',
@@ -1083,8 +1224,9 @@ def sampled_exposure_report(report, guest, receipt_hash, binding, native, sample
             'receipt_program_reads', 'receipt_program_observed', 'receipt_process',
             'verified_program_observed', 'observation_incomplete', 'scan_errors', 'hits', 'processes',
             'supervisor', 'catalog_executable_identity', 'workload_uid', 'limits', 'lifecycle'}
-    require(type(report) is dict and set(report) == keys and report['schema'] == 'ukai.vm.sampled-exposure/2',
-            'sampled exposure schema differs')
+    managed = type(report) is dict and report.get('schema') == MANAGED_SAMPLE_SCHEMA
+    require(type(report) is dict and set(report) == keys | ({'managed_gate'} if managed else set())
+            and report['schema'] in ('ukai.vm.sampled-exposure/2', MANAGED_SAMPLE_SCHEMA), 'sampled exposure schema differs')
     expected = {'host_attempt_id': binding['attempt_id'], 'service_boot_id': binding['boot_id'],
                 'guest_attempt_id': guest['attempt_id'], 'guest_boot_id': binding['guest_boot_id'],
                 'guest_receipt_sha256': receipt_hash, 'catalog_sha256': native['catalog_sha256'],
@@ -1092,7 +1234,8 @@ def sampled_exposure_report(report, guest, receipt_hash, binding, native, sample
     require(all(report[key] == value for key, value in expected.items()), 'sampled exposure identity differs')
     require(report['finished'] is True and report['actual_values_retained'] is False
             and report['continuous_coverage_claimed'] is False and report['arbitrary_memory_examined'] is False
-            and report['scope'] == 'periodic-readable-environment-and-argv-only', 'sampled exposure scope differs')
+            and report['scope'] == ('managed-native-periodic-readable-environment-and-argv-only' if managed
+                                    else 'periodic-readable-environment-and-argv-only'), 'sampled exposure scope differs')
     def uint(value, minimum=0):
         return type(value) is int and minimum <= value < 2 ** 64
     for key in ('period_ns', 'observed_interval_ns', 'maximum_gap_ns', 'maximum_tick_duration_ns',
@@ -1186,13 +1329,15 @@ def sampled_exposure_report(report, guest, receipt_hash, binding, native, sample
     supervisor_observed = any(process['pid'] == supervisor['pid'] and process['starttime'] == supervisor['starttime']
                               and 'supervisor' in process['roles'] for process in processes)
     incomplete = incomplete or not supervisor_observed
-    require(report['observation_incomplete'] is incomplete, 'sampled exposure availability claim differs')
     lifecycle = report['lifecycle']
     require(type(lifecycle) is dict and set(lifecycle) == {'started_ns', 'supervisor_exit_observed_ns', 'stopped_ns', 'stop_reason'}
             and lifecycle['stop_reason'] in {'manual', 'requested', 'supervisor_exit', 'worker_failed', 'join_timeout'}
             and all(value is None or uint(value) for key, value in lifecycle.items() if key != 'stop_reason'),
             'sampled lifecycle differs')
     started, exited, stopped = (lifecycle[key] for key in ('started_ns', 'supervisor_exit_observed_ns', 'stopped_ns'))
+    if managed:
+        incomplete = not managed_sampling_gate(report, guest, binding, native, prepared_raw, native_entry) or incomplete
+    require(report['observation_incomplete'] is incomplete, 'sampled exposure availability claim differs')
     if lifecycle['stop_reason'] == 'manual':
         require(started is exited is stopped is None, 'manual sampling lifecycle differs')
     else:
@@ -1210,7 +1355,7 @@ def sampled_exposure_report(report, guest, receipt_hash, binding, native, sample
                 and type(hit['identity_stable']) is bool, 'sampled hit shape differs')
         require(incomplete or (hit['identity_stable'] and (hit['pid'], hit['starttime']) in identities),
                 'complete sampling has unbound hit')
-    return {'state': 'incomplete' if incomplete else 'complete', 'no_hits': hits == [],
+    result = {'state': 'incomplete' if incomplete else 'complete', 'no_hits': hits == [],
             'verified_program_observed': positive, 'period_ns': report['period_ns'], 'tick_count': ticks,
             'receipt_program_observed': receipt_positive, 'receipt_program_reads': report['receipt_program_reads'],
             'receipt_process': receipt_process, 'supervisor': supervisor,
@@ -1219,6 +1364,9 @@ def sampled_exposure_report(report, guest, receipt_hash, binding, native, sample
             'missed_tick_count': report['missed_tick_count'], 'reads': report['reads'],
             'verified_program_reads': report['verified_program_reads'], 'scan_errors': errors,
             'scope': report['scope'], 'sampler_sha256': sampler_hash, 'lifecycle': lifecycle}
+    if managed:
+        result.update(schema=MANAGED_SAMPLE_SCHEMA, managed_gate=report['managed_gate'])
+    return result
 
 
 def sampled_exposure(reader, guest, transport, binding, receipt_hash):
@@ -1227,6 +1375,7 @@ def sampled_exposure(reader, guest, transport, binding, receipt_hash):
     if native is None:
         return {'state': 'invalid', 'reason': 'unexpected_sampling_evidence'} if (
             binding.get('sampled_exposure_sha256') is not None or transport.get('sampled_exposure') is not None
+            or transport.get('sampled_exposure_contract') is not None
         ) else {'state': 'not_requested'}
     try:
         status = transport.get('sampled_exposure')
@@ -1252,8 +1401,16 @@ def sampled_exposure(reader, guest, transport, binding, receipt_hash):
         with EvidenceReader(Path(__file__).absolute().parent) as source:
             local_source = hashlib.sha256(source.read('guest_exposure.py', 512 * 1024)).hexdigest()
         require(pin == local_source, 'sampling archived source hash')
-        result = sampled_exposure_report(object_json(raw, 'sampled exposure'), guest, receipt_hash, binding, native, pin,
-                                         transport.get('supervisor_pid'))
+        report = object_json(raw, 'sampled exposure')
+        contract = transport.get('sampled_exposure_contract')
+        require(contract is None or contract == MANAGED_SAMPLE_SCHEMA == report.get('schema'), 'sampling Session contract differs')
+        managed = report.get('schema') == MANAGED_SAMPLE_SCHEMA
+        if managed:
+            require(contract == MANAGED_SAMPLE_SCHEMA, 'managed sampling Session contract missing')
+        entry = native_program_binding(reader, guest, transport, binding) if managed else None
+        prepared = reader.read('evidence/managed-prepared.json', 512 * 1024) if managed else None
+        result = sampled_exposure_report(report, guest, receipt_hash, binding, native, pin,
+                                         transport.get('supervisor_pid'), prepared_raw=prepared, native_entry=entry)
         require(status['status'] == result['state'], 'sampling state contradicts transport')
         result.update(report_sha256=digest)
         return result

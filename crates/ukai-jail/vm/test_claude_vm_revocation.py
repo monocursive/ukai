@@ -287,6 +287,22 @@ class PersistedTests(unittest.TestCase):
         f.transport.update(native_program=intent, guest_stop_boundaries=['ukai-attempts.slice/attempt-1'])
         f.transport['image']['guest_program_catalog_sha256'] = self.context['catalog_sha256']
         (f.root / 'guest-native-catalog.json').write_bytes(fixture.catalog_bytes)
+        # Adapt the independent /3 vector to this synthetic revocation attempt.
+        # Historical /2 fixtures remain unchanged; current native_context requires /3.
+        self.managed = json.loads((Path(__file__).parent / 'fixtures/managed-sampled-exposure.json').read_bytes())
+        self.prepared = json.loads(self.managed['prepared_raw'])
+        f.guest['applied'] = copy.deepcopy(self.prepared['applied'])
+        f.guest['applied']['filesystem']['mounts'][0]['path'] = entry['install_root']
+        hosts = [host + ':443' for host in self.context['profile']['network']['allow']]
+        f.guest['applied']['network'].update(allowed_hosts=hosts, tls_only=hosts)
+        f.guest['applied']['limits'][0]['requested'] = '240000'
+        f.host['applied'] = copy.deepcopy(f.guest['applied'])
+        f.guest['policy']['requirements'] = self.prepared['policy']['requirements']
+        f.guest['credentials'] = copy.deepcopy(f.host['credentials'])
+        f.guest['process'] = copy.deepcopy(self.prepared['process'])
+        f.guest['process']['identity']['value']['boot_id'] = f.binding['guest_boot_id']
+        for key in ('attempt_id', 'argv_digest', 'platform', 'jail', 'policy', 'credentials', 'process', 'applied'):
+            self.prepared[key] = copy.deepcopy(f.guest[key])
         self.write_native()
         sync = sf.Fixture(self.root / 'sync-attempt'); self.sync = sync
         sync.host['attempt_id'] = 'att_33333333-3333-4333-8333-333333333333'
@@ -309,7 +325,20 @@ class PersistedTests(unittest.TestCase):
         self.refresh()
 
     def write_native(self):
-        self.native.write();sf.install_exposure(self.native)
+        f = self.native
+        f.write()
+        raw = sf.encoded(self.prepared)
+        (f.root / 'evidence/managed-prepared.json').write_bytes(raw)
+        report = copy.deepcopy(self.managed['report'])
+        report.update(host_attempt_id=f.binding['attempt_id'], guest_attempt_id=f.binding['guest_attempt_id'],
+            service_boot_id=f.binding['boot_id'], guest_boot_id=f.binding['guest_boot_id'],
+            catalog_sha256=self.context['catalog_sha256'], executable_sha256=self.context['entry']['executable_sha256'],
+            sampler_sha256=self.context['identity']['image']['source_sha256']['guest_exposure.py'],
+            guest_receipt_sha256=f.transport['guest_receipt_sha256'])
+        report['managed_gate'].update(prepared_receipt_sha256=hashlib.sha256(raw).hexdigest(),
+                                     prepared_receipt_digest=sf.canonical_hash(self.prepared))
+        f.transport['sampled_exposure_contract'] = 'ukai.vm.sampled-exposure/3'
+        sf.install_exposure(f, report, receipt_pid=11, receipt_start=101, supervisor_pid=10)
 
     def write_sync(self):
         with mock.patch.object(sf,'GUEST_ID',self.sync.guest['attempt_id']), mock.patch.object(sf,'HOST_ID',self.sync.host['attempt_id']): self.sync.write()
@@ -340,9 +369,20 @@ class PersistedTests(unittest.TestCase):
     def test_real_independent_summary_journal_and_relocated_replay_pass(self):
         result=m.replay(self.root);self.assertEqual(result['outcome'],'PASS',result)
         self.assertFalse(result['qualified']);self.assertEqual(result['journal']['confirmed_uses'],1)
+        self.assertEqual(self.context['sampled_exposure_contract'], 'ukai.vm.sampled-exposure/3')
+        self.assertTrue(result['facts']['complete_bound_periodic_guest_samples'])
         other=self.fixture.root/'relocated';shutil.copytree(self.root,other)
         with mock.patch.object(subprocess,'Popen',side_effect=AssertionError('no process')):
             self.assertEqual(m.replay(other)['outcome'],'PASS')
+
+    def test_current_revocation_context_refuses_historical_sampling_downgrade(self):
+        self.native.transport['sampled_exposure_contract'] = 'ukai.vm.sampled-exposure/2'
+        sf.install_exposure(self.native, receipt_pid=11, receipt_start=101, supervisor_pid=10)
+        self.refresh()
+        result = m.replay(self.root)
+        self.assertEqual(result['outcome'], 'FAIL')
+        self.assertFalse(result['facts']['complete_bound_periodic_guest_samples'])
+        self.assertEqual(self.context['sampled_exposure_contract'], 'ukai.vm.sampled-exposure/3')
 
     def test_api_error_terminal_with_success_subtype_replays_as_failure(self):
         # Claude's agent loop can complete while its last turn is an API error.

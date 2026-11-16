@@ -32,13 +32,15 @@ pub const SECRET_REVOCATION_CONTRACT: &str = "ukai.vm.secret-revocation/1";
 pub const JOURNAL_EXPORT_CONTRACT: &str = "ukai.vm.guest-journal/1";
 /// Image-bound native program resolution with unchanged bundled profiles.
 pub const NATIVE_PROGRAM_CONTRACT: &str = "ukai.vm.guest-native-launch/1";
-pub const SAMPLED_EXPOSURE_CONTRACT: &str = "ukai.vm.sampled-exposure/2";
+pub const SAMPLED_EXPOSURE_CONTRACT_V2: &str = "ukai.vm.sampled-exposure/2";
+pub const SAMPLED_EXPOSURE_CONTRACT: &str = "ukai.vm.sampled-exposure/3";
 
 /// Contracts the running guest declared in its Session reply. Optional fields
 /// keep old noncredential guests usable; absent or unknown versions never
 /// authorize sending credential values. The service forwards these facts,
 /// rather than substituting the contracts its own executable implements.
 #[derive(Clone, Default, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GuestContracts {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub secret_revocation: Option<String>,
@@ -84,6 +86,29 @@ pub struct NativeProgramBinding {
 }
 
 impl GuestContracts {
+    /// A catalog-absent literal Session may advertise only the known base pair.
+    #[must_use]
+    pub fn supports_literal_session(&self) -> bool {
+        self.supports_credentials()
+            && self.native_program.is_none()
+            && self.sampled_exposure.is_none()
+    }
+
+    /// Known metadata permits literal service use, not a current native Run.
+    #[must_use]
+    pub fn supports_native_session(&self) -> bool {
+        self.supports_credentials()
+            && self.native_program.as_deref() == Some(NATIVE_PROGRAM_CONTRACT)
+            && matches!(
+                self.sampled_exposure.as_deref(),
+                Some(
+                    "ukai.vm.sampled-exposure/1"
+                        | SAMPLED_EXPOSURE_CONTRACT_V2
+                        | SAMPLED_EXPOSURE_CONTRACT
+                )
+            )
+    }
+
     /// Both contracts are required before any credential-bearing Prepare.
     #[must_use]
     pub fn supports_credentials(&self) -> bool {
@@ -583,6 +608,76 @@ pub enum FromControl {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn literal_contract_object_requires_the_exact_supported_base_pair() {
+        let base = GuestContracts {
+            secret_revocation: Some(SECRET_REVOCATION_CONTRACT.into()),
+            journal_export: Some(JOURNAL_EXPORT_CONTRACT.into()),
+            ..GuestContracts::default()
+        };
+        assert!(base.supports_literal_session());
+        assert!(!GuestContracts::default().supports_literal_session());
+        for change in 0..6 {
+            let mut contracts = base.clone();
+            match change {
+                0 => contracts.secret_revocation = None,
+                1 => contracts.journal_export = None,
+                2 => contracts.secret_revocation = Some("unknown".into()),
+                3 => contracts.journal_export = Some("unknown".into()),
+                4 => contracts.native_program = Some(NATIVE_PROGRAM_CONTRACT.into()),
+                _ => contracts.sampled_exposure = Some(SAMPLED_EXPOSURE_CONTRACT.into()),
+            }
+            assert!(!contracts.supports_literal_session(), "{change}");
+        }
+    }
+    #[test]
+    fn known_native_sessions_do_not_upgrade_historical_sampling_contracts() {
+        for sampling in [
+            "ukai.vm.sampled-exposure/1",
+            SAMPLED_EXPOSURE_CONTRACT_V2,
+            SAMPLED_EXPOSURE_CONTRACT,
+        ] {
+            let contracts = GuestContracts {
+                secret_revocation: Some(SECRET_REVOCATION_CONTRACT.into()),
+                journal_export: Some(JOURNAL_EXPORT_CONTRACT.into()),
+                native_program: Some(NATIVE_PROGRAM_CONTRACT.into()),
+                sampled_exposure: Some(sampling.into()),
+            };
+            assert!(contracts.supports_native_session());
+            assert_eq!(contracts.sampled_exposure.as_deref(), Some(sampling));
+            for broken in [
+                GuestContracts {
+                    native_program: None,
+                    ..contracts.clone()
+                },
+                GuestContracts {
+                    sampled_exposure: None,
+                    ..contracts.clone()
+                },
+                GuestContracts {
+                    journal_export: None,
+                    ..contracts.clone()
+                },
+                GuestContracts {
+                    sampled_exposure: Some("ukai.vm.sampled-exposure/4".into()),
+                    ..contracts.clone()
+                },
+                GuestContracts {
+                    native_program: Some("ukai.vm.guest-native-launch/2".into()),
+                    ..contracts
+                },
+            ] {
+                assert!(!broken.supports_native_session());
+            }
+        }
+        assert!(
+            serde_json::from_value::<GuestContracts>(serde_json::json!({
+                "unknown": "future/1"
+            }))
+            .is_err()
+        );
+    }
 
     #[test]
     fn frames_round_trip_through_their_line_form() {

@@ -1070,14 +1070,20 @@ fn check_native_session(install: &image::Install, session: &GuestEvent) -> Resul
         .as_ref()
         .and_then(|contracts| contracts.native_program.as_deref());
     match installed {
-        None if contract.is_none() && session.guest_program_catalog_sha256.is_none() => Ok(()),
+        None if contract.is_none()
+            && session.guest_program_catalog_sha256.is_none()
+            && session
+                .guest_contracts
+                .as_ref()
+                .is_none_or(protocol::GuestContracts::supports_literal_session) =>
+        {
+            Ok(())
+        }
         Some((_, digest))
-            if contract == Some(protocol::NATIVE_PROGRAM_CONTRACT)
-                && session
-                    .guest_contracts
-                    .as_ref()
-                    .and_then(|contracts| contracts.sampled_exposure.as_deref())
-                    == Some(protocol::SAMPLED_EXPOSURE_CONTRACT)
+            if session
+                .guest_contracts
+                .as_ref()
+                .is_some_and(protocol::GuestContracts::supports_native_session)
                 && session.guest_program_catalog_sha256.as_deref() == Some(digest.as_str()) =>
         {
             Ok(())

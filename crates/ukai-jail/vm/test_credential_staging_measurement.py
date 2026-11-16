@@ -52,8 +52,9 @@ def native_proof():
 
 
 class AdmissionProofTests(unittest.TestCase):
-    def test_sampling_v2_preserves_only_the_generic_credential_admission_scope(self):
-        for native in (admission.OPTIONAL_NATIVE_CONTRACTS, admission.CURRENT_NATIVE_CONTRACTS):
+    def test_all_known_sampling_versions_preserve_only_generic_admission_scope(self):
+        for native in (admission.OPTIONAL_NATIVE_CONTRACTS, admission.CURRENT_NATIVE_CONTRACTS,
+                       admission.MANAGED_NATIVE_CONTRACTS):
             replayed, installed = native_proof()
             replayed['record']['ready']['guest_contracts'] = admission.GUEST_CONTRACTS | native
             result = admission.derive(replayed, installed)
@@ -88,7 +89,7 @@ class AdmissionProofTests(unittest.TestCase):
             lambda r, i: r['record']['ready']['guest_contracts'].pop('native_program'),
             lambda r, i: r['record']['ready']['guest_contracts'].pop('sampled_exposure'),
             lambda r, i: r['record']['ready']['guest_contracts'].update(native_program='ukai.vm.guest-native-launch/2'),
-            lambda r, i: r['record']['ready']['guest_contracts'].update(sampled_exposure='ukai.vm.sampled-exposure/3'),
+            lambda r, i: r['record']['ready']['guest_contracts'].update(sampled_exposure='ukai.vm.sampled-exposure/4'),
             lambda r, i: r['record']['ready']['guest_contracts'].update(native_program=True),
             lambda r, i: r['record']['ready']['guest_contracts'].update(sampled_exposure=None),
             lambda r, i: r['record']['ready']['guest_contracts'].update(secret_revocation='future/2'),

@@ -99,7 +99,7 @@ contracts = dict(secret_revocation='ukai.vm.secret-revocation/1', journal_export
 native_catalog = os.environ.get('NATIVE_CATALOG')
 if native_catalog:
     contracts['native_program'] = 'ukai.vm.guest-native-launch/1'
-    contracts['sampled_exposure'] = 'ukai.vm.sampled-exposure/2'
+    contracts['sampled_exposure'] = 'ukai.vm.sampled-exposure/3'
 native_prepared = None
 # Ready deliberately advertises the current contracts even when Session
 # below omits them: the service must use the actual Session, not this frame.
@@ -420,10 +420,10 @@ class WarmServiceTests(unittest.TestCase):
         self.native_request()
         ordinary = dict(secret_revocation='ukai.vm.secret-revocation/1', journal_export='ukai.vm.guest-journal/1')
         no_sampling = dict(ordinary, native_program='ukai.vm.guest-native-launch/1')
-        old_sampling = dict(no_sampling, sampled_exposure='ukai.vm.sampled-exposure/1')
+        unknown_sampling = dict(no_sampling, sampled_exposure='ukai.vm.sampled-exposure/4')
         for overrides in ({'SESSION_NATIVE_CATALOG':'omit'}, {'SESSION_NATIVE_CATALOG':'f'*64},
                           {'GUEST_CONTRACTS':json.dumps(ordinary)}, {'GUEST_CONTRACTS':json.dumps(no_sampling)},
-                          {'GUEST_CONTRACTS':json.dumps(old_sampling)}):
+                          {'GUEST_CONTRACTS':json.dumps(unknown_sampling)}):
             child = self.launch(**overrides)
             self.assertIn('Session does not match', self.assert_exit(child, 125))
         image = self.install / 'image'
@@ -433,6 +433,28 @@ class WarmServiceTests(unittest.TestCase):
         (image / 'image.json').write_text(json.dumps(manifest))
         child = self.launch()
         self.assertIn('Session does not match', self.assert_exit(child, 125))
+
+    def test_historical_native_contracts_serve_literal_but_refuse_native_before_secrets(self):
+        request = self.native_request()
+        for version in (1, 2):
+            contracts = dict(secret_revocation='ukai.vm.secret-revocation/1',
+                journal_export='ukai.vm.guest-journal/1', native_program='ukai.vm.guest-native-launch/1',
+                sampled_exposure=f'ukai.vm.sampled-exposure/{version}')
+            child = self.launch(GUEST_CONTRACTS=json.dumps(contracts), RECORD=str(self.root / 'record.ndjson'))
+            stream = self.socket('attempt')
+            self.assertEqual(self.frame(stream)['guest_contracts'], contracts)
+            before = len(self.recorded())
+            self.send(stream, **request)
+            self.assertEqual(stream.recv(1000), b'')
+            self.wait_recorded(lambda frame: frame.get('op') == 'cancel2', after=before)
+            self.assertFalse(any(frame.get('op') in ('reset', 'native_prepare', 'secret', 'run2')
+                                 for frame in self.recorded()[before:]))
+            plain, ready = self.attempt()
+            self.assertEqual(ready['guest_contracts'], contracts)
+            while self.frame(plain)['event'] != 'done':
+                pass
+            self.control('stop')
+            child.wait(timeout=6)
 
     def test_native_duplicate_ack_cancels_before_run(self):
         request = self.native_request()
@@ -783,11 +805,15 @@ class WarmServiceTests(unittest.TestCase):
 
     def test_session_contracts_forward_truthfully_and_refuse_credentials_before_guest_traffic(self):
         required = dict(secret_revocation='ukai.vm.secret-revocation/1', journal_export='ukai.vm.guest-journal/1')
-        cases = [None, {}, {'secret_revocation': required['secret_revocation']},
+        invalid = [{}, {'secret_revocation': required['secret_revocation']},
                  {'journal_export': required['journal_export']},
                  dict(required, secret_revocation='ukai.vm.secret-revocation/2'),
                  dict(required, journal_export='ukai.vm.guest-journal/2')]
-        for declared in cases:
+        for declared in invalid:
+            with self.subTest(contracts=declared):
+                child = self.launch(GUEST_CONTRACTS=json.dumps(declared))
+                self.assertIn('Session does not match', self.assert_exit(child, 125))
+        for declared in (None,):
             with self.subTest(contracts=declared):
                 child = self.launch(GUEST_CONTRACTS='omit' if declared is None else json.dumps(declared),
                                     RECORD=str(self.root / 'record.ndjson'))

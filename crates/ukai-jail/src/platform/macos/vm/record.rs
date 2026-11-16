@@ -79,6 +79,9 @@ pub struct TransportRecord {
     pub supervisor_pid: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sampled_exposure: Option<SampledExposure>,
+    /// The checked native Session contract; absent in historical transports.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampled_exposure_contract: Option<String>,
 }
 
 /// Sampling evidence is independent of the verified execution outcome.
@@ -127,6 +130,7 @@ impl TransportRecord {
             native_program: None,
             supervisor_pid: None,
             sampled_exposure: None,
+            sampled_exposure_contract: None,
         }
     }
 

@@ -159,6 +159,393 @@ struct Report {
     workload_uid: u64,
     limits: Limits,
     lifecycle: Lifecycle,
+    #[serde(default, deserialize_with = "present_gate")]
+    managed_gate: Option<ManagedGate>,
+}
+
+// A Prepared receipt is independently parsed in the same integer-only domain
+// as its canonical digest. serde_json::Value alone would accept duplicate keys.
+struct StrictValue(serde_json::Value);
+impl<'de> Deserialize<'de> for StrictValue {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = StrictValue;
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("duplicate-free integer JSON")
+            }
+            fn visit_bool<E: serde::de::Error>(self, v: bool) -> Result<Self::Value, E> {
+                Ok(StrictValue(v.into()))
+            }
+            fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Self::Value, E> {
+                Ok(StrictValue(v.into()))
+            }
+            fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<Self::Value, E> {
+                Ok(StrictValue(v.into()))
+            }
+            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                Ok(StrictValue(v.into()))
+            }
+            fn visit_string<E: serde::de::Error>(self, v: String) -> Result<Self::Value, E> {
+                Ok(StrictValue(v.into()))
+            }
+            fn visit_unit<E: serde::de::Error>(self) -> Result<Self::Value, E> {
+                Ok(StrictValue(serde_json::Value::Null))
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut seq: A,
+            ) -> Result<Self::Value, A::Error> {
+                let mut values = Vec::new();
+                while let Some(StrictValue(value)) = seq.next_element()? {
+                    values.push(value);
+                }
+                Ok(StrictValue(values.into()))
+            }
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<Self::Value, A::Error> {
+                let mut values = serde_json::Map::new();
+                while let Some((key, StrictValue(value))) =
+                    map.next_entry::<String, StrictValue>()?
+                {
+                    if values.insert(key, value).is_some() {
+                        return Err(serde::de::Error::custom("duplicate key"));
+                    }
+                }
+                Ok(StrictValue(values.into()))
+            }
+        }
+        d.deserialize_any(Visitor)
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ManagedGate {
+    schema: String,
+    prepared_receipt_sha256: String,
+    prepared_receipt_digest: String,
+    prepared_process: ProcessIdentity,
+    prepared_observed_ns: u64,
+    prepared_validated_ns: u64,
+    #[serde(deserialize_with = "nullable_u64")]
+    armed_observed_ns: Option<u64>,
+    #[serde(deserialize_with = "nullable_u64")]
+    release_started_ns: Option<u64>,
+    #[serde(deserialize_with = "nullable_u64")]
+    release_completed_ns: Option<u64>,
+    #[serde(deserialize_with = "nullable_string")]
+    failure: Option<String>,
+}
+fn nullable_string<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    Option::<String>::deserialize(d)
+}
+fn present_gate<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<ManagedGate>, D::Error> {
+    ManagedGate::deserialize(d).map(Some)
+}
+fn exact_keys(value: &serde_json::Value, keys: &[&str]) -> bool {
+    value.as_object().is_some_and(|object| {
+        object.len() == keys.len() && keys.iter().all(|key| object.contains_key(*key))
+    })
+}
+fn string_list(value: &serde_json::Value) -> Option<Vec<&str>> {
+    value
+        .as_array()?
+        .iter()
+        .map(serde_json::Value::as_str)
+        .collect()
+}
+fn string_set(value: &serde_json::Value) -> Option<BTreeSet<&str>> {
+    let array = value.as_array()?;
+    let values: BTreeSet<_> = array
+        .iter()
+        .map(serde_json::Value::as_str)
+        .collect::<Option<_>>()?;
+    (values.len() == array.len()).then_some(values)
+}
+fn prefixed_digest(value: &serde_json::Value) -> bool {
+    value
+        .as_str()
+        .and_then(|s| s.strip_prefix("sha256:"))
+        .is_some_and(crate::guest_program::is_sha256)
+}
+
+// Live inspect follows verify_bound_guest_receipt and verify_applied_limits
+// against the stored host plan. These digest/equality checks bind records; they
+// do not independently reconstruct policy or network authority from a digest.
+fn managed_complete(
+    report: &Report,
+    receipt: &serde_json::Value,
+    binding: &protocol::ReceiptBinding,
+    native: &protocol::NativeProgramBinding,
+    prepared_raw: &[u8],
+    entry: &crate::guest_program::CatalogEntry,
+) -> Option<bool> {
+    use serde_json::{Value, json};
+    let gate = report.managed_gate.as_ref()?;
+    let StrictValue(prepared) = serde_json::from_slice(prepared_raw).ok()?;
+    let canonical = crate::records::semantic::receipt_digest(&prepared).ok()?;
+    let requirements = [
+        "tree_termination",
+        "closed_set_observation",
+        "filesystem_containment",
+        "syscall_filter",
+        "network_proxy",
+        "protected_coverage:existing_and_root",
+        "limit:wall",
+        "limit:pids",
+        "limit:mem",
+        "limit:swap",
+        "execution_boundary",
+        "credential_staging",
+    ]
+    .into_iter()
+    .collect();
+    let policy = &prepared["policy"];
+    let identity = json!({"pid":report.receipt_process.pid,"identity":{"kind":"linux_boot_start","value":{
+        "boot_id":binding.guest_boot_id,"pid":report.receipt_process.pid,"start_time_ticks":report.receipt_process.starttime}}});
+    let attempt = prepared["attempt_id"].as_str()?;
+    let uuid = attempt.strip_prefix("att_")?.parse::<uuid::Uuid>().ok()?;
+    if gate.schema != "ukai.vm.managed-native-gate/1"
+        || gate.prepared_receipt_sha256 != crate::guest_program::sha256(prepared_raw)
+        || gate.prepared_receipt_digest != canonical
+        || gate.prepared_process.pid != report.receipt_process.pid
+        || gate.prepared_process.starttime != report.receipt_process.starttime
+        || report.receipt_process.pid > u64::from(u32::MAX)
+        || uuid.get_version_num() != 4
+        || uuid.get_variant() != uuid::Variant::RFC4122
+        || format!("att_{uuid}") != attempt
+        || prepared["platform"]["os"] != "linux"
+        || prepared["platform"]["arch"] != "aarch64"
+        || prepared["jail"]["component"] != "ukai-jail"
+        || prepared["jail"]["backend"] != "bubblewrap"
+        || prepared["platform"] != receipt["platform"]
+        || prepared["jail"] != receipt["jail"]
+        || prepared["schema"] != "ukai.jail.receipt/1"
+        || attempt != binding.guest_attempt_id
+        || prepared["attempt_id"] != receipt["attempt_id"]
+        || prepared["process"] != identity
+        || receipt["process"] != identity
+        || prepared["phase"] != "prepared"
+        || prepared["exec_observed"] != false
+        || prepared["outcome"]
+            != json!({"kind":"pending","code":null,"signal":null,"cause":null,"error":null})
+        || prepared["containment"] != "enforced"
+        || prepared["child_protection"] != "enforced"
+        || prepared["errors"] != json!([])
+        || prepared.get("cleanup_error").is_none()
+        || !prepared["cleanup_error"].is_null()
+        || !prepared["vendor_state"].is_null()
+        || prepared["lifetime"]["boundary"] != "pid_namespace"
+        || prepared["lifetime"].get("tree_empty").is_none()
+        || !prepared["lifetime"]["tree_empty"].is_null()
+        || prepared["lifetime"]["integrity"] != "verified"
+        || prepared["lifetime"]["verification_scope"] != "attempt_tree"
+        || prepared["observer"]
+            != json!({"backend":null,"set":null,"attached":false,
+            "sources":{"wrapper":"supported","audit":"unsupported","proxy":"unsupported"},"gaps":[]})
+        || prepared["credentials"]
+            != json!([{"id":native.selected_credential_id,"mode":"vault","never_staged":true,
+            "digest":null,"digest_unavailable_reason":"never_staged"}])
+        || policy["name"] != "agent"
+        || policy["observe"] != "on"
+        || policy["evidence"] != "strict"
+        || policy["digest"] != native.policy_digest
+        || policy["digest"] != receipt["policy"]["digest"]
+        || prepared["argv_digest"] != native.resolved_argv_digest
+        || prepared["argv_digest"] != receipt["argv_digest"]
+        || !exact_keys(
+            policy,
+            &[
+                "name",
+                "digest",
+                "observe",
+                "evidence",
+                "requirements",
+                "grants",
+            ],
+        )
+        || string_set(&policy["requirements"]) != Some(requirements)
+    {
+        return None;
+    }
+    let grants = policy["grants"].as_array()?;
+    let final_grants = receipt["policy"]["grants"].as_array()?;
+    let canonical_rows = |rows: &[Value]| -> Option<Vec<Vec<u8>>> {
+        let mut rows = rows
+            .iter()
+            .map(crate::canonical::to_jcs)
+            .collect::<Result<Vec<_>, _>>()
+            .ok()?;
+        rows.sort();
+        Some(rows)
+    };
+    if canonical_rows(grants)? != canonical_rows(final_grants)? {
+        return None;
+    }
+    let root = json!({"kind":"read_only","value":entry.install_root,"by":"program_resolution"});
+    let mut root_count = 0;
+    let mut hosts = Vec::new();
+    for grant in grants {
+        if !exact_keys(grant, &["kind", "value", "by"]) {
+            return None;
+        }
+        if grant == &root {
+            root_count += 1;
+        } else if grant["kind"] == "allow_host" && grant["by"] == "operator" {
+            hosts.push(grant["value"].as_str()?);
+        } else {
+            return None;
+        }
+    }
+    if root_count != 1 {
+        return None;
+    }
+    let applied = &prepared["applied"];
+    let fs = &applied["filesystem"];
+    let mounts = fs["mounts"].as_array()?;
+    let mut allowed = string_list(&applied["network"]["allowed_hosts"])?;
+    allowed.sort();
+    hosts.sort();
+    let tls_only = match applied["network"].get("tls_only") {
+        None => Vec::new(),
+        Some(value) => string_list(value)?,
+    };
+    if fs["mechanism"] != "bubblewrap-binds"
+        || fs["protected_coverage"] != "existing_and_root"
+        || !mounts.iter().all(|row| {
+            exact_keys(row, &["path", "mode"])
+                && row["path"].is_string()
+                && matches!(row["mode"].as_str(), Some("ro" | "rw" | "hidden"))
+        })
+        || !mounts.contains(&json!({"path":entry.install_root,"mode":"ro"}))
+        || !mounts.contains(&json!({"path":"/mnt/workspace","mode":"rw"}))
+        || applied["network"]["mode"] != "proxy"
+        || applied["network"]["mechanism"]
+            != "network-namespace+outside-http-proxy+loopback-bridge+unix-peer-mediation"
+        || applied["network"] != receipt["applied"]["network"]
+        || allowed != hosts
+        || tls_only.iter().any(|host| !hosts.contains(host))
+        || applied["syscalls"]["mechanism"] != "seccomp-bpf+seccomp-user-notification"
+        || !prefixed_digest(&applied["syscalls"]["digest"])
+        || !applied["terminal"].is_null()
+    {
+        return None;
+    }
+    for key in ["environment_names", "removed_environment_names"] {
+        if !applied[key].as_array()?.iter().all(|value| {
+            value.as_str().is_some_and(|s| {
+                !s.is_empty()
+                    && s.bytes().enumerate().all(|(i, c)| {
+                        c == b'_' || c.is_ascii_alphabetic() || (i > 0 && c.is_ascii_digit())
+                    })
+            })
+        }) {
+            return None;
+        }
+    }
+    let limits = applied["limits"].as_array()?;
+    let final_limits = receipt["applied"]["limits"].as_array()?;
+    if limits.len() != 4 || final_limits.len() != 4 {
+        return None;
+    }
+    let mut seen = BTreeSet::new();
+    for row in limits {
+        if !exact_keys(
+            row,
+            &[
+                "key",
+                "requested",
+                "required",
+                "applied",
+                "mechanism",
+                "scope",
+                "hit",
+            ],
+        ) {
+            return None;
+        }
+        let key = row["key"].as_str()?;
+        if !seen.insert(key) {
+            return None;
+        }
+        let requested = row["requested"].as_str()?;
+        let number = requested.parse::<u64>().ok()?;
+        let mechanism = match key {
+            "wall" if number > 0 => "boottime-deadline",
+            "pids" if requested == "64" => "pids.max",
+            "mem" if requested == "536870912" => "memory.max",
+            "swap" if requested == "0" => "memory.swap.max",
+            _ => return None,
+        };
+        let matching: Vec<_> = final_limits
+            .iter()
+            .filter(|other| other["key"] == key)
+            .collect();
+        if number.to_string() != requested
+            || row["required"] != true
+            || row["applied"] != true
+            || row["scope"] != "tree"
+            || row["mechanism"] != mechanism
+            || !(row["hit"].is_null() || row["hit"] == false)
+            || matching.len() != 1
+            || ["requested", "required", "applied", "scope"]
+                .iter()
+                .any(|k| row[k] != matching[0][k])
+        {
+            return None;
+        }
+    }
+    if gate.failure.as_deref().is_some_and(|failure| {
+        ![
+            "control_invalid",
+            "prepared_invalid",
+            "source_changed",
+            "arming_failed",
+            "release_failed",
+            "cancelled",
+            "early_stop",
+        ]
+        .contains(&failure)
+    }) || gate.prepared_observed_ns > gate.prepared_validated_ns
+        || gate.prepared_validated_ns > report.lifecycle.started_ns?
+        || gate
+            .armed_observed_ns
+            .is_some_and(|armed| report.first_ns.is_none_or(|first| first > armed))
+        || gate
+            .release_started_ns
+            .is_some_and(|release| gate.armed_observed_ns.is_none_or(|armed| armed > release))
+        || gate.release_completed_ns.is_some_and(|completed| {
+            gate.release_started_ns
+                .is_none_or(|release| release > completed)
+        })
+    {
+        return None;
+    }
+    Some(
+        gate.failure.is_none()
+            && gate
+                .release_completed_ns
+                .zip(report.lifecycle.supervisor_exit_observed_ns)
+                .is_some_and(|(completed, exited)| completed <= exited)
+            && report
+                .lifecycle
+                .supervisor_exit_observed_ns
+                .zip(report.lifecycle.stopped_ns)
+                .is_some_and(|(exited, stopped)| exited <= stopped)
+            && report
+                .last_ns
+                .zip(report.lifecycle.supervisor_exit_observed_ns)
+                .is_some_and(|(last, exited)| last <= exited)
+            && report.lifecycle.stop_reason == "supervisor_exit"
+            && receipt["exec_observed"] == true
+            && receipt["phase"] == "settled"
+            && receipt["lifetime"]["tree_empty"] == true
+            && receipt["lifetime"]["integrity"] == "verified"
+            && receipt["cleanup_error"].is_null(),
+    )
 }
 
 fn unique_errors<'de, D: serde::Deserializer<'de>>(
@@ -186,12 +573,18 @@ fn unique_errors<'de, D: serde::Deserializer<'de>>(
     d.deserialize_map(Unique)
 }
 
-fn read(attempt: &Path) -> Result<Vec<u8>, &'static str> {
+fn read_file(attempt: &Path, relative: &str) -> Result<Vec<u8>, &'static str> {
     let root = Dir::open_trusted(attempt).map_err(|_| "attempt_unreadable")?;
-    let evidence = root
-        .open_dir_at(&Name::new(b"evidence").unwrap(), None)
-        .map_err(|_| "evidence_unreadable")?;
-    let name = Name::new(FILE.as_bytes()).unwrap();
+    let (evidence, name) = if let Some(name) = relative.strip_prefix("evidence/") {
+        (
+            root.open_dir_at(&Name::new(b"evidence").unwrap(), None)
+                .map_err(|_| "evidence_unreadable")?,
+            name,
+        )
+    } else {
+        (root, relative)
+    };
+    let name = Name::new(name.as_bytes()).map_err(|_| "report_path_invalid")?;
     let before = evidence.stat_at(&name).map_err(|error| {
         if error.kind() == std::io::ErrorKind::NotFound {
             "report_missing"
@@ -221,6 +614,7 @@ fn read(attempt: &Path) -> Result<Vec<u8>, &'static str> {
     Ok(bytes)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn valid(
     report: &Report,
     receipt: &serde_json::Value,
@@ -229,6 +623,7 @@ fn valid(
     native: &protocol::NativeProgramBinding,
     supervisor_pid: u32,
     sampler: &str,
+    managed: Option<bool>,
 ) -> bool {
     let pid = receipt
         .pointer("/process/identity/value/pid")
@@ -236,10 +631,18 @@ fn valid(
     let start = receipt
         .pointer("/process/identity/value/start_time_ticks")
         .and_then(serde_json::Value::as_u64);
-    if report.schema != protocol::SAMPLED_EXPOSURE_CONTRACT
+    let is_managed = report.schema == protocol::SAMPLED_EXPOSURE_CONTRACT;
+    if (!is_managed && report.schema != protocol::SAMPLED_EXPOSURE_CONTRACT_V2)
+        || is_managed != report.managed_gate.is_some()
+        || is_managed != managed.is_some()
         || !report.finished
         || report.actual_values_retained
-        || report.scope != "periodic-readable-environment-and-argv-only"
+        || report.scope
+            != if is_managed {
+                "managed-native-periodic-readable-environment-and-argv-only"
+            } else {
+                "periodic-readable-environment-and-argv-only"
+            }
         || report.continuous_coverage_claimed
         || report.arbitrary_memory_examined
         || report.host_attempt_id != binding.attempt_id
@@ -415,7 +818,8 @@ fn valid(
             && Some(process.starttime) == report.supervisor.starttime
             && process.roles.iter().any(|role| role == "supervisor")
     });
-    let incomplete = !report.scan_errors.is_empty()
+    let incomplete = managed == Some(false)
+        || !report.scan_errors.is_empty()
         || !positive
         || !receipt_positive
         || !supervisor_observed
@@ -530,11 +934,12 @@ pub(super) fn inspect(
     supervisor_pid: Option<u32>,
     sampler: Option<&str>,
     export_error: Option<&str>,
+    required_contract: Option<&str>,
 ) -> record::SampledExposure {
     if let Some(reason) = export_error {
         return status("invalid", None, None, Some(reason));
     }
-    let bytes = match read(attempt) {
+    let bytes = match read_file(attempt, PATH) {
         Ok(bytes) => bytes,
         Err(reason) => {
             return status(
@@ -586,6 +991,45 @@ pub(super) fn inspect(
         Ok(report) => report,
         Err(_) => return status("invalid", Some(PATH), Some(hash), Some("report_malformed")),
     };
+    if required_contract.is_some_and(|required| {
+        required != protocol::SAMPLED_EXPOSURE_CONTRACT || report.schema != required
+    }) {
+        return status(
+            "invalid",
+            Some(PATH),
+            Some(hash),
+            Some("report_contract_mismatch"),
+        );
+    }
+    let managed = if report.schema == protocol::SAMPLED_EXPOSURE_CONTRACT {
+        let checked = (|| {
+            let raw = read_file(attempt, "evidence/managed-prepared.json").ok()?;
+            let catalog_raw = read_file(attempt, "guest-native-catalog.json").ok()?;
+            let catalog =
+                crate::guest_program::Catalog::parse(&catalog_raw, &native.catalog_sha256).ok()?;
+            let entry = catalog
+                .entries
+                .iter()
+                .find(|entry| entry.id == native.entry_id)?;
+            if entry.executable_sha256 != native.executable_sha256
+                || entry.profile_sha256 != native.profile_sha256
+            {
+                return None;
+            }
+            managed_complete(&report, receipt, binding, native, &raw, entry)
+        })();
+        let Some(complete) = checked else {
+            return status(
+                "invalid",
+                Some(PATH),
+                Some(hash),
+                Some("managed_gate_binding_or_shape"),
+            );
+        };
+        Some(complete)
+    } else {
+        None
+    };
     if !valid(
         &report,
         receipt,
@@ -594,6 +1038,7 @@ pub(super) fn inspect(
         native,
         supervisor_pid,
         sampler,
+        managed,
     ) {
         return status(
             "invalid",
@@ -677,7 +1122,219 @@ mod tests {
             supervisor,
             Some(&sampler),
             None,
+            None,
         )
+    }
+    const MANAGED: &[u8] = include_bytes!("../../../../vm/fixtures/managed-sampled-exposure.json");
+    fn managed_judge(fixture: &Value) -> record::SampledExposure {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("evidence")).unwrap();
+        let report = serde_json::to_vec(&fixture["report"]).unwrap();
+        std::fs::write(dir.path().join(PATH), &report).unwrap();
+        std::fs::write(
+            dir.path().join("evidence/managed-prepared.json"),
+            fixture["prepared_raw"].as_str().unwrap(),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("guest-native-catalog.json"),
+            fixture["catalog_raw"].as_str().unwrap(),
+        )
+        .unwrap();
+        let raw = fixture["receipt_raw"].as_str().unwrap();
+        let receipt = serde_json::from_str(raw).unwrap();
+        let mut binding: protocol::ReceiptBinding =
+            serde_json::from_value(fixture["binding"].clone()).unwrap();
+        binding.sampled_exposure_sha256 = Some(crate::guest_program::sha256(&report));
+        inspect(
+            dir.path(),
+            &receipt,
+            &crate::guest_program::sha256(raw.as_bytes()),
+            &binding,
+            &serde_json::from_value(fixture["native"].clone()).unwrap(),
+            Some(10),
+            fixture["sampler_sha256"].as_str(),
+            None,
+            Some(protocol::SAMPLED_EXPOSURE_CONTRACT),
+        )
+    }
+    fn replace_prepared(fixture: &mut Value, prepared: Value) {
+        let bytes = serde_json::to_vec(&prepared).unwrap();
+        fixture["report"]["managed_gate"]["prepared_receipt_sha256"] =
+            crate::guest_program::sha256(&bytes).into();
+        fixture["report"]["managed_gate"]["prepared_receipt_digest"] =
+            crate::records::semantic::receipt_digest(&prepared)
+                .unwrap()
+                .into();
+        fixture["prepared_raw"] = String::from_utf8(bytes).unwrap().into();
+    }
+    #[test]
+    fn managed_manual_vector_and_rehashed_prepared_authority_mutations() {
+        let original: Value = serde_json::from_slice(MANAGED).unwrap();
+        assert_eq!(managed_judge(&original).status, "complete");
+        for (pointer, value) in [
+            ("/platform/os", json!("macos")),
+            ("/jail/backend", json!("fake")),
+            ("/phase", json!("running")),
+            ("/exec_observed", json!(true)),
+            ("/outcome/kind", json!("unknown")),
+            ("/outcome/code", json!(0)),
+            ("/containment", json!("unknown")),
+            ("/child_protection", json!("refused")),
+            ("/errors", json!(["not_ready"])),
+            ("/cleanup_error", json!({})),
+            ("/vendor_state", json!({})),
+            ("/process/pid", json!(12)),
+            ("/process/identity/value/start_time_ticks", json!(102)),
+            ("/process/identity/value/boot_id", json!("other")),
+            ("/policy/digest", json!("sha256:wrong")),
+            ("/policy/requirements", json!(["execution_boundary"])),
+            ("/policy/grants", json!([])),
+            ("/observer/attached", json!(true)),
+            ("/credentials/0/id", json!("other")),
+            ("/argv_digest", json!("sha256:wrong")),
+            ("/applied/filesystem/mounts", json!([])),
+            ("/applied/network/tls_only", json!([])),
+            ("/applied/syscalls/digest", json!("unbound")),
+            ("/applied/limits/0/requested", json!("21000")),
+            ("/applied/limits/1/required", json!(1)),
+            ("/applied/limits/2/hit", json!(true)),
+            ("/applied/environment_names", json!(["TOKEN=secret"])),
+            ("/applied/terminal", json!({})),
+        ] {
+            let mut fixture = original.clone();
+            let mut prepared: Value =
+                serde_json::from_str(fixture["prepared_raw"].as_str().unwrap()).unwrap();
+            *prepared.pointer_mut(pointer).unwrap() = value;
+            replace_prepared(&mut fixture, prepared);
+            assert_eq!(managed_judge(&fixture).status, "invalid", "{pointer}");
+        }
+    }
+    #[test]
+    fn managed_required_prepared_null_fields_cannot_be_omitted() {
+        let original: Value = serde_json::from_slice(MANAGED).unwrap();
+        for (parent, key) in [
+            ("", "cleanup_error"),
+            ("/lifetime", "tree_empty"),
+            ("/outcome", "error"),
+            ("/observer", "backend"),
+            ("/credentials/0", "digest"),
+            ("/applied/limits/0", "hit"),
+        ] {
+            let mut fixture = original.clone();
+            let mut prepared: Value =
+                serde_json::from_str(fixture["prepared_raw"].as_str().unwrap()).unwrap();
+            prepared
+                .pointer_mut(parent)
+                .unwrap()
+                .as_object_mut()
+                .unwrap()
+                .remove(key);
+            replace_prepared(&mut fixture, prepared);
+            assert_eq!(managed_judge(&fixture).status, "invalid", "{parent}/{key}");
+        }
+    }
+    #[test]
+    fn managed_duplicate_grants_preserve_multiplicity_and_omitted_empty_tls() {
+        let mut fixture: Value = serde_json::from_slice(MANAGED).unwrap();
+        let mut prepared: Value =
+            serde_json::from_str(fixture["prepared_raw"].as_str().unwrap()).unwrap();
+        let mut receipt: Value =
+            serde_json::from_str(fixture["receipt_raw"].as_str().unwrap()).unwrap();
+        for value in [&mut prepared, &mut receipt] {
+            let grant = value["policy"]["grants"][1].clone();
+            value["policy"]["grants"]
+                .as_array_mut()
+                .unwrap()
+                .push(grant);
+            value["applied"]["network"]["allowed_hosts"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!("api.example.com:443"));
+            value["applied"]["network"]
+                .as_object_mut()
+                .unwrap()
+                .remove("tls_only");
+        }
+        fixture["receipt_raw"] = serde_json::to_string(&receipt).unwrap().into();
+        fixture["report"]["guest_receipt_sha256"] =
+            crate::guest_program::sha256(fixture["receipt_raw"].as_str().unwrap().as_bytes())
+                .into();
+        replace_prepared(&mut fixture, prepared.clone());
+        assert_eq!(managed_judge(&fixture).status, "complete");
+        prepared["policy"]["grants"].as_array_mut().unwrap().pop();
+        replace_prepared(&mut fixture, prepared);
+        assert_eq!(managed_judge(&fixture).status, "invalid");
+    }
+    #[test]
+    fn managed_fast_exit_partial_release_and_mixed_schema_never_claim_complete() {
+        let original: Value = serde_json::from_slice(MANAGED).unwrap();
+        for (key, value) in [
+            ("schema", json!("unknown")),
+            ("prepared_observed_ns", json!(true)),
+            ("prepared_validated_ns", json!(99)),
+            ("armed_observed_ns", json!(299)),
+            ("release_started_ns", json!(399)),
+            ("release_completed_ns", json!(499)),
+            ("failure", json!("new_failure")),
+            ("prepared_process", json!({"pid":10,"starttime":100})),
+        ] {
+            let mut fixture = original.clone();
+            fixture["report"]["managed_gate"][key] = value;
+            assert_eq!(managed_judge(&fixture).status, "invalid", "{key}");
+        }
+        let mut fixture = original.clone();
+        fixture["report"]["managed_gate"]["release_completed_ns"] = json!(200000850);
+        assert_eq!(managed_judge(&fixture).status, "invalid");
+        fixture["report"]["observation_incomplete"] = json!(true);
+        assert_eq!(
+            managed_judge(&fixture).status,
+            "incomplete",
+            "fast exit is not malformed chronology"
+        );
+        for key in [
+            "armed_observed_ns",
+            "release_started_ns",
+            "release_completed_ns",
+        ] {
+            fixture["report"]["managed_gate"][key] = Value::Null;
+        }
+        fixture["report"]["managed_gate"]["failure"] = json!("arming_failed");
+        assert_eq!(managed_judge(&fixture).status, "incomplete");
+        for managed in [Value::Null, json!({})] {
+            fixture = original.clone();
+            fixture["report"]["managed_gate"] = managed;
+            assert_eq!(managed_judge(&fixture).status, "invalid");
+        }
+        fixture = original.clone();
+        fixture["report"]["schema"] = protocol::SAMPLED_EXPOSURE_CONTRACT_V2.into();
+        assert_eq!(
+            managed_judge(&fixture).status,
+            "invalid",
+            "current Session cannot downgrade"
+        );
+    }
+    #[test]
+    fn managed_prepared_raw_duplicate_and_generation_refuse() {
+        let original: Value = serde_json::from_slice(MANAGED).unwrap();
+        let mut fixture = original.clone();
+        let raw = fixture["prepared_raw"].as_str().unwrap().replace(
+            "\"phase\": \"prepared\"",
+            "\"phase\": \"prepared\", \"phase\": \"prepared\"",
+        );
+        fixture["report"]["managed_gate"]["prepared_receipt_sha256"] =
+            crate::guest_program::sha256(raw.as_bytes()).into();
+        fixture["prepared_raw"] = raw.into();
+        assert_eq!(managed_judge(&fixture).status, "invalid");
+        fixture = original.clone();
+        fixture["prepared_raw"] = format!("{} ", fixture["prepared_raw"].as_str().unwrap()).into();
+        assert_eq!(managed_judge(&fixture).status, "invalid");
+        fixture = original;
+        let mut catalog: Value =
+            serde_json::from_str(fixture["catalog_raw"].as_str().unwrap()).unwrap();
+        catalog["entries"][0]["install_root"] = json!("/tmp/forged");
+        fixture["catalog_raw"] = serde_json::to_string(&catalog).unwrap().into();
+        assert_eq!(managed_judge(&fixture).status, "invalid");
     }
     #[test]
     fn supervisor_and_receipt_process_are_distinct_and_both_are_bound() {
@@ -893,6 +1550,7 @@ mod tests {
                 Some(10),
                 pin,
                 error,
+                None,
             )
         };
         assert_eq!(check(Some(sampler.as_str()), None).status, "unavailable");

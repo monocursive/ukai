@@ -108,6 +108,7 @@ class Kernel:
         self.proc = self.root / 'proc'
         self.uid = uid
         self.processes = {}
+        self.observation_executable = None
         self.pids = itertools.count(200)
         self.ticks = itertools.count(5000, 7)
         self.kills = []
@@ -268,6 +269,10 @@ class Kernel:
             (directory / 'task' / str(tid)).mkdir()
             (directory / 'task' / str(tid) / 'stat').write_text(stat_line(tid, task_state))
         (directory / 'cgroup').write_text(f'0::/{process.cgroup}\n')
+        if self.observation_executable is not None:
+            (directory / 'environ').write_bytes(b'LANG=C\0')
+            (directory / 'cmdline').write_bytes(b'modeled-process\0')
+            (directory / 'exe').symlink_to(self.observation_executable)
 
     def set_state(self, process, state):
         """Rewrites a process's (leader's) state, as the kernel would show it."""
@@ -335,7 +340,7 @@ def argv_digest(argv):
 class FakeJail:
     """One `subprocess.Popen` of the join wrapper + guest jail."""
 
-    def __init__(self, kernel, argv, scenario, **kwargs):
+    def __init__(self, kernel, argv, scenario, native_prepare=None, **kwargs):
         self.kernel = kernel
         self.argv = [os.fsencode(part) for part in argv]
         self.kwargs = kwargs
@@ -345,14 +350,24 @@ class FakeJail:
         self.stdout = os.fdopen(out_read, 'rb', buffering=0)
         self.stderr = os.fdopen(err_read, 'rb', buffering=0)
         self.returncode = None
-        self.started = False
+        self.started = self.initialized = False
+        self.native_prepare = native_prepare
+        self.managed_gate = self.managed_control = None
+        self.prepared_receipt = self.held_workload = None
         # Popen duplicates the one passed descriptor in the child. The fake
         # retains its own read endpoint and obeys the actual release byte.
-        if not kwargs.get('close_fds') or len(kwargs.get('pass_fds', ())) != 1:
+        expected_fds = 3 if b'--gate-fd' in self.argv else 1
+        if not kwargs.get('close_fds') or len(kwargs.get('pass_fds', ())) != expected_fds:
             raise AssertionError('attempt gate descriptor contract')
         self.gate = os.dup(kwargs['pass_fds'][0])
         os.set_blocking(self.gate, False)
         self.released = False
+        if expected_fds == 3:
+            gate = int(self.option(b'--gate-fd')); control = int(self.option(b'--control-fd'))
+            if kwargs['pass_fds'][1:] != (gate, control):
+                raise AssertionError('managed descriptor contract')
+            self.managed_gate, self.managed_control = os.dup(gate), os.dup(control)
+            os.set_blocking(self.managed_gate, False)
         # The wrapper starts in the controller's own service cgroup.
         self.process = kernel.spawn(kwargs['user'], 'system.slice/ukai-vm.service', '/usr/bin/python3')
         self.pid = self.process.pid
@@ -380,7 +395,7 @@ class FakeJail:
         os.write(fd, data)
 
     def close_streams(self):
-        for name in ('out_write', 'err_write', 'gate'):
+        for name in ('out_write', 'err_write', 'gate', 'managed_gate', 'managed_control'):
             fd = getattr(self, name, None)
             # exit/poll and harness teardown may both close the same jail.
             # Give up ownership before close: its number can immediately be
@@ -420,9 +435,29 @@ class FakeJail:
             descriptor, self.gate = self.gate, None
             os.close(descriptor)
             self.released = True
-        if not self.started:
+        if not self.initialized:
+            self.initialized = True
             self.first_poll()
+        if self.managed_gate is not None and self.returncode is None:
+            try:
+                wire = os.read(self.managed_gate, 1025)
+            except BlockingIOError:
+                return None
+            expected = dict(schema='ukai.jail.gate/1', action='release',
+                attempt_id=self.prepared_receipt['attempt_id'],
+                policy_digest=self.prepared_receipt['policy']['digest'])
+            descriptor, self.managed_gate = self.managed_gate, None
+            os.close(descriptor)
+            if not wire or not wire.endswith(b'\n') or json.loads(wire) != expected:
+                receipt = json.loads(json.dumps(self.prepared_receipt))
+                receipt.update(phase='settled', outcome=dict(kind='refused', code=None, signal=None,
+                    cause=None, error='gate_refused'))
+                receipt['lifetime']['tree_empty'] = True
+                Path(os.fsdecode(self.option(b'--receipt'))).write_text(json.dumps(receipt))
+                self.exit(125)
+                return self.returncode
             self.started = True
+            self.scenario(self)
         return self.returncode
 
     def first_poll(self):
@@ -439,7 +474,18 @@ class FakeJail:
         # itself there.
         self.kernel.move(self.process, f'{self.kernel.delegated}/app.slice/'
                                        f'ukai-jail-{self.pid}-0123456789abcdef.scope')
-        self.scenario(self)
+        if self.managed_gate is not None:
+            if self.native_prepare is None:
+                raise AssertionError('managed fixture requires an explicit Prepared receipt')
+            self.prepared_receipt = self.native_prepare(self)
+            import guest_program
+            message = dict(schema='ukai.jail.control/1', attempt_id=self.prepared_receipt['attempt_id'],
+                seq=1, kind='prepared', receipt_phase='prepared', outcome=self.prepared_receipt['outcome'],
+                receipt_digest=guest_program.canonical_digest(self.prepared_receipt), error=None)
+            os.write(self.managed_control, json.dumps(message).encode() + b'\n')
+        else:
+            self.started = True
+            self.scenario(self)
 
     def wait(self, timeout=None):
         raise AssertionError('the controller must never wait unbounded on the jail')
@@ -449,8 +495,12 @@ class FakeJail:
     def workload(self, unkillable=False):
         """A workload child in the jail's execution leaf, as the receipts
         record it: directly under user@<uid>.service."""
+        if self.held_workload is not None:
+            child, self.held_workload = self.held_workload, None
+            child.unkillable = unkillable
+            return child
         child = self.kernel.spawn(self.process.uid, f'{self.kernel.delegated}/ukai-att_{self.pid}.leaf',
-                                  '/usr/bin/sleep', unkillable=unkillable)
+                                  '/usr/bin/sleep', unkillable=unkillable, ppid=self.pid)
         self.children.append(child)
         return child
 
@@ -503,7 +553,8 @@ class FakeSubprocess:
 
     def Popen(self, argv, **kwargs):  # noqa: N802 - the subprocess spelling
         scenario = self.harness.scenarios.pop(0) if self.harness.scenarios else complete()
-        jail = FakeJail(self.harness.kernel, argv, scenario, **kwargs)
+        jail = FakeJail(self.harness.kernel, argv, scenario,
+                        native_prepare=getattr(self.harness, "native_prepare", None), **kwargs)
         self.jails.append(jail)
         return jail
 
@@ -535,7 +586,7 @@ class GuestHarness:
         self.test = test
         temporary = tempfile.TemporaryDirectory(prefix='ukai-guest-')
         test.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name).resolve()
         self.clock = Clock()
         self.uid, self.gid = os.getuid(), os.getgid()
         self.kernel = Kernel(self.root / 'sys', self.uid)

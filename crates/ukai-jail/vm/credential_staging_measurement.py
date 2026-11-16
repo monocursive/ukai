@@ -33,6 +33,8 @@ OPTIONAL_NATIVE_CONTRACTS = {'native_program': 'ukai.vm.guest-native-launch/1',
                              'sampled_exposure': 'ukai.vm.sampled-exposure/1'}
 CURRENT_NATIVE_CONTRACTS = {'native_program': 'ukai.vm.guest-native-launch/1',
                             'sampled_exposure': 'ukai.vm.sampled-exposure/2'}
+MANAGED_NATIVE_CONTRACTS = {'native_program': 'ukai.vm.guest-native-launch/1',
+                            'sampled_exposure': 'ukai.vm.sampled-exposure/3'}
 CATALOG_KEY = 'guest_program_catalog_sha256'
 
 
@@ -50,12 +52,12 @@ def valid_sha(value):
 
 
 def guest_contract_observation(ready, image):
-    """Admit three exact historical/current shapes, without qualifying native use."""
+    """Admit exact historical/current shapes, without qualifying native use."""
     require(type(ready) is dict, 'guest Ready record absent')
     contracts = ready.get('guest_contracts')
     require(type(contracts) is dict and contracts in (
         GUEST_CONTRACTS, GUEST_CONTRACTS | OPTIONAL_NATIVE_CONTRACTS,
-        GUEST_CONTRACTS | CURRENT_NATIVE_CONTRACTS),
+        GUEST_CONTRACTS | CURRENT_NATIVE_CONTRACTS, GUEST_CONTRACTS | MANAGED_NATIVE_CONTRACTS),
         'guest credential contracts are missing, unknown or incompatible')
     catalog = ready.get(CATALOG_KEY)
     if 'native_program' in contracts:

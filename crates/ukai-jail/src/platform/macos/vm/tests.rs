@@ -2212,7 +2212,8 @@ fn every_measurement_row_resolves_in_its_record() {
                                 "secret_revocation": protocol::SECRET_REVOCATION_CONTRACT,
                                 "journal_export": protocol::JOURNAL_EXPORT_CONTRACT,
                                 "native_program": protocol::NATIVE_PROGRAM_CONTRACT,
-                                "sampled_exposure": protocol::SAMPLED_EXPOSURE_CONTRACT,
+                                // The retained component proof predates managed /3.
+                                "sampled_exposure": protocol::SAMPLED_EXPOSURE_CONTRACT_V2,
                             })
                         }
                     );
@@ -4237,6 +4238,8 @@ fn native_client_contract_gate_and_exact_source_ack_precede_release() {
         "wrong-version",
         "missing-sampling",
         "old-sampling",
+        "v2-sampling",
+        "future-sampling",
         "wrong-source",
         "valid",
     ] {
@@ -4318,6 +4321,8 @@ fn native_client_contract_gate_and_exact_source_ack_precede_release() {
                 guest_contracts.as_mut().unwrap().sampled_exposure = match variant {
                     "missing-sampling" => None,
                     "old-sampling" => Some("ukai.vm.sampled-exposure/1".into()),
+                    "v2-sampling" => Some(protocol::SAMPLED_EXPOSURE_CONTRACT_V2.into()),
+                    "future-sampling" => Some("ukai.vm.sampled-exposure/4".into()),
                     _ => Some(protocol::SAMPLED_EXPOSURE_CONTRACT.into()),
                 };
                 guest_contracts.as_mut().unwrap().native_program = match variant {
@@ -4378,7 +4383,13 @@ fn native_client_contract_gate_and_exact_source_ack_precede_release() {
         let request = observed.recv_timeout(Duration::from_secs(5)).unwrap();
         if matches!(
             variant,
-            "missing" | "wrong-catalog" | "wrong-version" | "missing-sampling" | "old-sampling"
+            "missing"
+                | "wrong-catalog"
+                | "wrong-version"
+                | "missing-sampling"
+                | "old-sampling"
+                | "v2-sampling"
+                | "future-sampling"
         ) {
             assert!(result.is_err());
             assert!(
@@ -4638,14 +4649,16 @@ fn sampling_data_failure_does_not_replace_the_verified_guest_execution_outcome()
             transport["sampled_exposure"]["status"],
             if variant == "missing" {
                 "unavailable"
-            } else if variant == "incomplete" {
-                "incomplete"
-            } else if variant == "complete" {
-                "complete"
             } else {
+                // The live native Session requires /3, including when this
+                // otherwise well-formed historical /2 report says complete.
                 "invalid"
             },
             "{variant}"
+        );
+        assert_eq!(
+            transport["sampled_exposure_contract"],
+            protocol::SAMPLED_EXPOSURE_CONTRACT
         );
         assert!(!run.failed);
         writer.join().unwrap();
