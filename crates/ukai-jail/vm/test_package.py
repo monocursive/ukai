@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -43,7 +44,7 @@ class CommittedSourceTests(unittest.TestCase):
         self.git('-c', 'user.name=test', '-c', 'user.email=test@example.invalid', 'commit', '-q', '-m', 'sources')
 
     def git(self, *args):
-        subprocess.run(['git', '-C', str(self.repo), *args], check=True, capture_output=True)
+        subprocess.run(['git', '-C', str(self.repo), *args], check=True, capture_output=True, timeout=30)
 
     def test_lists_only_committed_files_under_the_directory(self):
         (self.vm / '__pycache__').mkdir()
@@ -139,6 +140,49 @@ class CommittedSourceTests(unittest.TestCase):
         self.assertEqual(sorted(sources), ['crates/vm/guest.py', 'crates/vm/run.py', 'crates/vm/sub/notes.txt'])
         self.assertEqual(sources['crates/vm/run.py'], sha256(b'run.py\n'))
         self.assertRegex(package.head_revision(self.repo), '^[0-9a-f]{40}$')
+
+    def test_require_clean_large_inventory_finishes_with_exact_blobs(self):
+        # Exceed both sides of the observed 89,660-byte path inventory and
+        # 49,692-byte hash response. Exercise real Git, not a mocked hash list.
+        for number in range(2048):
+            name = f'{number:04d}-' + 'long-committed-source-name-' * 5 + '.txt'
+            (self.vm / name).write_text(f'committed source {number}\n')
+        self.git('add', '.')
+        self.git('-c', 'user.name=test', '-c', 'user.email=test@example.invalid',
+                 'commit', '-q', '-m', 'large source inventory')
+        names = package.listed_sources(self.repo, ['crates/vm'])
+        self.assertGreater(len(('\n'.join(names) + '\n').encode()), 89660)
+        self.assertGreater(len(names) * 41, 49692)
+        script = ('import sys; sys.path.insert(0, sys.argv[1]); import package; '
+                  'package.require_clean(package.Path(sys.argv[2]), ["crates/vm"]); '
+                  'print("verified")')
+        optimized = ['-' + 'O' * sys.flags.optimize] if sys.flags.optimize else []
+        child = subprocess.Popen(
+            [sys.executable, '-B', *optimized, '-c', script, str(package.SOURCE), str(self.repo)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, start_new_session=True)
+        try:
+            out, err = child.communicate(timeout=45)
+            self.assertEqual(child.returncode, 0, err)
+            self.assertEqual(out, 'verified\n')
+        finally:
+            # A regression to the blocked exchange must not leave either the
+            # test driver or its exact Git child running after the test fails.
+            if child.poll() is None:
+                os.killpg(child.pid, signal.SIGKILL)
+                child.communicate(timeout=10)
+
+    def test_require_clean_hash_timeout_refuses(self):
+        real = subprocess.run
+
+        def timed_out(args, **kwargs):
+            if 'hash-object' in args:
+                raise subprocess.TimeoutExpired(args, kwargs['timeout'])
+            return real(args, **kwargs)
+
+        with mock.patch.object(package.subprocess, 'run', side_effect=timed_out):
+            with self.assertRaisesRegex(package.SourceError, 'git hash-object timed out'):
+                package.require_clean(self.repo, ['crates/vm'])
 
 
 class ReleaseCoordinateTests(unittest.TestCase):

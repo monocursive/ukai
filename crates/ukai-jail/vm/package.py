@@ -40,6 +40,7 @@ import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
 
 from cli import VERSION
 from run import CATALOG_FILENAME, digest, optional_program_catalog
@@ -179,8 +180,19 @@ def require_clean(repo, paths):
             committed[os.fsdecode(name)] = meta.split()[2].decode()
     if committed:
         names = sorted(committed)
-        hashed = subprocess.run(['git', '--no-optional-locks', '-C', str(repo), 'hash-object', '--stdin-paths'],
-                                input='\n'.join(names) + '\n', capture_output=True, text=True)
+        # A large inventory must not require feeding a pipe while Git fills
+        # its output pipe. Keep the same ordered path list and blob comparison,
+        # with seekable input so communicate only has output pipes to drain.
+        with tempfile.TemporaryFile(mode='w+') as source_names:
+            source_names.write('\n'.join(names) + '\n')
+            source_names.seek(0)
+            try:
+                hashed = subprocess.run(
+                    ['git', '--no-optional-locks', '-C', str(repo), 'hash-object', '--stdin-paths'],
+                    stdin=source_names, capture_output=True, text=True, timeout=30)
+            except subprocess.TimeoutExpired as error:
+                # run() kills and reaps its exact child before raising.
+                raise SourceError('git hash-object timed out') from error
         blobs = hashed.stdout.split()
         if hashed.returncode != 0 or len(blobs) != len(names):
             raise SourceError('git hash-object failed: ' + hashed.stderr.strip()[-200:])
