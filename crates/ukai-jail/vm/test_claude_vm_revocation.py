@@ -344,6 +344,35 @@ class PersistedTests(unittest.TestCase):
         with mock.patch.object(subprocess,'Popen',side_effect=AssertionError('no process')):
             self.assertEqual(m.replay(other)['outcome'],'PASS')
 
+    def test_api_error_terminal_with_success_subtype_replays_as_failure(self):
+        # Claude's agent loop can complete while its last turn is an API error.
+        # This is the actual revocation terminal shape, not a successful task.
+        terminal = failure()
+        terminal.update(subtype='success', is_error=True, terminal_reason='api_error')
+
+        def install(value):
+            first, _ = chunks()
+            last = encode(event({'type': 'message_stop'})) + encode(value)
+            (self.root / 'stream.stdout').write_bytes(first + last)
+            self.observed['capture']['reads'][-1]['end'] = len(first + last)
+            self.observed['agent_result'] = value
+            self.observed['vendor_usage'] = n.native_vendor_usage(value)
+            self.refresh()
+
+        install(terminal)
+        result = m.replay(self.root)
+        self.assertEqual(result['outcome'], 'PASS', result)
+        self.assertTrue(result['facts']['vendor_reported_failure'])
+        self.assertFalse(result['qualified'])
+        for changes in ({'is_error': False}, {'is_error': 1}, {'is_error': 'true'},
+                        {'is_error': None}, {'subtype': ''}, {'subtype': 'unknown'},
+                        {'subtype': None}, {'type': 'assistant'}):
+            with self.subTest(changes=changes):
+                install({**terminal, **changes})
+                failed = m.replay(self.root)
+                self.assertEqual(failed['outcome'], 'FAIL', failed)
+                self.assertFalse(failed['facts']['vendor_reported_failure'])
+
     def test_relocated_replay_denies_original_reads_network_processes_and_writes(self):
         other=self.fixture.root/'isolated';shutil.copytree(self.root,other)
         script = r"""import json,os,sys

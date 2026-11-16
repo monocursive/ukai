@@ -377,12 +377,16 @@ def adapt_facts(base, observed, guest, host):
     if not REPLACED_FACTS <= base.keys(): raise Refusal('native-fact-contract-changed')
     facts = {name: value for name, value in base.items() if name not in REPLACED_FACTS}
     vendor = observed.get('agent_result') or {}
+    # Claude can emit subtype=success when the loop completes with an API
+    # error. The explicit is_error flag identifies failure in either shape;
+    # the separate receipt facts still require matching nonzero exit codes.
+    subtype = vendor.get('subtype')
     facts.update(guest_settled_nonzero_clean=clean_settlement(guest), host_settled_nonzero_clean=clean_settlement(host, host=True),
         run_matches_nonzero_receipts=integer(observed.get('run_exit'), 1, 255)
             and observed['run_exit'] == guest.get('outcome', {}).get('code') == host.get('outcome', {}).get('code'),
         both_tail_commands_succeeded=all(type(observed.get(k)) is int and observed[k] == 0 for k in ('tail_exit', 'tail_json_exit')),
         vendor_reported_failure=vendor.get('type') == 'result' and vendor.get('is_error') is True
-            and type(vendor.get('subtype')) is str and vendor['subtype'].startswith('error_'))
+            and type(subtype) is str and (subtype == 'success' or subtype.startswith('error_')))
     return facts
 
 
