@@ -54,8 +54,12 @@ INPUTS_LIST = REPO / 'crates' / 'ukai-jail' / 'profiles' / 'inputs.rs'
 # file, the toolchain pin and cargo config), the VM tooling under crates/,
 # and the build inputs outside crates/. Together they build every shipped
 # binary: ukai-vm and ukai-jail (cargo), vz (swiftc), custodian (clang), ukai-vm-install
-# (PyInstaller over vm/cli.py).
-SOURCE_PATHS = ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'LICENSE', '.cargo/config.toml', 'crates')
+# (PyInstaller over vm/cli.py). The one bounded admission proof directory
+# also ships so the table evidence tests and offline judges can be replayed;
+# no general docs/, evidence/, VM disk or signing material is selected.
+ADMISSION_PROOF = 'docs/benchmarks/jail/results/macos-vm-admission-2026-11-15'
+SOURCE_PATHS = ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'LICENSE', '.cargo/config.toml',
+                'crates', ADMISSION_PROOF)
 # The cargo build's whole environment: what finds the tools and the user's
 # rustup and cargo installation, nothing that selects a toolchain or
 # changes how it compiles (RUSTUP_TOOLCHAIN overrides rust-toolchain.toml;

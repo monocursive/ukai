@@ -64,6 +64,420 @@ fn running() -> (VmRunning, UnixStream, tempfile::TempDir) {
     running_with(image::GuestNetwork::requested("none", [], []))
 }
 
+#[test]
+fn vm_wall_expiry_still_reads_the_cancelled_attempts_eof() {
+    let (mut run, mut peer, _root) = running();
+    let expired = Instant::now() - Duration::from_secs(1);
+    assert!(matches!(
+        run.wait(Deadline { at: Some(expired) }),
+        RunEvent::WallExpired
+    ));
+    run.request_stop(StopReason::WallExpiry);
+    assert_eq!(
+        peer.read(&mut [0]).unwrap(),
+        0,
+        "cancellation ends the lease"
+    );
+    drop(peer);
+    assert!(
+        matches!(
+            run.wait(Deadline { at: Some(expired) }),
+            RunEvent::Unknown { .. }
+        ),
+        "the supervisor keeps the original wall deadline after requesting stop"
+    );
+    assert!(run.failed);
+    assert!(run.guest_facts().is_none());
+    assert_eq!(run.wait_tree(Duration::ZERO).tree_empty, None);
+}
+
+#[test]
+fn vm_wall_expiry_drains_a_delayed_receipt_without_relaxing_its_binding() {
+    for valid_binding in [true, false] {
+        let (mut run, mut peer, _root) = running();
+        let expired = Instant::now() - Duration::from_secs(1);
+        assert!(matches!(
+            run.wait(Deadline { at: Some(expired) }),
+            RunEvent::WallExpired
+        ));
+        let server = std::thread::spawn(move || {
+            peer.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+            assert_eq!(peer.read(&mut [0]).unwrap(), 0);
+            let mut held_binding = binding();
+            if !valid_binding {
+                held_binding.attempt_id = "another-attempt".into();
+            }
+            let (sha256, data) = encoded(&with_outcome("signaled", None, Some(9)));
+            // The result arrives after cancellation, not before the wall.
+            std::thread::sleep(Duration::from_millis(20));
+            for frame in [
+                protocol::FromVm::BoundReceipt {
+                    sha256,
+                    data,
+                    binding: held_binding,
+                },
+                done(137),
+            ] {
+                peer.write_all(&protocol::encode(&frame).unwrap()).unwrap();
+            }
+        });
+        run.request_stop(StopReason::WallExpiry);
+        let event = run.wait(Deadline { at: Some(expired) });
+        server.join().unwrap();
+        if valid_binding {
+            assert!(matches!(event, RunEvent::TargetSignaled { signal: 9 }));
+            assert!(run.verified());
+            assert!(run.guest_facts().is_some());
+            assert_eq!(run.wait_tree(Duration::ZERO).tree_empty, Some(true));
+        } else {
+            assert!(matches!(event, RunEvent::Unknown { .. }));
+            assert!(run.failed);
+            assert!(run.guest_facts().is_none());
+            assert_eq!(run.wait_tree(Duration::ZERO).tree_empty, None);
+        }
+    }
+}
+
+#[test]
+fn vm_stop_has_one_bounded_drain_even_for_a_silent_peer_and_repeated_requests() {
+    let (mut run, mut peer, _root) = running();
+    run.request_stop(StopReason::WallExpiry);
+    let deadline = run.termination_deadline.unwrap();
+    assert_eq!(peer.read(&mut [0]).unwrap(), 0);
+    for reason in [
+        StopReason::WallExpiry,
+        StopReason::EvidenceLoss,
+        StopReason::StdioFailure,
+    ] {
+        run.request_stop(reason);
+        assert_eq!(run.termination_deadline, Some(deadline));
+    }
+    let event = run.wait(Deadline { at: None });
+    assert!(matches!(event, RunEvent::Unknown { reason } if reason.contains("termination budget")));
+    assert!(Instant::now() < deadline + Duration::from_secs(1));
+    assert!(run.failed);
+    assert!(run.guest_facts().is_none());
+    assert_eq!(run.wait_tree(Duration::ZERO).tree_empty, None);
+}
+
+#[test]
+fn vm_tree_wait_does_not_extend_its_callers_budget_after_stop() {
+    let (mut run, _peer, _root) = running();
+    run.request_stop(StopReason::WallExpiry);
+    let start = Instant::now();
+    let tree = run.wait_tree(Duration::ZERO);
+    assert!(start.elapsed() < Duration::from_millis(100));
+    assert_eq!(tree.tree_empty, None);
+    assert_eq!(tree.integrity, Integrity::Lost);
+}
+
+#[test]
+fn vm_wall_can_hit_once_during_an_earlier_stop_without_extending_it() {
+    let (mut run, peer, _root) = running();
+    run.request_stop(StopReason::EvidenceLoss);
+    let stop_deadline = run.termination_deadline;
+    let wall = Instant::now() + Duration::from_millis(20);
+    assert!(matches!(
+        run.wait(Deadline { at: Some(wall) }),
+        RunEvent::WallExpired
+    ));
+    run.request_stop(StopReason::WallExpiry);
+    assert_eq!(run.termination_deadline, stop_deadline);
+    drop(peer);
+    assert!(matches!(
+        run.wait(Deadline { at: Some(wall) }),
+        RunEvent::Unknown { .. }
+    ));
+    assert!(run.failed);
+}
+
+#[test]
+fn vm_an_earlier_wall_is_reported_even_if_the_host_resumes_after_both_deadlines() {
+    for same_deadline in [false, true] {
+        let (mut run, _peer, _root) = running();
+        run.request_stop(StopReason::EvidenceLoss);
+        let stop = Instant::now() - Duration::from_secs(1);
+        // Model a scheduling pause without making this test wait for one.
+        run.termination_deadline = Some(stop);
+        let wall = if same_deadline {
+            stop
+        } else {
+            stop - Duration::from_secs(1)
+        };
+        assert!(matches!(
+            run.wait(Deadline { at: Some(wall) }),
+            RunEvent::WallExpired
+        ));
+        run.request_stop(StopReason::WallExpiry);
+        assert_eq!(run.termination_deadline, Some(stop));
+        assert!(matches!(
+            run.wait(Deadline { at: Some(wall) }),
+            RunEvent::Unknown { .. }
+        ));
+        assert!(run.failed);
+        assert!(run.guest_facts().is_none());
+    }
+}
+
+fn staged_test_source(root: &Path) -> (PathBuf, Arc<crate::vault::Secret>) {
+    let source = root.join("private-source");
+    std::fs::write(&source, b"source-token").unwrap();
+    std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o600)).unwrap();
+    let source = source.canonicalize().unwrap();
+    let secret = crate::vault::Secret::from_source(
+        "token".to_owned(),
+        crate::vault::Policy {
+            hosts: vec!["https://example.com".to_owned()],
+            ..Default::default()
+        },
+        source.as_os_str().as_encoded_bytes().to_vec(),
+        Vec::new(),
+    )
+    .unwrap();
+    (source, Arc::new(secret))
+}
+
+#[test]
+fn vm_staged_source_lease_never_adopts_a_replacement_or_restored_token() {
+    for replace_before_capture in [false, true] {
+        let root = tempfile::tempdir().unwrap();
+        let (source, secret) = staged_test_source(root.path());
+        let lease = secret.staged_source_lease().unwrap();
+        let replacement = root.path().join("replacement");
+        std::fs::write(&replacement, b"source-token").unwrap();
+        std::fs::set_permissions(&replacement, std::fs::Permissions::from_mode(0o600)).unwrap();
+        std::fs::rename(replacement, &source).unwrap();
+        if replace_before_capture {
+            assert!(
+                secret.staged_source_lease().is_err(),
+                "capture must not reload the same bytes from a new source"
+            );
+        }
+        assert!(lease.check().is_err());
+        std::fs::remove_file(&source).unwrap();
+        std::fs::write(&source, b"source-token").unwrap();
+        std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(lease.check().is_err());
+        assert!(secret.staged_source_lease().is_err());
+        assert_eq!(
+            secret.loaded_values().0.len(),
+            1,
+            "no replacement load occurred"
+        );
+    }
+}
+
+#[test]
+fn vm_revokes_a_removed_source_once_and_requires_the_exact_acknowledgement() {
+    use std::io::{BufRead as _, BufReader};
+    for wrong_ack in [false, true] {
+        let (mut run, mut peer, root) = running();
+        let (source, secret) = staged_test_source(root.path());
+        run.inner.vault_lease = secret.staged_source_lease().unwrap();
+        run.revocation = Some(
+            revocation::Watch::start(&run.inner.connection, run.inner.vault_lease.clone()).unwrap(),
+        );
+        peer.set_read_timeout(Some(Duration::from_secs(4))).unwrap();
+        std::fs::remove_file(source).unwrap();
+        let mut line = String::new();
+        BufReader::new(&mut peer).read_line(&mut line).unwrap();
+        assert_eq!(
+            protocol::decode::<protocol::ToVm>(line.as_bytes()).unwrap(),
+            protocol::ToVm::RevokeSecrets {
+                ids: vec!["token".to_owned()]
+            }
+        );
+        run.revocation.as_ref().unwrap().check().unwrap();
+        peer.set_nonblocking(true).unwrap();
+        assert_eq!(
+            peer.read(&mut [0]).unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+        peer.set_nonblocking(false).unwrap();
+        peer.write_all(
+            &protocol::encode(&protocol::FromVm::SecretsRevoked {
+                ids: vec![if wrong_ack { "other" } else { "token" }.to_owned()],
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        let event = run.wait(Deadline {
+            at: Some(Instant::now() + Duration::from_millis(20)),
+        });
+        if wrong_ack {
+            assert!(matches!(event, RunEvent::Unknown { .. }));
+            assert!(run.failed);
+            assert!(!run.revocation.as_ref().unwrap().acknowledged());
+        } else {
+            assert!(matches!(event, RunEvent::WallExpired));
+            assert!(run.revocation.as_ref().unwrap().acknowledged());
+            assert!(run.revocation.as_ref().unwrap().check().is_ok());
+        }
+    }
+}
+
+#[test]
+fn vm_unsolicited_revocation_ack_refuses() {
+    let (mut run, mut peer, _root) = running();
+    peer.write_all(&protocol::encode(&protocol::FromVm::SecretsRevoked { ids: vec![] }).unwrap())
+        .unwrap();
+    assert!(matches!(run.wait(soon()), RunEvent::Unknown { .. }));
+    assert!(run.failed);
+}
+
+#[test]
+fn vm_revoked_source_refuses_before_sending_run() {
+    let (mut run, mut peer, root) = running();
+    let (source, secret) = staged_test_source(root.path());
+    run.inner.vault_lease = secret.staged_source_lease().unwrap();
+    std::fs::remove_file(source).unwrap();
+    assert!(Box::new(run.inner).release().is_err());
+    assert_eq!(
+        peer.read(&mut [0]).unwrap(),
+        0,
+        "the connection closed without a Run frame"
+    );
+}
+
+#[test]
+fn vm_revocation_survives_blocked_stdout_and_stderr_without_changing_output_flags() {
+    use std::io::{BufRead as _, BufReader};
+    use std::os::fd::{FromRawFd as _, IntoRawFd as _};
+    for stderr in [false, true] {
+        let (mut run, mut peer, root) = running();
+        let (source, secret) = staged_test_source(root.path());
+        run.inner.vault_lease = secret.staged_source_lease().unwrap();
+        run.revocation = Some(
+            revocation::Watch::start(&run.inner.connection, run.inner.vault_lease.clone()).unwrap(),
+        );
+        let (output, held_reader) = UnixStream::pair().unwrap();
+        let inspected = output.try_clone().unwrap();
+        // Fill the stand-in output, then restore its blocking mode before
+        // handing it to the runtime. Runtime operations must preserve it.
+        output.set_nonblocking(true).unwrap();
+        let buffer = [b'x'; 65536];
+        loop {
+            // SAFETY: live test socket and fixed input buffer.
+            let sent = unsafe {
+                libc::send(
+                    output.as_raw_fd(),
+                    buffer.as_ptr().cast(),
+                    buffer.len(),
+                    libc::MSG_DONTWAIT | libc::MSG_NOSIGNAL,
+                )
+            };
+            if sent < 0 {
+                assert_eq!(
+                    std::io::Error::last_os_error().kind(),
+                    std::io::ErrorKind::WouldBlock
+                );
+                break;
+            }
+        }
+        output.set_nonblocking(false).unwrap();
+        // SAFETY: F_GETFL reads the live test descriptor's flags.
+        let before = unsafe { libc::fcntl(inspected.as_raw_fd(), libc::F_GETFL) };
+        assert_eq!(before & libc::O_NONBLOCK, 0);
+        // SAFETY: into_raw_fd transfers exactly this owned socket to File.
+        let output = unsafe { std::fs::File::from_raw_fd(output.into_raw_fd()) };
+        if stderr {
+            run.inner.stderr = output;
+        } else {
+            run.inner.stdout = output;
+        }
+        let frame = if stderr {
+            protocol::FromVm::Stderr {
+                data: protocol::encode_data(b"blocked"),
+            }
+        } else {
+            protocol::FromVm::Stdout {
+                data: protocol::encode_data(b"blocked"),
+            }
+        };
+        peer.write_all(&protocol::encode(&frame).unwrap()).unwrap();
+        let (done, observed) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let event = run.wait(Deadline { at: None });
+            done.send(event).unwrap();
+        });
+        assert!(
+            observed.recv_timeout(Duration::from_millis(50)).is_err(),
+            "output should be blocked"
+        );
+        std::fs::remove_file(source).unwrap();
+        peer.set_read_timeout(Some(Duration::from_secs(4))).unwrap();
+        let mut request = String::new();
+        BufReader::new(&mut peer).read_line(&mut request).unwrap();
+        assert_eq!(
+            protocol::decode::<protocol::ToVm>(request.as_bytes()).unwrap(),
+            protocol::ToVm::RevokeSecrets {
+                ids: vec!["token".into()]
+            }
+        );
+        // Even a correct ACK cannot help until the main reader processes it.
+        peer.write_all(
+            &protocol::encode(&protocol::FromVm::SecretsRevoked {
+                ids: vec!["token".into()],
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            peer.read(&mut [0]).unwrap(),
+            0,
+            "unprocessed ACK must still cancel by deadline"
+        );
+        assert!(
+            observed.try_recv().is_err(),
+            "main stayed blocked throughout revocation"
+        );
+        assert_eq!(
+            // SAFETY: F_GETFL reads the same still-live output description.
+            unsafe { libc::fcntl(inspected.as_raw_fd(), libc::F_GETFL) },
+            before
+        );
+        drop(held_reader);
+        assert!(matches!(
+            observed.recv_timeout(Duration::from_secs(2)).unwrap(),
+            RunEvent::Unknown { .. }
+        ));
+        worker.join().unwrap();
+    }
+}
+
+#[test]
+fn vm_verified_completion_without_a_revocation_ack_is_settlement_not_acknowledgement() {
+    use std::io::{BufRead as _, BufReader};
+    let (mut run, mut peer, root) = running();
+    let (source, secret) = staged_test_source(root.path());
+    run.inner.vault_lease = secret.staged_source_lease().unwrap();
+    run.revocation = Some(
+        revocation::Watch::start(&run.inner.connection, run.inner.vault_lease.clone()).unwrap(),
+    );
+    std::fs::remove_file(source).unwrap();
+    peer.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+    let mut request = String::new();
+    BufReader::new(&mut peer).read_line(&mut request).unwrap();
+    let (sha256, data) = encoded(&receipt());
+    for frame in [
+        protocol::FromVm::BoundReceipt {
+            sha256,
+            data,
+            binding: binding(),
+        },
+        done(0),
+    ] {
+        peer.write_all(&protocol::encode(&frame).unwrap()).unwrap();
+    }
+    assert!(matches!(
+        run.wait(soon()),
+        RunEvent::TargetExited { code: 0 }
+    ));
+    assert!(run.verified());
+    assert!(run.revocation.as_ref().unwrap().is_settled());
+    assert!(!run.revocation.as_ref().unwrap().acknowledged());
+}
+
 fn running_with(network: image::GuestNetwork) -> (VmRunning, UnixStream, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
     for name in ["workspace", "evidence"] {
@@ -98,6 +512,7 @@ fn running_with(network: image::GuestNetwork) -> (VmRunning, UnixStream, tempfil
         .unwrap(),
         network,
         guest_policy_digest: GUEST_POLICY.into(),
+        vault_lease: crate::vault::lifecycle::Lease::default(),
         stdout: std::fs::File::create(dir.path().join("stdout")).unwrap(),
         stderr: std::fs::File::create(dir.path().join("stderr")).unwrap(),
     };
@@ -107,8 +522,11 @@ fn running_with(network: image::GuestNetwork) -> (VmRunning, UnixStream, tempfil
             receipt: None,
             guest: None,
             stop: None,
+            termination_deadline: None,
+            wall_reported: false,
             finished: false,
             failed: false,
+            revocation: None,
         },
         peer,
         dir,
@@ -494,6 +912,7 @@ fn ready_must_match_locally_verified_digests() {
         seed_sha256: "s".repeat(64),
     };
     let fresh = || ReadyFrame {
+        guest_contracts: None,
         boot_id: "boot".into(),
         disk_sha256: manifest.disk_sha256.clone(),
         helper_sha256: manifest.helper_sha256.clone(),
@@ -1277,10 +1696,9 @@ fn request(snapshot: PolicySnapshot) -> PlanRequest {
     }
 }
 
-/// The requirements the 2026-11-04 evening live phase measured, each by its
-/// own attempts (`macos-vm-probes-2026-11-04/capabilities.json`), in the
-/// record's order.
-const LIVE_MEASURED: [&str; 10] = [
+/// Current installed-image probes plus the two separately derived admissions,
+/// in the table's order. Their schemas and source records are checked below.
+const LIVE_MEASURED: [&str; 12] = [
     "limit:wall",
     "limit:pids",
     "limit:mem",
@@ -1291,6 +1709,8 @@ const LIVE_MEASURED: [&str; 10] = [
     "syscall_filter",
     "protected_coverage:existing_and_root",
     "network_proxy",
+    "execution_boundary",
+    "credential_staging",
 ];
 
 /// Decision D2: exactly the requirements the live phase measured answer
@@ -1304,7 +1724,7 @@ fn only_the_live_phase_measurements_answer_available() {
         .map(|row| row.requirement)
         .collect();
     assert_eq!(listed, LIVE_MEASURED);
-    let platform = platform(Path::new("/unused"));
+    let platform = measured_platform();
     let owner = platform
         .owner_identity()
         .expect("VM supervisor is a macOS process");
@@ -1339,7 +1759,7 @@ fn only_the_live_phase_measurements_answer_available() {
             .iter()
             .find(|row| row.name == "tree_termination")
             .expect("every plan requires tree termination");
-        assert!(tree.satisfies(), "measured on 2026-11-04: {tree:?}");
+        assert!(tree.satisfies(), "measured on 2026-11-15: {tree:?}");
         assert!(
             rows.iter().all(Capability::satisfies),
             "a default plan passes probing: {rows:?}"
@@ -1354,35 +1774,174 @@ fn only_the_live_phase_measurements_answer_available() {
     );
 }
 
-/// Each row's record is in the repository: its pointer names a `true`
-/// verdict under `/measurements/<requirement>`, its time is the time that
-/// entry states and the start of the attempt the entry names, and the record
-/// passed as a whole.
+fn measured_platform() -> VmPlatform {
+    let mut result = platform(Path::new("/unused"));
+    result.install.manifest.disk_sha256 = GUEST_MEASURED_DISK_SHA256.into();
+    result.install.manifest.seed_sha256 = GUEST_MEASURED_SEED_SHA256.into();
+    result
+}
+
+#[test]
+fn measured_guest_identity_is_required_before_any_capability_is_available() {
+    let mut required = tool();
+    required.limits.mem = Some(LimitCeiling {
+        value: (512 * 1024 * 1024).to_string(),
+        required: true,
+    });
+    let plans = [
+        request(tool()),
+        request(required),
+        request(agent_with_launch(VAULT_LAUNCH)),
+    ];
+    for plan in &plans {
+        let platform = measured_platform();
+        assert!(platform.probe(plan).iter().all(Capability::satisfies));
+        // Signing host helpers again changes their signatures, not guest bytes.
+        let mut resigned = platform.clone();
+        resigned.install.manifest.helper_sha256 = "a".repeat(64);
+        resigned.install.manifest.custodian_sha256 = "b".repeat(64);
+        assert!(resigned.probe(plan).iter().all(Capability::satisfies));
+        for (disk, seed) in [(false, true), (true, false), (false, false)] {
+            let mut other = platform.clone();
+            if !disk {
+                other.install.manifest.disk_sha256 = "0".repeat(64);
+            }
+            if !seed {
+                other.install.manifest.seed_sha256 = "0".repeat(64);
+            }
+            let rows = other.probe(plan);
+            assert!(!rows.is_empty());
+            assert!(rows.iter().all(|row| !row.satisfies()
+                && row.reason_code.as_deref()
+                    == Some(format!("{REASON_VM_NOT_MEASURED}{}", row.name).as_str())
+                && row.measured_at.is_none()
+                && row.evidence_ref.is_none()));
+        }
+    }
+    // Admission does not invent the still unmeasured swap requirement.
+    let mut swap = tool();
+    swap.limits.swap = Some(LimitCeiling {
+        value: "0".into(),
+        required: true,
+    });
+    assert!(
+        measured_platform()
+            .probe(&request(swap))
+            .iter()
+            .any(|row| row.name == "limit:swap" && !row.satisfies())
+    );
+}
+
+/// Follow each schema's evidence linkage, rather than treating every derived
+/// admission as a capabilities.py row or trusting a stored PASS alone.
 #[test]
 fn every_measurement_row_resolves_in_its_record() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let bundle = root.join("docs/benchmarks/jail/results/macos-vm-admission-2026-11-15");
+    let read = |path: &Path| -> (Vec<u8>, serde_json::Value) {
+        let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let record = serde_json::from_slice(&bytes).unwrap();
+        (bytes, record)
+    };
+    let (cap_bytes, capabilities) = read(&bundle.join("handshake-capabilities/capabilities.json"));
+    let (raw_bytes, raw) = read(&bundle.join("handshake-raw-credential/raw-inputs.json"));
+    let (_, measured_image) = read(&bundle.join("handshake-raw-credential/image.json"));
+    assert_eq!(measured_image["disk_sha256"], GUEST_MEASURED_DISK_SHA256);
+    assert_eq!(measured_image["seed_sha256"], GUEST_MEASURED_SEED_SHA256);
+    assert_eq!(
+        capabilities["status"]["disk_sha256"],
+        GUEST_MEASURED_DISK_SHA256
+    );
+    assert_eq!(
+        capabilities["status"]["seed_sha256"],
+        GUEST_MEASURED_SEED_SHA256
+    );
     for row in GUEST_MEASUREMENTS {
         let (path, pointer) = row.record.split_once('#').expect("path#pointer");
-        let bytes = std::fs::read(root.join(path)).unwrap_or_else(|e| panic!("{path}: {e}"));
-        let record: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let (_, record) = read(&root.join(path));
         assert_eq!(
             record.pointer(pointer),
             Some(&serde_json::Value::Bool(true)),
             "{}",
             row.record
         );
-        let entry_pointer = pointer
-            .strip_suffix("/verdict")
-            .expect("a row points at a verdict");
+        let entry_pointer = pointer.strip_suffix("/verdict").expect("verdict pointer");
         assert_eq!(entry_pointer, format!("/measurements/{}", row.requirement));
         let entry = record.pointer(entry_pointer).unwrap();
         assert_eq!(entry["measured_at"], row.measured_at, "{}", row.record);
-        let capability = entry["capability"].as_str().expect("capability name");
-        let attempt = &record["results"][capability];
-        assert_eq!(attempt["started_at"], row.measured_at, "{}", row.record);
-        assert_eq!(attempt["attempt_id"], entry["attempt_id"], "{}", row.record);
-        assert_eq!(record["summary"][capability], true, "{}", row.record);
-        assert_eq!(record["summary"]["outcome"], "PASS");
+        assert!(!entry["attempt_id"].as_str().unwrap().is_empty());
+        match record["schema"].as_str().unwrap() {
+            "ukai.vm.capabilities/2" => {
+                let capability = entry["capability"].as_str().expect("capability name");
+                let attempt = &record["results"][capability];
+                assert_eq!(attempt["started_at"], row.measured_at);
+                assert_eq!(attempt["attempt_id"], entry["attempt_id"]);
+                assert_eq!(record["summary"][capability], true);
+                assert_eq!(record["summary"]["outcome"], "PASS");
+            }
+            "ukai.vm.execution-boundary-measurement/1" => {
+                assert_eq!(row.requirement, "execution_boundary");
+                assert_eq!(record["outcome"], "PASS");
+                assert_eq!(
+                    record["source_record_sha256"],
+                    format!("{:x}", sha2::Sha256::digest(&cap_bytes))
+                );
+                let names = ["pids", "mem", "tree_termination", "tree_wall"];
+                let attempts: Vec<_> = names
+                    .iter()
+                    .map(|name| capabilities["results"][name]["attempt_id"].clone())
+                    .collect();
+                assert_eq!(entry["attempt_ids"], serde_json::json!(attempts));
+                assert_eq!(entry["attempt_id"], attempts[0]);
+                assert_eq!(
+                    entry["measured_at"],
+                    capabilities["results"]["pids"]["started_at"]
+                );
+                let facts = record["facts"].as_object().unwrap();
+                assert!(!facts.is_empty() && facts.values().all(|value| value == true));
+                assert_eq!(record["status"], capabilities["status"]);
+            }
+            "ukai.vm.credential-staging-measurement/2" => {
+                assert_eq!(row.requirement, "credential_staging");
+                assert_eq!(record["outcome"], "PASS");
+                assert_eq!(record["qualified"], false);
+                assert_eq!(
+                    record["source_record_sha256"],
+                    format!("{:x}", sha2::Sha256::digest(&raw_bytes))
+                );
+                assert_eq!(entry["attempt_id"], raw["record"]["attempt_id"]);
+                assert_eq!(
+                    entry["guest_attempt_id"],
+                    raw["record"]["receipt"]["attempt_id"]
+                );
+                assert_eq!(entry["measured_at"], raw["record"]["started_at"]);
+                assert_eq!(record["installation"]["image"], measured_image);
+                assert_eq!(
+                    record["compatibility"]["required_guest_image"],
+                    serde_json::json!({
+                        "disk_sha256": GUEST_MEASURED_DISK_SHA256,
+                        "seed_sha256": GUEST_MEASURED_SEED_SHA256,
+                    })
+                );
+                assert_eq!(
+                    raw["record"]["ready"]["guest_contracts"],
+                    serde_json::json!({
+                        "secret_revocation": protocol::SECRET_REVOCATION_CONTRACT,
+                        "journal_export": protocol::JOURNAL_EXPORT_CONTRACT,
+                    })
+                );
+                let facts = record["recomputed_facts"].as_object().unwrap();
+                assert!(!facts.is_empty() && facts.values().all(|value| value == true));
+                assert!(
+                    entry["not_measured"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|value| value == "normal installed-client host-source watch")
+                );
+            }
+            schema => panic!("unrecognized measurement schema {schema}"),
+        }
     }
 }
 
@@ -2298,6 +2857,8 @@ struct WallSim;
 struct WallPrepared;
 struct WallRunning {
     waits: u32,
+    inner: VmRunning,
+    _root: tempfile::TempDir,
 }
 
 impl Platform for WallSim {
@@ -2323,7 +2884,27 @@ impl PreparedExecution for WallPrepared {
         GuestPrepared.boundary()
     }
     fn release(self: Box<Self>) -> Result<Box<dyn RunningExecution>, Box<ReleaseFailure>> {
-        Ok(Box::new(WallRunning { waits: 0 }))
+        let (inner, mut peer, root) = running();
+        std::thread::spawn(move || {
+            peer.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+            assert_eq!(peer.read(&mut [0]).unwrap(), 0);
+            let (sha256, data) = encoded(&with_outcome("signaled", None, Some(9)));
+            for frame in [
+                protocol::FromVm::BoundReceipt {
+                    sha256,
+                    data,
+                    binding: binding(),
+                },
+                done(137),
+            ] {
+                peer.write_all(&protocol::encode(&frame).unwrap()).unwrap();
+            }
+        });
+        Ok(Box::new(WallRunning {
+            waits: 0,
+            inner,
+            _root: root,
+        }))
     }
     fn abort(self: Box<Self>) -> Result<Teardown, JailError> {
         Ok(Teardown { tree: None })
@@ -2331,33 +2912,34 @@ impl PreparedExecution for WallPrepared {
 }
 
 impl RunningExecution for WallRunning {
-    // A platform whose final rows are the guest's (hit false): the order of
-    // the settle, not this platform, must keep the host's hit.
+    // The verified guest's rows do not claim the host's wall hit.
     fn final_limits(&self) -> Vec<AppliedLimit> {
-        serde_json::from_value(k113_guest()["applied"]["limits"].clone()).unwrap()
+        self.inner.final_limits()
     }
     fn wait(&mut self, _: Deadline) -> RunEvent {
         self.waits += 1;
-        if self.waits == 1 {
-            RunEvent::WallExpired
-        } else {
-            RunEvent::TargetExited { code: 137 }
+        if self.waits > 3 {
+            // A regression must fail the outcome assertions, not hang the
+            // test supervisor forever on repeated WallExpired events.
+            return RunEvent::Unknown {
+                reason: "VM wall expiry did not retire".into(),
+            };
         }
+        self.inner.wait(Deadline {
+            at: Some(Instant::now() - Duration::from_secs(1)),
+        })
     }
-    fn request_stop(&mut self, _: StopReason) {}
-    fn wait_tree(&mut self, _: Duration) -> TreeObservation {
-        TreeObservation {
-            tree_empty: Some(true),
-            verified_at: None,
-            verification_scope: VerificationScope::AttemptTree,
-            integrity: Integrity::Verified,
-        }
+    fn request_stop(&mut self, reason: StopReason) {
+        self.inner.request_stop(reason);
+    }
+    fn wait_tree(&mut self, budget: Duration) -> TreeObservation {
+        self.inner.wait_tree(budget)
     }
     fn observer_summary(&mut self) -> Option<crate::observer::CoverageSummary> {
         None
     }
     fn guest_facts(&self) -> Option<GuestFacts> {
-        guest_facts(&k113_guest(), &"5".repeat(64)).ok()
+        self.inner.guest_facts()
     }
 }
 
@@ -2401,6 +2983,9 @@ fn the_host_wall_hit_survives_settlement() {
     let receipt_path = report.receipt_path.expect("a receipt");
     let host: Value = serde_json::from_slice(&std::fs::read(&receipt_path).unwrap()).unwrap();
     assert_eq!(host["outcome"]["cause"], "wall_expiry");
+    assert_eq!(host["outcome"]["kind"], "signaled");
+    assert_eq!(host["outcome"]["signal"], 9);
+    assert_eq!(host["lifetime"]["tree_empty"], true);
     let wall = host["applied"]["limits"]
         .as_array()
         .unwrap()
@@ -2435,6 +3020,10 @@ fn ready(boot_id: &str) -> protocol::FromVm {
         custodian_sha256: "c".repeat(64),
         seed_sha256: "s".repeat(64),
         vsock_port: 1024,
+        guest_contracts: Some(protocol::GuestContracts {
+            secret_revocation: Some(protocol::SECRET_REVOCATION_CONTRACT.into()),
+            journal_export: Some(protocol::JOURNAL_EXPORT_CONTRACT.into()),
+        }),
     }
 }
 
@@ -2618,6 +3207,96 @@ fn the_guest_must_acknowledge_exactly_the_secrets_sent() {
                 assert!(error.contains("acknowledged the staged secrets"), "{error}");
             }
             (other, _) => panic!("{shown}: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn missing_or_unknown_guest_contracts_refuse_before_secret_prepare_but_allow_plain_runs() {
+    let (_volume, workspace) = shareable_workspace();
+    let snapshot = agent_with_launch(VAULT_LAUNCH);
+    let secret = staged_secret(&snapshot, b"must-not-cross-legacy-transport");
+    let required = protocol::GuestContracts {
+        secret_revocation: Some(protocol::SECRET_REVOCATION_CONTRACT.into()),
+        journal_export: Some(protocol::JOURNAL_EXPORT_CONTRACT.into()),
+    };
+    let unsupported = [
+        None,
+        Some(protocol::GuestContracts::default()),
+        Some(protocol::GuestContracts {
+            journal_export: None,
+            ..required.clone()
+        }),
+        Some(protocol::GuestContracts {
+            secret_revocation: None,
+            ..required.clone()
+        }),
+        Some(protocol::GuestContracts {
+            secret_revocation: Some("ukai.vm.secret-revocation/2".into()),
+            ..required.clone()
+        }),
+        Some(protocol::GuestContracts {
+            journal_export: Some("ukai.vm.guest-journal/2".into()),
+            ..required
+        }),
+    ];
+    for contracts in unsupported {
+        for credentials in [false, true] {
+            let plan = PreparedPlan {
+                workspace: workspace.clone(),
+                ..if credentials {
+                    prepared_plan(snapshot.clone(), Some("svc"), vec![secret.clone()])
+                } else {
+                    prepared_plan(tool(), None, Vec::new())
+                }
+            };
+            let (sent, observed) = std::sync::mpsc::channel();
+            let contracts = contracts.clone();
+            let result = prepare_against(
+                plan,
+                status(Some(&workspace), credentials),
+                move |mut stream| {
+                    let mut frame = ready("vm-test");
+                    let protocol::FromVm::Ready {
+                        guest_contracts, ..
+                    } = &mut frame
+                    else {
+                        unreachable!()
+                    };
+                    *guest_contracts = contracts;
+                    stream
+                        .write_all(&protocol::encode(&frame).unwrap())
+                        .unwrap();
+                    let request = read_line(&mut stream);
+                    sent.send(request.clone()).unwrap();
+                    if !request.is_empty() {
+                        stream
+                            .write_all(
+                                &protocol::encode(&protocol::FromVm::Prepared {
+                                    kernel: "guest-kernel".into(),
+                                    staged_secrets: Vec::new(),
+                                })
+                                .unwrap(),
+                            )
+                            .unwrap();
+                    }
+                },
+                Duration::from_secs(20),
+            )
+            .expect("prepare returned");
+            let request = observed.recv_timeout(Duration::from_secs(1)).unwrap();
+            if credentials {
+                assert!(result.unwrap_err().contains("no credential was sent"));
+                assert!(
+                    request.is_empty(),
+                    "legacy peer received a Prepare containing a secret"
+                );
+            } else {
+                assert!(result.is_ok(), "{result:?}");
+                assert!(
+                    matches!(protocol::decode::<protocol::ToVm>(&request).unwrap(), protocol::ToVm::Prepare { secrets, .. } if secrets.is_empty())
+                );
+            }
         }
     }
 }

@@ -1,14 +1,14 @@
 //! The host side of the two sockets (J18): the control client `ukai-jail vm
 //! stop` uses, and the attempt connection the `--vm` execution path drives.
 //!
-//! The module is standalone (standard library only): the `ukai-vm` binary
+//! The module is shared: the `ukai-vm` binary
 //! and the stand-in tests include it by path, so both ends of the socket
 //! share one definition of a conversation.
 
 use std::io::{Read as _, Write as _};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use super::protocol::{self, FrameError, FromControl, FromVm, ToControl, ToVm, decode, encode};
 
@@ -26,6 +26,79 @@ pub const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(30);
 /// The sentinel a bounded read returns on: the caller translates it, and it
 /// is never a protocol byte sequence.
 const IDLE: &str = "\u{0}idle\u{0}";
+
+/// Send on an internal socket with one absolute deadline. The internal socket
+/// stays nonblocking, including all its clones; never pass user standard I/O.
+/// A trickle reader cannot restart the total budget after each partial write.
+///
+/// # Errors
+/// Socket setup or send failure, cancellation, or the absolute deadline.
+pub fn write_before(
+    stream: &UnixStream,
+    bytes: &[u8],
+    deadline: Instant,
+    cancelled: impl Fn() -> bool,
+) -> std::io::Result<()> {
+    use std::os::fd::AsRawFd as _;
+    // Darwin AF_UNIX sends may block despite MSG_DONTWAIT on a blocking socket.
+    // This socket belongs exclusively to the internal protocol, so changing
+    // its shared file-description flags cannot affect operator standard I/O.
+    stream.set_nonblocking(true)?;
+    let mut written = 0;
+    while written < bytes.len() {
+        if cancelled() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Interrupted,
+                "socket send cancelled",
+            ));
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "socket send deadline elapsed",
+            ));
+        }
+        // SAFETY: the live socket and remaining caller-owned byte slice stay
+        // valid for send; both flags apply only to this call on Linux/macOS.
+        let count = unsafe {
+            libc::send(
+                stream.as_raw_fd(),
+                bytes[written..].as_ptr().cast(),
+                bytes.len() - written,
+                libc::MSG_DONTWAIT | libc::MSG_NOSIGNAL,
+            )
+        };
+        if count > 0 {
+            written += count as usize;
+            continue;
+        }
+        if count == 0 {
+            return Err(std::io::ErrorKind::WriteZero.into());
+        }
+        let error = std::io::Error::last_os_error();
+        if error.kind() == std::io::ErrorKind::Interrupted {
+            continue;
+        }
+        if error.kind() != std::io::ErrorKind::WouldBlock {
+            return Err(error);
+        }
+        let mut descriptor = libc::pollfd {
+            fd: stream.as_raw_fd(),
+            events: libc::POLLOUT,
+            revents: 0,
+        };
+        let millis = remaining.min(Duration::from_millis(20)).as_millis().max(1) as i32;
+        // SAFETY: poll receives one live descriptor and writable record.
+        if unsafe { libc::poll(&mut descriptor, 1, millis) } < 0 {
+            let error = std::io::Error::last_os_error();
+            if error.kind() != std::io::ErrorKind::Interrupted {
+                return Err(error);
+            }
+        }
+    }
+    Ok(())
+}
 
 /// Wait for readable bytes or EOF without changing SO_RCVTIMEO. Darwin
 /// rejects setsockopt after peer close even when unread bytes remain.
@@ -199,7 +272,11 @@ impl AttemptConnection {
     pub fn connect(path: &Path) -> Result<Self, FrameError> {
         let stream = UnixStream::connect(path)
             .map_err(|error| FrameError(format!("the attempt socket does not answer: {error}")))?;
-        let _ = stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT));
+        stream.set_nonblocking(true).map_err(|error| {
+            FrameError(format!(
+                "the attempt socket cannot become nonblocking: {error}"
+            ))
+        })?;
         Ok(AttemptConnection {
             stream,
             buffer: Vec::new(),
@@ -213,10 +290,7 @@ impl AttemptConnection {
     /// # Errors
     /// [`FrameError`] when the write fails.
     pub fn send(&mut self, frame: &ToVm) -> Result<(), FrameError> {
-        let line = encode(frame)?;
-        self.stream
-            .write_all(&line)
-            .map_err(|error| FrameError(format!("the attempt stream failed to write: {error}")))
+        self.send_within(frame, HANDSHAKE_TIMEOUT)
     }
 
     /// [`AttemptConnection::send`] whose write may block no longer than
@@ -227,17 +301,18 @@ impl AttemptConnection {
     /// [`FrameError`] when the write fails or does not complete in time.
     pub fn send_within(&mut self, frame: &ToVm, budget: Duration) -> Result<(), FrameError> {
         let line = encode(frame)?;
-        let _ = self
-            .stream
-            .set_write_timeout(Some(budget.max(Duration::from_millis(1))));
-        let written = self.stream.write_all(&line).map_err(|error| {
+        write_before(&self.stream, &line, Instant::now() + budget, || false).map_err(|error| {
             FrameError(format!(
                 "the attempt stream failed to write within {}ms: {error}",
                 budget.as_millis()
             ))
-        });
-        let _ = self.stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT));
-        written
+        })
+    }
+
+    /// A writer for the independent credential watch. After Run, the watch
+    /// is the only frame writer; cancellation may half-close either clone.
+    pub(super) fn clone_writer(&self) -> std::io::Result<UnixStream> {
+        self.stream.try_clone()
     }
 
     /// Half-closes the write side: the lease's end-of-file, which cancels
@@ -432,6 +507,10 @@ mod tests {
                 custodian_sha256: "c".repeat(64),
                 seed_sha256: "s".repeat(64),
                 vsock_port: 1024,
+                guest_contracts: Some(protocol::GuestContracts {
+                    secret_revocation: Some(protocol::SECRET_REVOCATION_CONTRACT.into()),
+                    journal_export: Some(protocol::JOURNAL_EXPORT_CONTRACT.into()),
+                }),
             };
             let line = encode(&ready).expect("encodes");
             stream.write_all(&line).expect("writes");
@@ -446,6 +525,36 @@ mod tests {
 #[cfg(test)]
 mod bound_regressions {
     use super::*;
+
+    #[test]
+    fn partial_control_writes_do_not_restart_the_absolute_budget() {
+        let (writer, mut reader) = UnixStream::pair().unwrap();
+        let received = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let count = std::sync::Arc::clone(&received);
+        let drain = std::thread::spawn(move || {
+            let mut buffer = [0; 16384];
+            while let Ok(n) = reader.read(&mut buffer) {
+                if n == 0 {
+                    break;
+                }
+                count.fetch_add(n, std::sync::atomic::Ordering::Relaxed);
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        });
+        let start = Instant::now();
+        let result = write_before(
+            &writer,
+            &vec![b'x'; 4 * 1024 * 1024],
+            start + Duration::from_millis(100),
+            || false,
+        );
+        let elapsed = start.elapsed();
+        writer.shutdown(std::net::Shutdown::Both).unwrap();
+        drain.join().unwrap();
+        assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::TimedOut);
+        assert!(elapsed < Duration::from_secs(1), "{elapsed:?}");
+        assert!(received.load(std::sync::atomic::Ordering::Relaxed) > 0);
+    }
 
     fn pair() -> (AttemptConnection, UnixStream) {
         let (a, b) = UnixStream::pair().unwrap();

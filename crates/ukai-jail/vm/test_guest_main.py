@@ -28,6 +28,8 @@ import base64
 import os
 from pathlib import Path
 import stat
+import threading
+import types
 import unittest
 
 from guest_harness import GuestHarness, complete, hold, within
@@ -47,6 +49,9 @@ class BootTests(unittest.TestCase):
         self.assertIs(ready['live_share'], False)
         self.assertIs(session['live_share'], False)
         self.assertEqual(session['kernel'], os.uname().release)
+        self.assertEqual(session['guest_contracts'], {
+            'secret_revocation': 'ukai.vm.secret-revocation/1',
+            'journal_export': 'ukai.vm.guest-journal/1'})
 
     def test_a_mounted_share_is_live_stated_and_nosuid_nodev(self):
         guest = GuestHarness(self, share='mounts')
@@ -92,10 +97,22 @@ class PreviewOpTests(unittest.TestCase):
         self.assertEqual(guest.ended(), 'invalid_lease_sequence')
 
     def test_the_ping_lease_expires_outside_a_session(self):
-        guest = GuestHarness(self)
+        guest = GuestHarness(self, start=False)
+        waiting = threading.Event()
+
+        class ObservedSelector(guest.guest.selectors.DefaultSelector):
+            def select(self, timeout=None):
+                waiting.set()
+                return super().select(timeout)
+
+        guest.guest.selectors = types.SimpleNamespace(
+            DefaultSelector=ObservedSelector, EVENT_READ=guest.guest.selectors.EVENT_READ)
+        guest.thread.start()
         guest.expect('ready')
-        # No ping: the loop's own turn (0.1 s at most) judges the lease. A
-        # ping sent now could be handled first and renew it.
+        # Ready precedes initialization of last_ping. Wait for the first
+        # real selector turn so the initial baseline exists before moving
+        # virtual time. Send no ping: this covers the initial idle lease.
+        self.assertTrue(waiting.wait(10), 'the controller did not enter its control loop')
         guest.clock.advance(3)
         self.assertEqual(guest.ended(), 'lease_expired')
 

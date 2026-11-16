@@ -809,6 +809,24 @@ def timings(marks):
             'released_to_done': span('released', 'done')}
 
 
+def guest_binding_matches(binding, receipt):
+    """The envelope's guest identity must be the raw receipt's own identity.
+
+    A nonempty controller-supplied ID alone proves no binding. In particular,
+    two receipts with identical argv on different guest boots are not
+    interchangeable. This is consistency evidence, not kernel attestation.
+    """
+    try:
+        attempt = receipt.get('attempt_id')
+        boot = receipt['process']['identity']['value']['boot_id']
+        profile = receipt['policy']['name']
+        return (type(attempt) is str and bool(attempt) and binding.get('guest_attempt_id') == attempt
+                and type(boot) is str and bool(boot) and binding.get('guest_boot_id') == boot
+                and type(profile) is str and bool(profile) and binding.get('profile') == profile)
+    except (AttributeError, KeyError, TypeError):
+        return False
+
+
 def attempt_dir_bound(attempt, argv):
     """receipt_bound()'s checks for a `ukai-jail run --vm` attempt directory.
 
@@ -831,7 +849,7 @@ def attempt_dir_bound(attempt, argv):
             and sha256_file(guest_path) == transport['guest_receipt_sha256']
             and binding.get('attempt_id') == attempt.name and binding.get('argv_digest') == digest
             and guest.get('argv_digest') == digest and bool(binding.get('boot_id'))
-            and binding.get('boot_id') == transport.get('boot_id') and bool(binding.get('guest_boot_id')))
+            and binding.get('boot_id') == transport.get('boot_id') and guest_binding_matches(binding, guest))
 
 
 ATTEMPT_CGROUP = re.compile(r'ukai-attempts\.slice/attempt-[0-9]+')
@@ -870,7 +888,7 @@ def receipt_bound(record):
             and bool(digest) and binding.get('argv_digest') == digest and receipt.get('argv_digest') == digest
             and bool(record.get('profile')) and binding.get('profile') == record.get('profile')
             and bool(record.get('boot_id')) and binding.get('boot_id') == record.get('boot_id')
-            and bool(binding.get('guest_boot_id')))
+            and guest_binding_matches(binding, receipt))
 
 
 def receipt_limit(receipt, key):
@@ -1237,7 +1255,7 @@ class ClientProcess:
         return receipt_bound({'attempt_id': self.attempt_id, 'argv_digest': self.argv_digest,
                               'profile': self.profile, 'boot_id': ready[0].get('boot_id'),
                               'binding': frame.get('binding'), 'receipt_digest_ok': frame.get('digest_ok'),
-                              'receipt': {'argv_digest': frame.get('receipt_argv_digest')}})
+                              'receipt': frame.get('receipt_identity')})
 
     def seen(self, name):
         with self._lock:
@@ -1303,12 +1321,14 @@ def client_main():
             elif event == 'bound_receipt':
                 raw = base64.b64decode(message['data'])
                 try:
-                    receipt_digest = (json.loads(raw) or {}).get('argv_digest')
+                    receipt = json.loads(raw) or {}
+                    identity = {key: receipt.get(key) for key in ('argv_digest', 'attempt_id', 'process')}
+                    identity['policy'] = {'name': (receipt.get('policy') or {}).get('name')}
                 except (ValueError, AttributeError):
-                    receipt_digest = None
+                    identity = {}
                 emit(event=event, binding=message.get('binding'),
                      digest_ok=hashlib.sha256(raw).hexdigest() == message.get('sha256'),
-                     receipt_argv_digest=receipt_digest)
+                     receipt_argv_digest=identity.get('argv_digest'), receipt_identity=identity)
             elif event == 'done':
                 emit(event='done', exit_code=message.get('exit_code'))
                 return 0
