@@ -2,10 +2,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import check_install
 
@@ -104,6 +106,104 @@ class CaseRecordingTests(unittest.TestCase):
         self.assertEqual(identity['manifest_sha256'], hashlib.sha256(b'x\n').hexdigest())
         self.assertEqual(identity['version'], '1.2.3')
         self.assertEqual(identity['dmg_sha256'], hashlib.sha256(b'dmg').hexdigest())
+
+
+@unittest.skipUnless(shutil.rmtree.avoids_symlink_attacks,
+                     'generated fixture cleanup needs fd-based rmtree')
+class FixtureRetirementTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.name = 'payload-tamper'
+        self.clone = self.root / self.name
+        (self.clone / 'payload').mkdir(parents=True)
+        (self.clone / 'payload' / 'file').write_bytes(b'originaltampered')
+        self.sibling = self.root / 'actual-install'
+        self.sibling.mkdir()
+        (self.sibling / 'keep').write_bytes(b'installed')
+        for suffix in ('.stdout', '.stderr'):
+            (self.root / (self.name + suffix)).write_text('expected refusal')
+        self.captured = check_install.capture_fixture(self.root, self.name)
+        self.results = [{'case': self.name, 'exit_code': 1, 'passed': True, 'failed_checks': []}]
+        self.mutation = {'path': 'payload/file', 'operation': 'append',
+                         'bytes_hex': b'tampered'.hex(),
+                         'original_sha256': hashlib.sha256(b'original').hexdigest(),
+                         'mutated_sha256': hashlib.sha256(b'originaltampered').hexdigest()}
+
+    def retire(self):
+        check_install.retire_passed_fixture(self.results, self.root, self.name, self.captured,
+                                           {'manifest_sha256': 'a' * 64}, self.mutation)
+
+    def test_passed_fixture_is_removed_after_its_proof_is_persisted(self):
+        remove = check_install.remove_owned_fixture
+
+        def checked_remove(*args):
+            proof = json.loads((self.root / (self.name + '.fixture.json')).read_text())
+            self.assertTrue(proof['case']['passed'])
+            self.assertEqual(proof['fixture'], self.captured)
+            self.assertEqual(proof['mutation'], self.mutation)
+            self.assertEqual(proof['postconditions'], {'nothing-installed': True})
+            self.assertEqual(proof['stdout_sha256'], check_install.sha256(self.root / (self.name + '.stdout')))
+            remove(*args)
+
+        with mock.patch.object(check_install, 'remove_owned_fixture', side_effect=checked_remove):
+            self.retire()
+        self.assertFalse(os.path.lexists(self.clone))
+        self.assertEqual(json.loads((self.root / (self.name + '.cleanup.json')).read_text()),
+                         {'case': self.name, 'removed': True})
+        self.assertEqual((self.sibling / 'keep').read_bytes(), b'installed')
+        self.assertTrue(self.results[-1]['passed'])
+
+    def test_failed_case_is_never_removed_or_recorded_as_retired(self):
+        self.results[-1].update(passed=False, failed_checks=['nothing-installed'])
+        with self.assertRaises(check_install.CaseFailed):
+            self.retire()
+        self.assertTrue((self.clone / 'payload' / 'file').is_file())
+        self.assertFalse((self.root / (self.name + '.fixture.json')).exists())
+
+    def test_mutated_or_replaced_fixture_is_retained_without_touching_siblings(self):
+        for replacement in ('file', 'directory', 'symlink'):
+            with self.subTest(replacement=replacement):
+                self.setUp()
+                if replacement == 'file':
+                    (self.clone / 'payload' / 'file').write_bytes(b'changed')
+                else:
+                    self.clone.rename(self.root / 'original-fixture')
+                    if replacement == 'directory':
+                        self.clone.mkdir()
+                        (self.clone / 'keep').write_text('replacement')
+                    else:
+                        self.clone.symlink_to(self.sibling, target_is_directory=True)
+                with self.assertRaises((check_install.CaseFailed, OSError)):
+                    self.retire()
+                self.assertTrue(os.path.lexists(self.clone))
+                self.assertEqual((self.sibling / 'keep').read_bytes(), b'installed')
+                self.assertEqual(self.results[-1]['failed_checks'], ['generated-fixture-cleanup'])
+                self.assertFalse((self.root / (self.name + '.cleanup.json')).exists())
+
+    def test_evidence_write_failure_prevents_any_fixture_removal(self):
+        with mock.patch.object(check_install, 'persist_fixture_record', side_effect=OSError('full')):
+            with self.assertRaises(OSError):
+                self.retire()
+        self.assertEqual(self.results[-1]['failed_checks'], ['generated-fixture-proof-retained'])
+        self.assertTrue((self.clone / 'payload' / 'file').is_file())
+
+    def test_cleanup_failure_fails_even_the_last_case(self):
+        self.results = [passed_case(name) for name in check_install.CASES]
+        self.name = self.results[-1]['case']
+        replacement = self.root / self.name
+        self.clone.rename(replacement)
+        self.clone = replacement
+        self.captured = check_install.capture_fixture(self.root, self.name)
+        with mock.patch.object(check_install, 'remove_owned_fixture', side_effect=OSError('refused')):
+            for suffix in ('.stdout', '.stderr'):
+                (self.root / (self.name + suffix)).write_text('expected refusal')
+            with self.assertRaises(OSError):
+                self.retire()
+        self.assertEqual(self.results[-1]['failed_checks'], ['generated-fixture-cleanup'])
+        self.assertFalse(check_install.summary(self.results, {'manifest_sha256': 'a' * 64})['passed'])
+        self.assertTrue(self.clone.exists())
 
 
 class InstalledTreeTests(unittest.TestCase):
@@ -241,7 +341,7 @@ class InstallerTextTests(unittest.TestCase):
 
 @unittest.skipUnless(sys.platform == 'darwin', 'the installer check clones volumes with macOS cp -c')
 class InstallerCheckTests(unittest.TestCase):
-    def check(self, unrelated=':;', payload=':;', extra=':;', installed=':', reported='0.0.0-test'):
+    def check(self, unrelated=':;', payload=':;', extra=':;', installed=':', reported='0.0.0-test', inspect=None):
         with tempfile.TemporaryDirectory() as temporary:
             volume = Path(temporary) / 'volume'
             (volume / 'payload' / 'image').mkdir(parents=True)
@@ -260,16 +360,31 @@ class InstallerCheckTests(unittest.TestCase):
             out = Path(temporary) / 'out'
             result = subprocess.run([sys.executable, str(HERE / 'check_install.py'), '--volume', str(volume),
                                      '--out', str(out)], env=ENVIRONMENT, capture_output=True, text=True)
+            if inspect is not None:
+                inspect(out)
             return result.returncode, json.loads((out / 'summary.json').read_text())
 
     def test_honest_installer_passes(self):
-        code, summary = self.check()
+        def inspect(out):
+            for name in check_install.CASES[-3:]:
+                self.assertFalse(os.path.lexists(out / name))
+                self.assertTrue(json.loads((out / (name + '.fixture.json')).read_text())['case']['passed'])
+                self.assertTrue(json.loads((out / (name + '.cleanup.json')).read_text())['removed'])
+            self.assertTrue((out / 'prefix with spaces' / 'bin' / 'ukai-vm').is_file())
+
+        code, summary = self.check(inspect=inspect)
         self.assertEqual(code, 0)
         self.assertTrue(summary['passed'])
         self.assertEqual([r['case'] for r in summary['results']], list(check_install.CASES))
 
     def test_install_after_refused_tamper_fails_the_summary(self):
-        code, summary = self.check(payload='mkdir -p "$prefix";')
+        def inspect(out):
+            self.assertFalse((out / 'manifest-tamper').exists())
+            self.assertTrue((out / 'payload-tamper' / 'payload' / 'image' / 'vz').is_file())
+            self.assertFalse((out / 'payload-extra').exists(), 'failure must stop before the next fixture')
+            self.assertFalse((out / 'payload-tamper.fixture.json').exists())
+
+        code, summary = self.check(payload='mkdir -p "$prefix";', inspect=inspect)
         self.assertNotEqual(code, 0)
         self.assertFalse(summary['passed'])
         self.assertEqual(summary['results'][-1]['failed_checks'], ['nothing-installed'])

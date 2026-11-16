@@ -16,6 +16,7 @@ contains the isolated Linux candidate, excluding unrelated local Arena work.
 | Linux `6ffff05dc`, `0.1.0-rc.6` | Signed private candidate; strict reference conformance and both native installers passed; unpublished. |
 | Warm-VM `bef699262`, `0.1.0-preview.2` | Signed private candidate; all six CI jobs, source rebuild, package/installer verification, primary runtime checks and second-Mac checks passed. |
 | Claude API-key qualification on `bef699262` | All 14 distinct lanes collected: eight strict passes and six failures. Seven of ten repetitions passed fully; three failed sampling. A01, the small task and vendor revocation also failed qualification. OAuth remains deferred. |
+| Source fixes through `e82209aa8` | Terminal-error interpretation, small-task evidence retention, macOS test socket paths and sampler birth-identity comparisons corrected. Frozen candidate results are unchanged; replacement-image and installed qualification remain open. |
 | Final-candidate fault matrix | All 11 lanes passed; 118 facts independently recomputed, with complete owned cleanup. |
 | OAuth, notarization, native macOS Endpoint Security | Pending. OAuth is deferred at the user's request; no usable local notarization credential or ES profile was established. |
 
@@ -896,6 +897,22 @@ seven ignores and no runtime skips; ordinary Ubuntu reported 3,064 passes,
 with 81 explicit skips, and 535 documents had no broken links or anchors.
 The exact logs and checkout bindings are in `guest-gate-ci-277d09a33/`.
 
+The terminal/checker/socket follow-up at `cf5bae9de` also passed all six hosted
+jobs on their first attempt. Its tested merge `5f6e5f3b55ec456c5ffd1e17df37a72c59c12a31`
+and head share tree `5f03e60f14fdc501d83427a0f8e55d161ef84790`.
+macOS reported 2,497 passes, seven ignores and no runtime skips; ordinary
+Ubuntu reported 3,064 passes, 18 ignores and 519 skip diagnostics. Python ran
+1,068 cases with 81 explicit skips, including 798 VM cases; 535 documents
+had no broken links or anchors. The separate combined local VM run had
+778 passes and 20 explicit skips. These results precede the sampler correction.
+Exact hosted logs are retained in `guest-gate-ci-cf5bae9de/`.
+
+The sampler follow-up `e82209aa8` passed all six hosted jobs on their first
+attempt. Tested merge `a98ae7512b5c142effa5404ba0a74eb9fc54d5b4` shares
+head tree `0ea51ee3df201d9dcb36e580fca3876dba0143cd`. Rust counts were unchanged;
+Python ran 1,069 cases with 81 explicit skips, including 799 VM cases.
+The exact checkout bindings and logs are in `guest-gate-ci-e82209aa8/`.
+
 ## Separate diagnostic guest build failure
 
 A synthetic diagnostic image build on the second Mac failed before its
@@ -932,6 +949,34 @@ The failed clone and console are retained under
 cleanup and original-input preservation. This setup failure does not establish
 the cause or resolution of the earlier kernel Oops.
 
+A fifth diagnostic preparation moved the bounded service-start check out of
+early boot. Preparation passed in 133.99 seconds, including the original
+public-canary control's seven facts, unchanged kernel/packages/sampler,
+explicit sync and clean poweroff. The resulting primary filesystem state
+was clean. Independent review verified the exact prepared bytes and preservation
+of the earlier failed disks. This does not explain or resolve the kernel Oops.
+
+Its subsequent fixed cold/warm diagnostic invocation failed during service
+startup, before either native attempt. The typed startup record observed owner
+creation at 609 ms and the VZ start callback at 749 ms, but no connection,
+guest Ready or validated session. The helper reached its existing 120-second
+boot timeout at 120,817 ms. The retained console was empty; no sampler report,
+collector frame or numeric attribution exists. The result is FAIL/INCONCLUSIVE,
+not evidence about the API sampling errors. No retry or provider call occurred.
+The failed per-boot disk and startup records remain preserved; the service
+group was reaped, the workspace detached and the original prepared image,
+sources and installed bytes remained unchanged. The settled records and
+independent review are under `sampler-inventory-attribution-bef699262/v5/`.
+
+Bounded read-only inspection of that failed boot found cloud-init requesting
+network readiness because the diagnostic seed contains `bootcmd`, then waiting
+for `systemd-networkd-wait-online`. Its early-boot dependencies precede the
+controller. The persisted journal contains 562 entries through 2.661 seconds
+and no controller or collector start; it does not cover the entire timeout.
+This establishes a diagnostic startup-ordering hazard, not the cause of the
+separate kernel Oops or the historical API sampling errors. The inspection
+did not mount, repair, replay or modify the failed disk.
+
 ## Sampler process identity correction
 
 A separate source review found that four observation checks compared the entire
@@ -952,9 +997,50 @@ guest, including actual `/proc` controls. Independent source review also passed.
 
 This correction has no established causal link to repetition 03's retained
 `identity_changed` counter and does not address unrelated inventory losses.
-Frozen reports and the prepared guest remain unchanged. No replacement image
-or signed candidate has been built from this sampler change; fresh image-bound
-proof and installed qualification are still required.
+Frozen reports and the original prepared guest remain unchanged. This sampler
+change requires fresh image-bound proof and installed qualification.
+
+A fresh standard image was subsequently prepared from clean source `e82209aa8`
+in 51.50 seconds. Its public-canary control passed all seven facts with no
+scan errors. Independent review passed 93 checks covering the exact source,
+signed Linux inputs, ISO payload, disk/seed hashes, clean sync/poweroff and
+resource cleanup. The new disk is
+`35154ce2c3ad62725b5dffb595062f167a6896e1c5b840c2de514a61e8fa7957`;
+its seed is `26800da8b107139f3d4b01cf1114c44ba4c01731588a3ca86ed86683e2556526`.
+This product image is separate from the old-sampler diagnostic V6 above.
+Its component admission, signed package and installed qualification remain open.
+
+## Installer storage and fixture cleanup
+
+Image expansion previously skipped only wholly zero one-megabyte chunks.
+The installer now tracks smaller zero runs and, on supported macOS filesystems,
+deallocates their aligned interiors after all writes and exact size/checksum
+verification. Unsupported hole punching keeps the valid seek-based image;
+other errors retain the existing partial-output cleanup. Memory remains bounded
+by the fixed six-GiB image limit. Actual-file controls and independent review
+verified the native ABI, alignment, flush ordering and unchanged bytes.
+
+One expansion of the frozen signed `bef699262` image verified the full six-GiB
+post-expansion hash and reduced allocation from 2,855,272,448 to 1,587,146,752
+bytes: 1,268,125,696 bytes saved (44.41%). Expansion took 7.31 seconds and the
+separate full-file hash took 2.51 seconds. Original inputs were unchanged;
+only the new duplicate was removed after recording its successful validation.
+This measures that image on this APFS volume, not every future image or filesystem.
+
+Installer checks now retain a passed negative case's exact mutation, output
+hashes, postconditions and fixture identity before removing that generated
+copy. Unexpected installer failures retain their fixtures; evidence-write or
+cleanup failures fail the check and stop the sequence. The actual mounted-DMG
+path and all seven installer assertions remain unchanged. Existing qualification
+outputs are not removed. This prevents the three successful tamper controls
+from retaining redundant payload copies.
+
+The focused sparse-image suites passed 40 cases normally and under optimized
+Python; the installer-check suite passed 37 cases. Both changes passed independent
+review. The combined local VM suite ran 814 cases: 794 passed and 20 had explicit
+platform/parser skips. Source bytes stayed unchanged during the suite and its
+owned process group exited. These checks do not replace a newly signed package
+and its actual installed acceptance.
 
 ## Remaining release limits
 
