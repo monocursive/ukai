@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -473,6 +474,111 @@ class SourceArchiveTests(unittest.TestCase):
         with self.assertRaisesRegex(package.SourceError, 'not a regular file: link'):
             package.write_source_archive(self.root / 'out.tar.gz', self.source,
                                          dict(self.sources, link=self.sources['run.py']))
+
+
+class DistributionModeTests(unittest.TestCase):
+    def test_private_umask_stage_is_readable_without_changing_originals_or_archive_modes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / 'source'; source.mkdir()
+            for name, mode in [('client', 0o750), ('data', 0o640)]:
+                (source / name).write_bytes(name.encode())
+                (source / name).chmod(mode)
+            originals = {p.name: (p.read_bytes(), p.stat().st_mode) for p in source.iterdir()}
+            previous = os.umask(0o077)
+            try:
+                stage = root / 'volume'; (stage / 'payload').mkdir(parents=True)
+                for name in originals:
+                    shutil.copy2(source / name, stage / 'payload' / name)
+                (stage / 'install.sh').write_bytes(b'#!/bin/sh\n')
+                (stage / 'install.sh').chmod(0o700)
+                (stage / 'SHA256SUMS').write_bytes(b'exact manifest\n')
+                archive = stage / 'preview-source.tar.gz'
+                package.write_source_archive(archive, source,
+                                             {name: sha256(data) for name, (data, _) in originals.items()})
+                before = {p.relative_to(stage): p.read_bytes() for p in stage.rglob('*') if p.is_file()}
+                self.assertEqual(stat.S_IMODE(stage.stat().st_mode), 0o700)
+                self.assertEqual(stat.S_IMODE(archive.stat().st_mode), 0o600)
+                package.normalize_distribution_modes(stage)
+            finally:
+                os.umask(previous)
+            self.assertEqual({p.relative_to(stage).as_posix(): stat.S_IMODE(p.stat().st_mode)
+                              for p in [stage, *stage.rglob('*')]},
+                             {'.': 0o755, 'payload': 0o755, 'payload/client': 0o755,
+                              'payload/data': 0o644, 'install.sh': 0o755,
+                              'SHA256SUMS': 0o644, 'preview-source.tar.gz': 0o644})
+            self.assertEqual({p.relative_to(stage): p.read_bytes() for p in stage.rglob('*') if p.is_file()}, before)
+            self.assertEqual({p.name: (p.read_bytes(), p.stat().st_mode) for p in source.iterdir()}, originals)
+            with tarfile.open(archive) as held:
+                self.assertEqual({m.name: m.mode for m in held}, {'vm/client': 0o750, 'vm/data': 0o640})
+
+    def test_links_and_special_files_refuse_before_chmod_and_do_not_touch_outside(self):
+        for kind in ('file-link', 'directory-link', 'fifo', 'hardlink', 'root-link'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                outside = root / 'outside'; outside.mkdir(mode=0o700)
+                original = outside / 'original'; original.write_bytes(b'outside'); original.chmod(0o600)
+                stage = root / 'volume'; stage.mkdir(mode=0o700)
+                normal = stage / 'a-data'; normal.write_bytes(b'owned'); normal.chmod(0o600)
+                if kind == 'file-link':
+                    (stage / 'z-bad').symlink_to(original)
+                elif kind == 'directory-link':
+                    (stage / 'z-bad').symlink_to(outside, target_is_directory=True)
+                elif kind == 'fifo':
+                    os.mkfifo(stage / 'z-bad')
+                elif kind == 'hardlink':
+                    os.link(original, stage / 'z-bad')
+                else:
+                    link = root / 'volume-link'; link.symlink_to(stage, target_is_directory=True)
+                def metadata(path):
+                    info = path.stat()
+                    return (info.st_dev, info.st_ino, info.st_mode, info.st_nlink,
+                            info.st_mtime_ns, info.st_ctime_ns)
+
+                before = (original.read_bytes(), metadata(original), metadata(outside))
+                opened = []
+                real_open = os.open
+
+                def record_open(*args, **kwargs):
+                    fd = real_open(*args, **kwargs); opened.append(fd); return fd
+
+                with mock.patch.object(package.os, 'open', side_effect=record_open):
+                    with self.assertRaises(package.SourceError):
+                        package.normalize_distribution_modes(link if kind == 'root-link' else stage)
+                self.assertEqual(stat.S_IMODE(stage.stat().st_mode), 0o700)
+                self.assertEqual(stat.S_IMODE(normal.stat().st_mode), 0o600)
+                self.assertEqual((original.read_bytes(), metadata(original), metadata(outside)), before)
+                for fd in opened:
+                    with self.assertRaises(OSError):
+                        os.fstat(fd)
+
+    def test_stage_permissions_clear_special_and_write_bits_preserving_executability(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            stage = Path(temporary) / 'volume'; stage.mkdir(); stage.chmod(0o2777)
+            for name, mode in [('data', 0o666), ('executable', 0o4751)]:
+                (stage / name).write_bytes(name.encode()); (stage / name).chmod(mode)
+            package.normalize_distribution_modes(stage)
+            self.assertEqual([stat.S_IMODE(p.stat().st_mode) for p in
+                              (stage, stage / 'data', stage / 'executable')], [0o755, 0o644, 0o755])
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'macOS quarantine and ACL preservation')
+    def test_normalization_preserves_quarantine_and_acl(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            stage = Path(temporary) / 'volume'; stage.mkdir(mode=0o700)
+            data = stage / 'data'; data.write_bytes(b'public fixture'); data.chmod(0o600)
+            quarantine = b'0081;00000000;ukai-stage-test;'
+            subprocess.run(['/usr/bin/xattr', '-wx', 'com.apple.quarantine', quarantine.hex(), str(data)],
+                           check=True, capture_output=True)
+            subprocess.run(['/bin/chmod', '+a', 'everyone allow read', str(data)], check=True, capture_output=True)
+            acl = subprocess.run(['/bin/ls', '-le', str(data)], check=True, capture_output=True).stdout.splitlines()[1:]
+            self.assertTrue(acl)
+            package.normalize_distribution_modes(stage)
+            found = subprocess.run(['/usr/bin/xattr', '-px', 'com.apple.quarantine', str(data)],
+                                   check=True, capture_output=True).stdout.decode()
+            self.assertEqual(bytes.fromhex(found), quarantine)
+            self.assertEqual(subprocess.run(['/bin/ls', '-le', str(data)], check=True,
+                                            capture_output=True).stdout.splitlines()[1:], acl)
+            self.assertEqual(stat.S_IMODE(data.stat().st_mode), 0o644)
 
 
 class PackageMetadataTests(unittest.TestCase):
