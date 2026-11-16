@@ -762,75 +762,75 @@ pub const GUEST_MEASUREMENTS: &[GuestMeasurement] = &[
     },
 ];
 
-/// The corrected second guest replaces the unreleased intermediate image; its
-/// historical records remain retained, but no longer admit that image. These
+/// The corrected guest replaces the unreleased native-v5 image; its historical
+/// records remain retained, but no longer admit that image. These
 /// rows admit the existing literal policy shape; native program requests also
 /// need the exact component admission below. Neither table qualifies a vendor,
 /// a rebuilt host, sampled exposure, or a release.
 pub const NATIVE_GUEST_MEASURED_DISK_SHA256: &str =
-    "9c38aa12509ca597ab6798be5466c17ec80e72f2a2a8995b56ab1f52fc2c5446";
+    "35154ce2c3ad62725b5dffb595062f167a6896e1c5b840c2de514a61e8fa7957";
 pub const NATIVE_GUEST_MEASURED_SEED_SHA256: &str =
-    "358cf538c43748b0092da65d5c0759dae91974d23485db45a3160de4cd6e7f45";
+    "26800da8b107139f3d4b01cf1114c44ba4c01731588a3ca86ed86683e2556526";
 pub const NATIVE_GUEST_MEASUREMENTS: &[GuestMeasurement] = &[
     GuestMeasurement {
         requirement: "limit:wall",
-        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v5/capabilities/capabilities.json#/measurements/limit:wall/verdict",
-        measured_at: "2026-11-15T21:26:55Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v6/capabilities/capabilities.json#/measurements/limit:wall/verdict",
+        measured_at: "2026-11-16T03:42:31Z",
     },
     GuestMeasurement {
         requirement: "limit:pids",
-        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v5/capabilities/capabilities.json#/measurements/limit:pids/verdict",
-        measured_at: "2026-11-15T21:27:00Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v6/capabilities/capabilities.json#/measurements/limit:pids/verdict",
+        measured_at: "2026-11-16T03:42:36Z",
     },
     GuestMeasurement {
         requirement: "limit:mem",
-        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v5/capabilities/capabilities.json#/measurements/limit:mem/verdict",
-        measured_at: "2026-11-15T21:27:01Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v6/capabilities/capabilities.json#/measurements/limit:mem/verdict",
+        measured_at: "2026-11-16T03:42:37Z",
     },
     GuestMeasurement {
         requirement: "filesystem_containment",
-        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v5/capabilities/capabilities.json#/measurements/filesystem_containment/verdict",
-        measured_at: "2026-11-15T21:27:01Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v6/capabilities/capabilities.json#/measurements/filesystem_containment/verdict",
+        measured_at: "2026-11-16T03:42:37Z",
     },
     GuestMeasurement {
         requirement: "network_none",
-        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v5/capabilities/capabilities.json#/measurements/network_none/verdict",
-        measured_at: "2026-11-15T21:27:01Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v6/capabilities/capabilities.json#/measurements/network_none/verdict",
+        measured_at: "2026-11-16T03:42:38Z",
     },
     GuestMeasurement {
         requirement: "tree_termination",
-        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v5/capabilities/capabilities.json#/measurements/tree_termination/verdict",
-        measured_at: "2026-11-15T21:27:02Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v6/capabilities/capabilities.json#/measurements/tree_termination/verdict",
+        measured_at: "2026-11-16T03:42:39Z",
     },
     GuestMeasurement {
         requirement: "closed_set_observation",
-        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v5/capabilities/capabilities.json#/measurements/closed_set_observation/verdict",
-        measured_at: "2026-11-15T21:27:19Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v6/capabilities/capabilities.json#/measurements/closed_set_observation/verdict",
+        measured_at: "2026-11-16T03:42:54Z",
     },
     GuestMeasurement {
         requirement: "syscall_filter",
-        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v5/capabilities/capabilities.json#/measurements/syscall_filter/verdict",
-        measured_at: "2026-11-15T21:27:20Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v6/capabilities/capabilities.json#/measurements/syscall_filter/verdict",
+        measured_at: "2026-11-16T03:42:55Z",
     },
     GuestMeasurement {
         requirement: "protected_coverage:existing_and_root",
-        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v5/capabilities/capabilities.json#/measurements/protected_coverage:existing_and_root/verdict",
-        measured_at: "2026-11-15T21:27:20Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v6/capabilities/capabilities.json#/measurements/protected_coverage:existing_and_root/verdict",
+        measured_at: "2026-11-16T03:42:56Z",
     },
     GuestMeasurement {
         requirement: "network_proxy",
-        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v5/capabilities/capabilities.json#/measurements/network_proxy/verdict",
-        measured_at: "2026-11-15T21:27:21Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v6/capabilities/capabilities.json#/measurements/network_proxy/verdict",
+        measured_at: "2026-11-16T03:42:57Z",
     },
     GuestMeasurement {
         requirement: "execution_boundary",
-        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v5/execution-boundary/execution-boundary.json#/measurements/execution_boundary/verdict",
-        measured_at: "2026-11-15T21:27:00Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v6/execution-boundary/execution-boundary.json#/measurements/execution_boundary/verdict",
+        measured_at: "2026-11-16T03:42:36Z",
     },
     GuestMeasurement {
         requirement: "credential_staging",
-        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v5/credential-staging/credential-staging.json#/measurements/credential_staging/verdict",
-        measured_at: "2026-11-15T21:29:07Z",
+        record: "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v6/credential-staging/credential-staging.json#/measurements/credential_staging/verdict",
+        measured_at: "2026-11-16T03:47:23Z",
     },
 ];
 
@@ -846,7 +846,7 @@ struct NativeProgramAdmission {
 
 /// Component-only authorization; tests bind every pin to this retained proof.
 /// This record does not qualify a vendor, the new host client, or a release.
-pub const NATIVE_PROGRAM_ADMISSION_RECORD: &str = "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v5/native-admission.json#/measurements/native_program/verdict";
+pub const NATIVE_PROGRAM_ADMISSION_RECORD: &str = "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v6/native-admission.json#/measurements/native_program/verdict";
 
 const NATIVE_PROGRAM_ADMISSION: NativeProgramAdmission = NativeProgramAdmission {
     catalog_sha256: "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244",

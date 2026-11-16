@@ -1,0 +1,313 @@
+{
+  "source_checkout": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16",
+  "package_out": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-c25c297fc",
+  "build_record": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-build-c25c297fc",
+  "installer_out": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc",
+  "mountpoint": "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-c25c297fc",
+  "dmg": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-c25c297fc/ukai-vm-0.1.0-preview.2-macos-arm64.dmg",
+  "installed_root": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc/prefix with spaces/share/ukai-vm/0.1.0-preview.2",
+  "package_command": [
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/build-env/bin/python",
+    "-B",
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/package.py",
+    "--image",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v6",
+    "--out",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-c25c297fc",
+    "--identity",
+    "Developer ID Application: Monocursive (64SGQ348QJ)",
+    "--jail-archive",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/ukai-jail-0.1.0-rc.6-aarch64-unknown-linux-gnu.tar.gz",
+    "--target-dir",
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/cargo-target"
+  ],
+  "package_timeout_seconds": 1200,
+  "package_environment": {
+    "inherit_only": [
+      "HOME",
+      "USER",
+      "LOGNAME",
+      "TMPDIR",
+      "CARGO_HOME",
+      "RUSTUP_HOME"
+    ],
+    "PATH": "/Users/monocursive/.cargo/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "LANG": "en_US.UTF-8",
+    "TMPDIR": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-build-c25c297fc/tmp"
+  },
+  "attach_command": [
+    "/usr/bin/hdiutil",
+    "attach",
+    "-readonly",
+    "-nobrowse",
+    "-mountpoint",
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-c25c297fc",
+    "-plist",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-c25c297fc/ukai-vm-0.1.0-preview.2-macos-arm64.dmg"
+  ],
+  "attach_timeout_seconds": 60,
+  "signature_checks": [
+    {
+      "name": "dmg",
+      "argv": [
+        "/usr/bin/codesign",
+        "--verify",
+        "--strict",
+        "-R",
+        "=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"64SGQ348QJ\"",
+        "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-c25c297fc/ukai-vm-0.1.0-preview.2-macos-arm64.dmg"
+      ]
+    },
+    {
+      "name": "installer",
+      "argv": [
+        "/usr/bin/codesign",
+        "--verify",
+        "--strict",
+        "-R",
+        "=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"64SGQ348QJ\"",
+        "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-c25c297fc/payload/bin/ukai-vm-install"
+      ]
+    },
+    {
+      "name": "service",
+      "argv": [
+        "/usr/bin/codesign",
+        "--verify",
+        "--strict",
+        "-R",
+        "=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"64SGQ348QJ\"",
+        "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-c25c297fc/payload/bin/ukai-vm"
+      ]
+    },
+    {
+      "name": "client",
+      "argv": [
+        "/usr/bin/codesign",
+        "--verify",
+        "--strict",
+        "-R",
+        "=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"64SGQ348QJ\"",
+        "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-c25c297fc/payload/bin/ukai-jail"
+      ]
+    },
+    {
+      "name": "vz",
+      "argv": [
+        "/usr/bin/codesign",
+        "--verify",
+        "--strict",
+        "-R",
+        "=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"64SGQ348QJ\"",
+        "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-c25c297fc/payload/image/vz"
+      ]
+    },
+    {
+      "name": "custodian",
+      "argv": [
+        "/usr/bin/codesign",
+        "--verify",
+        "--strict",
+        "-R",
+        "=anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"64SGQ348QJ\"",
+        "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-c25c297fc/payload/image/custodian"
+      ]
+    }
+  ],
+  "signature_timeout_seconds": 60,
+  "installer_command": [
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/build-env/bin/python",
+    "-B",
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/check_install.py",
+    "--volume",
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-c25c297fc",
+    "--out",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-c25c297fc",
+    "--dmg",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-c25c297fc/ukai-vm-0.1.0-preview.2-macos-arm64.dmg"
+  ],
+  "installer_timeout_seconds": 300,
+  "installer_cases": [
+    "install",
+    "repeat-refused",
+    "unrelated-refused",
+    "unrelated-client-refused",
+    "manifest-tamper",
+    "payload-tamper",
+    "payload-extra"
+  ],
+  "detach_command": [
+    "/usr/bin/hdiutil",
+    "detach",
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/guest-native-dmg-mount-c25c297fc"
+  ],
+  "detach_timeout_seconds": 60,
+  "cleanup": "Exact f347 owned session cleanup. Hdiutil-info in finally matches only exact new DMG path and requires absence after detach, including partial attachment. New verified staging volume may be removed only after persisted inventory+DMG equality+sourcearchive proof and pinned-FD inventory recheck. No old artifact eligible.",
+  "schema": "ukai.provisional-v6-package-plan/3",
+  "status": "AUTHORIZED_RESOLVED_NOT_EXECUTED",
+  "created_at": "2026-11-16T03:23:09.568834+00:00",
+  "source_revision": "c25c297fc61b7d0edb71d929a1b067faeeb03b53",
+  "image": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v6",
+  "image_manifest_sha256": "79fef747cd312cad12742cdaf2d79ae55ba631b6b692fb4ab7e154d7f8d26f2e",
+  "disk_sha256": "35154ce2c3ad62725b5dffb595062f167a6896e1c5b840c2de514a61e8fa7957",
+  "seed_sha256": "26800da8b107139f3d4b01cf1114c44ba4c01731588a3ca86ed86683e2556526",
+  "guest_program_catalog_sha256": "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244",
+  "guest_source_sha256": {
+    "guest.py": "06dad8f602567645a1d7992a72f27d0da7b9cb1a4a62707c8cf556646fcddfdc",
+    "guest_program.py": "fc73abbf2189a6216595da25b9b69aa03cc38735249c45d0e70e064020eb29bf",
+    "guest_exposure.py": "369dd19420ef422b4cb51231f3e1f9119a2eaaf78d54b71d781f5ff9cf61c5ec",
+    "guest_exposure_control.py": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f",
+    "vz.swift": "d1d3c87ad70bf770ab0d9c1f250fe2f64b5baee162f2b28dcf3f2cb89f0df32a",
+    "custodian.c": "d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab",
+    "prepare.py": "d9aef47dff24192e690ec8a479a127d02f8e443182e25461709cd07a438e7e5a"
+  },
+  "prepared_guest_source_revision": "e82209aa8fc33c88b984bb7b1c5a193e56e2b68e",
+  "guest_rebuilt_by_this_plan": false,
+  "expected_source_archive_files": 848,
+  "source_scope_expansion_required": false,
+  "source_scope_expansion_executed": true,
+  "proposed_sparse_cones": [
+    "crates",
+    ".cargo",
+    "docs/benchmarks/jail/results/macos-vm-admission-2026-11-15",
+    "docs/specs/jail-v1/examples"
+  ],
+  "capacity_forecast": {
+    "authority_plan_sha256": "7b185c5110cd9b98e38792855c9231a1e45d7ecb0297ba7fe965aaae352c133a",
+    "free_after_snapshot_bytes": 18636480512,
+    "required_reserve_bytes": 12884901888,
+    "remaining_incremental_peak_bytes": 5415739392,
+    "working_scratch_in_peak_bytes": 536870912,
+    "additional_growth_bytes": 268435456,
+    "required_current_free_bytes": 18569076736,
+    "remaining_headroom_bytes": 67403776,
+    "source_expansion_already_allocated": true,
+    "stage_release": {
+      "step": 4,
+      "action": "Copy only new preview-source.tar.gz plus small manifest/install/readme records to retained package evidence, verify hashes and persisted proofs. Then propose releasing ONLY the new package output volume directory: anchored exact dev/ino inventory, no symlinks or changed entries, no active writer/holder, no mounted backing at that staging directory. Keep signed DMG/package.json/work/all retained source/archive/evidence. No existing package or failure is eligible. Root must authorize this concrete cleanup before execution."
+    },
+    "phase_budget_prior_source_expansion": {
+      "package_build_hdiutil": {
+        "terms": {
+          "retained_package_including_stage_and_PyInstaller_work": 1972871168,
+          "extra_full_DMG_sized_hdiutil_temporary_allowance": 978919424,
+          "source_scope_expansion_ceiling": 67108864,
+          "scratch": 536870912
+        },
+        "incremental_allocated_bytes": 3555770368,
+        "required_pre_start_free_bytes": 16440672256,
+        "gap_bytes": 0
+      },
+      "positive_install_after_stage_release": {
+        "terms": {
+          "retained_DMG_package_work_separate_source_archive": 997462016,
+          "installed_sparse_tree": 1925439488,
+          "gzip_still_present_during_expansion": 637095936,
+          "source_scope_expansion_ceiling": 67108864,
+          "scratch": 536870912
+        },
+        "incremental_allocated_bytes": 4163977216,
+        "required_pre_start_free_bytes": 17048879104,
+        "gap_bytes": 0
+      },
+      "one_negative_case_after_stage_release": {
+        "terms": {
+          "retained_DMG_package_work_separate_source_archive": 997462016,
+          "installed_sparse_tree": 1925439488,
+          "one_complete_tamper_clone_plus_mutation": 980578304,
+          "one_installer_temporary_ditto_payload": 975388672,
+          "source_scope_expansion_ceiling": 67108864,
+          "scratch": 536870912
+        },
+        "incremental_allocated_bytes": 5482848256,
+        "required_pre_start_free_bytes": 18367750144,
+        "gap_bytes": 1268932608
+      },
+      "settled_install_before_component_plan": {
+        "terms": {
+          "retained_DMG_package_work_separate_source_archive": 997462016,
+          "installed_sparse_tree": 1925439488,
+          "source_scope_expansion_ceiling": 67108864,
+          "scratch": 536870912,
+          "later_component_headroom": 734003200
+        },
+        "incremental_allocated_bytes": 4260884480,
+        "required_pre_start_free_bytes": 17145786368,
+        "gap_bytes": 46968832
+      }
+    },
+    "dynamic_actual_installer_check_required": true,
+    "monitor_reserve_seconds": 1
+  },
+  "minimum_available_bytes_each_phase": 12884901888,
+  "old_plan_sha256": "3e99adfe7dca2a6f26bcf0f63449a5f8989b1fff72b9c99aa4dd5bad52f066c9",
+  "source_and_tool_sha256": {
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/package.py": "b7696256d17ce20d0b8df6cb3502fa34c2518bf3c0e4354beeee5258a610de0a",
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/check_install.py": "d1c4cdecf12d13f7b5a2f54c3b3db8d26a56d143d7a325ca96bdcd7efca1ef69",
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/cli.py": "b5b8c1726ad8f667becb5f89f5dfb63691f470f2a339c0f726477faf4c9f9afb",
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/requirements-build.txt": "15dcf9beb2127eb52cad1c700b040514242fa4a9da4a799cbde18ca0d362cb93",
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/install.sh.in": "df5fddd7711fb76037b0a7a39e431f4638c14b2a0c9a0dd29be7abe053e63654",
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/run.py": "4a68643b43950a80788d113feebb841f9ab90890735e235081041b123a835412",
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/guest.py": "06dad8f602567645a1d7992a72f27d0da7b9cb1a4a62707c8cf556646fcddfdc",
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/guest_program.py": "fc73abbf2189a6216595da25b9b69aa03cc38735249c45d0e70e064020eb29bf",
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/guest_exposure.py": "369dd19420ef422b4cb51231f3e1f9119a2eaaf78d54b71d781f5ff9cf61c5ec",
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/guest_exposure_control.py": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f",
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/vz.swift": "d1d3c87ad70bf770ab0d9c1f250fe2f64b5baee162f2b28dcf3f2cb89f0df32a",
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/custodian.c": "d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab",
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/prepare.py": "d9aef47dff24192e690ec8a479a127d02f8e443182e25461709cd07a438e7e5a",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/gate-qualification-plan-406a91a66/candidate_runner.py": "f34756d3a08f0992a0b7302137a1be02a213ecb21c0a2a9d904c3a6fad9583f0",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v6/image.json": "79fef747cd312cad12742cdaf2d79ae55ba631b6b692fb4ab7e154d7f8d26f2e"
+  },
+  "checks": [
+    "Clean exact c25 source, owning848 source closure and7guestpins verified",
+    "Six strict DeveloperID/team signatures and complete actualDMG/stage equality",
+    "Retain separate source archive and proof before removing only NEW redundant volume",
+    "Seven actual mounted-DMG installer cases; new sparse+fixture cleanup helpers",
+    "No V6 capability admission, VM or provider"
+  ],
+  "scope": {
+    "provisional_component_package": true,
+    "native_v6_admitted": false,
+    "vendor_qualification": false,
+    "K113_qualification": false,
+    "vm_attempts_in_package_phase": false,
+    "provider_calls": false,
+    "notarization": false,
+    "publication": false,
+    "host_security_changes": false,
+    "new_admission_table_edits": false,
+    "old_artifacts_mutated": false
+  },
+  "pipeline": [
+    {
+      "step": 1,
+      "action": "Bind clean new commit, sparse source/archive closure,7image sourcepins, private signing identity and fresh exact output paths; require measured free >= forecast target, no competing task VM/compiler. No current execution."
+    },
+    {
+      "step": 2,
+      "action": "One unchanged package.py command from previous reviewed plan using existing release cargo-target and exact prepared V6 image. Keep1200s/DEVNULL/scrubbed env/f347 owned cleanup. Give TMPDIR a fresh bounded task path; account hdiutil source stage + final DMG + one full DMG-sized temporary allowance and PyInstaller work/cache."
+    },
+    {
+      "step": 3,
+      "action": "Attach exact new DMG readonly; perform six strict DeveloperID/team checks. Hash whole mounted inventory and compare paths/types/modes/bytes with new staging plus package manifest. Verify source archive all committed Git bytes/modes. Persist artifact/source/signature evidence before any deletion."
+    },
+    {
+      "step": 4,
+      "action": "Copy only new preview-source.tar.gz plus small manifest/install/readme records to retained package evidence, verify hashes and persisted proofs. Then propose releasing ONLY the new package output volume directory: anchored exact dev/ino inventory, no symlinks or changed entries, no active writer/holder, no mounted backing at that staging directory. Keep signed DMG/package.json/work/all retained source/archive/evidence. No existing package or failure is eligible. Root must authorize this concrete cleanup before execution."
+    },
+    {
+      "step": 5,
+      "action": "Recompute exact remaining budget from mounted DMG payload size and current free before seven installer cases. Run unchanged frozen check_install command300s. Positive install keeps gzip plus expanded image until hash verified, then removes gzip; negative phase has permanent install + one full fixture clone + one temporary ditto payload. New helper persists passed-case proof then removes its own successful negative fixture before next case; unexpected failures stay retained."
+    },
+    {
+      "step": 6,
+      "action": "Retain installed/client/service identity, all7case proofs/logs/modes; detach exact owned DMG including partial attach cleanup and require attachment absence. Confirm original source/prepared image unchanged and minimum12GiB free. No VM/provider/admission. Resolve later component plan from actual installed pins and capacity."
+    }
+  ],
+  "component_plan_resolution": "Resolve after actual package/installed hashes; raw+staging must bind same signedV6 installed tree. No mixed oldbef/newV6 root.",
+  "authorization": "Root authorized once exact c25 private provisional package/install under reviewed sequential capacity/staging cleanup scope; no new confirmation needed if all pins/budgets pass.",
+  "source_snapshot_sha256": "59e994903f7f9a4f3fefa76cde661de5780b58454636b9d83afc611992220cb2",
+  "source_archive_closure_authority": "package.tree_sources(REPO, package.archive_paths()) exact848 files/modes",
+  "original_capacity_plan_sha256": "7b185c5110cd9b98e38792855c9231a1e45d7ecb0297ba7fe965aaae352c133a"
+}

@@ -1,0 +1,120 @@
+{
+  "schema": "ukai.vm.native-program-admission-review/1",
+  "outcome": "PASS",
+  "record": {
+    "path": "native-admission.json",
+    "sha256": "0aa047fcc3ee2cb124b3159941f298a21b04aca4252c10844e84566d0dfc19b0"
+  },
+  "source_revisions": {
+    "signed_host_package": "c25c297fc61b7d0edb71d929a1b067faeeb03b53",
+    "frozen_linux_guest": "6ffff05dc6ae08602a39630b947c704bf9cf05a9",
+    "program_component_helper": "c25c297fc61b7d0edb71d929a1b067faeeb03b53"
+  },
+  "source_comparison": {
+    "method": "git show REVISION:PATH byte comparison with retained profile/source bytes; no live checkout used as source authority",
+    "bundled_profile": {
+      "path": "crates/ukai-jail/profiles/launch/claude.toml",
+      "sha256": "e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24",
+      "identical_in_both_revisions": true
+    },
+    "guest_image_source_sha256": {
+      "crates/ukai-jail/vm/guest.py": "06dad8f602567645a1d7992a72f27d0da7b9cb1a4a62707c8cf556646fcddfdc",
+      "crates/ukai-jail/vm/guest_program.py": "fc73abbf2189a6216595da25b9b69aa03cc38735249c45d0e70e064020eb29bf",
+      "crates/ukai-jail/vm/guest_exposure.py": "369dd19420ef422b4cb51231f3e1f9119a2eaaf78d54b71d781f5ff9cf61c5ec",
+      "crates/ukai-jail/vm/guest_exposure_control.py": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f",
+      "crates/ukai-jail/vm/vz.swift": "d1d3c87ad70bf770ab0d9c1f250fe2f64b5baee162f2b28dcf3f2cb89f0df32a",
+      "crates/ukai-jail/vm/custodian.c": "d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab",
+      "crates/ukai-jail/vm/prepare.py": "d9aef47dff24192e690ec8a479a127d02f8e443182e25461709cd07a438e7e5a"
+    }
+  },
+  "checks": {
+    "program_replay_recomputes_24_component_facts": true,
+    "raw_vault_replay_recomputes_24_component_facts": true,
+    "generic_credential_admission_rederived": true,
+    "generic_credential_scope_unqualified": true,
+    "live_identity_unchanged": true,
+    "raw_vault_and_program_image_identical": true,
+    "prepared_signed_image_disk_sha256": true,
+    "prepared_signed_image_seed_sha256": true,
+    "prepared_signed_image_guest_program_catalog_sha256": true,
+    "prepared_signed_image_guest_program_inputs": true,
+    "prepared_signed_image_source_sha256": true,
+    "prepared_signed_image_jail_candidate": true,
+    "image_manifest_exact_bytes": true,
+    "actual_ready_disk_sha256": true,
+    "actual_ready_seed_sha256": true,
+    "actual_ready_helper_sha256": true,
+    "actual_ready_custodian_sha256": true,
+    "actual_ready_guest_program_catalog_sha256": true,
+    "catalog_bound_to_actual_ready_and_signed_image": true,
+    "single_catalog_entry": true,
+    "profile_catalog_digest": true,
+    "profile_unchanged_signed_host_source": true,
+    "profile_unchanged_frozen_linux_source": true,
+    "catalog_exact_pinned_guest_jail": true,
+    "catalog_prepared_input_id": true,
+    "catalog_prepared_input_version": true,
+    "catalog_prepared_input_executable_sha256": true,
+    "catalog_prepared_input_executable_size": true,
+    "catalog_prepared_input_profile_sha256": true,
+    "catalog_prepared_input_guest_jail_sha256": true,
+    "catalog_attempt_state_only": true,
+    "profile_agent_named_alias": true,
+    "profile_declares_both_ordered_credentials": true,
+    "profile_claude-oauth_vault_program_binding": true,
+    "profile_anthropic_vault_program_binding": true,
+    "profile_credential_env_and_header_contract": true,
+    "image_source_guest.py": true,
+    "image_source_guest_program.py": true,
+    "image_source_guest_exposure.py": true,
+    "image_source_guest_exposure_control.py": true,
+    "image_source_vz.swift": true,
+    "image_source_custodian.c": true,
+    "image_source_prepare.py": true,
+    "program_helper_matches_committed_source": true,
+    "package_source_and_image_bound": true,
+    "installed_client_clean_exact_source": true,
+    "installed_client_bound": true,
+    "installed_service_bound": true,
+    "retained_independent_package_observation": true,
+    "dmg_identity_bound": true,
+    "signed_manifest_binding": true,
+    "signature_plan_bound": true,
+    "retained_apple_signature_observations": true,
+    "installed_actual_schema_and_versions": true,
+    "installed_observed_hashes_match_payload": true,
+    "staging_required_guest_pair": true
+  },
+  "component_replays": {
+    "vault_facts": 24,
+    "program_binding_facts": 24,
+    "independent_summary": {
+      "schema": "ukai.vm.summary-verification/1",
+      "outcome": "PASS",
+      "qualified": false,
+      "scope": "host_only",
+      "journal": "complete",
+      "journal_frames": 22,
+      "sampling": {
+        "state": "not_requested"
+      },
+      "lines": 5,
+      "display_mapping_applied": true,
+      "display_mapping_sha256": "054a6ab9ad38346600a099b96cf83343dc3264fcb04144400df6ac3070657b85",
+      "evidence_sha256": {
+        "jail.json": "2cd75d5a090791b9151080d2872c9a1092df34be60cdad48b6f19fd31e81f5dc",
+        "trace.ndjson": "1f0a41739e1a69ba2e363a3fadefc56ac196f0fc30188bbdbbcc7490fda55c47"
+      },
+      "summary_json_sha256": "0fa04a05fd057d2a1e0cd3da761e8c68745d1e0cb4505576d2313ba7b80827df",
+      "summary_text_sha256": "501d53f4c1d31943809c164d210e726ea1bca74b7b01c5a672c1cf9b81ad8bd4"
+    }
+  },
+  "entry_id_hash_definition": "SHA-256 of exact catalog entry id encoded as UTF-8, without newline",
+  "scope": "Offline derivation and independent source/binding review only. Signature results are the retained actual Apple verification observations; this offline review does not reverify excluded DMG/binary signatures or rerun VM, leak scans, sampling, native vendor or provider work.",
+  "qualification": {
+    "native_vendor": false,
+    "k113": false,
+    "release": false,
+    "new_host_runtime": false
+  }
+}

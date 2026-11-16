@@ -16,8 +16,9 @@ contains the isolated Linux candidate, excluding unrelated local Arena work.
 | Linux `6ffff05dc`, `0.1.0-rc.6` | Signed private candidate; strict reference conformance and both native installers passed; unpublished. |
 | Warm-VM `bef699262`, `0.1.0-preview.2` | Signed private candidate; all six CI jobs, source rebuild, package/installer verification, primary runtime checks and second-Mac checks passed. |
 | Claude API-key qualification on `bef699262` | All 14 distinct lanes collected: eight strict passes and six failures. Seven of ten repetitions passed fully; three failed sampling. A01, the small task and vendor revocation also failed qualification. OAuth remains deferred. |
-| Source fixes through `e82209aa8` | Terminal-error interpretation, small-task evidence retention, macOS test socket paths and sampler birth-identity comparisons corrected. Frozen candidate results are unchanged; replacement-image and installed qualification remain open. |
-| Final-candidate fault matrix | All 11 lanes passed; 118 facts independently recomputed, with complete owned cleanup. |
+| Source fixes through `c25c297fc` | Terminal-error interpretation, small-task evidence retention, macOS test socket paths, sampler birth-identity comparisons and installer storage corrected. All six hosted jobs passed. Frozen candidate results are unchanged. |
+| Provisional native-v6 package at `c25c297fc` | Six signatures, seven actual installer cases and 848 archived source files verified; 44 independent checks passed. Fresh component measurements and source admission passed; a rebuilt host still needs installed native runtime qualification. |
+| `bef699262` fault matrix | All 11 lanes passed; 118 facts independently recomputed, with complete owned cleanup. |
 | OAuth, notarization, native macOS Endpoint Security | Pending. OAuth is deferred at the user's request; no usable local notarization credential or ES profile was established. |
 
 The API failures remain failures. Synthetic diagnostics are investigating
@@ -885,9 +886,9 @@ could build all five native components but could not import that builder.
 An actual archive/extraction regression reproduced the missing-file failure
 before the fix. All 38 packaging tests then passed, including an isolated
 builder import with process and network creation prohibited. The expected
-archive now has 848 source files. This packaging correction has not produced
-a new signed candidate and does not change the frozen `bef699262` artifact
-or its recorded qualification.
+archive now has 848 source files. The later provisional `c25c297fc` package
+below verifies that closure. It does not change the frozen `bef699262`
+artifact or its recorded qualification.
 
 All six hosted jobs passed at follow-up head `277d09a33`. The tested merge
 commit `fe7809e9966aedc45be3d92c8d7552870aea5b88` has the same source tree,
@@ -912,6 +913,13 @@ attempt. Tested merge `a98ae7512b5c142effa5404ba0a74eb9fc54d5b4` shares
 head tree `0ea51ee3df201d9dcb36e580fca3876dba0143cd`. Rust counts were unchanged;
 Python ran 1,069 cases with 81 explicit skips, including 799 VM cases.
 The exact checkout bindings and logs are in `guest-gate-ci-e82209aa8/`.
+
+The installer follow-up `c25c297fc` passed all six hosted jobs on their first
+attempt. Tested merge `cc508200772328cec6532c3642bb6a4fec25350e` shares
+head tree `c94641caa7368ae9df715355a862185797ccb1e2`. Rust counts were unchanged;
+Python ran 1,084 cases with 81 explicit skips, including 814 VM cases.
+All 535 documents passed link and anchor validation. Exact checkout bindings
+and logs are in `guest-gate-ci-c25c297fc/`.
 
 ## Separate diagnostic guest build failure
 
@@ -977,6 +985,48 @@ This establishes a diagnostic startup-ordering hazard, not the cause of the
 separate kernel Oops or the historical API sampling errors. The inspection
 did not mount, repair, replay or modify the failed disk.
 
+A sixth diagnostic preparation used the installed cloud-init disable marker
+after its successful canary control and before checked sync/poweroff. It passed
+with the original kernel and sampler. Its first measurement invocation reached
+the collector but the strict host reader rejected an exact terminal-control
+prefix before a frame; neither native attempt ran. A separately tested reader
+accepts only those exact bytes at a physical line boundary immediately before
+the frame marker, retaining the full raw console and all loss/binding checks.
+
+With that reader, both fixed native `--version` attempts completed on one boot
+and each passed all eleven execution, journal, binding and cleanup facts.
+Both sampling reports were incomplete. The collector emitted 162 frames but
+never supplied its required tail, so the fixed 15-second tail wait expired
+and the attribution judge did not run. The invocation remains FAIL/INCONCLUSIVE.
+Its source, image, raw output and earlier failed invocation remain unchanged
+under `sampler-inventory-attribution-bef699262/v6/`.
+
+The collector kept one console descriptor open while getty initialized. An owned
+Linux PTY control demonstrated that a held descriptor returns EIO after
+hangup while a fresh open can write; the installed getty unit specifies
+`TTYVHangup=yes`. This proves the mechanism, not the unrecorded errno of the
+failed diagnostic. A separate diagnostic-only correction opens and closes
+the console for each frame without retries or relaxed loss counters. It does
+not change the production sampler or retrospectively attribute API failures.
+
+That diagnostic correction passed preparation and reached both version attempts.
+The collector then emitted events beyond both attempts, but a different terminal
+metadata prefix caused the strict reader to refuse framing; the final collector
+checkpoint was absent. This seventh invocation remains FAIL/INCONCLUSIVE.
+Its cold sampling report was complete; the warm report recorded one inventory
+loss and no exact workload reads. All eleven execution/binding facts passed
+for each attempt, and owned cleanup and original-artifact preservation passed.
+
+Partial read-only inspection of its retained frames found that warm tick 2
+could not open PID 623. Visible process events record that PID as a direct
+child of the actual jail supervisor, exiting about 4.9 ms before the failed
+open. It is distinct from receipt workload PID 634. No executable, birth or
+UID was recovered for PID 623, so it cannot be identified as a particular
+helper or excluded from scope. This supports an in-scope exit race in that
+diagnostic, without establishing complete trace attribution or explaining any
+historical API failure. The original refusal remains unchanged; no additional
+pair was run. Records are under `sampler-inventory-attribution-bef699262/v7/`.
+
 ## Sampler process identity correction
 
 A separate source review found that four observation checks compared the entire
@@ -1008,7 +1058,8 @@ resource cleanup. The new disk is
 `35154ce2c3ad62725b5dffb595062f167a6896e1c5b840c2de514a61e8fa7957`;
 its seed is `26800da8b107139f3d4b01cf1114c44ba4c01731588a3ca86ed86683e2556526`.
 This product image is separate from the old-sampler diagnostic V6 above.
-Its component admission, signed package and installed qualification remain open.
+Its provisional signed package and fresh component admission are recorded
+below; a rebuilt host still needs installed runtime qualification.
 
 ## Installer storage and fixture cleanup
 
@@ -1041,6 +1092,67 @@ review. The combined local VM suite ran 814 cases: 794 passed and 20 had explici
 platform/parser skips. Source bytes stayed unchanged during the suite and its
 owned process group exited. These checks do not replace a newly signed package
 and its actual installed acceptance.
+
+The subsequent private provisional package at clean source
+`c25c297fc61b7d0edb71d929a1b067faeeb03b53` contains that unchanged native-v6
+image. Its DMG SHA-256 is
+`b66023375eec009785363a4768573e4f6d699215eba47d1eff9fa53ceca8da2e`;
+its retained source archive is
+`8e7e446e4d53ff4c7bb5d6a8707daa984875efbf728e9658261ec555141290e0`.
+All six strict Developer ID signatures, complete signed payload bytes/modes,
+848 archived Git files and seven actual mounted-DMG installer cases passed.
+The new negative fixtures were removed only after their proofs were retained.
+The redundant new package staging directory was likewise removed only after
+comparison with the signed DMG and retention of its source archive and proof.
+
+Independent review passed 44 checks, including another full installed disk
+hash, all signatures and the source closure. The installed six-GiB image
+allocates 1,570,349,056 bytes. Installer free space remained above 14.74 GB,
+and all owned mounts and processes settled. Evidence is in
+`guest-native-package-build-c25c297fc/` and
+`guest-native-package-independent-c25c297fc/`. This is a component-preparation
+package: native-v6 is not yet admitted, no VM or provider ran in these package
+checks, and no notarization or release qualification is claimed.
+
+Five subsequent component phases passed on those exact signed installed bytes:
+ten capability rows from sixteen attempts, 121 execution-boundary facts,
+24 synthetic vault/revocation facts, same-image signed credential staging,
+and 24 literal executable-binding facts. The binding control allowed the
+authorized program and denied an actually executed byte-identical copy at a
+different file identity. All five phases ran once, using three guest boots
+and twenty total attempts. No native vendor or provider request ran.
+
+Final verification passed fifty preservation and lifecycle checks: installed
+bytes and generations, helper sources, package/image inputs and frozen source
+stayed unchanged; owned processes and mounts were absent. Minimum free space
+was 15,509,397,504 bytes. Two supplementary offline checker errors concerned
+existing output schemas, not live results; both original refusals and corrected
+checks are retained. Completion is
+`guest-native-measurements-c25c297fc/completion.json`, SHA-256
+`4ff325c51dfc94b7c40a95503ffb8512daec00cbde8acff224cebe9a7e90fea0`.
+These measurements do not qualify native vendor execution or sampled exposure.
+
+The [native-v6 component bundle](results/macos-vm-admission-2026-11-15/native-v6/README.md)
+retains the fresh records and exact c25 offline tools. Its replay recomputes
+the component verdicts, signed-image bindings and six native admission pins;
+it does not replay signing, live scans or cleanup. The source admission now
+selects this disk/seed pair and its twelve actual measurement timestamps.
+The superseded native-v5 image, older intermediate images and mixed pairs
+refuse; their original proof files remain unchanged. All 77 targeted Rust
+VM tests passed with no failures or ignores. Vendor, K113, release and rebuilt
+host qualification flags remain false.
+
+The signed-install verifier also now handles a disk image that attaches
+partially before `hdiutil` fails or times out. Cleanup identifies only the
+new exact-image attachment, refuses ambiguous or pre-existing devices and
+proves absence before removing its empty private directories. Uncertain cleanup
+preserves those directories and reports failure. Signature and payload checks
+are unchanged. All 29 focused tests passed normally and with optimized Python,
+and independent review passed. One actual successful verification of the
+signed c25 installation completed in 6.70 seconds with one attach/detach,
+unchanged artifacts, equal before/after image inventories and no remaining
+temporary directory. The record is
+`credential-staging-attachment-cleanup-c25c297fc/actual-success.json`.
 
 ## Remaining release limits
 

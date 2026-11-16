@@ -1,0 +1,7 @@
+{
+  "outcome": "PASS",
+  "removed_only": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-c25c297fc/volume",
+  "verification_sha256": "7b13568afc512fc48194541b93c6a8e1132184161d1f3c93b385cf71628b4cfd",
+  "old_artifacts_eligible": false,
+  "free_bytes": 17653211136
+}

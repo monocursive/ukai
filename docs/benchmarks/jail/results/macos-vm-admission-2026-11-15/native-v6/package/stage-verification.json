@@ -1,0 +1,404 @@
+{
+  "outcome": "PASS",
+  "dmg_sha256": "b66023375eec009785363a4768573e4f6d699215eba47d1eff9fa53ceca8da2e",
+  "manifest_sha256": "4c786fbc7eb61db02eb47acc3d9b581161e149d94a51708a7009e5d87ac14f4f",
+  "inventory": {
+    "payload": {
+      "kind": "directory",
+      "mode": 448,
+      "bytes": null,
+      "sha256": null
+    },
+    "install.sh": {
+      "kind": "file",
+      "mode": 493,
+      "bytes": 7092,
+      "sha256": "ead70fcd9617da319f40b9b74e883da1737fb8b439defd761c99600fa8a2e48a"
+    },
+    "READ-ME.txt": {
+      "kind": "file",
+      "mode": 420,
+      "bytes": 8096,
+      "sha256": "95cab2b79d835c1af2e8f4ea470d0731d06d00ec40685c6a571ee373d87d2206"
+    },
+    "preview-source.tar.gz": {
+      "kind": "file",
+      "mode": 384,
+      "bytes": 5179086,
+      "sha256": "8e7e446e4d53ff4c7bb5d6a8707daa984875efbf728e9658261ec555141290e0"
+    },
+    "SHA256SUMS": {
+      "kind": "file",
+      "mode": 384,
+      "bytes": 1510,
+      "sha256": "4c786fbc7eb61db02eb47acc3d9b581161e149d94a51708a7009e5d87ac14f4f"
+    },
+    "payload/bin": {
+      "kind": "directory",
+      "mode": 448,
+      "bytes": null,
+      "sha256": null
+    },
+    "payload/licenses": {
+      "kind": "directory",
+      "mode": 448,
+      "bytes": null,
+      "sha256": null
+    },
+    "payload/image": {
+      "kind": "directory",
+      "mode": 448,
+      "bytes": null,
+      "sha256": null
+    },
+    "payload/bin/ukai-vm": {
+      "kind": "file",
+      "mode": 448,
+      "bytes": 3210240,
+      "sha256": "dbb05c9ec2ae393af212be31a90c64a9985ab488ad778e41352ff0bdd89f5963"
+    },
+    "payload/bin/ukai-jail": {
+      "kind": "file",
+      "mode": 448,
+      "bytes": 10083072,
+      "sha256": "2a437808ba1e4f67c157cc5f8e12cca4b6ae3b2a452fd2ff9e446066be7c8c96"
+    },
+    "payload/bin/ukai-vm-install": {
+      "kind": "file",
+      "mode": 493,
+      "bytes": 9820736,
+      "sha256": "33eb3d232476bb68f128ae4938806c98577c01bf3c768ec7c0256461f523e27f"
+    },
+    "payload/licenses/Native-Host-LICENSES.txt": {
+      "kind": "file",
+      "mode": 384,
+      "bytes": 2291615,
+      "sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd"
+    },
+    "payload/licenses/pyinstaller-COPYING.txt": {
+      "kind": "file",
+      "mode": 420,
+      "bytes": 32604,
+      "sha256": "0598064c7d2718e38d7914a7d08343b2fa008e3bea9ebba2aa7a6ffa5900dd64"
+    },
+    "payload/licenses/Ukai-LICENSE.txt": {
+      "kind": "file",
+      "mode": 420,
+      "bytes": 1068,
+      "sha256": "38184627dc06fbee992333e9d7009f4d9efdc724f00edf305067e266fa8cab11"
+    },
+    "payload/licenses/Python-LICENSE.txt": {
+      "kind": "file",
+      "mode": 420,
+      "bytes": 13809,
+      "sha256": "78b12c3a81360b357002334f0e70ea0e92eebf7a9b358805c03c48484945f3bb"
+    },
+    "payload/licenses/Linux-Jail-LICENSES.txt": {
+      "kind": "file",
+      "mode": 384,
+      "bytes": 2291615,
+      "sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd"
+    },
+    "payload/image/vz": {
+      "kind": "file",
+      "mode": 448,
+      "bytes": 138752,
+      "sha256": "1854c02478d8483832e4d207f6c1f09e074be46dc0a2dfba31ff4c6615c753cc"
+    },
+    "payload/image/base.raw.gz": {
+      "kind": "file",
+      "mode": 384,
+      "bytes": 637113051,
+      "sha256": "bcdfd45cea688ad178dc04bc90c281230f6d9247d14f80af22168ad0a35cfcd2"
+    },
+    "payload/image/guest-program-catalog.json": {
+      "kind": "file",
+      "mode": 384,
+      "bytes": 1184,
+      "sha256": "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244"
+    },
+    "payload/image/seed.iso": {
+      "kind": "file",
+      "mode": 384,
+      "bytes": 310319104,
+      "sha256": "26800da8b107139f3d4b01cf1114c44ba4c01731588a3ca86ed86683e2556526"
+    },
+    "payload/image/image.json": {
+      "kind": "file",
+      "mode": 384,
+      "bytes": 15351,
+      "sha256": "44fb8e11513fac74f1472f6315c3868c5c9d60034d828a97bbc913e8e13e1363"
+    },
+    "payload/image/custodian": {
+      "kind": "file",
+      "mode": 448,
+      "bytes": 52848,
+      "sha256": "ea4b323c8ac97083ec0fa3a2ac9bc860667cc4abc5f054d936df3eec0ec36c03"
+    }
+  },
+  "mounted_filesystem_metadata_names": [],
+  "source_archive_sha256": "8e7e446e4d53ff4c7bb5d6a8707daa984875efbf728e9658261ec555141290e0",
+  "source_files": 848,
+  "six_signatures": true,
+  "captured_stage": {
+    ".": [
+      16777234,
+      374648581,
+      16384,
+      501,
+      16832,
+      224,
+      1794799515213489537,
+      1794799515213489537,
+      7
+    ],
+    "payload": [
+      16777234,
+      374648582,
+      16384,
+      501,
+      16832,
+      160,
+      1794799514790933002,
+      1794799514790933002,
+      5
+    ],
+    "install.sh": [
+      16777234,
+      374670240,
+      32768,
+      501,
+      33261,
+      7092,
+      1794799515213535787,
+      1794799515213559912,
+      1
+    ],
+    "READ-ME.txt": [
+      16777234,
+      374670237,
+      32768,
+      501,
+      33188,
+      8096,
+      1794795806615487763,
+      1794799514853983550,
+      1
+    ],
+    "preview-source.tar.gz": [
+      16777234,
+      374660522,
+      32768,
+      501,
+      33152,
+      5179086,
+      1794799514547119709,
+      1794799514547119709,
+      1
+    ],
+    "SHA256SUMS": [
+      16777234,
+      374670239,
+      32768,
+      501,
+      33152,
+      1510,
+      1794799515213363703,
+      1794799515213363703,
+      1
+    ],
+    "payload/bin": [
+      16777234,
+      374648584,
+      16384,
+      501,
+      16832,
+      160,
+      1794799478268071708,
+      1794799478268071708,
+      5
+    ],
+    "payload/licenses": [
+      16777234,
+      374670229,
+      16384,
+      501,
+      16832,
+      224,
+      1794799514853408382,
+      1794799514853408382,
+      7
+    ],
+    "payload/image": [
+      16777234,
+      374648583,
+      16384,
+      501,
+      16832,
+      256,
+      1794799514790804543,
+      1794799514790804543,
+      8
+    ],
+    "payload/bin/ukai-vm": [
+      16777234,
+      374648770,
+      32768,
+      501,
+      33216,
+      3210240,
+      1794799474018177385,
+      1794799474018269469,
+      1
+    ],
+    "payload/bin/ukai-jail": [
+      16777234,
+      374648772,
+      32768,
+      501,
+      33216,
+      10083072,
+      1794799474419950654,
+      1794799474420109488,
+      1
+    ],
+    "payload/bin/ukai-vm-install": [
+      16777234,
+      374648824,
+      32768,
+      501,
+      33261,
+      9820736,
+      1794799478235996287,
+      1794799478268071666,
+      1
+    ],
+    "payload/licenses/Native-Host-LICENSES.txt": [
+      16777234,
+      374670231,
+      32768,
+      501,
+      33152,
+      2291615,
+      1794799514791501795,
+      1794799514791501795,
+      1
+    ],
+    "payload/licenses/pyinstaller-COPYING.txt": [
+      16777234,
+      374670235,
+      32768,
+      501,
+      33188,
+      32604,
+      1794746671732966321,
+      1794799514853240423,
+      1
+    ],
+    "payload/licenses/Ukai-LICENSE.txt": [
+      16777234,
+      374670230,
+      32768,
+      501,
+      33188,
+      1068,
+      1794795806544976595,
+      1794799514791190628,
+      1
+    ],
+    "payload/licenses/Python-LICENSE.txt": [
+      16777234,
+      374670236,
+      32768,
+      501,
+      33188,
+      13809,
+      1780589451142496510,
+      1794799514853653508,
+      1
+    ],
+    "payload/licenses/Linux-Jail-LICENSES.txt": [
+      16777234,
+      374670233,
+      32768,
+      501,
+      33152,
+      2291615,
+      1794799514826166474,
+      1794799514826166474,
+      1
+    ],
+    "payload/image/vz": [
+      16777234,
+      374648606,
+      32768,
+      501,
+      33216,
+      138752,
+      1794799458471983873,
+      1794799458472113123,
+      1
+    ],
+    "payload/image/base.raw.gz": [
+      16777234,
+      374648829,
+      32768,
+      501,
+      33152,
+      637113051,
+      1794799513308695687,
+      1794799513308695687,
+      1
+    ],
+    "payload/image/guest-program-catalog.json": [
+      16777234,
+      374648828,
+      32768,
+      501,
+      33152,
+      1184,
+      1794799478308675444,
+      1794799478308675444,
+      1
+    ],
+    "payload/image/seed.iso": [
+      16777234,
+      374648827,
+      32768,
+      501,
+      33152,
+      310319104,
+      1794795907329861644,
+      1794799478308522694,
+      1
+    ],
+    "payload/image/image.json": [
+      16777234,
+      374670228,
+      32768,
+      501,
+      33152,
+      15351,
+      1794799514790888335,
+      1794799514790888335,
+      1
+    ],
+    "payload/image/custodian": [
+      16777234,
+      374648607,
+      32768,
+      501,
+      33216,
+      52848,
+      1794799458862424693,
+      1794799458862536985,
+      1
+    ]
+  },
+  "retained_copies": {
+    "install.sh": "ead70fcd9617da319f40b9b74e883da1737fb8b439defd761c99600fa8a2e48a",
+    "READ-ME.txt": "95cab2b79d835c1af2e8f4ea470d0731d06d00ec40685c6a571ee373d87d2206",
+    "preview-source.tar.gz": "8e7e446e4d53ff4c7bb5d6a8707daa984875efbf728e9658261ec555141290e0",
+    "SHA256SUMS": "4c786fbc7eb61db02eb47acc3d9b581161e149d94a51708a7009e5d87ac14f4f"
+  }
+}

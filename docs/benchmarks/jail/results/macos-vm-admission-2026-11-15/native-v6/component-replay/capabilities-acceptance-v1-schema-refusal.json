@@ -1,0 +1,25 @@
+{
+  "schema": "ukai.task.component-acceptance/1",
+  "phase": "capabilities",
+  "plan_sha256": "1c97fb8110577a6223c1aab18eec5029cfc19c9b965e9f59a8f0f73c78944c89",
+  "replayer_sha256": "06d3ab7553d99ad50774a95f4d3d0636b3e0b728c2073f675e09625166934cc9",
+  "outcome": "FAIL",
+  "qualified": false,
+  "native_vendor_or_k113_qualified": false,
+  "checks": {
+    "owning_process_succeeded": true,
+    "owned_group_reaped_absent": true,
+    "owning_facts_recomputed": true,
+    "ten_measurements_recomputed": true,
+    "exact_image": true,
+    "exact_service": true,
+    "workspace_cleanup": false
+  },
+  "files": {
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/capabilities-outer.json": "050ad54d8180a3a7e5c226922020a92b4ce5adc224394831ad927a5aa9324431",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/capabilities-result.json": "cbf09acf48aa6ad3e0bbc85e7a0d4c41d480bfc10ae85c485344519682cd3ce8",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-capabilities-c25c297fc/capabilities.json": "dbc9c692488bb14b831848aeff848f334706992c41b56f8aeab1de4188cfac29"
+  },
+  "error_type": "RuntimeError",
+  "error": "workspace_cleanup"
+}

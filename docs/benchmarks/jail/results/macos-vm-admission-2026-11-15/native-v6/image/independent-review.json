@@ -1,0 +1,243 @@
+{
+  "schema": "ukai.vm.v6-prepared-independent-review/1",
+  "outcome": "PASS",
+  "facts": {
+    "exact_requested_manifest": true,
+    "clean_detached_e822": true,
+    "exact_completed_plan": true,
+    "exact_requested_completion": true,
+    "bound_sparse_source_snapshot": true,
+    "only_known_standard_verifier_bytecode": true,
+    "all_432_source_blobs_modes_exact": true,
+    "sparse_expected_cone": true,
+    "input_ubuntu.img": true,
+    "input_claude": true,
+    "input_RELEASE_NOTES.md": true,
+    "input_SHA256SUMS": true,
+    "input_SHA256SUMS.minisig": true,
+    "input_bootstrap.sh": true,
+    "input_install.sh": true,
+    "input_release-plan.json": true,
+    "input_ukai-jail-0.1.0-rc.6-aarch64-unknown-linux-gnu.tar.gz": true,
+    "input_ukai-jail-0.1.0-rc.6-x86_64-unknown-linux-gnu.tar.gz": true,
+    "import_check_bound": true,
+    "prepared_clean_build_and_cleanup": true,
+    "record_artifact_identity": true,
+    "exact_seven_source_paths": true,
+    "source_guest.py": true,
+    "source_guest_program.py": true,
+    "source_guest_exposure.py": true,
+    "source_guest_exposure_control.py": true,
+    "source_vz.swift": true,
+    "source_custodian.c": true,
+    "source_prepare.py": true,
+    "only_sampler_source_changed": true,
+    "exact_reviewed_sampler": true,
+    "actual_base.raw": true,
+    "actual_seed.iso": true,
+    "actual_vz": true,
+    "actual_custodian": true,
+    "new_disk_and_seed": true,
+    "unchanged_image_url": true,
+    "unchanged_image_sha256": true,
+    "unchanged_apt_snapshot": true,
+    "unchanged_apt_snapshot_url": true,
+    "unchanged_jail_archive_sha256": true,
+    "unchanged_jail_candidate": true,
+    "unchanged_guest_program_catalog_sha256": true,
+    "unchanged_guest_program_inputs": true,
+    "unchanged_guest_pinned_versions": true,
+    "unchanged_guest_pinned_digest": true,
+    "official_cache_bytes": true,
+    "retained_linux_RELEASE_NOTES.md": true,
+    "retained_linux_SHA256SUMS": true,
+    "retained_linux_SHA256SUMS.minisig": true,
+    "retained_linux_bootstrap.sh": true,
+    "retained_linux_install.sh": true,
+    "retained_linux_release-plan.json": true,
+    "retained_linux_ukai-jail-0.1.0-rc.6-aarch64-unknown-linux-gnu.tar.gz": true,
+    "retained_linux_ukai-jail-0.1.0-rc.6-x86_64-unknown-linux-gnu.tar.gz": true,
+    "release_trust_root": true,
+    "fresh_signed_linux_verification": true,
+    "fresh_catalog_exact": true,
+    "catalog_input_fields": true,
+    "native_payload_bytes": true,
+    "seed_user_data_retained": true,
+    "cloud_config_prefix": true,
+    "seed_unique_paths": true,
+    "seed_all_base64": true,
+    "seed_source_guest.py": true,
+    "seed_source_guest_program.py": true,
+    "seed_source_guest_exposure.py": true,
+    "seed_source_guest_exposure_control.py": true,
+    "seed_linux_binary": true,
+    "seed_catalog": true,
+    "seed_unchanged_profile": true,
+    "seed_native_payload": true,
+    "actual_control_exact_bytes": true,
+    "fresh_detector_all_seven": true,
+    "fresh_detector_identity": true,
+    "bootstrap_finished": true,
+    "pinned_package_markers": true,
+    "normal_sync_then_shutdown": true,
+    "lifecycle_bound": true,
+    "boot_shutdown_event_order": true,
+    "owned_pids_and_group_still_absent": true,
+    "no_owned_image_mount": true,
+    "disk_seed_holders_absent": true,
+    "gpt_header": true,
+    "gpt_header_crc": true,
+    "gpt_table_bound": true,
+    "gpt_table_crc": true,
+    "one_arm64_root_partition": true,
+    "root_partition_bounds": true,
+    "actual_primary_ext4_clean": true,
+    "disk_generation_still_bound": true,
+    "free_reserve_12GiB": true,
+    "source_and_manifest_unchanged_after_review": true
+  },
+  "details": {
+    "ignored_generated_bytecode": {
+      "crates/ukai-jail/dist/__pycache__/publish_release.cpython-313.pyc": {
+        "sha256": "6e723c052e6142277624b60e3c9aa64434aa654d96ec79f2b3067c091b608105",
+        "bytes": 14214,
+        "source_sha256": "e2a42fe685f76e7f351a3ff9d0281cd54f4c72341a2530ac835a8d9eda161122",
+        "source_equal_compilation": true
+      },
+      "crates/ukai-jail/dist/__pycache__/coordinates.cpython-313.pyc": {
+        "sha256": "ce54e03c89c70550c2242e678759c94ac4a3d13aa2cf52ea02ea3036636f419c",
+        "bytes": 4041,
+        "source_sha256": "88e6cc4e5a147b01bc0a17b51929b6e338c39511509e1c79056638c61fbd5de1",
+        "source_equal_compilation": true
+      },
+      "crates/ukai-jail/dist/__pycache__/bootstrap.cpython-313.pyc": {
+        "sha256": "cca757eb59b91612486d7d8f7fb09911cf9aca9e6e642db21aa01698d3bcabca",
+        "bytes": 4461,
+        "source_sha256": "5f56d26735e6521d2ce1ab637006a3b3f59293c9de795483af3278afd1acfc4e",
+        "source_equal_compilation": true
+      },
+      "crates/ukai-jail/dist/__pycache__/package.cpython-313.pyc": {
+        "sha256": "9dad17e20bcf9228ba96a40141697b8c28ca6363c2f9bcb2c3abf99099eedc9f",
+        "bytes": 4978,
+        "source_sha256": "3b9f5bb393b8e915ce4a9164a93b04c2fdc44aef76935e43a477dc68e6dbf106",
+        "source_equal_compilation": true
+      },
+      "crates/ukai-jail/dist/__pycache__/prepare_release.cpython-313.pyc": {
+        "sha256": "75e0dc56e07c82dfd96b8e355e4907105397e1de0485ff2315fa3682d45d36e6",
+        "bytes": 15797,
+        "source_sha256": "acdcd66fa6e9b83e3e653570bae1809f6890ff8855f1781acdc8378670b2d58b",
+        "source_equal_compilation": true
+      },
+      "crates/ukai-jail/dist/__pycache__/notices.cpython-313.pyc": {
+        "sha256": "d2696f4423a2f698b9c28ee2727feabce2ebdfd2a88c397c755ca2f3ec4b48a4",
+        "bytes": 25812,
+        "source_sha256": "6f8ec489942893937769bc7fb1a1c2c641d58d826371f5ae39ceacd9077fd090",
+        "source_equal_compilation": true
+      }
+    },
+    "seed_rows": [
+      {
+        "path": "/usr/local/bin/ukai-jail",
+        "permissions": "0755",
+        "sha256": "118c8bdda8c7bd5b5957bce15171ff418fb7df0350de795770532beaee2e3462"
+      },
+      {
+        "path": "/usr/local/lib/ukai-vm/guest_program.py",
+        "permissions": "0644",
+        "sha256": "fc73abbf2189a6216595da25b9b69aa03cc38735249c45d0e70e064020eb29bf"
+      },
+      {
+        "path": "/usr/local/lib/ukai-vm/guest_exposure.py",
+        "permissions": "0644",
+        "sha256": "369dd19420ef422b4cb51231f3e1f9119a2eaaf78d54b71d781f5ff9cf61c5ec"
+      },
+      {
+        "path": "/usr/local/lib/ukai-vm/guest_exposure_control.py",
+        "permissions": "0644",
+        "sha256": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f"
+      },
+      {
+        "path": "/usr/local/lib/ukai-vm/guest.py",
+        "permissions": "0644",
+        "sha256": "06dad8f602567645a1d7992a72f27d0da7b9cb1a4a62707c8cf556646fcddfdc"
+      },
+      {
+        "path": "/etc/systemd/system/ukai-vm.service",
+        "permissions": "0644",
+        "sha256": "ce89c0e7b13b0f66a2b38a9f7a227aec124067baa8a5b9bb4fb3bb9c72f30433"
+      },
+      {
+        "path": "/usr/local/lib/ukai-vm/setup.sh",
+        "permissions": "0700",
+        "sha256": "1bd10f6c7d1cc1087fc86e8343564a1233a89597762635433f5b45c72357bc5e"
+      },
+      {
+        "path": "/usr/local/lib/ukai-vm/trace.sh",
+        "permissions": "0700",
+        "sha256": "704a4f21b0023d001857352bc855b653a5d1f8eb80df5d7c151311b318964405"
+      },
+      {
+        "path": "/usr/local/share/ukai-vm/guest-program-catalog.json",
+        "permissions": "0644",
+        "sha256": "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244"
+      },
+      {
+        "path": "/usr/local/share/ukai-vm/guest-program-profiles/claude.toml",
+        "permissions": "0644",
+        "sha256": "e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24"
+      }
+    ],
+    "primary_state": {
+      "root_partition_offset": 1074790400,
+      "root_partition_bytes": 5367643648,
+      "superblock_sha256": "05130a3a173e4c73af193a8550948a76d79b25ce53fd7eb8ea6632f9a1be2233",
+      "magic": "53ef",
+      "state": 1,
+      "recovery_required": false,
+      "last_orphan": 0,
+      "error_count": 0
+    },
+    "free_bytes": 13568192512,
+    "source_revision": "e82209aa8fc33c88b984bb7b1c5a193e56e2b68e",
+    "required_guest_image": {
+      "disk_sha256": "35154ce2c3ad62725b5dffb595062f167a6896e1c5b840c2de514a61e8fa7957",
+      "seed_sha256": "26800da8b107139f3d4b01cf1114c44ba4c01731588a3ca86ed86683e2556526"
+    },
+    "native_program": {
+      "catalog_sha256": "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244",
+      "entry_id_sha256": "52aecf2264a738f1a16899c7536da1cf26034c440a62348b402db682e0a550aa",
+      "profile_sha256": "e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24",
+      "executable_sha256": "2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3"
+    },
+    "guest_boot_id": "9bca1bac-4049-40f2-b0c5-bb64206feb6e",
+    "guest_kernel": "7.0.0-38-generic",
+    "detector_process": {
+      "executable_dev": 64769,
+      "executable_ino": 1637,
+      "pid": 991,
+      "starttime": 4082
+    }
+  },
+  "evidence_sha256": {
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v6/image.json": "79fef747cd312cad12742cdaf2d79ae55ba631b6b692fb4ab7e154d7f8d26f2e",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v5/image.json": "efc627639a27b2dd23afd5679f818f83d056447a718dc5850dacf55db7cc5a6e",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-build-v6/result.json": "5219ec2f94e29197504ad0d5d02db843649e3d0ed962b9bc976f442d6eb75977",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-build-v6/completion.json": "a90ebebaba2586288d2b4561ec0dd2f26f10d15fb7684b1ad5561fbdfc0e8f1a",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-build-v6/command.json": "9ada57f6ed50894ebafe0dcecf868656e790fb762bfe6673836ff378ed428c1c",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-sampler-qualification-plan-e82209aa8/source-snapshot.json": "155c7a142a0bc49b6f477de89b1b7981abfbc2e18cd9a2d81d4dbce166905b7a",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v6/base.raw": "35154ce2c3ad62725b5dffb595062f167a6896e1c5b840c2de514a61e8fa7957",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v6/seed.iso": "26800da8b107139f3d4b01cf1114c44ba4c01731588a3ca86ed86683e2556526",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v6/vz": "7b0a0896fd39711ffa5fc30431b0de20d1da085e8b2d28352fba172ffa0f3a7f",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v6/custodian": "15bf47847e0c48913b6bb342443bffa9adfc02f4d4ebaf86e65bbcee6e34df6e"
+  },
+  "failure": null,
+  "elapsed_seconds": 4.3174111670814455,
+  "reviewer_source_sha256": "2783637b9da6922921d74b88928eddc07c4a0004a3ab20431df1501bfe4f7cdd",
+  "qualification": {
+    "native_vendor": false,
+    "k113": false,
+    "release": false,
+    "new_host_runtime": false
+  },
+  "scope": "Actual fresh prepared bytes, exact source/seed payload, signed Linux inputs, detector positive control and cleanup only. No VM run/signing/provider; no A01-cause claim, periodic vendor coverage, admission or release qualification. Six ignored standard verifier bytecode files independently match their exact source compilations; earlier physical-tree assumption refusal retained. Standard sparse432-source preparation, not the separate instrumented diagnostic image."
+}

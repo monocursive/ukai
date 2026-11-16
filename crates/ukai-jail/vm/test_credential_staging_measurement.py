@@ -2,6 +2,7 @@ import copy
 import json
 import os
 from pathlib import Path
+import plistlib
 import subprocess
 import tempfile
 import unittest
@@ -257,18 +258,6 @@ class ArtifactTests(unittest.TestCase):
             linked.unlink(); os.mkfifo(root / 'fifo')
             with self.assertRaises(admission.AdmissionError): admission.digest_file(root / 'fifo')
 
-    def test_mount_is_always_detached_after_payload_failure(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp); dmg = root / 'candidate.dmg'; dmg.write_bytes(b'dmg')
-            with patch.object(admission, 'verify_signature'), patch.object(admission, 'run_tool') as run, \
-                    patch.object(admission, 'inspect_volume', side_effect=admission.AdmissionError('bad payload')):
-                with self.assertRaises(admission.AdmissionError):
-                    admission.verify_signed_install(root, dmg, 'TEAMID1234')
-                self.assertEqual(run.call_args_list[0].args[0][1], 'attach')
-                self.assertEqual(run.call_args_list[-1].args[0][1], 'detach')
-                mount = run.call_args_list[-1].args[0][-1]
-                self.assertEqual(mount, mount.resolve())
-
     def test_unreadable_directory_cannot_be_silently_excluded_from_inventory(self):
         def denied_walk(*args, onerror=None, **kwargs):
             if onerror is not None: onerror(PermissionError('unreadable signed subtree'))
@@ -286,6 +275,201 @@ class ArtifactTests(unittest.TestCase):
         self.assertIn(b'TEAMID1234', result.stdout)
         for invalid in ('', 'bad"team', 'TEAMID1234;'):
             with self.assertRaises(admission.AdmissionError): admission.developer_requirement(invalid)
+
+
+class AttachmentTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        self.dmg = self.root / 'candidate.dmg'
+        self.dmg.write_bytes(b'dmg')
+        self.private = self.root / 'owned'
+        self.mount = self.private / 'volume'
+        self.images, self.calls = [], []
+        self.attach_error = self.inspect_error = self.detach_error = None
+        self.after_attach = self.mounted_image
+        self.info_after_attach_error = False
+        self.keep_after_detach = False
+        self.started = False
+        for name, replacement in (('verify_signature', lambda *args: None),
+                                  ('run_tool', self.run_tool),
+                                  ('inspect_volume', self.inspect)):
+            held = patch.object(admission, name, side_effect=replacement)
+            held.start(); self.addCleanup(held.stop)
+        held = patch.object(admission.tempfile, 'mkdtemp', side_effect=self.make_private)
+        held.start(); self.addCleanup(held.stop)
+
+    def make_private(self, **kwargs):
+        self.private.mkdir(mode=0o700)
+        return str(self.private)
+
+    def mounted_image(self, mounted=True, image=None, disk='/dev/disk90'):
+        entities = [{'dev-entry': disk}, {'dev-entry': disk + 's1'}]
+        if mounted:
+            entities[-1]['mount-point'] = str(self.mount)
+        return {'image-path': str(image or self.dmg), 'system-entities': entities}
+
+    def run_tool(self, argv, **kwargs):
+        argv = [str(value) for value in argv]
+        self.calls.append(argv)
+        if argv[1] == 'info':
+            if self.started and self.info_after_attach_error:
+                raise subprocess.TimeoutExpired(argv, 120)
+            return subprocess.CompletedProcess(argv, 0, plistlib.dumps({'images': self.images}), b'')
+        if argv[1] == 'attach':
+            self.started = True
+            image = self.after_attach()
+            if image is not None: self.images.append(image)
+            if self.attach_error is not None: raise self.attach_error
+        elif argv[1] == 'detach':
+            if self.detach_error is not None: raise self.detach_error
+            if not self.keep_after_detach: self.images.clear()
+        else:
+            self.fail('unexpected external command')
+        return subprocess.CompletedProcess(argv, 0, b'', b'')
+
+    def inspect(self, *args):
+        if self.inspect_error is not None: raise self.inspect_error
+        return {'payload': 'verified'}
+
+    def verify(self):
+        return admission.verify_signed_install(self.root, self.dmg, 'TEAMID1234')
+
+    def detaches(self):
+        return [argv[-1] for argv in self.calls if argv[1] == 'detach']
+
+    def test_success_has_exact_mount_and_verified_absence_before_empty_directory_cleanup(self):
+        result = self.verify()
+        self.assertEqual(result['payload'], 'verified')
+        self.assertEqual(result['dmg_sha256'], admission.sha(b'dmg'))
+        self.assertEqual(self.detaches(), [str(self.mount)])
+        self.assertEqual([argv[1] for argv in self.calls], ['info', 'attach', 'info', 'info', 'detach', 'info'])
+        self.assertFalse(self.private.exists())
+
+    def test_payload_failure_detaches_and_preserves_original_exception(self):
+        self.inspect_error = admission.AdmissionError('bad payload')
+        with self.assertRaises(admission.AdmissionError) as caught: self.verify()
+        self.assertIs(caught.exception, self.inspect_error)
+        self.assertEqual(self.detaches(), [str(self.mount)])
+        self.assertFalse(self.private.exists())
+
+    def test_attach_timeout_with_partial_mount_is_cleaned_without_masking_original(self):
+        self.attach_error = subprocess.TimeoutExpired(['hdiutil', 'attach'], 120)
+        with self.assertRaises(subprocess.TimeoutExpired) as caught: self.verify()
+        self.assertIs(caught.exception, self.attach_error)
+        self.assertEqual(self.detaches(), [str(self.mount)])
+        self.assertFalse(self.private.exists())
+
+    def test_failed_attach_with_only_new_unmounted_device_is_cleaned(self):
+        self.after_attach = lambda: self.mounted_image(mounted=False)
+        self.attach_error = subprocess.CalledProcessError(1, ['hdiutil', 'attach'])
+        with self.assertRaises(subprocess.CalledProcessError) as caught: self.verify()
+        self.assertIs(caught.exception, self.attach_error)
+        self.assertEqual(self.detaches(), ['/dev/disk90'])
+        self.assertFalse(self.private.exists())
+
+    def test_failed_attach_without_device_does_not_detach(self):
+        self.after_attach = lambda: None
+        self.attach_error = subprocess.CalledProcessError(1, ['hdiutil', 'attach'])
+        with self.assertRaises(subprocess.CalledProcessError): self.verify()
+        self.assertEqual(self.detaches(), [])
+        self.assertFalse(self.private.exists())
+
+    def test_success_exit_without_owned_mount_refuses_payload_inspection(self):
+        self.after_attach = lambda: None
+        with patch.object(admission, 'inspect_volume') as inspect:
+            with self.assertRaisesRegex(admission.AdmissionError, 'did not attach'): self.verify()
+            inspect.assert_not_called()
+        self.assertEqual(self.detaches(), [])
+        self.assertFalse(self.private.exists())
+
+    def test_unlisted_mount_is_retained_without_guessing_a_detach_target(self):
+        self.after_attach = lambda: None
+        self.attach_error = subprocess.CalledProcessError(1, ['hdiutil', 'attach'])
+        original = Path.is_mount
+        with patch.object(Path, 'is_mount', lambda path: path == self.mount or original(path)):
+            with self.assertRaisesRegex(admission.AdmissionError, 'cleanup uncertain'): self.verify()
+        self.assertEqual(self.detaches(), [])
+        self.assertTrue(self.mount.is_dir())
+
+    def test_preexisting_exact_image_or_canonical_alias_never_attaches_or_detaches(self):
+        link = self.root / 'alias.dmg'; link.symlink_to(self.dmg)
+        for path in (self.dmg, link):
+            with self.subTest(path=path):
+                self.calls.clear(); self.images = [self.mounted_image(image=path)]
+                with self.assertRaisesRegex(admission.AdmissionError, 'already attached'): self.verify()
+                self.assertEqual([argv[1] for argv in self.calls], ['info'])
+                self.assertFalse(self.private.exists())
+
+    def test_preexisting_device_is_not_detached_when_new_record_claims_it(self):
+        self.images = [self.mounted_image(mounted=False, image=self.root / 'other.dmg')]
+        self.attach_error = subprocess.CalledProcessError(1, ['hdiutil', 'attach'])
+        with self.assertRaisesRegex(admission.AdmissionError, 'cleanup uncertain'): self.verify()
+        self.assertEqual(self.detaches(), [])
+        self.assertTrue(self.private.is_dir())
+
+    def test_unrelated_image_at_private_mount_is_not_detached_or_removed(self):
+        self.after_attach = lambda: self.mounted_image(image=self.root / 'other.dmg')
+        with self.assertRaisesRegex(admission.AdmissionError, 'cleanup uncertain'): self.verify()
+        self.assertEqual(self.detaches(), [])
+        self.assertTrue(self.mount.is_dir())
+
+    def test_ambiguous_or_foreign_mounts_preserve_owned_directory(self):
+        for change in ('duplicate_image', 'unexpected_mount', 'two_unmounted_disks'):
+            with self.subTest(change=change):
+                self.calls.clear(); self.images = []; self.started = False
+                def changed():
+                    image = self.mounted_image(mounted=change != 'two_unmounted_disks')
+                    if change == 'duplicate_image': self.images.append(image)
+                    elif change == 'unexpected_mount': image['system-entities'][-1]['mount-point'] = '/Volumes/unowned'
+                    else: image['system-entities'].append({'dev-entry': '/dev/disk91'})
+                    return image
+                self.after_attach = changed
+                with self.assertRaisesRegex(admission.AdmissionError, 'cleanup uncertain'): self.verify()
+                self.assertEqual(self.detaches(), [])
+                self.assertTrue(self.mount.is_dir())
+                self.mount.rmdir(); self.private.rmdir()
+
+    def test_detach_failure_and_inventory_failure_cannot_trigger_directory_deletion(self):
+        for failure in ('detach', 'inventory', 'still_attached'):
+            with self.subTest(failure=failure):
+                self.calls.clear(); self.images = []; self.started = False
+                self.detach_error = subprocess.CalledProcessError(1, ['hdiutil', 'detach']) if failure == 'detach' else None
+                self.info_after_attach_error = failure == 'inventory'
+                self.keep_after_detach = failure == 'still_attached'
+                with self.assertRaisesRegex(admission.AdmissionError, 'cleanup uncertain'): self.verify()
+                self.assertTrue(self.mount.is_dir())
+                self.mount.rmdir(); self.private.rmdir()
+
+    def test_replaced_or_nonempty_owned_directory_is_preserved(self):
+        moved = self.root / 'original-volume'
+        def replace(*args):
+            self.mount.rename(moved); self.mount.mkdir()
+            return {'payload': 'verified'}
+        with patch.object(admission, 'inspect_volume', side_effect=replace):
+            with self.assertRaisesRegex(admission.AdmissionError, 'cleanup uncertain'): self.verify()
+        self.assertTrue(self.mount.is_dir()); self.assertTrue(moved.is_dir())
+        self.mount.rmdir(); self.private.rmdir()
+        self.started = False; self.calls.clear()
+        def nonempty(*args):
+            (self.mount / 'unexpected').write_text('preserve')
+            return {'payload': 'verified'}
+        with patch.object(admission, 'inspect_volume', side_effect=nonempty):
+            with self.assertRaisesRegex(admission.AdmissionError, 'cleanup uncertain'): self.verify()
+        self.assertEqual((self.mount / 'unexpected').read_text(), 'preserve')
+
+    def test_inventory_shape_and_size_refuse_before_mount(self):
+        invalid = [b'not a plist', b'<?xml version="1.0"?><plist><dict>',
+                   plistlib.dumps({}), plistlib.dumps({'images': 'invalid'}),
+                   plistlib.dumps({'images': [{'image-path': str(self.dmg), 'system-entities': [{}]}]}),
+                   b'x' * (4 * 1024 * 1024 + 1)]
+        for raw in invalid:
+            with self.subTest(bytes=len(raw)), patch.object(admission, 'run_tool',
+                    return_value=subprocess.CompletedProcess([], 0, raw, b'')) as run:
+                with self.assertRaises(ValueError): self.verify()
+                self.assertEqual(run.call_count, 1)
+                self.assertFalse(self.private.exists())
 
 
 if __name__ == '__main__':

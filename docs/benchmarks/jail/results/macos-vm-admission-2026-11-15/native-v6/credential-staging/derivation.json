@@ -1,0 +1,47 @@
+{
+  "schema": "ukai.task.staging-derivation-provenance/1",
+  "outcome": "PASS",
+  "source_revision": "c25c297fc61b7d0edb71d929a1b067faeeb03b53",
+  "source_checkout": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16",
+  "helper_sha256": {
+    "capabilities.py": "f49038c154933d64497bd3ceb1b94d173fb711f506bd4cc39250ee07e43f86c5",
+    "claude_vm_row.py": "3beada82a59f7e10b28b5a98874b193fb7d9cd0acc1a44043e798071d1afe5bd",
+    "credential_revocation_measurement.py": "117ca2da3d9572d75613a4a4048a82995d01d5f7691feeeeb65bb759883a9710",
+    "credential_staging_measurement.py": "646eb2d6e3eaee50ee19ca7da938e81b8e6ff173c91809d6394354b5a5a2ce45",
+    "execution_boundary_measurement.py": "98087e09c93a54fc08effd2f365fc6b90034946206330ee75dc3c816c82024eb",
+    "guest.py": "06dad8f602567645a1d7992a72f27d0da7b9cb1a4a62707c8cf556646fcddfdc",
+    "guest_exposure.py": "369dd19420ef422b4cb51231f3e1f9119a2eaaf78d54b71d781f5ff9cf61c5ec",
+    "guest_program.py": "fc73abbf2189a6216595da25b9b69aa03cc38735249c45d0e70e064020eb29bf",
+    "harness.py": "bfef94a3d631dcf54f0d4ef169546ad1ef0b9f9ca33ef942c35aa6580e8b8ccd",
+    "program_binding_measurement.py": "a335a1bb70663b99edf06391baad42c13977bdfbe05310057e92ebe458b4bce5",
+    "run.py": "4a68643b43950a80788d113feebb841f9ab90890735e235081041b123a835412",
+    "stream_peer.py": "8a082a0708833def269a54d55095f404e0ffa83b7b21643563bedfdc6d6a632f",
+    "vault_measurement.py": "7febfe5d834d9624e81d56d1d7e72a328b641a9c2feb98f6689164e55d6055f6",
+    "vm_summary_check.py": "0dfd2881cc1c148023ec1c49f5b04eecb72c4a33dad61f275ace8edfa81f6d24"
+  },
+  "files": {
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-component-plan-c25c297fc/plan.json": "1c97fb8110577a6223c1aab18eec5029cfc19c9b965e9f59a8f0f73c78944c89",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-component-plan-c25c297fc/run-component-phase.py": "d094906f6ab7846365eb820d9cf738851dbeb7306b90cdaddcb1bf2dc14320ff",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-component-plan-c25c297fc/execute.py": "493a2b6635bbbc3b2820007c83bd979fb5b4a335cbfd8de28fcfac7db3accdd5",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/staging-command.json": "a1b689c5bd9001ca7e7ed060a4d38332139bb830a177f6e29a3633651066ac5b",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/staging-result.json": "24763adc2b4a4af93d0d058fcefdc92f9a4d2c510a2d33e13bc6c3cf35509a8f",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/staging-outer.json": "8f5f59c9827021543497b3723bf68eb8dcccbe56bef4bca3f1fac6e3cde3e854",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/staging-acceptance.json": "c7f96a29a0f8f515ddcad0ac0693df3570db9473a1965bfeaacab09da1317e42",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-c25c297fc/staging-attachment-lifecycle.json": "34c203444c481d76e6eab5fea195c006ac7c211f3219040d163e560f14634eb5",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-credential-admission-c25c297fc/credential-staging.json": "42895ce9fd2e8b037d9b970ad115087bdb5a67c702920e61646b7c7d126522ca",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-c25c297fc/raw-credential-revocation.json": "10bb4db6dfe3d5b489812f5ad31206eccf9c01c84cb45cd0e06284f56d3b7073",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-raw-vault-c25c297fc/raw-inputs.json": "d9d4ebe11c1caa020ed97d864d8a60cd9833de805ccc734a3d42c6de047f1da7",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-package-independent-c25c297fc/verification.json": "f64ac5589ccad0b7636923ddfcfa8d29d41ef61351016027b92a0497b426b63f"
+  },
+  "signed_installation": {
+    "image_manifest_sha256": "44fb8e11513fac74f1472f6315c3868c5c9d60034d828a97bbc913e8e13e1363",
+    "manifest_sha256": "4c786fbc7eb61db02eb47acc3d9b581161e149d94a51708a7009e5d87ac14f4f",
+    "service_sha256": "dbb05c9ec2ae393af212be31a90c64a9985ab488ad778e41352ff0bdd89f5963",
+    "client_sha256": "2a437808ba1e4f67c157cc5f8e12cca4b6ae3b2a452fd2ff9e446066be7c8c96",
+    "dmg_sha256": "b66023375eec009785363a4768573e4f6d699215eba47d1eff9fa53ceca8da2e",
+    "signing": "verified-developer-id"
+  },
+  "qualified": false,
+  "native_launch_or_sampling_qualified": false,
+  "scope": "Exact frozen c25 owning raw replay and signed-install derivation; no admission-table mutation or native/vendor/K113 qualification."
+}

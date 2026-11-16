@@ -1,0 +1,70 @@
+{
+  "schema": "ukai.gate-image-resolved-plan/1",
+  "status": "RESOLVED_NOT_EXECUTED",
+  "plan_version": 1,
+  "created_at": "2026-11-16T02:24:30.710376+00:00",
+  "source_revision": "e82209aa8fc33c88b984bb7b1c5a193e56e2b68e",
+  "source_checkout": "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16",
+  "source_sha256": {
+    "guest.py": "06dad8f602567645a1d7992a72f27d0da7b9cb1a4a62707c8cf556646fcddfdc",
+    "guest_program.py": "fc73abbf2189a6216595da25b9b69aa03cc38735249c45d0e70e064020eb29bf",
+    "guest_exposure.py": "369dd19420ef422b4cb51231f3e1f9119a2eaaf78d54b71d781f5ff9cf61c5ec",
+    "guest_exposure_control.py": "1cfe84db514d919558f31d220b06344bdb668f361741572ca8b4ea673d410e0f",
+    "vz.swift": "d1d3c87ad70bf770ab0d9c1f250fe2f64b5baee162f2b28dcf3f2cb89f0df32a",
+    "custodian.c": "d83bea0a1501fc0e6449f27a1b67561d5ec596d71dc1506cfca06b9e1d9be1ab",
+    "prepare.py": "d9aef47dff24192e690ec8a479a127d02f8e443182e25461709cd07a438e7e5a",
+    "test_guest_exposure.py": "d0244cd3f9d9c2d7983c98b078f53281f5c00e6c3bd644c201d22a4df3ffd197"
+  },
+  "input_sha256": {
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v5/cache/ubuntu.img": "4e86a7819b4cc7b4a9c2e719dec3e0a723c4a2788dc3f23f17641cba7f5ca216",
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/claude-2.1.311/claude": "2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/RELEASE_NOTES.md": "c45f4e1bc341ed6d36f3d523406304e91823968463fbcc4efe25ac9807810f18",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/SHA256SUMS": "c8b7ee8c72d0819d1d9bcfe14b2e85352f8c377c0076a2a6b6483803938b9560",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/SHA256SUMS.minisig": "c15d929fffe558c23dab8c094e71926e08b3ad09c47effa966adeee3f99c4015",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/bootstrap.sh": "13b16d849dfd1ceb92fe707624b67f595f9002eac858b7153acdbac38b468af7",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/install.sh": "9c49ea8a0d7c2633b446d1912d9def945bb10dad325de6542320dd185a13f012",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/release-plan.json": "909d79a88c18f194075bd9c4f5e83d0ba757187ff599c5044a91f9fcef141e88",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/ukai-jail-0.1.0-rc.6-aarch64-unknown-linux-gnu.tar.gz": "bef11e6e96ac3a980f5a4e084cb7008439e246446aa4b99e933746377c53c7ce",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate/ukai-jail-0.1.0-rc.6-x86_64-unknown-linux-gnu.tar.gz": "c074b81a3cacb69090544b64e45b44b1268f3f4ff06a452969501dd5f4d9b962"
+  },
+  "image": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v6",
+  "build_record": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-build-v6",
+  "command": [
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/build-env/bin/python",
+    "-B",
+    "/Users/monocursive/.cache/ukai-sampler-source-e82209aa8-2026-11-16/crates/ukai-jail/vm/prepare.py",
+    "--out",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-image-v6",
+    "--jail-candidate",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/candidate-6ffff05dc/signed-candidate",
+    "--native-claude",
+    "/Users/monocursive/.cache/ukai-warm-vm-build-2026-11-15/claude-2.1.311/claude"
+  ],
+  "runner_sha256": "2667ce8ede1ecfed8059f08c7cb17e8806e3c28797d719b9a8553801823d20fa",
+  "resources": {
+    "cpus": 2,
+    "memory_mib": 2048,
+    "sparse_disk_bytes": 6442450944,
+    "minimum_available_bytes": 12884901888,
+    "observed_available_bytes": 16556597248,
+    "projected_build_bytes": 3489714176,
+    "projected_remaining_bytes": 13066883072
+  },
+  "tools": {
+    "swiftc": "/usr/bin/swiftc",
+    "clang": "/usr/bin/clang",
+    "codesign": "/usr/bin/codesign",
+    "qemu-img": "/opt/homebrew/bin/qemu-img",
+    "hdiutil": "/usr/bin/hdiutil"
+  },
+  "outer_timeout_seconds": 1200,
+  "terminate_wait_seconds": 10,
+  "kill_wait_seconds": 10,
+  "original_artifacts_removed": false,
+  "automatic_retry": false,
+  "package_or_provider_execution": false,
+  "next_gate": "Root already authorized one standard image prepare from exact e822 if pins/import/cleanup/capacity preconditions pass. No package/admission/provider follows automatically.",
+  "source_snapshot_sha256": "155c7a142a0bc49b6f477de89b1b7981abfbc2e18cd9a2d81d4dbce166905b7a",
+  "import_check_sha256": "a8b2a84edaabb289040c158423f8605bb0094ff95e2d3bb488ac4bb2344146ae",
+  "source_scope": "Detached clean sparse Git checkout: root files + crates/ukai-jail cone,432 exact files; no custom overlay."
+}

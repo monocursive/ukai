@@ -1953,7 +1953,7 @@ fn second_measured_image_has_its_own_rows_and_mixed_images_have_none() {
 
 #[test]
 fn superseded_intermediate_images_no_longer_admit_literal_or_native_runs() {
-    for version in ["native-v2", "native-v4"] {
+    for version in ["native-v2", "native-v4", "native-v5"] {
         let bundle = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
             "../../docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/{version}"
         ));
@@ -2012,7 +2012,7 @@ fn superseded_intermediate_images_no_longer_admit_literal_or_native_runs() {
 fn native_admission_requires_every_pin_before_source_staging() {
     let (_dir, mut context, args) = native::tests::context();
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let bytes = std::fs::read(root.join("docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v5/image/guest-program-catalog.json")).unwrap();
+    let bytes = std::fs::read(root.join("docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v6/image/guest-program-catalog.json")).unwrap();
     let mut platform = native_measured_platform();
     platform.data_dir = context.env_settings.data_dir.clone().unwrap();
     platform.install.root = context.cwd.parent().unwrap().join("install");
@@ -2106,7 +2106,7 @@ fn every_measurement_row_resolves_in_its_record() {
             GUEST_MEASUREMENTS,
         ),
         (
-            "native-v5",
+            "native-v6",
             "capabilities/capabilities.json",
             "raw-vault",
             NATIVE_GUEST_MEASURED_DISK_SHA256,
@@ -2320,7 +2320,7 @@ fn native_admission_pins_resolve_to_the_exact_retained_component_evidence() {
     );
     assert_eq!(
         package["source_revision"],
-        "b54086a3e31d1097954448e2bd37278f20beab7c"
+        "c25c297fc61b7d0edb71d929a1b067faeeb03b53"
     );
     assert_eq!(
         package["image"]["ukai_jail_version"]["build"]["dirty"],
