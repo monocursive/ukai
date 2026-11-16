@@ -15,13 +15,14 @@ contains the isolated Linux candidate, excluding unrelated local Arena work.
 | --- | --- |
 | Linux `6ffff05dc`, `0.1.0-rc.6` | Signed private candidate; strict reference conformance and both native installers passed; unpublished. |
 | Warm-VM `bef699262`, `0.1.0-preview.2` | Signed private candidate; all six CI jobs, source rebuild, package/installer verification, primary runtime checks and second-Mac checks passed. |
-| Claude API-key qualification on `bef699262` | Missing-source control passed. First paid task settled successfully but qualification failed: 27/28 facts, with two unattributed sampling inventory losses. Remaining 12 paid lanes stopped. |
-| Final-candidate fault matrix | Pending; the earlier candidate's passing matrix does not qualify these bytes. |
+| Claude API-key qualification on `bef699262` | Missing-source control passed. A01 failed sampling qualification (27/28 facts). A later small task passed its task check but failed sampling and retention checks (25/28 facts). Ten repetitions and vendor revocation remain unrun. |
+| Final-candidate fault matrix | All 11 lanes passed; 118 facts independently recomputed, with complete owned cleanup. |
 | OAuth, notarization, native macOS Endpoint Security | Pending. OAuth is deferred at the user's request; no usable local notarization credential or ES profile was established. |
 
-The latest API failure remains a failure. Synthetic diagnostics are investigating
-the inventory race without further provider calls or changing its recorded
-verdict. Full production readiness and public release are not established.
+The API failures remain failures. Synthetic diagnostics are investigating
+the inventory race without provider calls. A separate bounded API collection
+continuation stopped at the small-task failure described below. Full production
+readiness and public release are not established.
 The sections below retain the source identities, evidence and earlier failures.
 
 ## Frozen Linux candidate
@@ -764,11 +765,57 @@ lifecycle checks passed, with the original credential source generation
 unchanged, the private copy removed and the owned workspace detached.
 
 The remaining 12 paid lanes (small task, ten repetitions and vendor revocation)
-were not run. The full final-candidate fault matrix also remains pending.
+were not run in this stopped sequence.
 Evidence is in `guest-native-api-completion-bef699262/` and
 `guest-native-api-control-bef699262/`. OAuth, notarization and publication
 remain pending. Later documentation-only changes do not change the frozen
 artifact's source identity above.
+
+The final candidate's fault matrix was subsequently collected independently
+of the stopped API sequence. All 11 lanes passed in 627.317 seconds, including
+both actual-client lanes. Independent replay reproduced all 118 owning facts,
+and all 80 final lifecycle/preservation checks passed. No emergency kill or
+retry was needed. Owned processes and disk holders were absent and the exact
+workspace was detached; expected failed-component boot disks remain retained.
+The matrix SHA-256 is
+`5a69e4fbdb76da6ab0fad3ce0837a7340e7ecd8ca9e82ed92aabb62b44f39b28`.
+Records are under `guest-native-faults-bef699262/`,
+`guest-native-measurements-bef699262/` and
+`faults-collection-supplement-bef699262/`. This result qualifies these fault
+fixtures and observations; it does not change the failed API sampling verdict.
+
+The separate API continuation reused the exact A01 repository and volume, with
+the original qualification criteria and failed results unchanged. It allowed
+only collection of the remaining distinct lanes after independent replay of
+each predecessor; it did not authorize a repeat of A01. The small-task lane ran
+once and stopped collection after 69.676 seconds. Its task checker passed and
+the vendor reported six turns and USD 0.0119804, but only 25 of 28 qualification
+facts passed. The sampler reported 176 ticks, four `inventory_vanished` errors
+and one `supervisor_unobserved`, with positive exact workload observations and
+no secret hits. Sampling remains incomplete.
+
+The other two false facts concern evidence retention. The test wrapper tried
+to create `task-check.stdout` and `task-check.stderr` after the owning helper
+had already written them, raising `FileExistsError` before full vendor-attempt
+retention. This is a harness defect, not evidence that the missing records
+were retained. The original failure is preserved while a repair is tested
+offline. The ten repetition lanes and real vendor revocation did not run.
+Owned cleanup and exact-volume detach completed; no retry occurred. Records
+are under `guest-native-api-continuation-bef699262/` and the existing API
+completion/control directories.
+
+## Source archive follow-up
+
+Source commit `42ac20b54` adds the root `install.sh` to the archive's explicit
+selection. The exported experimental image builder reads its public Linux
+archive pins through `dist/coordinates.py`; the earlier 847-file archive
+could build all five native components but could not import that builder.
+An actual archive/extraction regression reproduced the missing-file failure
+before the fix. All 38 packaging tests then passed, including an isolated
+builder import with process and network creation prohibited. The expected
+archive now has 848 source files. This packaging correction has not produced
+a new signed candidate and does not change the frozen `bef699262` artifact
+or its recorded qualification.
 
 ## Remaining release limits
 
