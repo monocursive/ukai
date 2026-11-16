@@ -2,7 +2,7 @@
 
 This contract describes the opt-in implementation for a catalog-installed
 native Linux program on the macOS VM backend. The
-[retained component proof](../../../docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v7/README.md)
+[retained component proof](../../../docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/README.md)
 admits one exact guest image and catalog shape. It does not complete K113 or
 change any published release coordinate. The existing literal-command VM path
 remains a separate mode. New images need new component measurements, and
@@ -176,6 +176,14 @@ full guest journal. Host lifecycle and cleanup remain host facts. Guest
 credential counts, state cleanup, execution, and population claims come only
 from verified guest evidence. EOF, missing data, mismatched binding, and
 unverified wall termination remain unknown; they never synthesize cleanup.
+
+After verified warm-session attempt stop and credential removal, evidence
+frames and the terminal `done` frame share one 20-second write budget. The
+sender continues the exact unwritten suffix across short socket timeouts and
+refreshes the watchdog while waiting. A failed or interrupted partial write
+prevents any later frame from being appended on that sender. This budget
+bounds transport writes, not filesystem reads or the entire cancellation
+operation. Existing live-output and legacy sending remain unchanged.
 
 ## Sampled process exposure evidence
 

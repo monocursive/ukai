@@ -46,7 +46,7 @@ jobs:
       - name: VM transport boundary regressions (no live VM)
         run: python3 -m unittest discover -s crates/ukai-jail/vm -p 'test_*.py'
       - name: Replay the current native VM component proof (offline)
-        run: python3 -B docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v7/replay.py
+        run: python3 -B docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v8/replay.py
       - name: Native macOS candidate tooling (synthetic signing and installation)
         run: python3 -m unittest discover -s crates/ukai-jail/dist/macos -p 'test_*.py'
       - name: Locked runtime attribution

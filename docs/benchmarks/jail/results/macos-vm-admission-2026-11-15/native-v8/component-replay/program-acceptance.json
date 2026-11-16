@@ -1,0 +1,79 @@
+{
+  "schema": "ukai.task.component-acceptance/1",
+  "phase": "program",
+  "plan_sha256": "16c5bb54edaad40515c721d7cf5ce9cd44ac678e1b527f3a02f358fa2033ff2b",
+  "replayer_sha256": "5bc736c58c163785ff301110546f8f3b7b3f504648005228d6ddfd161cf0fa06",
+  "outcome": "PASS",
+  "qualified": false,
+  "native_vendor_or_k113_qualified": false,
+  "checks": {
+    "owning_process_succeeded": true,
+    "owned_group_reaped_absent": true,
+    "program_24_facts_recomputed": true,
+    "qualification_false": true,
+    "no_vm_or_compiler": true,
+    "private_tmp_holders_absent": true,
+    "capabilities_holders_absent": true,
+    "program_holders_absent": true,
+    "vault_holders_absent": true,
+    "frozen_source_clean": true,
+    "runtime_capacity_preserved": true
+  },
+  "files": {
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-export-934ad33ac/program-outer.json": "3874ece06d3b67e08ccfcbd66c59fe6a1f0e993edef219430fb8644d90e9eb72",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-export-934ad33ac/program-result.json": "890eeabc5a2bd42bbb3ac9bce40f11ff88c5641dfffe3d396ac64626b9b4716f",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-program-binding-export-934ad33ac/result.json": "39678a2eeed8b01c7e1cc42f2bb46d0479537067dc0ead992b9c5f3032a0c883",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-program-binding-export-934ad33ac/inputs.json": "4ebe9cb6ee430cb5678920f07e76d4f9e68615abd8867978050f3c0269c4ebc7"
+  },
+  "facts": {
+    "literal_component_scope": true,
+    "bound_actual_guest_receipt": true,
+    "exact_staging_ack": true,
+    "placeholder_only_child_value": true,
+    "copied_executable_same_bytes_different_identity": true,
+    "copied_program_actually_exec_observed": true,
+    "own_request_succeeded": true,
+    "other_program_exact_proxy_refusal": true,
+    "one_substitution_and_one_later_program_denial": true,
+    "independent_upstream_received_only_authorized_request": true,
+    "bound_complete_journal": true,
+    "exact_summary_credential_count": true,
+    "strict_six_classes": true,
+    "vault_never_staged": true,
+    "settled_clean_guest": true,
+    "controller_cleanup": true,
+    "fixture_removed_without_error": true,
+    "exact_literal_declaration_and_argv": true,
+    "exact_installed_image_and_binaries": true,
+    "independent_complete_summary": true,
+    "same_boot_sync": true,
+    "stopped_and_quiescent": true,
+    "complete_spelling_scans": true,
+    "no_harness_error": true
+  },
+  "inputs_sha256": "4ebe9cb6ee430cb5678920f07e76d4f9e68615abd8867978050f3c0269c4ebc7",
+  "attempt_id": "program-binding-5597ccfabb9d1350",
+  "holder_checks": {
+    "private_tmp": {
+      "returncode": 1,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0
+    },
+    "capabilities": {
+      "returncode": 1,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0
+    },
+    "program": {
+      "returncode": 1,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0
+    },
+    "vault": {
+      "returncode": 1,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0
+    }
+  },
+  "free_bytes": 31328964608
+}

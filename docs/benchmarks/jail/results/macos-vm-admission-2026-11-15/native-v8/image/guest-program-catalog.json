@@ -1,0 +1,42 @@
+{
+  "entries": [
+    {
+      "alias": "claude",
+      "argv_prefix": [
+        "/opt/ukai/programs/claude/2.1.311/claude"
+      ],
+      "executable": "/opt/ukai/programs/claude/2.1.311/claude",
+      "executable_sha256": "2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3",
+      "executable_size": 293658808,
+      "format": "elf64-aarch64",
+      "guest_jail_sha256": "c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f",
+      "id": "claude-2.1.311-linux-arm64",
+      "install_root": "/opt/ukai/programs/claude/2.1.311",
+      "interpreter": "/lib/ld-linux-aarch64.so.1",
+      "profile_sha256": "e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24",
+      "program_root": 1,
+      "supported_states": [
+        "attempt"
+      ],
+      "tree": [
+        {
+          "gid": 0,
+          "kind": "directory",
+          "mode": 365,
+          "path": ".",
+          "uid": 0
+        },
+        {
+          "gid": 0,
+          "kind": "file",
+          "mode": 365,
+          "nlink": 1,
+          "path": "claude",
+          "uid": 0
+        }
+      ],
+      "version": "2.1.311"
+    }
+  ],
+  "schema": "ukai.vm.guest-program-catalog/1"
+}

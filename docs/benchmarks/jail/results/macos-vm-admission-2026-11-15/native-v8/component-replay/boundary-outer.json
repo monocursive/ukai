@@ -1,0 +1,17 @@
+{
+  "plan_sha256": "16c5bb54edaad40515c721d7cf5ce9cd44ac678e1b527f3a02f358fa2033ff2b",
+  "phase": "boundary",
+  "executor_sha256": "53cf7d6b3568b3831d9781f2b9ecf753aa1f56da3be5c7bbc9029d3a70a81a5e",
+  "free_before": 31340085248,
+  "pid": 92465,
+  "minimum_free_bytes": 31340019712,
+  "returncode": 0,
+  "elapsed_seconds": 3.031784459017217,
+  "error_type": null,
+  "cleanup": {
+    "process_started": true,
+    "leader_reaped": true,
+    "group_absent": true
+  },
+  "outcome": "PASS"
+}

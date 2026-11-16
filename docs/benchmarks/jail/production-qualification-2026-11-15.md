@@ -22,7 +22,7 @@ contains the isolated Linux candidate, excluding unrelated local Arena work.
 | Fresh installed R operations | K109/K111/K112 owning rows passed; collection stopped on a five-second holder-check timeout. Separate longer-bound cleanup passed. Fresh source-watch and warm passed. Fault collection stopped: three lanes passed, both client-suspension variants failed, six lanes unrun. Cleanup passed. |
 | Earlier `bef699262` API sequence | Eight passes and six failures remain unchanged. Later source changes and fresh partial results do not relabel those failures. |
 | Storage | Disposable cache and proven task-duplicate recovery completed; source code, signed artifacts and qualification/failure evidence preserved. |
-| Post-stop export repair `d8290c287` | Source repair and focused regressions passed; absent from frozen R. A fresh image and installed qualification remain required. |
+| Post-stop export repair `d8290c287`, prepared source `934ad33ac` | All six hosted jobs, fresh image preparation, bootstrap journal review, private signed package review, seven installer cases and five independently replayed components passed. Native-v8 component proof and admission source are ready; the rebuilt host and fresh installed suspension/warm qualification remain pending. Frozen R is unchanged. |
 | OAuth | Deliberately pending at the user's request. |
 | Notarization and native macOS Endpoint Security | Pending; usable local notarization credentials and an exact Ukai ES profile were not established. |
 
@@ -144,9 +144,10 @@ queued-cancellation test to interrupt an actual five-byte partial frame, all
 ten final export controls passed again in both modes. The controls cover slow
 drain, finite stall, peer closure, interrupted partial frames, one budget across
 frames and `done`, correct cancellation ordering and subsequent warm reuse.
-Independent review found no remaining patch issue. This source-only repair
-was not inserted into R: a new image containing it, new admission evidence and
-fresh installed suspension/warm-session qualification are still required.
+Independent review found no remaining patch issue. The repair was not inserted
+into R. The fresh image and provisional package described below contain it;
+new admission evidence and fresh installed suspension/warm-session
+qualification are still required.
 The API sampling failure and all unrun lanes remain open.
 
 The user-authorized storage recovery removed disposable compiled caches and
@@ -199,6 +200,92 @@ unrun API/fault lanes, notarization and usable Ukai Endpoint Security provisioni
 remain open. Vendor-binary redistribution authority and cross-UID distribution
 are not established. No merge, public tag, release or deployment is implied by
 these private results.
+
+## Fresh export-repaired image — source `934ad33ac`
+
+Source `934ad33acc5efb2843de8ee9fd5ea3181b6790b3` includes the export repair
+and the corrected qualification constants. All six hosted jobs passed on the
+first attempt. The tested merge tree equals that source tree. Rust results
+remain 2,512 macOS passes and 3,073 Ubuntu passes; Python recorded 1,111 passes
+and 84 explicit skips. Its VM suite recorded 824 passes and 84 skips. The 230 compiled
+input files and modes still equal R/S; the guest controller bytes changed.
+
+A fresh image was prepared once from the retained authenticated Ubuntu,
+signed Linux J and Claude inputs. Preparation passed in 76.679 seconds.
+Read-only bootstrap journal review found no matching kernel-error or
+corruption signatures and retained clean shutdown evidence. This is a
+bootstrap result, not runtime export or suspension qualification.
+
+The provisional Developer-ID-signed package built in 70.812 seconds with no
+compiler warnings. Independent inspection passed 38 checks: six signatures,
+all 1,094 archived source files and their modes, exact prepared image bindings,
+and exact stage-to-DMG bytes with public distribution modes. All seven
+installer cases then passed in 36.382 seconds. Fourteen installed files were
+bound to the package; negative fixtures were retired, the exact DMG detached,
+and original source, artifacts and the verified staging copy were preserved.
+The final installer free-space observation was 31,285,796,864 bytes.
+
+All five component phases then passed, with three guest boots and 20 synthetic
+attempts: ten capability measurements, 121 execution-boundary facts, 24 raw
+credential-cleanup facts, signed-install staging derivation and 24 program-binding
+facts. Independent replay agreed with every phase and all 83 final cleanup and
+preservation checks. The original executable could use its bound credential;
+the same bytes at a different file identity were denied. The exact workspace
+and DMG were detached. Normal successful cleanup removed the runtime disks,
+so post-runtime kernel journals are unavailable, not a kernel-health pass.
+
+This provisional host still carries native-v7 admission for the previous
+image. Packaging and component measurements alone do not admit the changed
+image. The new admission source binds the six image/catalog pins and twelve
+measurement references to the [native-v8 proof](results/macos-vm-admission-2026-11-15/native-v8/README.md).
+It rejects the superseded native-v7 image and mixed disk/seed pairs. Its closed
+replay passed 53 controls normally and in actual optimized Python, including
+rehashed omissions and transplanted old-image evidence. The copied tool suite
+passed 89 tests; 45 source/reference checks passed. The original evidence,
+installation and source directories were unavailable to relocated replay.
+All four qualification flags remain false: a clean rebuilt host and fresh
+installed native qualification are still required.
+
+The focused Rust VM suite passed all 77 tests on a separate final invocation.
+Its first invocation exposed a stale expected package revision in one test;
+that assertion now names the actual measured `934ad33ac` package. The same
+invocation also used an overlong socket temporary path and omitted the owning
+single-thread setting, leaving fake-listener waiters that required exact
+owned-process cleanup. A second invocation passed 76 tests but lacked one
+historical fixture excluded by the sparse checkout. Materializing its eight
+unchanged tracked files allowed the final serial run to pass. Both failed
+invocations and the distinct cleanup supplement remain retained; no runtime
+predicate or component evidence was weakened.
+
+No provider request, OAuth check, notarization or public release occurred in
+these phases. Earlier failures remain unchanged.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Fresh guest disk | `22ff8df581c05809cf516ab66a56d6655d46f324d7ff3ab61929e77742a0a681` |
+| Fresh seed | `a60149d230084c5cc8987f63b39d87fb8062bc582ced57848480b92115b7ca28` |
+| Provisional DMG | `9f83b8ad3f41e19f5d3e7ca6f6319cc56915a5d85d5d2096d223254a745de1ca` |
+| Provisional source archive | `644dba36252960415ec5e3c3ebffc3b712768e08b9149c8445dabc0ddb343bf8` |
+
+Records are relative to `evidence/production-2026-11-15/warm-vm-current/`:
+
+- `source-export-fix-ci-934ad33ac/summary.json` — SHA-256 `93558f713638273d89a4986543b62121a877b5501bd299ada0d1a3e63861360f`.
+- `guest-native-export-prepare-934ad33ac/completion.json` — SHA-256 `eb1077d3eb03dbed717a11a84fc4bd16d19dbc13b7f62bdf7fdcc7fcc54a790f`.
+- `guest-native-export-journal-review-934ad33ac/review.json` — SHA-256 `26040a5f58a306870ebc2609d8a400dcbe96bb1610fd5b93437899ba43f39f21`.
+- `guest-native-package-plan-export-934ad33ac/completion.json` — SHA-256 `f4a62f53c0508fa7c7c405db856ceaed6c0abd4f94af66f545d67bd38e33f322`.
+- `guest-native-package-independent-export-934ad33ac/summary.json` — SHA-256 `71af539e2ce425c667291ec0f9a34ca023651522284269e8ff5cede8a6297b63`.
+- `guest-native-installer-execution-export-934ad33ac/completion.json` — SHA-256 `8212499e0681d5ef92adf8ae59bdd7438bc5a2da2ca514d3044497175f7214ce`.
+- `guest-native-installer-execution-export-934ad33ac/installed-identity.json` — SHA-256 `ba55c137a7cd2c339e52dde2c2bf4a79c8caf1fb9c9f6ef7b827b94f567ae880`.
+- `guest-native-measurements-export-934ad33ac/completion.json` — SHA-256 `bba73624f2b2de5763d7321054ab5b151d4396e28daef8f5b4a371d07cfad9b6`.
+- `guest-native-component-independent-export-934ad33ac/completion-review.json` — SHA-256 `c836c963ba3ab91ff20beeda87cf863c15dfcd504e9a7c2baf2bcd6430cd09e9`.
+- `native-v8-independent-review/source-review.json` — SHA-256 `1af2babc5f4ad5fcaecfd4753616e06a5c41a18ed53af2a8adc39c0d9a29dab6`.
+- `native-v8-independent-review/bundle-review.json` — SHA-256 `239ca53cf99ae07076abc7d6fe6844bdaf204928885f9906be3dbb7319f759e1`.
+- `native-v8-independent-review/source-review-correction.json` — SHA-256 `a84f849e724f570df5e3d0f79b0f976481e1d4b8ff9b70c7256aae71019fe470`.
+- `native-admission-derivation-v8/source-validation-corrected.json` — SHA-256 `02537942c94e8ca5e8ea0bf5cf528d091fb6a98fc17be2173f6c367e5d048410`.
+- `native-v8-focused-rust-tests/completion.json` — SHA-256 `d7eaa50d123faaff7a95d7f22831f8c672852b93904f5f8daded0d80eba20f26`.
+- `native-v8-focused-rust-tests/exact-test-process-cleanup.json` — SHA-256 `34ecb8484623afa8c170f68f48e060547bf722d217a1d14f0572c45db41fd14d`.
+- `native-v8-focused-rust-tests-attempt2/completion.json` — SHA-256 `70ec7b9d955072f4b972f3c2a6c5877da3f725cbc1d734015aaff1dd3c8b0d4f`.
+- `native-v8-focused-rust-tests-attempt3/completion.json` — SHA-256 `3baf786080041aa7bd0b7e190a56d5040a08e5828fc393bfd8c0359b830deea8`.
 
 ## Earlier frozen Linux candidate — rc.6
 
