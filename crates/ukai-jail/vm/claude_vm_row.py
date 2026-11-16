@@ -1134,6 +1134,151 @@ def native_matrix(args, *, run=subprocess.run):
     return 1
 
 
+TASK_CHECK_SCHEMA = 'ukai.vm.native-task-check/1'
+TASK_CHECK_OUTPUTS = ('task-check.stdout', 'task-check.stderr', 'task-check-tail.stdout',
+                      'task-check-tail.stderr', 'task-check-tail-json.stdout', 'task-check-tail-json.stderr')
+TASK_CHECK_FILES = {'task-check-slug.py': 1024 * 1024, 'task-check-test_slug.py': 4096,
+                    'task-check-greeting.txt': 1024}
+
+
+def native_task_check_argv():
+    return ['/usr/bin/python3', '-I', '-c',
+            'import os,sys,unittest;sys.path.insert(0,os.getcwd());exec(' + repr(SLUG_TEST) + ')']
+
+
+def native_task_check_evidence(attempt, inputs, vendor_binding, *, display_mapping=None):
+    """Verify the separate fixed tool checker without borrowing vendor success."""
+    import credential_revocation_measurement as lifecycle
+    import vm_summary_check
+    host = strict_json(lifecycle.bounded_file(attempt / 'jail.json', RECEIPT_MAX))
+    guest, events, journal = verified_guest_journal(attempt)
+    binding = strict_json(lifecycle.bounded_file(attempt / 'evidence/vm-binding.json', RECEIPT_MAX))
+    summary = vm_summary_check.verify_attempt(attempt, inputs['summary'], inputs['tail'], display_mapping=display_mapping)
+    def exited_outcome(outcome):
+        return (type(outcome) is dict and set(outcome) == {'kind', 'code', 'signal', 'cause', 'error'}
+                and outcome['kind'] == 'exited' and type(outcome['code']) is int
+                and 0 <= outcome['code'] <= 255
+                and all(outcome[key] is None for key in ('signal', 'cause', 'error')))
+    typed_outcomes = all(exited_outcome(receipt.get('outcome')) for receipt in (host, guest))
+    def clean(receipt):
+        return (receipt.get('phase') == 'settled' and receipt.get('errors') == []
+                and lifecycle.successful_outcome(receipt.get('outcome')) and receipt.get('exec_observed') is True
+                and receipt.get('containment') == receipt.get('child_protection') == 'enforced'
+                and receipt.get('cleanup_error') is None and receipt.get('credentials') == []
+                and receipt.get('vendor_state') is None and receipt.get('state_cleanup') in ('complete', 'not_needed')
+                and (receipt.get('lifetime') or {}).get('tree_empty') is True
+                and (receipt.get('lifetime') or {}).get('integrity') == 'verified')
+    digest = harness.argv_digest(native_task_check_argv())
+    facts = {
+        'exact_fixed_checker_argv': inputs['argv'] == native_task_check_argv(),
+        'distinct_bound_attempt': host.get('attempt_id') == inputs['attempt_id'] != inputs['vendor_attempt_id']
+            and binding.get('guest_attempt_id') != vendor_binding.get('guest_attempt_id'),
+        'exact_argv_binding': host.get('argv_digest') == guest.get('argv_digest') == binding.get('argv_digest') == digest,
+        'literal_tool_attempt': binding.get('profile') == 'tool' and binding.get('native_program') is None,
+        'same_boot_as_vendor': all(type(binding.get(key)) is str and binding[key] == vendor_binding.get(key)
+                                   for key in ('boot_id', 'guest_boot_id')),
+        'clean_host_and_guest': clean(host) and clean(guest),
+        'check_commands_succeeded': all(type(inputs.get(key)) is int and inputs[key] == 0
+                                         for key in ('run_exit', 'tail_exit', 'tail_json_exit')),
+        'typed_exited_outcomes': typed_outcomes,
+        'run_matches_receipts': typed_outcomes and type(inputs.get('run_exit')) is int
+            and inputs['run_exit'] == host.get('outcome', {}).get('code') == guest.get('outcome', {}).get('code'),
+        'full_independent_summary': summary.get('outcome') == 'PASS' and summary.get('scope') == 'bound_guest',
+        'complete_guest_journal': type(events) is list and journal.get('verified') is True and journal.get('state') == 'complete',
+    }
+    return {'outcome': 'PASS' if all(facts.values()) else 'FAIL', 'facts': facts, 'guest_journal': journal,
+            'independent_summary': {key: value for key, value in summary.items()
+                                    if key not in ('display_mapping_applied', 'display_mapping_sha256')}}
+
+
+def replay_native_task_check(root, *, expected=None):
+    """Recompute a retained checker from bounded files, with no live commands."""
+    import credential_revocation_measurement as lifecycle
+    root = Path(root)
+    raw = lifecycle.bounded_file(root / 'task-check-inputs.json', 8 * 1024 * 1024)
+    report = None
+    if expected is None:
+        report = strict_json(lifecycle.bounded_file(root / 'k113-native.json', 8 * 1024 * 1024))
+        expected = report['task_check_retention']
+    if (type(expected) is not dict or set(expected) != {'inputs_sha256', 'attempt_sha256', 'replay'}
+            or hashlib.sha256(raw).hexdigest() != expected['inputs_sha256']):
+        raise harness.HarnessError('task-check input hash mismatch')
+    inputs = strict_json(raw)
+    if inputs.get('schema') != TASK_CHECK_SCHEMA or set(inputs['files_sha256']) != set(TASK_CHECK_OUTPUTS) | set(TASK_CHECK_FILES):
+        raise harness.HarnessError('task-check input contract mismatch')
+    files = {name: lifecycle.bounded_file(root / name, TASK_CHECK_FILES.get(name, 1024 * 1024))
+             for name in inputs['files_sha256']}
+    if (any(hashlib.sha256(raw).hexdigest() != inputs['files_sha256'][name] for name, raw in files.items())
+            or files['task-check-test_slug.py'] != SLUG_TEST.encode()
+            or files['task-check-greeting.txt'].strip() != b'hello'
+            or strict_json(files['task-check-tail-json.stdout']) != inputs['summary']
+            or files['task-check-tail.stdout'].decode() != inputs['tail']):
+        raise harness.HarnessError('task-check files changed')
+    vendor = strict_json(lifecycle.bounded_file(root / 'native-inputs.json', 8 * 1024 * 1024))
+    binding = strict_json(lifecycle.bounded_file(root / 'attempt/evidence/vm-binding.json', RECEIPT_MAX))
+    attempt = root / 'task-check-attempt'
+    if (vendor['attempt_id'] != inputs['vendor_attempt_id'] or binding != inputs['vendor_binding']
+            or lifecycle.normal_attempt_hashes(attempt) != inputs['attempt_sha256']
+            or inputs['attempt_sha256'] != expected['attempt_sha256']
+            or report is not None and (report['attempt_id'] != inputs['vendor_attempt_id']
+                or report.get('task_check_attempts') != [inputs['attempt_id']]
+                or report.get('facts', {}).get('exact_task_check_evidence_retained') is not True)):
+        raise harness.HarnessError('task-check association changed')
+    result = native_task_check_evidence(attempt, inputs, binding,
+                                       display_mapping={str(attempt): inputs['original_attempt']})
+    if result != inputs['recomputed'] or result != expected['replay']:
+        raise harness.HarnessError('task-check recomputation changed')
+    return result
+
+
+def retain_native_task_check(attempt, vendor_attempt, out, workspace, observed, outputs, spellings):
+    import credential_revocation_measurement as lifecycle
+    files = {name: outputs[name].encode() for name in TASK_CHECK_OUTPUTS}
+    for name, cap in TASK_CHECK_FILES.items():
+        files[name] = lifecycle.bounded_file(workspace / name.removeprefix('task-check-'), cap)
+    if (files['task-check-test_slug.py'] != SLUG_TEST.encode() or files['task-check-greeting.txt'].strip() != b'hello'
+            or any(len(raw) > TASK_CHECK_FILES.get(name, 1024 * 1024)
+                   or any(s.encode() in raw or s in name for s in spellings) for name, raw in files.items())):
+        raise harness.HarnessError('task-check file retention refused')
+    vendor_binding = strict_json(lifecycle.bounded_file(vendor_attempt / 'evidence/vm-binding.json', RECEIPT_MAX))
+    inputs = {'schema': TASK_CHECK_SCHEMA, 'attempt_id': attempt.name, 'vendor_attempt_id': vendor_attempt.name,
+              'vendor_binding': vendor_binding, 'argv': native_task_check_argv(), 'original_attempt': str(attempt),
+              **observed, 'summary': strict_json(outputs['task-check-tail-json.stdout']), 'tail': outputs['task-check-tail.stdout'],
+              'files_sha256': {name: hashlib.sha256(raw).hexdigest() for name, raw in files.items()}}
+    live = native_task_check_evidence(attempt, inputs, vendor_binding)
+    required = set(live['facts']) - {'clean_host_and_guest', 'check_commands_succeeded'}
+    if (any(live['facts'][key] is not True for key in required)
+            or not all(type(inputs.get(key)) is int and 0 <= inputs[key] <= 255
+                       for key in ('run_exit', 'tail_exit', 'tail_json_exit'))):
+        raise harness.HarnessError('task-check evidence did not bind')
+    inputs['attempt_sha256'] = lifecycle.retain_normal_attempt(attempt, out / 'task-check-attempt', spellings)
+    retained = native_task_check_evidence(out / 'task-check-attempt', inputs, vendor_binding,
+                                         display_mapping={str(out / 'task-check-attempt'): str(attempt)})
+    if retained != live:
+        raise harness.HarnessError('task-check relocation changed evidence')
+    inputs['recomputed'] = retained
+    raw = (json.dumps(inputs, ensure_ascii=False, allow_nan=False, indent=2) + '\n').encode()
+    if len(raw) > 8 * 1024 * 1024 or native_output(raw.decode(), spellings)[0]:
+        raise harness.HarnessError('task-check input retention refused')
+    # execute() already owns the six sanitized outputs. Never rewrite or adopt
+    # them through a callback; only these new files belong to this retention step.
+    for name in TASK_CHECK_OUTPUTS:
+        if lifecycle.bounded_file(out / name, 1024 * 1024) != files[name]:
+            raise harness.HarnessError('task-check output retention changed')
+    new_files = {name: files[name] for name in TASK_CHECK_FILES}
+    new_files['task-check-inputs.json'] = raw
+    for name, value in new_files.items():
+        descriptor = os.open(out / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(descriptor, 'wb') as target: target.write(value)
+    expected = {'inputs_sha256': hashlib.sha256(raw).hexdigest(), 'attempt_sha256': inputs['attempt_sha256'], 'replay': retained}
+    # The final owning report does not exist yet. Use the exact independently
+    # computed live association; standalone replay must instead read that report.
+    replayed = replay_native_task_check(out, expected=expected)
+    if replayed != retained:
+        raise harness.HarnessError('retained task-check changed')
+    return expected
+
+
 def native_main(args, *, run=subprocess.run):
     """Explicit installed-client path. No fallback, provider credentials in argv, or launch override."""
     import credential_revocation_measurement as lifecycle
@@ -1150,6 +1295,7 @@ def native_main(args, *, run=subprocess.run):
     if api_controls is not None:
         observed['api_controls'] = api_controls
     token = b''; spellings = []; outputs = {}; attempt = None; source = None
+    check_attempt = None; check_observed = {}
     structured_vendor_leak = False
     host, guest, events, summary, binding, context, suffix = {}, {}, None, {}, {}, {}, []
     # Keep socket paths short even on the default long macOS temporary directory.
@@ -1224,8 +1370,7 @@ def native_main(args, *, run=subprocess.run):
                         # Load stdlib unittest in isolated mode before making the
                         # workspace importable; a vendor-created unittest.py
                         # must not replace the fixed checker.
-                        check_argv = ['/usr/bin/python3', '-I', '-c',
-                            'import os,sys,unittest;sys.path.insert(0,os.getcwd());exec(' + repr(SLUG_TEST) + ')']
+                        check_argv = native_task_check_argv()
                         checked = execute('task-check', [str(jail), 'run', '--vm', '--terminal', 'detach', '--profile', 'tool',
                             *harness.vm_wall(20), '--workspace', str(workspace), '--', *check_argv], 300)
                         check_attempts = sorted(p for p in (data / 'attempts').glob('att_*') if p != attempt)
@@ -1239,6 +1384,11 @@ def native_main(args, *, run=subprocess.run):
                             and (check_guest.get('lifetime') or {}).get('tree_empty') is True
                             and (check_guest.get('lifetime') or {}).get('integrity') == 'verified')
                         observed['task_check_attempts'] = [p.name for p in check_attempts]
+                        if len(check_attempts) == 1:
+                            check_attempt = check_attempts[0]
+                            check_observed = {'run_exit': checked.returncode,
+                                'tail_exit': execute('task-check-tail', [str(jail), 'tail', '--summary', '--attempt', check_attempt.name], 60).returncode,
+                                'tail_json_exit': execute('task-check-tail-json', [str(jail), 'tail', '--summary', '--json', '--attempt', check_attempt.name], 60).returncode}
                     else:
                         observed['task_passed'] = False
             else:
@@ -1300,10 +1450,22 @@ def native_main(args, *, run=subprocess.run):
                 observed['inputs_sha256'] = hashlib.sha256(encoded).hexdigest()
             except Exception as error:
                 observed['error_type'] = type(error).__name__
+        if args.case == 'small-task' and check_attempt is not None and observed.get('inputs_sha256') and not observed['leaks'] and not observed['output_leaks']:
+            try:
+                observed['task_check_retention'] = retain_native_task_check(
+                    check_attempt, attempt, out, workspace, check_observed, outputs, spellings)
+                observed['task_passed'] = (observed.get('task_passed') is True
+                    and observed['task_check_retention']['replay']['outcome'] == 'PASS')
+            except Exception as error:
+                # Vendor attempt/inputs have already been retained independently.
+                observed['error_type'] = type(error).__name__
+                observed['task_check_error_type'] = type(error).__name__
         if args.case != 'missing-source':
             try: observed['facts'] = native_facts(observed, guest, events, summary, context, suffix, binding, host)
             except (KeyError, TypeError, ValueError): observed['facts'] = {'evidence_well_formed': False}
             observed['facts']['exact_attempt_and_inputs_retained'] = bool(observed.get('inputs_sha256'))
+            if args.case == 'small-task':
+                observed['facts']['exact_task_check_evidence_retained'] = (observed.get('task_check_retention') or {}).get('replay', {}).get('outcome') in ('PASS', 'FAIL')
             if api_controls is not None:
                 observed['facts']['vendor_reported_cost_within_requested_budget'] = native_api_reported_cost_within_budget(
                     observed.get('vendor_usage'), api_controls)

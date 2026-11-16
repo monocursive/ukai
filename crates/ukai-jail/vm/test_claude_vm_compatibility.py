@@ -927,5 +927,219 @@ class NativeModeTests(unittest.TestCase):
                     self.assertTrue(all(report['facts'].values()), report['facts'])
 
 
+class NativeTaskRetentionTests(unittest.TestCase):
+    """Real native_main ordering with synthetic VM receipts, never a provider."""
+    setUp = NativeModeTests.setUp
+    args = NativeModeTests.args
+    CHECK_ID = 'att_33333333-3333-4333-8333-333333333333'
+    CHECK_GUEST = 'att_44444444-4444-4444-8444-444444444444'
+
+    def measure(self, *, collision=False, secret=False, checker_exit=0, checker_outcome=None):
+        import credential_revocation_measurement as lifecycle
+        import test_vm_summary_check as fixture
+        import vm_summary_check
+        token = b'synthetic-task-retention-private-value'
+        source = self.root / 'source'; source.write_bytes(token); source.chmod(0o600)
+        (self.workspace / 'greeting.txt').write_text('hello\n')
+        tails = {}; commands = []; calls = []
+        original = lifecycle.retain_normal_attempt
+        def attempt(root, tool):
+            host_id = self.CHECK_ID if tool else fixture.HOST_ID
+            guest_id = self.CHECK_GUEST if tool else fixture.GUEST_ID
+            with mock.patch.object(fixture, 'HOST_ID', host_id), mock.patch.object(fixture, 'GUEST_ID', guest_id):
+                f = fixture.Fixture(root / 'attempts' / host_id)
+                if tool:
+                    digest = harness.argv_digest(row.native_task_check_argv())
+                    for receipt in (f.host, f.guest):
+                        receipt['argv_digest'] = digest; receipt['credentials'] = []; receipt['policy']['name'] = 'tool'
+                        receipt['outcome']['code'] = checker_exit if type(checker_exit) is int else 0
+                        if checker_outcome is not None and type(checker_outcome.get('code')) is not float:
+                            receipt['outcome'] = copy.deepcopy(checker_outcome)
+                    f.binding.update(profile='tool', argv_digest=digest)
+                    f.events[0]['fields'] = {'kind': 'fixture'}; f.events[2]['fields']['credentials'] = []
+                    f.write()
+            with vm_summary_check.EvidenceReader(f.root) as reader:
+                summary, transport, _, _, _ = vm_summary_check.expected_summary(reader)
+            text = ''.join('ukai-jail: ' + line['text'] + '\n' for line in summary['lines'])
+            if transport: text += 'ukai-jail: ' + transport + '\n'
+            text += 'ukai-jail: receipt ' + str(f.root / 'jail.json') + '\n'
+            tails[host_id] = (summary, text)
+            if tool and checker_outcome is not None and type(checker_outcome.get('code')) is float:
+                # Floats have no owning receipt canonicalization. Preserve the
+                # valid tail, then rehash the malformed receipts/journals so
+                # the actual reader must reject their domain, not missing data.
+                for receipt in (f.host, f.guest):
+                    receipt['outcome'] = copy.deepcopy(checker_outcome)
+                f.write()
+        def execute(command, **options):
+            commands.append(command); self.assertEqual(options['stdin'], subprocess.DEVNULL)
+            data = Path(options['env']['UKAI_DATA_DIR'])
+            if not calls:
+                calls.append(data); self.addCleanup(shutil.rmtree, data, True)
+            if command[0] == 'git': return subprocess.CompletedProcess(command, 0, '', '')
+            if command[1] == 'run':
+                tool = command[command.index('--profile') + 1] == 'tool'
+                attempt(data, tool)
+                (data / 'vm').mkdir(exist_ok=True); (data / 'vm/serve.lock').touch()
+                if tool:
+                    self.assertEqual(command[command.index('--') + 1:], row.native_task_check_argv())
+                    return subprocess.CompletedProcess(command, checker_exit, 'synthetic unittest OK\n', '')
+                (self.workspace / 'slug.py').write_text(token.decode() if secret else 'def slugify(s): return "-".join(s.lower().split())\n')
+                return subprocess.CompletedProcess(command, 0, json.dumps(vendor_result()) + '\n', '')
+            if command[1] == 'tail':
+                summary, text = tails[command[-1]]
+                return subprocess.CompletedProcess(command, 0, json.dumps(summary) if '--json' in command else text, '')
+            self.assertEqual(command[1], 'stop')
+            return subprocess.CompletedProcess(command, 0, '', '')
+        def retained(source, destination, spellings):
+            # Exercise the actual native_main ordering that the old wrapper
+            # tests missed: safe checker outputs already exist at this point.
+            self.assertEqual((self.out / 'task-check.stdout').read_text(), 'synthetic unittest OK\n')
+            result = original(source, destination, spellings)
+            if collision and destination == self.out / 'attempt':
+                (self.out / 'task-check-inputs.json').write_bytes(b'existing-owned-control')
+            return result
+        with mock.patch.object(lifecycle, 'retain_normal_attempt', side_effect=retained), \
+                mock.patch.object(lifecycle, 'running_service_lock', side_effect=lambda data: (data / 'vm/serve.lock').open('rb')), \
+                mock.patch.object(lifecycle, 'stopped_service_lock', return_value={'complete': True}):
+            code = row.main(self.args('--execution-mode', 'guest-native', '--credential-kind', 'api-key',
+                '--credential-source', str(source), '--case', 'small-task'), run=execute)
+        self.assertEqual(source.read_bytes(), token)
+        return code, json.loads((self.out / 'k113-native.json').read_bytes()), commands
+
+    def test_actual_native_main_keeps_both_attempts_and_outputs_then_replays_after_relocation(self):
+        _, report, commands = self.measure()
+        # The vendor receipt is a synthetic literal fixture, not a qualified
+        # native vendor run; only the checker retention component is asserted.
+        self.assertNotIn('error_type', report)
+        self.assertTrue(report['facts']['exact_attempt_and_inputs_retained'])
+        self.assertTrue(report['facts']['exact_task_check_evidence_retained'])
+        self.assertEqual(report['task_check_attempts'], [self.CHECK_ID])
+        self.assertEqual((self.out / 'task-check.stdout').read_text(), 'synthetic unittest OK\n')
+        self.assertEqual(len([c for c in commands if len(c) > 1 and c[1] == 'tail']), 4)
+        checked = row.replay_native_task_check(self.out)
+        self.assertEqual(checked['outcome'], 'PASS'); self.assertTrue(all(checked['facts'].values()))
+        other = self.root / 'relocated'; shutil.copytree(self.out, other)
+        self.assertEqual(row.replay_native_task_check(other), checked)
+
+    def test_checker_collision_cannot_erase_vendor_retention_or_overwrite_output(self):
+        _, report, _ = self.measure(collision=True)
+        self.assertEqual(report['task_check_error_type'], 'FileExistsError')
+        self.assertTrue(report['facts']['exact_attempt_and_inputs_retained'])
+        self.assertFalse(report['facts']['exact_task_check_evidence_retained'])
+        self.assertEqual((self.out / 'task-check-inputs.json').read_bytes(), b'existing-owned-control')
+        self.assertTrue((self.out / 'native-inputs.json').is_file())
+        self.assertTrue((self.out / 'attempt/evidence/guest-journal/manifest.json').is_file())
+
+    def test_synthetic_secret_in_checker_workspace_prevents_exports(self):
+        _, report, _ = self.measure(secret=True)
+        self.assertFalse(report['facts']['exact_task_check_evidence_retained'])
+        self.assertFalse((self.out / 'task-check-inputs.json').exists())
+        self.assertFalse((self.out / 'task-check-attempt').exists())
+        self.assertNotIn(b'synthetic-task-retention-private-value', (self.out / 'k113-native.json').read_bytes())
+
+    def test_boolean_checker_exit_is_not_success_and_vendor_retention_survives(self):
+        _, report, _ = self.measure(checker_exit=False)
+        self.assertTrue(report['facts']['exact_attempt_and_inputs_retained'])
+        self.assertFalse(report['facts']['exact_task_check_evidence_retained'])
+        self.assertIn('task_check_error_type', report)
+
+    def test_well_formed_nonzero_checker_keeps_failed_evidence_and_vendor_inputs(self):
+        _, report, _ = self.measure(checker_exit=1)
+        self.assertNotIn('error_type', report)
+        self.assertTrue(report['facts']['exact_attempt_and_inputs_retained'])
+        self.assertTrue(report['facts']['exact_task_check_evidence_retained'])
+        self.assertFalse(report['task_passed'])
+        checked = row.replay_native_task_check(self.out)
+        self.assertEqual(checked['outcome'], 'FAIL')
+        self.assertTrue(checked['facts']['full_independent_summary'])
+        self.assertTrue(checked['facts']['complete_guest_journal'])
+        self.assertTrue(checked['facts']['run_matches_receipts'])
+        self.assertFalse(checked['facts']['check_commands_succeeded'])
+        self.assertFalse(checked['facts']['clean_host_and_guest'])
+        self.assertEqual(report['outcome'], 'FAIL')
+        other = self.root / 'relocated-failure'; shutil.copytree(self.out, other)
+        self.assertEqual(row.replay_native_task_check(other), checked)
+
+    def assert_malformed_outcome_refused(self, outcome):
+        _, report, _ = self.measure(checker_exit=1, checker_outcome=outcome)
+        self.assertTrue(report['facts']['exact_attempt_and_inputs_retained'])
+        self.assertFalse(report['facts']['exact_task_check_evidence_retained'])
+        self.assertIn(report['task_check_error_type'], ('HarnessError', 'VerificationError'))
+        self.assertFalse((self.out / 'task-check-attempt').exists())
+        self.assertFalse((self.out / 'task-check-inputs.json').exists())
+        self.assertFalse(report['task_passed'])
+
+    def test_canonically_rehashed_boolean_receipt_exit_is_not_retained_as_valid_failure(self):
+        self.assert_malformed_outcome_refused(
+            {'kind': 'exited', 'code': True, 'signal': None, 'cause': None, 'error': None})
+
+    def test_canonically_rehashed_float_receipt_exit_is_not_retained_as_valid_failure(self):
+        self.assert_malformed_outcome_refused(
+            {'kind': 'exited', 'code': 1.0, 'signal': None, 'cause': None, 'error': None})
+
+    def test_canonically_rehashed_partial_receipt_outcome_is_not_retained_as_valid_failure(self):
+        self.assert_malformed_outcome_refused({'kind': 'exited', 'code': 1})
+
+    def test_rehashed_wrong_checker_argv_boot_and_journal_still_refuse(self):
+        import credential_revocation_measurement as lifecycle
+        self.measure(); inputs_path = self.out / 'task-check-inputs.json'; original = inputs_path.read_bytes()
+        report_path = self.out / 'k113-native.json'; original_report = report_path.read_bytes()
+        def rewrite(inputs):
+            raw = json.dumps(inputs).encode(); inputs_path.write_bytes(raw)
+            report = json.loads(original_report)
+            report['task_check_retention']['inputs_sha256'] = hashlib.sha256(raw).hexdigest()
+            report['task_check_retention']['attempt_sha256'] = inputs['attempt_sha256']
+            report_path.write_text(json.dumps(report))
+        inputs = json.loads(original)
+        changed = copy.deepcopy(inputs); changed['argv'][-1] = 'print("forged pass")'
+        rewrite(changed)
+        with self.assertRaises(harness.HarnessError): row.replay_native_task_check(self.out)
+        attempt = self.out / 'task-check-attempt'; binding_path = attempt / 'evidence/vm-binding.json'
+        binding_original = binding_path.read_bytes(); binding = json.loads(binding_original); binding['boot_id'] = 'foreign'
+        binding_path.write_text(json.dumps(binding)); inputs['attempt_sha256'] = lifecycle.normal_attempt_hashes(attempt)
+        rewrite(inputs)
+        with self.assertRaises((harness.HarnessError, ValueError)): row.replay_native_task_check(self.out)
+        binding_path.write_bytes(binding_original)
+        journal = attempt / 'evidence/guest-journal/0000.part'; journal.write_bytes(journal.read_bytes()[:-1])
+        inputs = json.loads(original); inputs['attempt_sha256'] = lifecycle.normal_attempt_hashes(attempt)
+        rewrite(inputs)
+        with self.assertRaises((harness.HarnessError, ValueError)): row.replay_native_task_check(self.out)
+
+    def test_rehashed_mutable_fixture_cannot_replace_report_bound_inputs(self):
+        self.measure()
+        path = self.out / 'task-check-inputs.json'; inputs = json.loads(path.read_bytes())
+        changed = b'def slugify(s): return "forged"\n'
+        (self.out / 'task-check-slug.py').write_bytes(changed)
+        inputs['files_sha256']['task-check-slug.py'] = hashlib.sha256(changed).hexdigest()
+        path.write_text(json.dumps(inputs))
+        with self.assertRaisesRegex(harness.HarnessError, 'task-check input hash mismatch'):
+            row.replay_native_task_check(self.out)
+
+    def test_self_consistent_unprotected_host_is_not_a_clean_checker(self):
+        import test_vm_summary_check as fixture
+        import vm_summary_check
+        self.measure()
+        original = json.loads((self.out / 'task-check-inputs.json').read_bytes())
+        for field in ('containment', 'child_protection'):
+            attempt = self.root / ('unprotected-' + field)
+            shutil.copytree(self.out / 'task-check-attempt', attempt)
+            host = json.loads((attempt / 'jail.json').read_bytes()); host[field] = 'none'
+            (attempt / 'jail.json').write_bytes(fixture.encoded(host))
+            trace = json.loads((attempt / 'trace.ndjson').read_bytes())
+            trace['fields']['receipt_digest'] = fixture.canonical_hash(host)
+            (attempt / 'trace.ndjson').write_bytes(fixture.encoded(trace))
+            with vm_summary_check.EvidenceReader(attempt) as reader:
+                summary, transport, _, _, _ = vm_summary_check.expected_summary(reader)
+            tail = ''.join('ukai-jail: ' + line['text'] + '\n' for line in summary['lines'])
+            if transport: tail += 'ukai-jail: ' + transport + '\n'
+            tail += 'ukai-jail: receipt ' + str(attempt / 'jail.json') + '\n'
+            inputs = {**original, 'summary': summary, 'tail': tail}
+            result = row.native_task_check_evidence(attempt, inputs, inputs['vendor_binding'])
+            self.assertTrue(result['facts']['full_independent_summary'])
+            self.assertFalse(result['facts']['clean_host_and_guest'])
+            self.assertEqual(result['outcome'], 'FAIL')
+
+
 if __name__ == '__main__':
     unittest.main()
