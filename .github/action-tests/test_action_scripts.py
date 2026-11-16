@@ -383,6 +383,33 @@ if "--paginate" in sys.argv:
                 self.assertEqual(result.returncode, 0, result.stdout)
                 self.assertEqual(calls, [])
 
+    def test_comment_markers_do_not_match_longer_matrix_artifact_names(self):
+        marker = "ukai-jail-action:wf:job:ukai-jail-receipt"
+        mine = {"id": 99, "user": {"login": "github-actions[bot]"},
+                "body": f"<!-- {marker} -->\n[Run](https://example.test/actions/runs/7)",
+                "created_at": "2026-11-16T21:02:15Z", "updated_at": "2026-11-16T21:02:15Z"}
+        longer = {**mine, "id": 98, "body": mine["body"].replace(marker, marker + "-arm")}
+        malformed = {**mine, "id": 97, "body": f"<!-- {marker} suffix -->"}
+        result, calls = self.post("pull_request", self.pull(), comments=[longer, malformed, mine])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual([c[:4] for c in calls if "--method" in c],
+                         [["api", "--method", "PATCH", "repos/owner/repo/issues/comments/99"]])
+        # The hosted checker must apply the same whole-marker rule, not count
+        # the ARM job's longer artifact name as a duplicate x86 comment.
+        env = {**self.env, "GITHUB_EVENT_NAME": "pull_request",
+               "GITHUB_EVENT_PATH": str(self.tmp / "event.json"),
+               "PROFILE_ARTIFACT": "ukai-jail-receipt", "LAUNCH_ARTIFACT": "unflagged",
+               "OUTCOME": "success", "SELFTEST": str(self.tmp / "selftest")}
+        checked = subprocess.run([sys.executable, "-I", str(STUB.with_name("selftest.py")),
+                                  "verify-comment"], env=env, capture_output=True, text=True)
+        self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+        self.assertIn("K82 pass", checked.stdout)
+        # No exact marker means POST, never a PATCH of the prefix collision.
+        self.log.unlink()
+        result, calls = self.post("pull_request", self.pull(), comments=[longer, malformed])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual([c[:3] for c in calls if "--method" in c], [["api", "--method", "POST"]])
+
     # --- setup.sh, sourced (§3.3 items 2 and 3, K77) ------------------------------
     def setup_function(self, body, **extra):
         executable(self.stubs / "sudo", f'#!/bin/sh\necho "sudo $*" >> {self.tmp}/sudo.log\nexit 1\n')

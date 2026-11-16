@@ -370,8 +370,8 @@ def cmd_verify_comment():
     comments = [c for page in json.loads(listed.stdout) for c in page
                 if (c.get("user") or {}).get("login") == "github-actions[bot]"]
     marker = f"ukai-jail-action:{env('GITHUB_WORKFLOW')}:{env('GITHUB_JOB')}:"
-    mine = [c for c in comments if marker + env("PROFILE_ARTIFACT") in (c.get("body") or "")]
-    unflagged = [c for c in comments if marker + env("LAUNCH_ARTIFACT") in (c.get("body") or "")]
+    mine = [c for c in comments if f"<!-- {marker}{env('PROFILE_ARTIFACT')} -->" in (c.get("body") or "")]
+    unflagged = [c for c in comments if f"<!-- {marker}{env('LAUNCH_ARTIFACT')} -->" in (c.get("body") or "")]
     record("K82", "same-repository pull request: exactly one comment, holding this run's link",
            len(mine) == 1 and f"/actions/runs/{env('GITHUB_RUN_ID')})" in mine[0]["body"],
            [(c["id"], c["created_at"], c["updated_at"]) for c in mine])
