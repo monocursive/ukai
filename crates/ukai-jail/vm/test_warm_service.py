@@ -605,11 +605,12 @@ class WarmServiceTests(unittest.TestCase):
         self.assertIn('session omitted kernel', self.assert_exit(child, 125))
 
     def test_startup_failure_retains_safe_milestones_and_original_transport_cause(self):
-        for mode, terminal, cause in [('no_owner', 'eof', 'helper_eof'),
+        for index, (mode, terminal, cause) in enumerate([('no_owner', 'eof', 'helper_eof'),
                                       ('boot_timeout', 'stopped', 'helper_stopped'),
-                                      ('connected_error', 'reported_error', 'helper_reported_error')]:
+                                      ('connected_error', 'reported_error', 'helper_reported_error')]):
             with self.subTest(mode=mode):
-                data = self.root / ('startup-' + mode)
+                # macOS's default temporary root leaves little AF_UNIX path space.
+                data = self.root / f's{index}'
                 runtime = data / 'vm'
                 before = set(runtime.glob('vm-*'))
                 child = self.launch(STARTUP_DIAGNOSTIC=mode, UKAI_DATA_DIR=str(data))
