@@ -56,10 +56,11 @@ INPUTS_LIST = REPO / 'crates' / 'ukai-jail' / 'profiles' / 'inputs.rs'
 # binary: ukai-vm and ukai-jail (cargo), vz (swiftc), custodian (clang), ukai-vm-install
 # (PyInstaller over vm/cli.py). The one bounded admission proof directory
 # also ships so the table evidence tests and offline judges can be replayed;
-# the exact portable-tail compile-time fixture also ships. No general docs/,
-# evidence/, VM disk or signing material is selected.
+# the exact portable-tail compile-time fixture also ships. The root installer
+# supplies the public Linux archive pin read by the exported image builder.
+# No general docs/, evidence/, VM disk or signing material is selected.
 ADMISSION_PROOF = 'docs/benchmarks/jail/results/macos-vm-admission-2026-11-15'
-SOURCE_PATHS = ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'LICENSE', '.cargo/config.toml',
+SOURCE_PATHS = ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'LICENSE', '.cargo/config.toml', 'install.sh',
                 'crates', ADMISSION_PROOF,
                 'docs/specs/jail-v1/examples/event-note-learning-read.json')
 # The cargo build's whole environment: what finds the tools and the user's

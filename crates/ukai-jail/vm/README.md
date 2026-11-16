@@ -200,8 +200,13 @@ client's digest and build report are recorded as `ukai_jail_sha256` and
 `source_revision` in `package.json` and `image.json`, and
 `preview-source.tar.gz` holds the workspace at that revision: the Cargo
 files, the toolchain pin, every crate, the build inputs outside
-`crates/`, and the bounded `docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/`
-text proof used by the admission table tests and offline replay. No other
+`crates/`, the root `install.sh` containing the public Linux archive pins,
+the exact portable-tail compile fixture, and the bounded
+`docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/`
+text proof used by the admission table tests and offline replay. The exported
+image builder reads those installer pins during import; archive regression
+coverage imports it from an isolated extraction without starting a build or
+using the network. No other
 top-level docs/results tree, local `evidence/`, VM disk or signing key is
 selected. This is meant to be enough to rebuild `ukai-vm`, `ukai-jail`, the VZ client, the
 custodian and the installer helper. The `fa1d3392d` baseline archive was

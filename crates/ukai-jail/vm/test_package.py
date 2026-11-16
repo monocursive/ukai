@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import types
@@ -350,6 +351,36 @@ class SourceArchiveCoverageTests(unittest.TestCase):
                   *(member + '/Cargo.toml' for member in members), *package.build_inputs()[1:]}
         self.assertEqual(sorted(needed - listed), [])
         self.assertTrue(any(name.startswith('crates/ukai-jail/src/') for name in listed))
+
+    def test_extracted_source_imports_image_preparation_without_the_checkout(self):
+        names = package.listed_sources(package.REPO, package.archive_paths())
+        sources = {name: package.digest(package.REPO / name) for name in names}
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive_path = root / 'source.tar.gz'
+            package.write_source_archive(archive_path, package.REPO, sources)
+            with tarfile.open(archive_path) as archive:
+                archive.extractall(root / 'extracted', filter='data')
+            exported = root / 'extracted' / 'vm'
+            # Isolated Python cannot borrow the checkout or a caller's PYTHONPATH.
+            # Importing the exported builder must resolve its public installer pin
+            # without starting a build, invoking a process or contacting a service.
+            script = '''import sys
+def audit(event, args):
+    if event.startswith(('subprocess.', 'socket.', 'os.exec', 'os.spawn')) or event == 'os.system':
+        raise RuntimeError('unexpected import side effect: ' + event)
+sys.addaudithook(audit)
+sys.path.insert(0, sys.argv[1])
+import prepare
+print(prepare.JAIL_SHA256)
+'''
+            result = subprocess.run([sys.executable, '-I', '-B', '-c', script,
+                                     str(exported / 'crates/ukai-jail/vm')],
+                                    cwd=root, capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertRegex(result.stdout, r'\A[0-9a-f]{64}\n\Z')
+            self.assertEqual((exported / 'install.sh').read_bytes(),
+                             (package.REPO / 'install.sh').read_bytes())
 
 
     def test_only_the_bounded_proof_and_exact_compile_fixture_are_archived(self):
