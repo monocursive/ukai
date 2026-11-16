@@ -456,8 +456,8 @@ class FakeJail:
                 Path(os.fsdecode(self.option(b'--receipt'))).write_text(json.dumps(receipt))
                 self.exit(125)
                 return self.returncode
-            self.started = True
             self.scenario(self)
+            self.started = True
         return self.returncode
 
     def first_poll(self):
@@ -484,8 +484,8 @@ class FakeJail:
                 receipt_digest=guest_program.canonical_digest(self.prepared_receipt), error=None)
             os.write(self.managed_control, json.dumps(message).encode() + b'\n')
         else:
-            self.started = True
             self.scenario(self)
+            self.started = True
 
     def wait(self, timeout=None):
         raise AssertionError('the controller must never wait unbounded on the jail')
@@ -659,8 +659,9 @@ class GuestHarness:
                 stream.close()
 
     def started_jail(self, index=0):
-        """The `index`th jail once the controller has polled it (its first
-        poll plays the wrapper's join and the supervisor's scope move)."""
+        """The `index`th jail after its release and scenario initialization.
+        Its first poll plays the wrapper's join and supervisor's scope move;
+        managed scenarios also wait for the inner gate's release."""
         deadline = time.monotonic() + 10
         while len(self.subprocess.jails) <= index or not self.subprocess.jails[index].started:
             if time.monotonic() > deadline:

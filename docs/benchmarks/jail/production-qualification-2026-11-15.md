@@ -1179,8 +1179,9 @@ The isolated Linux CLI change at `61830dc2d` allows `--gate-fd` together with
 program and install-root rechecks still run after release. Reserved attempt
 ids, label-only mode, persistent state and profile `none` remain refused.
 All 55 portable native-path tests, nine gate tests and 72 acceptance-map
-tests passed. New map clause I03.5 requires the actual Linux boundary test,
-which remains pending. Exact-input onboarding/learning evidence and the
+tests passed. New map clause I03.5 requires the actual Linux boundary test;
+the focused reference execution recorded below subsequently passed it.
+Exact-input onboarding/learning evidence and the
 tested freeze must be refreshed before a new Linux release candidate; older
 records do not qualify the changed inputs. A new image remains required.
 
@@ -1223,11 +1224,47 @@ the two readers and the shared fixture. Local release builds succeeded with
 the existing missing-`libLLVM.dylib` stripping warning retained; these builds
 are test helpers, not distribution qualification.
 
+A separate local tooling probe found the matching LLVM library already in
+the pinned toolchain's `lib` directory. Supplying that directory only through
+the probe's `DYLD_FALLBACK_LIBRARY_PATH` made `rust-objcopy --version` and
+debug stripping of a disposable Mach-O object succeed. Debug information was
+present before stripping and absent afterward; tool and library bytes stayed
+unchanged. `toolchain-strip-environment-1.98.1/result.json` retains the result.
+No toolchain installation was modified, and a future package build still
+requires its own recorded environment and verification.
+
+All six first-attempt hosted jobs at `f745bfbfc` subsequently passed. The
+tested merge `1693568fe23466f3e6b2e275054fa2ea2fd24dac` has the identical
+source tree. macOS ran 2,512 passing Rust tests with seven ignores and no
+runtime skip diagnostics. Ubuntu reported 3,073 passes, 18 ignores and 520
+explicit runtime capability/header skips. The hosted VM Python suite ran
+871 cases with 82 explicit platform skips; the frozen native-v6 component
+replay passed. Full logs and bindings are in `managed-native-v3-ci-f745bfbfc/`.
+
+The exact clean optimized `f745bfbfc` Linux binary then passed the actual
+managed native gate test and both D2 boundary tests on the reference host,
+with three executed tests and zero skips. The gate test exercised successful
+release, wrong policy digest, gate EOF, program replacement and install-root
+replacement. Doctor matched the owning reference manifest. Twenty-one final
+checks verified source and binary preservation, retained evidence and cleanup
+of all three scopes and their clients. No VM or provider ran.
+
+That binary's SHA-256 is
+`348e4c2b9ade7d0d5109a9c78c275be322da76524ba70763f9a7945c153c295a`;
+its 230 compiled input files have digest
+`sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae`.
+The later onboarding-harness revision `dce53219b` has identical compiled
+input blobs, modes and sizes. This equality does not relabel the executed
+binary's source revision. The focused result is
+`managed-native-cli-gate-8aaff8e4b/focused-f745bfbfc-v3/final-summary.json`,
+SHA-256 `755168f3b815481e2773ba96b64bc0f118e3ec400200a7b480ad07bfea1d4e08`.
+Full strict conformance remains pending.
+
 Historical version-2 reports retain their original semantics and proof bytes.
 Known older guest Sessions remain usable for literal operations; current
 native credential-bearing execution requires version 3. The new source does
 not promote the earlier failed API sampling rows or the existing native-v6
-component image. Fresh Linux execution, a newly pinned guest image and
+component image. Full strict Linux conformance, a newly pinned guest image and
 installed acceptance remain necessary before this path can be qualified.
 
 ## Fresh onboarding evidence collection
@@ -1252,6 +1289,19 @@ All 22 synthetic harness tests and independent review passed. CI now discovers
 both the guest and outer-VM test modules. The retained-output scan covers raw
 key bytes in regular files; it is not encoded-secret or guest-memory coverage.
 No fresh onboarding VM or provider workload ran for these source changes.
+
+Hosted checks at `dce53219b` passed both onboarding modules but exposed a
+separate simulated-jail publication race. The fixture marked a jail started
+before its scenario had created the workload child; the cancellation test
+could then index an empty child list. Both fixture branches now publish
+started only after scenario initialization. An event-gated control fails
+deterministically with the old bytes and passes the correction. The 117
+affected guest tests ran normally and with optimized Python: 104 passed and
+13 had explicit platform skips in each run. Independent review passed.
+Production guest code and the real Linux gate results are unchanged; the
+original failed hosted result remains retained in
+`onboarding-harness-ci-dce53219b/`. Fresh hosted verification of the correction
+remains required.
 
 ## Remaining release limits
 
