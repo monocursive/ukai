@@ -15,6 +15,56 @@ from unittest import mock
 import prepare
 
 
+class VirtualDiskAttachmentTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == 'darwin' and shutil.which('swiftc'),
+                         'requires the macOS Virtualization SDK')
+    def test_actual_disk_attachments_use_cached_full_and_preserve_read_only(self):
+        # Compile the actual production declarations, excluding only the entry
+        # point that starts a VM. Constructing storage attachments boots nothing.
+        source = (Path(prepare.__file__).parent / 'vz.swift').read_text()
+        declarations, entry = source.rsplit('\ndo {\n', 1)
+        self.assertIn('Runner(arguments:', entry)
+        self.assertIn('attachment: try diskAttachment(', declarations)
+        probe = r'''
+let url = URL(fileURLWithPath: CommandLine.arguments[1])
+var rows = [[String: Any]]()
+for readOnly in [false, true] {
+    let previous = try VZDiskImageStorageDeviceAttachment(url: url, readOnly: readOnly)
+    let current = try diskAttachment(url: url, readOnly: readOnly)
+    rows.append(["read_only_requested": readOnly,
+        "old_cache": previous.cachingMode.rawValue,
+        "old_sync": previous.synchronizationMode.rawValue,
+        "old_read_only": previous.isReadOnly,
+        "new_cache": current.cachingMode.rawValue,
+        "new_sync": current.synchronizationMode.rawValue,
+        "new_read_only": current.isReadOnly])
+}
+print(String(data: try JSONSerialization.data(withJSONObject: rows, options: [.sortedKeys]),
+             encoding: .utf8)!)
+'''
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            swift, binary, raw = root / 'probe.swift', root / 'probe', root / 'disk.raw'
+            swift.write_text(declarations + probe)
+            original = bytes(range(256)) * 16
+            raw.write_bytes(original)
+            compiled = subprocess.run(['swiftc', '-warnings-as-errors', '-O', str(swift),
+                                       '-o', str(binary)], capture_output=True, timeout=120)
+            self.assertEqual((compiled.returncode, compiled.stderr), (0, b''))
+            observed = subprocess.run([str(binary), str(raw)], capture_output=True, timeout=10)
+            self.assertEqual((observed.returncode, observed.stderr), (0, b''))
+            rows = json.loads(observed.stdout)
+            self.assertEqual(len(rows), 2)
+            for row, read_only in zip(rows, (False, True)):
+                self.assertIs(row['read_only_requested'], read_only)
+                self.assertIs(row['old_read_only'], read_only)
+                self.assertIs(row['new_read_only'], read_only)
+                self.assertEqual(row['new_cache'], 2)  # VZDiskImageCachingModeCached
+                self.assertEqual(row['new_sync'], 1)   # VZDiskImageSynchronizationModeFull
+            self.assertEqual(raw.read_bytes(), original)
+            print('VZ_ATTACHMENT_SDK ' + observed.stdout.decode().strip())
+
+
 class AptSnapshotTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
