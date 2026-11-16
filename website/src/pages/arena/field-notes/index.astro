@@ -3,6 +3,8 @@ import Site from '../../../layouts/Site.astro';
 import '../../../styles/arena-notes.css';
 import '../../../arena_readers';
 import '../../../arena_november';
+import '../../../arena_vendor';
+import '../../../arena_release_report';
 ---
 <Site title="Ukai Arena — Field notes on agent permissions" description="Small, inspectable experiments about useful agent work, unwanted side effects, and the permissions between them.">
   <div class="container notes">
@@ -10,10 +12,24 @@ import '../../../arena_november';
       <p class="eyebrow">Ukai Arena · Field notes</p>
       <h1>Useful work.<br /><em>Limited permissions.</em></h1>
       <p class="lead">What can an agent finish inside a boundary? What can still go wrong? We test small development tasks, follow their side effects, and publish the evidence behind each lesson.</p>
-      <div class="actions"><a class="button" href="/arena/field-notes/twin-exposure/">Read the new comparison →</a><a href="/arena/method/">How to read the evidence</a></div>
+      <div class="actions"><a class="button" href="/arena/field-notes/release-report/">Read the newest note →</a><a href="/arena/method/">How to read the evidence</a></div>
     </header>
     <div class="note-grid">
       <article class="note-card featured">
+        <p class="eyebrow">006 · Unattended repair study · Measured 11–12 Nov 2026 · Corrected 12 Nov</p>
+        <h2>The requirement<br />we never wrote down.</h2>
+        <p>Six unattended sessions failed the same hidden test case. We read it as a limit of the agent, then read the transcripts: the case tests a rule our specification never states, and the tests we handed over could not run. Five defects, all ours.</p>
+        <span class="status">Corrected · matrix unmeasured</span>
+        <a href="/arena/field-notes/release-report/">Read field note 006 →</a>
+      </article>
+      <article class="note-card">
+        <p class="eyebrow">005 · Vendor boundary qualification · Measured 8 Nov 2026</p>
+        <h2>The vendor's sandbox<br />could not start.</h2>
+        <p>An approved four-lane comparison stopped at its first slot: Claude Code's own sandbox cannot run a single command on our stock Ubuntu worker — and the crash logs look like enforcement unless you probe it.</p>
+        <span class="status">Stopped by design · one session</span>
+        <a href="/arena/field-notes/vendor-sandbox/">Read field note 005 →</a>
+      </article>
+      <article class="note-card">
         <p class="eyebrow">003 · Exposure contrast · Measured 1 Nov 2026</p>
         <h2>Same task.<br />Different boundary.</h2>
         <p>The task passed in both lanes. Without the boundary, the synthetic token reached our collector. With Ukai, the destination was denied and no token arrived.</p>
@@ -21,10 +37,10 @@ import '../../../arena_november';
         <a href="/arena/field-notes/twin-exposure/">Read field note 003 →</a>
       </article>
       <article class="note-card">
-        <p class="eyebrow">004 · Incident adaptation · Stopped 1 Nov 2026</p>
-        <h2>A useful stop.<br />An unfinished replay.</h2>
-        <p>The s1ngularity adaptation exposed a parser gap and an incomplete nested log. Two tasks passed; the bare lane never ran. Here is what we can learn without claiming a pair.</p>
-        <span class="status">Incomplete · no paired result</span>
+        <p class="eyebrow">004 · Incident adaptation · Measured 9 Nov 2026</p>
+        <h2>The attack ran.<br />The boundary refused it twice.</h2>
+        <p>Bare, the s1ngularity mechanism delivered twice — the hook's upload and the nested agent's own. Contained, the collector was denied and the nested agent's inherited key was refused before it could act.</p>
+        <span class="status">Measured · one complete pair</span>
         <a href="/arena/field-notes/incident-replay/">Read field note 004 →</a>
       </article>
       <article class="note-card">

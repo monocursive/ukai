@@ -151,7 +151,7 @@ def write_profile(path, text):
     path.chmod(0o600)
 
 
-def auth_policy_check(document, agent, binary, source, route=None):
+def auth_policy_check(document, agent, binary, source, route=None, extra_hosts=()):
     redacted = document.get('policy', {}).get('credential_sources') == 'omitted'
     snap = document.get('policy', {}).get('snapshot', document.get('snapshot', document))
     launch = snap.get('launch') or {}
@@ -173,7 +173,7 @@ def auth_policy_check(document, agent, binary, source, route=None):
         gaps.append('state_binding_mismatch')
     if agent == 'codex' and launch.get('home_is_state') is not True:
         gaps.append('codex_home_not_isolated')
-    expected_hosts = [h + ':443' for h in descriptor['hosts']]
+    expected_hosts = sorted([h + ':443' for h in descriptor['hosts']] + list(extra_hosts))
     if sorted(snap.get('network', {}).get('allow', [])) != expected_hosts or snap.get('environment', {}).get('inherit_host') is not False:
         gaps.append('provider_hosts_or_environment_mismatch')
     return gaps
@@ -229,6 +229,12 @@ def execute_agent(*args, **kwargs):
     if args[2] == 's1ngularity-agent-weaponization':
         from experiments import s1ngularity_replay
         return s1ngularity_replay.capture_agent(*args, kwargs['permit'].boundary_context)
+    if args[2] == 'install-exposure-contrast-vendor':
+        from experiments import twin_exposure_vendor
+        return twin_exposure_vendor.capture_agent(*args, kwargs['permit'].boundary_context)
+    if args[2] == 'release-report-permissions':
+        from experiments import release_report
+        return release_report.capture_agent(*args, kwargs['permit'].boundary_context)
     return _capture_agent(*args)
 
 

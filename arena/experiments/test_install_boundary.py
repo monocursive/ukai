@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from common import digest, manifest, read, save, sha
+from common import digest, manifest, read, save, sha, verify
 from experiments import boundary_probe, install_boundary as ib, test_boundary_suite
 from m1 import batch, runtime, test_batch
 
@@ -600,6 +600,43 @@ class InstallBoundaryOffline(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(prefix='project-ibprep-')
         self.addCleanup(self.tmp.cleanup)
         self.base = Path(self.tmp.name).resolve()
+
+    def test_settle_and_freeze_absorbs_a_late_straggler(self):
+        # Regression (8 November vendor launch): a ukai cleanup straggler
+        # landed inside the qualification tree after one clean verify, so
+        # the frozen manifest passed post-hoc and Context.check() then
+        # failed with PermissionError inside the live batch. A write that
+        # arrives mid-settle must be absorbed into the frozen manifest,
+        # not raced past.
+        import threading
+        import time as time_module
+        q = self.base / 'qualification'
+        (q / 'data' / 'attempts' / 'att_x').mkdir(parents=True)
+        (q / 'data' / 'attempts' / 'att_x' / 'trace.ndjson').write_text('{}\n')
+
+        def straggler():
+            time_module.sleep(0.2)
+            (q / 'data' / 'attempts' / 'att_x' / 'trace.ndjson').write_text('{"late":"flush"}\n')
+        thread = threading.Thread(target=straggler)
+        thread.start()
+        summary = {}
+        ib.settle_and_freeze(q, summary)
+        thread.join()
+        listed = {line.split('  ', 1)[1].strip() for line in (q / 'SHA256SUMS').read_text().splitlines()}
+        self.assertIn('data/attempts/att_x/trace.ndjson', listed)
+        self.assertEqual((q / 'data' / 'attempts' / 'att_x' / 'trace.ndjson').read_text(),
+                         '{"late":"flush"}\n')
+        self.assertEqual(verify(q), [])
+        self.assertEqual(summary['settle']['quiet_passes'], 2)
+
+    def test_settle_and_freeze_on_a_quiet_tree_freezes_clean(self):
+        q = self.base / 'quiet-qualification'
+        q.mkdir()
+        (q / 'qualification.json').write_text('{}\n')
+        summary = {}
+        ib.settle_and_freeze(q, summary)
+        self.assertEqual(verify(q), [])
+        self.assertEqual(summary['settle']['quiet_passes'], 2)
 
     def test_offline_prepare_proves_the_structural_difference(self):
         with ExitStack() as stack:

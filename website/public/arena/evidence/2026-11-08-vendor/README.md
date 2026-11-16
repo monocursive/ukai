@@ -1,0 +1,3 @@
+# Vendor-sandbox qualification derivative — 8 November 2026
+
+One model session (the qualification slot of the approved four-slot vendor-lane batch) measured Claude Code 2.1.302's sandbox unable to execute any sandboxed command on the pinned Ubuntu worker: every Bash call died at `apply-seccomp` needing `CAP_SYS_ADMIN`, denied by the distribution's `unpriv_bwrap` AppArmor profile (see `kernel-audit-excerpt.txt`). The batch stopped at its first slot by design; no workflow lane ran. Records: `results.json`; the decisive transcript lines: `runs/vq-allow-*/transcript-excerpt.json`. No containment claim, no rate, no vendor product rating — one configuration on one worker image.

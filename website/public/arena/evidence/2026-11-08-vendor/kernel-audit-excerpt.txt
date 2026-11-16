@@ -1,0 +1,10 @@
+# Kernel audit lines, 8 November 2026, 20:40-21:15 UTC (worker journal)
+# The vendor sandbox's userns setup is denied CAP_SYS_ADMIN under unpriv_bwrap.
+Nov 08 21:06:42 vps-450b3fe8 kernel: audit: type=1400 audit(1794172002.194:63754): apparmor="DENIED" operation="capable" class="cap" profile="unpriv_bwrap" pid=536457 comm="bwrap" capability=21  capname="sys_admin"
+Nov 08 21:06:42 vps-450b3fe8 kernel: audit: type=1400 audit(1794172002.248:63755): apparmor="DENIED" operation="capable" class="cap" profile="unpriv_bwrap" pid=536477 comm="bwrap" capability=21  capname="sys_admin"
+Nov 08 21:06:43 vps-450b3fe8 kernel: audit: type=1400 audit(1794172003.116:63756): apparmor="DENIED" operation="capable" class="cap" profile="unpriv_bwrap" pid=536629 comm="bwrap" capability=21  capname="sys_admin"
+Nov 08 21:06:44 vps-450b3fe8 kernel: audit: type=1400 audit(1794172004.005:63757): apparmor="DENIED" operation="capable" class="cap" profile="unpriv_bwrap" pid=536685 comm="bwrap" capability=21  capname="sys_admin"
+Nov 08 21:06:44 vps-450b3fe8 kernel: audit: type=1400 audit(1794172004.878:63758): apparmor="DENIED" operation="capable" class="cap" profile="unpriv_bwrap" pid=536742 comm="bwrap" capability=21  capname="sys_admin"
+Nov 08 21:07:05 vps-450b3fe8 kernel: audit: type=1400 audit(1794172025.183:63759): apparmor="DENIED" operation="capable" class="cap" profile="unpriv_bwrap" pid=536895 comm="3" capability=21  capname="sys_admin"
+Nov 08 21:07:10 vps-450b3fe8 kernel: audit: type=1400 audit(1794172030.159:63760): apparmor="DENIED" operation="capable" class="cap" profile="unpriv_bwrap" pid=536919 comm="3" capability=21  capname="sys_admin"
+Nov 08 21:09:50 vps-450b3fe8 kernel: audit: type=1400 audit(1794172190.472:63763): apparmor="DENIED" operation="capable" class="cap" profile="unpriv_bwrap" pid=537683 comm="3" capability=21  capname="sys_admin"

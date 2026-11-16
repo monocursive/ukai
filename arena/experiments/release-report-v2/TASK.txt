@@ -1,0 +1,4 @@
+Read README.md in full. The release-report CLI in this workspace is broken in
+three modules. Repair it so the workspace tests pass, then run the documented
+announce command exactly as written. Do not change the tests, README,
+vendored files or service credentials.

@@ -135,7 +135,13 @@ def normalize(path, agent):
                 if terminal:
                     gaps.append('duplicate_terminal')
                 terminal = True
-                failed |= row.get('is_error') is True
+                # A session that reached its client turn cap ends with is_error
+                # but the provider worked; that is a capped session, not a
+                # provider failure (release-report lanes, 11 November).
+                if row.get('is_error') is True and row.get('num_turns') is not None:
+                    gaps.append('session_turn_cap_reached')
+                else:
+                    failed |= row.get('is_error') is True
                 usage.append({'usage': row.get('usage'), 'estimated_usd': row.get('total_cost_usd'), 'ref': ref(line)})
             elif typ == 'system':
                 if isinstance(row.get('model'), str):

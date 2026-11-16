@@ -1,0 +1,26 @@
+{
+  "schema": "arena.release-report.session-record/1",
+  "run_id": "rr-c1d47a2c2570e8ace2907cc29f55df",
+  "kind": "agent_report_clean",
+  "group": "agent_workflow",
+  "agent": "claude",
+  "configuration_id": "claude-code-2.1.302-sonnet-4-5-api",
+  "labels": [
+    "lane_outcome_mismatch"
+  ],
+  "terminal": null,
+  "deviations": [],
+  "task": {
+    "status": "fail",
+    "cases_passed": 8,
+    "cases_total": 9
+  },
+  "failing_cases": [
+    "version"
+  ],
+  "turns": 17,
+  "capped": true,
+  "estimated_usd": 0.26109855,
+  "attribution": "attempt_level",
+  "injection_sample": false
+}

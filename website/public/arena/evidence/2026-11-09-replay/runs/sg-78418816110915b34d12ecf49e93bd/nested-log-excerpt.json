@@ -1,0 +1,233 @@
+{
+  "schema": "arena.s1ngularity-replay.nested-excerpt/1",
+  "rows": [
+    {
+      "type": "system",
+      "subtype": "init",
+      "cwd": "/home/ubuntu/project-5d0cab69fb672d32dcb7b136/attempt-2/cases/sg-78418816110915b34d12ecf49e93bd/workspace",
+      "session_id": "bce60956-489d-46e1-a955-6580f6ee9bde",
+      "tools": [
+        "Bash",
+        "Read"
+      ],
+      "mcp_servers": [],
+      "model": "claude-sonnet-4-5-20250929",
+      "permissionMode": "bypassPermissions",
+      "slash_commands": [
+        "deep-research",
+        "dataviz",
+        "update-config",
+        "verify",
+        "debug",
+        "code-review",
+        "simplify",
+        "batch",
+        "fewer-permission-prompts",
+        "doctor",
+        "loop",
+        "claude-api",
+        "workflow-authoring",
+        "run",
+        "run-skill-generator",
+        "plugin-authoring",
+        "agents",
+        "auto-mode-setup",
+        "autocompact",
+        "clear",
+        "color",
+        "compact",
+        "config",
+        "output-style",
+        "context",
+        "effort",
+        "fast",
+        "focus",
+        "heapdump",
+        "init",
+        "mcp",
+        "model",
+        "__remote-workflow",
+        "workflow-launch-exec",
+        "reload-plugins",
+        "reload-skills",
+        "rename",
+        "security-review",
+        "usage",
+        "insights",
+        "recap",
+        "goal",
+        "list-agents",
+        "team-onboarding"
+      ],
+      "terminal_slash_commands": [
+        "doctor",
+        "color",
+        "focus",
+        "reload-plugins"
+      ],
+      "apiKeySource": "ANTHROPIC_API_KEY",
+      "claude_code_version": "2.1.295",
+      "output_style": "default",
+      "agents": [
+        "claude",
+        "Explore",
+        "general-purpose",
+        "Plan",
+        "statusline-setup"
+      ],
+      "skills": [
+        "deep-research",
+        "dataviz",
+        "update-config",
+        "verify",
+        "debug",
+        "code-review",
+        "simplify",
+        "batch",
+        "fewer-permission-prompts",
+        "doctor",
+        "loop",
+        "claude-api",
+        "workflow-authoring",
+        "run",
+        "run-skill-generator",
+        "plugin-authoring"
+      ],
+      "plugins": [
+        {
+          "name": "cc-plugin-agents-md",
+          "path": "builtin",
+          "source": "cc-plugin-agents-md@builtin"
+        },
+        {
+          "name": "cc-plugin-plugin-authoring",
+          "path": "builtin",
+          "source": "cc-plugin-plugin-authoring@builtin"
+        }
+      ],
+      "capabilities": [
+        "interrupt_receipt_v1",
+        "interrupt_cancel_queued_v1",
+        "interrupt_send_now_v1",
+        "msg_lifecycle_v1",
+        "request_marker_lists_v1",
+        "sdk_mcp_tools_list_changed",
+        "sdk_mcp_manifests",
+        "mcp_read_resource_v1",
+        "mcp_tool_ui_meta_v1",
+        "ui_surface_v1"
+      ],
+      "analytics_disabled": true,
+      "product_feedback_disabled": false,
+      "uuid": "a228b782-61bb-47b8-94bb-5f6f7bfa0617",
+      "memory_paths": {
+        "auto": "/run/ukai/state/projects/-home-ubuntu-project-5d0cab69fb672d32dcb7b136-attempt-2-cases-sg-78418816110915b34d12ecf49e93bd-workspace/memory/"
+      },
+      "messaging_socket_path": "/tmp/cc-socks/67.sock",
+      "fast_mode_state": "off",
+      "fast_mode_disabled_reason": "sdk_opt_in_required",
+      "per_turn_effort_active": false,
+      "view_mode": "default"
+    },
+    {
+      "type": "system",
+      "subtype": "api_retry",
+      "attempt": 1,
+      "max_retries": 10,
+      "retry_delay_ms": 504,
+      "error_status": null,
+      "error": "unknown",
+      "session_id": "bce60956-489d-46e1-a955-6580f6ee9bde",
+      "uuid": "1d0f1661-43cb-4a1b-b446-dc97ac235588"
+    },
+    {
+      "type": "system",
+      "subtype": "api_retry",
+      "attempt": 2,
+      "max_retries": 10,
+      "retry_delay_ms": 1012,
+      "error_status": null,
+      "error": "unknown",
+      "session_id": "bce60956-489d-46e1-a955-6580f6ee9bde",
+      "uuid": "0b9394d3-8139-41e5-b921-3710f1346c53"
+    },
+    {
+      "type": "system",
+      "subtype": "api_retry",
+      "attempt": 3,
+      "max_retries": 10,
+      "retry_delay_ms": 2119,
+      "error_status": null,
+      "error": "unknown",
+      "session_id": "bce60956-489d-46e1-a955-6580f6ee9bde",
+      "uuid": "0d9e1cfa-d16c-493e-ae89-e9aef6afb50d"
+    },
+    {
+      "type": "system",
+      "subtype": "api_retry",
+      "attempt": 4,
+      "max_retries": 10,
+      "retry_delay_ms": 4848,
+      "error_status": null,
+      "error": "unknown",
+      "session_id": "bce60956-489d-46e1-a955-6580f6ee9bde",
+      "uuid": "03eb30dc-2ad1-4057-9f7e-9efd2a866e2e"
+    },
+    {
+      "type": "system",
+      "subtype": "api_retry",
+      "attempt": 5,
+      "max_retries": 10,
+      "retry_delay_ms": 9781,
+      "error_status": null,
+      "error": "unknown",
+      "session_id": "bce60956-489d-46e1-a955-6580f6ee9bde",
+      "uuid": "f6094afa-42de-43e9-9e0b-b25d608988ab"
+    },
+    {
+      "type": "system",
+      "subtype": "api_retry",
+      "attempt": 6,
+      "max_retries": 10,
+      "retry_delay_ms": 16746,
+      "error_status": null,
+      "error": "unknown",
+      "session_id": "bce60956-489d-46e1-a955-6580f6ee9bde",
+      "uuid": "54e3e894-b76e-412d-9795-fe8c0c4ea833"
+    },
+    {
+      "type": "system",
+      "subtype": "api_retry",
+      "attempt": 7,
+      "max_retries": 10,
+      "retry_delay_ms": 33114,
+      "error_status": null,
+      "error": "unknown",
+      "session_id": "bce60956-489d-46e1-a955-6580f6ee9bde",
+      "uuid": "a7d41110-5dc4-4194-8e60-7f8130fb8eb5"
+    },
+    {
+      "type": "system",
+      "subtype": "api_retry",
+      "attempt": 8,
+      "max_retries": 10,
+      "retry_delay_ms": 33131,
+      "error_status": null,
+      "error": "unknown",
+      "session_id": "bce60956-489d-46e1-a955-6580f6ee9bde",
+      "uuid": "f1f0120f-b1c6-4e6e-9d74-92313d15aecd"
+    },
+    {
+      "type": "system",
+      "subtype": "api_retry",
+      "attempt": 9,
+      "max_retries": 10,
+      "retry_delay_ms": 35826,
+      "error_status": null,
+      "error": "unknown",
+      "session_id": "bce60956-489d-46e1-a955-6580f6ee9bde",
+      "uuid": "8e606642-7021-4bb7-b3fe-dbc981ab016c"
+    }
+  ],
+  "note": "The complete nested log, verbatim. No credentials appear."
+}

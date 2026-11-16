@@ -176,6 +176,31 @@ def validate(index, served=None):
             or budget['total_held_minor'] != later_budget.get('carried_unreconciled_minor')
             or later_budget['carried_unreconciled_minor'] + later_budget['new_holds_minor'] != later_budget.get('total_held_minor')):
         errors.append('November reservations do not reconcile')
+    vendor = [b for b in index.get('batch_slots', [])
+              if b.get('experiment_family') == 'arena.twin-exposure-vendor']
+    for batch in vendor:
+        ident, slots = batch.get('batch_id'), batch.get('slots', [])
+        if not ident or ident in batch_ids:
+            errors.append('missing or duplicate vendor batch ID')
+        batch_ids.add(ident)
+        if (len(slots) != batch.get('scheduled')
+                or sum(s.get('model_session', 0) for s in slots) != batch.get('recorded_model_sessions')
+                or batch.get('recorded') != batch.get('recorded_model_sessions')
+                or sum(s.get('state') != 'unclaimed' for s in slots) != batch.get('attempts_claimed')
+                or sum(s.get('state') == 'unclaimed' for s in slots) != batch.get('skipped')):
+            errors.append('vendor slot counts disagree: ' + str(ident))
+        ids = batch.get('control_run_ids', [])
+        if len(ids) != 3 or len(set(ids)) != 3 or not set(ids) <= controls or used_controls.intersection(ids):
+            errors.append('vendor controls missing, duplicated or reused: ' + str(ident))
+        used_controls.update(ids)
+    vendor_budget = index.get('vendor_budget_reconciliation')
+    if vendor and (not vendor_budget
+            or sum(b['held_eur_minor'] for b in vendor) != vendor_budget.get('new_holds_minor')
+            or sum(b['released_eur_minor'] for b in vendor) != vendor_budget.get('released_minor')
+            or later_budget['total_held_minor'] != vendor_budget.get('carried_unreconciled_minor')
+            or vendor_budget['carried_unreconciled_minor'] + vendor_budget['new_holds_minor']
+            != vendor_budget.get('total_held_minor')):
+        errors.append('vendor reservations do not reconcile')
     return errors
 
 
