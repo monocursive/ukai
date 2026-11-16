@@ -1154,6 +1154,30 @@ unchanged artifacts, equal before/after image inventories and no remaining
 temporary directory. The record is
 `credential-staging-attachment-cleanup-c25c297fc/actual-success.json`.
 
+Hosted checks at `8aaff8e4b` passed five of six jobs. The macOS suite stopped
+at the descriptor-exhaustion fixture after 1,792 passing tests; its client
+setup returned EINVAL in the one-free-descriptor case. The original failure
+and exact head/merge-tree logs remain in `guest-gate-ci-8aaff8e4b/`.
+An isolated local socket probe reproduced EINVAL when setting a timeout
+after Darwin discarded a peer during an exhausted accept. The corrected
+fixture uses bounded nonblocking reads, keeps descriptors exhausted until
+empty EOF and requires a subsequent successful proxy request. It neither
+ignores errors nor changes the production proxy. All 69 proxy tests then
+passed locally, with the one expected child-helper ignore. The separate
+socket controls and source review are retained in
+`macos-fd-exhaustion-8aaff8e4b/`; a fresh hosted result is still required.
+
+The isolated Linux CLI change at `61830dc2d` allows `--gate-fd` together with
+`--from-path`. The owner must independently authorize the resolved plan;
+program and install-root rechecks still run after release. Reserved attempt
+ids, label-only mode, persistent state and profile `none` remain refused.
+All 55 portable native-path tests, nine gate tests and 72 acceptance-map
+tests passed. New map clause I03.5 requires the actual Linux boundary test,
+which remains pending. Exact-input onboarding/learning evidence and the
+tested freeze must be refreshed before a new Linux release candidate; older
+records do not qualify the changed inputs. VM managed-observation integration
+and a new image remain separate work.
+
 ## Remaining release limits
 
 No usable Endpoint Security provisioning profile was found among the 17 local
