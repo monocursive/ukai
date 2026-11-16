@@ -35,6 +35,9 @@ MAX_FILES = 5000
 # whole journal has the host summary's scan bound; over-bound evidence is
 # reported as unavailable rather than truncated or an execution failure.
 MAX_JOURNAL = 16 * 1024 * 1024
+# Only the warm session's post-stop file export and terminal frame use this
+# aggregate write budget. Live traffic and legacy attempts keep their lease.
+EXPORT_WRITE_SECONDS = 20.0
 JOURNAL_DIR = 'guest-journal'
 JOURNAL_SCHEMA = 'ukai.vm.guest-journal/1'
 SECRET_REVOCATION_CONTRACT = 'ukai.vm.secret-revocation/1'
@@ -1310,6 +1313,51 @@ def journal_export(receipt_bytes, data_dir):
     return files
 
 
+def export_sender(conn):
+    """Finish each post-stop frame exactly once under one export deadline.
+
+    Receive polling's short timeout is not a whole-frame write deadline.
+    Keep the watchdog alive during backpressure and resume only the unsent
+    suffix. A failed sender cannot append another frame to a partial line.
+    Queued controls remain unread until the existing session loop resumes;
+    this is a write budget, not a filesystem or cancellation deadline.
+    """
+    deadline = clock() + EXPORT_WRITE_SECONDS
+    failed = False
+
+    def send(value):
+        nonlocal failed
+        if failed:
+            raise Refusal('export_transport_failed')
+        previous_timeout = conn.gettimeout()
+        try:
+            try:
+                payload = memoryview(json.dumps(value, separators=(',', ':')).encode() + b'\n')
+                offset = 0
+                while offset < len(payload):
+                    notify()
+                    remaining = deadline - clock()
+                    if remaining <= 0:
+                        raise Refusal('export_write_timeout')
+                    conn.settimeout(min(.25, remaining))
+                    try:
+                        written = conn.send(payload[offset:])
+                    except socket.timeout:
+                        continue
+                    if written == 0:
+                        raise Refusal('export_transport_closed')
+                    offset += written
+                if clock() > deadline:
+                    raise Refusal('export_write_timeout')
+            finally:
+                conn.settimeout(previous_timeout)
+        except BaseException:
+            failed = True
+            raise
+
+    return send
+
+
 def export_outputs(send, in_session, run_request, guest_boot_id, data_dir=None, native_entry=None, sampled_exposure=None, prepared_receipt=None):
     """Send the finished attempt's regular files to the host and return the
     bound receipt's binding (None outside a session).
@@ -2128,13 +2176,18 @@ def main():
                 shutdown('managed_prepared_changed')
             sample = (retain_sampled_exposure(exposure_monitor, run_request, guest_boot_id, native_entry, context)
                       if context is not None else None)
+            # end_attempt(normal=True) has already verified tree stop and
+            # removed credentials. Share one deadline across all exported
+            # frames and Done; leave live/legacy sends and queued Cancel2's
+            # existing drain/reset handshake unchanged.
+            finished_send = export_sender(conn) if in_session else send
             try:
-                binding = export_outputs(send, in_session, run_request, guest_boot_id,
+                binding = export_outputs(finished_send, in_session, run_request, guest_boot_id,
                                          Path(account.pw_dir) / '.local/share/ukai', native_entry, sample, prepared)
+                finished_send({'event': 'done', 'exit_code': process.returncode,
+                               **({'binding': binding, 'stop': stop} if in_session else {})})
             except Refusal as refusal:
                 shutdown(refusal.reason)
-            send({'event': 'done', 'exit_code': process.returncode,
-                  **({'binding': binding, 'stop': stop} if in_session else {})})
             audit('done', exit_code=process.returncode)
             if not in_session:
                 # No new run and no reboot/resume. Host tears down this VM.
