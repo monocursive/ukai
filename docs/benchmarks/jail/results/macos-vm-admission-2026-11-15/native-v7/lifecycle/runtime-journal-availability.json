@@ -1,0 +1,15 @@
+{
+  "schema": "ukai.task.runtime-kernel-journal-availability/1",
+  "status": "UNAVAILABLE",
+  "owning_component_outcome": "PASS",
+  "completion_sha256": "3b510fe505d32dc417d77dfd82c2b9dc7b7926fdf4ff7fd3db992472377d2e49",
+  "expected_service_cleanup": "Successful owning stop removes its VM directory; component passes do not imply comprehensive kernel-journal review.",
+  "prepared_journal_review": {
+    "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-Q-journal-review/prepare/review.json",
+    "sha256": "e6b7347df7df84f5605f3e74e7cb91b8736de0a0010f1eec16331f11ed677a69"
+  },
+  "known_runtime_boot_files_retained": [],
+  "private_tmp_nodes_inspected": 23,
+  "no_extra_boot": true,
+  "kernel_health_qualified": false
+}

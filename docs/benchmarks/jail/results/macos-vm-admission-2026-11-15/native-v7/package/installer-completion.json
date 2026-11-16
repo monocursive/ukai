@@ -1,0 +1,32 @@
+{
+  "attachment_attempted": true,
+  "automatic_retry": false,
+  "cleanup_errors": [],
+  "cross_uid_qualification": false,
+  "dmg_bytes_preserved": true,
+  "elapsed_seconds": 34.26136262482032,
+  "free_after": 15346900992,
+  "installed_no_holders": true,
+  "installed_raw_allocated_bytes": 1590874112,
+  "installed_root": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-installer-Q-44b5ac4fa/prefix with spaces/share/ukai-vm/0.1.0-preview.2",
+  "mounted_global_permissions_enabled": false,
+  "no_competing_task_process": true,
+  "originals_preserved": true,
+  "outcome": "PASS",
+  "owned_attachment_absent": true,
+  "owned_detach_completed": true,
+  "plan_sha256": "0bf3c71234aeb93ad32d5cb0231f1a471528645309dc1a82fa244b5a3803cfbc",
+  "preflight": {
+    "active": [],
+    "free_bytes": 17268240384,
+    "memory_free_inactive_speculative_bytes": 18833752064,
+    "memory_scope": "reclaimable estimate, excludes active/wired/compressed/swap"
+  },
+  "runtime_reserve_preserved": true,
+  "schema": "ukai.Q-actual-installer-execution/1",
+  "scope": "One existing seven-case check_install; no VM/provider/admission; historical failures retained.",
+  "seven_cases_passed": true,
+  "source_preserved": true,
+  "summary_sha256": "440b3e2f2e26c7b0311d94779f1985047d3711fe343992bce696508114c8a70b",
+  "wrapper_sha256": "eb68f96017b68fb7cffc6e2e4c5fb77cf59485c96a875838c2d4ceac6559addf"
+}

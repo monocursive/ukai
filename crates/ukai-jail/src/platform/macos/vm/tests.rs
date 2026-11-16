@@ -1953,7 +1953,7 @@ fn second_measured_image_has_its_own_rows_and_mixed_images_have_none() {
 
 #[test]
 fn superseded_intermediate_images_no_longer_admit_literal_or_native_runs() {
-    for version in ["native-v2", "native-v4", "native-v5"] {
+    for version in ["native-v2", "native-v4", "native-v5", "native-v6"] {
         let bundle = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
             "../../docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/{version}"
         ));
@@ -1964,9 +1964,10 @@ fn superseded_intermediate_images_no_longer_admit_literal_or_native_runs() {
         let old_seed = image["seed_sha256"].as_str().unwrap();
         assert_ne!(old_disk, NATIVE_GUEST_MEASURED_DISK_SHA256);
         assert_ne!(old_seed, NATIVE_GUEST_MEASURED_SEED_SHA256);
+        let old_catalog_sha256 = image["guest_program_catalog_sha256"].as_str().unwrap();
         let catalog = crate::guest_program::Catalog::parse(
             &std::fs::read(bundle.join("image/guest-program-catalog.json")).unwrap(),
-            NATIVE_PROGRAM_ADMISSION.catalog_sha256,
+            old_catalog_sha256,
         )
         .unwrap();
         let entry = catalog
@@ -1994,7 +1995,7 @@ fn superseded_intermediate_images_no_longer_admit_literal_or_native_runs() {
                 );
             }
             let program = crate::guest_program::GuestProgram::new(
-                NATIVE_PROGRAM_ADMISSION.catalog_sha256.into(),
+                old_catalog_sha256.into(),
                 disk.into(),
                 seed.into(),
                 entry.clone(),
@@ -2012,7 +2013,7 @@ fn superseded_intermediate_images_no_longer_admit_literal_or_native_runs() {
 fn native_admission_requires_every_pin_before_source_staging() {
     let (_dir, mut context, args) = native::tests::context();
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let bytes = std::fs::read(root.join("docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v6/image/guest-program-catalog.json")).unwrap();
+    let bytes = std::fs::read(root.join("docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v7/image/guest-program-catalog.json")).unwrap();
     let mut platform = native_measured_platform();
     platform.data_dir = context.env_settings.data_dir.clone().unwrap();
     platform.install.root = context.cwd.parent().unwrap().join("install");
@@ -2106,7 +2107,7 @@ fn every_measurement_row_resolves_in_its_record() {
             GUEST_MEASUREMENTS,
         ),
         (
-            "native-v6",
+            "native-v7",
             "capabilities/capabilities.json",
             "raw-vault",
             NATIVE_GUEST_MEASURED_DISK_SHA256,
@@ -2212,8 +2213,9 @@ fn every_measurement_row_resolves_in_its_record() {
                                 "secret_revocation": protocol::SECRET_REVOCATION_CONTRACT,
                                 "journal_export": protocol::JOURNAL_EXPORT_CONTRACT,
                                 "native_program": protocol::NATIVE_PROGRAM_CONTRACT,
-                                // The retained component proof predates managed /3.
-                                "sampled_exposure": protocol::SAMPLED_EXPOSURE_CONTRACT_V2,
+                                // Current component evidence advertises managed /3;
+                                // this does not qualify native workload sampling.
+                                "sampled_exposure": protocol::SAMPLED_EXPOSURE_CONTRACT,
                             })
                         }
                     );
@@ -2321,7 +2323,7 @@ fn native_admission_pins_resolve_to_the_exact_retained_component_evidence() {
     );
     assert_eq!(
         package["source_revision"],
-        "c25c297fc61b7d0edb71d929a1b067faeeb03b53"
+        "44b5ac4fa65880abe369652ed0110162088a0cd9"
     );
     assert_eq!(
         package["image"]["ukai_jail_version"]["build"]["dirty"],

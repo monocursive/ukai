@@ -2,7 +2,7 @@
 
 This contract describes the opt-in implementation for a catalog-installed
 native Linux program on the macOS VM backend. The
-[retained component proof](../../../docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v6/README.md)
+[retained component proof](../../../docs/benchmarks/jail/results/macos-vm-admission-2026-11-15/native-v7/README.md)
 admits one exact guest image and catalog shape. It does not complete K113 or
 change any published release coordinate. The existing literal-command VM path
 remains a separate mode. New images need new component measurements, and

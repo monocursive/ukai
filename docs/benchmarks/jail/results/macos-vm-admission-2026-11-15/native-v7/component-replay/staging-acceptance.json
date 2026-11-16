@@ -1,0 +1,96 @@
+{
+  "schema": "ukai.task.component-acceptance/1",
+  "phase": "staging",
+  "plan_sha256": "770e7f6ef713e30d9988c3fe09ebc44b8d51a6224344562ff2b525610aa895cc",
+  "replayer_sha256": "15725897eba336e13271314c9b8d0c930265d0f582e15909b3f304ace47f2f97",
+  "outcome": "PASS",
+  "qualified": false,
+  "native_vendor_or_k113_qualified": false,
+  "checks": {
+    "owning_process_succeeded": true,
+    "owned_group_reaped_absent": true,
+    "exact_signed_staging_derivation": true,
+    "qualification_false": true,
+    "exact_dmg_attachment_absent": true,
+    "no_vm_or_compiler": true,
+    "private_tmp_holders_absent": true,
+    "capabilities_holders_absent": true,
+    "program_holders_absent": true,
+    "vault_holders_absent": true,
+    "frozen_source_clean": true,
+    "runtime_capacity_preserved": true
+  },
+  "files": {
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-Q-44b5ac4fa/staging-outer.json": "6f1dc93362cac83859fdadff732e6e030112d90d31b033eb68fded45db9b5863",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-Q-44b5ac4fa/staging-result.json": "2edfa2a7f2a1f40089e000f9da3778433f70acdaf314739a392dd1aa077e0271",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-credential-admission-Q-44b5ac4fa/credential-staging.json": "f0e0ea69959b3ef00f9185a32680ced378ee57ffacc9a63f70d21b43173f1b1c",
+    "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/guest-native-measurements-Q-44b5ac4fa/staging-attachment-lifecycle.json": "df70c8a46814d5edc36f8a5f13be3a83b11c046c2bdf6e499326b2e9929b7fc1"
+  },
+  "facts": {
+    "exactly_one_upstream_substitution": true,
+    "bound_complete_guest_journal": true,
+    "allowed_stream_ended_credential_revoked": true,
+    "later_request_denied_without_substitution": true,
+    "guest_revocation_note": true,
+    "receipt_and_tail_use_count_match": true,
+    "vault_never_staged": true,
+    "child_placeholder_bound": true,
+    "strict_six_class_coverage": true,
+    "settled_clean_guest": true,
+    "all_exported_bytes_scanned": true,
+    "same_boot_disk_scanned": true,
+    "service_stopped": true,
+    "explicit_revoke_after_peer_accept_then_disconnect": true,
+    "exact_revocation_ack": true,
+    "bound_guest_component": true,
+    "guest_controller_cleanup": true,
+    "offline_guest_tail": true,
+    "image_and_service_bound": true,
+    "exact_probe_declaration_and_argv": true,
+    "offline_guest_summary_identity": true,
+    "raw_protocol_identity": true,
+    "exact_guest_staging_ack": true,
+    "guest_receipt_schema_linux": true
+  },
+  "measurements": {
+    "credential_staging": {
+      "verdict": true,
+      "measured_at": "2026-11-16T15:21:40Z",
+      "attempt_id": "k113-raw-1cd31fac61773d19",
+      "guest_attempt_id": "att_e5f95cf3-835c-4d12-a170-b28f6882fc3e",
+      "capability": "credential_staging",
+      "scope": "vault-only guest/service component",
+      "not_measured": [
+        "normal installed-client host-source watch",
+        "program-bound credentials",
+        "credential refresh",
+        "copied/bound credentials",
+        "TLS/vendor compatibility",
+        "K113/release qualification"
+      ]
+    }
+  },
+  "holder_checks": {
+    "private_tmp": {
+      "returncode": 1,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0
+    },
+    "capabilities": {
+      "returncode": 1,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0
+    },
+    "program": {
+      "returncode": 1,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0
+    },
+    "vault": {
+      "returncode": 1,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0
+    }
+  },
+  "free_bytes": 15338110976
+}
