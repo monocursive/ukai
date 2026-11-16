@@ -1,0 +1,282 @@
+{
+  "schema": "ukai.task.ubuntu-image-authentication/1",
+  "observed_at": "2026-11-16T06:07:02.891590+00:00",
+  "outcome": "PASS_METADATA_AUTHENTICATION",
+  "candidate_status": "PROVENANCE_AVAILABLE_NOT_SELECTED_OR_QUALIFIED",
+  "release": "Ubuntu26.10 Stonking",
+  "image_build": "release-20261105",
+  "architecture": "arm64",
+  "image": {
+    "url": "https://cloud-images.ubuntu.com/minimal/releases/stonking/release-20261105/ubuntu-26.10-minimal-cloudimg-arm64.img",
+    "sha256": "bac15af78c37fec8e9474a9a784041c13ddb2603b9095435b7e4269e3faf3064",
+    "checksum_signature_verified": true,
+    "image_downloaded": false,
+    "image_bytes_verified": false
+  },
+  "manifest": {
+    "url": "https://cloud-images.ubuntu.com/minimal/releases/stonking/release-20261105/ubuntu-26.10-minimal-cloudimg-arm64.manifest",
+    "sha256": "fa24afca89f1a8d737819df8f6eb25f728a902364ca6aadfa13d67dcee7dd5ef",
+    "matches_signed_checksum": true,
+    "selected_packages": {
+      "apt": "3.3.3ubuntu0.1",
+      "cloud-init": "26.2-0ubuntu2",
+      "cloud-init-base": "26.2-0ubuntu2",
+      "libc6:arm64": "2.44-1ubuntu2",
+      "linux-image-7.3.0-10-generic": "7.3.0-10.10",
+      "linux-image-virtual": "7.3.0-10.10",
+      "linux-modules-7.3.0-10-generic": "7.3.0-10.10",
+      "python3-minimal": "3.14.7-3",
+      "systemd": "261.3-0ubuntu3",
+      "ubuntu-keyring": "2026.08.18"
+    }
+  },
+  "authority": {
+    "method": "Downloaded public key fingerprints matched independently published full fingerprints in retained official Ubuntu documentation; no trust inferred from keyserver identity alone. GnuPG cryptographic VALIDSIG then checked exact expected fingerprint.",
+    "official_docs": "https://ubuntu.com/docs/public-images/public-images-how-to/verify-image-checksum/",
+    "official_security_faq": "https://wiki.ubuntu.com/Security/FAQ",
+    "records": {
+      "ubuntu-cloud-verification.html": {
+        "sha256": "c1fa119f5f7d16bf25ad5df5743411db25bc62cc9405a15ca4d74c52b2464e9a",
+        "independently_published_fingerprints": [
+          "D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81"
+        ]
+      },
+      "ubuntu-security-key-authority.html": {
+        "sha256": "a490d68b5d2845e9d38b6175fcae61ab9ecc672b4d358c95183c56fb1c28b54c",
+        "independently_published_fingerprints": [
+          "D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81",
+          "F6ECB3762474EDA9D21B7022871920D1991BC93C"
+        ]
+      }
+    },
+    "cloud_fingerprint": "D2EB44626FDDC30B513D5BB71A5D6C4C7DB87C81",
+    "archive_fingerprint": "F6ECB3762474EDA9D21B7022871920D1991BC93C",
+    "gpg_trust_warning": "TRUST_UNDEFINED / uncertified by local web of trust retained. Authority established by exact official fingerprint comparison, not by changing ownertrust."
+  },
+  "verification": {
+    "path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/ubuntu-2610-authentication-2026-11-16/verification.json",
+    "sha256": "d1242fd99d90215c7518113c28d3eb4d5faccb927d78acbd98c03bc66dfa2d6b",
+    "gpg_version": "2.4.8",
+    "libgcrypt_version": "1.12.0",
+    "host": "ouro-ci@37.59.114.70",
+    "gnupg_home": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-signature-20261116-0605/gnupg",
+    "home_mode": "0700",
+    "fresh_task_only": true,
+    "all_commands_exit_zero": true,
+    "system_trust_modified": false,
+    "auto_key_retrieval_or_agent_start": false,
+    "image_signature_created_at": "2026-11-06T16:01:34Z"
+  },
+  "snapshot": {
+    "id": "20261106T000000Z",
+    "base_url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z",
+    "status": "AUTHENTICATED_MATCHING_RELEASE_METADATA_AVAILABLE_NOT_SELECTED",
+    "suites": {
+      "stonking": {
+        "url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z/dists/stonking/InRelease",
+        "sha256": "432b0f2ad42b2a997e2b373f5b61cabb3e80b3c5348cd0ff4b9cfc4df2e3d8fb",
+        "signature_verified": true,
+        "release_fields": {
+          "Origin": "Ubuntu",
+          "Label": "Ubuntu",
+          "Suite": "stonking",
+          "Version": "26.10",
+          "Codename": "stonking",
+          "Date": "Thu, 15 Oct 2026 12:18:34 UTC",
+          "Architectures": "amd64 amd64v3 arm64 armhf i386 ppc64el riscv64 s390x",
+          "Components": "main restricted universe multiverse",
+          "Description": "Ubuntu Stonking 26.10"
+        },
+        "authenticated_index_references": {
+          "main/binary-arm64/Packages.xz": {
+            "SHA512": {
+              "digest": "1d3d92d823a4a8b26c820a5e22e22b77443c2052d5c19831923592e0d64c874d525f6207efd1b6d3a21d17cf389989b49d8a94d72081fc59e93f8b9a99602964",
+              "bytes": 991592
+            }
+          },
+          "universe/binary-arm64/Packages.xz": {
+            "SHA512": {
+              "digest": "4286152b533881c42a2736e6e49a0bf05b6af8f6da0a27fb67e06d6d6212b3d17da3310bb485216088342268a1b4a3eac6666e4a082df5e3a87e75ca32d08edf",
+              "bytes": 11085928
+            }
+          }
+        }
+      },
+      "stonking-updates": {
+        "url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z/dists/stonking-updates/InRelease",
+        "sha256": "92c428ee251cdfbdf5dd51e7762713dd036be802952d733c999d84a2b517533b",
+        "signature_verified": true,
+        "release_fields": {
+          "Origin": "Ubuntu",
+          "Label": "Ubuntu",
+          "Suite": "stonking-updates",
+          "Version": "26.10",
+          "Codename": "stonking",
+          "Date": "Thu, 05 Nov 2026 21:01:07 UTC",
+          "Architectures": "amd64 amd64v3 arm64 armhf i386 ppc64el riscv64 s390x",
+          "Components": "main restricted universe multiverse",
+          "Description": "Ubuntu Stonking Updates"
+        },
+        "authenticated_index_references": {
+          "main/binary-arm64/Packages.xz": {
+            "SHA512": {
+              "digest": "0afc30c9cfae2710b267d75581fd262f659c4406aff1df2cc69a922fb39b8399ec663be131b288d451bbdf3f0f4755d7c0ecb2f01c46d7e6ef539f5a4e320221",
+              "bytes": 76652
+            }
+          },
+          "universe/binary-arm64/Packages.xz": {
+            "SHA512": {
+              "digest": "fad05c731fadf74e7a88274a8cbf80f754fd0e67d1197d7f22374fde9f80f085047dfcb0e012c93e28bcf304b11d2c06fde74e824709dd0e4a38ddd7dde1dfea",
+              "bytes": 13476
+            }
+          }
+        }
+      },
+      "stonking-security": {
+        "url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z/dists/stonking-security/InRelease",
+        "sha256": "0d45a67b772ab03a0f90e9eeb36b49f34a329b86a7caf7c95f3feb11bc7c8a29",
+        "signature_verified": true,
+        "release_fields": {
+          "Origin": "Ubuntu",
+          "Label": "Ubuntu",
+          "Suite": "stonking-security",
+          "Version": "26.10",
+          "Codename": "stonking",
+          "Date": "Thu, 05 Nov 2026 14:56:27 UTC",
+          "Architectures": "amd64 amd64v3 arm64 armhf i386 ppc64el riscv64 s390x",
+          "Components": "main restricted universe multiverse",
+          "Description": "Ubuntu Stonking Security"
+        },
+        "authenticated_index_references": {
+          "main/binary-arm64/Packages.xz": {
+            "SHA512": {
+              "digest": "0cfa7820b3e8c16cd58fb813f25eab976da16dab3fcc0bb79f7cca154b31b92e4fc4a140b68aa40f7fa014e22472194122aa087756b7a112901fdf42b0d3d92e",
+              "bytes": 68776
+            }
+          },
+          "universe/binary-arm64/Packages.xz": {
+            "SHA512": {
+              "digest": "fad05c731fadf74e7a88274a8cbf80f754fd0e67d1197d7f22374fde9f80f085047dfcb0e012c93e28bcf304b11d2c06fde74e824709dd0e4a38ddd7dde1dfea",
+              "bytes": 13476
+            }
+          }
+        }
+      }
+    },
+    "package_indexes_downloaded": false,
+    "dependency_resolution_performed": false,
+    "note": "Main/universe ARM64 index hashes are authenticated by archive signatures. Actual future package resolution and full package payload verification are not performed; no claim this snapshot exactly recreates the image root filesystem."
+  },
+  "cve_scope": {
+    "id": "CVE-2026-99103",
+    "prior_assessment_path": "/Users/monocursive/code/ouroboros/evidence/production-2026-11-15/warm-vm-current/ubuntu-kernel-cve-2026-99103-readonly/alternative-stonking.json",
+    "prior_assessment_sha256": "be6fb901f35916ef527651b938cd57b4d695615d227d1e34fb653b00d3cc5828",
+    "ubuntu_tracker_status": "stonking_linux: not-affected (7.3.0-5.5)",
+    "image_kernel": "7.3.0-10.10",
+    "not_general_security_audit": true,
+    "no_historical_crash_attribution": true
+  },
+  "conclusion": "Stable dated ARM64 image expected digest, package manifest and matching snapshot repository metadata have authenticated official provenance. Image bytes have not been downloaded/verified and compatibility/qualification remain untested. This supplies future pinning inputs, not a selected image or production release claim.",
+  "scope": {
+    "image_or_package_payload_download": false,
+    "package_install": false,
+    "source_edit": false,
+    "system_keyring_edit": false,
+    "vm_or_provider": false,
+    "retained_public_task_directory_only": true
+  },
+  "evidence": {
+    "SHA256SUMS": {
+      "sha256": "da27c899fe43c33b1a784b797cdfbf5059759b390a912bbb4a797410b6806767",
+      "bytes": 3279
+    },
+    "SHA256SUMS.gpg": {
+      "sha256": "fe9617b5b46857db3f5c90856642fdc916ea9025998f22263a20cd182c4599f6",
+      "bytes": 833
+    },
+    "archive-key-fetch.json": {
+      "sha256": "ea1d2c53d74791927d72be97a7cd7b11ef5016b10793cf0e281c71b64b633594",
+      "bytes": 394
+    },
+    "copied-inputs.json": {
+      "sha256": "7d531c6e863a97155f92f7339e4a5ecab5e81b8ec486080f91fa5cbf67c81014",
+      "bytes": 924
+    },
+    "execution-request.json": {
+      "sha256": "26e70673418962e32a74f22fb8c358eb0aea4cb9d236a6f1820088d4deeab944",
+      "bytes": 696
+    },
+    "execution.json": {
+      "sha256": "f442f0266aab3f77b7b12f2153e650b45248257e5a564f6a2fe96c7a87ad6012",
+      "bytes": 941
+    },
+    "execution.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "execution.stdout": {
+      "sha256": "1be0061a50efa6c5b2fa87d7f274be494ade5f4f3dc7353440d51d34d8841c0d",
+      "bytes": 15485
+    },
+    "fetches.json": {
+      "sha256": "9dd3f7f14c0e1152f387d4da8e940e689396496c20d69849e60f752bd02732c3",
+      "bytes": 3176
+    },
+    "snapshot-service.html": {
+      "sha256": "17a889463fbe52f8a301383fa0d65cafda9ebe287020984d2146a1ef0ad0c555",
+      "bytes": 10459
+    },
+    "stonking-InRelease": {
+      "sha256": "432b0f2ad42b2a997e2b373f5b61cabb3e80b3c5348cd0ff4b9cfc4df2e3d8fb",
+      "bytes": 170213
+    },
+    "stonking-security-InRelease": {
+      "sha256": "0d45a67b772ab03a0f90e9eeb36b49f34a329b86a7caf7c95f3feb11bc7c8a29",
+      "bytes": 60615
+    },
+    "stonking-updates-InRelease": {
+      "sha256": "92c428ee251cdfbdf5dd51e7762713dd036be802952d733c999d84a2b517533b",
+      "bytes": 60613
+    },
+    "tool-inventory.json": {
+      "sha256": "6355e641aef2efe93ae5bf9574c5da6b3bdee1b9a8645326bfe708f7d4dbb80d",
+      "bytes": 607
+    },
+    "tool-inventory.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "tool-inventory.stdout": {
+      "sha256": "1da61d0d53cfd596f096ebeb92fda36de05742f9e1776b711ecff5076e491687",
+      "bytes": 62
+    },
+    "ubuntu-26.10-minimal-cloudimg-arm64.manifest": {
+      "sha256": "fa24afca89f1a8d737819df8f6eb25f728a902364ca6aadfa13d67dcee7dd5ef",
+      "bytes": 8236
+    },
+    "ubuntu-archive-signing-key.asc": {
+      "sha256": "85309b698b7bdac6f21de64aa1eaa998470bbd9c8c853ea274d0c27a95013210",
+      "bytes": 4747
+    },
+    "ubuntu-cloud-signing-key.asc": {
+      "sha256": "927138de292fac4d861105a052cf56e9c5921987da385c844d88f34d19b39ab0",
+      "bytes": 3325
+    },
+    "ubuntu-cloud-verification.html": {
+      "sha256": "c1fa119f5f7d16bf25ad5df5743411db25bc62cc9405a15ca4d74c52b2464e9a",
+      "bytes": 33915
+    },
+    "ubuntu-security-key-authority.html": {
+      "sha256": "a490d68b5d2845e9d38b6175fcae61ab9ecc672b4d358c95183c56fb1c28b54c",
+      "bytes": 135129
+    },
+    "verification.json": {
+      "sha256": "d1242fd99d90215c7518113c28d3eb4d5faccb927d78acbd98c03bc66dfa2d6b",
+      "bytes": 17865
+    },
+    "verify_remote.py": {
+      "sha256": "9a85545dc25f842c1daf3ee7cb1afdfaf6a45572fce71d99096cac81882ac825",
+      "bytes": 5212
+    }
+  }
+}

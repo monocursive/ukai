@@ -1,0 +1,264 @@
+{
+  "schema": "ukai.stonking-dbus-provider-selection-review/1",
+  "outcome": "PASS_METADATA_AND_PAYLOAD_INSPECTION",
+  "checks": {
+    "authenticated_source": true,
+    "phase": true,
+    "exact_four_under_cap": true,
+    "payload:dbus-broker": true,
+    "ar:dbus-broker": true,
+    "text:dbus-broker:control": true,
+    "text:dbus-broker:postinst": true,
+    "text:dbus-broker:postrm": true,
+    "text:dbus-broker:prerm": true,
+    "text:dbus-broker:triggers": true,
+    "text:dbus-broker:usr/lib/systemd/user/dbus-broker.service": true,
+    "control_identity:dbus-broker": true,
+    "payload:dbus-session-bus-common": true,
+    "ar:dbus-session-bus-common": true,
+    "text:dbus-session-bus-common:control": true,
+    "control_identity:dbus-session-bus-common": true,
+    "payload:dbus-user-session": true,
+    "ar:dbus-user-session": true,
+    "text:dbus-user-session:conffiles": true,
+    "text:dbus-user-session:control": true,
+    "text:dbus-user-session:usr/lib/systemd/user/dbus.service": true,
+    "text:dbus-user-session:usr/lib/systemd/user/dbus.socket": true,
+    "control_identity:dbus-user-session": true,
+    "payload:dbus-daemon": true,
+    "ar:dbus-daemon": true,
+    "text:dbus-daemon:control": true,
+    "text:dbus-daemon:postinst": true,
+    "text:dbus-daemon:postrm": true,
+    "control_identity:dbus-daemon": true,
+    "broker_alias": true,
+    "broker_postinst_enables_user_alias": true,
+    "packaged_daemon_single_process": true,
+    "daemon_install_not_provider_switch": true,
+    "socket_activation": true,
+    "originals_preserved": true,
+    "postflight": true
+  },
+  "check_count": 36,
+  "authentication_review_sha256": "21879184fec414614f6cae0b41b34a004e6fd660adaa68fb44af91130354258a",
+  "index_metadata_sha256": "8cc11950c1d1b7de94f70abe14475d096b0da31f10352b58e53462dee9123c85",
+  "execution_stdout_sha256": "4ffedf62901df0de703dfa21aa5ec5a8d7d6f1b1193e780cbfc52df3e84ba9e0",
+  "execution_record_sha256": "9e1a7c90489c25e741a962199bcb74ff91c2bdafc47dd16955149ee2d27a2e79",
+  "runner_sha256": "865c20bda564493dde4d0b8a02fe41bbd96c1ee393e087c0b9b2a508ecedbf44",
+  "packages": [
+    {
+      "package": "dbus-broker",
+      "version": "37-5ubuntu5",
+      "url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z/pool/main/d/dbus-broker/dbus-broker_37-5ubuntu5_arm64.deb",
+      "final_url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z/pool/main/d/dbus-broker/dbus-broker_37-5ubuntu5_arm64.deb",
+      "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-dbus-selection-20261116/dbus-broker_37-5ubuntu5_arm64.deb",
+      "bytes": 152082,
+      "sha512": "2d7bbfbe56794c7edf6f7506905e9f7c7c76d492f2a9ae30f6b05002551069998fafe7f4c253ee62cbff8f03743d2e48df2a5bf178f6acf6eb57c3cb5f6d5564",
+      "seconds": 7.64309511333704
+    },
+    {
+      "package": "dbus-session-bus-common",
+      "version": "1.16.2-5ubuntu2",
+      "url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z/pool/main/d/dbus/dbus-session-bus-common_1.16.2-5ubuntu2_all.deb",
+      "final_url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z/pool/main/d/dbus/dbus-session-bus-common_1.16.2-5ubuntu2_all.deb",
+      "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-dbus-selection-20261116/dbus-session-bus-common_1.16.2-5ubuntu2_all.deb",
+      "bytes": 50308,
+      "sha512": "8cdbf5871de9628d8083fae2c18dfb66916e00863ab8c938be0975e7ac423e514a9d938807586ce45bd7a260bec0ad71a97db819e93c8a18e397c3540236498d",
+      "seconds": 8.172891274094582
+    },
+    {
+      "package": "dbus-user-session",
+      "version": "1.16.2-5ubuntu2",
+      "url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z/pool/main/d/dbus/dbus-user-session_1.16.2-5ubuntu2_arm64.deb",
+      "final_url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z/pool/main/d/dbus/dbus-user-session_1.16.2-5ubuntu2_arm64.deb",
+      "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-dbus-selection-20261116/dbus-user-session_1.16.2-5ubuntu2_arm64.deb",
+      "bytes": 50246,
+      "sha512": "77e7ccab720fcccf370fd7608f3167689a8272e1992870ab964302de164d4ee2606425e2d57046eafd6bf3d17395f9f7d2018e61616fa7ace0380412957644be",
+      "seconds": 8.952629533596337
+    },
+    {
+      "package": "dbus-daemon",
+      "version": "1.16.2-5ubuntu2",
+      "url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z/pool/universe/d/dbus/dbus-daemon_1.16.2-5ubuntu2_arm64.deb",
+      "final_url": "https://snapshot.ubuntu.com/ubuntu/20261106T000000Z/pool/universe/d/dbus/dbus-daemon_1.16.2-5ubuntu2_arm64.deb",
+      "path": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-dbus-selection-20261116/dbus-daemon_1.16.2-5ubuntu2_arm64.deb",
+      "bytes": 113828,
+      "sha512": "d520b94de2b2413827f297b1f20b2539d247d4ee4097948c68beb09225ffa11d06166ebf385c4a0b78bae26669384efda598a389ec93180bb7efed1c5bdf0326",
+      "seconds": 12.316461198963225
+    }
+  ],
+  "selected_member_text_and_metadata": {
+    "dbus-broker/control": {
+      "control": {
+        "path": "control",
+        "type": "file",
+        "mode": 420,
+        "bytes": 1018,
+        "text": "Package: dbus-broker\nVersion: 37-5ubuntu5\nArchitecture: arm64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 453\nDepends: libapparmor1 (>= 3.0), libaudit1 (>= 1:2.2.1), libc6 (>= 2.38), libcap-ng0 (>= 0.7.9), libexpat1 (>= 2.1~beta3), libselinux1 (>= 3.1~), libsystemd0 (>= 243), systemd-sysv, dbus-system-bus-common\nRecommends: dbus-bin\nProvides: dbus-system-bus, default-dbus-system-bus\nSection: admin\nPriority: optional\nMulti-Arch: foreign\nHomepage: https://github.com/bus1/dbus-broker/\nDescription: Linux D-Bus Message Broker\n The dbus-broker project is an implementation of a message bus as\n defined by the D-Bus specification. Its aim is to provide high\n performance and reliability, while keeping compatibility to the D-Bus\n reference implementation. It is exclusively written for Linux\n systems, and makes use of many modern features provided by recent\n Linux kernel releases.\nOriginal-Maintainer: Utopia Maintenance Team <pkg-utopia-maintainers@lists.alioth.debian.org>\n",
+        "sha256": "ec69ec007447c0b5e3aae97b3d22f9d10b0b3bf3d1a7de4bf974cd07452b1d49"
+      },
+      "postinst": {
+        "path": "postinst",
+        "type": "file",
+        "mode": 493,
+        "bytes": 4317,
+        "text": "#!/bin/sh\n\nset -e\n\nreboot_required() {\n    if [ \"$1\" -eq 1 ]; then\n        echo \"Upgrading to a newer dbus-broker version requires a reboot:\" >&2\n    else\n        echo \"Replacing the running dbus-daemon with dbus-broker requires a reboot:\" >&2\n    fi\n    echo \"please reboot the system when convenient.\" >&2\n\n    # Trigger an update notification that recommends a reboot.\n    touch /var/run/reboot-required || true\n\n    if ! grep -Fqsx dbus-broker /run/reboot-required.pkgs; then\n        echo dbus-broker >> /run/reboot-required.pkgs || true\n    fi\n}\n\nif [ \"$1\" = triggered ] && systemctl --quiet is-active dbus-broker.service; then\n    systemctl reload dbus-broker || true\n    exit 0\nfi\n\nif [ \"$1\" = configure ]; then\n    # Restarting the system bus is not supported yet. On upgrades do\n    # not restart the broker but recomment a reboot if the service is\n    # running. Replacing dbus-deamon also requires a reboot.\n\n    # dbus-daemon depends on systemd but if we are replacing\n    # dbus-broker systemd may not be running yet, so fallback to sysv-utils.\n    if [ -z \"$2\" ]; then\n        if [ -d /run/systemd/system ]; then\n            # Don't fallback to sysvs-utils if definitely running under systemd\n            if systemctl --quiet is-active dbus.service; then\n                reboot_required 0\n            fi\n        elif command -v pidof >/dev/null 2>&1 && pidof -c /bin/dbus-daemon /usr/bin/dbus-daemon >/dev/null; then\n            reboot_required 0\n        fi\n    fi\n\n    # dbus-broker depends on systemd thus we can use its functionality\n    if [ -n \"$2\" ] && systemctl --quiet is-active dbus-broker.service; then\n        reboot_required 1\n\n        # begin-remove-after: released:trixie\n        # When updating from versions << 37 the service type will change,\n        # but given we cannot restart the service we need to add an ephemeral\n        # override, otherwise reloading will be stuck and time out, as the\n        # RELOADING=1 sd_notify message won't be sent to the system manager.\n        if dpkg --compare-versions \"$2\" lt 37~; then\n            mkdir -p /run/systemd/system/dbus-broker.service.d/\n            cat <<EOF >/run/systemd/system/dbus-broker.service.d/debian-type-override.conf\n[Service]\nType=notify\nExecReload=/usr/bin/busctl call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig\nEOF\n            systemctl daemon-reload || true\n        fi\n        # end-remove-after\n\n        # In case we got new configuration files\n        systemctl reload dbus-broker || true\n    fi\nfi\n\n# Automatically added by dh_installsystemduser/14.3ubuntu1\nif [ \"$1\" = \"configure\" ] || [ \"$1\" = \"abort-upgrade\" ] || [ \"$1\" = \"abort-deconfigure\" ] || [ \"$1\" = \"abort-remove\" ] ; then\n\t# The following line should be removed in trixie or trixie+1\n\tdeb-systemd-helper --user unmask 'dbus-broker.service' >/dev/null || true\n\n\t# was-enabled defaults to true, so new installations run enable.\n\tif deb-systemd-helper --quiet --user was-enabled 'dbus-broker.service' ; then\n\t\t# Enables the unit on first installation, creates new\n\t\t# symlinks on upgrades if the unit file has changed.\n\t\tdeb-systemd-helper --user enable 'dbus-broker.service' >/dev/null || true\n\telse\n\t\t# Update the statefile to add new symlinks (if any), which need to be\n\t\t# cleaned up on purge. Also remove old symlinks.\n\t\tdeb-systemd-helper --user update-state 'dbus-broker.service' >/dev/null || true\n\tfi\nfi\n# End automatically added section\n# Automatically added by dh_installsystemd/14.3ubuntu1\nif [ \"$1\" = \"configure\" ] || [ \"$1\" = \"abort-upgrade\" ] || [ \"$1\" = \"abort-deconfigure\" ] || [ \"$1\" = \"abort-remove\" ] ; then\n\t# The following line should be removed in trixie or trixie+1\n\tdeb-systemd-helper unmask 'dbus-broker.service' >/dev/null || true\n\n\t# was-enabled defaults to true, so new installations run enable.\n\tif deb-systemd-helper --quiet was-enabled 'dbus-broker.service'; then\n\t\t# Enables the unit on first installation, creates new\n\t\t# symlinks on upgrades if the unit file has changed.\n\t\tdeb-systemd-helper enable 'dbus-broker.service' >/dev/null || true\n\telse\n\t\t# Update the statefile to add new symlinks (if any), which need to be\n\t\t# cleaned up on purge. Also remove old symlinks.\n\t\tdeb-systemd-helper update-state 'dbus-broker.service' >/dev/null || true\n\tfi\nfi\n# End automatically added section\n\n",
+        "sha256": "75cfd9340e339cb8098d054d993c01f15df70cee8f586e83baf3acafa68baa3f"
+      },
+      "postrm": {
+        "path": "postrm",
+        "type": "file",
+        "mode": 493,
+        "bytes": 1161,
+        "text": "#!/bin/sh\n\nset -e\n\n# Automatically added by dh_installsystemduser/14.3ubuntu1\nif [ \"$1\" = \"purge\" ]; then\n\tdeb-systemd-helper --user purge 'dbus-broker.service' >/dev/null || true\nfi\n# End automatically added section\n# Automatically added by dh_installsystemd/14.3ubuntu1\nif [ \"$1\" = remove ] && [ -d /run/systemd/system ] ; then\n\tsystemctl --system daemon-reload >/dev/null || true\nfi\n# End automatically added section\n# Automatically added by dh_installsystemd/14.3ubuntu1\nif [ \"$1\" = \"purge\" ]; then\n\tdeb-systemd-helper purge 'dbus-broker.service' >/dev/null || true\nfi\n# End automatically added section\n\n\n# Do not keep an alias to a non-existing service, so that other dbus implementations can be started\nif [ \"$1\" = \"remove\" ] && [ -x \"/usr/bin/deb-systemd-helper\" ]; then\n    if [ -z \"$DPKG_ROOT\" ] ; then\n        if deb-systemd-helper --quiet --user was-enabled 'dbus-broker.service' ; then\n            deb-systemd-helper --user purge 'dbus-broker.service' >/dev/null || true\n        fi\n    fi\n\n    if deb-systemd-helper --quiet was-enabled 'dbus-broker.service' ; then\n        deb-systemd-helper purge 'dbus-broker.service' >/dev/null || true\n    fi\nfi\n",
+        "sha256": "be82c0061cb68e4fb733fe61d6d6b17e0e1df75ad5577b4af12a34eb4095bf63"
+      },
+      "prerm": {
+        "path": "prerm",
+        "type": "file",
+        "mode": 493,
+        "bytes": 167,
+        "text": "#!/bin/sh\n\n# We need an empty snippet to override dh_installsystemd snippet that adds\n# a stop on remove, since doing that would likely break a running system.\nexit 0\n",
+        "sha256": "8504f60ca9b409582ae2f9864f836edea45ec4ed7bf8992479752ccc59407fc6"
+      },
+      "triggers": {
+        "path": "triggers",
+        "type": "file",
+        "mode": 420,
+        "bytes": 133,
+        "text": "interest-noawait /etc/dbus-1/system.d\ninterest-noawait /usr/share/dbus-1/system.d\ninterest-noawait /usr/share/dbus-1/system-services\n",
+        "sha256": "f52c9c91b7cfef5ec549e7e51cf7ebea4caba7f86d8ef76d8a4586ea49a67af7"
+      }
+    },
+    "dbus-broker/data": {
+      "usr/lib/systemd/user/dbus-broker.service": {
+        "path": "usr/lib/systemd/user/dbus-broker.service",
+        "type": "file",
+        "mode": 420,
+        "bytes": 360,
+        "text": "[Unit]\nDescription=D-Bus User Message Bus\nDocumentation=man:dbus-broker-launch(1)\nDefaultDependencies=false\nAfter=dbus.socket\nBefore=basic.target shutdown.target\nRequires=dbus.socket\nConflicts=shutdown.target\n\n[Service]\nType=notify-reload\nSockets=dbus.socket\nExecStart=/usr/bin/dbus-broker-launch --scope user\nSlice=session.slice\n\n[Install]\nAlias=dbus.service\n",
+        "sha256": "eeccf0dc9f8df2252566ca6bb5c3955df594082626f534c8056ee4cea476f19b"
+      }
+    },
+    "dbus-session-bus-common/control": {
+      "control": {
+        "path": "control",
+        "type": "file",
+        "mode": 420,
+        "bytes": 1188,
+        "text": "Package: dbus-session-bus-common\nSource: dbus\nVersion: 1.16.2-5ubuntu2\nArchitecture: all\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 79\nBreaks: dbus (<< 1.13.18-2~)\nReplaces: dbus (<< 1.13.18-2~)\nSection: admin\nPriority: optional\nMulti-Arch: foreign\nHomepage: https://dbus.freedesktop.org/\nDescription: simple interprocess messaging system (session bus configuration)\n D-Bus is a message bus, used for sending messages between applications.\n Conceptually, it fits somewhere in between raw sockets and CORBA in\n terms of complexity.\n .\n This package contains the configuration files defining the behaviour of\n the D-Bus session bus, used for applications and per-user services.\n These are used by the reference implementation in the dbus package,\n and by the reimplementation in the dbus-broker package.\n .\n To provide a complete D-Bus session bus, install one of the packages\n that implement the dbus-session-bus virtual package, such as\n dbus-user-session. The recommended implementation is indicated by\n the default-dbus-session-bus virtual package.\nOriginal-Maintainer: Utopia Maintenance Team <pkg-utopia-maintainers@lists.alioth.debian.org>\n",
+        "sha256": "a9c57402fbf370a6f91033d73699b90628a97db6939c082a0329322158a10bfa"
+      }
+    },
+    "dbus-session-bus-common/data": {},
+    "dbus-user-session/control": {
+      "conffiles": {
+        "path": "conffiles",
+        "type": "file",
+        "mode": 420,
+        "bytes": 39,
+        "text": "/etc/X11/Xsession.d/20dbus_xdg-runtime\n",
+        "sha256": "0da6ae2f2f54cdab79356ab3c40bbb6aef589429b8487cfa534926844e65f932"
+      },
+      "control": {
+        "path": "control",
+        "type": "file",
+        "mode": 420,
+        "bytes": 1744,
+        "text": "Package: dbus-user-session\nSource: dbus\nVersion: 1.16.2-5ubuntu2\nArchitecture: arm64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 83\nDepends: dbus-broker | dbus-daemon (= 1.16.2-5ubuntu2), dbus-session-bus-common (>= 1.16.2-5ubuntu2), libpam-systemd, systemd\nRecommends: systemd-sysv\nProvides: dbus-session-bus, default-dbus-session-bus\nSection: admin\nPriority: optional\nMulti-Arch: foreign\nHomepage: https://dbus.freedesktop.org/\nDescription: simple interprocess messaging system (systemd --user integration)\n D-Bus is a message bus, used for sending messages between applications.\n Conceptually, it fits somewhere in between raw sockets and CORBA in\n terms of complexity.\n .\n On systemd systems, this package opts in to the session model in which\n a user's session starts the first time they log in, and does not end\n until all their login sessions have ended. This model merges all\n parallel non-graphical login sessions (text mode, ssh, cron, etc.), and up\n to one graphical session, into a single \"user-session\" or \"super-session\"\n within which all background D-Bus services are shared.\n .\n Multiple graphical sessions per user are not currently supported in this\n mode; as a result, it is particularly suitable for gdm, which responds to\n requests to open a parallel graphical session by switching to the existing\n graphical session and unlocking it.\n .\n To retain dbus' traditional session semantics, in which login sessions\n are artificially isolated from each other, remove this package and install\n dbus-x11 instead.\n .\n See the dbus package description for more information about D-Bus in general.\nOriginal-Maintainer: Utopia Maintenance Team <pkg-utopia-maintainers@lists.alioth.debian.org>\n",
+        "sha256": "d1daad587a151c48492618f2656ac82d95417ea4d86ad6b94d67b83b4cdde163"
+      }
+    },
+    "dbus-user-session/data": {
+      "usr/lib/systemd/user/dbus.service": {
+        "path": "usr/lib/systemd/user/dbus.service",
+        "type": "file",
+        "mode": 420,
+        "bytes": 410,
+        "text": "[Unit]\nDescription=D-Bus User Message Bus\nDocumentation=man:dbus-daemon(1)\nRequires=dbus.socket\n\n[Service]\nType=notify\nNotifyAccess=main\nExecStart=/usr/bin/dbus-daemon --session --address=systemd: --nofork --nopidfile --systemd-activation --syslog-only\nExecReload=/usr/bin/dbus-send --print-reply --session --type=method_call --dest=org.freedesktop.DBus / org.freedesktop.DBus.ReloadConfig\nSlice=session.slice\n",
+        "sha256": "a3156e86c7a5ea0af164a08d971eb6da110ec740a553cb64e2e2cf2cc2d33059"
+      },
+      "usr/lib/systemd/user/dbus.socket": {
+        "path": "usr/lib/systemd/user/dbus.socket",
+        "type": "file",
+        "mode": 420,
+        "bytes": 174,
+        "text": "[Unit]\nDescription=D-Bus User Message Bus Socket\n\n[Socket]\nListenStream=%t/bus\nExecStartPost=-/bin/systemctl --user set-environment DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus\n",
+        "sha256": "eb9bcc798c347ea00544ca79f3ca07f3f6bd675235c9d73a42b6dcc9fd16a927"
+      },
+      "usr/lib/systemd/user/sockets.target.wants": {
+        "path": "usr/lib/systemd/user/sockets.target.wants",
+        "type": "directory",
+        "mode": 493,
+        "bytes": 0
+      },
+      "usr/lib/systemd/user/sockets.target.wants/dbus.socket": {
+        "path": "usr/lib/systemd/user/sockets.target.wants/dbus.socket",
+        "type": "symlink",
+        "mode": 511,
+        "bytes": 0,
+        "target": "../dbus.socket"
+      }
+    },
+    "dbus-daemon/control": {
+      "control": {
+        "path": "control",
+        "type": "file",
+        "mode": 420,
+        "bytes": 1451,
+        "text": "Package: dbus-daemon\nSource: dbus\nVersion: 1.16.2-5ubuntu2\nArchitecture: arm64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 419\nDepends: dbus-bin (= 1.16.2-5ubuntu2), dbus-session-bus-common (>= 1.16.2-5ubuntu2), systemd | systemd-standalone-tmpfiles | systemd-tmpfiles, libapparmor1 (>= 2.8.94), libaudit1 (>= 1:2.2.1), libc6 (>= 2.34), libcap-ng0 (>= 0.7.9), libdbus-1-3 (= 1.16.2-5ubuntu2), libexpat1 (>= 2.1~beta3), libselinux1 (>= 3.1~), libsystemd0\nBreaks: dbus (<< 1.13.18-2~)\nReplaces: dbus (<< 1.13.18-2~)\nSection: admin\nPriority: optional\nMulti-Arch: foreign\nHomepage: https://dbus.freedesktop.org/\nDescription: simple interprocess messaging system (reference message bus)\n D-Bus is a message bus, used for sending messages between applications.\n Conceptually, it fits somewhere in between raw sockets and CORBA in\n terms of complexity.\n .\n This package contains dbus-daemon, the reference implementation of a\n D-Bus message bus, and dbus-run-session, a utility to start a temporary\n session dbus-daemon in a constrained environment or for automated tests.\n .\n To provide a complete D-Bus session bus, install one of the packages\n that implement the dbus-session-bus virtual package, such as\n dbus-user-session. The recommended implementation is indicated by\n the default-dbus-session-bus virtual package.\nOriginal-Maintainer: Utopia Maintenance Team <pkg-utopia-maintainers@lists.alioth.debian.org>\n",
+        "sha256": "85cc05befe0f32917d6fe09eaadb1b61cc4e0d7645c57dbffdaf0ca1ff9be9a2"
+      },
+      "postinst": {
+        "path": "postinst",
+        "type": "file",
+        "mode": 493,
+        "bytes": 699,
+        "text": "#!/bin/sh\n\nset -e\n\nif [ \"$1\" = configure ]; then\n    # This is idempotent, so it's OK to do every time. The system bus' init\n    # script does this anyway, but you also have to do this before a session\n    # bus will work on non-systemd systems, so we do this here for the\n    # benefit of people starting a temporary session bus in a chroot.\n    mkdir -p /var/lib/dbus\n    dbus-uuidgen --ensure\nfi\n\n# Automatically added by dh_installtmpfiles/14.3ubuntu1\nif [ \"$1\" = \"configure\" ] || [ \"$1\" = \"abort-upgrade\" ] || [ \"$1\" = \"abort-deconfigure\" ] || [ \"$1\" = \"abort-remove\" ] ; then\n\tsystemd-tmpfiles ${DPKG_ROOT:+--root=\"$DPKG_ROOT\"} --create dbus.conf\nfi\n# End automatically added section\n\n\nexit 0\n",
+        "sha256": "b132449e2a659e23f3ff9cbe294b3a2dde18b0148b7b8e0b85dd5d55f53bef74"
+      },
+      "postrm": {
+        "path": "postrm",
+        "type": "file",
+        "mode": 493,
+        "bytes": 160,
+        "text": "#!/bin/sh\n\nset -e\n\nif [ \"$1\" = \"purge\" ] ; then\n    rm -f \"${DPKG_ROOT:-/}var/lib/dbus/machine-id\"\n    rmdir \"${DPKG_ROOT:-/}var/lib/dbus\" || true\nfi\n\n\n\nexit 0\n",
+        "sha256": "14be276a589d760267417b0be56ab7d628721c2bce3044ca52ce722c3074eed3"
+      }
+    },
+    "dbus-daemon/data": {}
+  },
+  "owning_findings": [
+    {
+      "fact": "dbus-user-session provides the actual user dbus.service and dbus.socket; its service executes dbus-daemon --nofork with NotifyAccess=main.",
+      "service_sha256": "a3156e86c7a5ea0af164a08d971eb6da110ec740a553cb64e2e2cf2cc2d33059",
+      "socket_sha256": "eb9bcc798c347ea00544ca79f3ca07f3f6bd675235c9d73a42b6dcc9fd16a927"
+    },
+    {
+      "fact": "dbus-broker provides a different user service with Alias=dbus.service; its postinst enables that alias in global user configuration.",
+      "service_sha256": "eeccf0dc9f8df2252566ca6bb5c3955df594082626f534c8056ee4cea476f19b",
+      "postinst_sha256": "75cfd9340e339cb8098d054d993c01f15df70cee8f586e83baf3acafa68baa3f"
+    },
+    {
+      "fact": "dbus-daemon postinst initializes machine-id/tmpfiles and performs no user-service alias selection. Installing it alongside an already enabled broker does not itself select the daemon."
+    }
+  ],
+  "proposed_minimal_builder_choice": {
+    "status": "PROPOSAL_ONLY_NOT_EXECUTED",
+    "packages": "Install dbus-daemon=1.16.2-5ubuntu2 explicitly alongside dbus-user-session=1.16.2-5ubuntu2 from the same pinned snapshot.",
+    "selection_before_user_manager": "Verify expected packaged user units and only known existing broker alias; run systemctl --global disable dbus-broker.service to remove its global user dbus.service alias. Keep the system broker unchanged. Refuse unexpected overrides, masks, alias targets or drop-ins instead of silently replacing them. The existing vendor dbus.service then supplies the daemon.",
+    "verification": "Before enabling the new ukai session, verify the effective user-unit selection resolves to the packaged /usr/lib/systemd/user/dbus.service and exact expected ExecStart. After starting the session, retain effective FragmentPath, ExecStart, MainPID and pidfd/birth/executable checks; require the bus process is the expected dbus-daemon and no broker child is being implicitly exempted.",
+    "future_updates": "Recheck selection after any subsequent package configuration because broker postinst can re-enable its alias.",
+    "controller_scope": "Keep current infrastructure PID policy; do not add a broker child or arbitrary same-unit allowlist."
+  },
+  "selection_semantics_source": "https://www.freedesktop.org/software/systemd/man/latest/systemctl.html#disable%20UNIT%E2%80%A6",
+  "semantics_note": "Official systemctl documentation defines disable as removing enable/link symlinks and --global as future user configuration; it does not stop already running units. Proposed ordering is therefore before starting the new user manager.",
+  "inference_limit": "Package bytes establish how aliases are installed and daemon is launched. The actual image /etc alias has not been read, and no service was started; runtime compatibility and the final effective provider still require later bounded builder checks.",
+  "remote_result": "/home/ouro-ci/ukai-ci/runs/ubuntu2610-dbus-selection-20261116/result.json",
+  "remote_result_sha256": "d55cb52bd5e8fb9222ed562a5517719ad9fa96ddfa3ae44caf1432e6fb483b8a",
+  "no_install_vm_mount_guest_or_provider": true,
+  "no_source_mutation": true,
+  "no_executable_extraction_or_execution": true,
+  "original_image_and_indexes_unchanged": true,
+  "free_bytes_after": 25851584512
+}

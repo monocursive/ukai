@@ -22,8 +22,256 @@ SOURCE = Path(__file__).resolve().parent
 # builder resolves packages against exactly this archive state, so two
 # builds see the same versions. The manifest records the pin; a build
 # against a different snapshot is a different image.
-SNAPSHOT = '20261020T000000Z'
+SNAPSHOT = '20261106T000000Z'
 SNAPSHOT_URL = 'https://snapshot.ubuntu.com/ubuntu/' + SNAPSHOT
+APT_SUITES = ('stonking', 'stonking-updates', 'stonking-security')
+
+
+def snapshot_sources():
+    return (f'Types: deb\nURIs: {SNAPSHOT_URL}\nSuites: {" ".join(APT_SUITES)}\n'
+            'Components: main universe\n'
+            'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n')
+
+
+# The guest executes these exact bytes; host tests exercise the same guard on
+# small fixtures. This checks the standard source paths, not apt.conf or hooks.
+APT_SOURCE_GUARD = '''import hashlib, os, stat, sys
+
+def refuse(code):
+    raise ValueError(code)
+
+def verify(root, expected):
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    root_fd = os.open(root, directory_flags)
+    count = total = 0
+    own_seen = False
+
+    def check(parent_fd, name, own=False):
+        nonlocal count, total, own_seen
+        count += 1
+        if count > 64:
+            refuse('file_count')
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent_fd)
+        try:
+            before = os.fstat(fd)
+            if not stat.S_ISREG(before.st_mode):
+                refuse('file_type')
+            if before.st_size > 65536 or total + before.st_size > 1048576:
+                refuse('byte_limit')
+            data = bytearray()
+            while True:
+                block = os.read(fd, min(4096, 65537 - len(data)))
+                if not block:
+                    break
+                data.extend(block)
+                if len(data) > 65536 or total + len(data) > 1048576:
+                    refuse('byte_limit')
+            after = os.fstat(fd)
+            identity = lambda s: (s.st_dev, s.st_ino, s.st_mode, s.st_size, s.st_mtime_ns, s.st_ctime_ns)
+            if identity(before) != identity(after) or len(data) != before.st_size:
+                refuse('source_changed')
+            total += len(data)
+            if own:
+                if hashlib.sha256(data).hexdigest() != expected:
+                    refuse('snapshot_mismatch')
+                own_seen = True
+            elif any(line.strip(b' \\t\\r') and not line.lstrip(b' \\t\\r').startswith(b'#')
+                     for line in data.split(b'\\n')):
+                refuse('unexpected_source')
+        finally:
+            os.close(fd)
+
+    try:
+        try:
+            os.stat('sources.list', dir_fd=root_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            check(root_fd, 'sources.list')
+        sources_fd = os.open('sources.list.d', directory_flags, dir_fd=root_fd)
+        try:
+            with os.scandir(sources_fd) as entries:
+                for number, entry in enumerate(entries, 1):
+                    if number > 64:
+                        refuse('directory_count')
+                    if entry.name.endswith(('.list', '.sources')):
+                        check(sources_fd, entry.name, entry.name == 'ukai-snapshot.sources')
+            if not own_seen:
+                refuse('snapshot_missing')
+        finally:
+            os.close(sources_fd)
+    finally:
+        os.close(root_fd)
+
+try:
+    verify(sys.argv[1], sys.argv[2])
+except OSError:
+    sys.exit('ukai apt source guard: source_io')
+except ValueError as error:
+    sys.exit('ukai apt source guard: ' + str(error))
+'''
+
+
+def apt_update_script():
+    """Install the pinned stanza and refuse unexpected sources before update."""
+    stanza = snapshot_sources()
+    digest = hashlib.sha256(stanza.encode()).hexdigest()
+    return ("cat > /etc/apt/sources.list.d/ukai-snapshot.sources <<'UKAI_APT_SNAPSHOT'\n"
+            + stanza + 'UKAI_APT_SNAPSHOT\n'
+            + 'rm -f /etc/apt/sources.list.d/ubuntu.sources\n'
+            + f"python3 - /etc/apt {digest} <<'UKAI_APT_SOURCE_GUARD'\n"
+            + APT_SOURCE_GUARD + 'UKAI_APT_SOURCE_GUARD\n'
+            + 'echo UKAI_STEP apt_update >/dev/hvc0\napt-get update\n')
+
+
+# Authenticated Stonking package units. Select the single-process user bus
+# expected by guest.py; the system bus may continue using dbus-broker.
+SESSION_BUS_GUARD = '''import hashlib, os, pathlib, pwd, stat, subprocess, sys
+
+PINS = {
+    'dbus.service': 'a3156e86c7a5ea0af164a08d971eb6da110ec740a553cb64e2e2cf2cc2d33059',
+    'dbus.socket': 'eb9bcc798c347ea00544ca79f3ca07f3f6bd675235c9d73a42b6dcc9fd16a927',
+    'dbus-broker.service': 'eeccf0dc9f8df2252566ca6bb5c3955df594082626f534c8056ee4cea476f19b',
+}
+ARGV = ['/usr/bin/dbus-daemon', '--session', '--address=systemd:', '--nofork',
+        '--nopidfile', '--systemd-activation', '--syslog-only']
+PROPERTIES = ['FragmentPath', 'DropInPaths', 'ExecStart', 'MainPID',
+              'Type', 'NotifyAccess', 'ActiveState', 'SubState']
+
+def require(condition, code):
+    if not condition:
+        raise ValueError(code)
+
+def read_small(name, parent=None, cap=16384):
+    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+    try:
+        info = os.fstat(fd)
+        require(stat.S_ISREG(info.st_mode) and info.st_size <= cap, 'file_type_or_size')
+        data = bytearray()
+        while True:
+            block = os.read(fd, min(4096, cap + 1 - len(data)))
+            if not block:
+                return bytes(data)
+            data.extend(block)
+            require(len(data) <= cap, 'read_limit')
+    finally:
+        os.close(fd)
+
+def check_units(root=pathlib.Path('/'), allow_broker_alias=False):
+    vendor = root / 'usr/lib/systemd/user'
+    require(stat.S_ISDIR(vendor.lstat().st_mode), 'unit_directory')
+    for name, digest in PINS.items():
+        require(hashlib.sha256(read_small(vendor / name, cap=65536)).hexdigest() == digest,
+                'vendor_unit_changed')
+    for relative in ('etc/systemd/user', 'run/systemd/user',
+                     'usr/local/lib/systemd/user', 'usr/lib/systemd/user'):
+        directory = root / relative
+        if not os.path.lexists(directory):
+            continue
+        require(stat.S_ISDIR(directory.lstat().st_mode), 'unit_directory')
+        for name in (*PINS, 'service', 'socket'):
+            require(not os.path.lexists(directory / (name + '.d')), 'unit_dropin')
+        if directory == vendor:
+            continue
+        for name in PINS:
+            path = directory / name
+            if not os.path.lexists(path):
+                continue
+            require(allow_broker_alias and relative == 'etc/systemd/user'
+                    and name == 'dbus.service' and path.is_symlink()
+                    and path.resolve(strict=True) == vendor / 'dbus-broker.service',
+                    'unit_override')
+
+def command(argv, account=None):
+    options = dict(env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8'})
+    if account is not None:
+        require(account.pw_uid == 1001, 'account_uid')
+        options.update(user=account.pw_uid, group=account.pw_gid, extra_groups=[])
+        options['env']['XDG_RUNTIME_DIR'] = '/run/user/1001'
+    result = subprocess.run(['/usr/bin/systemctl', *argv], stdin=subprocess.DEVNULL,
+                            capture_output=True, cwd='/', timeout=30, **options)
+    # Accepted-output cap after capture; the trusted bootstrap command has a
+    # 30-second deadline, not a claim of a hard pipe-allocation limit.
+    require(result.returncode == 0 and len(result.stdout) <= 16384
+            and len(result.stderr) <= 16384, 'systemctl_failed')
+    return result.stdout.decode('utf-8', errors='strict')
+
+def select():
+    check_units(allow_broker_alias=True)
+    command(['--global', 'disable', 'dbus-broker.service'])
+    check_units()
+
+def properties(text):
+    values = {}
+    for line in text.splitlines():
+        key, separator, value = line.partition('=')
+        require(separator and key in PROPERTIES and key not in values, 'unit_properties')
+        values[key] = value
+    require(set(values) == set(PROPERTIES), 'unit_properties')
+    require(values['FragmentPath'] == '/usr/lib/systemd/user/dbus.service'
+            and values['DropInPaths'] == '' and values['Type'] == 'notify'
+            and values['NotifyAccess'] == 'main' and values['ActiveState'] == 'active'
+            and values['SubState'] == 'running', 'effective_unit')
+    # systemctl's execution-status suffix varies; require one command and its
+    # exact public executable/argv, not a substring match on the daemon name.
+    execution = values['ExecStart']
+    require(execution.startswith('{ path=' + ARGV[0] + ' ; argv[]=' + ' '.join(ARGV)
+                                 + ' ; ignore_errors=no ; ')
+            and execution.endswith(' }') and execution.count('{') == 1
+            and execution.count('}') == 1, 'effective_exec')
+    pid = values['MainPID']
+    require(len(pid) <= 10 and pid.isascii() and pid.isdecimal() and 1 < int(pid) < 2**31, 'main_pid')
+    return int(pid)
+
+def birth(raw, pid):
+    require(raw.startswith(str(pid).encode() + b' ('), 'process_identity')
+    fields = raw[raw.rfind(b')') + 1:].split()
+    require(len(fields) >= 20 and fields[19].isdigit() and int(fields[19]) > 0,
+            'process_identity')
+    return int(fields[19])
+
+def verify_process(pid, proc=pathlib.Path('/proc'), confirm=None):
+    fd = os.open(proc / str(pid), os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        before = birth(read_small('stat', fd), pid)
+        require(os.readlink('exe', dir_fd=fd) == ARGV[0], 'process_executable')
+        require(read_small('cmdline', fd) == b'\\0'.join(arg.encode() for arg in ARGV) + b'\\0',
+                'process_argv')
+        status = read_small('status', fd).splitlines()
+        require([line.split()[1:] for line in status if line.startswith(b'Uid:')]
+                == [[b'1001'] * 4], 'process_uid')
+        require(birth(read_small('stat', fd), pid) == before, 'process_changed')
+        if confirm is not None:
+            confirm()
+            require(birth(read_small('stat', fd), pid) == before, 'process_changed')
+    finally:
+        os.close(fd)
+
+def verify():
+    check_units()
+    account = pwd.getpwnam('ukai')
+    command(['--user', 'start', 'dbus.service'], account)
+    show = ['--user', 'show', 'dbus.service', *['--property=' + key for key in PROPERTIES]]
+    pid = properties(command(show, account))
+    def confirm():
+        require(properties(command(show, account)) == pid, 'main_pid_changed')
+    verify_process(pid, confirm=confirm)
+
+if __name__ == '__main__':
+    try:
+        require(sys.argv[1:] in (['select'], ['verify']), 'phase')
+        select() if sys.argv[1] == 'select' else verify()
+    except (OSError, subprocess.SubprocessError, UnicodeError, KeyError):
+        sys.exit('ukai session bus guard: lookup_failed')
+    except ValueError as error:
+        sys.exit('ukai session bus guard: ' + str(error))
+'''
+
+
+def session_bus_script(phase):
+    if phase not in ('select', 'verify'):
+        raise ValueError('session bus guard phase')
+    return f"python3 - {phase} <<'UKAI_SESSION_BUS_GUARD'\n" + SESSION_BUS_GUARD + 'UKAI_SESSION_BUS_GUARD\n'
 
 
 def load_coordinates():
@@ -37,8 +285,8 @@ def load_coordinates():
 
 
 coordinates = load_coordinates()
-IMAGE_URL = 'https://cloud-images.ubuntu.com/minimal/releases/resolute/release-20261009/ubuntu-26.04-minimal-cloudimg-arm64.img'
-IMAGE_SHA256 = '4e86a7819b4cc7b4a9c2e719dec3e0a723c4a2788dc3f23f17641cba7f5ca216'
+IMAGE_URL = 'https://cloud-images.ubuntu.com/minimal/releases/stonking/release-20261105/ubuntu-26.10-minimal-cloudimg-arm64.img'
+IMAGE_SHA256 = 'bac15af78c37fec8e9474a9a784041c13ddb2603b9095435b7e4269e3faf3064'
 # The guest runs the current public Linux release (dist/release.json), checked
 # against the SHA-256 the public installer pins for it.
 JAIL_TARGET = 'aarch64-unknown-linux-gnu'
@@ -126,13 +374,13 @@ NATIVE_VERSION = '2.1.311'
 NATIVE_SHA256 = '2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3'
 NATIVE_SIZE = 293658808
 NATIVE_PROFILE_SHA256 = 'e3d804e5557c5829205b5156d636a9fbcdc1e1dcff7d3bebd5b88891bbe17a24'
-NATIVE_JAIL_SHA256 = '118c8bdda8c7bd5b5957bce15171ff418fb7df0350de795770532beaee2e3462'
+NATIVE_JAIL_SHA256 = 'c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f'
 
 
 def stage_native_program(source, directory, jail_binary):
     """Verify/copy one pinned local ELF; return seed inputs, never execute it."""
     if hashlib.sha256(jail_binary).hexdigest() != NATIVE_JAIL_SHA256:
-        raise ValueError('native program requires the pinned rc.6 ARM guest jail')
+        raise ValueError('native program requires the pinned signed rc.7 ARM guest jail')
     profile = (SOURCE.parent / 'profiles/launch/claude.toml').read_bytes()
     if hashlib.sha256(profile).hexdigest() != NATIVE_PROFILE_SHA256:
         raise ValueError('native bundled profile differs from the pinned guest jail')
@@ -289,7 +537,7 @@ def main():
     parser.add_argument('--jail-candidate', type=Path,
                         help='use a local signed Linux candidate verified with the checked-in release.pub')
     parser.add_argument('--native-claude', type=Path,
-                        help='opt in to the pinned local Claude ELF catalog (requires the pinned signed rc.6 guest)')
+                        help='opt in to the pinned local Claude ELF catalog (requires the pinned signed rc.7 ARM guest jail)')
     args = parser.parse_args()
     if args.native_claude is not None and args.jail_candidate is None:
         parser.error('--native-claude requires --jail-candidate')
@@ -338,32 +586,28 @@ set -eu
 export DEBIAN_FRONTEND=noninteractive
 # Immutable archive pin: every apt operation resolves against the snapshot
 # recorded in image.json, never the moving live archive.
-printf 'Types: deb\\nURIs: {SNAPSHOT_URL}\\nSuites: resolute resolute-updates resolute-security\\nComponents: main universe\\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\\n' > /etc/apt/sources.list.d/ukai-snapshot.sources
-rm -f /etc/apt/sources.list.d/ubuntu.sources
 # Install what the guest jail's guarantees measure against, resolved from
 # the snapshot above; the installed versions are also recorded in the image
-# manifest: `bubblewrap` is the containment backend, `dbus-user-session`
-# the session bus the jail's scope request (busctl --user) talks to.
+# manifest: `bubblewrap` is the containment backend; `dbus-user-session`
+# and the explicitly selected `dbus-daemon` supply the session bus.
 # These leave exactly the user manager, its (sd-pam) helper and the bus
 # running as the account; guest.py learns those three from systemd at
 # session open (learn_infrastructure) and the attempt stop spares only them.
-echo UKAI_STEP apt_update >/dev/hvc0
-apt-get update
-echo UKAI_STEP apt_install >/dev/hvc0
-apt-get install -y --no-install-recommends bubblewrap dbus-user-session
-echo UKAI_STEP users >/dev/hvc0
+{apt_update_script()}echo UKAI_STEP apt_install >/dev/hvc0
+apt-get install -y --no-install-recommends bubblewrap dbus-user-session dbus-daemon
+{session_bus_script('select')}echo UKAI_STEP users >/dev/hvc0
 mkdir -p /usr/local/share/ukai-vm
-dpkg-query -W -f='${{Package}}=${{Version}}\n' bubblewrap dbus-user-session > /usr/local/share/ukai-vm/pinned-versions.txt
+dpkg-query -W -f='${{Package}}=${{Version}}\n' bubblewrap dbus-user-session dbus-daemon > /usr/local/share/ukai-vm/pinned-versions.txt
 useradd --create-home --uid 1001 --shell /bin/bash ukai
 loginctl enable-linger ukai
 systemctl start user@1001.service
-systemctl disable ssh.service ssh.socket 2>/dev/null || true
+{session_bus_script('verify')}systemctl disable ssh.service ssh.socket 2>/dev/null || true
 mkdir -p /usr/local/share/ukai-vm
 dpkg-query -W > /usr/local/share/ukai-vm/packages.txt
 # The console carries the pinned set to the host builder, which records it
 # in image.json: the manifest then names what the guarantees measured
 # against without mounting the disk.
-dpkg-query -W -f='${{Package}}=${{Version}}\n' bubblewrap dbus-user-session | while read -r row; do echo "UKAI_PINNED $row" >/dev/hvc0; done
+dpkg-query -W -f='${{Package}}=${{Version}}\n' bubblewrap dbus-user-session dbus-daemon | while read -r row; do echo "UKAI_PINNED $row" >/dev/hvc0; done
 {native_install_script(native)}{('python3 /usr/local/lib/ukai-vm/guest_exposure_control.py --out /usr/local/share/ukai-vm/exposure-control.json' + chr(10)) if native else ''}systemctl enable ukai-vm.service
 sync
 echo UKAI_BOOTSTRAP_DONE > /dev/hvc0

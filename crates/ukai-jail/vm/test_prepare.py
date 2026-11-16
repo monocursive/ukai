@@ -2,15 +2,351 @@ import hashlib
 import base64
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
 from unittest import mock
 
 import prepare
+
+
+class AptSnapshotTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.sources = self.root / 'sources.list.d'
+        self.sources.mkdir()
+        self.own = self.sources / 'ukai-snapshot.sources'
+        self.own.write_text(prepare.snapshot_sources())
+        self.digest = hashlib.sha256(self.own.read_bytes()).hexdigest()
+
+    def guard(self, expected=None):
+        result = subprocess.run([sys.executable, '-I', '-B', '-c', prepare.APT_SOURCE_GUARD,
+                                 str(self.root), self.digest], capture_output=True, timeout=10)
+        self.assertEqual(result.stdout, b'')
+        if expected is None:
+            self.assertEqual((result.returncode, result.stderr), (0, b''))
+        else:
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.stderr, f'ukai apt source guard: {expected}\n'.encode())
+
+    def test_authenticated_image_snapshot_and_signed_jail_pins_are_coherent(self):
+        self.assertEqual(prepare.IMAGE_URL, 'https://cloud-images.ubuntu.com/minimal/releases/'
+                         'stonking/release-20261105/ubuntu-26.10-minimal-cloudimg-arm64.img')
+        self.assertEqual(prepare.IMAGE_SHA256, 'bac15af78c37fec8e9474a9a784041c13ddb2603b9095435b7e4269e3faf3064')
+        self.assertEqual(prepare.NATIVE_JAIL_SHA256, 'c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f')
+        self.assertEqual(prepare.SNAPSHOT, '20261106T000000Z')
+        self.assertEqual(prepare.snapshot_sources(),
+                         'Types: deb\nURIs: https://snapshot.ubuntu.com/ubuntu/20261106T000000Z\n'
+                         'Suites: stonking stonking-updates stonking-security\n'
+                         'Components: main universe\n'
+                         'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n')
+
+    def test_exact_snapshot_and_only_blank_or_comment_sources_pass(self):
+        self.guard()
+        (self.root / 'sources.list').write_bytes(b'\n \t# old source disabled\r\n')
+        (self.sources / 'empty.list').write_bytes(b'')
+        (self.sources / 'comments.sources').write_bytes(b'# Types: deb\n\t\r\n')
+        # APT does not treat this suffix as an active source file.
+        (self.sources / 'old.sources.save').write_bytes(b'not an active source\n')
+        self.guard()
+
+    def test_unexpected_legacy_and_deb822_sources_refuse_without_mutation(self):
+        for name, raw in [('sources.list', b'deb https://example.invalid resolute main\n'),
+                          ('old.list', b'deb-src https://example.invalid stonking main\n'),
+                          ('old.sources', b'Types: deb\nURIs: https://example.invalid\nSuites: resolute\n'),
+                          ('disabled.sources', b'Enabled: no\nTypes: deb\n')]:
+            with self.subTest(name=name):
+                path = (self.root if name == 'sources.list' else self.sources) / name
+                path.write_bytes(raw)
+                self.guard('unexpected_source')
+                self.assertEqual(path.read_bytes(), raw)
+                path.unlink()
+
+    def test_missing_or_modified_own_snapshot_refuses(self):
+        self.own.write_text(prepare.snapshot_sources().replace('stonking-updates', 'resolute-updates'))
+        self.guard('snapshot_mismatch')
+        self.own.unlink()
+        self.guard('snapshot_missing')
+
+    def test_source_symlinks_and_special_files_refuse_without_following(self):
+        outside = self.root / 'outside'
+        raw = b'PUBLIC_TEST_SOURCE_CONTENT_MUST_NOT_BE_PRINTED\n'
+        outside.write_bytes(raw)
+        for path in (self.root / 'sources.list', self.sources / 'other.sources'):
+            with self.subTest(path=path.name):
+                path.symlink_to(outside)
+                self.guard('source_io')
+                self.assertEqual(outside.read_bytes(), raw)
+                path.unlink()
+        special = self.sources / 'special.list'
+        os.mkfifo(special)
+        self.guard('file_type')
+        special.unlink()
+        special.mkdir()
+        self.guard('file_type')
+
+    def test_symlink_source_directory_refuses(self):
+        moved = self.root / 'moved'
+        self.sources.rename(moved)
+        self.sources.symlink_to(moved, target_is_directory=True)
+        self.guard('source_io')
+
+    def test_unreadable_source_refuses(self):
+        if os.geteuid() == 0:
+            self.skipTest('root bypasses fixture file read permissions')
+        other = self.sources / 'unreadable.list'
+        other.write_bytes(b'# comment\n')
+        other.chmod(0)
+        self.addCleanup(other.chmod, 0o600)
+        self.guard('source_io')
+
+    def test_file_and_aggregate_byte_caps_refuse(self):
+        other = self.sources / 'large.list'
+        other.write_bytes(b'#' + b' ' * 65536)
+        self.guard('byte_limit')
+        other.unlink()
+        for number in range(16):
+            (self.sources / f'{number}.list').write_bytes(b'#' + b' ' * 65535)
+        self.guard('byte_limit')
+
+    def test_file_count_and_directory_enumeration_are_bounded(self):
+        (self.root / 'sources.list').write_bytes(b'')
+        for number in range(63):
+            (self.sources / f'{number}.list').write_bytes(b'')
+        self.guard('file_count')
+        for path in self.sources.glob('*.list'):
+            path.unlink()
+        (self.root / 'sources.list').unlink()
+        for number in range(64):
+            (self.sources / f'{number}.save').write_bytes(b'')
+        self.guard('directory_count')
+
+    def test_generated_update_runs_exact_guard_before_apt_without_other_removals(self):
+        script = prepare.apt_update_script()
+        self.assertIn(prepare.snapshot_sources() + 'UKAI_APT_SNAPSHOT\n', script)
+        marker = f"python3 - /etc/apt {self.digest} <<'UKAI_APT_SOURCE_GUARD'\n"
+        self.assertIn(marker + prepare.APT_SOURCE_GUARD + 'UKAI_APT_SOURCE_GUARD\n', script)
+        self.assertLess(script.index('rm -f /etc/apt/sources.list.d/ubuntu.sources'), script.index(marker))
+        self.assertLess(script.index(marker), script.index('apt-get update'))
+        self.assertEqual([line for line in script.splitlines() if line.startswith('rm ')],
+                         ['rm -f /etc/apt/sources.list.d/ubuntu.sources'])
+        result = subprocess.run(['/bin/sh', '-n'], input=script.encode(), capture_output=True, timeout=10)
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'', b''))
+        # The actual setup uses this renderer rather than a second source stanza.
+        import inspect
+        self.assertIn('{apt_update_script()}echo UKAI_STEP apt_install', inspect.getsource(prepare.main))
+
+
+class SessionBusPreparationTests(unittest.TestCase):
+    # Exact files inspected in the authenticated Ubuntu packages; no systemd
+    # command or guest process is executed by these fixtures.
+    UNITS = {
+        'dbus.service': '[Unit]\nDescription=D-Bus User Message Bus\nDocumentation=man:dbus-daemon(1)\n'
+            'Requires=dbus.socket\n\n[Service]\nType=notify\nNotifyAccess=main\n'
+            'ExecStart=/usr/bin/dbus-daemon --session --address=systemd: --nofork --nopidfile '
+            '--systemd-activation --syslog-only\nExecReload=/usr/bin/dbus-send --print-reply --session '
+            '--type=method_call --dest=org.freedesktop.DBus / org.freedesktop.DBus.ReloadConfig\n'
+            'Slice=session.slice\n',
+        'dbus.socket': '[Unit]\nDescription=D-Bus User Message Bus Socket\n\n[Socket]\n'
+            'ListenStream=%t/bus\nExecStartPost=-/bin/systemctl --user set-environment '
+            'DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus\n',
+        'dbus-broker.service': '[Unit]\nDescription=D-Bus User Message Bus\n'
+            'Documentation=man:dbus-broker-launch(1)\nDefaultDependencies=false\nAfter=dbus.socket\n'
+            'Before=basic.target shutdown.target\nRequires=dbus.socket\nConflicts=shutdown.target\n\n'
+            '[Service]\nType=notify-reload\nSockets=dbus.socket\n'
+            'ExecStart=/usr/bin/dbus-broker-launch --scope user\nSlice=session.slice\n\n'
+            '[Install]\nAlias=dbus.service\n',
+    }
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name).resolve()
+        self.vendor = self.root / 'usr/lib/systemd/user'
+        self.vendor.mkdir(parents=True)
+        self.etc = self.root / 'etc/systemd/user'
+        self.etc.mkdir(parents=True)
+        for name, text in self.UNITS.items():
+            (self.vendor / name).write_text(text)
+        self.guard = {'__name__': 'guard_fixture'}
+        exec(compile(prepare.SESSION_BUS_GUARD, '<session-bus-guard>', 'exec'), self.guard)
+
+    def unit_properties(self):
+        return {'FragmentPath': '/usr/lib/systemd/user/dbus.service', 'DropInPaths': '',
+                'ExecStart': '{ path=/usr/bin/dbus-daemon ; argv[]=' + ' '.join(self.guard['ARGV'])
+                    + ' ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=123 ; code=(null) ; status=0/0 }',
+                'MainPID': '123', 'Type': 'notify', 'NotifyAccess': 'main',
+                'ActiveState': 'active', 'SubState': 'running'}
+
+    @staticmethod
+    def property_text(values):
+        return ''.join(f'{key}={value}\n' for key, value in values.items())
+
+    @staticmethod
+    def proc_stat(birth=456):
+        return b'123 (dbus-daemon) ' + b' '.join([b'S', *([b'1'] * 18), str(birth).encode()]) + b'\n'
+
+    def process_fixture(self):
+        proc = self.root / 'proc'
+        process = proc / '123'
+        process.mkdir(parents=True)
+        (process / 'stat').write_bytes(self.proc_stat())
+        (process / 'status').write_bytes(b'Name:\tdbus-daemon\nUid:\t1001\t1001\t1001\t1001\n')
+        (process / 'cmdline').write_bytes(b'\0'.join(a.encode() for a in self.guard['ARGV']) + b'\0')
+        (process / 'exe').symlink_to('/usr/bin/dbus-daemon')
+        return proc, process
+
+    def test_exact_packaged_units_and_known_alias_select_only_global_user_provider(self):
+        check = self.guard['check_units']
+        check(self.root)
+        alias = self.etc / 'dbus.service'
+        alias.symlink_to(self.vendor / 'dbus-broker.service')
+        self.guard['check_units'] = lambda **kw: check(self.root, **kw)
+        calls = []
+        def disable(argv):
+            calls.append(argv)
+            alias.unlink()
+        self.guard['command'] = disable
+        self.guard['select']()
+        self.assertEqual(calls, [['--global', 'disable', 'dbus-broker.service']])
+        self.assertTrue((self.vendor / 'dbus-broker.service').exists())
+        check(self.root)
+
+    def test_wrong_vendor_alias_override_and_dropin_refuse_before_command(self):
+        check = self.guard['check_units']
+        self.guard['check_units'] = lambda **kw: check(self.root, **kw)
+        self.guard['command'] = mock.Mock()
+        for kind in ('vendor', 'alias', 'override', 'dropin'):
+            with self.subTest(kind=kind):
+                if kind == 'vendor':
+                    path = self.vendor / 'dbus.service'; saved = path.read_bytes(); path.write_bytes(b'changed')
+                elif kind == 'alias':
+                    path = self.etc / 'dbus.service'; path.symlink_to(self.vendor / 'dbus.socket')
+                elif kind == 'override':
+                    path = self.etc / 'dbus.socket'; path.write_bytes(b'override')
+                else:
+                    path = self.etc / 'dbus.service.d'; path.mkdir()
+                with self.assertRaises(ValueError): self.guard['select']()
+                self.guard['command'].assert_not_called()
+                if kind == 'vendor': path.write_bytes(saved)
+                elif kind == 'dropin': path.rmdir()
+                else: path.unlink()
+
+    def test_alias_remaining_after_disable_refuses(self):
+        check = self.guard['check_units']
+        (self.etc / 'dbus.service').symlink_to(self.vendor / 'dbus-broker.service')
+        self.guard['check_units'] = lambda **kw: check(self.root, **kw)
+        self.guard['command'] = mock.Mock()
+        with self.assertRaisesRegex(ValueError, 'unit_override'): self.guard['select']()
+        self.guard['command'].assert_called_once_with(['--global', 'disable', 'dbus-broker.service'])
+
+    def test_effective_daemon_unit_requires_exact_single_exec_and_positive_main_pid(self):
+        parse = self.guard['properties']; valid = self.unit_properties()
+        self.assertEqual(parse(self.property_text(valid)), 123)
+        for key, value in [('FragmentPath', '/usr/lib/systemd/user/dbus-broker.service'),
+                           ('DropInPaths', '/etc/systemd/user/dbus.service.d/override.conf'),
+                           ('MainPID', '0'), ('MainPID', '1' * 30), ('Type', 'simple'),
+                           ('ActiveState', 'inactive'), ('ExecStart', valid['ExecStart'].replace('--nofork', '--fork')),
+                           ('ExecStart', valid['ExecStart'] + valid['ExecStart'])]:
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                parse(self.property_text({**valid, key: value}))
+        with self.assertRaises(ValueError): parse(self.property_text(valid) + 'MainPID=123\n')
+
+    def test_live_pid_executable_argv_and_all_four_uids_are_required(self):
+        proc, process = self.process_fixture()
+        verify = self.guard['verify_process']; verify(123, proc)
+        for name, raw, code in [('cmdline', b'dbus-broker-launch\0', 'process_argv'),
+                                ('status', b'Uid:\t1001\t1001\t0\t1001\n', 'process_uid'),
+                                ('stat', self.proc_stat().replace(b'123 (', b'124 ('), 'process_identity')]:
+            path = process / name; saved = path.read_bytes(); path.write_bytes(raw)
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, code): verify(123, proc)
+            path.write_bytes(saved)
+        (process / 'exe').unlink(); (process / 'exe').symlink_to('/usr/bin/dbus-broker-launch')
+        with self.assertRaisesRegex(ValueError, 'process_executable'): verify(123, proc)
+
+    def test_zero_sized_proc_metadata_is_read_and_generation_change_refuses(self):
+        from types import SimpleNamespace
+        proc, _ = self.process_fixture()
+        original = os.fstat
+        with mock.patch.object(os, 'fstat', side_effect=lambda fd:
+                               SimpleNamespace(st_mode=original(fd).st_mode, st_size=0)):
+            self.guard['verify_process'](123, proc)
+        read = self.guard['read_small']; count = 0
+        def changed(name, *args, **kwargs):
+            nonlocal count
+            if name == 'stat':
+                count += 1
+                if count == 2: return self.proc_stat(457)
+            return read(name, *args, **kwargs)
+        self.guard['read_small'] = changed
+        with self.assertRaisesRegex(ValueError, 'process_changed'): self.guard['verify_process'](123, proc)
+
+    def test_fixed_direct_user_identity_environment_and_command_bound(self):
+        from types import SimpleNamespace
+        account = SimpleNamespace(pw_uid=1001, pw_gid=1002)
+        with mock.patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, b'ok', b'')) as run:
+            self.assertEqual(self.guard['command'](['--user', 'show', 'dbus.service'], account), 'ok')
+        self.assertEqual(run.call_args.args[0], ['/usr/bin/systemctl', '--user', 'show', 'dbus.service'])
+        options = run.call_args.kwargs
+        self.assertEqual((options['user'], options['group'], options['extra_groups'], options['cwd'], options['timeout']),
+                         (1001, 1002, [], '/', 30))
+        self.assertEqual(options['env'], {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8',
+                                         'XDG_RUNTIME_DIR': '/run/user/1001'})
+        for result in [subprocess.CompletedProcess([], 1, b'', b'failure'),
+                       subprocess.CompletedProcess([], 0, b'x' * 16385, b'')]:
+            with mock.patch.object(subprocess, 'run', return_value=result), self.assertRaisesRegex(ValueError, 'systemctl_failed'):
+                self.guard['command'](['--user', 'show', 'dbus.service'], account)
+
+    def test_effective_unit_is_rechecked_while_same_proc_directory_remains_held(self):
+        proc, process = self.process_fixture()
+        verify_process = self.guard['verify_process']
+        self.guard['verify_process'] = lambda pid, confirm: verify_process(pid, proc, confirm)
+        self.guard['check_units'] = mock.Mock()
+        valid = self.unit_properties()
+        account = mock.Mock(pw_uid=1001, pw_gid=1001)
+        for changed in (None, 'pid', 'unit', 'birth'):
+            with self.subTest(changed=changed):
+                (process / 'stat').write_bytes(self.proc_stat())
+                calls = []
+                def command(argv, actual_account):
+                    self.assertIs(actual_account, account)
+                    calls.append(argv)
+                    if len(calls) == 1: return ''
+                    values = dict(valid)
+                    if len(calls) == 3:
+                        if changed == 'pid': values['MainPID'] = '124'
+                        if changed == 'unit': values['DropInPaths'] = '/unexpected.conf'
+                        if changed == 'birth': (process / 'stat').write_bytes(self.proc_stat(457))
+                    return self.property_text(values)
+                self.guard['command'] = command
+                with mock.patch.object(self.guard['pwd'], 'getpwnam', return_value=account):
+                    if changed is None: self.guard['verify']()
+                    else:
+                        with self.assertRaises(ValueError): self.guard['verify']()
+                self.assertEqual(calls[0], ['--user', 'start', 'dbus.service'])
+                self.assertEqual(len(calls), 3)
+                self.assertEqual(calls[1], calls[2])
+
+    def test_generated_selection_and_verification_precede_manager_and_controller(self):
+        import inspect
+        source = inspect.getsource(prepare.main)
+        self.assertLess(source.index("{session_bus_script('select')}"), source.index('useradd --create-home'))
+        self.assertLess(source.index('systemctl start user@1001.service'), source.index("{session_bus_script('verify')}"))
+        self.assertLess(source.index("{session_bus_script('verify')}"), source.index('systemctl enable ukai-vm.service'))
+        self.assertEqual(source.count('bubblewrap dbus-user-session dbus-daemon'), 3)
+        self.assertEqual(source.count('apt-get install '), 1)
+        for phase in ('select', 'verify'):
+            script = prepare.session_bus_script(phase)
+            self.assertIn(prepare.SESSION_BUS_GUARD, script)
+            result = subprocess.run(['/bin/sh', '-n'], input=script.encode(), capture_output=True, timeout=10)
+            self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'', b''))
 
 
 @unittest.skipUnless(shutil.which('minisign'), 'local-candidate verification requires minisign')

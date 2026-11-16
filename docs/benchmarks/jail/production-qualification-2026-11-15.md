@@ -21,7 +21,7 @@ contains the isolated Linux candidate, excluding unrelated local Arena work.
 | Provisional native-v6 package at `c25c297fc` | Six signatures, seven actual installer cases and 848 archived source files verified; 44 independent checks passed. Fresh component measurements and source admission passed; a rebuilt host still needs installed native runtime qualification. |
 | Managed native sampling through `0be9d1e82` | Version-3 gate and readers implemented; exact-J hosted and strict Linux reference checks passed. Actual managed-gate and D2 tests executed with zero runtime skips. No version-3 guest image or installed Mac host is qualified. |
 | Current-input Linux K11/K27 | Fresh onboarding and learning passed using the exact `f745bfbfc` binary and `dce53219b` harness. Their input digest matches J; both owning evidence checks passed in exact-J release and strict conformance. Learning scope remains the supported subset recorded below. |
-| Next Mac image and package | Stable Ubuntu 26.10 image/snapshot metadata authenticated, but image bytes and compatibility are untested. Available Mac storage is below the measured build/install requirement; no historical artifacts were deleted. |
+| Next Mac image and package | Exact Ubuntu 26.10 image bytes, GPT/filesystem-header layout and six authenticated snapshot indexes verified; builder pins now match signed J; 34 focused tests passed normally and optimized. No new image boot or compatibility qualification; available Mac storage remains below the measured combined build/install requirement. |
 | `bef699262` fault matrix | All 11 lanes passed; 118 facts independently recomputed, with complete owned cleanup. |
 | OAuth, notarization, native macOS Endpoint Security | Pending. OAuth is deferred at the user's request; no usable local notarization credential or ES profile was established. |
 
@@ -1453,7 +1453,7 @@ but bounded source-byte requests failed, so no direct inspection of that
 version is claimed. This finding does not attribute the earlier kernel Oops.
 The report is `ubuntu-kernel-cve-2026-99103-readonly/review.json`.
 
-An alternative stable Ubuntu 26.10 ARM64 minimal image has authenticated
+The initial metadata-only review authenticated a stable Ubuntu 26.10 ARM64 minimal image with
 checksum metadata for `release-20261105`, with expected SHA-256
 `bac15af78c37fec8e9474a9a784041c13ddb2603b9095435b7e4269e3faf3064`.
 Its authenticated manifest names kernel `7.3.0-10.10`; Ubuntu lists this release
@@ -1465,6 +1465,39 @@ retains the records. No image or package payload was downloaded, no image was
 selected, and layout, boot, userland and containment compatibility remain
 unqualified. A future builder must pin matching suites and the actual new
 signed ARM executable before collecting fresh admission evidence.
+
+A subsequent bounded read-only prerequisite check verified the actual
+413,204,480-byte image against that authenticated digest and all six ARM64
+main/universe indexes against the matching signed snapshot SHA-512 entries.
+The standalone, unencrypted qcow2 has a 4,831,838,208-byte virtual disk with
+ARM root, an additional ext4 XBOOTLDR `BOOT` partition and EFI/FAT32. Both GPT
+copies verified; the two ext4 primary superblocks report clean flags. These
+header observations are not a filesystem check or boot qualification. The
+whole-disk converter and 6 GiB extension need no partition-index assumption.
+
+Authenticated package records expose a session-bus provider difference:
+`dbus-broker` enables a global user `dbus.service` alias, while the packaged
+`dbus-daemon --nofork` unit matches the guest's existing MainPID-only bus
+preservation. Four public package payloads were inspected read-only; no
+package was installed. This is a compatibility inference, not an observed
+broker failure. The reviewed builder explicitly selects and verifies that daemon before
+enabling the controller, without changing the system bus or guest process
+allowlist. The same source slice pins signed J's ARM ELF,
+the dated Stonking image/snapshot, and refuses unexpected standard APT source
+entries before update. Signature, profile, catalog and native guards remain.
+
+The [subsequent prerequisite record](results/guest-image-prerequisites-2026-11-16/README.md)
+binds the final source/test results: 34 tests passed normally and with optimization
+enabled, zero skips, plus 34 independent source checks. Only the builder and its tests change;
+the owning 230 compiled inputs remain `sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae`.
+Nine independent provider controls also passed. A read-only show of the already-active
+reference-host daemon was accepted by the exact frozen properties parser; no
+start, reload, selection or process reads occurred. That formatting observation
+is not proposed-image qualification.
+J's signed Linux candidate and tested-I freeze remain unchanged. Dependency
+resolution, image boot, userland, containment, managed-native version-3 evidence,
+fresh admission and installed Mac qualification still require actual runs.
+The earlier metadata-only record and all historical failures remain intact.
 
 Measured prior allocations require about 16.64 GB free to prepare a comparable
 image, and 21.59 GB for the fresh image plus bounded package/installer checks,
