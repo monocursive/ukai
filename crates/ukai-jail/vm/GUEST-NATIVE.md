@@ -190,6 +190,14 @@ supervisor with its workload child. An initialization failure before the
 supervisor's birth is readable may report a null birth only with zero ticks,
 zero observations, and the explicit initialization failure.
 
+Parent and UID metadata select processes for each tick; reported roles retain
+that selection history. A selected process can be reparented or change UID
+without changing its PID and birth identity. The sampler keeps observing that
+same birth for the current tick, while still validating every stat/status read,
+the anchored proc directory and the executable. Birth changes, directory or
+executable replacement, and read failures retain their existing error behavior.
+The next tick selects processes again from its own inventory.
+
 `verified_program_reads` counts all catalog-executable observations.
 `receipt_program_reads` counts only observations of the exact receipt workload
 identity, and `receipt_program_observed` requires both its environment and argv

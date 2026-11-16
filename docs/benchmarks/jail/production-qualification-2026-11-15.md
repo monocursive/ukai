@@ -922,6 +922,40 @@ unchanged, with no owned VM processes, disk holders or mounts left behind.
 The diagnosis and preservation records are under
 `sampler-inventory-attribution-bef699262/v3/`.
 
+The next diagnostic preparation cloned the original clean guest image, without
+using the failed disk. It failed when an early-boot synchronous service-start
+check reached its 20-second bound. Later setup refused the recorded failure
+before rewriting the service, running controls or syncing; the VM reached its
+existing 600-second boot timeout. No diagnostic pair or provider call ran.
+The failed clone and console are retained under
+`sampler-inventory-attribution-bef699262/v4/`; independent review verified
+cleanup and original-input preservation. This setup failure does not establish
+the cause or resolution of the earlier kernel Oops.
+
+## Sampler process identity correction
+
+A separate source review found that four observation checks compared the entire
+parent/birth/UID tuple even though the process identity is PID plus birth tick.
+This incorrectly recorded `identity_changed` when an already selected process
+was reparented or changed UID without being replaced. The corrected comparisons
+use birth ticks while retaining every metadata read and error path, anchored
+proc-directory check, executable check and fresh selection on each tick.
+Selection roles remain historical observations, not immutable process attributes.
+
+Nine transition cases before observation and during environment/argv reads
+reproduced the defect before the fix. The corrected sampler still detects the
+public canary in both channels, and the existing birth-reuse, directory/executable
+replacement, unreadable/vanished and malformed-metadata controls pass.
+The sampler, positive-control and summary suites ran 82 cases: 79 passed with
+three Linux-only skips on macOS; all 82 passed in the existing Linux development
+guest, including actual `/proc` controls. Independent source review also passed.
+
+This correction has no established causal link to repetition 03's retained
+`identity_changed` counter and does not address unrelated inventory losses.
+Frozen reports and the prepared guest remain unchanged. No replacement image
+or signed candidate has been built from this sampler change; fresh image-bound
+proof and installed qualification are still required.
+
 ## Remaining release limits
 
 No usable Endpoint Security provisioning profile was found among the 17 local

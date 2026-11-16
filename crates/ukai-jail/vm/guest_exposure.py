@@ -303,17 +303,20 @@ class Sampler:
         try:
             before_dir = _file_identity(os.fstat(fd))
             before = self._info(fd, pid)
-            if before != info:
+            # Selection used parent/UID metadata from this tick's inventory.
+            # Those attributes can change without replacing the process; keep
+            # observing that selected birth, with its historical roles.
+            if before[1] != identity[1]:
                 raise SamplingError('identity_changed')
             executable_before = self._executable(fd)
             candidate = executable_before == self.executable
             for channel, name in [('environment', 'environ'), ('argv', 'cmdline')]:
                 try:
                     # Birth identity must bracket each sensitive read, not only the tick.
-                    if self._info(fd, pid) != info:
+                    if self._info(fd, pid)[1] != identity[1]:
                         raise SamplingError('identity_changed')
                     data[channel] = self._read(fd, name, MAX_READ_BYTES)
-                    if self._info(fd, pid) != info:
+                    if self._info(fd, pid)[1] != identity[1]:
                         raise SamplingError('identity_changed')
                     states[channel] = 'readable'
                 except OSError as error:
@@ -326,7 +329,7 @@ class Sampler:
             after = self._info(fd, pid)
             executable_after = self._executable(fd)
             current = os.stat(str(pid), dir_fd=self.root, follow_symlinks=False)
-            stable = (after == info and executable_after == executable_before
+            stable = (after[1] == identity[1] and executable_after == executable_before
                       and stat.S_ISDIR(current.st_mode) and _file_identity(current) == before_dir)
             if not stable:
                 self.errors['identity_changed'] += 1

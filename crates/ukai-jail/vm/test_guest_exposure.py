@@ -200,6 +200,50 @@ class SamplerTests(unittest.TestCase):
         sampler=self.sampler(); sampler.sample(1)
         self.assertTrue(self.finish(sampler)['verified_program_observed'])
 
+    def test_selected_process_uid_and_parent_transitions_preserve_birth_and_hits(self):
+        for stage in ('before_observe', 'environ', 'cmdline'):
+            for changed_field in ('uid', 'parent', 'both'):
+                with self.subTest(stage=stage, changed_field=changed_field):
+                    payload = b'TOKEN=' + CANARY
+                    path = self.process(11, 10, 101, 1000, self.exe, payload, payload)
+                    sampler = self.sampler()
+                    real_observe, real_read = sampler._observe, sampler._read
+                    changed = False
+
+                    def transition():
+                        nonlocal changed
+                        self.assertFalse(changed)
+                        changed = True
+                        if changed_field in ('parent', 'both'):
+                            (path / 'stat').write_bytes(stat_bytes(11, 1, 101))
+                        if changed_field in ('uid', 'both'):
+                            (path / 'status').write_bytes(b'Uid:\t2000\t2000\t2000\t2000\n')
+
+                    def observe(pid, info, roles):
+                        if pid == 11 and stage == 'before_observe':
+                            transition()
+                        return real_observe(pid, info, roles)
+
+                    def read(fd, name, limit):
+                        value = real_read(fd, name, limit)
+                        if name == stage and value == payload:
+                            transition()
+                        return value
+
+                    with mock.patch.object(sampler, '_observe', side_effect=observe), \
+                         mock.patch.object(sampler, '_read', side_effect=read):
+                        sampler.sample(1)
+                    report = self.finish(sampler)
+                    self.assertTrue(changed)
+                    self.assertEqual(report['scan_errors'], {})
+                    self.assertFalse(report['observation_incomplete'])
+                    self.assertTrue(report['receipt_program_observed'])
+                    for channel in ('environment', 'argv'):
+                        self.assertEqual(report['receipt_program_reads'][channel]['readable'], 1)
+                    self.assertEqual({hit['channel'] for hit in report['hits']}, {'environment', 'argv'})
+                    self.assertTrue(all(hit['identity_stable'] for hit in report['hits']))
+                    self.assertNotIn(CANARY, json.dumps(report).encode())
+
     def test_only_exact_infrastructure_birth_is_excluded(self):
         sampler=self.sampler(infrastructure_identities=[(11,101)]); sampler.sample(1)
         self.assertFalse(self.finish(sampler)['verified_program_observed'])
