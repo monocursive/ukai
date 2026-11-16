@@ -16,29 +16,56 @@ fi
 major=$(sw_vers -productVersion | cut -d. -f1)
 [[ "$major" -ge 27 ]] || { echo 'This preview requires macOS 27 or later.' >&2; exit 2; }
 destination="$prefix/share/ukai-vm/$version"
-link="$prefix/bin/ukai-vm"
-[[ ! -e "$destination" && ! -L "$destination" ]] || { echo "Already installed: $destination" >&2; exit 2; }
-if [[ -e "$link" || -L "$link" ]]; then
-  [[ -L "$link" && $(readlink "$link") == "$prefix/share/ukai-vm/"*/bin/ukai-vm ]] || {
-    echo "Refusing to replace an existing unrelated command: $link" >&2; exit 2;
-  }
-fi
+commands=(ukai-vm ukai-jail)
+previous=()
 # The work directory sits under the prefix so the final move is a rename on
 # one volume; directories this run creates are removed again unless it
 # installs, so a refused package leaves the prefix as it found it.
 created=()
-for directory in "$prefix" "$prefix/share" "$prefix/share/ukai-vm" "$prefix/bin"; do
+for directory in "$prefix" "$prefix/share" "$prefix/share/ukai-vm"; do
   [[ -d "$directory" ]] || created+=("$directory")
 done
 installed=0
+published=0
+activated=()
+lock="$prefix/share/ukai-vm/.install-lock"
+locked=0
+bin_created=0
 work=
 cleanup() {
+  if [[ $installed != 1 ]]; then
+    # An activation failure restores only links this invocation changed.
+    # Keep the new payload if a rollback itself fails, so no retained link
+    # is made dangling. Earlier version directories are never removed.
+    rollback_ok=1
+    for ((n=${#activated[@]}-1; n>=0; n--)); do
+      i=${activated[n]}
+      name=${commands[i]}
+      link="$prefix/bin/$name"
+      if [[ -L "$link" && $(readlink "$link") == "$destination/bin/$name" ]]; then
+        if [[ -n ${previous[i]} ]]; then
+          ln -s "${previous[i]}" "$work/restore-$name" &&
+            mv -f "$work/restore-$name" "$link" || rollback_ok=0
+        else
+          rm -f -- "$link" || rollback_ok=0
+        fi
+      fi
+    done
+    if [[ $published == 1 && $rollback_ok == 1 ]]; then rm -rf -- "$destination"; fi
+    if [[ $rollback_ok != 1 ]]; then echo "Command rollback failed; retained $destination" >&2; fi
+  fi
   [[ -z "$work" ]] || rm -rf -- "$work"
+  # A contender must never remove the winner's empty bin/ while it stages.
+  # Creation and removal of bin/ both belong inside this prefix's lock.
+  if [[ $installed != 1 && $bin_created == 1 ]]; then rmdir -- "$prefix/bin" 2>/dev/null || true; fi
+  if [[ $locked == 1 ]]; then rmdir -- "$lock"; fi
   if [[ $installed != 1 ]]; then
     for ((i=${#created[@]}-1; i>=0; i--)); do rmdir -- "${created[i]}" 2>/dev/null || true; done
   fi
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' HUP TERM
 # Modes are not in the manifest, so none crosses from the volume as it is:
 # every directory 0755, every file 0644, or 0755 where the volume's file was
 # executable. A world-writable, setuid, setgid or sticky bit never installs.
@@ -47,7 +74,38 @@ normalize_modes() {
   find "$1" -type f -perm +0111 -exec chmod 0755 {} +
   find "$1" -type f ! -perm +0111 -exec chmod 0644 {} +
 }
-mkdir -p "$prefix/share/ukai-vm" "$prefix/bin"
+mkdir -p "$prefix/share/ukai-vm"
+# Serialize every version in this prefix before taking the link snapshot.
+# Never steal a lock: after SIGKILL/power loss, the operator must establish
+# that no installer is active before removing this empty lock directory.
+mkdir "$lock" 2>/dev/null || {
+  echo "Installation is locked: $lock (another install or interrupted installation)." >&2; exit 2;
+}
+locked=1
+if [[ ! -d "$prefix/bin" ]]; then
+  mkdir -p "$prefix/bin"
+  bin_created=1
+fi
+[[ ! -e "$destination" && ! -L "$destination" ]] || { echo "Already installed: $destination" >&2; exit 2; }
+# Refuse both conflicts before staging anything or switching either command.
+# Only links into this prefix's version directories belong to this installer.
+for name in "${commands[@]}"; do
+  link="$prefix/bin/$name"
+  old=
+  if [[ -e "$link" || -L "$link" ]]; then
+    [[ -L "$link" && ! -d "$link" ]] || {
+      echo "Refusing to replace an existing unrelated command: $link" >&2; exit 2;
+    }
+    old=$(readlink "$link")
+    release=${old#"$prefix/share/ukai-vm/"}
+    release=${release%"/bin/$name"}
+    [[ -n "$release" && "$release" != */* && "$release" != . && "$release" != .. &&
+       "$old" == "$prefix/share/ukai-vm/$release/bin/$name" ]] || {
+      echo "Refusing to replace an existing unrelated command: $link" >&2; exit 2;
+    }
+  fi
+  previous+=("$old")
+done
 work=$(mktemp -d "$prefix/share/ukai-vm/.install.XXXXXXXX")
 # The source is read once: the manifest and the payload are copied first, and
 # every check below reads the copy, which is exactly what gets installed.
@@ -78,10 +136,27 @@ stage="$work/payload"
 rm "$stage/image/base.raw.gz"
 normalize_modes "$stage"
 "$stage/bin/ukai-vm" version
+"$stage/bin/ukai-jail" version --json
 # The prerequisite report can be false inside a Mac VM without nested support.
 # Installing remains useful there; only execution requires virtualization.
 "$stage/bin/ukai-vm" doctor || [[ $? == 125 ]]
 mv "$stage" "$destination"
+published=1
+for ((i=0; i<${#commands[@]}; i++)); do
+  name=${commands[i]}
+  link="$prefix/bin/$name"
+  if [[ -n ${previous[i]} ]]; then
+    [[ -L "$link" && ! -d "$link" && $(readlink "$link") == "${previous[i]}" ]] || {
+      echo "Command changed during installation: $link" >&2; exit 1;
+    }
+  else
+    [[ ! -e "$link" && ! -L "$link" ]] || {
+      echo "Command changed during installation: $link" >&2; exit 1;
+    }
+  fi
+  ln -s "$destination/bin/$name" "$work/activate-$name"
+  activated+=("$i")
+  mv -f "$work/activate-$name" "$link"
+done
 installed=1
-ln -sfn "$destination/bin/ukai-vm" "$link"
-printf '\nInstalled %s\nAdd %s/bin to PATH, then run ukai-vm doctor.\n' "$link" "$prefix"
+printf '\nInstalled %s/bin/ukai-vm and %s/bin/ukai-jail\nAdd %s/bin to PATH, then run ukai-vm doctor.\n' "$prefix" "$prefix" "$prefix"

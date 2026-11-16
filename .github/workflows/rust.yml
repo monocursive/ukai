@@ -86,29 +86,29 @@ jobs:
             echo "ukai-suite-revision=$(git rev-parse HEAD)"
             echo "ukai-suite-conformance=${UKAI_CONFORMANCE}"
             cargo test --workspace -- --test-threads=1 --nocapture
-          } 2>&1 | tee test-output.txt
+          } 2>&1 | tee "$RUNNER_TEMP/ukai-test-output.txt"
       # jail-v1 §15: the macOS-lane clauses of the acceptance map (M01, M03,
       # X02's usage errors), judged from this leg's own test output at this
       # revision. Linux clauses read `elsewhere`; the conformance workflow
       # judges them on the reference host.
       - name: Acceptance verdict (macOS lane)
         if: runner.os == 'macOS'
-        run: cargo run -p xtask -- gates --linux-release --log macos=test-output.txt
+        run: cargo run -p xtask -- gates --linux-release --log "macos=$RUNNER_TEMP/ukai-test-output.txt"
       - name: Report what was not exercised
         if: always()
         run: |
           {
             echo "### ${{ matrix.os }}"
             echo
-            if [ -f test-output.txt ]; then
+            if [ -f "$RUNNER_TEMP/ukai-test-output.txt" ]; then
               # With one test thread a skip note lands on the test's own
               # line (`test x ... skipped: ...`), so match it anywhere.
-              count=$({ grep -o 'skipped: .*' test-output.txt || true; } | wc -l | tr -d ' ')
+              count=$({ grep -o 'skipped: .*' "$RUNNER_TEMP/ukai-test-output.txt" || true; } | wc -l | tr -d ' ')
               echo "Live tests skipped on this runner: **${count}**"
               if [ "$count" -gt 0 ]; then
                 echo
                 echo '```'
-                grep -o 'skipped: .*' test-output.txt | sort | uniq -c
+                grep -o 'skipped: .*' "$RUNNER_TEMP/ukai-test-output.txt" | sort | uniq -c
                 echo '```'
                 echo
                 echo "These are not failures here: §16 lets a generic runner"

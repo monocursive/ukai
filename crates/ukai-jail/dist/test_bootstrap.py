@@ -14,6 +14,7 @@ from package import create_archive
 
 ROOT = Path(__file__).resolve().parents[3]
 TARGETS = list(LINUX_TARGETS)
+VM_FIXTURE_VERSION = '9.9.9-preview.1'
 
 
 class BootstrapTests(unittest.TestCase):
@@ -31,7 +32,7 @@ class BootstrapTests(unittest.TestCase):
         self.binary = self.root / 'binary'
         self.binary.write_text("#!/bin/sh\nprintf 'ukai-jail 0.1.0\\nplatform test\\n'\n")
         self.binary.chmod(0o755)
-        self.package('0.1.0-rc.1')
+        self.package('9.9.9-rc.1')
         self.shim('uname', '#!/bin/sh\ncase "$1" in\n-s) echo "${BOOTSTRAP_OS:-Linux}";;\n-m) echo "${BOOTSTRAP_ARCH:-x86_64}";;\nesac\n')
         self.shim('getconf', '#!/bin/sh\nprintf "%s\\n" "${BOOTSTRAP_LIBC:-glibc 2.39}"\n')
         # A call to Minisign is always an error, even if it is on the host PATH.
@@ -79,24 +80,24 @@ cp "$BOOTSTRAP_ARTIFACTS/${url##*/}" "$output"
             self.assertEqual((self.prefix / 'ukai-jail').read_bytes(), self.binary.read_bytes())
         urls = [line for line in self.log.read_text().splitlines() if line.startswith('https://')]
         self.assertEqual(len(urls), 2)
-        self.assertTrue(all('/releases/download/ukai-jail-v0.1.0-rc.1/' in url for url in urls))
+        self.assertTrue(all('/releases/download/ukai-jail-v9.9.9-rc.1/' in url for url in urls))
         self.assertTrue(all(url.endswith(self.archive.name) for url in urls))
         flags = self.log.read_text()
         self.assertIn('--disable\n', flags)
         self.assertIn('--proto\n=https\n', flags)
         self.assertIn('--proto-redir\n=https\n', flags)
         self.assertEqual((self.prefix / 'ukai-jail.release').read_text().splitlines(),
-                         ['0.1.0-rc.1', hashlib.sha256(self.binary.read_bytes()).hexdigest()])
+                         ['9.9.9-rc.1', hashlib.sha256(self.binary.read_bytes()).hexdigest()])
 
     def test_version_selection_and_downgrade_refusal(self):
-        self.package('0.1.0-rc.10')
-        self.assertEqual(self.run_installer('--version', 'ukai-jail-v0.1.0-rc.10').returncode, 0)
-        self.package('0.1.0-rc.2')
-        result = self.run_installer('--version', 'v0.1.0-rc.2')
+        self.package('9.9.9-rc.10')
+        self.assertEqual(self.run_installer('--version', 'ukai-jail-v9.9.9-rc.10').returncode, 0)
+        self.package('9.9.9-rc.2')
+        result = self.run_installer('--version', 'v9.9.9-rc.2')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(b'downgrade', result.stderr)
-        self.assertEqual((self.prefix / 'ukai-jail.release').read_text().splitlines()[0], '0.1.0-rc.10')
-        self.assertEqual(self.run_installer('--version', '0.1.0-rc.2', '--allow-downgrade').returncode, 0)
+        self.assertEqual((self.prefix / 'ukai-jail.release').read_text().splitlines()[0], '9.9.9-rc.10')
+        self.assertEqual(self.run_installer('--version', '9.9.9-rc.2', '--allow-downgrade').returncode, 0)
 
     def test_changed_archive_and_remote_checksum_cannot_replace_install(self):
         self.assertEqual(self.run_installer().returncode, 0)
@@ -119,8 +120,8 @@ cp "$BOOTSTRAP_ARTIFACTS/${url##*/}" "$output"
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         self.assertFalse(self.log.exists())
         self.assertEqual(self.run_installer('--base-url', 'https://mirror.example/release').returncode, 0)
-        self.assertIn('https://mirror.example/release/ukai-jail-0.1.0-rc.1-aarch64-', self.log.read_text())
-        archive = self.artifacts / 'ukai-jail-0.1.0-rc.1-aarch64-unknown-linux-gnu.tar.gz'
+        self.assertIn('https://mirror.example/release/ukai-jail-9.9.9-rc.1-aarch64-', self.log.read_text())
+        archive = self.artifacts / 'ukai-jail-9.9.9-rc.1-aarch64-unknown-linux-gnu.tar.gz'
         archive.write_bytes(b'corrupted ARM archive')
         result = self.run_installer('--from-dir', str(self.artifacts))
         self.assertNotEqual(result.returncode, 0)
@@ -128,14 +129,14 @@ cp "$BOOTSTRAP_ARTIFACTS/${url##*/}" "$output"
 
     def test_missing_invalid_arguments_and_unsupported_hosts_fail_before_download(self):
         for args in [('--version',), ('--version', '../v1.0.0'), ('--version', '01.0.0'),
-                     ('--version', '1.0.0-01'), ('--version', '0.1.0-rc.99'),
+                     ('--version', '1.0.0-01'), ('--version', '9.9.9-rc.99'),
                      ('--bin-dir', 'relative'), ('--base-url', 'http://example.com'),
                      ('--public-key', 'anything'), ('--unknown',),
                      ('--from-dir', str(self.artifacts), '--base-url', 'https://example.com')]:
             with self.subTest(args=args):
                 self.assertNotEqual(self.run_installer(*args).returncode, 0)
                 self.assertFalse(self.log.exists())
-        result = self.run_installer('--version', '0.1.0-rc.99')
+        result = self.run_installer('--version', '9.9.9-rc.99')
         self.assertIn(b'no pinned SHA-256', result.stderr)
         for system, arch in [('Darwin', 'arm64'), ('Linux', 'riscv64')]:
             self.env['BOOTSTRAP_OS'] = system
@@ -203,7 +204,7 @@ cp "$BOOTSTRAP_ARTIFACTS/${url##*/}" "$output"
                                   f'ouro-jail-v{version}/ouro-jail-{version}-{target}.tar.gz',
                                   self.log.read_text())
                     self.log.unlink()
-        self.mac_fixture()
+        self.mac_fixture(legacy=True)
         self.installer.write_text((ROOT / 'install.sh').read_text())
         result = self.run_mac('--version', 'ouro-vm-v' + VM_VERSION)
         self.assertNotEqual(result.returncode, 0)
@@ -239,7 +240,7 @@ cp "$BOOTSTRAP_ARTIFACTS/${url##*/}" "$output"
         self.assertEqual((self.prefix / 'ouro-jail').read_bytes(), binary.read_bytes())
 
     def test_pre_rename_mac_package_keeps_its_command_and_passes_the_prefix(self):
-        dmg = self.mac_fixture()
+        dmg = self.mac_fixture(legacy=True)
         digest = hashlib.sha256(dmg.read_bytes()).hexdigest()
         original = archive_pins((ROOT / 'install.sh').read_text())[VM_VERSION, VM_TARGET]
         self.installer.write_text(self.installer.read_text().replace(original, digest))
@@ -268,6 +269,20 @@ cp "$BOOTSTRAP_ARTIFACTS/${url##*/}" "$output"
         with self.assertRaises(ValueError):
             render_bootstrap(script, '0.1.0-rc.9', {VM_TARGET: 'd' * 64})
 
+    def test_published_linux_and_vm_pins_cannot_be_replaced(self):
+        script = (ROOT / 'install.sh').read_text()
+        pins = archive_pins(script)
+        linux_hashes = {target: pins[JAIL_VERSION, target] for target in TARGETS}
+        # Rebuilding identical bytes is harmless, but replacing either native
+        # archive or a notarized DMG needs a new coordinate.
+        self.assertEqual(render_bootstrap(script, JAIL_VERSION, linux_hashes), script)
+        self.assertEqual(render_vm_pin(script, VM_VERSION, pins[VM_VERSION, VM_TARGET]), script)
+        for target in TARGETS:
+            with self.subTest(target=target), self.assertRaisesRegex(ValueError, 'use a new release version'):
+                render_bootstrap(script, JAIL_VERSION, {**linux_hashes, target: '0' * 64})
+        with self.assertRaisesRegex(ValueError, 'use a new release version'):
+            render_vm_pin(script, VM_VERSION, '0' * 64)
+
     def test_signed_installer_sends_macos_to_the_vm_preview(self):
         # Only Linux archives are released; a Mac must not look for a Darwin one.
         self.env.update(BOOTSTRAP_OS='Darwin', BOOTSTRAP_ARCH='arm64')
@@ -278,7 +293,7 @@ cp "$BOOTSTRAP_ARTIFACTS/${url##*/}" "$output"
         self.assertIn(b'Ukai VM preview', result.stderr)
         self.assertFalse(self.prefix.exists())
 
-    def mac_fixture(self):
+    def mac_fixture(self, legacy=False):
         self.env.update(BOOTSTRAP_OS='Darwin', BOOTSTRAP_ARCH='arm64')
         self.shim('sw_vers', '#!/bin/sh\necho "${BOOTSTRAP_MACOS:-27.0.1}"\n')
         self.mac_log = self.root / 'mount.log'
@@ -294,10 +309,12 @@ exit "${BOOTSTRAP_INSTALL_STATUS:-0}"
 INSTALL
 fi
 ''')
-        dmg = self.artifacts / f'ukai-vm-{VM_VERSION}-{VM_TARGET}.dmg'
+        vm_version = VM_VERSION if legacy else VM_FIXTURE_VERSION
+        dmg = self.artifacts / f'ukai-vm-{vm_version}-{VM_TARGET}.dmg'
         dmg.write_bytes(b'checksum-verified test disk image')
-        self.installer.write_text(render_vm_pin(self.installer.read_text(), VM_VERSION,
-                                                hashlib.sha256(dmg.read_bytes()).hexdigest()))
+        if not legacy:
+            self.installer.write_text(render_vm_pin(self.installer.read_text(), vm_version,
+                                                    hashlib.sha256(dmg.read_bytes()).hexdigest()))
         return dmg
 
     def run_mac(self, *args):
@@ -309,13 +326,13 @@ fi
         dmg = self.mac_fixture()
         result = self.run_mac()
         self.assertEqual(result.returncode, 0, result.stderr.decode())
-        self.assertIn(f'/releases/download/{vm_tag(VM_VERSION)}/' + dmg.name, self.log.read_text())
+        self.assertIn(f'/releases/download/{vm_tag(VM_FIXTURE_VERSION)}/' + dmg.name, self.log.read_text())
         mount = self.mac_log.read_text()
         self.assertIn('-readonly\n', mount)
         self.assertIn('--prefix\n' + str(self.root / 'Mac prefix'), mount)
         self.assertIn('detach\n', mount)
         self.log.unlink()
-        result = self.run_mac('--version', vm_tag(VM_VERSION), '--from-dir', str(self.artifacts))
+        result = self.run_mac('--version', vm_tag(VM_FIXTURE_VERSION), '--from-dir', str(self.artifacts))
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         self.assertFalse(self.log.exists())
 

@@ -3,7 +3,7 @@
 
 `summary.json` names the artifact it judged: the volume's manifest and
 installer digests (and the DMG's, with --dmg). The `install` case passes only
-when the installed command runs and reports exactly the package version the
+when both installed commands run, the service reports the package version the
 installer names (D8: never a `-dev` build) AND the installed tree is exactly
 the manifest's payload: every file with its listed digest, `image/base.raw.gz`
 replaced by `image/base.raw` with image.json's `disk_sha256`, nothing extra
@@ -23,8 +23,9 @@ import subprocess
 if not __debug__:
     raise SystemExit('check_install.py must not run with python -O: its checks are gates')
 
-SCHEMA = 'ukai.vm.installer-check/2'
-CASES = ('install', 'repeat-refused', 'unrelated-refused', 'manifest-tamper', 'payload-tamper', 'payload-extra')
+SCHEMA = 'ukai.vm.installer-check/3'
+CASES = ('install', 'repeat-refused', 'unrelated-refused', 'unrelated-client-refused',
+         'manifest-tamper', 'payload-tamper', 'payload-extra')
 
 
 class CaseFailed(RuntimeError):
@@ -127,6 +128,19 @@ def version_is_the_package(output, expected):
     return isinstance(reported, str) and reported == expected and not reported.endswith('-dev')
 
 
+def client_is_the_package(output, metadata):
+    """The client's immutable build report matches the package's source claim."""
+    reported = json.loads(output)
+    expected = metadata['ukai_jail_version']
+    build = reported.get('build', {})
+    return (reported.get('component') == expected.get('component') == 'ukai-jail'
+            and reported.get('version') == expected.get('version')
+            and build == expected.get('build')
+            and build.get('revision') == metadata.get('source_revision')
+            and build.get('dirty') is False
+            and build.get('target') == 'aarch64-apple-darwin')
+
+
 def installed_destination(link):
     """The installed version directory the command link names."""
     target = Path(os.readlink(link))
@@ -177,8 +191,20 @@ def main(argv=None):
             (root / 'version.json').write_text(version.stdout)
             return version.returncode == 0 and version_is_the_package(version.stdout, package_version(source))
 
+        def client_runs():
+            client = installed / 'bin' / 'ukai-jail'
+            destination = installed_destination(link)
+            if not client.is_symlink() or Path(os.readlink(client)) != destination / 'bin' / 'ukai-jail':
+                return False
+            version = subprocess.run([str(client), 'version', '--json'], env=environment,
+                                     capture_output=True, text=True)
+            (root / 'client-version.json').write_text(version.stdout)
+            metadata = json.loads((destination / 'image' / 'image.json').read_text())
+            return version.returncode == 0 and client_is_the_package(version.stdout, metadata)
+
         invoke('install', source, installed, 0, 'Installed ',
                [('installed-command-runs', version_runs),
+                ('installed-client-matches-package', client_runs),
                 ('installed-tree-is-the-manifest', lambda: installed_tree_matches(source, installed_destination(link))),
                 ('installed-modes-normalized', lambda: installed_modes_normal(source, installed_destination(link)))])
         invoke('repeat-refused', source, installed, 2, 'Already installed:')
@@ -188,6 +214,14 @@ def main(argv=None):
         marker.write_text('preserve me')
         invoke('unrelated-refused', source, unrelated, 2, 'unrelated command:',
                [('unrelated-command-preserved', lambda: marker.read_text() == 'preserve me')])
+        unrelated_client = root / 'unrelated-client'
+        (unrelated_client / 'bin').mkdir(parents=True)
+        client_marker = unrelated_client / 'bin' / 'ukai-jail'
+        client_marker.write_text('preserve client')
+        invoke('unrelated-client-refused', source, unrelated_client, 2, 'unrelated command:',
+               [('unrelated-client-preserved', lambda: client_marker.read_text() == 'preserve client'),
+                ('no-service-installed', lambda: not os.path.lexists(unrelated_client / 'bin' / 'ukai-vm')
+                 and not (unrelated_client / 'share').exists())])
         for case, filename, expected, append in [
                 ('manifest-tamper', 'SHA256SUMS', 'manifest checksum mismatch', True),
                 ('payload-tamper', 'payload/image/vz', 'Package checksum mismatch', True),

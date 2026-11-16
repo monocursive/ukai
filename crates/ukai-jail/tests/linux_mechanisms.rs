@@ -545,42 +545,42 @@ def sc(label, nr, *args):
         print("%s=ok" % label)
     else:
         print("%s=%s" % (label, errno.errorcode.get(ctypes.get_errno(), "E?")))
-sc("bpf", 321, 0, 0, 0)
-sc("perf_event_open", 298, 0, 0, 0, 0, 0)
-sc("io_uring_setup", 425, 1, 0)
-sc("io_uring_enter", 426, -1, 0, 0, 0, 0, 0)
-sc("io_uring_register", 427, -1, 0, 0, 0)
-sc("mount", 165, 0, 0, 0, 0, 0)
-sc("umount2", 166, 0, 0)
-sc("unshare_newuser", 272, 0x10000000)
-sc("setns", 308, -1, 0)
-sc("pivot_root", 155, 0, 0)
-sc("chroot", 161, 0)
-sc("keyctl", 250, 0, 0, 0, 0, 0)
-sc("add_key", 248, 0, 0, 0, 0, 0)
-sc("request_key", 249, 0, 0, 0, 0)
-sc("init_module", 175, 0, 0, 0)
-sc("finit_module", 313, -1, 0, 0)
-sc("delete_module", 176, 0, 0)
-sc("kexec_load", 246, 0, 0, 0, 0)
-sc("kexec_file_load", 320, -1, -1, 0, 0, 0)
-sc("process_vm_readv", 310, os.getpid(), 0, 0, 0, 0, 0)
-sc("process_vm_writev", 311, os.getpid(), 0, 0, 0, 0, 0)
-sc("open_tree", 428, -1, 0, 0)
-sc("move_mount", 429, -1, 0, -1, 0, 0)
-sc("fsopen", 430, 0, 0)
-sc("fsconfig", 431, -1, 0, 0, 0, 0)
-sc("fsmount", 432, -1, 0, 0)
-sc("fspick", 433, -1, 0, 0)
-sc("mount_setattr", 442, -1, 0, 0, 0, 0)
-sc("clone3", 435, 0, 0)
-sc("socket_afunix", 41, 1, 1, 0)
-sc("socketpair_afunix", 53, 1, 1, 0, 0)
-sc("ioctl_tiocsti", 16, 0, 0x5412, 0)
-sc("ioctl_other", 16, -1, 0x5401, 0)
-sc("socket_afinet", 41, 2, 1, 0)
+sc("bpf", NR["bpf"], 0, 0, 0)
+sc("perf_event_open", NR["perf_event_open"], 0, 0, 0, 0, 0)
+sc("io_uring_setup", NR["io_uring_setup"], 1, 0)
+sc("io_uring_enter", NR["io_uring_enter"], -1, 0, 0, 0, 0, 0)
+sc("io_uring_register", NR["io_uring_register"], -1, 0, 0, 0)
+sc("mount", NR["mount"], 0, 0, 0, 0, 0)
+sc("umount2", NR["umount2"], 0, 0)
+sc("unshare_newuser", NR["unshare"], 0x10000000)
+sc("setns", NR["setns"], -1, 0)
+sc("pivot_root", NR["pivot_root"], 0, 0)
+sc("chroot", NR["chroot"], 0)
+sc("keyctl", NR["keyctl"], 0, 0, 0, 0, 0)
+sc("add_key", NR["add_key"], 0, 0, 0, 0, 0)
+sc("request_key", NR["request_key"], 0, 0, 0, 0)
+sc("init_module", NR["init_module"], 0, 0, 0)
+sc("finit_module", NR["finit_module"], -1, 0, 0)
+sc("delete_module", NR["delete_module"], 0, 0)
+sc("kexec_load", NR["kexec_load"], 0, 0, 0, 0)
+sc("kexec_file_load", NR["kexec_file_load"], -1, -1, 0, 0, 0)
+sc("process_vm_readv", NR["process_vm_readv"], os.getpid(), 0, 0, 0, 0, 0)
+sc("process_vm_writev", NR["process_vm_writev"], os.getpid(), 0, 0, 0, 0, 0)
+sc("open_tree", NR["open_tree"], -1, 0, 0)
+sc("move_mount", NR["move_mount"], -1, 0, -1, 0, 0)
+sc("fsopen", NR["fsopen"], 0, 0)
+sc("fsconfig", NR["fsconfig"], -1, 0, 0, 0, 0)
+sc("fsmount", NR["fsmount"], -1, 0, 0)
+sc("fspick", NR["fspick"], -1, 0, 0)
+sc("mount_setattr", NR["mount_setattr"], -1, 0, 0, 0, 0)
+sc("clone3", NR["clone3"], 0, 0)
+sc("socket_afunix", NR["socket"], 1, 1, 0)
+sc("socketpair_afunix", NR["socketpair"], 1, 1, 0, 0)
+sc("ioctl_tiocsti", NR["ioctl"], 0, 0x5412, 0)
+sc("ioctl_other", NR["ioctl"], -1, 0x5401, 0)
+sc("socket_afinet", NR["socket"], 2, 1, 0)
 if filtered:
-    sc("ptrace_traceme", 101, 0, 0, 0, 0)
+    sc("ptrace_traceme", NR["ptrace"], 0, 0, 0, 0)
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 try:
     s.connect(("192.0.2.1", 80))
@@ -588,19 +588,28 @@ try:
 except OSError as e:
     print("connect=%s" % errno.errorcode.get(e.errno, "E?"))
 ctypes.set_errno(0)
-r = libc.syscall(ctypes.c_long(56), ctypes.c_long(0x00020000 | 17), 0, 0, 0, 0)
+r = libc.syscall(ctypes.c_long(NR["clone"]), ctypes.c_long(0x00020000 | 17), 0, 0, 0, 0)
 if r == 0:
     os._exit(0)
 print("clone_newns=%s" % (errno.errorcode.get(ctypes.get_errno(), "E?") if r < 0 else "ok"))
 # J4 S4: CLONE_UNTRACED | SIGCHLD, a child the observer would never attach to.
 ctypes.set_errno(0)
-r = libc.syscall(ctypes.c_long(56), ctypes.c_long(0x00800000 | 17), 0, 0, 0, 0)
+r = libc.syscall(ctypes.c_long(NR["clone"]), ctypes.c_long(0x00800000 | 17), 0, 0, 0, 0)
 if r == 0:
     os._exit(0)
 if r > 0:
     os.waitpid(r, 0)
 print("clone_untraced=%s" % (errno.errorcode.get(ctypes.get_errno(), "E?") if r < 0 else "ok"))
 "#;
+
+fn denial_fixture() -> String {
+    // The independent host headers select native syscall numbers. Reusing
+    // the jail's own constants here would let a bad table validate itself.
+    format!(
+        "NR = {}\n{DENIAL_FIXTURE}",
+        serde_json::to_string(native_syscall_table()).expect("syscall map serializes")
+    )
+}
 
 /// Ordinary work that must keep working under the filter.
 const ALLOWED_FIXTURE: &str = r#"
@@ -698,7 +707,7 @@ fn the_baseline_filter_denies_the_syscalls_the_spec_lists() {
     if !live() {
         return;
     }
-    let with = run_in_tool_sandbox(python_inner(DENIAL_FIXTURE, &["1"]), true);
+    let with = run_in_tool_sandbox(python_inner(&denial_fixture(), &["1"]), true);
     assert_eq!(
         with.code(),
         Some(0),
@@ -782,7 +791,7 @@ fn the_filter_is_what_denies_them_not_the_host() {
     // The same fixture without `--seccomp`. For the syscalls an unprivileged
     // process may ordinarily make, the answer must differ; otherwise a green
     // denial test would prove nothing about the filter.
-    let without = run_in_tool_sandbox(python_inner(DENIAL_FIXTURE, &["0"]), false);
+    let without = run_in_tool_sandbox(python_inner(&denial_fixture(), &["0"]), false);
     assert_eq!(
         without.code(),
         Some(0),
@@ -853,23 +862,75 @@ fn ordinary_work_still_works_under_the_filter() {
     );
 }
 
-#[test]
-fn the_syscall_numbers_are_this_kernels_numbers() {
-    const HEADER: &str = "/usr/include/x86_64-linux-gnu/asm/unistd_64.h";
-    let raw = fs::read_to_string(HEADER).unwrap_or_else(|e| {
-        panic!("{HEADER}: {e}; install libc6-dev so the syscall table can be checked")
-    });
-    let mut table = BTreeMap::new();
-    for line in raw.lines() {
-        if let Some(rest) = line.strip_prefix("#define __NR_") {
-            let mut parts = rest.split_ascii_whitespace();
-            if let (Some(name), Some(number)) = (parts.next(), parts.next())
-                && let Ok(number) = number.parse::<u32>()
+/// Ask the native compiler's kernel UAPI headers, including macro aliases
+/// such as aarch64's __NR_truncate -> __NR3264_truncate. Compiling their
+/// values also handles expressions without inventing a C-expression parser.
+fn native_syscall_table() -> &'static BTreeMap<String, u32> {
+    static TABLE: std::sync::OnceLock<BTreeMap<String, u32>> = std::sync::OnceLock::new();
+    TABLE.get_or_init(|| {
+        let macros = Command::new("cc")
+            .args([
+                "-dM",
+                "-E",
+                "-x",
+                "c",
+                "-include",
+                "asm/unistd.h",
+                "/dev/null",
+            ])
+            .output()
+            .expect("install a native C compiler and Linux libc development headers");
+        assert!(
+            macros.status.success(),
+            "cannot read native syscall declarations: {}",
+            String::from_utf8_lossy(&macros.stderr)
+        );
+        let raw = String::from_utf8(macros.stdout).expect("C macro names are ASCII");
+        let mut source =
+            String::from("#include <stdio.h>\n#include <asm/unistd.h>\nint main(void) {\n");
+        for line in raw.lines() {
+            if let Some(rest) = line.strip_prefix("#define __NR_")
+                && let Some(name) = rest.split_ascii_whitespace().next()
+                && name
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
             {
-                table.insert(name.to_owned(), number);
+                source.push_str(&format!(
+                    "printf(\"{name}=%llu\\n\", (unsigned long long)__NR_{name});\n"
+                ));
             }
         }
-    }
+        source.push_str("return 0;\n}\n");
+        let dir = temp_dir("syscall-table");
+        let input = dir.path().join("syscalls.c");
+        let binary = dir.path().join("syscalls");
+        fs::write(&input, source).unwrap();
+        let compiled = Command::new("cc")
+            .args(["-std=c11", "-Wall", "-Werror"])
+            .arg(&input)
+            .arg("-o")
+            .arg(&binary)
+            .output()
+            .expect("the native C compiler runs");
+        assert!(
+            compiled.status.success(),
+            "native syscall declarations do not compile: {}",
+            String::from_utf8_lossy(&compiled.stderr)
+        );
+        let output = Command::new(binary)
+            .output()
+            .expect("the native syscall probe runs");
+        assert!(output.status.success());
+        parse_fields(&String::from_utf8(output.stdout).expect("syscall probe emits ASCII"))
+            .into_iter()
+            .map(|(name, value)| (name, value.parse().expect("a syscall number fits u32")))
+            .collect()
+    })
+}
+
+#[test]
+fn the_syscall_numbers_are_this_kernels_numbers() {
+    let table = native_syscall_table();
     assert!(table.len() > 300, "only {} syscalls parsed", table.len());
 
     let mut checked = 0usize;
@@ -880,7 +941,7 @@ fn the_syscall_numbers_are_this_kernels_numbers() {
             // Record precisely what they cannot check; the reference-host lane
             // still fails here because UKAI_CONFORMANCE forbids every skip.
             ukai_fixture::harness::skip_or_fail(&format!(
-                "{HEADER} does not declare {name}; its syscall number was not checked"
+                "the native asm/unistd.h does not declare {name}; its syscall number was not checked"
             ));
             absent += 1;
             continue;
@@ -901,29 +962,39 @@ fn the_syscall_numbers_are_this_kernels_numbers() {
     }
     // The observer's closed set, checked against the numbers the narrowing
     // filter really installs rather than against a second copy of the table.
-    // The nineteen names are jail-v1 §11.2's list.
-    const CLOSED_SET_NAMES: [&str; 22] = [
+    // jail-v1 §11.2's native spellings: aarch64 has only the *at
+    // interfaces for operations whose older x86_64 syscalls are absent.
+    const CLOSED_SET_NAMES: &[&str] = &[
         "execve",
         "execveat",
+        #[cfg(target_arch = "x86_64")]
         "open",
         "openat",
         "openat2",
+        #[cfg(target_arch = "x86_64")]
         "creat",
+        #[cfg(target_arch = "x86_64")]
         "rename",
         "renameat",
         "renameat2",
+        #[cfg(target_arch = "x86_64")]
         "unlink",
         "unlinkat",
+        #[cfg(target_arch = "x86_64")]
         "rmdir",
+        #[cfg(target_arch = "x86_64")]
         "mkdir",
         "mkdirat",
         // Revision 8 grew the set: a node is a directory entry, and a
         // truncation by path is a mutation of a named file.
+        #[cfg(target_arch = "x86_64")]
         "mknod",
         "mknodat",
         "truncate",
+        #[cfg(target_arch = "x86_64")]
         "link",
         "linkat",
+        #[cfg(target_arch = "x86_64")]
         "symlink",
         "symlinkat",
         "connect",

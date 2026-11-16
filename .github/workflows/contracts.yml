@@ -36,6 +36,7 @@ jobs:
       - run: python3 -m unittest discover -s docs/benchmarks/jail -p test_agent_matrix.py
       - run: python3 -m unittest discover -s docs/benchmarks/jail -p test_observer_pair.py
       - run: python3 -m unittest discover -s docs/benchmarks/jail -p test_preview_evidence.py
+      - run: python3 -m unittest discover -s docs/benchmarks/jail -p test_onboarding_guest.py
       - run: python3 -m unittest discover -s docs/benchmarks/sandboxes -p test_summarize.py
       - run: python3 -m unittest discover -s docs/benchmarks -p test_retired_archives.py
       - name: Evidence store size and bundle guard
@@ -44,6 +45,12 @@ jobs:
           python3 -m unittest discover -s docs/benchmarks -p test_check_evidence_store.py
       - name: VM transport boundary regressions (no live VM)
         run: python3 -m unittest discover -s crates/ukai-jail/vm -p 'test_*.py'
+      - name: Native macOS candidate tooling (synthetic signing and installation)
+        run: python3 -m unittest discover -s crates/ukai-jail/dist/macos -p 'test_*.py'
+      - name: Locked runtime attribution
+        run: |
+          python3 crates/ukai-jail/dist/notices.py check
+          python3 -m unittest discover -s crates/ukai-jail/dist -p test_notices.py
       - name: macOS mechanism evidence regressions (no live workloads)
         run: |
           python3 -m unittest discover -s docs/benchmarks/jail -p test_macos_es_pair_summary.py
@@ -75,7 +82,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
-          node-version: '22.22.3'
+          node-version: '22.23.4'
       - run: npm ci --no-audit --no-fund
       - run: npm run build
       - name: The site serves the repository's installer and release key

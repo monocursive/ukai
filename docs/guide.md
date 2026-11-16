@@ -184,8 +184,10 @@ implementation is work in progress on `dev`, and
 ran on 2026-11-01 and found an open `launchctl kickstart` deputy route to both
 custodians; the route was closed and re-measured in the same VM on 2026-11-02
 ([kickstart-fix record](benchmarks/jail/results/macos-k90-kickstart-fix-2026-11-02/README.md)),
-and K90 and NC01 remain blocked pending full release qualification. J16 still
-needs packaging, Apple's entitlement and the protected-Mac acceptance run.
+and K90 and NC01 remain blocked pending full release qualification. J16 now has
+[native candidate packaging tools](../crates/ukai-jail/dist/macos/README.md) and
+an unsigned installation check. It still needs an approved ES provisioning
+profile, a signed/notarized candidate and the protected-Mac acceptance run.
 J18's K108–K113 are `untested`; a `run --vm` with an explicit 1–300 s wall
 passes probing on development evidence only (below).
 The following describes the intended contract.
@@ -529,6 +531,20 @@ that needs authentication also needs explicit credential configuration in
 your launch profile; normal login state is not exposed automatically. See the
 [launch profile reference](https://github.com/monocursive/ukai/blob/dev/docs/specs/jail-v1/operating.md#launch-profiles-and-credentials)
 for the configuration format.
+
+For a recorded working provider configuration, see the
+[15 November candidate onboarding record](benchmarks/jail/results/release-preview-2026-11-15-rc6/README.md).
+It uses OpenCode 1.18.32, `anthropic/claude-sonnet-5-5`, and the
+[`opencode-vault` operator profile in the harness](benchmarks/jail/onboarding_guest.py)
+with an Anthropic API key stored by `ukai-jail credential set anthropic`.
+The profile maps a vault placeholder to `ANTHROPIC_API_KEY`; the real key stays
+outside the agent. Copy the `VAULT_PROFILE` TOML to your configuration directory's
+`launch/opencode-vault.toml`, set its mode to 0600, and use
+`--launch opencode-vault` and OpenCode's `--model anthropic/claude-sonnet-5-5`.
+Review it with `explain` first. The bundled profile does not select or authenticate
+a provider, and the historical free-tier examples do not establish current
+provider availability. This record covers one task and one learning run on the
+named Linux candidate; other versions and native macOS remain experimental.
 
 OpenCode 1.18.32 uses `rg` for file search. Without it, OpenCode attempts a
 GitHub download that the starter profile refuses. Provision the tool before

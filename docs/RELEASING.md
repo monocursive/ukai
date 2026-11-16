@@ -144,18 +144,31 @@ from the inherited bootstrap port, the launcher now strips that port before
 the exec ([bootstrap-strip
 record](benchmarks/jail/results/macos-k90-bootstrap-strip-2026-11-02/README.md)).
 K90 and NC01 remain blocked pending full release qualification, and the
-protected-Mac release run (K104) stays explicitly blocked while Apple's
-entitlement request is pending. No release
-gate is promoted by these measurements.
-J16 still needs its bundle,
-Info.plist, entitlements and `~/Applications` installer. J18's K108–K113 are
+protected-Mac release run (K104) stays explicitly blocked without a usable
+approved ES profile and protected-host acceptance. The November 15 local
+provisioning inventory found no matching profile; Apple's account-side decision
+was not verified. No release gate is promoted by these measurements.
+J16 now has [native candidate tooling](../crates/ukai-jail/dist/macos/README.md)
+for the exact `Ukai.app` layout, macOS 27 Info.plist, clean-source provenance,
+profile-gated signing and per-user install/upgrade/removal with recovery.
+Unsigned staging is not runnable-workflow qualification; no approved Ukai ES
+profile was available locally, and no signed/notarized native candidate or
+protected-host acceptance was obtained. Signing and notarization are separate
+explicit maintainer actions.
+Native execution remains disabled by default and NC02/K104 remain blocked.
+J18's K108–K113 are
 `untested`, a policy element the guest jail does not carry refuses with
-`vm:not-carried:<field>`, and no macOS `ukai-jail` client ships: the VM
-candidate package carries only `ukai-vm` and `ukai-vm-install`, and the
-client is built from source.
+`vm:not-carried:<field>`, and no macOS `ukai-jail` client ships in the existing
+public preview or earlier candidate: those packages carry only `ukai-vm`
+and `ukai-vm-install`, so their client is built from source. The current
+packager builds, signs and installs `ukai-jail` with its sibling service
+from the same clean revision. No full DMG has been built or qualified with
+that tooling yet; signing, notarization and the installed K108–K113 runs
+remain release requirements.
 Apple's Endpoint Security grant (request `S9YJTLLH28`, submitted 2026-09-29)
 is necessary, but does not by itself make the release run ready. The procedure
-below is a release requirement, not an implemented packaging workflow.
+below remains a release requirement; the candidate tooling implements packaging
+mechanics, not the entitlement grant or live acceptance.
 
 Current implementation: native execution is **off by default**. Setting
 `UKAI_JAIL_MACOS_NATIVE=dev` enables development only; a native receipt records
@@ -219,13 +232,17 @@ needs at least 4 GiB free for a release build. Record successful conformance wit
 skipped reference host or an older passing run is insufficient. The next
 release needs a fresh reference conformance rerun on the VPS, followed by
 `cargo xtask freeze --doctor <successful-run>/doctor.json`. The current
-`milestone-1-freeze.toml` has no `[tested]` record: regenerating a tree-only
-freeze intentionally removes it and cannot establish release readiness.
+`milestone-1-freeze.toml` must describe the candidate's inputs. A historical
+`[tested]` record does not cover later source changes. Regenerating a tree-only
+freeze intentionally removes that record and cannot establish release readiness;
+only a successful matching reference run can restore it.
 
-Set the reviewed coordinates and production key:
+Set a new, reviewed candidate version and the production key. The example
+below names the unpublished rc.6 candidate; it does not change the published
+rc.5 release. Never reuse a published version for different bytes:
 
 ```sh
-release_version=0.1.0-rc.5
+release_version=0.1.0-rc.6
 release_revision=$(git rev-parse HEAD)
 release_public_key=$(sed -n '2p' crates/ukai-jail/dist/release.pub)
 release_private_key="$HOME/.config/ouroboros/release-keys/ouro-jail-2026-10-10.key"

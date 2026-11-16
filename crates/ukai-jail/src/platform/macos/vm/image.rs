@@ -106,20 +106,59 @@ pub struct Install {
 }
 
 impl Install {
-    /// Locates the installed preview: `UKAI_VM_HOME` when it names the
-    /// version directory, otherwise the newest `~/.local/share/ukai-vm/<version>`
+    /// Locates the installed preview: `UKAI_VM_HOME`, the image beside an
+    /// installed executable, then the newest `~/.local/share/ukai-vm/<version>`
     /// whose `image/image.json` exists, the same layout `install.sh.in`
     /// writes.
     ///
     /// # Errors
     /// [`Refusal`] when no installation is found.
     pub fn discover() -> Result<Self, Refusal> {
-        if let Some(home) = std::env::var_os("UKAI_VM_HOME") {
-            let root = PathBuf::from(home);
-            return Self::from_root(root);
+        let override_root = std::env::var_os("UKAI_VM_HOME").map(PathBuf::from);
+        // On macOS current_exe can retain the installer's prefix/bin
+        // symlink. Resolve it to the versioned package before finding the
+        // adjacent image; otherwise a custom prefix can borrow HOME's image.
+        let executable = if override_root.is_none() {
+            std::env::current_exe()
+                .ok()
+                .map(|path| {
+                    path.canonicalize().map_err(|error| {
+                        refusal(format!("{} cannot be resolved: {error}", path.display()))
+                    })
+                })
+                .transpose()?
+        } else {
+            None
+        };
+        Self::discover_from(
+            override_root.as_deref(),
+            executable.as_deref(),
+            std::env::var_os("HOME").map(PathBuf::from).as_deref(),
+        )
+    }
+
+    fn discover_from(
+        override_root: Option<&Path>,
+        executable: Option<&Path>,
+        home: Option<&Path>,
+    ) -> Result<Self, Refusal> {
+        if let Some(root) = override_root {
+            return Self::from_root(root.to_path_buf());
         }
-        let mut home = std::env::var_os("HOME")
-            .map(PathBuf::from)
+        // The installer supports arbitrary --prefix locations, and an
+        // operator may deliberately run an older installed version. Its
+        // own image wins over HOME's newest one. A damaged adjacent image
+        // must refuse, not silently select another installation.
+        if let Some(root) = executable
+            .and_then(Path::parent)
+            .filter(|bin| bin.file_name().is_some_and(|name| name == "bin"))
+            .and_then(Path::parent)
+            .filter(|root| is_installation_root(root))
+        {
+            return Self::from_root(root.to_path_buf());
+        }
+        let mut home = home
+            .map(Path::to_path_buf)
             .ok_or_else(|| refusal("no UKAI_VM_HOME and no HOME: where is ukai-vm installed?"))?;
         home.push(".local/share/ukai-vm");
         let mut candidates: Vec<PathBuf> = std::fs::read_dir(&home)
@@ -278,13 +317,57 @@ impl Install {
     }
 }
 
-fn version_key(path: &Path) -> (Vec<u64>, bool, String) {
+/// Recognize an installed or staged package independently of its image's
+/// health. A missing image is a damaged installation, not permission to
+/// borrow another version from HOME. Source builds (target/debug or
+/// target/release) do not pass the caller's `bin` check.
+fn is_installation_root(root: &Path) -> bool {
+    let installed_layout = root.parent().is_some_and(|versions| {
+        versions.file_name().is_some_and(|name| name == "ukai-vm")
+            && versions
+                .parent()
+                .and_then(Path::file_name)
+                .is_some_and(|name| name == "share")
+    });
+    // The expansion helper is present in the installer's staged payload
+    // before that payload reaches share/ukai-vm/<version>.
+    let present_or_inaccessible = |path: PathBuf| {
+        !matches!(
+            path.symlink_metadata(),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound
+        )
+    };
+    installed_layout
+        || present_or_inaccessible(root.join("bin/ukai-vm-install"))
+        || present_or_inaccessible(root.join("image"))
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+enum PrereleasePart {
+    // Length followed by digits compares arbitrarily large numeric ids
+    // without overflow. Numeric ids precede text in SemVer ordering.
+    Numeric(usize, String),
+    Text(String),
+}
+
+fn version_key(path: &Path) -> (Vec<u64>, bool, Vec<PrereleasePart>) {
     let name = path.file_name().unwrap_or_default().to_string_lossy();
-    let (core, suffix) = name.split_once('-').unwrap_or((&name, ""));
+    let name = name.split('+').next().unwrap_or(&name);
+    let (core, suffix) = name.split_once('-').unwrap_or((name, ""));
     (
         core.split('.').map(|n| n.parse().unwrap_or(0)).collect(),
         suffix.is_empty(),
-        suffix.to_owned(),
+        suffix
+            .split('.')
+            .map(|part| {
+                if !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()) {
+                    let digits = part.trim_start_matches('0');
+                    PrereleasePart::Numeric(digits.len(), digits.to_owned())
+                } else {
+                    PrereleasePart::Text(part.to_owned())
+                }
+            })
+            .collect(),
     )
 }
 
@@ -860,10 +943,118 @@ mod tests {
 #[cfg(test)]
 mod regression_tests {
     use super::*;
+
+    fn installed_at(root: &Path) {
+        std::fs::create_dir_all(root.join("image")).unwrap();
+        let manifest = ImageManifest {
+            status: "prepared".into(),
+            disk_sha256: "a".repeat(64),
+            helper_sha256: "b".repeat(64),
+            custodian_sha256: "c".repeat(64),
+            seed_sha256: "d".repeat(64),
+        };
+        std::fs::write(
+            root.join("image/image.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn installed_executable_selects_its_image_at_any_prefix_without_home() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir
+            .path()
+            .join("custom prefix/share/ukai-vm/0.1.0-preview.2");
+        installed_at(&root);
+        let newer = dir.path().join(".local/share/ukai-vm/99.0.0");
+        installed_at(&newer);
+        for home in [None, Some(dir.path())] {
+            let found =
+                Install::discover_from(None, Some(&root.join("bin/ukai-vm")), home).unwrap();
+            assert_eq!(found.root, root);
+        }
+    }
+
+    #[test]
+    fn explicit_installation_wins_and_a_broken_one_never_falls_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let bundled = dir.path().join("bundled");
+        let explicit = dir.path().join("explicit");
+        installed_at(&bundled);
+        installed_at(&explicit);
+        let executable = bundled.join("bin/ukai-vm");
+        assert_eq!(
+            Install::discover_from(Some(&explicit), Some(&executable), None)
+                .unwrap()
+                .root,
+            explicit
+        );
+        std::fs::remove_file(explicit.join("image/image.json")).unwrap();
+        assert!(Install::discover_from(Some(&explicit), Some(&executable), None).is_err());
+        installed_at(&dir.path().join(".local/share/ukai-vm/99.0.0"));
+        std::fs::write(bundled.join("image/image.json"), "broken").unwrap();
+        assert!(Install::discover_from(None, Some(&executable), Some(dir.path())).is_err());
+        std::fs::remove_file(bundled.join("image/image.json")).unwrap();
+        assert!(Install::discover_from(None, Some(&executable), Some(dir.path())).is_err());
+    }
+
+    #[test]
+    fn source_build_still_discovers_the_latest_home_installation() {
+        let dir = tempfile::tempdir().unwrap();
+        for version in ["0.9.0", "0.10.0"] {
+            installed_at(&dir.path().join(".local/share/ukai-vm").join(version));
+        }
+        for profile in ["debug", "release"] {
+            let executable = dir
+                .path()
+                .join("source/target")
+                .join(profile)
+                .join("ukai-vm");
+            let found = Install::discover_from(None, Some(&executable), Some(dir.path())).unwrap();
+            assert_eq!(found.root, dir.path().join(".local/share/ukai-vm/0.10.0"));
+        }
+    }
+
+    #[test]
+    fn installed_or_staged_packages_with_no_image_never_borrow_a_home_image() {
+        let dir = tempfile::tempdir().unwrap();
+        installed_at(&dir.path().join(".local/share/ukai-vm/99.0.0"));
+        let installed = dir.path().join("custom/share/ukai-vm/0.1.0-preview.2");
+        let staged = dir
+            .path()
+            .join("custom/share/ukai-vm/.install.fixture/payload");
+        for root in [&installed, &staged] {
+            std::fs::create_dir_all(root.join("bin")).unwrap();
+        }
+        std::fs::write(staged.join("bin/ukai-vm-install"), b"installer marker").unwrap();
+        for root in [&installed, &staged] {
+            let error =
+                Install::discover_from(None, Some(&root.join("bin/ukai-vm")), Some(dir.path()))
+                    .unwrap_err();
+            assert!(
+                error.to_string().contains(&root.display().to_string()),
+                "{error}"
+            );
+        }
+    }
+
     #[test]
     fn versions_are_ordered_numerically() {
         assert!(version_key(Path::new("0.10.0")) > version_key(Path::new("0.9.0")));
         assert!(version_key(Path::new("0.10.0")) > version_key(Path::new("0.10.0-rc.1")));
+        assert!(
+            version_key(Path::new("0.1.0-preview.10")) > version_key(Path::new("0.1.0-preview.9"))
+        );
+        assert!(version_key(Path::new("0.1.0-rc.x")) > version_key(Path::new("0.1.0-rc.99")));
+        assert!(
+            version_key(Path::new("0.1.0-preview.100000000000000000000"))
+                > version_key(Path::new("0.1.0-preview.99999999999999999999"))
+        );
+        assert!(
+            version_key(Path::new("0.1.0-preview.1+build.2"))
+                == version_key(Path::new("0.1.0-preview.1+build.1"))
+        );
     }
 
     #[test]

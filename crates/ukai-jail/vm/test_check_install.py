@@ -11,6 +11,16 @@ import check_install
 
 HERE = Path(__file__).resolve().parent
 ENVIRONMENT = {key: value for key, value in os.environ.items() if key != 'PYTHONOPTIMIZE'}
+CLIENT_REPORT = {'component': 'ukai-jail', 'version': '0.1.0', 'build': {
+    'revision': 'a' * 40, 'dirty': False, 'target': 'aarch64-apple-darwin',
+    'opt_level': '3', 'debug_assertions': False, 'rustc': 'rustc 1.98.1 (fixture)',
+    'inputs': 'sha256:' + 'b' * 64}}
+STUB_CLIENT = '#!/bin/sh\necho ' + repr(json.dumps(CLIENT_REPORT)) + '\n'
+
+
+def client_metadata():
+    return {'source_revision': 'a' * 40, 'ukai_jail_version': CLIENT_REPORT}
+
 
 
 def exits(code, text):
@@ -22,6 +32,14 @@ def passed_case(name):
 
 
 class CaseRecordingTests(unittest.TestCase):
+    def test_client_version_is_bound_to_the_clean_packaged_revision(self):
+        self.assertTrue(check_install.client_is_the_package(json.dumps(CLIENT_REPORT), client_metadata()))
+        for field, value in [('revision', 'b' * 40), ('dirty', True),
+                             ('target', 'x86_64-apple-darwin'), ('inputs', 'sha256:' + 'c' * 64)]:
+            with self.subTest(field=field):
+                changed = {**CLIENT_REPORT, 'build': {**CLIENT_REPORT['build'], field: value}}
+                self.assertFalse(check_install.client_is_the_package(json.dumps(changed), client_metadata()))
+
     def test_failed_postcondition_is_recorded_before_the_summary(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -190,6 +208,8 @@ destination="$prefix/share/ukai-vm/test"
 link="$prefix/bin/ukai-vm"
 [[ ! -e "$destination" ]] || { echo "Already installed: $destination" >&2; exit 2; }
 [[ ! -e "$link" ]] || { @UNRELATED@ echo "Refusing to replace an existing unrelated command: $link" >&2; exit 2; }
+client="$prefix/bin/ukai-jail"
+[[ ! -e "$client" && ! -L "$client" ]] || { echo "Refusing to replace an existing unrelated command: $client" >&2; exit 2; }
 if grep -q tampered "$here/SHA256SUMS"; then echo 'Package manifest checksum mismatch.' >&2; exit 1; fi
 if grep -q tampered "$here/payload/image/vz"; then @PAYLOAD@ echo 'Package checksum mismatch.' >&2; exit 1; fi
 if [[ -e "$here/payload/bin/unlisted" ]]; then @EXTRA@ echo 'Package payload holds files the manifest does not list.' >&2; exit 1; fi
@@ -197,6 +217,7 @@ mkdir -p "$destination" "$prefix/bin"
 cp -R "$here/payload/." "$destination/"
 @INSTALLED@
 ln -s "$destination/bin/ukai-vm" "$link"
+ln -s "$destination/bin/ukai-jail" "$client"
 printf '\nInstalled %s\n' "$link"
 '''
 
@@ -229,6 +250,9 @@ class InstallerCheckTests(unittest.TestCase):
             (volume / 'payload' / 'bin' / 'ukai-vm').write_text(
                 '#!/bin/sh\necho \'{"component":"ukai-vm","version":"@REPORTED@"}\'\n'.replace('@REPORTED@', reported))
             (volume / 'payload' / 'bin' / 'ukai-vm').chmod(0o755)
+            (volume / 'payload' / 'bin' / 'ukai-jail').write_text(STUB_CLIENT)
+            (volume / 'payload' / 'bin' / 'ukai-jail').chmod(0o755)
+            (volume / 'payload' / 'image' / 'image.json').write_text(json.dumps(client_metadata()))
             write_manifest(volume)
             (volume / 'install.sh').write_text(FAKE_INSTALLER.replace('@UNRELATED@', unrelated)
                                                .replace('@PAYLOAD@', payload).replace('@EXTRA@', extra)
@@ -310,22 +334,22 @@ echo '{"component":"ukai-vm","version":"0.0.0-test"}'
 class RealInstallerTests(unittest.TestCase):
     """install.sh.in itself (rendered as package.py does) on a stub payload."""
 
-    def volume(self, root):
+    def volume(self, root, version='0.0.0-test', client=STUB_CLIENT, service=STUB_SERVICE):
         import gzip
         volume = root / 'volume'
         (volume / 'payload' / 'bin').mkdir(parents=True)
         (volume / 'payload' / 'image').mkdir()
-        for name, text in (('ukai-vm-install', STUB_HELPER), ('ukai-vm', STUB_SERVICE)):
+        for name, text in (('ukai-vm-install', STUB_HELPER), ('ukai-vm', service.replace('0.0.0-test', version)), ('ukai-jail', client)):
             (volume / 'payload' / 'bin' / name).write_text(text)
             (volume / 'payload' / 'bin' / name).chmod(0o755)
         (volume / 'payload' / 'image' / 'vz').write_text('helper\n')
         (volume / 'payload' / 'image' / 'base.raw.gz').write_bytes(gzip.compress(b'guest disk'))
         (volume / 'payload' / 'image' / 'image.json').write_text(
-            json.dumps({'disk_sha256': hashlib.sha256(b'guest disk').hexdigest()}))
+            json.dumps({**client_metadata(), 'disk_sha256': hashlib.sha256(b'guest disk').hexdigest()}))
         (volume / 'READ-ME.txt').write_text('read me\n')
         write_manifest(volume)
         manifest = hashlib.sha256((volume / 'SHA256SUMS').read_bytes()).hexdigest()
-        script = (HERE / 'install.sh.in').read_text().replace('@VERSION@', '0.0.0-test').replace('@MANIFEST_SHA256@', manifest)
+        script = (HERE / 'install.sh.in').read_text().replace('@VERSION@', version).replace('@MANIFEST_SHA256@', manifest)
         (volume / 'install.sh').write_text(script)
         (volume / 'install.sh').chmod(0o755)
         return volume
@@ -340,6 +364,192 @@ class RealInstallerTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue(summary['passed'], summary)
             self.assertEqual([r['case'] for r in summary['results']], list(check_install.CASES))
+
+    def install(self, volume, prefix):
+        return subprocess.run(['/bin/bash', str(volume / 'install.sh'), '--prefix', str(prefix)],
+                              env=ENVIRONMENT, capture_output=True, text=True)
+
+    def test_upgrade_switches_both_commands_and_retains_the_previous_version(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            older = self.volume(root / 'old', version='0.0.0-old')
+            newer = self.volume(root / 'new')
+            prefix = root / 'prefix'
+            for volume in (older, newer):
+                result = self.install(volume, prefix)
+                self.assertEqual(result.returncode, 0, result.stderr)
+            for name in ('ukai-vm', 'ukai-jail'):
+                self.assertEqual(os.readlink(prefix / 'bin' / name),
+                                 str(prefix / 'share/ukai-vm/0.0.0-test/bin' / name))
+            self.assertTrue(check_install.installed_tree_matches(older, prefix / 'share/ukai-vm/0.0.0-old'))
+
+    def test_broken_client_refuses_before_replacing_either_command(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            older = self.volume(root / 'old', version='0.0.0-old')
+            newer = self.volume(root / 'new', client='#!/bin/sh\nexit 23\n')
+            prefix = root / 'prefix'
+            self.assertEqual(self.install(older, prefix).returncode, 0)
+            result = self.install(newer, prefix)
+            self.assertEqual(result.returncode, 23, result.stderr)
+            for name in ('ukai-vm', 'ukai-jail'):
+                self.assertEqual(os.readlink(prefix / 'bin' / name),
+                                 str(prefix / 'share/ukai-vm/0.0.0-old/bin' / name))
+            self.assertFalse((prefix / 'share/ukai-vm/0.0.0-test').exists())
+            self.assertFalse(list((prefix / 'share/ukai-vm').glob('.install.*')))
+
+    def test_concurrent_installer_cannot_remove_the_successful_payload(self):
+        import shlex
+        import time
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prefix, ready, release = root / 'prefix', root / 'ready', root / 'release'
+            # Keep the first real installer inside its staged doctor while
+            # the second tries both the same and a different version.
+            service = ('#!/bin/sh\nif [ "$1" = doctor ]; then\n'
+                       f'touch {shlex.quote(str(ready))}\n'
+                       f'while [ ! -f {shlex.quote(str(release))} ]; do sleep 0.1; done\nfi\n'
+                       + STUB_SERVICE.split('\n', 1)[1])
+            volume = self.volume(root / 'first', service=service)
+            other = self.volume(root / 'other', version='0.0.0-other')
+            first = subprocess.Popen(['/bin/bash', str(volume / 'install.sh'), '--prefix', str(prefix)],
+                                     env=ENVIRONMENT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            try:
+                deadline = time.monotonic() + 10
+                while not ready.exists() and first.poll() is None and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(ready.exists(), 'first installer did not reach staged doctor')
+                for second in (volume, other):
+                    with self.subTest(version=check_install.package_version(second)):
+                        result = subprocess.run(['/bin/bash', str(second / 'install.sh'), '--prefix', str(prefix)],
+                                                env=ENVIRONMENT, capture_output=True, text=True, timeout=10)
+                        self.assertEqual(result.returncode, 2, result.stderr)
+                        self.assertIn('Installation is locked:', result.stderr)
+                        self.assertTrue((prefix / 'share/ukai-vm/.install-lock').is_dir())
+            finally:
+                release.touch()
+                try:
+                    stdout, stderr = first.communicate(timeout=10)
+                except subprocess.TimeoutExpired:
+                    first.kill()
+                    first.communicate()
+                    raise
+            self.assertEqual(first.returncode, 0, stderr)
+            self.assertIn('Installed ', stdout)
+            destination = prefix / 'share/ukai-vm/0.0.0-test'
+            self.assertTrue(check_install.installed_tree_matches(volume, destination))
+            for name in ('ukai-vm', 'ukai-jail'):
+                self.assertEqual(os.readlink(prefix / 'bin' / name), str(destination / 'bin' / name))
+                self.assertTrue((prefix / 'bin' / name).is_file())
+            self.assertFalse((prefix / 'share/ukai-vm/0.0.0-other').exists())
+            self.assertFalse((prefix / 'share/ukai-vm/.install-lock').exists())
+            self.assertFalse(list((prefix / 'share/ukai-vm').glob('.install.*')))
+
+    def test_an_existing_lock_is_never_stolen_or_removed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            volume, prefix = self.volume(root), root / 'prefix'
+            lock = prefix / 'share/ukai-vm/.install-lock'
+            lock.mkdir(parents=True)
+            result = self.install(volume, prefix)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn('Installation is locked:', result.stderr)
+            self.assertTrue(lock.is_dir())
+            self.assertFalse((prefix / 'bin').exists())
+            self.assertEqual(list(lock.parent.iterdir()), [lock])
+
+    def test_simultaneous_setup_cannot_remove_the_winners_command_directory(self):
+        import shlex
+        import time
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prefix, ready, release = root / 'prefix', root / 'doctor-ready', root / 'doctor-release'
+            service = ('#!/bin/sh\nif [ "$1" = doctor ]; then\n'
+                       f'touch {shlex.quote(str(ready))}\n'
+                       f'while [ ! -f {shlex.quote(str(release))} ]; do sleep 0.01; done\nfi\n'
+                       + STUB_SERVICE.split('\n', 1)[1])
+            volume = self.volume(root / 'package', service=service)
+            # BASH_ENV schedules the real, unmodified installer: both runs
+            # record absent parent directories before either creates them.
+            # Include the old command so this also reproduces the regression.
+            barrier = root / 'setup-barrier.sh'
+            barrier.write_text('''ukai_install_setup_barrier() {
+  case "$BASH_COMMAND" in
+    'mkdir -p "$prefix/share/ukai-vm"'|'mkdir -p "$prefix/share/ukai-vm" "$prefix/bin"')
+      touch "$UKAI_SETUP_READY"
+      while [ ! -f "$UKAI_SETUP_RELEASE" ]; do /bin/sleep 0.01; done
+      ;;
+  esac
+}
+trap ukai_install_setup_barrier DEBUG
+''')
+            processes = {}
+            outputs = {}
+
+            def wait_for(path):
+                deadline = time.monotonic() + 10
+                while not path.exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(path.exists(), f'installer did not reach {path.name}')
+
+            try:
+                for name in ('first', 'second'):
+                    environment = {**ENVIRONMENT, 'BASH_ENV': str(barrier),
+                                   'UKAI_SETUP_READY': str(root / (name + '-ready')),
+                                   'UKAI_SETUP_RELEASE': str(root / (name + '-release'))}
+                    processes[name] = subprocess.Popen(
+                        ['/bin/bash', str(volume / 'install.sh'), '--prefix', str(prefix)],
+                        env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    wait_for(root / (name + '-ready'))
+                (root / 'first-release').touch()
+                wait_for(ready)
+                (root / 'second-release').touch()
+                outputs['second'] = processes['second'].communicate(timeout=10)
+                self.assertEqual(processes['second'].returncode, 2, outputs['second'][1])
+                self.assertIn('Installation is locked:', outputs['second'][1])
+                self.assertTrue((prefix / 'bin').is_dir(), 'contender removed the active installer\'s bin')
+            finally:
+                for path in (release, root / 'first-release', root / 'second-release'):
+                    path.touch()
+                for name, process in processes.items():
+                    if name not in outputs:
+                        try:
+                            outputs[name] = process.communicate(timeout=10)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                            process.communicate()
+                            raise
+            self.assertEqual(processes['first'].returncode, 0, outputs['first'][1])
+            destination = prefix / 'share/ukai-vm/0.0.0-test'
+            self.assertTrue(check_install.installed_tree_matches(volume, destination))
+            for name in ('ukai-vm', 'ukai-jail'):
+                self.assertEqual(os.readlink(prefix / 'bin' / name), str(destination / 'bin' / name))
+                self.assertTrue((prefix / 'bin' / name).is_file())
+            self.assertFalse((prefix / 'share/ukai-vm/.install-lock').exists())
+
+    def test_activation_failure_rolls_back_only_the_links_it_changed(self):
+        import shlex
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prefix = root / 'prefix'
+            older = self.volume(root / 'old', version='0.0.0-old')
+            self.assertEqual(self.install(older, prefix).returncode, 0)
+            client = prefix / 'bin' / 'ukai-jail'
+            # Simulate another installer/operator replacing the client after
+            # preflight, while this invocation's staged doctor is running.
+            service = ('#!/bin/sh\nif [ "$1" = doctor ]; then\n'
+                       f'rm -f {shlex.quote(str(client))}\n'
+                       f'printf changed > {shlex.quote(str(client))}\nfi\n'
+                       + STUB_SERVICE.split('\n', 1)[1])
+            newer = self.volume(root / 'new', service=service)
+            result = self.install(newer, prefix)
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn('Command changed during installation:', result.stderr)
+            self.assertEqual(os.readlink(prefix / 'bin/ukai-vm'),
+                             str(prefix / 'share/ukai-vm/0.0.0-old/bin/ukai-vm'))
+            self.assertEqual(client.read_text(), 'changed')
+            self.assertFalse((prefix / 'share/ukai-vm/0.0.0-test').exists())
+            self.assertTrue(check_install.installed_tree_matches(older, prefix / 'share/ukai-vm/0.0.0-old'))
 
     def test_an_unlisted_payload_file_is_refused_not_installed(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -371,7 +581,7 @@ class RealInstallerTests(unittest.TestCase):
             modes = {str(path.relative_to(installed)): stat.S_IMODE(path.lstat().st_mode)
                      for path in [installed, *installed.rglob('*')]}
             self.assertEqual(modes, {'.': 0o755, 'bin': 0o755, 'image': 0o755, 'bin/ukai-vm': 0o755,
-                                     'bin/ukai-vm-install': 0o755, 'image/vz': 0o644, 'image/base.raw': 0o644,
+                                     'bin/ukai-vm-install': 0o755, 'bin/ukai-jail': 0o755, 'image/vz': 0o644, 'image/base.raw': 0o644,
                                      'image/image.json': 0o644})
             self.assertTrue(check_install.installed_modes_normal(volume, installed))
 

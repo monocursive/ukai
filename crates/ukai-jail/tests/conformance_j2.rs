@@ -474,20 +474,31 @@ fn s04_io_uring_and_compat_abis_cannot_bypass_the_filter() {
     let code = r#"
 import ctypes, mmap, struct, errno
 libc=ctypes.CDLL(None,use_errno=True)
+has_x86_compat = __HAS_X86_COMPAT__
 for nr in [425,426,427]:
     for abi in [0,0x40000000]:
         ctypes.set_errno(0)
         assert libc.syscall(nr|abi,0,0,0,0,0,0) == -1
         assert ctypes.get_errno() == errno.EPERM
-    # int 0x80 presents AUDIT_ARCH_I386 even from a native x86-64 image.
-    code=b'\xb8'+struct.pack('<I',nr)+b'\xcd\x80\xc3'
-    mem=mmap.mmap(-1,4096,prot=mmap.PROT_READ|mmap.PROT_WRITE|mmap.PROT_EXEC)
-    mem.write(code)
-    fn=ctypes.CFUNCTYPE(ctypes.c_int)(ctypes.addressof(ctypes.c_char.from_buffer(mem)))
-    assert fn() == -errno.EPERM
-print('native/x32/compat: setup, enter and register denied')
+    if has_x86_compat:
+        # int 0x80 presents AUDIT_ARCH_I386 even from a native x86-64 image.
+        # These instruction bytes are never executed on aarch64.
+        code=b'\xb8'+struct.pack('<I',nr)+b'\xcd\x80\xc3'
+        mem=mmap.mmap(-1,4096,prot=mmap.PROT_READ|mmap.PROT_WRITE|mmap.PROT_EXEC)
+        mem.write(code)
+        fn=ctypes.CFUNCTYPE(ctypes.c_int)(ctypes.addressof(ctypes.c_char.from_buffer(mem)))
+        assert fn() == -errno.EPERM
+print('native/x32-bit numbers: setup, enter and register denied')
+print('i386 compat: ' + ('denied' if has_x86_compat else 'not applicable to this architecture'))
 "#;
-    let run = jail.target(["/usr/bin/python3", "-c", code]).run().unwrap();
+    #[cfg(target_arch = "x86_64")]
+    let code = code.replace("__HAS_X86_COMPAT__", "True");
+    #[cfg(not(target_arch = "x86_64"))]
+    let code = code.replace("__HAS_X86_COMPAT__", "False");
+    let run = jail
+        .target(["/usr/bin/python3", "-c", &code])
+        .run()
+        .unwrap();
     assert_eq!(run.code(), Some(0), "{}", run.stderr_text());
     assert!(
         run.stdout_text()

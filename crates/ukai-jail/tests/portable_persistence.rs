@@ -27,6 +27,7 @@ use std::io::{Read as _, Write as _};
 use std::os::fd::IntoRawFd as _;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -67,6 +68,16 @@ enum Scenario {
     /// supervisor passes, a requested stop ends the target with SIGTERM, and
     /// the target exits by itself after `exit_after`.
     Timed { exit_after: Duration },
+    /// The target cannot finish until the returning control reader observes
+    /// its queued exec frame. A watchdog makes a missing poll fail finitely.
+    AwaitControl(Arc<ControlHandshake>),
+}
+
+#[derive(Default, Debug)]
+struct ControlHandshake {
+    reader_ready: AtomicBool,
+    exec_received: AtomicBool,
+    watchdog_expired: AtomicBool,
 }
 
 /// What the supervisor asked of the simulated platform, and when.
@@ -74,6 +85,7 @@ enum Scenario {
 struct SimLog {
     released_at: Option<Instant>,
     stops: Vec<(StopReason, Instant)>,
+    trace: Option<PathBuf>,
 }
 
 #[derive(Clone)]
@@ -115,7 +127,12 @@ impl Platform for Sim {
     fn probe(&self, plan: &PlanRequest) -> Vec<Capability> {
         sim::available(plan, "persistence simulation")
     }
-    fn prepare(&self, _: PreparedPlan, _: Sinks) -> Result<Box<dyn PreparedExecution>, JailError> {
+    fn prepare(
+        &self,
+        plan: PreparedPlan,
+        _: Sinks,
+    ) -> Result<Box<dyn PreparedExecution>, JailError> {
+        self.log.lock().unwrap().trace = Some(plan.attempt_dir.join("trace.ndjson"));
         Ok(Box::new(SimPrepared(self.clone())))
     }
 }
@@ -174,8 +191,10 @@ impl PreparedExecution for SimPrepared {
         self: Box<Self>,
     ) -> Result<Box<dyn RunningExecution>, Box<ukai_jail::platform::ReleaseFailure>> {
         self.0.log.lock().unwrap().released_at = Some(Instant::now());
+        let trace = self.0.log.lock().unwrap().trace.clone().unwrap_or_default();
         Ok(Box::new(SimRunning {
             sim: self.0,
+            trace,
             step: 0,
             stopped: false,
             wall_reported: false,
@@ -191,6 +210,7 @@ impl PreparedExecution for SimPrepared {
 
 struct SimRunning {
     sim: Sim,
+    trace: PathBuf,
     step: usize,
     stopped: bool,
     wall_reported: bool,
@@ -238,6 +258,38 @@ impl RunningExecution for SimRunning {
                 }
                 if released.elapsed() >= *exit_after {
                     return RunEvent::TargetExited { code: 0 };
+                }
+                std::thread::sleep(Duration::from_millis(2));
+                RunEvent::Poll
+            }
+            Scenario::AwaitControl(progress) => {
+                if self.step == 1 {
+                    return RunEvent::ExecConfirmed;
+                }
+                if progress.exec_received.load(Ordering::SeqCst) {
+                    return RunEvent::TargetExited { code: 0 };
+                }
+                let released = self.sim.log.lock().unwrap().released_at.unwrap();
+                if released.elapsed() >= Duration::from_secs(10) {
+                    progress.watchdog_expired.store(true, Ordering::SeqCst);
+                    return RunEvent::TargetExited { code: 0 };
+                }
+                // This wait runs on the supervisor thread, after its
+                // between-waits acknowledgment. Seeing the enforced note
+                // here means the corresponding control send has returned
+                // into the still-full pipe; no timing guess opens the reader.
+                if !progress.reader_ready.load(Ordering::SeqCst)
+                    && std::fs::read_to_string(&self.trace).is_ok_and(|trace| {
+                        trace
+                            .lines()
+                            .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+                            .any(|event| {
+                                event["operation"] == "jail.receipt"
+                                    && event["fields"]["phase"] == "enforced"
+                            })
+                    })
+                {
+                    progress.reader_ready.store(true, Ordering::SeqCst);
                 }
                 std::thread::sleep(Duration::from_millis(2));
                 RunEvent::Poll
@@ -773,7 +825,7 @@ impl Fixture {
         control: Control,
     ) -> Outcome {
         let (reader, writer) = std::io::pipe().unwrap();
-        if control == Control::FullNeverRead || matches!(control, Control::FullReadAfter(_)) {
+        if !matches!(control, Control::Drained) {
             fill(&writer);
         }
         let fd = writer.into_raw_fd();
@@ -781,9 +833,14 @@ impl Fixture {
         flags.push("--control-fd".into());
         flags.push(fd.to_string());
         let args = self.args(&flags);
+        let handshake = match &control {
+            Control::FullUntilExecQueued(progress) => Some(Arc::clone(progress)),
+            _ => None,
+        };
         let drain = match control {
             Control::Drained => Some(Duration::ZERO),
             Control::FullReadAfter(delay) => Some(delay),
+            Control::FullUntilExecQueued(_) => Some(Duration::ZERO),
             Control::FullNeverRead => None,
         };
         // The reader stops at EOF (the run owns the descriptor from its start
@@ -803,6 +860,13 @@ impl Fixture {
             let done = Arc::clone(&done);
             std::thread::spawn(move || {
                 std::thread::sleep(delay);
+                if let Some(progress) = &handshake {
+                    while !progress.reader_ready.load(Ordering::SeqCst)
+                        && !done.load(Ordering::SeqCst)
+                    {
+                        std::thread::sleep(Duration::from_millis(2));
+                    }
+                }
                 ukai_jail::trace::set_nonblocking(reader.as_fd()).unwrap();
                 let mut pending = Vec::new();
                 let mut lines: Vec<(Vec<u8>, Instant)> = Vec::new();
@@ -815,6 +879,12 @@ impl Fixture {
                             while let Some(at) = pending.iter().position(|byte| *byte == b'\n') {
                                 let line: Vec<u8> = pending.drain(..=at).collect();
                                 if line.len() > 1 {
+                                    if let Some(progress) = &handshake
+                                        && serde_json::from_slice::<Value>(&line)
+                                            .is_ok_and(|frame| frame["kind"] == "exec_confirmed")
+                                    {
+                                        progress.exec_received.store(true, Ordering::SeqCst);
+                                    }
                                     lines.push((line[..line.len() - 1].to_vec(), Instant::now()));
                                 }
                             }
@@ -890,7 +960,7 @@ impl Fixture {
 }
 
 /// How the control pipe's reader behaves.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Debug)]
 enum Control {
     /// A reader drains it from the start.
     Drained,
@@ -898,6 +968,8 @@ enum Control {
     FullNeverRead,
     /// The pipe is full before the run and a reader starts after the delay.
     FullReadAfter(Duration),
+    /// Drain only after the simulated target observes the queued exec ack.
+    FullUntilExecQueued(Arc<ControlHandshake>),
 }
 
 /// Fills a pipe until a nonblocking write would block, with newlines (which
@@ -1828,23 +1900,25 @@ fn j4_n4_a_queued_terminal_frame_is_delivered_once_the_reader_returns() {
 #[test]
 fn j4_n4_a_queued_frame_reaches_a_returning_reader_while_the_run_goes_on() {
     let fixture = Fixture::new();
+    let progress = Arc::new(ControlHandshake::default());
     let outcome = fixture.run_with(
-        Sim::new(Scenario::Timed {
-            exit_after: Duration::from_millis(1500),
-        }),
+        Sim::new(Scenario::AwaitControl(Arc::clone(&progress))),
         &["--profile", "tool", "--limit", "wall=1h"],
         real(),
-        Control::FullReadAfter(Duration::from_millis(200)),
+        Control::FullUntilExecQueued(Arc::clone(&progress)),
     );
     assert_eq!(outcome.report.exit_code, 0, "{:?}", outcome.report.error);
     let kinds: Vec<&Value> = outcome.frames.iter().map(|frame| &frame["kind"]).collect();
     assert_eq!(kinds, ["prepared", "exec_confirmed", "settled"]);
-    let early = outcome.finished_at.duration_since(outcome.arrivals[1]);
     assert!(
-        early >= Duration::from_millis(800),
-        "exec_confirmed reached the reader only {early:?} before the run ended: it waited for the \
-         next send instead of the loop's poll"
+        !progress.watchdog_expired.load(Ordering::SeqCst),
+        "exec_confirmed stayed queued until the watchdog ended the target: the loop did not poll"
     );
+    assert!(progress.reader_ready.load(Ordering::SeqCst));
+    assert!(progress.exec_received.load(Ordering::SeqCst));
+    assert!(outcome.arrivals[1] < outcome.finished_at);
+    assert_eq!(outcome.report.control_dropped, 0);
+    assert!(outcome.torn_tail.is_empty(), "no frame is cut short");
 }
 
 // ---------------------------------------------------------------------------

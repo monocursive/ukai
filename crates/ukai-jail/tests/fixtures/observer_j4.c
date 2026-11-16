@@ -1,7 +1,7 @@
 /* The observer's own-defect suite's fixture (observer_j4_linux.rs): a
    child's own seccomp filter (a notification listener, a filter that refuses
    a call, a filter that asks for trace stops), a foreign-ABI call where
-   x86_64 has one, and a full lifecycle backlog. `launch` and `launch2` are
+   supported by the host, and a full lifecycle backlog. `launch` and `launch2` are
    the inside launcher (common.h); every other mode prints its lines. */
 #include "common.h"
 
@@ -138,6 +138,32 @@ static int mode_foreign(int argc, char **argv) {
 }
 #endif
 
+#ifdef __aarch64__
+/* AArch64 cannot enter the compat ABI with an inline svc. Exec a genuine
+   static ELF32 helper, inheriting the observer's filter and trace attachment.
+   Return to native code afterward to prove native calls still decode normally. */
+static int mode_foreign_arm32(int argc, char **argv) {
+    int status;
+    long r;
+    if (argc < 5) return 2;
+    pid_t child = fork();
+    if (child < 0) return 3;
+    if (child == 0) {
+        execl(argv[2], argv[2], argv[3], (char *) NULL);
+        _exit(127);
+    }
+    while (waitpid(child, &status, 0) < 0) {
+        if (errno != EINTR) return 4;
+    }
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) return 5;
+    report_line("arm32_exit", 0, 0, argv[3], "");
+    r = syscall(SYS_openat, AT_FDCWD, argv[4], O_WRONLY | O_CREAT, 0600);
+    report("native_open", r, argv[4], "");
+    if (r >= 0) close((int) r);
+    return r < 0 ? 6 : 0;
+}
+#endif
+
 /* forks-then-trace N: N fork children that exit at once (one lifecycle fact
    each for the observer), then a filter that asks for a trace stop on getpid,
    a number outside the closed set, carrying the narrowing filter's own trace
@@ -202,6 +228,9 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[1], "tool-listener")) return mode_tool_listener();
 #ifdef __x86_64__
     if (!strcmp(argv[1], "foreign")) return mode_foreign(argc, argv);
+#endif
+#ifdef __aarch64__
+    if (!strcmp(argv[1], "foreign-arm32")) return mode_foreign_arm32(argc, argv);
 #endif
     if (!strcmp(argv[1], "forks-then-trace")) return mode_forks_then_trace(argc, argv);
     if (!strcmp(argv[1], "trace-request")) return mode_trace_request(argc, argv);

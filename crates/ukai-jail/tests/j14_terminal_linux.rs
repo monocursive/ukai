@@ -1770,6 +1770,20 @@ fn k63_the_targets_bytes_reach_the_terminal_unchanged_and_in_order() {
     };
     let mut session = Session::start(direct);
     session.wait_exit();
+    // The status pipe reports exit independently of the terminal reader.
+    // Close the shell's last slave descriptor and wait for the reader to
+    // drain to EOF/EIO before taking the direct-run comparison. Otherwise
+    // its final read can arrive after `expected` was captured.
+    session.quit();
+    assert!(
+        common::within(common::SETTLE_BOUND, || session
+            .terminal
+            .reader
+            .as_ref()
+            .is_some_and(std::thread::JoinHandle::is_finished)),
+        "the direct terminal output did not drain: {}",
+        session.terminal.text()
+    );
     let expected = session.terminal.bytes();
     assert!(expected.len() >= 70_000);
 

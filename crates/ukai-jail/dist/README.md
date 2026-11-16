@@ -47,7 +47,41 @@ refuses a downgrade unless `--allow-downgrade` is given. The signed manifest
 covers `install.sh` itself, and the installer refuses to run when it does not
 match that signed copy. Failure to verify the signed manifest or archive
 checksum preserves the installed binary. The distribution includes the project
-license and the CA-data license notice.
+license and the [generated third-party notice bundle](THIRD_PARTY_NOTICES.txt).
+The [inventory](third-party-notices.json) binds the locked dependency closure,
+upstream notice bytes, custom Unicode data attribution and pinned Rust library
+notices to the reviewed source inputs. The CA-data license is
+CDLA-Permissive-2.0. Linux and native macOS use the same notice bytes; the warm-VM
+package includes current host-client notices separately from its guest notices.
+
+Packaging refuses stale lockfile, manifest, target, toolchain, data-attribution,
+or notice inputs. The static CI check needs only Python 3.11+:
+
+```sh
+python3 crates/ukai-jail/dist/notices.py check
+```
+
+After a dependency/toolchain/input change, fetch the locked crates using the
+pinned Rust toolchain, regenerate, and review both generated files:
+
+```sh
+cargo +1.98.1 fetch --locked
+python3 crates/ukai-jail/dist/notices.py generate
+python3 crates/ukai-jail/dist/notices.py generate --check
+```
+
+Regeneration uses checksum-verified cached crate archives and the union of
+normal `ukai-jail` dependency edges for x86_64/ARM64 Linux and ARM64 macOS.
+Normal proc-macro dependencies are retained conservatively; dev/build-only
+dependencies and ledger-only SQLite are outside this package. Nested notices,
+ring's per-source legal headers and referenced authors are retained. The pinned
+toolchain's `COPYRIGHT-library.html` is converted to readable body text while
+preserving every preformatted upstream notice. Its cross-platform inventory is
+retained as provided; named components are not all linked into the three targets,
+and this does not claim full license-text coverage for unshipped components.
+This tooling preserves available attribution; it is not a legal-compliance
+certification. Regeneration uses local Cargo/rustup caches and never changes the
+lockfile, Rust pin, runtime source or host security policy.
 
 `ukai-jail.release` records the installed release coordinate and binary digest;
 the installer refuses a record that no longer matches the binary. Reinstall
@@ -93,6 +127,9 @@ python3 crates/ukai-jail/dist/prepare_release.py stage \
 
 The staged archive name carries that release version, and assembly refuses
 artifacts staged for a different one.
+Already pinned Linux archives and Mac disk images keep their original hashes.
+Reusing a version with changed archive bytes refuses before assembly creates
+the candidate or signs anything; choose a new release version.
 
 Copy the two staged directories to the release operator's machine. Archive
 bytes are deterministic across source-file timestamps and locations. Assembly

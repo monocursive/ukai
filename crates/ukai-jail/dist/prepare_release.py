@@ -100,6 +100,11 @@ def assemble(stages, revision, inputs, version, out, signing_key=None, public_ke
         raise ValueError('provide both the signing key and its independently trusted public key')
     if public_key and not re.fullmatch(r'[A-Za-z0-9+/]{56}', public_key):
         raise ValueError('expected a Minisign public key, not a path or shell expression')
+    # Validate release coordinates before creating any candidate files. Published
+    # archive pins are immutable, even when the replacement would be signed.
+    bootstrap = (Path(__file__).resolve().parents[3] / 'install.sh').read_text()
+    bootstrap = render_bootstrap(bootstrap, version,
+                                {r['target']: r['archive_sha256'] for r in records})
     out.mkdir(parents=True, exist_ok=False)
     for directory, record in zip(stages, records):
         shutil.copyfile(directory / record['archive'], out / record['archive'])
@@ -111,9 +116,6 @@ def assemble(stages, revision, inputs, version, out, signing_key=None, public_ke
     shutil.copyfile(Path(__file__).with_name('install.sh'), install_sh)
     # Users verify embedded archive hashes without a signature-tool dependency.
     # Maintainer signatures still bind the candidate and publication evidence.
-    bootstrap = (Path(__file__).resolve().parents[3] / 'install.sh').read_text()
-    bootstrap = render_bootstrap(bootstrap, version,
-                                {r['target']: r['archive_sha256'] for r in records})
     (out / 'bootstrap.sh').write_text(bootstrap)
     entries = [(record['archive'], record['archive_sha256']) for record in records]
     entries.append(('install.sh', digest(install_sh)))
@@ -126,9 +128,14 @@ def assemble(stages, revision, inputs, version, out, signing_key=None, public_ke
             'publication_blockers': ([] if signing_key else ['production_signing_identity_not_configured'])
                 + ['operator_review_of_host_support_and_validation_required'],
             'artifacts': records,
-            'support': {'x86_64': 'Ubuntu 26.04 reference host; other hosts require their own doctor result',
-                        'aarch64': 'Debian 13 Raspberry Pi with matching Unix diagnostics support; memory cgroups and Landlock unavailable; the default build profile refuses'},
-            'native_records_are_attestations': 'Review the native builder and validation evidence before signing.'}
+            'support': {
+                architecture: f'Linux {architecture} binary and installer target; native installation alone '
+                'does not establish runtime host qualification. Attach validation for the matching candidate '
+                'revision and build-input digest, then complete operator review for each claimed host.'
+                for architecture in ('x86_64', 'aarch64')},
+            'native_records_are_attestations': 'Native version execution establishes artifact provenance, '
+                'not installation or runtime host qualification. Review the native builder and attached '
+                'matching validation evidence before signing or publishing.'}
     (out / 'release-plan.json').write_text(json.dumps(plan, indent=2) + '\n')
     (out / 'RELEASE_NOTES.md').write_text(
         '# Ukai Jail ' + version + ' — developer preview\n\n'
@@ -143,8 +150,12 @@ def assemble(stages, revision, inputs, version, out, signing_key=None, public_ke
         'The GNU/Linux binaries require glibc 2.39 or newer; Alpine/musl is unsupported. '
         'Installs to `~/.local/bin`; no sudo or Rust compiler. '
         'Install bubblewrap separately before running contained commands.\n\n'
-        'Linux x86_64 and ARM64 packages; host enforcement depends on `ukai-jail doctor`.\n'
-        'Ubuntu 24 stock execution remains refused. Pi memory ceilings and Landlock remain unavailable; the default build profile refuses.\n'
+        'Linux x86_64 and ARM64 binary and installer targets; native installation alone does not establish '
+        'runtime host qualification. Host enforcement depends on `ukai-jail doctor`; attach validation '
+        'matching this candidate\'s revision and build-input digest and complete operator review before '
+        'claiming support for a host.\n'
+        'Ubuntu 24 stock execution remains refused. Previously documented host limitations remain in force '
+        'unless superseded by matching validation; architecture or installation does not waive them.\n'
         'Real-agent reliability remains experimental: attach the completed compatibility record before changing that claim.\n'
         'Maintainers can also verify the signed SHA256SUMS with an independently trusted public key.\n')
     # Bind provenance and support notes to the signature as well as executable
