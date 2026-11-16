@@ -1,0 +1,59 @@
+{
+  "status": "passed native checks of exact unpublished CI archive",
+  "target": "aarch64-unknown-linux-gnu",
+  "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+  "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+  "workflow_run": 43822535195,
+  "archive_sha256": "15766ac8d68eaa563bc0dabccd6a03d83a6319d2f76ccd67828ed287a1e00ce6",
+  "binary_sha256": "c0c1f0e7cecb1fabe9c4ff42f9ae4534e24b16cb9dc0cf5ab21f4d827db6e38f",
+  "glibc_versions": [
+    "2.17",
+    "2.18",
+    "2.25",
+    "2.28",
+    "2.29",
+    "2.30",
+    "2.32",
+    "2.33",
+    "2.34",
+    "2.39"
+  ],
+  "maximum_required_glibc_version": "2.39",
+  "doctor_ready": {
+    "tool": true,
+    "agent": true
+  },
+  "smoke": [
+    {
+      "case": "tool",
+      "exit_code": 0,
+      "passed": true,
+      "execution_cgroup_removed": true,
+      "execution_cgroup": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_56707fcc-3115-4ffe-9e71-20b07e41266e.leaf"
+    },
+    {
+      "case": "agent",
+      "exit_code": 0,
+      "passed": true,
+      "execution_cgroup_removed": true,
+      "execution_cgroup": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_f300b012-9f08-4436-93a3-9506557a646e.leaf"
+    },
+    {
+      "case": "deadline",
+      "exit_code": 143,
+      "passed": true,
+      "execution_cgroup_removed": true,
+      "execution_cgroup": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_09730dc4-139e-4020-8636-b8ca1769bc6d.leaf"
+    }
+  ],
+  "exact_archive_install": "passed with ephemeral test key",
+  "installer_regression": "passed",
+  "native_restage_matches_ci_archive": true,
+  "third_party_notices": {
+    "bytes": 2291615,
+    "sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd",
+    "matches_guarded_final_source": true
+  },
+  "original_ci_artifact_unchanged": true,
+  "scope": "Native artifact checks; full conformance is separate evidence. Unpublished, no production key."
+}

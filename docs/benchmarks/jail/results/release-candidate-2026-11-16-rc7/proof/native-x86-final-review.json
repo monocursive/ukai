@@ -1,0 +1,114 @@
+{
+  "schema": "ukai.rc7-x86-native-final-small-review/1",
+  "outcome": "PASS_NATIVE_REMOTE_EVIDENCE",
+  "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+  "workflow_run": 43822535195,
+  "compiled_inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+  "checks": {
+    "exact_remote_review": true,
+    "exactplan": true,
+    "exact_binary": true,
+    "exact_archive": true,
+    "three_cases": true,
+    "outer_clean": true,
+    "fresh_postcheck": true,
+    "remote_full_proof_preserved": true,
+    "actual_artifact_authority": true,
+    "no_local_bulk": true,
+    "fresh-root": true,
+    "source-plan-transfer": true,
+    "runner-transfer": true,
+    "artifact-transfer": true,
+    "reviewer-transfer": true
+  },
+  "remote_reader_checks": 46,
+  "remote_regular_files": 107,
+  "command_seconds": 14.684820792,
+  "remote_evidence": {
+    "path": "/home/ouro-ci/ukai-ci/runs/native-rc7-0be9d1e82-43822535195/native-evidence.tar.gz",
+    "bytes": 14234259,
+    "sha256": "e7b5f4e07224c40d8557ef086196cc64cb01aa4776f639fd4b48726ea51cff65"
+  },
+  "files_sha256": {
+    "plan.json": "9d1f81b3112edcf21b1cf04ba7b2d123ed1e423b34b60d8f402a87172f4e6091",
+    "command.json": "30001077539dfd6c415ebb4e2ea7173b6e9fdca03437022ed308f36586ee877c",
+    "sequence.json": "70da07d15461ec02dda34a6047120a6ece79e58d7fcc4cd460587da1134dd122",
+    "independent-macos-plan-review.json": "b4bd545727c64a32757fe9235ee7ff4a0301883433218bdd20df3a27e97ead54",
+    "preflight.json": "15d660c3ffb9c3749732336d895a14a50bfd2725f5c5c91fb5611343284d0ef6",
+    "outer-result.json": "f4397e013e4aaf4902739b761b1fbf333befa13932b2d04f8c2f597385d6e6c5",
+    "remote-small-review.json": "6a5e8086c25095aeb5d8ce89be9023f23d56d8858492c1c0b2791568269bd844",
+    "remote-small-review-command.json": "eb75aaf9d5cc12eb08b2efa76dc5b5573f3e156a55cca3fd99fd9342c2a35a30",
+    "retain-small-remote.py": "4d7cb54b79c37dbde4fd4b38dd28e6e5dd560b50bf3d85a4193c1c30832a113a",
+    "review-compressed.py": "92d74ce82ff134b6dcae2e2659c889bad20705681fd3a72f2e52a00e193ad2ca"
+  },
+  "local_bulk_retention": "PENDING_AFTER_ARM_BOOTSTRAP_OR_ROOT_CONFIRMATION",
+  "native_summary": {
+    "status": "passed native checks of exact unpublished CI archive",
+    "target": "x86_64-unknown-linux-gnu",
+    "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+    "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+    "workflow_run": 43822535195,
+    "archive_sha256": "a9eb6b07b4925cc3828fa2a264cbc5d0208aea1b1ed2929f67ec0d5f1436c7a1",
+    "binary_sha256": "7df9db3caefc09965b6ca2578ca75af21a214548963caedb4215895ca047ec8a",
+    "glibc_versions": [
+      "2.2.5",
+      "2.3",
+      "2.3.4",
+      "2.4",
+      "2.9",
+      "2.10",
+      "2.14",
+      "2.15",
+      "2.16",
+      "2.17",
+      "2.18",
+      "2.25",
+      "2.28",
+      "2.29",
+      "2.30",
+      "2.32",
+      "2.33",
+      "2.34",
+      "2.39"
+    ],
+    "maximum_required_glibc_version": "2.39",
+    "doctor_ready": {
+      "tool": true,
+      "agent": true
+    },
+    "smoke": [
+      {
+        "case": "tool",
+        "exit_code": 0,
+        "passed": true,
+        "execution_cgroup_removed": true,
+        "execution_cgroup": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_a952e8ae-1cc9-4cb3-aa8a-8a5e4f6d0818.leaf"
+      },
+      {
+        "case": "agent",
+        "exit_code": 0,
+        "passed": true,
+        "execution_cgroup_removed": true,
+        "execution_cgroup": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_8fb86bbe-25d9-44a0-9131-43015887357f.leaf"
+      },
+      {
+        "case": "deadline",
+        "exit_code": 143,
+        "passed": true,
+        "execution_cgroup_removed": true,
+        "execution_cgroup": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_33456e88-ac25-4aa8-bc8a-8540db57f2cf.leaf"
+      }
+    ],
+    "exact_archive_install": "passed with ephemeral test key",
+    "installer_regression": "passed",
+    "native_restage_matches_ci_archive": true,
+    "third_party_notices": {
+      "bytes": 2291615,
+      "sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd",
+      "matches_guarded_final_source": true
+    },
+    "original_ci_artifact_unchanged": true,
+    "scope": "Native artifact checks; full conformance is separate evidence. Unpublished, no production key."
+  },
+  "scope": "One actual native run, exact candidate and unchanged validator cases. Full proof remains remote and was independently checked there by pinned bounded reader; only small manifest/summary returned. All scope/client/test-key/source/receipt checks pass. No production signing/bootstrap/provider/VM performed in this x86 phase."
+}

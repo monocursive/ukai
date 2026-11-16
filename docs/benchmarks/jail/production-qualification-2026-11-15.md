@@ -1,7 +1,8 @@
 # Ukai candidate qualification — 15 November 2026
 
-The frozen Linux candidate passed its `linux-preview` qualification and is
-signed locally with the existing release identity. It is unpublished. This
+The current frozen Linux candidate `0be9d1e82`, version `0.1.0-rc.7`, passed
+its `linux-preview` qualification and is signed locally with the existing
+release identity. It is unpublished. This
 does not establish full-specification production readiness, native macOS
 containment, or qualification of later runtime changes.
 
@@ -13,13 +14,13 @@ contains the isolated Linux candidate, excluding unrelated local Arena work.
 
 | Candidate or gate | Current result |
 | --- | --- |
-| Linux `6ffff05dc`, `0.1.0-rc.6` | Signed private candidate; strict reference conformance and both native installers passed; unpublished. |
+| Linux `0be9d1e82`, `0.1.0-rc.7` | Signed private candidate; six hosted jobs, four release jobs, exact-J strict conformance, both actual native archives and both production-signed bootstraps passed. Unpublished; the earlier rc.6 record remains below. |
 | Warm-VM `bef699262`, `0.1.0-preview.2` | Signed private candidate; all six CI jobs, source rebuild, package/installer verification, primary runtime checks and second-Mac checks passed. |
 | Claude API-key qualification on `bef699262` | All 14 distinct lanes collected: eight strict passes and six failures. Seven of ten repetitions passed fully; three failed sampling. A01, the small task and vendor revocation also failed qualification. OAuth remains deferred. |
 | Source fixes through `c25c297fc` | Terminal-error interpretation, small-task evidence retention, macOS test socket paths, sampler birth-identity comparisons and installer storage corrected. All six hosted jobs passed. Frozen candidate results are unchanged. |
 | Provisional native-v6 package at `c25c297fc` | Six signatures, seven actual installer cases and 848 archived source files verified; 44 independent checks passed. Fresh component measurements and source admission passed; a rebuilt host still needs installed native runtime qualification. |
-| Managed native sampling through `a8e4aecb0` | Version-3 gate and readers implemented; all six hosted jobs and strict Linux reference conformance passed. Actual managed-gate and D2 tests executed with zero runtime skips. No version-3 guest image or installed host is qualified. |
-| Current-input Linux K11/K27 | Fresh rc.7-labelled onboarding and learning passed using the exact `f745bfbfc` binary and `dce53219b` harness. Both independent evidence verifiers and the strict `a8e4aecb0` conformance replay passed; a new release candidate remains pending. |
+| Managed native sampling through `0be9d1e82` | Version-3 gate and readers implemented; exact-J hosted and strict Linux reference checks passed. Actual managed-gate and D2 tests executed with zero runtime skips. No version-3 guest image or installed Mac host is qualified. |
+| Current-input Linux K11/K27 | Fresh onboarding and learning passed using the exact `f745bfbfc` binary and `dce53219b` harness. Their input digest matches J; both owning evidence checks passed in exact-J release and strict conformance. Learning scope remains the supported subset recorded below. |
 | Next Mac image and package | Stable Ubuntu 26.10 image/snapshot metadata authenticated, but image bytes and compatibility are untested. Available Mac storage is below the measured build/install requirement; no historical artifacts were deleted. |
 | `bef699262` fault matrix | All 11 lanes passed; 118 facts independently recomputed, with complete owned cleanup. |
 | OAuth, notarization, native macOS Endpoint Security | Pending. OAuth is deferred at the user's request; no usable local notarization credential or ES profile was established. |
@@ -31,7 +32,7 @@ collected the remaining distinct lanes without retrying a completed lane.
 Full production readiness and public release are not established.
 The sections below retain the source identities, evidence and earlier failures.
 
-## Frozen Linux candidate
+## Earlier frozen Linux candidate — rc.6
 
 | Identity | Value |
 | --- | --- |
@@ -1382,8 +1383,63 @@ refer to the verified current evidence index; no clause or test was changed.
 The run's own compiled `xtask` generated the tested freeze from its own doctor,
 and `freeze --check` passed. Only the tested build identity, input digest,
 executable hash and supervisor scope changed; the frozen policy and toolchain
-sections stayed byte-identical. Candidate builds and final-commit checks remain
-pending.
+sections stayed byte-identical. The following rc.7 record supplies the later
+exact-candidate builds and final-commit checks; this tested-I freeze is unchanged.
+
+## Signed private Linux rc.7 candidate
+
+The [final rc.7 proof](results/release-candidate-2026-11-16-rc7/README.md) binds
+source `0be9d1e820b0d47493883053253491bbd2196ba3`, tree
+`245e70ec60791c1108186e360764fc7c38dc3d07`, and the unchanged 230 compiled
+inputs `sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae`.
+The PR merge has the identical tree. All six first-attempt hosted jobs passed:
+[Rust/dependencies](https://github.com/monocursive/ukai/actions/runs/43822389786),
+[contracts/website](https://github.com/monocursive/ukai/actions/runs/43822389760)
+and [fleet](https://github.com/monocursive/ukai/actions/runs/43822389837).
+macOS recorded 2,512 passes / zero failures / seven ignores; Ubuntu recorded
+3,073 / zero / 18. Python ran 1,159 cases, including 82 explicit platform skips,
+872 VM cases and the 22 onboarding cases. The ordinary hosted Ubuntu lane
+retains 520 capability-skip diagnostics.
+
+All four [rc.7 build/assembly jobs](https://github.com/monocursive/ukai/actions/runs/43822535195)
+passed once. The separate exact-J [strict reference run](https://github.com/monocursive/ukai/actions/runs/43822530994)
+passed 3,073 tests, zero failures and 18 pinned ignores across 117 groups with
+zero runtime capability skips. Its own clean optimized doctor, exact source
+inventory, D2/managed gate and K11/K27 checks were verified. All 16 raw artifact
+files are retained once in the final proof. `linux-preview` has no gate problems
+or warnings; `all_noncredential_gates_pass` remains false. The tested-I freeze
+SHA-256 `39fafd8684997a3414a6a530df50fd5b3796de91356f8a39bb55e0c3b10fa2be`
+was not regenerated after J.
+
+Both downloaded native archives passed actual Linux tool, agent and deadline
+cases, doctor, archive installation, installer regressions and deterministic
+restaging. ARM used one disposable HVF boot, 37.821 seconds for the phase;
+x86 took 14.685 seconds. Independent ARM review passed 572 checks; x86
+compressed-proof replay passed 46 plus 15 final lifecycle checks.
+
+The existing production release identity signed this candidate once after
+native validation. All eight candidate files were independently verified;
+archives, installers and notes remain byte-identical to the verified CI
+candidate. Actual production-signed bootstrap then passed on both targets:
+ARM 26.556 seconds overall / 0.620 seconds in its bootstrap scope, and x86
+1.521 seconds. Signature verification preceded Minisign-free fresh and repeat
+installation; modified private archives were refused while preserving the
+existing installation. ARM independent review passed 179 checks; x86 passed
+71 remote checks and 74 checks of its retained compressed proof. These checks
+used locally supplied files, not a public release download. The final private
+eight-file ZIP is 9,378,850 bytes, SHA-256
+`141a89bd3f22a9787b7cc3b757e2a24abe9bd17f225de215bb9bb2fbabb6a5fe`;
+its independent 56-check review passed, and it contains no private key.
+
+All owned processes, VM scopes and image holders settled. Original source,
+images, downloaded artifacts and every historical failure remain preserved.
+The signed candidate is private: no tag, publication or PR merge was created.
+These results qualify this Linux preview scope only. They do not qualify a
+managed version-3 Mac guest image or installed host, notarization or native
+macOS Endpoint Security. The earlier 14 API-key lanes remain eight strict
+passes and six failures; OAuth remains deferred. No historical API or kernel
+failure is relabelled. The documentation-only record leaves this release's J identity, signed bytes
+and tested-I freeze unchanged.
 
 ## Next guest-image prerequisites
 
@@ -1417,11 +1473,26 @@ the last spare-Mac measurement was also insufficient. A bounded APFS audit
 found only 26.3 MB of private disposable objects in the original target and
 512.1 MB in the protected current build cache. Most other reported allocation
 is shared with unselected clones and cannot be counted as reclaimable space.
-Neither set was deleted. Even the known private total leaves about 914 MB
-short for preparation and 5.86 GB short for the combined package/install work.
+Neither set had been deleted at that observation. At those measured values,
+even the known private total left about 914 MB short for preparation and
+5.86 GB short for the combined package/install work.
 `managed-v3-arm-storage-feasibility-H.json` and
 `compiler-cache-feasibility-H-review.json` retain those bounds. Historical
 images, executables, sources and proof records remain preserved.
+
+Later rc.7 native/bootstrap work reclaimed only the two new successful
+reassembly archive copies, successful ARM native overlay/vars.fd and bootstrap
+overlay/vars fixtures, and 23 explicitly reviewed non-executable `.rmeta` paths in the task compiler
+cache. Their private allocation total was 135,421,952 bytes. All held deleted
+file descriptors were closed before measuring the immediate 11,853,824-byte
+free-space gain; a later whole-filesystem observation was 14,913,376,256 bytes
+free. The other 2,755 cache files retained exact metadata. The later bootstrap
+fixture cleanup observed another 137,940,992-byte increase; its initial
+allocation-only metadata refusal remains retained. These observations
+do not guarantee a corresponding allocation gain or solve the approximately
+22 GB planning requirement for the next image/package. A reviewed external
+storage route remains pending. No historical image, proof, source or executable
+was deleted; exact cleanup records are included in the final rc.7 proof.
 
 The pinned Mac toolchain's stripping warning was traced to a missing LLVM
 library path. A private clone of Rust 1.98.1 with one internal relative library

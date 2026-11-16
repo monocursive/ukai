@@ -1,0 +1,763 @@
+{
+  "schema": "ukai.hosted-ci-review/1",
+  "outcome": "PASS",
+  "created_at": "2026-11-16T07:30:53.462272+00:00",
+  "source_binding": {
+    "outcome": "PASS",
+    "head": "0be9d1e820b0d47493883053253491bbd2196ba3",
+    "tree": "245e70ec60791c1108186e360764fc7c38dc3d07",
+    "merge": "f234c82add6549e4f203340aad54f92f33a26640",
+    "merge_tree": "245e70ec60791c1108186e360764fc7c38dc3d07",
+    "tree_equal": true,
+    "compiled_inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+    "exact_compiled_blob_mode_count": 230,
+    "binary_source_F": "f745bfbfc5bfe4945cf5fc7c5d88e497db9e6768",
+    "prior_I": "a8e4aecb071a0367001f309a659897d6aa336600",
+    "I_to_J_changed_paths": [
+      "docs/benchmarks/jail/production-qualification-2026-11-15.md",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/README.md",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/binaries-check.txt",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/binaries.sha256",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/build.log",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/contract-validation.txt",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/doctor.json",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/gates.json",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/gates.txt",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/host-manifest.txt",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/i01.txt",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/retention.json",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/smoke-doctor.json",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/smoke-none-receipt.json",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/smoke-tool-receipt.json",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/smoke-transcript.txt",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/source-files.nul",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/summary.txt",
+      "docs/benchmarks/jail/results/conformance-2026-11-16-a8e4aecb/test.log",
+      "docs/specs/jail-v1/acceptance-map.toml",
+      "docs/specs/jail-v1/milestone-1-freeze.toml"
+    ],
+    "freeze_tested_revision": "a8e4aecb071a0367001f309a659897d6aa336600",
+    "freeze_sha256": "39fafd8684997a3414a6a530df50fd5b3796de91356f8a39bb55e0c3b10fa2be",
+    "no_runtime_source_change": true
+  },
+  "workflow_runs": [
+    {
+      "id": 43822389760,
+      "name": "contracts",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "0be9d1e820b0d47493883053253491bbd2196ba3",
+      "run_attempt": 1,
+      "html_url": "https://github.com/monocursive/ukai/actions/runs/43822389760",
+      "created_at": "2026-11-16T07:14:27Z",
+      "updated_at": "2026-11-16T07:17:25Z"
+    },
+    {
+      "id": 43822389786,
+      "name": "rust",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "0be9d1e820b0d47493883053253491bbd2196ba3",
+      "run_attempt": 1,
+      "html_url": "https://github.com/monocursive/ukai/actions/runs/43822389786",
+      "created_at": "2026-11-16T07:14:27Z",
+      "updated_at": "2026-11-16T07:29:26Z"
+    },
+    {
+      "id": 43822389837,
+      "name": "fleet",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "0be9d1e820b0d47493883053253491bbd2196ba3",
+      "run_attempt": 1,
+      "html_url": "https://github.com/monocursive/ukai/actions/runs/43822389837",
+      "created_at": "2026-11-16T07:14:27Z",
+      "updated_at": "2026-11-16T07:15:01Z"
+    }
+  ],
+  "jobs": [
+    {
+      "id": 133148236650,
+      "name": "validate",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 43822389760,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Run astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Run uv run docs/specs/jail-v1/validate_contract.py",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Run uv run docs/specs/jail-v1/test_macos_contract.py",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Run uv run docs/specs/ledger-v1/validate_contract.py",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Run python3 -m unittest discover -s docs/specs/ledger-v1 -p test_freeze.py",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        },
+        {
+          "name": "Run uv run docs/specs/managed-teams-v1/validate_policy.py",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8
+        },
+        {
+          "name": "Run uv run docs/specs/validate_links.py",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        },
+        {
+          "name": "Run python3 -m unittest discover -s docs/benchmarks/jail -p test_performance.py",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10
+        },
+        {
+          "name": "Run python3 -m unittest discover -s docs/benchmarks/jail -p test_agent_matrix.py",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11
+        },
+        {
+          "name": "Run python3 -m unittest discover -s docs/benchmarks/jail -p test_observer_pair.py",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12
+        },
+        {
+          "name": "Run python3 -m unittest discover -s docs/benchmarks/jail -p test_preview_evidence.py",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13
+        },
+        {
+          "name": "Run python3 -m unittest discover -s docs/benchmarks/jail -p 'test_onboarding*.py'",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14
+        },
+        {
+          "name": "Run python3 -m unittest discover -s docs/benchmarks/sandboxes -p test_summarize.py",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15
+        },
+        {
+          "name": "Run python3 -m unittest discover -s docs/benchmarks -p test_retired_archives.py",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16
+        },
+        {
+          "name": "Evidence store size and bundle guard",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17
+        },
+        {
+          "name": "VM transport boundary regressions (no live VM)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18
+        },
+        {
+          "name": "Replay the current native VM component proof (offline)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19
+        },
+        {
+          "name": "Native macOS candidate tooling (synthetic signing and installation)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20
+        },
+        {
+          "name": "Locked runtime attribution",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21
+        },
+        {
+          "name": "macOS mechanism evidence regressions (no live workloads)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22
+        },
+        {
+          "name": "Signed distribution regressions",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23
+        },
+        {
+          "name": "Reference-host manifest fallback script",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24
+        },
+        {
+          "name": "Post Run astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 47
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 48
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 49
+        }
+      ]
+    },
+    {
+      "id": 133148237131,
+      "name": "website",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 43822389760,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Run npm ci --no-audit --no-fund",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Run npm run build",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "The site serves the repository's installer and release key",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Post Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13
+        }
+      ]
+    },
+    {
+      "id": 133148237483,
+      "name": "gates (macos-15)",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 43822389786,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Install the pinned toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Run Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Run cargo fmt --all -- --check",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Run cargo clippy --workspace --all-targets -- -D warnings",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Install Linux cross compiler and minisign",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7
+        },
+        {
+          "name": "Cross-target check (compile only)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8
+        },
+        {
+          "name": "I02 vendor-name scan",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        },
+        {
+          "name": "Tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10
+        },
+        {
+          "name": "Acceptance verdict (macOS lane)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11
+        },
+        {
+          "name": "Report what was not exercised",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12
+        },
+        {
+          "name": "Post Run Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25
+        }
+      ]
+    },
+    {
+      "id": 133148237711,
+      "name": "gates (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 43822389786,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Install the pinned toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Run Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Run cargo fmt --all -- --check",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Run cargo clippy --workspace --all-targets -- -D warnings",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Install Linux cross compiler and minisign",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        },
+        {
+          "name": "Cross-target check (compile only)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8
+        },
+        {
+          "name": "I02 vendor-name scan",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        },
+        {
+          "name": "Tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10
+        },
+        {
+          "name": "Acceptance verdict (macOS lane)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 11
+        },
+        {
+          "name": "Report what was not exercised",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12
+        },
+        {
+          "name": "Post Run Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25
+        }
+      ]
+    },
+    {
+      "id": 133148237727,
+      "name": "dependency-policy",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 43822389786,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Install the pinned toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Run Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Run cargo install cargo-deny --version 0.20.2 --locked",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Run cargo deny --workspace check bans licenses advisories sources",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Post Run Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13
+        }
+      ]
+    },
+    {
+      "id": 133148237068,
+      "name": "contracts",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 43822389837,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Run erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Run mix format --check-formatted",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Run mix compile --warnings-as-errors",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Run mix test",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13
+        }
+      ]
+    }
+  ],
+  "decoded_logs": {
+    "job-133148236650.log": {
+      "job_id": 133148236650,
+      "bytes": 139959,
+      "sha256": "5fedf91c0c81b12bd640e83766addfa3601656d517ae645ec1d9226d9507f223",
+      "representation": "complete connector-decoded UTF-8 log including BOM/final LF",
+      "decoded_utf16_units": 139957
+    },
+    "job-133148237131.log": {
+      "job_id": 133148237131,
+      "bytes": 31996,
+      "sha256": "7e2b4efa29cf4d2991d85f5f56da1ebf1fb17ec719dafdb628dcf43f8ce866b8",
+      "representation": "complete connector-decoded UTF-8 log including BOM/final LF",
+      "decoded_utf16_units": 31700
+    },
+    "job-133148237483.log": {
+      "job_id": 133148237483,
+      "bytes": 427044,
+      "sha256": "f72cba0d4d0ad9b39b67f559ba51b8ed93a66099a1c8209d348e0ad6dc5849a7",
+      "representation": "complete connector-decoded UTF-8 log including BOM/final LF",
+      "decoded_utf16_units": 426872
+    },
+    "job-133148237711.log": {
+      "job_id": 133148237711,
+      "bytes": 539096,
+      "sha256": "ba63f92785d00c116bc20d91f445205953b53784b6c6149906c9c95918664a7e",
+      "representation": "complete connector-decoded UTF-8 log including BOM/final LF",
+      "decoded_utf16_units": 539091
+    },
+    "job-133148237727.log": {
+      "job_id": 133148237727,
+      "bytes": 45912,
+      "sha256": "8b5b6ba2de3d50c9c82b11553ca5ff2c79bb9b5f8e19d4403e85df5d096bb7b8",
+      "representation": "complete connector-decoded UTF-8 log including BOM/final LF",
+      "decoded_utf16_units": 43294
+    },
+    "job-133148237068.log": {
+      "job_id": 133148237068,
+      "bytes": 22647,
+      "sha256": "a5608e5ddd909780b25386ffe395f74afe978ab6749b74b0162787097c2b671d",
+      "representation": "complete connector-decoded UTF-8 log including BOM/final LF",
+      "decoded_utf16_units": 22645
+    }
+  },
+  "decoded_log_bytes": 1206654,
+  "test_counts": {
+    "gates (macos-15)": {
+      "passed": 2512,
+      "failed": 0,
+      "ignored": 7
+    },
+    "gates (ubuntu-24.04)": {
+      "passed": 3073,
+      "failed": 0,
+      "ignored": 18
+    },
+    "python-contracts": {
+      "cases": 1159,
+      "skipped": 82,
+      "errors": 0,
+      "failures": 0
+    }
+  },
+  "test_details": {
+    "cargo_groups_per_os": {
+      "gates (macos-15)": 117,
+      "gates (ubuntu-24.04)": 117
+    },
+    "linux_runtime_skip_diagnostics": 520,
+    "macos_standard_runtime_skip_diagnostics": 0,
+    "macos_additional_probe_skips": [
+      "2026-11-16T07:24:13.0725150Z ROW 3 exec hardlink to sudo: inside=SKIPPED (ln failed) outside=n/a"
+    ],
+    "descriptor_exhaustion_actual_named_pass_both_os": true,
+    "contracts_groups": 21,
+    "vm_cases": 872,
+    "vm_skips": 82,
+    "onboarding_cases": 22,
+    "onboarding_skips": 0,
+    "onboarding_scope": "Both owning modules selected by pinned workflow. Deterministic publication control present in exact discovered test_guest_main source; compact Python log does not name each test.",
+    "offline_v6": {
+      "schema": "ukai.vm.component-proof-replay/1",
+      "outcome": "PASS",
+      "bundle_files_verified": 125,
+      "capability_rows": 10,
+      "boundary_facts": 121,
+      "raw_credential_facts": 24,
+      "literal_program_binding_facts": 24,
+      "native_component_admission_pins": 6,
+      "native_component_evidence_references": 24,
+      "source_record_sha256": "d9d4ebe11c1caa020ed97d864d8a60cd9833de805ccc734a3d42c6de047f1da7",
+      "catalog_sha256": "2979a9c6d43a3d0c54b0d5521fedb074832f21a55d39fe151c2bd7534ce27244",
+      "native_launch_or_sampling_qualified": false,
+      "vendor_qualified": false,
+      "k113_qualified": false,
+      "scope": "Relocated retained component evidence replay; no fresh VM, process/disk leak scan, Apple signature verification or release qualification."
+    },
+    "docs_checked": 538,
+    "broken_links": 0,
+    "fleet_tests": 27,
+    "fleet_failures": 0,
+    "macos_gate_verdict": "1 credential, 76 elsewhere, 2 pass, 10 pass+unsupported, 21 unsupported",
+    "intentional_fixture_refusals": "Printed fixture FAIL/qualified:false is part of passing refusal tests, not the job verdict."
+  },
+  "metadata_sha256": {
+    "test-counts.json": "2db0a2d85926feb8c534319d9ac00fc28f67ab973958172b45697484403a764b",
+    "source-test-scope.json": "866915629ea866273e9e5beb01faf09af9f4b2569e1b57989853f5320d013f57",
+    "source-binding.json": "e79a7855f84c8893892274d202ce38cc4a52b51ede0e5c9484cb47f742c5da79",
+    "head-commit.json": "a38532fcda9604433abec9c87373d969fba037eead0d48ab0e500e6578a69830",
+    "merge-commit.json": "7cd3119a51c61fb0a22e532900e5519f01ee74ff54d4fb97590161d1c9176056",
+    "connector-log-units.json": "0b693150dd5526d10609950771d3c554f4a69e766bc85d2ff4b9537e64e119ea",
+    "final-jobs-43822389760.json": "482b60003cba8c3b08162ff9f6aafa6615afc10d453a44bc3b4196e8b6a88bbe",
+    "final-run-43822389760.json": "91ddeed1cf2e5f606c31a0f4b19f5ebde473089b424515c9d725b8b72d1f7caa",
+    "final-jobs-43822389786.json": "1ced7c7901cff941e83f461cf40267e4092ef394c6bff587bde4d1207707037f",
+    "final-run-43822389786.json": "bf148af51486ceb42a99cc015df5cb54bbfee4aa0b39896b5ae04e700f74d38f",
+    "final-jobs-43822389837.json": "f75dfe69103062dbd1a9af83270e100a60ae1f1d11585d7bd86cb65dd79901a0",
+    "final-run-43822389837.json": "e3aed7a07758c60fc626a987865a6db731798a0aca864a4611b2d178ce94a6f8"
+  },
+  "reruns": 0,
+  "failure": null,
+  "scope": "Six hosted checks only. J strict conformance and actual candidate host validation are separate. No ARM guest, macOS native, OAuth or provider-reliability promotion.",
+  "counting_note": "Only final Cargo summary per test group, excluding nested helper summaries; runtime skips separate from ignored. Python case count includes skips."
+}

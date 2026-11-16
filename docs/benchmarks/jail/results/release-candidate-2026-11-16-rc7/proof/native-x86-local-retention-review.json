@@ -1,0 +1,662 @@
+{
+  "schema": "ukai.rc7-compressed-native-review/1",
+  "outcome": "PASS",
+  "archive_sha256": "e7b5f4e07224c40d8557ef086196cc64cb01aa4776f639fd4b48726ea51cff65",
+  "archive_bytes": 14234259,
+  "plan_sha256": "9d1f81b3112edcf21b1cf04ba7b2d123ed1e423b34b60d8f402a87172f4e6091",
+  "reader_sha256": "92d74ce82ff134b6dcae2e2659c889bad20705681fd3a72f2e52a00e193ad2ca",
+  "checks": {
+    "native_final": true,
+    "scope_cleanup": true,
+    "resources": true,
+    "authoritative_record": true,
+    "candidate": true,
+    "build": true,
+    "native_version_metadata": true,
+    "installed_bytes": true,
+    "restage": true,
+    "stage_binding": true,
+    "notices": true,
+    "exit:test-key-generate": true,
+    "exit:test-key-sign": true,
+    "exit:test-key-verify": true,
+    "exit:exact-archive-install": true,
+    "exit:exact-archive-upgrade": true,
+    "exit:version": true,
+    "exit:elf-version-information": true,
+    "exit:doctor-tool": true,
+    "exit:doctor-agent": true,
+    "exit:installer-regression": true,
+    "exit:native-restage": true,
+    "repeat_refusal": true,
+    "install_argv": true,
+    "test_manifest": true,
+    "installer_regression": true,
+    "glibc": true,
+    "doctor:tool": true,
+    "doctor:agent": true,
+    "receipt:tool": true,
+    "receipt_copy:tool": true,
+    "cgroup:tool": true,
+    "argv:tool": true,
+    "result:tool": true,
+    "receipt:agent": true,
+    "receipt_copy:agent": true,
+    "cgroup:agent": true,
+    "argv:agent": true,
+    "result:agent": true,
+    "receipt:deadline": true,
+    "receipt_copy:deadline": true,
+    "cgroup:deadline": true,
+    "argv:deadline": true,
+    "deadline": true,
+    "case_set": true,
+    "summary": true
+  },
+  "manifest": {
+    "evidence/native-final.json": {
+      "bytes": 340,
+      "sha256": "d87fa91ee91604bf95ec4f79a84836b4550d9c58d4f06a2637e3716dfca10838",
+      "mode": 436
+    },
+    "evidence/native-command.json": {
+      "bytes": 560,
+      "sha256": "081ccdb383077d9b5dd9e095be60c9669d257c83903a01bc623baf333e44df43",
+      "mode": 436
+    },
+    "evidence/native-scope.json": {
+      "bytes": 814,
+      "sha256": "b7c21e641d203d6108dcae5970c81bf36b0444acb3e62da4b6749ffa466990c6",
+      "mode": 436
+    },
+    "evidence/native-scope.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "evidence/native.log": {
+      "bytes": 2088,
+      "sha256": "2cbeedd6ef4d5f15ce2cf5cc4379a6c95a2f20b4d7163430dbaad97413daf1a5",
+      "mode": 436
+    },
+    "evidence/native-preflight.json": {
+      "bytes": 85,
+      "sha256": "3d20cd8c0cdc8b3ed6e135b26fd758164022591b1cc996117f0aefbfcede168d",
+      "mode": 436
+    },
+    "work/native/version.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "work/native/test-key-owner.json": {
+      "bytes": 167,
+      "sha256": "e7ab4d6f86432d1855c50c5f058ed1d8e499484894f924f1f704dede69245e4e",
+      "mode": 436
+    },
+    "work/native/installer-regression.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "work/native/repeat-install-refusal.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "work/native/summary.json": {
+      "bytes": 2088,
+      "sha256": "2cbeedd6ef4d5f15ce2cf5cc4379a6c95a2f20b4d7163430dbaad97413daf1a5",
+      "mode": 436
+    },
+    "work/native/native-restage.command.json": {
+      "bytes": 582,
+      "sha256": "f6782700715d40189e094b174a0401379c326afe1bb89e7a82c0b80d68bb4a42",
+      "mode": 436
+    },
+    "work/native/exact-archive-upgrade.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "work/native/installer-regression.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "work/native/elf-version-information.command.json": {
+      "bytes": 137,
+      "sha256": "354dc8082ba2996737723b29de92d38e59dd6267118f36af9396ffd518399cb9",
+      "mode": 436
+    },
+    "work/native/repeat-install-refusal.command.json": {
+      "bytes": 411,
+      "sha256": "a300a9b996c35ba84fe1de9481bed05eaad26e757c1d2cb9f29f924a6f44eca6",
+      "mode": 436
+    },
+    "work/native/native-restage.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "work/native/version.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "work/native/doctor-agent.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "work/native/test-key-verify.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "work/native/elf-version-information.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "work/native/doctor-tool.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "work/native/installer-regression.stdout": {
+      "bytes": 197,
+      "sha256": "adcb8e950023688bfff3efd1733c48613b1758a5008b3a8515217a9bc7053c64",
+      "mode": 436
+    },
+    "work/native/exact-archive-upgrade.command.json": {
+      "bytes": 426,
+      "sha256": "730be4408c05bf44a080d523c6bdbde95e83bd23cce217cfa03767a73b7f4423",
+      "mode": 436
+    },
+    "work/native/doctor-agent.stdout": {
+      "bytes": 12730,
+      "sha256": "24afca2507492e77caab90fc410e9849ce993764a6089d372dd17bd5a6a9c585",
+      "mode": 436
+    },
+    "work/native/doctor-agent.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "work/native/test-key-verify.command.json": {
+      "bytes": 203,
+      "sha256": "fb4a0bacf4ebd5220597c51a9e13b1c2bb49ec0e43bf73f7a47bc75c37b6249f",
+      "mode": 436
+    },
+    "work/native/version.json": {
+      "bytes": 1021,
+      "sha256": "bba682cd06f7ab1e9fa72b082cd0fdd3d2f3982fb71e2b359116426f1db84e58",
+      "mode": 436
+    },
+    "work/native/smoke/agent/verification.json": {
+      "bytes": 230,
+      "sha256": "231b9a6ea153d6e50c821ffb01d6b698e62499b30e8bbc6bb0fc7b14a799b874",
+      "mode": 436
+    },
+    "work/native/smoke/agent/stdout": {
+      "bytes": 15,
+      "sha256": "af341faeaac4d033c39e1e011e6d8c737bb554dc1a025f441773c1bd19e5739a",
+      "mode": 436
+    },
+    "work/native/smoke/agent/stderr": {
+      "bytes": 128,
+      "sha256": "2a8e62488a2d8097e6f44c6bfc9ef5033a881a0ae21f2f9ec42cfe806b0416a6",
+      "mode": 436
+    },
+    "work/native/smoke/agent/command.json": {
+      "bytes": 705,
+      "sha256": "e2cafaa7a76159d7cfb9827fb4cbd6a4e3ff37b8bcbc5b22f742ee319d38dc9c",
+      "mode": 436
+    },
+    "work/native/smoke/agent/work/output.txt": {
+      "bytes": 8,
+      "sha256": "7a396dbac3c3a28fd13921f1ab5a687f97508a619a38f21b2cae09797fe8e199",
+      "mode": 436
+    },
+    "work/native/smoke/agent/outside.txt": {
+      "bytes": 26,
+      "sha256": "fb99b6dded33f9f99e4442cb612d7364bf150b0aa99ad7a63c6383471b357de9",
+      "mode": 436
+    },
+    "work/native/smoke/agent/receipt.json": {
+      "bytes": 10096,
+      "sha256": "f957295954f88f397168e49c8a8102d3ad46f5da249d9a6a86438eec1bfa4fe2",
+      "mode": 384
+    },
+    "work/native/smoke/deadline/verification.json": {
+      "bytes": 235,
+      "sha256": "25430907ee9bd65aec57f41c9062707a6ddcbe34c9acdf8f03f4e9928b418164",
+      "mode": 436
+    },
+    "work/native/smoke/deadline/stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "work/native/smoke/deadline/stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "work/native/smoke/deadline/command.json": {
+      "bytes": 499,
+      "sha256": "dc52620e1c9e629e756499078d02eb92f5161616ccdac3039bdce1f3cb5b258a",
+      "mode": 436
+    },
+    "work/native/smoke/deadline/outside.txt": {
+      "bytes": 26,
+      "sha256": "fb99b6dded33f9f99e4442cb612d7364bf150b0aa99ad7a63c6383471b357de9",
+      "mode": 436
+    },
+    "work/native/smoke/deadline/receipt.json": {
+      "bytes": 8516,
+      "sha256": "74c84eae8f808c06f0b414d5836211b22063f2cf298d5fb3e6993eddf3884f59",
+      "mode": 384
+    },
+    "work/native/smoke/tool/verification.json": {
+      "bytes": 229,
+      "sha256": "3c59f21fe4e680afac8cb764aab00e5a88a98f760190bd2d9dc22d85217a1d86",
+      "mode": 436
+    },
+    "work/native/smoke/tool/stdout": {
+      "bytes": 14,
+      "sha256": "675d019bb478bb454e82cafbec99fc7ce65bdd2d6d567809a9af8db77e40e6a3",
+      "mode": 436
+    },
+    "work/native/smoke/tool/stderr": {
+      "bytes": 127,
+      "sha256": "aa874364ca6f57d33a304c2c455a011ad50eb2ac50c67da1767685aaee9928ce",
+      "mode": 436
+    },
+    "work/native/smoke/tool/command.json": {
+      "bytes": 700,
+      "sha256": "bd5f20fc6436998c5689f2cce738bfcd03d25d55d8f6c7619a66cc3e3e1b8ffe",
+      "mode": 436
+    },
+    "work/native/smoke/tool/work/output.txt": {
+      "bytes": 8,
+      "sha256": "7a396dbac3c3a28fd13921f1ab5a687f97508a619a38f21b2cae09797fe8e199",
+      "mode": 436
+    },
+    "work/native/smoke/tool/outside.txt": {
+      "bytes": 26,
+      "sha256": "fb99b6dded33f9f99e4442cb612d7364bf150b0aa99ad7a63c6383471b357de9",
+      "mode": 436
+    },
+    "work/native/smoke/tool/receipt.json": {
+      "bytes": 8494,
+      "sha256": "74e6e9cf94d308db33f73340f2031ff2ffa4b49cb13adad57582e5754eedaf67",
+      "mode": 384
+    },
+    "work/native/test-key-sign.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "work/native/repeat-install-refusal.result.json": {
+      "bytes": 17,
+      "sha256": "5cc319f54b05a38799195a491c303aa686eab7caccfdbbf1e8b8c07405cb7392",
+      "mode": 436
+    },
+    "work/native/elf-version-information.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "work/native/test-key-generate.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "work/native/exact-archive-upgrade.stdout": {
+      "bytes": 944,
+      "sha256": "c16f7e95847e3c0f62c5c122c6dde46cb4e4f6096c6d9fcc41fb60f2b17b83e8",
+      "mode": 436
+    },
+    "work/native/doctor-tool.command.json": {
+      "bytes": 149,
+      "sha256": "d7e4f0f31fea990d7bd83170fb32563bf74afcd59eb43caa308490de7b235f1f",
+      "mode": 436
+    },
+    "work/native/installed/ukai-jail": {
+      "bytes": 13104984,
+      "sha256": "7df9db3caefc09965b6ca2578ca75af21a214548963caedb4215895ca047ec8a",
+      "mode": 493
+    },
+    "work/native/installed/ukai-jail.LICENSES.txt": {
+      "bytes": 2291615,
+      "sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd",
+      "mode": 420
+    },
+    "work/native/installed/ukai-jail.release": {
+      "bytes": 76,
+      "sha256": "3db7ae9db05312b5bd2ba9e3af2d4b2f9abad06a2586d5dcf6dc7b81fafaafb3",
+      "mode": 420
+    },
+    "work/native/exact-archive-install.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "work/native/exact-archive-upgrade.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "work/native/doctor-tool.stdout": {
+      "bytes": 12609,
+      "sha256": "b89faef2348321928e9dbdb22bd5795c8de6143707598e4771d872e4065afa76",
+      "mode": 436
+    },
+    "work/native/notices-binding.json": {
+      "bytes": 143,
+      "sha256": "94fd13750eec3c4f70022ecefe0a45b16363daf5a0307714260e24ccf5a3f291",
+      "mode": 436
+    },
+    "work/native/ephemeral-test-key.pub": {
+      "bytes": 113,
+      "sha256": "760ab4001504d2b65a6175245fbaf9e7bd9b909678a8e38309febc6a69133c1b",
+      "mode": 436
+    },
+    "work/native/installer-regression.command.json": {
+      "bytes": 223,
+      "sha256": "4781d418549c95c3866792f01aeb44842b789b97b68a329a2beea263af40b79a",
+      "mode": 436
+    },
+    "work/native/elf-version-information.stdout": {
+      "bytes": 9467,
+      "sha256": "a5dc5d92b5c2ad79e33913ce581f32992418b23cec7b68294da22925e5ab6aa1",
+      "mode": 436
+    },
+    "work/native/native-restage.stdout": {
+      "bytes": 1540,
+      "sha256": "534937fbc38b3bca8806413ffc000b1cbcf2d074d8d8b2d5f75f65cfa03cb3ed",
+      "mode": 436
+    },
+    "work/native/exact-archive-install.command.json": {
+      "bytes": 411,
+      "sha256": "a300a9b996c35ba84fe1de9481bed05eaad26e757c1d2cb9f29f924a6f44eca6",
+      "mode": 436
+    },
+    "work/native/doctor-tool.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "work/native/test-key-generate.command.json": {
+      "bytes": 269,
+      "sha256": "1014925c94c5bcb6b69f4539f12a1caa435704579d0cae5f973f23fa45e36ec3",
+      "mode": 436
+    },
+    "work/native/version.command.json": {
+      "bytes": 125,
+      "sha256": "51ce01dff1c3805b26651f65c4b9676a66eee085202d66fd5c57172cdadcba0a",
+      "mode": 436
+    },
+    "work/native/exact-archive-install.stdout": {
+      "bytes": 944,
+      "sha256": "c16f7e95847e3c0f62c5c122c6dde46cb4e4f6096c6d9fcc41fb60f2b17b83e8",
+      "mode": 436
+    },
+    "work/native/test-key-generate.stdout": {
+      "bytes": 470,
+      "sha256": "a61db148af979adbb3f4aa87031bbd51163aa7061581e988688dd2de1a5ded40",
+      "mode": 436
+    },
+    "work/native/test-key-generate.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "work/native/test-signed-source/install.sh": {
+      "bytes": 10085,
+      "sha256": "9c49ea8a0d7c2633b446d1912d9def945bb10dad325de6542320dd185a13f012",
+      "mode": 493
+    },
+    "work/native/test-signed-source/SHA256SUMS": {
+      "bytes": 196,
+      "sha256": "9d7a4894e41a9a571e06ced0f16f2c2321928df74a7343bf803e6d045425bbd8",
+      "mode": 436
+    },
+    "work/native/test-signed-source/SHA256SUMS.minisig": {
+      "bytes": 305,
+      "sha256": "bc2aa987815767f6a60c90d936a020e6e9fa76ae7f7012f597d2a4f0e8469e23",
+      "mode": 436
+    },
+    "work/native/test-signed-source/ukai-jail-0.1.0-rc.7-x86_64-unknown-linux-gnu.tar.gz": {
+      "bytes": 4745031,
+      "sha256": "a9eb6b07b4925cc3828fa2a264cbc5d0208aea1b1ed2929f67ec0d5f1436c7a1",
+      "mode": 420
+    },
+    "work/native/test-key-verify.stdout": {
+      "bytes": 102,
+      "sha256": "a5340176e96dce10a8253d0e239a70670f8fd37a4fd880f43b06442b280312e6",
+      "mode": 436
+    },
+    "work/native/test-key-sign.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "work/native/doctor-agent.command.json": {
+      "bytes": 150,
+      "sha256": "891488bfb0f941dd3b2f2ef578d3ff88729a2c35fc0e72a77b7702bbedd1fb54",
+      "mode": 436
+    },
+    "work/native/data/attempts/att_33456e88-ac25-4aa8-bc8a-8540db57f2cf/trace.ndjson": {
+      "bytes": 4058,
+      "sha256": "18be0693c65d379c91a536a04c902fce34e69399830a4029d4fbf39b789eb671",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_33456e88-ac25-4aa8-bc8a-8540db57f2cf/jail.json": {
+      "bytes": 8516,
+      "sha256": "74c84eae8f808c06f0b414d5836211b22063f2cf298d5fb3e6993eddf3884f59",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_33456e88-ac25-4aa8-bc8a-8540db57f2cf/resolv.conf": {
+      "bytes": 22,
+      "sha256": "192a7dd1559c24ebc312e3a10eea69bcb0e56f554b3059f1acfe63303bad0025",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_33456e88-ac25-4aa8-bc8a-8540db57f2cf/jail.lock": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_33456e88-ac25-4aa8-bc8a-8540db57f2cf/jail-state.json": {
+      "bytes": 1051,
+      "sha256": "e5243288707798cbe695c6e5057b804b19ec8624c37bdbec69ab548375b32679",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_33456e88-ac25-4aa8-bc8a-8540db57f2cf/policy.json": {
+      "bytes": 2809,
+      "sha256": "61662dc549a1f8c52da9f5e10143982aea75941d75f6e1dfd4eccb1cfe043897",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_a952e8ae-1cc9-4cb3-aa8a-8a5e4f6d0818/trace.ndjson": {
+      "bytes": 5560,
+      "sha256": "1ba800e4a4f13b30d125c324ee506e80aff3fc7ef8b4c6696b5d8306bfdac086",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_a952e8ae-1cc9-4cb3-aa8a-8a5e4f6d0818/jail.json": {
+      "bytes": 8494,
+      "sha256": "74e6e9cf94d308db33f73340f2031ff2ffa4b49cb13adad57582e5754eedaf67",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_a952e8ae-1cc9-4cb3-aa8a-8a5e4f6d0818/resolv.conf": {
+      "bytes": 22,
+      "sha256": "192a7dd1559c24ebc312e3a10eea69bcb0e56f554b3059f1acfe63303bad0025",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_a952e8ae-1cc9-4cb3-aa8a-8a5e4f6d0818/jail.lock": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_a952e8ae-1cc9-4cb3-aa8a-8a5e4f6d0818/jail-state.json": {
+      "bytes": 1051,
+      "sha256": "20edf89cb24bb30532dfcf21f49be7e491fa4fb808ba5efb91c62875df6b8b29",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_a952e8ae-1cc9-4cb3-aa8a-8a5e4f6d0818/policy.json": {
+      "bytes": 2807,
+      "sha256": "72e88bd902dec0e859abc23083d28c0f4f0057eff13e3998d221e93c2d60ca11",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_8fb86bbe-25d9-44a0-9131-43015887357f/trace.ndjson": {
+      "bytes": 5562,
+      "sha256": "e1f2ff003e60defcd45e38187cc3b3c6cb5cb464398ee1b797c8a554e66fa156",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_8fb86bbe-25d9-44a0-9131-43015887357f/jail.json": {
+      "bytes": 10096,
+      "sha256": "f957295954f88f397168e49c8a8102d3ad46f5da249d9a6a86438eec1bfa4fe2",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_8fb86bbe-25d9-44a0-9131-43015887357f/resolv.conf": {
+      "bytes": 22,
+      "sha256": "192a7dd1559c24ebc312e3a10eea69bcb0e56f554b3059f1acfe63303bad0025",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_8fb86bbe-25d9-44a0-9131-43015887357f/jail.lock": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_8fb86bbe-25d9-44a0-9131-43015887357f/jail-state.json": {
+      "bytes": 1333,
+      "sha256": "688ab439af89a7f40be0cf263fd571329eddb2698d1b8dfb0e09551cecc422a5",
+      "mode": 384
+    },
+    "work/native/data/attempts/att_8fb86bbe-25d9-44a0-9131-43015887357f/policy.json": {
+      "bytes": 2916,
+      "sha256": "ad566b9754aefc5ee045a0ad59977437070cd7191b684e4b37ff530f475d86e3",
+      "mode": 384
+    },
+    "work/native/repeat-install-refusal.stderr": {
+      "bytes": 48,
+      "sha256": "b1fbcf143a81e3338a080171f0e9e4849c36d4cb54c37ea683225b0704be8069",
+      "mode": 436
+    },
+    "work/native/input-binding.json": {
+      "bytes": 2074,
+      "sha256": "6923c2555d46b7f3d92304a69da23ecc2f5c9a4534802831e55fd591611281e4",
+      "mode": 436
+    },
+    "work/native/native-restage/artifact.json": {
+      "bytes": 1540,
+      "sha256": "534937fbc38b3bca8806413ffc000b1cbcf2d074d8d8b2d5f75f65cfa03cb3ed",
+      "mode": 384
+    },
+    "work/native/native-restage/ukai-jail-0.1.0-rc.7-x86_64-unknown-linux-gnu.tar.gz": {
+      "bytes": 4745031,
+      "sha256": "a9eb6b07b4925cc3828fa2a264cbc5d0208aea1b1ed2929f67ec0d5f1436c7a1",
+      "mode": 384
+    },
+    "work/native/native-restage.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "work/native/test-key-verify.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "work/native/test-key-sign.command.json": {
+      "bytes": 249,
+      "sha256": "051275a237b3dfd995a69a424f3bb6c98f133ff90c3dd46608274825f946c3df",
+      "mode": 436
+    },
+    "work/native/exact-archive-install.result.json": {
+      "bytes": 17,
+      "sha256": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17",
+      "mode": 436
+    },
+    "work/native/test-key-sign.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 436
+    },
+    "work/native/version.stdout": {
+      "bytes": 1021,
+      "sha256": "bba682cd06f7ab1e9fa72b082cd0fdd3d2f3982fb71e2b359116426f1db84e58",
+      "mode": 436
+    }
+  },
+  "summary": {
+    "status": "passed native checks of exact unpublished CI archive",
+    "target": "x86_64-unknown-linux-gnu",
+    "revision": "0be9d1e820b0d47493883053253491bbd2196ba3",
+    "inputs": "sha256:2448a8057ab3e5821e1d519879be036ab7af03915a8e43d97df2c3ff0016f3ae",
+    "workflow_run": 43822535195,
+    "archive_sha256": "a9eb6b07b4925cc3828fa2a264cbc5d0208aea1b1ed2929f67ec0d5f1436c7a1",
+    "binary_sha256": "7df9db3caefc09965b6ca2578ca75af21a214548963caedb4215895ca047ec8a",
+    "glibc_versions": [
+      "2.2.5",
+      "2.3",
+      "2.3.4",
+      "2.4",
+      "2.9",
+      "2.10",
+      "2.14",
+      "2.15",
+      "2.16",
+      "2.17",
+      "2.18",
+      "2.25",
+      "2.28",
+      "2.29",
+      "2.30",
+      "2.32",
+      "2.33",
+      "2.34",
+      "2.39"
+    ],
+    "maximum_required_glibc_version": "2.39",
+    "doctor_ready": {
+      "tool": true,
+      "agent": true
+    },
+    "smoke": [
+      {
+        "case": "tool",
+        "exit_code": 0,
+        "passed": true,
+        "execution_cgroup_removed": true,
+        "execution_cgroup": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_a952e8ae-1cc9-4cb3-aa8a-8a5e4f6d0818.leaf"
+      },
+      {
+        "case": "agent",
+        "exit_code": 0,
+        "passed": true,
+        "execution_cgroup_removed": true,
+        "execution_cgroup": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_8fb86bbe-25d9-44a0-9131-43015887357f.leaf"
+      },
+      {
+        "case": "deadline",
+        "exit_code": 143,
+        "passed": true,
+        "execution_cgroup_removed": true,
+        "execution_cgroup": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_33456e88-ac25-4aa8-bc8a-8540db57f2cf.leaf"
+      }
+    ],
+    "exact_archive_install": "passed with ephemeral test key",
+    "installer_regression": "passed",
+    "native_restage_matches_ci_archive": true,
+    "third_party_notices": {
+      "bytes": 2291615,
+      "sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd",
+      "matches_guarded_final_source": true
+    },
+    "original_ci_artifact_unchanged": true,
+    "scope": "Native artifact checks; full conformance is separate evidence. Unpublished, no production key."
+  },
+  "scope": "Direct bounded compressed-evidence review, no extraction or execution. Process/cgroup/key absence and source preservation remain hash-bound observations made by the executed owning runner. No full conformance, bootstrap, production signing or provider claim."
+}
