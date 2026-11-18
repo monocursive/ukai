@@ -2,9 +2,11 @@
 
 Ukai Jail rc.8 is a signed Linux developer preview. On the Ubuntu 26.04.1
 x86_64 reference host, the release commit passed strict Linux conformance.
-All five rollout workflows passed on `753fa9661`. The stable-release decision
-still needs a security review of the Linux candidate and a support statement
-limited to host, profile and agent combinations with matching evidence.
+All five rollout workflows passed on `753fa9661`. A subsequent Linux runtime
+audit identified three Medium findings in rc.8. The fixes are in
+`a0d3bd778`. The repaired inputs passed strict Linux release conformance
+on a clean checkout at `bb5979a30`, including the fresh vendor evidence.
+[Linux runtime audit and candidate verdict](../../security-audit-2026-11-18-linux.md).
 [Publication record](release-preview-2026-11-18.md) · [Rollout CI](https://github.com/monocursive/ukai/commit/753fa9661c8ba4c7410d9b7b57637c730a32ce0a/checks).
 
 ## Checks completed on the published binaries
@@ -63,7 +65,7 @@ clauses concern native Mac or warm-VM qualification. [Native test](../../../crat
 
 | Scope | Evidence still needed |
 | --- | --- |
-| Stable Linux security claim | The last repository-wide audit located covers `549569975`. The rc.8 source retains the October fixes for relative script execution (H2′) and uncontained epoch markers (M1). Their named regression tests passed in rollout CI. M1 retains a polling window. Ledger verification still bounds authenticity to the local UID (L1). The proposed stable scope still needs review of the intervening runtime changes and zero open High or Medium findings. The written policy allows a self-directed pass initially. [Audit policy](../../specs/jail-v2.md#13-publication-and-evidence) · [October audit](../../security-audit-2026-10-15.md) |
+| Stable Linux security claim | The scoped runtime audit fixed three Medium findings and qualified the repaired inputs on the reference x86_64 configuration. Stable release coordinates, distribution support, signing and public installation of that version remain open. [Audit findings and verification](../../security-audit-2026-11-18-linux.md) |
 | Real-agent support | Ten fresh repair trials passed for the exact x86_64 OpenCode configuration recorded above. Onboarding and learning also passed with the release's build inputs. Broader tasks, agents, hosts and credential modes still need their own evidence. Earlier matrices recorded timeouts and provider refusals. [Compatibility register](../../specs/jail-v1/agent-compatibility.md) |
 | Broader Linux host support | The ARM64 install and workload checks cover the named guest. Full native ARM64 qualification remains open, including the foreign-ABI tests on a host capable of AArch32 EL0. The Raspberry Pi was unreachable through both configured routes today. Stock Ubuntu 24 execution remains refused. [ARM baseline and targeted tests](production-readiness-2026-11-15.md) |
 | Warm macOS VM | The signed development package passed the installed operational and fault checks. Claude exposure sampling, the applicable real-vendor workflows, distribution rights for any bundled client, and K108–K113 acceptance on the exact notarized and stapled package remain open. OAuth qualification was deferred. [Installed operational checks](results/macos-vm-operations-2026-11-18/README.md) · [Qualification history](production-qualification-2026-11-15.md) |
