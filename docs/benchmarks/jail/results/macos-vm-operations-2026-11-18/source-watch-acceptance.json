@@ -1,0 +1,63 @@
+{
+  "outcome": "PASS",
+  "plan_sha256": "11e8cef3904ec6a759c184b80b300a663b925355bbe2985aa23b42f4d0c621ab",
+  "phase": "source-watch",
+  "reader_sha256": "d6158874789e7693c306bab099ed86532a4921ce1c5f447795924881a1bbf316",
+  "qualified": false,
+  "detail": {
+    "facts": {
+      "independent_stream_before_delete_then_prompt_disconnect": true,
+      "exactly_one_upstream_substitution": true,
+      "bound_complete_guest_journal": true,
+      "allowed_stream_ended_credential_revoked": true,
+      "later_request_denied_without_substitution": true,
+      "guest_revocation_note": true,
+      "receipt_and_tail_use_count_match": true,
+      "vault_never_staged": true,
+      "child_placeholder_bound": true,
+      "strict_six_class_coverage": true,
+      "settled_clean_guest": true,
+      "host_binding_and_settlement": true,
+      "client_and_summary_succeeded": true,
+      "source_removed_before_stop": true,
+      "post_revocation_hold_exceeds_ack_budget": true,
+      "normal_identity_bound": true,
+      "exact_normal_inputs_retained": true,
+      "service_shutdown_complete": true,
+      "all_exported_bytes_scanned": true,
+      "same_boot_disk_scanned": true,
+      "service_stopped": true
+    },
+    "summary": {
+      "schema": "ukai.vm.summary-verification/1",
+      "outcome": "PASS",
+      "qualified": false,
+      "scope": "bound_guest",
+      "journal": "complete",
+      "journal_frames": 16,
+      "sampling": {
+        "state": "not_requested"
+      },
+      "lines": 5,
+      "display_mapping_applied": true,
+      "display_mapping_sha256": "6be141593deb01b8cc5ec31b8adabc39546b494591793dad22d5ff5a6c2abafe",
+      "evidence_sha256": {
+        "jail.json": "22d3f4db1e0d8f32c4ce76a72278e661cc7b4cf1b6a40f0a0f3d1ab7be95b4a0",
+        "trace.ndjson": "a7c81c3a373047c47daa4fdaabb83c97a6a8c39682b26d70d9289196ffd7058d",
+        "vm-transport.json": "f2591ddf4fa005af7c866081ab5f8d1e87221955f435d9f0082096d5ba0b7a0e",
+        "evidence/jail.json": "5997e6381163d28e3696e97ff994d1415d491f3bb9d8eb2afeb3644d1bfc06b7",
+        "evidence/vm-binding.json": "b2b958f92e3609c00e45ca473a37df00b42bb33e1b413ac00b4f6a85518065c0",
+        "evidence/guest-journal/manifest.json": "76fd058aa7f5516201e09afae78fd0e47854aa2b57d28b2db4d8c67f8687587c",
+        "evidence/guest-journal/0000.part": "094f781413ade6a848a64111fe17a7b2f156325a10c6f09ac6a60132c152cf52"
+      },
+      "summary_json_sha256": "fd79b518faaf9e73814853d70867c92fd489a8d405a1f9ec2786f3dff18a1fd0",
+      "summary_text_sha256": "3feee57e44d88720bfc4f1de5cc1c0d2c69d291bb18cdd1202d542ca20ab8e8e"
+    },
+    "scope": "Normal synthetic plaintext source-watch21 facts recomputed; live peer/scan/exit observations retained, no explicit raw ACK/TLS/vendor/native/K113 qualification."
+  },
+  "lifecycle_sha256": {
+    "outer": "520b497d3945fb6c40159b1c72bee1ccce1e24fa9bd47854ea91e83cab092993",
+    "result": "6cd7b88bc98a84e05b153f59d82735bb04bac1a18cec583a7137e261531bc1ba",
+    "quiescence": "be0e58673bf57c62198a4e506f41251800d363bd4081ebd22e85906ebef0889e"
+  }
+}

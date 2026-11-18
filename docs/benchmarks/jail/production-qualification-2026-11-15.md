@@ -1,6 +1,18 @@
 # Ukai candidate qualification — 15 November 2026
 
-The current frozen Linux candidate `0be9d1e82`, version `0.1.0-rc.7`, passed
+## Follow-up on 18 November 2026
+
+The [current Linux onboarding and learning run](results/release-preview-2026-11-18-dev/README.md)
+exercised the integrated build on a fresh x86_64 guest. Both real OpenCode
+workflows passed on their first invocation. The [installed Mac VM operational
+run](results/macos-vm-operations-2026-11-18/README.md) completed all four phases
+on the admitting host candidate at `03456ef92`, including all eleven fault
+cases. Its release gates still include vendor sampling and acceptance on the
+notarized and stapled package.
+
+## Prior Linux candidate
+
+The frozen Linux candidate `0be9d1e82`, version `0.1.0-rc.7`, passed
 its `linux-preview` qualification and is signed locally with the existing
 release identity. It is unpublished. This
 does not establish full-specification production readiness, native macOS

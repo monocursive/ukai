@@ -1,0 +1,317 @@
+{
+  "facts_recomputed": 118,
+  "group_count": 9,
+  "groups": {
+    "all-suspended": {
+      "collection_status": "ACCEPTED_INCOMPLETE_COVERAGE",
+      "facts_recomputed": 7,
+      "lanes": {
+        "all-suspended": {
+          "checked_before_cleanup": true,
+          "facts": {
+            "beats_ended_while_suspended": true,
+            "ended_at_the_guest_wall_deadline": true,
+            "every_controller_stopped": true,
+            "guest_clock_agrees": true,
+            "released": true,
+            "workload_beating_before_stop": true,
+            "workload_ran_on_after_the_stop": true
+          },
+          "failed": [],
+          "outcome": "PASS"
+        }
+      },
+      "owning_outcome": "FAIL",
+      "owning_returncode": 1,
+      "requested": [
+        "all-suspended"
+      ]
+    },
+    "client-ctrl-z": {
+      "collection_status": "ACCEPTED_INCOMPLETE_COVERAGE",
+      "facts_recomputed": 20,
+      "lanes": {
+        "client-ctrl-z": {
+          "checked_before_cleanup": true,
+          "facts": {
+            "attempt_completed_after_resume": true,
+            "client_was_stopped": true,
+            "next_attempt_exit_zero": true,
+            "next_attempt_receipt_bound": true,
+            "next_attempt_same_guest_boot": true,
+            "next_attempt_same_serve_boot": true,
+            "released": true,
+            "resumed_attempt_receipt_bound": true,
+            "workload_beating_before_stop": true,
+            "workload_continued_while_client_stopped": true
+          },
+          "failed": [],
+          "outcome": "PASS"
+        },
+        "client-ctrl-z:ukai-jail": {
+          "checked_before_cleanup": true,
+          "facts": {
+            "attempt_completed_after_resume": true,
+            "client_was_stopped": true,
+            "next_attempt_exit_zero": true,
+            "next_attempt_receipt_bound": true,
+            "next_attempt_same_guest_boot": true,
+            "next_attempt_same_serve_boot": true,
+            "released": true,
+            "resumed_attempt_receipt_bound": true,
+            "workload_beating_before_stop": true,
+            "workload_continued_while_client_stopped": true
+          },
+          "failed": [],
+          "outcome": "PASS"
+        }
+      },
+      "owning_outcome": "FAIL",
+      "owning_returncode": 1,
+      "requested": [
+        "client-ctrl-z"
+      ]
+    },
+    "client-kill": {
+      "collection_status": "ACCEPTED_INCOMPLETE_COVERAGE",
+      "facts_recomputed": 20,
+      "lanes": {
+        "client-kill": {
+          "checked_before_cleanup": true,
+          "facts": {
+            "client_alive_at_the_kill": true,
+            "client_died_of_our_sigkill": true,
+            "next_attempt_exit_zero": true,
+            "next_attempt_receipt_bound": true,
+            "next_attempt_same_guest_boot": true,
+            "next_attempt_same_serve_boot": true,
+            "released": true,
+            "service_still_warm": true,
+            "workload_beating_before_kill": true,
+            "workload_stopped_after_kill": true
+          },
+          "failed": [],
+          "outcome": "PASS"
+        },
+        "client-kill:ukai-jail": {
+          "checked_before_cleanup": true,
+          "facts": {
+            "client_alive_at_the_kill": true,
+            "client_died_of_our_sigkill": true,
+            "next_attempt_exit_zero": true,
+            "next_attempt_receipt_bound": true,
+            "next_attempt_same_guest_boot": true,
+            "next_attempt_same_serve_boot": true,
+            "released": true,
+            "service_still_warm": true,
+            "workload_beating_before_kill": true,
+            "workload_stopped_after_kill": true
+          },
+          "failed": [],
+          "outcome": "PASS"
+        }
+      },
+      "owning_outcome": "FAIL",
+      "owning_returncode": 1,
+      "requested": [
+        "client-kill"
+      ]
+    },
+    "custodian-kill": {
+      "collection_status": "ACCEPTED_INCOMPLETE_COVERAGE",
+      "facts_recomputed": 14,
+      "lanes": {
+        "custodian-kill": {
+          "checked_before_cleanup": true,
+          "facts": {
+            "custodian_gone": true,
+            "one_custodian_vz_and_vm_identified": true,
+            "queued_attempt_ended_without_done": true,
+            "queued_attempt_open_until_the_kill": true,
+            "released": true,
+            "running_attempt_ended_without_done": true,
+            "running_attempt_open_until_the_kill": true,
+            "serve_gone": true,
+            "sockets_unanswered": true,
+            "vm_service_gone": true,
+            "vz_gone": true,
+            "workload_beating_before_kill": true,
+            "workload_stopped_after_kill": true,
+            "workspace_survived": true
+          },
+          "failed": [],
+          "outcome": "PASS"
+        }
+      },
+      "owning_outcome": "FAIL",
+      "owning_returncode": 1,
+      "requested": [
+        "custodian-kill"
+      ]
+    },
+    "eof": {
+      "collection_status": "ACCEPTED_INCOMPLETE_COVERAGE",
+      "facts_recomputed": 8,
+      "lanes": {
+        "eof": {
+          "checked_before_cleanup": true,
+          "facts": {
+            "next_attempt_exit_zero": true,
+            "next_attempt_receipt_bound": true,
+            "next_attempt_same_guest_boot": true,
+            "next_attempt_same_serve_boot": true,
+            "released": true,
+            "service_still_warm": true,
+            "workload_beating_before_eof": true,
+            "workload_stopped_after_eof": true
+          },
+          "failed": [],
+          "outcome": "PASS"
+        }
+      },
+      "owning_outcome": "FAIL",
+      "owning_returncode": 1,
+      "requested": [
+        "eof"
+      ]
+    },
+    "secrets": {
+      "collection_status": "ACCEPTED_INCOMPLETE_COVERAGE",
+      "facts_recomputed": 11,
+      "lanes": {
+        "secrets": {
+          "checked_before_cleanup": true,
+          "facts": {
+            "duplicate_id_refused_before_prepared": true,
+            "first_attempt_exit_zero": true,
+            "first_attempt_receipt_bound": true,
+            "nested_id_staged": true,
+            "network_denied_with_nat": true,
+            "next_attempt_exit_zero": true,
+            "next_attempt_receipt_bound": true,
+            "next_attempt_same_guest_boot": true,
+            "next_attempt_same_serve_boot": true,
+            "paths_in_tmpfs_root": true,
+            "two_values_acked": true
+          },
+          "failed": [],
+          "outcome": "PASS"
+        }
+      },
+      "owning_outcome": "FAIL",
+      "owning_returncode": 1,
+      "requested": [
+        "secrets"
+      ]
+    },
+    "serve-group-stop": {
+      "collection_status": "ACCEPTED_INCOMPLETE_COVERAGE",
+      "facts_recomputed": 10,
+      "lanes": {
+        "serve-group-stop": {
+          "checked_before_cleanup": true,
+          "facts": {
+            "attempt_completed_after_resume": true,
+            "next_attempt_exit_zero": true,
+            "next_attempt_receipt_bound": true,
+            "next_attempt_same_guest_boot": true,
+            "next_attempt_same_serve_boot": true,
+            "released": true,
+            "resumed_attempt_receipt_bound": true,
+            "serve_boot_unchanged_after_resume": true,
+            "workload_beating_before_stop": true,
+            "workload_spanned_the_stop": true
+          },
+          "failed": [],
+          "outcome": "PASS"
+        }
+      },
+      "owning_outcome": "FAIL",
+      "owning_returncode": 1,
+      "requested": [
+        "serve-group-stop"
+      ]
+    },
+    "serve-kill": {
+      "collection_status": "ACCEPTED_INCOMPLETE_COVERAGE",
+      "facts_recomputed": 14,
+      "lanes": {
+        "serve-kill": {
+          "checked_before_cleanup": true,
+          "facts": {
+            "custodian_gone": true,
+            "one_custodian_vz_and_vm_identified": true,
+            "queued_attempt_ended_without_done": true,
+            "queued_attempt_open_until_the_kill": true,
+            "released": true,
+            "running_attempt_ended_without_done": true,
+            "running_attempt_open_until_the_kill": true,
+            "serve_gone": true,
+            "sockets_unanswered": true,
+            "vm_service_gone": true,
+            "vz_gone": true,
+            "workload_beating_before_kill": true,
+            "workload_stopped_after_kill": true,
+            "workspace_survived": true
+          },
+          "failed": [],
+          "outcome": "PASS"
+        }
+      },
+      "owning_outcome": "FAIL",
+      "owning_returncode": 1,
+      "requested": [
+        "serve-kill"
+      ]
+    },
+    "vz-kill": {
+      "collection_status": "ACCEPTED_INCOMPLETE_COVERAGE",
+      "facts_recomputed": 14,
+      "lanes": {
+        "vz-kill": {
+          "checked_before_cleanup": true,
+          "facts": {
+            "custodian_gone": true,
+            "one_custodian_vz_and_vm_identified": true,
+            "queued_attempt_ended_without_done": true,
+            "queued_attempt_open_until_the_kill": true,
+            "released": true,
+            "running_attempt_ended_without_done": true,
+            "running_attempt_open_until_the_kill": true,
+            "serve_gone": true,
+            "sockets_unanswered": true,
+            "vm_service_gone": true,
+            "vz_gone": true,
+            "workload_beating_before_kill": true,
+            "workload_stopped_after_kill": true,
+            "workspace_survived": true
+          },
+          "failed": [],
+          "outcome": "PASS"
+        }
+      },
+      "owning_outcome": "FAIL",
+      "owning_returncode": 1,
+      "requested": [
+        "vz-kill"
+      ]
+    }
+  },
+  "lane_count": 11,
+  "lanes": [
+    "secrets",
+    "client-kill",
+    "client-kill:ukai-jail",
+    "client-ctrl-z",
+    "client-ctrl-z:ukai-jail",
+    "serve-kill",
+    "custodian-kill",
+    "vz-kill",
+    "all-suspended",
+    "eof",
+    "serve-group-stop"
+  ],
+  "outcome": "PASS",
+  "subset_records_relabelled": false,
+  "work_elapsed_seconds": 817.1773600829765
+}
