@@ -146,17 +146,16 @@ fn credential(context: &Context, command: &CredentialCommand) -> ExitCode {
     }
     let result = match command {
         CredentialCommand::Set(args) => {
-            let value = {
-                let _quiet = (std::io::IsTerminal::is_terminal(&std::io::stdin())).then(|| {
+            let value = EchoOff::for_stdin().and_then(|guard| {
+                if guard.is_some() {
                     ukai_jail::diag!(
                         "ukai-jail: paste the value of `{}`, then press Enter and Ctrl-D \
                          (it is not shown)",
                         args.id
                     );
-                    EchoOff::new()
-                });
+                }
                 credential_store::read_value(&mut std::io::stdin().lock())
-            };
+            });
             match value {
                 Err(error) => Err(format!("the value cannot be read: {error}")),
                 Ok(Err(refusal)) => Err(refusal.to_string()),
@@ -458,16 +457,21 @@ fn state_show_text(state: &ukai_jail::persistent::Listed) -> String {
 
 /// Terminal echo turned off on stdin for as long as this lives (a pasted
 /// credential is never shown), restored when dropped.
-struct EchoOff(Option<libc::termios>);
+struct EchoOff(libc::termios);
 
 impl EchoOff {
-    fn new() -> Self {
+    fn for_stdin() -> std::io::Result<Option<Self>> {
         // SAFETY: termios is plain data that tcgetattr fills; all-zero is a
         // valid value to start from.
         let mut saved: libc::termios = unsafe { std::mem::zeroed() };
         // SAFETY: descriptor 0 and a live termios buffer.
         if unsafe { libc::tcgetattr(0, &raw mut saved) } != 0 {
-            return EchoOff(None);
+            let error = std::io::Error::last_os_error();
+            return if error.raw_os_error() == Some(libc::ENOTTY) {
+                Ok(None) // A pipe or regular file has no terminal echo.
+            } else {
+                Err(error)
+            };
         }
         let mut quiet = saved;
         quiet.c_lflag &= !(libc::ECHO | libc::ECHONL);
@@ -478,18 +482,30 @@ impl EchoOff {
         for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGQUIT] {
             // SAFETY: installing a handler that only calls the
             // async-signal-safe tcsetattr, signal and raise.
-            unsafe {
+            if unsafe {
                 libc::signal(
                     signal,
                     restore_echo_and_reraise as extern "C" fn(libc::c_int) as libc::sighandler_t,
                 )
-            };
+            } == libc::SIG_ERR
+            {
+                return Err(std::io::Error::last_os_error());
+            }
         }
+        let guard = Self(saved);
         // SAFETY: descriptor 0 and a live termios value.
         if unsafe { libc::tcsetattr(0, libc::TCSAFLUSH, &raw const quiet) } != 0 {
-            return EchoOff(None);
+            return Err(std::io::Error::last_os_error());
         }
-        EchoOff(Some(saved))
+        // A terminal may apply only some requested attributes.
+        // SAFETY: descriptor 0 and a live termios buffer.
+        if unsafe { libc::tcgetattr(0, &raw mut quiet) } != 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        if quiet.c_lflag & (libc::ECHO | libc::ECHONL) != 0 {
+            return Err(std::io::Error::other("terminal echo could not be disabled"));
+        }
+        Ok(Some(guard))
     }
 }
 
@@ -513,11 +529,9 @@ extern "C" fn restore_echo_and_reraise(signal: libc::c_int) {
 
 impl Drop for EchoOff {
     fn drop(&mut self) {
-        if let Some(saved) = self.0 {
-            // SAFETY: descriptor 0 and the termios value read before.
-            unsafe { libc::tcsetattr(0, libc::TCSAFLUSH, &raw const saved) };
-            ukai_jail::diag!("");
-        }
+        // SAFETY: descriptor 0 and the termios value read before.
+        unsafe { libc::tcsetattr(0, libc::TCSAFLUSH, &raw const self.0) };
+        ukai_jail::diag!("");
     }
 }
 
