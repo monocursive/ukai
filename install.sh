@@ -42,7 +42,8 @@ Usage: bash install.sh [--version VERSION] [--bin-dir /absolute/path]
                        [--allow-downgrade]
        bash install.sh [--version VERSION] [--vm-prefix /absolute/path]
 
-Linux: installs the Ukai Jail preview $version into ~/.local/bin.
+Linux: installs Ukai Jail $version into ~/.local/bin. Stable releases cover x86_64.
+On ARM64, explicitly select a published Linux preview with --version.
 macOS: installs the Ukai VM preview $macos_version under ~/.local/share,
 with a command in ~/.local/bin. --vm-prefix changes the root containing bin and share.
 Pre-rename releases retain their ouro-jail / ouro-vm commands and package paths.
@@ -106,6 +107,12 @@ EOF
         Darwin:arm64) target=macos-arm64 ;;
         *) fail 'supported hosts: Linux x86_64/ARM64 or Apple Silicon macOS 27+' ;;
     esac
+    if [ "$target" = aarch64-unknown-linux-gnu ]; then
+        case "${version%%+*}" in
+            *-*) ;;
+            *) fail 'stable Linux releases support x86_64 only; select an ARM64 preview with --version' ;;
+        esac
+    fi
     # Rendered by crates/ukai-jail/dist/bootstrap.py; every release this
     # installer accepts has its archive or disk image hash here.
     # BEGIN SHA256 PINS

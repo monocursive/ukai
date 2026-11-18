@@ -1,4 +1,4 @@
-# Publish a Ukai Jail developer preview
+# Publish Ukai Jail
 
 [Linux preview 0.1.0-rc.8](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.8)
 was published on 18 November 2026 from `bf365665197a0861752d704eef05ca9d0dde9952`.
@@ -110,6 +110,24 @@ Its private half retains its pre-rename location outside the repository at
 with file mode 0600. It is unencrypted for local noninteractive signing; maintain
 a private backup for future releases. Private key material is never sent to CI.
 
+## Stable Linux x86_64 publication
+
+A version without a SemVer prerelease suffix selects one native
+`x86_64-unknown-linux-gnu` archive. The signed plan records the tested
+Ubuntu 26.04.1 LTS configuration, kernel 7.0.0-31-generic, bubblewrap 0.11.1,
+ptrace observation and reference cgroup delegation. The [Linux runtime audit](security-audit-2026-11-18-linux.md)
+describes the evaluated workloads and remaining platform limits.
+
+Use the native stage from the release-candidate workflow for the exact commit.
+Run the assembly and publication steps below with that single stage and the
+stable version. Check the draft installer in an empty prefix on the reference
+host. Publication marks the signed release stable and latest. Download and
+verify all seven public assets, install from the public bootstrap and check
+the installed build, doctor and a contained workload. Then roll out the signed
+bootstrap at `ukai.sh/install.sh` and repeat the public install there.
+ARM64 users can explicitly select a pinned preview with `--version 0.1.0-rc.8`.
+The public Mac VM keeps its own version and pins.
+
 ## Linux-only Jail release scope
 
 On 10 October 2026, the Linux evidence gaps were closed by live CLI tests,
@@ -132,7 +150,7 @@ clause to fail the full verdict as untested, so a clause promoted while
 still named here is caught. Tested component clauses remain required. The full verdict without
 the flag continues to fail those untested clauses. Every Linux clause, shared test and macOS
 execution-refusal test remains required; no failing Linux test is waived.
-The signed release plan binds this scope and both native Linux targets.
+The signed release plan binds the exclusions and the target set for its release channel.
 
 ## macOS Jail bundle (pending entitlement — NOT yet releasable)
 

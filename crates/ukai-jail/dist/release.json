@@ -4,7 +4,7 @@
         "version": "0.1.0-rc.8",
         "tag_prefix": "ukai-jail-v",
         "published_tag": "ukai-jail-v0.1.0-rc.8",
-        "publication_scope": "linux-preview",
+        "publication_scope": "linux-x86_64-stable",
         "unsupported_clauses": [
             "K23.1",
             "K24.1",
@@ -43,7 +43,10 @@
         "elf_machine_by_target": {
             "x86_64-unknown-linux-gnu": 62,
             "aarch64-unknown-linux-gnu": 183
-        }
+        },
+        "arm_preview_version": "0.1.0-rc.8",
+        "stable_target": "x86_64-unknown-linux-gnu",
+        "stable_host": "Ubuntu 26.04.1 LTS x86_64, kernel 7.0.0-31-generic, bubblewrap 0.11.1, with the reference cgroup delegation and ptrace observation."
     },
     "vm": {
         "version": "0.1.0-preview.1",

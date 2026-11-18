@@ -126,7 +126,7 @@ class PublicationTests(unittest.TestCase):
             signature.unlink()
             subprocess.run(['minisign', '-Sm', str(manifest), '-s', str(self.root / 'key'),
                             '-x', str(signature)], check=True, capture_output=True)
-            with self.assertRaisesRegex(ValueError, 'both archive SHA-256 hashes'):
+            with self.assertRaisesRegex(ValueError, 'all archive SHA-256 hashes'):
                 check(self.candidate, self.key)
 
     def test_metadata_scripts_archive_and_signature_tampering_refuse(self):

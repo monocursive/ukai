@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify a signed developer preview, create a draft, then publish verified assets."""
+"""Verify a signed Linux release, create a draft, then publish verified assets."""
 import argparse
 import hashlib
 import json
@@ -8,9 +8,9 @@ import re
 import subprocess
 import tempfile
 
-from coordinates import JAIL_TAG_PREFIX, PUBLICATION_SCOPE, REPOSITORY, UNSUPPORTED_CLAUSES, jail_tag
+from coordinates import JAIL_TAG_PREFIX, REPOSITORY, STABLE_HOST, is_prerelease, release_scope, release_targets, UNSUPPORTED_CLAUSES, jail_tag
 from package import VERSION
-from prepare_release import TARGETS, digest, verify_stage
+from prepare_release import digest, verify_stage
 from bootstrap import archive_pins, render_bootstrap
 from notices import checked, read_source
 
@@ -62,7 +62,7 @@ def check(directory, public_key, *, source=None):
                             'L02.12', 'M01.4', *(f'K{n}.1' for n in range(87, 114))]
     if (plan.get('schema') != 'ukai.jail.release-candidate/1'
             or plan.get('repository') != REPOSITORY
-            or plan.get('publication_scope') != PUBLICATION_SCOPE
+            or plan.get('publication_scope') != release_scope(version)
             or plan.get('unsupported_clauses') != required_clauses
             or not re.fullmatch('[0-9a-f]{40}', revision)
             or not re.fullmatch('sha256:[0-9a-f]{64}', inputs)
@@ -70,8 +70,10 @@ def check(directory, public_key, *, source=None):
             or plan.get('signature_verified') is not True):
         raise ValueError('invalid signed release plan')
     records = plan['artifacts']
-    if sorted(r['target'] for r in records) != sorted(TARGETS):
-        raise ValueError('release requires both distinct native Linux targets')
+    if sorted(r['target'] for r in records) != sorted(release_targets(version)):
+        raise ValueError('signed archives must match the release targets')
+    if not is_prerelease(version) and plan.get('support') != {'x86_64': STABLE_HOST}:
+        raise ValueError('stable support must match the qualified x86_64 configuration')
     expected = set(METADATA)
     expected_notices = checked(read_source(source)) if source is not None else None
     for record in records:
@@ -94,7 +96,7 @@ def check(directory, public_key, *, source=None):
         verified_bootstrap = ((plan['tag'], revision) == UNPINNED_PREVIEW
                               and f"    public_key='{public_key}'\n" in bootstrap)
     if f'    version={version}\n' not in bootstrap or not verified_bootstrap:
-        raise ValueError('bootstrap must pin the release version and both archive SHA-256 hashes')
+        raise ValueError('bootstrap must pin the release version and all archive SHA-256 hashes')
     if source is not None:
         installer = source / 'crates/ukai-jail/dist/install.sh'
         if (directory / 'install.sh').read_bytes() != installer.read_bytes():
@@ -120,7 +122,10 @@ def publication_gates(plan, public_key):
     runs = gh_json('run', 'list', '--repo', REPOSITORY, '--commit', revision,
                    '--limit', '100', '--json', 'databaseId,workflowName,status,conclusion')
     # The latest run of each required workflow must pass for this exact commit.
-    for workflow in ['rust', 'contracts', 'conformance']:
+    required = ['rust', 'contracts', 'conformance']
+    if not is_prerelease(plan['tag'].removeprefix(JAIL_TAG_PREFIX)):
+        required.extend(['fleet', 'release-candidate'])
+    for workflow in required:
         latest = next((r for r in runs if r['workflowName'] == workflow), None)
         if not latest or latest['status'] != 'completed' or latest['conclusion'] != 'success':
             raise ValueError(f'{workflow} must pass on the exact release commit')
@@ -135,9 +140,9 @@ def publication_gates(plan, public_key):
 
 
 def verify_remote_assets(plan, directory, names, release):
-    if (release['tag_name'] != plan['tag'] or release['prerelease'] is not True
+    if (release['tag_name'] != plan['tag'] or release['prerelease'] is not is_prerelease(plan['tag'].removeprefix(JAIL_TAG_PREFIX))
             or sorted(asset['name'] for asset in release['assets']) != names):
-        raise ValueError('remote release does not have the exact preview assets')
+        raise ValueError('remote release does not have the exact release assets')
     # Download by release asset ID: gh authenticates draft downloads, whereas
     # browser URLs are only usable after publication.
     for asset in release['assets']:
@@ -175,12 +180,15 @@ def main():
         plan, names = check(directory, args.public_key, source=source)
         if args.command in ['draft', 'publish']:
             publication_gates(plan, args.public_key)
+        version = plan['tag'].removeprefix(JAIL_TAG_PREFIX)
+        preview = is_prerelease(version)
+        flags = ['--prerelease', '--latest=false'] if preview else ['--prerelease=false', '--latest']
         if args.command == 'draft':
             # No --clobber: previous releases and existing drafts are preserved.
             subprocess.run(['gh', 'release', 'create', plan['tag'], '--repo', REPOSITORY,
-                            '--verify-tag', '--draft', '--prerelease', '--latest=false',
+                            '--verify-tag', '--draft', '--prerelease' if preview else '--prerelease=false',
                             '--title', 'Ukai Jail ' + plan['tag'].removeprefix(JAIL_TAG_PREFIX)
-                            + ' — developer preview', '--notes-file', str(directory / 'RELEASE_NOTES.md'),
+                            + (' — developer preview' if preview else ' — stable Linux x86_64'), '--notes-file', str(directory / 'RELEASE_NOTES.md'),
                             *(str(directory / name) for name in names)], check=True, timeout=180)
             release = release_info(plan)
             if release['draft'] is not True:
@@ -193,9 +201,10 @@ def main():
                 if release['draft'] is not True:
                     raise ValueError('refusing to mutate an already published release')
                 subprocess.run(['gh', 'release', 'edit', plan['tag'], '--repo', REPOSITORY,
-                                '--draft=false', '--prerelease', '--latest=false'],
+                                '--draft=false', *flags],
                                check=True, timeout=120)
                 release = release_info(plan)
+                verify_remote_assets(plan, directory, names, release)
             if release['draft'] is not False:
                 raise ValueError('release is still a draft')
             # Public availability proof is independent of the operator's gh token.

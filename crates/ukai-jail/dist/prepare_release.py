@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import tarfile
 
-from coordinates import ELF_MACHINE as TARGETS, PUBLICATION_SCOPE, REPOSITORY, UNSUPPORTED_CLAUSES, jail_tag
+from coordinates import ELF_MACHINE as TARGETS, REPOSITORY, STABLE_HOST, UNSUPPORTED_CLAUSES, is_prerelease, jail_tag, release_scope, release_targets
 from notices import checked, read_source
 from package import VERSION as RELEASE_VERSION
 from package import create_archive
@@ -45,6 +45,8 @@ def stage(binary, target, revision, inputs, out, release_version):
     verify_build(version, revision, inputs, target)
     if not RELEASE_VERSION.fullmatch(release_version):
         raise ValueError('expected a semantic release version')
+    if target not in release_targets(release_version):
+        raise ValueError('target is outside this release scope')
     out.mkdir(parents=True, exist_ok=False)
     archive = create_archive(binary, target, out, release_version)
     if digest(binary) != before:
@@ -97,8 +99,8 @@ def assemble(stages, revision, inputs, version, out, signing_key=None, public_ke
         raise ValueError('expected a semantic release version')
     notices = checked(read_source(Path(__file__).resolve().parents[3]))
     records = [verify_stage(directory, revision, inputs, expected_notices=notices) for directory in stages]
-    if sorted(r['target'] for r in records) != sorted(TARGETS):
-        raise ValueError('exactly one native artifact for each Linux architecture is required')
+    if sorted(r['target'] for r in records) != sorted(release_targets(version)):
+        raise ValueError('exactly one native artifact per release target is required')
     if any(r['release'] != version for r in records):
         raise ValueError('staged artifacts do not all carry this release version')
     if bool(signing_key) != bool(public_key):
@@ -127,7 +129,7 @@ def assemble(stages, revision, inputs, version, out, signing_key=None, public_ke
     entries.append(('bootstrap.sh', digest(out / 'bootstrap.sh')))
     plan = {'schema': 'ukai.jail.release-candidate/1', 'repository': REPOSITORY,
             'tag': jail_tag(version), 'target_commit': revision, 'inputs': inputs,
-            'publication_scope': PUBLICATION_SCOPE,
+            'publication_scope': release_scope(version),
             'unsupported_clauses': UNSUPPORTED_CLAUSES,
             'draft': True, 'published': False, 'signature_verified': bool(signing_key),
             'publication_blockers': ([] if signing_key else ['production_signing_identity_not_configured'])
@@ -137,15 +139,17 @@ def assemble(stages, revision, inputs, version, out, signing_key=None, public_ke
                 architecture: f'Linux {architecture} binary and installer target; native installation alone '
                 'does not establish runtime host qualification. Attach validation for the matching candidate '
                 'revision and build-input digest, then complete operator review for each claimed host.'
-                for architecture in ('x86_64', 'aarch64')},
+                for architecture in ('x86_64', 'aarch64')} if is_prerelease(version) else {'x86_64': STABLE_HOST},
             'native_records_are_attestations': 'Native version execution establishes artifact provenance, '
                 'not installation or runtime host qualification. Review the native builder and attached '
                 'matching validation evidence before signing or publishing.'}
     (out / 'release-plan.json').write_text(json.dumps(plan, indent=2) + '\n')
+    if is_prerelease(version):
+        heading = f'# Ukai Jail {version} — developer preview\n\nLinux x86_64 and ARM64.\n\n'
+    else:
+        heading = f'# Ukai Jail {version} — stable Linux x86_64\n\nQualified host: {STABLE_HOST}\n\n'
     (out / 'RELEASE_NOTES.md').write_text(
-        '# Ukai Jail ' + version + ' — developer preview\n\n'
-        'Linux x86_64 and ARM64. This preview installs `ukai-jail`; '
-        'the fleet and ledger are not part of this package.\n\n'
+        heading + 'This release installs the standalone `ukai-jail` executable.\n\n'
         'After this release is published, install with:\n\n```sh\n'
         'curl --proto "=https" --tlsv1.2 -fsSL '
         f'https://github.com/{REPOSITORY}/releases/download/{jail_tag(version)}'
@@ -155,10 +159,6 @@ def assemble(stages, revision, inputs, version, out, signing_key=None, public_ke
         'The GNU/Linux binaries require glibc 2.39 or newer; Alpine/musl is unsupported. '
         'Installs to `~/.local/bin`; no sudo or Rust compiler. '
         'Install bubblewrap separately before running contained commands.\n\n'
-        'Linux x86_64 and ARM64 binary and installer targets; native installation alone does not establish '
-        'runtime host qualification. Host enforcement depends on `ukai-jail doctor`; attach validation '
-        'matching this candidate\'s revision and build-input digest and complete operator review before '
-        'claiming support for a host.\n'
         'Ubuntu 24 stock execution remains refused. Previously documented host limitations remain in force '
         'unless superseded by matching validation; architecture or installation does not waive them.\n'
         'Real-agent reliability remains experimental: attach the completed compatibility record before changing that claim.\n'

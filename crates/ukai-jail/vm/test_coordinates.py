@@ -40,7 +40,7 @@ class Coordinates(unittest.TestCase):
         self.assertEqual(set(named), {candidate})
 
     def test_guest_uses_the_public_linux_release_and_its_installer_pin(self):
-        version, target = coordinates.JAIL_VERSION, prepare.JAIL_TARGET
+        version, target = coordinates.ARM_PREVIEW_VERSION, prepare.JAIL_TARGET
         self.assertTrue(prepare.JAIL_URL.endswith(
             f'/releases/download/{coordinates.jail_tag(version)}/ukai-jail-{version}-{target}.tar.gz'))
         script = coordinates.INSTALLER.read_text()

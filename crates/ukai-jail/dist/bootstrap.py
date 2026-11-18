@@ -6,7 +6,7 @@ earlier pin, so the installer still accepts each release it ever named.
 """
 import re
 
-from coordinates import LINUX_TARGETS, PIN_BLOCK as BLOCK, VM_TARGET, pin_entries
+from coordinates import LINUX_TARGETS, PIN_BLOCK as BLOCK, VM_TARGET, pin_entries, release_targets
 from package import VERSION
 
 LINUX = set(LINUX_TARGETS)
@@ -49,9 +49,9 @@ def _render(script, version, hashes, default):
 
 
 def render_bootstrap(script, version, hashes):
-    """Pin both Linux archives of a release and make it the Linux default."""
-    if set(hashes) != LINUX:
-        raise ValueError('pin both Linux archives')
+    """Pin the exact architectures shipped for this release."""
+    if set(hashes) != set(release_targets(version)):
+        raise ValueError('archive pins must match the release targets')
     return _render(script, version, hashes, 'version')
 
 

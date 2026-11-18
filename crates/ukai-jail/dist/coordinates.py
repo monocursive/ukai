@@ -28,12 +28,27 @@ UNSUPPORTED_CLAUSES = list(_RELEASE['jail']['unsupported_clauses'])
 # Linux: native macOS execution refuses, so no Darwin archive is released.
 ELF_MACHINE = dict(_RELEASE['jail']['elf_machine_by_target'])
 LINUX_TARGETS = tuple(ELF_MACHINE)
+STABLE_TARGET = _RELEASE['jail']['stable_target']
+STABLE_HOST = _RELEASE['jail']['stable_host']
+ARM_PREVIEW_VERSION = _RELEASE['jail']['arm_preview_version']
 VM_VERSION = _RELEASE['vm']['version']
 # The VM package the tree builds next: built and smoke-verified, not published.
 # VM_VERSION stays the published preview until a release moves it.
 VM_CANDIDATE_VERSION = _RELEASE['vm']['candidate_version']
 VM_TAG_PREFIX = _RELEASE['vm']['tag_prefix']
 VM_TARGET = _RELEASE['vm']['target']
+
+
+def is_prerelease(version):
+    return '-' in version.partition('+')[0]
+
+
+def release_targets(version):
+    return LINUX_TARGETS if is_prerelease(version) else (STABLE_TARGET,)
+
+
+def release_scope(version):
+    return 'linux-preview' if is_prerelease(version) else PUBLICATION_SCOPE
 
 
 def jail_tag(version):

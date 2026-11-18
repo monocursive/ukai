@@ -1,4 +1,4 @@
-# Native preview packages; production signing and publication stay local.
+# Native Linux packages; production signing and publication stay local.
 name: release-candidate
 on:
   push:
@@ -8,7 +8,7 @@ on:
       version:
         # No default: a new candidate needs a new version, and the current
         # one is recorded in crates/ukai-jail/dist/release.json.
-        description: 'Preview version without the ukai-jail-v prefix'
+        description: 'Release version without the ukai-jail-v prefix'
         required: true
         type: string
 permissions:
@@ -25,6 +25,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       version: ${{ steps.version.outputs.version }}
+      matrix: ${{ steps.version.outputs.matrix }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -34,27 +35,27 @@ jobs:
           REQUESTED_VERSION: ${{ inputs.version }}
         run: |
           python3 - <<'PY'
-          import os, sys
+          import json, os, sys
           sys.path.insert(0, 'crates/ukai-jail/dist')
+          from coordinates import release_targets
           from package import VERSION
           version = (os.environ['GITHUB_REF_NAME'].removeprefix('ukai-jail-v')
                      if os.environ['GITHUB_REF_TYPE'] == 'tag'
                      else os.environ['REQUESTED_VERSION'])
           if not VERSION.fullmatch(version):
-              raise SystemExit('expected a semantic preview version')
+              raise SystemExit('expected a semantic release version')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('version=' + version + '\n')
+              runners = {'x86_64-unknown-linux-gnu': 'ubuntu-24.04',
+                         'aarch64-unknown-linux-gnu': 'ubuntu-24.04-arm'}
+              matrix = {'include': [{'target': t, 'os': runners[t]} for t in release_targets(version)]}
+              output.write('matrix=' + json.dumps(matrix) + '\n')
           PY
   native:
     needs: coordinate
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            target: x86_64-unknown-linux-gnu
-          - os: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
+      matrix: ${{ fromJSON(needs.coordinate.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
@@ -115,9 +116,10 @@ jobs:
       - name: Assemble the unsigned candidate
         run: |
           inputs=$(python3 -c 'import json; print(json.load(open("stages/native-x86_64-unknown-linux-gnu/artifact.json"))["version"]["build"]["inputs"])')
+          stages=()
+          for dir in stages/native-*; do stages+=(--stage "$dir"); done
           python3 crates/ukai-jail/dist/prepare_release.py assemble \
-            --stage stages/native-x86_64-unknown-linux-gnu \
-            --stage stages/native-aarch64-unknown-linux-gnu \
+            "${stages[@]}" \
             --revision "$(git rev-parse HEAD)" --inputs "$inputs" \
             --version "$PREVIEW_VERSION" --out candidate
           echo 'Unsigned candidate; publication requires production signing and exact-commit CI/conformance.' >> "$GITHUB_STEP_SUMMARY"

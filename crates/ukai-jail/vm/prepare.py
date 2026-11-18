@@ -290,8 +290,8 @@ IMAGE_SHA256 = 'bac15af78c37fec8e9474a9a784041c13ddb2603b9095435b7e4269e3faf3064
 # The guest runs the current public Linux release (dist/release.json), checked
 # against the SHA-256 the public installer pins for it.
 JAIL_TARGET = 'aarch64-unknown-linux-gnu'
-JAIL_URL = coordinates.jail_archive_url(coordinates.JAIL_VERSION, JAIL_TARGET)
-JAIL_SHA256 = coordinates.installer_pin(coordinates.JAIL_VERSION, JAIL_TARGET)
+JAIL_URL = coordinates.jail_archive_url(coordinates.ARM_PREVIEW_VERSION, JAIL_TARGET)
+JAIL_SHA256 = coordinates.installer_pin(coordinates.ARM_PREVIEW_VERSION, JAIL_TARGET)
 
 
 def sha(path):

@@ -12,7 +12,7 @@ from unittest.mock import patch
 from package import create_archive
 from prepare_release import assemble, stage, verify_build, verify_stage, TARGETS
 from bootstrap import archive_pins
-from coordinates import JAIL_VERSION, REPOSITORY, VM_TARGET, VM_VERSION
+from coordinates import JAIL_VERSION, REPOSITORY, STABLE_TARGET, VM_TARGET, VM_VERSION, release_targets
 
 REVISION = 'a' * 40
 INPUTS = 'sha256:' + 'b' * 64
@@ -109,6 +109,25 @@ class ReleaseTests(unittest.TestCase):
             assemble([current, stale], REVISION, INPUTS, '9.9.9-rc.1', destination)
         self.assertFalse(destination.exists())
 
+    @unittest.skipUnless(shutil.which('minisign'), 'minisign is required')
+    def test_signed_stable_candidate_has_one_qualified_target(self):
+        from publish_release import ROOT, check, verify_remote_assets
+        with self.assertRaisesRegex(ValueError, 'outside this release scope'):
+            self.fixture('aarch64-unknown-linux-gnu', release='9.9.9')
+        stage_dir = self.fixture(STABLE_TARGET, release='9.9.9')
+        key = self.root / 'key'
+        pub = self.root / 'public'
+        subprocess.run(['minisign', '-G', '-W', '-s', key, '-p', pub], check=True, capture_output=True)
+        trusted = pub.read_text().splitlines()[1]
+        out = self.root / 'signed'
+        assemble([stage_dir], REVISION, INPUTS, '9.9.9', out, key, trusted)
+        plan, names = check(out, trusted, source=ROOT)
+        self.assertEqual(plan['publication_scope'], 'linux-x86_64-stable')
+        self.assertEqual(set(plan['support']), {'x86_64'})
+        self.assertEqual(len(names), 7)
+        with self.assertRaises(ValueError):
+            verify_remote_assets(plan, out, names, {'tag_name': plan['tag'], 'prerelease': True, 'assets': []})
+
     def test_assembly_requires_both_distinct_native_targets(self):
         single = self.fixture(next(iter(TARGETS)))
         for records in [[single], [single, single]]:
@@ -117,7 +136,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertFalse((self.root / 'out').exists())
 
     def test_assembly_cannot_reuse_a_published_version_for_different_archives(self):
-        stages = [self.fixture(target, release=JAIL_VERSION) for target in TARGETS]
+        stages = [self.fixture(target, release=JAIL_VERSION) for target in release_targets(JAIL_VERSION)]
         with patch('prepare_release.subprocess.run') as signing:
             with self.assertRaisesRegex(ValueError, 'use a new release version'):
                 assemble(stages, REVISION, INPUTS, JAIL_VERSION, self.root / 'out',
@@ -171,13 +190,13 @@ class ReleaseTests(unittest.TestCase):
         result = subprocess.run(['bash', str(out / 'bootstrap.sh'), '--help'],
                                 capture_output=True, text=True, timeout=5)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('Linux: installs the Ukai Jail preview 9.9.9-rc.2 ', result.stdout)
+        self.assertIn('Linux: installs Ukai Jail 9.9.9-rc.2 ', result.stdout)
         pins = archive_pins((out / 'bootstrap.sh').read_text())
         for directory in stages:
             record = json.loads((directory / 'artifact.json').read_text())
             self.assertEqual(pins['9.9.9-rc.2', record['target']], record['archive_sha256'])
         # The current public releases remain installable with their original pins.
-        self.assertEqual({target for release, target in pins if release == JAIL_VERSION}, set(TARGETS))
+        self.assertEqual({target for release, target in pins if release == JAIL_VERSION}, set(release_targets(JAIL_VERSION)))
         self.assertIn((VM_VERSION, VM_TARGET), pins)
 
     def test_unsigned_preparation_remains_unpublished_and_names_signing_blocker(self):

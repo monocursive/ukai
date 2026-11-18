@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 from bootstrap import archive_pins, render_bootstrap, render_vm_pin
-from coordinates import JAIL_VERSION, LINUX_TARGETS, VM_TARGET, VM_VERSION, vm_tag
+from coordinates import JAIL_VERSION, LINUX_TARGETS, VM_TARGET, VM_VERSION, vm_tag, release_targets
 from package import create_archive
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -60,7 +60,7 @@ cp "$BOOTSTRAP_ARTIFACTS/${url##*/}" "$output"
 
     def package(self, release):
         hashes = {}
-        for target in TARGETS:
+        for target in release_targets(release):
             archive = create_archive(self.binary, target, self.artifacts, release)
             hashes[target] = hashlib.sha256(archive.read_bytes()).hexdigest()
         # Only the trusted test script is repinned; there is no runtime hash override.
@@ -88,6 +88,18 @@ cp "$BOOTSTRAP_ARTIFACTS/${url##*/}" "$output"
         self.assertIn('--proto-redir\n=https\n', flags)
         self.assertEqual((self.prefix / 'ukai-jail.release').read_text().splitlines(),
                          ['9.9.9-rc.1', hashlib.sha256(self.binary.read_bytes()).hexdigest()])
+
+    def test_stable_installs_on_x86_and_arm_must_select_a_preview(self):
+        self.package('9.9.9')
+        self.assertEqual(self.run_installer().returncode, 0)
+        self.env['BOOTSTRAP_ARCH'] = 'aarch64'
+        before = self.log.read_bytes()
+        result = self.run_installer()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b'stable Linux releases support x86_64 only', result.stderr)
+        self.assertEqual(self.log.read_bytes(), before)
+        result = self.run_installer('--version', '9.9.9-rc.1', '--allow-downgrade')
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_version_selection_and_downgrade_refusal(self):
         self.package('9.9.9-rc.10')
@@ -179,7 +191,7 @@ cp "$BOOTSTRAP_ARTIFACTS/${url##*/}" "$output"
     def test_published_installer_pins_the_release_coordinates(self):
         script = (ROOT / 'install.sh').read_text()
         pins = archive_pins(script)
-        self.assertEqual({target for release, target in pins if release == JAIL_VERSION}, set(TARGETS))
+        self.assertEqual({target for release, target in pins if release == JAIL_VERSION}, set(release_targets(JAIL_VERSION)))
         self.assertIn((VM_VERSION, VM_TARGET), pins)
         self.assertIn(f'\n    version={JAIL_VERSION}\n', script)
         self.assertIn(f'\n    macos_version={VM_VERSION}\n', script)
@@ -272,12 +284,12 @@ cp "$BOOTSTRAP_ARTIFACTS/${url##*/}" "$output"
     def test_published_linux_and_vm_pins_cannot_be_replaced(self):
         script = (ROOT / 'install.sh').read_text()
         pins = archive_pins(script)
-        linux_hashes = {target: pins[JAIL_VERSION, target] for target in TARGETS}
+        linux_hashes = {target: pins[JAIL_VERSION, target] for target in release_targets(JAIL_VERSION)}
         # Rebuilding identical bytes is harmless, but replacing either native
         # archive or a notarized DMG needs a new coordinate.
         self.assertEqual(render_bootstrap(script, JAIL_VERSION, linux_hashes), script)
         self.assertEqual(render_vm_pin(script, VM_VERSION, pins[VM_VERSION, VM_TARGET]), script)
-        for target in TARGETS:
+        for target in linux_hashes:
             with self.subTest(target=target), self.assertRaisesRegex(ValueError, 'use a new release version'):
                 render_bootstrap(script, JAIL_VERSION, {**linux_hashes, target: '0' * 64})
         with self.assertRaisesRegex(ValueError, 'use a new release version'):
