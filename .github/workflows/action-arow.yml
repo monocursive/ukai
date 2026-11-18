@@ -25,6 +25,8 @@ defaults:
   run:
     shell: bash
 env:
+  UKAI_ACTION_VERSION: 0.1.0
+  ARM_PREVIEW_VERSION: 0.1.0-rc.8
   T: .github/action-tests
 jobs:
   arow:
@@ -73,6 +75,7 @@ jobs:
         id: a01
         uses: ./action
         with:
+          version: ${{ runner.arch == 'ARM64' && env.ARM_PREVIEW_VERSION || env.UKAI_ACTION_VERSION }}
           launch: claude
           workspace: ${{ env.A01_WS }}
           args: |
@@ -107,6 +110,7 @@ jobs:
         if: always()
         uses: ./action
         with:
+          version: ${{ runner.arch == 'ARM64' && env.ARM_PREVIEW_VERSION || env.UKAI_ACTION_VERSION }}
           launch: claude
           workspace: ${{ env.TASK_WS }}
           args: |
@@ -141,6 +145,7 @@ jobs:
         if: always() && steps.task.outcome != 'skipped'
         uses: ./action
         with:
+          version: ${{ runner.arch == 'ARM64' && env.ARM_PREVIEW_VERSION || env.UKAI_ACTION_VERSION }}
           profile: tool
           workspace: ${{ env.TASK_WS }}
           run: python3 -m unittest -v

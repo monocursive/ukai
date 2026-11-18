@@ -31,6 +31,8 @@ defaults:
   run:
     shell: bash
 env:
+  UKAI_ACTION_VERSION: 0.1.0
+  ARM_PREVIEW_VERSION: 0.1.0-rc.8
   T: .github/action-tests
 jobs:
   lint:
@@ -140,6 +142,7 @@ jobs:
         id: profile
         uses: ./action
         with:
+          version: ${{ runner.arch == 'ARM64' && env.ARM_PREVIEW_VERSION || env.UKAI_ACTION_VERSION }}
           profile: agent
           run: ${{ steps.hostile.outputs.run }}
           allow-hosts: api.github.com
@@ -170,6 +173,7 @@ jobs:
         if: always()
         uses: ./action
         with:
+          version: ${{ runner.arch == 'ARM64' && env.ARM_PREVIEW_VERSION || env.UKAI_ACTION_VERSION }}
           launch: claude
           workspace: ${{ env.LAUNCH_WS }}
           args: ${{ steps.hostile.outputs.args }}
@@ -256,6 +260,7 @@ jobs:
         continue-on-error: true
         uses: ./action
         with:
+          version: ${{ runner.arch == 'ARM64' && env.ARM_PREVIEW_VERSION || env.UKAI_ACTION_VERSION }}
           profile: tool
           workspace: ${{ env.EXIT_WS }}
           run: |
@@ -267,6 +272,7 @@ jobs:
         continue-on-error: true
         uses: ./action
         with:
+          version: ${{ runner.arch == 'ARM64' && env.ARM_PREVIEW_VERSION || env.UKAI_ACTION_VERSION }}
           profile: tool
           workspace: ${{ env.EXIT_WS }}
           run: 'true'
@@ -278,6 +284,7 @@ jobs:
         continue-on-error: true
         uses: ./action
         with:
+          version: ${{ runner.arch == 'ARM64' && env.ARM_PREVIEW_VERSION || env.UKAI_ACTION_VERSION }}
           profile: tool
           workspace: ${{ env.EXIT_WS }}
           run: 'true'
@@ -327,7 +334,6 @@ jobs:
     env:
       SELFTEST_JOB: refusals
       SELFTEST_IMAGE: ${{ matrix.os }}
-      UKAI_ACTION_VERSION: 0.1.0-rc.8
       UKAI_ACTION_ARTIFACT_NAME: sim
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -585,6 +591,7 @@ jobs:
         continue-on-error: true
         uses: ./action
         with:
+          version: ${{ runner.arch == 'ARM64' && env.ARM_PREVIEW_VERSION || env.UKAI_ACTION_VERSION }}
           profile: tool
           workspace: ${{ env.LEAK_WS }}
           run: |

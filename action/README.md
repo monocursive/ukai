@@ -175,7 +175,8 @@ release tag names, and keep the tag in a comment:
 Each release `ukai-jail-vX` gets one commit on this repository's `action`
 branch, tagged `ukai-jail-action-vX`, that holds only `action/` and that
 release's installer, so the download stays small; `version` defaults to
-release X. No release of the action is tagged yet: the first comes with the
+release X. The current default is stable 0.1.0 for x86_64. ARM64 workflows
+can set `version: 0.1.0-rc.8` to select the signed preview. No release of the action is tagged yet: the first comes with the
 next jail release. The installer checks
 the release archive against the SHA-256 it pins, and the action pins
 bubblewrap by digest and every action it uses by commit SHA.
