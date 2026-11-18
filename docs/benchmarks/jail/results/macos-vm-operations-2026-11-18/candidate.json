@@ -1,0 +1,10 @@
+{
+  "source_revision": "03456ef9236b6577735d8d9752bd8297caa311db",
+  "dmg_sha256": "83ce644560e252618d8ce5c0f46bf5804f8cce910ade93f9518eb9ebaed24fd8",
+  "warm_result_sha256": "b04b0bec30f484f2c92b910569e65b773b59d74d6a277d21656bb7396fb46595",
+  "max_service_connect_to_release_ms": 94.4,
+  "max_real_client_exec_to_first_write_ms": 342.2,
+  "all_service_attempts_within_budget": true,
+  "all_real_client_runs_within_budget": true,
+  "budget_ms": 1000.0
+}

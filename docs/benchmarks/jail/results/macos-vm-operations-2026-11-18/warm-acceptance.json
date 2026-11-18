@@ -1,0 +1,18 @@
+{
+  "outcome": "PASS",
+  "plan_sha256": "11e8cef3904ec6a759c184b80b300a663b925355bbe2985aa23b42f4d0c621ab",
+  "phase": "warm",
+  "reader_sha256": "d6158874789e7693c306bab099ed86532a4921ce1c5f447795924881a1bbf316",
+  "qualified": false,
+  "detail": {
+    "service_attempts": 20,
+    "real_client_attempts": 20,
+    "route_control_attempts": 1,
+    "scope": "All retained per-attempt facts/timings recomputed; route receipt and final protected-file observation remain owning condensed evidence, not recreated raw inputs."
+  },
+  "lifecycle_sha256": {
+    "outer": "4f5e98b87579603b80621fcd203b25807e537b2245827bfd71c70da59cec33b7",
+    "result": "b1046d0846af63848095f7a344011dfdc68f5dd49fb1b99936030e14d5d527e5",
+    "quiescence": "67d40e00d4763c711e99c2e9af1ffd4c38af67aeb7685211d3e9b29236874361"
+  }
+}

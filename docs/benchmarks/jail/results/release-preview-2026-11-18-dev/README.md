@@ -1,0 +1,7 @@
+# Linux onboarding and learning qualification, 18 November 2026
+
+A clean native x86_64 build of `99ba6bc7235329d9baeddb245d87e9e211fd5dc1` completed the K27 onboarding and K11 learning workflows in a fresh Ubuntu guest. The binary and harness came from the same commit. Both the VM and the installed binary recorded build inputs `sha256:e995064da2bb966eb5019e98992044571f04933507fc8111d5d5e5d5d1bee805`. The offline test package used version `0.1.0-rc.8` and an ephemeral signing key.
+
+The timed installation and first contained agent task took 180.784 seconds after 517.946 seconds of VM and package setup. OpenCode 1.18.32 ran once per workflow using `anthropic/claude-sonnet-5-5`. Both commands exited successfully. The learning task produced a supported subset of read grants. The requested denied-read fixture remained outside the proposal. The install, upgrade and corruption checks passed. Both attempt receipts record enforced containment and a verified empty process tree. [Guest results](guest/result.json), [learning proposal](guest/opencode-learned.toml).
+
+The VM was destroyed, its temporary directory was removed and the credential source retained its identity. The VM runner completed its scan of 92 files and found zero raw-key matches. The outer systemd runtime credential directory was also confirmed absent after the service exited. This directory retains the seven original files used to replay the release gates. [VM record](vm.json).

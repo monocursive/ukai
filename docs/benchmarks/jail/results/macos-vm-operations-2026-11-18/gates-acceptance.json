@@ -1,0 +1,21 @@
+{
+  "outcome": "PASS",
+  "plan_sha256": "11e8cef3904ec6a759c184b80b300a663b925355bbe2985aa23b42f4d0c621ab",
+  "phase": "gates",
+  "reader_sha256": "d6158874789e7693c306bab099ed86532a4921ce1c5f447795924881a1bbf316",
+  "qualified": false,
+  "detail": {
+    "rows": {
+      "K109": "PASS",
+      "K111": "PASS",
+      "K112": "PASS",
+      "K113": "NOT_JUDGED_HERE"
+    },
+    "scope": "K112 and retained K111 receipt/binding/tail recomputed; K109 filesystem outcomes and K111 cleaned workspace/run terminal remain original owning observations."
+  },
+  "lifecycle_sha256": {
+    "outer": "be6f174e0c60a2d4ccc7c9f520a5a8d9fc915a2797f8091399c1192dfc456d9a",
+    "result": "1dac2a83a0121bb52a3d82e1612c24e3f65d6922ab1f11a00794ff6fffaced89",
+    "quiescence": "af955e259f2db1441fa7d44441bc636328d69c89a82fe10056fe3bd44f8f0a7b"
+  }
+}

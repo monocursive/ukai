@@ -13,36 +13,70 @@ def require(condition, message):
         raise ValueError(message)
 
 
+def check_receipt(directory, result, name):
+    rows = [row for row in result['rows'] if row['name'] == name]
+    require(len(rows) == 1 and rows[0]['exit'] == 0, name + ' failed or has ambiguous command evidence')
+    row = rows[0]
+    raw = (directory / f'guest/{name}-jail.json').read_bytes()
+    receipt = json.loads(raw)
+    if 'vendor_attempts' in result or 'attempt_ids' in row:
+        require(row.get('attempt_ids') == [receipt['attempt_id']], name + ' receipt belongs to a different attempt')
+    # The argv digest domain changed with the rename. Old previews retain
+    # their original receipt schema and version output.
+    schema = result['build']['schemas']['receipt']
+    domains = {'ouro.jail.receipt/1': b'ouro.jail.argv/1\0',
+               'ukai.jail.receipt/1': b'ukai.jail.argv/1\0'}
+    require(schema in domains and receipt['schema'] == schema, name + ' receipt schema mismatch')
+    argv = row['argv']
+    require('--' in argv, name + ' has no workload argv')
+    words = [word.encode() for word in argv[argv.index('--') + 1:]]
+    digest = hashlib.sha256(domains[schema] + len(words).to_bytes(8, 'big'))
+    for word in words:
+        digest.update(len(word).to_bytes(8, 'big') + word)
+    require(receipt['argv_digest'] == 'sha256:' + digest.hexdigest(), name + ' workload argv mismatch')
+    require(receipt['phase'] == 'settled' and receipt['containment'] == 'enforced'
+            and receipt['exec_observed'] is True and receipt['lifetime']['tree_empty'] is True
+            and receipt['lifetime']['integrity'] == 'verified' and receipt['outcome']['kind'] == 'exited'
+            and receipt['outcome']['code'] == 0 and receipt['state_cleanup'] == 'complete',
+            name + ' did not prove contained execution and settlement')
+    return raw, receipt
+
+
 def verify(directory, inputs, check):
     result = json.loads((directory / 'guest/result.json').read_bytes())
     vm = json.loads((directory / 'vm.json').read_bytes())
     build = result['build']['build']
-    require(build['inputs'] == inputs and result['expected_inputs'] == inputs, 'stale build inputs')
+    require(build['inputs'] == inputs == result['expected_inputs'] == vm['expected_inputs'], 'stale build inputs')
     require(build['dirty'] is False and build['opt_level'] == '3' and not build['debug_assertions'], 'not a clean optimized build')
     require(build['revision'] == result['expected_revision'] == vm['revision'], 'revision disagreement')
+    require(result['binary_sha256'] == vm['binary_sha256'], 'guest installed a different binary')
     require(build['target'] == 'x86_64-unknown-linux-gnu', 'wrong VM target')
     require(result['vendor_version'] == '1.18.32', 'unexpected vendor version')
+    require(vm['status'] == result['status'] == 'passed' and vm['guest_exit'] == 0, 'VM did not pass')
+    require(vm['fresh_overlay'] is True and not vm['host_policy_changes'], 'not a clean isolated VM')
+    require(vm['vm_destroyed'] is True, 'VM teardown incomplete')
+    if 'vendor_attempts' in result or 'max_vendor_invocations' in vm:
+        require(vm.get('temporary_removed') is True and vm.get('cleanup_errors') == []
+                and vm.get('retention_errors') == [], 'VM cleanup or evidence retention incomplete')
+        if vm['credential'] is not None:
+            scan = vm['credential_exposure']
+            require(vm.get('credential_staged') is True and vm.get('credential_source_unchanged') is True
+                    and scan.get('complete') is True
+                    and scan.get('files_with_key') == [], 'credential checks failed')
     if check == 'onboarding':
-        require(vm['status'] == result['status'] == 'passed', 'VM did not pass')
-        require(vm['fresh_overlay'] is True and not vm['host_policy_changes'], 'not a clean isolated VM')
         require(not any(result['rust_before'].values()) and not any(result['rust_after'].values()), 'Rust was installed in the guest')
         require(0 < result['workflow_seconds'] < 600 and result['main_workflow'] == 'passed', 'onboarding exceeded ten minutes or failed')
         require(result['distribution_checks'] == 'passed', 'signature/corruption tests did not pass')
         rows = {row['name']: row for row in result['rows']}
-        for name in ['install', 'true', 'opencode', 'upgrade']:
+        for name in ['install', 'upgrade']:
             require(rows[name]['exit'] == 0, name + ' failed')
         for name in ['corrupt-archive', 'corrupt-signature']:
             require(rows[name]['exit'] != 0, name + ' was accepted')
         for name in ['true', 'opencode']:
-            receipt = json.loads((directory / f'guest/{name}-jail.json').read_bytes())
-            require(receipt['phase'] == 'settled' and receipt['containment'] == 'enforced'
-                    and receipt['exec_observed'] is True and receipt['lifetime']['tree_empty'] is True
-                    and receipt['lifetime']['integrity'] == 'verified' and receipt['outcome']['code'] == 0,
-                    name + ' did not prove contained execution and settlement')
+            check_receipt(directory, result, name)
     elif check == 'learning':
         require(result.get('learning_workflow') == 'passed', 'real vendor learning did not pass')
-        raw = (directory / 'guest/opencode-learn-jail.json').read_bytes()
-        receipt = json.loads(raw)
+        raw, receipt = check_receipt(directory, result, 'opencode-learn')
         proposal = tomllib.loads((directory / 'guest/opencode-learned.toml').read_text())
         provenance = proposal['provenance']
         require(provenance['receipt_digest'] == 'sha256:' + hashlib.sha256(raw).hexdigest(), 'proposal is not bound to receipt bytes')
@@ -75,8 +109,6 @@ def verify(directory, inputs, check):
                     require(event['source'] == 'proxy' and event.get('decision') == 'deny'
                             and fields.get('reason') == 'host_not_allowed' and fields.get('destination') == grant,
                             'network grant not justified by a host denial')
-        require(receipt['phase'] == 'settled' and receipt['lifetime']['tree_empty'] is True
-                and receipt['outcome']['code'] == 0, 'vendor learning did not settle successfully')
     else:
         raise ValueError('unknown evidence check')
 

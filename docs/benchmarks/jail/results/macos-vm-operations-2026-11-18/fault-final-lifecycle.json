@@ -1,0 +1,8 @@
+{
+  "outcome": "PASS",
+  "plan_sha256": "11e8cef3904ec6a759c184b80b300a663b925355bbe2985aa23b42f4d0c621ab",
+  "errors": [],
+  "workspace_detached": true,
+  "installed_and_helper_pins_unchanged": true,
+  "free_bytes": 24308318208
+}
