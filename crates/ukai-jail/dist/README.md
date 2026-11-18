@@ -136,7 +136,8 @@ Copy the two staged directories to the release operator's machine. Archive
 bytes are deterministic across source-file timestamps and locations. Assembly
 requires exactly one artifact per architecture, staged for the release version
 being assembled, and verifies archive contents, native build records, source
-inputs and binary hashes before preparing a draft. The signed manifest covers
+inputs, binary hashes and exact reviewed notice bytes before preparing a draft.
+Draft creation and publication also compare both installer scripts with the candidate checkout. The signed manifest covers
 both archives, `install.sh`, the public `bootstrap.sh`, release notes and plan:
 
 ```sh

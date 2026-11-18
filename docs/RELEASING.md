@@ -3,6 +3,7 @@
 [Linux preview 0.1.0-rc.8](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.8)
 was published on 18 November 2026 from `bf365665197a0861752d704eef05ca9d0dde9952`.
 The [publication record](benchmarks/jail/release-preview-2026-11-18.md) identifies the signed archives and native install checks.
+The [production-readiness review](benchmarks/jail/production-readiness-rc8.md) records the full-scope verdict and remaining gates.
 
 [Linux preview 0.1.0-rc.5](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.5), which carries
 the fixes of the 22–23 October review, was published on 23 October 2026 from
@@ -121,7 +122,7 @@ Use `cargo xtask gates --linux-release` and
 `cargo xtask conformance --linux-release` for this developer preview. This fixed
 scope reports the explicit `jail.unsupported_clauses` in
 [`release.json`](../crates/ukai-jail/dist/release.json) as **unsupported**:
-K22.2, K23.1, K24.1, K26.1, K29.1, L02.12, M01.4 and each `.1` clause
+K23.1, K24.1, K26.1, K29.1, L02.12, M01.4 and each `.1` clause
 from K87.1 through K113.1, individually listed in that file. These are the
 untested native and Mac VM acceptance claims; no prefix exemption
 is used. K108.1–K113.1 are also the VM scope's `vm.unsupported_clauses`:

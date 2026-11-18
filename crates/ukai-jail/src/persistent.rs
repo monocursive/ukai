@@ -65,6 +65,8 @@ pub const QUARANTINE_FILES_MAX: usize = 64;
 pub const QUARANTINE_NAME_BYTES_MAX: usize = 16 * 1024;
 /// Initial bound of one manifest pass on content read (§4.6).
 pub const MANIFEST_BYTES_MAX: u64 = 256 * 1024 * 1024;
+/// Payload bytes retained for canonical lines and redacted hit paths.
+const MANIFEST_METADATA_MAX: usize = 16 * 1024 * 1024;
 /// Initial bound of one manifest pass on entries (§4.6).
 pub const MANIFEST_ENTRIES_MAX: usize = 65_536;
 /// Directory depth a walk descends.
@@ -390,8 +392,15 @@ fn level(
     match parent.stat_at(&entry) {
         Ok(stat) => {
             check_private(path, &stat, Kind::Directory, crate::state::DIRECTORY_MODE)?;
-            if stat.mount_root == Some(true) {
-                return Err(unsafe_state(path, "is a mount point"));
+            let device = parent
+                .stat()
+                .map_err(|error| write_failed(path, &error))?
+                .dev;
+            if !on_state_mount(&stat, device) {
+                return Err(unsafe_state(
+                    path,
+                    "cannot establish that it is on the state mount",
+                ));
             }
             parent
                 .open_dir_at(&entry, Some(&stat))
@@ -625,8 +634,16 @@ fn open_vendor(levels: &Levels) -> Result<Dir, JailError> {
             if stat.uid != crate::state::effective_uid() {
                 return Err(unsafe_state(&at, "is not owned by this operator"));
             }
-            if stat.mount_root == Some(true) {
-                return Err(unsafe_state(&at, "is a mount point"));
+            let device = levels
+                .key_dir
+                .stat()
+                .map_err(|error| write_failed(&at, &error))?
+                .dev;
+            if !on_state_mount(&stat, device) {
+                return Err(unsafe_state(
+                    &at,
+                    "cannot establish that it is on the state mount",
+                ));
             }
             match levels.key_dir.open_dir_at(&vendor, Some(&stat)) {
                 Ok(dir) => dir,
@@ -790,7 +807,8 @@ fn redact(values: &[&[u8]], path: &[u8]) -> Vec<u8> {
 
 struct Pass<'a> {
     device: u64,
-    entries_max: usize,
+    entries_left: usize,
+    metadata_left: usize,
     bytes_max: u64,
     entries: usize,
     bytes: u64,
@@ -812,11 +830,16 @@ struct Pass<'a> {
 /// cover every file, though what it found is still a hit.
 #[must_use]
 pub fn manifest(vendor: &Dir, values: &[&[u8]]) -> Manifest {
+    manifest_with_metadata_budget(vendor, values, MANIFEST_METADATA_MAX)
+}
+
+fn manifest_with_metadata_budget(vendor: &Dir, values: &[&[u8]], metadata_left: usize) -> Manifest {
     let (entries_max, bytes_max) = bounds();
     let device = vendor.stat().map_or(0, |stat| stat.dev);
     let mut pass = Pass {
         device,
-        entries_max,
+        entries_left: entries_max,
+        metadata_left,
         bytes_max,
         entries: 0,
         bytes: 0,
@@ -874,8 +897,7 @@ fn walk(pass: &mut Pass<'_>, dir: &Dir, prefix: &[u8], depth: usize) {
         pass.unavailable = Some(Unavailable::TooLarge);
         return;
     }
-    let room = pass.entries_max.saturating_sub(pass.entries);
-    let listing = match dir.names(room) {
+    let listing = match dir.names(pass.entries_left) {
         Ok(listing) => listing,
         Err(_) => {
             pass.unavailable.get_or_insert(Unavailable::Unreadable);
@@ -889,15 +911,13 @@ fn walk(pass: &mut Pass<'_>, dir: &Dir, prefix: &[u8], depth: usize) {
         pass.searched_all = false;
         return;
     }
+    // Reserve the whole listing before recursing. Its pending siblings
+    // remain in memory while a descendant is listed.
+    pass.entries_left -= listing.names.len();
     let mut names = listing.names;
     names.sort_by(|left, right| left.as_bytes().cmp(right.as_bytes()));
     for entry in names {
         pass.entries += 1;
-        if pass.entries > pass.entries_max {
-            pass.unavailable = Some(Unavailable::TooLarge);
-            pass.searched_all = false;
-            return;
-        }
         let mut relative = prefix.to_vec();
         if !relative.is_empty() {
             relative.push(b'/');
@@ -908,7 +928,12 @@ fn walk(pass: &mut Pass<'_>, dir: &Dir, prefix: &[u8], depth: usize) {
             pass.searched_all = false;
             continue;
         };
-        let stat = readable(dir, &entry, stat);
+        let local = on_state_mount(&stat, pass.device);
+        let stat = if local {
+            readable(dir, &entry, stat)
+        } else {
+            stat
+        };
         // The entry's name (with its path, so a value split across a `/` is
         // found), only where the value first appears in the path.
         let mut found = holds(pass.values, &relative) && !holds(pass.values, prefix);
@@ -918,9 +943,8 @@ fn walk(pass: &mut Pass<'_>, dir: &Dir, prefix: &[u8], depth: usize) {
         line.extend_from_slice(format!("\0{:o}\0{}\0", stat.mode & 0o7777, stat.size).as_bytes());
         // Never cross a device or a mount (§4.4): such an entry is named,
         // and the pass makes no claim about what lies behind it.
-        let foreign = stat.dev != pass.device || stat.mount_root == Some(true);
         match stat.kind {
-            _ if foreign => {
+            _ if !local => {
                 pass.unavailable.get_or_insert(Unavailable::Unreadable);
                 pass.searched_all = false;
             }
@@ -947,54 +971,78 @@ fn walk(pass: &mut Pass<'_>, dir: &Dir, prefix: &[u8], depth: usize) {
                     pass.searched_all = false;
                 }
             },
-            Kind::Directory => {
-                if found {
-                    pass.hits.push(redact(pass.values, &relative));
-                }
-                pass.lines.push(line);
-                match dir.open_dir_at(&entry, Some(&stat)) {
-                    Ok(child) => walk(pass, &child, &relative, depth + 1),
-                    Err(_) => {
-                        pass.unavailable.get_or_insert(Unavailable::Unreadable);
-                        pass.searched_all = false;
-                    }
-                }
-                if pass.unavailable == Some(Unavailable::TooLarge) {
-                    return;
-                }
-                continue;
-            }
             // FIFOs, sockets and devices (an overlayfs whiteout is a 0:0
             // character device anyone may create): recorded, never opened.
             _ => {}
         }
+        let mut metadata = line.len();
         if found {
-            pass.hits.push(redact(pass.values, &relative));
+            let hit = redact(pass.values, &relative);
+            metadata += hit.len();
+            // Even the entry that crosses a bound can require quarantine.
+            pass.hits.push(hit);
         }
+        let Some(left) = pass.metadata_left.checked_sub(metadata) else {
+            pass.unavailable = Some(Unavailable::TooLarge);
+            pass.searched_all = false;
+            return;
+        };
+        pass.metadata_left = left;
         pass.lines.push(line);
+        if local && stat.kind == Kind::Directory {
+            match dir.open_dir_at(&entry, Some(&stat)) {
+                Ok(child) => walk(pass, &child, &relative, depth + 1),
+                Err(_) => {
+                    pass.unavailable.get_or_insert(Unavailable::Unreadable);
+                    pass.searched_all = false;
+                }
+            }
+        }
         if pass.unavailable == Some(Unavailable::TooLarge) {
             return;
         }
     }
 }
 
+// Linux reports same-device bind roots via statx. Unknown cannot authorize
+// reading, changing permissions, or descending through that entry.
+fn on_state_mount(stat: &Stat, device: u64) -> bool {
+    stat.dev == device && !stat.mount_root.unwrap_or(cfg!(target_os = "linux"))
+}
+
 /// A file or directory of the operator's own that its owner cannot read (or,
 /// for a directory, search) gets those bits back before the pass reads it,
 /// as the cleanup walker regains a directory before removing it: an agent
 /// that set a file to mode 000 must not keep it out of the digest and the
-/// scan (§4.5). `fchmodat` does not follow (`AT_SYMLINK_NOFOLLOW`), and the
-/// entry must still be the object `stat` described; anything else, or a
-/// failure, leaves `stat` as it was, and the read then fails as before.
+/// scan (§4.5). A regular file must have just one link. Linux pins the
+/// entry before changing its mode; other hosts use a no-follow chmod. A
+/// failure leaves `stat` as it was.
 fn readable(dir: &Dir, entry: &Name, stat: Stat) -> Stat {
     let needed = match stat.kind {
-        Kind::Regular => 0o400,
+        Kind::Regular if stat.nlink == 1 => 0o400,
         Kind::Directory => 0o500,
         _ => return stat,
     };
     if stat.mode & needed == needed || stat.uid != crate::state::effective_uid() {
         return stat;
     }
-    if dir.chmod_at(entry, (stat.mode | needed) & 0o7777).is_err() {
+    let mode = (stat.mode | needed) & 0o7777;
+    #[cfg(target_os = "linux")]
+    let changed = dir.open_path_at(entry).and_then(|fd| {
+        use std::os::unix::fs::PermissionsExt as _;
+        let current = crate::state::anchored::fstat(fd.as_fd())?;
+        if current.kind != stat.kind || !current.unchanged_since(&stat) {
+            return Err(std::io::Error::other("state entry changed"));
+        }
+        // The kernel link names this held inode even if the entry is renamed.
+        std::fs::set_permissions(
+            format!("/proc/self/fd/{}", fd.as_raw_fd()),
+            std::fs::Permissions::from_mode(mode),
+        )
+    });
+    #[cfg(not(target_os = "linux"))]
+    let changed = dir.chmod_at(entry, mode);
+    if changed.is_err() {
         return stat;
     }
     match dir.stat_at(entry) {
@@ -1069,6 +1117,7 @@ fn read_link(dir: &Dir, entry: &Name) -> std::io::Result<Vec<u8>> {
 /// # Errors
 /// The safe reason a removal stopped.
 pub fn discard(vendor: &Dir, list: &[NativeString]) -> Result<u64, String> {
+    let device = vendor.stat().map_err(|error| error.to_string())?.dev;
     let mut removed = 0u64;
     for path in list {
         let components = crate::state::anchored::split_relative(path.as_bytes())
@@ -1083,7 +1132,10 @@ pub fn discard(vendor: &Dir, list: &[NativeString]) -> Result<u64, String> {
         let mut reachable = true;
         for component in parents {
             match dir.stat_at(component) {
-                Ok(stat) if stat.kind == Kind::Directory && stat.mount_root != Some(true) => {
+                Ok(stat) if !on_state_mount(&stat, device) => {
+                    return Err("discard_mount_unverified".to_owned());
+                }
+                Ok(stat) if stat.kind == Kind::Directory => {
                     match dir.open_dir_at(component, Some(&stat)) {
                         Ok(next) => dir = next,
                         Err(_) => {
@@ -1104,6 +1156,9 @@ pub fn discard(vendor: &Dir, list: &[NativeString]) -> Result<u64, String> {
             continue;
         }
         match dir.stat_at(last) {
+            Ok(stat) if !on_state_mount(&stat, device) => {
+                return Err("discard_mount_unverified".to_owned());
+            }
             Ok(stat) if stat.kind == Kind::Directory => {
                 let removal = crate::cleanup::remove_tree_at(
                     &dir,
@@ -2112,6 +2167,40 @@ mod tests {
         assert_ne!(key("demo", b"/work/repo"), key("other", b"/work/repo"));
         // The separator keeps a name and a path from sliding into each other.
         assert_ne!(key("ab", b"c/x"), key("a", b"bc/x"));
+    }
+
+    #[test]
+    fn metadata_limit_retains_a_known_hit_and_withholds_the_digest() {
+        let (_root, data, _) = data_and_workspace();
+        let vendor = Dir::open_trusted(&data).unwrap();
+        std::fs::write(data.join("fixture"), b"test-value").unwrap();
+        let result = manifest_with_metadata_budget(&vendor, &[b"test-value"], 1);
+        assert_eq!(result.digest, Err(Unavailable::TooLarge));
+        assert!(!result.searched_all);
+        assert_eq!(result.hits, [b"fixture".to_vec()]);
+    }
+
+    #[test]
+    fn manifest_respects_mount_evidence_and_shared_file_modes() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let (_root, data, workspace) = data_and_workspace();
+        let vendor = Dir::open_trusted(&data).unwrap();
+        let path = data.join("fixture");
+        std::fs::write(&path, b"fixture").unwrap();
+        std::fs::hard_link(&path, workspace.join("other-name")).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o200)).unwrap();
+        let mut stat = vendor.stat_at(&name("fixture")).unwrap();
+        stat.mount_root = Some(true);
+        assert!(!on_state_mount(&stat, stat.dev));
+        stat.mount_root = None;
+        assert_eq!(on_state_mount(&stat, stat.dev), !cfg!(target_os = "linux"));
+        stat.mount_root = Some(false);
+        assert!(!on_state_mount(&stat, stat.dev + 1));
+        let _ = manifest(&vendor, &[]);
+        assert_eq!(
+            std::fs::metadata(path).unwrap().permissions().mode() & 0o777,
+            0o200
+        );
     }
 
     #[test]

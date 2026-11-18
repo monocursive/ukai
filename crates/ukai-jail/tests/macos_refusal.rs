@@ -371,6 +371,31 @@ fn m03_explain_distinguishes_requested_policy_from_unmeasured_capability() {
     assert!(!harness.data.join("attempts").exists());
 }
 
+/// K22.2: a valid command rule needs Linux exec observation. Refuse it at
+/// resolution even if the command itself would never match the rule.
+#[test]
+fn k22_command_rules_refuse_at_resolution_on_macos() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let harness = Harness::new();
+    let config = harness.config.join("config.toml");
+    for rule in ["deny", "forbid"] {
+        std::fs::write(
+            &config,
+            format!("[jail.commands]\n{rule} = [\"true blocked\"]\n"),
+        )
+        .expect("write operator command rule");
+        std::fs::set_permissions(&config, std::fs::Permissions::from_mode(0o600))
+            .expect("private operator config");
+        let output = harness.run(&["run", "--profile", "tool", "--", "/usr/bin/touch", "marker"]);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.code(), Some(2), "{stderr}");
+        assert!(stderr.contains("invalid_config at resolving"), "{stderr}");
+        assert!(stderr.contains("jail.commands"), "{stderr}");
+        assert!(!harness.work.join("marker").exists());
+    }
+}
+
 #[test]
 fn m03_doctor_reports_the_measured_capabilities_and_exit_125() {
     let harness = Harness::new();

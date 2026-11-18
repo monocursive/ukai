@@ -1,0 +1,356 @@
+{
+  "audit_baseline": "549569975",
+  "published_revision": "bf365665197a0861752d704eef05ca9d0dde9952",
+  "host": "Ubuntu 26.04.1 LTS x86_64",
+  "terminal_check": {
+    "binary_sha256": "5378d0a4472118358d5a1b58c63eb26bf1924e29e86daaea4f9068a57a06521f",
+    "build": {
+      "debug_assertions": false,
+      "dirty": false,
+      "inputs": "sha256:81a2a1b453dd2c0427800235bc7148e5cd84f23d642319a726ffb543931e3def",
+      "opt_level": "3",
+      "revision": "a0d3bd778220c86219996d98febbc4236d5d47d1",
+      "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+      "target": "x86_64-unknown-linux-gnu"
+    },
+    "kernel": "7.0.0-31-generic",
+    "terminal_setup_io_error": "refused before prompting or receiving input; no stored file",
+    "ordinary_terminal": "echo off at prompt, value stored privately, no echo, terminal restored"
+  },
+  "profiles": {
+    "tool": {
+      "doctor_ready": true,
+      "doctor_exit": 0,
+      "run_exit": 0,
+      "receipt_sha256": "00a9b0cc5aaed0feae178096efb4a4e4e1eebfb42c5d39cdcbbb85024be2ff0e",
+      "phase": "settled",
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      },
+      "containment": "enforced",
+      "exec_observed": true,
+      "tree_empty": true,
+      "integrity": "verified",
+      "state_cleanup": "complete",
+      "coverage": {
+        "exec": {
+          "status": "active",
+          "gaps": 0
+        },
+        "fs.write": {
+          "status": "active",
+          "gaps": 0
+        },
+        "fs.deny": {
+          "status": "active",
+          "gaps": 0
+        },
+        "net": {
+          "status": "active",
+          "gaps": 0
+        },
+        "limits": {
+          "status": "active",
+          "gaps": 0
+        },
+        "proxy.net": {
+          "status": "unsupported",
+          "gaps": 0
+        }
+      },
+      "output_matches": true,
+      "status": "passed"
+    },
+    "build": {
+      "doctor_ready": true,
+      "doctor_exit": 0,
+      "run_exit": 0,
+      "receipt_sha256": "600cd1871744b38d6d481929b300f7801b5ebaef1e599467fa3981ba10fa7ce1",
+      "phase": "settled",
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      },
+      "containment": "enforced",
+      "exec_observed": true,
+      "tree_empty": true,
+      "integrity": "verified",
+      "state_cleanup": "complete",
+      "coverage": {
+        "exec": {
+          "status": "active",
+          "gaps": 0
+        },
+        "fs.write": {
+          "status": "active",
+          "gaps": 0
+        },
+        "fs.deny": {
+          "status": "active",
+          "gaps": 0
+        },
+        "net": {
+          "status": "active",
+          "gaps": 0
+        },
+        "limits": {
+          "status": "active",
+          "gaps": 0
+        },
+        "proxy.net": {
+          "status": "unsupported",
+          "gaps": 0
+        }
+      },
+      "output_matches": true,
+      "status": "passed"
+    },
+    "agent": {
+      "doctor_ready": true,
+      "doctor_exit": 0,
+      "run_exit": 0,
+      "receipt_sha256": "b4306b90287b06c8c50dee6774e3ba7eda645cfe62ed704a8d5d9eb4979ac4e3",
+      "phase": "settled",
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      },
+      "containment": "enforced",
+      "exec_observed": true,
+      "tree_empty": true,
+      "integrity": "verified",
+      "state_cleanup": "complete",
+      "coverage": {
+        "exec": {
+          "status": "active",
+          "gaps": 0
+        },
+        "fs.write": {
+          "status": "active",
+          "gaps": 0
+        },
+        "fs.deny": {
+          "status": "active",
+          "gaps": 0
+        },
+        "net": {
+          "status": "active",
+          "gaps": 0
+        },
+        "limits": {
+          "status": "active",
+          "gaps": 0
+        },
+        "proxy.net": {
+          "status": "active",
+          "gaps": 0
+        }
+      },
+      "output_matches": true,
+      "status": "passed"
+    }
+  },
+  "focused_linux_tests": {
+    "persistent": 5,
+    "credential_selection_and_cli": 7,
+    "portable_launch": 64,
+    "test_log_sha256": "67d664ccfe5b2667a3c5eb1704ffc448ed1ea2735027b4d3a862bcae4dd76e1a"
+  },
+  "native_macos_refusals": 17,
+  "distribution_tests": 54,
+  "macos_contract_tests": 41,
+  "advisories": "passed",
+  "rustsec_database": "472a4c9a785030434f15d7da84964d60fbe789ab",
+  "first_strict_run": {
+    "revision": "a0d3bd778220c86219996d98febbc4236d5d47d1",
+    "dirty": true,
+    "verdict": "failed",
+    "test_counts": {
+      "passed": 3072,
+      "failed": 3,
+      "ignored": 18
+    },
+    "failed_tests": [
+      "k64_explain_the_pre_exec_line_the_receipt_and_the_wall_say_what_attached",
+      "k11_recorded_real_opencode_learning_proposes_only_evidence_supported_grants",
+      "k27_clean_vm_install_true_and_real_opencode_finish_within_ten_minutes"
+    ],
+    "failed_gates": [
+      "I01 (suite failed)",
+      "K11 (stale VM inputs)",
+      "K27 (stale VM inputs)"
+    ],
+    "summary_sha256": "0efda130cb3f00c08fe2b085e5355cbb14554baac04af8170987fa98b7cec8c8",
+    "test_log_sha256": "600676b93c21a0c1a8f6d72af287ad475e40472a1ab245bb4a078b889ab2d0d5"
+  },
+  "pty_test_fix": {
+    "revision": "4383376743431e11b58653be2f7805187747d7c1",
+    "changes_runtime_inputs": false,
+    "full_terminal_suite_passed": 23
+  },
+  "clean_successor": {
+    "terminal_check": {
+      "binary_sha256": "94fe3305e3fcb69f33a967647b5905827bc05fa08a6bf1d5feeadc92d7b248b2",
+      "build": {
+        "debug_assertions": false,
+        "dirty": false,
+        "inputs": "sha256:81a2a1b453dd2c0427800235bc7148e5cd84f23d642319a726ffb543931e3def",
+        "opt_level": "3",
+        "revision": "4383376743431e11b58653be2f7805187747d7c1",
+        "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "target": "x86_64-unknown-linux-gnu"
+      },
+      "kernel": "7.0.0-31-generic",
+      "terminal_setup_io_error": "refused before prompting or receiving input; no stored file",
+      "ordinary_terminal": "echo off at prompt, value stored privately, no echo, terminal restored"
+    },
+    "profile_receipts": {
+      "tool": "12d77b2230d2c045fa5515e171b9748c79b71c43aa971ce13c91d58220a81dfd",
+      "build": "ff8f1de0edc3409eeb70a5fc7584031916203a1288f46f06bb721bafd4969470",
+      "agent": "205ddebd2b69aa793ba5f40a0036c23c555eafbc3ff5605198c5d60323cd78ab"
+    },
+    "temporary_key_install_regression": "passed",
+    "terminal_suite_sha256": "8d61f35085adede1dbc53136873917ea0593154187a9d6ce88b791f4b943bbf3"
+  },
+  "performance": {
+    "binary_sha256": "94fe3305e3fcb69f33a967647b5905827bc05fa08a6bf1d5feeadc92d7b248b2",
+    "measured_launches": 540,
+    "warmups": 18,
+    "raw_records_sha256": "ed49783099d168a894817d64066afb7a29313667035f0a41d2172d4af3d6d262",
+    "gate": "K17",
+    "verdict": "pass",
+    "problems": [],
+    "rows": [
+      {
+        "session": "plain",
+        "workload": "noop",
+        "subject_valid": 30,
+        "baseline_valid": 30,
+        "subject_flagged": {
+          "exec_unconfirmed": 30
+        },
+        "load1_max": 1.45,
+        "added_startup_p95_ms": 93.0034375,
+        "startup_pass": true,
+        "post_start_overhead_median_pct": 9221.247647657008,
+        "post_start_pass": null
+      },
+      {
+        "session": "plain",
+        "workload": "spawn-tree",
+        "subject_valid": 30,
+        "baseline_valid": 30,
+        "subject_flagged": {},
+        "load1_max": 1.45,
+        "added_startup_p95_ms": 95.75889400000001,
+        "startup_pass": true,
+        "post_start_overhead_median_pct": 20.21899179103889,
+        "post_start_pass": null
+      },
+      {
+        "session": "plain",
+        "workload": "fileops",
+        "subject_valid": 30,
+        "baseline_valid": 30,
+        "subject_flagged": {},
+        "load1_max": 1.55,
+        "added_startup_p95_ms": 98.624031,
+        "startup_pass": true,
+        "post_start_overhead_median_pct": 41.405349498806665,
+        "post_start_pass": true
+      },
+      {
+        "session": "scope",
+        "workload": "noop",
+        "subject_valid": 30,
+        "baseline_valid": 30,
+        "subject_flagged": {
+          "exec_unconfirmed": 30
+        },
+        "load1_max": 1.75,
+        "added_startup_p95_ms": 80.40875,
+        "startup_pass": true,
+        "post_start_overhead_median_pct": 8426.063353751011,
+        "post_start_pass": null
+      },
+      {
+        "session": "scope",
+        "workload": "spawn-tree",
+        "subject_valid": 30,
+        "baseline_valid": 30,
+        "subject_flagged": {},
+        "load1_max": 1.77,
+        "added_startup_p95_ms": 80.228597,
+        "startup_pass": true,
+        "post_start_overhead_median_pct": 21.981443755576734,
+        "post_start_pass": null
+      },
+      {
+        "session": "scope",
+        "workload": "fileops",
+        "subject_valid": 30,
+        "baseline_valid": 30,
+        "subject_flagged": {},
+        "load1_max": 1.7,
+        "added_startup_p95_ms": 80.30388149999999,
+        "startup_pass": true,
+        "post_start_overhead_median_pct": 39.674460229653846,
+        "post_start_pass": true
+      }
+    ],
+    "limits": {
+      "startup_p95_ms_exclusive": 500,
+      "fileops_post_start_overhead_pct_inclusive": 100
+    },
+    "summary_sha256": "f65e7c6a7dbe8ebc94a81980b989e6f055183e71edb0758d08e54182e47431a6"
+  },
+  "rc8_freeze_matched_repaired_inputs": false,
+  "final_strict_run": {
+    "run": "20261118T175842Z-bb5979a307c7",
+    "verdict": "PASS",
+    "scope": "linux-preview",
+    "build": {
+      "debug_assertions": false,
+      "dirty": false,
+      "inputs": "sha256:81a2a1b453dd2c0427800235bc7148e5cd84f23d642319a726ffb543931e3def",
+      "opt_level": "3",
+      "revision": "bb5979a307c732b36c89eebac6cfd5a85b51cddc",
+      "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+      "target": "x86_64-unknown-linux-gnu"
+    },
+    "test_counts": {
+      "passed": 3075,
+      "failed": 0,
+      "ignored": 18
+    },
+    "gate_counts": {
+      "credential": 1,
+      "elsewhere": 14,
+      "pass": 65,
+      "pass+limits": 7,
+      "pass+unsupported": 2,
+      "unsupported": 21
+    },
+    "problems": [],
+    "warnings": [],
+    "binary_sha256": "4547f223a66704a5c5b55779cbe2fbe17e24527e5a52131a493c6b4b11bf4304",
+    "evidence_sha256": {
+      "summary.txt": "b3f02dbe516a6e27f6c2fe20181f3d513b415e63dff10155fa497c4bf7d71196",
+      "doctor.json": "33d5bde71fd27727b957cd06cb2e605c54420b92255e1587ecd88a676e624ee0",
+      "gates.json": "3c2ec95f72b21cb18e24ecd0fdf752d34bbbbb6d434361ceef797a4665bf9cad",
+      "test.log": "da177f0e3bdc50304f8ceb06ecf1b8384adb16922b62f739554ac2f92bd8bd1f",
+      "binaries-check.txt": "82677281109685693ec944186504eb619e2b552b745c7a27d74899d0ad73f58e"
+    },
+    "tested_freeze": "docs/specs/jail-v1/milestone-1-freeze.toml"
+  }
+}

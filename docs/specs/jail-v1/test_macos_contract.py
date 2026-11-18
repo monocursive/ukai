@@ -755,7 +755,7 @@ class MacosContract(unittest.TestCase):
                   (c["gate"] in {f"K{i}" for i in range(87, 114)} or c["id"] in {"L02.12", "M01.4"})}
         coordinates = json.loads(read("crates/ukai-jail/dist/release.json"))
         release = coordinates["jail"]["unsupported_clauses"]
-        self.assertEqual(set(release), native | {"K22.2", "K23.1", "K24.1", "K26.1", "K29.1"})
+        self.assertEqual(set(release), native | {"K23.1", "K24.1", "K26.1", "K29.1"})
         self.assertEqual(len(release), len(set(release)))
         self.assertTrue(all(re.fullmatch(r"[A-Z][0-9]+\.[0-9]+", c) for c in release))
         # The VM scope names exactly the untested J18 clauses, each also

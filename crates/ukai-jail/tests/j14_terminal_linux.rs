@@ -1853,14 +1853,19 @@ fn k64_explain_the_pre_exec_line_the_receipt_and_the_wall_say_what_attached() {
             ..Options::default()
         };
         let mut session = Session::start(text);
-        session.wait_exit();
-        let shown = session.terminal.text();
+        assert_eq!(session.wait_exit(), (Some(0), None));
         let expected = if attached {
             "terminal attached (/dev/pts/"
         } else {
             "terminal detached"
         };
-        assert!(shown.contains(expected), "{words:?}:\n{shown}");
+        // The shell's exit status arrives on a separate pipe. The PTY
+        // reader may still be draining the command's output.
+        assert!(
+            session.terminal.wait_for(expected, common::SETTLE_BOUND),
+            "{words:?}:\n{}",
+            session.terminal.text()
+        );
         let json = Options {
             jail: words
                 .iter()
@@ -1870,9 +1875,17 @@ fn k64_explain_the_pre_exec_line_the_receipt_and_the_wall_say_what_attached() {
             ..Options::default()
         };
         let mut session = Session::start(json);
-        session.wait_exit();
-        let shown = session.terminal.text();
-        let value: Value = serde_json::from_str(&shown[shown.find('{').unwrap()..]).unwrap();
+        assert_eq!(session.wait_exit(), (Some(0), None));
+        let json_output = || {
+            let shown = session.terminal.text();
+            serde_json::from_str::<Value>(&shown[shown.find('{')?..]).ok()
+        };
+        assert!(
+            common::within(common::SETTLE_BOUND, || json_output().is_some()),
+            "incomplete explain JSON: {}",
+            session.terminal.text()
+        );
+        let value = json_output().unwrap();
         assert_eq!(
             value["terminal"]["mode"],
             if attached { "attached" } else { "detached" },

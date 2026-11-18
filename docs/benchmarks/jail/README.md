@@ -237,6 +237,8 @@ non-atomic external-writer window remain explicit in the specification.
 
 ## Acceptance coverage
 
+For the signed Linux rc.8 binary, see the [18 November K17 measurements and full-specification replay](production-readiness-rc8.md). The table below records the earlier milestone.
+
 The following maps evidence to the spec without promoting a partial check to a
 passed release milestone. Portable proxy tests use real Unix/TCP sockets on both
 hosts; Linux acceptance additionally exercises the actual namespace bridge. The

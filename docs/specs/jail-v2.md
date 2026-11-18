@@ -893,7 +893,7 @@ cost separate, and compare identical observation/profile settings.
 For the Linux-only developer preview, `xtask gates --linux-release` and
 `xtask conformance --linux-release` evaluate all shared and Linux requirements,
 including the macOS build's portable and execution-refusal tests. The native
-macOS execution clauses K22.2, K23.1, K24.1, K26.1 and K29.1 are explicitly
+macOS execution clauses K23.1, K24.1, K26.1 and K29.1 are explicitly
 reported **unsupported**, never passed; no macOS executable is distributed.
 The full verdict without this flag still fails these untested requirements.
 The exclusion is a fixed list restricted to the macOS lane, not a mechanism

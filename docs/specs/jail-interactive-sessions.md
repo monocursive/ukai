@@ -668,7 +668,8 @@ taken.
 The private digest is SHA-256 over a canonical manifest: sorted entries of
 relative path bytes, type, mode bits, size, the SHA-256 of a regular file's
 content, a symlink's target bytes. It lives in `state.json` only.
-**Initial** bounds per pass: 256 MiB of content and 65,536 entries. Past
+The pass allows 256 MiB of file contents, 65,536 entries and 16 MiB of
+retained manifest lines and redacted hit names. Past
 them the digest is unavailable (`state_too_large`) and no comparison is
 claimed. **Candidate:** an incremental manifest keyed on
 `(ino, size, mtime, ctime)`, adopted only if K73 shows the full pass is too

@@ -70,7 +70,7 @@ class PublicationTests(unittest.TestCase):
                              self.root / 'key', self.key)
 
     def test_signed_candidate_and_pinned_bootstrap(self):
-        plan, names = check(self.candidate, self.key)
+        plan, names = check(self.candidate, self.key, source=ROOT)
         self.assertEqual(plan['target_commit'], REVISION)
         self.assertEqual(plan['publication_scope'], 'linux-preview')
         self.assertEqual(plan['unsupported_clauses'], UNSUPPORTED_CLAUSES)
@@ -88,6 +88,26 @@ class PublicationTests(unittest.TestCase):
             self.assertEqual(pins['9.9.9-rc.1', record['target']], record['archive_sha256'])
         self.assertNotIn('minisign', bootstrap)
         self.assertIn('version=9.9.9-rc.1', bootstrap)
+
+    def test_publication_requires_the_exact_reviewed_scripts(self):
+        manifest = self.candidate / 'SHA256SUMS'
+        original = manifest.read_text()
+        for name in ('bootstrap.sh', 'install.sh'):
+            with self.subTest(script=name):
+                script = self.candidate / name
+                contents = script.read_bytes()
+                script.write_bytes(contents + b'\n# Another build of the installer.\n')
+                checksum = hashlib.sha256(script.read_bytes()).hexdigest()
+                manifest.write_text(''.join(checksum + '  ' + name + '\n' if line.endswith('  ' + name + '\n')
+                                            else line for line in original.splitlines(keepends=True)))
+                signature = self.candidate / 'SHA256SUMS.minisig'
+                signature.unlink()
+                subprocess.run(['minisign', '-Sm', str(manifest), '-s', str(self.root / 'key'),
+                                '-x', str(signature)], check=True, capture_output=True)
+                check(self.candidate, self.key)
+                with self.assertRaisesRegex(ValueError, 'differs from the reviewed source'):
+                    check(self.candidate, self.key, source=ROOT)
+                script.write_bytes(contents)
 
     def test_a_correct_signature_does_not_authorize_wrong_bootstrap_pins(self):
         bootstrap = self.candidate / 'bootstrap.sh'
