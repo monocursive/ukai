@@ -3217,7 +3217,7 @@ mod tests {
     fn the_release_scope_comes_from_the_coordinates() {
         let scope = release_scope();
         assert_eq!(scope.name, "linux-preview");
-        for id in ["K22.2", "K23.1", "K24.1", "K26.1", "K29.1"] {
+        for id in ["K23.1", "K24.1", "K26.1", "K29.1"] {
             assert!(scope.unsupported.contains(&id.to_owned()));
         }
         let map = Map::parse(MAP).unwrap();

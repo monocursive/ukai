@@ -11,7 +11,8 @@ import tempfile
 from coordinates import JAIL_TAG_PREFIX, PUBLICATION_SCOPE, REPOSITORY, UNSUPPORTED_CLAUSES, jail_tag
 from package import VERSION
 from prepare_release import TARGETS, digest, verify_stage
-from bootstrap import archive_pins
+from bootstrap import archive_pins, render_bootstrap
+from notices import checked, read_source
 
 ROOT = Path(__file__).resolve().parents[3]
 # Signed release metadata published beside the archives; with the archives and
@@ -31,7 +32,7 @@ def gh_json(*args):
     return json.loads(run('gh', *args))
 
 
-def check(directory, public_key):
+def check(directory, public_key, *, source=None):
     directory = directory.resolve(strict=True)
     subprocess.run(['minisign', '-Vm', str(directory / 'SHA256SUMS'),
                     '-x', str(directory / 'SHA256SUMS.minisig'), '-P', public_key],
@@ -50,10 +51,19 @@ def check(directory, public_key):
     revision = plan['target_commit']
     inputs = plan['inputs']
     version = plan['tag'].removeprefix(JAIL_TAG_PREFIX)
+    required_clauses = UNSUPPORTED_CLAUSES
+    if source is not None:
+        coordinates = json.loads((source / 'crates/ukai-jail/dist/release.json').read_bytes())
+        required_clauses = coordinates['jail']['unsupported_clauses']
+    elif version in ('0.1.0-rc.5', '0.1.0-rc.6', '0.1.0-rc.7', '0.1.0-rc.8'):
+        # These signed plans predate the K22.2 refusal check. Keep their
+        # original scope when verifying them without a source checkout.
+        required_clauses = ['K22.2', 'K23.1', 'K24.1', 'K26.1', 'K29.1',
+                            'L02.12', 'M01.4', *(f'K{n}.1' for n in range(87, 114))]
     if (plan.get('schema') != 'ukai.jail.release-candidate/1'
             or plan.get('repository') != REPOSITORY
             or plan.get('publication_scope') != PUBLICATION_SCOPE
-            or plan.get('unsupported_clauses') != UNSUPPORTED_CLAUSES
+            or plan.get('unsupported_clauses') != required_clauses
             or not re.fullmatch('[0-9a-f]{40}', revision)
             or not re.fullmatch('sha256:[0-9a-f]{64}', inputs)
             or not VERSION.fullmatch(version) or plan['tag'] != jail_tag(version)
@@ -63,10 +73,11 @@ def check(directory, public_key):
     if sorted(r['target'] for r in records) != sorted(TARGETS):
         raise ValueError('release requires both distinct native Linux targets')
     expected = set(METADATA)
+    expected_notices = checked(read_source(source)) if source is not None else None
     for record in records:
         if record['release'] != version:
             raise ValueError('release versions disagree')
-        verify_stage(directory, revision, inputs, record)
+        verify_stage(directory, revision, inputs, record, expected_notices=expected_notices)
         expected.add(record['archive'])
         if hashes.get(record['archive']) != record['archive_sha256']:
             raise ValueError('native archive is not covered by the signed manifest')
@@ -84,6 +95,14 @@ def check(directory, public_key):
                               and f"    public_key='{public_key}'\n" in bootstrap)
     if f'    version={version}\n' not in bootstrap or not verified_bootstrap:
         raise ValueError('bootstrap must pin the release version and both archive SHA-256 hashes')
+    if source is not None:
+        installer = source / 'crates/ukai-jail/dist/install.sh'
+        if (directory / 'install.sh').read_bytes() != installer.read_bytes():
+            raise ValueError('signed installer differs from the reviewed source')
+        expected_script = render_bootstrap((source / 'install.sh').read_text(), version,
+                                           {r['target']: r['archive_sha256'] for r in records})
+        if (directory / 'bootstrap.sh').read_bytes() != expected_script.encode():
+            raise ValueError('signed bootstrap differs from the reviewed source')
     return plan, sorted(expected | {'SHA256SUMS', 'SHA256SUMS.minisig'})
 
 
@@ -150,7 +169,10 @@ def main():
     args = parser.parse_args()
     try:
         directory = args.candidate.resolve(strict=True)
-        plan, names = check(directory, args.public_key)
+        # Historical verification accepts the signed contents of that release.
+        # Creating or publishing a draft also binds them to the candidate checkout.
+        source = ROOT if args.command in ('draft', 'publish') else None
+        plan, names = check(directory, args.public_key, source=source)
         if args.command in ['draft', 'publish']:
             publication_gates(plan, args.public_key)
         if args.command == 'draft':

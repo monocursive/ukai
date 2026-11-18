@@ -1,0 +1,18 @@
+{
+  "source": "bf365665197a0861752d704eef05ca9d0dde9952",
+  "tag": "ukai-jail-v0.1.0-rc.8",
+  "verified_assets": [
+    "RELEASE_NOTES.md",
+    "SHA256SUMS",
+    "SHA256SUMS.minisig",
+    "bootstrap.sh",
+    "install.sh",
+    "release-plan.json",
+    "ukai-jail-0.1.0-rc.8-aarch64-unknown-linux-gnu.tar.gz",
+    "ukai-jail-0.1.0-rc.8-x86_64-unknown-linux-gnu.tar.gz"
+  ],
+  "notices_sha256": "a772fb84f80ac70eb07aeab1d66a5892dbd68a8d50f830ac0e840b7d9a292acf",
+  "bootstrap_sha256": "1b7b3d047511c223fa24feaf7d9ce198b3c2f5941333326601f032fcb09037c7",
+  "installer_sha256": "9c49ea8a0d7c2633b446d1912d9def945bb10dad325de6542320dd185a13f012",
+  "verification": "production Minisign signature, complete signed manifest, per-target ELF and binary digest, both notice bundles and both installer scripts checked against the tagged source"
+}

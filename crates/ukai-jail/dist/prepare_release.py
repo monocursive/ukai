@@ -11,6 +11,7 @@ import subprocess
 import tarfile
 
 from coordinates import ELF_MACHINE as TARGETS, PUBLICATION_SCOPE, REPOSITORY, UNSUPPORTED_CLAUSES, jail_tag
+from notices import checked, read_source
 from package import VERSION as RELEASE_VERSION
 from package import create_archive
 from bootstrap import render_bootstrap
@@ -56,7 +57,7 @@ def stage(binary, target, revision, inputs, out, release_version):
     return record
 
 
-def verify_stage(directory, revision, inputs, record=None):
+def verify_stage(directory, revision, inputs, record=None, *, expected_notices=None):
     if record is None:
         record = json.loads((directory / 'artifact.json').read_text())
     if record.get('schema') != 'ukai.jail.release-artifact/1':
@@ -83,15 +84,19 @@ def verify_stage(directory, revision, inputs, record=None):
         verify_elf(binary, target)
         if hashlib.sha256(binary).hexdigest() != record['binary_sha256']:
             raise ValueError('packaged binary does not match its native build record')
-        if not stream.extractfile(members[1]).read():
+        notices = stream.extractfile(members[1]).read()
+        if not notices:
             raise ValueError('missing license notices')
+        if expected_notices is not None and notices != expected_notices:
+            raise ValueError('packaged license notices differ from the reviewed source')
     return record
 
 
 def assemble(stages, revision, inputs, version, out, signing_key=None, public_key=None):
     if not RELEASE_VERSION.fullmatch(version):
         raise ValueError('expected a semantic release version')
-    records = [verify_stage(directory, revision, inputs) for directory in stages]
+    notices = checked(read_source(Path(__file__).resolve().parents[3]))
+    records = [verify_stage(directory, revision, inputs, expected_notices=notices) for directory in stages]
     if sorted(r['target'] for r in records) != sorted(TARGETS):
         raise ValueError('exactly one native artifact for each Linux architecture is required')
     if any(r['release'] != version for r in records):

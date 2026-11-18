@@ -3611,9 +3611,11 @@ tests = [
 id = "K22.2"
 gate = "K22"
 clause = "Command rules refuse at resolution on macOS-lane builds"
-tag = "untested"
+tag = "live-cli"
 lane = "macos"
-note = "The macOS lane has no command-rules test (macos_refusal.rs)."
+tests = [
+  "ukai-jail/tests/macos_refusal.rs::k22_command_rules_refuse_at_resolution_on_macos",
+]
 
 # ------------------------------------------------------------------ K23
 

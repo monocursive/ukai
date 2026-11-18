@@ -251,15 +251,11 @@ closes its scripted durability gate. Historical-custody migration and managed
 project authorization remain open. Local consistency is reported separately from coverage and
 protection from the child.
 
-The [November 15 candidate record](docs/benchmarks/jail/results/release-preview-2026-11-15-rc6/README.md)
-records current-input clean-VM onboarding, a real agent task and learning for
-the unpublished rc.6 candidate, using an ephemeral signing key. It does not
-publish or qualify a production release. The
-[October 8 follow-up](docs/benchmarks/jail/followup-2026-10-08.md) and
-[earlier validation](docs/benchmarks/jail/validation-2026-10-08.md) retain their
-historical performance, conformance and signed-package scope. Repeated
-real-agent compatibility remains unqualified where trials failed or stopped
-early.
+The [rc.8 production-readiness record](docs/benchmarks/jail/production-readiness-rc8.md)
+covers public upgrade and rollback on both architectures, the release-binary
+performance measurements and the remaining security and compatibility work.
+The [agent compatibility register](docs/specs/jail-v1/agent-compatibility.md)
+identifies the exact builds and workflows tested.
 
 ## Planned work
 

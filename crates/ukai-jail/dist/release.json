@@ -6,7 +6,6 @@
         "published_tag": "ukai-jail-v0.1.0-rc.8",
         "publication_scope": "linux-preview",
         "unsupported_clauses": [
-            "K22.2",
             "K23.1",
             "K24.1",
             "K26.1",

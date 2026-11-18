@@ -112,7 +112,7 @@ OpenCode glob/read/write workflow pass in 82.85 seconds, stock Ubuntu 24 still
 refuses contained execution, and signed-package checks passed on both releases.
 The newer [October 8 follow-up](benchmarks/jail/followup-2026-10-08.md)
 prepares signed native x86_64 and ARM64 packages and passes full reference
-conformance; production signing and publication remain pending.
+conformance for that historical candidate. The [rc.8 publication record](benchmarks/jail/release-preview-2026-11-18.md) covers the current signed Linux preview.
 
 The first signed developer preview is `ouro-jail-v0.1.0-rc.1` in
 `monocursive/ukai`, with Linux x86_64 and ARM64 packages and a dedicated
@@ -127,12 +127,11 @@ containment tests. Each compatibility record should say which agent, version,
 jail build, host, and policy were used, what worked, and what remains unknown.
 A launch profile stays experimental until that combination has evidence.
 
-Performance measurements need the same care. The newest
-[October 8 follow-up record](benchmarks/jail/followup-2026-10-08.md) measures
-the observation cost on file-heavy work directly: with observation on,
-file-operation work takes about four times as long as with it off. We'll keep
-reporting startup and workload overhead separately, refresh the measurements
-against a committed build, and add results from actual agent workflows.
+The [Linux rc.8 measurements](benchmarks/jail/production-readiness-rc8.md)
+cover the public x86_64 binary on the reference host. Worst p95 added startup
+with observation off was 94.2 ms. With default observation, the file-operation
+fixture took about 5.5 times as long after startup as direct execution.
+Real-agent latency needs its own measurements.
 
 The [October 1 working-tree follow-up](benchmarks/sandboxes/observation-and-limits-2026-10-01.md)
 reduces read workload time from 24.53 ms to 6.10 ms on the reference VPS;

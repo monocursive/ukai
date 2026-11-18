@@ -1,0 +1,189 @@
+{
+  "architecture": "aarch64",
+  "kernel": "7.2.12-orbstack-00394-gbecdd6130068",
+  "os": "Ubuntu 26.04.1 LTS",
+  "euid": 501,
+  "installer_sha256": "1b7b3d047511c223fa24feaf7d9ce198b3c2f5941333326601f032fcb09037c7",
+  "revision": "bf365665197a0861752d704eef05ca9d0dde9952",
+  "transitions": [
+    {
+      "step": "start-rc5",
+      "returncode": 0,
+      "version": "0.1.0-rc.5",
+      "binary_sha256": "31784fc530c537dc845e3d8c91403bbacd8f35a388fcdeb8d7c7e2751fd69dc5",
+      "notices_sha256": "1e14b6775b5e8f5181a2ed69052fd06bf8442d64e445d1553bfac415d309519d"
+    },
+    {
+      "step": "default-upgrade",
+      "returncode": 0,
+      "version": "0.1.0-rc.8",
+      "binary_sha256": "c4c5970bff11988364cf6e926568afc1dcc4c6b3b99fa39f51bde1a12654cb7b",
+      "notices_sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd"
+    },
+    {
+      "step": "unrequested-downgrade-refused",
+      "returncode": 1,
+      "version": "0.1.0-rc.8",
+      "binary_sha256": "c4c5970bff11988364cf6e926568afc1dcc4c6b3b99fa39f51bde1a12654cb7b",
+      "notices_sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd"
+    },
+    {
+      "step": "explicit-rollback",
+      "returncode": 0,
+      "version": "0.1.0-rc.5",
+      "binary_sha256": "31784fc530c537dc845e3d8c91403bbacd8f35a388fcdeb8d7c7e2751fd69dc5",
+      "notices_sha256": "1e14b6775b5e8f5181a2ed69052fd06bf8442d64e445d1553bfac415d309519d"
+    },
+    {
+      "step": "restore",
+      "returncode": 0,
+      "version": "0.1.0-rc.8",
+      "binary_sha256": "c4c5970bff11988364cf6e926568afc1dcc4c6b3b99fa39f51bde1a12654cb7b",
+      "notices_sha256": "10e3b0bf8dd28c8a70c56add80a3cbfed6c9ee3786413b7c59600488024629fd"
+    }
+  ],
+  "profiles": {
+    "tool": {
+      "doctor_ready": true,
+      "doctor_exit": 0,
+      "run_exit": 0,
+      "receipt_sha256": "77f1aeca93d547e3c8bcc195bc2829ebf6b06fe099521b58dc16ead760033584",
+      "phase": "settled",
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      },
+      "containment": "enforced",
+      "exec_observed": true,
+      "tree_empty": true,
+      "integrity": "verified",
+      "state_cleanup": "complete",
+      "coverage": {
+        "exec": {
+          "status": "active",
+          "gaps": 0
+        },
+        "fs.write": {
+          "status": "active",
+          "gaps": 0
+        },
+        "fs.deny": {
+          "status": "active",
+          "gaps": 0
+        },
+        "net": {
+          "status": "active",
+          "gaps": 0
+        },
+        "limits": {
+          "status": "active",
+          "gaps": 0
+        },
+        "proxy.net": {
+          "status": "unsupported",
+          "gaps": 0
+        }
+      },
+      "output_matches": true,
+      "status": "passed"
+    },
+    "build": {
+      "doctor_ready": true,
+      "doctor_exit": 0,
+      "run_exit": 0,
+      "receipt_sha256": "b60b45251c028ccfa4f20ab025f129d0809e38203e9467407f2f8106933961cb",
+      "phase": "settled",
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      },
+      "containment": "enforced",
+      "exec_observed": true,
+      "tree_empty": true,
+      "integrity": "verified",
+      "state_cleanup": "complete",
+      "coverage": {
+        "exec": {
+          "status": "active",
+          "gaps": 0
+        },
+        "fs.write": {
+          "status": "active",
+          "gaps": 0
+        },
+        "fs.deny": {
+          "status": "active",
+          "gaps": 0
+        },
+        "net": {
+          "status": "active",
+          "gaps": 0
+        },
+        "limits": {
+          "status": "active",
+          "gaps": 0
+        },
+        "proxy.net": {
+          "status": "unsupported",
+          "gaps": 0
+        }
+      },
+      "output_matches": true,
+      "status": "passed"
+    },
+    "agent": {
+      "doctor_ready": true,
+      "doctor_exit": 0,
+      "run_exit": 0,
+      "receipt_sha256": "10b49e3c79f6dc7de33f9083ffa3757d4a88f41d21fe76cb42f7cbb4fa0d4538",
+      "phase": "settled",
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      },
+      "containment": "enforced",
+      "exec_observed": true,
+      "tree_empty": true,
+      "integrity": "verified",
+      "state_cleanup": "complete",
+      "coverage": {
+        "exec": {
+          "status": "active",
+          "gaps": 0
+        },
+        "fs.write": {
+          "status": "active",
+          "gaps": 0
+        },
+        "fs.deny": {
+          "status": "active",
+          "gaps": 0
+        },
+        "net": {
+          "status": "active",
+          "gaps": 0
+        },
+        "limits": {
+          "status": "active",
+          "gaps": 0
+        },
+        "proxy.net": {
+          "status": "active",
+          "gaps": 0
+        }
+      },
+      "output_matches": true,
+      "status": "passed"
+    }
+  },
+  "inputs": "sha256:e995064da2bb966eb5019e98992044571f04933507fc8111d5d5e5d5d1bee805"
+}

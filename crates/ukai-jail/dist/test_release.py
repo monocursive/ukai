@@ -99,6 +99,16 @@ class ReleaseTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     verify_build(record, REVISION, INPUTS, target)
 
+    def test_assembly_refuses_a_stage_with_stale_notices(self):
+        targets = iter(TARGETS)
+        current = self.fixture(next(targets))
+        with patch('package.checked', return_value=b'Notices from an earlier package'):
+            stale = self.fixture(next(targets))
+        destination = self.root / 'candidate'
+        with self.assertRaisesRegex(ValueError, 'license notices differ'):
+            assemble([current, stale], REVISION, INPUTS, '9.9.9-rc.1', destination)
+        self.assertFalse(destination.exists())
+
     def test_assembly_requires_both_distinct_native_targets(self):
         single = self.fixture(next(iter(TARGETS)))
         for records in [[single], [single, single]]:
