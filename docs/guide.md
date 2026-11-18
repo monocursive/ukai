@@ -8,32 +8,29 @@ You choose the files it can read or change, the services it can contact, and
 how long it can run. A receipt tells you which controls were applied and how
 the run ended.
 
-**Choose your host:** Linux x86_64/ARM64 runs `ukai-jail` directly. Apple Silicon
-Macs can use the separate [macOS VM preview](#macos-vm-preview), which runs
-offline Linux commands in disposable VMs. Both are developer-preview software;
-native macOS programs and online agents are outside the Mac preview.
+**Choose your host.** Stable 0.1.0 covers Ubuntu 26.04.1 LTS x86_64 with kernel
+7.0.0-31-generic, bubblewrap 0.11.1, reference cgroup delegation and ptrace
+observation. Linux ARM64 has a separate rc.8 preview. Apple Silicon Macs can
+use the [macOS VM preview](#macos-vm-preview) for offline Linux commands.
 
 Already have the binary? Jump to [your first command](#run-your-first-command).
 Writing an integration? Start with [agents and scripts](#for-agents-and-scripts).
 
-## Install the developer preview
+<span id="install-the-developer-preview"></span>
+
+## Install Ukai Jail
 
 The same installer detects your platform. The following commands are for Linux;
 Mac users should follow the [Mac quickstart](#macos-vm-preview).
 
-Ukai was called Ouroboros until 15 October 2026. Linux previews from
-0.1.0-rc.3 on are released under the new name and install `ukai-jail`, the
-same command the later sections use. The macOS VM preview was published before
-the rename and keeps its `ouro-vm` command. For the guide exactly as released,
-use the
-[release guide](https://github.com/monocursive/ukai/blob/ukai-jail-v0.1.0-rc.8/docs/guide.md).
+[Ukai Jail 0.1.0 for Linux x86_64](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0)
+installs into `~/.local/bin`. Install bubblewrap first. The bootstrap needs
+Bash, curl, tar, and sha256sum or shasum. The packaged executable requires
+glibc 2.39 or newer. The [runtime audit](https://github.com/monocursive/ukai/blob/ukai-jail-v0.1.0/docs/security-audit-2026-11-18-linux.md)
+describes the qualified host and workflows.
 
-[Linux preview 0.1.0-rc.8](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.8)
-ships Linux x86_64 and ARM64 packages. Install your distribution's
-`bubblewrap` package first. The binaries require glibc 2.39 or
-newer; Alpine/musl and macOS execution are unavailable in this preview.
-The installer needs Bash, curl, tar, and sha256sum or shasum; no Minisign,
-Rust compiler or sudo is needed.
+On Linux ARM64, pass `bash -s -- --version 0.1.0-rc.8` in the pipeline below
+to select the [ARM64 preview](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.8).
 
 ```sh
 curl --proto '=https' --tlsv1.2 -fsSL \
@@ -43,7 +40,7 @@ ukai-jail version --json
 ukai-jail doctor --profile tool --json
 ```
 
-The installer embeds this preview's SHA-256 hashes for both architectures. It
+The installer embeds a SHA-256 hash for each supported release archive. It
 checks the downloaded archive before extracting or executing it, then installs
 outside your project in `~/.local/bin`. The HTTPS-served installer is the source
 of the trusted hashes; a downloaded checksum manifest cannot override them.
@@ -308,7 +305,7 @@ for the packaged release.
 ## Verify a supplied package
 
 For offline installation, save the [Bash installer](https://ukai.sh/install.sh)
-and the archive for your architecture from the [release](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.8).
+and the x86_64 archive from the [stable release](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0).
 The installer verifies its embedded SHA-256 pin even when the archive comes from
 a local directory. No checksum manifest or signature tool is needed:
 

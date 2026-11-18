@@ -5,7 +5,7 @@ main() (
     umask 077
     export LC_ALL=C
     repository=https://github.com/monocursive/ukai
-    version=0.1.0-rc.8
+    version=0.1.0
     macos_version=0.1.0-preview.1
     version_selected=false
     prefix=${HOME:?HOME must be set}/.local/bin
@@ -117,6 +117,7 @@ EOF
     # installer accepts has its archive or disk image hash here.
     # BEGIN SHA256 PINS
     case "$version:$target" in
+        0.1.0:x86_64-unknown-linux-gnu) expected='22e623e82770dabb5dbf85367237cde3bf7e659f901bd65f8e2d618e7b3d484f' ;;
         0.1.0-preview.1:macos-arm64) expected='f3a85e14987228bb5271956ce19bb4cb57272c24235b6f8b98db51b68e0c54a0' ;;
         0.1.0-rc.1:aarch64-unknown-linux-gnu) expected='100d0e8e78d27c08372b18352de987da447f157ef75c8ebeac0cf5e24dd0400a' ;;
         0.1.0-rc.1:x86_64-unknown-linux-gnu) expected='9413e8fd0cea1417c1ba47e5e0fad07edf3a26b8615e68a5aa642662f1209da8' ;;

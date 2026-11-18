@@ -1,5 +1,9 @@
 # Production readiness of Linux rc.8, 18 November 2026
 
+The repaired x86_64 runtime subsequently shipped in [stable 0.1.0](release-0.1.0-linux-x86_64.md).
+The assessment below records the status of the earlier rc.8 preview.
+
+
 Ukai Jail rc.8 is a signed Linux developer preview. On the Ubuntu 26.04.1
 x86_64 reference host, the release commit passed strict Linux conformance.
 All five rollout workflows passed on `753fa9661`. A subsequent Linux runtime

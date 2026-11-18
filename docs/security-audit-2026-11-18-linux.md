@@ -1,5 +1,8 @@
 # Linux runtime audit for the scoped x86_64 release
 
+The fixes from this review shipped in stable 0.1.0 for the tested x86_64
+configuration. [Signed release and public install results](benchmarks/jail/release-0.1.0-linux-x86_64.md).
+
 The published Linux rc.8 binary requires a new build before stable promotion.
 This review identified three Medium findings in the October-to-rc.8 changes.
 Commit `a0d3bd778` addresses all three. No High finding was identified in
@@ -98,7 +101,7 @@ checkout and its runtime input digest.
 [Conformance counts and evidence digests](benchmarks/jail/results/production-rc8-2026-11-18/runtime-audit.json) · [Tested freeze](specs/jail-v1/milestone-1-freeze.toml).
 
 The reviewed fixes and local results qualify the runtime for a stable
-candidate on the specified x86_64 configuration. Stable distribution remains open.
+candidate on the specified x86_64 configuration. The publication record above closes the distribution work described below.
 
 The ten repair trials in the [compatibility register](specs/jail-v1/agent-compatibility.md)
 ran on signed rc.8. The repaired runtime has one fresh onboarding run and

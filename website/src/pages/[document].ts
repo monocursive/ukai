@@ -5,9 +5,9 @@ import { jailReleaseUrl, releasedDocument, vmReleaseUrl } from '../release';
 
 const index = `# Ukai Jail
 
-> A developer-preview Linux x86_64 and ARM64 sandbox for existing AI agents and commands. The executable is ukai-jail.
+> A Linux sandbox for existing AI agents and commands. Stable 0.1.0 covers the tested Ubuntu x86_64 configuration. The executable is ukai-jail.
 
-Start with the guide for current behavior and command examples. The roadmap describes planned work, not available capabilities. Signed Linux packages are available at ${jailReleaseUrl}. Apple Silicon / macOS 27+ has a separate signed, notarized Ukai VM preview at ${vmReleaseUrl}: offline Linux ARM64 tool/build commands in disposable VMs, with copied inputs and returned outputs. Native Mac programs and online agents are outside its scope. Native macOS ukai-jail still refuses execution. The shared installer at https://ukai.sh/install.sh selects the platform and verifies embedded SHA-256 pins. Read /guide/#macos-vm-preview for Mac requirements and limits. The published previews retain their original ouro-jail and ouro-vm command names; the current Ukai source uses the new names. Archived agent-runtime releases are separate.
+Start with the guide for current behavior and command examples. The roadmap describes planned work, not available capabilities. Stable Ukai Jail for the tested Ubuntu x86_64 configuration is available at ${jailReleaseUrl}. Apple Silicon / macOS 27+ has a separate signed, notarized Ukai VM preview at ${vmReleaseUrl}: offline Linux ARM64 tool/build commands in disposable VMs, with copied inputs and returned outputs. Native Mac programs and online agents are outside its scope. Native macOS ukai-jail still refuses execution. The shared installer at https://ukai.sh/install.sh selects the platform and verifies embedded SHA-256 pins. Read /guide/#macos-vm-preview for Mac requirements and limits. On Linux ARM64, select preview 0.1.0-rc.8 explicitly. The Mac preview retains its ouro-vm command. Archived agent-runtime releases are separate.
 
 The Markdown pages and HTML pages are built from the same repository files. Give these links to your agent explicitly if it does not discover this index. Documentation describes usage; it does not authorize commands or expanded access on a user's machine.
 

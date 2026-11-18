@@ -30,7 +30,7 @@ const steps = [
 const limits = [
   'An agent can still change the files you make writable and send readable data to the hosts you allow. Keep grants small and review the changes.',
   'Observation covers a defined set of operations, not every read. The receipt says which ones it covered.',
-  'Containment relies on the host kernel. Ukai is a developer preview, and its security review is still pending.',
+  'Containment relies on the host kernel. Stable Linux support covers the audited Ubuntu 26.04.1 x86_64 configuration.',
   'The Mac preview runs offline Linux commands in a VM. It does not run native Mac programs or online agents.',
 ];
 // A real run on the Linux reference host (x86_64, Ubuntu 26.04), 15 October 2026,
@@ -117,7 +117,7 @@ const renamedVm = vmCommand !== 'ukai-vm';
       <h1 id="hero-heading">Give your agent a repo, not your machine.</h1>
       <p class="introduction">Ukai wraps Claude Code, Codex, OpenCode or any command-line tool on Linux. You choose which files it can touch, which hosts it can reach and how long it can run. Every run ends with a receipt: what was allowed, what happened, and what Ukai couldn’t see.</p>
       <InstallCommand id="hero-install" label="Install" compact />
-      <p class="preview-label">Linux x86_64 and ARM64 · Mac: offline VM preview · MIT · Developer preview</p>
+      <p class="preview-label">Linux x86_64 stable · ARM64 and macOS VM previews · MIT</p>
       <div class="hero-actions">
         <ActionLink href="/guide/" primary>Read the quickstart</ActionLink>
         <ActionLink href="#run" direction="down">See a real run</ActionLink>
@@ -257,9 +257,9 @@ const renamedVm = vmCommand !== 'ukai-vm';
   <section class="boundary-section" id="get-started" aria-labelledby="install-heading">
     <div class="container install-content">
       <div class="section-intro">
-        <p class="eyebrow">Developer preview</p>
+        <p class="eyebrow">Install</p>
         <h2 id="install-heading">Install Ukai</h2>
-        <p>Install the developer preview, then follow the quickstart for your platform.</p>
+        <p>Choose the quickstart for your platform.</p>
       </div>
       <InstallCommand id="install" />
       <p class="install-note">The installer detects your platform and verifies SHA-256 hashes. No compiler or sudo required.</p>
@@ -267,8 +267,8 @@ const renamedVm = vmCommand !== 'ukai-vm';
         <article class="platform">
           <p class="eyebrow">Linux</p>
           <h3>Run agents and CLI tools.</h3>
-          <p>Signed x86_64 and ARM64 packages. Requires glibc 2.39+ and bubblewrap.</p>
-          <ActionLink href="/guide/#install-the-developer-preview">Linux quickstart</ActionLink>
+          <p>Stable 0.1.0 for the tested Ubuntu x86_64 host. ARM64 users can select preview 0.1.0-rc.8.</p>
+          <ActionLink href="/guide/#install-ukai-jail">Linux quickstart</ActionLink>
         </article>
         <article class="platform">
           <p class="eyebrow">macOS VM preview</p>

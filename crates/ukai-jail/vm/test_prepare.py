@@ -439,7 +439,7 @@ class SignedCandidateTests(unittest.TestCase):
             })
         self.plan = {'schema': 'ukai.jail.release-candidate/1',
                      'repository': prepare.coordinates.REPOSITORY,
-                     'publication_scope': prepare.coordinates.PUBLICATION_SCOPE,
+                     'publication_scope': prepare.coordinates.release_scope(self.version),
                      'unsupported_clauses': prepare.coordinates.UNSUPPORTED_CLAUSES,
                      'target_commit': revision, 'inputs': inputs,
                      'tag': prepare.coordinates.jail_tag(self.version),

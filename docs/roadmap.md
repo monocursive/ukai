@@ -83,8 +83,8 @@ termination and source-rebuild checks. It remains private and unnotarized;
 those results do not establish vendor compatibility or full release acceptance.
 
 You can [build the jail and try a small command](https://github.com/monocursive/ukai/blob/dev/docs/guide.md#build-and-check-your-host)
-today. [Signed Linux developer-preview packages](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.8)
-are also available; a Homebrew tap remains unconfigured.
+today. [Stable 0.1.0 for the tested Ubuntu x86_64 configuration](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0)
+and the [ARM64 rc.8 preview](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.8) are available.
 
 The separate [Ukai VM preview for Apple Silicon](https://ukai.sh/guide/#macos-vm-preview)
 is now available as a signed, notarized DMG through the same Bash installer.
@@ -112,11 +112,11 @@ OpenCode glob/read/write workflow pass in 82.85 seconds, stock Ubuntu 24 still
 refuses contained execution, and signed-package checks passed on both releases.
 The newer [October 8 follow-up](benchmarks/jail/followup-2026-10-08.md)
 prepares signed native x86_64 and ARM64 packages and passes full reference
-conformance for that historical candidate. The [rc.8 publication record](benchmarks/jail/release-preview-2026-11-18.md) covers the current signed Linux preview.
+conformance for that historical candidate. The [rc.8 publication record](benchmarks/jail/release-preview-2026-11-18.md) covers the signed two-architecture Linux preview.
 
 The first signed developer preview is `ouro-jail-v0.1.0-rc.1` in
 `monocursive/ukai`, with Linux x86_64 and ARM64 packages and a dedicated
-release identity. The [guide](guide.md#install-the-developer-preview) provides
+release identity. The [guide](guide.md#install-ukai-jail) provides
 the verified Bash installer and current host requirements. Wider host and agent
 compatibility remain ongoing work; a Homebrew tap is still unconfigured.
 

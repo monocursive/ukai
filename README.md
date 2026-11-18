@@ -18,18 +18,19 @@ Ukai was called Ouroboros until 15 October 2026. Linux previews from
 earlier Linux previews and the macOS VM preview were published under the old
 name, as `ouro-jail` and `ouro-vm`.
 
-**Developer preview 0.1.0-rc.8.** [Signed Linux x86_64 and ARM64 packages](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.8)
-are available. The release passed strict conformance on the x86_64 reference host.
-Available profiles depend on the host kernel. Check your host with
-`ukai-jail doctor --profile tool --json`. See the [platform requirements](docs/specs/jail-v1.md#32-initial-support-matrix)
-and the [rc.8 publication record](docs/benchmarks/jail/release-preview-2026-11-18.md).
+**Stable 0.1.0 for Linux x86_64.** The [signed release](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0)
+is qualified on Ubuntu 26.04.1 LTS, kernel 7.0.0-31-generic, bubblewrap 0.11.1,
+with reference cgroup delegation and ptrace observation. Check your host with
+`ukai-jail doctor --profile tool --json`. Linux ARM64 users can select the
+[rc.8 preview](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.8)
+with `--version 0.1.0-rc.8`. [Public install verification](docs/benchmarks/jail/release-0.1.0-linux-x86_64.md) · [Linux runtime audit](docs/security-audit-2026-11-18-linux.md).
 
 **macOS VM preview 0.1.0-preview.1.** [Signed and notarized Apple Silicon DMG](https://github.com/monocursive/ukai/releases/tag/ouro-vm-v0.1.0-preview.1)
 is available for macOS 27+. The published `ouro-vm` command runs offline Linux
 ARM64 commands in a disposable VM. See the [Mac quickstart](docs/guide.md#macos-vm-preview) for limits
 and examples; native Mac programs and online agents are outside this preview.
 
-The Bash installer embeds SHA-256 hashes for both Linux archives and the Mac DMG, and checks the
+The Bash installer embeds SHA-256 hashes for the Linux release archives and the Mac DMG, and checks the
 selected download before extracting or executing it. No signature tool is needed.
 The [release procedure](docs/RELEASING.md) documents hash updates, provenance and
 maintainer signing.
@@ -76,7 +77,7 @@ ukai-jail doctor --profile tool --json
 On macOS the command is `ouro-vm`: run `ouro-vm version` and `ouro-vm doctor`
 after installing, then follow the [Mac example](docs/guide.md#macos-vm-preview).
 
-See the [guide](docs/guide.md#install-the-developer-preview) for supported hosts,
+See the [guide](docs/guide.md#install-ukai-jail) for supported hosts,
 upgrades and explicit downgrade handling. The remaining examples use the current
 Ukai source build; the published preview's own [guide](https://github.com/monocursive/ukai/blob/ukai-jail-v0.1.0-rc.8/docs/guide.md)
 documents exactly what it ships. To build from source:
@@ -219,7 +220,7 @@ The same record passes full reference conformance (1,993 tests) and prepares
 signed native Linux x86_64 and ARM64 packages locally. The
 [10 October preview record](docs/benchmarks/jail/release-preview-2026-10-10.md)
 adds current-input clean-VM onboarding, a real OpenCode learning fixture and
-Linux acceptance tests. The signed public preview is linked above; repeated
+Linux acceptance tests. The stable x86_64 release is linked above. Broader
 real-agent qualification remains experimental.
 
 The earlier records are kept for provenance: the
