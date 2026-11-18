@@ -40,7 +40,7 @@ inputs:
   version:
     description: The ukai-jail release to install; the installer beside this action must pin it.
     required: false
-    default: 0.1.0-rc.5
+    default: 0.1.0-rc.8
   fail-on:
     description: 'Besides the command''s own failure, what fails the step: any of `unsettled`, `survivors`, `gaps`.'
     required: false

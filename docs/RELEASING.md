@@ -1,5 +1,9 @@
 # Publish a Ukai Jail developer preview
 
+[Linux preview 0.1.0-rc.8](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.8)
+was published on 18 November 2026 from `bf365665197a0861752d704eef05ca9d0dde9952`.
+The [publication record](benchmarks/jail/release-preview-2026-11-18.md) identifies the signed archives and native install checks.
+
 [Linux preview 0.1.0-rc.5](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.5), which carries
 the fixes of the 22–23 October review, was published on 23 October 2026 from
 `0fe655440db7fd0012257cbbbc7d7a790cd7eca1`; its
@@ -250,12 +254,11 @@ release needs a fresh reference conformance rerun on the VPS, followed by
 freeze intentionally removes that record and cannot establish release readiness;
 only a successful matching reference run can restore it.
 
-Set a new, reviewed candidate version and the production key. The example
-below names the unpublished rc.6 candidate; it does not change the published
-rc.5 release. Never reuse a published version for different bytes:
+Set the reviewed candidate version and the production key. Each new release
+requires a new version.
 
 ```sh
-release_version=0.1.0-rc.6
+release_version=${RELEASE_VERSION:?set the new candidate version}
 release_revision=$(git rev-parse HEAD)
 release_public_key=$(sed -n '2p' crates/ukai-jail/dist/release.pub)
 release_private_key="$HOME/.config/ouroboros/release-keys/ouro-jail-2026-10-10.key"

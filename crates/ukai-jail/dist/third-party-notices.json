@@ -2502,7 +2502,7 @@
     "crates/ukai-jail/dist/UNICODE_LICENSE": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
     "crates/ukai-jail/dist/WEBPKI_ROOTS_LICENSE": "e271993808fec50ab29350b39539cdec611a9103f827e0aa26d61da70e2d33f8",
     "crates/ukai-jail/dist/notices.py": "6f8ec489942893937769bc7fb1a1c2c641d58d826371f5ae39ceacd9077fd090",
-    "crates/ukai-jail/dist/release.json": "8b39e75c63e7ce7ca97a0a0f3918411a72f205d3e1f079ced9e503527b2f13f7",
+    "crates/ukai-jail/dist/release.json": "50da81ff9560943a8247cdda28df503a59136e4e6e7e30c54c66d8b9be6e70f7",
     "crates/ukai-records/Cargo.toml": "c13609044b387af128792c8dcbc562d80cb08ef87c8c6404190de05744b4582e",
     "rust-toolchain.toml": "740e56dec60a3bf551dcecbc05811bb86fba460a57d9a7fe1e706d8a35de4543"
   },
