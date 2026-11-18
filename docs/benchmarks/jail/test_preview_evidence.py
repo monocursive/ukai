@@ -24,6 +24,37 @@ class PreviewEvidenceTests(unittest.TestCase):
         verify(self.root, self.inputs, 'onboarding')
         verify(self.root, self.inputs, 'learning')
 
+    def test_onboarding_rejects_another_successful_commands_receipt(self):
+        shutil.copyfile(self.root / 'guest/true-jail.json', self.root / 'guest/opencode-jail.json')
+        with self.assertRaisesRegex(ValueError, 'workload argv mismatch'):
+            verify(self.root, self.inputs, 'onboarding')
+
+    def test_learning_requires_a_successful_vm_even_with_a_valid_proposal(self):
+        path = self.root / 'vm.json'
+        vm = json.loads(path.read_bytes())
+        vm['status'] = 'blocked'
+        path.write_text(json.dumps(vm))
+        with self.assertRaisesRegex(ValueError, 'VM did not pass'):
+            verify(self.root, self.inputs, 'learning')
+
+    def test_modern_record_requires_attempt_identity_and_clean_credential_teardown(self):
+        current = Path(__file__).parent / 'results/release-preview-2026-11-16-rc7'
+        record = Path(self.temp.name) / 'modern'
+        shutil.copytree(current, record)
+        path = record / 'guest/result.json'
+        result = json.loads(path.read_bytes())
+        inputs = result['expected_inputs']
+        next(r for r in result['rows'] if r['name'] == 'opencode-learn')['attempt_ids'] = []
+        path.write_text(json.dumps(result))
+        with self.assertRaisesRegex(ValueError, 'different attempt'):
+            verify(record, inputs, 'learning')
+        vm_path = record / 'vm.json'
+        vm = json.loads(vm_path.read_bytes())
+        vm['credential_exposure']['complete'] = False
+        vm_path.write_text(json.dumps(vm))
+        with self.assertRaisesRegex(ValueError, 'credential checks failed'):
+            verify(record, inputs, 'onboarding')
+
     def test_stale_inputs_and_slow_or_unclean_onboarding_refuse(self):
         with self.assertRaisesRegex(ValueError, 'stale build inputs'):
             verify(self.root, 'sha256:' + '0' * 64, 'learning')
