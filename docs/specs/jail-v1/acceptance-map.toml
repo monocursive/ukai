@@ -877,7 +877,7 @@ tests = [
   "ukai-jail/tests/conformance_j2.rs::s04_io_uring_and_compat_abis_cannot_bypass_the_filter",
   "ukai-jail/tests/observer_regression_linux.rs::r21_the_tool_baseline_denies_the_abi_the_observer_cannot_name",
 ]
-note = "On x86_64 the CLI and R21 exercise x32 and i386. On AArch64, R21 runs native and ARM32 static BusyBox controls and observes EPERM on ordinary heap initialization in the ARM32 process under the production tool baseline."
+note = "On x86_64 the CLI and R21 exercise x32 and i386. On compat-capable AArch64, R21 requires successful native and ARM32 controls and EPERM inside the filtered ARM32 process. On 64-bit-only AArch64, R21 requires the native filtered control and an unfiltered all-CPU proof using pinned static executables: native exec succeeds, ARM32 execve returns ENOEXEC before entry, and the kernel rejects PER_LINUX32 with EINVAL. This case covers pre-execution rejection only."
 
 [[clause]]
 id = "S01.3"

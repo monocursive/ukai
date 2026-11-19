@@ -1061,6 +1061,31 @@ fn r21_the_tool_baseline_denies_the_abi_the_observer_cannot_name() {
         assert_eq!(header[5], 1, "expected little-endian ELF");
         assert_eq!(u16::from_le_bytes([header[18], header[19]]), machine);
     }
+    // An exec format error is also possible for a broken fixture. Only the
+    // independent, unfiltered all-CPU control can establish the 64-bit-only case.
+    let kernel_rejects_arm32 = Command::new(&compat)
+        .args(["echo", "ukai-arm64-abi"])
+        .output()
+        .is_err_and(|error| error.raw_os_error() == Some(libc::ENOEXEC));
+    if kernel_rejects_arm32 {
+        let proof = Command::new("python3")
+            .arg("-I")
+            .arg(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/fixtures/arm64_exec_control.py"
+            ))
+            .output()
+            .unwrap();
+        assert!(
+            proof.status.success(),
+            "{}",
+            String::from_utf8_lossy(&proof.stderr)
+        );
+        eprintln!(
+            "S01.2 kernel rejection: {}",
+            String::from_utf8_lossy(&proof.stdout)
+        );
+    }
     let work = tempfile::tempdir().unwrap();
     let policy = work.path().join("baseline.bpf");
     std::fs::write(&policy, seccomp::tool_baseline().unwrap().to_bytes()).unwrap();
@@ -1069,6 +1094,9 @@ fn r21_the_tool_baseline_denies_the_abi_the_observer_cannot_name() {
         (&compat, false, false),
         (&compat, true, true),
     ] {
+        if program == &compat && kernel_rejects_arm32 {
+            continue;
+        }
         let trace = work.path().join("heap.trace");
         let mut cmd = Command::new("timeout");
         cmd.env("LC_ALL", "C")
