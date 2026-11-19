@@ -65,6 +65,9 @@ impl<'a> Layout<'a> {
         // serial scanner. A batch represents exactly one named write effect.
         let mut sample = Scan::default();
         sample.add(&frame);
+        if sample.unnamed != 0 {
+            return None;
+        }
         let change = *sample.paths.text.get(*value)?;
         let loc: Locations = serde_json::from_str(line).ok()?;
         // The layout and summary decoders must have selected the same path.
@@ -295,6 +298,17 @@ mod tests {
         let content = damaged.windows(8).position(|s| s == b"bad-path").unwrap();
         damaged[content] = 255;
         assert!(Batch::parse(&damaged, "here").is_none());
+        // An exchange with a missing second name records both the named
+        // change and an unnamed write. The ordinary decoder preserves both.
+        let missing_peer = write(1, "known").replace(
+            "\"action\":\"opened_for_mutation\"",
+            "\"action\":\"exchanged\",\"observation\":\"es_notify\"",
+        );
+        let mut expected = Scan::default();
+        super::super::scan_into(&mut expected, missing_peer.as_bytes(), "here");
+        assert_eq!(expected.unnamed, 1);
+        assert_eq!(expected.paths.len(), 1);
+        assert!(Batch::parse(missing_peer.as_bytes(), "here").is_none());
     }
 
     #[test]
