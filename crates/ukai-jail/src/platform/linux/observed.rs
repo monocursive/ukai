@@ -471,15 +471,15 @@ pub fn record(audit: &mut AuditWriter, target: &Target<'_>, event: &TracerEvent)
 /// lifecycle facts and nonblocking drains are delivered immediately. This
 /// avoids a consumer wakeup for every syscall in a busy trace while keeping
 /// the same bounded queue, event accounting and idle wait behavior.
-/// Every event taken
-/// must be handed to [`record`]; one read and dropped would be evidence
-/// silently lost.
+/// Every event taken must be handed to [`record`]. The second return value
+/// is true only after all senders have disconnected and the queue is empty.
 #[must_use]
-pub fn drain(tracer: &Tracer, block: Duration) -> Vec<TracerEvent> {
+pub fn drain(source: &super::tracer::Events, block: Duration) -> (Vec<TracerEvent>, bool) {
+    use std::sync::mpsc::TryRecvError;
     let mut events = Vec::new();
     let started = std::time::Instant::now();
     if !block.is_zero()
-        && let Ok(event) = tracer.events().recv_timeout(block)
+        && let Ok(event) = source.recv_timeout(block)
     {
         if matches!(event, TracerEvent::Syscall { .. }) {
             let delay = block
@@ -492,12 +492,13 @@ pub fn drain(tracer: &Tracer, block: Duration) -> Vec<TracerEvent> {
         events.push(event);
     }
     for _ in 0..256 {
-        match tracer.events().try_recv() {
+        match source.try_recv() {
             Ok(event) => events.push(event),
-            Err(_) => break,
+            Err(TryRecvError::Empty) => break,
+            Err(TryRecvError::Disconnected) => return (events, true),
         }
     }
-    events
+    (events, false)
 }
 
 /// Stops the observer within `budget` and returns its account.

@@ -1463,6 +1463,38 @@ impl fmt::Debug for Tracer {
 mod tests {
     use super::*;
 
+    #[test]
+    fn a_drained_observer_stream_distinguishes_disconnect_from_an_idle_sender() {
+        use crate::platform::linux::observed::drain;
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let bytes = Arc::new(AtomicUsize::new(0));
+        let events = Events::new(receiver, Arc::clone(&bytes));
+        let (batch, closed) = drain(&events, Duration::ZERO);
+        assert!(batch.is_empty() && !closed);
+        for pid in 1..=257 {
+            let event = TracerEvent::UntracedChildExit { pid, status: 0 };
+            bytes.fetch_add(event_bytes(&event), Ordering::Relaxed);
+            sender.send(event).unwrap();
+        }
+        drop(sender);
+        let (batch, closed) = drain(&events, Duration::ZERO);
+        assert_eq!(batch.len(), 256);
+        assert!(!closed);
+        let (batch, closed) = drain(&events, Duration::from_millis(10));
+        assert!(matches!(
+            batch.as_slice(),
+            [TracerEvent::UntracedChildExit {
+                pid: 257,
+                status: 0
+            }]
+        ));
+        assert!(closed);
+        assert_eq!(bytes.load(Ordering::Relaxed), 0);
+        let (batch, closed) = drain(&events, Duration::ZERO);
+        assert!(batch.is_empty() && closed);
+    }
+
     /// The descriptor a pathname is resolved through: an agent's
     /// `/proc/self/fd/<N>/<name>` writes (its runtime has no `openat`),
     /// the thread's own table, and a relative name under a true `dirfd`.
