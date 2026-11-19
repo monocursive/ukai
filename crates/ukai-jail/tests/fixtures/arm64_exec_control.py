@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 
 
@@ -81,4 +82,19 @@ def verify():
 
 
 if __name__ == '__main__':
-    verify()
+    if sys.argv[1:] == ['--classify']:
+        # A successful control selects the existing compat test. Every other
+        # error must fail unless the independent all-CPU refusal proof passes.
+        try:
+            native_compat = subprocess.run([str(ROOT / 'armhf/busybox'), 'echo', SENTINEL],
+                                           capture_output=True, timeout=5)
+        except OSError as exc:
+            require(exc.errno == errno.ENOEXEC, f'ARM32 probe failed with errno {exc.errno}')
+            verify()
+        else:
+            require(native_compat.returncode == 0 and native_compat.stdout == (SENTINEL + '\n').encode(),
+                    'ARM32 positive control failed')
+            print(json.dumps({'arm32_exec': 'succeeded'}))
+    else:
+        require(not sys.argv[1:], 'unknown control option')
+        verify()
