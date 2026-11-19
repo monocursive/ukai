@@ -753,7 +753,12 @@ fn j4_d2_none_receipt_matches_the_host_abi_control() {
         return;
     };
     #[cfg(target_arch = "aarch64")]
-    if arm64_exec_control::kernel_rejects_arm32() {
+    // A developer with cross-binutils can still exercise the original
+    // compat test without installing the release-only BusyBox controls.
+    if (harness::live_required()
+        || Path::new("/usr/local/lib/ukai-conformance/armhf/busybox").is_file())
+        && arm64_exec_control::kernel_rejects_arm32()
+    {
         check_rejected_arm32_exec(&work);
         return;
     }
