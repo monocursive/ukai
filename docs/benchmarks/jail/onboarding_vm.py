@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Reproduce K27 in a new disposable x86_64 QEMU VM, without host policy changes.
+"""Reproduce K27 in a new disposable Linux QEMU VM, without host policy changes.
 
-Supply an official Ubuntu amd64 QCOW2 image and its independently checked SHA256,
+Supply an official Ubuntu QCOW2 image for the selected target and its independently checked SHA256,
 and an optimized GNU/Linux binary built from a clean revision. Distribution
 packages are provisioned before the user-workflow timer starts. The guest must
 have no Rust. A CPU emulator is suitable for compatibility/onboarding evidence,
-not jail performance benchmarks. Linux can use --accelerator kvm; macOS ARM uses
-the default tcg. No production key or release publication is used. Since
+not jail performance benchmarks. Linux can use --accelerator kvm. On Apple
+Silicon, an ARM guest can use --accelerator hvf with ARM UEFI firmware.
+The runner signs only with an ephemeral key and keeps the package private. Since
 OpenCode's free tier refuses its own CLI (2026-10-18), --credential-file may
 name one private Anthropic API key file: it is copied into the disposable guest
 only, vaulted there, and every recorded file is then searched for its bytes;
@@ -225,6 +226,9 @@ def guest_arguments(args, trusted_key):
             '--installer', 'install.sh', '--public-key', trusted_key,
             '--revision', args.revision, '--out', 'onboarding-results',
             '--model', args.model, '--vendor-attempts', str(args.vendor_attempts)]
+    argv += ['--target', args.target]
+    if args.only is not None:
+        argv += ['--only', args.only]
     if args.inputs is not None:
         argv += ['--inputs', args.inputs]
     if args.credential_file is not None:
@@ -242,7 +246,15 @@ def main():
     parser.add_argument('--inputs', help='Expected Jail build-input SHA256 passed to the guest.')
     parser.add_argument('--release-version', default='0.1.0-rc.1')
     parser.add_argument('--out', type=pathlib.Path, required=True)
-    parser.add_argument('--accelerator', choices=['tcg', 'kvm'], default='tcg')
+    parser.add_argument('--target', choices=['x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu'],
+                        default='x86_64-unknown-linux-gnu')
+    parser.add_argument('--arm-firmware', type=pathlib.Path, help='EDK2 ARM64 UEFI code for QEMU virt.')
+    scope = parser.add_mutually_exclusive_group()
+    scope.add_argument('--only', choices=['install', 'onboarding', 'learning'],
+                       help='Run just this check in a fresh guest. The default runs both vendor checks.')
+    scope.add_argument('--install-only', dest='only', action='store_const', const='install',
+                       help=argparse.SUPPRESS)
+    parser.add_argument('--accelerator', choices=['tcg', 'kvm', 'hvf'], default='tcg')
     parser.add_argument('--cpus', type=int, default=2)
     parser.add_argument('--memory-mib', type=int, default=3072)
     parser.add_argument('--boot-timeout', type=int, default=900)
@@ -252,13 +264,19 @@ def main():
     parser.add_argument('--vendor-attempts', type=int, choices=[1, 2], default=2,
                         help='Maximum CLI invocations per vendor workload (not an API or billing cap).')
     args = parser.parse_args()
+    arm = args.target == 'aarch64-unknown-linux-gnu'
+    if arm != (args.arm_firmware is not None):
+        parser.error('--arm-firmware is required exactly when using the ARM64 target')
+    if args.only == 'install' and args.credential_file is not None:
+        parser.error('--install-only does not use provider credentials')
+    qemu_system = 'qemu-system-' + args.target.split('-')[0]
     os.umask(0o077)
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     metadata = {'schema': 'ouro.jail.onboarding-vm/1', 'status': 'blocked',
                 'image_url': args.image_url, 'expected_image_sha256': args.image_sha256,
                 'revision': args.revision, 'accelerator': args.accelerator,
-                'expected_inputs': args.inputs,
+                'expected_inputs': args.inputs, 'target': args.target, 'only': args.only,
                 'release_version': args.release_version,
                 'cpus': args.cpus, 'memory_mib': args.memory_mib,
                 'guest_disk_gib': 12, 'fresh_overlay': True,
@@ -268,7 +286,7 @@ def main():
                 'private_key_persisted': False, 'production_signing': False,
                 'agent_model': args.model,
                 'vendor_attempts': args.vendor_attempts,
-                'max_vendor_invocations': 2 * args.vendor_attempts,
+                'max_vendor_invocations': {None: 2, 'install': 0, 'learning': 1, 'onboarding': 1}[args.only] * args.vendor_attempts,
                 'credential': None if args.credential_file is None else {
                     'provider': 'anthropic', 'mode': 'vault',
                     'copied_into': 'the disposable guest only'}}
@@ -291,7 +309,7 @@ def main():
         if args.credential_file is not None:
             held = read_credential(args.credential_file)
             metadata['credential_source_metadata'] = held[1]
-        for tool in ['qemu-system-x86_64', 'qemu-img', 'ssh', 'scp', 'ssh-keygen', 'minisign']:
+        for tool in [qemu_system, 'qemu-img', 'ssh', 'scp', 'ssh-keygen', 'minisign']:
             if not shutil.which(tool):
                 raise RuntimeError(f'Missing VM prerequisite: {tool}; no container fallback is valid.')
         iso_tool = 'hdiutil' if os.uname().sysname == 'Darwin' else 'genisoimage'
@@ -304,7 +322,7 @@ def main():
         if digest != args.image_sha256:
             raise RuntimeError('Supplied VM image checksum does not match.')
         metadata['binary_sha256'] = hashlib.file_digest(args.binary.open('rb'), 'sha256').hexdigest()
-        metadata['qemu_version'] = execute(['qemu-system-x86_64', '--version'], capture_output=True,
+        metadata['qemu_version'] = execute([qemu_system, '--version'], capture_output=True,
                                           text=True).stdout.strip()
         temporary = pathlib.Path(tempfile.mkdtemp(prefix='ouro-k27-vm-'))
         root = temporary
@@ -315,7 +333,8 @@ def main():
         execute(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', key])
         public_key = key.with_suffix('.pub').read_text().strip()
         seed.joinpath('meta-data').write_text('instance-id: ouro-k27-disposable\nlocal-hostname: ouro-k27-fresh\n')
-        seed.joinpath('network-config').write_text('version: 2\nethernets:\n  ens3:\n    dhcp4: true\n')
+        seed.joinpath('network-config').write_text('version: 2\nethernets:\n  guest:\n    match:\n'
+            '      macaddress: "52:54:00:ab:27:01"\n    dhcp4: true\n')
         seed.joinpath('user-data').write_text(
             '#cloud-config\nusers:\n  - name: ubuntu\n    groups: [sudo]\n'
             '    sudo: ALL=(ALL) NOPASSWD:ALL\n    shell: /bin/bash\n'
@@ -345,7 +364,7 @@ def main():
             script_dir = pathlib.Path(__file__).resolve().parent
             repo = script_dir.parents[2]
             execute(['python3', repo / 'crates/ukai-jail/dist/package.py', '--binary',
-                     args.binary.resolve(), '--target', 'x86_64-unknown-linux-gnu', '--out',
+                     args.binary.resolve(), '--target', args.target, '--out',
                      artifacts, '--version', args.release_version, '--signing-key', signing_key], stdout=setup, stderr=subprocess.STDOUT)
         (out / 'artifacts').mkdir()
         for filename in ['SHA256SUMS', 'SHA256SUMS.minisig']:
@@ -353,13 +372,20 @@ def main():
         with socket.socket() as reserved:
             reserved.bind(('127.0.0.1', 0))
             port = reserved.getsockname()[1]
-        qemu = ['qemu-system-x86_64', '-accel', args.accelerator, '-cpu', 'max',
-                '-smp', str(args.cpus), '-m', str(args.memory_mib),
-                '-drive', f'file={disk},if=virtio,format=qcow2',
-                '-drive', f'file={iso},format=raw,media=cdrom,readonly=on',
-                '-netdev', f'user,id=net0,hostfwd=tcp:127.0.0.1:{port}-:22',
-                '-device', 'virtio-net-pci,netdev=net0', '-display', 'none',
-                '-serial', f'file:{out / "console.log"}', '-monitor', 'none']
+        qemu = [qemu_system, '-accel', args.accelerator, '-cpu',
+                'max' if args.accelerator == 'tcg' else 'host',
+                '-smp', str(args.cpus), '-m', str(args.memory_mib)]
+        if arm:
+            qemu += ['-machine', 'virt', '-bios', str(args.arm_firmware.resolve()),
+                     '-device', 'virtio-scsi-pci,id=scsi0',
+                     '-drive', f'if=none,id=seed,format=raw,readonly=on,file={iso}',
+                     '-device', 'scsi-cd,drive=seed']
+        else:
+            qemu += ['-drive', f'file={iso},format=raw,media=cdrom,readonly=on']
+        qemu += ['-drive', f'file={disk},if=virtio,format=qcow2',
+                 '-netdev', f'user,id=net0,hostfwd=tcp:127.0.0.1:{port}-:22',
+                 '-device', 'virtio-net-pci,netdev=net0,mac=52:54:00:ab:27:01', '-display', 'none',
+                 '-serial', f'file:{out / "console.log"}', '-monitor', 'none']
         metadata['qemu_argv'] = qemu
         save()
         with (out / 'qemu.stderr').open('wb') as errors:
@@ -404,7 +430,7 @@ def main():
         if metadata['retention_errors']:
             raise RuntimeError('guest evidence retrieval was incomplete')
         result = json.loads((out / 'guest/result.json').read_text())
-        if type(result) is not dict or result.get('status') not in ('passed', 'blocked'):
+        if type(result) is not dict or result.get('status') not in (('install-only-passed' if args.only == 'install' else 'passed'), 'blocked'):
             raise RuntimeError('guest result has no recognized workflow status')
         metadata['status'] = result['status']
         if result.get('blocker'):
@@ -420,7 +446,7 @@ def main():
     finally:
         finalize(metadata, out, vm, temporary, args.credential_file, held, save)
     print(json.dumps({key: metadata[key] for key in ['status', 'blocker'] if key in metadata}))
-    return 0 if metadata['status'] == 'passed' else 1
+    return 0 if metadata['status'] in ('passed', 'install-only-passed') else 1
 
 
 if __name__ == '__main__':

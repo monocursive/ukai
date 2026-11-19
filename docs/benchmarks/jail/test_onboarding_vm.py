@@ -154,7 +154,11 @@ class OnboardingLifecycleTests(unittest.TestCase):
     def test_attempt_limit_is_forwarded_without_key_value(self):
         args = argparse.Namespace(revision='a' * 40, inputs='b' * 64, model='anthropic/test',
                                   vendor_attempts=1, credential_file=self.key)
+        args.target = 'aarch64-unknown-linux-gnu'
+        args.only = 'learning'
         argv = vm.guest_arguments(args, 'public')
+        self.assertEqual(argv[argv.index('--target') + 1], args.target)
+        self.assertEqual(argv[argv.index('--only') + 1], 'learning')
         self.assertEqual(argv[argv.index('--vendor-attempts') + 1], '1')
         self.assertEqual(argv[argv.index('--credential-file') + 1], 'provider.key')
         self.assertNotIn(self.held[0].decode(), ' '.join(argv))

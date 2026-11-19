@@ -131,7 +131,7 @@ impl<'a> Iterator for Frames<'a> {
     type Item = &'a [u8];
 
     fn next(&mut self) -> Option<&'a [u8]> {
-        let end = self.rest.iter().position(|byte| *byte == b'\n')?;
+        let end = memchr::memchr(b'\n', self.rest)?;
         let (frame, rest) = self.rest.split_at(end + 1);
         self.rest = rest;
         Some(&frame[..end])

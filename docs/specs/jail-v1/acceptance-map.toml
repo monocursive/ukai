@@ -877,7 +877,7 @@ tests = [
   "ukai-jail/tests/conformance_j2.rs::s04_io_uring_and_compat_abis_cannot_bypass_the_filter",
   "ukai-jail/tests/observer_regression_linux.rs::r21_the_tool_baseline_denies_the_abi_the_observer_cannot_name",
 ]
-note = "The CLI test denies io_uring through its x32 number and through the i386 int 0x80 entry; r21 denies an i386 open under the tool baseline. The filter's architecture branch is number-independent."
+note = "On x86_64 the CLI and R21 exercise x32 and i386. On AArch64, R21 runs native and ARM32 static BusyBox controls and observes EPERM on ordinary heap initialization in the ARM32 process under the production tool baseline."
 
 [[clause]]
 id = "S01.3"

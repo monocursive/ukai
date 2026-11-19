@@ -10,6 +10,7 @@
 //! file is Linux-only: the macOS lane runs in conformance mode without them.
 #![cfg(target_os = "linux")]
 
+use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
@@ -19,6 +20,8 @@ use ukai_fixture::harness;
 #[serde(deny_unknown_fields)]
 struct PreviewRecord {
     directory: PathBuf,
+    #[serde(default)]
+    aarch64: BTreeMap<String, PathBuf>,
 }
 
 fn recorded(check: &str) {
@@ -32,15 +35,22 @@ fn recorded(check: &str) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     // Select a fresh retained record without replacing historical evidence.
     // The verifier still requires this compiled binary's exact input digest.
-    let record: PreviewRecord = serde_json::from_slice(
+    let mut record: PreviewRecord = serde_json::from_slice(
         &std::fs::read(root.join("docs/benchmarks/jail/release-preview-current.json"))
             .expect("the current preview evidence index"),
     )
     .expect("a current preview record");
+    let target = env!("UKAI_BUILD_TARGET");
+    let directory = match target {
+        "x86_64-unknown-linux-gnu" => record.directory,
+        "aarch64-unknown-linux-gnu" => record.aarch64.remove(check).unwrap_or_else(|| {
+            panic!("ARM64 qualification requires a retained ARM64 {check} record")
+        }),
+        _ => panic!("no Linux release evidence configured for {target}"),
+    };
     assert!(
-        record.directory.starts_with("results")
-            && record
-                .directory
+        directory.starts_with("results")
+            && directory
                 .components()
                 .all(|component| matches!(component, Component::Normal(_))),
         "preview evidence must name a retained directory under results"
@@ -48,8 +58,15 @@ fn recorded(check: &str) {
     let result = Command::new("python3")
         .arg(root.join("docs/benchmarks/jail/verify_preview_evidence.py"))
         .arg("--directory")
-        .arg(root.join("docs/benchmarks/jail").join(record.directory))
-        .args(["--inputs", env!("UKAI_BUILD_INPUTS"), "--check", check])
+        .arg(root.join("docs/benchmarks/jail").join(directory))
+        .args([
+            "--inputs",
+            env!("UKAI_BUILD_INPUTS"),
+            "--check",
+            check,
+            "--target",
+            target,
+        ])
         .output()
         .unwrap();
     assert!(

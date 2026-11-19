@@ -386,9 +386,9 @@ impl<'de: 'a, 'a> Deserialize<'de> for PathValue<'a> {
     }
 }
 
-impl FramePath<'_> {
+impl<'a> FramePath<'a> {
     /// The name of a named workspace path.
-    fn workspace(&self) -> Option<&PathValue<'_>> {
+    fn workspace(&self) -> Option<&PathValue<'a>> {
         if &*self.kind != "workspace_relative" {
             return None;
         }
@@ -430,23 +430,25 @@ const NATIVE_CHANGES: u8 = MODIFIED | CREATED | METADATA;
 /// Distinct named workspace paths, each with the ways it was seen. A name is
 /// allocated once, the first time it is seen.
 #[derive(Default)]
-struct Paths {
+#[cfg_attr(test, derive(Debug, PartialEq))]
+struct Paths<'a> {
     /// By UTF-8 name.
-    text: std::collections::HashMap<String, u8>,
+    text: std::collections::HashMap<Cow<'a, str>, u8>,
     /// By the base64 of a name that is not UTF-8.
     encoded: std::collections::HashMap<String, u8>,
 }
 
-impl Paths {
-    fn mark(&mut self, name: &PathValue<'_>, how: u8) {
-        let (map, key) = match name {
-            PathValue::Text(text) => (&mut self.text, &**text),
-            PathValue::Encoded(data) => (&mut self.encoded, data.as_str()),
-        };
-        if let Some(seen) = map.get_mut(key) {
-            *seen |= how;
-        } else {
-            map.insert(key.to_owned(), how);
+impl<'a> Paths<'a> {
+    fn mark(&mut self, name: &PathValue<'a>, how: u8) {
+        match name {
+            PathValue::Text(text) => *self.text.entry(text.0.clone()).or_insert(0) |= how,
+            PathValue::Encoded(data) => {
+                if let Some(value) = self.encoded.get_mut(data.as_str()) {
+                    *value |= how;
+                } else {
+                    self.encoded.insert(data.clone(), how);
+                }
+            }
         }
     }
 
@@ -454,7 +456,12 @@ impl Paths {
     fn count(&self, how: u8) -> u64 {
         self.text
             .iter()
-            .chain(self.encoded.iter())
+            .map(|(key, value)| (key.as_ref(), value))
+            .chain(
+                self.encoded
+                    .iter()
+                    .map(|(key, value)| (key.as_str(), value)),
+            )
             // The empty relative name denotes the workspace directory itself.
             // Describe native root changes separately from entries inside it.
             .filter(|(name, seen)| {
@@ -478,10 +485,19 @@ impl Paths {
     /// The first `limit` paths in a stable order (UTF-8 names sorted, then
     /// the others), each in the event schema's `{kind, value}` form.
     fn listed(&self, limit: usize) -> Vec<Value> {
-        let mut text: Vec<&String> = self.text.keys().collect();
-        text.sort();
-        let mut encoded: Vec<&String> = self.encoded.keys().collect();
-        encoded.sort();
+        let mut text: Vec<&str> = self.text.keys().map(AsRef::as_ref).collect();
+        if text.len() > limit {
+            text.select_nth_unstable(limit);
+            text.truncate(limit);
+        }
+        text.sort_unstable();
+        let mut encoded: Vec<&str> = self.encoded.keys().map(AsRef::as_ref).collect();
+        let remaining = limit - text.len();
+        if encoded.len() > remaining {
+            encoded.select_nth_unstable(remaining);
+            encoded.truncate(remaining);
+        }
+        encoded.sort_unstable();
         text.into_iter()
             .map(|name| json!({"kind": "workspace_relative", "value": name}))
             .chain(encoded.into_iter().map(|data| {
@@ -506,24 +522,24 @@ impl Paths {
 fn written<'f, 'a>(
     operation: &str,
     fields: &'f FrameFields<'a>,
-) -> Option<Vec<Option<&'f FramePath<'a>>>> {
+) -> Option<impl Iterator<Item = Option<&'f FramePath<'a>>> + Clone> {
     let (path, path2) = (fields.path.as_ref(), fields.path2.as_ref());
     if fields.observation.as_deref() == Some("es_notify") {
         match fields.action.as_deref() {
-            Some("cloned" | "copied") => return Some(vec![path2]),
-            Some("exchanged") => return Some(vec![path, path2]),
+            Some("cloned" | "copied") => return Some(std::iter::once(path2).chain(None)),
+            Some("exchanged") => return Some(std::iter::once(path).chain(Some(path2))),
             _ => {}
         }
     }
     match (operation, fields.syscall.as_deref()) {
-        ("fs.rename", _) => Some(vec![path, path2]),
+        ("fs.rename", _) => Some(std::iter::once(path).chain(Some(path2))),
         ("fs.create", _) if fields.action.as_deref() == Some("hard_link_created") => {
-            Some(vec![path2])
+            Some(std::iter::once(path2).chain(None))
         }
-        ("fs.create", Some("link" | "linkat")) => Some(vec![path2]),
-        ("fs.create", Some("symlink" | "symlinkat")) => Some(vec![path]),
+        ("fs.create", Some("link" | "linkat")) => Some(std::iter::once(path2).chain(None)),
+        ("fs.create", Some("symlink" | "symlinkat")) => Some(std::iter::once(path).chain(None)),
         ("fs.create", _) if path2.is_some() => None,
-        _ => Some(vec![path]),
+        _ => Some(std::iter::once(path).chain(None)),
     }
 }
 
@@ -544,6 +560,7 @@ fn class_of(source: &str, operation: &str) -> Option<&'static str> {
 
 /// Network results for one destination.
 #[derive(Default)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 struct Allowed {
     results: u64,
     connect_failed: u64,
@@ -551,12 +568,13 @@ struct Allowed {
 
 /// Everything one pass over the journal's frames counted.
 #[derive(Default)]
-struct Scan {
+#[cfg_attr(test, derive(Debug, PartialEq))]
+struct Scan<'a> {
     /// Frames per class (the K47 totals).
     class_counts: BTreeMap<&'static str, u64>,
     /// Distinct workspace paths opened for writing, renamed (either side)
     /// and removed.
-    paths: Paths,
+    paths: Paths<'a>,
     /// Successful write-class results with a written path that has no name.
     unnamed: u64,
     /// `fs.deny` results whose attempted operation is a file write.
@@ -597,8 +615,9 @@ struct Scan {
     broken: bool,
 }
 
-fn scan(bytes: &[u8], attempt_id: &str) -> Scan {
-    let mut scan = Scan::default();
+mod write_layout;
+
+fn scan_into<'a>(scan: &mut Scan<'a>, bytes: &'a [u8], attempt_id: &str) {
     let mut frames = crate::journal::frames(bytes);
     for line in frames.by_ref() {
         // A frame is one JSON object (jail-v1 §13.3). The derived parser
@@ -610,12 +629,12 @@ fn scan(bytes: &[u8], attempt_id: &str) -> Scan {
             .flatten();
         let Some(frame) = parsed else {
             scan.broken = true;
-            return scan;
+            return;
         };
         // A frame of another attempt is not this attempt's evidence.
         if frame.attempt_id.as_deref() != Some(attempt_id) {
             scan.broken = true;
-            return scan;
+            return;
         }
         // jail-v1 §13.1: one writer numbers each source from 1, strictly
         // increasing. A number that does not increase is a repeated or
@@ -623,15 +642,14 @@ fn scan(bytes: &[u8], attempt_id: &str) -> Scan {
         // it on is counted, so a repeat can never inflate a lower bound.
         if !scan.sequenced(&frame) {
             scan.broken = true;
-            return scan;
+            return;
         }
         scan.add(&frame);
     }
     scan.broken = frames.torn();
-    scan
 }
 
-impl Scan {
+impl<'a> Scan<'a> {
     /// Checks `frame`'s sequence number against its source's last one and
     /// records it: false when it does not increase (or is missing). A skipped
     /// number before any recorded transport loss marks the journal
@@ -665,11 +683,17 @@ impl Scan {
         true
     }
 
-    fn add(&mut self, frame: &Frame<'_>) {
+    fn add(&mut self, frame: &Frame<'a>) {
         let source = frame.source.as_deref().unwrap_or("");
         let operation = frame.operation.as_deref().unwrap_or("");
-        let empty = FrameFields::default();
-        let fields = frame.fields.as_ref().unwrap_or(&empty);
+        let empty;
+        let fields = match &frame.fields {
+            Some(fields) => fields,
+            None => {
+                empty = FrameFields::default();
+                &empty
+            }
+        };
         self.last_receipt_note = None;
         if let Some(class) = class_of(source, operation) {
             *self.class_counts.entry(class).or_insert(0) += 1;
@@ -701,7 +725,7 @@ impl Scan {
         }
     }
 
-    fn add_write(&mut self, operation: &str, fields: &FrameFields<'_>) {
+    fn add_write(&mut self, operation: &str, fields: &FrameFields<'a>) {
         if operation == "fs.write"
             && !matches!(
                 fields.action.as_deref(),
@@ -721,7 +745,7 @@ impl Scan {
         // A path the result did not record is no more named than one it
         // recorded without a name.
         if written
-            .iter()
+            .clone()
             .any(|path| path.is_none_or(FramePath::unnamed))
         {
             self.unnamed += 1;
@@ -744,7 +768,7 @@ impl Scan {
                 _ => OPENED,
             },
         };
-        for path in written.into_iter().flatten() {
+        for path in written.flatten() {
             if let Some(name) = path.workspace() {
                 self.paths.mark(name, how);
             }
@@ -953,7 +977,7 @@ pub fn summary(receipt: &Value, journal: Journal<'_>) -> Summary {
     let attempt_id = text(receipt, "/attempt_id").unwrap_or_default();
     let (scan, state) = match journal {
         Journal::Bytes(bytes) => {
-            let scan = scan(bytes, attempt_id);
+            let scan = write_layout::scan(bytes, attempt_id);
             let complete = !scan.broken
                 && !scan.unrecorded_hole
                 && match (&scan.last_receipt_note, &receipt_digest) {
@@ -1162,7 +1186,7 @@ fn epoch_ms(timestamp: &str) -> Option<i128> {
 /// The receipt and the journal scan, with what each class may claim.
 struct View<'a> {
     receipt: &'a Value,
-    scan: Option<&'a Scan>,
+    scan: Option<&'a Scan<'a>>,
     state: JournalState,
     another_receipt: bool,
     classes: &'a [Class],

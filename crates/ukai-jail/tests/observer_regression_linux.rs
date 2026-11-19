@@ -1030,6 +1030,94 @@ fn r21_the_tool_baseline_denies_the_abi_the_observer_cannot_name() {
     );
 }
 
+/// Observe ordinary heap initialization in the distribution's static BusyBox.
+/// The only workload is echo. Both architectures run with identical arguments;
+/// the evidence is the kernel's decision after BusyBox has successfully exec'd.
+#[cfg(target_arch = "aarch64")]
+#[test]
+fn r21_the_tool_baseline_denies_the_abi_the_observer_cannot_name() {
+    use std::path::Path;
+    use std::process::Command;
+    use ukai_jail::platform::linux::seccomp;
+
+    let control = Path::new("/usr/local/lib/ukai-conformance");
+    let native = control.join("arm64/busybox");
+    let compat = control.join("armhf/busybox");
+    if !native.is_file() || !compat.is_file() {
+        ukai_fixture::harness::skip_or_fail(
+            "S01.2 requires the arm64 and armhf static BusyBox controls",
+        );
+        return;
+    }
+    for (path, class, machine) in [(&native, 2, 183), (&compat, 1, 40)] {
+        use std::io::Read as _;
+        let mut header = [0u8; 20];
+        std::fs::File::open(path)
+            .unwrap()
+            .read_exact(&mut header)
+            .unwrap();
+        assert_eq!(&header[..4], b"\x7fELF");
+        assert_eq!(header[4], class, "wrong ELF class for {path:?}");
+        assert_eq!(header[5], 1, "expected little-endian ELF");
+        assert_eq!(u16::from_le_bytes([header[18], header[19]]), machine);
+    }
+    let work = tempfile::tempdir().unwrap();
+    let policy = work.path().join("baseline.bpf");
+    std::fs::write(&policy, seccomp::tool_baseline().unwrap().to_bytes()).unwrap();
+    for (program, filtered, expect_denial) in [
+        (&native, true, false),
+        (&compat, false, false),
+        (&compat, true, true),
+    ] {
+        let trace = work.path().join("heap.trace");
+        let mut cmd = Command::new("timeout");
+        cmd.env("LC_ALL", "C")
+            .args([
+                "-k",
+                "1",
+                "5",
+                "strace",
+                "--kill-on-exit",
+                "-qq",
+                "-e",
+                "trace=execve,brk",
+                "-o",
+            ])
+            .arg(&trace)
+            .args(["prlimit", "--core=0", "--", "setpriv", "--no-new-privs"]);
+        if filtered {
+            cmd.arg("--seccomp-filter").arg(&policy);
+        }
+        let output = cmd
+            .arg("--")
+            .arg(program)
+            .args(["echo", "ukai-arm64-abi"])
+            .output()
+            .unwrap();
+        let trace = std::fs::read_to_string(trace).unwrap();
+        let prefix = format!("execve(\"{}\",", program.display());
+        let mut calls = trace.lines();
+        assert!(
+            calls.any(|line| line.starts_with(&prefix) && line.ends_with("= 0")),
+            "BusyBox did not start: {trace}"
+        );
+        let heap: Vec<_> = calls.filter(|line| line.starts_with("brk(")).collect();
+        assert!(!heap.is_empty(), "no heap initialization observed: {trace}");
+        if expect_denial {
+            assert!(
+                heap.iter().all(|line| line.contains("= -1 EPERM ")),
+                "{heap:?}"
+            );
+            assert!(!output.status.success());
+            assert!(output.stdout.is_empty());
+        } else {
+            assert!(heap.iter().all(|line| !line.contains("= -1 ")), "{heap:?}");
+            assert!(output.status.success(), "{:?}", output.stderr);
+            assert_eq!(output.stdout, b"ukai-arm64-abi\n");
+        }
+    }
+}
+
 /// R22: a read-only open costs one stop and produces no event.
 #[test]
 fn r22_a_read_only_open_costs_one_stop_and_no_event() {

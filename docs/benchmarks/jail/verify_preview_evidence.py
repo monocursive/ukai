@@ -42,7 +42,10 @@ def check_receipt(directory, result, name):
     return raw, receipt
 
 
-def verify(directory, inputs, check):
+LINUX_TARGETS = ('x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu')
+
+
+def verify(directory, inputs, check, target=LINUX_TARGETS[0]):
     result = json.loads((directory / 'guest/result.json').read_bytes())
     vm = json.loads((directory / 'vm.json').read_bytes())
     build = result['build']['build']
@@ -50,8 +53,14 @@ def verify(directory, inputs, check):
     require(build['dirty'] is False and build['opt_level'] == '3' and not build['debug_assertions'], 'not a clean optimized build')
     require(build['revision'] == result['expected_revision'] == vm['revision'], 'revision disagreement')
     require(result['binary_sha256'] == vm['binary_sha256'], 'guest installed a different binary')
-    require(build['target'] == 'x86_64-unknown-linux-gnu', 'wrong VM target')
+    require(target in LINUX_TARGETS and build['target'] == target, 'wrong VM target')
+    # Records predating target selection all came from the x86-only runner.
+    require(vm.get('target', LINUX_TARGETS[0]) == target
+            and result.get('guest_machine', 'x86_64') == target.split('-')[0],
+            'VM and guest architecture evidence disagrees with the requested target')
     require(result['vendor_version'] == '1.18.32', 'unexpected vendor version')
+    require(vm.get('only') in (None, check) and result.get('only') in (None, check),
+            'recorded workflow does not cover this check')
     require(vm['status'] == result['status'] == 'passed' and vm['guest_exit'] == 0, 'VM did not pass')
     require(vm['fresh_overlay'] is True and not vm['host_policy_changes'], 'not a clean isolated VM')
     require(vm['vm_destroyed'] is True, 'VM teardown incomplete')
@@ -118,9 +127,10 @@ def main():
     parser.add_argument('--directory', type=Path, required=True)
     parser.add_argument('--inputs', required=True)
     parser.add_argument('--check', choices=['onboarding', 'learning'], required=True)
+    parser.add_argument('--target', choices=LINUX_TARGETS, default=LINUX_TARGETS[0])
     args = parser.parse_args()
     try:
-        verify(args.directory, args.inputs, args.check)
+        verify(args.directory, args.inputs, args.check, args.target)
     except (ValueError, KeyError, OSError) as error:
         parser.exit(1, f'preview evidence: {error}\n')
     print('PASS recorded Linux preview evidence:', args.check)

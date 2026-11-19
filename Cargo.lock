@@ -1400,6 +1400,7 @@ dependencies = [
  "clap",
  "jsonschema",
  "libc",
+ "memchr",
  "rcgen",
  "rustls",
  "serde",
