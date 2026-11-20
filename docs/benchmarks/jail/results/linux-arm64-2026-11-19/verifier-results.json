@@ -1,0 +1,38 @@
+[
+  {
+    "check": "onboarding",
+    "record": "matching",
+    "exit": 0,
+    "message": "PASS recorded Linux preview evidence: onboarding"
+  },
+  {
+    "check": "onboarding",
+    "record": "x86 record",
+    "exit": 1,
+    "message": "preview evidence: wrong VM target"
+  },
+  {
+    "check": "onboarding",
+    "record": "other workflow",
+    "exit": 1,
+    "message": "preview evidence: recorded workflow does not cover this check"
+  },
+  {
+    "check": "learning",
+    "record": "matching",
+    "exit": 0,
+    "message": "PASS recorded Linux preview evidence: learning"
+  },
+  {
+    "check": "learning",
+    "record": "x86 record",
+    "exit": 1,
+    "message": "preview evidence: wrong VM target"
+  },
+  {
+    "check": "learning",
+    "record": "other workflow",
+    "exit": 1,
+    "message": "preview evidence: recorded workflow does not cover this check"
+  }
+]

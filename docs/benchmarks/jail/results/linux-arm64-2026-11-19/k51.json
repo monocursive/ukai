@@ -1,0 +1,23 @@
+{
+  "gate": "K51",
+  "journal_bytes": 7145825,
+  "frames": 13108,
+  "required_ms_strictly_under": 50,
+  "pi_kvm_suite_ms": [
+    130.593328
+  ],
+  "pi_kvm_isolated_ms": [
+    132.44677,
+    130.50451,
+    128.774267
+  ],
+  "orbstack_isolated_ms": [
+    22.740703,
+    15.474011,
+    13.663672
+  ],
+  "raw_log_sha256": {
+    "pi-kvm-k51.log": "44847eec86e69ec7ed2d408790f6867e84e6ac24aa61d04c07db37adf7b59419",
+    "orbstack-k51.log": "c9e3aad14bf126e1909424243d1486a45ac19cbc6167fe661a33312b6cd36d51"
+  }
+}

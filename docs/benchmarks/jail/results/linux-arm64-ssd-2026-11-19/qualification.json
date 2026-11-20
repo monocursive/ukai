@@ -1,0 +1,134 @@
+{
+  "revision": "0010dffb3f3a41497ef93527674615deb0d290bf",
+  "runtime_inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+  "target": "aarch64-unknown-linux-gnu",
+  "doctor_ready": true,
+  "driver_checks": {
+    "checks": {
+      "doctor_manifest": true,
+      "i01_absent": true,
+      "contract_validation": true,
+      "i02_scan": true,
+      "i01_scrubbed_path": true,
+      "plain_session_smoke": true
+    },
+    "doctor_manifest_mismatches": {}
+  },
+  "test_execution": "Selected workspace and live tests, plus the exact ARM foreign-ABI test. Live sandbox escape reproductions and other unexecuted cases have no results on this host.",
+  "test_summaries": 74,
+  "libtest": {
+    "passed": 2617,
+    "failed": 3,
+    "ignored": 9
+  },
+  "failed_tests": [
+    "k11_recorded_real_opencode_learning_proposes_only_evidence_supported_grants",
+    "k27_clean_vm_install_true_and_real_opencode_finish_within_ten_minutes",
+    "r21_the_tool_baseline_denies_the_abi_the_observer_cannot_name"
+  ],
+  "unchanged_executables": [
+    "target/release/ukai-jail: OK",
+    "target/release/ukai-fixture: OK",
+    "target/release/ukai-ledger: OK",
+    "target/release/xtask: OK"
+  ],
+  "release_map_scope": "linux-x86_64-stable",
+  "release_map_counts": {
+    "FAIL": 50,
+    "credential": 1,
+    "elsewhere": 13,
+    "pass": 23,
+    "pass+limits": 1,
+    "pass+unsupported": 1,
+    "unsupported": 21
+  },
+  "release_map_problems": [
+    "`ukai-fixture/doc::crates/ukai-fixture/src/harness/mod.rs - harness::skip_or_fail` is pinned as ignored but the linux log is absent from the log: update the pin",
+    "`ukai-jail/tests/conformance_j2.rs::startup_supervisor_helper` is pinned as ignored but the linux log is absent from the log: update the pin",
+    "`ukai-jail/tests/conformance_j3_credentials.rs::c01_inner_bind_alias_of_writable_source_refuses` is pinned as ignored but the linux log is absent from the log: update the pin",
+    "`ukai-jail/tests/conformance_j3_credentials.rs::foreign_inner_owner_and_mount_checks` is pinned as ignored but the linux log is absent from the log: update the pin",
+    "`ukai-jail/tests/conformance_j3_credentials.rs::m1_inner_bind_ro_digest_on_a_read_only_bind_of_a_writable_filesystem` is pinned as ignored but the linux log is absent from the log: update the pin",
+    "`ukai-jail/tests/j4_closed_set_linux.rs::bless_the_published_closed_set_table` is pinned as ignored but the linux log is absent from the log: update the pin",
+    "`ukai-jail/tests/j5_process_linux.rs::j5_x03_owner_helper` is pinned as ignored but the linux log is absent from the log: update the pin",
+    "`ukai-jail/tests/observer_regression_linux.rs::exitkill_child_supervisor` is pinned as ignored but the linux log is absent from the log: update the pin",
+    "`ukai-jail/tests/security_alias_linux.rs::private_mount_alias_fixture` is pinned as ignored but the linux log is absent from the log: update the pin",
+    "the linux log: `xtask/tests/observer_regression_linux.rs` is not a file of that package in this tree: cargo's print order attributed the binary to a crate it is not in, so none of its results can be trusted"
+  ],
+  "clauses": {
+    "S01.2": {
+      "status": "FAIL",
+      "reasons": [
+        "`ukai-jail/tests/conformance_j2.rs::s04_io_uring_and_compat_abis_cannot_bypass_the_filter` is absent from the linux log",
+        "`ukai-jail/tests/observer_regression_linux.rs::r21_the_tool_baseline_denies_the_abi_the_observer_cannot_name` is absent from the linux log"
+      ]
+    },
+    "I01.3": {
+      "status": "FAIL",
+      "reasons": [
+        "check `suite_clean` failed"
+      ]
+    },
+    "K11.1": {
+      "status": "FAIL",
+      "reasons": [
+        "`ukai-jail/tests/portable_release_evidence.rs::k11_recorded_real_opencode_learning_proposes_only_evidence_supported_grants` FAILED"
+      ]
+    },
+    "K17.1": {
+      "status": "pass",
+      "reasons": []
+    },
+    "K17.2": {
+      "status": "limit",
+      "reasons": []
+    },
+    "K27.1": {
+      "status": "pass",
+      "reasons": []
+    },
+    "K27.2": {
+      "status": "FAIL",
+      "reasons": [
+        "`ukai-jail/tests/portable_release_evidence.rs::k27_clean_vm_install_true_and_real_opencode_finish_within_ten_minutes` FAILED"
+      ]
+    }
+  },
+  "arm_controls": {
+    "native_arm64": "exited 0; printed arm-control",
+    "unfiltered_arm32": "exec format error (errno 8)"
+  },
+  "k51_isolated_ms": [
+    6.845272,
+    5.101225,
+    6.385062
+  ],
+  "clean_install": {
+    "status": "install-only-passed",
+    "binary_sha256": "904d3eea1c0c13b0ecd4bb64a0a22eddb75061a15a4adcf06dfad4be759d12f4",
+    "signing_identity": "ephemeral test key",
+    "publication": "deferred",
+    "distribution_checks": "passed",
+    "rust_before": {
+      "cargo": null,
+      "rustc": null,
+      "rustup": null
+    }
+  },
+  "paid_invocations": 0,
+  "raw_sha256": {
+    "test.log": "101c5c1b2fa32dba02b5542d42304c431898c3671c59cda0935e6ed51dc08cce",
+    "gates.json": "edf8dac1568857e3e1db7e155ddde00c587e32ce01214e66a03b56bab52d2d9b",
+    "doctor.json": "da82e9391a4380c9924fc7144276d1bf501d588bc299f9eb62219ff27da489f4",
+    "preflight.log": "7fd3ee31098d941bc78278e05f38c20cb44c13e31898d34c3c445eab7c702659",
+    "i01.json": "f7703b157e171ff8743d5f73f39851c2cb7d532da60eb5e1dc35c0618ed69b25",
+    "contract-validation.txt": "4c5df411b5fab12714e9015f84d663cfe1e42179cc6c2c130864574e70377658",
+    "i02.log": "8cbd03439c1de08fdfd61133ba914a8583de63dd5efdf57686c705570e86657d",
+    "source.sha256": "bc09862717d1c632863ec02becf5761c3d6fd56e510adbcafe2426c61f992f2b",
+    "clean-install/guest/result.json": "a43dd409da699e36fe6a62304715fcf8bd1e688942d109b1fed0e54c3052b9f9",
+    "clean-install/vm.json": "2e1b3129e298e2fd7f4306c68810056230670b71b0e311ad779fd018d712d06b",
+    "k51.log": "6ee2b6f8ea965d670e423a4426efc1c865e54ba1aabba0e20a945ab69a7a2740",
+    "binaries.sha256": "9dd054ba63a944e56edeb204563e81c1d96b7d9a8e04040ff36cc0482e7ca086",
+    "binaries-check.txt": "55bf65846692c7d790b8d2040f169d223fdccee4c1285a046463025fef6ab7a2",
+    "checks.tgz": "2fb16c5b2bb22718d146d2b49827a1707b454428d02d67f46f422133206c2f95"
+  }
+}

@@ -1,0 +1,471 @@
+{
+  "revision": "a6cd7dc2291391e96edfc37c86debdcd4f88576d",
+  "previous_qualification": "91910434be4598d2d69c72ff70867ed5bc71ba99",
+  "runtime_inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+  "target": "aarch64-unknown-linux-gnu",
+  "build_source_files": 2653,
+  "native_test_executables": 113,
+  "host": [
+    "Model Name: MacBook Pro",
+    "      Chip: Apple M5 Pro",
+    "   Device / Media Name:       APPLE SSD AP1024Z",
+    "   Device Location:           Internal",
+    "   Solid State:               Yes"
+  ],
+  "guest": "Ubuntu 26.04.1 LTS 7.0.0-43-generic",
+  "device": {
+    "drv": "qcow2",
+    "ro": false,
+    "cache": {
+      "no-flush": false,
+      "direct": false,
+      "writeback": true
+    }
+  },
+  "power_sampling": {
+    "samples": 7,
+    "on_ac": 7
+  },
+  "workspace_results": {
+    "passed": 2965,
+    "failed": 0,
+    "ignored": 18
+  },
+  "workspace_exit": 0,
+  "full_live_suite": false,
+  "r018": "pass",
+  "driver_checks": {
+    "checks": {
+      "doctor_manifest": true,
+      "i01_absent": true,
+      "contract_validation": true,
+      "i02_scan": true,
+      "i01_scrubbed_path": true,
+      "plain_session_smoke": true
+    },
+    "doctor_manifest_mismatches": {}
+  },
+  "release_map_scope": "linux-x86_64-stable",
+  "release_map_counts": {
+    "FAIL": 13,
+    "credential": 1,
+    "elsewhere": 14,
+    "pass": 55,
+    "pass+limits": 4,
+    "pass+unsupported": 2,
+    "unsupported": 21
+  },
+  "evaluator_problems": [],
+  "evaluator_warnings": [],
+  "all_noncredential_gates_pass": false,
+  "failed_gate_ids": [
+    "F02",
+    "F04",
+    "S02",
+    "S03",
+    "N05",
+    "O06",
+    "L01",
+    "R05",
+    "R06",
+    "C01",
+    "C02",
+    "K05",
+    "K30"
+  ],
+  "previously_missing_summary": {
+    "passed": 52,
+    "failed": 0,
+    "unverified": 0,
+    "not run": 21
+  },
+  "previously_missing_cases": [
+    {
+      "previous_index": 1,
+      "test": "ukai-jail/tests/conformance_j2.rs::l02_startup_parent_death_window_is_closed",
+      "result": "passed"
+    },
+    {
+      "previous_index": 2,
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::c01_an_agent_launch_profile_stages_both_credential_modes_through_run",
+      "result": "passed"
+    },
+    {
+      "previous_index": 3,
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::n01_direct_tcp_udp_ipv6_and_a_proxy_ignoring_client_fail",
+      "result": "passed"
+    },
+    {
+      "previous_index": 4,
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::n04_header_overflow_and_saturation_are_bounded",
+      "result": "passed"
+    },
+    {
+      "previous_index": 5,
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::n04_slow_headers_end_at_the_absolute_header_deadline",
+      "result": "passed"
+    },
+    {
+      "previous_index": 6,
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::n05_a_proxy_replaced_after_the_first_connect_is_never_reached",
+      "result": "not run"
+    },
+    {
+      "previous_index": 7,
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::n05_a_proxy_replaced_before_the_first_connect_is_never_reached",
+      "result": "not run"
+    },
+    {
+      "previous_index": 8,
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::n05_child_path_and_mount_changes_cannot_redirect_the_bridge",
+      "result": "not run"
+    },
+    {
+      "previous_index": 9,
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::n05_host_peers_existing_late_aliased_and_in_every_grant_are_unreachable",
+      "result": "passed"
+    },
+    {
+      "previous_index": 10,
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::review_every_contained_profile_refuses_a_socket_family_outside_the_list",
+      "result": "passed"
+    },
+    {
+      "previous_index": 11,
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::review_x06_holds_with_observation_off",
+      "result": "passed"
+    },
+    {
+      "previous_index": 12,
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::s03_a_landlock_and_seccomp_inner_sandbox_starts_and_restricts_its_child",
+      "result": "passed"
+    },
+    {
+      "previous_index": 13,
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::s03_a_namespace_inner_sandbox_fails_visibly_and_the_receipt_says_unavailable",
+      "result": "passed"
+    },
+    {
+      "previous_index": 14,
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::s03_each_outer_boundary_reversal_fails_and_changes_nothing",
+      "result": "not run"
+    },
+    {
+      "previous_index": 15,
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::x06_no_notification_sockdiag_proxy_or_bridge_descriptor_reaches_the_target",
+      "result": "passed"
+    },
+    {
+      "previous_index": 16,
+      "test": "ukai-jail/tests/conformance_j3_credentials.rs::c01_a_bind_ro_source_replaced_after_staging_is_never_bound",
+      "result": "not run"
+    },
+    {
+      "previous_index": 17,
+      "test": "ukai-jail/tests/conformance_j3_credentials.rs::c02_a_normal_exit_cleans_vendor_state_and_planted_links_cannot_redirect_deletion",
+      "result": "not run"
+    },
+    {
+      "previous_index": 18,
+      "test": "ukai-jail/tests/conformance_j3_credentials.rs::m1_a_read_only_bind_of_a_writable_filesystem_gets_no_digest",
+      "result": "passed"
+    },
+    {
+      "previous_index": 19,
+      "test": "ukai-jail/tests/conformance_j3_none.rs::r05_same_uid_tampering_is_outside_local_evidence_assurance",
+      "result": "not run"
+    },
+    {
+      "previous_index": 20,
+      "test": "ukai-jail/tests/conformance_j3_none.rs::r06_a_descendant_that_leaves_after_the_target_exits_loses_integrity",
+      "result": "not run"
+    },
+    {
+      "previous_index": 21,
+      "test": "ukai-jail/tests/conformance_j3_none.rs::r06_a_descendant_that_leaves_and_exits_at_once_is_caught_by_its_zombie",
+      "result": "not run"
+    },
+    {
+      "previous_index": 22,
+      "test": "ukai-jail/tests/conformance_j3_none.rs::r06_a_replaced_leaf_loses_integrity_and_is_never_touched",
+      "result": "not run"
+    },
+    {
+      "previous_index": 23,
+      "test": "ukai-jail/tests/conformance_j3_none.rs::r06_a_target_that_leaves_and_exits_at_once_is_caught_by_its_zombie",
+      "result": "not run"
+    },
+    {
+      "previous_index": 24,
+      "test": "ukai-jail/tests/conformance_j3_none.rs::r06_a_target_that_leaves_the_leaf_while_live_is_never_settled",
+      "result": "not run"
+    },
+    {
+      "previous_index": 25,
+      "test": "ukai-jail/tests/j4_closed_set_linux.rs::j4_clone_untraced_is_a_gap_in_none",
+      "result": "not run"
+    },
+    {
+      "previous_index": 26,
+      "test": "ukai-jail/tests/j4_closed_set_linux.rs::j4_o01_every_variant_is_one_event_per_result_agent",
+      "result": "passed"
+    },
+    {
+      "previous_index": 27,
+      "test": "ukai-jail/tests/j4_closed_set_linux.rs::j4_o01_every_variant_is_one_event_per_result_build",
+      "result": "passed"
+    },
+    {
+      "previous_index": 28,
+      "test": "ukai-jail/tests/j4_closed_set_linux.rs::j4_o01_every_variant_is_one_event_per_result_none",
+      "result": "passed"
+    },
+    {
+      "previous_index": 29,
+      "test": "ukai-jail/tests/j4_closed_set_linux.rs::j4_o01_every_variant_is_one_event_per_result_tool",
+      "result": "passed"
+    },
+    {
+      "previous_index": 30,
+      "test": "ukai-jail/tests/j4_closed_set_linux.rs::j4_o02_a_nested_pid_namespace_under_none_keeps_host_attribution",
+      "result": "passed"
+    },
+    {
+      "previous_index": 31,
+      "test": "ukai-jail/tests/j4_closed_set_linux.rs::j4_o06_a_descriptor_moved_between_the_stops_is_not_resolved",
+      "result": "not run"
+    },
+    {
+      "previous_index": 32,
+      "test": "ukai-jail/tests/j4_closed_set_linux.rs::j4_o06_racing_pathname_is_only_a_literal_snapshot",
+      "result": "not run"
+    },
+    {
+      "previous_index": 33,
+      "test": "ukai-jail/tests/j4_tracer_precision_linux.rs::j4_w3_a_non_leader_exec_invents_no_result_through_the_product_none",
+      "result": "passed"
+    },
+    {
+      "previous_index": 34,
+      "test": "ukai-jail/tests/j4_tracer_precision_linux.rs::j4_w3_a_non_leader_exec_invents_no_result_through_the_product_tool",
+      "result": "passed"
+    },
+    {
+      "previous_index": 35,
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::f01_a_workspace_symlink_to_a_home_secret_reads_as_absent",
+      "result": "passed"
+    },
+    {
+      "previous_index": 36,
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::f02_mount_replacement_of_a_protected_git_is_denied",
+      "result": "not run"
+    },
+    {
+      "previous_index": 37,
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::f04_a_source_identity_swap_at_the_mount_handoff_refuses",
+      "result": "not run"
+    },
+    {
+      "previous_index": 38,
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::n01_build_direct_egress_fails",
+      "result": "passed"
+    },
+    {
+      "previous_index": 39,
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::n05_a_late_socket_in_an_extra_grant_is_unreachable",
+      "result": "passed"
+    },
+    {
+      "previous_index": 40,
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::r03_a_wall_expires_before_the_saturation_loss_is_declared",
+      "result": "passed"
+    },
+    {
+      "previous_index": 41,
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::r03_a_wall_fires_on_time_under_a_saturated_trace",
+      "result": "passed"
+    },
+    {
+      "previous_index": 42,
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::r05_forging_records_mid_run_is_outside_local_evidence_assurance",
+      "result": "not run"
+    },
+    {
+      "previous_index": 43,
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::r05_the_supervisors_own_proc_is_closed_to_a_same_uid_peer",
+      "result": "passed"
+    },
+    {
+      "previous_index": 44,
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::r06_a_detected_escaped_descendant_loses_integrity_and_retains_state",
+      "result": "not run"
+    },
+    {
+      "previous_index": 45,
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::s02_a_host_namespace_fd_cannot_be_opened_or_entered",
+      "result": "not run"
+    },
+    {
+      "previous_index": 46,
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::s03_the_outer_boundaries_cannot_be_reversed_inside_agent",
+      "result": "not run"
+    },
+    {
+      "previous_index": 47,
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::s04_agent_and_build_refuse_every_io_uring_interface",
+      "result": "passed"
+    },
+    {
+      "previous_index": 48,
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::s04_an_io_uring_on_stdout_or_stderr_refuses_before_exec",
+      "result": "passed"
+    },
+    {
+      "previous_index": 49,
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::s04_none_installs_no_io_uring_filter",
+      "result": "passed"
+    },
+    {
+      "previous_index": 50,
+      "test": "ukai-jail/tests/j5_process_linux.rs::x03_owner_death_before_release_runs_no_target",
+      "result": "passed"
+    },
+    {
+      "previous_index": 51,
+      "test": "ukai-jail/tests/j5_process_linux.rs::x03_owner_death_during_release_execs_exactly_once",
+      "result": "passed"
+    },
+    {
+      "previous_index": 52,
+      "test": "ukai-jail/tests/j5_process_linux.rs::x03_owner_death_mid_frame_runs_no_target",
+      "result": "passed"
+    },
+    {
+      "previous_index": 53,
+      "test": "ukai-jail/tests/j5_pseudofs_linux.rs::s02_a_contained_grant_of_proc_sys_or_cgroupfs_refuses_before_exec",
+      "result": "passed"
+    },
+    {
+      "previous_index": 54,
+      "test": "ukai-jail/tests/j5_pseudofs_linux.rs::s02_an_ancestor_of_a_pseudo_fs_mount_refuses_through_run",
+      "result": "passed"
+    },
+    {
+      "previous_index": 55,
+      "test": "ukai-jail/tests/j5_pseudofs_linux.rs::s02_the_pseudo_fs_refusal_follows_the_source_not_the_spelling",
+      "result": "passed"
+    },
+    {
+      "previous_index": 56,
+      "test": "ukai-jail/tests/linux_mechanisms.rs::a_held_handle_denies_a_recreated_directory_the_same_inode",
+      "result": "passed"
+    },
+    {
+      "previous_index": 57,
+      "test": "ukai-jail/tests/linux_mechanisms.rs::the_baseline_filter_denies_the_syscalls_the_spec_lists",
+      "result": "passed"
+    },
+    {
+      "previous_index": 58,
+      "test": "ukai-jail/tests/linux_mechanisms.rs::the_filter_is_what_denies_them_not_the_host",
+      "result": "passed"
+    },
+    {
+      "previous_index": 59,
+      "test": "ukai-jail/tests/observer_j4_linux.rs::j4_d1_none_a_child_listener_degrades_the_receipt_and_strict_stops",
+      "result": "passed"
+    },
+    {
+      "previous_index": 60,
+      "test": "ukai-jail/tests/observer_j4_linux.rs::j4_d2_none_receipt_matches_the_host_abi_control",
+      "result": "passed"
+    },
+    {
+      "previous_index": 61,
+      "test": "ukai-jail/tests/observer_regression_linux.rs::j4_n8_execveat_failure_and_success_are_distinct_events",
+      "result": "passed"
+    },
+    {
+      "previous_index": 62,
+      "test": "ukai-jail/tests/observer_regression_linux.rs::j4_n8_vfork_and_posix_spawn_children_keep_their_attribution",
+      "result": "passed"
+    },
+    {
+      "previous_index": 63,
+      "test": "ukai-jail/tests/observer_regression_linux.rs::r20_a_non_leader_exec_accounts_for_every_thread",
+      "result": "passed"
+    },
+    {
+      "previous_index": 64,
+      "test": "ukai-jail/tests/observer_regression_linux.rs::r24_a_queue_gap_names_what_it_lost_and_never_swallows_the_exit",
+      "result": "passed"
+    },
+    {
+      "previous_index": 65,
+      "test": "ukai-jail/tests/observer_regression_linux.rs::r25_symlink_reports_the_link_it_creates_as_its_primary_path",
+      "result": "passed"
+    },
+    {
+      "previous_index": 66,
+      "test": "ukai-jail/tests/observer_regression_linux.rs::r29_a_dead_supervisor_kills_its_traced_tree",
+      "result": "passed"
+    },
+    {
+      "previous_index": 67,
+      "test": "ukai-jail/tests/review_linux.rs::r1_the_baseline_filter_denies_what_the_spec_lists",
+      "result": "passed"
+    },
+    {
+      "previous_index": 68,
+      "test": "ukai-jail/tests/review_linux.rs::r1_the_child_cannot_reach_the_supervisors_state",
+      "result": "passed"
+    },
+    {
+      "previous_index": 69,
+      "test": "ukai-jail/tests/review_linux.rs::r3_io_uring_as_stdio_refuses_before_exec",
+      "result": "passed"
+    },
+    {
+      "previous_index": 70,
+      "test": "ukai-jail/tests/review_linux.rs::r9_a_mid_run_policy_edit_cannot_widen_the_attempt",
+      "result": "passed"
+    },
+    {
+      "previous_index": 71,
+      "test": "ukai-jail/tests/security_alias_linux.rs::guarded_aliases_are_detected_across_devices_and_below_mountpoints",
+      "result": "passed"
+    },
+    {
+      "previous_index": 72,
+      "test": "ukai-jail/tests/unix_peer_linux.rs::host_pathname_sockets_and_aliases_are_unreachable_but_attempt_sockets_work",
+      "result": "passed"
+    },
+    {
+      "previous_index": 73,
+      "test": "ukai-jail/tests/unix_peer_linux.rs::non_native_abi_connects_are_refused",
+      "result": "passed"
+    }
+  ],
+  "private_install": {
+    "status": "install-only-passed",
+    "binary_sha256": "1597a43885ad3ed4e90637f3c9536bdcb54173c74a73b0d5d91c4d4212fb9ce6",
+    "vm_destroyed": true,
+    "production_signing": false,
+    "max_vendor_invocations": 0
+  },
+  "freeze_recorded": false,
+  "freeze_check_exit": 1,
+  "freeze_check": "xtask freeze --check: no tested run is recorded (\"# --- the tested run (cargo xtask freeze --doctor); everything above is the tree ---\" is absent): record the milestone conformance run with `cargo xtask freeze --doctor <run>/doctor.json`",
+  "raw_directory": "evidence/arm64-r018.DlZPzbT0",
+  "raw_sha256": {
+    "source.sha256": "fe0decb16df0c31de35e8f7f174c9023c326b7db824f5d49c7751ad2c4525e40",
+    "release-verified.log": "bd6bc9fe817ec69293948c98274145e2d2f169ee4f5dc1dc7a844b5e5b799025",
+    "gates.json": "24711e021e3b6e9a8fe2ddb1ea253c7afed13641d57a545e9395cade62f6e538",
+    "driver-checks.json": "e796e3a9f08bfc7d4d28ebd69cf6313f8cf72d83966c8fe5d098f5178fa18678",
+    "contract-validation.txt": "40e0ea9a82ba64028699702663cae8a2f4b574ef7ead1120c2bffeacf5e3d6f9",
+    "r018-proof.tgz": "4cafe6e76fa22cd0cc79b00a168e0e5bca3cf4e2d7045148261cb1ad2cfa15dd",
+    "k17-raw.tgz": "cd58767cabf9e5073100686d01084543470d3b2ffd43114f3dbba33c92abeae3",
+    "clean-install/vm.json": "e6b411a39760652371d2bf2c5b4b8df77875d2d43a3e6c7492a624f25d051c21",
+    "final-input-check.txt": "55bf65846692c7d790b8d2040f169d223fdccee4c1285a046463025fef6ab7a2"
+  }
+}

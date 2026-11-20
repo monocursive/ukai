@@ -1,0 +1,137 @@
+{
+  "kernel": "7.0.0-43-generic",
+  "machine": "aarch64",
+  "online_cpus": "0-3",
+  "eligible_cpus": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "inherited_seccomp": 0,
+  "linux32_personality_errno": 22,
+  "fixture_sha256": {
+    "arm64": "7d93682be37cf6ed46699f6fff546b80bf133cf8ec342c2d04bc23387f78bc34",
+    "armhf": "0a58280553462be5d8064f510a8abceef2610fb549d82f52027bcfc9cbdf9d1d"
+  },
+  "per_cpu_controls": [
+    {
+      "cpu": 0,
+      "abi": "arm64",
+      "exec_errno": 0,
+      "trace": " 0",
+      "printed_sentinel": true,
+      "successful_exec_transitions": 1
+    },
+    {
+      "cpu": 0,
+      "abi": "armhf",
+      "exec_errno": 8,
+      "trace": " -1 ENOEXEC (Exec format error)",
+      "printed_sentinel": false,
+      "successful_exec_transitions": 0
+    },
+    {
+      "cpu": 1,
+      "abi": "arm64",
+      "exec_errno": 0,
+      "trace": " 0",
+      "printed_sentinel": true,
+      "successful_exec_transitions": 1
+    },
+    {
+      "cpu": 1,
+      "abi": "armhf",
+      "exec_errno": 8,
+      "trace": " -1 ENOEXEC (Exec format error)",
+      "printed_sentinel": false,
+      "successful_exec_transitions": 0
+    },
+    {
+      "cpu": 2,
+      "abi": "arm64",
+      "exec_errno": 0,
+      "trace": " 0",
+      "printed_sentinel": true,
+      "successful_exec_transitions": 1
+    },
+    {
+      "cpu": 2,
+      "abi": "armhf",
+      "exec_errno": 8,
+      "trace": " -1 ENOEXEC (Exec format error)",
+      "printed_sentinel": false,
+      "successful_exec_transitions": 0
+    },
+    {
+      "cpu": 3,
+      "abi": "arm64",
+      "exec_errno": 0,
+      "trace": " 0",
+      "printed_sentinel": true,
+      "successful_exec_transitions": 1
+    },
+    {
+      "cpu": 3,
+      "abi": "armhf",
+      "exec_errno": 8,
+      "trace": " -1 ENOEXEC (Exec format error)",
+      "printed_sentinel": false,
+      "successful_exec_transitions": 0
+    }
+  ],
+  "qualification_revision": "91910434be4598d2d69c72ff70867ed5bc71ba99",
+  "host": "M5 Pro, HVF, Ubuntu 26.04.1",
+  "filtered_native_and_compat_capable_paths": "crates/ukai-jail/tests/observer_regression_linux.rs::r21_the_tool_baseline_denies_the_abi_the_observer_cannot_name",
+  "integrated_fixture_output": {
+    "arm32_exec": "ENOEXEC",
+    "linux32_personality": "EINVAL",
+    "native_exec": "succeeded",
+    "cpus": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  "negative_controls": {
+    "changed_arm32_elf": "unrecognized armhf fixture",
+    "partial_cpu_affinity": "need access to every online CPU"
+  },
+  "observed_native_caller": {
+    "profile": "none",
+    "observe": "on",
+    "evidence": "strict",
+    "phase": "settled",
+    "outcome": {
+      "kind": "exited",
+      "code": 0,
+      "signal": null,
+      "cause": null,
+      "error": null
+    },
+    "exec_coverage": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 5,
+      "gaps": []
+    },
+    "stdout": "native ok, arm32 ENOEXEC",
+    "contract_validation": {
+      "schema": "ukai.jail.receipt/1",
+      "schema_and_semantics": "pass",
+      "receipt_sha256": "d57ea20f6d11e48f37ee8969d14f64ac4f5f55f3b28b6bb9a915ca2495d609db"
+    }
+  },
+  "raw_directory": "evidence/arm64-only-qualification.ZPCxBCZH",
+  "compiled_tool_filter": {
+    "program_sha256": "a7ad5b28fcec61783859752d3fbd4fe653a259cf76531862aabdf8e2ce89ec2b",
+    "instructions": 88,
+    "arm64_next": "load syscall number",
+    "arm32_result": "SECCOMP_RET_ERRNO | EPERM",
+    "arm32_syscall_number_read": false,
+    "evidence": "inspected compiled production filter instructions"
+  }
+}

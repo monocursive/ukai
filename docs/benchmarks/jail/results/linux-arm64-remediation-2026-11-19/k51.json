@@ -1,0 +1,21 @@
+{
+  "gate": "K51",
+  "runtime_revision": "70bd7844da47bc3c8427c10abeb1df58942ef989",
+  "runtime_inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+  "target": "aarch64-unknown-linux-gnu",
+  "host": "Ubuntu 26.04.1 ARM64 KVM on Raspberry Pi 4",
+  "kernel": "7.0.0-43-generic",
+  "journal_bytes": 7145825,
+  "frames": 13108,
+  "limit_ms_exclusive": 50,
+  "isolated_ms": [
+    31.211603,
+    30.466425,
+    29.794581
+  ],
+  "facts_asserted": [
+    "complete journal",
+    "exact workspace bound"
+  ],
+  "source_log_sha256": "6a6c287afe625dd052e4e56986434bff09567e9b0c3f60b22342acb330669927"
+}

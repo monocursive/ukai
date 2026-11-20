@@ -1,0 +1,91 @@
+{
+  "qualification_revision": "0010dffb3f3a41497ef93527674615deb0d290bf",
+  "runtime_inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+  "target": "aarch64-unknown-linux-gnu",
+  "guest": "Ubuntu 26.04.1 ARM64 KVM on Raspberry Pi 4",
+  "kernel": "Linux 7.0.0-43-generic",
+  "doctor_ready": true,
+  "suite_result": "FAIL",
+  "test_summaries": 117,
+  "libtest": {
+    "passed": 3077,
+    "failed": 2,
+    "ignored": 18
+  },
+  "failed_tests": [
+    "k11_recorded_real_opencode_learning_proposes_only_evidence_supported_grants",
+    "k27_clean_vm_install_true_and_real_opencode_finish_within_ten_minutes"
+  ],
+  "s01_test_pass": true,
+  "k51_test_pass": true,
+  "gate_counts": {
+    "FAIL": 3,
+    "credential": 1,
+    "elsewhere": 14,
+    "pass": 62,
+    "pass+limits": 7,
+    "pass+unsupported": 2,
+    "unsupported": 21
+  },
+  "failed_gate_ids": [
+    "I01",
+    "K11",
+    "K27"
+  ],
+  "clauses": {
+    "S01.2": {
+      "status": "pass",
+      "reasons": []
+    },
+    "I01.3": {
+      "status": "FAIL",
+      "reasons": [
+        "check `suite_clean` failed"
+      ]
+    },
+    "K11.1": {
+      "status": "FAIL",
+      "reasons": [
+        "`ukai-jail/tests/portable_release_evidence.rs::k11_recorded_real_opencode_learning_proposes_only_evidence_supported_grants` FAILED"
+      ]
+    },
+    "K27.1": {
+      "status": "pass",
+      "reasons": []
+    },
+    "K27.2": {
+      "status": "FAIL",
+      "reasons": [
+        "`ukai-jail/tests/portable_release_evidence.rs::k27_clean_vm_install_true_and_real_opencode_finish_within_ten_minutes` FAILED"
+      ]
+    }
+  },
+  "release_clause_selection": "linux-x86_64-stable",
+  "candidate_binaries": [
+    "904d3eea1c0c13b0ecd4bb64a0a22eddb75061a15a4adcf06dfad4be759d12f4  target/release/ukai-jail",
+    "c4024b921a2f8e34926f3307c1a37e6d212425ce4ffddc74dc376e2de7b88ab1  target/release/ukai-fixture",
+    "2f190f9d292fe76f2a2891971eb1b9b29c8f4d5a69aa355efddc1ae0177cbed0  target/release/ukai-ledger"
+  ],
+  "hash_recheck": [
+    "target/release/ukai-jail: OK",
+    "target/release/ukai-fixture: OK",
+    "target/release/ukai-ledger: OK"
+  ],
+  "artifacts_sha256": {
+    "binaries-check.txt": "82677281109685693ec944186504eb619e2b552b745c7a27d74899d0ad73f58e",
+    "binaries.sha256": "3ab25bc442001da57eed2e206c0196922c633af1bbd9ce68c3579cf62b66b827",
+    "build.log": "c2ebd8ff526600a97d2bb59b9989ea97960d3b8c8db00ae0b791e0a2fb018ee6",
+    "contract-validation.txt": "71584ac456150bc2b54e7283372a863b215c47281b12ce77ba7eb73df38a9de1",
+    "doctor.json": "9cb6257e5071363885cf75b3302bb76fb7cf15d7a774cdcb87ea5448f2d31127",
+    "gates.json": "a1bca9e755365f462829136a2d632a220b244f5152a59ba6895ae5638e583c15",
+    "gates.txt": "617352bb88b0ba5a9896b3d0c9cb5a8d4b2ccaea04d4f704bfd008ef2c472b85",
+    "host-manifest.txt": "28c3a01389e1664a94c9f9aee5ecda3f6729b04eaacc218b165639f85c7b9249",
+    "i01.txt": "b7d8e00114315455d4890fc9da378e172a83f91ba3dc0b8f5b44fa9da04674c7",
+    "smoke-doctor.json": "32f02834f4fba540efc4b410f3f636deebb8ecad8abe419f6f370cf90291e83f",
+    "smoke-none-receipt.json": "438e3cfe6beabe4a94521b5426f53741aed9da80009746391f6a21b355a68fcf",
+    "smoke-tool-receipt.json": "871bed97e0586e5a7e0ac976522e22f6ec06a94aef07c1d70e6646c3a7f71923",
+    "smoke-transcript.txt": "a90703555871b28e4598119afbdc80d9711b58574b3df39edcb6adfbab384639",
+    "summary.txt": "279078e4e0f95170a61f2efac4c42aa1ee81dd43cb8afd5d4a5942a1c288b76e",
+    "test.log": "7e14b152f301f36fc874095d849a5a0a1b7728a4033a46b17e788ea06b3ce864"
+  }
+}

@@ -159,6 +159,9 @@ pub(super) struct RunState {
     pub(super) hard_deadline: Option<clock::Deadline>,
     /// The observer's thread stopped.
     pub(super) finished: bool,
+    /// The channel is drained and its last sender has gone. This alone
+    /// establishes neither a target exit nor successful observer completion.
+    observer_channel_closed: bool,
     evidence_reported: bool,
     /// Boot-clock time of the last counter sample.
     sampled_at_ns: u64,
@@ -193,6 +196,7 @@ impl RunState {
             hard_killed: false,
             hard_deadline: None,
             finished: false,
+            observer_channel_closed: false,
             evidence_reported: false,
             sampled_at_ns: 0,
             stop_reported: None,
@@ -477,7 +481,9 @@ impl<T: Tree> Run<T> {
         let Some(tracer) = self.state.tracer.as_ref() else {
             return;
         };
-        for event in observed::drain(tracer, block) {
+        let (events, closed) = observed::drain(tracer.events(), block);
+        self.state.observer_channel_closed = closed;
+        for event in events {
             if let Some((pid, status)) = self.state.record(&event) {
                 self.tree.untraced_exit(pid, status);
             }
@@ -670,6 +676,15 @@ impl<T: Tree> RunningExecution for Run<T> {
                 return event;
             }
         }
+        // The normal outcome above takes precedence when the final batch
+        // delivered all required facts. An exhausted channel cannot supply
+        // a missing target or backend status, even if its pidfd is readable.
+        if self.state.observer_channel_closed {
+            return RunEvent::Unknown {
+                reason: "the observer event stream ended before the required exit status arrived"
+                    .to_owned(),
+            };
+        }
         if self
             .state
             .hard_deadline
@@ -725,7 +740,7 @@ impl<T: Tree> RunningExecution for Run<T> {
             if deadline.expired() {
                 break;
             }
-            if self.state.tracer.is_some() {
+            if self.state.tracer.is_some() && !self.state.observer_channel_closed {
                 self.pump_tracer(WAIT_STEP);
             } else {
                 std::thread::sleep(WAIT_STEP);

@@ -355,6 +355,8 @@ mod tests {
                     // into the macOS build (jail-macos.md §3, §5).
                     "cc",
                     "libc",
+                    // Locates LF boundaries in bounded journal input.
+                    "memchr",
                     // The frozen receipt/event types and canonical encoding,
                     // shared with the ledger.
                     "ukai-records",

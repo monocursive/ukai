@@ -2494,10 +2494,10 @@
     }
   ],
   "inputs_sha256": {
-    "Cargo.lock": "0ea5c6f32c427532e563313d3a6d0d8a8f1faf9759e24e0ff59a1b09a0ba45e3",
+    "Cargo.lock": "7c9fefcf0b1ae4935a525dcc9bb26c873f56c817e15c5f8c8106bcb5c3307bc3",
     "Cargo.toml": "3cc10c9a71a628d9f3183aa8dd58985de1278c1d2b4bf576aed41c3de81a031e",
     "LICENSE": "38184627dc06fbee992333e9d7009f4d9efdc724f00edf305067e266fa8cab11",
-    "crates/ukai-jail/Cargo.toml": "5902562fd0ccc73560abf72e2bf6ff70501543e5ecea7767749fa3be571431e4",
+    "crates/ukai-jail/Cargo.toml": "a902287fabfd0b6c798113eec5265b4978c36895c0703e8f0caeb1e57fe0c043",
     "crates/ukai-jail/data/uts46_unicode17_tables.rs": "645e9fef4c807e756ec42eb4b6e1eb12ab91a5e36f8602cbd827e82f6668f714",
     "crates/ukai-jail/dist/UNICODE_LICENSE": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
     "crates/ukai-jail/dist/WEBPKI_ROOTS_LICENSE": "e271993808fec50ab29350b39539cdec611a9103f827e0aa26d61da70e2d33f8",

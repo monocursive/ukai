@@ -223,6 +223,16 @@ int main(int argc, char **argv) {
     if (argc < 2) return 2;
     if (!strcmp(argv[1], "launch")) return mode_launch(argc, argv);
     if (!strcmp(argv[1], "launch2")) return mode_launch2(argc, argv);
+    if (!strcmp(argv[1], "idle-listener")) {
+        /* D1 strict loss starts when the listener is installed. No syscall
+           requests a notification and no notification is serviced. */
+        struct sock_filter allow[] = { RET(SECCOMP_RET_ALLOW) };
+        long fd = install(allow, 1, SECCOMP_FILTER_FLAG_NEW_LISTENER, 0);
+        if (fd < 0) return 3;
+        sleep(2);
+        close((int)fd);
+        return 0;
+    }
     if (!strcmp(argv[1], "listener")) return mode_listener(argc, argv);
     if (!strcmp(argv[1], "errno-filter")) return mode_errno_filter(argc, argv);
     if (!strcmp(argv[1], "tool-listener")) return mode_tool_listener();

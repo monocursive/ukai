@@ -1,0 +1,112 @@
+{
+  "gate": "K17",
+  "verdict": "pass",
+  "problems": [],
+  "rows": [
+    {
+      "session": "plain",
+      "workload": "noop",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {
+        "exec_unconfirmed": 30
+      },
+      "load1_max": 2.09,
+      "added_startup_p95_ms": 59.246627999999994,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 29168.61859751813,
+      "post_start_pass": null
+    },
+    {
+      "session": "plain",
+      "workload": "spawn-tree",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 2.09,
+      "added_startup_p95_ms": 70.5150385,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 52.57176133792059,
+      "post_start_pass": null
+    },
+    {
+      "session": "plain",
+      "workload": "fileops",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.87,
+      "added_startup_p95_ms": 48.392946,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 79.50789547956637,
+      "post_start_pass": true
+    },
+    {
+      "session": "scope",
+      "workload": "noop",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {
+        "exec_unconfirmed": 30
+      },
+      "load1_max": 1.8,
+      "added_startup_p95_ms": 44.433269,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 23247.64344666904,
+      "post_start_pass": null
+    },
+    {
+      "session": "scope",
+      "workload": "spawn-tree",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.75,
+      "added_startup_p95_ms": 33.0784665,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 58.55481461502998,
+      "post_start_pass": null
+    },
+    {
+      "session": "scope",
+      "workload": "fileops",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.97,
+      "added_startup_p95_ms": 35.208869,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 84.07917159517731,
+      "post_start_pass": true
+    }
+  ],
+  "limits": {
+    "startup_p95_ms_exclusive": 500,
+    "fileops_post_start_overhead_pct_inclusive": 100
+  },
+  "summary_sha256": "60e13c32f740a611691f59b645e96d167920750bea595100ebfc31338bd59b2b",
+  "revision": "0010dffb3f3a41497ef93527674615deb0d290bf",
+  "runtime_inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+  "target": "aarch64-unknown-linux-gnu",
+  "executables": {
+    "ukai-jail": "904d3eea1c0c13b0ecd4bb64a0a22eddb75061a15a4adcf06dfad4be759d12f4",
+    "ukai-fixture": "06e65fc1d1473c51c01ff73696f2560d705ccd5b5f8d3da47ce73feca4c0443f",
+    "ukai-ledger": "2f190f9d292fe76f2a2891971eb1b9b29c8f4d5a69aa355efddc1ae0177cbed0",
+    "xtask": "e8f3b31e629e21569a29c814be5afedeeae1a39bfa590f7f6960fe7e0eca1f3a"
+  },
+  "host": {
+    "platform": "MacBook Pro M5 Pro",
+    "power_source": "AC with internal battery",
+    "ac_samples": 12,
+    "all_samples_on_ac": true,
+    "storage": "Internal APPLE SSD AP1024Z",
+    "guest": "Ubuntu 26.04.1 ARM64, kernel 7.0.0-43-generic, 4 native vCPUs and 6 GiB RAM via HVF",
+    "guest_state_filesystem": "ext4, local qcow2 with guest flushes enabled"
+  },
+  "measured_launches": 540,
+  "warmups": 18,
+  "excluded_measured_launches": 0,
+  "max_permitted_load": 3,
+  "raw_archive_sha256": "da5f05b3a6925b8b572572322c894aefedbd60b02f45d7a0a4b622c571217f3a",
+  "launches_sha256": "074cb19d284385eb9914d392fe833ab68383d2513a11a0fed667cd17b024ebb6"
+}

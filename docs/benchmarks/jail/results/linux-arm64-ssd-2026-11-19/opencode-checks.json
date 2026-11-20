@@ -1,0 +1,48 @@
+{
+  "revision": "0010dffb3f3a41497ef93527674615deb0d290bf",
+  "target": "aarch64-unknown-linux-gnu",
+  "runtime_inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+  "binary_sha256": "904d3eea1c0c13b0ecd4bb64a0a22eddb75061a15a4adcf06dfad4be759d12f4",
+  "checks": {
+    "onboarding": {
+      "gate": "K27.2",
+      "verified": true,
+      "vendor_invocations": 1,
+      "agent_model": "anthropic/claude-sonnet-5",
+      "vendor_version": "1.18.32",
+      "command_seconds": 11.448646938000003,
+      "workflow_seconds": 15.773308426999996,
+      "guest_destroyed": true,
+      "temporary_removed": true,
+      "files_scanned_for_key": 83,
+      "files_with_key": 0,
+      "result_sha256": "293b17abf64984deb101a4bd508df2fae7059205a72efd519c0fa9bfeffa5006"
+    },
+    "learning": {
+      "gate": "K11.1",
+      "verified": true,
+      "vendor_invocations": 1,
+      "agent_model": "anthropic/claude-sonnet-5",
+      "vendor_version": "1.18.32",
+      "command_seconds": 17.009896479999995,
+      "workflow_seconds": null,
+      "guest_destroyed": true,
+      "temporary_removed": true,
+      "files_scanned_for_key": 83,
+      "files_with_key": 0,
+      "result_sha256": "c3e5752ffc728f792332884bdadbabf5435f5fa978e1b455e98f67ceb39dc97d",
+      "read_only_grants": 1,
+      "network_grants": 0,
+      "fixture_proposed": false
+    }
+  },
+  "focused_arm64_release_tests": {
+    "passed": 2,
+    "failed": 0,
+    "ignored": 0,
+    "target_os": "linux",
+    "target_arch": "aarch64",
+    "release_evidence_requested": true,
+    "log_sha256": "6438e4422a6feb9e0f0facf39e9f9e8de7e7cc6e713c8caeb4785e5dd1624418"
+  }
+}

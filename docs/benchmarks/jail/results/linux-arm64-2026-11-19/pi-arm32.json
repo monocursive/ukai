@@ -1,0 +1,28 @@
+{
+  "control_sha256": "40f7d86dbb33e2a7066dae20d2ba8704f241b97f852cb18e19ee83faacc692c7",
+  "control_exit": 0,
+  "sentinel_hex": "61726d33320a",
+  "registered_binfmt_handlers": [
+    "python3.13"
+  ],
+  "qemu_user_commands": {
+    "qemu-arm": null,
+    "qemu-arm-static": null,
+    "qemu-aarch64": null,
+    "qemu-aarch64-static": null
+  },
+  "ubuntu_native_test_binaries": {
+    "ukai-jail": "895db8f247a47167e3497bc5273586f8635aa1f5cf226c2531d1e5c03a1924a7",
+    "ukai-fixture": "156fd8209774e570a3dc1521e294fc1826dc055caf561aeeb2ba3b730a4c8038",
+    "observer_j4_linux": "7b6d6c25bdbfc7bcae8ab02121996b430fc50d899c5e5180c983a79c2a8f3648"
+  },
+  "pi_strict_tests": [
+    "j4_d2_a_foreign_abi_call_without_a_baseline_is_a_gap",
+    "j4_d2_none_a_foreign_abi_call_degrades_the_receipt"
+  ],
+  "passed": 2,
+  "failed": 0,
+  "ignored": 0,
+  "raw_control_sha256": "6df5eee603e86ae4770163107fcda4e730c5c3e092d5869bf819188f2a891c43",
+  "raw_post_reboot_test_log_sha256": "a87b905190771c7ba46a28782318c4ea7539c5e9edbf6ce17f53a38deb6f7f02"
+}

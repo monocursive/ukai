@@ -1,0 +1,54 @@
+{
+  "configuration": "Pi Ubuntu KVM with F2FS barrier and fsync_mode=strict",
+  "before": {
+    "revision": "b0b2e27b84383c117a32153812d295e1fde234a5",
+    "retained_launch_records": 189,
+    "workload_rounds": 5000,
+    "workload_succeeded": true,
+    "workload_ms": 9166.144389,
+    "harness_deadline_ms": 300000,
+    "timed_out": true,
+    "excluded_for": [
+      "timed_out",
+      "not_settled",
+      "outcome",
+      "errors",
+      "tree_not_verified",
+      "coverage_degraded",
+      "coverage_gaps",
+      "observer_gaps",
+      "class_not_active"
+    ],
+    "records_sha256": "82e31342eb6b2a334308c839cc6a6c120ad5163f59d8b76e3a07b65d5badb8dd",
+    "cpu_stack_sha256": "ddf358579a62c0ff5e5fccc4141fb244b0a7934d42a7ca135d1a8797be8fa5cb"
+  },
+  "after": {
+    "revision": "70bd7844da47bc3c8427c10abeb1df58942ef989",
+    "runtime_inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+    "elapsed_seconds_by_wall_clock": 49,
+    "user_command_exit": 1,
+    "workload_rounds": 5000,
+    "workload_succeeded": true,
+    "workload_ms": 8731.490609,
+    "receipt_phase": "enforced",
+    "outcome": {
+      "kind": "unknown",
+      "code": null,
+      "signal": null,
+      "cause": "the observer event stream ended before the required exit status arrived",
+      "error": null
+    },
+    "errors": [
+      {
+        "code": "evidence_lost",
+        "stage": "reconciling"
+      },
+      {
+        "code": "tree_unknown",
+        "stage": "reconciling"
+      }
+    ],
+    "raw_sha256": "d3166366110e29f6864f9d32771d3056f55404daebb977fbd411552d1799658f"
+  },
+  "scope": "Partial F2FS benchmark and targeted correction check. The complete benchmark runs use ext4."
+}

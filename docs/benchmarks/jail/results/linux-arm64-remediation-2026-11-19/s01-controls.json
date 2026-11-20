@@ -1,0 +1,49 @@
+{
+  "case": "S01.2",
+  "host": "Ubuntu 26.04.1 ARM64 KVM on Raspberry Pi 4",
+  "kernel": "7.0.0-43-generic",
+  "package": {
+    "name": "busybox-static",
+    "debian_version": "1:1.37.0-6+b9",
+    "executable_sha256": {
+      "arm64": "7d93682be37cf6ed46699f6fff546b80bf133cf8ec342c2d04bc23387f78bc34",
+      "armhf": "0a58280553462be5d8064f510a8abceef2610fb549d82f52027bcfc9cbdf9d1d"
+    }
+  },
+  "control_run": [
+    {
+      "control": "arm64-plain",
+      "process_exit": 0,
+      "successful_heap_calls": 5,
+      "heap_calls_denied_eperm": 0
+    },
+    {
+      "control": "arm64-filtered",
+      "process_exit": 0,
+      "successful_heap_calls": 5,
+      "heap_calls_denied_eperm": 0
+    },
+    {
+      "control": "armhf-plain",
+      "process_exit": 0,
+      "successful_heap_calls": 5,
+      "heap_calls_denied_eperm": 0
+    },
+    {
+      "control": "armhf-filtered",
+      "process_exit": 137,
+      "successful_heap_calls": 0,
+      "heap_calls_denied_eperm": 2
+    }
+  ],
+  "raw_sha256": {
+    "s01-tested.log": "5a16b2dfc43557dc47b4c417f64538949ece1d8eafcd8255086419d1bad414d2",
+    "kvm/s01-control-matrix.txt": "cadac244d9684722ec02b369553ca66294699adabd3a6a4ff03cff4bd97c2923",
+    "kvm/arm64-debian-package.log": "0569cd9e951ea303c867befb967805667888513260b32fb961c998939adb466a",
+    "kvm/armhf-debian-package.log": "dd53a4d06a20dd45c630fdd21e637ad1c1bac64113c8c786c1da0ea3fb609579"
+  },
+  "tested_revision": "70bd7844da47bc3c8427c10abeb1df58942ef989",
+  "runtime_inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+  "final_targeted_test": "pass",
+  "final_targeted_test_log_sha256": "3b819858dbeb0e0d12eac3f2cc982b9825bfbb6cd79cec749064d5e544252203"
+}

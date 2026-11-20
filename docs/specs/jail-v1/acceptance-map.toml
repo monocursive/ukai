@@ -877,7 +877,7 @@ tests = [
   "ukai-jail/tests/conformance_j2.rs::s04_io_uring_and_compat_abis_cannot_bypass_the_filter",
   "ukai-jail/tests/observer_regression_linux.rs::r21_the_tool_baseline_denies_the_abi_the_observer_cannot_name",
 ]
-note = "The CLI test denies io_uring through its x32 number and through the i386 int 0x80 entry; r21 denies an i386 open under the tool baseline. The filter's architecture branch is number-independent."
+note = "On x86_64 the CLI and R21 exercise x32 and i386. On compat-capable AArch64, R21 requires successful native and ARM32 controls and EPERM inside the filtered ARM32 process. On 64-bit-only AArch64, R21 requires the native filtered control and an unfiltered all-CPU proof using pinned static executables: native exec succeeds, ARM32 execve returns ENOEXEC before entry, and the kernel rejects PER_LINUX32 with EINVAL. This case covers pre-execution rejection only."
 
 [[clause]]
 id = "S01.3"
@@ -2279,9 +2279,9 @@ clause = "The live loss and observer tests hold every receipt, trace and control
 tag = "live-cli"
 tests = [
   "ukai-jail/tests/observer_j4_linux.rs::j4_d1_none_a_child_listener_degrades_the_receipt_and_strict_stops",
-  "ukai-jail/tests/observer_j4_linux.rs::j4_d2_none_a_foreign_abi_call_degrades_the_receipt",
+  "ukai-jail/tests/observer_j4_linux.rs::j4_d2_none_receipt_matches_the_host_abi_control",
 ]
-note = "and every j4_loss_linux.rs test that calls its receipt() helper (O03, O05, R04); the helper change is J5-C's, the tests are J4's"
+note = "D1 requires a real listener and a strict evidence-loss stop on every host. D2 requires a degraded foreign_abi receipt when the foreign ABI executes. Only AArch64 passing the all-CPU S01.2 kernel-refusal control may instead use a strict observed native caller. Its identified child must receive ENOEXEC before ARM32 entry, with exactly one failed proc.exec result for that child, active audit coverage and no gaps. Both paths validate receipts, trace and control together. Missing controls or another errno fail qualification. See also the receipt checks in j4_loss_linux.rs (O03, O05, R04)."
 
 [[clause]]
 id = "R01.9"

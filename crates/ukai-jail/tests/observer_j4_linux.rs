@@ -669,9 +669,7 @@ fn j4_d1_none_a_child_listener_degrades_the_receipt_and_strict_stops() {
         return;
     };
     let helper = work.helper_s();
-    let hidden = work.path("hidden");
-    let seen = work.path("seen");
-    let run = none_run(&work, "strict", &[&helper, "listener", &hidden, &seen]);
+    let run = none_run(&work, "strict", &[&helper, "idle-listener"]);
     let receipt = common::settled(&run);
     let reasons = gap_reasons(&receipt);
     assert!(
@@ -691,10 +689,62 @@ fn j4_d1_none_a_child_listener_degrades_the_receipt_and_strict_stops() {
     );
 }
 
-/// D2 in a receipt: a `none` child making compat calls, best-effort so the
-/// run completes. Every audit class is degraded and says why.
+#[cfg(target_arch = "aarch64")]
+#[path = "fixtures/arm64_exec_control.rs"]
+mod arm64_exec_control;
+
+#[cfg(target_arch = "aarch64")]
+fn check_rejected_arm32_exec(work: &Work) {
+    // The caller reports the specific child whose execve the kernel refused.
+    // If ARM32 unexpectedly starts, BusyBox false exits unsuccessfully.
+    let caller = r#"
+import errno, os, subprocess
+root = "/usr/local/lib/ukai-conformance/"
+assert subprocess.check_output([root + "arm64/busybox", "echo", "native"], timeout=5) == b"native\n"
+pid = os.fork()
+if pid == 0:
+    try:
+        os.execve(root + "armhf/busybox", ["busybox", "false"], {})
+    except OSError as e:
+        os._exit(0 if e.errno == errno.ENOEXEC else 2)
+assert os.waitpid(pid, 0) == (pid, 0)
+print(pid)
+"#;
+    let run = none_run(work, "strict", &["/usr/bin/python3", "-I", "-c", caller]);
+    let receipt = common::settled(&run);
+    assert_eq!(run.code(), Some(0), "{}", run.stderr_text());
+    assert_eq!(receipt["outcome"]["code"], 0);
+    assert_eq!(receipt["policy"]["observe"], "on");
+    assert_eq!(receipt["policy"]["evidence"], "strict");
+    assert_eq!(receipt["observer"]["gaps"], serde_json::json!([]));
+    for class in ["exec", "fs.write", "fs.deny", "net"] {
+        assert_eq!(receipt["coverage"][class]["status"], "active", "{class}");
+        assert_eq!(receipt["coverage"][class]["gaps"], serde_json::json!([]));
+    }
+    let pid: i64 = run
+        .stdout_text()
+        .trim()
+        .parse()
+        .expect("refused child's PID");
+    let results: Vec<_> = run
+        .trace_events()
+        .iter()
+        .filter(|e| {
+            e["operation"] == "proc.exec" && e["stage"] == "result" && e["fields"]["pid"] == pid
+        })
+        .collect();
+    assert_eq!(results.len(), 1, "{results:#?}");
+    let e = results[0];
+    assert_eq!(e["source"], "audit");
+    assert_eq!(e["fields"]["syscall"], "execve");
+    assert_eq!(e["outcome"]["ok"], false);
+    assert_eq!(e["outcome"]["errno"], "ENOEXEC");
+    assert_eq!(e["outcome"]["return_value"], -i64::from(libc::ENOEXEC));
+}
+
+/// R01.8/D2: the receipt must match the ABI transition the kernel permits.
 #[test]
-fn j4_d2_none_a_foreign_abi_call_degrades_the_receipt() {
+fn j4_d2_none_receipt_matches_the_host_abi_control() {
     let _serial = serial();
     if !foreign_abis() || !common::delegated_leaf() {
         return;
@@ -702,6 +752,16 @@ fn j4_d2_none_a_foreign_abi_call_degrades_the_receipt() {
     let Some(work) = setup("d2-none") else {
         return;
     };
+    #[cfg(target_arch = "aarch64")]
+    // A developer with cross-binutils can still exercise the original
+    // compat test without installing the release-only BusyBox controls.
+    if (harness::live_required()
+        || Path::new("/usr/local/lib/ukai-conformance/armhf/busybox").is_file())
+        && arm64_exec_control::kernel_rejects_arm32()
+    {
+        check_rejected_arm32_exec(&work);
+        return;
+    }
     let Some(target) = foreign_target(&work) else {
         return;
     };

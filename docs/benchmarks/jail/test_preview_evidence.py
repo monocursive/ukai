@@ -24,6 +24,25 @@ class PreviewEvidenceTests(unittest.TestCase):
         verify(self.root, self.inputs, 'onboarding')
         verify(self.root, self.inputs, 'learning')
 
+    def test_arm64_rejects_x86_records_even_with_matching_inputs(self):
+        for check in ('onboarding', 'learning'):
+            with self.assertRaisesRegex(ValueError, 'wrong VM target'):
+                verify(self.root, self.inputs, check, 'aarch64-unknown-linux-gnu')
+        self.result['build']['build']['target'] = 'aarch64-unknown-linux-gnu'
+        self.write_result()
+        with self.assertRaisesRegex(ValueError, 'architecture evidence'):
+            verify(self.root, self.inputs, 'learning', 'aarch64-unknown-linux-gnu')
+        self.result['guest_machine'] = 'aarch64'
+        self.result['status'] = 'install-only-passed'
+        self.write_result()
+        vm_path = self.root / 'vm.json'
+        vm = json.loads(vm_path.read_bytes())
+        vm.update(target='aarch64-unknown-linux-gnu', status='install-only-passed')
+        vm_path.write_text(json.dumps(vm))
+        for check in ('onboarding', 'learning'):
+            with self.assertRaisesRegex(ValueError, 'VM did not pass'):
+                verify(self.root, self.inputs, check, 'aarch64-unknown-linux-gnu')
+
     def test_onboarding_rejects_another_successful_commands_receipt(self):
         shutil.copyfile(self.root / 'guest/true-jail.json', self.root / 'guest/opencode-jail.json')
         with self.assertRaisesRegex(ValueError, 'workload argv mismatch'):

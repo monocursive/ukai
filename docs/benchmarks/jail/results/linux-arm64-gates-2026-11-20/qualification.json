@@ -1,0 +1,325 @@
+{
+  "revision": "a6cd7dc2291391e96edfc37c86debdcd4f88576d",
+  "runtime_inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+  "target": "aarch64-unknown-linux-gnu",
+  "host": [
+    "      Model Name: MacBook Pro",
+    "      Chip: Apple M5 Pro",
+    "   Device / Media Name:       APPLE SSD AP1024Z",
+    "   Device Location:           Internal",
+    "   Solid State:               Yes"
+  ],
+  "guest": "Ubuntu 26.04.1 LTS 7.0.0-43-generic",
+  "stable_scope": "linux-x86_64-stable",
+  "full_live_suite": false,
+  "workspace_results": {
+    "passed": 2971,
+    "failed": 0,
+    "ignored": 18
+  },
+  "review_results": {
+    "Passed": 6,
+    "Open": 15
+  },
+  "newly_closed_gates": [
+    "C01",
+    "C02",
+    "F04",
+    "S02"
+  ],
+  "remaining_gates": [
+    "F02",
+    "K05",
+    "K30",
+    "L01",
+    "N05",
+    "O06",
+    "R05",
+    "R06",
+    "S03"
+  ],
+  "all_noncredential_gates_pass": false,
+  "evaluator_problems": [],
+  "evaluator_warnings": [],
+  "driver": {
+    "checks": {
+      "doctor_manifest": true,
+      "i01_absent": true,
+      "contract_validation": true,
+      "i02_scan": true,
+      "i01_scrubbed_path": true,
+      "plain_session_smoke": true
+    },
+    "doctor_manifest_mismatches": {}
+  },
+  "supplemental_test_names": [
+    "platform::linux::tracer::session::exit::tests::pointed_arguments_are_reverified_at_the_exit",
+    "j4_c03_a_replaced_leaf_is_never_touched",
+    "platform::linux::uncontained::tests::an_unreadable_orphan_zombie_loses_integrity_and_is_reaped",
+    "platform::linux::uncontained::tests::an_unreadable_target_zombie_loses_integrity_instead_of_verifying",
+    "r05_clean_none_evidence_stays_unprotected",
+    "platform::linux::tracer::session::exit::tests::j4_s4_an_untraced_descendant_is_a_gap_and_a_failed_clone_is_not",
+    "r6_a_foreign_dirfd_is_not_resolved_against_a_cwd",
+    "o06_a_path_is_bytes_and_a_short_snapshot_declares_itself_incomplete",
+    "rm11_a_teardown_that_lost_integrity_retains_vendor_state_and_says_why"
+  ],
+  "passive_controls": {
+    "tool": {
+      "child_protection": "enforced",
+      "settled": true,
+      "git_directory_readonly": true,
+      "git_config_readonly": true,
+      "ordinary_workspace_write": true,
+      "private_namespaces": {
+        "pid": true,
+        "mnt": true,
+        "net": true
+      },
+      "status": {
+        "CapEff": "0000000000000000",
+        "NoNewPrivs": "1",
+        "Seccomp": "2"
+      }
+    },
+    "agent": {
+      "child_protection": "enforced",
+      "settled": true,
+      "proxy_directory_readonly": true,
+      "git_directory_readonly": false,
+      "git_config_readonly": true,
+      "ordinary_workspace_write": true,
+      "private_namespaces": {
+        "pid": true,
+        "mnt": true,
+        "net": true
+      },
+      "status": {
+        "CapEff": "0000000000000000",
+        "NoNewPrivs": "1",
+        "Seccomp": "2"
+      }
+    },
+    "none": {
+      "child_protection": "unprotected",
+      "settled": true
+    }
+  },
+  "independent_receipt_validation": {
+    "schema_and_semantics": "passed",
+    "final_trace_and_control_bind_receipt": true,
+    "different_receipt_rejected": true,
+    "reordered_control_rejected": true
+  },
+  "review": [
+    {
+      "id": 6,
+      "clauses": [
+        "N05.7"
+      ],
+      "proof": "After one successful connection, the bridge must refuse an endpoint with a different identity. The original receives only the first request and the replacement receives none.",
+      "result": "Passed",
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::n05_a_proxy_replaced_after_the_first_connect_is_never_reached"
+    },
+    {
+      "id": 7,
+      "clauses": [
+        "N05.7"
+      ],
+      "proof": "If the endpoint changes before the first connection, the replacement must receive zero connections.",
+      "result": "Passed",
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::n05_a_proxy_replaced_before_the_first_connect_is_never_reached"
+    },
+    {
+      "id": 8,
+      "clauses": [
+        "N05.8"
+      ],
+      "proof": "Changes that the child attempts to make to its path or mount view must leave the approved bridge destination intact.",
+      "result": "Open",
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::n05_child_path_and_mount_changes_cannot_redirect_the_bridge"
+    },
+    {
+      "id": 14,
+      "clauses": [
+        "S03.4"
+      ],
+      "proof": "Attempts to undo the outer namespace, mount and network boundaries must fail, with their effects still enforced afterward.",
+      "result": "Open",
+      "test": "ukai-jail/tests/conformance_j3_agent.rs::s03_each_outer_boundary_reversal_fails_and_changes_nothing"
+    },
+    {
+      "id": 16,
+      "clauses": [
+        "C01.1"
+      ],
+      "proof": "Replacing a read-only credential source after staging must prevent target startup. The replacement must never be bound.",
+      "result": "Passed",
+      "test": "ukai-jail/tests/conformance_j3_credentials.rs::c01_a_bind_ro_source_replaced_after_staging_is_never_bound"
+    },
+    {
+      "id": 17,
+      "clauses": [
+        "C02.1",
+        "C02.4"
+      ],
+      "proof": "After normal exit, private vendor state must be removed while all external file and directory canaries remain intact, including when the state contains links.",
+      "result": "Passed",
+      "test": "ukai-jail/tests/conformance_j3_credentials.rs::c02_a_normal_exit_cleans_vendor_state_and_planted_links_cannot_redirect_deletion"
+    },
+    {
+      "id": 19,
+      "clauses": [
+        "R05.2"
+      ],
+      "proof": "Local policy bytes that a same-user uncontained process can change must carry no protection claim.",
+      "result": "Open",
+      "test": "ukai-jail/tests/conformance_j3_none.rs::r05_same_uid_tampering_is_outside_local_evidence_assurance"
+    },
+    {
+      "id": 20,
+      "clauses": [
+        "R06.2"
+      ],
+      "proof": "When a descendant leaves the tracked group after its parent exits, the supervisor must record lost integrity and preserve the group.",
+      "result": "Open",
+      "test": "ukai-jail/tests/conformance_j3_none.rs::r06_a_descendant_that_leaves_after_the_target_exits_loses_integrity"
+    },
+    {
+      "id": 21,
+      "clauses": [
+        "R06.4"
+      ],
+      "proof": "A short-lived descendant that leaves the group must still be classified from its zombie identity before it is reaped.",
+      "result": "Open",
+      "test": "ukai-jail/tests/conformance_j3_none.rs::r06_a_descendant_that_leaves_and_exits_at_once_is_caught_by_its_zombie"
+    },
+    {
+      "id": 22,
+      "clauses": [
+        "L01.2",
+        "R06.4"
+      ],
+      "proof": "When the original group identity is lost, the supervisor must report an unknown tree on termination and leave the replacement group untouched.",
+      "result": "Open",
+      "test": "ukai-jail/tests/conformance_j3_none.rs::r06_a_replaced_leaf_loses_integrity_and_is_never_touched"
+    },
+    {
+      "id": 23,
+      "clauses": [
+        "R06.1"
+      ],
+      "proof": "A target that leaves and exits immediately must still produce lost integrity, without a fabricated verified exit.",
+      "result": "Open",
+      "test": "ukai-jail/tests/conformance_j3_none.rs::r06_a_target_that_leaves_and_exits_at_once_is_caught_by_its_zombie"
+    },
+    {
+      "id": 24,
+      "clauses": [
+        "L01.2",
+        "R06.1"
+      ],
+      "proof": "If a live target leaves the group, the supervisor must give an unknown tree outcome on termination and must not claim verified settlement.",
+      "result": "Open",
+      "test": "ukai-jail/tests/conformance_j3_none.rs::r06_a_target_that_leaves_the_leaf_while_live_is_never_settled"
+    },
+    {
+      "id": 25,
+      "clauses": [
+        "K05.1"
+      ],
+      "proof": "A child outside observer coverage in the uncontained profile must produce a named descendant gap in the live record.",
+      "result": "Open",
+      "test": "ukai-jail/tests/j4_closed_set_linux.rs::j4_clone_untraced_is_a_gap_in_none"
+    },
+    {
+      "id": 31,
+      "clauses": [
+        "O06.2",
+        "K30.3"
+      ],
+      "proof": "If a directory descriptor changes identity during an observed call, the trace must not attribute the call to either directory without evidence.",
+      "result": "Open",
+      "test": "ukai-jail/tests/j4_closed_set_linux.rs::j4_o06_a_descriptor_moved_between_the_stops_is_not_resolved"
+    },
+    {
+      "id": 32,
+      "clauses": [
+        "O06.5"
+      ],
+      "proof": "A changing pathname must be reported as a literal snapshot or a counted gap. The two outcomes must account for every operation.",
+      "result": "Open",
+      "test": "ukai-jail/tests/j4_closed_set_linux.rs::j4_o06_racing_pathname_is_only_a_literal_snapshot"
+    },
+    {
+      "id": 36,
+      "clauses": [
+        "F02.3"
+      ],
+      "proof": "The protected repository object must retain its original identity and contents when mount replacement is attempted.",
+      "result": "Open",
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::f02_mount_replacement_of_a_protected_git_is_denied"
+    },
+    {
+      "id": 37,
+      "clauses": [
+        "F04.2"
+      ],
+      "proof": "If the workspace identity changes after pinning and before the mount handoff, the launch must refuse and the target marker must be absent.",
+      "result": "Passed",
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::f04_a_source_identity_swap_at_the_mount_handoff_refuses"
+    },
+    {
+      "id": 42,
+      "clauses": [
+        "R05.3"
+      ],
+      "proof": "Changes to live local receipt, trace and state files must carry no protection claim or change the actual run outcome.",
+      "result": "Open",
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::r05_forging_records_mid_run_is_outside_local_evidence_assurance"
+    },
+    {
+      "id": 44,
+      "clauses": [
+        "R06.2",
+        "R06.5"
+      ],
+      "proof": "After detecting a descendant outside its tracked group, the supervisor must retain both group and vendor state.",
+      "result": "Open",
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::r06_a_detected_escaped_descendant_loses_integrity_and_retains_state"
+    },
+    {
+      "id": 45,
+      "clauses": [
+        "S02.1",
+        "S02.3"
+      ],
+      "proof": "Inside the private process view, namespace-entry requests on visible descriptors must be denied, and the host supervisor must be absent.",
+      "result": "Passed",
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::s02_a_host_namespace_fd_cannot_be_opened_or_entered"
+    },
+    {
+      "id": 46,
+      "clauses": [
+        "S03.5"
+      ],
+      "proof": "Attempts to undo the outer cgroup, Landlock, seccomp and no-new-privileges restrictions must leave those restrictions in effect.",
+      "result": "Open",
+      "test": "ukai-jail/tests/j5_boundary_linux.rs::s03_the_outer_boundaries_cannot_be_reversed_inside_agent"
+    }
+  ],
+  "freeze_recorded": false,
+  "freeze_check_exit": 1,
+  "raw_directory": "evidence/arm64-gate-review.UNJLnn64",
+  "sha256": {
+    "source.sha256": "fe0decb16df0c31de35e8f7f174c9023c326b7db824f5d49c7751ad2c4525e40",
+    "binaries.sha256": "a8c0cbd990564e243a8117ce85c2c88f039b87cdea9bd11f10727ae272c61c29",
+    "release-verified.log": "491889e61de936ee3cf536deac52a4dc68e50aa3a8af93b20e88d518fee990e7",
+    "gates.json": "d76a1fc6b34694330462f1c31a69a1966113af27ee6ef0c30f7755fd1a93965b",
+    "k17-raw.tgz": "a947f36117633d33cb5ae57bb907dbec79c7e2e0135159f1884615735558e6d3",
+    "driver-checks.json": "e796e3a9f08bfc7d4d28ebd69cf6313f8cf72d83966c8fe5d098f5178fa18678",
+    "passive.json": "27d2bf4821d99f99e2b696ba16f26dc174e34ac007ee5eca68ee6c1bf50e9cca",
+    "r018-proof.tgz": "3919ba8b61d80c1e02788d38cedc02b5eb6efa01e05d032a6bc4ef40776e203d",
+    "r018-validation.json": "b470dc47899c5c0a9a7918e4408f55b875fc9f145626715411d9f9b7aac6e13b",
+    "final-input-check.txt": "55bf65846692c7d790b8d2040f169d223fdccee4c1285a046463025fef6ab7a2"
+  }
+}

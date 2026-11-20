@@ -127,7 +127,7 @@ pub const SOURCE_PATHSPECS: &[&str] = &[
 ];
 
 /// The index naming the retained release-preview evidence the release
-/// tests replay (K11, K27); that one results directory is copied too.
+/// tests replay (K11, K27). Transfer the directories named for each target.
 pub const PREVIEW_INDEX: &str = "docs/benchmarks/jail/release-preview-current.json";
 
 /// List the files [`SOURCE_PATHSPECS`] selects, tracked or visible and
@@ -144,19 +144,24 @@ fn source_inventory(local: &Path, destination: &Path) -> Result<(), String> {
     #[derive(serde::Deserialize)]
     struct PreviewIndex {
         directory: String,
+        #[serde(default)]
+        aarch64: std::collections::BTreeMap<String, String>,
     }
     let index: PreviewIndex = std::fs::read(local.join(PREVIEW_INDEX))
         .map_err(|e| e.to_string())
         .and_then(|bytes| serde_json::from_slice(&bytes).map_err(|e| e.to_string()))
         .map_err(|e| format!("{PREVIEW_INDEX}: {e}"))?;
-    if index
-        .directory
-        .split('/')
-        .any(|part| part.is_empty() || part == "." || part == "..")
-    {
-        return Err(format!("{PREVIEW_INDEX} names `{}`", index.directory));
+    let mut previews = Vec::new();
+    for directory in std::iter::once(index.directory).chain(index.aarch64.into_values()) {
+        if !directory.starts_with("results/")
+            || directory
+                .split('/')
+                .any(|part| matches!(part, "" | "." | ".."))
+        {
+            return Err(format!("{PREVIEW_INDEX} names `{directory}`"));
+        }
+        previews.push(format!(":(literal)docs/benchmarks/jail/{directory}"));
     }
-    let preview = format!("docs/benchmarks/jail/{}", index.directory);
     let mut args = vec![
         "ls-files",
         "-z",
@@ -166,7 +171,7 @@ fn source_inventory(local: &Path, destination: &Path) -> Result<(), String> {
         "--",
     ];
     args.extend(SOURCE_PATHSPECS);
-    args.push(&preview);
+    args.extend(previews.iter().map(String::as_str));
     args.extend([":(exclude)*.pem", ":(exclude)*.env"]);
     let listing = proc::git_bytes(local, &args)
         .map_err(|e| format!("git could not enumerate the source files: {e}"))?;
@@ -3516,6 +3521,8 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
             "crates/a/kept.fixture",
             "docs/specs/jail-v1/acceptance-map.toml",
             "docs/benchmarks/jail/verify_preview_evidence.py",
+            "docs/benchmarks/jail/results/arm-current/guest/result.json",
+            "docs/benchmarks/jail/results/arm-onboarding/vm.json",
             "docs/benchmarks/jail/README.md",
             "docs/benchmarks/jail/fixtures/learn_access.c",
             "docs/benchmarks/jail/results/current/vm.json",
@@ -3547,7 +3554,7 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
         }
         std::fs::write(
             root.path().join(PREVIEW_INDEX),
-            r#"{"directory": "results/current"}"#,
+            r#"{"directory": "results/current", "aarch64": {"learning": "results/arm-current", "onboarding": "results/arm-onboarding"}}"#,
         )
         .unwrap();
         git(&["add", "-f", "crates/a/kept.fixture"]);

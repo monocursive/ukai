@@ -26,9 +26,12 @@ if not __debug__:
 
 PROFILES = ['codex', 'claude', 'opencode', 'cursor', 'aider', 'goose', 'gemini',
             'amp', 'cline', 'copilot', 'kilo', 'auggie', 'droid', 'pi']
-AGENT_URL = ('https://github.com/anomalyco/opencode/releases/download/v1.18.32/'
-             'opencode-linux-x64-baseline.tar.gz')
-AGENT_SHA256 = '763af386ef88a8cab18df00fcf055690e5a55e31a7088beabe02307142a6adce'
+OPENCODE_ARTIFACTS = {
+    'x86_64-unknown-linux-gnu': ('opencode-linux-x64-baseline.tar.gz',
+                                 '763af386ef88a8cab18df00fcf055690e5a55e31a7088beabe02307142a6adce'),
+    'aarch64-unknown-linux-gnu': ('opencode-linux-arm64.tar.gz',
+                                  '568461b7d4d8c19865c97e9a1102e613049c6039d01fe772154de873c1865840'),
+}
 # The operator profile a provider key runs under: the bundled `opencode`
 # profile's hosts plus the provider's, with the key vaulted for that provider
 # only. It lives in this guest's config directory and dies with the VM.
@@ -58,12 +61,12 @@ allow = ["api.anthropic.com", "opencode.ai", "models.opencode.ai", "registry.npm
 '''
 
 
-def verify_build(version, revision, inputs=None):
+def verify_build(version, revision, inputs=None, target='x86_64-unknown-linux-gnu'):
     build = version['build']
     if (build['revision'] != revision or build['dirty'] is not False
-            or build['target'] != 'x86_64-unknown-linux-gnu'
+            or target not in OPENCODE_ARTIFACTS or build['target'] != target
             or build['opt_level'] != '3' or build['debug_assertions'] is not False):
-        raise ValueError('Expected the named clean optimized x86_64 Linux build.')
+        raise ValueError(f'Expected the named clean optimized {target} build.')
     if inputs is not None and build['inputs'] != inputs:
         raise ValueError('The artifact does not match the expected Jail source inputs.')
 
@@ -261,6 +264,12 @@ def main():
     parser.add_argument('--installer', type=pathlib.Path, required=True)
     parser.add_argument('--public-key', required=True)
     parser.add_argument('--revision', required=True)
+    parser.add_argument('--target', choices=OPENCODE_ARTIFACTS, default='x86_64-unknown-linux-gnu')
+    scope = parser.add_mutually_exclusive_group()
+    scope.add_argument('--only', choices=['install', 'onboarding', 'learning'],
+                       help='Run just this check in a fresh guest. The default runs both vendor checks.')
+    scope.add_argument('--install-only', dest='only', action='store_const', const='install',
+                       help=argparse.SUPPRESS)
     parser.add_argument('--inputs', help='Expected Jail build-input SHA256, independently verified.')
     parser.add_argument('--out', type=pathlib.Path, required=True)
     parser.add_argument('--credential-file', type=pathlib.Path,
@@ -269,6 +278,8 @@ def main():
     parser.add_argument('--vendor-attempts', type=int, choices=[1, 2], default=2,
                         help='Maximum CLI invocations per workload; not an API or billing cap.')
     args = parser.parse_args()
+    if args.only == 'install' and args.credential_file is not None:
+        parser.error('--install-only does not use provider credentials')
     os.umask(0o077)
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
@@ -279,10 +290,10 @@ def main():
            'UKAI_DATA_DIR': str(home / 'ouro-data'),
            'XDG_RUNTIME_DIR': os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')}
     result = {'schema': 'ouro.jail.onboarding/1', 'status': 'blocked',
-              'expected_revision': args.revision, 'rows': [],
+              'expected_revision': args.revision, 'rows': [], 'only': args.only,
               'expected_inputs': args.inputs,
               'vendor_attempts': args.vendor_attempts,
-              'max_vendor_invocations': 2 * args.vendor_attempts,
+              'max_vendor_invocations': {None: 2, 'install': 0, 'learning': 1, 'onboarding': 1}[args.only] * args.vendor_attempts,
               'timer_scope': 'signed install through first sandboxed OpenCode result; '
                              'includes agent download, excludes VM/dependency bootstrap',
               'publication': 'deferred', 'signing_identity': 'ephemeral test key'}
@@ -299,7 +310,7 @@ def main():
         original = result['binary_sha256']
         bad = home / 'corrupt-artifacts'
         shutil.copytree(args.artifacts, bad)
-        archives = list(args.artifacts.glob('ukai-jail-*-x86_64-unknown-linux-gnu.tar.gz'))
+        archives = list(args.artifacts.glob(f'ukai-jail-*-{args.target}.tar.gz'))
         assert len(archives) == 1, 'expected exactly one versioned native archive'
         archive_name = archives[0].name
         with (bad / archive_name).open('ab') as file:
@@ -327,7 +338,8 @@ def main():
         assert not any(rust.values()) and not (home / '.rustup').exists()
         assert not binary.exists(), 'A fresh VM must not have ukai-jail installed.'
         assert not (home / '.opencode').exists(), 'A fresh VM must not have OpenCode installed.'
-        assert os.uname().machine == 'x86_64' and os.uname().sysname == 'Linux'
+        result['guest_machine'] = os.uname().machine
+        assert args.target == result['guest_machine'] + '-unknown-linux-gnu' and os.uname().sysname == 'Linux'
         run('host', ['sh', '-c', 'uname -a; cat /etc/os-release; '
                     'systemd-detect-virt; id; getconf GNU_LIBC_VERSION; '
                     'bwrap --version; minisign -v; '
@@ -345,7 +357,7 @@ def main():
                         '--public-key', args.public_key, '--yes'])
         version = json.loads(run('version', [binary, 'version', '--json']).stdout)
         result['build'] = version
-        verify_build(version, args.revision, args.inputs)
+        verify_build(version, args.revision, args.inputs, args.target)
         result['binary_sha256'] = hashlib.file_digest(binary.open('rb'), 'sha256').hexdigest()
         workspace = home / 'onboarding-project'
         workspace.mkdir()
@@ -355,12 +367,14 @@ def main():
         agent_dir = home / '.opencode/bin'
         agent_dir.mkdir(parents=True)
         archive = home / 'opencode.tar.gz'
+        filename, expected_hash = OPENCODE_ARTIFACTS[args.target]
+        agent_url = 'https://github.com/anomalyco/opencode/releases/download/v1.18.32/' + filename
         run('opencode-download', ['curl', '--fail', '--silent', '--show-error', '--location',
-                                 '--proto', '=https', '--proto-redir', '=https', AGENT_URL,
+                                 '--proto', '=https', '--proto-redir', '=https', agent_url,
                                  '-o', archive])
         digest = hashlib.file_digest(archive.open('rb'), 'sha256').hexdigest()
-        result['agent_artifact'] = {'url': AGENT_URL, 'sha256': digest}
-        assert digest == AGENT_SHA256, 'OpenCode artifact checksum mismatch.'
+        result['agent_artifact'] = {'url': agent_url, 'sha256': digest}
+        assert digest == expected_hash, 'OpenCode artifact checksum mismatch.'
         with tarfile.open(archive) as tar:
             member = next(item for item in tar.getmembers() if pathlib.PurePosixPath(item.name).name == 'opencode')
             assert member.isfile(), 'Agent archive member is not a regular file.'
@@ -371,6 +385,10 @@ def main():
         result['vendor_version'] = run('opencode-version', [agent, '--version']).stdout.decode().strip()
         assert result['vendor_version'] == '1.18.32'
         run('ripgrep-version', ['rg', '--version'])
+        if args.only == 'install':
+            distribution_checks()
+            result['status'] = 'install-only-passed'
+            return 0
         launch = 'opencode'
         if args.credential_file is not None:
             # Store the provider key the way an operator does, then remove the
@@ -411,52 +429,54 @@ def main():
         # Force the agent's file-search path as well as its write tool. Without
         # rg, OpenCode downloads it from GitHub, outside the starter allowlist.
         (workspace / 'task.txt').write_text('hello\n')
-        vendor('opencode', [binary, 'run', '--launch', launch, '--workspace', workspace,
-                         '--ro', agent_dir, '--limit', 'wall=300s', '--', agent, 'run',
-                         '--print-logs', '--log-level', 'DEBUG', '--model', args.model,
-                         'Use your glob tool to find task.txt, read it, then create greeting.txt '
-                         'with exactly the same contents. Do not use the network yourself.'], [workspace / 'greeting.txt'])
-        data = receipt('opencode')
-        assert [(c['id'], c['mode'], c['never_staged']) for c in data['credentials']] == vaulted
-        assert (workspace / 'greeting.txt').read_bytes() == b'hello\n'
-        shutil.copyfile(workspace / 'greeting.txt', out / 'greeting.txt')
-        assert all(row['status'] == 'active' and not row['gaps'] for row in data['coverage'].values())
-        assert all(data['coverage'][name]['observed_count'] > 0
-                   for name in ['exec', 'fs.write', 'net', 'proxy.net'])
-        result['workflow_seconds'] = time.monotonic() - workflow_start
-        assert result['workflow_seconds'] < 600, 'The user workflow exceeded ten minutes.'
-        result['main_workflow'] = 'passed'
-        # K11: run the real vendor under learning, with a deliberate exact
-        # denied-read fixture. The candidate must cite this run's evidence,
-        # retain coverage and propose no parent tree or write grant.
-        needed = home / 'learning-needed.txt'
-        needed.write_text('learning fixture\n')
-        # Only this disposable guest's fixture directory. Vendor consent lets
-        # the call reach the jail, whose mount policy still denies the read.
-        (workspace / 'opencode.json').write_text(json.dumps({'permission': {
-            'bash': 'allow', 'edit': 'allow', 'read': 'allow',
-            'external_directory': {str(home) + '/**': 'allow'},
-        }}))
-        proposal = out / 'opencode-learned.toml'
-        vendor('opencode-learn', [binary, 'learn', '--launch', launch, '--workspace', workspace,
-                              '--ro', agent_dir, '--limit', 'wall=300s', '--out', proposal,
-                              '--', agent, 'run', '--print-logs', '--log-level', 'DEBUG', '--model', args.model,
-                              f'Use the bash tool once to run exactly `cat {needed}; '
-                              'cp task.txt learned-greeting.txt`. The cat is expected to fail; still '
-                              'run cp after it. Do not retry, change permissions, or use the network '
-                              'yourself. Reply done only after the command completed.'], [proposal, workspace / 'learned-greeting.txt'])
-        learning = receipt('opencode-learn')
-        assert [(c['id'], c['mode'], c['never_staged']) for c in learning['credentials']] == vaulted
-        assert (workspace / 'learned-greeting.txt').read_bytes() == b'hello\n'
-        learned = tomllib.loads(proposal.read_text())
-        assert learned['read_only'], 'expected an evidence-supported exact-read subset'
-        assert str(home) not in learned['read_only'] and not learned['network_allow']
-        assert learned['provenance']['receipt_digest'] == 'sha256:' + hashlib.sha256((out / 'opencode-learn-jail.json').read_bytes()).hexdigest()
-        assert json.loads(learned['provenance']['coverage_json']) == learning['coverage']
-        assert all(row['status'] == 'active' and not row['gaps'] for row in learning['coverage'].values())
-        result['learning_workflow'] = 'passed'
-        result['learning_fixture'] = str(needed)
-        result['learning_fixture_proposed'] = str(needed) in learned['read_only']
+        if args.only != 'learning':
+            vendor('opencode', [binary, 'run', '--launch', launch, '--workspace', workspace,
+                             '--ro', agent_dir, '--limit', 'wall=300s', '--', agent, 'run',
+                             '--print-logs', '--log-level', 'DEBUG', '--model', args.model,
+                             'Use your glob tool to find task.txt, read it, then create greeting.txt '
+                             'with exactly the same contents. Do not use the network yourself.'], [workspace / 'greeting.txt'])
+            data = receipt('opencode')
+            assert [(c['id'], c['mode'], c['never_staged']) for c in data['credentials']] == vaulted
+            assert (workspace / 'greeting.txt').read_bytes() == b'hello\n'
+            shutil.copyfile(workspace / 'greeting.txt', out / 'greeting.txt')
+            assert all(row['status'] == 'active' and not row['gaps'] for row in data['coverage'].values())
+            assert all(data['coverage'][name]['observed_count'] > 0
+                       for name in ['exec', 'fs.write', 'net', 'proxy.net'])
+            result['workflow_seconds'] = time.monotonic() - workflow_start
+            assert result['workflow_seconds'] < 600, 'The user workflow exceeded ten minutes.'
+            result['main_workflow'] = 'passed'
+        if args.only != 'onboarding':
+            # K11: run the real vendor under learning, with a deliberate exact
+            # denied-read fixture. The candidate must cite this run's evidence,
+            # retain coverage and propose no parent tree or write grant.
+            needed = home / 'learning-needed.txt'
+            needed.write_text('learning fixture\n')
+            # Only this disposable guest's fixture directory. Vendor consent lets
+            # the call reach the jail, whose mount policy still denies the read.
+            (workspace / 'opencode.json').write_text(json.dumps({'permission': {
+                'bash': 'allow', 'edit': 'allow', 'read': 'allow',
+                'external_directory': {str(home) + '/**': 'allow'},
+            }}))
+            proposal = out / 'opencode-learned.toml'
+            vendor('opencode-learn', [binary, 'learn', '--launch', launch, '--workspace', workspace,
+                                  '--ro', agent_dir, '--limit', 'wall=300s', '--out', proposal,
+                                  '--', agent, 'run', '--print-logs', '--log-level', 'DEBUG', '--model', args.model,
+                                  f'Use the bash tool once to run exactly `cat {needed}; '
+                                  'cp task.txt learned-greeting.txt`. The cat is expected to fail; still '
+                                  'run cp after it. Do not retry, change permissions, or use the network '
+                                  'yourself. Reply done only after the command completed.'], [proposal, workspace / 'learned-greeting.txt'])
+            learning = receipt('opencode-learn')
+            assert [(c['id'], c['mode'], c['never_staged']) for c in learning['credentials']] == vaulted
+            assert (workspace / 'learned-greeting.txt').read_bytes() == b'hello\n'
+            learned = tomllib.loads(proposal.read_text())
+            assert learned['read_only'], 'expected an evidence-supported exact-read subset'
+            assert str(home) not in learned['read_only'] and not learned['network_allow']
+            assert learned['provenance']['receipt_digest'] == 'sha256:' + hashlib.sha256((out / 'opencode-learn-jail.json').read_bytes()).hexdigest()
+            assert json.loads(learned['provenance']['coverage_json']) == learning['coverage']
+            assert all(row['status'] == 'active' and not row['gaps'] for row in learning['coverage'].values())
+            result['learning_workflow'] = 'passed'
+            result['learning_fixture'] = str(needed)
+            result['learning_fixture_proposed'] = str(needed) in learned['read_only']
         # From the project, as the guide runs it: doctor treats the current
         # directory as the workspace, and home holds the stored credential.
         for profile in PROFILES:

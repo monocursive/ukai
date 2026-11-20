@@ -1,0 +1,109 @@
+{
+  "gate": "K17",
+  "verdict": "pass",
+  "problems": [],
+  "rows": [
+    {
+      "session": "plain",
+      "workload": "noop",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {
+        "exec_unconfirmed": 30
+      },
+      "load1_max": 2.08,
+      "added_startup_p95_ms": 54.666762,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 30359.734453326106,
+      "post_start_pass": null
+    },
+    {
+      "session": "plain",
+      "workload": "spawn-tree",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 2.08,
+      "added_startup_p95_ms": 61.8915885,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 52.62206527519284,
+      "post_start_pass": null
+    },
+    {
+      "session": "plain",
+      "workload": "fileops",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.85,
+      "added_startup_p95_ms": 52.566751,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 80.6194678605278,
+      "post_start_pass": true
+    },
+    {
+      "session": "scope",
+      "workload": "noop",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {
+        "exec_unconfirmed": 30
+      },
+      "load1_max": 1.69,
+      "added_startup_p95_ms": 31.704985499999996,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 30729.879347542286,
+      "post_start_pass": null
+    },
+    {
+      "session": "scope",
+      "workload": "spawn-tree",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.72,
+      "added_startup_p95_ms": 31.4650885,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 63.57573157315075,
+      "post_start_pass": null
+    },
+    {
+      "session": "scope",
+      "workload": "fileops",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.74,
+      "added_startup_p95_ms": 38.963832,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 78.34363664811312,
+      "post_start_pass": true
+    }
+  ],
+  "limits": {
+    "startup_p95_ms_exclusive": 500,
+    "fileops_post_start_overhead_pct_inclusive": 100
+  },
+  "summary_sha256": "f27760b6bf5cd1217f777bab124d4a6ce9783f158d3339c46d89176461813a6f",
+  "revision": "91910434be4598d2d69c72ff70867ed5bc71ba99",
+  "runtime_inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+  "target": "aarch64-unknown-linux-gnu",
+  "executables": {
+    "ukai-jail": "6ae3977fa48d19329aded25eb2b4397291f03a7342c429f7322c91caae4a2598",
+    "ukai-fixture": "e706752cde5d030eb9d141e1124ff3a42e04e2571ae6af5386345aee5b186799",
+    "ukai-ledger": "2f190f9d292fe76f2a2891971eb1b9b29c8f4d5a69aa355efddc1ae0177cbed0",
+    "xtask": "5c4139b1eb202302256f895b48395390018bab1eee7f903fda05d695a2f34c09"
+  },
+  "host": "AC-powered M5 Pro, internal SSD, ARM64 Linux via HVF, four vCPUs, 6 GiB RAM",
+  "power_samples": 6,
+  "samples_on_ac": 6,
+  "measured_launches": 540,
+  "valid_measured_launches": 540,
+  "exclusions": 0,
+  "warmups": 18,
+  "replay_errors": [],
+  "seed": 1795099439497253944,
+  "guest_load_ceiling": 3.0,
+  "raw_archive_sha256": "fcf15dba884356793b56bcda31cc9cf06bc6f15e4e8b5a19eae47b17bb9f855e",
+  "launches_sha256": "d6442cafd2cf11ad8ae2ec1d296e0dbee50dabbc3cc9ac8a64b0544b3dc627b2"
+}
