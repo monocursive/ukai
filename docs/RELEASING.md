@@ -130,6 +130,11 @@ verify all seven public assets, install from the public bootstrap and check
 the installed build, doctor and a contained workload. Then roll out the signed
 bootstrap at `ukai.sh/install.sh` and repeat the public install there.
 ARM64 users can explicitly select a pinned preview with `--version 0.1.0-rc.8`.
+The [ARM64 qualification record](benchmarks/jail/arm64-qualification-2026-11-19.md) covers the Raspberry Pi and Ubuntu runs against the stable runtime inputs.
+The [ARM64 remediation run](benchmarks/jail/arm64-remediation-2026-11-19.md) covers the subsequent journal and foreign-ABI changes. The [SSD-backed ARM64 qualification](benchmarks/jail/arm64-ssd-qualification-2026-11-19.md) records the K17 pass and the native ARM32 limitation on the M5 Pro.
+The [64-bit-only ARM64 qualification](benchmarks/jail/arm64-only-qualification-2026-11-19.md) records what the M5 guest kernel rejects before execution and the release gates tested on that configuration.
+The [R01.8 review and M5 rerun](benchmarks/jail/arm64-r018-qualification-2026-11-19.md) defines the native-refusal receipt and tracks the previously missing checks.
+The [20 November M5 gate review](benchmarks/jail/arm64-gate-review-2026-11-20.md) records the four gates closed and the evidence still required for the remaining nine.
 The public Mac VM keeps its own version and pins.
 
 ## Linux-only Jail release scope

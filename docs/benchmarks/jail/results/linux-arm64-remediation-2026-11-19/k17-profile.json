@@ -1,0 +1,48 @@
+{
+  "measurement": "Diagnostic scope fileops tool/off round 3 on initial guest filesystem",
+  "measured_launch_startup_ms": 3520.713,
+  "fsyncs_entirely_within_startup": 12,
+  "syncs_at_least_80_ms": [
+    {
+      "task": "ukai-persist",
+      "offset_ms": 125.049,
+      "duration_ms": 612.754,
+      "success": true
+    },
+    {
+      "task": "ukai-persist",
+      "offset_ms": 738.597,
+      "duration_ms": 261.555,
+      "success": true
+    },
+    {
+      "task": "ukai-persist",
+      "offset_ms": 1002.305,
+      "duration_ms": 1450.245,
+      "success": true
+    },
+    {
+      "task": "ukai-persist",
+      "offset_ms": 2453.284,
+      "duration_ms": 258.906,
+      "success": true
+    },
+    {
+      "task": "ukai-persist",
+      "offset_ms": 2793.796,
+      "duration_ms": 562.357,
+      "success": true
+    },
+    {
+      "task": "ukai-persist",
+      "offset_ms": 3401.332,
+      "duration_ms": 97.566,
+      "success": true
+    }
+  ],
+  "duration_of_slow_syncs_ms": 3243.383,
+  "source_sha256": {
+    "fsync-trace.log": "9a85a361ee769aac2c6915da59d2e607c0613bc219e363df40567dc2ed4f33c8",
+    "k17-profile.ndjson": "d9a51f5c71dd5944fc3b3b27f5ba4b56e73768b56f8f50bff13949c43cc82103"
+  }
+}

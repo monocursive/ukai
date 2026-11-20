@@ -1,0 +1,14 @@
+{
+  "revision": "0010dffb3f3a41497ef93527674615deb0d290bf",
+  "runtime_inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+  "fixture_bytes": 7145825,
+  "frames": 13108,
+  "exclusive_limit_ms": 50,
+  "samples_ms": [
+    30.944826,
+    30.359592,
+    29.9658
+  ],
+  "successful_invocations": 3,
+  "log_sha256": "3a6e36267c2da78d82f2af90f659d5b7afea17cf890b92022dbd7090c8f83268"
+}

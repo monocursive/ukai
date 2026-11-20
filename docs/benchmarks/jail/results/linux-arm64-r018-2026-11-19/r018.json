@@ -1,0 +1,58 @@
+{
+  "revision": "a6cd7dc2291391e96edfc37c86debdcd4f88576d",
+  "host_control": {
+    "arm32_exec": "ENOEXEC",
+    "linux32_personality": "EINVAL",
+    "native_exec": "succeeded",
+    "cpus": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  "negative_controls": {
+    "altered_control": "unrecognized armhf fixture",
+    "subset_of_cpus": "need access to every online CPU"
+  },
+  "observed": {
+    "caller_reported_pid": 32085,
+    "child_exec_results": 1,
+    "child_exec_outcome": {
+      "ok": false,
+      "return_value": -8,
+      "errno": "ENOEXEC",
+      "completion": "syscall_return"
+    },
+    "audit_classes": [
+      "exec",
+      "fs.write",
+      "fs.deny",
+      "net"
+    ],
+    "observer_gaps": [],
+    "trace_frames": 10,
+    "control_frames": 3,
+    "phase": "settled",
+    "outcome": {
+      "kind": "exited",
+      "code": 0,
+      "signal": null,
+      "cause": null,
+      "error": null
+    },
+    "sha256": {
+      "receipt.json": "a143153b0a14a6236046914512252063324f69d293f5559d0f0fe9e007414298",
+      "trace.ndjson": "054b5986d660d6fa3ada92f5f0cdabf8301a72e4479ff8d27438766c30c98c60",
+      "control.ndjson": "67a5fa8be3dd26a25e9cbbbf176ff340a1a606d7c34bf318860f3d66d3a271b6"
+    }
+  },
+  "contract_checks": {
+    "schema_and_semantics": "passed",
+    "final_trace_and_control_bind_receipt": true,
+    "different_receipt_rejected": true,
+    "reordered_control_rejected": true
+  },
+  "focused_test_log_sha256": "0b2e18dbf2618b1d2697deb66d4db39e5bc727083f24f850b214ff97df0a9af7",
+  "raw_archive_sha256": "4cafe6e76fa22cd0cc79b00a168e0e5bca3cf4e2d7045148261cb1ad2cfa15dd"
+}

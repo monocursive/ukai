@@ -1,0 +1,103 @@
+{
+  "gate": "K17",
+  "verdict": "fail",
+  "problems": [],
+  "rows": [
+    {
+      "session": "plain",
+      "workload": "noop",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {
+        "exec_unconfirmed": 26
+      },
+      "load1_max": 1.0,
+      "added_startup_p95_ms": 706.843759,
+      "startup_pass": false,
+      "post_start_overhead_median_pct": 3988.0762605570453,
+      "post_start_pass": null
+    },
+    {
+      "session": "plain",
+      "workload": "spawn-tree",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.41,
+      "added_startup_p95_ms": 2136.1323540000003,
+      "startup_pass": false,
+      "post_start_overhead_median_pct": 20.57905121637721,
+      "post_start_pass": null
+    },
+    {
+      "session": "plain",
+      "workload": "fileops",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.73,
+      "added_startup_p95_ms": 638.7558234999999,
+      "startup_pass": false,
+      "post_start_overhead_median_pct": 30.753835620174478,
+      "post_start_pass": true
+    },
+    {
+      "session": "scope",
+      "workload": "noop",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {
+        "exec_unconfirmed": 28
+      },
+      "load1_max": 1.66,
+      "added_startup_p95_ms": 543.234543,
+      "startup_pass": false,
+      "post_start_overhead_median_pct": 3900.1705698072096,
+      "post_start_pass": null
+    },
+    {
+      "session": "scope",
+      "workload": "spawn-tree",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.48,
+      "added_startup_p95_ms": 616.7837324999999,
+      "startup_pass": false,
+      "post_start_overhead_median_pct": 17.51579802934919,
+      "post_start_pass": null
+    },
+    {
+      "session": "scope",
+      "workload": "fileops",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.74,
+      "added_startup_p95_ms": 558.447425,
+      "startup_pass": false,
+      "post_start_overhead_median_pct": 29.162588578332738,
+      "post_start_pass": true
+    }
+  ],
+  "limits": {
+    "startup_p95_ms_exclusive": 500,
+    "fileops_post_start_overhead_pct_inclusive": 100
+  },
+  "summary_sha256": "cf732e6021600f068225364bd8687f86d49d33b2985379a77b7670c8743cbf80",
+  "revision": "0010dffb3f3a41497ef93527674615deb0d290bf",
+  "target": "aarch64-unknown-linux-gnu",
+  "runtime_inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+  "executables": {
+    "ukai-jail": "904d3eea1c0c13b0ecd4bb64a0a22eddb75061a15a4adcf06dfad4be759d12f4",
+    "ukai-fixture": "c4024b921a2f8e34926f3307c1a37e6d212425ce4ffddc74dc376e2de7b88ab1",
+    "xtask": "e8f3b31e629e21569a29c814be5afedeeae1a39bfa590f7f6960fe7e0eca1f3a"
+  },
+  "guest": "Ubuntu 26.04.1 ARM64 KVM on Raspberry Pi 4",
+  "state_volume": "Pi-local preallocated ext4 raw volume with barriers and fast commits",
+  "warmup_launches": 18,
+  "measured_launches": 540,
+  "excluded_measured_launches": 0,
+  "raw_launches_sha256": "33ae3bff67f3b5dd9b174ce868713a227d027712433174fb7f11f3a4a5db018f",
+  "raw_archive_sha256": "dd5102d574e4a9f774686f03a7bec370bdecc34e7c6a269fe4af7e18e3251b22"
+}

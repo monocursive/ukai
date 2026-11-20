@@ -1,0 +1,92 @@
+{
+  "gate": "K17",
+  "verdict": "pass",
+  "problems": [],
+  "rows": [
+    {
+      "session": "plain",
+      "workload": "noop",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {
+        "exec_unconfirmed": 30
+      },
+      "load1_max": 0.91,
+      "added_startup_p95_ms": 48.098819999999996,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 33545.1693011875,
+      "post_start_pass": null
+    },
+    {
+      "session": "plain",
+      "workload": "spawn-tree",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.0,
+      "added_startup_p95_ms": 43.120406499999994,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 78.19618974853157,
+      "post_start_pass": null
+    },
+    {
+      "session": "plain",
+      "workload": "fileops",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.33,
+      "added_startup_p95_ms": 49.8421595,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 46.5752028211533,
+      "post_start_pass": true
+    },
+    {
+      "session": "scope",
+      "workload": "noop",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {
+        "exec_unconfirmed": 30
+      },
+      "load1_max": 1.47,
+      "added_startup_p95_ms": 38.398368000000005,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 24689.885029566307,
+      "post_start_pass": null
+    },
+    {
+      "session": "scope",
+      "workload": "spawn-tree",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.47,
+      "added_startup_p95_ms": 34.5191255,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 56.01582524285348,
+      "post_start_pass": null
+    },
+    {
+      "session": "scope",
+      "workload": "fileops",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.63,
+      "added_startup_p95_ms": 37.765052999999995,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 30.232619404289007,
+      "post_start_pass": true
+    }
+  ],
+  "limits": {
+    "startup_p95_ms_exclusive": 500,
+    "fileops_post_start_overhead_pct_inclusive": 100
+  },
+  "summary_sha256": "1363f46025ac61a71a4fb177e66839e9a567dc4210c8061682c6df6a7acdf09a",
+  "launches_sha256": "86d817c37a7506da2037cd4509c948a59f1eb09f5f780d96bb564b6ea8bc9dc7",
+  "recorded_launches": 558,
+  "measured_launches": 540,
+  "warmups": 18
+}

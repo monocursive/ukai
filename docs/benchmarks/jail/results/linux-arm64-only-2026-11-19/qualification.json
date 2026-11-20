@@ -1,0 +1,233 @@
+{
+  "qualification_revision": "91910434be4598d2d69c72ff70867ed5bc71ba99",
+  "runtime_parent": "0010dffb3f3a41497ef93527674615deb0d290bf",
+  "runtime_inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+  "target": "aarch64-unknown-linux-gnu",
+  "verified_source_files": 2652,
+  "executables": {
+    "ukai-jail": "6ae3977fa48d19329aded25eb2b4397291f03a7342c429f7322c91caae4a2598",
+    "ukai-fixture": "e706752cde5d030eb9d141e1124ff3a42e04e2571ae6af5386345aee5b186799",
+    "ukai-ledger": "2f190f9d292fe76f2a2891971eb1b9b29c8f4d5a69aa355efddc1ae0177cbed0",
+    "xtask": "5c4139b1eb202302256f895b48395390018bab1eee7f903fda05d695a2f34c09"
+  },
+  "execution": "selected cases in one native release workspace invocation, followed by workspace doctests",
+  "all_live_cases_executed": false,
+  "results": {
+    "passed": 2913,
+    "failed": 0,
+    "ignored": 18
+  },
+  "preliminary_run": {
+    "passed": 2921,
+    "failed": 0,
+    "ignored": 13,
+    "evaluator": "duplicate binary sections in the initial log required a unified rerun"
+  },
+  "test_failures": [],
+  "commands": {
+    "workspace-exit": "0",
+    "doctests-exit": "0"
+  },
+  "driver": {
+    "checks": {
+      "doctor_manifest": true,
+      "i01_absent": true,
+      "contract_validation": true,
+      "i02_scan": true,
+      "i01_scrubbed_path": true,
+      "plain_session_smoke": true
+    },
+    "doctor_manifest_mismatches": {}
+  },
+  "release_map_scope": "linux-x86_64-stable",
+  "gate_counts": {
+    "FAIL": 30,
+    "credential": 1,
+    "elsewhere": 14,
+    "pass": 40,
+    "pass+limits": 3,
+    "pass+unsupported": 1,
+    "unsupported": 21
+  },
+  "green": false,
+  "map_problems": [],
+  "selected_clauses": {
+    "S01.2": {
+      "status": "pass",
+      "reasons": []
+    },
+    "R01.8": {
+      "status": "FAIL",
+      "reasons": [
+        "`ukai-jail/tests/observer_j4_linux.rs::j4_d1_none_a_child_listener_degrades_the_receipt_and_strict_stops` is absent from the linux log",
+        "`ukai-jail/tests/observer_j4_linux.rs::j4_d2_none_a_foreign_abi_call_degrades_the_receipt` is absent from the linux log"
+      ]
+    },
+    "K11.1": {
+      "status": "pass",
+      "reasons": []
+    },
+    "K17.1": {
+      "status": "pass",
+      "reasons": []
+    },
+    "K17.2": {
+      "status": "limit",
+      "reasons": []
+    },
+    "K27.1": {
+      "status": "pass",
+      "reasons": []
+    },
+    "K27.2": {
+      "status": "pass",
+      "reasons": []
+    }
+  },
+  "remaining_gate_ids": [
+    "P03",
+    "X03",
+    "X06",
+    "F01",
+    "F02",
+    "F04",
+    "S01",
+    "S02",
+    "S03",
+    "S04",
+    "N01",
+    "N04",
+    "N05",
+    "O01",
+    "O02",
+    "O03",
+    "O06",
+    "L01",
+    "L02",
+    "R01",
+    "R03",
+    "R05",
+    "R06",
+    "C01",
+    "C02",
+    "K04",
+    "K05",
+    "K06",
+    "K07",
+    "K30"
+  ],
+  "k51_ms": [
+    2.93822,
+    2.485594,
+    2.360176
+  ],
+  "fresh_private_install": {
+    "status": "install-only-passed",
+    "revision": "91910434be4598d2d69c72ff70867ed5bc71ba99",
+    "binary_sha256": "6ae3977fa48d19329aded25eb2b4397291f03a7342c429f7322c91caae4a2598",
+    "production_signing": false,
+    "vm_destroyed": true,
+    "temporary_removed": true,
+    "max_vendor_invocations": 0
+  },
+  "freeze": "xtask freeze --check: no tested run is recorded (\"# --- the tested run (cargo xtask freeze --doctor); everything above is the tree ---\" is absent): record the milestone conformance run with `cargo xtask freeze --doctor <run>/doctor.json`",
+  "freeze_exit": 1,
+  "raw_directory": "evidence/arm64-only-qualification.ZPCxBCZH",
+  "raw_sha256": {
+    "source.sha256": "a8715edfe54eeb063425aec1ba3e8bd9a41e02fbf6e2701d2a732695ac3007dc",
+    "abi-proof.json": "e37dcd0b315131fabca6651c9702f307bee992b7b7077ff1107c4754782f1531",
+    "abi-observed.json": "d57ea20f6d11e48f37ee8969d14f64ac4f5f55f3b28b6bb9a915ca2495d609db",
+    "contract-validation.txt": "d1f97413ec798240450fe9edcec9c10aded5a8e500d13c5d85debf54849f3498",
+    "binaries-check.txt": "55bf65846692c7d790b8d2040f169d223fdccee4c1285a046463025fef6ab7a2",
+    "test.log": "2bd57796cb4cc8956a4f386a33ebcbd75f2fca2a33cd8f2e4b700f71e693cf26",
+    "release-verified.log": "e936fd7ce397fbf3c7f897bb354a0171e1fcb7d476efe29fff3aadd90e2152dd",
+    "initial-score/gates.json": "ed7333992993079884e89a49a133310e9dc8205afcbbc0e12609487684d33ef2",
+    "k51.log": "ecc513ab8fd54fa9b78d429f9449e9d445b54e6c06444b1386722a8dd4d2f6c5",
+    "gates.json": "aad98570f6aee51fb3b9da7d2a030bfd665e1f19d4076394d23fd35d1134ceda",
+    "driver-checks.json": "e796e3a9f08bfc7d4d28ebd69cf6313f8cf72d83966c8fe5d098f5178fa18678",
+    "clean-install/vm.json": "5a0cf414945656f05fb4b3b6fe2ed0a2ef1e12d70f17b66d6ad8ee9faaf7ad84",
+    "freeze.txt": "77aad7ba8e8fc922ce59eeba200f2705c3b9b4b96df8b0f874d61058b47027f2",
+    "final-input-check.txt": "55bf65846692c7d790b8d2040f169d223fdccee4c1285a046463025fef6ab7a2"
+  },
+  "required_tests_absent_from_scored_log": [
+    "ukai-jail/tests/conformance_j2.rs::l02_startup_parent_death_window_is_closed",
+    "ukai-jail/tests/conformance_j3_agent.rs::c01_an_agent_launch_profile_stages_both_credential_modes_through_run",
+    "ukai-jail/tests/conformance_j3_agent.rs::n01_direct_tcp_udp_ipv6_and_a_proxy_ignoring_client_fail",
+    "ukai-jail/tests/conformance_j3_agent.rs::n04_header_overflow_and_saturation_are_bounded",
+    "ukai-jail/tests/conformance_j3_agent.rs::n04_slow_headers_end_at_the_absolute_header_deadline",
+    "ukai-jail/tests/conformance_j3_agent.rs::n05_a_proxy_replaced_after_the_first_connect_is_never_reached",
+    "ukai-jail/tests/conformance_j3_agent.rs::n05_a_proxy_replaced_before_the_first_connect_is_never_reached",
+    "ukai-jail/tests/conformance_j3_agent.rs::n05_child_path_and_mount_changes_cannot_redirect_the_bridge",
+    "ukai-jail/tests/conformance_j3_agent.rs::n05_host_peers_existing_late_aliased_and_in_every_grant_are_unreachable",
+    "ukai-jail/tests/conformance_j3_agent.rs::review_every_contained_profile_refuses_a_socket_family_outside_the_list",
+    "ukai-jail/tests/conformance_j3_agent.rs::review_x06_holds_with_observation_off",
+    "ukai-jail/tests/conformance_j3_agent.rs::s03_a_landlock_and_seccomp_inner_sandbox_starts_and_restricts_its_child",
+    "ukai-jail/tests/conformance_j3_agent.rs::s03_a_namespace_inner_sandbox_fails_visibly_and_the_receipt_says_unavailable",
+    "ukai-jail/tests/conformance_j3_agent.rs::s03_each_outer_boundary_reversal_fails_and_changes_nothing",
+    "ukai-jail/tests/conformance_j3_agent.rs::x06_no_notification_sockdiag_proxy_or_bridge_descriptor_reaches_the_target",
+    "ukai-jail/tests/conformance_j3_credentials.rs::c01_a_bind_ro_source_replaced_after_staging_is_never_bound",
+    "ukai-jail/tests/conformance_j3_credentials.rs::c02_a_normal_exit_cleans_vendor_state_and_planted_links_cannot_redirect_deletion",
+    "ukai-jail/tests/conformance_j3_credentials.rs::m1_a_read_only_bind_of_a_writable_filesystem_gets_no_digest",
+    "ukai-jail/tests/conformance_j3_none.rs::r05_same_uid_tampering_is_outside_local_evidence_assurance",
+    "ukai-jail/tests/conformance_j3_none.rs::r06_a_descendant_that_leaves_after_the_target_exits_loses_integrity",
+    "ukai-jail/tests/conformance_j3_none.rs::r06_a_descendant_that_leaves_and_exits_at_once_is_caught_by_its_zombie",
+    "ukai-jail/tests/conformance_j3_none.rs::r06_a_replaced_leaf_loses_integrity_and_is_never_touched",
+    "ukai-jail/tests/conformance_j3_none.rs::r06_a_target_that_leaves_and_exits_at_once_is_caught_by_its_zombie",
+    "ukai-jail/tests/conformance_j3_none.rs::r06_a_target_that_leaves_the_leaf_while_live_is_never_settled",
+    "ukai-jail/tests/j4_closed_set_linux.rs::j4_clone_untraced_is_a_gap_in_none",
+    "ukai-jail/tests/j4_closed_set_linux.rs::j4_o01_every_variant_is_one_event_per_result_agent",
+    "ukai-jail/tests/j4_closed_set_linux.rs::j4_o01_every_variant_is_one_event_per_result_build",
+    "ukai-jail/tests/j4_closed_set_linux.rs::j4_o01_every_variant_is_one_event_per_result_none",
+    "ukai-jail/tests/j4_closed_set_linux.rs::j4_o01_every_variant_is_one_event_per_result_tool",
+    "ukai-jail/tests/j4_closed_set_linux.rs::j4_o02_a_nested_pid_namespace_under_none_keeps_host_attribution",
+    "ukai-jail/tests/j4_closed_set_linux.rs::j4_o06_a_descriptor_moved_between_the_stops_is_not_resolved",
+    "ukai-jail/tests/j4_closed_set_linux.rs::j4_o06_racing_pathname_is_only_a_literal_snapshot",
+    "ukai-jail/tests/j4_tracer_precision_linux.rs::j4_w3_a_non_leader_exec_invents_no_result_through_the_product_none",
+    "ukai-jail/tests/j4_tracer_precision_linux.rs::j4_w3_a_non_leader_exec_invents_no_result_through_the_product_tool",
+    "ukai-jail/tests/j5_boundary_linux.rs::f01_a_workspace_symlink_to_a_home_secret_reads_as_absent",
+    "ukai-jail/tests/j5_boundary_linux.rs::f02_mount_replacement_of_a_protected_git_is_denied",
+    "ukai-jail/tests/j5_boundary_linux.rs::f04_a_source_identity_swap_at_the_mount_handoff_refuses",
+    "ukai-jail/tests/j5_boundary_linux.rs::n01_build_direct_egress_fails",
+    "ukai-jail/tests/j5_boundary_linux.rs::n05_a_late_socket_in_an_extra_grant_is_unreachable",
+    "ukai-jail/tests/j5_boundary_linux.rs::r03_a_wall_expires_before_the_saturation_loss_is_declared",
+    "ukai-jail/tests/j5_boundary_linux.rs::r03_a_wall_fires_on_time_under_a_saturated_trace",
+    "ukai-jail/tests/j5_boundary_linux.rs::r05_forging_records_mid_run_is_outside_local_evidence_assurance",
+    "ukai-jail/tests/j5_boundary_linux.rs::r05_the_supervisors_own_proc_is_closed_to_a_same_uid_peer",
+    "ukai-jail/tests/j5_boundary_linux.rs::r06_a_detected_escaped_descendant_loses_integrity_and_retains_state",
+    "ukai-jail/tests/j5_boundary_linux.rs::s02_a_host_namespace_fd_cannot_be_opened_or_entered",
+    "ukai-jail/tests/j5_boundary_linux.rs::s03_the_outer_boundaries_cannot_be_reversed_inside_agent",
+    "ukai-jail/tests/j5_boundary_linux.rs::s04_agent_and_build_refuse_every_io_uring_interface",
+    "ukai-jail/tests/j5_boundary_linux.rs::s04_an_io_uring_on_stdout_or_stderr_refuses_before_exec",
+    "ukai-jail/tests/j5_boundary_linux.rs::s04_none_installs_no_io_uring_filter",
+    "ukai-jail/tests/j5_process_linux.rs::x03_owner_death_before_release_runs_no_target",
+    "ukai-jail/tests/j5_process_linux.rs::x03_owner_death_during_release_execs_exactly_once",
+    "ukai-jail/tests/j5_process_linux.rs::x03_owner_death_mid_frame_runs_no_target",
+    "ukai-jail/tests/j5_pseudofs_linux.rs::s02_a_contained_grant_of_proc_sys_or_cgroupfs_refuses_before_exec",
+    "ukai-jail/tests/j5_pseudofs_linux.rs::s02_an_ancestor_of_a_pseudo_fs_mount_refuses_through_run",
+    "ukai-jail/tests/j5_pseudofs_linux.rs::s02_the_pseudo_fs_refusal_follows_the_source_not_the_spelling",
+    "ukai-jail/tests/linux_mechanisms.rs::a_held_handle_denies_a_recreated_directory_the_same_inode",
+    "ukai-jail/tests/linux_mechanisms.rs::the_baseline_filter_denies_the_syscalls_the_spec_lists",
+    "ukai-jail/tests/linux_mechanisms.rs::the_filter_is_what_denies_them_not_the_host",
+    "ukai-jail/tests/observer_j4_linux.rs::j4_d1_none_a_child_listener_degrades_the_receipt_and_strict_stops",
+    "ukai-jail/tests/observer_j4_linux.rs::j4_d2_none_a_foreign_abi_call_degrades_the_receipt",
+    "ukai-jail/tests/observer_regression_linux.rs::j4_n8_execveat_failure_and_success_are_distinct_events",
+    "ukai-jail/tests/observer_regression_linux.rs::j4_n8_vfork_and_posix_spawn_children_keep_their_attribution",
+    "ukai-jail/tests/observer_regression_linux.rs::r20_a_non_leader_exec_accounts_for_every_thread",
+    "ukai-jail/tests/observer_regression_linux.rs::r24_a_queue_gap_names_what_it_lost_and_never_swallows_the_exit",
+    "ukai-jail/tests/observer_regression_linux.rs::r25_symlink_reports_the_link_it_creates_as_its_primary_path",
+    "ukai-jail/tests/observer_regression_linux.rs::r29_a_dead_supervisor_kills_its_traced_tree",
+    "ukai-jail/tests/review_linux.rs::r1_the_baseline_filter_denies_what_the_spec_lists",
+    "ukai-jail/tests/review_linux.rs::r1_the_child_cannot_reach_the_supervisors_state",
+    "ukai-jail/tests/review_linux.rs::r3_io_uring_as_stdio_refuses_before_exec",
+    "ukai-jail/tests/review_linux.rs::r9_a_mid_run_policy_edit_cannot_widen_the_attempt",
+    "ukai-jail/tests/security_alias_linux.rs::guarded_aliases_are_detected_across_devices_and_below_mountpoints",
+    "ukai-jail/tests/unix_peer_linux.rs::host_pathname_sockets_and_aliases_are_unreachable_but_attempt_sockets_work",
+    "ukai-jail/tests/unix_peer_linux.rs::non_native_abi_connects_are_refused"
+  ],
+  "release_map_warnings": [],
+  "source_and_executable_recheck": "pass",
+  "private_publisher_unit_tests": {
+    "passed": 14,
+    "exit": 0
+  }
+}

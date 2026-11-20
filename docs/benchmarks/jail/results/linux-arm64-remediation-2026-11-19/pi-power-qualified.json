@@ -1,0 +1,26 @@
+{
+  "interval": "Samples within the exact-pair timed passes, approximately every eight seconds",
+  "start_utc": "2026-11-19T16:38:38Z",
+  "end_utc": "2026-11-19T16:54:49Z",
+  "samples": 122,
+  "samples_with_current_undervoltage_and_throttling": 59,
+  "minimum_clock_hz": 600117184,
+  "maximum_clock_hz": 1500398464,
+  "status_masks": [
+    "0x50000",
+    "0x50005"
+  ],
+  "pass_windows": [
+    {
+      "session": "plain",
+      "started": "2026-11-19T16:38:34Z",
+      "ended": "2026-11-19T16:46:54Z"
+    },
+    {
+      "session": "scope",
+      "started": "2026-11-19T16:46:54Z",
+      "ended": "2026-11-19T16:54:52Z"
+    }
+  ],
+  "source_sha256": "22375630d55133d163bb403b83599a6fee5045ff26ee029a86bf9ca07a9f53bb"
+}

@@ -1,0 +1,14 @@
+{
+  "interval": "Samples within the timed plain or scope pass, approximately every eight seconds",
+  "start_utc": "2026-11-19T14:47:14Z",
+  "end_utc": "2026-11-19T15:00:45Z",
+  "samples": 102,
+  "samples_with_current_undervoltage_and_throttling": 52,
+  "minimum_clock_hz": 600117184,
+  "maximum_clock_hz": 1500398464,
+  "status_masks": [
+    "0x50000",
+    "0x50005"
+  ],
+  "source_sha256": "5d1aece98fa31e0581dc4355d5d56c5c2d9e2ccd3bd9bdfe58aff2130645f3eb"
+}

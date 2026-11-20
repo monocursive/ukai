@@ -1,0 +1,108 @@
+{
+  "qualification_revision": "3a9b2fc57b0d5a391d8a97d672a16bcead4c4d62",
+  "target": "aarch64-unknown-linux-gnu",
+  "runtime_inputs": "sha256:81a2a1b453dd2c0427800235bc7148e5cd84f23d642319a726ffb543931e3def",
+  "runtime_result": "failed",
+  "host": {
+    "hardware": "Raspberry Pi 4 Model B",
+    "virtualization": "KVM",
+    "guest": "Ubuntu 26.04.1 LTS",
+    "kernel": "7.0.0-43-generic",
+    "bubblewrap": "0.11.1",
+    "vcpus": 3,
+    "ram_mib": 2048
+  },
+  "build": "native ARM64 Cargo cache; both release build and test compilation invoked on the guest",
+  "doctor_ready": true,
+  "toolchain": "rustc 1.98.1 (48a229cea 2026-09-01)",
+  "public_policy_used_for_clause_selection": "linux-x86_64-stable",
+  "libtest": {
+    "passed": 3073,
+    "failed": 1,
+    "ignored": 18
+  },
+  "test_summaries": 117,
+  "failed_tests": [
+    "k51_an_a01_sized_journal_is_summarized_within_the_budget"
+  ],
+  "gate_counts": {
+    "FAIL": 2,
+    "credential": 1,
+    "elsewhere": 14,
+    "pass": 63,
+    "pass+limits": 7,
+    "pass+unsupported": 2,
+    "unsupported": 21
+  },
+  "failed_gates": [
+    {
+      "id": "S01",
+      "clauses": [
+        {
+          "checks": [],
+          "clause": "Foreign-architecture and x32 ABI variants are denied",
+          "id": "S01.2",
+          "lane": "linux",
+          "limit": null,
+          "note": "The CLI test denies io_uring through its x32 number and through the i386 int 0x80 entry; r21 denies an i386 open under the tool baseline. The filter's architecture branch is number-independent.",
+          "reasons": [
+            "`ukai-jail/tests/observer_regression_linux.rs::r21_the_tool_baseline_denies_the_abi_the_observer_cannot_name` is absent from the linux log"
+          ],
+          "status": "FAIL",
+          "tag": "live-cli",
+          "tests": [
+            "ukai-jail/tests/conformance_j2.rs::s04_io_uring_and_compat_abis_cannot_bypass_the_filter",
+            "ukai-jail/tests/observer_regression_linux.rs::r21_the_tool_baseline_denies_the_abi_the_observer_cannot_name"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "I01",
+      "clauses": [
+        {
+          "checks": [
+            "suite_clean"
+          ],
+          "clause": "Full jail conformance passes in that environment",
+          "id": "I01.3",
+          "lane": "linux",
+          "limit": null,
+          "note": null,
+          "reasons": [
+            "check `suite_clean` failed"
+          ],
+          "status": "FAIL",
+          "tag": "live-cli",
+          "tests": []
+        }
+      ]
+    }
+  ],
+  "runtime_checks_present": {
+    "j4_d2_a_foreign_abi_call_without_a_baseline_is_a_gap": true,
+    "j4_d2_none_a_foreign_abi_call_degrades_the_receipt": true,
+    "s04_io_uring_and_compat_abis_cannot_bypass_the_filter": true
+  },
+  "binary_digests": {
+    "ukai-jail": "83c479a61edda4d5c167b34963c974084785dd608335d828c5bad0ee609b94a7",
+    "ukai-fixture": "e9c7f0604b339d215345e3dac418693cdac44a4063b41fd3544a07b3be8ae28b",
+    "ukai-ledger": "508a766fce174b9b949631bfb8e5f88085a6c974ef24cda54c9e95f7260a4788"
+  },
+  "hash_recheck": [
+    "target/release/ukai-jail: OK",
+    "target/release/ukai-fixture: OK",
+    "target/release/ukai-ledger: OK"
+  ],
+  "artifacts_sha256": {
+    "build.log": "4f8bca5b7363f08b4c06f3ff587487462f6eb0b5c6fdcc56d0f8978a122c67c6",
+    "test.log": "eb08461aab82860b0336235474f586b1050ec7dd2b0a410bfd5d7455b8201b14",
+    "doctor.json": "527db4aa85ec66688822ef34f115efd2d15be697e12d5e1b06cb29c4db84623e",
+    "gates.json": "be1f09f6c5b30f27de7d1aaaae96cde948f01b52c393cc87cf9ac91895c30194",
+    "i01.txt": "b7d8e00114315455d4890fc9da378e172a83f91ba3dc0b8f5b44fa9da04674c7",
+    "summary.txt": "2deac16bd5784ee89a3016d044216d23b97497524d4094db44371202a6f16dcc",
+    "host-manifest.txt": "651d037f238b63ff3073718d67c1ae9e1ebfddae10cf8fd7ecc1600f0557a94f",
+    "binaries.sha256": "5afea0f44809a7ee93d92a2bc99ab4aa07f0c1f657981e6e1194acc5cb156b6f",
+    "binaries-check.txt": "82677281109685693ec944186504eb619e2b552b745c7a27d74899d0ad73f58e"
+  }
+}

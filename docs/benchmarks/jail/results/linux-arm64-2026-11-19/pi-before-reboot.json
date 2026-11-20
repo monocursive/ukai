@@ -1,0 +1,118 @@
+{
+  "architecture": "aarch64",
+  "kernel": "6.18.50+rpt-rpi-v8",
+  "binary_sha256": "1cc88ea25133d776cbea50ad1e59afc248feaa7e1b7dbb1ad6343eda1224b4b9",
+  "revision": "8a80ed085430049e7cc6e6212d776b23039aea7c",
+  "profiles": {
+    "tool": {
+      "doctor_ready": true,
+      "doctor_exit": 0,
+      "run_exit": 0,
+      "receipt_sha256": "097907d2678617666413ce668f216824890e54ee4071db6c29fcff81a85aecae",
+      "phase": "settled",
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      },
+      "containment": "enforced",
+      "exec_observed": true,
+      "tree_empty": true,
+      "integrity": "verified",
+      "state_cleanup": "complete",
+      "coverage": {
+        "exec": {
+          "status": "active",
+          "gaps": 0
+        },
+        "fs.write": {
+          "status": "active",
+          "gaps": 0
+        },
+        "fs.deny": {
+          "status": "active",
+          "gaps": 0
+        },
+        "net": {
+          "status": "active",
+          "gaps": 0
+        },
+        "limits": {
+          "status": "active",
+          "gaps": 0
+        },
+        "proxy.net": {
+          "status": "unsupported",
+          "gaps": 0
+        }
+      },
+      "output_matches": true,
+      "status": "passed"
+    },
+    "build": {
+      "doctor_ready": false,
+      "doctor_exit": 125,
+      "status": "doctor-refused",
+      "requirements": [
+        "tree_termination",
+        "closed_set_observation",
+        "filesystem_containment",
+        "syscall_filter",
+        "network_none",
+        "limit:wall",
+        "limit:mem",
+        "execution_boundary"
+      ]
+    },
+    "agent": {
+      "doctor_ready": true,
+      "doctor_exit": 0,
+      "run_exit": 0,
+      "receipt_sha256": "7601d276d384eb3bc1b57583c82560f743e7a9c49997497c1488dcc907f8c476",
+      "phase": "settled",
+      "outcome": {
+        "kind": "exited",
+        "code": 0,
+        "signal": null,
+        "cause": null,
+        "error": null
+      },
+      "containment": "enforced",
+      "exec_observed": true,
+      "tree_empty": true,
+      "integrity": "verified",
+      "state_cleanup": "complete",
+      "coverage": {
+        "exec": {
+          "status": "active",
+          "gaps": 0
+        },
+        "fs.write": {
+          "status": "active",
+          "gaps": 0
+        },
+        "fs.deny": {
+          "status": "active",
+          "gaps": 0
+        },
+        "net": {
+          "status": "active",
+          "gaps": 0
+        },
+        "limits": {
+          "status": "active",
+          "gaps": 0
+        },
+        "proxy.net": {
+          "status": "active",
+          "gaps": 0
+        }
+      },
+      "output_matches": true,
+      "status": "passed"
+    }
+  },
+  "inputs": "sha256:81a2a1b453dd2c0427800235bc7148e5cd84f23d642319a726ffb543931e3def"
+}

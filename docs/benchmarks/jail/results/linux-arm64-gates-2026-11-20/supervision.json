@@ -1,0 +1,101 @@
+{
+  "revision": "a6cd7dc2291391e96edfc37c86debdcd4f88576d",
+  "target": "aarch64-unknown-linux-gnu",
+  "guest": "Ubuntu 26.04.1 LTS 7.0.0-43-generic",
+  "release_executable_sha256": "1597a43885ad3ed4e90637f3c9536bdcb54173c74a73b0d5d91c4d4212fb9ce6",
+  "scope": "Supplemental process-supervision checks",
+  "live": [
+    {
+      "observation": "off",
+      "finish": "natural",
+      "exit_code": 23,
+      "cause": null,
+      "phase_with_live_child": "enforced",
+      "empty_with_live_child": null,
+      "scope": "registered_boundary",
+      "integrity": "verified",
+      "leaf_removed": true,
+      "unrelated_process_survived": true,
+      "receipt_sha256": "53f7a0bb0057ff96d3890c925ee65c68536da6983780a7e6bb533e133140fdc4"
+    },
+    {
+      "observation": "off",
+      "finish": "operator",
+      "exit_code": 23,
+      "cause": null,
+      "phase_with_live_child": "enforced",
+      "empty_with_live_child": null,
+      "scope": "registered_boundary",
+      "integrity": "verified",
+      "leaf_removed": true,
+      "unrelated_process_survived": true,
+      "receipt_sha256": "90900bd6d48347a5f8a93c60404069a7f32425e97973eb3136f8a642125025f9"
+    },
+    {
+      "observation": "on",
+      "finish": "natural",
+      "exit_code": 23,
+      "cause": null,
+      "phase_with_live_child": "enforced",
+      "empty_with_live_child": null,
+      "scope": "registered_boundary",
+      "integrity": "verified",
+      "leaf_removed": true,
+      "unrelated_process_survived": true,
+      "receipt_sha256": "3d0ad11e0934e285aa8cefcdbe1341752073f5e63d4da19b08fff5b4111633e2"
+    },
+    {
+      "observation": "on",
+      "finish": "operator",
+      "exit_code": 23,
+      "cause": null,
+      "phase_with_live_child": "enforced",
+      "empty_with_live_child": null,
+      "scope": "registered_boundary",
+      "integrity": "verified",
+      "leaf_removed": true,
+      "unrelated_process_survived": true,
+      "receipt_sha256": "3e80b4d62352b8fd6ea672e9b84563affcc7c218656a3cde3c559ef86257957d"
+    },
+    {
+      "observation": "off",
+      "finish": "operator-before-exit",
+      "exit_code": 143,
+      "cause": "operator_signal",
+      "scope": "registered_boundary",
+      "integrity": "verified",
+      "leaf_removed": true,
+      "unrelated_process_survived": true,
+      "receipt_sha256": "b752a6290d769b36a9b8f6074237ba1b98191580ba10767e2eac55eefad6681b"
+    },
+    {
+      "observation": "on",
+      "finish": "operator-before-exit",
+      "exit_code": 143,
+      "cause": "operator_signal",
+      "scope": "registered_boundary",
+      "integrity": "verified",
+      "leaf_removed": true,
+      "unrelated_process_survived": true,
+      "receipt_sha256": "7f1f86d2aef064d6a813b2d5fee36460acb8bc8c36f82f8ce8d8b6b223c21934"
+    }
+  ],
+  "fault_injection": {
+    "source": "Private test copy using the candidate membership-reader seam; real child exit and settlement, with a simulated read error.",
+    "result": "passed",
+    "control": "Verified, registered scope, tree empty and verification time set.",
+    "read_error": "Lost, registered scope, no tree result or verification time, original target exit status preserved."
+  },
+  "official_gate_credit": [],
+  "raw_directory": "evidence/arm64-supervision.gOAiH8v4",
+  "sha256": {
+    "live.py": "9464dfdfe835bd003e286b7edf77980349e11602172979176c4a64ebf28ce42c",
+    "early.py": "aa426a75d7cfbb039a00723aff2295412bac1e3e7dfaeeb72dccdefbb0262036",
+    "workload.py": "50d35939abac4efb7b86b847dd96691134b3a3d7435f5d0a654027eb1a82e11f",
+    "probe.rs": "e1ce5db36f5757a9459b8922d9b831c1bb8515fe8dd6a48fc45350acb657f4ad",
+    "fault-injection.log": "8e05eb42004b33ebea9bb46e92ec351c0d879079152893d0d5c312a2b3bf919f",
+    "receipts.tgz": "53d54a3f6c5aedcdad576a5ef5254f0c0e487bbc56f9465d9ee3d2f64dfa7282",
+    "live-final.jsonl": "33caa59afeb10a62ab5d283c8ae92c106850c54db63fb27f7a641231b2d1b025",
+    "early.jsonl": "944793f2937cdd0e4ec1c8b7bff4cc7ca23624f45a43b04f9a0c7940a457528b"
+  }
+}

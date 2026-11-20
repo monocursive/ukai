@@ -1,0 +1,20 @@
+{
+  "model": "anthropic/claude-sonnet-5-5",
+  "guest_exit": 1,
+  "workload_exit": 1,
+  "error": "ProviderModelNotFoundError",
+  "provider_endpoints": [
+    "models.opencode.ai:443"
+  ],
+  "learning_invocations": 0,
+  "distribution": "passed",
+  "raw_result_sha256": "3c1ed7a9292f92b1193ba20e5d1148c246b67f749f108fd8bbf5f64793733530",
+  "vm_destroyed": true,
+  "temporary_removed": true,
+  "credential_exposure": {
+    "complete": true,
+    "files_scanned": 60,
+    "bytes_scanned": 297279,
+    "files_with_key": []
+  }
+}
