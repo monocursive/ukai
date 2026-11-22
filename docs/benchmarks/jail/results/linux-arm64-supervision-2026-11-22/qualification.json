@@ -1,0 +1,224 @@
+{
+  "build": {
+    "debug_assertions": false,
+    "dirty": false,
+    "inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+    "opt_level": "3",
+    "revision": "2f58d7cde8a910fc527128813952eb2d8e0b661c",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "target": "aarch64-unknown-linux-gnu"
+  },
+  "host": "Apple M5 Pro, internal SSD, QEMU HVF",
+  "guest": [
+    "Linux 7.0.0-43-generic aarch64",
+    "Ubuntu 26.04.1 LTS",
+    "bubblewrap 0.11.1",
+    "4",
+    "cgroup2"
+  ],
+  "suite_results": {
+    "passed": 2979,
+    "failed": 0,
+    "ignored": 18
+  },
+  "suite_filtered": true,
+  "full_arm64_conformance": false,
+  "evaluator_scope": "linux-x86_64-stable",
+  "all_noncredential_gates_pass": false,
+  "driver_checks": {
+    "doctor_manifest": true,
+    "i01_absent": true,
+    "i02_scan": true,
+    "contract_validation": true,
+    "i01_scrubbed_path": true,
+    "plain_session_smoke": true
+  },
+  "targeted_tests": {
+    "passed": 48,
+    "failed": 0,
+    "ignored": 0
+  },
+  "gates": [
+    {
+      "id": "O06",
+      "status": "pass",
+      "clauses": [
+        {
+          "id": "O06.1",
+          "status": "pass"
+        },
+        {
+          "id": "O06.2",
+          "status": "pass"
+        },
+        {
+          "id": "O06.3",
+          "status": "pass"
+        },
+        {
+          "id": "O06.4",
+          "status": "pass"
+        },
+        {
+          "id": "O06.5",
+          "status": "pass"
+        },
+        {
+          "id": "O06.6",
+          "status": "pass"
+        }
+      ]
+    },
+    {
+      "id": "L01",
+      "status": "pass",
+      "clauses": [
+        {
+          "id": "L01.1",
+          "status": "pass"
+        },
+        {
+          "id": "L01.9",
+          "status": "pass"
+        },
+        {
+          "id": "L01.10",
+          "status": "pass"
+        },
+        {
+          "id": "L01.2",
+          "status": "pass"
+        },
+        {
+          "id": "L01.11",
+          "status": "pass"
+        },
+        {
+          "id": "L01.3",
+          "status": "pass"
+        },
+        {
+          "id": "L01.4",
+          "status": "pass"
+        },
+        {
+          "id": "L01.5",
+          "status": "pass"
+        },
+        {
+          "id": "L01.6",
+          "status": "pass"
+        },
+        {
+          "id": "L01.7",
+          "status": "pass"
+        },
+        {
+          "id": "L01.8",
+          "status": "pass"
+        },
+        {
+          "id": "L01.12",
+          "status": "pass"
+        }
+      ]
+    },
+    {
+      "id": "R06",
+      "status": "pass+limits",
+      "clauses": [
+        {
+          "id": "R06.1",
+          "status": "pass"
+        },
+        {
+          "id": "R06.2",
+          "status": "pass"
+        },
+        {
+          "id": "R06.4",
+          "status": "pass"
+        },
+        {
+          "id": "R06.5",
+          "status": "pass"
+        },
+        {
+          "id": "R06.3",
+          "status": "limit"
+        },
+        {
+          "id": "R06.6",
+          "status": "pass"
+        }
+      ]
+    },
+    {
+      "id": "K30",
+      "status": "pass",
+      "clauses": [
+        {
+          "id": "K30.1",
+          "status": "pass"
+        },
+        {
+          "id": "K30.2",
+          "status": "pass"
+        },
+        {
+          "id": "K30.3",
+          "status": "pass"
+        },
+        {
+          "id": "K30.4",
+          "status": "pass"
+        }
+      ]
+    }
+  ],
+  "previous_review_cases_now_passed": [
+    20,
+    21,
+    22,
+    23,
+    24,
+    31,
+    32,
+    44
+  ],
+  "previous_review_cases_still_open": [
+    8,
+    14,
+    19,
+    25,
+    36,
+    42,
+    46
+  ],
+  "remaining_gate_rows": [
+    "F02",
+    "S03",
+    "N05",
+    "R05",
+    "K05"
+  ],
+  "remaining_tests": [
+    "ukai-jail/tests/conformance_j3_agent.rs::n05_child_path_and_mount_changes_cannot_redirect_the_bridge",
+    "ukai-jail/tests/conformance_j3_agent.rs::s03_each_outer_boundary_reversal_fails_and_changes_nothing",
+    "ukai-jail/tests/conformance_j3_none.rs::r05_same_uid_tampering_is_outside_local_evidence_assurance",
+    "ukai-jail/tests/j4_closed_set_linux.rs::j4_clone_untraced_is_a_gap_in_none",
+    "ukai-jail/tests/j5_boundary_linux.rs::f02_mount_replacement_of_a_protected_git_is_denied",
+    "ukai-jail/tests/j5_boundary_linux.rs::r05_forging_records_mid_run_is_outside_local_evidence_assurance",
+    "ukai-jail/tests/j5_boundary_linux.rs::s03_the_outer_boundaries_cannot_be_reversed_inside_agent"
+  ],
+  "release_executable_sha256": {
+    "ukai-jail": "cc03c19802c417ab812402931fe2aa3f9dbb4a9d17d0b9088c8421a409cab489",
+    "ukai-fixture": "2bd87a4f924a64004585862563001107d108d9c956c1e494a8ae850b69e2d4ec",
+    "ukai-ledger": "2f190f9d292fe76f2a2891971eb1b9b29c8f4d5a69aa355efddc1ae0177cbed0",
+    "xtask": "a6b1851fa7e3aed6cd72ae4d951808917acab673756e7eeb60feb37c9b23a86a"
+  },
+  "suite_sha256": "65634b5153ac64af8325645dc5b1a0745c758c76c1614bb25de18946b1b5877b",
+  "targeted_suite_sha256": "9b7a867d69b387c49c60554e1669db7e499a5ba8e8fcee8df71ffcbfa80581ff",
+  "evaluator_output_sha256": "88e0ac3a7e4db8cc8ad0c5033b608aa66331d0dab9a68ecd3b5ca94ca6d3cbf2",
+  "performance": "k17.json"
+}

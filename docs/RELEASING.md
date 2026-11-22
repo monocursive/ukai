@@ -121,6 +121,7 @@ A version without a SemVer prerelease suffix selects one native
 Ubuntu 26.04.1 LTS configuration, kernel 7.0.0-31-generic, bubblewrap 0.11.1,
 ptrace observation and reference cgroup delegation. The [Linux runtime audit](security-audit-2026-11-18-linux.md)
 describes the evaluated workloads and remaining platform limits.
+The [22 November x86_64 reference run](benchmarks/jail/results/linux-x86-reference-2026-11-22/reference-conformance.json) passed 3,079 tests after refreshing the clean-VM OpenCode onboarding and learning records.
 
 Use the native stage from the release-candidate workflow for the exact commit.
 Run the assembly and publication steps below with that single stage and the
@@ -134,7 +135,7 @@ The [ARM64 qualification record](benchmarks/jail/arm64-qualification-2026-11-19.
 The [ARM64 remediation run](benchmarks/jail/arm64-remediation-2026-11-19.md) covers the subsequent journal and foreign-ABI changes. The [SSD-backed ARM64 qualification](benchmarks/jail/arm64-ssd-qualification-2026-11-19.md) records the K17 pass and the native ARM32 limitation on the M5 Pro.
 The [64-bit-only ARM64 qualification](benchmarks/jail/arm64-only-qualification-2026-11-19.md) records what the M5 guest kernel rejects before execution and the release gates tested on that configuration.
 The [R01.8 review and M5 rerun](benchmarks/jail/arm64-r018-qualification-2026-11-19.md) defines the native-refusal receipt and tracks the previously missing checks.
-The [20 November M5 gate review](benchmarks/jail/arm64-gate-review-2026-11-20.md) records the four gates closed and the evidence still required for the remaining nine.
+The [20 November M5 gate review](benchmarks/jail/arm64-gate-review-2026-11-20.md) identified 15 missing checks. The [22 November supervision and observation run](benchmarks/jail/arm64-supervision-2026-11-22.md) closed four more gates. Seven live checks remain across five gates.
 The public Mac VM keeps its own version and pins.
 
 ## Linux-only Jail release scope

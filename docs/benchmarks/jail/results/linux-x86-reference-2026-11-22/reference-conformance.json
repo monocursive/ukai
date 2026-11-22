@@ -1,0 +1,45 @@
+{
+  "reference_run": "20261122T120823Z-9a4add280997",
+  "build": {
+    "debug_assertions": false,
+    "dirty": false,
+    "inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+    "opt_level": "3",
+    "revision": "9a4add2809975b3280bbb0404515d3bd85d57fe7",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "target": "x86_64-unknown-linux-gnu"
+  },
+  "host": {
+    "arch": "x86_64",
+    "kernel": "Linux 7.0.0-31-generic",
+    "os": "linux"
+  },
+  "suite": {
+    "passed": 3079,
+    "failed": 0,
+    "ignored": 18
+  },
+  "gates": {
+    "I01": "pass",
+    "K11": "pass",
+    "K27": "pass"
+  },
+  "publication_scope": "linux-x86_64-stable",
+  "reference_host_conformance": "pass",
+  "gate_status_counts": {
+    "credential": 1,
+    "elsewhere": 14,
+    "pass": 65,
+    "pass+limits": 7,
+    "pass+unsupported": 2,
+    "unsupported": 21
+  },
+  "all_noncredential_gates_pass": false,
+  "suite_log_sha256": "0f6949815a699481cdf3cf469a02b1419517dbd96e6c161d313c61b5503cba0f",
+  "gate_report_sha256": "f51fa328583128edb7f32a4936514fb0bc197696271541910ecb08783cd8a1b0",
+  "binaries": [
+    "f915c298ae29886f7c828fc631b33e1ba1be714aa2c151f6c62706cd878027a8  target/release/ukai-jail",
+    "94e3ee74ac8fba1cef5bb02c1772ff4fb86ef8c043df05d595d1eae8d9a06d5d  target/release/ukai-fixture",
+    "8e4fbf6e02ed8fd753160c9be9fdb30111c8d9a15e2d5b72e162ea3f78acc374  target/release/ukai-ledger"
+  ]
+}

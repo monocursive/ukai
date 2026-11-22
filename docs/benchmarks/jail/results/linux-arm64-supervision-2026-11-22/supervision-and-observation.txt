@@ -1,0 +1,111 @@
+ukai-suite-path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ukai-suite-revision=2f58d7cde8a910fc527128813952eb2d8e0b661c
+ukai-suite-conformance=1
+   Compiling ukai-jail v0.1.0 (/home/ukai-ci/ukai-reference-check/crates/ukai-jail)
+    Finished `release` profile [optimized] target(s) in 39.18s
+     Running unittests src/lib.rs (target/release/deps/ukai_jail-8abd57b847879d13)
+
+running 14 tests
+test platform::linux::audit::tests::a_name_below_a_kept_directory_link_is_named_by_it ... ok
+test platform::linux::audit::tests::a_name_through_a_descriptor_is_classified_as_relative_to_it ... ok
+test platform::linux::audit::tests::a_standard_device_is_a_digest_with_its_own_reason ... ok
+test platform::linux::audit::tests::a_symlink_target_is_a_digest_never_a_path ... ok
+test platform::linux::observed::tests::a_path_claim_gap_degrades_nothing_and_accounts_for_no_loss ... ok
+test platform::linux::tracer::session::evidence::tests::a_descriptor_resolves_only_to_exactly_its_directory_and_name ... ok
+test platform::linux::tracer::session::evidence::tests::a_path_claim_is_corroborated_by_its_components_not_only_its_name ... ok
+test platform::linux::tracer::session::exit::tests::a_device_number_is_read_only_for_a_corroborated_name_below_dev ... ok
+test platform::linux::tracer::session::exit::tests::a_relative_names_anchor_is_kept_only_when_both_stops_agree ... ok
+test platform::linux::tracer::session::exit::tests::an_open_claim_the_descriptor_does_not_corroborate_is_downgraded_not_lost ... ok
+test platform::linux::tracer::session::exit::tests::an_open_through_a_descriptor_is_named_by_the_kernels_resolution ... ok
+test platform::linux::tracer::tests::a_name_through_a_descriptor_is_recognized_in_both_spellings ... ok
+test platform::linux::tracer::tests::a_resolved_descriptor_link_is_charged_to_the_queue ... ok
+test platform::linux::verdict::tests::a_clean_none_tree_is_empty_only_in_the_registered_scope ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 970 filtered out; finished in 0.00s
+
+     Running tests/conformance_j1.rs (target/release/deps/conformance_j1-b500477cde937eb8)
+
+running 2 tests
+test l01_a_target_that_ignores_the_cooperative_stop_dies_of_the_forced_one ... ok
+test s11_wall_expiry_separate_run ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 20 filtered out; finished in 3.10s
+
+     Running tests/conformance_j3_none.rs (target/release/deps/conformance_j3_none-50778f2248b7c50f)
+
+running 8 tests
+test none_gate_closed_refuses_after_a_verified_teardown ... ok
+test none_wall_expiry_ends_the_tree_through_the_leaf ... ok
+test r05_clean_none_evidence_stays_unprotected ... ok
+test r06_a_descendant_that_leaves_after_the_target_exits_loses_integrity ... ok
+test r06_a_descendant_that_leaves_and_exits_at_once_is_caught_by_its_zombie ... ok
+test r06_a_replaced_leaf_loses_integrity_and_is_never_touched ... ok
+test r06_a_target_that_leaves_and_exits_at_once_is_caught_by_its_zombie ... ok
+test r06_a_target_that_leaves_the_leaf_while_live_is_never_settled ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 8.61s
+
+     Running tests/j4_closed_set_linux.rs (target/release/deps/j4_closed_set_linux-a58fb7a69714a2a4)
+
+running 9 tests
+test j4_o01_every_variant_is_one_event_per_result_tool ... ok
+test j4_o06_a_descriptor_moved_between_the_stops_is_not_resolved ... ok
+test j4_o06_a_link_names_only_the_entry_it_creates ... ok
+test j4_o06_a_name_through_a_descriptor_is_named_by_the_kernels_resolution ... ok
+test j4_o06_foreign_dirfd ... ok
+test j4_o06_non_utf8_round_trip ... ok
+test j4_o06_racing_pathname_is_only_a_literal_snapshot ... ok
+test j4_o06_renamed_cwd ... ok
+test j4_o06_two_paths_independent ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.57s
+
+     Running tests/j5_boundary_linux.rs (target/release/deps/j5_boundary_linux-7571a6ac012314a4)
+
+running 1 test
+test r06_a_detected_escaped_descendant_loses_integrity_and_retains_state ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.55s
+
+     Running tests/j5_lifetime_linux.rs (target/release/deps/j5_lifetime_linux-b0a9323a97a2e72e)
+
+running 7 tests
+test l01_a_fork_burst_is_fully_reaped ... ok
+test l01_a_fork_storm_stopped_mid_flight_ends_at_verified_tree_death ... ok
+test l01_a_sigterm_ignoring_descendant_is_dead_before_settlement_is_announced ... ok
+test l01_a_sigterm_ignoring_descendant_of_a_contained_run_dies_when_the_operator_signals ... ok
+test l01_operator_int_term_and_hup_each_end_a_contained_tree ... ok
+test l01_operator_int_term_and_hup_each_end_a_none_tree_at_verified_death ... ok
+test l01_wall_expiry_ends_a_contained_tree_with_a_sigterm_ignoring_descendant ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 25.89s
+
+     Running tests/j5_tracer_foreign_child_linux.rs (target/release/deps/j5_tracer_foreign_child_linux-dc98b764c053c56e)
+
+running 4 tests
+test j5t_none_leaves_an_inherited_child_alone_observed ... ok
+test j5t_none_leaves_an_inherited_child_alone_unobserved ... ok
+test j5t_none_traced_to_an_inherited_reader_delivers_the_whole_stream ... ok
+test j5t_none_unobserved_an_inherited_child_ending_mid_run_is_not_an_escape ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 4.20s
+
+     Running tests/observer_regression_linux.rs (target/release/deps/observer_regression_linux-df3f66e729df877b)
+
+running 1 test
+test r25_symlink_reports_the_link_it_creates_as_its_primary_path ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.11s
+
+     Running tests/review_linux.rs (target/release/deps/review_linux-c7c3a74ed1e20046)
+
+running 2 tests
+test r4_wall_expiry_records_its_hit_and_verifies_the_tree ... ok
+test r6_a_foreign_dirfd_is_not_resolved_against_a_cwd ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 44 filtered out; finished in 0.79s
+
+target/release/ukai-jail: OK
+target/release/ukai-fixture: OK
+target/release/ukai-ledger: OK
+target/release/xtask: OK

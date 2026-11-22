@@ -1,0 +1,94 @@
+{
+  "gate": "K17",
+  "verdict": "pass",
+  "problems": [],
+  "rows": [
+    {
+      "session": "plain",
+      "workload": "noop",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {
+        "exec_unconfirmed": 30
+      },
+      "load1_max": 0.33,
+      "added_startup_p95_ms": 47.615511,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 28848.757070232532,
+      "post_start_pass": null
+    },
+    {
+      "session": "plain",
+      "workload": "spawn-tree",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 0.54,
+      "added_startup_p95_ms": 47.072384500000005,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 57.057264206358916,
+      "post_start_pass": null
+    },
+    {
+      "session": "plain",
+      "workload": "fileops",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.09,
+      "added_startup_p95_ms": 48.529284000000004,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 83.16276100123832,
+      "post_start_pass": true
+    },
+    {
+      "session": "scope",
+      "workload": "noop",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {
+        "exec_unconfirmed": 30
+      },
+      "load1_max": 1.09,
+      "added_startup_p95_ms": 32.289675499999994,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 29469.14280432328,
+      "post_start_pass": null
+    },
+    {
+      "session": "scope",
+      "workload": "spawn-tree",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.16,
+      "added_startup_p95_ms": 35.068183999999995,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 56.48599609496158,
+      "post_start_pass": null
+    },
+    {
+      "session": "scope",
+      "workload": "fileops",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.59,
+      "added_startup_p95_ms": 34.737495499999994,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 80.60328114096214,
+      "post_start_pass": true
+    }
+  ],
+  "limits": {
+    "startup_p95_ms_exclusive": 500,
+    "fileops_post_start_overhead_pct_inclusive": 100
+  },
+  "summary_sha256": "32faebaa9e0094320bac44d8a36e2503e0865d1d2e00f448c4be6da0abdbb802",
+  "revision": "2f58d7cde8a910fc527128813952eb2d8e0b661c",
+  "valid_launches": 540,
+  "exclusions": 0,
+  "warmups": 18,
+  "replay_errors": [],
+  "raw_archive_sha256": "43deb6697926841c16751d6bc05f1e9896ded53beaa248f3f8162adeb4c27e10"
+}
