@@ -1,0 +1,80 @@
+{
+  "arm64_ready_for_stable": false,
+  "published_arm64_preview": "0.1.0-rc.8",
+  "stable_target": "x86_64-unknown-linux-gnu",
+  "candidate": {
+    "debug_assertions": false,
+    "dirty": false,
+    "inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+    "opt_level": "3",
+    "revision": "479584c0e1302c30861f3b76d75c3e85ae5eb584",
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "target": "aarch64-unknown-linux-gnu"
+  },
+  "jail_sha256": "7383cbe3e27784f15282a0e5e048006be3cb2d1ca561ccb5ca7d13314005f14c",
+  "host": "Apple M5 Pro",
+  "guest_os": "Ubuntu 26.04.1 LTS",
+  "guest_kernel": "Linux 7.0.0-43-generic",
+  "guest_cpus": 4,
+  "doctor_capabilities_matched": 21,
+  "plain_session_smoke": [
+    "tool",
+    "none"
+  ],
+  "focused_test_results": {
+    "status": "passed",
+    "names": [
+      "platform::linux::tracer::session::entry::tests::audit4_compat_abi_listener_and_untraced_clone_route_to_their_gaps",
+      "n05_connects_from_worker_threads_are_mediated_like_any_other",
+      "s03_a_landlock_and_seccomp_inner_sandbox_starts_and_restricts_its_child",
+      "r05_clean_none_evidence_stays_unprotected",
+      "r1_protected_segments_are_read_only_and_the_workspace_is_writable"
+    ],
+    "log_sha256": "a0271125f9b2d7228ef80fc59e3a4c4825596f89441cfcec569e4dd2b9e9461f"
+  },
+  "performance": {
+    "gate": "K17",
+    "verdict": "pass",
+    "valid_launches": 540,
+    "excluded_launches": 0,
+    "warmups": 18,
+    "max_added_startup_p95_ms": 64.263525,
+    "fileops_median_overhead_pct": {
+      "plain": 79.13503983137183,
+      "scope": 84.3354397786955
+    },
+    "limits": {
+      "startup_p95_ms_exclusive": 500,
+      "fileops_post_start_overhead_pct_inclusive": 100
+    },
+    "raw_launch_log_sha256": "75a964d1077bc4427885d3b06361541b7b359ebb08c2306a860bd35cc39f3e7f",
+    "replay_summary_sha256": "4a4c2ea8a7efd9f3132f79833b89179ef6e12a990d0a129880038b49fd26be8e"
+  },
+  "distribution": {
+    "status": "install-only-passed",
+    "signature": "ephemeral test key",
+    "archive": "ukai-jail-0.1.0-test.479584c0e-aarch64-unknown-linux-gnu.tar.gz",
+    "archive_sha256": "50d02f7e3f7a51407d822b872e3014fc1667cd9245afa8ef783b424e6664de1a",
+    "installed_sha256": "7383cbe3e27784f15282a0e5e048006be3cb2d1ca561ccb5ca7d13314005f14c",
+    "upgraded_sha256": "7383cbe3e27784f15282a0e5e048006be3cb2d1ca561ccb5ca7d13314005f14c",
+    "corrupt_archive_rejected": true,
+    "corrupt_signature_rejected": true,
+    "fresh_image_sha256": "cf3b8472b84e7de37cdc2d2e9a9bf82b3edf0ab97113a1422eff048f26688e2f"
+  },
+  "reference_guest": {
+    "restore_boot": "passed",
+    "restored_candidate_sha256": "7383cbe3e27784f15282a0e5e048006be3cb2d1ca561ccb5ca7d13314005f14c",
+    "image_sha256": "31ba121a660e6fbb9fd97625567f36230692d64d67b778a355ae7aab439b4a06"
+  },
+  "full_arm64_conformance": "incomplete",
+  "outstanding_cases_run": 0,
+  "outstanding_clauses": [
+    "F02.3",
+    "K05.1",
+    "N05.8",
+    "R05.2",
+    "R05.3",
+    "S03.4",
+    "S03.5"
+  ]
+}

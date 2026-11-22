@@ -71,6 +71,14 @@ def verify_build(version, revision, inputs=None, target='x86_64-unknown-linux-gn
         raise ValueError('The artifact does not match the expected Jail source inputs.')
 
 
+def installed_digest(binary, expected):
+    with binary.open('rb') as source:
+        digest = hashlib.file_digest(source, 'sha256').hexdigest()
+    if expected is not None and digest != expected:
+        raise ValueError('Installed ukai-jail differs from the expected binary SHA256.')
+    return digest
+
+
 def credential_identity(info):
     return tuple(getattr(info, name) for name in
                  ('st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_nlink', 'st_size',
@@ -264,6 +272,7 @@ def main():
     parser.add_argument('--installer', type=pathlib.Path, required=True)
     parser.add_argument('--public-key', required=True)
     parser.add_argument('--revision', required=True)
+    parser.add_argument('--binary-sha256', help='SHA256 of the binary supplied to the packager.')
     parser.add_argument('--target', choices=OPENCODE_ARTIFACTS, default='x86_64-unknown-linux-gnu')
     scope = parser.add_mutually_exclusive_group()
     scope.add_argument('--only', choices=['install', 'onboarding', 'learning'],
@@ -318,15 +327,16 @@ def main():
         corrupt = run('corrupt-archive', ['sh', args.installer, '--from-dir', bad,
                        '--public-key', args.public_key, '--upgrade'], check=False)
         assert corrupt.returncode != 0 and b'Checksum verification failed' in corrupt.stderr
-        assert hashlib.file_digest(binary.open('rb'), 'sha256').hexdigest() == original
+        installed_digest(binary, original)
         shutil.copyfile(args.artifacts / archive_name, bad / archive_name)
         (bad / 'SHA256SUMS.minisig').write_text('invalid signature fixture\n')
         signature = run('corrupt-signature', ['sh', args.installer, '--from-dir', bad,
                          '--public-key', args.public_key, '--upgrade'], check=False)
         assert signature.returncode != 0 and b'signature verification failed' in signature.stderr
-        assert hashlib.file_digest(binary.open('rb'), 'sha256').hexdigest() == original
+        installed_digest(binary, original)
         run('upgrade', ['sh', args.installer, '--from-dir', args.artifacts,
                        '--public-key', args.public_key, '--upgrade'])
+        result['upgraded_binary_sha256'] = installed_digest(binary, original)
         result['distribution_checks'] = 'passed'
 
     save()
@@ -355,10 +365,10 @@ def main():
         workflow_start = time.monotonic()
         run('install', ['sh', args.installer, '--from-dir', args.artifacts,
                         '--public-key', args.public_key, '--yes'])
+        result['binary_sha256'] = installed_digest(binary, args.binary_sha256)
         version = json.loads(run('version', [binary, 'version', '--json']).stdout)
         result['build'] = version
         verify_build(version, args.revision, args.inputs, args.target)
-        result['binary_sha256'] = hashlib.file_digest(binary.open('rb'), 'sha256').hexdigest()
         workspace = home / 'onboarding-project'
         workspace.mkdir()
         run('git-init', ['git', 'init', '-q', workspace])

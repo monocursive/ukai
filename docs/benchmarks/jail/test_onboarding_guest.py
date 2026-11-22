@@ -30,6 +30,14 @@ class WorkflowEvidenceTests(unittest.TestCase):
         # The old heuristic selected this unrelated successful invocation.
         os.utime(previous, ns=(2_000_000_000_000_000_000,) * 2)
 
+    def test_installed_bytes_must_match_the_packaged_candidate(self):
+        self.binary.write_bytes(b'candidate')
+        digest = onboarding_guest.installed_digest(self.binary, None)
+        self.assertEqual(onboarding_guest.installed_digest(self.binary, digest), digest)
+        self.binary.write_bytes(b'different candidate')
+        with self.assertRaisesRegex(ValueError, 'SHA256'):
+            onboarding_guest.installed_digest(self.binary, digest)
+
     def command(self, behavior):
         script = '''import json, os, pathlib, sys, time
 data = pathlib.Path(os.environ['UKAI_DATA_DIR'])

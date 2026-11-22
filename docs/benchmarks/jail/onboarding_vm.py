@@ -221,10 +221,10 @@ def finalize(metadata, out, vm, temporary, credential_path, held, save):
         metadata.setdefault('blocker', 'the final record could not be persisted')
 
 
-def guest_arguments(args, trusted_key):
+def guest_arguments(args, trusted_key, binary_sha256):
     argv = ['python3', 'onboarding_guest.py', '--artifacts', 'artifacts',
             '--installer', 'install.sh', '--public-key', trusted_key,
-            '--revision', args.revision, '--out', 'onboarding-results',
+            '--revision', args.revision, '--binary-sha256', binary_sha256, '--out', 'onboarding-results',
             '--model', args.model, '--vendor-attempts', str(args.vendor_attempts)]
     argv += ['--target', args.target]
     if args.only is not None:
@@ -360,15 +360,12 @@ def main():
                     stdout=setup, stderr=subprocess.STDOUT)
             trusted_key = signing_public.read_text().splitlines()[1]
             metadata['test_signing_public_key'] = trusted_key
-            artifacts = root / 'artifacts'
+            artifacts = out / 'artifacts'
             script_dir = pathlib.Path(__file__).resolve().parent
             repo = script_dir.parents[2]
             execute(['python3', repo / 'crates/ukai-jail/dist/package.py', '--binary',
                      args.binary.resolve(), '--target', args.target, '--out',
                      artifacts, '--version', args.release_version, '--signing-key', signing_key], stdout=setup, stderr=subprocess.STDOUT)
-        (out / 'artifacts').mkdir()
-        for filename in ['SHA256SUMS', 'SHA256SUMS.minisig']:
-            shutil.copyfile(artifacts / filename, out / 'artifacts' / filename)
         with socket.socket() as reserved:
             reserved.bind(('127.0.0.1', 0))
             port = reserved.getsockname()[1]
@@ -425,7 +422,7 @@ def main():
             execute(ssh + ['python3 -c ' + shlex.quote(RECEIVE_KEY)],
                     input=held[0], capture_output=True, timeout=30)
             metadata['credential_staged'] = True
-        command = shlex.join(guest_arguments(args, trusted_key))
+        command = shlex.join(guest_arguments(args, trusted_key, metadata['binary_sha256']))
         attempt = run_guest_workflow(execute, ssh, options, port, out, command, metadata)
         if metadata['retention_errors']:
             raise RuntimeError('guest evidence retrieval was incomplete')

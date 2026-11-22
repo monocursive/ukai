@@ -156,7 +156,8 @@ class OnboardingLifecycleTests(unittest.TestCase):
                                   vendor_attempts=1, credential_file=self.key)
         args.target = 'aarch64-unknown-linux-gnu'
         args.only = 'learning'
-        argv = vm.guest_arguments(args, 'public')
+        argv = vm.guest_arguments(args, 'public', 'c' * 64)
+        self.assertEqual(argv[argv.index('--binary-sha256') + 1], 'c' * 64)
         self.assertEqual(argv[argv.index('--target') + 1], args.target)
         self.assertEqual(argv[argv.index('--only') + 1], 'learning')
         self.assertEqual(argv[argv.index('--vendor-attempts') + 1], '1')
