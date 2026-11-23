@@ -107,12 +107,6 @@ EOF
         Darwin:arm64) target=macos-arm64 ;;
         *) fail 'supported hosts: Linux x86_64/ARM64 or Apple Silicon macOS 27+' ;;
     esac
-    if [ "$target" = aarch64-unknown-linux-gnu ]; then
-        case "${version%%+*}" in
-            *-*) ;;
-            *) fail 'stable Linux releases support x86_64 only; select an ARM64 preview with --version' ;;
-        esac
-    fi
     # Rendered by crates/ukai-jail/dist/bootstrap.py; every release this
     # installer accepts has its archive or disk image hash here.
     # BEGIN SHA256 PINS
@@ -131,7 +125,7 @@ EOF
         0.1.0-rc.5:x86_64-unknown-linux-gnu) expected='33f397057c4d8996a01d60d382852223ac328075f2facd084b51a2068b5ce03e' ;;
         0.1.0-rc.8:aarch64-unknown-linux-gnu) expected='85b479d4b57ea3909d20b56a8bfb24e3496af56e23af0beb77296c2ae2ae77df' ;;
         0.1.0-rc.8:x86_64-unknown-linux-gnu) expected='176514f7ec07ef955429683067e2d83778a22998ae460930e507584ec0c71592' ;;
-        *) fail "no pinned SHA-256 for $version ($target); download the current installer" ;;
+        *) fail "no pinned SHA-256 for $version ($target); download the current installer, or select with --version one that ships this target" ;;
     esac
     # END SHA256 PINS
     # These immutable archives predate the rename. Bind their package names to

@@ -11,7 +11,8 @@ from prepare_release import TARGETS, assemble, stage
 from publish_release import ROOT, check, publication_gates, release_info, verify_remote_assets
 from test_release import INPUTS, REVISION, version
 from bootstrap import archive_pins, BLOCK
-from coordinates import UNSUPPORTED_CLAUSES
+import coordinates
+from coordinates import UNSUPPORTED_CLAUSES, release_targets
 
 
 def native_macos_untested_clauses():
@@ -188,6 +189,53 @@ class PublicationTests(unittest.TestCase):
                 patch('publish_release.gh_json', side_effect=[runs, {'jobs': [{'name': 'reference-host', 'conclusion': 'success'}]}]):
             with self.assertRaisesRegex(ValueError, 'immutable release tag'):
                 publication_gates(self.plan, trusted)
+
+    def test_a_stable_release_needs_each_targets_tested_run_and_native_build(self):
+        from coordinates import STABLE_TARGET
+        trusted = (ROOT / 'crates/ukai-jail/dist/release.pub').read_text().splitlines()[1]
+        release = '9.9.9'
+        # The gates read the coordinates as they run: the ARM64 release stays named throughout.
+        named = patch.multiple(coordinates, ARM64_STABLE_VERSION='0.1.1',
+                               ARM64_STABLE_HOST='Ubuntu ARM64, qualified for the test',
+                               PUBLICATION_SCOPE='linux-x86_64-arm64-stable')
+        with named:
+            stages = []
+            for target in release_targets(release):
+                destination = self.root / f'stable-{target}'
+                with patch('prepare_release.subprocess.check_output', return_value=json.dumps(version(target)).encode()):
+                    stage(self.root / target, target, REVISION, INPUTS, destination, release)
+                stages.append(destination)
+            stable = assemble(stages, REVISION, INPUTS, release, self.root / 'stable', self.root / 'key', self.key)
+        per_target = ['--target', 'aarch64-unknown-linux-gnu']
+
+        def commands_of(plan, workflows, candidate_jobs):
+            """The shell commands the gates of `plan` run, with every workflow green."""
+            runs = [{'databaseId': i, 'workflowName': name, 'status': 'completed', 'conclusion': 'success'}
+                    for i, name in enumerate(workflows)]
+            conformance = {'jobs': [{'name': 'reference-host', 'conclusion': 'success'}]}
+            with patch('publish_release.run', side_effect=[REVISION, '', REVISION]), \
+                 patch('publish_release.subprocess.run') as commands, \
+                 patch('publish_release.gh_json', side_effect=[runs, conformance, candidate_jobs]):
+                publication_gates(plan, trusted)
+                return [call.args[0] for call in commands.call_args_list]
+
+        stable_workflows = ['rust', 'contracts', 'conformance', 'fleet', 'release-candidate']
+        both = (STABLE_TARGET, 'aarch64-unknown-linux-gnu')
+        native = {'jobs': [{'name': f'native ({target})', 'conclusion': 'success'} for target in both]}
+        # A stable release is qualified per target: each one's tested run must
+        # be recorded beside the reference run, and each native job must pass.
+        freeze = ['cargo', '+1.98.1', 'run', '-q', '-p', 'xtask', '--', 'freeze', '--check']
+        with named:
+            commands = commands_of(stable, stable_workflows, native)
+        self.assertIn(freeze + per_target, commands)
+        preview_workflows = ['rust', 'contracts', 'conformance']
+        self.assertNotIn(freeze + per_target,
+                         commands_of(self.plan, preview_workflows, {'jobs': []}))
+        # A release candidate that built only the reference target is refused.
+        reference_only = {'jobs': [{'name': f'native ({STABLE_TARGET})', 'conclusion': 'success'}],
+                          'missing': 'the aarch64 job'}
+        with named, self.assertRaisesRegex(ValueError, 'native aarch64-unknown-linux-gnu release candidate'):
+            commands_of(stable, stable_workflows, reference_only)
 
     def test_remote_extra_missing_and_corrupted_assets_refuse(self):
         _, names = check(self.candidate, self.key)

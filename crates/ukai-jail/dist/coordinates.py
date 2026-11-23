@@ -31,6 +31,16 @@ LINUX_TARGETS = tuple(ELF_MACHINE)
 STABLE_TARGET = _RELEASE['jail']['stable_target']
 STABLE_HOST = _RELEASE['jail']['stable_host']
 ARM_PREVIEW_VERSION = _RELEASE['jail']['arm_preview_version']
+ARM64_TARGET = 'aarch64-unknown-linux-gnu'
+# The first stable release with an ARM64 archive, and the configuration that
+# release was qualified on; absent until an ARM64 release is qualified, so a
+# stable release ships x86_64 alone. Set both, and give `publication_scope`
+# its two-target name, only once the ARM64 gates are confirmed.
+ARM64_STABLE_VERSION = _RELEASE['jail'].get('arm64_stable_version')
+ARM64_STABLE_HOST = _RELEASE['jail'].get('arm64_stable_host')
+# The scope of a stable release that ships x86_64 alone, as 0.1.0 was
+# published. A stable release with both targets takes PUBLICATION_SCOPE.
+X86_64_ONLY_SCOPE = 'linux-x86_64-stable'
 VM_VERSION = _RELEASE['vm']['version']
 # The VM package the tree builds next: built and smoke-verified, not published.
 # VM_VERSION stays the published preview until a release moves it.
@@ -43,12 +53,34 @@ def is_prerelease(version):
     return '-' in version.partition('+')[0]
 
 
+def _stable_order(version):
+    """(major, minor, patch) of a stable version, for comparing stable releases."""
+    return tuple(int(part) for part in version.partition('+')[0].split('.'))
+
+
 def release_targets(version):
-    return LINUX_TARGETS if is_prerelease(version) else (STABLE_TARGET,)
+    """The Linux targets a release ships: every one for a preview; for a stable
+    release, x86_64 and, from arm64_stable_version on, ARM64."""
+    if is_prerelease(version):
+        return LINUX_TARGETS
+    stable = [STABLE_TARGET]
+    if ARM64_STABLE_VERSION and _stable_order(version) >= _stable_order(ARM64_STABLE_VERSION):
+        stable.append(ARM64_TARGET)
+    return tuple(stable)
+
+
+def stable_hosts(version):
+    """The qualified configuration of each target a stable release ships."""
+    hosts = {'x86_64': STABLE_HOST}
+    if ARM64_TARGET in release_targets(version):
+        hosts['aarch64'] = ARM64_STABLE_HOST
+    return hosts
 
 
 def release_scope(version):
-    return 'linux-preview' if is_prerelease(version) else PUBLICATION_SCOPE
+    if is_prerelease(version):
+        return 'linux-preview'
+    return PUBLICATION_SCOPE if ARM64_TARGET in release_targets(version) else X86_64_ONLY_SCOPE
 
 
 def jail_tag(version):
