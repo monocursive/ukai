@@ -486,10 +486,28 @@ fn j4_d1_the_tool_baseline_refuses_a_notification_listener() {
 /// as a gap in every class, labelled foreign, never as a native result. A
 /// call the kernel refused as nonexistent (`ENOSYS`, which is what x32 gets
 /// on a kernel built without it) had no effect and is not a loss.
+///
+/// A 64-bit-only AArch64 kernel has no foreign call to make: it refuses the
+/// ARM32 executable before entry, which
+/// `j4_d2_none_receipt_matches_the_host_abi_control` records. Once the same
+/// all-CPU refusal control proves that, there is no foreign-ABI gap this
+/// host can produce. A host where ARM32 fails for any other reason still
+/// fails here, and a compat-capable host runs the original test unchanged.
 #[test]
 fn j4_d2_a_foreign_abi_call_without_a_baseline_is_a_gap() {
     let _serial = serial();
     if !foreign_abis() {
+        return;
+    }
+    #[cfg(target_arch = "aarch64")]
+    if (harness::live_required()
+        || Path::new("/usr/local/lib/ukai-conformance/armhf/busybox").is_file())
+        && arm64_exec_control::kernel_rejects_arm32()
+    {
+        eprintln!(
+            "the kernel refuses ARM32 on every online CPU (the S01.2 refusal \
+             control): no foreign-ABI call can execute here"
+        );
         return;
     }
     let Some(work) = setup("d2-foreign") else {
