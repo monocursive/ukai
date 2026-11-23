@@ -38,7 +38,7 @@ def _render(script, version, hashes, default):
     block = '    # BEGIN SHA256 PINS\n    case "$version:$target" in\n'
     for (release, target), digest in sorted(pins.items()):
         block += f"        {release}:{target}) expected='{digest}' ;;\n"
-    block += ('        *) fail "no pinned SHA-256 for $version ($target); download the current installer" ;;\n'
+    block += ('        *) fail "no pinned SHA-256 for $version ($target); download the current installer, or select with --version one that ships this target" ;;\n'
               '    esac\n    # END SHA256 PINS\n')
     script = BLOCK.sub(lambda _: block, script, count=1)
     script, count = re.subn(rf'^    {default}=[0-9][0-9A-Za-z.+-]*$', lambda _: f'    {default}={version}',

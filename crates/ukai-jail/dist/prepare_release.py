@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import tarfile
 
-from coordinates import ELF_MACHINE as TARGETS, REPOSITORY, STABLE_HOST, UNSUPPORTED_CLAUSES, is_prerelease, jail_tag, release_scope, release_targets
+from coordinates import ELF_MACHINE as TARGETS, REPOSITORY, STABLE_HOST, UNSUPPORTED_CLAUSES, is_prerelease, jail_tag, release_scope, release_targets, stable_hosts
 from notices import checked, read_source
 from package import VERSION as RELEASE_VERSION
 from package import create_archive
@@ -139,13 +139,17 @@ def assemble(stages, revision, inputs, version, out, signing_key=None, public_ke
                 architecture: f'Linux {architecture} binary and installer target; native installation alone '
                 'does not establish runtime host qualification. Attach validation for the matching candidate '
                 'revision and build-input digest, then complete operator review for each claimed host.'
-                for architecture in ('x86_64', 'aarch64')} if is_prerelease(version) else {'x86_64': STABLE_HOST},
+                for architecture in ('x86_64', 'aarch64')} if is_prerelease(version) else stable_hosts(version),
             'native_records_are_attestations': 'Native version execution establishes artifact provenance, '
                 'not installation or runtime host qualification. Review the native builder and attached '
                 'matching validation evidence before signing or publishing.'}
     (out / 'release-plan.json').write_text(json.dumps(plan, indent=2) + '\n')
     if is_prerelease(version):
         heading = f'# Ukai Jail {version} — developer preview\n\nLinux x86_64 and ARM64.\n\n'
+    elif 'aarch64' in stable_hosts(version):
+        heading = (f'# Ukai Jail {version} — stable Linux x86_64 and ARM64\n\nQualified hosts:\n\n'
+                   + ''.join(f'- {architecture}: {host}\n'
+                             for architecture, host in stable_hosts(version).items()) + '\n')
     else:
         heading = f'# Ukai Jail {version} — stable Linux x86_64\n\nQualified host: {STABLE_HOST}\n\n'
     (out / 'RELEASE_NOTES.md').write_text(

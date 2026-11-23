@@ -7,8 +7,10 @@ import subprocess
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from bootstrap import archive_pins, render_bootstrap, render_vm_pin
+import coordinates
 from coordinates import JAIL_VERSION, LINUX_TARGETS, VM_TARGET, VM_VERSION, vm_tag, release_targets
 from package import create_archive
 
@@ -89,14 +91,25 @@ cp "$BOOTSTRAP_ARTIFACTS/${url##*/}" "$output"
         self.assertEqual((self.prefix / 'ukai-jail.release').read_text().splitlines(),
                          ['9.9.9-rc.1', hashlib.sha256(self.binary.read_bytes()).hexdigest()])
 
-    def test_stable_installs_on_x86_and_arm_must_select_a_preview(self):
-        self.package('9.9.9')
+    def test_stable_installs_on_arm64_only_with_an_arm64_archive(self):
+        arm64_stable = patch.multiple(coordinates, ARM64_STABLE_VERSION='0.1.1',
+                                      ARM64_STABLE_HOST='Ubuntu ARM64, qualified for the test')
+        # A stable release with an ARM64 archive installs on ARM64 by default.
+        with arm64_stable:
+            self.package('9.9.9')
         self.assertEqual(self.run_installer().returncode, 0)
         self.env['BOOTSTRAP_ARCH'] = 'aarch64'
+        result = self.run_installer('--allow-downgrade')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # A stable release without one refuses before any download; its
+        # absence is the pin block's to state, never a silent x86_64 install.
+        with arm64_stable:
+            self.package('0.0.9')
         before = self.log.read_bytes()
-        result = self.run_installer()
+        result = self.run_installer('--allow-downgrade')
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(b'stable Linux releases support x86_64 only', result.stderr)
+        self.assertIn(b'no pinned SHA-256 for 0.0.9 (aarch64-unknown-linux-gnu)', result.stderr)
+        self.assertIn(b'--version', result.stderr)
         self.assertEqual(self.log.read_bytes(), before)
         result = self.run_installer('--version', '9.9.9-rc.1', '--allow-downgrade')
         self.assertEqual(result.returncode, 0, result.stderr)

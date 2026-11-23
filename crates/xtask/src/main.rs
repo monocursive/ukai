@@ -44,6 +44,10 @@ enum Task {
         key: PathBuf,
         #[arg(long, value_name = "PATH")]
         known_hosts: Option<PathBuf>,
+        /// The SSH port, for a host reached through a forwarded port (a local
+        /// guest's `hostfwd`); the default port when omitted.
+        #[arg(long, value_name = "PORT")]
+        port: Option<u16>,
         #[arg(
             long,
             value_name = "PATH",
@@ -75,6 +79,15 @@ enum Task {
         /// and records a tested run of this very tree (the milestone gate).
         #[arg(long)]
         check: bool,
+        /// With `--check`: also require a tested run of this target, named by
+        /// its `build.target` (such as `aarch64-unknown-linux-gnu`).
+        #[arg(
+            long,
+            value_name = "TARGET",
+            requires = "check",
+            conflicts_with = "doctor"
+        )]
+        target: Option<String>,
     },
     /// The per-gate verdict of jail-v1 §15 over saved test logs.
     Gates(gates::GatesArgs),
@@ -106,12 +119,21 @@ fn run(task: Task) -> Result<ExitCode, String> {
             root,
             doctor: _,
             check: true,
-        } => match freeze::check(&root_or_worktree(root)?) {
-            Ok(verified) => {
+            target,
+        } => match freeze::check(&root_or_worktree(root)?, target.as_deref()) {
+            Ok(runs) => {
+                let passed = if let [reference] = runs.as_slice() {
+                    reference.checks.join(", ")
+                } else {
+                    runs.iter()
+                        .map(|run| format!("{} ({})", run.target, run.checks.join(", ")))
+                        .collect::<Vec<_>>()
+                        .join("; ")
+                };
+                let runs = if runs.len() == 1 { "run" } else { "runs" };
                 println!(
                     "xtask freeze --check: the freeze file is this tree's, and its tested \
-                     run passed: {}",
-                    verified.join(", ")
+                     {runs} passed: {passed}"
                 );
                 ExitCode::SUCCESS
             }
@@ -126,6 +148,7 @@ fn run(task: Task) -> Result<ExitCode, String> {
             root,
             doctor,
             check: false,
+            target: _,
         } => match freeze::run(&root_or_worktree(root)?, doctor.as_deref()) {
             Ok(path) => {
                 println!("xtask freeze: wrote {}", path.display());
@@ -144,6 +167,7 @@ fn run(task: Task) -> Result<ExitCode, String> {
             user,
             key,
             known_hosts,
+            port,
             manifest,
             evidence,
             jobs,
@@ -157,6 +181,7 @@ fn run(task: Task) -> Result<ExitCode, String> {
                     user,
                     key,
                     known_hosts,
+                    port,
                 },
                 manifest: absolutise(&worktree, &manifest),
                 evidence,

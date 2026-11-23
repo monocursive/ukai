@@ -12,7 +12,15 @@ from unittest.mock import patch
 from package import create_archive
 from prepare_release import assemble, stage, verify_build, verify_stage, TARGETS
 from bootstrap import archive_pins
-from coordinates import JAIL_VERSION, REPOSITORY, STABLE_TARGET, VM_TARGET, VM_VERSION, release_targets
+import coordinates
+from coordinates import (ARM64_TARGET, JAIL_VERSION, REPOSITORY, STABLE_HOST, STABLE_TARGET, VM_TARGET, VM_VERSION,
+                         release_scope, release_targets)
+
+# An ARM64 stable release from 0.1.1 on, whatever the repository's coordinates say today:
+# the version and its qualified host are named, and the scope takes its two-target name.
+ARM64_STABLE = patch.multiple(coordinates, ARM64_STABLE_VERSION='0.1.1',
+                              ARM64_STABLE_HOST='Ubuntu ARM64, qualified for the test',
+                              PUBLICATION_SCOPE='linux-x86_64-arm64-stable')
 
 REVISION = 'a' * 40
 INPUTS = 'sha256:' + 'b' * 64
@@ -30,13 +38,13 @@ class ReleaseTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
 
-    def fixture(self, target, release='9.9.9-rc.1'):
+    def fixture(self, target, release='9.9.9-rc.1', tag='stage'):
         binary = self.root / target
         contents = bytearray(64)
         contents[:6] = b'\x7fELF\x02\x01'
         contents[18:20] = TARGETS[target].to_bytes(2, 'little')
         binary.write_bytes(contents)
-        out = self.root / ('stage-' + target)
+        out = self.root / (tag + '-' + target)
         # Unit fixture only; actual native execution is exercised separately.
         with patch('prepare_release.subprocess.check_output', return_value=json.dumps(version(target)).encode()):
             stage(binary, target, REVISION, INPUTS, out, release)
@@ -109,24 +117,71 @@ class ReleaseTests(unittest.TestCase):
             assemble([current, stale], REVISION, INPUTS, '9.9.9-rc.1', destination)
         self.assertFalse(destination.exists())
 
-    @unittest.skipUnless(shutil.which('minisign'), 'minisign is required')
-    def test_signed_stable_candidate_has_one_qualified_target(self):
-        from publish_release import ROOT, check, verify_remote_assets
-        with self.assertRaisesRegex(ValueError, 'outside this release scope'):
-            self.fixture('aarch64-unknown-linux-gnu', release='9.9.9')
-        stage_dir = self.fixture(STABLE_TARGET, release='9.9.9')
-        key = self.root / 'key'
-        pub = self.root / 'public'
+    def test_the_release_coordinates_name_the_arm64_release_together_or_not_at_all(self):
+        # Nothing in the publisher re-measures K17: naming the ARM64 stable release is
+        # the maintainers' act, and it is one coordinate change, made in full or not at all.
+        self.assertEqual(bool(coordinates.ARM64_STABLE_VERSION), bool(coordinates.ARM64_STABLE_HOST))
+        self.assertEqual(coordinates.PUBLICATION_SCOPE == 'linux-x86_64-arm64-stable',
+                         bool(coordinates.ARM64_STABLE_VERSION))
+        self.assertEqual(release_targets(coordinates.JAIL_VERSION), (STABLE_TARGET,))
+
+    def signed_stable(self, release):
+        """Assemble and sign a stable candidate of `release` for every target it ships."""
+        key = self.root / f'key-{release}'
+        pub = self.root / f'public-{release}'
         subprocess.run(['minisign', '-G', '-W', '-s', key, '-p', pub], check=True, capture_output=True)
         trusted = pub.read_text().splitlines()[1]
-        out = self.root / 'signed'
-        assemble([stage_dir], REVISION, INPUTS, '9.9.9', out, key, trusted)
+        stages = [self.fixture(target, release=release) for target in release_targets(release)]
+        out = self.root / f'signed-{release}'
+        assemble(stages, REVISION, INPUTS, release, out, key, trusted)
+        return out, trusted
+
+    @unittest.skipUnless(shutil.which('minisign'), 'minisign is required')
+    def test_a_stable_candidate_without_an_arm64_archive_has_one_qualified_target(self):
+        # Stable 0.1.0 was published for x86_64 alone and keeps that scope.
+        from publish_release import ROOT, check, stable_title, verify_remote_assets
+        out, trusted = self.signed_stable('0.0.9')
+        with self.assertRaisesRegex(ValueError, 'outside this release scope'):
+            self.fixture(ARM64_TARGET, release='0.0.9')
         plan, names = check(out, trusted, source=ROOT)
         self.assertEqual(plan['publication_scope'], 'linux-x86_64-stable')
-        self.assertEqual(set(plan['support']), {'x86_64'})
+        self.assertEqual(plan['support'], {'x86_64': STABLE_HOST})
+        self.assertEqual(stable_title('0.0.9'), ' — stable Linux x86_64')
         self.assertEqual(len(names), 7)
         with self.assertRaises(ValueError):
             verify_remote_assets(plan, out, names, {'tag_name': plan['tag'], 'prerelease': True, 'assets': []})
+
+    @unittest.skipUnless(shutil.which('minisign'), 'minisign is required')
+    def test_a_stable_candidate_from_the_arm64_release_ships_both_qualified_targets(self):
+        from publish_release import ROOT, check, stable_title
+        release = '0.1.1'
+        # Until the coordinates name the ARM64 release, a stable version ships x86_64 alone.
+        self.assertEqual(release_targets(release), (STABLE_TARGET,))
+        self.assertEqual(release_scope(release), 'linux-x86_64-stable')
+        with ARM64_STABLE:
+            self.assertEqual(release_targets(release), (STABLE_TARGET, ARM64_TARGET))
+            self.assertEqual(release_scope(release), coordinates.PUBLICATION_SCOPE)
+            with self.assertRaisesRegex(ValueError, 'exactly one native artifact per release target'):
+                assemble([self.fixture(STABLE_TARGET, release=release, tag='alone')], REVISION, INPUTS, release,
+                         self.root / 'x86-only', 'A' * 64, 'A' * 56)
+            out, trusted = self.signed_stable(release)
+            plan, names = check(out, trusted, source=ROOT)
+            self.assertEqual(plan['publication_scope'], coordinates.PUBLICATION_SCOPE)
+            self.assertEqual(plan['support'], {'x86_64': STABLE_HOST, 'aarch64': coordinates.ARM64_STABLE_HOST})
+            self.assertEqual(stable_title(release), ' — stable Linux x86_64 and ARM64')
+            self.assertEqual(len(names), 8)
+            notes = (out / 'RELEASE_NOTES.md').read_text()
+            self.assertIn(f'# Ukai Jail {release} — stable Linux x86_64 and ARM64', notes)
+            self.assertIn(f"- aarch64: {coordinates.ARM64_STABLE_HOST}", notes)
+            # A stable plan cannot quietly drop a target's qualified host: an edited plan is
+            # no longer the signed one. (A re-signed plan with a broader scope is refused by
+            # test_publish, whatever it signs.)
+            plan_path = out / 'release-plan.json'
+            edited = json.loads(plan_path.read_text())
+            edited['support'] = {'x86_64': STABLE_HOST}
+            plan_path.write_text(json.dumps(edited) + '\n')
+            with self.assertRaisesRegex(ValueError, 'signed release asset changed'):
+                check(out, trusted, source=ROOT)
 
     def test_assembly_requires_both_distinct_native_targets(self):
         single = self.fixture(next(iter(TARGETS)))

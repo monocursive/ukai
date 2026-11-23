@@ -137,6 +137,15 @@ bytes are deterministic across source-file timestamps and locations. Assembly
 requires exactly one artifact per architecture, staged for the release version
 being assembled, and verifies archive contents, native build records, source
 inputs, binary hashes and exact reviewed notice bytes before preparing a draft.
+The targets a version ships are `release_targets(version)`: every Linux target
+for a preview, and for a stable release x86_64 plus ARM64 once
+`arm64_stable_version` in [release.json](release.json) names the first stable
+release with an ARM64 archive. That coordinate, `arm64_stable_host` and the
+two-target `publication_scope` are set together, or none of them is. A stable
+plan's `support` names the qualified configuration of each target it ships.
+Stable 0.1.0 was published for x86_64 alone and keeps its original scope. The
+release-candidate workflow and the publisher require a recorded tested freeze
+for each native target.
 Draft creation and publication also compare both installer scripts with the candidate checkout. The signed manifest covers
 both archives, `install.sh`, the public `bootstrap.sh`, release notes and plan:
 

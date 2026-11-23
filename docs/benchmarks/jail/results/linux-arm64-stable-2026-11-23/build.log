@@ -1,0 +1,266 @@
+Filesystem     1024-blocks     Used Available Capacity Mounted on
+/dev/vda1         31409148 12745376  18647388      41% /
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling version_check v0.9.5
+   Compiling unicode-ident v1.0.26
+   Compiling libc v0.2.189
+   Compiling cfg-if v1.0.5
+   Compiling generic-array v0.14.7
+   Compiling serde_core v1.0.229
+   Compiling serde v1.0.229
+   Compiling memchr v2.8.3
+   Compiling syn v3.0.6
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.14
+   Compiling itoa v1.0.18
+   Compiling cc v1.5.1
+   Compiling typenum v1.20.1
+   Compiling zmij v1.0.23
+   Compiling serde_json v1.0.151
+   Compiling heck v0.5.0
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling allocator-api2 v0.2.21
+   Compiling equivalent v1.0.2
+   Compiling autocfg v1.5.1
+   Compiling utf8parse v0.2.2
+   Compiling foldhash v0.2.0
+   Compiling anstyle-parse v1.0.0
+   Compiling hashbrown v0.17.1
+   Compiling num-traits v0.2.19
+   Compiling digest v0.10.7
+   Compiling ring v0.17.14
+   Compiling cpufeatures v0.2.17
+   Compiling serde_derive v1.0.229
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling colorchoice v1.0.5
+   Compiling anstyle-query v1.1.5
+   Compiling anstyle v1.0.14
+   Compiling anstream v1.0.0
+   Compiling clap_lex v1.1.1
+   Compiling strsim v0.11.1
+   Compiling once_cell v1.21.4
+   Compiling clap_builder v4.6.7
+   Compiling sha2 v0.10.9
+   Compiling clap_derive v4.6.7
+   Compiling getrandom v0.2.17
+   Compiling base64 v0.22.1
+   Compiling untrusted v0.9.0
+   Compiling clap v4.6.7
+   Compiling ukai-records v0.1.0 (/home/ukai-ci/ukai-ci/runs/20261123T171320Z-433e794bc09a/crates/ukai-records)
+   Compiling zeroize v1.9.0
+   Compiling rustls-pki-types v1.15.1
+   Compiling num-integer v0.1.47
+   Compiling getrandom v0.4.3
+   Compiling percent-encoding v2.3.2
+   Compiling serde_spanned v0.6.9
+   Compiling toml_datetime v0.6.11
+   Compiling indexmap v2.14.2
+   Compiling toml_write v0.1.2
+   Compiling getrandom v0.3.4
+   Compiling base64 v0.23.1
+   Compiling winnow v0.7.15
+   Compiling httparse v1.10.1
+   Compiling zerocopy v0.8.57
+   Compiling num-bigint v0.4.8
+   Compiling ahash v0.8.12
+   Compiling log v0.4.34
+   Compiling num-conv v0.2.2
+   Compiling powerfmt v0.2.0
+   Compiling regex-syntax v0.8.11
+   Compiling toml_edit v0.22.27
+   Compiling rustls v0.23.46
+   Compiling ref-cast v1.0.27
+   Compiling parking_lot_core v0.9.12
+   Compiling time-core v0.1.9
+   Compiling bytes v1.12.1
+   Compiling smallvec v1.16.1
+   Compiling deranged v0.5.8
+   Compiling http v1.5.0
+   Compiling time v0.3.55
+   Compiling toml v0.8.23
+   Compiling num-rational v0.4.2
+   Compiling uuid v1.26.1
+   Compiling rustls-webpki v0.103.16
+   Compiling num-iter v0.1.46
+   Compiling num-complex v0.4.6
+   Compiling ref-cast-impl v1.0.27
+   Compiling aho-corasick v1.1.5
+   Compiling scopeguard v1.2.0
+   Compiling vcpkg v0.2.15
+   Compiling subtle v2.6.1
+   Compiling pkg-config v0.3.34
+   Compiling lock_api v0.4.14
+   Compiling libsqlite3-sys v0.39.1
+   Compiling regex-automata v0.4.18
+   Compiling num v0.4.3
+   Compiling ureq-proto v0.6.4
+   Compiling yasna v0.6.0
+   Compiling ukai-jail v0.1.0 (/home/ukai-ci/ukai-ci/runs/20261123T171320Z-433e794bc09a/crates/ukai-jail)
+   Compiling pem v4.0.0
+   Compiling webpki-roots v1.0.10
+   Compiling syn v2.0.119
+   Compiling bit-vec v0.8.0
+   Compiling unicode-general-category v1.1.0
+   Compiling utf8-zero v0.8.1
+   Compiling borrow-or-share v0.2.4
+   Compiling fluent-uri v0.4.1
+   Compiling strum_macros v0.28.0
+   Compiling ureq v3.4.2
+   Compiling bit-set v0.8.0
+   Compiling rcgen v0.14.10
+   Compiling parking_lot v0.12.5
+   Compiling fraction v0.17.0
+   Compiling sha1 v0.10.7
+   Compiling outref v0.5.2
+   Compiling micromap v0.3.0
+   Compiling bytecount v0.6.9
+   Compiling num-cmp v0.1.0
+   Compiling vsimd v0.8.0
+   Compiling uuid-simd v0.8.0
+   Compiling jsonschema-value v0.57.0
+   Compiling referencing v0.57.0
+   Compiling fancy-regex v0.19.2
+   Compiling strum v0.28.0
+   Compiling regex v1.13.1
+   Compiling jsonschema-regex v0.57.0
+   Compiling ukai-fixture v0.1.0 (/home/ukai-ci/ukai-ci/runs/20261123T171320Z-433e794bc09a/crates/ukai-fixture)
+   Compiling email_address v0.2.9
+   Compiling hashlink v0.12.2
+   Compiling bitflags v2.13.2
+   Compiling data-encoding v2.11.1
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling fallible-iterator v0.3.0
+   Compiling jsonschema v0.57.0
+   Compiling ukai v0.1.0 (/home/ukai-ci/ukai-ci/runs/20261123T171320Z-433e794bc09a/crates/ukai)
+   Compiling rusqlite v0.41.1
+   Compiling ukai-ledger v0.1.0 (/home/ukai-ci/ukai-ci/runs/20261123T171320Z-433e794bc09a/crates/ukai-ledger)
+   Compiling xtask v0.1.0 (/home/ukai-ci/ukai-ci/runs/20261123T171320Z-433e794bc09a/crates/xtask)
+    Finished `release` profile [optimized] target(s) in 1m 09s
+   Compiling bitflags v2.13.2
+   Compiling rustix v1.1.5
+   Compiling linux-raw-sys v0.12.1
+   Compiling fastrand v2.5.0
+   Compiling rusqlite v0.41.1
+   Compiling ukai v0.1.0 (/home/ukai-ci/ukai-ci/runs/20261123T171320Z-433e794bc09a/crates/ukai)
+   Compiling ukai-records v0.1.0 (/home/ukai-ci/ukai-ci/runs/20261123T171320Z-433e794bc09a/crates/ukai-records)
+   Compiling tempfile v3.27.0
+   Compiling ukai-ledger v0.1.0 (/home/ukai-ci/ukai-ci/runs/20261123T171320Z-433e794bc09a/crates/ukai-ledger)
+   Compiling ukai-jail v0.1.0 (/home/ukai-ci/ukai-ci/runs/20261123T171320Z-433e794bc09a/crates/ukai-jail)
+   Compiling ukai-fixture v0.1.0 (/home/ukai-ci/ukai-ci/runs/20261123T171320Z-433e794bc09a/crates/ukai-fixture)
+   Compiling xtask v0.1.0 (/home/ukai-ci/ukai-ci/runs/20261123T171320Z-433e794bc09a/crates/xtask)
+    Finished `release` profile [optimized] target(s) in 4m 41s
+  Executable unittests src/main.rs (target/release/deps/ukai-d8a6c76c29166236)
+  Executable tests/cli.rs (target/release/deps/cli-7c49cf3de4bba67e)
+  Executable unittests src/lib.rs (target/release/deps/ukai_fixture-a83dff372a4ac0cd)
+  Executable unittests src/bin/stand-in-jail.rs (target/release/deps/stand_in_jail-ac97275ebccf32fb)
+  Executable unittests src/main.rs (target/release/deps/ukai_fixture-e66adedeab585acb)
+  Executable tests/fixture_modes.rs (target/release/deps/fixture_modes-c3d33a1a8620c073)
+  Executable tests/harness_contract.rs (target/release/deps/harness_contract-cce6d9585a6d9b9d)
+  Executable tests/harness_gate.rs (target/release/deps/harness_gate-b14796f3f633b70a)
+  Executable tests/net_modes.rs (target/release/deps/net_modes-c4e3c8b6fe6ffa5c)
+  Executable tests/perf_modes.rs (target/release/deps/perf_modes-f72fa030ca453e1f)
+  Executable tests/sandbox_exec.rs (target/release/deps/sandbox_exec-93e4e4470f777065)
+  Executable tests/stop_codes.rs (target/release/deps/stop_codes-0269c5e211bdc6ea)
+  Executable tests/syscall_identity_linux.rs (target/release/deps/syscall_identity_linux-9eed0814baf7bd3b)
+  Executable tests/unix_modes.rs (target/release/deps/unix_modes-6faa8257ea92fbee)
+  Executable unittests src/lib.rs (target/release/deps/ukai_jail-8abd57b847879d13)
+  Executable unittests src/main.rs (target/release/deps/ukai_jail-f4de85aff91ae91b)
+  Executable unittests src/bin/ukai-vm.rs (target/release/deps/ukai_vm-d444d8771f919cea)
+  Executable tests/agent_git_metadata_linux.rs (target/release/deps/agent_git_metadata_linux-6c33ad4af2e4beda)
+  Executable tests/command_rules_linux.rs (target/release/deps/command_rules_linux-10e2e45a0be46758)
+  Executable tests/conformance_j1.rs (target/release/deps/conformance_j1-b500477cde937eb8)
+  Executable tests/conformance_j2.rs (target/release/deps/conformance_j2-96d06f5f6eb6cd07)
+  Executable tests/conformance_j3_agent.rs (target/release/deps/conformance_j3_agent-a0ebe7a0f6e23054)
+  Executable tests/conformance_j3_credentials.rs (target/release/deps/conformance_j3_credentials-3a56cefd50b7a54f)
+  Executable tests/conformance_j3_none.rs (target/release/deps/conformance_j3_none-50778f2248b7c50f)
+  Executable tests/conformance_vault_binaries_linux.rs (target/release/deps/conformance_vault_binaries_linux-0eb78a68b22e0c77)
+  Executable tests/epoch_guard_linux.rs (target/release/deps/epoch_guard_linux-69cd12e4b3f65791)
+  Executable tests/from_path_linux.rs (target/release/deps/from_path_linux-1632e10ba63bd868)
+  Executable tests/j14_state_linux.rs (target/release/deps/j14_state_linux-6290224d521c700f)
+  Executable tests/j14_terminal_linux.rs (target/release/deps/j14_terminal_linux-42f220fd1d9af513)
+  Executable tests/j4_closed_set_linux.rs (target/release/deps/j4_closed_set_linux-a58fb7a69714a2a4)
+  Executable tests/j4_gc_linux.rs (target/release/deps/j4_gc_linux-ac81a59bf069f808)
+  Executable tests/j4_lifecycle_linux.rs (target/release/deps/j4_lifecycle_linux-320847bf44a0f311)
+  Executable tests/j4_loss_linux.rs (target/release/deps/j4_loss_linux-82329e932e5057ef)
+  Executable tests/j4_scope_linux.rs (target/release/deps/j4_scope_linux-a6168f052170cb89)
+  Executable tests/j4_trace_linux.rs (target/release/deps/j4_trace_linux-8bb565ae5ba2271b)
+  Executable tests/j4_tracer_precision_linux.rs (target/release/deps/j4_tracer_precision_linux-448a7d94a08ee765)
+  Executable tests/j5_arch_refusal_linux.rs (target/release/deps/j5_arch_refusal_linux-a89329c2bdd784a8)
+  Executable tests/j5_audit_gaps_linux.rs (target/release/deps/j5_audit_gaps_linux-f2df0441f9869bfa)
+  Executable tests/j5_boundary_linux.rs (target/release/deps/j5_boundary_linux-7571a6ac012314a4)
+  Executable tests/j5_bwrap_resolution_linux.rs (target/release/deps/j5_bwrap_resolution_linux-d47a236f33c90da6)
+  Executable tests/j5_lifetime_linux.rs (target/release/deps/j5_lifetime_linux-b0a9323a97a2e72e)
+  Executable tests/j5_process_linux.rs (target/release/deps/j5_process_linux-70a6de26cbe02668)
+  Executable tests/j5_process_portable.rs (target/release/deps/j5_process_portable-ff06679297660006)
+  Executable tests/j5_pseudofs_linux.rs (target/release/deps/j5_pseudofs_linux-31a4103a552a9b06)
+  Executable tests/j5_tracer_foreign_child_linux.rs (target/release/deps/j5_tracer_foreign_child_linux-dc98b764c053c56e)
+  Executable tests/linux_mechanisms.rs (target/release/deps/linux_mechanisms-f1a6cfb29d28c9ff)
+  Executable tests/linux_placeholder_cleanup.rs (target/release/deps/linux_placeholder_cleanup-3e0af1fea343f471)
+  Executable tests/macos_boundary.rs (target/release/deps/macos_boundary-bd72ce04fe0ab4f0)
+  Executable tests/macos_bridge.rs (target/release/deps/macos_bridge-f5c0c599f844ba5b)
+  Executable tests/macos_capabilities.rs (target/release/deps/macos_capabilities-80779e6473e281f8)
+  Executable tests/macos_custody_core.rs (target/release/deps/macos_custody_core-8ffaed71695c77ce)
+  Executable tests/macos_defense_matrix.rs (target/release/deps/macos_defense_matrix-a04550438b4064a6)
+  Executable tests/macos_gc.rs (target/release/deps/macos_gc-3ac2cf4512af4123)
+  Executable tests/macos_guardian.rs (target/release/deps/macos_guardian-fc0754facbbb479c)
+  Executable tests/macos_observe.rs (target/release/deps/macos_observe-76903027b7372415)
+  Executable tests/macos_refusal.rs (target/release/deps/macos_refusal-ebf8995467e0e801)
+  Executable tests/macos_sandbox_profile.rs (target/release/deps/macos_sandbox_profile-3090b6d4cfc14a9d)
+  Executable tests/macos_terminal_relay.rs (target/release/deps/macos_terminal_relay-79e8b341ab2ce2ec)
+  Executable tests/mount_descriptor_budget_linux.rs (target/release/deps/mount_descriptor_budget_linux-780667ccc4aed3cb)
+  Executable tests/mount_table_bytes_linux.rs (target/release/deps/mount_table_bytes_linux-a65a3aaa96860fdf)
+  Executable tests/native_capabilities_linux.rs (target/release/deps/native_capabilities_linux-24d3933df3fcdc43)
+  Executable tests/nofile_inheritance_linux.rs (target/release/deps/nofile_inheritance_linux-830a94683df33d5f)
+  Executable tests/nofile_low_soft_limit_linux.rs (target/release/deps/nofile_low_soft_limit_linux-959c17b6ae94c5dd)
+  Executable tests/none_environment_bound_linux.rs (target/release/deps/none_environment_bound_linux-5dc4cd3f22b75ca6)
+  Executable tests/observer_j4_linux.rs (target/release/deps/observer_j4_linux-3854170f48f0923e)
+  Executable tests/observer_linux.rs (target/release/deps/observer_linux-5cdc866c72cd977f)
+  Executable tests/observer_regression_linux.rs (target/release/deps/observer_regression_linux-df3f66e729df877b)
+  Executable tests/portable_canonical.rs (target/release/deps/portable_canonical-446edede9d6c34f9)
+  Executable tests/portable_cli_config.rs (target/release/deps/portable_cli_config-29874c2989d88f4a)
+  Executable tests/portable_doctor.rs (target/release/deps/portable_doctor-0c7e5df38bd25cba)
+  Executable tests/portable_freeze.rs (target/release/deps/portable_freeze-37fa03e7576c38bf)
+  Executable tests/portable_from_path.rs (target/release/deps/portable_from_path-24bc85da724c172d)
+  Executable tests/portable_gate.rs (target/release/deps/portable_gate-6217b3a22a3274a9)
+  Executable tests/portable_gc.rs (target/release/deps/portable_gc-e3e064c5a832ef2e)
+  Executable tests/portable_launch.rs (target/release/deps/portable_launch-ba1efc09860bd23a)
+  Executable tests/portable_learning.rs (target/release/deps/portable_learning-41a82bd9fc4a010c)
+  Executable tests/portable_lifetime.rs (target/release/deps/portable_lifetime-0ce8a1f700a9aa32)
+  Executable tests/portable_loss.rs (target/release/deps/portable_loss-fc2d955e9a04fe3b)
+  Executable tests/portable_mutations.rs (target/release/deps/portable_mutations-73343fa6e57c369b)
+  Executable tests/portable_network_rules.rs (target/release/deps/portable_network_rules-d0bba09772f1c251)
+  Executable tests/portable_persistence.rs (target/release/deps/portable_persistence-2bb5eb5adbcdf462)
+  Executable tests/portable_policy.rs (target/release/deps/portable_policy-dd9550d8dd7779e6)
+  Executable tests/portable_proxy.rs (target/release/deps/portable_proxy-1b983e770dbb14ef)
+  Executable tests/portable_record_bound.rs (target/release/deps/portable_record_bound-afa5619b4076f3f1)
+  Executable tests/portable_records.rs (target/release/deps/portable_records-aa79c456c2942277)
+  Executable tests/portable_release_evidence.rs (target/release/deps/portable_release_evidence-b15a59113fbc39ce)
+  Executable tests/portable_signals.rs (target/release/deps/portable_signals-e98f1fc4c08d03f5)
+  Executable tests/portable_state.rs (target/release/deps/portable_state-f09db7438f3df93c)
+  Executable tests/portable_summary.rs (target/release/deps/portable_summary-63205c5351bc02a8)
+  Executable tests/portable_supervisor.rs (target/release/deps/portable_supervisor-e8f399a387527da1)
+  Executable tests/portable_tail.rs (target/release/deps/portable_tail-0a5325d4a08c212a)
+  Executable tests/portable_trace.rs (target/release/deps/portable_trace-921ad2abc3c0b305)
+  Executable tests/portable_trace_loss.rs (target/release/deps/portable_trace_loss-ffcf9e624c53088c)
+  Executable tests/portable_unsettled_phase.rs (target/release/deps/portable_unsettled_phase-53ff8c979b26e018)
+  Executable tests/portable_version.rs (target/release/deps/portable_version-5d19e9a37ed40ba3)
+  Executable tests/portable_vocabulary.rs (target/release/deps/portable_vocabulary-886466327be5fa2a)
+  Executable tests/records_linux.rs (target/release/deps/records_linux-1333780ec4b75aba)
+  Executable tests/release_preview_linux.rs (target/release/deps/release_preview_linux-86052ba68791a118)
+  Executable tests/resource_ceilings_linux.rs (target/release/deps/resource_ceilings_linux-89921c0997a41142)
+  Executable tests/review_core_regressions.rs (target/release/deps/review_core_regressions-af7c355aca2c2765)
+  Executable tests/review_linux.rs (target/release/deps/review_linux-c7c3a74ed1e20046)
+  Executable tests/security_alias_linux.rs (target/release/deps/security_alias_linux-a1cf6cdda8cdef4d)
+  Executable tests/unix_peer_linux.rs (target/release/deps/unix_peer_linux-f0d5d1920f162481)
+  Executable tests/vm_tier.rs (target/release/deps/vm_tier-ef7a36de4a278fed)
+  Executable unittests src/lib.rs (target/release/deps/ukai_ledger-6ca41514c05ff943)
+  Executable unittests src/main.rs (target/release/deps/ukai_ledger-6d1eec5634ba6f8a)
+  Executable tests/cli_local.rs (target/release/deps/cli_local-1a07e5f305411c8c)
+  Executable tests/control_descriptors.rs (target/release/deps/control_descriptors-cb3bd4c37c2faf98)
+  Executable tests/evidence_reader.rs (target/release/deps/evidence_reader-e3c67581be130989)
+  Executable tests/launch_linux.rs (target/release/deps/launch_linux-fc07cdfb1f1c988f)
+  Executable tests/storage_recovery.rs (target/release/deps/storage_recovery-e8d0541d602294cf)
+  Executable unittests src/lib.rs (target/release/deps/ukai_records-14fd9acb40e4154b)
+  Executable unittests src/main.rs (target/release/deps/xtask-a5ed24a36189be08)

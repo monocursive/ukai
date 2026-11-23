@@ -8,7 +8,7 @@ import re
 import subprocess
 import tempfile
 
-from coordinates import JAIL_TAG_PREFIX, REPOSITORY, STABLE_HOST, is_prerelease, release_scope, release_targets, UNSUPPORTED_CLAUSES, jail_tag
+from coordinates import JAIL_TAG_PREFIX, REPOSITORY, is_prerelease, release_scope, release_targets, stable_hosts, UNSUPPORTED_CLAUSES, jail_tag
 from package import VERSION
 from prepare_release import digest, verify_stage
 from bootstrap import archive_pins, render_bootstrap
@@ -72,8 +72,8 @@ def check(directory, public_key, *, source=None):
     records = plan['artifacts']
     if sorted(r['target'] for r in records) != sorted(release_targets(version)):
         raise ValueError('signed archives must match the release targets')
-    if not is_prerelease(version) and plan.get('support') != {'x86_64': STABLE_HOST}:
-        raise ValueError('stable support must match the qualified x86_64 configuration')
+    if not is_prerelease(version) and plan.get('support') != stable_hosts(version):
+        raise ValueError('stable support must match the qualified configuration of each target')
     expected = set(METADATA)
     expected_notices = checked(read_source(source)) if source is not None else None
     for record in records:
@@ -117,13 +117,20 @@ def publication_gates(plan, public_key):
     trusted = (ROOT / 'crates/ukai-jail/dist/release.pub').read_text().splitlines()[1]
     if public_key != trusted:
         raise ValueError('publication must use the production key pinned in the reviewed repository')
-    subprocess.run(['cargo', '+1.98.1', 'run', '-q', '-p', 'xtask', '--', 'freeze', '--check'],
-                   cwd=ROOT, check=True, timeout=120)
+    freeze = ['cargo', '+1.98.1', 'run', '-q', '-p', 'xtask', '--', 'freeze', '--check']
+    subprocess.run(freeze, cwd=ROOT, check=True, timeout=120)
+    version = plan['tag'].removeprefix(JAIL_TAG_PREFIX)
+    targets = release_targets(version)
+    if not is_prerelease(version):
+        # A stable release is qualified per target: each one's tested run must
+        # be recorded beside the reference run.
+        for target in targets:
+            subprocess.run(freeze + ['--target', target], cwd=ROOT, check=True, timeout=120)
     runs = gh_json('run', 'list', '--repo', REPOSITORY, '--commit', revision,
                    '--limit', '100', '--json', 'databaseId,workflowName,status,conclusion')
     # The latest run of each required workflow must pass for this exact commit.
     required = ['rust', 'contracts', 'conformance']
-    if not is_prerelease(plan['tag'].removeprefix(JAIL_TAG_PREFIX)):
+    if not is_prerelease(version):
         required.extend(['fleet', 'release-candidate'])
     for workflow in required:
         latest = next((r for r in runs if r['workflowName'] == workflow), None)
@@ -134,9 +141,21 @@ def publication_gates(plan, public_key):
                            '--json', 'jobs')['jobs']
             if not any(j['name'] == 'reference-host' and j['conclusion'] == 'success' for j in jobs):
                 raise ValueError('reference-host conformance must actually run and pass')
+        if workflow == 'release-candidate':
+            jobs = gh_json('run', 'view', str(latest['databaseId']), '--repo', REPOSITORY,
+                           '--json', 'jobs')['jobs']
+            for target in targets:
+                if not any(j['name'] == f'native ({target})' and j['conclusion'] == 'success' for j in jobs):
+                    raise ValueError(f'the native {target} release candidate must actually build and pass')
     tag_revision = run('gh', 'api', f'repos/{REPOSITORY}/commits/{plan["tag"]}', '--jq', '.sha')
     if tag_revision != revision:
         raise ValueError('push an immutable release tag pointing at the candidate commit')
+
+
+def stable_title(version):
+    """A stable release's title: the targets it ships."""
+    return (' — stable Linux x86_64 and ARM64' if 'aarch64' in stable_hosts(version)
+            else ' — stable Linux x86_64')
 
 
 def verify_remote_assets(plan, directory, names, release):
@@ -188,7 +207,7 @@ def main():
             subprocess.run(['gh', 'release', 'create', plan['tag'], '--repo', REPOSITORY,
                             '--verify-tag', '--draft', '--prerelease' if preview else '--prerelease=false',
                             '--title', 'Ukai Jail ' + plan['tag'].removeprefix(JAIL_TAG_PREFIX)
-                            + (' — developer preview' if preview else ' — stable Linux x86_64'), '--notes-file', str(directory / 'RELEASE_NOTES.md'),
+                            + (' — developer preview' if preview else stable_title(version)), '--notes-file', str(directory / 'RELEASE_NOTES.md'),
                             *(str(directory / name) for name in names)], check=True, timeout=180)
             release = release_info(plan)
             if release['draft'] is not True:

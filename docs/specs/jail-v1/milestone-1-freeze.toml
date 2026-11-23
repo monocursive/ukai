@@ -1440,3 +1440,65 @@ swap_total_kib = 8388604
 [tested.supervisor_scope]
 cgroup = "/user.slice/user-1001.slice/user@1001.service/app.slice/run-p498613-i38243320.scope"
 state = "already_delegated"
+
+# --- the tested aarch64 run (cargo xtask freeze --doctor) ---
+[tested_aarch64]
+debug_assertions = false
+dirty = false
+inputs = "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92"
+opt_level = "3"
+platform_arch = "aarch64"
+platform_kernel = "Linux 7.0.0-43-generic"
+platform_os = "linux"
+ready = true
+revision = "433e794bc09a9f774d7d421bf7d0b94482f2a9a2"
+rustc = "rustc 1.98.1 (48a229cea 2026-09-01)"
+target = "aarch64-unknown-linux-gnu"
+ukai_jail_sha256 = "b01c07d5a378bce363d1df11e5b5ed501cdabd38ab013ade0cd6452aec1d66ad"
+unknown = ["supervisor_scope.reason", "supervisor_scope.reason_code", "supervisor_scope.unit"]
+verification = ["inputs_match_tree", "revision_is_ancestor_of_head", "inputs_match_revision", "frozen_inputs_unchanged_since_revision"]
+
+[tested_aarch64.backend]
+path = "/usr/bin/bwrap"
+sha256 = "cf5b710ff9c799104c10c011266952441910479fefd4e660cba45bb9fc5a716f"
+version = "bubblewrap 0.11.1"
+
+[tested_aarch64.host]
+apparmor_enabled = true
+cpus_online = 4
+distribution = "Ubuntu 26.04.1 LTS"
+kernel_release = "7.0.0-43-generic"
+kernel_version = "#43-Ubuntu SMP PREEMPT_DYNAMIC Fri Oct 23 13:33:03 UTC 2026"
+linger = true
+operator_identity = "unprivileged"
+privileged_groups = []
+systemd_version = "systemd 259 (259.9-0ubuntu0.1)"
+virtualization = "qemu"
+
+[tested_aarch64.host.apparmor_userns_restriction]
+local_files = ["README"]
+profile_files = ["bwrap-userns-restrict", "glycin.bwrap", "lxc-usernsexec", "unprivileged_userns"]
+state = "on"
+unpackaged_files = []
+
+[tested_aarch64.host.cgroup]
+controllers = ["cpuset", "cpu", "io", "memory", "pids"]
+delegated_root = "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service"
+root_controllers = ["cpuset", "cpu", "io", "memory", "hugetlb", "pids", "rdma", "misc", "dmem"]
+subtree_control = ["cpu", "memory", "pids"]
+
+[tested_aarch64.host.memory]
+mem_total_kib = 6039772
+swap_total_kib = 4194300
+
+[tested_aarch64.host.sysctls]
+"kernel.apparmor_restrict_unprivileged_userns" = "1"
+"kernel.io_uring_disabled" = "0"
+"kernel.perf_event_paranoid" = "4"
+"kernel.unprivileged_bpf_disabled" = "2"
+"kernel.yama.ptrace_scope" = "1"
+"user.max_user_namespaces" = "21089"
+
+[tested_aarch64.supervisor_scope]
+cgroup = "/user.slice/user-1001.slice/user@1001.service/app.slice/run-p430780-i429766.scope"
+state = "already_delegated"

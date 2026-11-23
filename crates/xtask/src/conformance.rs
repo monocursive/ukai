@@ -39,6 +39,9 @@ pub struct Target {
     pub user: String,
     pub key: PathBuf,
     pub known_hosts: Option<PathBuf>,
+    /// The SSH port, when the host is reached through a forwarded port (a
+    /// local guest's `hostfwd`); `None` is the default port.
+    pub port: Option<u16>,
 }
 
 /// The SSH options every call shares. `StrictHostKeyChecking=yes` means an
@@ -74,6 +77,10 @@ pub fn ssh_opts(target: &Target) -> Vec<String> {
             .replace('\\', "\\\\")
             .replace('"', "\\\"");
         v.push(format!("UserKnownHostsFile=\"{path}\""));
+    }
+    if let Some(port) = target.port {
+        v.push("-p".to_string());
+        v.push(port.to_string());
     }
     v
 }
@@ -2029,6 +2036,7 @@ mod tests {
             user: "ukai-ci".into(),
             key: PathBuf::from("/home/runner/.ssh/ukai_ci"),
             known_hosts: None,
+            port: None,
         }
     }
 
@@ -2067,6 +2075,23 @@ mod tests {
                 .iter()
                 .any(|o| o == "UserKnownHostsFile=\"/home/runner/.ssh/known_hosts\"")
         );
+    }
+
+    /// A guest reached through a forwarded port: the port reaches ssh, and
+    /// the rsync transport, while the destination stays `user@host`.
+    #[test]
+    fn a_forwarded_port_reaches_ssh_and_the_rsync_transport() {
+        let mut t = target();
+        assert!(!ssh_opts(&t).iter().any(|o| o == "-p"));
+        t.port = Some(49440);
+        let opts = ssh_opts(&t);
+        assert_eq!(opts[opts.len() - 2..], ["-p", "49440"]);
+        let argv = ssh_argv(&t, "echo hi");
+        let flag = argv.iter().position(|a| a == "-p").unwrap();
+        assert_eq!(argv[flag + 1], "49440");
+        assert_eq!(argv[argv.len() - 2], "ukai-ci@198.51.100.7");
+        let rsh = rsh_string(&t);
+        assert!(rsh.ends_with("'-p' '49440'"), "{rsh}");
     }
 
     #[test]
