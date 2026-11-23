@@ -514,27 +514,17 @@ fn the_frozen_schemas_are_the_frozen_ones() {
 }
 
 /// Review F4: a recorded tested run is the milestone run, validated
-/// strictly: ready, Linux x86_64, an optimised build without debug
-/// assertions, a clean named revision, the backend it used, and an explicit
-/// list of the facts that were unknown (never a stand-in value). Whether it
-/// tested exactly this tree is `cargo xtask freeze --check`'s question (the
-/// milestone gate), so ordinary development after the milestone is not
-/// failed by this test.
-#[test]
-fn a_recorded_tested_run_is_the_milestone_run() {
-    let freeze = freeze();
-    let Some(tested) = freeze.get("tested") else {
-        // Its absence is stated in the file, never silent.
-        let text =
-            std::fs::read_to_string(repo_root().join("docs/specs/jail-v1/milestone-1-freeze.toml"))
-                .expect("the freeze file");
-        assert!(text.contains("No tested run is recorded"), "{text}");
-        return;
-    };
+/// strictly: ready, on Linux for its own target, an optimised build without
+/// debug assertions, a clean named revision, the backend it used, and an
+/// explicit list of the facts that were unknown (never a stand-in value).
+/// Whether it tested exactly this tree is `cargo xtask freeze --check`'s
+/// question (the milestone gate), so ordinary development after the milestone
+/// is not failed by this test.
+fn assert_milestone_run(tested: &toml::Value, arch: &str, target: &str) {
     assert_eq!(tested["ready"].as_bool(), Some(true));
     assert_eq!(frozen_str(tested, &["platform_os"]), "linux");
-    assert_eq!(frozen_str(tested, &["platform_arch"]), "x86_64");
-    assert_eq!(frozen_str(tested, &["target"]), "x86_64-unknown-linux-gnu");
+    assert_eq!(frozen_str(tested, &["platform_arch"]), arch);
+    assert_eq!(frozen_str(tested, &["target"]), target);
     assert_eq!(frozen_str(tested, &["opt_level"]), "3");
     assert_eq!(tested["debug_assertions"].as_bool(), Some(false));
     assert_eq!(tested["dirty"].as_bool(), Some(false));
@@ -567,6 +557,33 @@ fn a_recorded_tested_run_is_the_milestone_run() {
         assert!(node.is_none(), "{path} is both unknown and recorded");
     }
     assert!(!frozen_list(tested, &["verification"]).is_empty());
+}
+
+/// The reference target's run, when one is recorded.
+#[test]
+fn a_recorded_tested_run_is_the_milestone_run() {
+    let freeze = freeze();
+    let Some(tested) = freeze.get("tested") else {
+        // Its absence is stated in the file, never silent.
+        let text =
+            std::fs::read_to_string(repo_root().join("docs/specs/jail-v1/milestone-1-freeze.toml"))
+                .expect("the freeze file");
+        assert!(text.contains("No tested run is recorded"), "{text}");
+        return;
+    };
+    assert_milestone_run(tested, "x86_64", "x86_64-unknown-linux-gnu");
+}
+
+/// The ARM64 run, once one is recorded beside the reference run
+/// (`[tested_aarch64]`), meets the same rules for its own platform. Only the
+/// reference run is the milestone's, so its absence is permitted here.
+#[test]
+fn a_recorded_arm64_run_is_the_milestone_run_for_its_own_platform() {
+    let freeze = freeze();
+    let Some(tested) = freeze.get("tested_aarch64") else {
+        return;
+    };
+    assert_milestone_run(tested, "aarch64", "aarch64-unknown-linux-gnu");
 }
 
 /// Review F3: what every contained profile passes from the operator's

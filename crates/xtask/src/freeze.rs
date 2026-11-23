@@ -14,7 +14,10 @@
 //! backend plan each contained profile renders (on Linux), the bundled
 //! launch profiles' mounts, environment and allowed hosts, and the frozen
 //! schemas (`frozen-schemas.toml`, when it exists). With `--doctor`, it also
-//! records the tested run, validated strictly (see [`validate_tested`]).
+//! records the tested run, validated strictly (see [`validate_tested`]): the
+//! reference target's under `[tested]`, and each further target's run beside
+//! it under its own marker ([`TARGETS`]), held to the same rules for its own
+//! platform.
 //! `crates/ukai-jail/tests/portable_freeze.rs` fails when an in-tree value
 //! drifts from the file; `cargo xtask freeze --check` is the milestone gate:
 //! it fails unless the file is exactly what this tree generates and records
@@ -45,6 +48,15 @@ pub const SCHEMA: &str = "ukai.jail.milestone-freeze/1";
 /// The line that separates the tree's values from the tested run.
 pub const TESTED_MARKER: &str =
     "# --- the tested run (cargo xtask freeze --doctor); everything above is the tree ---";
+
+/// The targets a tested run can be recorded for: `platform.arch` with
+/// `build.target`, the reference target first. The reference run is the
+/// `[tested]` table under [`TESTED_MARKER`]; each further target's run is its
+/// own table under its own marker ([`further_marker`]).
+pub const TARGETS: [(&str, &str); 2] = [
+    ("x86_64", "x86_64-unknown-linux-gnu"),
+    ("aarch64", "aarch64-unknown-linux-gnu"),
+];
 
 /// The frozen inputs that are not build inputs, as git pathspecs: a change
 /// to any of them after the tested revision means the run did not test what
@@ -987,16 +999,21 @@ fn revision_inputs(root: &Path, revision: &str) -> Result<String, String> {
 }
 
 /// Whether a tested run is the milestone run of the tree at `root` (review
-/// F4). It must be ready, on Linux x86_64, optimised without debug
-/// assertions, from a named clean revision, and built from exactly this
-/// tree's build inputs. Where the repository's `.git` is present, the
-/// revision must be an ancestor of `HEAD`, its own inputs must be the
-/// binary's (so the revision claim is true), and no other frozen input may
-/// have changed since it.
+/// F4), for one of [`TARGETS`]: on that target's Linux platform, built for its
+/// triple. It must be ready, optimised without debug assertions, from a named
+/// clean revision, and built from exactly this tree's build inputs. Where the
+/// repository's `.git` is present, the revision must be an ancestor of
+/// `HEAD`, its own inputs must be the binary's (so the revision claim is
+/// true), and no other frozen input may have changed since it.
 ///
 /// # Errors
 /// Every rule the run breaks.
-pub fn validate_tested(root: &Path, tested: &Tested) -> Result<Vec<&'static str>, Vec<String>> {
+fn validate_run(
+    root: &Path,
+    tested: &Tested,
+    target: usize,
+) -> Result<Vec<&'static str>, Vec<String>> {
+    let (arch, triple) = TARGETS[target];
     let mut problems = Vec::new();
     let mut verified = Vec::new();
     let mut expect = |ok: bool, what: String| {
@@ -1009,15 +1026,15 @@ pub fn validate_tested(root: &Path, tested: &Tested) -> Result<Vec<&'static str>
         format!("ready is {:?}, not true", tested.ready),
     );
     expect(
-        tested.os.as_deref() == Some("linux") && tested.arch.as_deref() == Some("x86_64"),
+        tested.os.as_deref() == Some("linux") && tested.arch.as_deref() == Some(arch),
         format!(
-            "the platform is {:?}/{:?}, not linux/x86_64",
+            "the platform is {:?}/{:?}, not linux/{arch}",
             tested.os, tested.arch
         ),
     );
     expect(
-        tested.target.as_deref() == Some("x86_64-unknown-linux-gnu"),
-        format!("the target is {:?}", tested.target),
+        tested.target.as_deref() == Some(triple),
+        format!("the target is {:?}, not {triple}", tested.target),
     );
     expect(
         tested.opt_level.as_deref() == Some("3") && tested.debug_assertions == Some(false),
@@ -1131,32 +1148,75 @@ fn toml_of_json(
     }
 }
 
-/// The `[tested]` section for a validated conformance run's doctor record:
-/// the build, the binaries, the full host object and the supervisor scope,
-/// with the checks it passed and the facts that were unknown.
+/// The table a target's tested run is recorded in: `[tested]` for the
+/// reference target, `[tested_<arch>]` for each further one.
+fn tested_table(target: usize) -> String {
+    if target == 0 {
+        "tested".to_owned()
+    } else {
+        format!("tested_{}", TARGETS[target].0)
+    }
+}
+
+/// The line that opens a further target's tested run in the file.
+fn further_marker(target: usize) -> String {
+    format!(
+        "# --- the tested {} run (cargo xtask freeze --doctor) ---",
+        TARGETS[target].0
+    )
+}
+
+/// Which of [`TARGETS`] a doctor record's run was on: `platform.arch` and
+/// `build.target` must name the same one.
+fn run_target(doctor: &serde_json::Value) -> Result<usize, String> {
+    let fact = |path: &[&str]| {
+        path.iter()
+            .fold(doctor, |node, part| &node[*part])
+            .as_str()
+            .map(str::to_owned)
+    };
+    let (arch, target) = (fact(&["platform", "arch"]), fact(&["build", "target"]));
+    TARGETS
+        .iter()
+        .position(|(a, t)| arch.as_deref() == Some(a) && target.as_deref() == Some(t))
+        .ok_or_else(|| {
+            format!(
+                "the run is on {:?} for {:?}, not a target a tested run is recorded for",
+                arch, target
+            )
+        })
+}
+
+/// The tested section for a validated conformance run's doctor record: the
+/// build, the binaries, the full host object and the supervisor scope, with
+/// the checks it passed and the facts that were unknown; and which of
+/// [`TARGETS`] the run was on.
 ///
 /// # Errors
-/// The rules the run breaks.
-pub fn tested_section(root: &Path, doctor: &serde_json::Value) -> Result<String, String> {
+/// The file is not a doctor record, names no known target, or the run breaks
+/// a rule.
+fn tested_run(root: &Path, doctor: &serde_json::Value) -> Result<(usize, String), String> {
     if doctor["schema"] != "ukai.jail.doctor/1" {
         return Err("the --doctor file is not an ukai.jail.doctor/1 record".to_owned());
     }
-    render_tested(root, &tested_facts(doctor))
-        .map(|(section, _)| section)
+    let target = run_target(doctor)?;
+    render_tested(root, &tested_facts(doctor), target)
+        .map(|(section, _)| (target, section))
         .map_err(|problems| format!("the tested run is refused:\n  {}", problems.join("\n  ")))
 }
 
-/// The `[tested]` section for a run's facts, validated against the tree at
-/// `root`, and the checks it passed. Every null fact is left out and named
-/// in `unknown` by its dotted path, never written as a value.
+/// The tested section for a run's facts on `target`, validated against the
+/// tree at `root`, and the checks it passed. Every null fact is left out and
+/// named in `unknown` by its dotted path, never written as a value.
 ///
 /// # Errors
 /// Every rule the run breaks.
 fn render_tested(
     root: &Path,
     facts: &serde_json::Map<String, serde_json::Value>,
+    target: usize,
 ) -> Result<(String, Vec<&'static str>), Vec<String>> {
-    let verified = validate_tested(root, &Tested::from_facts(facts))?;
+    let verified = validate_run(root, &Tested::from_facts(facts), target)?;
     let mut unknown = Vec::new();
     let mut tested = toml::map::Map::new();
     for (key, _) in TESTED_FACTS {
@@ -1179,7 +1239,7 @@ fn render_tested(
         toml::Value::Array(unknown.into_iter().map(toml::Value::String).collect()),
     );
     let mut document = toml::map::Map::new();
-    document.insert("tested".to_owned(), toml::Value::Table(tested));
+    document.insert(tested_table(target), toml::Value::Table(tested));
     let section =
         toml::to_string(&toml::Value::Table(document)).map_err(|error| vec![error.to_string()])?;
     Ok((section, verified))
@@ -1190,18 +1250,89 @@ const NO_TESTED_RUN: &str = "\n# No tested run is recorded: `cargo xtask freeze 
      # records the milestone conformance run, and `cargo xtask freeze --check`\n\
      # fails until it is.\n";
 
-/// The whole file: the tree's values and, when there is one, the tested run.
-fn compose(tree: &str, tested: Option<&str>) -> String {
-    match tested {
-        Some(section) => format!("{tree}\n{TESTED_MARKER}\n{section}"),
-        None => format!("{tree}{NO_TESTED_RUN}"),
+/// How every further target's marker line opens.
+const FURTHER_OPENING: &str = "# --- the tested ";
+
+/// A run's section in what follows its marker line, and where the next marker
+/// line begins when one follows. A section ends with a newline, and one blank
+/// line separates it from the next marker.
+fn split_section(text: &str) -> (&str, Option<usize>) {
+    match text.find(&format!("\n{FURTHER_OPENING}")) {
+        Some(separator) => (&text[..separator], Some(separator + 1)),
+        None => (text, None),
     }
 }
 
-/// The freeze file for the tree at `root`. With `doctor`, the tested run is
-/// validated and recorded; without it, the existing file's tested run is
-/// kept when it still validates against this tree and dropped (with a
-/// note) when it does not.
+/// Which further target a marker line names.
+fn further_target(line: &str) -> Option<usize> {
+    (1..TARGETS.len()).find(|&target| line == further_marker(target))
+}
+
+/// A recorded tested run: its target and the text after its marker line.
+type RecordedRun<'a> = (usize, &'a str);
+/// The runs a file records, each with the checks the tree verifies for it.
+type VerifiedRuns = Vec<(usize, Vec<&'static str>)>;
+
+/// The tested sections a file records: the reference run's, and each further
+/// target's. A further run that is not under a marker this generator writes is
+/// an error; a repeated or out-of-order target is [`check_runs`]'s to refuse.
+///
+/// # Errors
+/// Text after the reference run that is not a further run as written.
+fn recorded_runs(existing: &str) -> Result<(Option<&str>, Vec<RecordedRun<'_>>), String> {
+    let body = match existing.split_once(TESTED_MARKER) {
+        Some((_, after)) => after.strip_prefix('\n'),
+        // No reference run: a further run, if any, follows the note that says so.
+        None => existing
+            .find(&format!("\n{FURTHER_OPENING}"))
+            .map(|at| &existing[at + 1..]),
+    };
+    let Some(body) = body else {
+        return Ok((None, Vec::new()));
+    };
+    let (reference, mut at) = if existing.contains(TESTED_MARKER) {
+        let (reference, next) = split_section(body);
+        (Some(reference), next)
+    } else {
+        (None, Some(0))
+    };
+    let mut further = Vec::new();
+    while let Some(start) = at {
+        let text = &body[start..];
+        let Some((line, tail)) = text.split_once('\n') else {
+            return Err(format!(
+                "the tested run after the first has no section: {text:?}"
+            ));
+        };
+        let Some(target) = further_target(line) else {
+            return Err(format!(
+                "{line:?} is not a marker `cargo xtask freeze --doctor` writes"
+            ));
+        };
+        let (section, next) = split_section(tail);
+        further.push((target, section));
+        at = next.map(|next| start + line.len() + 1 + next);
+    }
+    Ok((reference, further))
+}
+
+/// The whole file: the tree's values and, when there are any, the tested runs
+/// in [`TARGETS`] order, the reference run first.
+fn compose_runs(tree: &str, runs: &[(usize, String)]) -> String {
+    let mut file = match runs.first() {
+        Some((0, section)) => format!("{tree}\n{TESTED_MARKER}\n{section}"),
+        _ => format!("{tree}{NO_TESTED_RUN}"),
+    };
+    for (target, section) in runs.iter().filter(|(target, _)| *target != 0) {
+        file.push_str(&format!("\n{}\n{section}", further_marker(*target)));
+    }
+    file
+}
+
+/// The freeze file for the tree at `root`. With `doctor`, that run is
+/// validated and recorded for its target; without it, each recorded run is
+/// kept when it still validates against this tree and dropped (with a note)
+/// when it does not.
 ///
 /// # Errors
 /// A value that cannot be read, or a tested run that is refused.
@@ -1211,82 +1342,168 @@ pub fn generate(
 ) -> Result<(String, Vec<String>), String> {
     let tree = tree_part(root)?;
     let mut notes = Vec::new();
-    let tested = match doctor {
-        Some(doctor) => Some(tested_section(root, doctor)?),
-        None => {
-            let existing = std::fs::read_to_string(root.join(FREEZE_PATH)).unwrap_or_default();
-            let (kept, note) = kept_tested(root, &existing)?;
-            notes.extend(note);
-            kept
+    let recorded_run = doctor.map(run_target).transpose()?;
+    let existing = std::fs::read_to_string(root.join(FREEZE_PATH)).unwrap_or_default();
+    let mut runs = Vec::new();
+    for target in 0..TARGETS.len() {
+        let run = match doctor {
+            Some(doctor) if recorded_run == Some(target) => Some(tested_run(root, doctor)?.1),
+            _ if target == 0 => {
+                let (kept, note) = kept_tested(root, &existing)?;
+                notes.extend(note);
+                kept
+            }
+            _ => kept_run(root, &existing, target, &mut notes)?,
+        };
+        if let Some(section) = run {
+            runs.push((target, section));
         }
-    };
-    if tested.is_none() {
+    }
+    if !runs.iter().any(|(target, _)| *target == 0) {
         notes.push("no tested run is recorded (`freeze --check` fails until one is)".to_owned());
     }
-    Ok((compose(&tree, tested.as_deref()), notes))
+    Ok((compose_runs(&tree, &runs), notes))
 }
 
-/// The existing file's tested run, rewritten from the facts it records and
-/// kept only while it still validates against the tree at `root`;
-/// otherwise dropped, with a note saying so.
+/// [`kept_run`] for the reference target, with its one note.
 ///
 /// # Errors
 /// A tested section that is not TOML.
 fn kept_tested(root: &Path, existing: &str) -> Result<(Option<String>, Option<String>), String> {
-    let Some((_, section)) = existing.split_once(TESTED_MARKER) else {
-        return Ok((None, None));
+    let mut notes = Vec::new();
+    let kept = kept_run(root, existing, 0, &mut notes)?;
+    Ok((kept, notes.into_iter().next()))
+}
+
+/// The recorded tested run of `target`, rewritten from the facts it records
+/// and kept only while it still validates against the tree at `root`;
+/// otherwise dropped, with a note saying so. A further run the generator did
+/// not write is dropped the same way.
+///
+/// # Errors
+/// A tested section that is not TOML.
+fn kept_run(
+    root: &Path,
+    existing: &str,
+    target: usize,
+    notes: &mut Vec<String>,
+) -> Result<Option<String>, String> {
+    let name = tested_table(target);
+    let recorded = match recorded_runs(existing) {
+        Ok((reference, further)) => {
+            if target == 0 {
+                reference.map(str::to_owned)
+            } else {
+                further
+                    .iter()
+                    .find(|(recorded, _)| *recorded == target)
+                    .map(|(_, section)| (*section).to_owned())
+            }
+        }
+        Err(problem) => {
+            notes.push(format!(
+                "the recorded runs after the first were dropped: {problem}"
+            ));
+            None
+        }
+    };
+    let Some(section) = recorded else {
+        return Ok(None);
     };
     let value: toml::Value =
-        toml::from_str(section).map_err(|error| format!("the existing tested run: {error}"))?;
+        toml::from_str(&section).map_err(|error| format!("the existing {name} run: {error}"))?;
     let rendered = value
-        .get("tested")
-        .ok_or_else(|| vec!["no [tested] table".to_owned()])
+        .get(&name)
+        .ok_or_else(|| vec![format!("no [{name}] table")])
         .and_then(|tested| recorded_facts(tested).map_err(|problem| vec![problem]))
-        .and_then(|facts| render_tested(root, &facts));
+        .and_then(|facts| render_tested(root, &facts, target));
     match rendered {
-        Ok((section, _)) => Ok((Some(section), None)),
-        Err(_) => Ok((
-            None,
-            Some(
-                "the recorded tested run no longer validates against this tree and was \
-                 dropped; record the next conformance run with --doctor"
-                    .to_owned(),
-            ),
-        )),
+        Ok((section, _)) => Ok(Some(section)),
+        Err(_) => {
+            notes.push(format!(
+                "the recorded {} tested run no longer validates against this tree and was \
+                 dropped; record the next conformance run with --doctor",
+                TARGETS[target].1
+            ));
+            Ok(None)
+        }
     }
 }
 
-/// `cargo xtask freeze --check`: the milestone gate. The file must be
-/// exactly what this tree generates, byte for byte, and it must record a
-/// tested run that validates against this tree.
+/// A recorded tested run that `cargo xtask freeze --check` verified: its
+/// target and the checks the tree verifies for it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VerifiedRun {
+    /// The target's triple, as `build.target` names it.
+    pub target: &'static str,
+    /// The checks this tree verifies for the run.
+    pub checks: Vec<&'static str>,
+}
+
+/// `cargo xtask freeze --check`: the milestone gate. The file must be exactly
+/// what this tree generates, byte for byte, and it must record a tested run
+/// that validates against this tree. With `target`, a tested run of that
+/// target must be recorded and valid too.
 ///
 /// # Errors
 /// Every problem found.
-pub fn check(root: &Path) -> Result<Vec<&'static str>, Vec<String>> {
+pub fn check(root: &Path, target: Option<&str>) -> Result<Vec<VerifiedRun>, Vec<String>> {
     let path = root.join(FREEZE_PATH);
     let existing = std::fs::read_to_string(&path)
         .map_err(|error| vec![format!("{}: {error}", path.display())])?;
     let tree = tree_part(root).map_err(|error| vec![error])?;
-    check_against(root, &existing, &tree)
+    let runs = check_runs(root, &existing, &tree)?;
+    let required = match target {
+        None => None,
+        Some(name) => Some(
+            TARGETS
+                .iter()
+                .position(|(_, triple)| *triple == name)
+                .ok_or_else(|| {
+                    vec![format!(
+                        "{name} is not a target a tested run is recorded for ({})",
+                        TARGETS
+                            .iter()
+                            .map(|(_, triple)| *triple)
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )]
+                })?,
+        ),
+    };
+    if let Some(required) = required
+        && !runs.iter().any(|(target, _)| *target == required)
+    {
+        return Err(vec![format!(
+            "no tested run is recorded for {}: record its conformance run with `cargo xtask \
+             freeze --doctor <run>/doctor.json`",
+            TARGETS[required].1
+        )]);
+    }
+    Ok(runs
+        .into_iter()
+        .map(|(target, checks)| VerifiedRun {
+            target: TARGETS[target].1,
+            checks,
+        })
+        .collect())
 }
 
 /// [`check`] of the file `existing` against this tree's values `tree`.
 ///
-/// The tested run cannot be regenerated without its doctor record, so its
-/// section is rewritten from the facts it records: the checks this tree
-/// verifies and the unknown facts are recomputed, and the result must be
-/// the section as recorded. A fact added, dropped or reformatted by hand,
-/// or a stale verification list, is therefore not what the tree generates.
-fn check_against(
-    root: &Path,
-    existing: &str,
-    tree: &str,
-) -> Result<Vec<&'static str>, Vec<String>> {
+/// The tested runs cannot be regenerated without their doctor records, so
+/// each section is rewritten from the facts it records: the checks this tree
+/// verifies and the unknown facts are recomputed, and the result must be the
+/// section as recorded. A fact added, dropped or reformatted by hand, or a
+/// stale verification list, is therefore not what the tree generates. A
+/// further target's run is refused the same way, and when it is repeated or
+/// out of order.
+fn check_runs(root: &Path, existing: &str, tree: &str) -> Result<VerifiedRuns, Vec<String>> {
     const NOT_GENERATED: &str = "the freeze file is not what this tree generates: run `cargo xtask freeze` and review \
          the diff";
     let mut problems = Vec::new();
     let Some((recorded_tree, after)) = existing.split_once(TESTED_MARKER) else {
-        if existing != compose(tree, None) {
+        if existing != compose_runs(tree, &[]) {
             problems.push(NOT_GENERATED.to_owned());
         }
         problems.push(format!(
@@ -1298,55 +1515,83 @@ fn check_against(
     if recorded_tree.strip_suffix('\n') != Some(tree) {
         problems.push(NOT_GENERATED.to_owned());
     }
-    let Some(section) = after.strip_prefix('\n') else {
+    let Some(body) = after.strip_prefix('\n') else {
         problems.push(format!("{TESTED_MARKER:?} is not on a line of its own"));
         return Err(problems);
     };
-    let value = match toml::from_str::<toml::Value>(section) {
-        Ok(value) => value,
-        Err(error) => {
-            problems.push(format!("the tested run: {error}"));
-            return Err(problems);
-        }
-    };
-    let Some(tested) = value.get("tested") else {
-        problems.push("the tested section has no [tested] table".to_owned());
-        return Err(problems);
-    };
-    let facts = match recorded_facts(tested) {
-        Ok(facts) => facts,
-        Err(problem) => {
-            problems.push(problem);
-            return Err(problems);
-        }
-    };
-    match render_tested(root, &facts) {
-        Err(more) => {
-            problems.extend(more);
-            Err(problems)
-        }
-        Ok((rendered, verified)) => {
-            let recorded =
-                strings(tested.get(VERIFICATION), "tested.verification").unwrap_or_default();
-            if recorded != verified {
-                problems.push(format!(
-                    "the tested run records the checks {recorded:?}, but this tree verifies \
-                     {verified:?}"
-                ));
-            } else if rendered != section {
-                problems.push(format!(
-                    "the tested section is not what `cargo xtask freeze --doctor` writes for \
-                     the facts it records (edited by hand, or its unknown list is stale): \
-                     {NOT_GENERATED}"
-                ));
-            }
-            if problems.is_empty() {
-                Ok(verified)
-            } else {
-                Err(problems)
+    let (reference, next) = split_section(body);
+    let mut runs = Vec::new();
+    match verify_recorded(root, 0, reference) {
+        Err(more) => problems.extend(more),
+        Ok(verified) => runs.push((0, verified)),
+    }
+    if next.is_some() {
+        match recorded_runs(existing) {
+            Err(problem) => problems.push(problem),
+            Ok((_, further)) => {
+                let mut last = 0;
+                for (target, section) in further {
+                    if target <= last {
+                        problems.push(format!(
+                            "the tested {} run is recorded twice or out of order",
+                            TARGETS[target].0
+                        ));
+                        continue;
+                    }
+                    last = target;
+                    match verify_recorded(root, target, section) {
+                        Err(more) => problems.extend(more),
+                        Ok(verified) => runs.push((target, verified)),
+                    }
+                }
             }
         }
     }
+    if problems.is_empty() {
+        Ok(runs)
+    } else {
+        Err(problems)
+    }
+}
+
+/// One recorded section rewritten from the facts it records, and the checks
+/// this tree verifies: the result must be the section as recorded.
+fn verify_recorded(
+    root: &Path,
+    target: usize,
+    section: &str,
+) -> Result<Vec<&'static str>, Vec<String>> {
+    const NOT_GENERATED: &str = "the freeze file is not what this tree generates: run `cargo xtask freeze` and review \
+         the diff";
+    let name = tested_table(target);
+    let value = match toml::from_str::<toml::Value>(section) {
+        Ok(value) => value,
+        Err(error) => return Err(vec![format!("the tested run: {error}")]),
+    };
+    let Some(tested) = value.get(&name) else {
+        return Err(vec![format!("the tested section has no [{name}] table")]);
+    };
+    let facts = match recorded_facts(tested) {
+        Ok(facts) => facts,
+        Err(problem) => return Err(vec![problem]),
+    };
+    render_tested(root, &facts, target).and_then(|(rendered, verified)| {
+        let recorded = strings(tested.get(VERIFICATION), "tested.verification").unwrap_or_default();
+        if recorded != verified {
+            Err(vec![format!(
+                "the tested run records the checks {recorded:?}, but this tree verifies \
+                 {verified:?}"
+            )])
+        } else if rendered != section {
+            Err(vec![format!(
+                "the tested section is not what `cargo xtask freeze --doctor` writes for \
+                 the facts it records (edited by hand, or its unknown list is stale): \
+                 {NOT_GENERATED}"
+            )])
+        } else {
+            Ok(verified)
+        }
+    })
 }
 
 /// `cargo xtask freeze`: write the freeze file for the tree at `root`.
@@ -1380,6 +1625,42 @@ mod tests {
 
     fn repo_root() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+    }
+
+    /// The reference target's rules.
+    fn validate_tested(root: &Path, tested: &Tested) -> Result<Vec<&'static str>, Vec<String>> {
+        validate_run(root, tested, 0)
+    }
+
+    /// The reference run's section for a doctor record.
+    fn tested_section(root: &Path, doctor: &serde_json::Value) -> Result<String, String> {
+        tested_run(root, doctor).map(|(target, section)| {
+            assert_eq!(target, 0, "the reference run");
+            section
+        })
+    }
+
+    /// The whole file: the tree's values and, when there is one, the
+    /// reference target's tested run.
+    fn compose(tree: &str, tested: Option<&str>) -> String {
+        match tested {
+            Some(section) => compose_runs(tree, &[(0, section.to_owned())]),
+            None => compose_runs(tree, &[]),
+        }
+    }
+
+    /// [`check_runs`] of a file, as the reference run's checks.
+    fn check_against(
+        root: &Path,
+        existing: &str,
+        tree: &str,
+    ) -> Result<Vec<&'static str>, Vec<String>> {
+        check_runs(root, existing, tree).map(|runs| {
+            runs.into_iter()
+                .find(|(target, _)| *target == 0)
+                .map(|(_, checks)| checks)
+                .unwrap_or_default()
+        })
     }
 
     #[test]
@@ -1905,5 +2186,169 @@ mod tests {
         let mut other = doctor;
         other["schema"] = "ukai.jail.receipt/1".into();
         assert!(tested_section(root, &other).is_err());
+    }
+
+    /// The Linux doctor example on the further target.
+    fn arm64_doctor_of(root: &Path) -> serde_json::Value {
+        let mut doctor = doctor_of(root);
+        doctor["platform"]["arch"] = "aarch64".into();
+        doctor["build"]["target"] = "aarch64-unknown-linux-gnu".into();
+        doctor
+    }
+
+    /// The reference run's rules, for the further target's own platform.
+    #[test]
+    fn each_target_is_validated_for_its_own_platform() {
+        let dir = tree();
+        let root = dir.path();
+        let mut arm = clean(root);
+        arm.arch = Some("aarch64".to_owned());
+        arm.target = Some("aarch64-unknown-linux-gnu".to_owned());
+        assert_eq!(validate_run(root, &arm, 1), Ok(vec!["inputs_match_tree"]));
+        type Break = fn(&mut Tested);
+        let cases: [(&str, Break); 3] = [
+            ("the reference platform", |t| {
+                t.arch = Some("x86_64".to_owned());
+                t.target = Some("x86_64-unknown-linux-gnu".to_owned());
+            }),
+            ("a platform and target that disagree", |t| {
+                t.arch = Some("x86_64".to_owned());
+            }),
+            ("macOS", |t| {
+                t.os = Some("macos".to_owned());
+            }),
+        ];
+        for (label, change) in cases {
+            let mut tested = arm.clone();
+            change(&mut tested);
+            assert!(
+                validate_run(root, &tested, 1).is_err(),
+                "{label} was accepted"
+            );
+        }
+    }
+
+    /// A further target's run is recorded beside the reference run, under its
+    /// own marker, and is kept only while it still validates.
+    #[test]
+    fn a_further_target_run_is_recorded_beside_the_reference() {
+        let dir = tree();
+        let root = dir.path();
+        let tree_values = "schema = \"x\"\n";
+        let reference = tested_section(root, &doctor_of(root)).expect("the reference run");
+        let (target, arm) = tested_run(root, &arm64_doctor_of(root)).expect("the aarch64 run");
+        assert_eq!(target, 1);
+        assert!(arm.starts_with("[tested_aarch64]\n"), "{arm}");
+        assert!(
+            arm.contains("platform_arch = \"aarch64\"\n")
+                && arm.contains("target = \"aarch64-unknown-linux-gnu\"\n"),
+            "{arm}"
+        );
+        // A doctor whose platform and target disagree names no run.
+        let mut mixed = arm64_doctor_of(root);
+        mixed["build"]["target"] = "x86_64-unknown-linux-gnu".into();
+        assert!(tested_run(root, &mixed).is_err());
+        let file = compose_runs(tree_values, &[(0, reference.clone()), (1, arm.clone())]);
+        assert_eq!(
+            compose(tree_values, Some(&reference)),
+            compose_runs(tree_values, &[(0, reference.clone())]),
+            "a reference run alone is the file it always was"
+        );
+        assert_eq!(
+            check_runs(root, &file, tree_values).unwrap().len(),
+            2,
+            "{file}"
+        );
+        let mut notes = Vec::new();
+        assert_eq!(
+            kept_tested(root, &file).unwrap(),
+            (Some(reference.clone()), None)
+        );
+        assert_eq!(
+            kept_run(root, &file, 1, &mut notes).unwrap(),
+            Some(arm.clone())
+        );
+        assert!(notes.is_empty(), "{notes:?}");
+        // A further run recorded for other inputs is dropped, with a note.
+        let stale = format!("sha256:{}", "b".repeat(64));
+        let stale_arm = arm.replace(stale_inputs_of(&arm), &stale);
+        let with_stale = compose_runs(tree_values, &[(0, reference.clone()), (1, stale_arm)]);
+        let mut notes = Vec::new();
+        assert_eq!(kept_run(root, &with_stale, 1, &mut notes).unwrap(), None);
+        assert!(
+            notes
+                .iter()
+                .any(|note| note.contains("aarch64-unknown-linux-gnu tested run")
+                    && note.contains("dropped")),
+            "{notes:?}"
+        );
+        assert_eq!(
+            kept_tested(root, &with_stale).unwrap().0.as_deref(),
+            Some(reference.as_str()),
+            "the reference run is not dropped with it"
+        );
+    }
+
+    /// Review XT1, for a further run: `freeze --check` compares its whole
+    /// section too, and refuses one that is repeated, out of order, or under
+    /// a marker the generator does not write.
+    #[test]
+    fn check_holds_a_further_run_to_the_same_standard() {
+        let dir = tree();
+        let root = dir.path();
+        let tree_values = "schema = \"x\"\n";
+        let reference = tested_section(root, &doctor_of(root)).unwrap();
+        let arm = tested_run(root, &arm64_doctor_of(root)).unwrap().1;
+        let file = compose_runs(tree_values, &[(0, reference.clone()), (1, arm.clone())]);
+        let refused = |file: &str, why: &str| {
+            let problems = check_runs(root, file, tree_values).unwrap_err();
+            assert!(
+                problems.iter().any(|p| p.contains(why)),
+                "{why}: {problems:?}"
+            );
+        };
+        refused(
+            &format!("{file}# reviewed\n"),
+            "not what this tree generates",
+        );
+        refused(
+            &file.replace("platform_arch = \"aarch64\"", "platform_arch = \"x86_64\""),
+            "not linux/aarch64",
+        );
+        refused(
+            &file.replace(
+                "verification = [\"inputs_match_tree\"]",
+                "verification = []",
+            ),
+            "this tree verifies",
+        );
+        refused(
+            &format!("{file}\n{}\n{arm}", further_marker(1)),
+            "twice or out of order",
+        );
+        refused(
+            &file.replace(
+                &further_marker(1),
+                "# --- the tested riscv64 run (cargo xtask freeze --doctor) ---",
+            ),
+            "not a marker",
+        );
+        // A hand-added table without its marker is not what is generated.
+        refused(
+            &file.replace(
+                "\n# --- the tested aarch64 run",
+                "\n[tested_aarch64]\n# --- the tested aarch64 run",
+            ),
+            "not what this tree generates",
+        );
+        // With only the further run recorded there is still no reference run.
+        let problems =
+            check_runs(root, &compose_runs(tree_values, &[(1, arm)]), tree_values).unwrap_err();
+        assert!(
+            problems
+                .iter()
+                .any(|p| p.contains("no tested run is recorded")),
+            "{problems:?}"
+        );
     }
 }

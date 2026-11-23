@@ -75,8 +75,10 @@ jobs:
           rustup toolchain install && rustup show
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends minisign
-      - name: Require a recorded tested freeze
-        run: cargo run -q -p xtask -- freeze --check
+      - name: Require the recorded tested freeze of this target
+        # The reference run is always required; a native archive is built only
+        # for a target whose own tested run is recorded beside it.
+        run: cargo run -q -p xtask -- freeze --check --target "${{ matrix.target }}"
       - name: Require the recorded release evidence (K11, K27)
         env:
           UKAI_RELEASE_EVIDENCE: '1'
