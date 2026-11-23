@@ -1,0 +1,40 @@
+manifest_schema: ukai.jail.host-manifest/0 (manual, superseded by doctor --json)
+collected_at: 2026-11-23T17:30:54Z
+hostname: ukai-arm64-hvf
+virtualization: qemu
+kernel: 7.0.0-43-generic
+kernel_build: #43-Ubuntu SMP PREEMPT_DYNAMIC Fri Oct 23 13:33:03 UTC 2026
+arch: aarch64
+distribution: Ubuntu 26.04.1 LTS
+systemd: systemd 259 (259.9-0ubuntu0.1)
+cpus: 4
+mem_total_kib: 6039772
+swap_total_kib: 4194300
+root_fs: 30G total, 17G free
+operator: uid=1001 ukai-ci
+operator_linger: yes
+operator_sudo: none or password
+shell_cap_eff: 0000000000000000
+sysctl.kernel.apparmor_restrict_unprivileged_userns: 1
+sysctl.kernel.unprivileged_bpf_disabled: 2
+sysctl.kernel.perf_event_paranoid: 4
+sysctl.kernel.yama.ptrace_scope: 1
+sysctl.user.max_user_namespaces: 21089
+sysctl.kernel.io_uring_disabled: 0
+cgroup_fs: cgroup2fs
+cgroup_root_controllers: cpuset cpu io memory hugetlb pids rdma misc dmem
+cgroup_user_service: present
+cgroup_user_controllers: cpuset cpu io memory pids
+cgroup_user_subtree_control: cpu memory pids
+bwrap: bubblewrap 0.11.1
+userns_unshare_test: ok
+apparmor_enabled: Yes
+apparmor_profile_files: bwrap-userns-restrict glycin.bwrap lxc-usernsexec unprivileged_userns 
+apparmor_loaded_bwrap_ukai: unavailable: aa-status needs privilege this account may not have
+kconfig_bpf: CONFIG_BPF_SYSCALL=y CONFIG_BPF_JIT=y CONFIG_DEBUG_INFO_BTF=y 
+btf_vmlinux: present
+beam_present: no
+rust_toolchain: unavailable: cargo is not installed
+gcc: gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
+ukai_binaries_on_path: unavailable: none on PATH
+manifest_status: complete

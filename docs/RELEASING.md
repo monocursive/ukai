@@ -294,7 +294,8 @@ since the recorded VM run needs a new one first (`onboarding_vm.py`). A plain
 `cargo test` skips those two checks. The reference host
 needs at least 4 GiB free for a release build. Record successful conformance with
 `cargo xtask freeze --doctor`, then require
-`cargo +1.98.1 run -q -p xtask -- freeze --check` to pass. A tree-only freeze,
+`cargo +1.98.1 run -q -p xtask -- freeze --check` to pass. A release with an
+ARM64 archive needs the ARM64 conformance run recorded the same way. A tree-only freeze,
 skipped reference host or an older passing run is insufficient. The next
 release needs a fresh reference conformance rerun on the VPS, followed by
 `cargo xtask freeze --doctor <successful-run>/doctor.json`. The current

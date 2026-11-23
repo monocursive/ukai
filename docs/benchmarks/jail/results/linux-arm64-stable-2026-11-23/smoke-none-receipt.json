@@ -1,0 +1,202 @@
+{
+  "schema": "ukai.jail.receipt/1",
+  "attempt_id": "att_2b304fea-41fe-4fb9-9222-06d33f67f913",
+  "revision": 3,
+  "phase": "settled",
+  "platform": {
+    "os": "linux",
+    "arch": "aarch64",
+    "kernel": "Linux 7.0.0-43-generic"
+  },
+  "jail": {
+    "component": "ukai-jail",
+    "version": "0.1.0",
+    "backend": "none",
+    "backend_version": null
+  },
+  "policy": {
+    "name": "none",
+    "digest": "sha256:a56346013c682243f40f313391b3cc8ba816ecaba7a7c584952bf34daab9b4dd",
+    "observe": "on",
+    "evidence": "strict",
+    "requirements": [
+      "tree_termination",
+      "closed_set_observation",
+      "limit:wall",
+      "execution_boundary"
+    ],
+    "grants": []
+  },
+  "containment": "none",
+  "child_protection": "unprotected",
+  "exec_observed": true,
+  "argv_digest": "sha256:df2f027aa474a2841efc94bffab2dde0fab570ef50d2848cd1a532fc1e4ff7a8",
+  "applied": {
+    "filesystem": null,
+    "network": {
+      "mode": "host",
+      "mechanism": null,
+      "allowed_hosts": []
+    },
+    "syscalls": null,
+    "limits": [
+      {
+        "key": "wall",
+        "requested": "7200000",
+        "required": true,
+        "applied": true,
+        "mechanism": "boottime-deadline",
+        "scope": "tree",
+        "hit": false
+      }
+    ],
+    "environment_names": [
+      "DBUS_SESSION_BUS_ADDRESS",
+      "HOME",
+      "LANG",
+      "LC_CTYPE",
+      "LOGNAME",
+      "OLDPWD",
+      "PATH",
+      "PWD",
+      "SHELL",
+      "SHLVL",
+      "SSH_CLIENT",
+      "SSH_CONNECTION",
+      "USER",
+      "XDG_RUNTIME_DIR",
+      "XDG_SESSION_CLASS",
+      "XDG_SESSION_ID",
+      "XDG_SESSION_TYPE",
+      "_"
+    ],
+    "removed_environment_names": [
+      "UKAI_CONFIG_DIR",
+      "UKAI_DATA_DIR"
+    ]
+  },
+  "observer": {
+    "backend": "ptrace",
+    "set": "linux-closed-v1",
+    "attached": true,
+    "sources": {
+      "wrapper": "active",
+      "audit": "active",
+      "proxy": "unsupported"
+    },
+    "gaps": []
+  },
+  "coverage": {
+    "exec": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 2,
+      "gaps": []
+    },
+    "fs.write": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 0,
+      "gaps": []
+    },
+    "fs.deny": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 0,
+      "gaps": []
+    },
+    "net": {
+      "status": "active",
+      "sources": [
+        "audit"
+      ],
+      "observed_count": 0,
+      "gaps": []
+    },
+    "limits": {
+      "status": "active",
+      "sources": [
+        "wrapper"
+      ],
+      "observed_count": 0,
+      "gaps": []
+    },
+    "proxy.net": {
+      "status": "unsupported",
+      "sources": [],
+      "observed_count": null,
+      "gaps": []
+    }
+  },
+  "process": {
+    "pid": 430979,
+    "identity": {
+      "kind": "linux_boot_start",
+      "value": {
+        "boot_id": "caf582f5-198e-4b28-9240-a34495dc1ed4",
+        "pid": 430979,
+        "start_time_ticks": 1741702
+      }
+    }
+  },
+  "lifetime": {
+    "boundary": "supervisor_cgroup",
+    "native": {
+      "os": "linux",
+      "details": {
+        "child_subreaper": true,
+        "execution_cgroup": {
+          "charged_helpers": [],
+          "device": 31,
+          "inode": 406381,
+          "path": "/sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/ukai-att_2b304fea-41fe-4fb9-9222-06d33f67f913.leaf",
+          "scope": "target_descendants_and_listed_helpers"
+        },
+        "launcher_pid": 430979,
+        "narrowing_filter_digest": "sha256:f5353e3a8e29beeca5edb0e19952196e8c1b8b575c4d5aab1698a7017fefb56e",
+        "observer_plan": {
+          "backend": "ptrace",
+          "event_bytes_max": 65536,
+          "in_flight_max": 16384,
+          "kernel_ring_bytes": null,
+          "path_snapshot_max": 4096,
+          "queue_bytes_max": 4194304,
+          "queue_events_max": 16384,
+          "queue_lifecycle_reserve_bytes": 65536,
+          "queue_result_bytes_max": 4128768,
+          "test_seams": {}
+        },
+        "supervisor_scope": {
+          "cgroup": "/user.slice/user-1001.slice/user@1001.service/app.slice/ukai-jail-430971-07df87091584499f.scope",
+          "reason": null,
+          "reason_code": null,
+          "state": "entered",
+          "unit": "ukai-jail-430971-07df87091584499f.scope"
+        }
+      }
+    },
+    "tree_empty": true,
+    "verified_at": "2026-11-23T17:19:29Z",
+    "verification_scope": "registered_boundary",
+    "integrity": "verified"
+  },
+  "outcome": {
+    "kind": "exited",
+    "code": 0,
+    "signal": null,
+    "cause": null,
+    "error": null
+  },
+  "state_cleanup": "not_needed",
+  "cleanup_error": null,
+  "created_at": "2026-11-23T17:19:29Z",
+  "updated_at": "2026-11-23T17:19:29Z",
+  "errors": [],
+  "credentials": []
+}

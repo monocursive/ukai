@@ -1,0 +1,59 @@
+ukai-jail: OK
+ukai-fixture: OK
+ukai-ledger: OK
+xtask: OK
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+started 2026-11-23T12:38:15Z
+0::/user.slice/user-1001.slice/session-10.scope
+0.00 0.05 0.02 1/154 2105
+    Finished `release` profile [optimized] target(s) in 0.04s
+     Running unittests src/lib.rs (target/release/deps/ukai_jail-8abd57b847879d13)
+
+running 1 test
+test platform::linux::tracer::session::entry::tests::audit4_compat_abi_listener_and_untraced_clone_route_to_their_gaps ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 983 filtered out; finished in 0.00s
+
+     Running tests/conformance_j3_agent.rs (target/release/deps/conformance_j3_agent-a0ebe7a0f6e23054)
+
+running 2 tests
+test n05_child_path_and_mount_changes_cannot_redirect_the_bridge ... ok
+test s03_each_outer_boundary_reversal_fails_and_changes_nothing ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 36 filtered out; finished in 0.14s
+
+     Running tests/conformance_j3_none.rs (target/release/deps/conformance_j3_none-50778f2248b7c50f)
+
+running 1 test
+test r05_same_uid_tampering_is_outside_local_evidence_assurance ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.04s
+
+     Running tests/j4_closed_set_linux.rs (target/release/deps/j4_closed_set_linux-a58fb7a69714a2a4)
+
+running 1 test
+test j4_clone_untraced_is_a_gap_in_none ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 18 filtered out; finished in 0.08s
+
+     Running tests/j5_boundary_linux.rs (target/release/deps/j5_boundary_linux-7571a6ac012314a4)
+
+running 3 tests
+test f02_mount_replacement_of_a_protected_git_is_denied ... ok
+test r05_forging_records_mid_run_is_outside_local_evidence_assurance ... ok
+test s03_the_outer_boundaries_cannot_be_reversed_inside_agent ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.48s
+
+     Running tests/review_linux.rs (target/release/deps/review_linux-c7c3a74ed1e20046)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 46 filtered out; finished in 0.00s
+
+cargo exit 0
+finished 2026-11-23T12:38:16Z
+ukai-jail: OK
+ukai-fixture: OK
+ukai-ledger: OK
+xtask: OK

@@ -1,0 +1,179 @@
+{
+  "gate": "K17",
+  "status": "not confirmed",
+  "method": "The replay of each K17 run: its seed, 30 measured launches per arm, one warmup per arm, scored by docs/benchmarks/jail/performance.py. Every run of 23 November is listed.",
+  "limits": {
+    "startup_p95_ms_exclusive": 500,
+    "fileops_post_start_overhead_pct_inclusive": 100
+  },
+  "runs": [
+    {
+      "run": "1",
+      "guest_glibc": "2.43-2ubuntu2.7",
+      "executable_build": "2026-11-23",
+      "executable_sha256": "e8480f7d06f95e7219c385e15ae8aa1668e006154bd12cd2235c2ab0760b53db",
+      "fileops_overhead_pct": {
+        "plain": 103.55,
+        "scope": 103.86
+      },
+      "worst_added_startup_p95_ms": 73.9,
+      "verdict": "fail",
+      "host_load1_at_start": null,
+      "note": "This agent compiled on the host during the measurement.",
+      "replay_summary_sha256": "3e811c32a808234198bb52c0cfdfd7e2eaaea228dae67dd645dbb8901530056e",
+      "raw_launches_sha256": "863305b7892173436cd57b44038fc236c11db11775b41f271fccf07125f7b5be"
+    },
+    {
+      "run": "2",
+      "guest_glibc": "2.43-2ubuntu2.7",
+      "executable_build": "2026-11-23",
+      "executable_sha256": "e8480f7d06f95e7219c385e15ae8aa1668e006154bd12cd2235c2ab0760b53db",
+      "fileops_overhead_pct": {
+        "plain": 104.49,
+        "scope": 100.32
+      },
+      "worst_added_startup_p95_ms": 52.72,
+      "verdict": "fail",
+      "host_load1_at_start": 3.7,
+      "note": "Nothing of this agent ran.",
+      "replay_summary_sha256": "3a93f61803a1e743ba87a4e7406fac449bcc4ed24bd86fea8db6e8a8d4fcaeef",
+      "raw_launches_sha256": "ed3c63ef09cb84c1e5fe7ece5b892e3371f0f038a7539b301d2f9f5ad3a3575c"
+    },
+    {
+      "run": "3",
+      "guest_glibc": "2.43-2ubuntu2.4",
+      "executable_build": "2026-11-22",
+      "executable_sha256": "7383cbe3e27784f15282a0e5e048006be3cb2d1ca561ccb5ca7d13314005f14c",
+      "fileops_overhead_pct": {
+        "plain": 88.94,
+        "scope": 82.24
+      },
+      "worst_added_startup_p95_ms": 53.0,
+      "verdict": "pass",
+      "host_load1_at_start": 3.64,
+      "note": "A fresh copy of the saved guest image, its automatic updater stopped.",
+      "replay_summary_sha256": "4ffd59e27f97c6ed30a805c6fe52195cf970048238cc59328c277bafc69d08e9",
+      "raw_launches_sha256": "0faec1b8ceb844dc2bd219f91e960826cf3ef76f237593725af9fbac028b2616"
+    },
+    {
+      "run": "4",
+      "guest_glibc": "2.43-2ubuntu2.7",
+      "executable_build": "2026-11-22",
+      "executable_sha256": "7383cbe3e27784f15282a0e5e048006be3cb2d1ca561ccb5ca7d13314005f14c",
+      "fileops_overhead_pct": {
+        "plain": 97.37,
+        "scope": 97.1
+      },
+      "worst_added_startup_p95_ms": 47.4,
+      "verdict": "pass",
+      "host_load1_at_start": 3.58,
+      "note": "",
+      "replay_summary_sha256": "55afa5a9a409c296c790bb1a8206a3e9643fd969cdad85351ef68946c6324d33",
+      "raw_launches_sha256": "ea6025036b687fa7de7b378bd58600c7b7f41a258bdc196ea35e4f688ab72d33"
+    },
+    {
+      "run": "5",
+      "guest_glibc": "2.43-2ubuntu2.4",
+      "executable_build": "2026-11-23",
+      "executable_sha256": "e8480f7d06f95e7219c385e15ae8aa1668e006154bd12cd2235c2ab0760b53db",
+      "fileops_overhead_pct": {
+        "plain": 99.16,
+        "scope": 96.41
+      },
+      "worst_added_startup_p95_ms": 48.37,
+      "verdict": "pass",
+      "host_load1_at_start": 5.05,
+      "note": "",
+      "replay_summary_sha256": "f53bbcfaeeba6fa3cbed765881fcfc57639682ce71562c4661b9211bf5661499",
+      "raw_launches_sha256": "77df7a7a25457687f09de238d80416a9860b0be403b3f7abd7f2eb831f637cce"
+    },
+    {
+      "run": "6",
+      "guest_glibc": "2.43-2ubuntu2.4",
+      "executable_build": "2026-11-22",
+      "executable_sha256": "7383cbe3e27784f15282a0e5e048006be3cb2d1ca561ccb5ca7d13314005f14c",
+      "fileops_overhead_pct": {
+        "plain": 100.54,
+        "scope": 98.12
+      },
+      "worst_added_startup_p95_ms": 48.72,
+      "verdict": "fail",
+      "host_load1_at_start": 5.52,
+      "note": "",
+      "replay_summary_sha256": "4027b416b6d8aea2c7d08c8b5a21c5c9c4322c0b0da63ac142a814936ba0c54c",
+      "raw_launches_sha256": "1e9818361831363cf1bfeabdda898f4c1aaec8d0cfc0118bd5f3843f8a2e0e5a"
+    },
+    {
+      "run": "7",
+      "guest_glibc": "2.43-2ubuntu2.7",
+      "executable_build": "2026-11-23",
+      "executable_sha256": "e8480f7d06f95e7219c385e15ae8aa1668e006154bd12cd2235c2ab0760b53db",
+      "fileops_overhead_pct": {
+        "plain": 96.69,
+        "scope": 97.49
+      },
+      "worst_added_startup_p95_ms": 48.51,
+      "verdict": "pass",
+      "host_load1_at_start": 4.08,
+      "note": "",
+      "replay_summary_sha256": "1238975e5d8c89e2feacf2f9208f4d51b754b0d5401a42e12e039a456249774f",
+      "raw_launches_sha256": "f8db0365506982b08b7038c9bdb1f4efeb88bfa4ded6c8e8117ac9a8d62711ff"
+    }
+  ],
+  "passing_runs": 4,
+  "failing_runs": 3,
+  "passing_range_pct": {
+    "plain": [
+      88.94,
+      99.16
+    ],
+    "scope": [
+      82.24,
+      97.49
+    ]
+  },
+  "failing_range_pct": {
+    "plain": [
+      100.54,
+      104.49
+    ],
+    "scope": [
+      98.12,
+      103.86
+    ]
+  },
+  "earlier_records": [
+    {
+      "date": "2026-11-22",
+      "record": "results/linux-arm64-supervision-2026-11-22/k17.json",
+      "verdict": "pass",
+      "fileops_overhead_pct": {
+        "plain": 83.16,
+        "scope": 80.6
+      }
+    },
+    {
+      "date": "2026-11-22",
+      "record": "results/linux-arm64-supervision-2026-11-22/exact-candidate.json",
+      "verdict": "pass",
+      "fileops_overhead_pct": {
+        "plain": 79.14,
+        "scope": 84.34
+      }
+    }
+  ],
+  "why_not_confirmed": "With the same guest image and the same executable, runs pass and fail from one measurement to the next at the 100% ceiling. The earlier records of the same image and executable measured 79% to 84%. The host was in heavy use on 23 November.",
+  "executables": {
+    "7383cbe3e27784f15282a0e5e048006be3cb2d1ca561ccb5ca7d13314005f14c": {
+      "build": "2026-11-22",
+      "documented_by": "retained-candidate-doctor.json",
+      "build_inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92"
+    },
+    "e8480f7d06f95e7219c385e15ae8aa1668e006154bd12cd2235c2ab0760b53db": {
+      "build": "2026-11-23",
+      "documented_by": "driver.run3-e74456730/doctor.json",
+      "build_inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92"
+    }
+  },
+  "recorded_run_executable_sha256": "b01c07d5a378bce363d1df11e5b5ed501cdabd38ab013ade0cd6452aec1d66ad"
+}
