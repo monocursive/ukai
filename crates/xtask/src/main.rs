@@ -44,6 +44,10 @@ enum Task {
         key: PathBuf,
         #[arg(long, value_name = "PATH")]
         known_hosts: Option<PathBuf>,
+        /// The SSH port, for a host reached through a forwarded port (a local
+        /// guest's `hostfwd`); the default port when omitted.
+        #[arg(long, value_name = "PORT")]
+        port: Option<u16>,
         #[arg(
             long,
             value_name = "PATH",
@@ -163,6 +167,7 @@ fn run(task: Task) -> Result<ExitCode, String> {
             user,
             key,
             known_hosts,
+            port,
             manifest,
             evidence,
             jobs,
@@ -176,6 +181,7 @@ fn run(task: Task) -> Result<ExitCode, String> {
                     user,
                     key,
                     known_hosts,
+                    port,
                 },
                 manifest: absolutise(&worktree, &manifest),
                 evidence,
