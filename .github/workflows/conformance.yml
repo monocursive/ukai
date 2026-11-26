@@ -70,7 +70,7 @@ jobs:
       # The driver runs the contract validator (validate_contract.py) at the
       # same revision and records its output as evidence (R01); it needs uv.
       # Third-party toolchain installer, so pinned to a commit like the rest.
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
       - name: Conformance suite
         # The xtask driver validates the contract locally, copies the tree to a
         # per-run directory on the host, builds it, runs `doctor --json`
