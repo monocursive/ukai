@@ -1,0 +1,309 @@
+#!/usr/bin/env bash
+# Public developer installer. Bash 3.2+; execution waits for the complete script.
+main() (
+    set -euo pipefail
+    umask 077
+    export LC_ALL=C
+    repository=https://github.com/monocursive/ukai
+    version=0.1.1
+    macos_version=0.1.0-preview.1
+    version_selected=false
+    prefix=${HOME:?HOME must be set}/.local/bin
+    bin_selected=false
+    vm_prefix=${HOME}/.local
+    vm_prefix_selected=false
+    base=
+    source_dir=
+    work=
+    staged=
+    notice=
+    record=
+    mounted=
+    allow_downgrade=false
+    # shellcheck disable=SC2317,SC2329 # Invoked by the EXIT trap.
+    cleanup() {
+        if [ -n "$mounted" ]; then
+            hdiutil detach "$mounted" >/dev/null || {
+                printf 'Could not eject %s; temporary files retained at %s.\n' "$mounted" "$work" >&2
+                return
+            }
+        fi
+        rm -rf -- "${work:-}"
+        rm -f -- "${staged:-}" "${notice:-}" "${record:-}"
+    }
+    trap cleanup EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' HUP TERM
+
+    fail() { printf 'ukai installer: %s\n' "$*" >&2; exit 1; }
+    usage() {
+        cat <<EOF
+Usage: bash install.sh [--version VERSION] [--bin-dir /absolute/path]
+                       [--allow-downgrade]
+       bash install.sh [--version VERSION] [--vm-prefix /absolute/path]
+
+Linux: installs Ukai Jail $version into ~/.local/bin on x86_64 and ARM64.
+macOS: installs the Ukai VM preview $macos_version under ~/.local/share,
+with a command in ~/.local/bin. --vm-prefix changes the root containing bin and share.
+Pre-rename releases retain their ouro-jail / ouro-vm commands and package paths.
+Apple Silicon and macOS 27+ are required; Intel Macs are unsupported.
+The Mac preview runs offline Linux commands in disposable VMs, not Mac programs
+or online agents. Allow 8 GiB free APFS space and 2 GiB RAM per running VM.
+Only releases with embedded SHA-256 pins are accepted. --version also accepts
+vVERSION, ukai-jail-vVERSION (Linux), or ukai-vm-vVERSION (Mac).
+The original ouro-jail-vVERSION and ouro-vm-vVERSION tags are also accepted.
+Linux: run again to upgrade; downgrades require --allow-downgrade.
+Mac: an already installed version is preserved and a repeat install refuses.
+Requires curl, tar, and sha256sum or shasum. No sudo or Rust compiler.
+Linux binaries require glibc 2.39 or newer; Alpine/musl is unsupported.
+Execution requires a compatible Linux host and bubblewrap; check doctor after
+installation. Mac installation uses the system hdiutil and bundled runtime.
+
+Offline installation: --from-dir DIR
+Other mirrors: --base-url HTTPS_URL
+Offline files and mirrors must match the embedded release hashes.
+EOF
+    }
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --version|--bin-dir|--prefix|--vm-prefix|--base-url|--from-dir)
+                if [ "$#" -lt 2 ] || [ -z "${2-}" ]; then fail "$1 needs a value"; fi
+                case "$1" in
+                    --version) version=$2; version_selected=true ;;
+                    --bin-dir|--prefix) prefix=$2; bin_selected=true ;;
+                    --vm-prefix) vm_prefix=$2; vm_prefix_selected=true ;;
+                    --base-url) base=$2 ;;
+                    --from-dir) source_dir=$2 ;;
+                esac
+                shift 2 ;;
+            --allow-downgrade) allow_downgrade=true; shift ;;
+            -h|--help) usage; exit 0 ;;
+            *) fail "unknown argument: $1 (see --help)" ;;
+        esac
+    done
+    system=$(uname -s)
+    if [ "$system" = Darwin ] && [ "$version_selected" = false ]; then version=$macos_version; fi
+    version=${version#ukai-jail-v}
+    version=${version#ukai-vm-v}
+    version=${version#ouro-jail-v}
+    version=${version#ouro-vm-v}
+    version=${version#v}
+    number='(0|[1-9][0-9]*)'
+    identifier='(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)'
+    pattern="^${number}\\.${number}\\.${number}(-${identifier}(\\.${identifier})*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"
+    valid_version() { [[ "$1" =~ $pattern ]]; }
+    valid_version "$version" || fail "invalid semantic version: $version"
+    case "$prefix" in /*) ;; *) fail '--bin-dir must be an absolute path' ;; esac
+    case "$vm_prefix" in /*) ;; *) fail '--vm-prefix must be an absolute path' ;; esac
+    [ -z "$base" ] || [ -z "$source_dir" ] || fail 'choose --base-url or --from-dir'
+    case "$base" in ''|https://*) ;; *) fail '--base-url must use HTTPS' ;; esac
+    for command in uname awk mktemp tar sed mkdir chmod cat mv; do
+        command -v "$command" >/dev/null 2>&1 || fail "required command not found: $command"
+    done
+    case "$system:$(uname -m)" in
+        Linux:x86_64|Linux:amd64) target=x86_64-unknown-linux-gnu ;;
+        Linux:aarch64|Linux:arm64) target=aarch64-unknown-linux-gnu ;;
+        Darwin:arm64) target=macos-arm64 ;;
+        *) fail 'supported hosts: Linux x86_64/ARM64 or Apple Silicon macOS 27+' ;;
+    esac
+    # Rendered by crates/ukai-jail/dist/bootstrap.py; every release this
+    # installer accepts has its archive or disk image hash here.
+    # BEGIN SHA256 PINS
+    case "$version:$target" in
+        0.1.0:x86_64-unknown-linux-gnu) expected='22e623e82770dabb5dbf85367237cde3bf7e659f901bd65f8e2d618e7b3d484f' ;;
+        0.1.0-preview.1:macos-arm64) expected='f3a85e14987228bb5271956ce19bb4cb57272c24235b6f8b98db51b68e0c54a0' ;;
+        0.1.0-rc.1:aarch64-unknown-linux-gnu) expected='100d0e8e78d27c08372b18352de987da447f157ef75c8ebeac0cf5e24dd0400a' ;;
+        0.1.0-rc.1:x86_64-unknown-linux-gnu) expected='9413e8fd0cea1417c1ba47e5e0fad07edf3a26b8615e68a5aa642662f1209da8' ;;
+        0.1.0-rc.2:aarch64-unknown-linux-gnu) expected='28baa9b51821df4144689a730896ade833b58b8626e00eaf94ff0d4e807c5203' ;;
+        0.1.0-rc.2:x86_64-unknown-linux-gnu) expected='e2e77ffd1a508a2b2b49353b8f2fb2c511eb28fbd6f5af89387d48dd7df15497' ;;
+        0.1.0-rc.3:aarch64-unknown-linux-gnu) expected='4b154f6b5f7b6d6d603c046813379d781c990705fe96ece446afe34587086a47' ;;
+        0.1.0-rc.3:x86_64-unknown-linux-gnu) expected='9798ead7866a98456406456b2d9b13d7e881f265d24eb2b9674e4b602144029a' ;;
+        0.1.0-rc.4:aarch64-unknown-linux-gnu) expected='305d79aa1b826ad4d7aed209720c257df4cf6002e734bcbde3bd593487a9601d' ;;
+        0.1.0-rc.4:x86_64-unknown-linux-gnu) expected='c5ddd09e91e584e2f7ad98454f0fe38572dd3db75905e26b197b788e2e46b269' ;;
+        0.1.0-rc.5:aarch64-unknown-linux-gnu) expected='2af9d2ef48ec12c4072822b6b6dca3cb867ee8fb0054c9e142d4e86a0221a752' ;;
+        0.1.0-rc.5:x86_64-unknown-linux-gnu) expected='33f397057c4d8996a01d60d382852223ac328075f2facd084b51a2068b5ce03e' ;;
+        0.1.0-rc.8:aarch64-unknown-linux-gnu) expected='85b479d4b57ea3909d20b56a8bfb24e3496af56e23af0beb77296c2ae2ae77df' ;;
+        0.1.0-rc.8:x86_64-unknown-linux-gnu) expected='176514f7ec07ef955429683067e2d83778a22998ae460930e507584ec0c71592' ;;
+        0.1.1:aarch64-unknown-linux-gnu) expected='97d47720204fa89178fb7e8e1d9acde63d9668a43c2e131abb27ae6eb2364763' ;;
+        0.1.1:x86_64-unknown-linux-gnu) expected='9bbf4b6e33b18f51bd2f85a30b4084ef1a38e8fe5237dbe5d10e1bba7d2bc72c' ;;
+        *) fail "no pinned SHA-256 for $version ($target); download the current installer, or select with --version one that ships this target" ;;
+    esac
+    # END SHA256 PINS
+    # These immutable archives predate the rename. Bind their package names to
+    # their trusted hashes, so newly assembled Ukai packages keep the new names.
+    package_name=ukai-jail
+    [ "$system" != Darwin ] || package_name=ukai-vm
+    case "$expected" in
+        100d0e8e78d27c08372b18352de987da447f157ef75c8ebeac0cf5e24dd0400a|\
+        9413e8fd0cea1417c1ba47e5e0fad07edf3a26b8615e68a5aa642662f1209da8|\
+        28baa9b51821df4144689a730896ade833b58b8626e00eaf94ff0d4e807c5203|\
+        e2e77ffd1a508a2b2b49353b8f2fb2c511eb28fbd6f5af89387d48dd7df15497) package_name=ouro-jail ;;
+        f3a85e14987228bb5271956ce19bb4cb57272c24235b6f8b98db51b68e0c54a0) package_name=ouro-vm ;;
+    esac
+    if [ "$system" = Darwin ]; then
+        [ "$bin_selected" = false ] || fail 'on macOS use --vm-prefix (contains bin and share), not --bin-dir or --prefix'
+        [ "$allow_downgrade" = false ] || fail '--allow-downgrade applies only to the Linux installer'
+        for command in sw_vers hdiutil shasum; do
+            command -v "$command" >/dev/null 2>&1 || fail "required command not found: $command"
+        done
+        macos_major=$(sw_vers -productVersion | awk -F. '{print $1}')
+        if ! [[ "$macos_major" =~ ^[0-9]+$ ]] || [ "$macos_major" -lt 27 ]; then
+            fail 'macOS 27 or newer is required'
+        fi
+        artifact="$package_name-$version-$target.dmg"
+        work=$(mktemp -d "${TMPDIR:-/tmp}/ukai-install.XXXXXX")
+        if [ -n "$source_dir" ]; then
+            cp -- "$source_dir/$artifact" "$work/$artifact" || fail "missing release asset: $artifact"
+        else
+            command -v curl >/dev/null 2>&1 || fail 'required command not found: curl'
+            base=${base:-$repository/releases/download/$package_name-v$version}
+            printf 'Downloading Ukai VM %s (about 512 MiB)...\n' "$version"
+            curl --disable --fail --silent --show-error --location \
+                --proto '=https' --proto-redir '=https' --tlsv1.2 \
+                --connect-timeout 15 --max-time 1800 --retry 3 \
+                "${base%/}/$artifact" --output "$work/$artifact" || fail "cannot download $artifact"
+        fi
+        actual=$(shasum -a 256 "$work/$artifact" | awk '{print $1}')
+        [ "$actual" = "$expected" ] || fail "checksum verification failed: $artifact"
+        mkdir "$work/mount"
+        hdiutil attach -readonly -nobrowse -noautoopen -mountpoint "$work/mount" "$work/$artifact" >/dev/null
+        mounted="$work/mount"
+        /bin/bash "$mounted/install.sh" --prefix "$vm_prefix"
+        printf '\nCheck your Mac: %s/bin/%s doctor\n' "$vm_prefix" "$package_name"
+        printf 'Usage and preview limits: https://ukai.sh/guide/#macos-vm-preview\n'
+        exit 0
+    fi
+    [ "$vm_prefix_selected" = false ] || fail '--vm-prefix applies only to the macOS VM preview'
+    command -v getconf >/dev/null 2>&1 || fail 'glibc 2.39 or newer is required; getconf is missing'
+    libc=$(getconf GNU_LIBC_VERSION 2>/dev/null) || fail 'glibc 2.39 or newer is required; Alpine/musl is unsupported'
+    read -r libc_name libc_version <<<"$libc"
+    if [ "$libc_name" != glibc ] || ! [[ "$libc_version" =~ ^[0-9]+\.[0-9]+$ ]]; then
+        fail 'cannot determine the glibc version'
+    fi
+    awk -v v="$libc_version" 'BEGIN {split(v,n,"."); exit !(n[1]>2 || (n[1]==2 && n[2]>=39))}' ||
+        fail "glibc $libc_version is too old; this release requires glibc 2.39 or newer"
+    if command -v sha256sum >/dev/null 2>&1; then
+        digest() { sha256sum "$1" | awk '{print $1}'; }
+    elif command -v shasum >/dev/null 2>&1; then
+        digest() { shasum -a 256 "$1" | awk '{print $1}'; }
+    else
+        fail 'install sha256sum or shasum to verify downloads'
+    fi
+    if [ -n "$source_dir" ]; then
+        [ -d "$source_dir" ] || fail '--from-dir must name an artifact directory'
+    else
+        command -v curl >/dev/null 2>&1 || fail 'required command not found: curl'
+        base=${base:-$repository/releases/download/$package_name-v$version}
+    fi
+    work=$(mktemp -d "${TMPDIR:-/tmp}/ukai-install.XXXXXX")
+    fetch() {
+        if [ -n "$source_dir" ]; then
+            cp -- "$source_dir/$1" "$work/$1" || fail "missing release asset: $1"
+        else
+            curl --disable --fail --silent --show-error --location \
+                --proto '=https' --proto-redir '=https' --tlsv1.2 \
+                --connect-timeout 15 --max-time 600 --retry 3 \
+                "$base/$1" --output "$work/$1" ||
+                fail "cannot download $1 for $package_name-v$version; see $repository/releases"
+        fi
+    }
+    artifact="$package_name-$version-$target.tar.gz"
+    fetch "$artifact"
+    [ "$(digest "$work/$artifact")" = "$expected" ] || fail "checksum verification failed: $artifact"
+    # Extract only the binary and notices from the checksum-verified archive.
+    tar -xOzf "$work/$artifact" "$package_name" > "$work/$package_name"
+    tar -xOzf "$work/$artifact" "$package_name.LICENSES.txt" > "$work/$package_name.LICENSES.txt"
+    chmod 755 "$work/$package_name"
+    # Legacy installs have only the package version the binary reports.
+    version_of() {
+        "$1" version 2>/dev/null | sed -n "s/^$package_name \\([0-9][0-9]*\\.[0-9][0-9]*\\.[0-9][0-9]*\\([-+][0-9A-Za-z.+-]\\{1,\\}\\)\\{0,1\\}\\)$/\\1/p"
+    }
+    binary_version=$(version_of "$work/$package_name")
+    valid_version "$binary_version" || { echo 'The staged binary does not report a release version.' >&2; exit 1; }
+    # Prints -1 when $1 is older than $2, 0 when equal, 1 when newer: semver's
+    # numeric triple, then a pre-release suffix that is older than no suffix.
+    version_relation() {
+        printf '%s\n%s\n' "$1" "$2" | LC_ALL=C awk '
+            function integer_relation(a, b) {
+                if (length(a) != length(b)) return length(a) < length(b) ? -1 : 1
+                if ("v" a == "v" b) return 0
+                return ("v" a < "v" b) ? -1 : 1
+            }
+            {
+                value = $0
+                sub(/\+.*/, "", value)
+                full = value
+                if (sub(/-.*/, "", value)) suffix[NR] = substr(full, length(value) + 2)
+                split(value, part, ".")
+                for (field = 1; field <= 3; field++) number[NR, field] = part[field]
+            }
+            END {
+                for (field = 1; field <= 3; field++) {
+                    relation = integer_relation(number[1, field], number[2, field])
+                    if (relation) { print relation; exit }
+                }
+                if (suffix[1] == suffix[2]) { print 0; exit }
+                if (suffix[1] == "") { print 1; exit }
+                if (suffix[2] == "") { print -1; exit }
+                a_count = split(suffix[1], a, ".")
+                b_count = split(suffix[2], b, ".")
+                for (i = 1; i <= a_count && i <= b_count; i++) {
+                    a_numeric = a[i] ~ /^[0-9]+$/; b_numeric = b[i] ~ /^[0-9]+$/
+                    if (a_numeric && b_numeric) relation = integer_relation(a[i], b[i])
+                    else if (a_numeric != b_numeric) relation = a_numeric ? -1 : 1
+                    else relation = ("v" a[i] == "v" b[i]) ? 0 : (("v" a[i] < "v" b[i]) ? -1 : 1)
+                    if (relation) { print relation; exit }
+                }
+                print (a_count == b_count ? 0 : (a_count < b_count ? -1 : 1))
+            }'
+    }
+    mkdir -p "$prefix"
+    for name in "$package_name" "$package_name.release" "$package_name.LICENSES.txt"; do
+        [ ! -L "$prefix/$name" ] || { echo "Refusing a symlinked installation file: $name" >&2; exit 1; }
+        [ ! -e "$prefix/$name" ] || [ -f "$prefix/$name" ] || { echo "Installation destination must be a regular file: $name" >&2; exit 1; }
+    done
+    if [ -e "$prefix/${package_name}" ]; then
+        if [ -e "$prefix/${package_name}.release" ]; then
+            installed_version=$(sed -n '1p' "$prefix/${package_name}.release")
+            installed_digest=$(sed -n '2p' "$prefix/${package_name}.release")
+            actual=$(digest "$prefix/${package_name}")
+            if [ "$installed_digest" != "$actual" ]; then
+                # A crash between the two renames, or a manual binary replacement,
+                # must fail closed. The explicit downgrade override also permits
+                # recovery by reinstalling the checksum-verified staged release.
+                [ "$allow_downgrade" = true ] || { echo 'Existing release record does not match the installed binary; use --allow-downgrade to reinstall the verified release.' >&2; exit 1; }
+                installed_version=$version
+            fi
+        else
+            installed_version=$(version_of "$prefix/${package_name}")
+        fi
+        valid_version "$installed_version" || { echo 'Existing binary has no valid version record.' >&2; exit 1; }
+        relation=$(version_relation "$version" "$installed_version")
+        if [ "$relation" = -1 ] && [ "$allow_downgrade" != true ]; then
+            echo "Refusing to downgrade $installed_version to $version; pass --allow-downgrade to replace it." >&2
+            exit 1
+        fi
+    fi
+    # Same-directory temporary file and rename keep the final install atomic.
+    staged=$(mktemp "$prefix/.${package_name}.XXXXXX")
+    notice=$(mktemp "$prefix/.${package_name}-license.XXXXXX")
+    record=$(mktemp "$prefix/.${package_name}-release.XXXXXX")
+    cat "$work/${package_name}" > "$staged"
+    chmod 755 "$staged"
+    cat "$work/${package_name}.LICENSES.txt" > "$notice"
+    chmod 644 "$notice"
+    binary_digest=$(digest "$staged")
+    printf '%s\n%s\n' "$version" "$binary_digest" > "$record"
+    chmod 644 "$record"
+    mv -f "$notice" "$prefix/${package_name}.LICENSES.txt"
+    mv -f "$record" "$prefix/${package_name}.release"
+    mv -f "$staged" "$prefix/${package_name}"
+    "$prefix/${package_name}" version
+    printf 'Installed release %s in %s. Add that directory to PATH if needed.\n' "$version" "$prefix"
+    printf '\nCheck host support: %s/%s doctor --profile tool\n' "$prefix" "$package_name"
+    case ":${PATH:-}:" in
+        *":$prefix:"*) ;;
+        *) printf 'Add this directory to PATH: export PATH="%s:%s"\n' "$prefix" "\$PATH" ;;
+    esac
+)
+main "$@"
