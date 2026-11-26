@@ -150,6 +150,11 @@ load. The [26 November record](benchmarks/jail/arm64-k17-2026-11-26.md) declared
 five replays in a row as the criterion and passes all five on the executable of
 the recorded conformance run.
 
+To qualify the bytes that ship, run the driver again with
+`--jail-binary <the ukai-jail executable extracted from a staged archive>`. It
+installs that executable over the one it built, and every later step, the
+recorded hashes and `doctor --json` describe those bytes.
+
 Use the native stages from the release-candidate workflow for the exact commit.
 Run the assembly and publication steps below with one stage per target and the
 stable version. Check the draft installer in an empty prefix on each qualified
