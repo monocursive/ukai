@@ -1,0 +1,152 @@
+{
+  "architecture": "x86_64",
+  "binary_sha256": "822370b6115f7ad9a4ce5f2814db3ba11caa08ddd6ea5ffe45c19077a0a029ef",
+  "inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+  "kernel": "7.0.0-31-generic",
+  "profiles": {
+    "agent": {
+      "containment": "enforced",
+      "coverage": {
+        "exec": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "fs.deny": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "fs.write": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "limits": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "net": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "proxy.net": {
+          "gaps": 0,
+          "status": "active"
+        }
+      },
+      "doctor_exit": 0,
+      "doctor_ready": true,
+      "exec_observed": true,
+      "integrity": "verified",
+      "outcome": {
+        "cause": null,
+        "code": 0,
+        "error": null,
+        "kind": "exited",
+        "signal": null
+      },
+      "output_matches": true,
+      "phase": "settled",
+      "receipt_sha256": "555d8004008adaf18f97db9f5cba5bb2d875866e25c0c612bced545346232d13",
+      "run_exit": 0,
+      "state_cleanup": "complete",
+      "status": "passed",
+      "tree_empty": true
+    },
+    "build": {
+      "containment": "enforced",
+      "coverage": {
+        "exec": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "fs.deny": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "fs.write": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "limits": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "net": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "proxy.net": {
+          "gaps": 0,
+          "status": "unsupported"
+        }
+      },
+      "doctor_exit": 0,
+      "doctor_ready": true,
+      "exec_observed": true,
+      "integrity": "verified",
+      "outcome": {
+        "cause": null,
+        "code": 0,
+        "error": null,
+        "kind": "exited",
+        "signal": null
+      },
+      "output_matches": true,
+      "phase": "settled",
+      "receipt_sha256": "8be63204394a36c5a99ac4996d967bfcea42fd33282777cd5f712182ff0da300",
+      "run_exit": 0,
+      "state_cleanup": "complete",
+      "status": "passed",
+      "tree_empty": true
+    },
+    "tool": {
+      "containment": "enforced",
+      "coverage": {
+        "exec": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "fs.deny": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "fs.write": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "limits": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "net": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "proxy.net": {
+          "gaps": 0,
+          "status": "unsupported"
+        }
+      },
+      "doctor_exit": 0,
+      "doctor_ready": true,
+      "exec_observed": true,
+      "integrity": "verified",
+      "outcome": {
+        "cause": null,
+        "code": 0,
+        "error": null,
+        "kind": "exited",
+        "signal": null
+      },
+      "output_matches": true,
+      "phase": "settled",
+      "receipt_sha256": "baeed2083484affa89c3a8ba2a14c2df6a30fb708ce113a2d8d83068b6530fd4",
+      "run_exit": 0,
+      "state_cleanup": "complete",
+      "status": "passed",
+      "tree_empty": true
+    }
+  },
+  "revision": "d3c380d2f5074bce5f8f3f25eb11d60d96fd8b2a",
+  "target": "x86_64-unknown-linux-gnu",
+  "version": "0.1.1"
+}

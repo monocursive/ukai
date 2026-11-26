@@ -1,0 +1,35 @@
+{
+  "checks": [
+    "pass \u00b7 release-tag \u00b7 ubuntu-24.04 \u00b7 ukai-jail-action-v0.1.1 is the action's release for 0.1.1, the default",
+    "pass \u00b7 release-tag \u00b7 ubuntu-24.04 \u00b7 the tagged commit holds only action/ and install.sh \u2014 15 files, 74972 bytes",
+    "recorded *static* \u00b7 release-tag \u00b7 ubuntu-24.04 \u00b7 what a job's Set up step fetches stays slim \u2014 74972 bytes in 15 files",
+    "pass \u00b7 release-tag \u00b7 ubuntu-24.04 \u00b7 its install.sh equals the root installer of the rollout byte for byte \u2014 sha256:a080cf70524f2f3238acbd9cb6c6c9894f1df2c5812ef75c33eff93e2ee7b924",
+    "pass \u00b7 release-tag \u00b7 ubuntu-24.04 \u00b7 its action.yml, scripts and profile are the checkout's \u2014 5750cc6eb6a6",
+    "pass \u00b7 release-tag \u00b7 ubuntu-24.04 \u00b7 uses: monocursive/ukai/action@<tag> runs a contained command \u2014 outcome success",
+    "pass \u00b7 release-tag \u00b7 ubuntu-24.04 \u00b7 the installer beside the action at the tag installed the release \u2014 ukai-jail: release 0.1.1 installed by install.sh sha256:a080cf70524f2f3238acbd9cb6c6c9894f1df2c5812ef75c33eff93e2ee7b924",
+    "pass \u00b7 release-tag \u00b7 ubuntu-24.04 \u00b7 it installs exactly release 0.1.1 \u2014 release record ['0.1.1', '822370b6115f7ad9a4ce5f2814db3ba11caa08ddd6ea5ffe45c19077a0a029ef']",
+    "pass \u00b7 release-tag \u00b7 ubuntu-24.04 \u00b7 revision, inputs and executable are the release's, as the freeze file records them \u2014 installed d3c380d2f507 sha256:822370b6115f7ad9, tag d3c380d2f507, freeze d3c380d2f507 sha256:822370b6115f7ad9",
+    "pass \u00b7 release-tag \u00b7 ubuntu-24.04-arm \u00b7 ukai-jail-action-v0.1.1 is the action's release for 0.1.1, the default",
+    "pass \u00b7 release-tag \u00b7 ubuntu-24.04-arm \u00b7 the tagged commit holds only action/ and install.sh \u2014 15 files, 74972 bytes",
+    "recorded *static* \u00b7 release-tag \u00b7 ubuntu-24.04-arm \u00b7 what a job's Set up step fetches stays slim \u2014 74972 bytes in 15 files",
+    "pass \u00b7 release-tag \u00b7 ubuntu-24.04-arm \u00b7 its install.sh equals the root installer of the rollout byte for byte \u2014 sha256:a080cf70524f2f3238acbd9cb6c6c9894f1df2c5812ef75c33eff93e2ee7b924",
+    "pass \u00b7 release-tag \u00b7 ubuntu-24.04-arm \u00b7 its action.yml, scripts and profile are the checkout's \u2014 5750cc6eb6a6",
+    "pass \u00b7 release-tag \u00b7 ubuntu-24.04-arm \u00b7 uses: monocursive/ukai/action@<tag> runs a contained command \u2014 outcome success",
+    "pass \u00b7 release-tag \u00b7 ubuntu-24.04-arm \u00b7 the installer beside the action at the tag installed the release \u2014 ukai-jail: release 0.1.1 installed by install.sh sha256:a080cf70524f2f3238acbd9cb6c6c9894f1df2c5812ef75c33eff93e2ee7b924",
+    "pass \u00b7 release-tag \u00b7 ubuntu-24.04-arm \u00b7 it installs exactly release 0.1.1 \u2014 release record ['0.1.1', 'e68781714a0019482ecfe2215915cfd66e85320b63b4dc7fa1b0aa8a2cc1684e']",
+    "pass \u00b7 release-tag \u00b7 ubuntu-24.04-arm \u00b7 revision, inputs and executable are the release's, as the freeze file records them \u2014 installed d3c380d2f507 sha256:e68781714a001948, tag d3c380d2f507, freeze d3c380d2f507 sha256:e68781714a001948"
+  ],
+  "commit": "5750cc6eb6a6cbe1816d626b134cf2b6dd6161b2",
+  "rollout_commit": "455821647dbbfe13f3194f5ae400ad8595b7b47d",
+  "row": "K86",
+  "schema": "ukai.release-record.action-release/1",
+  "self_test_commit": "efcb5bfd4a64ead6e77f99c049f753a06284df66",
+  "self_test_run": 45828127982,
+  "set_up_job_seconds": {
+    "release tag (ubuntu-24.04)": 1,
+    "release tag (ubuntu-24.04-arm)": 1
+  },
+  "tag": "ukai-jail-action-v0.1.1",
+  "tag_object": "932f39050ab8fab3ca214336e9f4bab12c6414b4",
+  "verdict": "pass"
+}

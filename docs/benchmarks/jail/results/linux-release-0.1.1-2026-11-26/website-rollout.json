@@ -1,0 +1,31 @@
+{
+  "archives": {
+    "aarch64-unknown-linux-gnu": {
+      "archive_sha256": "97d47720204fa89178fb7e8e1d9acde63d9668a43c2e131abb27ae6eb2364763",
+      "binary_sha256": "e68781714a0019482ecfe2215915cfd66e85320b63b4dc7fa1b0aa8a2cc1684e"
+    },
+    "x86_64-unknown-linux-gnu": {
+      "archive_sha256": "9bbf4b6e33b18f51bd2f85a30b4084ef1a38e8fe5237dbe5d10e1bba7d2bc72c",
+      "binary_sha256": "822370b6115f7ad9a4ce5f2814db3ba11caa08ddd6ea5ffe45c19077a0a029ef"
+    }
+  },
+  "deployment": {
+    "changed": [
+      "index.html",
+      "guide/index.html",
+      "guide.md",
+      "roadmap/index.html",
+      "roadmap.md",
+      "llms.txt",
+      "llms-full.txt",
+      "install.sh"
+    ],
+    "files": 553,
+    "id": "32aff42b-0592-4feb-8f26-854c484e21b6",
+    "previous": "312703ee-fa7c-47bc-ba3f-bc6a94ccea01",
+    "url": "https://32aff42b.ukai-c3v.pages.dev"
+  },
+  "installer_sha256": "a080cf70524f2f3238acbd9cb6c6c9894f1df2c5812ef75c33eff93e2ee7b924",
+  "schema": "ukai.release-record.website/1",
+  "served_pages_equal_the_prepared_ones": true
+}

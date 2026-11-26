@@ -1,5 +1,10 @@
 # Publish Ukai Jail
 
+[Stable Ukai Jail 0.1.1 for Linux x86_64 and ARM64](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.1)
+was published on 26 November 2026 from `d3c380d2f5074bce5f8f3f25eb11d60d96fd8b2a`.
+The [public installation record](benchmarks/jail/release-0.1.1-linux.md)
+identifies the signed files, the two qualified hosts and the public installer checks on each.
+
 [Stable Ukai Jail 0.1.0 for Linux x86_64](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0)
 is published. The [public installation record](benchmarks/jail/release-0.1.0-linux-x86_64.md)
 identifies the signed files, qualified host and two public installer checks.
