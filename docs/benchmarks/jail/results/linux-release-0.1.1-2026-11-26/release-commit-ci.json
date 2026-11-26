@@ -1,0 +1,55 @@
+{
+  "native_stages": {
+    "jobs": {
+      "assemble": "success",
+      "coordinate": "success",
+      "native (aarch64-unknown-linux-gnu, ubuntu-24.04-arm)": "success",
+      "native (x86_64-unknown-linux-gnu, ubuntu-24.04)": "success"
+    },
+    "run": 45805675986
+  },
+  "release_candidate_at_the_tag": {
+    "conclusion": "success",
+    "id": 45817041270
+  },
+  "revision": "d3c380d2f5074bce5f8f3f25eb11d60d96fd8b2a",
+  "schema": "ukai.release-record.ci/1",
+  "workflows": {
+    "action-selftest": {
+      "conclusion": "success",
+      "event": "workflow_dispatch",
+      "id": 45812852486,
+      "url": "https://github.com/monocursive/ukai/actions/runs/45812852486"
+    },
+    "conformance": {
+      "conclusion": "success",
+      "event": "push",
+      "id": 45805516523,
+      "url": "https://github.com/monocursive/ukai/actions/runs/45805516523"
+    },
+    "contracts": {
+      "conclusion": "success",
+      "event": "push",
+      "id": 45805516661,
+      "url": "https://github.com/monocursive/ukai/actions/runs/45805516661"
+    },
+    "fleet": {
+      "conclusion": "success",
+      "event": "push",
+      "id": 45805516582,
+      "url": "https://github.com/monocursive/ukai/actions/runs/45805516582"
+    },
+    "release-candidate": {
+      "conclusion": "success",
+      "event": "workflow_dispatch",
+      "id": 45805675986,
+      "url": "https://github.com/monocursive/ukai/actions/runs/45805675986"
+    },
+    "rust": {
+      "conclusion": "success",
+      "event": "push",
+      "id": 45805516352,
+      "url": "https://github.com/monocursive/ukai/actions/runs/45805516352"
+    }
+  }
+}

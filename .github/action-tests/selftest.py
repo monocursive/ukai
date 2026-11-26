@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Checks and row records for the action self-test (.github/workflows/
-action-selftest.yml; docs/specs/jail-ci-action.md §6.1, K76-K85).
+action-selftest.yml; docs/specs/jail-ci-action.md §6.1, K76-K86).
 
 Every check appends one JSON line to $SELFTEST/rows.jsonl: the row, the job
 and image, what was checked, pass or fail, and whether it ran for real on
@@ -27,7 +27,7 @@ ARTIFACT_FILES = {"jail.json", "policy.json", "trace.ndjson", "summary.json", "s
 HOST_LINE = ("host setup (this runner only): bubblewrap 0.11.1 built from its release tarball (sha256:c1b7455a…) "
              "at /usr/local/bin/bwrap · AppArmor profile ukai-jail-action-bwrap allows user namespaces for that "
              "binary only · kernel.apparmor_restrict_unprivileged_userns stays 1")
-ROWS = ["K76", "K77", "K78", "K79", "K80", "K81", "K82", "K83", "K84", "K85"]
+ROWS = ["K76", "K77", "K78", "K79", "K80", "K81", "K82", "K83", "K84", "K85", "K86"]
 IMAGES = ["ubuntu-24.04", "ubuntu-24.04-arm"]
 # The checks each row needs on each image, so one that crashed before it
 # recorded anything is missing, not silently absent: (row, check name
@@ -64,6 +64,7 @@ REQUIRED = [
     ("K85", ["`run` reaches bash -c"], IMAGES),
     ("K85", ["hostile version"], IMAGES),
     ("K85", ["no input was evaluated"], IMAGES),
+    ("K86", ["is the action's release for"], IMAGES),
 ]
 
 
@@ -444,6 +445,9 @@ def cmd_rows():
                       "how": "real", "detail": "no log"})
     for row, fragments, images in REQUIRED:
         for image in images:
+            if any(line["row"] == "K86" and line["image"] == image
+                   and line["check"].startswith("no action release is tagged") for line in lines):
+                continue                # a release whose action is not tagged yet has nothing to test
             if not any(line["row"] == row and line["image"] == image and line["status"] in ("pass", "recorded")
                        and any(f in line["check"] for f in fragments) for line in lines):
                 lines.append({"row": row, "job": "rows", "image": image, "how": "real", "status": "fail",
@@ -457,18 +461,21 @@ def cmd_rows():
         simulated = any(c["how"] == "simulated" for c in checks)
         if row == "K84":
             continue
-        if failed or not checks:
+        if row == "K86" and any(c["check"].startswith("no action release is tagged") for c in checks) and not failed:
+            verdicts[row] = "not tagged yet"
+        elif failed or not checks:
             verdicts[row] = "FAIL"
         elif not set(IMAGES) <= real_images:
             verdicts[row] = "MISSING on " + ", ".join(i for i in IMAGES if i not in real_images)
         else:
             verdicts[row] = "pass, partly simulated" if simulated else "pass"
     # K84: every other row passed on both images, and each image was recorded
-    others = all(verdicts[row].startswith("pass") for row in ROWS if row != "K84")
+    others = all(verdicts[row].startswith("pass") for row in ROWS
+                 if row != "K84" and not verdicts[row].startswith("not tagged"))
     images = {c["image"] for c in by_row["K84"] if c["check"] == "image recorded" and c["status"] == "pass"}
     green = all(c["status"] != "fail" for c in by_row["K84"])
     verdicts["K84"] = "pass" if others and green and set(IMAGES) <= images else "FAIL"
-    out = ["## Action self-test, rows K76-K85", "",
+    out = ["## Action self-test, rows K76-K86", "",
            "Each check ran for real on the runner unless marked *simulated* (a stand-in or a set environment "
            "where the real condition cannot be produced in a hosted job).", ""]
     for row in ROWS:
@@ -487,6 +494,87 @@ def cmd_rows():
     bad = [row for row, verdict in verdicts.items() if not verdict.startswith("pass")]
     if bad:
         sys.exit(f"selftest: rows not passing: {', '.join(bad)}")
+
+
+# --- the action at its release tag (K86) -----------------------------------------
+def git(*args, check=True):
+    return subprocess.run(["git", *args], capture_output=True, check=check)
+
+
+def cmd_verify_release_tag(stage):
+    """`before`: the tagged commit is the action and the rollout's installer, and nothing
+    else. `after`: what the action at that tag installed on this image is the release the
+    freeze file records. Outputs `tagged` for the workflow, which cannot name the tag of a
+    release whose action is not tagged yet."""
+    row, tag, version = "K86", env("UKAI_ACTION_TAG"), env("UKAI_ACTION_VERSION")
+    arch = {"X64": "x86_64", "ARM64": "aarch64"}.get(os.environ.get("RUNNER_ARCH"))
+    output = Path(env("GITHUB_OUTPUT"))
+    if stage == "before":
+        if tag != f"ukai-jail-action-v{version}":
+            record(row, f"no action release is tagged for {version} yet: nothing to test on this image", None, f"tag {tag}")
+            output.write_text("tagged=0\n")
+            finish()
+            return
+        record(row, f"{tag} is the action's release for {version}, the default", True)
+        try:
+            git("fetch", "-q", "--depth=1", "origin", f"+refs/tags/{tag}:refs/tags/{tag}")
+        except subprocess.CalledProcessError as error:
+            record(row, f"{tag} is fetched", False, error.stderr.decode(errors="replace")[-200:])
+            output.write_text("tagged=0\n")
+            return
+        commit = git("rev-parse", f"refs/tags/{tag}^{{commit}}").stdout.decode().strip()
+        listing = git("ls-tree", "-r", "-l", commit).stdout.decode().splitlines()
+        names = [line.split("\t", 1)[1] for line in listing]
+        size = sum(int(line.split()[3]) for line in listing)
+        record(row, "the tagged commit holds only action/ and install.sh",
+               "install.sh" in names and all(n.startswith("action/") for n in names if n != "install.sh"),
+               f"{len(names)} files, {size} bytes")
+        record(row, "what a job's Set up step fetches stays slim", None, f"{size} bytes in {len(names)} files",
+               "static")
+        installer = git("show", f"{commit}:install.sh").stdout
+        record(row, "its install.sh equals the root installer of the rollout byte for byte",
+               installer == Path("install.sh").read_bytes(),
+               f"sha256:{hashlib.sha256(installer).hexdigest()}")
+        # The README may have moved on since; what runs is what the checkout tests in place.
+        record(row, "its action.yml, scripts and profile are the checkout's",
+               git("diff", "--quiet", commit, "HEAD", "--", "action", ":(exclude)action/README.md",
+                   check=False).returncode == 0, commit[:12])
+        # Failures are left to `status`: the steps after this one still run and report.
+        output.write_text("tagged=1\n")
+    elif stage == "after":
+        import tomllib                 # 3.11+: the images this job runs on
+        binary = UKAI / "bin" / "ukai-jail"
+        record(row, "uses: monocursive/ukai/action@<tag> runs a contained command", env("OUTCOME") == "success",
+               f"outcome {env('OUTCOME')}")
+        installed = binary.is_file()
+        digest = hashlib.sha256(binary.read_bytes()).hexdigest() if installed else None
+        # The action's own setup record names the installer that ran: the one beside it, at the tag.
+        line = next((text for path in sorted(UKAI.glob("report.*/setup.txt"))
+                     for text in path.read_text().splitlines() if text.startswith("ukai-jail: release ")), "")
+        installer = hashlib.sha256(Path("install.sh").read_bytes()).hexdigest()
+        record(row, "the installer beside the action at the tag installed the release",
+               f"installed by install.sh sha256:{installer}" in line, line[:200])
+        record_path = UKAI / "bin" / "ukai-jail.release"
+        release = record_path.read_text().splitlines() if record_path.is_file() else []
+        record(row, f"it installs exactly release {version}", release == [version, digest], f"release record {release}")
+        build = json.loads(jail("version", "--json").stdout)["build"] if installed else {}
+        jail_tag = f"refs/tags/ukai-jail-v{version}"
+        try:
+            remote = git("ls-remote", "origin", jail_tag, f"{jail_tag}^{{}}").stdout.decode()
+        except subprocess.CalledProcessError as error:
+            remote = ""
+            record(row, f"{jail_tag} is read from the remote", False, error.stderr.decode(errors="replace")[-200:])
+        peeled = [line.split() for line in remote.splitlines()]
+        revision = next((fields[0] for fields in peeled if fields[1].endswith("^{}")), None)
+        freeze = tomllib.loads(Path("docs/specs/jail-v1/milestone-1-freeze.toml").read_text())
+        tested = freeze["tested" if arch == "x86_64" else "tested_aarch64"]
+        record(row, "revision, inputs and executable are the release's, as the freeze file records them",
+               build.get("revision") == revision == tested["revision"] and build.get("inputs") == tested["inputs"]
+               and digest == tested["ukai_jail_sha256"] and build.get("dirty") is False
+               and build.get("target", "").startswith(arch or "?"),
+               f"installed {str(build.get('revision'))[:12]} sha256:{str(digest)[:16]}, tag {str(revision)[:12]}, "
+               f"freeze {tested['revision'][:12]} sha256:{tested['ukai_jail_sha256'][:16]}")
+    finish()
 
 
 # --- the A-row record (§6.2; .github/workflows/action-arow.yml) ------------------
@@ -579,7 +667,8 @@ COMMANDS = {"status": cmd_status, "token": cmd_token, "verify-arow": cmd_verify_
             "verify-comment": cmd_verify_comment,
             "verify-profile": cmd_verify_profile, "verify-launch": cmd_verify_launch,
             "verify-watch": cmd_verify_watch, "verify-alias": cmd_verify_alias, "markers": cmd_markers,
-            "verify-exit": cmd_verify_exit, "verify-exposure": cmd_verify_exposure, "rows": cmd_rows}
+            "verify-exit": cmd_verify_exit, "verify-exposure": cmd_verify_exposure,
+            "verify-release-tag": cmd_verify_release_tag, "rows": cmd_rows}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in COMMANDS:

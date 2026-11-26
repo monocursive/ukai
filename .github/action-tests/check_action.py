@@ -9,7 +9,8 @@ Run from the repository root: uv run .github/action-tests/check_action.py
 - No `run:` in action.yml holds a `${{ }}` expression: every input reaches
   the scripts as an environment variable (§2, §4.5; K85's static half).
 - Every action that action.yml and the action workflows use is pinned by a
-  full commit SHA (§4.7), or is the action itself in place (`./action`).
+  full commit SHA (§4.7), or is the action itself: in place (`./action`), or
+  at the release tag the workflow's UKAI_ACTION_TAG names (K86).
 - The AppArmor profile file is byte for byte the text §3.3 gives.
 - The scripts pin the bubblewrap digest §3.3 gives.
 - action.yml's default `version` is the release the root installer pins for every
@@ -27,6 +28,7 @@ SPEC = ROOT / "docs/specs/jail-ci-action.md"
 ACTION = ROOT / "action"
 WORKFLOWS = [ROOT / ".github/workflows/action-selftest.yml", ROOT / ".github/workflows/action-arow.yml"]
 PINNED = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+@[0-9a-f]{40}$")
+RELEASE_TAG = re.compile(r"^monocursive/ukai/action@(ukai-jail-action-v[0-9][0-9A-Za-z.\-+]*)$")
 BWRAP_SHA256 = "c1b7455a1283b1295879a46d5f001dfd088c0bb0f238abb5e128b3583a246f71"
 
 failures = []
@@ -58,9 +60,13 @@ for name, workflow in ((w.name, yaml.safe_load(w.read_text())) for w in WORKFLOW
         if version is not None:
             check(str(version) == str(action["inputs"]["version"]["default"]),
                   f"{name} job {job_name}: simulator version {version} differs from action.yml")
+    # `uses:` takes no expression, so the release-tag job names its tag twice; the tag is
+    # the action's release of some jail release, and the workflow's env names the same one.
+    tag = (workflow.get("env") or {}).get("UKAI_ACTION_TAG")
     for uses in uses_of(workflow):
-        check(uses == "./action" or PINNED.match(uses) is not None,
-              f"{name}: `{uses}` is not pinned by commit SHA")
+        at_tag = RELEASE_TAG.match(uses)
+        check(uses == "./action" or PINNED.match(uses) is not None or (at_tag and tag == at_tag.group(1)),
+              f"{name}: `{uses}` is not pinned by commit SHA, nor the action at UKAI_ACTION_TAG ({tag})")
 check(all(w.exists() for w in WORKFLOWS), "an action workflow is missing")
 
 # §3.3's profile, the first code block after "load, with `sudo apparmor_parser -r`"
@@ -93,6 +99,9 @@ if default:
         env = yaml.safe_load(workflow.read_text())["env"]
         check(env.get("UKAI_ACTION_VERSION") == version, f"{workflow.name}: wrong release")
         check("ARM_PREVIEW_VERSION" not in env, f"{workflow.name}: still selects a separate ARM64 preview")
+        if "UKAI_ACTION_TAG" in env:
+            check(RELEASE_TAG.fullmatch(f"monocursive/ukai/action@{env['UKAI_ACTION_TAG']}") is not None,
+                  f"{workflow.name}: UKAI_ACTION_TAG is not an action release tag")
 
 for failure in failures:
     print(f"check_action: {failure}")

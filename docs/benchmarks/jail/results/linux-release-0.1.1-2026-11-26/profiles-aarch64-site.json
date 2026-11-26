@@ -1,0 +1,152 @@
+{
+  "architecture": "aarch64",
+  "binary_sha256": "e68781714a0019482ecfe2215915cfd66e85320b63b4dc7fa1b0aa8a2cc1684e",
+  "inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+  "kernel": "7.0.0-43-generic",
+  "profiles": {
+    "agent": {
+      "containment": "enforced",
+      "coverage": {
+        "exec": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "fs.deny": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "fs.write": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "limits": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "net": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "proxy.net": {
+          "gaps": 0,
+          "status": "active"
+        }
+      },
+      "doctor_exit": 0,
+      "doctor_ready": true,
+      "exec_observed": true,
+      "integrity": "verified",
+      "outcome": {
+        "cause": null,
+        "code": 0,
+        "error": null,
+        "kind": "exited",
+        "signal": null
+      },
+      "output_matches": true,
+      "phase": "settled",
+      "receipt_sha256": "a3950dd2ecb6bd149b3dfd96e2ea6bfcff49ecfe10849bcfe26f030e62b0600b",
+      "run_exit": 0,
+      "state_cleanup": "complete",
+      "status": "passed",
+      "tree_empty": true
+    },
+    "build": {
+      "containment": "enforced",
+      "coverage": {
+        "exec": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "fs.deny": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "fs.write": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "limits": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "net": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "proxy.net": {
+          "gaps": 0,
+          "status": "unsupported"
+        }
+      },
+      "doctor_exit": 0,
+      "doctor_ready": true,
+      "exec_observed": true,
+      "integrity": "verified",
+      "outcome": {
+        "cause": null,
+        "code": 0,
+        "error": null,
+        "kind": "exited",
+        "signal": null
+      },
+      "output_matches": true,
+      "phase": "settled",
+      "receipt_sha256": "6a9e831a395d6e1a8092242db51276a88bd26daf399f0a2f327443c2f5d116df",
+      "run_exit": 0,
+      "state_cleanup": "complete",
+      "status": "passed",
+      "tree_empty": true
+    },
+    "tool": {
+      "containment": "enforced",
+      "coverage": {
+        "exec": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "fs.deny": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "fs.write": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "limits": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "net": {
+          "gaps": 0,
+          "status": "active"
+        },
+        "proxy.net": {
+          "gaps": 0,
+          "status": "unsupported"
+        }
+      },
+      "doctor_exit": 0,
+      "doctor_ready": true,
+      "exec_observed": true,
+      "integrity": "verified",
+      "outcome": {
+        "cause": null,
+        "code": 0,
+        "error": null,
+        "kind": "exited",
+        "signal": null
+      },
+      "output_matches": true,
+      "phase": "settled",
+      "receipt_sha256": "e13b108ca7844a725c57f81747d10d06042167984fc345c9fe2ec6f5a2038d67",
+      "run_exit": 0,
+      "state_cleanup": "complete",
+      "status": "passed",
+      "tree_empty": true
+    }
+  },
+  "revision": "d3c380d2f5074bce5f8f3f25eb11d60d96fd8b2a",
+  "target": "aarch64-unknown-linux-gnu",
+  "version": "0.1.1"
+}

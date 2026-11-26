@@ -1,0 +1,29 @@
+{
+  "archive": "ukai-jail-0.1.1-aarch64-unknown-linux-gnu.tar.gz",
+  "archive_sha256": "97d47720204fa89178fb7e8e1d9acde63d9668a43c2e131abb27ae6eb2364763",
+  "binary_sha256": "e68781714a0019482ecfe2215915cfd66e85320b63b4dc7fa1b0aa8a2cc1684e",
+  "bubblewrap": "bubblewrap 0.11.1",
+  "checks": [
+    "anonymous_https",
+    "signed_bootstrap_match",
+    "fresh_default_install",
+    "repeat_install",
+    "release_record",
+    "installed_build",
+    "tool_doctor",
+    "enforced_true",
+    "verified_empty_tree",
+    "cleanup_complete"
+  ],
+  "host": "Ubuntu 26.04.1 LTS",
+  "inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+  "installer": "https://ukai.sh/install.sh",
+  "installer_sha256": "a080cf70524f2f3238acbd9cb6c6c9894f1df2c5812ef75c33eff93e2ee7b924",
+  "kernel": "7.0.0-43-generic",
+  "machine": "aarch64",
+  "receipt_sha256": "0514feb0313b27e7b33aadafa9f417c7e5d8ca4600402369dedeeb11a6243d92",
+  "result": "PASS",
+  "revision": "d3c380d2f5074bce5f8f3f25eb11d60d96fd8b2a",
+  "target": "aarch64-unknown-linux-gnu",
+  "version": "0.1.1"
+}

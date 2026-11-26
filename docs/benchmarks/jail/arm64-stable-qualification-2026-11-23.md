@@ -2,6 +2,9 @@
 
 **The Linux ARM64 build at `433e794bc09a` passed the complete release-conformance run, and is the recorded ARM64 tested run.** K17 could not be confirmed on the day. The [26 November record](arm64-k17-2026-11-26.md) passes it five times in a row on this run's executable. The suite on the M5 Pro guest passed 3,084 tests, failed none and ignored 18 across 117 test binaries. No gate fails. Of the 110 gates, 65 pass and 7 pass with a recorded limit. The other 38 are macOS requirements and macOS-lane rows that the Linux scope reports as unsupported or elsewhere, and one credential check. The seven live checks open on 22 November passed. [Qualification record](results/linux-arm64-stable-2026-11-23/qualification.json) · [Suite log](results/linux-arm64-stable-2026-11-23/test.log) · [Evaluator verdict](results/linux-arm64-stable-2026-11-23/gates.txt)
 
+The executable the 26 November rerun tested at the release commit, with the same build-input
+digest, shipped in [stable 0.1.1](release-0.1.1-linux.md).
+
 ## What ran
 
 `cargo xtask conformance --linux-release` drove the guest from a clean checkout of `433e794bc09a9f774d7d421bf7d0b94482f2a9a2`, through a forwarded SSH port. It copied the source into a fresh run directory, built the release workspace and every test binary, ran the I02 vendor-name scan, `doctor --json`, the plain-session smoke leg and the I01 probe, and then the suite with `UKAI_CONFORMANCE=1` and `UKAI_RELEASE_EVIDENCE=1` on the system PATH alone. It checked the three executable hashes again afterwards. No test was left out.

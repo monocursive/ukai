@@ -1,5 +1,10 @@
 # Publish Ukai Jail
 
+[Stable Ukai Jail 0.1.1 for Linux x86_64 and ARM64](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.1)
+was published on 26 November 2026 from `d3c380d2f5074bce5f8f3f25eb11d60d96fd8b2a`.
+The [public installation record](benchmarks/jail/release-0.1.1-linux.md)
+identifies the signed files, the two qualified hosts and the public installer checks on each.
+
 [Stable Ukai Jail 0.1.0 for Linux x86_64](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0)
 is published. The [public installation record](benchmarks/jail/release-0.1.0-linux-x86_64.md)
 identifies the signed files, qualified host and two public installer checks.
@@ -462,12 +467,16 @@ git tag -a "ukai-jail-action-v$release_version" "$commit" \
 git push origin "$commit:refs/heads/action" "ukai-jail-action-v$release_version"
 ```
 
-The branch is never merged anywhere and holds nothing else. Then run the
-action self-test against that tag (row K86: the tag installs exactly release
-X, its commit holds only `action/` and an `install.sh` equal to the root
-installer of the rollout byte for byte, and its "Set up job" fetch stays
-slim). The tag-mode self-test is added with the first action release; until
-then `.github/workflows/action-selftest.yml` tests `action/` in place.
+The branch is never merged anywhere and holds nothing else. Then move the
+self-test's `release-tag` job to the new tag in one commit: `uses:` takes no
+expression, so the tag is written in the job's step and in the workflow's
+`UKAI_ACTION_TAG`, and `check_action.py` holds the two together. The job runs
+on both images (row K86): the tag installs exactly release X, whose revision,
+inputs and executable are those the freeze file records; its commit holds
+only `action/` and an `install.sh` equal to the root installer of the rollout
+byte for byte; and it records the size of what a job's "Set up job" fetches.
+Until that commit lands the job records that the default release has no
+action tag. The other jobs test `action/` in place.
 
 ## Local checks
 

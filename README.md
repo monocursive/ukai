@@ -22,7 +22,7 @@ name, as `ouro-jail` and `ouro-vm`.
 is qualified on Ubuntu 26.04.1 LTS with bubblewrap 0.11.1, reference cgroup
 delegation and ptrace observation: on x86_64 with kernel 7.0.0-31-generic, and
 on ARM64 with kernel 7.0.0-43-generic. Check your host with
-`ukai-jail doctor --profile tool --json`. [ARM64 qualification](docs/benchmarks/jail/arm64-stable-qualification-2026-11-23.md) · [Linux runtime audit](docs/security-audit-2026-11-18-linux.md).
+`ukai-jail doctor --profile tool --json`. [Public install verification](docs/benchmarks/jail/release-0.1.1-linux.md) · [ARM64 qualification](docs/benchmarks/jail/arm64-stable-qualification-2026-11-23.md) · [Linux runtime audit](docs/security-audit-2026-11-18-linux.md).
 
 **macOS VM preview 0.1.0-preview.1.** [Signed and notarized Apple Silicon DMG](https://github.com/monocursive/ukai/releases/tag/ouro-vm-v0.1.0-preview.1)
 is available for macOS 27+. The published `ouro-vm` command runs offline Linux
