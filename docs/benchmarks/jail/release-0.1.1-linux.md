@@ -84,6 +84,15 @@ It installs exactly release 0.1.1 through the installer beside it, the build's r
 inputs and executable are those the freeze file records, and the job's "Set up job"
 took one second on each image for the 15 files of 74,972 bytes.
 
+The tagged action's setup step read the installed version with one direct
+call to the binary. Every other invocation goes through a wrapper that removes
+the variables `credentials` names, and this one did not, so the job's
+environment reached that `ukai-jail` process for a few milliseconds. The
+self-test's sampler caught it by timing in
+[45831883724](https://github.com/monocursive/ukai/actions/runs/45831883724). The
+call is fixed on `dev`; the tag is not moved, and the next release's action
+tag carries the fix. No value reached a `run`.
+
 ## Notes
 
 - Three of the four action self-test runs at the release commit on 26 November failed,

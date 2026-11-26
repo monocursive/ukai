@@ -476,7 +476,8 @@ inputs and executable are those the freeze file records; its commit holds
 only `action/` and an `install.sh` equal to the root installer of the rollout
 byte for byte; and it records the size of what a job's "Set up job" fetches.
 Until that commit lands the job records that the default release has no
-action tag. The other jobs test `action/` in place.
+action tag. The other jobs test `action/` in place. A tag is not moved when
+`action/` changes on `dev` afterwards; the job records how the two differ.
 
 ## Local checks
 
