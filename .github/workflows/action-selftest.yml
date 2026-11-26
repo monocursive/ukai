@@ -1,12 +1,12 @@
 # Self-test of the GitHub Action in action/ (docs/specs/jail-ci-action.md
-# §6.1, rows K76-K85), run in place with `uses: ./action` on both GitHub-hosted
+# §6.1, rows K76-K86), run in place with `uses: ./action` on both GitHub-hosted
 # Ubuntu 24.04 images. It uses no secret: the credential is a fixture value
 # derived from the run id, masked before use. What a hosted job cannot do for
 # real (a root step, a pull_request_target event, a self-hosted runner, a
 # sysctl reading 0, a fork's pull request) runs the action's scripts directly
 # with that environment, or against stand-ins, and is marked simulated in the
-# per-row list the `rows` job writes to its summary. The release-tag check
-# (K86) comes with the release procedure.
+# per-row list the `rows` job writes to its summary. The `release-tag` job
+# (K86) fetches the action at its release tag instead of using it in place.
 name: action-selftest
 on:
   push:
@@ -32,6 +32,7 @@ defaults:
     shell: bash
 env:
   UKAI_ACTION_VERSION: 0.1.1
+  UKAI_ACTION_TAG: ukai-jail-action-v0.1.1
   T: .github/action-tests
 jobs:
   lint:
@@ -636,9 +637,71 @@ jobs:
           name: rows-exposure-${{ matrix.os }}
           path: ${{ runner.temp }}/selftest/rows.jsonl
 
+  release-tag:
+    # K86: the action as a workflow fetches it, at its release tag, on both
+    # images. `uses:` takes no expression, so the tag is written in the step
+    # below and in UKAI_ACTION_TAG; check_action.py holds the two together. A
+    # jail release gets its action tag after its rollout commit is on dev
+    # (docs/RELEASING.md): until the tag names the release the default names,
+    # this job records that there is nothing to test.
+    name: release tag (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      SELFTEST_JOB: release-tag
+      SELFTEST_IMAGE: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github
+            crates/ukai-jail/dist/release.json
+            docs/specs/jail-v1/milestone-1-freeze.toml
+            install.sh
+          sparse-checkout-cone-mode: false
+      - run: |
+          python3 -I "$T/selftest.py" begin
+          # The action runs in a git work tree, as a checkout is.
+          mkdir -p "$RUNNER_TEMP/tag-work" && git init -q "$RUNNER_TEMP/tag-work"
+      - name: The tagged commit (K86)
+        id: tagged
+        run: python3 -I "$T/selftest.py" verify-release-tag before
+      - name: The action at its release tag
+        id: run
+        if: steps.tagged.outputs.tagged == '1'
+        continue-on-error: true
+        uses: monocursive/ukai/action@ukai-jail-action-v0.1.1
+        with:
+          profile: tool
+          workspace: ${{ runner.temp }}/tag-work
+          run: 'true'
+          artifact-name: selftest-tag-${{ matrix.os }}
+      - name: What it installed (K86)
+        if: always() && steps.tagged.outputs.tagged == '1'
+        env:
+          OUTCOME: ${{ steps.run.outcome }}
+        run: python3 -I "$T/selftest.py" verify-release-tag after
+      - name: The sysctl at the end, and the job's verdict
+        if: always()
+        run: |
+          python3 -I "$T/selftest.py" end
+          python3 -I "$T/selftest.py" status
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: rows-release-tag-${{ matrix.os }}
+          path: ${{ runner.temp }}/selftest/rows.jsonl
+
   rows:
     # The per-row list, and K78 over every job's log as GitHub stores it.
-    needs: [lint, contained, exit-status, refusals, old-image, latest, exposure]
+    needs: [lint, contained, exit-status, refusals, old-image, latest, exposure, release-tag]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -670,7 +733,7 @@ jobs:
             done
             echo "$name: $(wc -c < "$RUNNER_TEMP/logs/$file.log") bytes"
           done
-      - name: Rows K76-K85
+      - name: Rows K76-K86
         env:
           ROWS_DIR: ${{ runner.temp }}/rows
           LOGS_DIR: ${{ runner.temp }}/logs
