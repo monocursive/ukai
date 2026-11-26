@@ -18,12 +18,11 @@ Ukai was called Ouroboros until 15 October 2026. Linux previews from
 earlier Linux previews and the macOS VM preview were published under the old
 name, as `ouro-jail` and `ouro-vm`.
 
-**Stable 0.1.0 for Linux x86_64.** The [signed release](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0)
-is qualified on Ubuntu 26.04.1 LTS, kernel 7.0.0-31-generic, bubblewrap 0.11.1,
-with reference cgroup delegation and ptrace observation. Check your host with
-`ukai-jail doctor --profile tool --json`. Linux ARM64 users can select the
-[rc.8 preview](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.8)
-with `--version 0.1.0-rc.8`. [Public install verification](docs/benchmarks/jail/release-0.1.0-linux-x86_64.md) · [Linux runtime audit](docs/security-audit-2026-11-18-linux.md).
+**Stable 0.1.1 for Linux x86_64 and ARM64.** The [signed release](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.1)
+is qualified on Ubuntu 26.04.1 LTS with bubblewrap 0.11.1, reference cgroup
+delegation and ptrace observation: on x86_64 with kernel 7.0.0-31-generic, and
+on ARM64 with kernel 7.0.0-43-generic. Check your host with
+`ukai-jail doctor --profile tool --json`. [ARM64 qualification](docs/benchmarks/jail/arm64-stable-qualification-2026-11-23.md) · [Linux runtime audit](docs/security-audit-2026-11-18-linux.md).
 
 **macOS VM preview 0.1.0-preview.1.** [Signed and notarized Apple Silicon DMG](https://github.com/monocursive/ukai/releases/tag/ouro-vm-v0.1.0-preview.1)
 is available for macOS 27+. The published `ouro-vm` command runs offline Linux
@@ -79,7 +78,7 @@ after installing, then follow the [Mac example](docs/guide.md#macos-vm-preview).
 
 See the [guide](docs/guide.md#install-ukai-jail) for supported hosts,
 upgrades and explicit downgrade handling. The remaining examples use the current
-Ukai source build; the published preview's own [guide](https://github.com/monocursive/ukai/blob/ukai-jail-v0.1.0-rc.8/docs/guide.md)
+Ukai source build; the published release's own [guide](https://github.com/monocursive/ukai/blob/ukai-jail-v0.1.1/docs/guide.md)
 documents exactly what it ships. To build from source:
 
 Install Rust 1.98.1 and your distribution's bubblewrap package. Run as your
@@ -220,7 +219,7 @@ The same record passes full reference conformance (1,993 tests) and prepares
 signed native Linux x86_64 and ARM64 packages locally. The
 [10 October preview record](docs/benchmarks/jail/release-preview-2026-10-10.md)
 adds current-input clean-VM onboarding, a real OpenCode learning fixture and
-Linux acceptance tests. The stable x86_64 release is linked above. Broader
+Linux acceptance tests. The stable Linux release is linked above. Broader
 real-agent qualification remains experimental.
 
 The earlier records are kept for provenance: the

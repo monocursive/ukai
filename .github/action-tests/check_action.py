@@ -12,10 +12,10 @@ Run from the repository root: uv run .github/action-tests/check_action.py
   full commit SHA (§4.7), or is the action itself in place (`./action`).
 - The AppArmor profile file is byte for byte the text §3.3 gives.
 - The scripts pin the bubblewrap digest §3.3 gives.
-- action.yml's default `version` is the release the root installer pins and
-  installs by default (§3.1).
+- action.yml's default `version` is the release the root installer pins for every
+  target it ships and installs by default (§3.1), and the action workflows
+  install that same release on both images.
 """
-import json
 import pathlib
 import re
 import sys
@@ -83,17 +83,16 @@ if default:
     version = action["inputs"]["version"]["default"]
     check(str(version) == default.group(1),
           f"action.yml's default version {version} is not install.sh's {default.group(1)}")
-    coordinates = json.loads((ROOT / 'crates/ukai-jail/dist/release.json').read_text())['jail']
-    stable = coordinates['stable_target']
-    arm = 'aarch64-unknown-linux-gnu'
-    arm_version = coordinates['arm_preview_version']
-    check(f"{version}:{stable})" in installer, f"installer lacks {version} for {stable}")
-    check(f"{arm_version}:{arm})" in installer, f"installer lacks the ARM64 preview {arm_version}")
-    check(f"{version}:{arm})" not in installer, "stable release unexpectedly pins an ARM64 archive")
+    sys.path.insert(0, str(ROOT / 'crates/ukai-jail/dist'))
+    from coordinates import release_targets
+    # The default release ships one archive for each target it is qualified on (§3.1),
+    # and the workflows install that same release on both images.
+    for target in release_targets(str(version)):
+        check(f"{version}:{target})" in installer, f"installer lacks {version} for {target}")
     for workflow in WORKFLOWS:
         env = yaml.safe_load(workflow.read_text())["env"]
-        check(env.get("UKAI_ACTION_VERSION") == version, f"{workflow.name}: wrong x86_64 release")
-        check(env.get("ARM_PREVIEW_VERSION") == arm_version, f"{workflow.name}: wrong ARM64 preview")
+        check(env.get("UKAI_ACTION_VERSION") == version, f"{workflow.name}: wrong release")
+        check("ARM_PREVIEW_VERSION" not in env, f"{workflow.name}: still selects a separate ARM64 preview")
 
 for failure in failures:
     print(f"check_action: {failure}")

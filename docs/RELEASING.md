@@ -116,10 +116,11 @@ a private backup for future releases. Private key material is never sent to CI.
 
 ## Stable Linux publication
 
-Stable 0.1.0 ships one native `x86_64-unknown-linux-gnu` archive, and ARM64
-users select a pinned preview with `--version 0.1.0-rc.8`. From 0.1.1, the first
-stable release with an ARM64 archive, a version without a SemVer prerelease
-suffix ships one archive for each Linux target. The signed plan records the
+Stable 0.1.1, the first stable release with an ARM64 archive, ships one
+archive for each Linux target, as does a version without a SemVer prerelease
+suffix from it on. Stable 0.1.0 shipped one native `x86_64-unknown-linux-gnu`
+archive, and ARM64 users of it select a pinned preview with
+`--version 0.1.0-rc.8`. The signed plan records the
 qualified configuration of each target it ships. For x86_64 that is the tested
 Ubuntu 26.04.1 LTS host, kernel 7.0.0-31-generic, bubblewrap 0.11.1, ptrace
 observation and reference cgroup delegation. For ARM64 it is Ubuntu 26.04.1

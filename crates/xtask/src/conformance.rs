@@ -425,15 +425,24 @@ pub fn substitute_upload_argv(target: &Target, local: &Path, run_dir: &str) -> V
     ]
 }
 
-/// Keep the hash of what the build produced, install the exact executable
-/// over it, and print the hash of what is now in its place.
+/// Keep the hash of what the build produced, install the exact executable over
+/// every copy of it, and print the hash of what is now in its place.
+///
+/// `target/release/ukai-jail` is a link to cargo's own artifact under
+/// `target/release/deps/`, and `cargo test` links that artifact back into
+/// place before it runs the suite. Replacing only the linked path is undone
+/// then, so every file holding the built bytes is replaced; the check of the
+/// recorded hashes after the suite would refuse the run otherwise.
 #[must_use]
 pub fn substitute_command(run_dir: &str) -> String {
     let p = run_path(run_dir);
     format!(
         "cd {p} && sha256sum target/release/ukai-jail > built-ukai-jail.sha256 && \
-         install -m 0755 ukai-jail.exact target/release/ukai-jail && rm ukai-jail.exact && \
-         sha256sum target/release/ukai-jail"
+         built=$(cut -d' ' -f1 built-ukai-jail.sha256) && replaced=0 && \
+         for copy in target/release/ukai-jail target/release/deps/ukai_jail-*; do \
+         if [ -f \"$copy\" ] && [ \"$(sha256sum \"$copy\" | cut -d' ' -f1)\" = \"$built\" ]; then \
+         install -m 0755 ukai-jail.exact \"$copy\" || exit 1; replaced=$((replaced + 1)); fi; done && \
+         [ \"$replaced\" -ge 1 ] && rm ukai-jail.exact && sha256sum target/release/ukai-jail"
     )
 }
 
@@ -2235,13 +2244,81 @@ mod tests {
             command.starts_with(&format!("cd {} && ", run_path(run_dir))),
             "{command}"
         );
-        let installed = command.find("install -m 0755 ukai-jail.exact target/release/ukai-jail");
+        let installed = command.rfind("install -m 0755 ukai-jail.exact");
         let hashed = command.rfind("sha256sum target/release/ukai-jail");
         assert!(
             installed.is_some() && hashed.is_some() && installed < hashed,
             "{command}"
         );
         assert!(command.contains("> built-ukai-jail.sha256"), "{command}");
+        // Cargo's own artifact is replaced too: `cargo test` links it back over
+        // the linked path before the suite runs.
+        assert!(
+            command
+                .contains("for copy in target/release/ukai-jail target/release/deps/ukai_jail-*"),
+            "{command}"
+        );
+        assert!(
+            command.contains("install -m 0755 ukai-jail.exact \"$copy\""),
+            "{command}"
+        );
+        // The command itself, run by a real shell against a tree shaped like the build's.
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        std::fs::create_dir_all(root.join("target/release/deps")).unwrap();
+        let built = b"the bytes cargo built\n";
+        for name in [
+            "target/release/ukai-jail",
+            "target/release/deps/ukai_jail-89abcdef01234567",
+        ] {
+            std::fs::write(root.join(name), built).unwrap();
+        }
+        // A test executable that merely shares the name's stem is left alone.
+        std::fs::write(
+            root.join("target/release/deps/ukai_jail-8abd57b847879d13"),
+            b"unit tests\n",
+        )
+        .unwrap();
+        std::fs::write(root.join("ukai-jail.exact"), b"the bytes that will ship\n").unwrap();
+        let script =
+            substitute_command("run").replace(&run_path("run"), &root.display().to_string());
+        let out = std::process::Command::new("bash")
+            .args(["-c", &script])
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        for name in [
+            "target/release/ukai-jail",
+            "target/release/deps/ukai_jail-89abcdef01234567",
+        ] {
+            assert_eq!(
+                std::fs::read(root.join(name)).unwrap(),
+                b"the bytes that will ship\n",
+                "{name}"
+            );
+        }
+        assert_eq!(
+            std::fs::read(root.join("target/release/deps/ukai_jail-8abd57b847879d13")).unwrap(),
+            b"unit tests\n"
+        );
+        assert!(!root.join("ukai-jail.exact").exists());
+        let printed = String::from_utf8(out.stdout).unwrap();
+        let digest = crate::util::sha256_file(&root.join("target/release/ukai-jail")).unwrap();
+        assert!(
+            printed.starts_with(&format!("{digest}  target/release/ukai-jail\n")),
+            "{printed}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("built-ukai-jail.sha256"))
+                .unwrap()
+                .split(' ')
+                .next(),
+            Some(crate::util::sha256_hex(built).as_str())
+        );
         let argv = substitute_upload_argv(
             &target(),
             Path::new("/private/stage-arm/ukai-jail"),

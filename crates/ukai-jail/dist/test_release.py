@@ -123,7 +123,10 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(bool(coordinates.ARM64_STABLE_VERSION), bool(coordinates.ARM64_STABLE_HOST))
         self.assertEqual(coordinates.PUBLICATION_SCOPE == 'linux-x86_64-arm64-stable',
                          bool(coordinates.ARM64_STABLE_VERSION))
-        self.assertEqual(release_targets(coordinates.JAIL_VERSION), (STABLE_TARGET,))
+        # Stable 0.1.0 shipped x86_64 alone; the current release ships every target named.
+        self.assertEqual(release_targets('0.1.0'), (STABLE_TARGET,))
+        named = coordinates.ARM64_STABLE_VERSION is not None
+        self.assertEqual(release_targets(coordinates.JAIL_VERSION), (STABLE_TARGET, ARM64_TARGET) if named else (STABLE_TARGET,))
 
     def signed_stable(self, release):
         """Assemble and sign a stable candidate of `release` for every target it ships."""
@@ -154,7 +157,8 @@ class ReleaseTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which('minisign'), 'minisign is required')
     def test_a_stable_candidate_from_the_arm64_release_ships_both_qualified_targets(self):
         from publish_release import ROOT, check, stable_title
-        release = '0.1.1'
+        # Not a published version: the installer beside these tests pins the published archives.
+        release = '9.9.9'
         # With the coordinates as they are: the ARM64 release is named, or a stable version ships x86_64 alone.
         named = coordinates.ARM64_STABLE_VERSION is not None
         self.assertEqual(release_targets(release), (STABLE_TARGET, ARM64_TARGET) if named else (STABLE_TARGET,))

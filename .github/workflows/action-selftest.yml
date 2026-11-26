@@ -31,8 +31,7 @@ defaults:
   run:
     shell: bash
 env:
-  UKAI_ACTION_VERSION: 0.1.0
-  ARM_PREVIEW_VERSION: 0.1.0-rc.8
+  UKAI_ACTION_VERSION: 0.1.1
   T: .github/action-tests
 jobs:
   lint:
@@ -142,7 +141,7 @@ jobs:
         id: profile
         uses: ./action
         with:
-          version: ${{ runner.arch == 'ARM64' && env.ARM_PREVIEW_VERSION || env.UKAI_ACTION_VERSION }}
+          version: ${{ env.UKAI_ACTION_VERSION }}
           profile: agent
           run: ${{ steps.hostile.outputs.run }}
           allow-hosts: api.github.com
@@ -151,6 +150,12 @@ jobs:
           fail-on: unsettled,survivors,gaps
           pr-comment: true
           artifact-name: selftest-profile-${{ matrix.os }}
+      # The checks below read what the action just uploaded. GitHub's listing of a
+      # run's artifacts has answered "not found" 200 ms after it finalized the
+      # upload (26 November 2026), so each download gives the listing time first.
+      - name: Give the artifact service time to list the profile artifact
+        if: always() && steps.profile.outputs.attempt-id != ''
+        run: sleep 15
       - if: always() && steps.profile.outputs.attempt-id != ''
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
@@ -173,7 +178,7 @@ jobs:
         if: always()
         uses: ./action
         with:
-          version: ${{ runner.arch == 'ARM64' && env.ARM_PREVIEW_VERSION || env.UKAI_ACTION_VERSION }}
+          version: ${{ env.UKAI_ACTION_VERSION }}
           launch: claude
           workspace: ${{ env.LAUNCH_WS }}
           args: ${{ steps.hostile.outputs.args }}
@@ -184,6 +189,10 @@ jobs:
         run: |
           touch "$RUNNER_TEMP/selftest/env-watch.stop"
           for _ in $(seq 50); do [ -f "$RUNNER_TEMP/selftest/env-watch.json" ] && break; sleep 0.2; done
+      # The same wait as the contained jobs' profile download.
+      - name: Give the artifact service time to list the launch artifact
+        if: always() && steps.launch.outputs.attempt-id != ''
+        run: sleep 15
       - if: always() && steps.launch.outputs.attempt-id != ''
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
@@ -260,7 +269,7 @@ jobs:
         continue-on-error: true
         uses: ./action
         with:
-          version: ${{ runner.arch == 'ARM64' && env.ARM_PREVIEW_VERSION || env.UKAI_ACTION_VERSION }}
+          version: ${{ env.UKAI_ACTION_VERSION }}
           profile: tool
           workspace: ${{ env.EXIT_WS }}
           run: |
@@ -272,7 +281,7 @@ jobs:
         continue-on-error: true
         uses: ./action
         with:
-          version: ${{ runner.arch == 'ARM64' && env.ARM_PREVIEW_VERSION || env.UKAI_ACTION_VERSION }}
+          version: ${{ env.UKAI_ACTION_VERSION }}
           profile: tool
           workspace: ${{ env.EXIT_WS }}
           run: 'true'
@@ -284,12 +293,16 @@ jobs:
         continue-on-error: true
         uses: ./action
         with:
-          version: ${{ runner.arch == 'ARM64' && env.ARM_PREVIEW_VERSION || env.UKAI_ACTION_VERSION }}
+          version: ${{ env.UKAI_ACTION_VERSION }}
           profile: tool
           workspace: ${{ env.EXIT_WS }}
           run: 'true'
           fail-on: gaps
           artifact-name: exit-gaps-${{ matrix.os }}
+      # The same wait as the contained jobs' profile download.
+      - name: Give the artifact service time to list the exit artifacts
+        if: always()
+        run: sleep 15
       - if: always()
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
@@ -336,9 +349,6 @@ jobs:
       SELFTEST_IMAGE: ${{ matrix.os }}
       UKAI_ACTION_ARTIFACT_NAME: sim
     steps:
-      - name: Select the published ARM64 preview for the simulated and real checks
-        if: runner.arch == 'ARM64'
-        run: echo "UKAI_ACTION_VERSION=$ARM_PREVIEW_VERSION" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: true
@@ -601,7 +611,7 @@ jobs:
         continue-on-error: true
         uses: ./action
         with:
-          version: ${{ runner.arch == 'ARM64' && env.ARM_PREVIEW_VERSION || env.UKAI_ACTION_VERSION }}
+          version: ${{ env.UKAI_ACTION_VERSION }}
           profile: tool
           workspace: ${{ env.LEAK_WS }}
           run: |

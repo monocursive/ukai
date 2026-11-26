@@ -8,10 +8,12 @@ You choose the files it can read or change, the services it can contact, and
 how long it can run. A receipt tells you which controls were applied and how
 the run ended.
 
-**Choose your host.** Stable 0.1.0 covers Ubuntu 26.04.1 LTS x86_64 with kernel
-7.0.0-31-generic, bubblewrap 0.11.1, reference cgroup delegation and ptrace
-observation. Linux ARM64 has a separate rc.8 preview. Apple Silicon Macs can
-use the [macOS VM preview](#macos-vm-preview) for offline Linux commands.
+**Choose your host.** Stable 0.1.1 covers Ubuntu 26.04.1 LTS with bubblewrap
+0.11.1, reference cgroup delegation and ptrace observation: kernel
+7.0.0-31-generic on x86_64 and kernel 7.0.0-43-generic on ARM64. The ARM64
+host was measured in an HVF virtual machine on Apple Silicon. Apple Silicon
+Macs can also use the [macOS VM preview](#macos-vm-preview) for offline Linux
+commands.
 
 Already have the binary? Jump to [your first command](#run-your-first-command).
 Writing an integration? Start with [agents and scripts](#for-agents-and-scripts).
@@ -23,14 +25,13 @@ Writing an integration? Start with [agents and scripts](#for-agents-and-scripts)
 The same installer detects your platform. The following commands are for Linux;
 Mac users should follow the [Mac quickstart](#macos-vm-preview).
 
-[Ukai Jail 0.1.0 for Linux x86_64](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0)
+[Ukai Jail 0.1.1 for Linux x86_64 and ARM64](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.1)
 installs into `~/.local/bin`. Install bubblewrap first. The bootstrap needs
 Bash, curl, tar, and sha256sum or shasum. The packaged executable requires
 glibc 2.39 or newer. The [runtime audit](https://github.com/monocursive/ukai/blob/ukai-jail-v0.1.0/docs/security-audit-2026-11-18-linux.md)
-describes the qualified host and workflows.
-
-On Linux ARM64, pass `bash -s -- --version 0.1.0-rc.8` in the pipeline below
-to select the [ARM64 preview](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.8).
+describes the qualified x86_64 host and workflows, and the
+[ARM64 qualification record](benchmarks/jail/arm64-stable-qualification-2026-11-23.md)
+the ARM64 host.
 
 ```sh
 curl --proto '=https' --tlsv1.2 -fsSL \
@@ -53,11 +54,11 @@ An `ouro-jail` installed from an earlier preview is not replaced: rc.3 and
 later install `ukai-jail` beside it. Remove `~/.local/bin/ouro-jail` and its `.release` and
 `.LICENSES.txt` files when you no longer need them.
 
-The supported-host notes remain in the release: Ubuntu 26.04 is the x86_64
-reference host; stock Ubuntu 24 containment is refused. The tested Pi lacks
+The supported-host notes remain in the release: Ubuntu 26.04 is the reference
+host on x86_64 and on ARM64; stock Ubuntu 24 containment is refused. The tested Pi lacks
 memory cgroups and Landlock, so its default `build` profile remains unavailable.
 Run `doctor` before relying on a profile. Archived runtime releases are separate;
-Jail previews use `ukai-jail-v...` tags (those before the rename used
+Jail releases use `ukai-jail-v...` tags (those before the rename used
 `ouro-jail-v...`).
 The ledger and fleet are not included in these packages.
 
@@ -305,7 +306,7 @@ for the packaged release.
 ## Verify a supplied package
 
 For offline installation, save the [Bash installer](https://ukai.sh/install.sh)
-and the x86_64 archive from the [stable release](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0).
+and the archive for your architecture from the [stable release](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.1).
 The installer verifies its embedded SHA-256 pin even when the archive comes from
 a local directory. No checksum manifest or signature tool is needed:
 
