@@ -82,6 +82,14 @@ check(f"`{BWRAP_SHA256}`" in spec, "the spec no longer gives the bubblewrap dige
 check(f"BWRAP_SHA256={BWRAP_SHA256}" in (ACTION / "scripts/lib.sh").read_text(),
       "lib.sh does not pin the bubblewrap digest of §3.3")
 
+# Every ukai-jail invocation goes through jail() (lib.sh), which removes the variables that
+# `credentials` names from its environment (§3.4, K78); the version probe once did not.
+# The binary as the command of a line: as an argument, say to a hash, it runs nothing.
+COMMAND = re.compile(r'(?:^[ \t]*|[;&|(`][ \t]*|\bexec[ \t]+)"\$UKAI_BIN"[ \t]', re.M)
+for script in sorted((ACTION / "scripts").glob("*.sh")):
+    if script.name != "lib.sh":
+        check(COMMAND.search(script.read_text()) is None, f"action/scripts/{script.name} runs ukai-jail directly")
+
 installer = (ROOT / "install.sh").read_text()
 default = re.search(r"^    version=(\S+)$", installer, re.M)
 check(default is not None, "install.sh has no default version line")

@@ -17,7 +17,7 @@ install_jail() {
         fail "setup: the installer refused ukai-jail $UKAI_ACTION_VERSION (only versions it pins install)"
     local release
     release=$(sed -n 1p "$UKAI_ROOT/bin/ukai-jail.release")
-    "$UKAI_BIN" version --json > "$(report_dir)/version.json"
+    jail version --json > "$(report_dir)/version.json"
     fact "ukai-jail: release $release installed by install.sh sha256:$(sha256_of "$installer")"
     fact "  binary $UKAI_BIN sha256:$(sha256_of "$UKAI_BIN")"
     fact "  revision $(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["build"]["revision"])' "$(report_dir)/version.json")"

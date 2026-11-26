@@ -428,6 +428,26 @@ if "--paginate" in sys.argv:
         self.assertFalse((self.tmp / "sudo.log").exists(), "sudo ran before the digest was checked")
         self.assertFalse((src / "bubblewrap-0.11.1").exists())
 
+    def test_setup_reads_the_version_through_the_wrapper_that_removes_credential_variables(self):
+        # K78: the version probe is a ukai-jail process like any other, so a variable that
+        # `credentials` names must not reach it. It was the one call made directly.
+        directory = self.report_dir()
+        # The installer is the one beside the action, as a checkout carries it.
+        action = self.tmp / "action"
+        shutil.copytree(SCRIPTS, action / "scripts")
+        executable(self.tmp / "install.sh", "#!/bin/sh\nexit 0\n")
+        (self.runner_temp / "ukai" / "bin" / "ukai-jail.release").write_text("0.1.0-rc.5\n")
+        # A stand-in that records its own environment, where the real binary answers `version`.
+        executable(self.runner_temp / "ukai" / "bin" / "ukai-jail",
+                   f'#!/bin/sh\nenv > {self.tmp}/seen.env\nprintf \'{{"build": {{"revision": "abc"}}}}\\n\'\n')
+        result = self.setup_function('install_jail', GITHUB_ACTION_PATH=action,
+                                     UKAI_ACTION_CREDENTIALS="api=THE_SECRET", THE_SECRET=TOKEN)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        seen = (self.tmp / "seen.env").read_text()
+        self.assertNotIn(f"THE_SECRET={TOKEN}", seen)
+        self.assertIn("PATH=", seen)
+        self.assertEqual(json.loads((directory / "version.json").read_text())["build"]["revision"], "abc")
+
     def test_setup_loads_no_profile_unless_the_restriction_reads_1(self):
         directory = self.report_dir()
         for reading, words in (("0", "the restriction is not on (reads 0)"), ("absent", "reads absent")):

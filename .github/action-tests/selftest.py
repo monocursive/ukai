@@ -535,10 +535,10 @@ def cmd_verify_release_tag(stage):
         record(row, "its install.sh equals the root installer of the rollout byte for byte",
                installer == Path("install.sh").read_bytes(),
                f"sha256:{hashlib.sha256(installer).hexdigest()}")
-        # The README may have moved on since; what runs is what the checkout tests in place.
-        record(row, "its action.yml, scripts and profile are the checkout's",
-               git("diff", "--quiet", commit, "HEAD", "--", "action", ":(exclude)action/README.md",
-                   check=False).returncode == 0, commit[:12])
+        # A tag is a release's artifact and is not moved when action/ changes on dev afterwards:
+        # the jobs in place test what is on dev, this one the tag itself. Recorded, not judged.
+        moved = git("diff", "--name-only", commit, "HEAD", "--", "action", check=False).stdout.decode().split()
+        record(row, "how the checkout's action/ differs from the tag's", None, moved or "not at all", "static")
         # Failures are left to `status`: the steps after this one still run and report.
         output.write_text("tagged=1\n")
     elif stage == "after":
