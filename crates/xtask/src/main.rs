@@ -59,6 +59,12 @@ enum Task {
         /// Remote build and test parallelism; the host has 4 vCPU shared.
         #[arg(long, default_value_t = 2)]
         jobs: u32,
+        /// Test this exact `ukai-jail` executable in place of the one the build
+        /// produces, for a release: the executable that will ship. It must have
+        /// been built for the tested commit, which the run's doctor check
+        /// confirms.
+        #[arg(long, value_name = "PATH")]
+        jail_binary: Option<PathBuf>,
         /// Keep the remote run directory even when the run passes.
         #[arg(long)]
         keep_remote: bool,
@@ -171,6 +177,7 @@ fn run(task: Task) -> Result<ExitCode, String> {
             manifest,
             evidence,
             jobs,
+            jail_binary,
             keep_remote,
             linux_release,
         } => {
@@ -188,6 +195,7 @@ fn run(task: Task) -> Result<ExitCode, String> {
                 host_manifest_script: worktree.join("docs/specs/jail-v1/host-manifest.sh"),
                 worktree,
                 jobs,
+                jail_binary,
                 config: conformance::Config {
                     keep_remote,
                     linux_release,

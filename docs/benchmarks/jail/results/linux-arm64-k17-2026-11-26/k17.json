@@ -1,0 +1,146 @@
+{
+  "gate": "K17",
+  "verdict": "pass",
+  "criterion": "Five replays in a row on the executable of the recorded ARM64 conformance run, every one passing. The criterion was declared before the replays ran, after seven replays of 23 November had alternated between passing and failing.",
+  "method": "xtask perf run with the seed and settings of every earlier ARM64 replay: 30 measured launches per arm in 18 cells, one warmup per arm, guest load limit 3; xtask perf summarize; scored by docs/benchmarks/jail/performance.py.",
+  "limits": {
+    "startup_p95_ms_exclusive": 500,
+    "fileops_post_start_overhead_pct_inclusive": 100
+  },
+  "executable": {
+    "sha256": "b01c07d5a378bce363d1df11e5b5ed501cdabd38ab013ade0cd6452aec1d66ad",
+    "build": {
+      "debug_assertions": false,
+      "dirty": false,
+      "inputs": "sha256:0da6ea53bcb2f25c2094adf95ddc5e13ace97c688222b881d17e8cbbd1404c92",
+      "opt_level": "3",
+      "revision": "433e794bc09a9f774d7d421bf7d0b94482f2a9a2",
+      "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+      "target": "aarch64-unknown-linux-gnu"
+    },
+    "recorded_by": "../linux-arm64-stable-2026-11-23/qualification.json",
+    "binaries_identical_before_and_after": true
+  },
+  "guest": {
+    "host": "Apple M5 Pro, QEMU HVF",
+    "distribution": "Ubuntu 26.04.1 LTS",
+    "kernel": "7.0.0-43-generic",
+    "machine": "aarch64",
+    "glibc": "2.43-2ubuntu2.7",
+    "bubblewrap": {
+      "version": "0.11.1-1ubuntu0.3",
+      "sha256": "cf5b710ff9c799104c10c011266952441910479fefd4e660cba45bb9fc5a716f"
+    },
+    "cpus_online": 4,
+    "memory_kib": 6039768
+  },
+  "runs": [
+    {
+      "run": 1,
+      "started_utc": "2026-11-26T10:12:36Z",
+      "valid_launches": 540,
+      "excluded_launches": 0,
+      "warmups": 18,
+      "integrity_errors": [],
+      "fileops_overhead_pct": {
+        "plain": 96.81,
+        "scope": 97.08
+      },
+      "worst_added_startup_p95_ms": 50.01,
+      "verdict": "pass",
+      "replay_summary_sha256": "c75c636066e7b9d034456ffef258a3a6cb52a42c288484d3560e2f6e42c67180",
+      "raw_launches_sha256": "0710fc03c89558150a214b9c749e32041ac430ea4f01bab353e94783134a0dda"
+    },
+    {
+      "run": 2,
+      "started_utc": "2026-11-26T10:14:00Z",
+      "valid_launches": 540,
+      "excluded_launches": 0,
+      "warmups": 18,
+      "integrity_errors": [],
+      "fileops_overhead_pct": {
+        "plain": 97.27,
+        "scope": 96.97
+      },
+      "worst_added_startup_p95_ms": 46.77,
+      "verdict": "pass",
+      "replay_summary_sha256": "86faf3877ecdcf95c33cfa948b11b1514e89cee2c397d8dc23a92be534f91a19",
+      "raw_launches_sha256": "6cb40ab075abe2401d412c33ceb0c3fac8d2f585e7549f5aada7a6c589472011"
+    },
+    {
+      "run": 3,
+      "started_utc": "2026-11-26T10:15:23Z",
+      "valid_launches": 540,
+      "excluded_launches": 0,
+      "warmups": 18,
+      "integrity_errors": [],
+      "fileops_overhead_pct": {
+        "plain": 98.43,
+        "scope": 94.15
+      },
+      "worst_added_startup_p95_ms": 50.31,
+      "verdict": "pass",
+      "replay_summary_sha256": "1ef369891a14210e1b70891dff78a7913c2a8f11ca8659f5a932a27be174d6fd",
+      "raw_launches_sha256": "81c7f3cb6e5eedddd8d4f4498897c55aa9b23d6a6fb6703d68ae99ff532d38aa"
+    },
+    {
+      "run": 4,
+      "started_utc": "2026-11-26T10:16:45Z",
+      "valid_launches": 540,
+      "excluded_launches": 0,
+      "warmups": 18,
+      "integrity_errors": [],
+      "fileops_overhead_pct": {
+        "plain": 95.97,
+        "scope": 97.16
+      },
+      "worst_added_startup_p95_ms": 51.37,
+      "verdict": "pass",
+      "replay_summary_sha256": "94404a90cc0cdfd16beeed72ca90542745cd07be43c84051d24fb0f9b74c05e8",
+      "raw_launches_sha256": "c43914da2fcd18966ac68a9be03ef7daaff259bf9fda51f2197ddc183cc95836"
+    },
+    {
+      "run": 5,
+      "started_utc": "2026-11-26T10:18:08Z",
+      "valid_launches": 540,
+      "excluded_launches": 0,
+      "warmups": 18,
+      "integrity_errors": [],
+      "fileops_overhead_pct": {
+        "plain": 95.59,
+        "scope": 95.63
+      },
+      "worst_added_startup_p95_ms": 49.16,
+      "verdict": "pass",
+      "replay_summary_sha256": "36039a08cc329c5fe85c4091feda43eaa3ddc0b4869c65a7aeae635d0bc1a8db",
+      "raw_launches_sha256": "b88f36548c0413d1b654a6417c182d017c800fed44e34d9fe6f99d240481647a"
+    }
+  ],
+  "passing_runs": 5,
+  "replays": 5,
+  "overhead_range_pct": {
+    "plain": [
+      95.59,
+      98.43
+    ],
+    "scope": [
+      94.15,
+      97.16
+    ]
+  },
+  "smallest_margin_to_ceiling_pct": 1.57,
+  "worst_added_startup_p95_ms": 51.37,
+  "host_during_measurement": {
+    "load1_min": 3.87,
+    "load1_median": 4.5,
+    "load1_max": 5.27,
+    "samples": 40,
+    "samples_with_a_third_party_process_above_40pct_cpu": 4,
+    "samples_with_pages_swapped_in": 2,
+    "samples_with_pages_swapped_out": 0,
+    "power": "AC",
+    "note": "The host was not idle by a strict standard. Its one-minute load was 3.9 to 5.3 on 18 cores, made up of the desktop session and the agent interface that drove the measurement, with nothing of the operator compiling. The replays passed under that load."
+  },
+  "not_counted": "one earlier sequence this morning was stopped before any verdict was read: its host samples were not being taken and the operator was active. It is not part of this record.",
+  "earlier_measurements": "../linux-arm64-stable-2026-11-23/k17-measurements.json"
+}

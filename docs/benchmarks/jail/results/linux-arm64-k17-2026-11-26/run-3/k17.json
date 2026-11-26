@@ -1,0 +1,88 @@
+{
+  "gate": "K17",
+  "verdict": "pass",
+  "problems": [],
+  "rows": [
+    {
+      "session": "plain",
+      "workload": "noop",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {
+        "exec_unconfirmed": 30
+      },
+      "load1_max": 1.79,
+      "added_startup_p95_ms": 50.314108000000004,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 31018.26642791705,
+      "post_start_pass": null
+    },
+    {
+      "session": "plain",
+      "workload": "spawn-tree",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.9,
+      "added_startup_p95_ms": 45.4713835,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 57.62392848393357,
+      "post_start_pass": null
+    },
+    {
+      "session": "plain",
+      "workload": "fileops",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.91,
+      "added_startup_p95_ms": 49.1227075,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 98.43013414057859,
+      "post_start_pass": true
+    },
+    {
+      "session": "scope",
+      "workload": "noop",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {
+        "exec_unconfirmed": 30
+      },
+      "load1_max": 1.74,
+      "added_startup_p95_ms": 33.378820499999996,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 30533.522825150732,
+      "post_start_pass": null
+    },
+    {
+      "session": "scope",
+      "workload": "spawn-tree",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.87,
+      "added_startup_p95_ms": 31.740710999999997,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 52.23235759425504,
+      "post_start_pass": null
+    },
+    {
+      "session": "scope",
+      "workload": "fileops",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.98,
+      "added_startup_p95_ms": 34.817431,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 94.14943907989024,
+      "post_start_pass": true
+    }
+  ],
+  "limits": {
+    "startup_p95_ms_exclusive": 500,
+    "fileops_post_start_overhead_pct_inclusive": 100
+  },
+  "summary_sha256": "1ef369891a14210e1b70891dff78a7913c2a8f11ca8659f5a932a27be174d6fd"
+}

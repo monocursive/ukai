@@ -221,7 +221,7 @@ class PublicationTests(unittest.TestCase):
 
         stable_workflows = ['rust', 'contracts', 'conformance', 'fleet', 'release-candidate']
         both = (STABLE_TARGET, 'aarch64-unknown-linux-gnu')
-        native = {'jobs': [{'name': f'native ({target})', 'conclusion': 'success'} for target in both]}
+        native = {'jobs': [{'name': f'native ({target}, ubuntu-24.04)', 'conclusion': 'success'} for target in both]}
         # A stable release is qualified per target: each one's tested run must
         # be recorded beside the reference run, and each native job must pass.
         freeze = ['cargo', '+1.98.1', 'run', '-q', '-p', 'xtask', '--', 'freeze', '--check']
@@ -232,10 +232,21 @@ class PublicationTests(unittest.TestCase):
         self.assertNotIn(freeze + per_target,
                          commands_of(self.plan, preview_workflows, {'jobs': []}))
         # A release candidate that built only the reference target is refused.
-        reference_only = {'jobs': [{'name': f'native ({STABLE_TARGET})', 'conclusion': 'success'}],
+        reference_only = {'jobs': [{'name': f'native ({STABLE_TARGET}, ubuntu-24.04)', 'conclusion': 'success'}],
                           'missing': 'the aarch64 job'}
         with named, self.assertRaisesRegex(ValueError, 'native aarch64-unknown-linux-gnu release candidate'):
             commands_of(stable, stable_workflows, reference_only)
+
+    def test_a_native_job_is_recognised_in_either_order_and_nothing_else_is(self):
+        from publish_release import native_job_targets
+        self.assertEqual(native_job_targets('native (aarch64-unknown-linux-gnu, ubuntu-24.04-arm)'),
+                         ['aarch64-unknown-linux-gnu', 'ubuntu-24.04-arm'])
+        self.assertEqual(native_job_targets('native (ubuntu-24.04, x86_64-unknown-linux-gnu)'),
+                         ['ubuntu-24.04', 'x86_64-unknown-linux-gnu'])
+        # The workflow's other jobs, and a name that merely mentions a target.
+        self.assertEqual(native_job_targets('coordinate'), [])
+        self.assertEqual(native_job_targets('assemble'), [])
+        self.assertEqual(native_job_targets('native (x86_64-unknown-linux-gnu, ubuntu-24.04'), [])
 
     def test_remote_extra_missing_and_corrupted_assets_refuse(self):
         _, names = check(self.candidate, self.key)

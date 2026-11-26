@@ -409,6 +409,95 @@ pub fn test_command(run_dir: &str, jobs: u32, revision: &Revision) -> String {
     )
 }
 
+/// The argv that sends the exact executable beside the build, through the
+/// transport every other copy uses.
+#[must_use]
+pub fn substitute_upload_argv(target: &Target, local: &Path, run_dir: &str) -> Vec<String> {
+    vec![
+        "-a".to_string(),
+        "-e".to_string(),
+        rsh_string(target),
+        local.display().to_string(),
+        format!(
+            "{}@{}:{REMOTE_RUNS}/{run_dir}/ukai-jail.exact",
+            target.user, target.host
+        ),
+    ]
+}
+
+/// Keep the hash of what the build produced, install the exact executable
+/// over it, and print the hash of what is now in its place.
+#[must_use]
+pub fn substitute_command(run_dir: &str) -> String {
+    let p = run_path(run_dir);
+    format!(
+        "cd {p} && sha256sum target/release/ukai-jail > built-ukai-jail.sha256 && \
+         install -m 0755 ukai-jail.exact target/release/ukai-jail && rm ukai-jail.exact && \
+         sha256sum target/release/ukai-jail"
+    )
+}
+
+/// Put the exact executable the operator gave in place of the one the build
+/// produced, so that every later step, and the hashes it records, are those
+/// bytes. The file is sent beside the build and installed over
+/// `target/release/ukai-jail`; the hash the host prints must be the hash of
+/// the file that was sent. `None` when no executable was given.
+fn substitute_jail(
+    opts: &Options,
+    run_dir: &str,
+    evidence_errors: &mut Vec<String>,
+) -> Option<Result<CommandResult, String>> {
+    let exact = opts.jail_binary.as_deref()?;
+    heading("put the exact executable in place of the built one");
+    let local = match crate::util::sha256_file(exact) {
+        Ok(digest) => digest,
+        Err(e) => return Some(Err(format!("could not be read: {e}"))),
+    };
+    let mut report = format!(
+        "exact executable: {}
+sha256: {local}
+",
+        exact.display()
+    );
+    let sent = proc::run(
+        "rsync",
+        &substitute_upload_argv(&opts.target, exact, run_dir),
+        None,
+        None,
+    );
+    report.push_str(&format!(
+        "--- sent to the host ---\nexit {}\n",
+        sent.status_text()
+    ));
+    if sent.ok() {
+        let command = substitute_command(run_dir);
+        let installed = ssh(opts, &command);
+        report.push_str(&format!(
+            "--- on the host ---\n$ {command}\nexit {}\n{}{}",
+            installed.status_text(),
+            installed.stdout,
+            installed.stderr
+        ));
+        write_evidence(opts, "substituted-jail.txt", &report, evidence_errors);
+        if !installed.ok() {
+            return Some(Ok(installed));
+        }
+        let remote = installed
+            .stdout
+            .split_whitespace()
+            .next()
+            .unwrap_or_default();
+        if remote != local {
+            return Some(Err(format!(
+                "reached the host as {remote:?}, not as {local}"
+            )));
+        }
+        return Some(Ok(installed));
+    }
+    write_evidence(opts, "substituted-jail.txt", &report, evidence_errors);
+    Some(Ok(sent))
+}
+
 // ------------------------------------------------------------------ I01
 //
 // jail-v1 §15 I01: "Full jail conformance passes with ledger and fleet absent
@@ -986,6 +1075,10 @@ pub struct Options {
     pub worktree: PathBuf,
     pub host_manifest_script: PathBuf,
     pub jobs: u32,
+    /// An exact `ukai-jail` executable to test in place of the one the build
+    /// produces, for a release: the executable that will ship. It must have
+    /// been built for the tested commit, which the run's doctor check confirms.
+    pub jail_binary: Option<PathBuf>,
     pub config: Config,
 }
 
@@ -1050,7 +1143,12 @@ pub struct Remote {
     /// The release build, once the copy succeeded: its exit status, or why
     /// the detached build has none.
     pub build: Option<Result<CommandResult, String>>,
-    /// The steps on the built tree, once the build succeeded.
+    /// Putting the exact executable in place of the built one, when one was
+    /// given: its exit status, or why the step has no valid one. `None` when
+    /// no executable was given.
+    pub substitute: Option<Result<CommandResult, String>>,
+    /// The steps on the built tree, once the build succeeded and the exact
+    /// executable, when one was given, is in place.
     pub tested: Option<Tested>,
     /// The host manifest, collected however far the run got.
     pub host_manifest: CommandResult,
@@ -1272,6 +1370,22 @@ fn built<'a>(remote: &'a Remote, failures: &mut Vec<String>) -> Option<&'a Teste
                 return None;
             }
         }
+    }
+    match &remote.substitute {
+        None => {}
+        Some(Err(why)) => {
+            failures.push(format!("the exact executable {why}"));
+            return None;
+        }
+        Some(Ok(step)) if !step.ok() => {
+            passed(
+                failures,
+                "putting the exact executable in place of the built one",
+                step,
+            );
+            return None;
+        }
+        Some(Ok(_)) => {}
     }
     if remote.tested.is_none() {
         failures.push("the steps on the built tree did not run".to_string());
@@ -1547,13 +1661,23 @@ fn run_remote(
         .as_ref()
         .is_some_and(CommandResult::ok)
         .then(|| build_remote(opts, run_dir, revision, evidence_errors));
-    let tested = matches!(&build, Some(Ok(b)) if b.ok())
-        .then(|| run_after_build(opts, run_dir, revision, manifest, evidence_errors));
+    let built_ok = matches!(&build, Some(Ok(b)) if b.ok());
+    let substitute = if built_ok {
+        substitute_jail(opts, run_dir, evidence_errors)
+    } else {
+        None
+    };
+    let ready = built_ok
+        && substitute
+            .as_ref()
+            .is_none_or(|step| matches!(step, Ok(result) if result.ok()));
+    let tested = ready.then(|| run_after_build(opts, run_dir, revision, manifest, evidence_errors));
     let host_manifest = collect_host_manifest(opts, evidence_errors);
     Remote {
         mkdir,
         rsync,
         build,
+        substitute,
         tested,
         host_manifest,
     }
@@ -2099,6 +2223,64 @@ mod tests {
         let argv = ssh_argv(&target(), "echo hi");
         assert_eq!(argv[argv.len() - 2], "ukai-ci@198.51.100.7");
         assert_eq!(argv[argv.len() - 1], "echo hi");
+    }
+
+    /// An exact executable is installed over the built one before any step on
+    /// the built tree, and the host then prints the hash of what is in place.
+    #[test]
+    fn an_exact_executable_replaces_the_built_one_before_anything_runs() {
+        let run_dir = "20260922T000000Z-abc123";
+        let command = substitute_command(run_dir);
+        assert!(
+            command.starts_with(&format!("cd {} && ", run_path(run_dir))),
+            "{command}"
+        );
+        let installed = command.find("install -m 0755 ukai-jail.exact target/release/ukai-jail");
+        let hashed = command.rfind("sha256sum target/release/ukai-jail");
+        assert!(
+            installed.is_some() && hashed.is_some() && installed < hashed,
+            "{command}"
+        );
+        assert!(command.contains("> built-ukai-jail.sha256"), "{command}");
+        let argv = substitute_upload_argv(
+            &target(),
+            Path::new("/private/stage-arm/ukai-jail"),
+            run_dir,
+        );
+        assert_eq!(argv[0], "-a");
+        assert_eq!(argv[argv.len() - 2], "/private/stage-arm/ukai-jail");
+        assert_eq!(
+            argv[argv.len() - 1],
+            format!("ukai-ci@198.51.100.7:{REMOTE_RUNS}/{run_dir}/ukai-jail.exact")
+        );
+    }
+
+    /// The exact executable is a step of its own: one that is not put in
+    /// place fails the run, and the steps on the built tree are then not
+    /// judged, because they did not run.
+    #[test]
+    fn an_exact_executable_not_put_in_place_fails_the_run() {
+        let mut clean = a_clean_run();
+        remote(&mut clean).substitute = Some(Ok(okc()));
+        assert_eq!(verdict(&clean).failures, Vec::<String>::new());
+        for step in [
+            Some(Ok(failed(1, "install: cannot install 'ukai-jail.exact'"))),
+            Some(Err("reached the host as \"0…\", not as \"1…\"".to_string())),
+        ] {
+            let mut o = a_clean_run();
+            remote(&mut o).substitute = step;
+            let problems = verdict(&o).failures;
+            assert!(
+                problems.iter().any(|p| p.contains("the exact executable")),
+                "{problems:?}"
+            );
+            assert!(
+                !problems
+                    .iter()
+                    .any(|p| p.contains("vendor-name scan") || p.contains("suite")),
+                "{problems:?}"
+            );
+        }
     }
 
     #[test]
@@ -2915,6 +3097,7 @@ smoke doctor 0
                 mkdir: okc(),
                 rsync: Some(okc()),
                 build: Some(Ok(okc())),
+                substitute: None,
                 tested: Some(Tested {
                     i02: okc(),
                     doctor: okc(),
@@ -2952,6 +3135,7 @@ smoke doctor 0
                 mkdir,
                 rsync: None,
                 build: None,
+                substitute: None,
                 tested: None,
                 host_manifest: okc(),
             }),

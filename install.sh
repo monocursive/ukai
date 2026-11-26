@@ -42,8 +42,7 @@ Usage: bash install.sh [--version VERSION] [--bin-dir /absolute/path]
                        [--allow-downgrade]
        bash install.sh [--version VERSION] [--vm-prefix /absolute/path]
 
-Linux: installs Ukai Jail $version into ~/.local/bin. Stable releases cover x86_64.
-On ARM64, explicitly select a published Linux preview with --version.
+Linux: installs Ukai Jail $version into ~/.local/bin on x86_64 and ARM64.
 macOS: installs the Ukai VM preview $macos_version under ~/.local/share,
 with a command in ~/.local/bin. --vm-prefix changes the root containing bin and share.
 Pre-rename releases retain their ouro-jail / ouro-vm commands and package paths.
@@ -180,7 +179,7 @@ EOF
         fail 'cannot determine the glibc version'
     fi
     awk -v v="$libc_version" 'BEGIN {split(v,n,"."); exit !(n[1]>2 || (n[1]==2 && n[2]>=39))}' ||
-        fail "glibc $libc_version is too old; this preview requires glibc 2.39 or newer"
+        fail "glibc $libc_version is too old; this release requires glibc 2.39 or newer"
     if command -v sha256sum >/dev/null 2>&1; then
         digest() { sha256sum "$1" | awk '{print $1}'; }
     elif command -v shasum >/dev/null 2>&1; then

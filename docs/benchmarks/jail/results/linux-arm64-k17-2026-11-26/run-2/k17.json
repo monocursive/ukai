@@ -1,0 +1,88 @@
+{
+  "gate": "K17",
+  "verdict": "pass",
+  "problems": [],
+  "rows": [
+    {
+      "session": "plain",
+      "workload": "noop",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {
+        "exec_unconfirmed": 30
+      },
+      "load1_max": 1.43,
+      "added_startup_p95_ms": 45.969589,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 30717.052483015315,
+      "post_start_pass": null
+    },
+    {
+      "session": "plain",
+      "workload": "spawn-tree",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.47,
+      "added_startup_p95_ms": 46.003527,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 54.32192504845634,
+      "post_start_pass": null
+    },
+    {
+      "session": "plain",
+      "workload": "fileops",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.61,
+      "added_startup_p95_ms": 46.767320500000004,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 97.2702557876089,
+      "post_start_pass": true
+    },
+    {
+      "session": "scope",
+      "workload": "noop",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {
+        "exec_unconfirmed": 30
+      },
+      "load1_max": 1.6,
+      "added_startup_p95_ms": 32.3383095,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 29112.044665305613,
+      "post_start_pass": null
+    },
+    {
+      "session": "scope",
+      "workload": "spawn-tree",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.66,
+      "added_startup_p95_ms": 34.390025,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 50.95827601481603,
+      "post_start_pass": null
+    },
+    {
+      "session": "scope",
+      "workload": "fileops",
+      "subject_valid": 30,
+      "baseline_valid": 30,
+      "subject_flagged": {},
+      "load1_max": 1.86,
+      "added_startup_p95_ms": 34.3010655,
+      "startup_pass": true,
+      "post_start_overhead_median_pct": 96.96541775787333,
+      "post_start_pass": true
+    }
+  ],
+  "limits": {
+    "startup_p95_ms_exclusive": 500,
+    "fileops_post_start_overhead_pct_inclusive": 100
+  },
+  "summary_sha256": "86faf3877ecdcf95c33cfa948b11b1514e89cee2c397d8dc23a92be534f91a19"
+}
