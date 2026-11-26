@@ -1389,10 +1389,10 @@ platform_arch = "x86_64"
 platform_kernel = "Linux 7.0.0-31-generic"
 platform_os = "linux"
 ready = true
-revision = "9a4add2809975b3280bbb0404515d3bd85d57fe7"
+revision = "d3c380d2f5074bce5f8f3f25eb11d60d96fd8b2a"
 rustc = "rustc 1.98.1 (48a229cea 2026-09-01)"
 target = "x86_64-unknown-linux-gnu"
-ukai_jail_sha256 = "f915c298ae29886f7c828fc631b33e1ba1be714aa2c151f6c62706cd878027a8"
+ukai_jail_sha256 = "822370b6115f7ad9a4ce5f2814db3ba11caa08ddd6ea5ffe45c19077a0a029ef"
 unknown = ["supervisor_scope.reason", "supervisor_scope.reason_code", "supervisor_scope.unit"]
 verification = ["inputs_match_tree", "revision_is_ancestor_of_head", "inputs_match_revision", "frozen_inputs_unchanged_since_revision"]
 
@@ -1438,7 +1438,7 @@ swap_total_kib = 8388604
 "user.max_user_namespaces" = "11829"
 
 [tested.supervisor_scope]
-cgroup = "/user.slice/user-1001.slice/user@1001.service/app.slice/run-p498613-i38243320.scope"
+cgroup = "/user.slice/user-1001.slice/user@1001.service/app.slice/run-p1615724-i39353868.scope"
 state = "already_delegated"
 
 # --- the tested aarch64 run (cargo xtask freeze --doctor) ---
@@ -1451,10 +1451,10 @@ platform_arch = "aarch64"
 platform_kernel = "Linux 7.0.0-43-generic"
 platform_os = "linux"
 ready = true
-revision = "433e794bc09a9f774d7d421bf7d0b94482f2a9a2"
+revision = "d3c380d2f5074bce5f8f3f25eb11d60d96fd8b2a"
 rustc = "rustc 1.98.1 (48a229cea 2026-09-01)"
 target = "aarch64-unknown-linux-gnu"
-ukai_jail_sha256 = "b01c07d5a378bce363d1df11e5b5ed501cdabd38ab013ade0cd6452aec1d66ad"
+ukai_jail_sha256 = "e68781714a0019482ecfe2215915cfd66e85320b63b4dc7fa1b0aa8a2cc1684e"
 unknown = ["supervisor_scope.reason", "supervisor_scope.reason_code", "supervisor_scope.unit"]
 verification = ["inputs_match_tree", "revision_is_ancestor_of_head", "inputs_match_revision", "frozen_inputs_unchanged_since_revision"]
 
@@ -1488,7 +1488,7 @@ root_controllers = ["cpuset", "cpu", "io", "memory", "hugetlb", "pids", "rdma", 
 subtree_control = ["cpu", "memory", "pids"]
 
 [tested_aarch64.host.memory]
-mem_total_kib = 6039772
+mem_total_kib = 6039768
 swap_total_kib = 4194300
 
 [tested_aarch64.host.sysctls]
@@ -1500,5 +1500,5 @@ swap_total_kib = 4194300
 "user.max_user_namespaces" = "21089"
 
 [tested_aarch64.supervisor_scope]
-cgroup = "/user.slice/user-1001.slice/user@1001.service/app.slice/run-p430780-i429766.scope"
+cgroup = "/user.slice/user-1001.slice/user@1001.service/app.slice/run-p369744-i369809.scope"
 state = "already_delegated"

@@ -83,8 +83,8 @@ termination and source-rebuild checks. It remains private and unnotarized;
 those results do not establish vendor compatibility or full release acceptance.
 
 You can [build the jail and try a small command](https://github.com/monocursive/ukai/blob/dev/docs/guide.md#build-and-check-your-host)
-today. [Stable 0.1.0 for the tested Ubuntu x86_64 configuration](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0)
-and the [ARM64 rc.8 preview](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.0-rc.8) are available.
+today. [Stable 0.1.1 for the tested Ubuntu x86_64 and ARM64 configurations](https://github.com/monocursive/ukai/releases/tag/ukai-jail-v0.1.1)
+is available; 0.1.0 covered x86_64 alone.
 
 The separate [Ukai VM preview for Apple Silicon](https://ukai.sh/guide/#macos-vm-preview)
 is now available as a signed, notarized DMG through the same Bash installer.
