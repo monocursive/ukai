@@ -3063,7 +3063,7 @@ mod tests {
         }
         assert_eq!(
             linux.to_json(&map)["publication_scope"],
-            "linux-x86_64-stable"
+            "linux-x86_64-arm64-stable"
         );
         assert!(
             linux
@@ -3219,7 +3219,7 @@ mod tests {
     #[test]
     fn the_release_scope_comes_from_the_coordinates() {
         let scope = release_scope();
-        assert_eq!(scope.name, "linux-x86_64-stable");
+        assert_eq!(scope.name, "linux-x86_64-arm64-stable");
         for id in ["K23.1", "K24.1", "K26.1", "K29.1"] {
             assert!(scope.unsupported.contains(&id.to_owned()));
         }

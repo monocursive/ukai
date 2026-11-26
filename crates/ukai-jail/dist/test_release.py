@@ -155,9 +155,10 @@ class ReleaseTests(unittest.TestCase):
     def test_a_stable_candidate_from_the_arm64_release_ships_both_qualified_targets(self):
         from publish_release import ROOT, check, stable_title
         release = '0.1.1'
-        # Until the coordinates name the ARM64 release, a stable version ships x86_64 alone.
-        self.assertEqual(release_targets(release), (STABLE_TARGET,))
-        self.assertEqual(release_scope(release), 'linux-x86_64-stable')
+        # With the coordinates as they are: the ARM64 release is named, or a stable version ships x86_64 alone.
+        named = coordinates.ARM64_STABLE_VERSION is not None
+        self.assertEqual(release_targets(release), (STABLE_TARGET, ARM64_TARGET) if named else (STABLE_TARGET,))
+        self.assertEqual(release_scope(release), coordinates.PUBLICATION_SCOPE if named else 'linux-x86_64-stable')
         with ARM64_STABLE:
             self.assertEqual(release_targets(release), (STABLE_TARGET, ARM64_TARGET))
             self.assertEqual(release_scope(release), coordinates.PUBLICATION_SCOPE)

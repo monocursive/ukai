@@ -116,12 +116,15 @@ a private backup for future releases. Private key material is never sent to CI.
 
 ## Stable Linux publication
 
-A version without a SemVer prerelease suffix ships one native
-`x86_64-unknown-linux-gnu` archive. ARM64 users can explicitly select a pinned
-preview with `--version 0.1.0-rc.8`. The signed plan records the qualified
-configuration of each target it ships: for x86_64 the tested Ubuntu 26.04.1 LTS
-host, kernel 7.0.0-31-generic, bubblewrap 0.11.1, ptrace observation and
-reference cgroup delegation. The
+Stable 0.1.0 ships one native `x86_64-unknown-linux-gnu` archive, and ARM64
+users select a pinned preview with `--version 0.1.0-rc.8`. From 0.1.1, the first
+stable release with an ARM64 archive, a version without a SemVer prerelease
+suffix ships one archive for each Linux target. The signed plan records the
+qualified configuration of each target it ships. For x86_64 that is the tested
+Ubuntu 26.04.1 LTS host, kernel 7.0.0-31-generic, bubblewrap 0.11.1, ptrace
+observation and reference cgroup delegation. For ARM64 it is Ubuntu 26.04.1
+LTS, kernel 7.0.0-43-generic, bubblewrap 0.11.1, the same delegation and
+observation, measured in an HVF virtual machine on Apple Silicon. The
 [Linux runtime audit](security-audit-2026-11-18-linux.md) describes the
 evaluated x86_64 workloads and remaining platform limits.
 The [22 November x86_64 reference run](benchmarks/jail/results/linux-x86-reference-2026-11-22/reference-conformance.json) passed 3,079 tests after refreshing the clean-VM OpenCode onboarding and learning records.
@@ -135,14 +138,17 @@ every native archive it builds, and the publisher for every target a stable
 release ships. The conformance driver reaches a guest through a forwarded SSH
 port with `--port`.
 
-A stable release ships ARM64 only once `arm64_stable_version` and
-`arm64_stable_host` in [release.json](../crates/ukai-jail/dist/release.json)
-name the first such release and its qualified configuration, and
-`publication_scope` takes its two-target name, `linux-x86_64-arm64-stable`.
-Nothing in the publisher re-measures K17 or reviews the evidence, so set these
-together, in one reviewed change, only after the ARM64 gates are confirmed on
-a quiet host; the release tests hold them to that. Until then a stable release
-ships x86_64 alone and the ARM64 archive stays in previews.
+`arm64_stable_version` and `arm64_stable_host` in
+[release.json](../crates/ukai-jail/dist/release.json) name the first stable
+release with an ARM64 archive and its qualified configuration, and
+`publication_scope` is the two-target name, `linux-x86_64-arm64-stable`. The
+three are set together, and the release tests hold them to that. Nothing in the
+publisher re-measures K17 or reviews the evidence, so the ARM64 gates were
+confirmed first. The [23 November record](benchmarks/jail/arm64-stable-qualification-2026-11-23.md)
+lists seven K17 replays that alternated between passing and failing under host
+load. The [26 November record](benchmarks/jail/arm64-k17-2026-11-26.md) declared
+five replays in a row as the criterion and passes all five on the executable of
+the recorded conformance run.
 
 Use the native stages from the release-candidate workflow for the exact commit.
 Run the assembly and publication steps below with one stage per target and the
@@ -155,7 +161,7 @@ The [ARM64 qualification record](benchmarks/jail/arm64-qualification-2026-11-19.
 The [ARM64 remediation run](benchmarks/jail/arm64-remediation-2026-11-19.md) covers the subsequent journal and foreign-ABI changes. The [SSD-backed ARM64 qualification](benchmarks/jail/arm64-ssd-qualification-2026-11-19.md) records the K17 pass and the native ARM32 limitation on the M5 Pro.
 The [64-bit-only ARM64 qualification](benchmarks/jail/arm64-only-qualification-2026-11-19.md) records what the M5 guest kernel rejects before execution and the release gates tested on that configuration.
 The [R01.8 review and M5 rerun](benchmarks/jail/arm64-r018-qualification-2026-11-19.md) defines the native-refusal receipt and tracks the previously missing checks.
-The [20 November M5 gate review](benchmarks/jail/arm64-gate-review-2026-11-20.md) identified 15 missing checks. The [22 November supervision and observation run](benchmarks/jail/arm64-supervision-2026-11-22.md) closed four more gates. The [23 November complete ARM64 run](benchmarks/jail/arm64-stable-qualification-2026-11-23.md) passed all seven and is the recorded ARM64 tested run. Its K17 measurement is not confirmed, so ARM64 stays in previews until a quiet host measures it.
+The [20 November M5 gate review](benchmarks/jail/arm64-gate-review-2026-11-20.md) identified 15 missing checks. The [22 November supervision and observation run](benchmarks/jail/arm64-supervision-2026-11-22.md) closed four more gates. The [23 November complete ARM64 run](benchmarks/jail/arm64-stable-qualification-2026-11-23.md) passed all seven and is the recorded ARM64 tested run. The [26 November K17 record](benchmarks/jail/arm64-k17-2026-11-26.md) passes five replays in a row on its executable.
 The public Mac VM keeps its own version and pins.
 
 ## Linux-only Jail release scope
