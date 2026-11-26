@@ -145,11 +145,24 @@ def publication_gates(plan, public_key):
             jobs = gh_json('run', 'view', str(latest['databaseId']), '--repo', REPOSITORY,
                            '--json', 'jobs')['jobs']
             for target in targets:
-                if not any(j['name'] == f'native ({target})' and j['conclusion'] == 'success' for j in jobs):
+                if not any(j['conclusion'] == 'success' and target in native_job_targets(j['name'])
+                           for j in jobs):
                     raise ValueError(f'the native {target} release candidate must actually build and pass')
     tag_revision = run('gh', 'api', f'repos/{REPOSITORY}/commits/{plan["tag"]}', '--jq', '.sha')
     if tag_revision != revision:
         raise ValueError('push an immutable release tag pointing at the candidate commit')
+
+
+def native_job_targets(name):
+    """What a native job of the release-candidate workflow built, or nothing.
+
+    The workflow names it `native (<target>, <runner image>)`, and the two have
+    been written in either order.
+    """
+    inner = name.removeprefix('native (')
+    if inner == name or not inner.endswith(')'):
+        return []
+    return inner[:-1].split(', ')
 
 
 def stable_title(version):
